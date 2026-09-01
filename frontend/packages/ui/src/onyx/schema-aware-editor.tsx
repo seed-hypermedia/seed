@@ -30,10 +30,10 @@ export function seedForSchema(schema: OnyxSchema, seed: (s: OnyxSchema, reg?: On
   return isMetaSchema(schema) ? emptyStructSchema() : seed(schema)
 }
 
-/** Problems the form itself insists on (beyond validation): a schema needs a name. */
-export function schemaFormProblems(schema: OnyxSchema | undefined, value: unknown): string[] {
-  if (!isMetaSchema(schema) || !fitsStructForm(value)) return []
-  return typeof value.name === 'string' && value.name.trim() ? [] : ['a type name is required']
+/** Problems the form itself insists on (beyond validation). A schema carries no name of its own —
+ * its defining document names it — so nothing beyond meta-schema validation applies today. */
+export function schemaFormProblems(_schema: OnyxSchema | undefined, _value: unknown): string[] {
+  return []
 }
 
 export function SchemaAwareEditor({

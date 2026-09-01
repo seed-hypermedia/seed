@@ -1,6 +1,4 @@
 {
-  "name": "Table block",
-  "description": "A table container. Its children are TableColumn blocks (childless; their sibling order defines column display order) followed by TableRow blocks whose children are Paragraph cells carrying a columnId attribute \u2014 cell identity is (row, columnId), never grid position, which is what lets concurrent CRDT edits merge cleanly.",
   "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base",
   "properties": {
     "type": {

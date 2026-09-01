@@ -599,6 +599,10 @@ export const HMDocumentMetadataSchema = z
     importTags: z.string().optional(),
     // JSON-stringified schema definition; present iff this document describes a schema (see notes/onyx-schema-as-document.md).
     schemaDefinition: z.string().optional(),
+    // The WORKING schema object a draft carries while its schema is being authored. Publish
+    // freezes it into a DAG-CBOR blob and replaces it with `schemaDefinition: ipfs://<cid>`;
+    // it must never reach a published document as-is.
+    schemaDraft: z.unknown().optional(),
   })
   // Metadata is an open/extensible attribute map: the document data model
   // supports arbitrary keys (custom fields, schema-keyed `ipfs://…` fields).

@@ -1,6 +1,4 @@
 {
-  "name": "Raw document change",
-  "description": "One change of a document's history in raw listing form: CID, author, dependency edges, time. A derived read model computed by the Seed daemon/API for clients \u2014 not a signed network blob.",
   "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
   "properties": {
     "id": {

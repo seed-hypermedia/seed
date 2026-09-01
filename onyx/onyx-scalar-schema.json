@@ -1,6 +1,4 @@
 {
-  "name": "Scalar schema",
-  "description": "The variant for a scalar value (null, boolean, integer, float, string, bytes), optionally restricted by enum or pattern, or given a semantic `format` (hm-url, hm-profile, ipfs, date, date-time) that a UI renders as a richer input, with an optional `target` naming the schema a reference should point at.",
   "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
   "required": [
     "type"
@@ -42,9 +40,6 @@
     },
     "maximum": {
       "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer"
-    },
-    "name": {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     },
     "description": {
       "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"

@@ -14,5 +14,5 @@ export function WebSchemaPage() {
   const navigate = useNavigate()
   const openUrl = useOpenUrl()
   if (route.key !== 'schema') throw new Error(`WebSchemaPage: unsupported route ${route.key}`)
-  return <OnyxSchemaBrowserPage cid={route.cid} navigate={navigate} openUrl={openUrl} />
+  return <OnyxSchemaBrowserPage cid={route.cid} docId={route.id} navigate={navigate} openUrl={openUrl} />
 }

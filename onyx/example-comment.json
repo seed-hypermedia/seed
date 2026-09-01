@@ -1,6 +1,4 @@
 {
-  "name": "Comment",
-  "description": "A comment with an author and replies, which are themselves comments.",
   "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
   "required": [
     "text"

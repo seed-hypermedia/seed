@@ -1,6 +1,4 @@
 {
-  "name": "Query block",
-  "description": "A block that embeds a live query: its results (documents from the queried spaces) render in place, styled as cards, a list, or a table.",
   "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base",
   "required": [
     "attributes"

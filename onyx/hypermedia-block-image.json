@@ -1,6 +1,4 @@
 {
-  "name": "Image block",
-  "description": "An image, referenced by a URL (typically ipfs://).",
   "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base",
   "required": [
     "link"

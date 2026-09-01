@@ -1,6 +1,4 @@
 {
-  "name": "Block (base)",
-  "description": "Fields shared by every concrete block type: id, optional revision, and the type discriminator. Concrete blocks extend this.",
   "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
   "required": [
     "id",

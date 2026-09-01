@@ -50,7 +50,7 @@ describe('OnyxSchemaEditor (struct form)', () => {
   })
 
   it('adds a field and stays a valid schema', () => {
-    act(() => root.render(<Harness initial={{...emptyStructSchema(), name: 'Person'}} />))
+    act(() => root.render(<Harness initial={emptyStructSchema()} />))
     click(findButton('Add field'))
     expect(Object.keys(latest.properties ?? {})).toHaveLength(1)
     expect(kindOf(latest.type)).toBe('map')
