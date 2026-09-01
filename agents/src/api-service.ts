@@ -3800,7 +3800,7 @@ export class Service {
       runningSession.completeAfterTools = true
       return continuationToolOutput(outcome)
     }
-    const input = normalizeContinueSessionInput(raw)
+    const input = normalizeContinueSessionInput(raw, sessionId)
     if (runningSession.parkToolCallIds?.length) {
       throw new APIError(
         400,
@@ -3849,7 +3849,7 @@ export class Service {
       )
     }
     const stateDir = this.#agentMemoryStateDir(accountId, agentId)
-    const sources = this.#validateContinuationSources(accountId, sessionId, events, stateDir, input.sources)
+    const sources = this.#validateContinuationSources(accountId, agentId, sessionId, events, stateDir, input.sources)
     const originSessionId = this.#continuationOriginOf(accountId, sessionId)
     const plan = this.#storedSessionPlan(accountId, sessionId)
     const planTransfer: 'carry' | 'close' | 'omit' =
@@ -4029,6 +4029,7 @@ export class Service {
    */
   #validateContinuationSources(
     accountId: string,
+    agentId: string,
     sessionId: string,
     events: api.SessionEvent[],
     stateDir: string,
@@ -4038,10 +4039,14 @@ export class Service {
     const threadMaxSeq = (id: string): number => {
       const known = maxSeqOf.get(id)
       if (known !== undefined) return known
+      // Any thread of this agent is citable, whoever's account it sits under; so is any thread of
+      // this account. A thread outside both is unreachable to the successor and must not be cited.
       const owned = this.#db
-        .query<{n: number}, [string, string]>(`SELECT COUNT(*) AS n FROM sessions WHERE account_id = ? AND id = ?`)
-        .get(accountId, id)
-      if (!owned?.n) throw new APIError(400, `Source thread ${id} is not one of this account's threads`)
+        .query<{n: number}, [string, string, string]>(
+          `SELECT COUNT(*) AS n FROM sessions WHERE id = ? AND (account_id = ? OR agent_id = ?)`,
+        )
+        .get(id, accountId, agentId)
+      if (!owned?.n) throw new APIError(400, `Source thread ${id} does not exist, or belongs to another agent`)
       const max =
         this.#db
           .query<{max: number | null}, [string]>(`SELECT MAX(seq) AS max FROM session_events WHERE session_id = ?`)
@@ -10479,11 +10484,13 @@ function readThreadAddress(
   sessionId: string,
   options: Record<string, unknown> = {},
 ): Record<string, unknown> {
+  // Any thread of this agent is readable, whichever account it sits under, and so is any thread
+  // of this account — the same reach a continuation may cite.
   const session = context.db
-    .query<{id: string; title: string | null; description: string | null; agent_id: string}, [string, string]>(
-      `SELECT id, title, description, agent_id FROM sessions WHERE account_id = ? AND id = ?`,
+    .query<{id: string; title: string | null; description: string | null; agent_id: string}, [string, string, string]>(
+      `SELECT id, title, description, agent_id FROM sessions WHERE id = ? AND (account_id = ? OR agent_id = ?)`,
     )
-    .get(context.accountId, sessionId)
+    .get(sessionId, context.accountId, context.agentId)
   if (!session) throw new APIError(404, `No thread ${sessionId}`)
   const fromSeq = Number.isInteger(options.fromSeq) ? Number(options.fromSeq) : undefined
   const toSeq = Number.isInteger(options.toSeq) ? Number(options.toSeq) : undefined
@@ -13377,8 +13384,11 @@ type ContinueSessionInput = {
   transfer?: {plan?: 'carry' | 'close' | 'omit'}
 }
 
-/** Validates continue_session input: what the agent must supply, bounded like the status verb. */
-function normalizeContinueSessionInput(raw: unknown): ContinueSessionInput {
+/**
+ * Validates continue_session input: what the agent must supply, bounded like the status verb.
+ * Thread sources default to `defaultSessionId` — the session being continued — when they name none.
+ */
+function normalizeContinueSessionInput(raw: unknown, defaultSessionId: string): ContinueSessionInput {
   const input = isPlainRecord(raw) ? raw : {}
   if (!CONTINUATION_REASONS.includes(input.reason as api.SessionContinuationReason)) {
     throw new APIError(400, `continue_session needs a reason: one of ${CONTINUATION_REASONS.join(', ')}`)
@@ -13415,7 +13425,8 @@ function normalizeContinueSessionInput(raw: unknown): ContinueSessionInput {
     for (const entry of input.sources) {
       if (!isPlainRecord(entry)) throw new APIError(400, 'Each source must be an object')
       const relevance = normalizeBoundedString(entry.relevance, 'source.relevance', MAX_SESSION_DESCRIPTION_BYTES)
-      const sessionId = typeof entry.sessionId === 'string' && entry.sessionId.trim() ? entry.sessionId.trim() : ''
+      const sessionId =
+        typeof entry.sessionId === 'string' && entry.sessionId.trim() ? entry.sessionId.trim() : defaultSessionId
       switch (entry.kind) {
         case 'resource':
           sources.push({

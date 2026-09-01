@@ -110,7 +110,11 @@ const CONTINUE_ARGS = {
     decisions: ['Lisbon over Porto because of flight availability'],
     nextActions: ['Shortlist three venues', 'Draft a two-day agenda'],
   },
-  sources: [{kind: 'resource', url: 'hm://z6MkTest/notes', relevance: 'agenda draft'}],
+  sources: [
+    {kind: 'resource', url: 'hm://z6MkTest/notes', relevance: 'agenda draft'},
+    // No sessionId: the range is of the session being continued.
+    {kind: 'session_events', fromSeq: 1, toSeq: 1, relevance: 'the opening question'},
+  ],
 }
 
 /**
@@ -218,6 +222,7 @@ describe('continue_session', () => {
     expect(manifest.sources).toEqual(
       expect.arrayContaining([
         expect.objectContaining({kind: 'resource', url: 'hm://z6MkTest/notes'}),
+        expect.objectContaining({kind: 'session_events', sessionId: predecessorId, fromSeq: 1, toSeq: 1}),
         expect.objectContaining({kind: 'session_event', sessionId: predecessorId, seq: manifest.initiatingEvent.seq}),
         expect.objectContaining({kind: 'session_events', sessionId: predecessorId}),
       ]),
@@ -292,6 +297,9 @@ describe('continue_session', () => {
     expect(projection).toContain(CONTINUE_ARGS.handoff.purpose)
     expect(projection).toContain('Budget is 20k EUR')
     expect(projection).toContain('hm://z6MkTest/notes')
+    // The cited range was loaded as an exact excerpt, and the manifest says so.
+    expect(projection).toContain('<excerpt thread="' + predecessorId + '" from_seq="1" to_seq="1"')
+
     expect(projection).toContain('<recent_exchanges')
     expect(projection).toContain('How is the venue survey going?')
     // The initiating message is not excerpted — it is replayed as its own event next.
