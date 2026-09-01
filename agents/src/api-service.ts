@@ -101,6 +101,7 @@ import type {
 } from '@seed-hypermedia/client/hm-types'
 import {hmIdPathToEntityQueryPath, unpackHmId} from '@seed-hypermedia/client/hm-types'
 import * as pi from '@mariozechner/pi-coding-agent'
+import {providerErrorReason, recordPerf, recordPerfCount} from '@/perf'
 import {getModels} from '@mariozechner/pi-ai'
 import type {OAuthCredentials} from '@mariozechner/pi-ai/oauth'
 import {openaiCodexOAuthProvider} from '@mariozechner/pi-ai/oauth'
@@ -6468,6 +6469,10 @@ export class Service {
     runningSession?: RunningSession,
     run?: runs.RunRecord,
   ): Promise<api.SessionEvent> {
+    // Everything between here and the first provider request is pre-turn overhead the user waits
+    // through in silence: prompt resolution, replay building, session assembly. Measured as
+    // `provider.request_gap` when the first request goes out.
+    const turnPrepStartedAt = Date.now()
     const session = this.#getSessionInfo(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
     // A session-level model override replaces the definition's model settings for this whole run.
@@ -6602,6 +6607,11 @@ export class Service {
     })
 
     const mergeModelDefaults = provider.modelDefaults
+    // Provider latency markers, set as each request leaves and cleared by the first streamed
+    // output. TTFT (request sent → first output event) is the latency a person actually stares at.
+    let lastRequestSentAt = 0
+    let firstRequestSent = false
+    let awaitingFirstOutput = false
     piSession.agent.onPayload = (payload) => {
       // The next provider request is the tool batch's end: if this turn spawned sub-sessions (park)
       // or delivered its typed result, the turn is over — refuse to send another provider request.
@@ -6624,6 +6634,12 @@ export class Service {
         activeTools: piSession.getActiveToolNames(),
         payloadTools,
       })
+      if (!firstRequestSent) {
+        firstRequestSent = true
+        recordPerf('provider.request_gap', Date.now() - turnPrepStartedAt)
+      }
+      lastRequestSentAt = Date.now()
+      awaitingFirstOutput = true
       let next = restoreReasoningEffort(payload, definition)
       if (mergeModelDefaults) next = mergePiPayloadDefaults(next, mergeModelDefaults)
       return next
@@ -6811,6 +6827,15 @@ export class Service {
     }
 
     const unsubscribe = piSession.subscribe((event) => {
+      if (
+        awaitingFirstOutput &&
+        (event.type === 'message_update' || event.type === 'message_end' || event.type === 'tool_execution_start')
+      ) {
+        awaitingFirstOutput = false
+        const ttftMs = Date.now() - lastRequestSentAt
+        recordPerf('provider.ttft', ttftMs)
+        logRun('provider first output', {ttftMs})
+      }
       if (event.type === 'message_update' && event.assistantMessageEvent.type === 'text_delta') {
         const delta = event.assistantMessageEvent.delta
         if (!currentAssistantHadDelta) {
@@ -6839,6 +6864,7 @@ export class Service {
           usage?: {input?: number; output?: number; cacheRead?: number; cacheWrite?: number}
         }
         turnCount += 1
+        if (lastRequestSentAt) recordPerf('provider.turn', Date.now() - lastRequestSentAt)
         const turnUsage = assistantMessage.usage
         if (turnUsage) {
           turnUsageForMeta = {
@@ -6869,6 +6895,12 @@ export class Service {
         emitProgress({usage: {...runUsage}, activity: {phase: 'thinking'}})
         if (assistantMessage.stopReason === 'error' || assistantMessage.stopReason === 'aborted') {
           finalError = assistantMessage.errorMessage || 'Agent run failed'
+          // Aborts are people stopping runs, not the provider failing; only real errors count.
+          if (assistantMessage.stopReason === 'error') {
+            recordPerfCount(
+              `provider.error.${model.provider}.${definition.model ?? 'default'}.${providerErrorReason(finalError)}`,
+            )
+          }
           logRunError('assistant turn reported error', {stopReason: assistantMessage.stopReason, error: finalError})
           return
         }
@@ -6926,6 +6958,7 @@ export class Service {
         }
         const startedAt = toolStartedAt.get(event.toolCallId)
         toolStartedAt.delete(event.toolCallId)
+        if (startedAt !== undefined) recordPerf(`tool.${event.toolName}`, Date.now() - startedAt)
         logRun(event.isError ? 'tool call failed' : 'tool call end', {
           tool: event.toolName,
           toolCallId: event.toolCallId,
@@ -11691,6 +11724,7 @@ async function executeLambdaTool(
   let execution: CodeExecResult
   try {
     execution = await context.codeExec.execute({
+      principal: {accountId: context.accountId, agentId: context.agentId, sessionId: context.sessionId},
       stateDir: context.stateDir,
       runtime,
       code: buildLambdaProgram(runtime, source, toolInput),
@@ -11928,6 +11962,7 @@ export async function executeCallVerb(
       let result
       try {
         result = await context.codeExec.execute({
+          principal: {accountId: context.accountId, agentId: context.agentId, sessionId: context.sessionId},
           stateDir: context.stateDir,
           runtime: toolInput.runtime as never,
           code: typeof toolInput.code === 'string' ? toolInput.code : '',

@@ -24,7 +24,8 @@ import {mcpToolDocumentName} from '@/mcp'
 /**
  * The lambda ABI — what an authored tool's source must look like, and how a call reaches it.
  *
- * A lambda runs in the same sandbox the `execute` tool uses: a fresh microVM per call, with the
+ * A lambda runs in the same sandbox the `execute` tool uses: an isolated microVM (fresh, or a
+ * warm same-principal one when pooling is enabled — never shared across principals), with the
  * agent's memory mounted at `/workspace` (the working directory), so a tool can read and write the
  * agent's own files. It receives ONE argument — the call input, already validated against the
  * document's `input` schema — and its RETURN VALUE is the tool's result, validated against the

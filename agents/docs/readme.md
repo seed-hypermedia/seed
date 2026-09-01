@@ -151,6 +151,11 @@ Important incomplete work:
     provider egress, log volume) and the workstreams removing them, including session-scoped long-lived sandboxes.
 23. [Multi-server architecture](./multi-server-architecture.md) — the three-phase path off a single host, with the
     scaling and cost model.
+24. [Agent speed plan](./agent-speed-plan.md) — the perceived-latency project: per-stage instrumentation (`/api/perf`,
+    `scripts/bench-exec.ts`), first measurements, and the workstreams. Its two design companions:
+    [warm microVM pool](./exec-warm-pool.md) for keeping sandboxes alive between `execute` calls, and
+    [model comms latency](./model-comms-latency.md) for prompt caching, server-side conversation state, and byte-stable
+    prefixes.
 
 ## Canonical code entry points
 

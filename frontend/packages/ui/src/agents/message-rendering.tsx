@@ -354,21 +354,21 @@ function StatusUpdateRow({item}: {item: ChatToolPart}) {
         item.isError ? 'border-destructive/30 bg-destructive/5' : 'border-border bg-muted/40',
       )}
     >
-      {/* The header line is the title when the call set one; "Status" only when it did not. */}
-      <div className="flex items-center gap-1.5">
+      {/* The header line is the title when the call set one; otherwise the description itself. */}
+      <div className="flex items-start gap-1.5">
         {isPending ? (
-          <Loader2 className="text-muted-foreground size-3 shrink-0 animate-spin" />
+          <Loader2 className="text-muted-foreground mt-0.5 size-3 shrink-0 animate-spin" />
         ) : (
-          <Activity className="text-muted-foreground size-3 shrink-0" />
+          <Activity className="text-muted-foreground mt-0.5 size-3 shrink-0" />
         )}
         {title ? (
           <span className="text-foreground min-w-0 text-sm font-medium">{title}</span>
         ) : (
-          <span className="text-muted-foreground text-[10px] font-medium tracking-[0.18em] uppercase">Status</span>
+          <p className="text-foreground/85 min-w-0 text-[13px] leading-5 whitespace-pre-wrap">{description}</p>
         )}
         {item.isError ? <ToolChip tone="error">Failed</ToolChip> : null}
       </div>
-      {description ? (
+      {title && description ? (
         <p className="text-foreground/85 mt-1 text-[13px] leading-5 whitespace-pre-wrap">{description}</p>
       ) : null}
       {item.isError && item.result ? (

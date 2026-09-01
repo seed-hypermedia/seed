@@ -13,6 +13,7 @@
  */
 
 import {listMemory, memoryRootPath} from '@/agent-memory'
+import {recordPerf, recordPerfCount} from '@/perf'
 import * as fs from 'node:fs'
 
 /** Guest path where the agent's memory directory is mounted. */
@@ -63,6 +64,23 @@ export type CodeExecConfig = {
   allowNetwork: boolean
   /** Upstream DNS nameservers for sandbox name resolution when networking is enabled. */
   dnsServers: string[]
+  /** Keep microVMs alive between executions (docs/exec-warm-pool.md). Off by default. */
+  warmPool: boolean
+  /**
+   * Maximum RETAINED pool entries (parked or leased pooled VMs). Not a hard cap on total live
+   * VMs: same-key concurrency and lost boot races create transient single-use overflow VMs at
+   * boot-per-call cost, so the cap can never make a call fail or wait.
+   */
+  poolMaxVms: number
+  /** How long a parked VM may sit idle before it is disposed. */
+  poolIdleTtlMs: number
+  /**
+   * Maximum age of a pooled VM, enforced only BETWEEN calls: an over-age VM is disposed at park
+   * time, after its call completed — a VM can never expire while it is being used. Bounds the
+   * slow cruft of a long-lived guest (unreaped zombie corpses from per-call resets, memory drift)
+   * at the cost of one invisible re-boot per this interval of continuous use.
+   */
+  poolVmMaxAgeMs: number
   /** Override for EXEC_TIMEOUT_GRACE_MS, so tests can exercise the watchdog without real waits. */
   timeoutGraceMs?: number
   /** Override for EXEC_TEARDOWN_TIMEOUT_MS, so tests can exercise stop→kill escalation quickly. */
@@ -75,8 +93,26 @@ export type CodeExecRuntime = 'ts' | 'python' | 'shell'
 /** Every runtime this build knows how to run, in the order the contract lists them. */
 export const CODE_EXEC_RUNTIMES: readonly CodeExecRuntime[] = ['ts', 'python', 'shell']
 
+/**
+ * The identity an execution runs for, carried explicitly across the sandbox seam so a pooling
+ * source keys VMs on typed identity — never inferred from a filesystem path, which is a
+ * representation detail and not a security boundary.
+ *
+ * Two distinct boundaries live here:
+ * - `accountId` + `agentId` are the SECURITY boundary: a sandbox must never be shared across
+ *   agent instances, ever.
+ * - `sessionId` is a PREDICTABILITY boundary: pooling is additionally confined to one session, so
+ *   guest RAM state (installed packages, temp files, environment) from one conversation can never
+ *   surface in another. A new session always starts from a cold, known-clean VM; only repeat
+ *   calls within the same session get the warm one. Durable cross-session state belongs in
+ *   /workspace, which is the agent's memory and survives regardless.
+ */
+export type ExecPrincipal = {accountId: string; agentId: string; sessionId: string}
+
 /** One code execution request against an agent's memory workspace. */
 export type CodeExecRequest = {
+  /** Who this execution belongs to; sandbox reuse must never cross this identity. */
+  principal: ExecPrincipal
   stateDir: string
   runtime: CodeExecRuntime
   code: string
@@ -106,6 +142,12 @@ export type CodeExecResult = {
   /** True when stdout or stderr was cut to the size limit. */
   truncated: boolean
   durationMs: number
+  /**
+   * How much of `durationMs` went to booting the sandbox before any code ran. On today's
+   * fresh-VM-per-call backend this is pure overhead the warm-pool workstream aims to remove;
+   * exposing it per call is what lets that claim be measured instead of assumed.
+   */
+  bootMs: number
   /** Memory files added/modified/removed by the execution, from a before/after listing diff. */
   changedFiles: CodeExecFileChange[]
   /** Real change count; exceeds `changedFiles.length` when the reported list was capped. */
@@ -233,6 +275,8 @@ export type CodeExecutor = {
   /** Whether execution can actually work here: config, platform support, loadable runtime. Memoized. */
   availability(): Promise<CodeExecAvailability>
   execute(request: CodeExecRequest): Promise<CodeExecResult>
+  /** Settles any asynchronously disposed sandboxes; shutdown and tests await it for determinism. */
+  drain(): Promise<void>
 }
 
 /** Error raised for invalid execution requests or backend failures. */
@@ -259,6 +303,10 @@ export function defaultCodeExecConfig(): CodeExecConfig {
     timeoutSecs: 60,
     allowNetwork: true,
     dnsServers: DEFAULT_EXEC_DNS_SERVERS,
+    warmPool: false,
+    poolMaxVms: 3,
+    poolIdleTtlMs: 3 * 60_000,
+    poolVmMaxAgeMs: 30 * 60_000,
   }
 }
 
@@ -308,6 +356,463 @@ export const loadMicrosandbox = async (): Promise<SandboxSdk> => {
   }
 }
 
+/** What an execution needs from a sandbox, whatever provides it. */
+export type SandboxSpec = {
+  /**
+   * SECURITY: the identity a pooling source MUST key sandbox reuse on (together with `image`).
+   * Two different principals may never receive the same VM; a test must prove it before any
+   * pooling source ships.
+   */
+  principal: ExecPrincipal
+  /** OCI image for the rootfs (already runtime-resolved: tsImage for ts, image otherwise). */
+  image: string
+  /** Host path of the agent's memory directory, bind-mounted at the workspace guest path. */
+  memoryRoot: string
+  /**
+   * This call's execution timeout. The boot-per-call source derives the VM's max lifetime from it
+   * (the VM exists for exactly one call); a pooling source must NOT — pooled VM lifetime is the
+   * source's own policy (idle TTL, caps), decoupled from any single call's timeout.
+   */
+  timeoutSecs: number
+}
+
+/**
+ * A sandbox on loan for one execution. `release` MUST be called exactly once, success or failure;
+ * `healthy: false` tells the source the guest may be wedged (a watchdog kill, an SDK error) so it
+ * is disposed rather than ever handed out again.
+ */
+export type SandboxLease = {
+  sandbox: SandboxLike
+  /** Milliseconds spent booting; 0 once a pooling source hands out a warm sandbox. */
+  bootMs: number
+  /** True when the lease reused a live sandbox instead of booting one. */
+  reused: boolean
+  release(opts: {healthy: boolean}): Promise<void>
+}
+
+/**
+ * Where executions get their sandboxes — the seam the warm-pool workstream implements
+ * (docs/exec-warm-pool.md). The default source boots a fresh microVM per lease and tears it down
+ * on release, which is exactly the historical behavior; a pooling source can keep healthy
+ * sandboxes alive between leases without the execute path changing at all.
+ *
+ * Contract every source must honor:
+ * - A sandbox is on loan to at most one lease at a time — never double-leased. Concurrent
+ *   acquires for the same (principal, image) either queue or get distinct VMs.
+ * - `release` may return fast (parking is not teardown); actual disposal can drain
+ *   asynchronously. `drain` is where that debt is settled, so shutdown and tests stay
+ *   deterministic.
+ * - A reused sandbox must be reset before it is handed out again (no processes or guest temp
+ *   state from the previous call), per the reset-before-park contract in the pool design.
+ */
+export type SandboxSource = {
+  acquire(spec: SandboxSpec): Promise<SandboxLease>
+  /** Resolves when every asynchronously disposed sandbox has finished tearing down. */
+  drain(): Promise<void>
+}
+
+/** Builds a source from executor internals; injectable so tests can substitute a fake source. */
+export type SandboxSourceFactory = (config: CodeExecConfig, getSdk: () => Promise<SandboxSdk>) => SandboxSource
+
+/** Boots one microVM for a spec, with the max lifetime the calling source chose. */
+async function bootSandboxVm(
+  config: CodeExecConfig,
+  getSdk: () => Promise<SandboxSdk>,
+  spec: SandboxSpec,
+  maxDurationSecs: number,
+): Promise<{sandbox: SandboxLike; bootMs: number}> {
+  const sdk = await getSdk()
+  const bootStartedAt = Date.now()
+  let sandbox: SandboxLike
+  try {
+    let builder = sdk.Sandbox.builder(`seed-exec-${crypto.randomUUID().slice(0, 13)}`)
+      .image(spec.image)
+      .cpus(config.cpus)
+      .memory(config.memoryMib)
+      .workdir(EXEC_WORKSPACE_GUEST_PATH)
+      .ephemeral(true)
+      .security('restricted')
+      .maxDuration(maxDurationSecs)
+      .volume(EXEC_WORKSPACE_GUEST_PATH, (mount) => mount.bind(spec.memoryRoot))
+    if (config.allowNetwork) {
+      // Enable networking with explicit public DNS (the guest has no resolver otherwise) and a
+      // non-local policy so code can reach the public internet but not the host's private
+      // network or cloud metadata endpoints.
+      const dnsServers = config.dnsServers.length ? config.dnsServers : DEFAULT_EXEC_DNS_SERVERS
+      builder = builder.network((network) =>
+        network
+          .enabled(true)
+          .dns((dns) => dns.nameservers(dnsServers))
+          .policy(nonLocalNetworkPolicy(sdk)),
+      )
+    } else {
+      builder = builder.disableNetwork()
+    }
+    sandbox = await builder.create()
+  } catch (error) {
+    throw new CodeExecError(
+      502,
+      `Could not start the code sandbox: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+  const bootMs = Date.now() - bootStartedAt
+  recordPerf('exec.boot', bootMs)
+  return {sandbox, bootMs}
+}
+
+/** The default source: one fresh ephemeral microVM per lease, torn down on release. */
+export const createBootPerCallSource: SandboxSourceFactory = (config, getSdk) => {
+  return {
+    // Teardown here is awaited inside release, so there is never an async disposal to drain.
+    drain: async () => {},
+    async acquire(spec) {
+      // The VM exists for exactly one call, so its lifetime derives from that call's timeout.
+      const {sandbox, bootMs} = await bootSandboxVm(config, getSdk, spec, spec.timeoutSecs + 30)
+      return {
+        sandbox,
+        bootMs,
+        reused: false,
+        async release() {
+          // Fresh-per-call disposes unconditionally; only a pooling source acts on `healthy`.
+          const teardownStartedAt = Date.now()
+          await teardownSandbox(sandbox, config.teardownTimeoutMs ?? EXEC_TEARDOWN_TIMEOUT_MS)
+          recordPerf('exec.teardown', Date.now() - teardownStartedAt)
+        },
+      }
+    },
+  }
+}
+
+/** How long a guest health probe may take before the VM is judged wedged and disposed. */
+export const POOL_GUEST_EXEC_TIMEOUT_MS = 2_000
+
+/**
+ * How long the park reset may take. Its own, larger budget: the reset is a bounded FIVE-pass
+ * /proc sweep whose passes slow down exactly when a guest is crowded — observed live: a 3-chain
+ * respawn storm pushed the sweep past a 2s budget, so the deadline fired before the script could
+ * deliver its designated exit-1 verdict and the disposal was misattributed to a transport error.
+ * The budget must comfortably contain a worst-case full sweep so 'fail' (the guest's own verdict)
+ * and 'error' (a genuinely broken exchange) stay distinguishable.
+ */
+export const POOL_GUEST_RESET_TIMEOUT_MS = 15_000
+
+/**
+ * SDK max duration handed to pooled VMs: a last-resort backstop against pool-bookkeeping bugs (a
+ * lost entry or timer), far beyond anything age/TTL policy allows, so the hypervisor can never
+ * kill a VM that is actually in use.
+ */
+export const POOL_VM_SDK_MAX_DURATION_SECS = 24 * 3600
+
+/**
+ * The warm pool (docs/exec-warm-pool.md): keeps one VM alive per (principal, image) between
+ * executions so repeat calls skip the boot entirely and the guest keeps its warm state.
+ *
+ * Invariants, per the reviewed seam contract:
+ * - Reuse is keyed on typed principal identity plus image; a VM never crosses that key. The
+ *   principal includes the sessionId, so reuse is session-scoped: agent isolation is the security
+ *   boundary, session isolation is the predictability boundary — a conversation only ever sees
+ *   warm state its own calls created.
+ * - A VM is on loan to at most one lease. The parked entry is locked (`leased = true`)
+ *   synchronously — before any await — so interleaved acquires cannot double-lease it; a
+ *   same-key acquire while the VM is out gets a single-use overflow VM instead.
+ * - Reset before park: release runs the fail-closed multi-pass /proc sweep (GUEST_RESET_SCRIPT
+ *   below) until a full pass proves the guest empty; a failed reset disposes the VM. Reuse is
+ *   additionally gated on a health probe, so a VM that died while parked is replaced, not handed out.
+ * - An unhealthy release always disposes; a wedged VM is never parked.
+ * - Pooled VM lifetime is pool policy (`poolVmMaxAgeMs`, idle TTL, LRU cap eviction) — never
+ *   derived from any single call's timeout, and never enforced mid-use: age is checked only at
+ *   park time, so an over-age VM always finishes its call and is then recycled. The SDK max
+ *   duration is a distant backstop (POOL_VM_SDK_MAX_DURATION_SECS) no real workload reaches.
+ * - Disposal is asynchronous (off the tool call's critical path); `drain` settles it.
+ *
+ * The `poolMaxVms` cap bounds pooled VMs; overflow VMs are transient extras, exactly as costly as
+ * today's boot-per-call behavior, so the cap can never make a call fail.
+ */
+export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
+  type PoolEntry = {
+    key: string
+    sandbox: SandboxLike
+    bootedAt: number
+    lastParkedAt: number
+    leased: boolean
+    idleTimer?: ReturnType<typeof setTimeout>
+  }
+  const entries = new Map<string, PoolEntry>()
+  const disposals = new Set<Promise<void>>()
+  const teardownMs = config.teardownTimeoutMs ?? EXEC_TEARDOWN_TIMEOUT_MS
+
+  // JSON keeps the parts unambiguous no matter what characters ids ever contain. sessionId is in
+  // the key on purpose: reuse is confined to one session (see ExecPrincipal), so a session's VM
+  // is its own and a new session always boots clean.
+  const keyOf = (spec: SandboxSpec): string =>
+    JSON.stringify([spec.principal.accountId, spec.principal.agentId, spec.principal.sessionId, spec.image])
+
+  /**
+   * SECURITY: the pool key is only sound when every part is a real identifier. Types promise
+   * that, but a plain-JavaScript caller can pass undefined/null/'' — and JSON.stringify maps
+   * undefined and null to the SAME serialized entry, so two malformed "identities" would collide
+   * into one retained-VM key (found by ion's session-delta review). A malformed principal
+   * therefore never touches the pool at all: the execution falls back to a single-use VM, which
+   * cannot be shared with anyone.
+   */
+  const validId = (value: unknown): boolean => typeof value === 'string' && value.length > 0
+  const validPrincipal = (spec: SandboxSpec): boolean =>
+    validId(spec.principal?.accountId) && validId(spec.principal?.agentId) && validId(spec.principal?.sessionId)
+
+  const disposeSandbox = (sandbox: SandboxLike): void => {
+    const teardownStartedAt = Date.now()
+    let done: Promise<void>
+    done = teardownSandbox(sandbox, teardownMs).finally(() => {
+      recordPerf('exec.teardown', Date.now() - teardownStartedAt)
+      disposals.delete(done)
+    })
+    disposals.add(done)
+  }
+
+  const disposeEntry = (entry: PoolEntry): void => {
+    if (entry.idleTimer) clearTimeout(entry.idleTimer)
+    if (entries.get(entry.key) === entry) entries.delete(entry.key)
+    disposeSandbox(entry.sandbox)
+  }
+
+  /**
+   * Runs a short shell script in the guest. `ok` = exit 0; `fail` = the script itself concluded
+   * failure (its designated exit 1 — for the reset, pass-budget exhaustion); `error` = the
+   * exchange broke (exception, deadline, or any other exit code, e.g. a shell parse error) — so
+   * counters can attribute a disposal to the guest's verdict versus transport trouble.
+   */
+  const guestExec = async (
+    sandbox: SandboxLike,
+    script: string,
+    budgetMs: number,
+  ): Promise<'ok' | 'fail' | 'error'> => {
+    const deadline = createDeadline(budgetMs + 500)
+    try {
+      const outcome = await raceDeadline(
+        sandbox.execWith('/bin/sh', (builder) => builder.args(['-c', script]).timeout(budgetMs)),
+        deadline.promise,
+      )
+      if (outcome === EXEC_DEADLINE) return 'error'
+      if (outcome.success) return 'ok'
+      return outcome.code === 1 ? 'fail' : 'error'
+    } catch {
+      return 'error'
+    } finally {
+      deadline.clear()
+    }
+  }
+  /**
+   * Kills everything a call left running before the VM parks, and PROVES it. An explicit /proc
+   * sweep because the broadcast form is not portable: the guest's dash builtin rejects
+   * `kill -9 -1` AND `kill -9 -- -1` ("Illegal number") — both observed against a real guest,
+   * where the sweep silently killed nothing.
+   *
+   * A single sweep has a fork race: a process forking after the glob expanded leaves a child the
+   * pass never visits. So the sweep repeats, each pass re-expanding /proc, until one full pass
+   * proves EVERY snapshot entry is spared, a zombie, or a kernel thread — at that scan there was
+   * no non-spared process left to fork, so the VM is verifiably empty. The pass is FAIL-CLOSED:
+   * an entry that is unreadable, vanished mid-pass, or unparseable marks the pass dirty (and gets
+   * a kill attempt anyway) — a vanished parent may have forked before exiting, so its
+   * disappearance is grounds for another pass, never for trust. A guest still dirtying passes
+   * after the budget (a fork storm) fails the reset and the VM is disposed instead of parked: the
+   * contract is "verified empty or destroyed", never "probably clean".
+   *
+   * Excluded from dirtiness: pid 1 (the guest supervisor), the sweeping shell and its ancestor
+   * chain (the exec session's plumbing), kernel threads (PF_KTHREAD flag in /proc/pid/stat;
+   * SIGKILL is a no-op on them), and PROVEN zombies. A zombie is only proven by two snapshots: a
+   * process can fork after the glob expanded and die before its stat is read, so a Z on FIRST
+   * observation may have children this pass's snapshot never saw — it dirties the pass, and is
+   * spared only once it was already a zombie in the prior complete pass (dead at that scan, so it
+   * cannot have forked since). The proof binds PROCESS IDENTITY, pid + starttime (stat field 22),
+   * not pid alone: a reaped corpse's pid can be reused by a new process between passes, and the
+   * impostor must not inherit the corpse's proof. Killed daemons linger as `State: Z` corpses
+   * because init.krun reaps lazily (verified against a real guest); a proven zombie runs nothing
+   * and cannot fork, and persistent corpses cost one extra pass on their first reset, not one per
+   * pass.
+   *
+   * Parsing is delimiter-safe against hostile process names: stat is flattened (`tr '\n' ' '`)
+   * before the greedy comm strip, so a comm containing newlines or ") " cannot truncate or desync
+   * the parse — and if anything still fails to parse, the entry is dirty, not skipped.
+   */
+  const GUEST_RESET_SCRIPT = [
+    'keep=" 1 $$ "',
+    'p=$$',
+    'while :; do',
+    '  pp=$(grep "^PPid:" /proc/$p/status 2>/dev/null | cut -f2)',
+    '  case "$pp" in ""|0|1|$p) break;; esac',
+    '  keep="$keep$pp "',
+    '  p=$pp',
+    'done',
+    'prevz=""',
+    'pass=0',
+    'while [ $pass -lt 5 ]; do',
+    '  pass=$((pass+1))',
+    '  dirty=0',
+    '  curz=""',
+    '  for f in /proc/[0-9]*; do',
+    '    pid=${f#/proc/}',
+    '    case "$keep" in *" $pid "*) continue;; esac',
+    // Flatten, then strip "pid (comm) " greedily to the comm's true closing paren. Fields then:
+    // state ppid pgrp session tty tpgid flags …; PF_KTHREAD = 0x00200000.
+    '    line=$(tr "\\n" " " < "$f/stat" 2>/dev/null | sed "s/^[0-9]* (.*) //")',
+    '    ok=1',
+    '    [ -z "$line" ] && ok=0',
+    '    if [ "$ok" -eq 1 ]; then',
+    '      set -- $line',
+    '      state=$1',
+    '      flags=$7',
+    '      case "$flags" in ""|*[!0-9]*) ok=0;; esac',
+    '    fi',
+    '    if [ "$ok" -eq 1 ]; then',
+    '      if [ "$state" = "Z" ]; then',
+    // Two-snapshot zombie proof, keyed by process identity (pid + starttime, stripped field 20 =
+    // stat field 22) so a reused pid cannot inherit a reaped corpse's proof. An unreadable
+    // starttime falls through to the dirty path like any other ambiguity.
+    '        shift 19',
+    '        start=$1',
+    '        case "$start" in ""|*[!0-9]*) ;; *)',
+    '          curz="$curz $pid:$start "',
+    '          case "$prevz" in *" $pid:$start "*) continue;; esac',
+    '        ;; esac',
+    '        dirty=$((dirty+1))',
+    '        continue',
+    '      fi',
+    '      [ $((flags & 2097152)) -ne 0 ] && continue',
+    '    fi',
+    '    dirty=$((dirty+1))',
+    '    kill -9 "$pid" 2>/dev/null',
+    '  done',
+    '  prevz=$curz',
+    '  [ "$dirty" -eq 0 ] && exit 0',
+    'done',
+    'exit 1',
+  ].join('\n')
+  const resetGuest = (sandbox: SandboxLike) => guestExec(sandbox, GUEST_RESET_SCRIPT, POOL_GUEST_RESET_TIMEOUT_MS)
+  const probeGuest = async (sandbox: SandboxLike) =>
+    (await guestExec(sandbox, 'exit 0', POOL_GUEST_EXEC_TIMEOUT_MS)) === 'ok'
+
+  const pooledLease = (entry: PoolEntry, bootMs: number, reused: boolean): SandboxLease => {
+    let released = false
+    return {
+      sandbox: entry.sandbox,
+      bootMs,
+      reused,
+      async release({healthy}) {
+        if (released) return
+        released = true
+        if (!healthy) {
+          disposeEntry(entry)
+          return
+        }
+        // Generational recycle, between calls only: an over-age VM is disposed here — after its
+        // call completed, never before or during one — so expiry can never interrupt work. This
+        // pre-reset check just skips a pointless (up to 15s) reset for a VM already past its age.
+        if (Date.now() - entry.bootedAt > config.poolVmMaxAgeMs) {
+          recordPerfCount('exec.pool_recycled')
+          disposeEntry(entry)
+          return
+        }
+        // Reset before park: nothing from this call may still be running when the VM is next
+        // handed out. A guest that cannot prove itself empty (or run the reset at all) is
+        // disposed; the split counters attribute the disposal — pass-budget exhaustion (the
+        // guest's own verdict) versus a broken exchange — distinguishable from every other path.
+        const resetOutcome = await resetGuest(entry.sandbox)
+        if (resetOutcome !== 'ok') {
+          recordPerfCount(resetOutcome === 'fail' ? 'exec.pool_reset_exhausted' : 'exec.pool_reset_error')
+          disposeEntry(entry)
+          return
+        }
+        // Age is THE park gate, so it is rechecked after the reset (ion's park-boundary finding):
+        // the reset itself can run long enough for a just-under-age VM to cross the limit, and
+        // with the acquire-time gate intentionally gone, parking here would let an over-age VM
+        // serve one more full call before recycling.
+        if (Date.now() - entry.bootedAt > config.poolVmMaxAgeMs) {
+          recordPerfCount('exec.pool_recycled')
+          disposeEntry(entry)
+          return
+        }
+        entry.leased = false
+        entry.lastParkedAt = Date.now()
+        entry.idleTimer = setTimeout(() => {
+          if (!entry.leased && entries.get(entry.key) === entry) disposeEntry(entry)
+        }, config.poolIdleTtlMs)
+        entry.idleTimer.unref?.()
+      },
+    }
+  }
+
+  const overflowLease = (sandbox: SandboxLike, bootMs: number): SandboxLease => {
+    let released = false
+    return {
+      sandbox,
+      bootMs,
+      reused: false,
+      async release() {
+        if (released) return
+        released = true
+        disposeSandbox(sandbox)
+      },
+    }
+  }
+
+  return {
+    async acquire(spec) {
+      if (!validPrincipal(spec)) {
+        // Fail closed: no pooling for an identity we cannot trust — single-use VM, never parked.
+        recordPerfCount('exec.pool_invalid_principal')
+        const {sandbox, bootMs} = await bootSandboxVm(config, getSdk, spec, spec.timeoutSecs + 30)
+        return overflowLease(sandbox, bootMs)
+      }
+      const key = keyOf(spec)
+      const existing = entries.get(key)
+      if (existing && !existing.leased) {
+        // Lock before the first await so an interleaved same-key acquire can never double-lease.
+        existing.leased = true
+        if (existing.idleTimer) clearTimeout(existing.idleTimer)
+        if (await probeGuest(existing.sandbox)) {
+          recordPerfCount('exec.pool_hit')
+          return pooledLease(existing, 0, true)
+        }
+        recordPerfCount('exec.pool_probe_failed')
+        disposeEntry(existing)
+      }
+      if (entries.get(key)?.leased === true) {
+        // The key's VM is out on another call: single-use VM, today's boot-per-call economics.
+        recordPerfCount('exec.pool_overflow')
+        const {sandbox, bootMs} = await bootSandboxVm(config, getSdk, spec, spec.timeoutSecs + 30)
+        return overflowLease(sandbox, bootMs)
+      }
+      // Make room under the cap by evicting the least-recently parked idle VM.
+      while (entries.size >= config.poolMaxVms) {
+        let oldest: PoolEntry | undefined
+        for (const entry of entries.values()) {
+          if (!entry.leased && (oldest === undefined || entry.lastParkedAt < oldest.lastParkedAt)) oldest = entry
+        }
+        if (!oldest) break
+        disposeEntry(oldest)
+      }
+      const {sandbox, bootMs} = await bootSandboxVm(config, getSdk, spec, POOL_VM_SDK_MAX_DURATION_SECS)
+      if (entries.has(key) || entries.size >= config.poolMaxVms) {
+        // Lost a boot race for this key, or every slot filled while booting: stay single-use.
+        // Counted as overflow — the counters classify what a VM BECAME, not what was hoped for.
+        recordPerfCount('exec.pool_overflow')
+        return overflowLease(sandbox, bootMs)
+      }
+      recordPerfCount('exec.pool_miss')
+      const entry: PoolEntry = {key, sandbox, bootedAt: Date.now(), lastParkedAt: 0, leased: true}
+      entries.set(key, entry)
+      return pooledLease(entry, bootMs, false)
+    },
+    async drain() {
+      while (disposals.size > 0) await Promise.allSettled([...disposals])
+    },
+  }
+}
+
+/** Selects the sandbox source the configuration asks for. */
+export const createConfiguredSandboxSource: SandboxSourceFactory = (config, getSdk) =>
+  config.warmPool ? createWarmPoolSource(config, getSdk) : createBootPerCallSource(config, getSdk)
+
 /**
  * Creates the code executor for a service. `loadSdk` is injectable for tests; the real SDK is
  * imported lazily on first execution so unsupported hosts only fail when the tool is used.
@@ -315,6 +820,7 @@ export const loadMicrosandbox = async (): Promise<SandboxSdk> => {
 export function createCodeExecutor(
   config: CodeExecConfig,
   loadSdk: () => Promise<SandboxSdk> = loadMicrosandbox,
+  createSource: SandboxSourceFactory = createConfiguredSandboxSource,
 ): CodeExecutor {
   let sdkPromise: Promise<SandboxSdk> | undefined
   const getSdk = () => {
@@ -329,6 +835,8 @@ export function createCodeExecutor(
     })
     return sdkPromise
   }
+
+  const source = createSource(config, getSdk)
 
   // Availability cannot change during the process lifetime (platform, staged runtime, config are
   // all fixed at startup), so the probe result is memoized including failures.
@@ -383,6 +891,7 @@ export function createCodeExecutor(
     enabled: config.backend === 'microsandbox',
     runtimes: configuredRuntimes,
     availability: () => (availabilityPromise ??= probeAvailability()),
+    drain: () => source.drain(),
     async execute(request) {
       if (config.backend !== 'microsandbox') {
         throw new CodeExecError(400, 'Code execution is not enabled on this server')
@@ -403,74 +912,58 @@ export function createCodeExecutor(
       fs.mkdirSync(memoryRoot, {recursive: true})
       const before = snapshotMemory(request.stateDir)
 
-      const sdk = await getSdk()
       const startedAt = Date.now()
       request.onProgress?.({stage: 'starting'})
-      let sandbox: SandboxLike
-      try {
-        let builder = sdk.Sandbox.builder(`seed-exec-${crypto.randomUUID().slice(0, 13)}`)
-          // TypeScript runs in its own image: the default rootfs carries python and a shell, not bun.
-          .image(request.runtime === 'ts' ? config.tsImage : config.image)
-          .cpus(config.cpus)
-          .memory(config.memoryMib)
-          .workdir(EXEC_WORKSPACE_GUEST_PATH)
-          .ephemeral(true)
-          .security('restricted')
-          .maxDuration(timeoutSecs + 30)
-          .volume(EXEC_WORKSPACE_GUEST_PATH, (mount) => mount.bind(memoryRoot))
-        if (config.allowNetwork) {
-          // Enable networking with explicit public DNS (the guest has no resolver otherwise) and a
-          // non-local policy so code can reach the public internet but not the host's private
-          // network or cloud metadata endpoints.
-          const dnsServers = config.dnsServers.length ? config.dnsServers : DEFAULT_EXEC_DNS_SERVERS
-          builder = builder.network((network) =>
-            network
-              .enabled(true)
-              .dns((dns) => dns.nameservers(dnsServers))
-              .policy(nonLocalNetworkPolicy(sdk)),
-          )
-        } else {
-          builder = builder.disableNetwork()
-        }
-        sandbox = await builder.create()
-      } catch (error) {
-        throw new CodeExecError(
-          502,
-          `Could not start the code sandbox: ${error instanceof Error ? error.message : String(error)}`,
-        )
-      }
+      const lease = await source.acquire({
+        principal: request.principal,
+        // TypeScript runs in its own image: the default rootfs carries python and a shell, not bun.
+        image: request.runtime === 'ts' ? config.tsImage : config.image,
+        memoryRoot,
+        timeoutSecs,
+      })
 
+      // Assume wedged until the exchange completes normally, so every early exit (SDK error,
+      // watchdog kill) disposes the sandbox instead of ever letting a pool source reuse it.
+      let healthy = false
       try {
         const command = runtimeCommand(request.runtime, code)
         request.onProgress?.({stage: 'running'})
+        const runStartedAt = Date.now()
         // The SDK gets the timeout too, but a wedged guest can outlive it; this deadline is the
         // host-side backstop that always fires.
         const deadlineMs = timeoutSecs * 1000 + (config.timeoutGraceMs ?? EXEC_TIMEOUT_GRACE_MS)
         let output: RawExecResult
         try {
-          output = sandbox.execStreamWith
-            ? await runStreamingExec(sandbox, command, timeoutSecs, deadlineMs, request.onProgress)
-            : await runBufferedExec(sandbox, command, timeoutSecs, deadlineMs)
+          output = lease.sandbox.execStreamWith
+            ? await runStreamingExec(lease.sandbox, command, timeoutSecs, deadlineMs, request.onProgress)
+            : await runBufferedExec(lease.sandbox, command, timeoutSecs, deadlineMs)
         } catch (error) {
           throw new CodeExecError(
             502,
             `Code execution failed: ${error instanceof Error ? error.message : String(error)}`,
           )
         }
+        // Synthesized -1 means the exchange never got a real exit status (watchdog kill, vanished
+        // stream) — the guest may be wedged. Any genuine exit code, zero or not, is a healthy VM.
+        healthy = output.code >= 0
+        recordPerf('exec.run', Date.now() - runStartedAt)
         const stdout = boundOutput(output.stdout)
         const stderr = boundOutput(output.stderr)
         const after = snapshotMemory(request.stateDir)
+        const durationMs = Date.now() - startedAt
+        recordPerf('exec.total', durationMs)
         return {
           exitCode: output.code,
           success: output.success,
           stdout: stdout.text,
           stderr: stderr.text,
           truncated: stdout.truncated || stderr.truncated,
-          durationMs: Date.now() - startedAt,
+          durationMs,
+          bootMs: lease.bootMs,
           ...diffMemory(before.files, after.files),
         }
       } finally {
-        await teardownSandbox(sandbox, config.teardownTimeoutMs ?? EXEC_TEARDOWN_TIMEOUT_MS)
+        await lease.release({healthy})
       }
     },
   }
