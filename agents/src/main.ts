@@ -3,6 +3,7 @@ import {ActivityMonitor} from '@/activity-monitor'
 import * as apisvc from '@/api-service'
 import {getBuildInfo} from '@/build-info'
 import {log, setLogLevel} from '@/log'
+import {perfSnapshot} from '@/perf'
 import {withTimeout} from '@/poll-loop'
 import {ScheduleMonitor} from '@/schedule-monitor'
 import * as cbor from '@/cbor'
@@ -129,6 +130,9 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
     )
   }
   const version = () => Response.json(buildInfo, {headers: corsHeaders()})
+  // Aggregate latency stats (metric names and millisecond percentiles only — no ids, no content),
+  // so "is this server slow, and where" is one curl away. Same exposure class as /api/health.
+  const perf = () => Response.json(perfSnapshot(), {headers: corsHeaders()})
   return {
     '/api/message': {OPTIONS: options, POST: message},
     '/agents/api/message': {OPTIONS: options, POST: message},
@@ -138,6 +142,8 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
     '/agents/api/health': {GET: health},
     '/api/version': {GET: version},
     '/agents/api/version': {GET: version},
+    '/api/perf': {GET: perf},
+    '/agents/api/perf': {GET: perf},
   }
 }
 

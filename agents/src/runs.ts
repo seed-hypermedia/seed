@@ -10,6 +10,7 @@
  */
 import type {Database} from 'bun:sqlite'
 import * as cbor from '@/cbor'
+import {recordPerf} from '@/perf'
 
 export type RunKind = 'agent' | 'workflow'
 export type RunOrigin = 'user' | 'trigger' | 'agent' | 'workflow' | 'system'
@@ -842,6 +843,9 @@ export class RunQueue {
 
   async #execute(claimed: RunRecord): Promise<void> {
     const now = Date.now()
+    // How long the run sat dispatchable before an executor picked it up — queue lag, not work.
+    // `not_before` (backoff, timers) marks when it became eligible; otherwise enqueue time does.
+    recordPerf('run.dispatch_delay', now - Math.max(claimed.notBefore ?? 0, claimed.createdAt))
     const startedRow = this.#db
       .query<RunRow, [number, number | null, number, string]>(
         `UPDATE runs SET status = 'running', started_at = COALESCE(?2, ?1), updated_at = ?3 WHERE id = ?4

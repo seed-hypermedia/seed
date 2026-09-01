@@ -13,6 +13,7 @@
  */
 
 import {listMemory, memoryRootPath} from '@/agent-memory'
+import {recordPerf} from '@/perf'
 import * as fs from 'node:fs'
 
 /** Guest path where the agent's memory directory is mounted. */
@@ -106,6 +107,12 @@ export type CodeExecResult = {
   /** True when stdout or stderr was cut to the size limit. */
   truncated: boolean
   durationMs: number
+  /**
+   * How much of `durationMs` went to booting the sandbox before any code ran. On today's
+   * fresh-VM-per-call backend this is pure overhead the warm-pool workstream aims to remove;
+   * exposing it per call is what lets that claim be measured instead of assumed.
+   */
+  bootMs: number
   /** Memory files added/modified/removed by the execution, from a before/after listing diff. */
   changedFiles: CodeExecFileChange[]
   /** Real change count; exceeds `changedFiles.length` when the reported list was capped. */
@@ -439,10 +446,13 @@ export function createCodeExecutor(
           `Could not start the code sandbox: ${error instanceof Error ? error.message : String(error)}`,
         )
       }
+      const bootMs = Date.now() - startedAt
+      recordPerf('exec.boot', bootMs)
 
       try {
         const command = runtimeCommand(request.runtime, code)
         request.onProgress?.({stage: 'running'})
+        const runStartedAt = Date.now()
         // The SDK gets the timeout too, but a wedged guest can outlive it; this deadline is the
         // host-side backstop that always fires.
         const deadlineMs = timeoutSecs * 1000 + (config.timeoutGraceMs ?? EXEC_TIMEOUT_GRACE_MS)
@@ -457,20 +467,26 @@ export function createCodeExecutor(
             `Code execution failed: ${error instanceof Error ? error.message : String(error)}`,
           )
         }
+        recordPerf('exec.run', Date.now() - runStartedAt)
         const stdout = boundOutput(output.stdout)
         const stderr = boundOutput(output.stderr)
         const after = snapshotMemory(request.stateDir)
+        const durationMs = Date.now() - startedAt
+        recordPerf('exec.total', durationMs)
         return {
           exitCode: output.code,
           success: output.success,
           stdout: stdout.text,
           stderr: stderr.text,
           truncated: stdout.truncated || stderr.truncated,
-          durationMs: Date.now() - startedAt,
+          durationMs,
+          bootMs,
           ...diffMemory(before.files, after.files),
         }
       } finally {
+        const teardownStartedAt = Date.now()
         await teardownSandbox(sandbox, config.teardownTimeoutMs ?? EXEC_TEARDOWN_TIMEOUT_MS)
+        recordPerf('exec.teardown', Date.now() - teardownStartedAt)
       }
     },
   }

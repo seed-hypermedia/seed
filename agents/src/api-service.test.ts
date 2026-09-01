@@ -7643,6 +7643,7 @@ describe('api service', () => {
               stdout: `__SEED_TOOL_RESULT__${JSON.stringify({temperature: 20 + lambdaCalls})}\n`,
               stderr: '',
               durationMs: 1,
+              bootMs: 0,
               truncated: false,
               changedFiles: [],
               changedFilesTotal: 0,
