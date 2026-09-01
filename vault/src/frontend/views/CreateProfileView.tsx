@@ -9,14 +9,11 @@ import {AccountProfileForm, type AccountProfileFormValues} from '@shm/ui/compone
  * View for creating a profile after account security setup (Step 4 of 4).
  */
 export function CreateProfileView() {
-  const {loading, error, delegationRequest, vaultConnectionRequest, vaultConnectionInProgress, session, email} =
-    useAppState()
+  const {loading, error, delegationRequest, vaultConnectionRequest, vaultConnectionInProgress} = useAppState()
   const actions = useActions()
   const navigate = navigation.useHashNavigate()
 
   const [shareEmailWithNotificationServer, setShareEmailWithNotificationServer] = useState(true)
-  const sessionEmail = session?.email?.trim() || email.trim()
-  const notificationEmailLabel = sessionEmail ? `Notify me at ${sessionEmail}` : 'Notify me by email'
 
   async function handleSubmit({name, imageFile}: AccountProfileFormValues) {
     const didCreateAccount = await actions.createAccount(name, undefined, imageFile, {
@@ -69,9 +66,8 @@ export function CreateProfileView() {
           loading={loading || vaultConnectionInProgress}
           error={error}
           notificationOption={{
-            label: notificationEmailLabel,
-            description:
-              'Leave this on to register notifications with that email. If you turn it off, your account will still be registered without an email address.',
+            label: 'Get email notifications about mentions and replies activity.',
+            description: '',
             checked: shareEmailWithNotificationServer,
             onCheckedChange: setShareEmailWithNotificationServer,
           }}

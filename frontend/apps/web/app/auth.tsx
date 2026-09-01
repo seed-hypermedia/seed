@@ -446,38 +446,10 @@ export const SPACE_EXISTS_TITLE = 'You already have a space'
 export const SPACE_EXISTS_BODY =
   'Each account can only have one space. You can go to your existing space, or sign in with a different account to create a new one.'
 
-type VaultSuccessInput =
-  | {variant: 'comment'}
-  | {variant: 'space-exists'; spaceUrl: string | null; draftId: string | null}
+type VaultSuccessInput = {variant: 'space-exists'; spaceUrl: string | null; draftId: string | null}
 
 function VaultSuccessDialog({input, onClose}: {input: VaultSuccessInput; onClose: () => void}) {
-  if (input.variant === 'space-exists') {
-    return <SpaceExistsDialogContent spaceUrl={input.spaceUrl} draftId={input.draftId} onClose={onClose} />
-  }
-  return <CommentSuccessDialogContent onClose={onClose} />
-}
-
-function CommentSuccessDialogContent({onClose}: {onClose: () => void}) {
-  useEffect(() => {
-    const timer = setTimeout(onClose, 4000)
-    return () => clearTimeout(timer)
-  }, [onClose])
-
-  return (
-    <>
-      <DialogTitle className="flex items-center gap-2">
-        You are in <span aria-hidden>🎉</span>
-      </DialogTitle>
-      <DialogDescription>
-        You joined the space, posting your comment now...
-        <br />
-        This post will be signed by you and shared across the network.
-      </DialogDescription>
-      <div className="flex justify-center py-2">
-        <Spinner />
-      </div>
-    </>
-  )
+  return <SpaceExistsDialogContent spaceUrl={input.spaceUrl} draftId={input.draftId} onClose={onClose} />
 }
 
 // Shown after sign-in when the chosen account already has a published home doc.
@@ -547,7 +519,7 @@ export function useVaultSuccessDialog() {
     window.history.replaceState(null, '', url.pathname + url.search + url.hash)
 
     if (variant === 'comment') {
-      dialog.open({variant})
+      toast.success('Your comment is added!', {description: `You are now part of ${siteName} community`})
       return
     }
     if (variant === 'space-exists') {
@@ -564,7 +536,7 @@ export function useVaultSuccessDialog() {
       return
     }
     if (variant === 'join') {
-      toast.success(`You've joined ${siteName} — you can now comment and participate`)
+      toast.success(`You've joined ${siteName}`, {description: 'You can now comment and participate.'})
       return
     }
     if (variant === 'login') {

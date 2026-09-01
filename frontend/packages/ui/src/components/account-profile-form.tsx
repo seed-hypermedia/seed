@@ -1,7 +1,8 @@
-import {Plus} from 'lucide-react'
+import {Camera, Plus} from 'lucide-react'
 import {useEffect, useState, type FormEvent} from 'react'
 import {Button} from '../button'
 import {SizableText} from '../text'
+import {cn} from '../utils'
 import {Input} from './input'
 import {Label} from './label'
 import {Textarea} from './textarea'
@@ -115,28 +116,18 @@ export function AccountProfileForm({
         {error ? <p className="text-destructive text-sm">{error}</p> : null}
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor="account-profile-name">Name</Label>
-          <Input
-            id="account-profile-name"
-            value={name}
-            onChange={(event) => {
-              setName(event.target.value)
-              if (nameError) setNameError('')
-            }}
-            placeholder="Display name"
-            autoFocus
-            disabled={loading}
-          />
-          {nameError ? <p className="text-destructive text-sm">{nameError}</p> : null}
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-3">
-            <div className="bg-muted focus-within:ring-primary relative flex size-16 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded focus-within:ring-2 focus-within:ring-offset-2">
+          <div className="flex items-center gap-4">
+            <label
+              htmlFor="account-profile-image"
+              className={cn(
+                'focus-within:ring-primary relative flex size-20 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full focus-within:ring-2 focus-within:ring-offset-2',
+                previewUrl ? '' : 'border-2 border-dashed border-black/15 dark:border-white/20',
+              )}
+            >
               {previewUrl ? (
                 <img src={previewUrl} className="size-full object-cover" alt="" />
               ) : (
-                <Plus className="text-muted-foreground size-5" />
+                <Camera className="text-muted-foreground size-6" />
               )}
               <input
                 id="account-profile-image"
@@ -146,12 +137,46 @@ export function AccountProfileForm({
                 disabled={loading}
                 className="absolute inset-0 cursor-pointer opacity-0"
               />
-            </div>
-            <span className="text-muted-foreground text-sm">
-              {previewUrl ? 'Change photo (optional)' : 'Add a photo (optional)'}
-            </span>
+            </label>
+            <label
+              htmlFor="account-profile-image"
+              className="text-brand inline-flex cursor-pointer items-center gap-1 text-sm font-semibold"
+            >
+              <Plus className="size-4" />
+              {previewUrl ? 'Change your photo' : 'Add your photo'}
+            </label>
           </div>
           {avatarError ? <p className="text-destructive text-sm">{avatarError}</p> : null}
+        </div>
+
+        {/* Live preview of how the profile appears to others. */}
+        <div className="flex flex-col gap-2 rounded-lg bg-black/5 p-4 dark:bg-white/5">
+          <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+            How others will see you
+          </span>
+          <div className="flex items-center gap-3">
+            <div className="size-8 shrink-0 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
+              {previewUrl ? <img src={previewUrl} className="size-full object-cover" alt="" /> : null}
+            </div>
+            <span className="font-semibold">{name.trim() || 'Your Name'}</span>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="account-profile-name">Name</Label>
+          <Input
+            id="account-profile-name"
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value)
+              if (nameError) setNameError('')
+            }}
+            placeholder="Type here"
+            autoFocus
+            disabled={loading}
+            className="border-black/10 dark:border-white/10"
+          />
+          {nameError ? <p className="text-destructive text-sm">{nameError}</p> : null}
         </div>
 
         {showDescription ? (
@@ -172,22 +197,22 @@ export function AccountProfileForm({
         ) : null}
 
         {notificationOption ? (
-          <div className="rounded-lg border p-4">
-            <div className="flex items-start gap-3">
-              <input
-                id="account-profile-notification-email"
-                type="checkbox"
-                checked={notificationOption.checked}
-                onChange={(event) => notificationOption.onCheckedChange(event.target.checked)}
-                disabled={loading}
-                className="mt-0.5 size-4 shrink-0 rounded"
-              />
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="account-profile-notification-email">{notificationOption.label}</Label>
+          <div className="flex items-start gap-3">
+            <input
+              id="account-profile-notification-email"
+              type="checkbox"
+              checked={notificationOption.checked}
+              onChange={(event) => notificationOption.onCheckedChange(event.target.checked)}
+              disabled={loading}
+              className="mt-0.5 size-4 shrink-0 rounded"
+            />
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="account-profile-notification-email">{notificationOption.label}</Label>
+              {notificationOption.description ? (
                 <SizableText size="sm" color="muted">
                   {notificationOption.description}
                 </SizableText>
-              </div>
+              ) : null}
             </div>
           </div>
         ) : null}

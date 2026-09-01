@@ -581,7 +581,7 @@ export class Service implements api.ServerInterface {
       } else {
         this.db.run(`UPDATE email_challenges SET attempt_count = ? WHERE email = ?`, [attempts, normalizedEmail])
       }
-      throw new APIError(`Invalid code. ${EMAIL_CODE_MAX_ATTEMPTS - attempts} attempts remaining.`, 400)
+      throw new APIError('Incorrect code. Request a new one to try again', 400)
     }
 
     this.db.run(`DELETE FROM email_challenges WHERE email = ?`, [normalizedEmail])

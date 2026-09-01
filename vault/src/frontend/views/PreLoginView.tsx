@@ -1,6 +1,6 @@
 import {WebAuthnAbortService} from '@simplewebauthn/browser'
 import type React from 'react'
-import {useEffect, useRef} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
 import * as navigation from '@/frontend/navigation'
 import {StepIndicator} from '@/frontend/components/StepIndicator'
@@ -20,6 +20,10 @@ export function PreLoginView() {
     useAppState()
   const actions = useActions()
   const autoSubmittedRef = useRef(false)
+  const [emailTouched, setEmailTouched] = useState(false)
+
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+  const showEmailError = emailTouched && email.trim().length > 0 && !emailValid
 
   useEffect(() => {
     if (sessionChecked) {
@@ -53,6 +57,10 @@ export function PreLoginView() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!emailValid) {
+      setEmailTouched(true)
+      return
+    }
     await actions.handlePreLogin()
   }
 
@@ -92,10 +100,13 @@ export function PreLoginView() {
               placeholder="Enter your email"
               value={email}
               onChange={(e) => actions.setEmail(e.target.value)}
-              required
+              onBlur={() => setEmailTouched(true)}
+              aria-invalid={showEmailError}
+              className={showEmailError ? 'border-destructive focus-visible:border-destructive' : undefined}
               autoFocus
               autoComplete="username webauthn"
             />
+            {showEmailError ? <p className="text-destructive text-sm">That doesn't look like a valid email</p> : null}
             <p className="text-muted-foreground text-sm">
               By continuing, you agree to our{' '}
               <a
@@ -110,7 +121,7 @@ export function PreLoginView() {
             </p>
           </div>
 
-          <Button type="submit" loading={loading} className="w-full">
+          <Button type="submit" loading={loading} disabled={!emailValid} className="w-full">
             Send code
           </Button>
         </form>
