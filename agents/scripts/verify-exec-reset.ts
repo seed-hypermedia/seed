@@ -27,6 +27,7 @@
  * Usage: bun scripts/verify-exec-reset.ts   (needs a microVM-capable host)
  */
 import {createCodeExecutor, defaultCodeExecConfig} from '@/code-exec'
+import {judgeScenario, type AttemptEvidence, type CounterWindow, type Expectation} from '@/exec-verify'
 import {perfSnapshot} from '@/perf'
 import {mkdtemp, realpath, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
@@ -34,9 +35,7 @@ import * as path from 'node:path'
 
 const MARKER = '31337'
 
-type Expectation = 'reuse-clean' | 'clean' | 'expect-disposal'
-
-const SCENARIOS: Array<{name: string; plant: string; expect: Expectation; retries?: number}> = [
+const SCENARIOS: Array<{name: string; plant: string; expect: Expectation}> = [
   {
     name: 'plain background daemon',
     expect: 'reuse-clean',
@@ -77,16 +76,16 @@ const SCENARIOS: Array<{name: string; plant: string; expect: Expectation; retrie
   {
     name: 'self-perpetuating respawn chains',
     expect: 'expect-disposal',
-    retries: 3,
     plant: [
       // Three independent staggered chains; each generation forks its successor FIRST, then parks
       // in a long sleep, so a sweep pass that sees a generation (dirty, killed) usually postdates
       // the fork of its successor. NOT deterministic: a pass whose snapshot happens to catch
       // every pending tip pre-recursion kills all chains and the reset converges — three tips
-      // with staggered phases make that unlikely, and the harness retries; a converged attempt is
-      // reported, never silently passed. Gentle by construction (~150 tiny sleeps/sec, no
-      // doubling) — a raw fork bomb melts the guest so hard the PLANT call itself dies and the
-      // disposal gets attributed to an unhealthy release instead of the reset.
+      // with staggered phases make that unlikely. A converged run is a TERMINAL scenario failure
+      // (judgeAttempt), never retried into silence; rerunning is a human decision. Gentle by
+      // construction (~150 tiny sleeps/sec, no doubling) — a raw fork bomb melts the guest so
+      // hard the PLANT call itself dies and the disposal gets attributed to an unhealthy release
+      // instead of the reset.
       `for stagger in 0 0.007 0.013; do`,
       `  nohup sh -c "sleep $stagger; r(){ (sleep 0.02; r) & sleep ${MARKER}; }; r" >/dev/null 2>&1 &`,
       'done',
@@ -120,17 +119,7 @@ if (!availability.available) {
   process.exit(1)
 }
 
-type CounterWindow = {resetExhausted: number; resetError: number; probeFailed: number; poolHit: number}
-
-type Attempt = {
-  planted: boolean
-  reused: boolean
-  clean: boolean
-  bootMs: number
-  /** Counter deltas measured across call 1 (plant + its release reset) and call 2 separately. */
-  call1: CounterWindow
-  call2: CounterWindow
-}
+type Attempt = AttemptEvidence & {bootMs: number}
 
 const COUNTERS: Record<keyof CounterWindow, string> = {
   resetExhausted: 'exec.pool_reset_exhausted',
@@ -159,11 +148,8 @@ function windowDelta(before: CounterWindow, after: CounterWindow): CounterWindow
   }
 }
 
-const noDisposals = (w: CounterWindow): boolean => w.resetExhausted === 0 && w.resetError === 0 && w.probeFailed === 0
-
-async function runScenario(scenario: (typeof SCENARIOS)[number], attempt: number): Promise<Attempt> {
-  // A distinct principal per attempt so a disposed VM from a prior attempt cannot interfere.
-  const principal = {accountId: 'verify-reset', agentId: `${scenario.name.replace(/\W+/g, '-')}-${attempt}`}
+async function runScenario(scenario: (typeof SCENARIOS)[number]): Promise<Attempt> {
+  const principal = {accountId: 'verify-reset', agentId: scenario.name.replace(/\W+/g, '-')}
   // Counters are sampled around EACH call: the plant call's release runs inside execute(), so the
   // call-1 window isolates the reset under test, and the call-2 window proves the autopsy's own
   // acquire/release contributed no disposal that could be misattributed to call 1.
@@ -188,70 +174,16 @@ async function runScenario(scenario: (typeof SCENARIOS)[number], attempt: number
 let failures = 0
 try {
   for (const scenario of SCENARIOS) {
-    const retries = scenario.retries ?? 1
-    let outcome: Attempt | undefined
-    let verdict = ''
-    for (let attempt = 1; attempt <= retries; attempt += 1) {
-      outcome = await runScenario(scenario, attempt)
-      if (!outcome.planted) {
-        verdict = 'FAIL (plant did not take — scenario proves nothing)'
-        break
-      }
-      if (!outcome.clean) {
-        verdict = 'FAIL (a prior-call process was running in call 2)'
-        break
-      }
-      if (scenario.expect === 'reuse-clean') {
-        if (outcome.reused && outcome.call2.poolHit === 1 && noDisposals(outcome.call1) && noDisposals(outcome.call2)) {
-          verdict = 'PASS (call-1 reset succeeded; call-2 pool hit, reused clean VM)'
-        } else if (!outcome.reused) {
-          verdict = 'FAIL (reset disposed the VM for a trivially cleanable guest)'
-        } else {
-          verdict = `FAIL (reuse not attributable to a clean pool hit: call1=${JSON.stringify(
-            outcome.call1,
-          )} call2=${JSON.stringify(outcome.call2)})`
-        }
-        break
-      }
-      if (scenario.expect === 'clean') {
-        if (outcome.reused && outcome.call2.poolHit === 1) verdict = 'PASS (clean; reused via pool hit)'
-        else if (!outcome.reused && outcome.call1.resetExhausted >= 1)
-          verdict = 'PASS (clean; call-1 reset-exhausted disposal + fresh boot)'
-        else
-          verdict = `FAIL (outcome not attributable: call1=${JSON.stringify(outcome.call1)} call2=${JSON.stringify(
-            outcome.call2,
-          )})`
-        break
-      }
-      // expect-disposal: the fresh boot must be POSITIVELY attributed to CALL 1's release reset
-      // exhausting its pass budget — exactly one pool_reset_exhausted inside the call-1 window,
-      // zero disposal counters in the call-2 window (so the autopsy's own probe/reset cannot be
-      // the source), and no transport-error masquerading (resetError 0).
-      if (
-        !outcome.reused &&
-        outcome.call1.resetExhausted === 1 &&
-        outcome.call1.resetError === 0 &&
-        noDisposals(outcome.call2)
-      ) {
-        verdict = 'PASS (call-1 reset pass budget exhausted; attributed disposal, fresh boot clean)'
-        break
-      }
-      if (!outcome.reused) {
-        verdict = `FAIL (disposal not attributable to call-1 reset exhaustion: call1=${JSON.stringify(
-          outcome.call1,
-        )} call2=${JSON.stringify(outcome.call2)})`
-        break
-      }
-      verdict = 'FAIL (storm never forced disposal — strengthen the storm or the host is too fast)'
-    }
-    if (verdict.startsWith('FAIL')) failures += 1
+    // One attempt per scenario, judged by the pure, regression-tested logic in src/exec-verify.ts
+    // (judgeScenario forbids a later attempt from overwriting an earlier failure by construction).
+    const attempt = await runScenario(scenario)
+    const {verdict, failed} = judgeScenario(scenario.expect, [attempt])
+    if (failed) failures += 1
     console.log(`${scenario.name}: ${verdict}`)
-    if (outcome) {
-      console.log(
-        `  planted=${outcome.planted} call2 bootMs=${outcome.bootMs} clean=${outcome.clean}\n` +
-          `  call1 deltas=${JSON.stringify(outcome.call1)}\n  call2 deltas=${JSON.stringify(outcome.call2)}`,
-      )
-    }
+    console.log(
+      `  planted=${attempt.planted} call2 bootMs=${attempt.bootMs} clean=${attempt.clean}\n` +
+        `  call1 deltas=${JSON.stringify(attempt.call1)}\n  call2 deltas=${JSON.stringify(attempt.call2)}`,
+    )
   }
 } finally {
   await executor.drain()
