@@ -625,6 +625,21 @@ export function DeveloperSettings() {
             </Button>
           }
         />
+        {enabledDeveloperMode ? (
+          <>
+            <Separator />
+            <SettingsRow
+              label="Hypermedia Schemas"
+              description="Expose schema features in regular menus: New > Schema creates a schema document, and schema building blocks appear in document options."
+              right={
+                <Switch
+                  checked={!!experiments?.hypermediaSchemas}
+                  onCheckedChange={(checked) => writeExperiments.mutate({hypermediaSchemas: checked})}
+                />
+              }
+            />
+          </>
+        ) : null}
         <Separator />
         <SettingsRow
           label="Embedding / AI Features"
