@@ -20,11 +20,17 @@ Two distinct wins, one mechanism: fast single calls (boot removed) and fast dev 
 
 ### Pool
 
-- **Key: `(accountId, agentId, runtime image)`** — a VM is never shared across accounts, ever. Image is part of the key
-  because `ts` runs in a different rootfs than python/shell.
+- **Key: `(accountId, agentId, sessionId, runtime image)`** — two boundaries in one key. Account+agent is the **security
+  boundary**: a VM is never shared across agent instances, ever. Session is the **predictability boundary** (Eric,
+  2026-09-01): reuse is confined to one conversation, so guest RAM state from an old session (installed packages, temp
+  files) can never surface in a new one — a new session always boots a cold, known-clean VM, and only repeat calls
+  within the same session get the warm hit. That's where the win lives anyway: the edit→typecheck→test loops that
+  motivated the pool are intra-session. Image is part of the key because `ts` runs in a different rootfs than
+  python/shell.
 - `execute` checks the pool: hit → run in the live VM; miss → boot one, run, then **park it** instead of tearing down.
-- **Idle TTL ~10 min**, sliding. **Caps**: 1 VM per agent, `SEED_AGENTS_EXEC_MAX_VMS` host-wide (start at 3 on the
-  current prod box; scale with vCPUs). LRU eviction on cap pressure.
+- **Idle TTL ~10 min**, sliding — also the natural end-of-life for a finished session's VM. **Caps**: 1 VM per session,
+  `SEED_AGENTS_EXEC_MAX_VMS` host-wide (start at 3 on the current prod box; scale with vCPUs). LRU eviction on cap
+  pressure.
 - Eviction is always safe: `/workspace` is a bind mount, so durable state survives; only guest RAM is lost — which is
   today's behavior on **every** call.
 

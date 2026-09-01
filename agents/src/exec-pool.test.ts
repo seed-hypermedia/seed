@@ -100,8 +100,8 @@ function poolConfig(overrides: Partial<CodeExecConfig> = {}): CodeExecConfig {
   }
 }
 
-const specFor = (accountId: string, agentId: string, timeoutSecs = 1): SandboxSpec => ({
-  principal: {accountId, agentId},
+const specFor = (accountId: string, agentId: string, timeoutSecs = 1, sessionId = 'session-1'): SandboxSpec => ({
+  principal: {accountId, agentId, sessionId},
   image: 'python',
   memoryRoot: '/tmp/unused-memory-root',
   timeoutSecs,
@@ -159,6 +159,22 @@ describe('warm pool source', () => {
     await c.release({healthy: true})
     const aAgain = await source.acquire(specFor('acct-a', 'agent'))
     expect(aAgain.sandbox).toBe(a.sandbox)
+  })
+
+  test('reuse is session-scoped: the same agent in a different session gets a fresh VM', async () => {
+    const farm = guestFarm()
+    const source = createWarmPoolSource(poolConfig(), async () => farm.sdk)
+    const first = await source.acquire(specFor('acct', 'agent', 1, 'session-1'))
+    await first.release({healthy: true})
+    // Same account, same agent — but a new conversation must start from a cold, known-clean VM.
+    const second = await source.acquire(specFor('acct', 'agent', 1, 'session-2'))
+    expect(second.sandbox).not.toBe(first.sandbox)
+    expect(second.reused).toBe(false)
+    await second.release({healthy: true})
+    // The original session still reuses its own VM.
+    const third = await source.acquire(specFor('acct', 'agent', 1, 'session-1'))
+    expect(third.sandbox).toBe(first.sandbox)
+    expect(third.reused).toBe(true)
   })
 
   test('a same-key acquire while the VM is leased gets a distinct single-use VM, never the leased one', async () => {
@@ -274,13 +290,13 @@ describe('warm pool through the executor', () => {
     try {
       const farm = guestFarm()
       const executor = createCodeExecutor(poolConfig({poolVmLifetimeMs: 600_000}), async () => farm.sdk)
-      const alpha = {accountId: 'acct', agentId: 'alpha'}
+      const alpha = {accountId: 'acct', agentId: 'alpha', sessionId: 's1'}
       const first = await executor.execute({principal: alpha, stateDir, runtime: 'shell', code: 'echo hi'})
       const second = await executor.execute({principal: alpha, stateDir, runtime: 'shell', code: 'echo again'})
       expect(first.success).toBe(true)
       expect(second.bootMs).toBe(0)
       expect(farm.sandboxes.length).toBe(1)
-      const beta = {accountId: 'acct', agentId: 'beta'}
+      const beta = {accountId: 'acct', agentId: 'beta', sessionId: 's1'}
       await executor.execute({principal: beta, stateDir, runtime: 'shell', code: 'echo other'})
       expect(farm.sandboxes.length).toBe(2)
       expect(perfSnapshot().counters['exec.pool_hit']!.count).toBe(1)

@@ -89,11 +89,20 @@ export type CodeExecRuntime = 'ts' | 'python' | 'shell'
 export const CODE_EXEC_RUNTIMES: readonly CodeExecRuntime[] = ['ts', 'python', 'shell']
 
 /**
- * The security identity an execution runs for. Carried explicitly across the sandbox seam so a
- * pooling source keys VMs on typed identity — never inferred from a filesystem path, which is a
+ * The identity an execution runs for, carried explicitly across the sandbox seam so a pooling
+ * source keys VMs on typed identity — never inferred from a filesystem path, which is a
  * representation detail and not a security boundary.
+ *
+ * Two distinct boundaries live here:
+ * - `accountId` + `agentId` are the SECURITY boundary: a sandbox must never be shared across
+ *   agent instances, ever.
+ * - `sessionId` is a PREDICTABILITY boundary: pooling is additionally confined to one session, so
+ *   guest RAM state (installed packages, temp files, environment) from one conversation can never
+ *   surface in another. A new session always starts from a cold, known-clean VM; only repeat
+ *   calls within the same session get the warm one. Durable cross-session state belongs in
+ *   /workspace, which is the agent's memory and survives regardless.
  */
-export type ExecPrincipal = {accountId: string; agentId: string}
+export type ExecPrincipal = {accountId: string; agentId: string; sessionId: string}
 
 /** One code execution request against an agent's memory workspace. */
 export type CodeExecRequest = {
@@ -477,7 +486,10 @@ export const POOL_GUEST_EXEC_TIMEOUT_MS = 2_000
  * executions so repeat calls skip the boot entirely and the guest keeps its warm state.
  *
  * Invariants, per the reviewed seam contract:
- * - Reuse is keyed on typed principal identity plus image; a VM never crosses that key.
+ * - Reuse is keyed on typed principal identity plus image; a VM never crosses that key. The
+ *   principal includes the sessionId, so reuse is session-scoped: agent isolation is the security
+ *   boundary, session isolation is the predictability boundary — a conversation only ever sees
+ *   warm state its own calls created.
  * - A VM is on loan to at most one lease. The parked entry is locked (`leased = true`)
  *   synchronously — before any await — so interleaved acquires cannot double-lease it; a
  *   same-key acquire while the VM is out gets a single-use overflow VM instead.
@@ -506,9 +518,11 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
   const disposals = new Set<Promise<void>>()
   const teardownMs = config.teardownTimeoutMs ?? EXEC_TEARDOWN_TIMEOUT_MS
 
-  // JSON keeps the three parts unambiguous no matter what characters ids ever contain.
+  // JSON keeps the parts unambiguous no matter what characters ids ever contain. sessionId is in
+  // the key on purpose: reuse is confined to one session (see ExecPrincipal), so a session's VM
+  // is its own and a new session always boots clean.
   const keyOf = (spec: SandboxSpec): string =>
-    JSON.stringify([spec.principal.accountId, spec.principal.agentId, spec.image])
+    JSON.stringify([spec.principal.accountId, spec.principal.agentId, spec.principal.sessionId, spec.image])
 
   const disposeSandbox = (sandbox: SandboxLike): void => {
     const teardownStartedAt = Date.now()

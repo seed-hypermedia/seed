@@ -45,7 +45,7 @@ const rows: Array<{run: number; bootMs: number; totalMs: number; exitCode: numbe
 try {
   for (let index = 1; index <= runCount; index += 1) {
     const result = await executor.execute({
-      principal: {accountId: 'bench-account', agentId: 'bench-agent'},
+      principal: {accountId: 'bench-account', agentId: 'bench-agent', sessionId: 'bench-session'},
       stateDir,
       runtime,
       code,

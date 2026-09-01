@@ -173,7 +173,7 @@ function fakeSdk(
   }
 }
 
-const principal = {accountId: 'test-account', agentId: 'test-agent'}
+const principal = {accountId: 'test-account', agentId: 'test-agent', sessionId: 'test-session'}
 
 describe('code exec', () => {
   test('runs python inside an ephemeral restricted sandbox with memory bind-mounted', async () => {

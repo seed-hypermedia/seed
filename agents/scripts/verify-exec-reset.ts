@@ -149,7 +149,11 @@ function windowDelta(before: CounterWindow, after: CounterWindow): CounterWindow
 }
 
 async function runScenario(scenario: (typeof SCENARIOS)[number]): Promise<Attempt> {
-  const principal = {accountId: 'verify-reset', agentId: scenario.name.replace(/\W+/g, '-')}
+  const principal = {
+    accountId: 'verify-reset',
+    agentId: scenario.name.replace(/\W+/g, '-'),
+    sessionId: 'verify-session',
+  }
   // Counters are sampled around EACH call: the plant call's release runs inside execute(), so the
   // call-1 window isolates the reset under test, and the call-2 window proves the autopsy's own
   // acquire/release contributed no disposal that could be misattributed to call 1.
