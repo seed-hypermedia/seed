@@ -559,10 +559,13 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
    *
    * Excluded from dirtiness: pid 1 (the guest supervisor), the sweeping shell and its ancestor
    * chain (the exec session's plumbing), kernel threads (PF_KTHREAD flag in /proc/pid/stat;
-   * SIGKILL is a no-op on them), and zombies — killed daemons linger as `State: Z` corpses
-   * because init.krun reaps lazily (verified against a real guest); a zombie runs nothing and
-   * cannot fork, so it cannot violate the contract, and the corpses are bounded by the VM's own
-   * lifetime.
+   * SIGKILL is a no-op on them), and PROVEN zombies. A zombie is only proven by two snapshots: a
+   * process can fork after the glob expanded and die before its stat is read, so a Z on FIRST
+   * observation may have children this pass's snapshot never saw — it dirties the pass, and is
+   * spared only once it was already a zombie in the prior complete pass (dead at that scan, so it
+   * cannot have forked since). Killed daemons linger as `State: Z` corpses because init.krun
+   * reaps lazily (verified against a real guest); a proven zombie runs nothing and cannot fork,
+   * and persistent corpses cost one extra pass on their first reset, not one per pass.
    *
    * Parsing is delimiter-safe against hostile process names: stat is flattened (`tr '\n' ' '`)
    * before the greedy comm strip, so a comm containing newlines or ") " cannot truncate or desync
@@ -577,10 +580,12 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
     '  keep="$keep$pp "',
     '  p=$pp',
     'done',
+    'prevz=""',
     'pass=0',
     'while [ $pass -lt 5 ]; do',
     '  pass=$((pass+1))',
     '  dirty=0',
+    '  curz=""',
     '  for f in /proc/[0-9]*; do',
     '    pid=${f#/proc/}',
     '    case "$keep" in *" $pid "*) continue;; esac',
@@ -596,12 +601,19 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
     '      case "$flags" in ""|*[!0-9]*) ok=0;; esac',
     '    fi',
     '    if [ "$ok" -eq 1 ]; then',
-    '      [ "$state" = "Z" ] && continue',
+    '      if [ "$state" = "Z" ]; then',
+    // Two-snapshot zombie proof: spared only if it was already Z in the prior complete pass.
+    '        curz="$curz $pid "',
+    '        case "$prevz" in *" $pid "*) continue;; esac',
+    '        dirty=$((dirty+1))',
+    '        continue',
+    '      fi',
     '      [ $((flags & 2097152)) -ne 0 ] && continue',
     '    fi',
     '    dirty=$((dirty+1))',
     '    kill -9 "$pid" 2>/dev/null',
     '  done',
+    '  prevz=$curz',
     '  [ "$dirty" -eq 0 ] && exit 0',
     'done',
     'exit 1',
@@ -629,8 +641,10 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
           return
         }
         // Reset before park: nothing from this call may still be running when the VM is next
-        // handed out. A guest that cannot even run the reset is wedged — dispose it.
+        // handed out. A guest that cannot prove itself empty (or run the reset at all) is
+        // disposed; the counter makes reset-caused disposal distinguishable from other paths.
         if (!(await resetGuest(entry.sandbox))) {
+          recordPerfCount('exec.pool_reset_failed')
           disposeEntry(entry)
           return
         }
@@ -666,9 +680,12 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
         // Lock before the first await so an interleaved same-key acquire can never double-lease.
         existing.leased = true
         if (existing.idleTimer) clearTimeout(existing.idleTimer)
-        if (lifetimeCovers(existing, spec) && (await probeGuest(existing.sandbox))) {
-          recordPerfCount('exec.pool_hit')
-          return pooledLease(existing, 0, true)
+        if (lifetimeCovers(existing, spec)) {
+          if (await probeGuest(existing.sandbox)) {
+            recordPerfCount('exec.pool_hit')
+            return pooledLease(existing, 0, true)
+          }
+          recordPerfCount('exec.pool_probe_failed')
         }
         disposeEntry(existing)
       }

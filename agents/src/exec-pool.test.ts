@@ -189,13 +189,15 @@ describe('warm pool source', () => {
     expect(second.reused).toBe(false)
   })
 
-  test('a guest that fails its park reset is disposed, not reused', async () => {
+  test('a guest that fails its park reset is disposed, not reused, and the failure is counted', async () => {
     const farm = guestFarm()
     const source = createWarmPoolSource(poolConfig(), async () => farm.sdk)
     const first = await source.acquire(specFor('acct', 'agent'))
     farm.failGuestExec = true
     await first.release({healthy: true})
     await settled(() => farm.sandboxes[0]!.stopped)
+    // The counter is what lets an external observer attribute a disposal to the reset.
+    expect(perfSnapshot().counters['exec.pool_reset_failed']!.count).toBe(1)
     farm.failGuestExec = false
     const second = await source.acquire(specFor('acct', 'agent'))
     expect(second.sandbox).not.toBe(first.sandbox)
@@ -212,6 +214,7 @@ describe('warm pool source', () => {
     const second = await secondPromise
     expect(second.sandbox).not.toBe(first.sandbox)
     expect(second.reused).toBe(false)
+    expect(perfSnapshot().counters['exec.pool_probe_failed']!.count).toBe(1)
   })
 
   test('VM lifetime is pool policy: a parked VM without enough life left is replaced, not reused', async () => {

@@ -116,15 +116,22 @@ in the types, the rest are contract obligations a pool implementation must land 
      when a full pass proves every snapshot entry spared, zombie, or kernel thread. The pass is **fail-closed** (ion's
      staging-pass blocker): an unreadable, vanished, or unparseable entry marks the pass dirty and gets a kill attempt
      anyway — a vanished parent may have forked before exiting, so its disappearance is grounds for another pass, never
-     for trust — and stat parsing flattens newlines first so a hostile comm cannot break it. A guest still dirtying
-     passes after the budget is disposed instead of parked.
-   - `scripts/verify-exec-reset.ts` proves the contract against real guests with plant assertions and per-scenario
-     expectations: a plain daemon and a double-forked orphan MUST be reused clean; a moderate respawner must be clean
-     either way; a recursive fork storm MUST exhaust the pass budget and be disposed (fresh boot, clean) — the
-     fail-closed disposal path demonstrated, not just the happy path.
-   - Killed daemons linger as zombies (`State: Z`, empty cmdline) because init.krun reaps lazily. A zombie runs nothing
-     — the reset contract (no prior-call process RUNNING at reuse) holds; corpses are bounded by the VM's 30-minute
-     lifetime.
+     for trust — and stat parsing flattens newlines first so a hostile comm cannot break it. Zombies are spared only on
+     a **two-snapshot proof** (ion's fourth-pass blocker): a Z on first observation may have forked and died between the
+     glob and its stat read, so it dirties the pass; it is spared once it was already Z in the prior complete pass (dead
+     at that scan, so it cannot have forked since) — persistent corpses cost one extra pass on their first reset, not
+     one per pass. A guest still dirtying passes after the budget is disposed instead of parked, and the disposal is
+     counted (`exec.pool_reset_failed`, beside `exec.pool_probe_failed`) so it is externally attributable.
+   - `scripts/verify-exec-reset.ts` proves the contract against real guests with plant assertions (positive call-1
+     success), per-scenario expectations, and **counter attribution**: a plain daemon and a double-forked orphan MUST be
+     reused clean via a pool hit with zero reset failures; a moderate respawner must be clean either way; a
+     self-perpetuating respawn chain (each generation forks its successor before parking, so every pass stays dirty)
+     MUST exhaust the pass budget with exactly one `exec.pool_reset_failed` — disposal positively attributed to the
+     reset, not to a failed probe or an unhealthy call. A raw fork bomb turned out to be the wrong storm: it melts the
+     guest so hard the plant call itself dies and the disposal mis-attributes to an unhealthy release.
+   - Killed daemons linger as zombies (`State: Z`, empty cmdline) because init.krun reaps lazily. A proven zombie runs
+     nothing — the reset contract (no prior-call process RUNNING at reuse) holds; corpses are bounded by the VM's
+     30-minute lifetime.
    - Exec sessions are direct children of pid 1, so the ancestor chain the sweep must spare is short and stable.
 
 3. ~~Tool-contract wording update for the new semantics (before any staging enable).~~ DONE — the `execute` contract now
