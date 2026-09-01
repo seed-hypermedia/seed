@@ -988,9 +988,9 @@ export default function DesktopResourcePage() {
     onClick: () => navigate({key: 'all-documents', id: hmId(docId.uid)}),
   })
 
-  // Experimental building blocks live behind Developer Mode (Settings →
-  // Developers); the blob/schema editor pages themselves offer these too.
-  if (experiments?.developerMode) {
+  // Experimental building blocks live behind the Hypermedia Schemas dev toggle
+  // (Settings → Developer Mode); the blob/schema editor pages offer these too.
+  if (experiments?.developerMode && experiments?.hypermediaSchemas) {
     menuItems.push(...blobBuilderMenuItems(navigate))
 
     // The World Builder: scaffold a typed ontology (types + folders + starter
