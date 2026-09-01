@@ -1,10 +1,11 @@
 import {type SessionContinuationLink, type SessionEvent, type SessionInfo} from './client'
 import {type ChatToolPart} from './chat-parts'
 import {Markdown} from './markdown'
-import {formatTokenCount} from './agent-run-status'
+
 import {useOpenAgentSession} from './open-session-context'
 import {Button} from '@shm/ui/button'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
+import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {ArrowRight, ChevronDown, ChevronRight, CornerLeftUp, GitBranch, Info, Split} from 'lucide-react'
 import {useEffect, useRef, useState} from 'react'
@@ -93,30 +94,37 @@ export function ContextUsageMeter({
         : 'text-muted-foreground'
   const radius = 8
   const circumference = 2 * Math.PI * radius
-  const label = `Context: ${formatTokenCount(tokens)} of ${formatTokenCount(contextWindow)} tokens used (${percent}%)`
+  const remaining = Math.max(0, contextWindow - tokens)
+  const label = `Context ${percent}% full`
+  const detail = [
+    `${tokens.toLocaleString('en-US')} of ${contextWindow.toLocaleString('en-US')} tokens used (${percent}%)`,
+    `${remaining.toLocaleString('en-US')} tokens (${Math.max(0, 100 - percent)}%) remaining`,
+    fraction >= CONTEXT_URGENT_FRACTION
+      ? 'Nearly full — the agent should continue to a fresh session now.'
+      : fraction >= CONTEXT_WARN_FRACTION
+        ? 'Getting full — the agent will continue to a fresh session at the next natural boundary.'
+        : 'The agent continues to a fresh session at a natural boundary, around 70% full.',
+  ].join('\n')
   return (
-    <span
-      className={cn('inline-flex shrink-0 items-center', tone, className)}
-      title={label}
-      aria-label={label}
-      role="img"
-    >
-      <svg width={size} height={size} viewBox="0 0 20 20" className="shrink-0">
-        <circle cx="10" cy="10" r={radius} fill="none" stroke="currentColor" strokeOpacity="0.2" strokeWidth="3" />
-        <circle
-          cx="10"
-          cy="10"
-          r={radius}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeDasharray={circumference}
-          strokeDashoffset={circumference * (1 - fraction)}
-          strokeLinecap="butt"
-          transform="rotate(-90 10 10)"
-        />
-      </svg>
-    </span>
+    <Tooltip content={`${label}\n${detail}`} contentClassName="whitespace-pre-line text-left" asChild>
+      <span className={cn('inline-flex shrink-0 items-center', tone, className)} aria-label={label} role="img">
+        <svg width={size} height={size} viewBox="0 0 20 20" className="shrink-0">
+          <circle cx="10" cy="10" r={radius} fill="none" stroke="currentColor" strokeOpacity="0.2" strokeWidth="3" />
+          <circle
+            cx="10"
+            cy="10"
+            r={radius}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeDasharray={circumference}
+            strokeDashoffset={circumference * (1 - fraction)}
+            strokeLinecap="butt"
+            transform="rotate(-90 10 10)"
+          />
+        </svg>
+      </span>
+    </Tooltip>
   )
 }
 
