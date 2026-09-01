@@ -30,7 +30,7 @@ const LOCK = resolve(DIR, "schemas.lock.json");
 // public name strips `onyx-` from primitives/meta; hypermedia-/example- keep it.
 const ONYX = "z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb";
 const fileToUrl = (file) => {
-  const b = file.replace(/\.json$/, "");
+  const b = file.replace(/\.schema\.json$/, "");
   const publicName = b.startsWith("onyx-") ? b.slice(5) : b;
   return `hm://${ONYX}/${publicName}`;
 };
@@ -41,7 +41,7 @@ async function cidOf(obj) {
   return { cid: CID.create(1, dagCbor.code, hash).toString(), size: bytes.length };
 }
 
-const files = readdirSync(DIR).filter((f) => f.endsWith(".json") && f !== "schemas.lock.json").sort();
+const files = readdirSync(DIR).filter((f) => f.endsWith(".schema.json")).sort();
 const schemas = {};
 let totalBytes = 0;
 for (const f of files) {
