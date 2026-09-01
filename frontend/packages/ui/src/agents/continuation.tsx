@@ -197,11 +197,15 @@ export function parseContinuationProjection(content: string): ContinuationProjec
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Moves a client to the successor when the session it is showing gets continued — but only a
- * client that was following the turn: it saw the session streaming (or sent the message itself).
- * Someone reading an old transcript when another window continues it is not yanked away; the
- * transition card and the notice above the composer still show where it went. Fires once per
- * successor, so Back returns to the predecessor without being redirected again.
+ * Moves a client to the successor when the session it is showing gets continued — but only on the
+ * TRANSITION, and only for a client that was following the turn.
+ *
+ * The transition: `continuedTo` was absent when this client loaded the session and then appeared.
+ * A session that already had a successor when it was opened is one the person chose to come back
+ * to (to read it, or to branch by writing there), and is never redirected — that is what the
+ * transition row is for. Following the turn: this client saw the session streaming, or sent the
+ * message itself (the send response names the successor directly). Fires once per successor, so
+ * Back returns to the predecessor without being redirected again.
  */
 export function useFollowContinuation({
   session,
@@ -214,27 +218,37 @@ export function useFollowContinuation({
 }) {
   const followingRef = useRef(false)
   const followedRef = useRef<string | null>(null)
+  /** The successor the session already had when this client first loaded it (null: none). */
+  const baselineRef = useRef<{sessionId: string; successorId: string | null} | null>(null)
   const sessionId = session?.id
+  const successorId = session?.continuedTo?.sessionId ?? null
   useEffect(() => {
     followingRef.current = false
     followedRef.current = null
+    baselineRef.current = null
   }, [sessionId])
   useEffect(() => {
     if (isStreaming) followingRef.current = true
   }, [isStreaming])
-  const successorId = session?.continuedTo?.sessionId
   useEffect(() => {
-    if (!session?.continuedTo || !successorId) return
+    if (!session) return
+    if (baselineRef.current?.sessionId !== session.id) {
+      // First sight of this session on this client: whatever successor it has now is history.
+      baselineRef.current = {sessionId: session.id, successorId}
+      return
+    }
+    if (!session.continuedTo || !successorId) return
+    if (successorId === baselineRef.current.successorId) return
     if (!followingRef.current || followedRef.current === successorId) return
     followedRef.current = successorId
     onFollow(session.continuedTo)
-  }, [onFollow, session?.continuedTo, successorId])
-  /** Marks this client as following the turn (call when it sends a message). */
+  }, [onFollow, session, successorId])
   return {
+    /** Marks this client as following the turn (call when it sends a message). */
     markFollowing: () => {
       followingRef.current = true
     },
-    /** Follows a successor id the send response named, once. */
+    /** Follows a successor the send response named, once. */
     followNow: (link: SessionContinuationLink) => {
       if (followedRef.current === link.sessionId) return
       followedRef.current = link.sessionId
