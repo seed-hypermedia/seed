@@ -1,6 +1,4 @@
 {
-  "name": "Tree",
-  "description": "A node holding an integer value and links to child nodes.",
   "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
   "required": [
     "value"
