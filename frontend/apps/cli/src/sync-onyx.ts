@@ -4,6 +4,7 @@
  *   cd frontend/apps/cli
  *   bun run src/sync-onyx.ts push [--dry-run] [--server <url>] [--key <name>]
  *   bun run src/sync-onyx.ts pull [--server <url>] [--space <uid>]
+ *   bun run src/sync-onyx.ts dev  [--api <url>] [--daemon <url>] [--no-push]
  *
  * push: verify every hypermedia/*.schema.json against schemas.lock.json,
  *       publish the schema blobs, then import hypermedia/ as documents. A
@@ -13,6 +14,10 @@
  *       per document, and the schema blob of each type document as its
  *       co-located *.schema.json — then refresh schemas.lock.json and the
  *       bundled schema registry.
+ * dev:  the local editing loop. Publishes hypermedia/ into the daemon behind a
+ *       running desktop dev app under a throwaway dev key (hypermedia/.dev/,
+ *       gitignored), opens the site, and writes every document published
+ *       there back into hypermedia/ as you edit in the app.
  *
  * Layout (hypermedia/):
  *   <basename>.md + <basename>.schema.json  → hm://<space>/<publicName>
@@ -27,7 +32,7 @@
  */
 
 import {spawnSync} from 'node:child_process'
-import {existsSync, readdirSync, readFileSync} from 'node:fs'
+import {existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync} from 'node:fs'
 import {dirname, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {gunzipSync, inflateRawSync, inflateSync} from 'node:zlib'
@@ -62,14 +67,17 @@ if (typeof (globalThis as any).DecompressionStream === 'undefined') {
     }
   }
 }
+import {createGrpcWebTransport} from '@connectrpc/connect-web'
 import * as dagCbor from '@ipld/dag-cbor'
-import {createSeedClient} from '@seed-hypermedia/client'
+import {createSeedClient, type HMSigner, type SeedClient} from '@seed-hypermedia/client'
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
+import {createGRPCClient} from '@shm/shared/grpc-client'
 import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
+import {deriveKeyPairFromMnemonic, generateMnemonic, type KeyPair} from './utils/key-derivation'
 import {resolveSigningKey} from './utils/keys'
 import {createSignerFromKey} from './utils/signer'
-import {exportSpace, importSpace, type SpaceLayout} from './utils/space-sync'
+import {exportPath, exportSpace, importSpace, listSpaceVersions, type SpaceLayout} from './utils/space-sync'
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
@@ -180,6 +188,58 @@ function argValue(args: string[], flag: string): string | undefined {
   return idx >= 0 ? args[idx + 1] : undefined
 }
 
+/** A TYPE doc DEFINES its schema; an INSTANCE doc CONFORMS to its $type. */
+function onyxMetadataFor(schemas: SchemaSet) {
+  return (file: string, metadata: HMMetadata): HMMetadata => {
+    if (file.startsWith('site/')) return metadata
+    const basename = file.replace(/\.md$/, '')
+    const out = {...(metadata as Record<string, unknown>)}
+    const instanceType = schemas.instanceTypeByBasename.get(basename)
+    if (instanceType) {
+      out.schema = instanceType
+      delete out.schemaDefinition
+    } else if (schemas.cidByBasename.has(basename)) {
+      out.schemaDefinition = `ipfs://${schemas.cidByBasename.get(basename)}`
+    }
+    return out as HMMetadata
+  }
+}
+
+/** Publish the schema blobs, then import hypermedia/ into `account` on `client`. */
+async function pushTo(client: SeedClient, signer: HMSigner, account: string, dryRun: boolean) {
+  const schemas = await loadSchemaBlobs()
+  console.log(`Schema blobs: ${schemas.blobs.length} encoded, all CIDs match the lockfile.`)
+  if (!dryRun) {
+    console.log(`Publishing ${schemas.blobs.length} schema blobs...`)
+    await client.publish({blobs: schemas.blobs})
+    console.log('  done.\n')
+  }
+  const result = await importSpace({
+    client,
+    signer,
+    account,
+    dir: SCHEMAS_DIR,
+    layout,
+    dryRun,
+    log: (line) => console.log('  ' + line),
+    metadataFor: onyxMetadataFor(schemas),
+  })
+  console.log(
+    `\n${dryRun ? 'DRY RUN' : 'DONE'}: ${result.created.length} created, ${result.updated.length} updated, ${
+      result.unchanged.length
+    } unchanged.`,
+  )
+  return result
+}
+
+/** Refresh the lockfile and the bundled registry after schema files changed. */
+function refreshSchemaArtifacts() {
+  for (const script of ['hypermedia/publish.mjs', 'scripts/gen-onyx.mjs']) {
+    const run = spawnSync('node', [script], {cwd: REPO_ROOT, stdio: 'inherit'})
+    if (run.status !== 0) throw new Error(`${script} failed`)
+  }
+}
+
 async function push(args: string[]) {
   const dryRun = args.includes('--dry-run')
   const serverUrl = argValue(args, '--server') ?? 'https://hyper.media'
@@ -190,62 +250,22 @@ async function push(args: string[]) {
     ? await resolveSigningKey(keyName, {dev: false}).catch(() => null)
     : await resolveSigningKey(keyName, {dev: false})
   const account = key?.accountId ?? argValue(args, '--space') ?? ONYX
-  const signer = key
-    ? createSignerFromKey(key)
-    : {
-        getPublicKey: () => {
-          throw new Error('no signing key (dry run)')
-        },
-        sign: () => {
-          throw new Error('no signing key (dry run)')
-        },
-      }
+  const signer = key ? createSignerFromKey(key) : noSigner()
   console.log(
     `Account: ${account}${account === ONYX ? ' (onyx)' : '  ! not the onyx account'}${key ? '' : '  (no key)'}`,
   )
   console.log(`Server:  ${serverUrl}`)
   console.log(`Mode:    ${dryRun ? 'DRY RUN' : 'PUBLISH'}\n`)
 
-  const schemas = await loadSchemaBlobs()
-  console.log(`Schema blobs: ${schemas.blobs.length} encoded, all CIDs match the lockfile.`)
-
-  const client = createSeedClient(serverUrl)
-  if (!dryRun) {
-    console.log(`Publishing ${schemas.blobs.length} schema blobs...`)
-    await client.publish({blobs: schemas.blobs})
-    console.log('  done.\n')
-  }
-
-  const result = await importSpace({
-    client,
-    signer,
-    account,
-    dir: SCHEMAS_DIR,
-    layout,
-    dryRun,
-    log: (line) => console.log('  ' + line),
-    // A TYPE doc DEFINES its schema; an INSTANCE doc CONFORMS to its $type.
-    metadataFor(file, metadata) {
-      if (file.startsWith('site/')) return metadata
-      const basename = file.replace(/\.md$/, '')
-      const out = {...(metadata as Record<string, unknown>)}
-      const instanceType = schemas.instanceTypeByBasename.get(basename)
-      if (instanceType) {
-        out.schema = instanceType
-        delete out.schemaDefinition
-      } else if (schemas.cidByBasename.has(basename)) {
-        out.schemaDefinition = `ipfs://${schemas.cidByBasename.get(basename)}`
-      }
-      return out as HMMetadata
-    },
-  })
-
-  console.log(
-    `\n${dryRun ? 'DRY RUN' : 'DONE'}: ${result.created.length} created, ${result.updated.length} updated, ${
-      result.unchanged.length
-    } unchanged.`,
-  )
+  await pushTo(createSeedClient(serverUrl), signer, account, dryRun)
   console.log(`Root: hm://${account}`)
+}
+
+function noSigner(): HMSigner {
+  const fail = () => {
+    throw new Error('no signing key (dry run)')
+  }
+  return {getPublicKey: fail, sign: fail}
 }
 
 async function pull(args: string[]) {
@@ -257,11 +277,109 @@ async function pull(args: string[]) {
   const client = createSeedClient(serverUrl)
   const result = await exportSpace({client, uid, dir: SCHEMAS_DIR, layout, log: (line) => console.log('  ' + line)})
   console.log(`\nPulled: ${result.written.length} written, ${result.unchanged.length} unchanged.`)
+  refreshSchemaArtifacts()
+}
 
-  // Schema files may have changed: refresh the lockfile and the bundled registry.
-  for (const script of ['hypermedia/publish.mjs', 'scripts/gen-onyx.mjs']) {
-    const run = spawnSync('node', [script], {cwd: REPO_ROOT, stdio: 'inherit'})
-    if (run.status !== 0) throw new Error(`${script} failed`)
+// ── dev: the local editing loop ───────────────────────────────────────────────
+//
+// Publishes hypermedia/ into the daemon behind a running desktop dev app under
+// a throwaway key, then watches that daemon and writes every document you
+// publish there back into hypermedia/. The app is the editor; git is where you
+// commit. Nothing reaches the network until you `push`.
+
+const DEV_DIR = resolve(SCHEMAS_DIR, '.dev')
+const DEV_MNEMONIC_FILE = resolve(DEV_DIR, 'onyx-dev.mnemonic')
+
+/** The unencrypted dev key: a mnemonic in a gitignored file, created on first use. */
+function loadOrCreateDevKey(): {keyPair: KeyPair; words: string[]; created: boolean} {
+  let words: string[]
+  let created = false
+  if (existsSync(DEV_MNEMONIC_FILE)) {
+    words = readFileSync(DEV_MNEMONIC_FILE, 'utf8').trim().split(/\s+/)
+  } else {
+    words = generateMnemonic(12).split(' ')
+    mkdirSync(DEV_DIR, {recursive: true})
+    writeFileSync(DEV_MNEMONIC_FILE, words.join(' ') + '\n', {mode: 0o600})
+    created = true
+  }
+  return {keyPair: deriveKeyPairFromMnemonic(words), words, created}
+}
+
+/** Make sure the daemon holds the dev key, so the app can edit as that account. */
+async function ensureDaemonKey(daemonUrl: string, words: string[], accountId: string) {
+  const grpc = createGRPCClient(createGrpcWebTransport({baseUrl: daemonUrl}))
+  const existing = await grpc.daemon.listKeys({})
+  if (existing.keys.some((k) => k.publicKey === accountId)) return
+  const name = `onyx-dev-${accountId.slice(-6)}`
+  await grpc.daemon.registerKey({mnemonic: words, name})
+  console.log(`Registered key "${name}" in the daemon.`)
+}
+
+async function dev(args: string[]) {
+  const apiUrl = argValue(args, '--api') ?? 'http://localhost:58004'
+  const daemonUrl = argValue(args, '--daemon') ?? 'http://localhost:58001'
+  const intervalMs = Number(argValue(args, '--interval') ?? 2000)
+  const skipPush = args.includes('--no-push')
+
+  const {keyPair, words, created} = loadOrCreateDevKey()
+  const account = keyPair.accountId
+  console.log(`Dev key: ${account}${created ? ' (new; saved to hypermedia/.dev/)' : ''}`)
+  console.log(`Daemon:  ${daemonUrl}`)
+  console.log(`API:     ${apiUrl}\n`)
+
+  try {
+    await ensureDaemonKey(daemonUrl, words, account)
+  } catch (err) {
+    throw new Error(
+      `Cannot reach the daemon at ${daemonUrl} (${
+        (err as Error).message
+      }). Start the desktop dev app first (./dev run-desktop).`,
+    )
+  }
+
+  const client = createSeedClient(apiUrl)
+  const signer = createSignerFromKey(keyPair)
+
+  if (!skipPush) {
+    console.log('Pushing hypermedia/ into the local daemon...')
+    await pushTo(client, signer, account, false)
+    console.log('')
+  }
+
+  const url = `hm://${account}`
+  console.log(`Site: ${url}`)
+  console.log('Open it in the desktop app (paste the URL in the omnibar). Edit and publish; files update here.')
+  spawnSync('open', [url], {stdio: 'ignore'})
+
+  // Watch: poll document versions and write back whatever changed.
+  let versions = await listSpaceVersions(client, account)
+  console.log(`Watching ${versions.size} documents every ${intervalMs}ms. Ctrl-C to stop.\n`)
+  for (;;) {
+    await new Promise((r) => setTimeout(r, intervalMs))
+    let next: Map<string, string>
+    try {
+      next = await listSpaceVersions(client, account)
+    } catch (err) {
+      console.log(`  ! poll failed: ${(err as Error).message}`)
+      continue
+    }
+    let schemaChanged = false
+    for (const [path, version] of next) {
+      if (versions.get(path) === version) continue
+      try {
+        const written = await exportPath({client, uid: account, dir: SCHEMAS_DIR, layout}, path)
+        for (const file of written) {
+          console.log(`  ${new Date().toLocaleTimeString()}  wrote ${file}`)
+          if (file.endsWith('.schema.json')) schemaChanged = true
+        }
+        if (written.length === 0)
+          console.log(`  ${new Date().toLocaleTimeString()}  ${path || '(home)'} republished, no file change`)
+      } catch (err) {
+        console.log(`  ! ${path || '(home)'}: ${(err as Error).message}`)
+      }
+    }
+    versions = next
+    if (schemaChanged) refreshSchemaArtifacts()
   }
 }
 
@@ -269,8 +387,13 @@ async function main() {
   const [command, ...args] = process.argv.slice(2)
   if (command === 'push') return push(args)
   if (command === 'pull') return pull(args)
+  if (command === 'dev') return dev(args)
   console.error(
-    'usage: sync-onyx.ts push [--dry-run] [--server <url>] [--key <name>]\n       sync-onyx.ts pull [--server <url>] [--space <uid>]',
+    [
+      'usage: sync-onyx.ts push [--dry-run] [--server <url>] [--key <name>]',
+      '       sync-onyx.ts pull [--server <url>] [--space <uid>]',
+      '       sync-onyx.ts dev  [--api <url>] [--daemon <url>] [--interval <ms>] [--no-push]',
+    ].join('\n'),
   )
   process.exit(2)
 }

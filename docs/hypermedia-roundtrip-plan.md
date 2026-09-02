@@ -1,6 +1,6 @@
 # Hypermedia round-trip: edit `hypermedia/` in the Seed app, keep git as the source of truth
 
-Status: Phases 1 and 2 done (branch `feat/onyx-roundtrip`, based on `feat/onyx`). Started 2026-09-02. Phase 3 (local dev loop) next.
+Status: Phases 1–3 done (branch `feat/onyx-roundtrip`, based on `feat/onyx`). Started 2026-09-02, dev loop verified 2026-09-03 against the desktop dev daemon. Phase 4 is the existing `push`.
 
 ## The problem
 
@@ -79,7 +79,7 @@ desktop's markdown draft write path (which is gated on exactly this work).
 
 ### Phase 3: local dev loop
 
-- `onyx dev` (name TBD): dev key in a gitignored dir, register in the local daemon, push, open, watch the feed, write
+- `sync-onyx.ts dev`: dev key in `hypermedia/.dev/` (gitignored), registered in the local daemon over gRPC-web, push, open, poll document versions (one Query + one Resource call per tick; simpler than parsing the feed), write
   back.
 - Conflict rule for v1: while the loop runs, the app is the writer and git is where you commit. Folder edits are pushed
   on start and on demand, not watched, to avoid ping-pong.

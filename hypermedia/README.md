@@ -149,7 +149,18 @@ cd frontend/apps/cli
 bun run src/sync-onyx.ts push --dry-run   # what would change on hyper.media
 bun run src/sync-onyx.ts push             # publish (signing key: main)
 bun run src/sync-onyx.ts pull             # bring edits made in the Seed app back into git
+bun run src/sync-onyx.ts dev              # the local editing loop (see below)
 ```
+
+**Editing locally.** With the desktop dev app running (`./dev run-desktop`),
+`dev` publishes this folder into the app's own daemon under a throwaway key
+(a mnemonic in `hypermedia/.dev/`, gitignored, created on first use and
+registered in the daemon so the app can edit as that account), opens the site,
+and then watches that daemon: every document you publish in the app is written
+straight back here — markdown, and the schema JSON when a type changed — so
+`git diff` shows your edit within seconds. Nothing reaches hyper.media until you
+`push`. While the loop runs, the app is the writer; hand edits to the files are
+pushed on the next `dev` start (or with `--no-push` skipped altogether).
 
 The markdown is the lossless dialect of `@seed-hypermedia/client`
 (`blocksToMarkdown` / `parseMarkdown`): every block type, annotation, attribute

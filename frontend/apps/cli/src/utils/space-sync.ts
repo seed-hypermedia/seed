@@ -154,33 +154,65 @@ function reorderLike(value: unknown, template: unknown): unknown {
   return out
 }
 
-export async function exportSpace(opts: ExportOptions): Promise<ExportResult> {
+/** Write one document (and the schema it defines) into the directory. */
+export async function exportDocument(
+  opts: Omit<ExportOptions, 'uid'>,
+  doc: HMDocument,
+  result: ExportResult = {written: [], unchanged: [], skipped: []},
+): Promise<ExportResult> {
   const layout = opts.layout || defaultLayout
   const log = opts.log || (() => {})
-  const result: ExportResult = {written: [], unchanged: [], skipped: []}
-  const docs = await listSpaceDocuments(opts.client, opts.uid)
-  for (const doc of docs) {
-    const path = doc.path || ''
-    const file = layout.fileForPath(path, doc)
-    if (!file) {
-      result.skipped.push(path || '(home)')
-      continue
-    }
-    const md = blocksToMarkdown(doc, {ipfsGateway: false})
-    const changed = writeIfChanged(resolve(opts.dir, file), md)
-    ;(changed ? result.written : result.unchanged).push(file)
-    log(`${changed ? 'wrote  ' : 'same   '} ${file}`)
+  const path = doc.path || ''
+  const file = layout.fileForPath(path, doc)
+  if (!file) {
+    result.skipped.push(path || '(home)')
+    return result
+  }
+  const md = blocksToMarkdown(doc, {ipfsGateway: false})
+  const changed = writeIfChanged(resolve(opts.dir, file), md)
+  ;(changed ? result.written : result.unchanged).push(file)
+  log(`${changed ? 'wrote  ' : 'same   '} ${file}`)
 
-    const schemaCid = ipfsCid((doc.metadata as Record<string, unknown> | undefined)?.schemaDefinition)
-    const schemaFile = schemaCid ? layout.schemaFileFor(file) : null
-    if (schemaCid && schemaFile) {
-      const blob = await opts.client.request('GetCID', {cid: schemaCid})
-      const changedSchema = writeJsonPreservingOrder(resolve(opts.dir, schemaFile), blob.value)
-      ;(changedSchema ? result.written : result.unchanged).push(schemaFile)
-      log(`${changedSchema ? 'wrote  ' : 'same   '} ${schemaFile}`)
-    }
+  const schemaCid = ipfsCid((doc.metadata as Record<string, unknown> | undefined)?.schemaDefinition)
+  const schemaFile = schemaCid ? layout.schemaFileFor(file) : null
+  if (schemaCid && schemaFile) {
+    const blob = await opts.client.request('GetCID', {cid: schemaCid})
+    const changedSchema = writeJsonPreservingOrder(resolve(opts.dir, schemaFile), blob.value)
+    ;(changedSchema ? result.written : result.unchanged).push(schemaFile)
+    log(`${changedSchema ? 'wrote  ' : 'same   '} ${schemaFile}`)
   }
   return result
+}
+
+export async function exportSpace(opts: ExportOptions): Promise<ExportResult> {
+  const result: ExportResult = {written: [], unchanged: [], skipped: []}
+  const docs = await listSpaceDocuments(opts.client, opts.uid)
+  for (const doc of docs) await exportDocument(opts, doc, result)
+  return result
+}
+
+/** Export the document at one path; returns the files written. */
+export async function exportPath(opts: ExportOptions, path: string): Promise<string[]> {
+  const res = await opts.client.request(
+    'Resource',
+    hmId(opts.uid, {path: path ? path.replace(/^\//, '').split('/') : []}),
+  )
+  if (res.type !== 'document') return []
+  const result = await exportDocument(opts, res.document)
+  return result.written
+}
+
+/** Current version of every document in a space, by path ('' = home). One Query + one Resource call. */
+export async function listSpaceVersions(client: SeedClient, uid: string): Promise<Map<string, string>> {
+  const versions = new Map<string, string>()
+  const home = await client.request('Resource', hmId(uid))
+  if (home.type === 'document') versions.set('', home.document.version)
+  const query = await client.request('Query', {includes: [{space: uid, path: '', mode: 'AllDescendants'}]})
+  for (const info of query?.results || []) {
+    if (info.type !== 'document') continue
+    versions.set('/' + info.path.join('/'), info.version)
+  }
+  return versions
 }
 
 // ─── Import ──────────────────────────────────────────────────────────────────
