@@ -2842,12 +2842,7 @@ function DocumentBody({
       {/* Main content based on activeView */}
       <div className={cn('flex-1', !isCollection && activeView !== 'content' && 'pb-60', isMobile && 'px-4')}>
         {isCollection ? (
-          <DocumentCollection
-            docId={docId}
-            queryBlock={collectionQueryBlock}
-            canEdit={canEditCurrentRoute}
-            document={document}
-          />
+          <DocumentCollection docId={docId} queryBlock={collectionQueryBlock} canEdit={canEditCurrentRoute} />
         ) : (
           <MainContent
             docId={docId}
@@ -3392,12 +3387,10 @@ function DocumentCollection({
   docId,
   queryBlock,
   canEdit,
-  document,
 }: {
   docId: UnpackedHypermediaId
   queryBlock: EditorBlock | null
   canEdit: boolean
-  document?: HMDocument
 }) {
   const client = useUniversalClient()
   const send = useDocumentSend()
@@ -3471,19 +3464,10 @@ function DocumentCollection({
     [canEdit, beginEditIfNeeded, send, tableConfig?.columns],
   )
 
-  const title = getMetadataName(document?.metadata) || 'Untitled'
-  const count = query.data?.results.length ?? 0
-
   return (
-    <div className="w-full px-5 pb-8">
+    <div className="w-full px-5 pt-4 pb-8">
       <div className="border-border bg-background overflow-hidden rounded-xl border shadow-sm">
         <div className="border-border flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <h2 className="truncate text-2xl font-semibold">{title}</h2>
-            <span className="text-muted-foreground border-border inline-flex items-center rounded-full border px-2.5 py-0.5 text-sm">
-              {count} documents
-            </span>
-          </div>
           <div className="flex items-center gap-2">
             <Tabs
               value={style}

@@ -183,7 +183,7 @@ export function QueryBlockTable({
                 <TableHead
                   key={header.id}
                   className={cn(
-                    'text-muted-foreground text-xs font-medium tracking-wide uppercase',
+                    'text-muted-foreground relative text-xs font-medium tracking-wide uppercase',
                     header.column.id === 'title' && 'bg-background sticky left-0 z-20',
                   )}
                   style={{width: header.getSize()}}
