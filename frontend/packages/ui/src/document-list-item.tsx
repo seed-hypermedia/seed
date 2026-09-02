@@ -10,7 +10,7 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {
   formattedDate,
-  getMetadataName,
+  getDocumentTitle,
   hmId,
   InteractionSummaryPayload,
   useRouteLink,
@@ -295,7 +295,7 @@ export function DocumentListItem({
           <div className="flex flex-1 items-center gap-3">
             <div className="flex flex-1 items-center gap-1.5 overflow-hidden">
               <SizableText className={cn('truncate text-left font-sans')} weight={computedIsRead ? undefined : 'bold'}>
-                {getMetadataName(metadata)}
+                {getDocumentTitle({metadata, path: id.path}, 'Untitled Document')}
               </SizableText>
               {!!draftId && <DraftBadge />}
               {isPrivate && <PrivateBadge size="sm" />}

@@ -84,12 +84,20 @@ export function clipContentBlocks(content: HMBlockNode[] | undefined, totalBlock
   return output
 }
 
-export function getDocumentTitle(document?: Pick<HMDocument, 'metadata' | 'path'> | null) {
+export function getDocumentTitle(
+  document?: {
+    metadata?: {name?: string | null} | null
+    path?: string | string[] | null
+  } | null,
+  fallback = '',
+) {
   if (!document) {
     return 'Error: document not found'
   }
 
-  return document.metadata?.name || entityQueryPathToHmIdPath(document.path)?.at(-1) || ''
+  const path = document.path
+  const pathArray = typeof path === 'string' ? entityQueryPathToHmIdPath(path) : path
+  return document.metadata?.name || pathArray?.at(-1) || fallback
 }
 
 export function getContactMetadata(

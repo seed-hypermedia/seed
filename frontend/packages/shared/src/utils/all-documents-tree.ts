@@ -1,5 +1,5 @@
 import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
-import {getMetadataName} from '../content'
+import {getDocumentTitle} from '../content'
 
 export type DocumentTreeNode = {
   doc: HMDocumentInfo
@@ -19,7 +19,7 @@ function pathKeyOf(doc: HMDocumentInfo): string {
 }
 
 function documentName(doc: HMDocumentInfo): string {
-  return getMetadataName(doc.metadata) ?? doc.path?.join('/') ?? ''
+  return getDocumentTitle(doc, '')
 }
 
 /** Filters documents by a case-insensitive substring of their displayed title. */
