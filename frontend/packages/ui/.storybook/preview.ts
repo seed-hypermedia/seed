@@ -11,9 +11,6 @@ const preview: Preview = {
         date: /Date$/i,
       },
     },
-    docs: {
-      autodocs: 'tag',
-    },
   },
   decorators: [
     withThemeByClassName({
