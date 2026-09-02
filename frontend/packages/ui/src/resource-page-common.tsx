@@ -3466,8 +3466,8 @@ function DocumentCollection({
 
   return (
     <div className="w-full px-5 pt-4 pb-8">
-      <div className="border-border bg-background overflow-hidden rounded-xl border shadow-sm">
-        <div className="border-border flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
+      <div className="border-border bg-background overflow-hidden rounded-xl border">
+        <div className="border-border flex flex-wrap items-center justify-end gap-3 border-b px-5 py-4">
           <div className="flex items-center gap-2">
             <Tabs
               value={style}

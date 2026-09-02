@@ -224,7 +224,7 @@ export function QueryBlockContent({
 
   if (items.length === 0 && isDiscovering) {
     return (
-      <div className="bg-muted text-muted-foreground flex items-center gap-2 rounded-lg p-4 font-sans">
+      <div className="bg-background text-muted-foreground flex items-center gap-2 rounded-lg p-4 font-sans">
         <Spinner size="small" />
         <span className="italic">Searching for documents…</span>
       </div>
@@ -235,8 +235,9 @@ export function QueryBlockContent({
   const hasItems = sortedItems.length > 0 || hasPrependItems
 
   return (
-    <div className="flex flex-col">
+    <div className="border-border bg-background flex flex-col rounded-md border">
       <QueryBlockToolbar
+        showAttributes={style === 'Table'}
         descriptors={descriptors}
         items={items}
         context={context}
@@ -289,6 +290,7 @@ export function QueryBlockContent({
 }
 
 function QueryBlockToolbar({
+  showAttributes,
   descriptors,
   items,
   context,
@@ -304,6 +306,7 @@ function QueryBlockToolbar({
   search,
   setSearch,
 }: {
+  showAttributes: boolean
   descriptors: QueryTableColumn[]
   items: HMDocumentInfo[]
   context: QueryTableValueContext
@@ -330,14 +333,16 @@ function QueryBlockToolbar({
           setFilters={setFilters}
         />
         <SortPopover descriptors={descriptors} sorting={sorting} setSorting={setSorting} />
-        <AttributesPopover
-          descriptors={descriptors}
-          columnOrder={columnOrder}
-          columnVisibility={columnVisibility}
-          visibleColumnCount={visibleColumnCount}
-          toggleColumnVisibility={toggleColumnVisibility}
-          moveColumn={moveColumn}
-        />
+        {showAttributes ? (
+          <AttributesPopover
+            descriptors={descriptors}
+            columnOrder={columnOrder}
+            columnVisibility={columnVisibility}
+            visibleColumnCount={visibleColumnCount}
+            toggleColumnVisibility={toggleColumnVisibility}
+            moveColumn={moveColumn}
+          />
+        ) : null}
       </div>
       <div className="relative w-full sm:w-64">
         <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
@@ -346,7 +351,7 @@ function QueryBlockToolbar({
           onChangeText={setSearch}
           placeholder="Search documents…"
           aria-label="Search documents"
-          className="pl-9"
+          className="bg-white pl-9 dark:bg-black"
         />
       </div>
     </div>
@@ -660,7 +665,7 @@ function QueryBlockListItem({item, context}: {item: HMDocumentInfo; context: Que
   return (
     <div
       data-testid="query-row"
-      className="group border-border hover:bg-muted/30 flex items-center justify-between gap-3 border-b px-4 py-3 transition-colors last:border-b-0"
+      className="group border-border hover:bg-muted/30 flex items-center justify-between gap-3 border-b bg-white px-4 py-3 transition-colors last:border-b-0 dark:bg-black"
     >
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <div className="bg-muted text-muted-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-md">
@@ -767,7 +772,7 @@ function QueryBlockCard({
     <span className="font-semibold">{title}</span>
   )
   const body = (
-    <div className="border-border bg-background flex flex-col gap-3 rounded-lg border p-4 transition-shadow hover:shadow-sm">
+    <div className="border-border flex flex-col gap-3 rounded-lg border bg-white p-4 transition-shadow hover:shadow-sm dark:bg-black">
       <div className="bg-muted text-muted-foreground flex h-9 w-9 items-center justify-center rounded-md">
         <FileText className="size-5" />
       </div>

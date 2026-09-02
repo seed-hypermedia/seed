@@ -88,6 +88,17 @@ describe('QueryBlockContent loading state', () => {
 })
 
 describe('QueryBlockContent table view', () => {
+  it('keeps the collection body white while the filters toolbar is gray', () => {
+    act(() => {
+      root.render(<QueryBlockContent items={makeItems(1)} style="Table" accountsMetadata={{}} />)
+    })
+
+    expect(container.firstElementChild?.className).toContain('bg-background')
+    expect(
+      container.querySelector('[aria-label="Search documents"]')?.parentElement?.parentElement?.className,
+    ).toContain('bg-muted/30')
+  })
+
   it('sorts authors alphabetically by their displayed names', () => {
     const items = makeItems(2)
     items[0].metadata.name = 'Zed document'
@@ -178,6 +189,22 @@ describe('QueryBlockContent table view', () => {
       'Backlinks',
     ])
     expect(container.textContent).toContain('Ready')
+  })
+})
+
+describe('QueryBlockContent toolbar', () => {
+  it('shows the attribute selector only in table view', () => {
+    act(() => {
+      root.render(<QueryBlockContent items={makeItems(1)} style="List" accountsMetadata={{}} />)
+    })
+
+    expect(container.textContent).not.toContain('Attributes')
+
+    act(() => {
+      root.render(<QueryBlockContent items={makeItems(1)} style="Table" accountsMetadata={{}} />)
+    })
+
+    expect(container.textContent).toContain('Attributes')
   })
 })
 
