@@ -210,6 +210,10 @@ export const MAX_MODEL_TOOL_RESULT_BYTES = 8 * 1024
 const MAX_WRITE_CONTENT_BYTES = 256 * 1024
 const DEFAULT_SESSION_PAGE_SIZE = 50
 const MAX_SESSION_PAGE_SIZE = 200
+/** TTL for cached per-session derived data (trigger context, continuation links); bounds staleness. */
+const SESSION_DERIVED_CACHE_TTL_MS = 2_000
+/** Cap for the per-session derived caches; a full clear past this keeps them from growing unbounded. */
+const SESSION_DERIVED_CACHE_MAX = 5_000
 const MAX_CONTEXT_LINES = 64
 const MAX_CONTEXT_LINE_BYTES = 2 * 1024
 const MAX_MESSAGE_ATTACHMENTS = 16
@@ -783,6 +787,13 @@ export class Service {
   readonly #runWaiters = new Map<string, Array<(run: runs.RunRecord) => void>>()
   /** Live workflow VMs whose cancellation was requested; their interrupt handlers check this. */
   readonly #workflowCancelFlags = new Set<string>()
+  // Per-session trigger-context and continuation-links are recomputed for EVERY session in every
+  // ListSessions response and every session-change broadcast. Under many polling clients that
+  // recomputation (an indexed query, two CBOR decodes, a JSON parse and a blocks→markdown render
+  // per session) saturates the single event loop. Both derive from rows that change rarely, so a
+  // short TTL cache collapses the repeated work while bounding staleness to a couple of seconds.
+  readonly #triggerContextCache = new Map<string, {at: number; value: api.AgentSessionTriggerContext | null}>()
+  readonly #continuationLinksCache = new Map<string, {at: number; value: SessionContinuationLinks}>()
   /** Whether untitled sessions get a dedicated model call to name them (server opt-in). */
   readonly #titleGenerationEnabled: boolean
   /** Sessions with a title generation in flight, so parks + finalizes do not double-spend. */
@@ -7751,7 +7762,17 @@ export class Service {
    * came back and branched again); the newest is the one advertised as "where this went".
    */
   #sessionContinuationLinks(accountId: string, sessionId: string): SessionContinuationLinks {
-    return sessionContinuationLinksOf(this.#db, accountId, sessionId)
+    const key = `${accountId} ${sessionId}`
+    const hit = this.#continuationLinksCache.get(key)
+    if (hit && Date.now() - hit.at < SESSION_DERIVED_CACHE_TTL_MS) return hit.value
+    const value = sessionContinuationLinksOf(this.#db, accountId, sessionId)
+    // Cache only once an edge exists; a session with no continuation is left uncached so a new
+    // continuation surfaces on the next read rather than after the TTL (no invalidation needed).
+    if (value.continuedFrom || value.continuedTo) {
+      if (this.#continuationLinksCache.size > SESSION_DERIVED_CACHE_MAX) this.#continuationLinksCache.clear()
+      this.#continuationLinksCache.set(key, {at: Date.now(), value})
+    }
+    return value
   }
 
   /**
@@ -7774,6 +7795,22 @@ export class Service {
   }
 
   #getSessionTriggerContext(accountId: string, sessionId: string): api.AgentSessionTriggerContext | null {
+    const key = `${accountId} ${sessionId}`
+    const hit = this.#triggerContextCache.get(key)
+    if (hit && Date.now() - hit.at < SESSION_DERIVED_CACHE_TTL_MS) return hit.value
+    const value = this.#computeSessionTriggerContext(accountId, sessionId)
+    // Cache only a present firing (the expensive path: CBOR decodes, a JSON parse and a
+    // blocks→markdown render). A session with no firing is left uncached, so the moment a trigger
+    // fires for it the next read recomputes instead of serving a stale null — no invalidation
+    // needed, and the no-firing read is just one indexed lookup.
+    if (value) {
+      if (this.#triggerContextCache.size > SESSION_DERIVED_CACHE_MAX) this.#triggerContextCache.clear()
+      this.#triggerContextCache.set(key, {at: Date.now(), value})
+    }
+    return value
+  }
+
+  #computeSessionTriggerContext(accountId: string, sessionId: string): api.AgentSessionTriggerContext | null {
     const row = this.#db
       .query<SessionTriggerRow, [string, string]>(
         `SELECT f.id AS firing_id, f.trigger_id, f.activity_key, f.activity_cbor, f.status, f.error,
