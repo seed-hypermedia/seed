@@ -54,4 +54,16 @@ describe('AutoUpdater', () => {
 
     expect(mocks.toastSuccess).toHaveBeenCalledWith("You're up to date")
   })
+
+  it('does not show the up-to-date toast while downloading an update', async () => {
+    const {AutoUpdater} = await import('../components/auto-updater')
+
+    act(() => root.render(<AutoUpdater />))
+    mocks.toastSuccess.mockClear()
+
+    act(() => mocks.updateHandler?.({type: 'downloading', progress: 10}))
+    act(() => mocks.updateHandler?.({type: 'downloading', progress: 50}))
+
+    expect(mocks.toastSuccess).not.toHaveBeenCalled()
+  })
 })

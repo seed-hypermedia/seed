@@ -24,7 +24,7 @@ export function AutoUpdater() {
   const updateStatus = useUpdateStatus()
 
   useEffect(() => {
-    if (updateStatus?.type !== 'up-to-date') {
+    if (updateStatus?.type === 'up-to-date') {
       toast.success("You're up to date")
     }
   }, [updateStatus])
