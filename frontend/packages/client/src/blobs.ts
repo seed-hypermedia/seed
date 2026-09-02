@@ -114,11 +114,62 @@ export async function generateWebCryptoKeyPair(): Promise<WebCryptoKeyPair> {
   return new WebCryptoKeyPair(keyPair, publicKeyRaw)
 }
 
-// ---- Verification (always uses noble — just raw bytes, no key object needed) ----
+// ---- Verification ----
+//
+// The pure-JS @noble verify is ~20-25x slower than OpenSSL under some JS engines (measured ~3ms/op
+// vs ~130µs on the bun build the agents server runs), and every signed request verifies at least
+// one signature — so on a busy server this dominates CPU. When a Node-style `crypto` module is
+// available (Node, Bun, Electron main) we verify natively; browsers keep the @noble path. Both
+// accept exactly the RFC 8032-valid signatures legit signers produce, so the result is identical
+// for real traffic — this is purely a speed path.
+
+/** SubjectPublicKeyInfo DER header for a raw Ed25519 public key (RFC 8410). */
+const ED25519_SPKI_DER_PREFIX = new Uint8Array([0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00])
+
+type NodeCryptoLike = {
+  createPublicKey: (input: {key: Uint8Array; format: 'der'; type: 'spki'}) => unknown
+  verify: (algorithm: null, data: Uint8Array, key: unknown, signature: Uint8Array) => boolean
+}
+
+/** Resolved once: the Node crypto module, or null in the browser (falls back to @noble). */
+let nativeCrypto: NodeCryptoLike | null | undefined
+
+// Resolve Node's crypto asynchronously at module load. The specifiers are computed strings so browser
+// bundlers can't statically pull node builtins into the browser bundle, and in the browser the import
+// simply rejects — verification stays on @noble. Until this settles (a few ms on the server) verify()
+// also uses @noble; the result is identical, so this is purely a speed path. On Node/Bun/Electron-main
+// it then verifies via OpenSSL. `createRequire` gives a synchronous require without `import.meta`
+// (which some consumer tsconfigs disallow) and works on both Node and Bun.
+export const nativeCryptoReady: Promise<void> = (async () => {
+  try {
+    const mod = (await import('node:' + 'module')) as {createRequire: (path: string) => (id: string) => unknown}
+    const base = (typeof process !== 'undefined' && process.cwd ? process.cwd() : '/') + '/'
+    nativeCrypto = mod.createRequire(base)('node:' + 'crypto') as NodeCryptoLike
+  } catch {
+    nativeCrypto = null
+  }
+})()
+
+/** Cache imported public-key objects per raw key so repeat verifies from the same signer skip the DER import. */
+const nativeKeyCache = new Map<string, unknown>()
+
+function nativeVerify(nc: NodeCryptoLike, sig: Uint8Array, data: Uint8Array, rawPubKey: Uint8Array): boolean {
+  const cacheKey = base58btc.encode(rawPubKey)
+  let key = nativeKeyCache.get(cacheKey)
+  if (key === undefined) {
+    const spki = new Uint8Array(ED25519_SPKI_DER_PREFIX.length + rawPubKey.length)
+    spki.set(ED25519_SPKI_DER_PREFIX)
+    spki.set(rawPubKey, ED25519_SPKI_DER_PREFIX.length)
+    key = nc.createPublicKey({key: spki, format: 'der', type: 'spki'})
+    if (nativeKeyCache.size > 1000) nativeKeyCache.clear()
+    nativeKeyCache.set(cacheKey, key)
+  }
+  return nc.verify(null, data, key, sig)
+}
 
 /**
  * Verify the signature of a blob against its embedded signer Principal.
- * Uses @noble/curves/ed25519 directly — works with any blob regardless of how it was signed.
+ * Uses native Ed25519 when available (server), @noble in the browser.
  */
 export function verify(blob: Blob): boolean {
   if (blob.signer[0] !== ED25519_VARINT_PREFIX[0] || blob.signer[1] !== ED25519_VARINT_PREFIX[1]) return false
@@ -130,6 +181,7 @@ export function verify(blob: Blob): boolean {
   const data = new Uint8Array(cbor.encode(unsigned))
 
   try {
+    if (nativeCrypto) return nativeVerify(nativeCrypto, sigCopy, data, rawPubKey)
     return ed25519.verify(sigCopy, data, rawPubKey)
   } catch {
     return false
