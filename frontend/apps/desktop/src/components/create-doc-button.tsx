@@ -1,9 +1,9 @@
-import { roleCanWrite, useSelectedAccountCapability } from '@/models/access-control'
-import { useMyAccountIds } from '@/models/daemon'
-import { useCreateDraft } from '@/models/documents'
-import { buildDocumentCollectionDraftSeed } from '@/utils/publish-utils'
-import { UnpackedHypermediaId } from '@seed-hypermedia/client/hm-types'
-import { Button } from '@shm/ui/button'
+import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
+import {useMyAccountIds} from '@/models/daemon'
+import {useCreateDraft} from '@/models/documents'
+import {buildDocumentCollectionDraftSeed} from '@/utils/publish-utils'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {Button} from '@shm/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,12 +11,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
-import { Add } from '@shm/ui/icons'
-import { MenuItemType } from '@shm/ui/options-dropdown'
-import { FilePlus2, Grid3X3, Import, Lock } from 'lucide-react'
-import { nanoid } from 'nanoid'
-import { ReactNode, useCallback, useMemo } from 'react'
-import { useImportDialog, useImporting } from './import-doc-button'
+import {Add} from '@shm/ui/icons'
+import {MenuItemType} from '@shm/ui/options-dropdown'
+import {FilePlus2, Grid3X3, Import, Lock} from 'lucide-react'
+import {nanoid} from 'nanoid'
+import {ReactNode, useCallback, useMemo} from 'react'
+import {useImportDialog, useImporting} from './import-doc-button'
 
 /** Builds the document creation submenu item and its dialog content for the document options menu. */
 export function useCreateDocumentMenuItem({
@@ -73,7 +73,7 @@ export function useCreateDocumentMenuItem({
           icon: <Grid3X3 className="size-4" />,
           onClick: () => {
             const seed = buildDocumentCollectionDraftSeed(nanoid(8))
-            void createDraft({ initialMetadata: seed.metadata, initialContent: seed.content })
+            void createDraft({initialMetadata: seed.metadata, initialContent: seed.content})
           },
         },
         {
@@ -81,7 +81,7 @@ export function useCreateDocumentMenuItem({
           label: 'Private',
           icon: <Lock className="size-4" />,
           onClick: () => {
-            void createDraft({ visibility: 'PRIVATE' })
+            void createDraft({visibility: 'PRIVATE'})
           },
         },
         {
@@ -105,8 +105,8 @@ export function useCreateDocumentMenuItem({
   }
 }
 
-function CreateDocumentButtonContent({ locationId }: { locationId: UnpackedHypermediaId }) {
-  const { menuItem, content } = useCreateDocumentMenuItem({ locationId })
+function CreateDocumentButtonContent({locationId}: {locationId: UnpackedHypermediaId}) {
+  const {menuItem, content} = useCreateDocumentMenuItem({locationId})
 
   if (!menuItem) return null
 
@@ -137,7 +137,7 @@ function CreateDocumentButtonContent({ locationId }: { locationId: UnpackedHyper
 }
 
 /** Renders the standalone document creation dropdown used outside the document top bar. */
-export function CreateDocumentButton({ locationId }: { locationId?: UnpackedHypermediaId }) {
+export function CreateDocumentButton({locationId}: {locationId?: UnpackedHypermediaId}) {
   if (!locationId) return null
 
   return <CreateDocumentButtonContent locationId={locationId} />
