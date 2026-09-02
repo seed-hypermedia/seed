@@ -1,22 +1,36 @@
 /**
  * Markdown → Seed block tree parser.
  *
- * Converts markdown content into a tree of Seed Hypermedia blocks
- * with proper hierarchy: headings contain their content as children,
- * lists use childrenType attributes, and inline formatting becomes
- * annotations.
+ * The inverse of `blocks-to-markdown.ts`. Together they form a lossless pair:
+ * any document exported with `blocksToMarkdown` parses back to the same
+ * document, and re-exporting that parse reproduces the same markdown.
  *
- * Supports:
- *   - YAML frontmatter (--- delimited) for metadata extraction
- *   - ![alt](url) image syntax for Image blocks
- *   - $$ delimited math blocks
- *   - Block ID preservation via <!-- id:XXXXXXXX --> HTML comments
- *   - `title:` as backward-compatible alias for `name:` in frontmatter
+ * Structure:
+ *   - Indentation carries nesting. A block's children sit two spaces deeper
+ *     (or at the content column of a list/quote marker).
+ *   - Heading children sit at the heading's own indentation, delimited by the
+ *     next heading of the same or higher level, an `<!-- end:ID -->` line, or
+ *     a dedent. Heading level is one more than the number of enclosing
+ *     headings at the same indentation.
+ *   - `- `, `1. ` and `> ` markers set the parent's `childrenType`
+ *     (Unordered / Ordered / Blockquote). Unmarked children are `Group`.
+ *   - A standalone `<!-- id:X -->` line is a block with no visible text (an
+ *     invisible list container, a Slot, a Query, a Table…). A list or quote
+ *     directly after it at the same indentation is its children.
+ *
+ * Identity and extras live in the trailing HTML comment:
+ *   `<!-- id:X type:T attrs:{...} -->`
+ * `type:` names a block type markdown cannot express (Video, File, Button,
+ * Embed, WebEmbed, Nostr, Query, Slot, …); `attrs:` is a JSON object of
+ * attributes with no native syntax.
+ *
+ * Plain, hand-written markdown (no comments) still parses sensibly: content
+ * after a heading nests under it, soft-wrapped lines join with a space, and
+ * ids are generated.
  */
-
 import {parse as parseYaml} from 'yaml'
-import type {HMBlockNode, HMMetadata} from './hm-types'
 import type {DocumentOperation} from './change'
+import type {HMBlockNode, HMMetadata} from './hm-types'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -25,6 +39,7 @@ export type Annotation = {
   starts: number[]
   ends: number[]
   link?: string
+  attributes?: Record<string, unknown>
 }
 
 export type SeedBlock = {
@@ -68,54 +83,167 @@ type InlineParseResult = {
   annotations: Annotation[]
 }
 
+/** Style annotations carried by `<span style="prop:value">`. */
+const SPAN_STYLE_TO_TYPE: Record<string, string> = {
+  color: 'TextColor',
+  'background-color': 'BackgroundColor',
+  'font-size': 'TextSize',
+  'font-family': 'TextFamily',
+}
+
+const SPAN_TYPES = new Set(Object.values(SPAN_STYLE_TO_TYPE))
+
+function decodeHtmlAttr(s: string): string {
+  return s
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+}
+
+type OpenSpan = {type: string; start: number; family?: string; link?: string; attributes?: Record<string, unknown>}
+
 /**
  * Parses inline markdown formatting into plain text + annotation spans.
- * Supports: **bold**, *italic*, `code`, [text](url)
+ *
+ * Supports `**bold**`, `_italic_` / `*italic*`, `~~strike~~`, `` `code` ``,
+ * `<u>`, `<mark>`, `<span style="…">`, `<br>`, `[text](url)`, `<url>`
+ * autolinks (hm:// → Embed, else Link) and backslash escapes. Markers are
+ * matched with a stack, so well-nested output from the emitter parses
+ * exactly; mis-nested hand-written input degrades gracefully.
  */
 export function parseInlineFormatting(raw: string): InlineParseResult {
   const annotations: Annotation[] = []
+  const stack: OpenSpan[] = []
   let text = ''
   let i = 0
 
+  const close = (span: OpenSpan) => {
+    if (text.length > span.start) {
+      const ann: Annotation = {type: span.type, starts: [span.start], ends: [text.length]}
+      if (span.link !== undefined) ann.link = span.link
+      if (span.attributes) ann.attributes = span.attributes
+      annotations.push(ann)
+    }
+  }
+
+  /** Close `kind` if open (closing and reopening anything above it), else open it. */
+  const toggle = (kind: string, family: string) => {
+    const idx = findLastIndex(stack, (s) => s.type === kind && s.family === family)
+    if (idx === -1) {
+      stack.push({type: kind, start: text.length, family})
+      return
+    }
+    const above = stack.splice(idx + 1)
+    for (const s of above.reverse()) close(s)
+    close(stack.pop()!)
+    for (const s of above.reverse()) stack.push({...s, start: text.length})
+  }
+
+  const closeType = (pred: (s: OpenSpan) => boolean) => {
+    const idx = findLastIndex(stack, pred)
+    if (idx === -1) return
+    const above = stack.splice(idx + 1)
+    for (const s of above.reverse()) close(s)
+    close(stack.pop()!)
+    for (const s of above.reverse()) stack.push({...s, start: text.length})
+  }
+
   while (i < raw.length) {
+    const ch = raw[i]!
+
     // Escaped character
-    if (raw[i] === '\\' && i + 1 < raw.length) {
+    if (ch === '\\' && i + 1 < raw.length) {
       text += raw[i + 1]
       i += 2
       continue
     }
 
-    // Inline image: ![alt](url) — skip the ! so it's not parsed as a link
-    // Block-level images are handled by the tokenizer; inline occurrences
-    // are treated as plain text with the URL since Seed has no inline image type.
-    if (raw[i] === '!' && i + 1 < raw.length && raw[i + 1] === '[') {
-      const closeBracket = findClosingBracket(raw, i + 1)
-      if (closeBracket !== -1 && closeBracket + 1 < raw.length && raw[closeBracket + 1] === '(') {
-        const closeParen = raw.indexOf(')', closeBracket + 2)
-        if (closeParen !== -1) {
-          // Emit alt text as plain text (no inline image annotation in Seed)
-          const altText = raw.slice(i + 2, closeBracket)
-          if (altText) {
-            text += altText
-          }
-          i = closeParen + 1
-          continue
+    // Code span: a run of N backticks closed by the next run of exactly N.
+    if (ch === '`') {
+      let n = 0
+      while (raw[i + n] === '`') n++
+      const closer = findBacktickRun(raw, i + n, n)
+      if (closer !== -1) {
+        let inner = raw.slice(i + n, closer)
+        // CommonMark: strip one space pad when both sides have it and the
+        // content is not all spaces.
+        if (inner.length >= 2 && inner.startsWith(' ') && inner.endsWith(' ') && inner.trim() !== '') {
+          inner = inner.slice(1, -1)
         }
+        inner = inner.replace(/<br\s*\/?>/g, '\n')
+        const start = text.length
+        text += inner
+        if (inner.length) annotations.push({type: 'Code', starts: [start], ends: [text.length]})
+        i = closer + n
+        continue
       }
+      text += raw.slice(i, i + n)
+      i += n
+      continue
     }
 
-    // Autolink: <scheme://...>
-    //
-    // CommonMark autolinks have a URI with a scheme, no whitespace, and
-    // balanced angle brackets. Two cases by scheme:
-    //   - hm://...  → Embed annotation on a U+FFFC placeholder. Embeds
-    //     point to hypermedia resources and are rendered by the editor
-    //     as inline mention chips.
-    //   - any other scheme (http, https, mailto, …) → Link annotation
-    //     spanning the visible URL text. The editor's mention renderer
-    //     would print "ERROR" for an Embed pointing at a non-hm URL,
-    //     so external autolinks must be plain links.
-    if (raw[i] === '<') {
+    // Emphasis runs: `**` bold, `*` italic; `__` bold, `_` italic.
+    if (ch === '*' || ch === '_') {
+      let n = 0
+      while (raw[i + n] === ch) n++
+      i += n
+      while (n > 0) {
+        if (n >= 2) {
+          toggle('Bold', ch)
+          n -= 2
+        } else {
+          toggle('Italic', ch)
+          n -= 1
+        }
+      }
+      continue
+    }
+
+    // Strike: ~~
+    if (ch === '~' && raw[i + 1] === '~') {
+      toggle('Strike', '~')
+      i += 2
+      continue
+    }
+
+    if (ch === '<') {
+      // Line break
+      const br = /^<br\s*\/?>/.exec(raw.slice(i))
+      if (br) {
+        text += '\n'
+        i += br[0].length
+        continue
+      }
+      // Underline / highlight tags
+      const tag = /^<(\/?)(u|mark)>/.exec(raw.slice(i))
+      if (tag) {
+        const type = tag[2] === 'u' ? 'Underline' : 'Range'
+        if (tag[1]) closeType((s) => s.type === type)
+        else stack.push({type, start: text.length, family: 'html'})
+        i += tag[0].length
+        continue
+      }
+      // Style span
+      const span = /^<span style="([a-z-]+):([^"]*)">/.exec(raw.slice(i))
+      if (span && SPAN_STYLE_TO_TYPE[span[1]!]) {
+        stack.push({
+          type: SPAN_STYLE_TO_TYPE[span[1]!]!,
+          start: text.length,
+          family: 'html',
+          attributes: {value: decodeHtmlAttr(span[2]!)},
+        })
+        i += span[0].length
+        continue
+      }
+      if (raw.startsWith('</span>', i)) {
+        closeType((s) => SPAN_TYPES.has(s.type))
+        i += 7
+        continue
+      }
+      // Autolink: <scheme:...>
+      //   hm://… → Embed annotation on a U+FFFC placeholder (inline mention)
+      //   anything else → Link annotation spanning the visible URL
       const end = raw.indexOf('>', i + 1)
       if (end !== -1) {
         const inner = raw.slice(i + 1, end)
@@ -123,20 +251,10 @@ export function parseInlineFormatting(raw: string): InlineParseResult {
           const start = text.length
           if (inner.startsWith('hm://')) {
             text += '￼'
-            annotations.push({
-              type: 'Embed',
-              starts: [start],
-              ends: [text.length],
-              link: inner,
-            })
+            annotations.push({type: 'Embed', starts: [start], ends: [text.length], link: inner})
           } else {
             text += inner
-            annotations.push({
-              type: 'Link',
-              starts: [start],
-              ends: [text.length],
-              link: inner,
-            })
+            annotations.push({type: 'Link', starts: [start], ends: [text.length], link: inner})
           }
           i = end + 1
           continue
@@ -144,420 +262,324 @@ export function parseInlineFormatting(raw: string): InlineParseResult {
       }
     }
 
+    // Inline image: ![alt](url) — Seed has no inline image type, keep the alt text.
+    if (ch === '!' && raw[i + 1] === '[') {
+      const link = readLink(raw, i + 1)
+      if (link) {
+        const parsed = parseInlineFormatting(link.label)
+        appendParsed(parsed)
+        i = link.end
+        continue
+      }
+    }
+
     // Link: [text](url)
-    if (raw[i] === '[') {
-      const closeBracket = findClosingBracket(raw, i)
-      if (closeBracket !== -1 && closeBracket + 1 < raw.length && raw[closeBracket + 1] === '(') {
-        const closeParen = raw.indexOf(')', closeBracket + 2)
-        if (closeParen !== -1) {
-          const linkText = raw.slice(i + 1, closeBracket)
-          const url = raw.slice(closeBracket + 2, closeParen)
-          const parsed = parseInlineFormatting(linkText)
-          const start = text.length
-          text += parsed.text
-          const end = text.length
-
-          // Shift nested annotations
-          for (const ann of parsed.annotations) {
-            annotations.push({
-              ...ann,
-              starts: ann.starts.map((s) => s + start),
-              ends: ann.ends.map((e) => e + start),
-            })
-          }
-
-          annotations.push({
-            type: 'Link',
-            starts: [start],
-            ends: [end],
-            link: url,
-          })
-
-          i = closeParen + 1
-          continue
-        }
-      }
-    }
-
-    // Bold: **text**
-    if (raw[i] === '*' && raw[i + 1] === '*') {
-      const end = raw.indexOf('**', i + 2)
-      if (end !== -1) {
-        const inner = raw.slice(i + 2, end)
-        const parsed = parseInlineFormatting(inner)
+    if (ch === '[') {
+      const link = readLink(raw, i)
+      if (link) {
+        const parsed = parseInlineFormatting(link.label)
         const start = text.length
-        text += parsed.text
-
-        for (const ann of parsed.annotations) {
-          annotations.push({
-            ...ann,
-            starts: ann.starts.map((s) => s + start),
-            ends: ann.ends.map((e) => e + start),
-          })
+        appendParsed(parsed)
+        if (text.length > start) {
+          annotations.push({type: 'Link', starts: [start], ends: [text.length], link: link.url})
         }
-
-        annotations.push({
-          type: 'Bold',
-          starts: [start],
-          ends: [text.length],
-        })
-
-        i = end + 2
+        i = link.end
         continue
       }
     }
 
-    // Italic: *text* (but not **)
-    if (raw[i] === '*' && raw[i + 1] !== '*') {
-      const end = findSingleDelimiter(raw, '*', i + 1)
-      if (end !== -1) {
-        const inner = raw.slice(i + 1, end)
-        const parsed = parseInlineFormatting(inner)
-        const start = text.length
-        text += parsed.text
-
-        for (const ann of parsed.annotations) {
-          annotations.push({
-            ...ann,
-            starts: ann.starts.map((s) => s + start),
-            ends: ann.ends.map((e) => e + start),
-          })
-        }
-
-        annotations.push({
-          type: 'Italic',
-          starts: [start],
-          ends: [text.length],
-        })
-
-        i = end + 1
-        continue
-      }
-    }
-
-    // Inline code: `text`
-    if (raw[i] === '`') {
-      const end = raw.indexOf('`', i + 1)
-      if (end !== -1) {
-        const start = text.length
-        text += raw.slice(i + 1, end)
-
-        annotations.push({
-          type: 'Code',
-          starts: [start],
-          ends: [text.length],
-        })
-
-        i = end + 1
-        continue
-      }
-    }
-
-    text += raw[i]
+    text += ch
     i++
   }
 
-  return {text, annotations}
+  // Unclosed markers: close them at the end of the text.
+  while (stack.length) close(stack.pop()!)
+
+  return {text, annotations: mergeAdjacentAnnotations(annotations)}
+
+  function appendParsed(parsed: InlineParseResult) {
+    const offset = text.length
+    text += parsed.text
+    for (const ann of parsed.annotations) {
+      annotations.push({
+        ...ann,
+        starts: ann.starts.map((s) => s + offset),
+        ends: ann.ends.map((e) => e + offset),
+      })
+    }
+  }
 }
 
-function findClosingBracket(s: string, openPos: number): number {
-  let depth = 0
-  for (let i = openPos; i < s.length; i++) {
-    if (s[i] === '[') depth++
-    if (s[i] === ']') {
-      depth--
-      if (depth === 0) return i
+function findLastIndex<T>(arr: T[], pred: (item: T) => boolean): number {
+  for (let i = arr.length - 1; i >= 0; i--) if (pred(arr[i]!)) return i
+  return -1
+}
+
+/** Find the next run of exactly `n` backticks at or after `from`. */
+function findBacktickRun(s: string, from: number, n: number): number {
+  let i = from
+  while (i < s.length) {
+    if (s[i] === '`') {
+      let k = 0
+      while (s[i + k] === '`') k++
+      if (k === n) return i
+      i += k
+    } else {
+      i++
     }
   }
   return -1
 }
-
-function findSingleDelimiter(s: string, delim: string, start: number): number {
-  for (let i = start; i < s.length; i++) {
-    if (s[i] === delim && s[i + 1] !== delim && (i === 0 || s[i - 1] !== delim)) {
-      return i
-    }
-  }
-  return -1
-}
-
-// ─── Block ID helpers ────────────────────────────────────────────────────────
-
-/** Regex matching a trailing ` <!-- id:XXXXXXXX -->` HTML comment. */
-const BLOCK_ID_RE = /\s*<!--\s*id:([A-Za-z0-9_-]+)\s*-->\s*$/
 
 /**
- * Strip a trailing block ID comment from a string.
- * Returns the cleaned string and the captured ID (or undefined).
+ * Read a `[label](url)` starting at `open` (the `[`). Brackets balance,
+ * escapes and code spans are skipped, the url may be `<…>`-wrapped.
  */
-function stripBlockId(s: string): {text: string; id?: string} {
-  const m = s.match(BLOCK_ID_RE)
-  if (m) {
-    return {text: s.slice(0, m.index!).trimEnd(), id: m[1]}
+function readLink(s: string, open: number): {label: string; url: string; end: number} | null {
+  let depth = 0
+  let i = open
+  let close = -1
+  while (i < s.length) {
+    const c = s[i]
+    if (c === '\\') {
+      i += 2
+      continue
+    }
+    if (c === '`') {
+      let n = 0
+      while (s[i + n] === '`') n++
+      const closer = findBacktickRun(s, i + n, n)
+      i = closer === -1 ? i + n : closer + n
+      continue
+    }
+    if (c === '[') depth++
+    else if (c === ']') {
+      depth--
+      if (depth === 0) {
+        close = i
+        break
+      }
+    }
+    i++
   }
+  if (close === -1 || s[close + 1] !== '(') return null
+  const label = s.slice(open + 1, close)
+  let j = close + 2
+  if (s[j] === '<') {
+    const gt = s.indexOf('>', j + 1)
+    if (gt === -1 || s[gt + 1] !== ')') return null
+    return {label, url: s.slice(j + 1, gt), end: gt + 2}
+  }
+  let parens = 0
+  while (j < s.length) {
+    const c = s[j]
+    if (c === '\\') {
+      j += 2
+      continue
+    }
+    if (c === '(') parens++
+    else if (c === ')') {
+      if (parens === 0) return {label, url: s.slice(close + 2, j), end: j + 1}
+      parens--
+    }
+    j++
+  }
+  return null
+}
+
+function annotationKey(a: Annotation): string {
+  return a.type + ' ' + (a.link ?? '') + ' ' + (a.attributes ? JSON.stringify(sortKeys(a.attributes)) : '')
+}
+
+/**
+ * Merge annotations of the same kind whose ranges touch or overlap into one
+ * contiguous range, and order the result deterministically. The emitter
+ * splits annotations at every boundary to keep markers well nested, so this
+ * is what makes `parse(emit(doc))` equal `doc`.
+ */
+export function mergeAdjacentAnnotations(annotations: Annotation[]): Annotation[] {
+  const byKey = new Map<string, {proto: Annotation; ranges: {s: number; e: number}[]}>()
+  for (const a of annotations) {
+    const key = annotationKey(a)
+    const entry = byKey.get(key) || {proto: a, ranges: []}
+    for (let i = 0; i < a.starts.length; i++) {
+      const s = a.starts[i]!
+      const e = a.ends[i]
+      if (e === undefined || e <= s) continue
+      entry.ranges.push({s, e})
+    }
+    byKey.set(key, entry)
+  }
+  const out: Annotation[] = []
+  for (const {proto, ranges} of byKey.values()) {
+    ranges.sort((a: {s: number; e: number}, b: {s: number; e: number}) => a.s - b.s || a.e - b.e)
+    const merged: {s: number; e: number}[] = []
+    for (const r of ranges) {
+      const last = merged[merged.length - 1]
+      if (last && r.s <= last.e) last.e = Math.max(last.e, r.e)
+      else merged.push({...r})
+    }
+    for (const r of merged) {
+      const ann: Annotation = {type: proto.type, starts: [r.s], ends: [r.e]}
+      if (proto.link !== undefined) ann.link = proto.link
+      if (proto.attributes) ann.attributes = proto.attributes
+      out.push(ann)
+    }
+  }
+  out.sort((a, b) => a.starts[0]! - b.starts[0]! || b.ends[0]! - a.ends[0]! || a.type.localeCompare(b.type))
+  return out
+}
+
+function sortKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeys)
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const k of Object.keys(value as object).sort()) out[k] = sortKeys((value as Record<string, unknown>)[k])
+    return out
+  }
+  return value
+}
+
+// ─── Block comment helpers ───────────────────────────────────────────────────
+
+export type BlockComment = {id: string; type?: string; attrs?: Record<string, unknown>}
+
+const COMMENT_BODY = /<!--\s*id:([A-Za-z0-9_-]+)(?:\s+type:([A-Za-z0-9_-]+))?(?:\s+attrs:(\{.*\}))?\s*-->/
+/** Trailing ` <!-- id:X [type:T] [attrs:{…}] -->` at the end of a line (one separator space). */
+const TRAILING_COMMENT_RE = new RegExp(' ?' + COMMENT_BODY.source + '\\s*$')
+/** A line that is nothing but a block comment. */
+const STANDALONE_COMMENT_RE = new RegExp('^\\s*' + COMMENT_BODY.source + '\\s*$')
+/** `<!-- end:ID -->` closes the heading with that id. */
+const END_RE = /^\s*<!--\s*end:([A-Za-z0-9_-]+)\s*-->\s*$/
+
+function commentFromMatch(m: RegExpMatchArray): BlockComment {
+  const c: BlockComment = {id: m[1]!}
+  if (m[2]) c.type = m[2]
+  if (m[3]) {
+    try {
+      const parsed = JSON.parse(m[3])
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) c.attrs = parsed
+    } catch {
+      // malformed attrs: ignore, keep the id
+    }
+  }
+  return c
+}
+
+/** Strip a trailing block comment from a string. */
+function stripBlockComment(s: string): {text: string; comment?: BlockComment} {
+  const m = s.match(TRAILING_COMMENT_RE)
+  if (m) return {text: s.slice(0, m.index!), comment: commentFromMatch(m)}
   return {text: s}
 }
 
-/** Check if a line is a standalone block ID comment (nothing else). */
-const STANDALONE_ID_RE = /^\s*<!--\s*id:([A-Za-z0-9_-]+)\s*-->\s*$/
-
-// ─── Markdown block parser ───────────────────────────────────────────────────
-
-type RawBlock =
-  | {kind: 'heading'; level: number; text: string; id?: string}
-  | {kind: 'paragraph'; text: string; id?: string}
-  | {kind: 'code'; language: string; text: string; id?: string}
-  | {kind: 'image'; alt: string; url: string; id?: string}
-  | {kind: 'math'; text: string; id?: string}
-  | {kind: 'ul'; items: {text: string; id?: string}[]; containerId?: string}
-  | {kind: 'ol'; items: {text: string; id?: string}[]; containerId?: string}
-  | {kind: 'table'; lines: string[]; containerId?: string}
-
-/**
- * Parses raw markdown into a flat list of block tokens.
- *
- * Recognizes `<!-- id:XXXXXXXX -->` HTML comments:
- *   - Trailing on content lines → captured as block ID
- *   - On code/math fence openers → captured as block ID
- *   - On list items → captured as item ID
- *   - Standalone lines → saved as container ID for the next list
- */
-function tokenize(markdown: string): RawBlock[] {
-  const lines = markdown.split('\n')
-  const blocks: RawBlock[] = []
-  let i = 0
-  /** Pending container ID from a standalone <!-- id:... --> line. */
-  let pendingContainerId: string | undefined
-
-  while (i < lines.length) {
-    const line = lines[i]!
-
-    // Blank line — skip
-    if (line.trim() === '') {
-      i++
-      continue
-    }
-
-    // Standalone block ID comment (for list containers)
-    const standaloneMatch = line.match(STANDALONE_ID_RE)
-    if (standaloneMatch) {
-      pendingContainerId = standaloneMatch[1]
-      i++
-      continue
-    }
-
-    // Fenced code block: ```lang <!-- id:XXX -->
-    if (line.trim().startsWith('```')) {
-      const fenceContent = line.trim().slice(3).trim()
-      const {text: language, id} = stripBlockId(fenceContent)
-      const codeLines: string[] = []
-      i++
-      while (i < lines.length && !lines[i]!.trim().startsWith('```')) {
-        codeLines.push(lines[i]!)
-        i++
-      }
-      i++ // skip closing ```
-      blocks.push({kind: 'code', language, text: codeLines.join('\n'), id})
-      pendingContainerId = undefined
-      continue
-    }
-
-    // Math block: $$ <!-- id:XXX -->
-    if (line.trim().startsWith('$$')) {
-      const fenceContent = line.trim().slice(2).trim()
-      const {id} = stripBlockId(fenceContent)
-      const mathLines: string[] = []
-      i++
-      while (i < lines.length && !lines[i]!.trim().startsWith('$$')) {
-        mathLines.push(lines[i]!)
-        i++
-      }
-      i++ // skip closing $$
-      blocks.push({kind: 'math', text: mathLines.join('\n'), id})
-      pendingContainerId = undefined
-      continue
-    }
-
-    // Heading: # text <!-- id:XXX --> (indentation tolerated, like every other block kind)
-    const headingMatch = line.trim().match(/^(#{1,6})\s+(.+)$/)
-    if (headingMatch) {
-      const {text, id} = stripBlockId(headingMatch[2]!)
-      blocks.push({kind: 'heading', level: headingMatch[1]!.length, text, id})
-      i++
-      pendingContainerId = undefined
-      continue
-    }
-
-    // Standalone image: ![alt](url) <!-- id:XXX -->
-    const imageMatch = line.trim().match(/^!\[([^\]]*)\]\(([^)]+)\)(.*)$/)
-    if (imageMatch) {
-      let url = imageMatch[2]!
-      const trailing = imageMatch[3] || ''
-      const {id} = stripBlockId(trailing)
-      if (url && !url.match(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//)) {
-        url = `file://${url}`
-      }
-      blocks.push({kind: 'image', alt: imageMatch[1]!, url, id})
-      i++
-      pendingContainerId = undefined
-      continue
-    }
-
-    // Table (consecutive lines starting with |). A standalone
-    // <!-- id:... --> comment line right before the table carries the
-    // Table block id (same mechanism as list containers).
-    if (line.trim().startsWith('|')) {
-      const tableLines: string[] = []
-      while (i < lines.length && lines[i]!.trim().startsWith('|')) {
-        tableLines.push(lines[i]!)
-        i++
-      }
-      blocks.push({kind: 'table', lines: tableLines, containerId: pendingContainerId})
-      pendingContainerId = undefined
-      continue
-    }
-
-    // Unordered list: - item <!-- id:XXX -->
-    if (/^[-*+]\s+/.test(line.trim())) {
-      const items: {text: string; id?: string}[] = []
-      while (i < lines.length && /^[-*+]\s+/.test(lines[i]!.trim())) {
-        const raw = lines[i]!.trim().replace(/^[-*+]\s+/, '')
-        const {text, id} = stripBlockId(raw)
-        items.push({text, id})
-        i++
-      }
-      blocks.push({kind: 'ul', items, containerId: pendingContainerId})
-      pendingContainerId = undefined
-      continue
-    }
-
-    // Ordered list: 1. item <!-- id:XXX -->
-    if (/^\d+\.\s+/.test(line.trim())) {
-      const items: {text: string; id?: string}[] = []
-      while (i < lines.length && /^\d+\.\s+/.test(lines[i]!.trim())) {
-        const raw = lines[i]!.trim().replace(/^\d+\.\s+/, '')
-        const {text, id} = stripBlockId(raw)
-        items.push({text, id})
-        i++
-      }
-      blocks.push({kind: 'ol', items, containerId: pendingContainerId})
-      pendingContainerId = undefined
-      continue
-    }
-
-    // Paragraph — collect consecutive non-blank, non-special lines
-    const paraLines: string[] = []
-    while (
-      i < lines.length &&
-      lines[i]!.trim() !== '' &&
-      !lines[i]!.trim().startsWith('```') &&
-      !lines[i]!.trim().startsWith('$$') &&
-      !lines[i]!.trim().startsWith('#') &&
-      !lines[i]!.trim().startsWith('|') &&
-      !lines[i]!.match(STANDALONE_ID_RE) &&
-      !/^!\[([^\]]*)\]\(([^)]+)\)/.test(lines[i]!.trim()) &&
-      !/^[-*+]\s+/.test(lines[i]!.trim()) &&
-      !/^\d+\.\s+/.test(lines[i]!.trim())
-    ) {
-      // Leading indentation is emitter nesting depth, not content — keeping it
-      // would grow paragraph text by one indent level per markdown round trip.
-      paraLines.push(lines[i]!.trimStart())
-      i++
-    }
-    if (paraLines.length === 0) {
-      // The line looked special to the paragraph collector but matched no block
-      // branch above (e.g. "#nospace" or 7+ hashes). Consume it as paragraph text
-      // so the outer loop always makes progress.
-      paraLines.push(line.trimStart())
-      i++
-    }
-    // Block ID is on the first line of the paragraph
-    const firstLine = paraLines[0]!
-    const {text: cleanFirst, id} = stripBlockId(firstLine)
-    paraLines[0] = cleanFirst
-    blocks.push({kind: 'paragraph', text: paraLines.join('\n'), id})
-    pendingContainerId = undefined
-  }
-
-  return blocks
+/** Kept for callers that only need the id. */
+function stripBlockId(s: string): {text: string; id?: string} {
+  const {text, comment} = stripBlockComment(s)
+  return {text, id: comment?.id}
 }
 
-// ─── Tree builder ────────────────────────────────────────────────────────────
+// ─── Line model ──────────────────────────────────────────────────────────────
+
+type MarkerKind = 'Unordered' | 'Ordered' | 'Blockquote'
+
+type LineInfo = {
+  raw: string
+  /** Leading spaces. */
+  indent: number
+  /** List / quote marker text (`- `, `3. `, `> `) or ''. */
+  marker: string
+  markerKind?: MarkerKind
+  /** Column where the block's own content starts: indent + marker width. */
+  contentCol: number
+  /** The line after indentation and marker. */
+  rest: string
+  blank: boolean
+}
+
+const MARKER_RE = /^([-*+] |\d+[.)] |> )/
+
+function analyzeLine(raw: string): LineInfo {
+  // Only the leading run of blanks is indentation (a tab counts as two
+  // columns); whitespace inside the content is content.
+  const lead = /^[ \t]*/.exec(raw)![0]
+  const indent = lead.replace(/\t/g, '  ').length
+  let rest = raw.slice(lead.length)
+  const blank = rest.trim() === ''
+  let marker = ''
+  let markerKind: MarkerKind | undefined
+  const m = MARKER_RE.exec(rest)
+  if (m && !blank) {
+    marker = m[1]!
+    markerKind = marker === '> ' ? 'Blockquote' : /^\d/.test(marker) ? 'Ordered' : 'Unordered'
+    rest = rest.slice(marker.length)
+  }
+  return {raw, indent, marker, markerKind, contentCol: indent + marker.length, rest, blank}
+}
+
+// ─── Block builders ──────────────────────────────────────────────────────────
 
 function makeBlockNode(block: SeedBlock, children: BlockNode[] = []): BlockNode {
   return {block, children}
 }
 
-function createParagraphNode(rawText: string, id?: string): BlockNode {
+function baseBlock(
+  type: string,
+  comment: BlockComment | undefined,
+  text = '',
+  annotations: Annotation[] = [],
+): SeedBlock {
+  const block: SeedBlock = {type, id: comment?.id || generateBlockId(), text, annotations}
+  if (comment?.attrs && Object.keys(comment.attrs).length) block.attributes = {...comment.attrs}
+  return block
+}
+
+function createParagraphNode(rawText: string, comment?: BlockComment): BlockNode {
   const {text, annotations} = parseInlineFormatting(rawText)
-  return makeBlockNode({
-    type: 'Paragraph',
-    id: id || generateBlockId(),
-    text,
-    annotations,
-  })
+  return makeBlockNode(baseBlock('Paragraph', comment, text, annotations))
 }
 
-function createHeadingNode(rawText: string, id?: string): BlockNode {
+function createHeadingNode(rawText: string, comment?: BlockComment): BlockNode {
   const {text, annotations} = parseInlineFormatting(rawText)
-  return makeBlockNode(
-    {
-      type: 'Heading',
-      id: id || generateBlockId(),
-      text,
-      annotations,
-      childrenType: 'Group',
-    },
-    [],
-  )
+  return makeBlockNode(baseBlock('Heading', comment, text, annotations))
 }
 
-function createCodeNode(text: string, language: string, id?: string): BlockNode {
-  return makeBlockNode({
-    type: 'Code',
-    id: id || generateBlockId(),
-    text,
-    annotations: [],
-    language: language || undefined,
-  })
+function createCodeNode(text: string, language: string, comment?: BlockComment): BlockNode {
+  const block = baseBlock('Code', comment, text)
+  if (language) block.language = language
+  return makeBlockNode(block)
 }
 
-function createMathNode(text: string, id?: string): BlockNode {
-  return makeBlockNode({
-    type: 'Math',
-    id: id || generateBlockId(),
-    text,
-    annotations: [],
-  })
+function createMathNode(text: string, comment?: BlockComment): BlockNode {
+  return makeBlockNode(baseBlock('Math', comment, text))
 }
 
-function createImageNode(alt: string, url: string, id?: string): BlockNode {
-  return makeBlockNode({
-    type: 'Image',
-    id: id || generateBlockId(),
-    text: alt,
-    annotations: [],
-    link: url,
-  })
+function createImageNode(alt: string, url: string, comment?: BlockComment): BlockNode {
+  const {text, annotations} = parseInlineFormatting(alt)
+  const block = baseBlock('Image', comment, text, annotations)
+  block.link = url
+  return makeBlockNode(block)
 }
 
-function createListContainerNode(
-  items: BlockNode[],
-  listType: 'Unordered' | 'Ordered',
-  containerId?: string,
-): BlockNode {
-  // Invisible Paragraph container with childrenType set — the fallback shape
-  // when a list has no preceding text block to nest under (see parseMarkdown).
-  return makeBlockNode(
-    {
-      type: 'Paragraph',
-      id: containerId || generateBlockId(),
-      text: '',
-      annotations: [],
-      childrenType: listType,
-    },
-    items,
-  )
+/** A block whose type came from `type:` in its comment; text/link from the visible part. */
+function createTypedNode(visible: string, comment: BlockComment): BlockNode {
+  const block = baseBlock(comment.type!, comment)
+  const v = visible.trim()
+  const linkOnly = /^<([a-zA-Z][a-zA-Z0-9+.-]*:[^\s<>]*)>$/.exec(v)
+  const labeled = v.startsWith('[') ? readLink(v, 0) : null
+  if (linkOnly) {
+    block.link = linkOnly[1]!
+  } else if (labeled && labeled.end === v.length) {
+    const {text, annotations} = parseInlineFormatting(labeled.label)
+    block.text = text
+    block.annotations = annotations
+    block.link = labeled.url
+  } else if (v) {
+    const {text, annotations} = parseInlineFormatting(v)
+    block.text = text
+    block.annotations = annotations
+  }
+  return makeBlockNode(block)
 }
 
 // ─── Table parser ────────────────────────────────────────────────────────────
@@ -572,7 +594,7 @@ function createListContainerNode(
 // The markdown dialect keeps that identity through the round trip:
 //
 //   <!-- id:TABLEID -->                      (standalone line before the table)
-//   | Name <!-- col:c1 --> | Age <!-- col:c2 --> |
+//   | Name <!-- col:c1 --> | Age <!-- col:c2 attrs:{"width":120} --> |
 //   | --- | --- |
 //   | Alice | 30 | <!-- id:r1 -->            (row id after the final pipe)
 //
@@ -580,13 +602,12 @@ function createListContainerNode(
 // (row id, column id) against the previous document during update diffing.
 // Plain GFM tables with no comments parse fine — all ids are generated.
 
-/** Regex matching a `<!-- col:ID -->` column id comment inside a header cell. */
-const COL_ID_RE = /<!--\s*col:([A-Za-z0-9_-]+)\s*-->/
-
+/** Regex matching a `<!-- col:ID [attrs:{…}] -->` column comment inside a header cell. */
+const COL_ID_RE = /<!--\s*col:([A-Za-z0-9_-]+)(?:\s+attrs:(\{.*?\}))?\s*-->/
 /** Regex matching an `<!-- id:ID -->` comment anywhere inside a cell. */
 const CELL_ID_RE = /<!--\s*id:([A-Za-z0-9_-]+)\s*-->/
 
-type ParsedTableCell = {text: string; colId?: string}
+type ParsedTableCell = {text: string; colId?: string; colAttrs?: Record<string, unknown>}
 type ParsedTableRow = {cells: ParsedTableCell[]; id?: string}
 
 /**
@@ -628,12 +649,20 @@ function splitTableRow(line: string): ParsedTableRow {
       cellText = cellText.replace(idMatch[0], '')
     }
     let colId: string | undefined
+    let colAttrs: Record<string, unknown> | undefined
     const colMatch = cellText.match(COL_ID_RE)
     if (colMatch) {
       colId = colMatch[1]
+      if (colMatch[2]) {
+        try {
+          colAttrs = JSON.parse(colMatch[2])
+        } catch {
+          // ignore malformed column attrs
+        }
+      }
       cellText = cellText.replace(colMatch[0], '')
     }
-    return {text: cellText.trim(), colId}
+    return {text: cellText.trim(), colId, colAttrs}
   })
   return {cells, id: rowId}
 }
@@ -643,9 +672,9 @@ function isSeparatorRow(cells: ParsedTableCell[]): boolean {
   return cells.length > 0 && cells.every((c) => /^:?-+:?$/.test(c.text))
 }
 
-/** Convert `<br>` variants back to newlines, then parse inline formatting. */
+/** Parse a cell's inline formatting (the inline parser reads `<br>` as a newline). */
 function createTableCellNode(rawText: string, columnId: string): BlockNode {
-  const {text, annotations} = parseInlineFormatting(rawText.replace(/<br\s*\/?>/gi, '\n'))
+  const {text, annotations} = parseInlineFormatting(rawText)
   return makeBlockNode({
     type: 'Paragraph',
     id: generateBlockId(),
@@ -665,9 +694,8 @@ function createTableCellNode(rawText: string, columnId: string): BlockNode {
  * - Cells are created densely: every row gets one cell per column, so the
  *   written grid matches what the editor produces.
  */
-function createTableNode(lines: string[], containerId?: string): BlockNode {
+function createTableNode(lines: string[], comment?: BlockComment): BlockNode {
   const rawRows = lines.map(splitTableRow)
-
   let headerRow: ParsedTableRow | undefined
   let bodyRows: ParsedTableRow[]
   if (rawRows.length >= 2 && isSeparatorRow(rawRows[1]!.cells)) {
@@ -680,18 +708,19 @@ function createTableNode(lines: string[], containerId?: string): BlockNode {
 
   const headerCells = headerRow?.cells ?? []
   const colCount = Math.max(headerCells.length, ...bodyRows.map((r) => r.cells.length), 0)
-
   const columnIds: string[] = []
   for (let idx = 0; idx < colCount; idx++) {
     columnIds.push(headerCells[idx]?.colId || generateBlockId())
   }
 
-  const columnNodes: BlockNode[] = columnIds.map((id) =>
-    makeBlockNode({type: 'TableColumn', id, text: '', annotations: []}),
-  )
+  const columnNodes: BlockNode[] = columnIds.map((id, idx) => {
+    const block: SeedBlock = {type: 'TableColumn', id, text: '', annotations: []}
+    const attrs = headerCells[idx]?.colAttrs
+    if (attrs && Object.keys(attrs).length) block.attributes = {...attrs}
+    return makeBlockNode(block)
+  })
 
   const rowNodes: BlockNode[] = []
-
   // An all-empty header row (ignoring col: comments) encodes a headerless table.
   const hasHeaderRow = headerCells.some((c) => c.text !== '')
   if (headerRow && hasHeaderRow) {
@@ -709,7 +738,6 @@ function createTableNode(lines: string[], containerId?: string): BlockNode {
       ),
     )
   }
-
   for (const row of bodyRows) {
     const cells = columnIds.map((columnId, idx) => createTableCellNode(row.cells[idx]?.text ?? '', columnId))
     rowNodes.push(
@@ -725,15 +753,7 @@ function createTableNode(lines: string[], containerId?: string): BlockNode {
     )
   }
 
-  return makeBlockNode(
-    {
-      type: 'Table',
-      id: containerId || generateBlockId(),
-      text: '',
-      annotations: [],
-    },
-    [...columnNodes, ...rowNodes],
-  )
+  return makeBlockNode(baseBlock('Table', comment), [...columnNodes, ...rowNodes])
 }
 
 // ─── Frontmatter parser ──────────────────────────────────────────────────────
@@ -754,7 +774,7 @@ function coerceString(value: unknown): string | undefined {
   return String(value)
 }
 
-/** String-typed metadata keys that map 1:1 from frontmatter to HMMetadata. */
+/** String-typed metadata keys, coerced to strings when hand-written YAML types them otherwise. */
 const METADATA_STRING_KEYS = [
   'name',
   'summary',
@@ -767,235 +787,391 @@ const METADATA_STRING_KEYS = [
   'seedExperimentalLogo',
   'importCategories',
   'importTags',
+  'seedExperimentalHomeOrder',
+  'contentWidth',
+  'childrenType',
 ] as const
 
 /** Boolean-typed metadata keys. */
 const METADATA_BOOLEAN_KEYS = ['showOutline', 'showActivity'] as const
 
-/** Enum-typed metadata keys (stored as strings). */
-const METADATA_ENUM_KEYS = ['seedExperimentalHomeOrder', 'contentWidth', 'childrenType'] as const
-
 /**
  * Strip YAML frontmatter (--- delimited) from markdown content.
- * Returns the remaining content and any parsed metadata.
+ * Returns the remaining content and the parsed metadata.
  *
- * Frontmatter keys map 1:1 to HMMetadata field names (e.g. `name:`,
- * `displayAuthor:`, `displayPublishTime:`, `cover:`, etc.).
- *
- * Also accepts `title:` as a backward-compatible alias for `name:`.
+ * Every frontmatter key maps 1:1 to a metadata key, including nested values
+ * and keys this client does not know (schema-typed documents carry their
+ * own). `title:` is accepted as a backward-compatible alias for `name:`.
  */
 export function parseFrontmatter(markdown: string): {
   content: string
   metadata: HMMetadata
 } {
-  const trimmed = markdown.trimStart()
+  const trimmed = markdown.replace(/^﻿/, '')
   if (!trimmed.startsWith('---')) {
     return {content: markdown, metadata: {}}
   }
-
-  // Find the closing ---
-  const endIndex = trimmed.indexOf('\n---', 3)
-  if (endIndex === -1) {
+  const firstLineEnd = trimmed.indexOf('\n')
+  if (firstLineEnd === -1 || trimmed.slice(0, firstLineEnd).trim() !== '---') {
     return {content: markdown, metadata: {}}
   }
+  // Closing fence: a line that is exactly `---`.
+  const closeRe = /\n---[ \t]*(?:\n|$)/g
+  closeRe.lastIndex = firstLineEnd
+  const closeMatch = closeRe.exec(trimmed)
+  if (!closeMatch) {
+    return {content: markdown, metadata: {}}
+  }
+  const yamlBlock = trimmed.slice(firstLineEnd + 1, closeMatch.index)
+  const rest = trimmed.slice(closeMatch.index + closeMatch[0].length)
 
-  const yamlBlock = trimmed.slice(3, endIndex).trim()
-  const rest = trimmed.slice(endIndex + 4) // skip past \n---
-
-  const metadata: HMMetadata = {}
+  const metadata: Record<string, unknown> = {}
   try {
-    const parsed = parseYaml(yamlBlock) as Record<string, unknown> | null
+    const parsed = yamlBlock.trim() === '' ? {} : (parseYaml(yamlBlock) as Record<string, unknown> | null)
     if (!parsed || typeof parsed !== 'object') {
       return {content: rest, metadata}
     }
-
-    // String fields
-    for (const key of METADATA_STRING_KEYS) {
-      const val = coerceString(parsed[key])
-      if (val !== undefined) (metadata as Record<string, unknown>)[key] = val
+    for (const [key, value] of Object.entries(parsed)) {
+      if (value === undefined) continue
+      if (key === 'title') continue
+      metadata[key] = value
     }
-
     // Accept `title:` as backward-compat alias for `name:`
-    if (!metadata.name && parsed['title']) {
-      const val = coerceString(parsed['title'])
-      if (val !== undefined) metadata.name = val
+    if (metadata.name === undefined && parsed['title'] != null) {
+      metadata.name = coerceString(parsed['title'])
     }
-
-    // Boolean fields
+    for (const key of METADATA_STRING_KEYS) {
+      if (metadata[key] !== undefined && typeof metadata[key] !== 'string') metadata[key] = coerceString(metadata[key])
+    }
     for (const key of METADATA_BOOLEAN_KEYS) {
-      if (parsed[key] != null) (metadata as Record<string, unknown>)[key] = Boolean(parsed[key])
-    }
-
-    // Enum-like fields (stored as strings)
-    for (const key of METADATA_ENUM_KEYS) {
-      const val = coerceString(parsed[key])
-      if (val !== undefined) (metadata as Record<string, unknown>)[key] = val
-    }
-
-    // Nested theme object
-    if (parsed['theme'] && typeof parsed['theme'] === 'object') {
-      const themeInput = parsed['theme'] as Record<string, unknown>
-      const theme: {headerLayout?: 'Center' | ''} = {}
-      const hl = themeInput['headerLayout']
-      if (hl === 'Center' || hl === '') theme.headerLayout = hl
-      if (Object.keys(theme).length > 0) metadata.theme = theme
+      if (metadata[key] !== undefined && typeof metadata[key] !== 'boolean') metadata[key] = Boolean(metadata[key])
     }
   } catch {
     // Invalid YAML — ignore frontmatter, return content as-is
     return {content: markdown, metadata: {}}
   }
 
-  return {content: rest, metadata}
+  return {content: rest, metadata: metadata as HMMetadata}
 }
 
-// ─── Main entry point ────────────────────────────────────────────────────────
+// ─── Tree builder ────────────────────────────────────────────────────────────
+
+type Frame = {
+  /** The block whose children this frame collects; undefined for the root. */
+  node?: BlockNode
+  list: BlockNode[]
+  /** Indentation at which this frame's children sit. */
+  childIndent: number
+  /** Set for heading frames: closes on a heading of this level or higher at childIndent. */
+  headingLevel?: number
+  /** Set for invisible-container shorthand: children are marker lines at childIndent. */
+  shorthand?: MarkerKind
+  /** Marker kind of the last child added, or undefined when it had none. */
+  markerRun?: MarkerKind
+}
+
+const HEADING_RE = /^(#{1,6})\s+(.*)$/
+const isListType = (t: string | undefined): t is MarkerKind =>
+  t === 'Unordered' || t === 'Ordered' || t === 'Blockquote'
+const FENCE_RE = /^(`{3,})(.*)$/
+const IMAGE_START_RE = /^!\[/
+
+/** Does this (marker-stripped) line begin a block other than a plain paragraph? */
+function startsSpecialBlock(rest: string): boolean {
+  return (
+    HEADING_RE.test(rest) ||
+    FENCE_RE.test(rest) ||
+    rest.startsWith('$$') ||
+    IMAGE_START_RE.test(rest) ||
+    rest.startsWith('|') ||
+    STANDALONE_COMMENT_RE.test(rest) ||
+    END_RE.test(rest)
+  )
+}
 
 /**
  * Builds a hierarchical block tree from markdown.
  *
- * The hierarchy is determined by heading levels:
- * - H1 headings are root-level blocks; lower headings and content become children
- * - H2 headings become children of the preceding H1, etc.
- * - Content before the first heading goes to root level
- *
- * YAML frontmatter (--- delimited) is parsed for document metadata
- * (all HMMetadata fields) and stripped from the content before tokenizing.
- *
- * Block IDs from `<!-- id:XXXXXXXX -->` HTML comments are preserved.
- * When no ID is present, random 8-char IDs are generated.
+ * See the module header for the dialect. Frontmatter is parsed for document
+ * metadata and stripped from the content before tokenizing. Block IDs from
+ * `<!-- id:… -->` comments are preserved; absent ids are generated.
  */
 export function parseMarkdown(markdown: string): {
   tree: BlockNode[]
   metadata: HMMetadata
 } {
   const {content, metadata} = parseFrontmatter(markdown)
-  const tokens = tokenize(content)
-  const rootNodes: BlockNode[] = []
+  const lines = content.split('\n')
+  const infos = lines.map(analyzeLine)
+  const root: Frame = {list: [], childIndent: 0}
+  const stack: Frame[] = [root]
+  const top = () => stack[stack.length - 1]!
 
-  // heading stack: [{level, node}] — tracks current hierarchy
-  const headingStack: {level: number; node: BlockNode}[] = []
-
-  function currentParent(): BlockNode | undefined {
-    return headingStack.length > 0 ? headingStack[headingStack.length - 1]!.node : undefined
+  /** Pop frames the incoming line no longer belongs to. */
+  function adjustStack(info: LineInfo, headingLevel: number | undefined) {
+    while (stack.length > 1) {
+      const frame = top()
+      if (info.indent < frame.childIndent) {
+        stack.pop()
+        continue
+      }
+      if (info.indent === frame.childIndent) {
+        if (frame.shorthand) {
+          if (info.markerKind === frame.shorthand) break
+          stack.pop()
+          continue
+        }
+        if (frame.headingLevel !== undefined && headingLevel !== undefined && headingLevel <= frame.headingLevel) {
+          stack.pop()
+          continue
+        }
+        break
+      }
+      // Deeper than this frame's children: a child of the last block we
+      // added (which pushed its own frame), or sloppy hand-written
+      // indentation — either way it belongs in this frame.
+      break
+    }
   }
 
-  function currentSiblings(): BlockNode[] {
-    return currentParent()?.children ?? rootNodes
+  function isImplicitListStart(frame: Frame, kind: MarkerKind): boolean {
+    if (!frame.node) return true // root never holds list items directly
+    const parentType = frame.node.block.childrenType
+    if (parentType && parentType !== kind) return true
+    return frame.list.length > 0 && frame.markerRun !== kind
   }
 
-  /**
-   * A list merged directly into a heading (heading childrenType set to
-   * Unordered/Ordered) is only valid while the list is the heading's sole
-   * content — anything appended after it would render as another list item.
-   * When more content arrives, wrap the merged items back into an invisible
-   * container and restore the heading to a Group parent.
-   */
-  function unmergeHeadingList() {
-    const parent = currentParent()
-    if (!parent || parent.block.type !== 'Heading') return
-    const ct = parent.block.childrenType
-    if (ct !== 'Unordered' && ct !== 'Ordered') return
-    parent.children = [createListContainerNode(parent.children, ct)]
-    parent.block.childrenType = 'Group'
+  function nextNonBlank(from: number): LineInfo | undefined {
+    for (let j = from; j < infos.length; j++) if (!infos[j]!.blank) return infos[j]
+    return undefined
   }
 
-  function addToCurrentParent(node: BlockNode | BlockNode[]) {
-    unmergeHeadingList()
-    const nodes = Array.isArray(node) ? node : [node]
-    currentSiblings().push(...nodes)
-  }
+  let i = 0
+  while (i < infos.length) {
+    const info = infos[i]!
+    if (info.blank) {
+      i++
+      continue
+    }
 
-  /**
-   * The closest preceding text block a list can nest under:
-   *   - the previous sibling, when it is a childless text Paragraph, or
-   *   - the enclosing heading, when the list is its first content.
-   * Returns undefined when neither applies (start of document, after a
-   * non-text block, or under a parent already holding merged list items).
-   */
-  function findListTarget(): BlockNode | undefined {
-    const parent = currentParent()
-    const parentType = parent?.block.childrenType
-    if (parentType === 'Unordered' || parentType === 'Ordered') return undefined
-    const siblings = currentSiblings()
-    const prev = siblings[siblings.length - 1]
-    if (prev) {
+    // <!-- end:ID --> closes the heading (or any block) with that id.
+    const endMatch = END_RE.exec(info.rest)
+    if (endMatch && !info.marker) {
+      const idx = findLastIndex(stack, (f) => f.node?.block.id === endMatch[1])
+      if (idx > 0) stack.length = idx
+      i++
+      continue
+    }
+
+    const headingMatch = HEADING_RE.exec(info.rest)
+    adjustStack(info, headingMatch ? headingMatch[1]!.length : undefined)
+
+    let frame = top()
+
+    // A heading holding a merged list gets more, non-list content: wrap the
+    // list back into an invisible container so the heading stays a Group.
+    if (
+      !info.markerKind &&
+      !frame.shorthand &&
+      frame.node?.block.type === 'Heading' &&
+      frame.list.length > 0 &&
+      isListType(frame.node.block.childrenType)
+    ) {
+      const container = makeBlockNode(
+        {
+          type: 'Paragraph',
+          id: generateBlockId(),
+          text: '',
+          annotations: [],
+          childrenType: frame.node.block.childrenType,
+        },
+        frame.list.splice(0),
+      )
+      frame.list.push(container)
+      frame.node.block.childrenType = 'Group'
+      frame.markerRun = undefined
+    }
+
+    // A marker line with no explicit structure around it (hand-written
+    // markdown): nest under the preceding text paragraph, or start an
+    // invisible container.
+    if (info.markerKind && !frame.shorthand && isImplicitListStart(frame, info.markerKind)) {
+      const prev = frame.list[frame.list.length - 1]
       const canNest =
+        prev &&
         prev.block.type === 'Paragraph' &&
         prev.block.text !== '' &&
         prev.children.length === 0 &&
         !prev.block.childrenType
-      return canNest ? prev : undefined
-    }
-    return parent
-  }
-
-  function addList(items: {text: string; id?: string}[], listType: 'Unordered' | 'Ordered', containerId?: string) {
-    const itemNodes = items.map((item) => createParagraphNode(item.text, item.id))
-
-    // An explicit container id means the source markdown round-tripped a
-    // document that really has an invisible list container — keep that block
-    // so its identity survives updates. Otherwise nest the items under the
-    // closest text block instead of fabricating an empty paragraph.
-    if (!containerId) {
-      const target = findListTarget()
-      if (target) {
-        target.block.childrenType = listType
-        target.children.push(...itemNodes)
-        return
+      let target: BlockNode
+      if (canNest) {
+        target = prev
+      } else {
+        target = makeBlockNode({type: 'Paragraph', id: generateBlockId(), text: '', annotations: []})
+        frame.list.push(target)
+        frame.markerRun = undefined
       }
+      target.block.childrenType = info.markerKind
+      // The target's own frame (pushed when it was added) is stale: replace it.
+      if (stack.length > 1 && top().node === target) stack.pop()
+      stack.push({node: target, list: target.children, childIndent: info.indent, shorthand: info.markerKind})
+      frame = top()
     }
-    addToCurrentParent(createListContainerNode(itemNodes, listType, containerId))
+
+    const parsed = parseBlockAt(i)
+    i = parsed.next
+    const node = parsed.node
+
+    frame.list.push(node)
+    frame.markerRun = info.markerKind
+    if (info.markerKind && frame.node && !frame.node.block.childrenType) {
+      frame.node.block.childrenType = info.markerKind
+    }
+
+    // Push a frame for this block's children.
+    if (headingMatch) {
+      stack.push({node, list: node.children, childIndent: info.contentCol, headingLevel: headingMatch[1]!.length})
+    } else if (parsed.standalone && !info.marker) {
+      const following = nextNonBlank(i)
+      if (following && following.indent === info.indent && following.markerKind) {
+        stack.push({node, list: node.children, childIndent: info.indent, shorthand: following.markerKind})
+      } else {
+        stack.push({node, list: node.children, childIndent: info.indent + 2})
+      }
+    } else {
+      stack.push({node, list: node.children, childIndent: info.marker ? info.contentCol : info.indent + 2})
+    }
   }
 
-  for (const token of tokens) {
-    switch (token.kind) {
-      case 'heading': {
-        const headingNode = createHeadingNode(token.text, token.id)
+  // Blocks that got children without a marker are Group parents.
+  const finalize = (nodes: BlockNode[]) => {
+    for (const n of nodes) {
+      if (n.children.length && !n.block.childrenType && n.block.type !== 'Table' && n.block.type !== 'TableRow') {
+        n.block.childrenType = 'Group'
+      }
+      finalize(n.children)
+    }
+  }
+  finalize(root.list)
 
-        // Pop headings from stack that are at same level or deeper
-        while (headingStack.length > 0 && headingStack[headingStack.length - 1]!.level >= token.level) {
-          headingStack.pop()
+  return {tree: root.list, metadata}
+
+  /**
+   * Parse the block starting at line `start`. Returns the node and the index
+   * of the first line after it. `standalone` marks a comment-only line.
+   */
+  function parseBlockAt(start: number): {node: BlockNode; next: number; standalone: boolean} {
+    const info = infos[start]!
+    const rest = info.rest
+
+    // Standalone comment: an invisible block, or the id line of a table.
+    const standalone = STANDALONE_COMMENT_RE.exec(rest)
+    if (standalone) {
+      const comment = commentFromMatch(standalone)
+      const following = nextNonBlank(start + 1)
+      if (following && following.indent >= info.indent && following.rest.startsWith('|') && !following.marker) {
+        const tableLines: string[] = []
+        let j = start + 1
+        while (j < infos.length && infos[j]!.rest.startsWith('|') && !infos[j]!.blank) {
+          tableLines.push(infos[j]!.rest)
+          j++
         }
-
-        // Add heading to its parent (or root)
-        addToCurrentParent(headingNode)
-
-        // Push onto stack
-        headingStack.push({level: token.level, node: headingNode})
-        break
+        return {node: createTableNode(tableLines, comment), next: j, standalone: false}
       }
-
-      case 'paragraph':
-        addToCurrentParent(createParagraphNode(token.text, token.id))
-        break
-
-      case 'code':
-        addToCurrentParent(createCodeNode(token.text, token.language, token.id))
-        break
-
-      case 'math':
-        addToCurrentParent(createMathNode(token.text, token.id))
-        break
-
-      case 'image':
-        addToCurrentParent(createImageNode(token.alt, token.url, token.id))
-        break
-
-      case 'table':
-        addToCurrentParent(createTableNode(token.lines, token.containerId))
-        break
-
-      case 'ul':
-        addList(token.items, 'Unordered', token.containerId)
-        break
-
-      case 'ol':
-        addList(token.items, 'Ordered', token.containerId)
-        break
+      const type = comment.type || 'Paragraph'
+      return {node: makeBlockNode(baseBlock(type, comment)), next: start + 1, standalone: true}
     }
-  }
 
-  return {tree: rootNodes, metadata}
+    // Fenced code block: ```lang <!-- id:X -->
+    const fence = FENCE_RE.exec(rest)
+    if (fence) {
+      const fenceLen = fence[1]!.length
+      const {text: language, comment} = stripBlockComment(fence[2]!.trim())
+      const bodyLines: string[] = []
+      let j = start + 1
+      while (j < infos.length) {
+        const l = infos[j]!
+        const closing = /^(`{3,})\s*$/.exec(l.raw.trim())
+        if (closing && closing[1]!.length >= fenceLen && l.indent <= info.contentCol) break
+        bodyLines.push(stripIndent(l.raw, info.contentCol))
+        j++
+      }
+      j++ // closing fence
+      return {node: createCodeNode(bodyLines.join('\n'), language.trim(), comment), next: j, standalone: false}
+    }
+
+    // Math block: $$ <!-- id:X -->
+    if (rest.startsWith('$$')) {
+      const {comment} = stripBlockComment(rest.slice(2).trim())
+      const bodyLines: string[] = []
+      let j = start + 1
+      while (j < infos.length && infos[j]!.raw.trim() !== '$$') {
+        bodyLines.push(stripIndent(infos[j]!.raw, info.contentCol))
+        j++
+      }
+      j++
+      return {node: createMathNode(bodyLines.join('\n'), comment), next: j, standalone: false}
+    }
+
+    // Heading: # text <!-- id:X -->
+    const heading = HEADING_RE.exec(rest)
+    if (heading) {
+      const {text, comment} = stripBlockComment(heading[2]!)
+      if (comment?.type) return {node: createTypedNode(text, comment), next: start + 1, standalone: false}
+      return {node: createHeadingNode(text, comment), next: start + 1, standalone: false}
+    }
+
+    // Table without a preceding id line.
+    if (rest.startsWith('|')) {
+      const tableLines: string[] = []
+      let j = start
+      while (j < infos.length && infos[j]!.rest.startsWith('|') && !infos[j]!.blank) {
+        tableLines.push(infos[j]!.rest)
+        j++
+      }
+      return {node: createTableNode(tableLines), next: j, standalone: false}
+    }
+
+    // Everything else starts as a one-line block with an optional trailing comment.
+    const {text: visible, comment} = stripBlockComment(rest)
+
+    if (comment?.type) {
+      return {node: createTypedNode(visible, comment), next: start + 1, standalone: false}
+    }
+
+    // Standalone image: ![alt](url) <!-- id:X -->
+    if (IMAGE_START_RE.test(visible)) {
+      const link = readLink(visible, 1)
+      if (link && visible.slice(link.end).trim() === '') {
+        let url = link.url
+        if (url && !url.match(/^[a-zA-Z][a-zA-Z0-9+.-]*:/)) url = `file://${url}`
+        return {node: createImageNode(link.label, url, comment), next: start + 1, standalone: false}
+      }
+    }
+
+    // Paragraph. Hand-written soft-wrapped lines (no comment on the first
+    // line) join with a space, as CommonMark does.
+    let text = visible
+    let j = start + 1
+    if (!comment) {
+      while (j < infos.length) {
+        const l = infos[j]!
+        if (l.blank || l.marker || l.indent !== info.contentCol || startsSpecialBlock(l.rest)) break
+        const {text: more, comment: c} = stripBlockComment(l.rest)
+        if (c) break
+        text += ' ' + more
+        j++
+      }
+    }
+    return {node: createParagraphNode(text, comment), next: j, standalone: false}
+  }
+}
+
+/** Remove up to `n` leading spaces from a line. */
+function stripIndent(line: string, n: number): string {
+  let k = 0
+  while (k < n && line[k] === ' ') k++
+  return line.slice(k)
 }
 
 /**
@@ -1010,14 +1186,12 @@ export function markdownBlockNodesToHMBlockNodes(nodes: BlockNode[]): HMBlockNod
   return nodes.map((node) => {
     const {block} = node
     const attributes: Record<string, unknown> = {...block.attributes}
-
     if (block.childrenType !== undefined) {
       attributes.childrenType = block.childrenType
     }
     if (block.language !== undefined) {
       attributes.language = block.language
     }
-
     const hmBlock: Record<string, unknown> = {
       type: block.type,
       id: block.id,
@@ -1027,14 +1201,13 @@ export function markdownBlockNodesToHMBlockNodes(nodes: BlockNode[]): HMBlockNod
         starts: a.starts,
         ends: a.ends,
         ...(a.link !== undefined ? {link: a.link} : {}),
+        ...(a.attributes !== undefined ? {attributes: a.attributes} : {}),
       })),
       attributes,
     }
-
     if (block.link !== undefined) {
       hmBlock.link = block.link
     }
-
     return {
       block: hmBlock,
       children: node.children.length > 0 ? markdownBlockNodesToHMBlockNodes(node.children) : undefined,
@@ -1068,15 +1241,12 @@ export function flattenToOperations(tree: BlockNode[], parentId: string = ''): D
       text: node.block.text,
       annotations: node.block.annotations,
     }
-
     if (node.block.language !== undefined) {
       block['language'] = node.block.language
     }
-
     if (node.block.childrenType !== undefined) {
       block['childrenType'] = node.block.childrenType
     }
-
     if (node.block.link !== undefined) {
       block['link'] = node.block.link
     }

@@ -103,7 +103,9 @@ describe('table emission', () => {
   it('emits the identity-carrying GFM dialect with row ids inside the last cell', () => {
     const md = blocksToMarkdown(doc([sampleTable()]))
     expect(md).toContain('<!-- id:TBL00001 -->')
-    expect(md).toContain('| Name <!-- col:COL00001 --> | Age <!-- col:COL00002 --> <!-- id:ROW00001 --> |')
+    expect(md).toContain(
+      '| Name <!-- col:COL00001 attrs:{"width":120} --> | Age <!-- col:COL00002 --> <!-- id:ROW00001 --> |',
+    )
     expect(md).toContain('| --- | --- |')
     expect(md).toContain('| Alice | 30 <!-- id:ROW00002 --> |')
     expect(md).toContain('| Bob | 25 <!-- id:ROW00003 --> |')
@@ -127,7 +129,7 @@ describe('table emission', () => {
     const header = table.children![2]!
     ;(header.block as {attributes?: Record<string, unknown>}).attributes = {}
     const md = blocksToMarkdown(doc([table]))
-    expect(md).toContain('| <!-- col:COL00001 --> | <!-- col:COL00002 --> |')
+    expect(md).toContain('| <!-- col:COL00001 attrs:{"width":120} --> | <!-- col:COL00002 --> |')
     // The previously-header row now emits as a body row with its id
     expect(md).toContain('| Name | Age <!-- id:ROW00001 --> |')
   })
@@ -150,13 +152,13 @@ describe('table emission', () => {
     expect(md).toContain('| a\\|b | line1<br>line2 <!-- id:ROW00002 --> |')
   })
 
-  it('drops a table with no columns instead of emitting a dangling id comment', () => {
+  it('keeps a table with no columns as a typed comment line', () => {
     const table: HMBlockNode = {
       block: {type: 'Table', id: 'TBLEMPTY', text: '', annotations: [], attributes: {}, link: '', revision: ''},
       children: [],
     } as unknown as HMBlockNode
     const md = blocksToMarkdown(doc([table, para('AFTER001', 'after')]))
-    expect(md).not.toContain('TBLEMPTY')
+    expect(md).toContain('<!-- id:TBLEMPTY type:Table -->')
     expect(md).toContain('after <!-- id:AFTER001 -->')
   })
 })

@@ -22,14 +22,14 @@ describe('blocksToMarkdown Slot export', () => {
     const md = blocksToMarkdown(slotDoc('Unordered', ['one', 'two']))
     expect(md).toContain('- one')
     expect(md).toContain('- two')
-    // The invisible Slot itself must not leak any visible text.
-    expect(md).not.toContain('Slot')
+    // The invisible Slot is a comment-only line carrying its type.
+    expect(md).toContain('<!-- id:slot1 type:Slot -->\n- one')
   })
 
   it('emits a root Ordered Slot as markdown numbered items', () => {
     const md = blocksToMarkdown(slotDoc('Ordered', ['a', 'b']))
     expect(md).toContain('1. a')
-    expect(md).toContain('1. b')
+    expect(md).toContain('2. b')
   })
 
   it('emits a root Blockquote Slot as markdown blockquote items', () => {

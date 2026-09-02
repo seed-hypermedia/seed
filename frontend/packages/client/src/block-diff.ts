@@ -90,7 +90,12 @@ export function matchBlockIds(oldNodes: APIBlockNode[], newNodes: BlockNode[]): 
       matchedId = oldNode.block.id
     }
 
-    const matchedChildren = matchBlockIds(oldNode?.children ?? [], newNode.children)
+    // A table's columns, rows and cells are bound to each other by id
+    // (cells reference columns via `columnId`), so positional renaming would
+    // break them. Only the table itself is matched here; its subtree is
+    // rebound as a unit by rebindTableIdentities.
+    const matchedChildren =
+      newNode.block.type === 'Table' ? newNode.children : matchBlockIds(oldNode?.children ?? [], newNode.children)
 
     return {
       block: {...newNode.block, id: matchedId},
@@ -346,6 +351,21 @@ export function computeReplaceOps(
   return ops
 }
 
+/** The ids of `parentId`'s children in the old document, in order. */
+function oldSiblingOrder(oldMap: BlocksMap, parentId: string): string[] {
+  const byLeft = new Map<string, string>()
+  for (const [id, entry] of Object.entries(oldMap)) {
+    if (entry.parent === parentId) byLeft.set(entry.left, id)
+  }
+  const order: string[] = []
+  let cur = byLeft.get('')
+  while (cur !== undefined && !order.includes(cur)) {
+    order.push(cur)
+    cur = byLeft.get(cur)
+  }
+  return order
+}
+
 function computeReplaceOpsInner(
   oldMap: BlocksMap,
   matchedTree: BlockNode[],
@@ -398,10 +418,12 @@ function computeReplaceOpsInner(
     }
   })
 
-  // Emit a single MoveBlocks for all blocks at this level.
-  // This positions them correctly under the parent in order.
-  // We always emit this to ensure correct ordering after changes.
-  if (blockIdsAtLevel.length > 0) {
+  // Emit a single MoveBlocks for all blocks at this level, positioning them
+  // under the parent in order — unless the level already reads exactly like
+  // this in the old document, so an untouched document yields no ops at all.
+  const oldOrder = oldSiblingOrder(oldMap, parentId)
+  const sameOrder = oldOrder.length === blockIdsAtLevel.length && blockIdsAtLevel.every((id, i) => oldOrder[i] === id)
+  if (blockIdsAtLevel.length > 0 && !sameOrder) {
     ops.push({
       type: 'MoveBlocks',
       blocks: blockIdsAtLevel,
@@ -426,6 +448,29 @@ function attrsEqual(a: Record<string, unknown>, b: Record<string, unknown>): boo
   return true
 }
 
+/** Deterministic annotation order: by first start, then longest first, then type. */
+function compareAnnotations(a: Record<string, unknown>, b: Record<string, unknown>): number {
+  const sa = (a.starts as number[] | undefined)?.[0] ?? 0
+  const sb = (b.starts as number[] | undefined)?.[0] ?? 0
+  const ea = (a.ends as number[] | undefined)?.[0] ?? 0
+  const eb = (b.ends as number[] | undefined)?.[0] ?? 0
+  return sa - sb || eb - ea || String(a.type).localeCompare(String(b.type))
+}
+
+/** An annotation reduced to its meaning: no empty link/attributes, fixed key order. */
+function canonicalAnnotation(ann: unknown): Record<string, unknown> {
+  const a = (ann || {}) as Record<string, unknown>
+  const out: Record<string, unknown> = {type: a.type, starts: a.starts, ends: a.ends}
+  if (a.link) out.link = a.link
+  const attrs = a.attributes as Record<string, unknown> | undefined
+  if (attrs && Object.keys(attrs).length > 0) {
+    const sorted: Record<string, unknown> = {}
+    for (const k of Object.keys(attrs).sort()) sorted[k] = attrs[k]
+    out.attributes = sorted
+  }
+  return out
+}
+
 /**
  * Compare old API block content with new parsed block content.
  * Returns true if they're semantically equal.
@@ -435,9 +480,10 @@ function isBlockContentEqual(old: APIBlock, newBlock: SeedBlock): boolean {
   if ((old.text || '') !== (newBlock.text || '')) return false
   if ((old.link || '') !== (newBlock.link || '')) return false
 
-  // Compare annotations
-  const oldAnn = old.annotations || []
-  const newAnn = newBlock.annotations || []
+  // Compare annotations semantically: the API spells out empty `link` /
+  // `attributes` and its own key order, the markdown parser does not.
+  const oldAnn = (old.annotations || []).map(canonicalAnnotation).sort(compareAnnotations)
+  const newAnn = (newBlock.annotations || []).map(canonicalAnnotation).sort(compareAnnotations)
   if (oldAnn.length !== newAnn.length) return false
   if (oldAnn.length > 0 && JSON.stringify(oldAnn) !== JSON.stringify(newAnn)) {
     return false

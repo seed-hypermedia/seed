@@ -1,17 +1,21 @@
 /**
  * Seed block tree → Markdown formatter.
  *
- * Converts HMDocument/HMBlockNode trees to markdown with:
- *   - YAML frontmatter (always emitted, all HMMetadata fields)
- *   - Block IDs preserved as HTML comments (<!-- id:XXXXXXXX -->)
- *   - Inline annotations rendered as markdown formatting
+ * The lossless half of the markdown pair (see `markdown-to-blocks.ts` for the
+ * dialect). Converts HMDocument/HMBlockNode trees to markdown with:
+ *   - YAML frontmatter carrying every metadata key
+ *   - a trailing `<!-- id:X [type:T] [attrs:{…}] -->` comment on every block
+ *   - nesting by indentation, heading level by heading depth
+ *   - annotations as markdown markers, split at boundaries so they nest
  *
  * This module is purely synchronous and does NOT resolve embeds, mentions,
- * or queries over the network. For resolved output, use the CLI's wrapper
- * which adds a SeedClient-backed resolve layer on top.
+ * or queries over the network. For resolved output, see the
+ * `documentToResolvedMarkdown` family below, which is a display format and
+ * not round-trip safe.
  *
- * Round-trip compatible: output can be piped back through `parseMarkdown()`
- * to recreate the same document with block IDs preserved.
+ * Round-trip: `parseMarkdown(blocksToMarkdown(doc))` reproduces `doc`, and
+ * exporting that parse reproduces the same markdown. Use
+ * `{ipfsGateway: false}` to keep `ipfs://` links verbatim.
  */
 
 import type {SeedClient} from './client'
@@ -25,6 +29,7 @@ import type {
   UnpackedHypermediaId,
 } from './hm-types'
 import {unpackHmId} from './hm-types'
+import {stringify as stringifyYaml} from 'yaml'
 
 // ─── Options ─────────────────────────────────────────────────────────────────
 
@@ -35,86 +40,106 @@ export type BlocksToMarkdownOptions = {
 
 // ─── Frontmatter ─────────────────────────────────────────────────────────────
 
-/** HMMetadata keys that are strings (emitted as YAML scalars). */
-const FM_STRING_KEYS: (keyof HMMetadata)[] = [
+/**
+ * Metadata keys emitted first, in this order; every other key follows,
+ * sorted. Nested maps are sorted too, so the same metadata always yields
+ * the same frontmatter.
+ */
+const FM_KEY_ORDER = [
   'name',
   'summary',
-  'displayAuthor',
-  'displayPublishTime',
   'icon',
   'cover',
+  'displayAuthor',
+  'displayPublishTime',
+  'schema',
+  'childrenSchema',
+  'schemaDefinition',
   'siteUrl',
   'layout',
-  'seedExperimentalLogo',
-  'seedExperimentalHomeOrder',
+  'theme',
   'contentWidth',
   'childrenType',
+  'showOutline',
+  'showActivity',
+  'seedExperimentalLogo',
+  'seedExperimentalHomeOrder',
   'importCategories',
   'importTags',
 ]
 
-/** HMMetadata keys that are booleans (emitted as YAML true/false). */
-const FM_BOOLEAN_KEYS: (keyof HMMetadata)[] = ['showOutline', 'showActivity']
+function frontmatterKeyRank(key: string): number {
+  const idx = FM_KEY_ORDER.indexOf(key)
+  return idx === -1 ? FM_KEY_ORDER.length : idx
+}
 
 /**
- * Emit YAML frontmatter from HMMetadata.
- * Only includes fields that have defined, non-empty values.
- * System fields (authors, version, genesis, account) are NOT emitted.
+ * Emit YAML frontmatter from HMMetadata. Every defined key is emitted,
+ * including nested values and keys this client does not know about.
+ * System fields (authors, version, genesis, account) are not metadata and
+ * are never present here.
  */
 export function emitFrontmatter(metadata: HMMetadata): string {
-  const lines: string[] = []
-
-  // String fields
-  for (const key of FM_STRING_KEYS) {
-    const val = metadata[key]
-    if (val !== undefined && val !== '') {
-      lines.push(`${key}: ${JSON.stringify(val)}`)
-    }
-  }
-
-  // Boolean fields
-  for (const key of FM_BOOLEAN_KEYS) {
-    const val = metadata[key]
-    if (val !== undefined) {
-      lines.push(`${key}: ${val}`)
-    }
-  }
-
-  // Nested theme object
-  if (metadata.theme && typeof metadata.theme === 'object') {
-    const entries: string[] = []
-    if (metadata.theme.headerLayout !== undefined) {
-      entries.push(`  headerLayout: ${JSON.stringify(metadata.theme.headerLayout)}`)
-    }
-    if (entries.length > 0) {
-      lines.push('theme:')
-      lines.push(...entries)
-    }
-  }
-
-  if (lines.length === 0) return '---\n---\n'
-  return '---\n' + lines.join('\n') + '\n---\n'
+  const entries = Object.entries(metadata || {}).filter(([, v]) => v !== undefined)
+  if (entries.length === 0) return '---\n---\n'
+  const body = stringifyYaml(Object.fromEntries(entries), {
+    lineWidth: 0,
+    sortMapEntries: (a, b) => {
+      const ka = String(a.key)
+      const kb = String(b.key)
+      return frontmatterKeyRank(ka) - frontmatterKeyRank(kb) || ka.localeCompare(kb)
+    },
+  })
+  return '---\n' + body.replace(/\n$/, '') + '\n---\n'
 }
 
-// ─── Block ID helpers ────────────────────────────────────────────────────────
+// ─── Block comments ──────────────────────────────────────────────────────────
 
-/** Format a block ID as an inline HTML comment. */
+/** Stable-key JSON that can live inside an HTML comment (no `--`). */
+function commentJson(value: unknown): string {
+  return JSON.stringify(sortKeysDeep(value)).replace(/--/g, '-\\u002d')
+}
+
+function sortKeysDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeysDeep)
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const k of Object.keys(value as object).sort()) {
+      const v = (value as Record<string, unknown>)[k]
+      if (v !== undefined) out[k] = sortKeysDeep(v)
+    }
+    return out
+  }
+  return value
+}
+
+/** `<!-- id:X [type:T] [attrs:{…}] -->` */
+function blockComment(id: string, type?: string, attrs?: Record<string, unknown>): string {
+  let s = `<!-- id:${id}`
+  if (type) s += ` type:${type}`
+  if (attrs && Object.keys(attrs).length) s += ` attrs:${commentJson(attrs)}`
+  return s + ' -->'
+}
+
+/** Kept for the table emitter and the resolved emitter. */
 function idComment(id: string): string {
-  return `<!-- id:${id} -->`
+  return blockComment(id)
 }
 
-/**
- * Append a block ID comment to the first line of a markdown string.
- * If the string is empty, returns just the comment.
- */
-function appendIdToFirstLine(md: string, id: string): string {
-  const newline = md.indexOf('\n')
-  if (newline === -1) {
-    // Single line
-    return md ? `${md} ${idComment(id)}` : idComment(id)
+/** Block types with native markdown syntax; every other type is named in the comment. */
+const NATIVE_TYPES = new Set(['Paragraph', 'Heading', 'Code', 'Math', 'Image', 'Table'])
+
+/** Attributes expressed by syntax rather than in `attrs:`. */
+function isNativeAttribute(type: string, key: string, value: unknown, hasChildren: boolean): boolean {
+  if (key === 'childrenType') {
+    if (value === 'Unordered' || value === 'Ordered' || value === 'Blockquote') return true
+    // Group is the default for any block with children; only an explicit
+    // Group on a childless block needs spelling out.
+    if (value === 'Group') return hasChildren
+    return false
   }
-  // Multi-line: append to first line only
-  return `${md.slice(0, newline)} ${idComment(id)}${md.slice(newline)}`
+  if (type === 'Code' && key === 'language') return true
+  return false
 }
 
 // ─── Main entry point ────────────────────────────────────────────────────────
@@ -127,91 +152,62 @@ function appendIdToFirstLine(md: string, id: string): string {
  */
 export function blocksToMarkdown(doc: HMDocument, options?: BlocksToMarkdownOptions): string {
   const opts = {ipfsGateway: true, ...options}
-  const lines: string[] = []
+  const out: string[] = [emitFrontmatter(doc.metadata || {}).replace(/\n$/, '')]
+  renderNodes(doc.content || [], '', undefined, 0, opts, out)
+  return out.join('\n') + '\n'
+}
 
-  // Always emit frontmatter
-  lines.push(emitFrontmatter(doc.metadata || {}))
+type ChildrenType = string | undefined
 
-  // Content blocks
-  for (const node of doc.content) {
-    const blockMd = blockNodeToMarkdown(node, 0, opts)
-    if (blockMd) {
-      lines.push(blockMd)
-    }
-  }
+const LIST_TYPES = new Set(['Unordered', 'Ordered', 'Blockquote'])
 
-  return lines.join('\n')
+function markerFor(childrenType: ChildrenType, index: number): string {
+  if (childrenType === 'Unordered') return '- '
+  if (childrenType === 'Ordered') return `${index + 1}. `
+  if (childrenType === 'Blockquote') return '> '
+  return ''
 }
 
 /**
- * Convert a block node (with children) to markdown.
- *
- * Children are rendered based on `childrenType`:
- *   - Ordered/Unordered/Blockquote → prefixed list items
- *   - Group (default) → nested blocks
- *
- * Container blocks (empty text with childrenType like "Unordered")
- * get a standalone block ID comment on their own line before the
- * list content, since they have no visible text line to attach to.
+ * Render sibling blocks at indentation `ind`. Group siblings are separated
+ * by a blank line; list / quote items are not.
  */
-function blockNodeToMarkdown(node: HMBlockNode, depth: number, opts: Required<BlocksToMarkdownOptions>): string {
-  const block = node.block
-  const children = node.children || []
-
-  // Tables render their whole subtree (TableColumn/TableRow/cell blocks) as
-  // one GFM table — never recurse generically into their children.
-  if (block.type === 'Table') {
-    return tableToMarkdown(node, depth, (text, annotations) => applyAnnotations(text, annotations))
-  }
-
-  const childrenType = (block as {attributes?: {childrenType?: string}}).attributes?.childrenType
-
-  // Check if this is an invisible list container: an empty paragraph, or a
-  // Slot block.
-  const isListContainer =
-    (block.type === 'Paragraph' || block.type === 'Slot') &&
-    !block.text &&
-    (childrenType === 'Ordered' || childrenType === 'Unordered' || childrenType === 'Blockquote')
-
-  let result: string
-
-  if (isListContainer) {
-    // Standalone ID comment for the invisible container
-    result = idComment(block.id)
-  } else {
-    result = blockToMarkdown(block, depth, opts)
-  }
-
-  // Render children
-  for (const child of children) {
-    const childMd = blockNodeToMarkdown(child, depth + 1, opts)
-    if (childMd) {
-      if (childrenType === 'Ordered') {
-        // List items already have their block ID from blockToMarkdown
-        result += '\n' + indent(depth + 1) + '1. ' + childMd.trim()
-      } else if (childrenType === 'Unordered') {
-        result += '\n' + indent(depth + 1) + '- ' + childMd.trim()
-      } else if (childrenType === 'Blockquote') {
-        result += '\n' + indent(depth + 1) + '> ' + childMd.trim()
-      } else {
-        // Group children (default): blank-line separated so CommonMark
-        // parsers read each child as a distinct paragraph/block. A single
-        // newline would merge siblings into one soft-wrapped paragraph
-        // on re-import.
-        result += '\n\n' + childMd
-      }
+function renderNodes(
+  nodes: HMBlockNode[],
+  ind: string,
+  childrenType: ChildrenType,
+  headingDepth: number,
+  opts: Required<BlocksToMarkdownOptions>,
+  out: string[],
+): void {
+  const listy = LIST_TYPES.has(childrenType || '')
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i]!
+    if (i > 0 && !listy) out.push('')
+    const marker = markerFor(childrenType, i)
+    const wroteHeading = renderNode(node, ind, marker, headingDepth, opts, out)
+    // A heading's children sit at its own indentation, so a following
+    // non-heading sibling needs an explicit close.
+    const next = nodes[i + 1]
+    if (wroteHeading && next && next.block.type !== 'Heading') {
+      out.push(ind + `<!-- end:${node.block.id} -->`)
     }
   }
-
-  return result
 }
 
 /**
- * Convert a single block to markdown with its block ID embedded.
+ * Render one block and its children. Returns true when the block was
+ * written as a heading whose children share its indentation.
  */
-function blockToMarkdown(block: HMBlock, depth: number, opts: Required<BlocksToMarkdownOptions>): string {
-  const ind = indent(depth)
-  const b = block as {
+function renderNode(
+  node: HMBlockNode,
+  ind: string,
+  marker: string,
+  headingDepth: number,
+  opts: Required<BlocksToMarkdownOptions>,
+  out: string[],
+): boolean {
+  const block = node.block as {
     type: string
     id: string
     text?: string
@@ -219,82 +215,133 @@ function blockToMarkdown(block: HMBlock, depth: number, opts: Required<BlocksToM
     annotations?: HMAnnotation[]
     attributes?: Record<string, unknown>
   }
-  const text = b.text || ''
-  const link = b.link || ''
-  const annotations = b.annotations
-  const id = b.id
+  const children = node.children || []
+  const type = block.type
+  const text = block.text || ''
+  const link = block.link || ''
+  const attributes = block.attributes || {}
+  const childrenType = attributes.childrenType as ChildrenType
 
-  switch (block.type) {
+  // Tables render their whole subtree (TableColumn/TableRow/cell blocks) as
+  // one GFM table — never recurse generically into their children.
+  if (type === 'Table') {
+    const extra = extraAttributes(type, attributes, false)
+    const contentInd = ind + ' '.repeat(marker.length)
+    const table = tableToMarkdown(node, contentInd, (t, a) => renderInline(t, a, {atLineStart: false}))
+    // A table with no columns has no GFM form; the comment alone carries it.
+    out.push(ind + marker + blockComment(block.id, table ? undefined : 'Table', extra))
+    if (table) out.push(...table.split('\n'))
+    return false
+  }
+
+  const extra = extraAttributes(type, attributes, children.length > 0)
+  const comment = blockComment(block.id, NATIVE_TYPES.has(type) ? undefined : type, extra)
+  const contentInd = ind + ' '.repeat(marker.length)
+  let wroteHeading = false
+  let childInd = marker ? contentInd : ind + '  '
+  let childHeadingDepth = 0
+  let shorthand = false
+
+  switch (type) {
     case 'Paragraph': {
-      const rendered = ind + applyAnnotations(text, annotations)
-      return appendIdToFirstLine(rendered, id)
-    }
-
-    case 'Heading': {
-      const level = Math.min(depth + 1, 6)
-      const hashes = '#'.repeat(level)
-      const rendered = `${hashes} ${applyAnnotations(text, annotations)}`
-      return appendIdToFirstLine(rendered, id)
-    }
-
-    case 'Code': {
-      const lang = (b.attributes?.language as string) || ''
-      // ID on the opening fence line
-      return ind + '```' + lang + ' ' + idComment(id) + '\n' + ind + text + '\n' + ind + '```'
-    }
-
-    case 'Math': {
-      // ID on the $$ opener line
-      return ind + '$$ ' + idComment(id) + '\n' + ind + text + '\n' + ind + '$$'
-    }
-
-    case 'Image': {
-      const altText = text || 'image'
-      const imgUrl = formatMediaUrl(link, opts.ipfsGateway)
-      return ind + `![${altText}](${imgUrl}) ${idComment(id)}`
-    }
-
-    case 'Video': {
-      const videoUrl = formatMediaUrl(link, opts.ipfsGateway)
-      return ind + `[Video](${videoUrl}) ${idComment(id)}`
-    }
-
-    case 'File': {
-      const fileName = (b.attributes?.name as string) || 'file'
-      const fileUrl = formatMediaUrl(link, opts.ipfsGateway)
-      return ind + `[${fileName}](${fileUrl}) ${idComment(id)}`
-    }
-
-    case 'Embed': {
-      // Unresolved embed — render as blockquote link placeholder
-      return ind + `> [Embed: ${link}](${link}) ${idComment(id)}`
-    }
-
-    case 'WebEmbed': {
-      return ind + `[Web Embed](${link}) ${idComment(id)}`
-    }
-
-    case 'Button': {
-      const buttonText = text || 'Button'
-      return ind + `[${buttonText}](${link}) ${idComment(id)}`
-    }
-
-    case 'Query': {
-      // Unresolved query — render as HTML comment placeholder
-      return ind + `<!-- Query block --> ${idComment(id)}`
-    }
-
-    case 'Nostr': {
-      return ind + `[Nostr: ${link}](${link}) ${idComment(id)}`
-    }
-
-    default: {
-      if (text) {
-        return appendIdToFirstLine(ind + text, id)
+      if (!text && children.length && LIST_TYPES.has(childrenType || '') && !marker) {
+        // Invisible list container: a standalone comment, children follow
+        // at the same indentation as marker lines.
+        out.push(ind + comment)
+        shorthand = true
+        childInd = ind
+      } else if (!text) {
+        out.push(ind + marker + comment)
+      } else {
+        out.push(ind + marker + renderInline(text, block.annotations, {atLineStart: true}) + ' ' + comment)
       }
-      return ''
+      break
+    }
+    case 'Heading': {
+      const level = Math.min(headingDepth + 1, 6)
+      out.push(
+        ind +
+          marker +
+          '#'.repeat(level) +
+          ' ' +
+          renderInline(text, block.annotations, {atLineStart: false}) +
+          ' ' +
+          comment,
+      )
+      if (level < 6) {
+        wroteHeading = !marker
+        childInd = contentInd
+        childHeadingDepth = headingDepth + 1
+      } else {
+        childInd = contentInd + '  '
+      }
+      // A blank line between a heading and its content, as people write it.
+      if (children.length) out.push('')
+      break
+    }
+    case 'Code': {
+      const lang = (attributes.language as string) || ''
+      let fenceLen = 3
+      for (const m of text.matchAll(/`+/g)) fenceLen = Math.max(fenceLen, m[0].length + 1)
+      const fence = '`'.repeat(fenceLen)
+      out.push(ind + marker + fence + lang + ' ' + comment)
+      for (const line of text.split('\n')) out.push(line ? contentInd + line : '')
+      out.push(contentInd + fence)
+      break
+    }
+    case 'Math': {
+      out.push(ind + marker + '$$ ' + comment)
+      for (const line of text.split('\n')) out.push(line ? contentInd + line : '')
+      out.push(contentInd + '$$')
+      break
+    }
+    case 'Image': {
+      const alt = renderInline(text, block.annotations, {atLineStart: false})
+      out.push(ind + marker + `![${alt}](${renderUrl(formatMediaUrl(link, opts.ipfsGateway))}) ` + comment)
+      break
+    }
+    default: {
+      // A typed block: its visible form is whatever markdown can show.
+      const url = renderUrl(formatMediaUrl(link, opts.ipfsGateway))
+      let visible = ''
+      if (text && link) visible = `[${renderInline(text, block.annotations, {atLineStart: false})}](${url})`
+      else if (link) visible = `<${formatMediaUrl(link, opts.ipfsGateway)}>`
+      else if (text) visible = renderInline(text, block.annotations, {atLineStart: true})
+      out.push(ind + marker + (visible ? visible + ' ' : '') + comment)
+      if (!visible && children.length && LIST_TYPES.has(childrenType || '') && !marker) {
+        // Invisible container (e.g. a Slot holding a list): children follow
+        // as marker lines at the same indentation.
+        shorthand = true
+        childInd = ind
+      }
     }
   }
+
+  if (children.length) {
+    if (!shorthand && type !== 'Heading' && !LIST_TYPES.has(childrenType || '')) out.push('')
+    renderNodes(children, childInd, childrenType, childHeadingDepth, opts, out)
+  }
+  return wroteHeading
+}
+
+/** Attributes that go into the comment's `attrs:` because no syntax carries them. */
+function extraAttributes(
+  type: string,
+  attributes: Record<string, unknown>,
+  hasChildren: boolean,
+): Record<string, unknown> {
+  const extra: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(attributes)) {
+    if (value === undefined || value === null) continue
+    if (isNativeAttribute(type, key, value, hasChildren)) continue
+    extra[key] = value
+  }
+  return extra
+}
+
+/** Wrap a URL in `<…>` when it could not otherwise sit inside `(…)`. */
+function renderUrl(url: string): string {
+  return /[\s()<>]/.test(url) ? `<${url}>` : url
 }
 
 // ─── Table emission ──────────────────────────────────────────────────────────
@@ -330,13 +377,13 @@ type NormalizedTableRow = {
 }
 
 type NormalizedTable = {
-  columns: {id: string}[]
+  columns: {id: string; attributes?: Record<string, unknown>}[]
   rows: NormalizedTableRow[]
 }
 
 /** Normalize a Table block node the way the renderers do. */
 function normalizeTableNode(node: HMBlockNode): NormalizedTable {
-  const columns: {id: string}[] = []
+  const columns: {id: string; attributes?: Record<string, unknown>}[] = []
   const rows: NormalizedTableRow[] = []
 
   for (const child of node.children || []) {
@@ -346,7 +393,8 @@ function normalizeTableNode(node: HMBlockNode): NormalizedTable {
       attributes?: Record<string, unknown>
     }
     if (block?.type === 'TableColumn') {
-      columns.push({id: block.id})
+      const attributes = extraAttributes('TableColumn', block.attributes || {}, false)
+      columns.push(Object.keys(attributes).length ? {id: block.id, attributes} : {id: block.id})
     } else if (block?.type === 'TableRow') {
       const cells = new Map<string, {text: string; annotations?: HMAnnotation[]}>()
       for (const cellNode of child.children || []) {
@@ -383,18 +431,17 @@ function escapeCellText(s: string): string {
  * the delimiter row — required for strict-GFM renderers to recognize the
  * table at all. */
 function assembleTableMarkdown(
-  tableId: string,
-  columns: {id: string}[],
+  columns: {id: string; attributes?: Record<string, unknown>}[],
   header: {rowId?: string; cellTexts: string[]},
   bodyRows: {rowId: string; cellTexts: string[]}[],
   ind: string,
 ): string {
   const lines: string[] = []
-  lines.push(ind + idComment(tableId))
 
   const headerCells = columns.map((col, idx) => {
     const text = header.cellTexts[idx] || ''
-    return (text ? text + ' ' : '') + `<!-- col:${col.id} -->`
+    const attrs = col.attributes && Object.keys(col.attributes).length ? ` attrs:${commentJson(col.attributes)}` : ''
+    return (text ? text + ' ' : '') + `<!-- col:${col.id}${attrs} -->`
   })
   if (header.rowId) {
     headerCells[headerCells.length - 1] += ' ' + idComment(header.rowId)
@@ -418,7 +465,7 @@ function assembleTableMarkdown(
  */
 function tableToMarkdown(
   node: HMBlockNode,
-  depth: number,
+  ind: string,
   renderCell: (text: string, annotations: HMAnnotation[] | undefined) => string,
 ): string {
   const {columns, rows} = normalizeTableNode(node)
@@ -438,13 +485,7 @@ function tableToMarkdown(
     cellTexts: renderRowCells(row),
   }))
 
-  return assembleTableMarkdown(
-    node.block.id,
-    columns,
-    {rowId: headerRow?.id, cellTexts: renderRowCells(headerRow)},
-    bodyRows,
-    indent(depth),
-  )
+  return assembleTableMarkdown(columns, {rowId: headerRow?.id, cellTexts: renderRowCells(headerRow)}, bodyRows, ind)
 }
 
 /** Async twin of tableToMarkdown for the resolved emitter. */
@@ -472,91 +513,218 @@ async function tableToResolvedMarkdown(
     })),
   )
 
-  return assembleTableMarkdown(
-    node.block.id,
-    columns,
-    {rowId: headerRow?.id, cellTexts: await renderRowCells(headerRow)},
-    bodyRows,
-    indent(depth),
+  return (
+    resolvedIndent(depth) +
+    resolvedIdComment(node.block.id) +
+    '\n' +
+    assembleTableMarkdown(
+      columns,
+      {rowId: headerRow?.id, cellTexts: await renderRowCells(headerRow)},
+      bodyRows,
+      resolvedIndent(depth),
+    )
   )
 }
 
-// ─── Annotation rendering ────────────────────────────────────────────────────
+// ─── Inline rendering ────────────────────────────────────────────────────────
+//
+// Annotations become markdown markers. Because HM annotations may overlap
+// arbitrarily while markdown markers must nest, the text is split at every
+// annotation boundary and markers are closed and reopened around each run
+// as needed. The parser merges the pieces back (mergeAdjacentAnnotations).
+//
+// Code spans are literal, so they always sit innermost; an Embed annotation
+// is atomic (`<hm://…>`) and replaces its placeholder text.
 
-/**
- * Apply text annotations (bold, italic, links, etc.) to produce markdown.
- */
-function applyAnnotations(text: string, annotations: HMAnnotation[] | undefined): string {
-  if (!annotations || annotations.length === 0) {
-    return text
-  }
-
-  type Marker = {pos: number; type: 'open' | 'close'; annotation: HMAnnotation}
-  const markers: Marker[] = []
-
-  for (const ann of annotations) {
-    const starts = ann.starts || []
-    const ends = ann.ends || []
-
-    for (let i = 0; i < starts.length; i++) {
-      markers.push({pos: starts[i]!, type: 'open', annotation: ann})
-      if (ends[i] !== undefined) {
-        markers.push({pos: ends[i]!, type: 'close', annotation: ann})
-      }
-    }
-  }
-
-  markers.sort((a, b) => {
-    if (a.pos !== b.pos) return a.pos - b.pos
-    return a.type === 'open' ? -1 : 1
-  })
-
-  let result = ''
-  let lastPos = 0
-
-  for (const marker of markers) {
-    result += text.slice(lastPos, marker.pos)
-    lastPos = marker.pos
-    result += getAnnotationMarker(marker.annotation, marker.type)
-  }
-
-  result += text.slice(lastPos)
-  result = result.replace(/\uFFFC/g, '')
-
-  return result
+type Span = {
+  start: number
+  end: number
+  type: string
+  link?: string
+  attributes?: Record<string, unknown>
+  key: string
 }
 
-/**
- * Get markdown marker for an annotation open/close.
- */
-function getAnnotationMarker(ann: HMAnnotation, type: 'open' | 'close'): string {
-  switch (ann.type) {
-    case 'Bold':
-      return '**'
-    case 'Italic':
-      return '_'
-    case 'Strike':
-      return '~~'
-    case 'Code':
-      return '`'
-    case 'Underline':
-      return type === 'open' ? '<u>' : '</u>'
-    case 'Link':
-      if (type === 'open') {
-        return '['
-      } else {
-        return `](${ann.link || ''})`
-      }
-    case 'Embed': {
-      // CommonMark autolink: <url>. The ￼ placeholder inside the annotation
-      // range is stripped by applyAnnotations' final pass, so the emitted
-      // span becomes `<url>` with no literal text between brackets.
-      const link = 'link' in ann ? (ann.link as string) || '' : ''
-      return type === 'open' ? `<${link}` : '>'
-    }
-    default:
-      return ''
+type RenderInlineOptions = {
+  /** Escape characters that would start a block (heading, list, table…) at position 0. */
+  atLineStart: boolean
+}
+
+const SPAN_STYLE: Record<string, string> = {
+  TextColor: 'color',
+  BackgroundColor: 'background-color',
+  TextSize: 'font-size',
+  TextFamily: 'font-family',
+}
+
+function encodeHtmlAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/** Escape text so the inline parser reads it back verbatim. */
+function escapeInline(s: string, atLineStart: boolean): string {
+  let out = s.replace(/[\\`*_~\[\]<]/g, (c) => '\\' + c).replace(/\n/g, '<br>')
+  if (atLineStart) {
+    out = out.replace(/^(#|[-+>|$]|\d+[.)])/, (m) => (m.length === 1 ? '\\' + m : m.slice(0, -1) + '\\' + m.slice(-1)))
+    // Leading whitespace would read as indentation.
+    if (/^\s/.test(out)) out = '\\' + out
   }
+  return out
+}
+
+/** Trailing whitespace would be lost to the separator before the id comment: escape its last character. */
+function escapeTrailingWhitespace(s: string): string {
+  return /\s$/.test(s) ? s.slice(0, -1) + '\\' + s.slice(-1) : s
+}
+
+function spansFromAnnotations(text: string, annotations: HMAnnotation[] | undefined): Span[] {
+  const spans: Span[] = []
+  for (const ann of annotations || []) {
+    const a = ann as {
+      type: string
+      starts?: number[]
+      ends?: number[]
+      link?: string
+      attributes?: Record<string, unknown>
+    }
+    const starts = a.starts || []
+    const ends = a.ends || []
+    const link = a.link || undefined
+    const attributes = a.attributes && Object.keys(a.attributes).length ? a.attributes : undefined
+    const key = a.type + ' ' + (link ?? '') + ' ' + (attributes ? commentJson(attributes) : '')
+    for (let i = 0; i < starts.length; i++) {
+      const start = Math.max(0, starts[i]!)
+      const end = Math.min(text.length, ends[i] ?? -1)
+      if (end <= start) continue
+      spans.push({start, end, type: a.type, link, attributes, key})
+    }
+  }
+  // Merge touching / overlapping spans of the same kind.
+  spans.sort((x, y) => x.key.localeCompare(y.key) || x.start - y.start || x.end - y.end)
+  const merged: Span[] = []
+  for (const s of spans) {
+    const last = merged[merged.length - 1]
+    if (last && last.key === s.key && s.start <= last.end) last.end = Math.max(last.end, s.end)
+    else merged.push({...s})
+  }
+  return merged
+}
+
+/** Innermost-first ordering priority: code and embeds must be innermost. */
+function spanPriority(s: Span): number {
+  if (s.type === 'Embed') return 2
+  if (s.type === 'Code') return 1
+  return 0
+}
+
+/** Render text + annotations as inline markdown. */
+function renderInline(text: string, annotations: HMAnnotation[] | undefined, options: RenderInlineOptions): string {
+  const spans = spansFromAnnotations(text, annotations)
+  if (spans.length === 0) return escapeTrailingWhitespace(escapeInline(text, options.atLineStart))
+
+  const boundaries = new Set<number>([0, text.length])
+  for (const s of spans) {
+    boundaries.add(s.start)
+    boundaries.add(s.end)
+  }
+  const points = [...boundaries].sort((a, b) => a - b)
+
+  type Open = {span: Span; close: string}
+  const stack: Open[] = []
+  let out = ''
+
+  for (let p = 0; p < points.length - 1; p++) {
+    const pos = points[p]!
+    const next = points[p + 1]!
+    const active = spans.filter((s) => s.start <= pos && s.end >= next)
+
+    // Close everything that is not active for this run, reopening survivors.
+    const survivors: Span[] = []
+    let firstInactive = stack.findIndex((o) => !active.includes(o.span))
+    if (firstInactive === -1) firstInactive = stack.length
+    while (stack.length > firstInactive) {
+      const top = stack.pop()!
+      out += top.close
+      if (active.includes(top.span)) survivors.unshift(top.span)
+    }
+    const opening = [...survivors, ...active.filter((s) => !stack.some((o) => o.span === s) && !survivors.includes(s))]
+    opening.sort(
+      (a, b) => spanPriority(a) - spanPriority(b) || b.end - a.end || a.start - b.start || a.type.localeCompare(b.type),
+    )
+    // Code / Embed must be innermost even if they were already open.
+    const inner = stack.filter((o) => spanPriority(o.span) > 0)
+    if (opening.length && inner.length) {
+      for (const o of inner.reverse()) {
+        out += o.close
+        stack.splice(stack.indexOf(o), 1)
+        opening.push(o.span)
+      }
+      opening.sort(
+        (a, b) =>
+          spanPriority(a) - spanPriority(b) || b.end - a.end || a.start - b.start || a.type.localeCompare(b.type),
+      )
+    }
+    for (const s of opening) {
+      const chunk = text.slice(pos, next)
+      const [open, close] = markersFor(s, chunk, text)
+      out += open
+      stack.push({span: s, close})
+    }
+
+    const top = stack[stack.length - 1]
+    const chunk = text.slice(pos, next)
+    if (top?.span.type === 'Embed') {
+      // atomic: the marker carries the link, the placeholder text is dropped
+    } else if (top?.span.type === 'Code') {
+      out += chunk.replace(/\n/g, '<br>')
+    } else {
+      out += escapeInline(chunk, options.atLineStart && out === '')
+    }
+  }
+  while (stack.length) out += stack.pop()!.close
+  return escapeTrailingWhitespace(out)
+}
+
+/** Open/close markers for a span, given the chunk it is about to wrap. */
+function markersFor(s: Span, chunk: string, fullText: string): [string, string] {
+  switch (s.type) {
+    case 'Bold':
+      return ['**', '**']
+    case 'Italic':
+      return ['_', '_']
+    case 'Strike':
+      return ['~~', '~~']
+    case 'Underline':
+      return ['<u>', '</u>']
+    case 'Range':
+      return ['<mark>', '</mark>']
+    case 'Link':
+      return ['[', `](${renderUrl(s.link || '')})`]
+    case 'Embed':
+      return [`<${s.link || ''}>`, '']
+    case 'Code': {
+      // Fence longer than any backtick run in the whole span, and a space pad
+      // when the chunk starts/ends with a backtick or a space.
+      let fenceLen = 1
+      for (const m of fullText.slice(s.start, s.end).matchAll(/`+/g)) fenceLen = Math.max(fenceLen, m[0].length + 1)
+      const fence = '`'.repeat(fenceLen)
+      const pad = /^[` ]|[` ]$/.test(chunk) ? ' ' : ''
+      return [fence + pad, pad + fence]
+    }
+    default: {
+      const prop = SPAN_STYLE[s.type]
+      if (prop) {
+        const value = String((s.attributes as {value?: unknown} | undefined)?.value ?? '')
+        return [`<span style="${prop}:${encodeHtmlAttr(value)}">`, '</span>']
+      }
+      return ['', '']
+    }
+  }
+}
+
+/** Kept for the table emitter. */
+function applyAnnotations(text: string, annotations: HMAnnotation[] | undefined): string {
+  return renderInline(text, annotations, {atLineStart: false})
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
