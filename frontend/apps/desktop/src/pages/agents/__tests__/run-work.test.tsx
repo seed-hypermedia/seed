@@ -562,10 +562,11 @@ describe('delegate expanded view', () => {
     expect(container.textContent).toContain('"count": 3')
     // The child's transcript is one click away.
     click(Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('Open transcript')))
-    expect(mockState.navigate).toHaveBeenCalledWith(
-      {key: 'agent-session', sessionId: 'child-session-9', serverUrl: 'http://localhost:3050'},
-      expect.anything(),
-    )
+    expect(mockState.pushNavigate).toHaveBeenCalledWith({
+      key: 'agent-session',
+      sessionId: 'child-session-9',
+      serverUrl: 'http://localhost:3050',
+    })
   })
 
   it('opens a step’s sub-session by navigating, with no synthetic event to preventDefault', () => {
@@ -669,10 +670,11 @@ describe('delegate expanded view', () => {
     const link = container.querySelector('button[title="Open Researcher"]')
     expect(link).not.toBeNull()
     click(link)
-    expect(mockState.navigate).toHaveBeenCalledWith(
-      {key: 'agent-session', sessionId: 'child-session-live-2', serverUrl: 'http://localhost:3050'},
-      expect.anything(),
-    )
+    expect(mockState.pushNavigate).toHaveBeenCalledWith({
+      key: 'agent-session',
+      sessionId: 'child-session-live-2',
+      serverUrl: 'http://localhost:3050',
+    })
   })
 
   it('a delegate stamped with its child is a way in with no run-tree lookup at all', () => {
@@ -711,10 +713,11 @@ describe('delegate expanded view', () => {
     const link = container.querySelector('button[title="Open Researcher"]')
     expect(link).not.toBeNull()
     click(link)
-    expect(mockState.navigate).toHaveBeenCalledWith(
-      {key: 'agent-session', sessionId: 'child-session-stamped', serverUrl: 'http://localhost:3050'},
-      expect.anything(),
-    )
+    expect(mockState.pushNavigate).toHaveBeenCalledWith({
+      key: 'agent-session',
+      sessionId: 'child-session-stamped',
+      serverUrl: 'http://localhost:3050',
+    })
 
     click(container.querySelector('button[title="Show tool details"]'))
     expect(container.textContent).toContain('Read the pricing page')

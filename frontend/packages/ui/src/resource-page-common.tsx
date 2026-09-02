@@ -1,17 +1,17 @@
+import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {
   BlockRange,
   countCustomMetadataFields,
   HMBlockNode,
+  HMBlockQuery,
   HMComment,
   HMDocument,
   HMExistingDraft,
-  HMBlockQuery,
   HMQueryTableConfig,
   HMRawCitation,
   HMResource,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {
   createInspectNavRoute,
   DocumentPanelRoute,
@@ -65,8 +65,8 @@ import {
   DocumentMachineProvider,
   selectCanEditCurrentRoute,
   selectContext,
-  selectFolderQueryBlock,
   selectDraftOverlayAllowed,
+  selectFolderQueryBlock,
   selectIsEditing,
   selectIsFolder,
   selectIsUnpublishedDraft,
@@ -147,8 +147,8 @@ import {FeedFilters} from './feed-filters'
 import {HMIcon} from './hm-icon'
 import {useDocumentLayout} from './layout'
 import {MembersFacepile} from './members-facepile'
-import {MobilePanelSheet} from './mobile-panel-sheet'
 import {MergedBadge} from './merged-badge'
+import {MobilePanelSheet} from './mobile-panel-sheet'
 import {DocNavigationItem, DocNavigationWrapper, DocumentOutline, isValidSiteHeaderItem} from './navigation'
 import {OpenInPanelButton} from './open-in-panel'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
@@ -157,10 +157,10 @@ import {PageLayout} from './page-layout'
 import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-message-states'
 import {PanelLayout} from './panel-layout'
 import {PrivateBadge} from './private-badge'
+import {QueryBlockContent} from './query-block-content'
 import {SiteFileBrowserLayout} from './site-file-browser-layout'
 import {SiteHeader} from './site-header'
 import {Spinner} from './spinner'
-import {QueryBlockContent} from './query-block-content'
 import {toast} from './toast'
 import {UnreferencedDocuments} from './unreferenced-documents'
 import {useBlockScroll} from './use-block-scroll'
@@ -1798,7 +1798,7 @@ function DocumentBody({
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
   const shouldUseDraftOverlay = useDocumentSelector(selectShouldUseDraftOverlay)
   const isFolder = useDocumentSelector(selectIsFolder)
-  const [pendingDocumentConversion, setPendingDocumentConversion] = useState<'document' | null>(null)
+  const [pendingDocumentConversion, setPendingDocumentConversion] = useState<'folder' | 'document' | null>(null)
   const folderQueryBlock = useDocumentSelector(selectFolderQueryBlock)
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
@@ -2502,9 +2502,9 @@ function DocumentBody({
       key: 'convert-to-folder',
       label: 'Convert to Folder',
       icon: <Grid3X3 className="size-4" />,
-      onClick: () => send({type: 'folder.convertToFolder'}),
+      onClick: () => setPendingDocumentConversion('folder'),
     }
-  }, [canEditCurrentRoute, isFolder, send])
+  }, [canEditCurrentRoute, isFolder])
 
   const allMenuItems = useMemo(() => {
     let unorderedItems: MenuItemType[] = [...(optionsMenuItems ?? extraMenuItems ?? [])]
@@ -2587,34 +2587,43 @@ function DocumentBody({
   ])
 
   const hasOptions = allMenuItems.length > 0
-  const actionButtons = (
-    <>
-      {hasOptions ? <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" /> : null}
-      <AlertDialog
-        open={pendingDocumentConversion !== null}
-        onOpenChange={(open) => !open && setPendingDocumentConversion(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Convert to Document?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove the folder query block and leave an empty document.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                send({type: 'folder.convertToDocument'})
-                setPendingDocumentConversion(null)
-              }}
-            >
-              Convert
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+  const actionButtons = hasOptions ? <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" /> : null
+  const documentConversionDialog = (
+    <AlertDialog
+      open={pendingDocumentConversion !== null}
+      onOpenChange={(open) => !open && setPendingDocumentConversion(null)}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            Convert to {pendingDocumentConversion === 'folder' ? 'Folder' : 'Document'}?
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {pendingDocumentConversion === 'folder'
+              ? 'This will remove all document content and replace it with a query block.'
+              : 'This will remove the folder query block and leave an empty document.'}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              if (!pendingDocumentConversion) return
+              console.info('[Folder draft debug] document conversion confirmed', {
+                draftId: ctx.draftId,
+                conversion: pendingDocumentConversion,
+              })
+              send({
+                type: pendingDocumentConversion === 'folder' ? 'folder.convertToFolder' : 'folder.convertToDocument',
+              })
+              setPendingDocumentConversion(null)
+            }}
+          >
+            Convert
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
   const documentContentAction = getDocumentContentAction({
     activeView,
@@ -2655,6 +2664,7 @@ function DocumentBody({
         !pageFooter && 'min-h-full',
       )}
     >
+      {documentConversionDialog}
       <DocumentCover
         cover={metadata?.cover}
         onRemove={canEditCurrentRoute && metadata?.cover ? removeCover : undefined}
@@ -3398,17 +3408,6 @@ function DocumentFolder({
       return undefined
     }
   }, [props?.tableConfig])
-  const firstSort = querySort[0]
-  const sortIds: Record<string, string> = {
-    Title: 'title',
-    Path: 'path',
-    CreateTime: 'created',
-    UpdateTime: 'updated',
-  }
-  const tableSorting = firstSort?.term
-    ? [{id: sortIds[firstSort.term] ?? 'updated', desc: firstSort.reverse ?? false}]
-    : []
-
   return (
     <div className="w-full px-5 pb-8">
       <QueryBlockContent
@@ -3418,7 +3417,7 @@ function DocumentFolder({
         interactionSummaries={query.data?.interactionSummaries ?? {}}
         isDiscovering={query.isLoading}
         tableConfig={tableConfig}
-        tableSorting={tableSorting}
+        tableSorting={tableConfig?.sorting}
         onTableConfigChange={
           canEdit
             ? (config) => send({type: 'folder.query.change', props: {tableConfig: JSON.stringify(config)}})
@@ -3426,22 +3425,16 @@ function DocumentFolder({
         }
         onTableSortingChange={
           canEdit
-            ? (sorting) => {
-                const first = sorting[0]
-                const terms: Record<string, string> = {
-                  title: 'Title',
-                  path: 'Path',
-                  created: 'CreateTime',
-                  updated: 'UpdateTime',
-                }
-                const term = first ? terms[first.id] : undefined
-                if (term) {
-                  send({
-                    type: 'folder.query.change',
-                    props: {querySort: JSON.stringify([{term, reverse: first?.desc ?? false}])},
-                  })
-                }
-              }
+            ? (sorting) =>
+                send({
+                  type: 'folder.query.change',
+                  props: {
+                    tableConfig: JSON.stringify({
+                      columns: tableConfig?.columns ?? [],
+                      sorting,
+                    }),
+                  },
+                })
             : undefined
         }
       />

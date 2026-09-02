@@ -422,6 +422,7 @@ function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
     'width',
     'banner',
     'query',
+    'table',
     'columnCount',
     'style', // Query block style attribute
     'autoplay',
@@ -434,6 +435,7 @@ function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
     if (attr === 'query') {
       return isQueryEqual(a1.query as HMQuery | undefined, a2.query as HMQuery | undefined)
     }
+    if (attr === 'table') return isEqual(a1.table, a2.table)
     return (a1[attr] === undefined && a2[attr] === undefined) || a1[attr] === a2[attr]
   }
 

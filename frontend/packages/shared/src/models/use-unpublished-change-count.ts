@@ -74,20 +74,43 @@ export function useUnpublishedChangeCount(): number {
       hmBlocksToEditorContent(publishedDoc?.content ?? [], {childrenType: 'Group'}),
     )
     const diffBaseline = removeTrailingEmptyParagraphs(draftId ? publishedBaseline : baseline ?? publishedBaseline)
-    if (!diffBaseline.length) {
-      const editorBlocks = removeTrailingEmptyParagraphs(
-        handlersRef.current?.getCurrentBlocks() ?? hmBlocksToEditorContent(blocks),
-      )
-      return editorBlocks.length + metadataChangeCount + navigationChangeCount
+    const countBlockChanges = (editorBlocks: EditorBlock[]) => {
+      const current = removeTrailingEmptyParagraphs(editorBlocks)
+      if (!diffBaseline.length) return current.length
+      if (!current.length) return 0
+      const baselineMap = createBlocksMap(editorBlocksToHMBlockNodes(diffBaseline), '')
+      const {changes, touchedBlocks} = compareBlocksWithMap(baselineMap, current, '')
+      return changes.length + extractDeletes(baselineMap, touchedBlocks).length
     }
-    const editorBlocks = removeTrailingEmptyParagraphs(
-      handlersRef.current?.getCurrentBlocks() ?? hmBlocksToEditorContent(blocks),
-    )
-    if (editorBlocks.length === 0) return metadataChangeCount + navigationChangeCount
-    const baselineMap = createBlocksMap(editorBlocksToHMBlockNodes(diffBaseline), '')
-    const {changes, touchedBlocks} = compareBlocksWithMap(baselineMap, editorBlocks, '')
-    const deletes = extractDeletes(baselineMap, touchedBlocks)
-    return changes.length + deletes.length + metadataChangeCount + navigationChangeCount
+    const firstMachineBlock = blocks[0] as any
+    const machineEditorBlocks =
+      firstMachineBlock && !('block' in firstMachineBlock)
+        ? (blocks as unknown as EditorBlock[])
+        : hmBlocksToEditorContent(blocks)
+    const machineBlockChanges = countBlockChanges(machineEditorBlocks)
+    const editorBlockChanges = handlersRef.current?.getCurrentBlocks
+      ? countBlockChanges(handlersRef.current.getCurrentBlocks())
+      : 0
+    const unpublishedChangeCount =
+      Math.max(machineBlockChanges, editorBlockChanges) + metadataChangeCount + navigationChangeCount
+    const machineQuery = machineEditorBlocks.find((block) => block.type === 'query')
+    const publishedQuery = publishedBaseline.find((block) => block.type === 'query')
+    if (machineQuery || publishedQuery) {
+      console.info('[Folder draft debug] unpublished change count', {
+        draftId,
+        saveStatus,
+        machineBlockChanges,
+        editorBlockChanges,
+        metadataChangeCount,
+        navigationChangeCount,
+        unpublishedChangeCount,
+        publishedTableConfig: publishedQuery?.type === 'query' ? publishedQuery.props.tableConfig : undefined,
+        draftTableConfig: machineQuery?.type === 'query' ? machineQuery.props.tableConfig : undefined,
+        publishedQuerySort: publishedQuery?.type === 'query' ? publishedQuery.props.querySort : undefined,
+        draftQuerySort: machineQuery?.type === 'query' ? machineQuery.props.querySort : undefined,
+      })
+    }
+    return unpublishedChangeCount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseline, metadata, navigation, publishedDoc, draftId, blocks, saveStatus, handlersRef])
 }

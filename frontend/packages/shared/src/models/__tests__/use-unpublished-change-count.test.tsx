@@ -128,6 +128,46 @@ describe('useUnpublishedChangeCount', () => {
     }
   })
 
+  it('counts machine-owned folder configuration changes when the editor content is unchanged', () => {
+    const publishedBlocks = paragraphBlock('Published text')
+    selectMock.document = {
+      content: publishedBlocks,
+      detachedBlocks: {},
+    }
+    selectMock.editorBaseline = hmBlocksToEditorContent(publishedBlocks as any)
+    selectMock.blocks = paragraphBlock('Updated folder configuration')
+    handlersRefMock.current = {
+      getCurrentBlocks: () => hmBlocksToEditorContent(publishedBlocks as any),
+    }
+
+    const {container, root} = renderProbe()
+    try {
+      expect(container.firstElementChild?.getAttribute('data-count')).toBe('1')
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
+  it('counts machine blocks that are already in editor-block form', () => {
+    const publishedBlocks = paragraphBlock('Published text')
+    selectMock.document = {
+      content: publishedBlocks,
+      detachedBlocks: {},
+    }
+    selectMock.editorBaseline = hmBlocksToEditorContent(publishedBlocks as any)
+    selectMock.blocks = hmBlocksToEditorContent(paragraphBlock('Updated machine content') as any)
+    handlersRefMock.current = {
+      getCurrentBlocks: () => hmBlocksToEditorContent(publishedBlocks as any),
+    }
+
+    const {container, root} = renderProbe()
+    try {
+      expect(container.firstElementChild?.getAttribute('data-count')).toBe('1')
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
   it('keeps comparing against published content when a draft exists', () => {
     selectMock.document = {
       content: paragraphBlock('Published text'),

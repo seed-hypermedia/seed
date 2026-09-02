@@ -116,6 +116,76 @@ describe('document folder helpers', () => {
     expect(actor.getSnapshot().context.draftContent).toEqual([])
   })
 
+  it('writes the canonical folder query block when conversion autosaves', async () => {
+    const writeInputs: any[] = []
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<WriteDraftOutput, any>(async ({input}) => {
+          writeInputs.push(input)
+          return {id: 'folder-draft', content: input.contentOverride}
+        }),
+        publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+        discardDraft: fromPromise<void, any>(async () => {}),
+      },
+      delays: {autosaveTimeout: 10, saveIndicatorDismiss: 10},
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true},
+    }).start()
+    loadDocument(actor)
+    await vi.waitFor(() => expect(actor.getSnapshot().matches('loaded')).toBe(true))
+
+    actor.send({type: 'folder.convertToFolder'})
+    const tableConfig = JSON.stringify({
+      columns: [{id: 'title', visible: true}],
+      sorting: [{id: 'title', desc: true}],
+    })
+    actor.send({type: 'folder.query.change', props: {tableConfig}})
+
+    await vi.waitFor(() => expect(writeInputs).toHaveLength(1))
+    expect(writeInputs[0].contentOverride).toEqual([
+      expect.objectContaining({
+        type: 'query',
+        props: expect.objectContaining({
+          style: 'Table',
+          queryIncludes: JSON.stringify([{space: '', path: '', mode: 'Children'}]),
+          querySort: JSON.stringify([{term: 'UpdateTime', reverse: false}]),
+          tableConfig,
+        }),
+      }),
+    ])
+    actor.stop()
+  })
+
+  it('writes an explicit empty content override when converting a folder to a document', async () => {
+    const writeInputs: any[] = []
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<WriteDraftOutput, any>(async ({input}) => {
+          writeInputs.push(input)
+          return {id: 'document-draft', content: input.contentOverride}
+        }),
+        publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+        discardDraft: fromPromise<void, any>(async () => {}),
+      },
+      delays: {autosaveTimeout: 10, saveIndicatorDismiss: 10},
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true},
+    }).start()
+    loadDocument(actor, {
+      ...mockDocument,
+      content: [createDefaultFolderQueryBlock('published-folder-query')],
+    } as unknown as HMDocument)
+    await vi.waitFor(() => expect(actor.getSnapshot().matches('loaded')).toBe(true))
+
+    actor.send({type: 'folder.convertToDocument'})
+
+    await vi.waitFor(() => expect(writeInputs).toHaveLength(1))
+    expect(writeInputs[0].contentOverride).toEqual([])
+    actor.stop()
+  })
+
   it('derives a loaded folder without creating a style repair draft', async () => {
     const actor = createTestActor().start()
     const query = createDefaultFolderQueryBlock('query')

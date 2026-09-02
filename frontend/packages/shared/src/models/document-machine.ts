@@ -304,6 +304,13 @@ export function getFolderEditorBlocks(context: DocumentMachineContext): EditorBl
   return contentToEditorBlocks(useDraft || context.document?.content)
 }
 
+function getMachineOwnedContentOverride(context: DocumentMachineContext): EditorBlock[] | undefined {
+  if (context.draftContent === null) return undefined
+  const publishedType = deriveDocumentType(context.document?.content, context.documentId)
+  if (context.documentType !== 'folder' && publishedType !== 'folder') return undefined
+  return contentToEditorBlocks(context.draftContent)
+}
+
 /** Returns the effective metadata derived from the published document and draft overlay. */
 export function getEffectiveDocumentMetadata(context: DocumentMachineContext): HMMetadata {
   return {...(context.document?.metadata ?? {}), ...context.metadata}
@@ -512,7 +519,8 @@ export const documentMachine = setup({
         const query = blocks[queryIndex]
         if (!query || query.type !== 'query') return context.draftContent
         const next = [...blocks]
-        next[queryIndex] = {...query, props: {...query.props, ...event.props}}
+        const nextQuery = {...query, props: {...query.props, ...event.props}}
+        next[queryIndex] = nextQuery
         return next as unknown as HMBlockNode[]
       },
       documentType: 'folder',
@@ -522,7 +530,9 @@ export const documentMachine = setup({
       documentType: 'folder',
     }),
     convertToDocument: assign({
-      draftContent: [],
+      draftContent: () => {
+        return []
+      },
       documentType: 'document',
     }),
     setNavigation: assign({
@@ -1548,7 +1558,7 @@ export const documentMachine = setup({
                   // the existing content instead of persisting an empty draft
                   // body that blanks the Content tab and wipes content on publish.
                   baseBlocks: context.baseBlocks ?? context.document?.content ?? null,
-                  contentOverride: context.documentType === 'folder' ? getFolderEditorBlocks(context) : undefined,
+                  contentOverride: getMachineOwnedContentOverride(context),
                 }),
                 onDone: [
                   {
@@ -1672,7 +1682,7 @@ export const documentMachine = setup({
                   // the existing content instead of persisting an empty draft
                   // body that blanks the Content tab and wipes content on publish.
                   baseBlocks: context.baseBlocks ?? context.document?.content ?? null,
-                  contentOverride: context.documentType === 'folder' ? getFolderEditorBlocks(context) : undefined,
+                  contentOverride: getMachineOwnedContentOverride(context),
                 }),
                 onDone: [
                   {

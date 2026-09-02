@@ -1,4 +1,5 @@
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
+import {editorBlockToHMBlock} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
 import {
@@ -41,6 +42,34 @@ function publishedNode(id: string, text = '', children: HMBlockNode[] = []): HMB
     children,
   }
 }
+
+function queryBlock(tableConfig: string): EditorBlock {
+  return {
+    id: 'query-1',
+    type: 'query',
+    props: {
+      style: 'Table',
+      columnCount: '3',
+      queryIncludes: '[]',
+      querySort: '[]',
+      tableConfig,
+    },
+    content: [],
+    children: [],
+  } as EditorBlock
+}
+
+describe('compareBlocksWithMap', () => {
+  it('counts query table configuration changes', () => {
+    const published = queryBlock(JSON.stringify({columns: []}))
+    const changed = queryBlock(
+      JSON.stringify({columns: [{id: 'title', visible: true}], sorting: [{id: 'title', desc: true}]}),
+    )
+    const blocksMap = createBlocksMap([{block: editorBlockToHMBlock(published), children: []}], '')
+
+    expect(compareBlocksWithMap(blocksMap, [changed], '').changes).toHaveLength(1)
+  })
+})
 
 describe('getDocAttributeChanges', () => {
   it('emits document childrenType metadata changes', () => {

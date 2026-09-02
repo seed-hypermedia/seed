@@ -1,3 +1,4 @@
+import {parseDraftFilename} from '@seed-hypermedia/client/blocks-to-markdown'
 import {
   HMDocumentMetadataSchema,
   HMDraft,
@@ -9,12 +10,11 @@ import {
   HMNavigationItemSchema,
   HMResourceVisibilitySchema,
 } from '@seed-hypermedia/client/hm-types'
-import {parseDraftFilename} from '@seed-hypermedia/client/blocks-to-markdown'
-import {parseMarkdown, markdownBlockNodesToHMBlockNodes} from '@seed-hypermedia/client/markdown-to-blocks'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
+import {markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/client/markdown-to-blocks'
 import {hmIdPathToEntityQueryPath, pathMatches} from '@shm/shared'
-import {queryKeys} from '@shm/shared/models/query-keys'
 import {deriveDocumentType} from '@shm/shared/models/document-machine'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import fs from 'fs/promises'
 import {nanoid} from 'nanoid'
@@ -24,7 +24,6 @@ import {appInvalidateQueries} from './app-invalidation'
 import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
 import {grpcClient} from './grpc-client'
-import {error} from './logger'
 
 /**
  * new draft creation:
@@ -562,6 +561,7 @@ export const draftsApi = t.router({
       }
 
       const draftId = input.id || nanoid(10)
+      const previousDraftFile = await resolveDraftFile(draftId)
       await snapshotDraftFile(draftId, 'overwrite')
 
       // Build the index entry with deps and navigation included
@@ -601,9 +601,11 @@ export const draftsApi = t.router({
       }
 
       HMDraftContentSchema.parse(draft)
-
       try {
         await fs.writeFile(draftPath, JSON.stringify(draft, null, 2))
+        if (previousDraftFile && previousDraftFile.path !== draftPath) {
+          await fs.rm(previousDraftFile.path, {force: true})
+        }
         draftFileMap.set(draftId, `${draftId}.json`)
         appInvalidateQueries([queryKeys.DRAFTS_LIST])
         appInvalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
