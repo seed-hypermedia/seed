@@ -1,24 +1,6 @@
 ---
 name: "Example: Comment"
-summary: "A comment with an author and replies, which are themselves comments."
+summary: A comment with an author and replies, which are themselves comments.
+schemaDefinition: ipfs://bafyreibkba37p5htzqbviqeh7s737x5h5xb3xhmtkrd6fispmvou3mxhqy
 ---
-
-# Example: Comment
-
-A comment with an author and replies, which are themselves comments.
-
-
-This document describes the **example-comment** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type.
-
-## Shape
-
-A **closed struct** with these fields:
-
-- `text` *(required)* — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string)
-- `author` — `link` → [example-person](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-person)
-- `replies` — list of `link` → [example-comment](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-comment)
-
-## Depends on
-
-- [example-person](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-person)
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string)
+This document describes the **example-comment** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:eEEczx8i -->

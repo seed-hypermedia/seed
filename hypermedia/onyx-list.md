@@ -1,15 +1,6 @@
 ---
-name: "List"
-summary: "An ordered sequence — List<Any> until parameterized with items."
+name: List
+summary: An ordered sequence — List<Any> until parameterized with items.
+schemaDefinition: ipfs://bafyreihylo5ruxqtlumvt4554dyj4lw6riw6f5xl52jxk46p3jb73xgaom
 ---
-
-# List
-
-An ordered sequence — List<Any> until parameterized with items.
-
-
-This document describes the **onyx-list** type — a primitive. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type.
-
-## Shape
-
-A **list** of any.
+This document describes the **onyx-list** type — a primitive. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:LXaNf3DO -->

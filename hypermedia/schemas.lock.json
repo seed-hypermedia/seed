@@ -2,7 +2,7 @@
   "//": "Onyx schema manifest — hm:// URL -> DAG-CBOR CID (CIDv1, sha2-256). Deterministic; regenerate with `node publish.mjs`.",
   "codec": "dag-cbor",
   "hash": "sha2-256",
-  "count": 182,
+  "count": 183,
   "schemas": {
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any": "bafyreia5kfqzd4ssw2w23rqvglbau7zbn72hprhneswojii5zdah3mhy4q",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean": "bafyreid6rdjzmiihb54x22zxiece7374k7lf5foaj4dnryi4m37bihzn5a",
@@ -183,6 +183,7 @@
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-search-result-item": "bafyreihpn7knogabmfvd7524mvxkxceeyx5db5kgmydo4ogenbt2v773mq",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-search-results": "bafyreiggfqnczu75vb2jgbktcxs7p2m7qu3vc5b544uvcvaos5o2fcpuia",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-site-member": "bafyreie565bt243c5re4l3ukii23froizhyha4vryuhlmdo3wbbyozrkmm",
+    "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/sprout-resource": "bafyreiccrtuyzpufcvjtn2otysmpsqgdvfgonrvfc6bgcjzw2nt7jfgxbu",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string": "bafyreib4yhhtwfe4qt5zgvv7zr632t7kvxmnuv4rckbwuazrtqktjqr4si",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/union-schema": "bafyreif3jpfqqktwxjziqwj5mue5nd5g7womhn2l7yiogr2mg42pxvqhga",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/var-schema": "bafyreigguvhao5jsjxrxlggpk7egppkwo5d3ib5ffa2d35zzt4rjnbwrty"

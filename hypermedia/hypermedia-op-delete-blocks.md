@@ -1,22 +1,6 @@
 ---
-name: "DeleteBlocks op"
-summary: "Delete blocks by id."
+name: DeleteBlocks op
+summary: Delete blocks by id.
+schemaDefinition: ipfs://bafyreifrmnhg2bof2fjzmca7yweslzcmfcvkejzuhillxl5jgjuu5dzcua
 ---
-
-# DeleteBlocks op
-
-Delete blocks by id.
-
-
-This document describes the **hypermedia-op-delete-blocks** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type.
-
-## Shape
-
-A **closed struct** with these fields:
-
-- `type` *(required)* — `string` enum: `DeleteBlocks`
-- `blocks` *(required)* — list of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string)
-
-## Depends on
-
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string)
+This document describes the **hypermedia-op-delete-blocks** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:O5i7-yOi -->

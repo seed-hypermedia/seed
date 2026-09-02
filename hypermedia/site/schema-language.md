@@ -2,52 +2,36 @@
 name: The Onyx Schema Language
 summary: The full Onyx vocabulary — closed maps, unions, generics, extension, and how the meta-schema describes itself.
 ---
+# The Onyx schema language <!-- id:yngrdImL -->
+An Onyx schema is a single value of kind `map`. It uses **thirteen core keys**, all optional, plus a handful of optional value constraints (below). That is the entire language. <!-- id:EXSoVP3S -->
 
-# The Onyx schema language
-
-An Onyx schema is a single value of kind `map`. It uses **thirteen core keys**,
-all optional, plus a handful of optional value constraints
-(below). That is the entire language.
-
-| key | applies to | meaning |
+<!-- id:7guJrYQy -->
+| key <!-- col:ZcHRkdID --> | applies to <!-- col:MEJYPoaH --> | meaning <!-- col:glPUpr_W --> <!-- id:OeSi51lK --> |
 | --- | --- | --- |
-| `type` | any | the kind — an `hm://` URL naming one of the nine (see [the data model](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/data-model)) |
-| `properties` | `map` | a map of known field name → schema |
-| `required` | `map` | list of field names that must be present |
-| `items` | `list` | schema every element must match |
-| `values` | `map` | schema every *value* must match (open map / record) |
-| `enum` | any | list of allowed literal values |
-| `ref` | any | a reference to another schema — an `hm://` URL (see [references](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/references)) |
-| `anyOf` | any | a **union**: the value must match one of the listed schemas |
-| `params` | any | declares type parameters (generics), each with a default |
-| `var` | any | a reference to a type parameter — `{ "var": "B" }` |
-| `args` | reference | applies a generic, binding its parameters |
-| `name` | any | a human-readable name for the schema (metadata; ignored when validating data) |
-| `description` | any | a human-readable description (metadata; ignored when validating data) |
+| `type` | any | the kind — an `hm://` URL naming one of the nine (see [the data model](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/data-model)) <!-- id:0NrGwBaf --> |
+| `properties` | `map` | a map of known field name → schema <!-- id:ogYeNXAt --> |
+| `required` | `map` | list of field names that must be present <!-- id:MdTCbSa9 --> |
+| `items` | `list` | schema every element must match <!-- id:pPC5LWe6 --> |
+| `values` | `map` | schema every _value_ must match (open map / record) <!-- id:LC9iuNYF --> |
+| `enum` | any | list of allowed literal values <!-- id:p4EKP5Vh --> |
+| `ref` | any | a reference to another schema — an `hm://` URL (see [references](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/references)) <!-- id:GfsbM5g3 --> |
+| `anyOf` | any | a **union**: the value must match one of the listed schemas <!-- id:e9AAItPh --> |
+| `params` | any | declares type parameters (generics), each with a default <!-- id:C5EqstsZ --> |
+| `var` | any | a reference to a type parameter — `{ "var": "B" }` <!-- id:gYJtkzHc --> |
+| `args` | reference | applies a generic, binding its parameters <!-- id:vS9ziC8a --> |
+| `name` | any | a human-readable name for the schema (metadata; ignored when validating data) <!-- id:DmWP259E --> |
+| `description` | any | a human-readable description (metadata; ignored when validating data) <!-- id:dJA5G06s --> |
 
-`name` and `description` are **metadata** — they annotate the schema, not the
-data, so the validator ignores them when checking a value, and the schema
-explorer renders them as each schema's title and blurb. (A schema's `name` is
-unrelated to a field named `name` inside its `properties` — different levels.)
+`name` and `description` are **metadata** — they annotate the schema, not the data, so the validator ignores them when checking a value, and the schema explorer renders them as each schema's title and blurb. (A schema's `name` is unrelated to a field named `name` inside its `properties` — different levels.) <!-- id:GROkvj0R -->
 
-Both `type` and `ref` values are `hm://` URLs, so they are clickable and
-self-explanatory: `type` is `"hm://hyper.media/map"`, not a bare `"map"`. **For
-readability these docs abbreviate `hm://hyper.media/map` as just `map`** — but
-the real value is always the URL.
+Both `type` and `ref` values are `hm://` URLs, so they are clickable and self-explanatory: `type` is `"hm://hyper.media/map"`, not a bare `"map"`. **For readability these docs abbreviate `hm://hyper.media/map` as just `map`** — but the real value is always the URL. <!-- id:SZ-BjsVR -->
 
-A node with only `ref` (and no `type`) is an **include**: it becomes whatever
-the referenced schema says. Add refinement keys and it becomes an **extension**
-(below). A node with `type:"link"` *and* `ref` is a **typed link**: a link whose
-target should match the referenced schema.
+A node with only `ref` (and no `type`) is an **include**: it becomes whatever the referenced schema says. Add refinement keys and it becomes an **extension** (below). A node with `type:"link"` _and_ `ref` is a **typed link**: a link whose target should match the referenced schema. <!-- id:wxGU9ndD -->
 
-## Extension (subtyping)
+## Extension (subtyping) <!-- id:go7Qda14 -->
+A reference node that _also_ carries refinements **extends** the schema it points at — a subtype with the parent's fields plus new ones. The worked example is `example-employee`, which extends `example-person`: <!-- id:c6VcyJfa -->
 
-A reference node that *also* carries refinements **extends** the schema it
-points at — a subtype with the parent's fields plus new ones. The worked example
-is `example-employee`, which extends
-`example-person`:
-
-```json
+```json <!-- id:fnvdYhmQ -->
 // example-employee = example-person, plus employeeId and department
 {
   "ref": "hm://example.com/person",
@@ -59,169 +43,120 @@ is `example-employee`, which extends
 }
 ```
 
-Open `example-employee` in the schema explorer to see the
-merged result — every field marked *inherited* or *added*.
+Open `example-employee` in the schema explorer to see the merged result — every field marked _inherited_ or _added_. <!-- id:rBtaiBHO -->
 
-The rules, all reusing existing keywords — no `extends` keyword needed:
+The rules, all reusing existing keywords — no `extends` keyword needed: <!-- id:A9LrCpUD -->
+  - `properties` are **merged** (parent's + the extension's; same-named keys override). <!-- id:Zkb8fXkn -->
+  - `required` is the **union** of both. <!-- id:lk-pEXZe -->
+  - `values` / `items` on the extension override the parent's. <!-- id:jK0_muct -->
+  - the result keeps the parent's kind and closedness — so an employee must have `name` (inherited-required) **and** `employeeId` (added-required), may use any inherited field, and still rejects unknown keys. <!-- id:jmFaI8J0 -->
 
-- `properties` are **merged** (parent's + the extension's; same-named keys override).
-- `required` is the **union** of both.
-- `values` / `items` on the extension override the parent's.
-- the result keeps the parent's kind and closedness — so an employee must have
-  `name` (inherited-required) **and** `employeeId` (added-required), may use any
-  inherited field, and still rejects unknown keys.
+A **bare** `{ "ref": X }` (no refinements) is a pure include, not an extension. The distinction is exactly whether refinements are present. This is validated by `validate.mjs` (see the `employee data` / `extension …` checks). <!-- id:QzURq80i -->
 
-A **bare** `{ "ref": X }` (no refinements) is a pure include, not an extension.
-The distinction is exactly whether refinements are present. This is validated by
-`validate.mjs` (see the `employee data` / `extension …`
-checks).
+## Closed maps <!-- id:SFVk1Mph -->
+A `map` with `properties` and **no** `values` is **closed**: keys not listed in `properties` are rejected. Add `values` and the map is open — extra keys are allowed as long as their values match the `values` schema. So: <!-- id:8FWAU877 -->
+  - `properties`, no `values` → **closed struct** (fixed field set) <!-- id:AjvS967n -->
+  - `values`, no `properties` → **open map** (uniform value type, any keys) <!-- id:e1GSoOu5 -->
+  - both → known fields via `properties`, everything else must match `values` <!-- id:3wP9hZuQ -->
+  - neither → any map <!-- id:0R9RPaBS -->
 
-## Closed maps
-
-A `map` with `properties` and **no** `values` is **closed**: keys not listed in
-`properties` are rejected. Add `values` and the map is open — extra keys are
-allowed as long as their values match the `values` schema. So:
-
-- `properties`, no `values` → **closed struct** (fixed field set)
-- `values`, no `properties` → **open map** (uniform value type, any keys)
-- both → known fields via `properties`, everything else must match `values`
-- neither → any map
-
-```json
+```json <!-- id:KIYtikI2 -->
 // closed struct — {name, age} and nothing else
 { "type": "map", "required": ["name"],
   "properties": { "name": { "type": "string" }, "age": { "type": "integer" } } }
 ```
 
-```json
+```json <!-- id:uOkzD_Gb -->
 // open map — arbitrary keys, integer values
 { "type": "map", "values": { "type": "integer" } }
 ```
 
-Closedness is what lets the meta-schema *reject* malformed schemas rather than
-shrug at extra keys (see below).
+Closedness is what lets the meta-schema _reject_ malformed schemas rather than shrug at extra keys (see below). <!-- id:bP4jTzqq -->
 
-## Value constraints
+## Value constraints <!-- id:DVRwHp1m -->
+Beyond the kind, a schema may narrow the _values_ a leaf accepts. Every constraint is optional; absent means unconstrained. They are all checked by `validate.mjs` (see the `Value constraints` section) and `example-constrained` exercises them together. <!-- id:d2OgTbaT -->
 
-Beyond the kind, a schema may narrow the *values* a leaf accepts. Every
-constraint is optional; absent means unconstrained. They are all checked by
-`validate.mjs` (see the `Value constraints` section) and
-`example-constrained` exercises them together.
-
-| key | applies to | meaning |
+<!-- id:ePFO5CZ6 -->
+| key <!-- col:oMc4yUe8 --> | applies to <!-- col:72BliDTK --> | meaning <!-- col:21dzdd6a --> <!-- id:gohob0dF --> |
 | --- | --- | --- |
-| `minLength` | `string` | minimum length, counted in **code points** |
-| `maxLength` | `string` | maximum length, counted in **code points** |
-| `pattern` | `string` | an **unanchored** ECMAScript regular expression the value must match; an uncompilable pattern is ignored |
-| `minimum` | `integer` / `float` | value must be ≥ this number |
-| `maximum` | `integer` / `float` | value must be ≤ this number |
-| `minItems` | `list` | minimum number of elements |
-| `maxItems` | `list` | maximum number of elements |
+| `minLength` | `string` | minimum length, counted in **code points** <!-- id:hkYW6Isx --> |
+| `maxLength` | `string` | maximum length, counted in **code points** <!-- id:19AMwygy --> |
+| `pattern` | `string` | an **unanchored** ECMAScript regular expression the value must match; an uncompilable pattern is ignored <!-- id:46E55-8h --> |
+| `minimum` | `integer` / `float` | value must be ≥ this number <!-- id:z6_LVwrK --> |
+| `maximum` | `integer` / `float` | value must be ≤ this number <!-- id:sX0rtK6Z --> |
+| `minItems` | `list` | minimum number of elements <!-- id:yCKaVvgF --> |
+| `maxItems` | `list` | maximum number of elements <!-- id:oXVlaxTl --> |
 
-```json
+```json <!-- id:RBAU34K6 -->
 // a lowercase handle, 3–12 code points, matching a pattern
 { "type": "hm://hyper.media/string",
   "minLength": 3, "maxLength": 12, "pattern": "^[a-z0-9_]+$" }
 ```
 
-These are the value constraints folded in from the "Seed Blob Schema v1"
-dialect. `validate()` reports each violation as an error string (e.g.
-`$.username: expected at least 3 characters`); the exported `validateAdvisory()`
-wrapper runs the identical checks but is documented as **warn-don't-block** —
-callers surface its result as warnings rather than rejecting a write.
+These are the value constraints folded in from the "Seed Blob Schema v1" dialect. `validate()` reports each violation as an error string (e.g. `$.username: expected at least 3 characters`); the exported `validateAdvisory()` wrapper runs the identical checks but is documented as **warn-don't-block** — callers surface its result as warnings rather than rejecting a write. <!-- id:u0B-Olx9 -->
 
-## Unions
+## Unions <!-- id:4Zeb0ssB -->
+`anyOf` lists alternative schemas; a value is valid if it matches **any** of them. This is Onyx's one composite construct, and it is what makes the meta-schema a _discriminated union_ — a value is one of a fixed set of shapes, told apart by a discriminant (here, the `type` tag). <!-- id:vsWv7IZH -->
 
-`anyOf` lists alternative schemas; a value is valid if it matches **any** of
-them. This is Onyx's one composite construct, and it is what makes the
-meta-schema a *discriminated union* — a value is one of a fixed set of shapes,
-told apart by a discriminant (here, the `type` tag).
-
-```json
+```json <!-- id:DmjMbc7m -->
 { "anyOf": [ { "ref": "onyx-map-schema" }, { "ref": "onyx-link-schema" } ] }
 ```
 
-## Generics
+## Generics <!-- id:Any3hnDc -->
+Onyx has both flavours of generic. <!-- id:GUz2-s2k -->
 
-Onyx has both flavours of generic.
+**Applied generics** — supplying a type parameter concretely — come for free from `items` and `values`: <!-- id:wY_2EAUG -->
+  - `list` + `items` = `List<T>` — `items` is `T` <!-- id:aZPTtuab -->
+  - `map` + `values` = `Map<V>` — `values` is `V` <!-- id:aY249UNO -->
 
-**Applied generics** — supplying a type parameter concretely — come for free from
-`items` and `values`:
+So `{"Apples":5,"Oranges":3}` is `Map<Integer>`, written `example-counts`: `{ "type":"map", "values":{ "ref":"onyx-integer" } }`. It nests all the way down. <!-- id:-Yhf7y6_ -->
 
-- `list` + `items` = `List<T>` — `items` is `T`
-- `map` + `values` = `Map<V>` — `values` is `V`
+**Generic abstraction** — defining a reusable parameterized type and instantiating it later — is expressed with three keys: <!-- id:s5ZsDksV -->
 
-So `{"Apples":5,"Oranges":3}` is `Map<Integer>`, written
-`example-counts`: `{ "type":"map", "values":{ "ref":"onyx-integer" } }`.
-It nests all the way down.
-
-**Generic abstraction** — defining a reusable parameterized type and
-instantiating it later — is expressed with three keys:
-
-| key | meaning |
+<!-- id:wD_cjjbP -->
+| key <!-- col:d32DD9Bo --> | meaning <!-- col:teVEDLDJ --> <!-- id:Tc0zIVWH --> |
 | --- | --- |
-| `params` | declares type parameters, each with a default: `{ "params": { "B": <default> }, … }` |
-| `var` | a **type-variable reference**: `{ "var": "B" }` matches whatever `B` is bound to |
-| `args` | **applies** a generic, binding its params: `{ "ref": X, "args": { "B": <schema> } }` |
+| `params` | declares type parameters, each with a default: `{ "params": { "B": <default> }, … }` <!-- id:a_3VCvcH --> |
+| `var` | a **type-variable reference**: `{ "var": "B" }` matches whatever `B` is bound to <!-- id:CpD5h_G0 --> |
+| `args` | **applies** a generic, binding its params: `{ "ref": X, "args": { "B": <schema> } }` <!-- id:z4EtMupb --> |
 
-The parameter threads through references (each level passes it down with `args`),
-so binding it at the top substitutes it everywhere. The worked example is
-`hypermedia-change` — a `Change<Block>` whose `Block`
-parameter flows through `change → change-body → op → op-replace-block` — and its
-instantiation `example-myapp-change` =
-`Change<example-app-block>`, which validates blocks *strictly* deep inside the op
-stack (see the `Generics: Change<Block>` checks in `validate.mjs`).
-Used bare, a generic falls back to its parameter defaults, so the common case
-needs no `args`.
+The parameter threads through references (each level passes it down with `args`), so binding it at the top substitutes it everywhere. The worked example is `hypermedia-change` — a `Change<Block>` whose `Block` parameter flows through `change → change-body → op → op-replace-block` — and its instantiation `example-myapp-change` = `Change<example-app-block>`, which validates blocks _strictly_ deep inside the op stack (see the `Generics: Change<Block>` checks in `validate.mjs`). Used bare, a generic falls back to its parameter defaults, so the common case needs no `args`. <!-- id:DcFRFUv9 -->
 
-## How Onyx describes itself
+## How Onyx describes itself <!-- id:zWshFjlg -->
+This is the crux, and with unions it is sharper than "a loose map with optional keys." `onyx-schema` is a **discriminated union of seven variants** — the seven shapes a schema can take: <!-- id:lI_lySSK -->
 
-This is the crux, and with unions it is sharper than "a loose map with optional
-keys." `onyx-schema` is a **discriminated union of seven
-variants** — the seven shapes a schema can take:
-
-| variant | matches | discriminant |
+<!-- id:yZg8-sNO -->
+| variant <!-- col:2N34iHMZ --> | matches <!-- col:JFmy2IOk --> | discriminant <!-- col:l2sAxj2s --> <!-- id:nUzFZYay --> |
 | --- | --- | --- |
-| `onyx-map-schema` | `{type:"map", properties?, required?, values?}` | `type` = `map` |
-| `onyx-list-schema` | `{type:"list", items?}` | `type` = `list` |
-| `onyx-scalar-schema` | `{type: null\|boolean\|integer\|float\|string\|bytes, enum?}` | `type` = a scalar kind |
-| `onyx-link-schema` | `{type:"link", ref?}` | `type` = `link` |
-| `onyx-include-schema` | `{ref}` | no `type` |
-| `onyx-union-schema` | `{anyOf:[schema, …]}` | has `anyOf` |
-| `onyx-var-schema` | `{var}` | has `var` |
+| `onyx-map-schema` | `{type:"map", properties?, required?, values?}` | `type` = `map` <!-- id:JxDjjDJy --> |
+| `onyx-list-schema` | `{type:"list", items?}` | `type` = `list` <!-- id:cW_7gJxU --> |
+| `onyx-scalar-schema` | `{type: null\|boolean\|integer\|float\|string\|bytes, enum?}` | `type` = a scalar kind <!-- id:QoO4w_6M --> |
+| `onyx-link-schema` | `{type:"link", ref?}` | `type` = `link` <!-- id:m8jN_DJd --> |
+| `onyx-include-schema` | `{ref}` | no `type` <!-- id:43MdGPL- --> |
+| `onyx-union-schema` | `{anyOf:[schema, …]}` | has `anyOf` <!-- id:okLeH5NX --> |
+| `onyx-var-schema` | `{var}` | has `var` <!-- id:tSySWPqh --> |
 
-Each variant is a **closed** map, so a nonsense schema like `{type:"string",
-items:{…}}` matches *none* of them — the stray `items` key is rejected by the
-closed `onyx-scalar-schema`, and the wrong `type` tag rules out the others. Run it:
+Each variant is a **closed** map, so a nonsense schema like `{type:"string", items:{…}}` matches _none_ of them — the stray `items` key is rejected by the closed `onyx-scalar-schema`, and the wrong `type` tag rules out the others. Run it: <!-- id:j-_t0aVk -->
 
-```sh
+```sh <!-- id:yezLjFqJ -->
 node validate.mjs
 #   ok   rejects a string-that-is-also-a-list-and-struct (rejected)
 ```
 
-### Why it still closes the loop — and deepens it
+### Why it still closes the loop — and deepens it <!-- id:cAg3Oszt -->
+`onyx-schema` is `{ "anyOf": [ …seven refs… ] }`. Validate it against itself: <!-- id:Gjr5KNDl -->
+  1. It matches the **`onyx-union-schema`** variant (it has an `anyOf` that is a list of schemas). <!-- id:deE1RQMk -->
+  2. Each item in that `anyOf` is a bare `{ref: …}`, which matches the **`onyx-include-schema`** variant. <!-- id:yYBUIRiY -->
+  3. Each variant file (e.g. `onyx-map-schema`) is itself a `{type:"map", …}`, which matches the **`onyx-map-schema`** variant. <!-- id:3RbdlEZc -->
 
-`onyx-schema` is `{ "anyOf": [ …seven refs… ] }`. Validate it against itself:
+The meta-schema is a union whose variants _include a union variant_, and it validates as that variant. The fixed point holds one level richer than before. <!-- id:pUf5EFPl -->
 
-1. It matches the **`onyx-union-schema`** variant (it has an `anyOf` that is a list of schemas).
-2. Each item in that `anyOf` is a bare `{ref: …}`, which matches the **`onyx-include-schema`** variant.
-3. Each variant file (e.g. `onyx-map-schema`) is itself a `{type:"map", …}`, which matches the **`onyx-map-schema`** variant.
+Note the standing of `type`. Nothing defines the string `"map"`; a variant just lists it in an `enum` of allowed kind-names. `string`, `link`, and `bytes` sit in those enums with no special treatment — the language names kinds, it does not define them. <!-- id:8YmU20RL -->
 
-The meta-schema is a union whose variants *include a union variant*, and it
-validates as that variant. The fixed point holds one level richer than before.
+## The proof is executable <!-- id:pnI1No8b -->
+`validate.mjs` validates `onyx-schema` against itself, every variant against the union, and confirms the union _rejects_ malformed schemas. It is not prose; it is a check you can run: <!-- id:R4Z6LPtc -->
 
-Note the standing of `type`. Nothing defines the string `"map"`; a variant just
-lists it in an `enum` of allowed kind-names. `string`, `link`, and `bytes` sit
-in those enums with no special treatment — the language names kinds, it does not
-define them.
-
-## The proof is executable
-
-`validate.mjs` validates `onyx-schema` against itself, every
-variant against the union, and confirms the union *rejects* malformed schemas.
-It is not prose; it is a check you can run:
-
-```sh
+```sh <!-- id:PxteeEDG -->
 node validate.mjs
 #   ok   onyx-schema.json describes itself
 #   ok   onyx-map-schema.json is a valid schema
@@ -229,5 +164,4 @@ node validate.mjs
 #   ok   rejects a string-that-is-also-a-list-and-struct (rejected)
 ```
 
-If you extend the vocabulary, run it again — if the union can no longer describe
-its own new shape, the loop is broken and this fails.
+If you extend the vocabulary, run it again — if the union can no longer describe its own new shape, the loop is broken and this fails. <!-- id:vGjbVugA -->

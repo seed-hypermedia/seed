@@ -1,19 +1,6 @@
 ---
 name: "Example: Tags"
-summary: "A list of string tags — List<String>."
+summary: A list of string tags — List<String>.
+schemaDefinition: ipfs://bafyreigadup6npciyoxyz3qifoyaj5e6vptyxe6ogikwaeez2ieyl7usry
 ---
-
-# Example: Tags
-
-A list of string tags — List<String>.
-
-
-This document describes the **example-tags** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type.
-
-## Shape
-
-A **list** of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string).
-
-## Depends on
-
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string)
+This document describes the **example-tags** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:cATUti10 -->

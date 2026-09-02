@@ -1,27 +1,5 @@
 ---
 name: "Example: Alice"
-summary: "example-alice — instance."
+summary: example-alice — instance.
+schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-person
 ---
-
-# Example: Alice
-
-
-## Shape
-
-This is example **data** — an instance of [example-person](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-person).
-
-```json
-{
-  "name": "Alice",
-  "age": 30,
-  "active": true,
-  "home": {
-    "street": "1 Newton Way",
-    "city": "Cambridge"
-  },
-  "nicknames": [
-    "Al",
-    "Ally"
-  ]
-}
-```
