@@ -4,9 +4,6 @@ import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
-vi.mock('../document-list-item', () => ({
-  DocumentListItem: ({item}: any) => <div data-testid="query-row">{item.metadata.name}</div>,
-}))
 vi.mock('@shm/shared/models/interaction-summary', () => ({
   useInteractionSummary: () => ({isLoading: false, data: {citations: 0}}),
   useInteractionSummaries: () => [{data: {citations: 2}}, {data: {citations: 8}}],
@@ -104,6 +101,7 @@ describe('QueryBlockContent table view', () => {
           items={items}
           style="Table"
           tableSorting={[]}
+          tableConfig={{columns: [{id: 'authors', visible: true}]}}
           accountsMetadata={
             {
               'z-author': {id: {uid: 'z-author'}, metadata: {name: 'Zelda'}},
@@ -143,7 +141,7 @@ describe('QueryBlockContent table view', () => {
     })
 
     const citationsHeading = Array.from(container.querySelectorAll('thead button')).find(
-      (button) => button.textContent?.includes('Citations'),
+      (button) => button.textContent?.includes('Backlinks'),
     )
     act(() => citationsHeading?.dispatchEvent(new MouseEvent('click', {bubbles: true})))
 
@@ -172,12 +170,12 @@ describe('QueryBlockContent table view', () => {
     })
 
     expect(Array.from(container.querySelectorAll('th')).map((cell) => cell.textContent)).toEqual([
-      'Title',
-      'status',
+      'Name',
+      'Tags',
+      'Last Modified',
+      'Subdocuments',
       'Comments',
-      'Citations',
-      'Updated',
-      'Authors',
+      'Backlinks',
     ])
     expect(container.textContent).toContain('Ready')
   })

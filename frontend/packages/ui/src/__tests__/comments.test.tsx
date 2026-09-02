@@ -85,9 +85,13 @@ vi.mock('@shm/shared/readonly-viewer-context', () => ({
   useReadOnlyViewer: () => false,
 }))
 
-vi.mock('@shm/shared/routes', () => ({
-  getRoutePanel: () => null,
-}))
+vi.mock('@shm/shared/routes', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shm/shared/routes')>()
+  return {
+    ...actual,
+    getRoutePanel: () => null,
+  }
+})
 
 vi.mock('@shm/shared/translation', () => ({
   useTxString: () => (value: string) => value,

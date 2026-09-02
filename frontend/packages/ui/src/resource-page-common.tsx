@@ -1,4 +1,4 @@
-import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
+import type {EditorBlock, EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
 import {
   BlockRange,
   countCustomMetadataFields,
@@ -105,7 +105,18 @@ import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 import {getReservedLazyDraftBreadcrumbName} from '@shm/shared/utils/reserved-draft-ids'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {useQuery} from '@tanstack/react-query'
-import {ArrowUp, FilePen, FileText, Grid3X3, Info, Quote, Search} from 'lucide-react'
+import {
+  ArrowUp,
+  FilePen,
+  FileText,
+  Grid3X3,
+  Info,
+  List as ListIcon,
+  MoreHorizontal,
+  Quote,
+  Search,
+  Table as TableIcon,
+} from 'lucide-react'
 import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {AccountPage} from './account-page'
@@ -122,8 +133,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './components/alert-dialog'
-import {Popover, PopoverAnchor, PopoverContent} from './components/popover'
+import {Popover, PopoverAnchor, PopoverContent, PopoverTrigger} from './components/popover'
+import {Tabs, TabsList, TabsTrigger} from './components/tabs'
 import {ScrollArea} from './components/scroll-area'
+import {SelectField, SwitchField, TextField} from './form-fields'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
@@ -2829,7 +2842,12 @@ function DocumentBody({
       {/* Main content based on activeView */}
       <div className={cn('flex-1', !isCollection && activeView !== 'content' && 'pb-60', isMobile && 'px-4')}>
         {isCollection ? (
-          <DocumentCollection docId={docId} queryBlock={collectionQueryBlock} canEdit={canEditCurrentRoute} />
+          <DocumentCollection
+            docId={docId}
+            queryBlock={collectionQueryBlock}
+            canEdit={canEditCurrentRoute}
+            document={document}
+          />
         ) : (
           <MainContent
             docId={docId}
@@ -3374,13 +3392,16 @@ function DocumentCollection({
   docId,
   queryBlock,
   canEdit,
+  document,
 }: {
   docId: UnpackedHypermediaId
   queryBlock: EditorBlock | null
   canEdit: boolean
+  document?: HMDocument
 }) {
   const client = useUniversalClient()
   const send = useDocumentSend()
+  const {beginEditIfNeeded} = useEditorGate()
   const props = queryBlock?.type === 'query' ? queryBlock.props : undefined
   const includes = useMemo<HMBlockQuery['attributes']['query']['includes']>(() => {
     try {
@@ -3401,6 +3422,9 @@ function DocumentCollection({
     }
   }, [props?.querySort])
   const queryLimit = Number.parseInt(props?.queryLimit || '', 10) || undefined
+  const style = (props?.style as 'Card' | 'List' | 'Table') || 'Table'
+  const columnCount = props?.columnCount || '3'
+  const banner = props?.banner === 'true'
   const query = useQuery(
     queryQueryBlock(client, includes.length ? {query: {includes, sort: querySort, limit: queryLimit}} : null),
   )
@@ -3411,35 +3435,179 @@ function DocumentCollection({
       return undefined
     }
   }, [props?.tableConfig])
+
+  const updateQueryProps = useCallback(
+    (changes: Partial<EditorQueryBlock['props']>) => {
+      if (!canEdit) return
+      beginEditIfNeeded()
+      send({type: 'collection.query.change', props: changes})
+    },
+    [canEdit, beginEditIfNeeded, send],
+  )
+
+  const handleTableConfigChange = useCallback(
+    (config: HMQueryTableConfig) => {
+      if (!canEdit) return
+      beginEditIfNeeded()
+      send({type: 'collection.query.change', props: {tableConfig: JSON.stringify(config)}})
+    },
+    [canEdit, beginEditIfNeeded, send],
+  )
+
+  const handleTableSortingChange = useCallback(
+    (sorting: import('@tanstack/react-table').SortingState) => {
+      if (!canEdit) return
+      beginEditIfNeeded()
+      send({
+        type: 'collection.query.change',
+        props: {
+          tableConfig: JSON.stringify({
+            columns: tableConfig?.columns ?? [],
+            sorting,
+          }),
+        },
+      })
+    },
+    [canEdit, beginEditIfNeeded, send, tableConfig?.columns],
+  )
+
+  const title = getMetadataName(document?.metadata) || 'Untitled'
+  const count = query.data?.results.length ?? 0
+
   return (
     <div className="w-full px-5 pb-8">
-      <QueryBlockContent
-        items={query.data?.results ?? []}
-        style="Table"
-        accountsMetadata={query.data?.accountsMetadata ?? {}}
-        interactionSummaries={query.data?.interactionSummaries ?? {}}
-        isDiscovering={query.isLoading}
-        tableConfig={tableConfig}
-        tableSorting={tableConfig?.sorting}
-        onTableConfigChange={
-          canEdit
-            ? (config) => send({type: 'collection.query.change', props: {tableConfig: JSON.stringify(config)}})
-            : undefined
+      <div className="border-border bg-background overflow-hidden rounded-xl border shadow-sm">
+        <div className="border-border flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <h2 className="truncate text-2xl font-semibold">{title}</h2>
+            <span className="text-muted-foreground border-border inline-flex items-center rounded-full border px-2.5 py-0.5 text-sm">
+              {count} documents
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Tabs
+              value={style}
+              onValueChange={(value) => updateQueryProps({style: value as 'Card' | 'List' | 'Table'})}
+            >
+              <TabsList>
+                <TabsTrigger value="Table">
+                  <TableIcon />
+                  Table
+                </TabsTrigger>
+                <TabsTrigger value="List">
+                  <ListIcon />
+                  List
+                </TabsTrigger>
+                <TabsTrigger value="Card">
+                  <Grid3X3 />
+                  Cards
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="Query settings">
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-80">
+                <CollectionQuerySettings props={props} onChange={updateQueryProps} />
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+        <QueryBlockContent
+          items={query.data?.results ?? []}
+          style={style}
+          columnCount={columnCount}
+          banner={banner}
+          accountsMetadata={query.data?.accountsMetadata ?? {}}
+          interactionSummaries={query.data?.interactionSummaries ?? {}}
+          isDiscovering={query.isLoading}
+          tableConfig={tableConfig}
+          onTableConfigChange={handleTableConfigChange}
+          onTableSortingChange={handleTableSortingChange}
+        />
+      </div>
+    </div>
+  )
+}
+
+function CollectionQuerySettings({
+  props,
+  onChange,
+}: {
+  props?: Partial<EditorQueryBlock['props']>
+  onChange: (changes: Partial<EditorQueryBlock['props']>) => void
+}) {
+  const querySort = useMemo(() => {
+    try {
+      return JSON.parse(props?.querySort || '[]')
+    } catch {
+      return []
+    }
+  }, [props?.querySort])
+  const currentSort = querySort[0] || {term: 'UpdateTime', reverse: false}
+  const limit = props?.queryLimit || ''
+  const columnCount = props?.columnCount || '3'
+  const banner = props?.banner === 'true'
+
+  return (
+    <div className="flex flex-col gap-3 p-1">
+      <SelectField
+        id="query-sort-term"
+        label="Sort by"
+        options={[
+          {value: 'UpdateTime', label: 'Last Modified'},
+          {value: 'CreateTime', label: 'Created'},
+          {value: 'Name', label: 'Name'},
+        ]}
+        value={currentSort.term}
+        onValue={(value) => onChange({querySort: JSON.stringify([{term: value, reverse: currentSort.reverse}])})}
+      />
+      <div className="flex gap-2">
+        <Button
+          variant={!currentSort.reverse ? 'secondary' : 'outline'}
+          size="sm"
+          className="flex-1"
+          onClick={() => onChange({querySort: JSON.stringify([{term: currentSort.term, reverse: false}])})}
+        >
+          Asc
+        </Button>
+        <Button
+          variant={currentSort.reverse ? 'secondary' : 'outline'}
+          size="sm"
+          className="flex-1"
+          onClick={() => onChange({querySort: JSON.stringify([{term: currentSort.term, reverse: true}])})}
+        >
+          Desc
+        </Button>
+      </div>
+      <SelectField
+        id="query-column-count"
+        label="Columns"
+        options={[
+          {value: '1', label: '1 column'},
+          {value: '2', label: '2 columns'},
+          {value: '3', label: '3 columns'},
+        ]}
+        value={columnCount}
+        onValue={(value) => onChange({columnCount: value as '1' | '2' | '3'})}
+      />
+      <TextField
+        id="query-limit"
+        label="Limit"
+        type="number"
+        value={limit}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+          onChange({queryLimit: e.target.value ? String(Number.parseInt(e.target.value, 10)) : ''})
         }
-        onTableSortingChange={
-          canEdit
-            ? (sorting) =>
-                send({
-                  type: 'collection.query.change',
-                  props: {
-                    tableConfig: JSON.stringify({
-                      columns: tableConfig?.columns ?? [],
-                      sorting,
-                    }),
-                  },
-                })
-            : undefined
-        }
+      />
+      <SwitchField
+        id="query-banner"
+        label="Show banner"
+        checked={banner}
+        onCheckedChange={(checked: boolean) => onChange({banner: checked ? 'true' : 'false'})}
       />
     </div>
   )

@@ -28,20 +28,19 @@ function item(name: string, metadata: Record<string, unknown>): HMDocumentInfo {
 }
 
 describe('query block table model', () => {
-  it('orders discovered custom columns between title and default core columns', () => {
-    const columns = buildQueryTableColumns([item('One', {priority: 2}), item('Two', {status: 'Draft'})])
+  it('returns the core query table columns in the expected order', () => {
+    const columns = buildQueryTableColumns()
 
     expect(columns.map((column) => [column.id, column.defaultVisible])).toEqual([
       ['title', true],
-      ['metadata:priority', true],
-      ['metadata:status', true],
+      ['tags', true],
+      ['updated', true],
+      ['children', true],
       ['comments', true],
       ['citations', true],
-      ['updated', true],
-      ['authors', true],
+      ['authors', false],
       ['created', false],
       ['path', false],
-      ['children', false],
     ])
   })
 
@@ -54,15 +53,16 @@ describe('query block table model', () => {
   })
 
   it('searches all row data, including values belonging to hidden columns', () => {
-    expect(queryTableItemMatchesSearch(item('One', {secret: 'Needle'}), 'needle')).toBe(true)
+    expect(queryTableItemMatchesSearch(item('One', {secret: 'Needle'}), 'needle', buildQueryTableColumns())).toBe(true)
   })
 
   it('searches rows containing BigInt-backed activity values without throwing', () => {
     const row = item('One', {secret: 'Needle'}) as HMDocumentInfo & {activitySummary: {commentCount: bigint}}
     ;(row as any).activitySummary = {commentCount: 1n}
 
-    expect(() => queryTableItemMatchesSearch(row, 'needle')).not.toThrow()
-    expect(queryTableItemMatchesSearch(row, 'needle')).toBe(true)
+    const descriptors = buildQueryTableColumns()
+    expect(() => queryTableItemMatchesSearch(row, 'needle', descriptors)).not.toThrow()
+    expect(queryTableItemMatchesSearch(row, 'needle', descriptors)).toBe(true)
   })
 
   it('combines typed attribute filters with AND', () => {
