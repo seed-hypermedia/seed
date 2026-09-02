@@ -15,9 +15,10 @@
 import {loadLocalVaultAccounts, type VaultLocalAccount} from '@seed-hypermedia/client/vault-local'
 import {loadConfig} from '../config'
 import {printWarning} from '../output'
+import {deriveKeyPairFromMnemonic} from './key-derivation'
 import {getDefaultKey, getKey, listKeys, type KeyringKey} from './keyring'
 
-export type KeySource = 'vault' | 'keyring'
+export type KeySource = 'vault' | 'keyring' | 'env'
 
 export type ResolvedKey = KeyringKey & {source: KeySource}
 
@@ -104,6 +105,17 @@ export async function findDefaultKey(opts: KeyOptions): Promise<ResolvedKey | nu
  */
 export async function resolveSigningKey(keyFlag: string | undefined, opts: KeyOptions): Promise<ResolvedKey> {
   const envHint = opts.dev ? ' --dev' : ''
+
+  // Non-interactive environments (CI) pass the key as a mnemonic in
+  // SEED_CLI_MNEMONIC; it wins over every stored key.
+  const envMnemonic = process.env.SEED_CLI_MNEMONIC?.trim()
+  if (envMnemonic) {
+    const pair = deriveKeyPairFromMnemonic(envMnemonic)
+    if (keyFlag && keyFlag !== 'env' && keyFlag !== pair.accountId) {
+      throw new Error(`SEED_CLI_MNEMONIC is set (account ${pair.accountId}) but --key ${keyFlag} was requested.`)
+    }
+    return {name: 'env', ...pair, source: 'env'}
+  }
 
   if (keyFlag) {
     const key = await findKey(keyFlag, opts)

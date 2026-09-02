@@ -15,7 +15,7 @@
  * `<file>.schema.json` beside the document that defines it.
  */
 import {existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
-import {dirname, join, relative, resolve} from 'node:path'
+import {dirname, join, normalize, relative, resolve} from 'node:path'
 import {
   blocksToMarkdown,
   createChange,
@@ -32,10 +32,11 @@ import {
 import {
   computeReplaceOps,
   createBlocksMap,
+  matchBlockIds,
   rebindTableIdentities,
   toAPIBlockNode,
 } from '@seed-hypermedia/client/block-diff'
-import type {HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
+import type {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {CID} from 'multiformats/cid'
 import {hmBlockNodeToBlockNode} from './block-diff'
@@ -50,12 +51,72 @@ export type SpaceLayout = {
   pathForFile(file: string): string | null
   /** File for the schema blob a document defines (`metadata.schemaDefinition`). Null skips it. */
   schemaFileFor(mdFile: string): string | null
+  /**
+   * File a link to a document path points at, for rewriting links between
+   * documents of the space as relative file links (and back). Null leaves the
+   * hm:// link as is.
+   */
+  fileForLinkPath?(path: string): string | null
 }
 
 export const defaultLayout: SpaceLayout = {
   fileForPath: (path) => (path === '' ? 'index.md' : path.replace(/^\//, '') + '.md'),
   pathForFile: (file) => (file === 'index.md' ? '' : '/' + file.replace(/\.md$/, '')),
   schemaFileFor: (mdFile) => mdFile.replace(/\.md$/, '.schema.json'),
+  fileForLinkPath: (path) => (path === '' ? 'index.md' : path.replace(/^\//, '') + '.md'),
+}
+
+// ─── Links between documents ─────────────────────────────────────────────────
+//
+// In the directory, documents link to each other with relative file links
+// (`[CLI](./cli.md)`), which render on GitHub and need no space id. In the
+// space they are hm:// links. Import and export rewrite between the two.
+
+type LinkVisitor = (link: string) => string
+
+/** Rewrite every block link and Link/Embed annotation link in a tree. */
+function rewriteLinks(nodes: HMBlockNode[], visit: LinkVisitor): HMBlockNode[] {
+  return nodes.map((node) => {
+    const block = {...(node.block as Record<string, unknown>)}
+    if (typeof block.link === 'string' && block.link) block.link = visit(block.link)
+    const anns = block.annotations as Array<Record<string, unknown>> | undefined
+    if (anns?.length) {
+      block.annotations = anns.map((a) => (typeof a.link === 'string' && a.link ? {...a, link: visit(a.link)} : a))
+    }
+    return {
+      ...node,
+      block: block as HMBlockNode['block'],
+      ...(node.children ? {children: rewriteLinks(node.children, visit)} : {}),
+    } as HMBlockNode
+  })
+}
+
+/** `./other.md` (relative to `file`) → `hm://<account>/<path>` when the layout knows the target. */
+function relativeToHmLinks(nodes: HMBlockNode[], file: string, account: string, layout: SpaceLayout): HMBlockNode[] {
+  const fileDir = dirname(file)
+  return rewriteLinks(nodes, (link) => {
+    const m = /^(\.{1,2}\/[^#?]*\.md|[^:/#?][^#?]*\.md)(#.*)?$/.exec(link)
+    if (!m) return link
+    const target = normalize(join(fileDir, m[1]!)).replace(/\\/g, '/')
+    const path = layout.pathForFile(target)
+    if (path === null) return link
+    return `hm://${account}${path}${m[2] || ''}`
+  })
+}
+
+/** `hm://<account>/<path>` → `./other.md` (relative to `file`) when the layout maps the path to a file. */
+function hmToRelativeLinks(nodes: HMBlockNode[], file: string, account: string, layout: SpaceLayout): HMBlockNode[] {
+  if (!layout.fileForLinkPath) return nodes
+  const fileDir = dirname(file)
+  return rewriteLinks(nodes, (link) => {
+    const m = new RegExp(`^hm://${account}(/[^#?]*)?(#.*)?$`).exec(link)
+    if (!m) return link
+    const target = layout.fileForLinkPath!(m[1] || '')
+    if (!target) return link
+    let rel = relative(fileDir, target).replace(/\\/g, '/')
+    if (!rel.startsWith('.')) rel = './' + rel
+    return rel + (m[2] || '')
+  })
 }
 
 // ─── Export ──────────────────────────────────────────────────────────────────
@@ -168,7 +229,8 @@ export async function exportDocument(
     result.skipped.push(path || '(home)')
     return result
   }
-  const md = blocksToMarkdown(doc, {ipfsGateway: false})
+  const content = hmToRelativeLinks(doc.content || [], file, doc.account, layout)
+  const md = blocksToMarkdown({...doc, content}, {ipfsGateway: false})
   const changed = writeIfChanged(resolve(opts.dir, file), md)
   ;(changed ? result.written : result.unchanged).push(file)
   log(`${changed ? 'wrote  ' : 'same   '} ${file}`)
@@ -310,7 +372,9 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     const raw = readFileSync(resolve(opts.dir, file), 'utf8')
     const {tree, metadata: fileMetadata} = parseMarkdown(raw)
     const metadata = opts.metadataFor ? opts.metadataFor(file, fileMetadata) : fileMetadata
-    const resolved = await resolveFileLinks(markdownBlockNodesToHMBlockNodes(tree))
+    const resolved = await resolveFileLinks(
+      relativeToHmLinks(markdownBlockNodesToHMBlockNodes(tree), file, opts.account, layout),
+    )
     const newTree = resolved.nodes.map(hmBlockNodeToBlockNode)
     const id = hmId(opts.account, {path: path ? path.replace(/^\//, '').split('/') : []})
 
@@ -352,7 +416,14 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     const oldDoc = base.document
     const oldNodes = (oldDoc.content || []).map(toAPIBlockNode)
     const oldMap = createBlocksMap(oldNodes)
-    const rebound = rebindTableIdentities(oldNodes, newTree)
+    // A hand-written file carries no block ids: match its blocks to the
+    // existing document by position, so edits update blocks in place instead
+    // of replacing the whole document every time. (A block's id is explicit
+    // when its comment appears in the source; prose mentioning `<!-- id:X -->`
+    // does not count.)
+    const hasIds = newTree.some((n) => raw.includes(`<!-- id:${n.block.id}`))
+    const matched = hasIds ? newTree : matchBlockIds(oldNodes, newTree)
+    const rebound = rebindTableIdentities(oldNodes, matched)
     const ops: DocumentOperation[] = computeReplaceOps(oldMap, rebound)
     const metaOp = metadataDiffOp(oldDoc.metadata as Record<string, unknown>, metadata as Record<string, unknown>)
     if (metaOp) ops.unshift(metaOp)

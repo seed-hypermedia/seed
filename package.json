@@ -3,6 +3,9 @@
   "private": true,
   "scripts": {
     "test": "pnpm web:test && pnpm shared:test && pnpm desktop:test:unit",
+    "docs:dev": "cd frontend/apps/cli && bun run src/index.ts space dev --dir ../../../seed-docs",
+    "docs:push": "cd frontend/apps/cli && bun run src/index.ts space import self --dir ../../../seed-docs",
+    "docs:pull": "cd frontend/apps/cli && bun run src/index.ts space export self --dir ../../../seed-docs",
     "shared:test": "pnpm --filter @shm/shared test",
     "format:check": "pnpm -r --parallel run format:check && (cd agents && bun run format:check) && (cd vault && bun run format:check)",
     "typecheck": "pnpm -r --parallel run typecheck",
