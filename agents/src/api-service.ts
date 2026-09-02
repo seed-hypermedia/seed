@@ -47,9 +47,11 @@ import {
   normalizeRunPlan,
   runWorkflowVM,
   WORKFLOW_SOURCE_MAX_BYTES,
+  type WorkflowAdapters,
   type WorkflowChildResolution,
   type WorkflowJournalEntry,
 } from '@/workflow-host'
+import {runWorkflowInWorker} from '@/workflow-worker-host'
 import {executeWebRead, executeWebSearch, type WebToolsConfig} from '@/web-tools'
 import * as blobs from '@shm/shared/blobs'
 import {
@@ -5977,7 +5979,7 @@ export class Service {
 
     let outcome: Awaited<ReturnType<typeof runWorkflowVM>>
     try {
-      outcome = await runWorkflowVM({
+      const workflowAdapters: WorkflowAdapters = {
         runId: run.id,
         input: (run.input as {input?: unknown} | null)?.input ?? null,
         source: run.sourceText,
@@ -6098,7 +6100,14 @@ export class Service {
             }),
         },
         isCanceled: () => this.#workflowCancelFlags.has(run.id),
-      })
+      }
+      // Phase-1 worker isolation (docs/worker-isolated-execution.md): opt in with
+      // SEED_AGENTS_WORKFLOW_WORKER=1 to run the QuickJS VM off the main event loop. Off by default,
+      // the in-process path is byte-for-byte unchanged.
+      outcome =
+        process.env.SEED_AGENTS_WORKFLOW_WORKER === '1'
+          ? await runWorkflowInWorker(workflowAdapters, {emitPartial: (patch) => emitRunPartial(patch as never)})
+          : await runWorkflowVM(workflowAdapters)
     } finally {
       // Whatever MCP connections the script's calls opened close with the run.
       await mcpPool.close()
