@@ -231,9 +231,9 @@ export function parseElectronApp(buildDir: string): ElectronAppInfo {
     }
     name = packageJson.name
   } else if (platform == 'linux') {
-    const buildFolderName = buildDir.split('/').reverse()[0]
+    const buildCollectionName = buildDir.split('/').reverse()[0]
     // @ts-ignore
-    const appName = buildFolderName.split('-')[0]
+    const appName = buildCollectionName.split('-')[0]
     // @ts-ignore
     executable = path.join(buildDir, appName)
     resourcesDir = path.join(buildDir, 'resources')

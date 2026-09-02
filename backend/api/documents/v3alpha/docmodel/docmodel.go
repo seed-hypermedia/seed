@@ -895,10 +895,10 @@ func VisibilityToProto(bv blob.Visibility) documents.ResourceVisibility {
 	}
 }
 
-// IsFolder reports whether this document has exactly one top-level Query block
+// IsCollection reports whether this document has exactly one top-level Query block
 // whose includes are absent, empty, or contain exactly one empty or self target.
 // Query-block children and presentation style do not affect the result.
-func (dm *Document) IsFolder() bool {
+func (dm *Document) IsCollection() bool {
 	if dm.mut != nil {
 		// A document with uncommitted changes has no stable committed state.
 		return false

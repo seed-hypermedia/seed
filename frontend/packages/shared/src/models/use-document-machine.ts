@@ -8,7 +8,7 @@ import {ActorRefFrom, SnapshotFrom} from 'xstate'
 import {applyRebasePlan, classifyRebase} from '../utils/document-changes'
 import {
   documentMachine,
-  getFolderEditorBlocks,
+  getCollectionEditorBlocks,
   DocumentMachineContext,
   DocumentMachineEvent,
   DocumentMachineInput,
@@ -627,14 +627,14 @@ export function selectDocumentType(snapshot: DocumentMachineSnapshot) {
   return snapshot.context.documentType
 }
 
-/** Whether the document machine derives the effective document as a Folder. */
-export function selectIsFolder(snapshot: DocumentMachineSnapshot): boolean {
-  return snapshot.context.documentType === 'folder'
+/** Whether the document machine derives the effective document as a Collection. */
+export function selectIsCollection(snapshot: DocumentMachineSnapshot): boolean {
+  return snapshot.context.documentType === 'collection'
 }
 
-/** The sole root query block used by the Folder view. */
-export function selectFolderQueryBlock(snapshot: DocumentMachineSnapshot): EditorBlock | null {
-  return getFolderEditorBlocks(snapshot.context).find((block) => block.type === 'query') ?? null
+/** The sole root query block used by the Collection view. */
+export function selectCollectionQueryBlock(snapshot: DocumentMachineSnapshot): EditorBlock | null {
+  return getCollectionEditorBlocks(snapshot.context).find((block) => block.type === 'query') ?? null
 }
 
 /** Whether draft content is allowed to overlay the published document for the current route. */

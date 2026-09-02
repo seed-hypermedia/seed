@@ -450,7 +450,7 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 
 	// Derive the document-level fields that need the full change history: the
 	// fallback cover image (first image block in reading order) and the
-	// folder flag. Both are stored under internal "$db." keys (stripped by
+	// collection flag. Both are stored under internal "$db." keys (stripped by
 	// PublicMap, so they never pollute user-authored metadata) and exposed as
 	// typed DocumentInfo fields. Best-effort: a derivation failure is logged but
 	// must not fail Ref indexing.
@@ -461,8 +461,8 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 	//
 	// Note the replay is NOT gated on cover/icon the way it once was. That gate
 	// existed when the cover image was the only derived field and an explicit
-	// cover made it moot; IsFolder is needed for every document, and a
-	// folder may well carry an icon. Only the storing of FirstImage stays
+	// cover made it moot; IsCollection is needed for every document, and a
+	// collection may well carry an icon. Only the storing of FirstImage stays
 	// gated.
 	if !isTombstone && appliedNewChanges && ictx.deriveDocFields != nil && len(dg.Heads) > 0 {
 		headIDs := slices.Collect(maps.Keys(dg.Heads))
@@ -484,7 +484,7 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 				dg.Metadata.set(FirstImageInContentAttr, fields.FirstImage, ts)
 			}
 
-			dg.Metadata.set(IsFolderAttr, fields.IsFolder, ts)
+			dg.Metadata.set(IsCollectionAttr, fields.IsCollection, ts)
 		}
 	}
 
@@ -1002,27 +1002,27 @@ type IndexedValue struct {
 // means derivation hasn't run.
 const FirstImageInContentAttr = "$db.firstImageInContent"
 
-// IsFolderAttr is the internal indexed-attrs key holding the derived
-// Folder flag derived from document structure. Like FirstImageInContentAttr the
+// IsCollectionAttr is the internal indexed-attrs key holding the derived
+// Collection flag derived from document structure. Like FirstImageInContentAttr the
 // "$db." prefix keeps it out of the public metadata map; it reaches clients as
-// the typed DocumentInfo.is_folder field.
+// the typed DocumentInfo.is_collection field.
 //
 // A missing key means derivation hasn't run yet, which is what lets the
 // backfill be asynchronous: the read path treats "not derived" as "not known to
-// be a Folder", so a lagging backfill only delays the Folder icon.
-const IsFolderAttr = "$db.isFolder"
+// be a Collection", so a lagging backfill only delays the Collection icon.
+const IsCollectionAttr = "$db.isCollection"
 
 // DocIndexedAttrs is a map of indexed document attributes with CRDT metadata.
 type DocIndexedAttrs map[string]IndexedValue
 
 // deriveDocFieldsForGeneration derives and stores the document-level derived
-// fields (fallback cover image, folder flag) for a single generation, from
+// fields (fallback cover image, collection flag) for a single generation, from
 // that generation's final merged heads.
 //
 // Best-effort by construction: a generation whose changes fail to load is
 // logged and skipped, and a generation whose derivation fails still records the
-// folder flag so the asynchronous backfill treats it as handled. See the
-// failure branch for why that stamp covers the folder flag only.
+// collection flag so the asynchronous backfill treats it as handled. See the
+// failure branch for why that stamp covers the collection flag only.
 func deriveDocFieldsForGeneration(conn *sqlite.Conn, bs *blockStore, log *zap.Logger, derive DeriveDocFields, k generationKey) (changesReplayed int, stored bool, err error) {
 	var dg documentGeneration
 	if err := dg.load(conn, k.Resource, k.Generation, k.Genesis); err != nil {
@@ -1053,18 +1053,18 @@ func deriveDocFieldsForGeneration(conn *sqlite.Conn, bs *blockStore, log *zap.Lo
 	if derr != nil {
 		log.Warn("FailedToDeriveDocFields", zap.String("iri", string(k.IRI)), zap.Error(derr))
 
-		// Record the folder flag's zero value even though nothing was
+		// Record the collection flag's zero value even though nothing was
 		// derived. Its presence is this backfill's only bookkeeping, so leaving
 		// it absent would make every future pass re-pick the same undecodable
 		// document, forever. Recording false is also very likely right: a
 		// document the model cannot rebuild is in practice an enormous one, which
-		// is overwhelmingly unlikely to have the minimal Folder shape.
+		// is overwhelmingly unlikely to have the minimal Collection shape.
 		//
 		// The cover image is deliberately left alone. Empty there does not mean
 		// "unknown", it means "derived, this document has no content image", and
 		// clients act on it by skipping their fallback fetch — a claim this
 		// failure gives no grounds to make.
-		dg.Metadata.set(IsFolderAttr, false, ts)
+		dg.Metadata.set(IsCollectionAttr, false, ts)
 		if err := dg.save(conn); err != nil {
 			return changesReplayed, false, err
 		}
@@ -1078,7 +1078,7 @@ func deriveDocFieldsForGeneration(conn *sqlite.Conn, bs *blockStore, log *zap.Lo
 	if !hasNonEmptyAttr(dg.Metadata, "cover") && !hasNonEmptyAttr(dg.Metadata, "icon") {
 		dg.Metadata.set(FirstImageInContentAttr, fields.FirstImage, ts)
 	}
-	dg.Metadata.set(IsFolderAttr, fields.IsFolder, ts)
+	dg.Metadata.set(IsCollectionAttr, fields.IsCollection, ts)
 
 	if err := dg.save(conn); err != nil {
 		return changesReplayed, false, err

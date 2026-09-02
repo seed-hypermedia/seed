@@ -5,15 +5,15 @@ import {
   computeInlineDraftPublishPath,
   computeNewDraftParams,
   computePublishPath,
-  buildDocumentFolderDraftSeed,
+  buildDocumentCollectionDraftSeed,
   resolvePublishPath,
   shouldAutoLinkParent,
   validatePublishPath,
 } from '../publish-utils'
 
-describe('buildDocumentFolderDraftSeed', () => {
+describe('buildDocumentCollectionDraftSeed', () => {
   it('creates no type metadata and exactly one empty-target query block', () => {
-    const seed = buildDocumentFolderDraftSeed('query-block-id')
+    const seed = buildDocumentCollectionDraftSeed('query-block-id')
 
     expect(seed.metadata).toEqual({})
     expect(seed.content).toEqual([

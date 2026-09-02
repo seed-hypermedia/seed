@@ -3832,13 +3832,13 @@ export class DocumentInfo extends Message<DocumentInfo> {
   firstImageInContent?: string;
 
   /**
-   * Output only. Whether the published document has the Folder shape. Derived
+   * Output only. Whether the published document has the Collection shape. Derived
    * by the indexer and backfilled incrementally for existing documents.
    * Unset means the indexer has not derived the value yet.
    *
-   * @generated from field: optional bool is_folder = 16;
+   * @generated from field: optional bool is_collection = 16;
    */
-  isFolder?: boolean;
+  isCollection?: boolean;
 
   constructor(data?: PartialMessage<DocumentInfo>) {
     super();
@@ -3862,7 +3862,7 @@ export class DocumentInfo extends Message<DocumentInfo> {
     { no: 13, name: "redirect_info", kind: "message", T: RefTarget_Redirect },
     { no: 14, name: "visibility", kind: "enum", T: proto3.getEnumType(ResourceVisibility) },
     { no: 15, name: "first_image_in_content", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
-    { no: 16, name: "is_folder", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
+    { no: 16, name: "is_collection", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentInfo {

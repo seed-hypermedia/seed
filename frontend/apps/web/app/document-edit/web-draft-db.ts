@@ -43,7 +43,7 @@ export interface WebDocDraft {
   /** Wall-clock timestamp of last save. Used for cleanup. */
   updatedAt: number
   /** Type derived from the persisted draft content. */
-  isFolder?: boolean
+  isCollection?: boolean
 }
 
 const DB_NAME = 'web-doc-drafts-01'
@@ -128,7 +128,7 @@ export async function putWebDocDraft(draft: Omit<WebDocDraft, 'updatedAt'> & {up
   const documentId = unpackHmId(draft.docId) ?? hmId(draft.editUid ?? draft.locationUid ?? '')
   const record: WebDocDraft = {
     ...draft,
-    isFolder: deriveDocumentType(draft.content, documentId) === 'folder',
+    isCollection: deriveDocumentType(draft.content, documentId) === 'collection',
     updatedAt: draft.updatedAt ?? Date.now(),
   }
   const existing = await getWebDocDraft(record.draftId)
@@ -245,7 +245,7 @@ export function webDraftToListedDraft(draft: WebDocDraft): HMListedDraftWithLoca
     deps: draft.deps,
     navigation: draft.navigation ?? undefined,
     lastUpdateTime: draft.updatedAt,
-    isFolder: draft.isFolder ?? false,
+    isCollection: draft.isCollection ?? false,
     locationId: locationUid ? hmId(locationUid, {path: locationPath ?? []}) : undefined,
     editId: editUid ? hmId(editUid, {path: editPath ?? []}) : undefined,
   } as HMListedDraftWithLocation

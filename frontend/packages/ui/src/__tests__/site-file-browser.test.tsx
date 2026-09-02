@@ -17,9 +17,9 @@ function makeDoc(path: string[], name: string, visibility: 'PUBLIC' | 'PRIVATE' 
   return {id: hmId('site', {path}), path, metadata: {name}, visibility} as unknown as HMDocumentInfo
 }
 
-function makeFolder(path: string[], name: string, visibility: 'PUBLIC' | 'PRIVATE' = 'PUBLIC') {
+function makeCollection(path: string[], name: string, visibility: 'PUBLIC' | 'PRIVATE' = 'PUBLIC') {
   const doc = makeDoc(path, name, visibility)
-  doc.isFolder = true
+  doc.isCollection = true
   return doc
 }
 
@@ -86,11 +86,11 @@ describe('SiteFileBrowser', () => {
     )
   })
 
-  it('marks folders with a grid icon instead of a private icon', () => {
+  it('marks collections with a grid icon instead of a private icon', () => {
     useDirectoryWithDraftsMock.mockReturnValue({
       directory: [
-        makeFolder(['folders'], 'Folders'),
-        makeFolder(['private'], 'Private', 'PRIVATE'),
+        makeCollection(['collections'], 'Collections'),
+        makeCollection(['private'], 'Private', 'PRIVATE'),
         makeDoc(['document'], 'Document'),
       ],
       drafts: [],
@@ -101,7 +101,7 @@ describe('SiteFileBrowser', () => {
       root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />)
     })
 
-    expect(container.querySelectorAll('[aria-label="Folder"]')).toHaveLength(2)
+    expect(container.querySelectorAll('[aria-label="Collection"]')).toHaveLength(2)
     expect(container.querySelector('[aria-label="Private document"]')).toBeNull()
     expect(container.querySelector('[aria-label="Document"]')).toBeTruthy()
   })
@@ -293,7 +293,7 @@ describe('SiteFileBrowser', () => {
             icon: null,
             children: [
               {key: 'new-document', label: 'Document', icon: null, onClick: createDocument},
-              {key: 'new-document-collection', label: 'Folder', icon: null, onClick: vi.fn()},
+              {key: 'new-document-collection', label: 'Collection', icon: null, onClick: vi.fn()},
               {key: 'new-private-document', label: 'Private', icon: null, onClick: vi.fn()},
             ],
           }}

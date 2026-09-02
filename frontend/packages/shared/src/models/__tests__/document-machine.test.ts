@@ -1,7 +1,7 @@
 import {describe, expect, it, vi} from 'vitest'
 import {createActor, fromPromise} from 'xstate'
 import {
-  createDefaultFolderQueryBlock,
+  createDefaultCollectionQueryBlock,
   deriveDocumentType,
   documentMachine,
   DocumentMachineInput,
@@ -43,40 +43,40 @@ const mockDocument = {
   visibility: 'PUBLIC',
 } as unknown as HMDocument
 
-describe('document folder helpers', () => {
+describe('document collection helpers', () => {
   function queryWithIncludes(includes: unknown): EditorBlock {
-    const query = createDefaultFolderQueryBlock('query')
+    const query = createDefaultCollectionQueryBlock('query')
     return {...query, props: {...query.props, queryIncludes: JSON.stringify(includes)}} as EditorBlock
   }
 
   it('recognizes a sole query with implicit, empty, or explicit self includes', () => {
-    const implicit = createDefaultFolderQueryBlock('implicit')
+    const implicit = createDefaultCollectionQueryBlock('implicit')
     delete implicit.props.queryIncludes
 
-    expect(deriveDocumentType([implicit], mockDocumentId)).toBe('folder')
-    expect(deriveDocumentType([queryWithIncludes([])], mockDocumentId)).toBe('folder')
+    expect(deriveDocumentType([implicit], mockDocumentId)).toBe('collection')
+    expect(deriveDocumentType([queryWithIncludes([])], mockDocumentId)).toBe('collection')
     expect(deriveDocumentType([queryWithIncludes([{space: '', path: '', mode: 'Children'}])], mockDocumentId)).toBe(
-      'folder',
+      'collection',
     )
     expect(
       deriveDocumentType(
         [queryWithIncludes([{space: mockDocumentId.uid, path: '/doc/', mode: 'Children'}])],
         mockDocumentId,
       ),
-    ).toBe('folder')
+    ).toBe('collection')
   })
 
-  it('ignores query view and children when deriving a folder', () => {
+  it('ignores query view and children when deriving a collection', () => {
     const query = queryWithIncludes([])
     ;(query.props as {style: string}).style = 'Card'
     query.children = [{id: 'child', type: 'paragraph', props: {}, content: [], children: []} as EditorBlock]
 
-    expect(deriveDocumentType([query], mockDocumentId)).toBe('folder')
+    expect(deriveDocumentType([query], mockDocumentId)).toBe('collection')
   })
 
   it('rejects non-canonical top-level content and query targets', () => {
     const paragraph = {id: 'p', type: 'paragraph', props: {}, content: [], children: []} as EditorBlock
-    const malformed = createDefaultFolderQueryBlock('malformed')
+    const malformed = createDefaultCollectionQueryBlock('malformed')
     malformed.props.queryIncludes = '{broken'
 
     expect(deriveDocumentType([], mockDocumentId)).toBe('document')
@@ -107,22 +107,22 @@ describe('document folder helpers', () => {
     await vi.waitFor(() => expect(actor.getSnapshot().matches('loaded')).toBe(true))
     expect(actor.getSnapshot().context.documentType).toBe('document')
 
-    actor.send({type: 'folder.convertToFolder'})
-    expect(actor.getSnapshot().context.documentType).toBe('folder')
+    actor.send({type: 'collection.convertToCollection'})
+    expect(actor.getSnapshot().context.documentType).toBe('collection')
     expect(actor.getSnapshot().context.draftContent).toHaveLength(1)
 
-    actor.send({type: 'folder.convertToDocument'})
+    actor.send({type: 'collection.convertToDocument'})
     expect(actor.getSnapshot().context.documentType).toBe('document')
     expect(actor.getSnapshot().context.draftContent).toEqual([])
   })
 
-  it('writes the canonical folder query block when conversion autosaves', async () => {
+  it('writes the canonical collection query block when conversion autosaves', async () => {
     const writeInputs: any[] = []
     const machine = documentMachine.provide({
       actors: {
         writeDraft: fromPromise<WriteDraftOutput, any>(async ({input}) => {
           writeInputs.push(input)
-          return {id: 'folder-draft', content: input.contentOverride}
+          return {id: 'collection-draft', content: input.contentOverride}
         }),
         publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
         discardDraft: fromPromise<void, any>(async () => {}),
@@ -135,12 +135,12 @@ describe('document folder helpers', () => {
     loadDocument(actor)
     await vi.waitFor(() => expect(actor.getSnapshot().matches('loaded')).toBe(true))
 
-    actor.send({type: 'folder.convertToFolder'})
+    actor.send({type: 'collection.convertToCollection'})
     const tableConfig = JSON.stringify({
       columns: [{id: 'title', visible: true}],
       sorting: [{id: 'title', desc: true}],
     })
-    actor.send({type: 'folder.query.change', props: {tableConfig}})
+    actor.send({type: 'collection.query.change', props: {tableConfig}})
 
     await vi.waitFor(() => expect(writeInputs).toHaveLength(1))
     expect(writeInputs[0].contentOverride).toEqual([
@@ -157,7 +157,7 @@ describe('document folder helpers', () => {
     actor.stop()
   })
 
-  it('writes an explicit empty content override when converting a folder to a document', async () => {
+  it('writes an explicit empty content override when converting a collection to a document', async () => {
     const writeInputs: any[] = []
     const machine = documentMachine.provide({
       actors: {
@@ -175,25 +175,25 @@ describe('document folder helpers', () => {
     }).start()
     loadDocument(actor, {
       ...mockDocument,
-      content: [createDefaultFolderQueryBlock('published-folder-query')],
+      content: [createDefaultCollectionQueryBlock('published-collection-query')],
     } as unknown as HMDocument)
     await vi.waitFor(() => expect(actor.getSnapshot().matches('loaded')).toBe(true))
 
-    actor.send({type: 'folder.convertToDocument'})
+    actor.send({type: 'collection.convertToDocument'})
 
     await vi.waitFor(() => expect(writeInputs).toHaveLength(1))
     expect(writeInputs[0].contentOverride).toEqual([])
     actor.stop()
   })
 
-  it('derives a loaded folder without creating a style repair draft', async () => {
+  it('derives a loaded collection without creating a style repair draft', async () => {
     const actor = createTestActor().start()
-    const query = createDefaultFolderQueryBlock('query')
+    const query = createDefaultCollectionQueryBlock('query')
     query.props.style = 'Card'
     loadDocument(actor, {...mockDocument, content: [query]} as unknown as HMDocument)
 
     await vi.waitFor(() => expect(actor.getSnapshot().matches('loaded')).toBe(true))
-    expect(actor.getSnapshot().context.documentType).toBe('folder')
+    expect(actor.getSnapshot().context.documentType).toBe('collection')
     expect(actor.getSnapshot().context.draftId).toBeNull()
   })
 })

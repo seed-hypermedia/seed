@@ -85,7 +85,7 @@ func NewServer(cfg config.Base, keys core.KeyStore, idx *blob.Index, db *sqlitex
 
 	// Let the indexer derive the document-level fields at index time, reusing
 	// the real docmodel so the results match what the read path renders. This is
-	// how the derived cover and folder fields get populated. The daemon also
+	// how the derived cover and collection fields get populated. The daemon also
 	// wires this earlier (before the backfill reindex task starts); this keeps
 	// embedders and tests that construct the server directly working.
 	idx.SetDeriveDocFields(DeriveDocFields)
@@ -110,9 +110,9 @@ func (srv *Server) clampPageSize(rpc string, pageSize *int32, defaultSize int32)
 // DeriveDocFields rebuilds a document in memory from the given changes and
 // returns the fields the indexer derives from a document's full history: the
 // link of the first image block in reading order, and whether the document is a
-// folder. It's injected into the indexer (SetDeriveDocFields) to populate
-// DocumentInfo.first_image_in_content and DocumentInfo.is_folder, letting
-// directory cards render a fallback cover and the file browser mark folders
+// collection. It's injected into the indexer (SetDeriveDocFields) to populate
+// DocumentInfo.first_image_in_content and DocumentInfo.is_collection, letting
+// directory cards render a fallback cover and the file browser mark collections
 // from fast metadata instead of fetching each child's full document. It's a
 // pure function so the daemon can wire it before the migration-triggered
 // backfill reindex starts, long before this server exists.
@@ -158,8 +158,8 @@ func DeriveDocFields(iri blob.IRI, changes []blob.ChangeRecord) (fields blob.Der
 	}
 
 	return blob.DerivedDocFields{
-		FirstImage: doc.FirstContentImage(),
-		IsFolder:   doc.IsFolder(),
+		FirstImage:   doc.FirstContentImage(),
+		IsCollection: doc.IsCollection(),
 	}, nil
 }
 
@@ -2353,18 +2353,21 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		}
 	}
 
-	// Whether this document has the structurally derived Folder shape. This is the single source of truth —
-	// folders are identified by their shape, not by an authored metadata
+	// Whether this document has the structurally derived Collection shape. This is the single source of truth —
+	// collections are identified by their shape, not by an authored metadata
 	// flag, so the answer stays correct no matter which client wrote the
 	// document or how old it is.
 	//
 	// Unset means the indexer has not derived it yet, which clients must read as
-	// "not known to be a folder" rather than "not a folder": the
+	// "not known to be a collection" rather than "not a collection": the
 	// derivation is backfilled asynchronously.
-	var isFolder *bool
-	if v, ok := attrs[blob.IsFolderAttr]; ok {
-		if b, isBool := indexedAttrBool(v); isBool {
-			isFolder = &b
+	var isCollection *bool
+	for _, key := range []string{blob.IsCollectionAttr, "$db.isFolder"} {
+		if v, ok := attrs[key]; ok {
+			if b, isBool := indexedAttrBool(v); isBool {
+				isCollection = &b
+				break
+			}
 		}
 	}
 
@@ -2452,7 +2455,7 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		Path:                path,
 		Metadata:            metastruct,
 		FirstImageInContent: firstImageInContent,
-		IsFolder:            isFolder,
+		IsCollection:        isCollection,
 		Authors:             authors,
 		CreateTime:          timestamppb.New(time.UnixMilli(genesisChangeTime)),
 		UpdateTime:          timestamppb.New(time.UnixMilli(lastChangeTime)),

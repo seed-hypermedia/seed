@@ -11,7 +11,7 @@ import {
 } from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useIsSiteOwner} from '@shm/shared/models/capabilities'
-import {createDefaultFolderQueryBlock} from '@shm/shared/models/document-machine'
+import {createDefaultCollectionQueryBlock} from '@shm/shared/models/document-machine'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
 import {hmIdToURL} from '@shm/shared/utils/entity-id-url'
@@ -46,7 +46,7 @@ import {
   Bot,
   ExternalLink,
   FilePlus2,
-  LibraryBig,
+  Grid3X3,
   Globe,
   History,
   Import as ImportIcon,
@@ -63,7 +63,7 @@ import {nanoid} from 'nanoid'
 import {ReactNode, useCallback, useMemo, useRef, useState} from 'react'
 import {LogoutDialog, useCreateAccount, useLocalKeyPair} from './auth'
 import {createWebDocumentDraft, createWebDocumentDraftFromMarkdownFile} from './document-edit/web-create-draft'
-import {buildFolderDraftSeed} from '@shm/shared/folder'
+import {buildCollectionDraftSeed} from '@shm/shared/collection'
 import {getVaultAccountSettingsUrl} from './vault-links'
 import {useCreateSpaceDialog, useHasExistingSpace} from './web-create-space-dialog'
 import {useWebNotificationInbox, useWebNotificationReadState} from './web-notifications'
@@ -178,14 +178,14 @@ export function useWebCreateDocumentMenuItem({
   const importInputRef = useRef<HTMLInputElement>(null)
 
   const createDraft = useCallback(
-    (visibility?: HMResourceVisibility, folder = false) => {
+    (visibility?: HMResourceVisibility, collection = false) => {
       if (!signingAccountId) return
       console.log('[web-create-doc] menu createDraft', {
         locationId: locationId.id,
         visibility,
         signingAccountId,
       })
-      const seed = folder ? buildFolderDraftSeed(crypto.randomUUID()) : null
+      const seed = collection ? buildCollectionDraftSeed(crypto.randomUUID()) : null
       void createWebDocumentDraft({
         locationId,
         signingAccountId,
@@ -194,8 +194,8 @@ export function useWebCreateDocumentMenuItem({
         content: seed ? editorBlocksToHMBlockNodes(seed.content) : undefined,
         capabilityCid,
         persist: false,
-        ...(folder
-          ? {content: editorBlocksToHMBlockNodes([createDefaultFolderQueryBlock(nanoid(8))]), persist: true}
+        ...(collection
+          ? {content: editorBlocksToHMBlockNodes([createDefaultCollectionQueryBlock(nanoid(8))]), persist: true}
           : {}),
         navigate: (route) => navigate(route),
       })
@@ -217,9 +217,9 @@ export function useWebCreateDocumentMenuItem({
           onClick: () => createDraft('PUBLIC'),
         },
         {
-          key: 'new-folder',
-          label: 'Folder',
-          icon: <LibraryBig className="size-4" />,
+          key: 'new-collection',
+          label: 'Collection',
+          icon: <Grid3X3 className="size-4" />,
           onClick: () => createDraft('PUBLIC', true),
         },
         {

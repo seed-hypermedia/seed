@@ -213,12 +213,12 @@ func TestListRootDocuments(t *testing.T) {
 
 // stampDerivedFields sets the index-derived fields on an expected listing item.
 // Listings carry first_image_in_content for every document without a
-// cover/icon (empty = "derived, no image") and is_folder for every
+// cover/icon (empty = "derived, no image") and is_collection for every
 // document, while DocumentToListItem — converting from a raw Document — leaves
 // both unset.
 func stampDerivedFields(d *documents.DocumentInfo) *documents.DocumentInfo {
 	d.FirstImageInContent = proto.String("")
-	d.IsFolder = proto.Bool(false)
+	d.IsCollection = proto.Bool(false)
 	return d
 }
 
@@ -3102,7 +3102,7 @@ func signPreparedChangeBlob(unsignedBytes []byte, kp *core.KeyPair) (blob.Encode
 	}, nil
 }
 
-func TestListDirectoryDerivesIsFolder(t *testing.T) {
+func TestListDirectoryDerivesIsCollection(t *testing.T) {
 	t.Parallel()
 
 	alice := newTestDocsAPI(t, "alice")
@@ -3120,8 +3120,8 @@ func TestListDirectoryDerivesIsFolder(t *testing.T) {
 		}))
 	}
 
-	// A Folder with one top-level self-query block. Nothing in its metadata says so — shape is the only thing that
-	// makes a document a folder, which is why the indexer has to derive it.
+	// A Collection with one top-level self-query block. Nothing in its metadata says so — shape is the only thing that
+	// makes a document a collection, which is why the indexer has to derive it.
 	notes, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Path:           "/notes",
@@ -3144,7 +3144,7 @@ func TestListDirectoryDerivesIsFolder(t *testing.T) {
 	require.NoError(t, err)
 
 	// Same shape, but the query points somewhere else: it lists another
-	// document's children, so it is not this document's folder.
+	// document's children, so it is not this document's collection.
 	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Path:           "/elsewhere-query",
@@ -3179,7 +3179,7 @@ func TestListDirectoryDerivesIsFolder(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// A document carrying an authored Folder claim but without the Folder shape.
+	// A document carrying an authored Collection claim but without the Collection shape.
 	// Authored metadata must not override structural derivation.
 	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
@@ -3187,7 +3187,7 @@ func TestListDirectoryDerivesIsFolder(t *testing.T) {
 		Account:        aliceSpace,
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
-				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "folderClaim", Value: "true"},
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "collectionClaim", Value: "true"},
 			}},
 			{Op: &documents.DocumentChange_MoveBlock_{
 				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "p1", Parent: "", LeftSibling: ""},
@@ -3213,25 +3213,25 @@ func TestListDirectoryDerivesIsFolder(t *testing.T) {
 
 	// The derived value must ride the typed field only, never the user-authored
 	// metadata map.
-	isFolder := func(path string) bool {
+	isCollection := func(path string) bool {
 		d := byPath[path]
 		require.NotNil(t, d, "expected %s in the listing", path)
 		require.NotNil(t, d.Metadata)
-		require.NotContains(t, d.Metadata.Fields, "isFolder",
+		require.NotContains(t, d.Metadata.Fields, "isCollection",
 			"derived value must not pollute the metadata map")
-		require.NotNil(t, d.IsFolder, "derivation must have run for %s", path)
-		return *d.IsFolder
+		require.NotNil(t, d.IsCollection, "derivation must have run for %s", path)
+		return *d.IsCollection
 	}
 
-	require.True(t, isFolder("/notes"),
-		"one top-level self-query block makes the document a Folder")
-	require.False(t, isFolder("/elsewhere-query"),
-		"a query listing another document's children is not this document's folder")
-	require.False(t, isFolder("/prose"))
-	require.False(t, isFolder("/flagged"),
-		`authored metadata must not make a shapeless document a Folder`)
+	require.True(t, isCollection("/notes"),
+		"one top-level self-query block makes the document a Collection")
+	require.False(t, isCollection("/elsewhere-query"),
+		"a query listing another document's children is not this document's collection")
+	require.False(t, isCollection("/prose"))
+	require.False(t, isCollection("/flagged"),
+		`authored metadata must not make a shapeless document a Collection`)
 
-	// Adding a second top-level block stops it being a folder, and the
+	// Adding a second top-level block stops it being a collection, and the
 	// derived value must be overwritten rather than left stale.
 	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
@@ -3259,18 +3259,18 @@ func TestListDirectoryDerivesIsFolder(t *testing.T) {
 		byPath[d.Path] = d
 	}
 
-	require.False(t, isFolder("/notes"),
-		"a stale folder flag must not outlive the shape that produced it")
+	require.False(t, isCollection("/notes"),
+		"a stale collection flag must not outlive the shape that produced it")
 }
 
-func TestBackfillDerivesIsFolder(t *testing.T) {
+func TestBackfillDerivesIsCollection(t *testing.T) {
 	t.Parallel()
 
 	alice := newTestDocsAPI(t, "alice")
 	ctx := context.Background()
 	aliceSpace := alice.me.Account.PublicKey.String()
 
-	publishFolder := func(path string) {
+	publishCollection := func(path string) {
 		t.Helper()
 		_, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 			SigningKeyName: "main",
@@ -3297,10 +3297,10 @@ func TestBackfillDerivesIsFolder(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	publishFolder("/one")
-	publishFolder("/two")
+	publishCollection("/one")
+	publishCollection("/two")
 
-	isFolder := func(path string) *bool {
+	isCollection := func(path string) *bool {
 		t.Helper()
 		list, err := alice.ListDirectory(ctx, &documents.ListDirectoryRequest{
 			Account:       aliceSpace,
@@ -3310,33 +3310,40 @@ func TestBackfillDerivesIsFolder(t *testing.T) {
 		require.NoError(t, err)
 		for _, d := range list.Documents {
 			if d.Path == path {
-				return d.IsFolder
+				return d.IsCollection
 			}
 		}
 		t.Fatalf("expected %s in the listing", path)
 		return nil
 	}
 
-	require.True(t, *isFolder("/one"))
-	require.True(t, *isFolder("/two"))
+	require.True(t, *isCollection("/one"))
+	require.True(t, *isCollection("/two"))
 
-	// Simulate a database indexed before the field existed: drop the derived
-	// attribute, leaving the documents exactly as an older daemon left them.
+	// Simulate a database indexed before the rename: move the derived attribute
+	// to the legacy key, leaving the documents exactly as an older daemon left them.
 	// This is the state the asynchronous backfill exists to repair — without a
 	// full reindex, and without blocking startup.
 	{
 		conn, release, err := alice.db.WriteConn(ctx)
 		require.NoError(t, err)
 		err = sqlitex.Exec(conn, `
-			DELETE FROM document_attributes
-			WHERE key IN (SELECT id FROM document_attribute_keys WHERE key = ?)
-		`, nil, blob.IsFolderAttr)
+			INSERT INTO document_attribute_keys (key, search_key)
+			VALUES (?, ?)
+			ON CONFLICT (key) DO NOTHING
+		`, nil, "$db.isFolder", "$db.isFolder")
+		require.NoError(t, err)
+		err = sqlitex.Exec(conn, `
+			UPDATE document_attributes
+			SET key = (SELECT id FROM document_attribute_keys WHERE key = ?)
+			WHERE key = (SELECT id FROM document_attribute_keys WHERE key = ?)
+		`, nil, "$db.isFolder", blob.IsCollectionAttr)
 		release()
 		require.NoError(t, err)
 	}
 
-	require.Nil(t, isFolder("/one"), "an underived document must report unset, not false")
-	require.Nil(t, isFolder("/two"))
+	require.True(t, *isCollection("/one"), "the legacy indexed value must remain visible while backfill catches up")
+	require.True(t, *isCollection("/two"))
 
 	// One bounded pass picks up exactly what it was asked for, leaving the rest
 	// for the next one — the property that keeps a backfill off the write path
@@ -3349,8 +3356,8 @@ func TestBackfillDerivesIsFolder(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, n, "the second pass picks up the generation the first left")
 
-	require.True(t, *isFolder("/one"))
-	require.True(t, *isFolder("/two"))
+	require.True(t, *isCollection("/one"))
+	require.True(t, *isCollection("/two"))
 
 	n, err = alice.idx.BackfillDocFields(ctx, 10)
 	require.NoError(t, err)

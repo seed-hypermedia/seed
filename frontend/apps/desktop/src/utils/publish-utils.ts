@@ -4,14 +4,14 @@ import {hmId, hmIdPathToEntityQueryPath} from '@shm/shared'
 import {documentContainsLinkToChild, documentHasSelfQuery} from '@seed-hypermedia/client'
 import {pathNameify} from '@shm/shared/utils/path'
 import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
-import {createDefaultFolderQueryBlock} from '@shm/shared/models/document-machine'
+import {createDefaultCollectionQueryBlock} from '@shm/shared/models/document-machine'
 export {computeInlineDraftPublishPath}
 
-/** Builds the metadata and initial query block for a document folder draft. */
-export function buildDocumentFolderDraftSeed(blockId: string): {metadata: HMMetadata; content: EditorBlock[]} {
+/** Builds the metadata and initial query block for a document collection draft. */
+export function buildDocumentCollectionDraftSeed(blockId: string): {metadata: HMMetadata; content: EditorBlock[]} {
   return {
     metadata: {},
-    content: [createDefaultFolderQueryBlock(blockId)],
+    content: [createDefaultCollectionQueryBlock(blockId)],
   }
 }
 

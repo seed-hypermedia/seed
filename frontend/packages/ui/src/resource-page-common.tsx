@@ -66,9 +66,9 @@ import {
   selectCanEditCurrentRoute,
   selectContext,
   selectDraftOverlayAllowed,
-  selectFolderQueryBlock,
+  selectCollectionQueryBlock,
   selectIsEditing,
-  selectIsFolder,
+  selectIsCollection,
   selectIsUnpublishedDraft,
   selectPublishedVersion,
   selectRenderableBlocks,
@@ -368,8 +368,8 @@ function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
   return params as DocumentPanelRoute
 }
 
-/** Returns the right-panel destination for a folder-aware document menu item. */
-export function getFolderMenuPanelRoute(key: string, docId: UnpackedHypermediaId): DocumentPanelRoute | null {
+/** Returns the right-panel destination for a collection-aware document menu item. */
+export function getCollectionMenuPanelRoute(key: string, docId: UnpackedHypermediaId): DocumentPanelRoute | null {
   if (key === 'versions') return createDocumentVersionsPanelRoute(docId)
   if (key === 'options') return {key: 'options'}
   if (key === 'metadata') return {key: 'metadata', id: docId}
@@ -1797,9 +1797,9 @@ function DocumentBody({
   const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
   const shouldUseDraftOverlay = useDocumentSelector(selectShouldUseDraftOverlay)
-  const isFolder = useDocumentSelector(selectIsFolder)
-  const [pendingDocumentConversion, setPendingDocumentConversion] = useState<'folder' | 'document' | null>(null)
-  const folderQueryBlock = useDocumentSelector(selectFolderQueryBlock)
+  const isCollection = useDocumentSelector(selectIsCollection)
+  const [pendingDocumentConversion, setPendingDocumentConversion] = useState<'collection' | 'document' | null>(null)
+  const collectionQueryBlock = useDocumentSelector(selectCollectionQueryBlock)
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
   // Draft metadata (partial) overrides published metadata, same as the options panel.
@@ -2487,24 +2487,24 @@ function DocumentBody({
   }, [docId, navigate, route.key])
 
   const convertToDocumentMenuItem = useMemo<MenuItemType | null>(() => {
-    if (!isFolder || !canEditCurrentRoute) return null
+    if (!isCollection || !canEditCurrentRoute) return null
     return {
       key: 'convert-to-document',
       label: 'Convert to Document',
       icon: <FileText className="size-4" />,
       onClick: () => setPendingDocumentConversion('document'),
     }
-  }, [canEditCurrentRoute, isFolder])
+  }, [canEditCurrentRoute, isCollection])
 
-  const convertToFolderMenuItem = useMemo<MenuItemType | null>(() => {
-    if (isFolder || !canEditCurrentRoute) return null
+  const convertToCollectionMenuItem = useMemo<MenuItemType | null>(() => {
+    if (isCollection || !canEditCurrentRoute) return null
     return {
-      key: 'convert-to-folder',
-      label: 'Convert to Folder',
+      key: 'convert-to-collection',
+      label: 'Convert to Collection',
       icon: <Grid3X3 className="size-4" />,
-      onClick: () => setPendingDocumentConversion('folder'),
+      onClick: () => setPendingDocumentConversion('collection'),
     }
-  }, [canEditCurrentRoute, isFolder])
+  }, [canEditCurrentRoute, isCollection])
 
   const allMenuItems = useMemo(() => {
     let unorderedItems: MenuItemType[] = [...(optionsMenuItems ?? extraMenuItems ?? [])]
@@ -2512,11 +2512,11 @@ function DocumentBody({
     if (inspectMenuItem) unorderedItems.push(inspectMenuItem)
     if (documentOptionsMenuItem) unorderedItems.push(documentOptionsMenuItem)
     if (metadataMenuItem) unorderedItems.push(metadataMenuItem)
-    if (convertToFolderMenuItem) unorderedItems.push(convertToFolderMenuItem)
+    if (convertToCollectionMenuItem) unorderedItems.push(convertToCollectionMenuItem)
     if (convertToDocumentMenuItem) unorderedItems.push(convertToDocumentMenuItem)
-    if (isFolder) {
+    if (isCollection) {
       unorderedItems = unorderedItems.map((item) => {
-        const panel = getFolderMenuPanelRoute(item.key, docId)
+        const panel = getCollectionMenuPanelRoute(item.key, docId)
         if (!panel) return item
         return {
           ...item,
@@ -2541,7 +2541,7 @@ function DocumentBody({
       'versions',
       'options',
       'metadata',
-      'convert-to-folder',
+      'convert-to-collection',
       'convert-to-document',
       'copy-link',
       'link-site',
@@ -2578,10 +2578,10 @@ function DocumentBody({
     inspectMenuItem,
     documentOptionsMenuItem,
     metadataMenuItem,
-    convertToFolderMenuItem,
+    convertToCollectionMenuItem,
     convertToDocumentMenuItem,
     isUnpublishedDraft,
-    isFolder,
+    isCollection,
     docId,
     navigate,
   ])
@@ -2596,12 +2596,12 @@ function DocumentBody({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            Convert to {pendingDocumentConversion === 'folder' ? 'Folder' : 'Document'}?
+            Convert to {pendingDocumentConversion === 'collection' ? 'Collection' : 'Document'}?
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {pendingDocumentConversion === 'folder'
+            {pendingDocumentConversion === 'collection'
               ? 'This will remove all document content and replace it with a query block.'
-              : 'This will remove the folder query block and leave an empty document.'}
+              : 'This will remove the collection query block and leave an empty document.'}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -2609,12 +2609,15 @@ function DocumentBody({
           <AlertDialogAction
             onClick={() => {
               if (!pendingDocumentConversion) return
-              console.info('[Folder draft debug] document conversion confirmed', {
+              console.info('[Collection draft debug] document conversion confirmed', {
                 draftId: ctx.draftId,
                 conversion: pendingDocumentConversion,
               })
               send({
-                type: pendingDocumentConversion === 'folder' ? 'folder.convertToFolder' : 'folder.convertToDocument',
+                type:
+                  pendingDocumentConversion === 'collection'
+                    ? 'collection.convertToCollection'
+                    : 'collection.convertToDocument',
               })
               setPendingDocumentConversion(null)
             }}
@@ -2681,15 +2684,15 @@ function DocumentBody({
             wrapperProps.className,
             'flex-none',
             !showSidebars && 'justify-center',
-            isFolder && '!block w-full',
+            isCollection && '!block w-full',
           )}
-          style={isFolder ? {...wrapperProps.style, maxWidth: undefined} : wrapperProps.style}
+          style={isCollection ? {...wrapperProps.style, maxWidth: undefined} : wrapperProps.style}
         >
-          {showSidebars && !isFolder && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
+          {showSidebars && !isCollection && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
           <div
             {...mainContentProps}
-            className={cn(mainContentProps.className, 'flex flex-col', isFolder && '!w-full !max-w-none')}
-            style={isFolder ? {...mainContentProps.style, maxWidth: undefined} : mainContentProps.style}
+            className={cn(mainContentProps.className, 'flex flex-col', isCollection && '!w-full !max-w-none')}
+            style={isCollection ? {...mainContentProps.style, maxWidth: undefined} : mainContentProps.style}
           >
             {isHomeDoc &&
               activeView !== 'all-documents' &&
@@ -2709,7 +2712,7 @@ function DocumentBody({
                   visibility={headerVisibility}
                   version={document.version}
                   fileUpload={fileUpload}
-                  flushByline={isFolder}
+                  flushByline={isCollection}
                 />
               ) : (
                 <DocumentHeader
@@ -2719,16 +2722,16 @@ function DocumentBody({
                   updateTime={document.updateTime}
                   visibility={headerVisibility}
                   version={document.version}
-                  flushByline={isFolder}
+                  flushByline={isCollection}
                 />
               ))}
           </div>
-          {showSidebars && !isFolder && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
+          {showSidebars && !isCollection && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
         </div>
       ) : (
         <div
           className={cn('mx-auto flex w-full flex-col px-4')}
-          style={{maxWidth: isFolder ? undefined : contentMaxWidth}}
+          style={{maxWidth: isCollection ? undefined : contentMaxWidth}}
         >
           {isHomeDoc &&
             activeView !== 'all-documents' &&
@@ -2748,7 +2751,7 @@ function DocumentBody({
                 visibility={headerVisibility}
                 version={document.version}
                 fileUpload={fileUpload}
-                flushByline={isFolder}
+                flushByline={isCollection}
               />
             ) : (
               <DocumentHeader
@@ -2758,7 +2761,7 @@ function DocumentBody({
                 updateTime={document.updateTime}
                 visibility={headerVisibility}
                 version={document.version}
-                flushByline={isFolder}
+                flushByline={isCollection}
               />
             ))}
         </div>
@@ -2766,7 +2769,7 @@ function DocumentBody({
 
       {/* DocumentTools - scrolls with the page; the border separates document
           identity above from document body below. Hidden when showActivity is false. */}
-      {showActivity && !isFolder && (
+      {showActivity && !isCollection && (
         <div className="px-5 py-1">
           <DocumentTools
             id={docId}
@@ -2824,9 +2827,9 @@ function DocumentBody({
       )}
 
       {/* Main content based on activeView */}
-      <div className={cn('flex-1', !isFolder && activeView !== 'content' && 'pb-60', isMobile && 'px-4')}>
-        {isFolder ? (
-          <DocumentFolder docId={docId} queryBlock={folderQueryBlock} canEdit={canEditCurrentRoute} />
+      <div className={cn('flex-1', !isCollection && activeView !== 'content' && 'pb-60', isMobile && 'px-4')}>
+        {isCollection ? (
+          <DocumentCollection docId={docId} queryBlock={collectionQueryBlock} canEdit={canEditCurrentRoute} />
         ) : (
           <MainContent
             docId={docId}
@@ -3367,7 +3370,7 @@ function DocumentMetadataPage({
   )
 }
 
-function DocumentFolder({
+function DocumentCollection({
   docId,
   queryBlock,
   canEdit,
@@ -3420,14 +3423,14 @@ function DocumentFolder({
         tableSorting={tableConfig?.sorting}
         onTableConfigChange={
           canEdit
-            ? (config) => send({type: 'folder.query.change', props: {tableConfig: JSON.stringify(config)}})
+            ? (config) => send({type: 'collection.query.change', props: {tableConfig: JSON.stringify(config)}})
             : undefined
         }
         onTableSortingChange={
           canEdit
             ? (sorting) =>
                 send({
-                  type: 'folder.query.change',
+                  type: 'collection.query.change',
                   props: {
                     tableConfig: JSON.stringify({
                       columns: tableConfig?.columns ?? [],

@@ -149,7 +149,7 @@ type Index struct {
 	hookWorkerOn sync.Once
 
 	// deriveDocFields computes a document's derived fields (fallback cover
-	// image, folder flag) from its full change history. It's implemented by
+	// image, collection flag) from its full change history. It's implemented by
 	// a higher layer (the documents API, which owns docmodel) and injected via
 	// SetDeriveDocFields to avoid an import cycle. May be nil, in which case
 	// the derivation is skipped. Guarded by hookMu: the daemon wires it before
@@ -317,8 +317,8 @@ type DerivedDocFields struct {
 	// a fallback cover. Empty means the document has no image block.
 	FirstImage string
 
-	// IsFolder reports the structurally derived Folder status.
-	IsFolder bool
+	// IsCollection reports the structurally derived Collection status.
+	IsCollection bool
 }
 
 // DeriveDocFields derives DerivedDocFields for a document from the changes that
@@ -328,7 +328,7 @@ type DeriveDocFields func(iri IRI, changes []ChangeRecord) (DerivedDocFields, er
 
 // SetDeriveDocFields installs the derived-document-fields deriver used during
 // indexing. Setting it again later is safe while indexing runs.
-// See DeriveDocFields, FirstImageInContentAttr and IsFolderAttr.
+// See DeriveDocFields, FirstImageInContentAttr and IsCollectionAttr.
 func (idx *Index) SetDeriveDocFields(fn DeriveDocFields) {
 	idx.hookMu.Lock()
 	idx.deriveDocFields = fn

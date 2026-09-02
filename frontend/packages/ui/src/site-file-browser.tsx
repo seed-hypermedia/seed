@@ -8,7 +8,7 @@ import {
   flattenTree,
   getAncestorPathKeys,
 } from '@shm/shared/utils/all-documents-tree'
-import {ChevronDown, ChevronRight, FileText, Folder, Grid3X3, Lock, Plus, Search, X} from 'lucide-react'
+import {ChevronDown, ChevronRight, FileText, Grid3X3, Lock, Plus, Search, X} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
@@ -74,7 +74,7 @@ export function SiteFileBrowser({
         ? {
             ...document,
             metadata: {...document.metadata, ...draft.metadata},
-            isFolder: draft.isFolder ?? document.isFolder,
+            isCollection: draft.isCollection ?? document.isCollection,
           }
         : document
     })
@@ -87,7 +87,7 @@ export function SiteFileBrowser({
           id: hmId(locationId.uid, {path}),
           path,
           metadata: draft.metadata,
-          isFolder: draft.isFolder ?? false,
+          isCollection: draft.isCollection ?? false,
           visibility: draft.visibility ?? 'PUBLIC',
         } as HMDocumentInfo,
       ]
@@ -103,7 +103,7 @@ export function SiteFileBrowser({
   const visibleDocuments = query.trim() ? matches : rows.map((row) => row.doc)
   const rowById = useMemo(() => new Map(rows.map((row) => [row.doc.id.id, row])), [rows])
   const createItems = createMenuItem?.children?.filter((item) =>
-    ['new-document', 'new-document-folder', 'new-folder', 'new-private-document'].includes(item.key),
+    ['new-document', 'new-document-collection', 'new-collection', 'new-private-document'].includes(item.key),
   )
 
   function toggle(pathKey: string) {
@@ -187,8 +187,8 @@ export function SiteFileBrowser({
                     >
                       {item.key === 'new-document' ? (
                         <FileText className="size-4" />
-                      ) : item.key === 'new-document-folder' || item.key === 'new-folder' ? (
-                        <Folder className="size-4" />
+                      ) : item.key === 'new-document-collection' || item.key === 'new-collection' ? (
+                        <Grid3X3 className="size-4" />
                       ) : (
                         <Lock className="size-4" />
                       )}
@@ -245,8 +245,8 @@ export function SiteFileBrowser({
                       onClick={() => onNavigate(doc.id)}
                       className="hover:bg-accent/60 focus-visible:ring-ring flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-left text-sm outline-none focus-visible:ring-2"
                     >
-                      {doc.isFolder ? (
-                        <Grid3X3 aria-label="Folder" className="size-3 shrink-0" />
+                      {doc.isCollection ? (
+                        <Grid3X3 aria-label="Collection" className="size-3 shrink-0" />
                       ) : doc.visibility === 'PRIVATE' ? (
                         <Lock aria-label="Private document" className="size-3 shrink-0" />
                       ) : unpublishedDraftIds.has(doc.id.id) ? (

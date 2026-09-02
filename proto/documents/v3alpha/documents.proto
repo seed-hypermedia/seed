@@ -1022,10 +1022,10 @@ message DocumentInfo {
   // the document is known to have no content image.
   optional string first_image_in_content = 15;
 
-  // Output only. Whether the published document has the Folder shape. Derived
+  // Output only. Whether the published document has the Collection shape. Derived
   // by the indexer and backfilled incrementally for existing documents.
   // Unset means the indexer has not derived the value yet.
-  optional bool is_folder = 16;
+  optional bool is_collection = 16;
 }
 
 // Information about the generation of a document.

@@ -33,10 +33,10 @@ function getTopLevelBlockCount(blocks: unknown[] | null | undefined) {
 }
 
 /** Type derived from a document's top-level content. */
-export type DerivedDocumentType = 'document' | 'folder'
+export type DerivedDocumentType = 'document' | 'collection'
 
-/** Creates the canonical query block used by new document Folders. */
-export function createDefaultFolderQueryBlock(blockId: string): EditorQueryBlock {
+/** Creates the canonical query block used by new document Collections. */
+export function createDefaultCollectionQueryBlock(blockId: string): EditorQueryBlock {
   return {
     id: blockId,
     type: 'query',
@@ -77,7 +77,7 @@ function includeIsEmpty(include: QueryInclude) {
   return space === '' && path === ''
 }
 
-/** Derives whether top-level content represents a normal document or a Folder. */
+/** Derives whether top-level content represents a normal document or a Collection. */
 export function deriveDocumentType(
   content: HMBlockNode[] | EditorBlock[] | null | undefined,
   documentId: UnpackedHypermediaId,
@@ -92,7 +92,7 @@ export function deriveDocumentType(
   } else {
     if (!root || root.type !== 'query') return 'document'
     const rawIncludes = root.props.queryIncludes
-    if (!rawIncludes) return 'folder'
+    if (!rawIncludes) return 'collection'
     try {
       includes = JSON.parse(rawIncludes)
     } catch {
@@ -100,14 +100,14 @@ export function deriveDocumentType(
     }
   }
 
-  if (includes == null) return 'folder'
+  if (includes == null) return 'collection'
   if (!Array.isArray(includes)) return 'document'
-  if (includes.length === 0) return 'folder'
+  if (includes.length === 0) return 'collection'
   if (includes.length !== 1) return 'document'
   const include = includes[0]
   if (!include || typeof include !== 'object') return 'document'
   const queryInclude = include as QueryInclude
-  return includeIsEmpty(queryInclude) || includeTargetsDocument(queryInclude, documentId) ? 'folder' : 'document'
+  return includeIsEmpty(queryInclude) || includeTargetsDocument(queryInclude, documentId) ? 'collection' : 'document'
 }
 
 function retargetQueryBlock(block: EditorBlock, fromId: UnpackedHypermediaId, toId: UnpackedHypermediaId) {
@@ -298,8 +298,8 @@ function contentToEditorBlocks(content: HMBlockNode[] | EditorBlock[] | null | u
     : (content as EditorBlock[])
 }
 
-/** Returns the machine's authoritative editor content for folder rendering and repair. */
-export function getFolderEditorBlocks(context: DocumentMachineContext): EditorBlock[] {
+/** Returns the machine's authoritative editor content for collection rendering and repair. */
+export function getCollectionEditorBlocks(context: DocumentMachineContext): EditorBlock[] {
   const useDraft = shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion) && context.draftContent
   return contentToEditorBlocks(useDraft || context.document?.content)
 }
@@ -307,7 +307,7 @@ export function getFolderEditorBlocks(context: DocumentMachineContext): EditorBl
 function getMachineOwnedContentOverride(context: DocumentMachineContext): EditorBlock[] | undefined {
   if (context.draftContent === null) return undefined
   const publishedType = deriveDocumentType(context.document?.content, context.documentId)
-  if (context.documentType !== 'folder' && publishedType !== 'folder') return undefined
+  if (context.documentType !== 'collection' && publishedType !== 'collection') return undefined
   return contentToEditorBlocks(context.draftContent)
 }
 
@@ -338,9 +338,9 @@ export type DocumentMachineEvent =
   | {type: 'rootChildrenType.change'; childrenType: HMBlockChildrenType}
   | {type: 'change.navigation'; navigation: HMNavigationItem[]}
   | {type: 'reset.content'}
-  | {type: 'folder.query.change'; props: Partial<EditorQueryBlock['props']>}
-  | {type: 'folder.convertToFolder'}
-  | {type: 'folder.convertToDocument'}
+  | {type: 'collection.query.change'; props: Partial<EditorQueryBlock['props']>}
+  | {type: 'collection.convertToCollection'}
+  | {type: 'collection.convertToDocument'}
   | {
       type: 'publish.start'
       /**
@@ -511,10 +511,10 @@ export const documentMachine = setup({
         return context.metadata
       },
     }),
-    updateFolderQuery: assign({
+    updateCollectionQuery: assign({
       draftContent: ({context, event}) => {
-        if (event.type !== 'folder.query.change') return context.draftContent
-        const blocks = getFolderEditorBlocks(context)
+        if (event.type !== 'collection.query.change') return context.draftContent
+        const blocks = getCollectionEditorBlocks(context)
         const queryIndex = blocks.findIndex((block) => block.type === 'query')
         const query = blocks[queryIndex]
         if (!query || query.type !== 'query') return context.draftContent
@@ -523,11 +523,11 @@ export const documentMachine = setup({
         next[queryIndex] = nextQuery
         return next as unknown as HMBlockNode[]
       },
-      documentType: 'folder',
+      documentType: 'collection',
     }),
-    convertToFolder: assign({
-      draftContent: () => [createDefaultFolderQueryBlock(nanoid(8))] as unknown as HMBlockNode[],
-      documentType: 'folder',
+    convertToCollection: assign({
+      draftContent: () => [createDefaultCollectionQueryBlock(nanoid(8))] as unknown as HMBlockNode[],
+      documentType: 'collection',
     }),
     convertToDocument: assign({
       draftContent: () => {
@@ -1268,17 +1268,17 @@ export const documentMachine = setup({
         'version.changed': {
           actions: ['setRouteVersionState'],
         },
-        'folder.query.change': {
+        'collection.query.change': {
           target: 'editing',
           guard: 'canTransitionToEditing',
-          actions: ['setDepsFromPublished', 'snapshotBaseBlocks', 'updateFolderQuery'],
+          actions: ['setDepsFromPublished', 'snapshotBaseBlocks', 'updateCollectionQuery'],
         },
-        'folder.convertToFolder': {
+        'collection.convertToCollection': {
           target: 'editing',
           guard: 'canTransitionToEditing',
-          actions: ['setDepsFromPublished', 'snapshotBaseBlocks', 'convertToFolder', raise({type: 'change'})],
+          actions: ['setDepsFromPublished', 'snapshotBaseBlocks', 'convertToCollection', raise({type: 'change'})],
         },
-        'folder.convertToDocument': {
+        'collection.convertToDocument': {
           target: 'editing',
           guard: 'canTransitionToEditing',
           actions: ['setDepsFromPublished', 'snapshotBaseBlocks', 'convertToDocument', raise({type: 'change'})],
@@ -1322,10 +1322,10 @@ export const documentMachine = setup({
         {type: 'setEditorReadOnly'},
       ],
       on: {
-        'folder.convertToFolder': {
-          actions: ['convertToFolder', raise({type: 'change'})],
+        'collection.convertToCollection': {
+          actions: ['convertToCollection', raise({type: 'change'})],
         },
-        'folder.convertToDocument': {
+        'collection.convertToDocument': {
           actions: ['convertToDocument', raise({type: 'change'})],
         },
         // Already editing: only move the cursor when the event explicitly asks
@@ -1396,9 +1396,9 @@ export const documentMachine = setup({
           states: {
             idle: {
               on: {
-                'folder.query.change': {
+                'collection.query.change': {
                   target: 'changed',
-                  actions: ['updateFolderQuery'],
+                  actions: ['updateCollectionQuery'],
                 },
                 change: {
                   target: 'changed',
@@ -1442,9 +1442,9 @@ export const documentMachine = setup({
             },
             changed: {
               on: {
-                'folder.query.change': {
+                'collection.query.change': {
                   target: 'changed',
-                  actions: ['updateFolderQuery'],
+                  actions: ['updateCollectionQuery'],
                   reenter: true,
                 },
                 change: {
@@ -1511,8 +1511,8 @@ export const documentMachine = setup({
             creating: {
               entry: ['logSaveStarted', 'resetChangeWhileSaving', raise({type: '_save.started'})],
               on: {
-                'folder.query.change': {
-                  actions: ['setHasChangedWhileSaving', 'updateFolderQuery'],
+                'collection.query.change': {
+                  actions: ['setHasChangedWhileSaving', 'updateCollectionQuery'],
                 },
                 change: {
                   actions: ['setHasChangedWhileSaving', 'setMetadata'],
@@ -1634,8 +1634,8 @@ export const documentMachine = setup({
             saving: {
               entry: ['logSaveStarted', 'resetChangeWhileSaving', raise({type: '_save.started'})],
               on: {
-                'folder.query.change': {
-                  actions: ['setHasChangedWhileSaving', 'updateFolderQuery'],
+                'collection.query.change': {
+                  actions: ['setHasChangedWhileSaving', 'updateCollectionQuery'],
                 },
                 change: {
                   actions: ['setHasChangedWhileSaving', 'setMetadata'],

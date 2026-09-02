@@ -1,13 +1,13 @@
-# Document Folders Implementation Plan
+# Document Collections Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace metadata-driven document Folders with structurally derived Folders across the shared document machine,
+**Goal:** Replace metadata-driven document Collections with structurally derived Collections across the shared document machine,
 desktop and web drafts, backend indexing, typed document listings, and the shared file browser.
 
 **Architecture:** A shared TypeScript predicate derives draft/runtime type and an equivalent Go derivation computes
-published type from merged document heads. The document machine owns Folder transitions and rendering state; desktop
+published type from merged document heads. The document machine owns Collection transitions and rendering state; desktop
 JSON and web IndexedDB draft records persist the derived value; the backend exposes its indexed value through
 `DocumentInfo.document_type`. The file browser overlays matching local draft types on published directory rows.
 
@@ -18,11 +18,11 @@ Please (`./dev gen`), Agent CI.
 
 ## File map
 
-**Shared Folder model and machine**
+**Shared Collection model and machine**
 
-- Modify `frontend/packages/shared/src/models/document-machine.ts` — canonical Folder block, structural predicate,
+- Modify `frontend/packages/shared/src/models/document-machine.ts` — canonical Collection block, structural predicate,
   context field, events, actions, guards, and selectors' source state.
-- Modify `frontend/packages/shared/src/models/use-document-machine.ts` — Folder selectors backed only by machine
+- Modify `frontend/packages/shared/src/models/use-document-machine.ts` — Collection selectors backed only by machine
   context.
 - Modify `frontend/packages/shared/src/models/__tests__/document-machine.test.ts` — predicate, loading, overlays, and
   conversion tests.
@@ -44,17 +44,17 @@ Please (`./dev gen`), Agent CI.
 
 - Modify `frontend/apps/desktop/src/utils/publish-utils.ts` and
   `frontend/apps/desktop/src/utils/__tests__/publish-utils.test.ts` — rename seed helper and remove type metadata.
-- Modify `frontend/apps/desktop/src/components/create-doc-button.tsx` — New Folder desktop menu item.
-- Modify `frontend/apps/web/app/web-utils.tsx` — New Folder web menu item.
-- Modify `frontend/apps/web/app/document-edit/web-create-draft.ts` and its test — accept shared Folder seed and persist
-  it for navigated public Folders.
+- Modify `frontend/apps/desktop/src/components/create-doc-button.tsx` — New Collection desktop menu item.
+- Modify `frontend/apps/web/app/web-utils.tsx` — New Collection web menu item.
+- Modify `frontend/apps/web/app/document-edit/web-create-draft.ts` and its test — accept shared Collection seed and persist
+  it for navigated public Collections.
 - Modify `frontend/apps/desktop/src/models/documents.ts` and
   `frontend/apps/web/app/document-edit/web-document-actors.ts` only as required to keep query retargeting and content
   overrides platform-equivalent.
 
 **Shared rendering and file browser**
 
-- Modify `frontend/packages/ui/src/resource-page-common.tsx` — thin selector-driven rendering, renamed Folder
+- Modify `frontend/packages/ui/src/resource-page-common.tsx` — thin selector-driven rendering, renamed Collection
   components/events, confirmation dialogs, no conversion effects/toasts.
 - Modify `frontend/packages/ui/src/site-file-browser.tsx` and `frontend/packages/ui/src/site-file-browser-layout.tsx` —
   merge published and listed-draft type data.
@@ -78,24 +78,24 @@ Please (`./dev gen`), Agent CI.
 - Modify `backend/api/documents/v3alpha/documents_test.go` and relevant `backend/blob/*_test.go` files — predicate, API,
   incremental, and reindex coverage.
 
-## Task 1: Establish the shared Folder predicate and canonical seed
+## Task 1: Establish the shared Collection predicate and canonical seed
 
 - [ ] **Step 1: Replace metadata-based helper tests with failing structural cases**
 
-In `frontend/packages/shared/src/models/__tests__/document-machine.test.ts`, replace `isDocumentFolder` coverage with
+In `frontend/packages/shared/src/models/__tests__/document-machine.test.ts`, replace `isDocumentCollection` coverage with
 table-driven `deriveDocumentType` cases. Use real editor blocks and IDs:
 
 ```ts
 expect(deriveDocumentType([], mockDocumentId)).toBe('document')
-expect(deriveDocumentType([createDefaultFolderQueryBlock('query')], mockDocumentId)).toBe('folder')
-const emptyIncludesQuery = createDefaultFolderQueryBlock('query')
+expect(deriveDocumentType([createDefaultCollectionQueryBlock('query')], mockDocumentId)).toBe('collection')
+const emptyIncludesQuery = createDefaultCollectionQueryBlock('query')
 expect(
   deriveDocumentType(
     [{...emptyIncludesQuery, props: {...emptyIncludesQuery.props, queryIncludes: '[]'}}],
     mockDocumentId,
   ),
-).toBe('folder')
-expect(deriveDocumentType([selfQuery(mockDocumentId)], mockDocumentId)).toBe('folder')
+).toBe('collection')
+expect(deriveDocumentType([selfQuery(mockDocumentId)], mockDocumentId)).toBe('collection')
 expect(deriveDocumentType([otherQuery(), paragraph()], mockDocumentId)).toBe('document')
 ```
 
@@ -110,17 +110,17 @@ Run:
 direnv exec . pnpm --dir frontend/packages/shared test -- document-machine.test.ts
 ```
 
-Expected: FAIL because `deriveDocumentType` and Folder helpers do not exist.
+Expected: FAIL because `deriveDocumentType` and Collection helpers do not exist.
 
 - [ ] **Step 3: Implement the minimal shared predicate and seed**
 
 In `document-machine.ts`, introduce exported documented symbols:
 
 ```ts
-export type DocumentType = 'document' | 'folder'
+export type DocumentType = 'document' | 'collection'
 
-/** Creates the canonical query block used by new Folders. */
-export function createDefaultFolderQueryBlock(blockId: string): EditorBlock {
+/** Creates the canonical query block used by new Collections. */
+export function createDefaultCollectionQueryBlock(blockId: string): EditorBlock {
   /* existing defaults, renamed */
 }
 
@@ -136,7 +136,7 @@ export function deriveDocumentType(
 Parse editor `queryIncludes` only when non-empty. For hydrated `HMBlockNode`, read `block.attributes?.query?.includes`.
 Normalize explicit paths with `entityQueryPathToHmIdPath`. Do not inspect style or children.
 
-Delete `isDocumentFolder`, `normalizeFolderEditorBlocks`, and metadata-based repair helpers.
+Delete `isDocumentCollection`, `normalizeCollectionEditorBlocks`, and metadata-based repair helpers.
 
 - [ ] **Step 4: Run the focused test and verify pass**
 
@@ -151,8 +151,8 @@ Add tests asserting:
 - `document.loaded` derives `context.documentType`.
 - applicable `draft.resolved` content overrides published type;
 - old-version routes ignore latest draft content;
-- `folder.convertToFolder` replaces all content with the canonical query and enters editing;
-- `folder.convertToDocument` sets content to `[]` and enters/remains editing;
+- `collection.convertToCollection` replaces all content with the canonical query and enters editing;
+- `collection.convertToDocument` sets content to `[]` and enters/remains editing;
 - arbitrary query style does not create a repair draft;
 - emitted `writeDraft.contentOverride` matches conversion content.
 
@@ -171,9 +171,9 @@ export type DocumentMachineContext = {
 }
 
 export type DocumentMachineEvent =
-  | {type: 'folder.query.change'; props: Partial<EditorQueryBlock['props']>}
-  | {type: 'folder.convertToFolder'}
-  | {type: 'folder.convertToDocument'}
+  | {type: 'collection.query.change'; props: Partial<EditorQueryBlock['props']>}
+  | {type: 'collection.convertToCollection'}
+  | {type: 'collection.convertToDocument'}
   | ExistingEvents
 ```
 
@@ -181,18 +181,18 @@ Initialize `documentType: 'document'`. Recompute it in the same assignments that
 draft content, and replace conversion content. Keep conversion content in machine context so existing save actors
 receive `contentOverride`; do not require a resource-page effect to trigger the switch.
 
-Remove `folderRepairAttempted`, `repairingFolder`, the repair guard, and all metadata mutations of `metadata.type`.
+Remove `collectionRepairAttempted`, `repairingCollection`, the repair guard, and all metadata mutations of `metadata.type`.
 
 - [ ] **Step 4: Replace selectors with direct context selectors**
 
-In `use-document-machine.ts`, rename selectors to Folder and make the type selector direct:
+In `use-document-machine.ts`, rename selectors to Collection and make the type selector direct:
 
 ```ts
 export const selectDocumentType = (snapshot: DocumentMachineSnapshot) => snapshot.context.documentType
-export const selectIsFolder = (snapshot: DocumentMachineSnapshot) => snapshot.context.documentType === 'folder'
+export const selectIsCollection = (snapshot: DocumentMachineSnapshot) => snapshot.context.documentType === 'collection'
 ```
 
-Rename the sole-query selector to `selectFolderQueryBlock` and derive only the block, not the type.
+Rename the sole-query selector to `selectCollectionQueryBlock` and derive only the block, not the type.
 
 - [ ] **Step 5: Run shared machine tests**
 
@@ -202,8 +202,8 @@ Expected: all document-machine tests PASS.
 
 - [ ] **Step 1: Add failing frontend mapping/schema tests**
 
-Update `frontend/packages/shared/src/models/__tests__/entity.test.tsx` to expect `documentType: 'folder'` for the
-generated Folder enum and `document` for document/unspecified values.
+Update `frontend/packages/shared/src/models/__tests__/entity.test.tsx` to expect `documentType: 'collection'` for the
+generated Collection enum and `document` for document/unspecified values.
 
 - [ ] **Step 2: Add the protobuf enum and field**
 
@@ -229,12 +229,12 @@ Expected: generated Go and TypeScript document bindings change; do not format th
 In `hm-types.ts` add:
 
 ```ts
-export const HMDocumentTypeSchema = z.enum(['document', 'folder'])
+export const HMDocumentTypeSchema = z.enum(['document', 'collection'])
 export type HMDocumentType = z.infer<typeof HMDocumentTypeSchema>
 ```
 
 Add `documentType: HMDocumentTypeSchema.default('document')` to `HMDocumentInfoSchema` and optional/defaulted support to
-listed drafts. In `prepareHMDocumentInfo`, map only generated `DOCUMENT_TYPE_FOLDER` to `folder`; map all other values
+listed drafts. In `prepareHMDocumentInfo`, map only generated `DOCUMENT_TYPE_FOLDER` to `collection`; map all other values
 to `document`.
 
 - [ ] **Step 5: Run mapping tests and client/shared typechecks**
@@ -256,7 +256,7 @@ changes for the approved cases and assert:
 ```go
 got, err := DeriveDocumentType(iri, changes)
 require.NoError(t, err)
-require.Equal(t, blob.DocumentTypeFolder, got)
+require.Equal(t, blob.DocumentTypeCollection, got)
 ```
 
 Mirror the TypeScript cases, including no includes, explicit self, multiple includes, styles, and children.
@@ -271,13 +271,13 @@ Expected: FAIL because the deriver does not exist.
 
 - [ ] **Step 3: Implement and inject the pure deriver**
 
-Follow the existing first-image injection pattern, but keep names Folder-specific:
+Follow the existing first-image injection pattern, but keep names Collection-specific:
 
 ```go
 type DocumentType string
 const (
     DocumentTypeDocument DocumentType = "document"
-    DocumentTypeFolder DocumentType = "folder"
+    DocumentTypeCollection DocumentType = "collection"
 )
 type DeriveDocumentType func(iri IRI, changes []ChangeRecord) (DocumentType, error)
 ```
@@ -294,7 +294,7 @@ In `blob_ref.go` add a documented internal key such as:
 const DocumentTypeAttr = "$db.documentType"
 ```
 
-After merged heads advance, derive and always set either `document` or `folder`. Add a once-per-generation full-reindex
+After merged heads advance, derive and always set either `document` or `collection`. Add a once-per-generation full-reindex
 pass analogous to `deriveFirstContentImages`. A failed derivation logs and skips without failing indexing.
 
 - [ ] **Step 5: Map the indexed value to protobuf**
@@ -306,7 +306,7 @@ documentType := documents.DocumentType_DOCUMENT_TYPE_UNSPECIFIED
 switch value {
 case string(blob.DocumentTypeDocument):
     documentType = documents.DocumentType_DOCUMENT_TYPE_DOCUMENT
-case string(blob.DocumentTypeFolder):
+case string(blob.DocumentTypeCollection):
     documentType = documents.DocumentType_DOCUMENT_TYPE_FOLDER
 }
 ```
@@ -315,7 +315,7 @@ Assign `DocumentType: documentType` on the response.
 
 - [ ] **Step 6: Add incremental, clearing, reindex, and API tests**
 
-Prove Folder → Document overwrites stale type, full reindex backfills Folder, and both Get/List document info return the
+Prove Collection → Document overwrites stale type, full reindex backfills Collection, and both Get/List document info return the
 enum.
 
 - [ ] **Step 7: Run backend verification for this task**
@@ -330,7 +330,7 @@ Expected: PASS.
 
 - [ ] **Step 1: Write failing desktop draft-index tests**
 
-Test the `drafts.write` boundary with Folder and Document content. Assert list/listAccount entries contain the derived
+Test the `drafts.write` boundary with Collection and Document content. Assert list/listAccount entries contain the derived
 type and a second write replaces it. Add a legacy index fixture without the field and expect `document`.
 
 - [ ] **Step 2: Implement desktop write-boundary derivation**
@@ -359,66 +359,66 @@ direnv exec . pnpm --dir frontend/apps/web test -- web-draft-db web-document-act
 
 Expected: PASS.
 
-## Task 6: Provide New Folder on desktop and web
+## Task 6: Provide New Collection on desktop and web
 
 - [ ] **Step 1: Update seed tests to reject type metadata**
 
-Rename `buildDocumentFolderDraftSeed` tests to `buildDocumentFolderDraftSeed` and expect:
+Rename `buildDocumentCollectionDraftSeed` tests to `buildDocumentCollectionDraftSeed` and expect:
 
 ```ts
 expect(seed.metadata).toEqual({})
-expect(deriveDocumentType(seed.content, targetId)).toBe('folder')
+expect(deriveDocumentType(seed.content, targetId)).toBe('collection')
 ```
 
 - [ ] **Step 2: Move/reuse the canonical seed without duplication**
 
-Keep `createDefaultFolderQueryBlock` in shared machine/domain code and make desktop/web creation wrap it. Do not
+Keep `createDefaultCollectionQueryBlock` in shared machine/domain code and make desktop/web creation wrap it. Do not
 maintain two query-default objects.
 
-- [ ] **Step 3: Add desktop New Folder**
+- [ ] **Step 3: Add desktop New Collection**
 
 Rename the menu key/label/helper, retain immediate persistence for seeded public drafts, and pass empty metadata plus
 the canonical block.
 
-- [ ] **Step 4: Add web New Folder**
+- [ ] **Step 4: Add web New Collection**
 
-Extend `createWebDocumentDraft` call sites so New Folder passes canonical HM block content and forces persistence even
+Extend `createWebDocumentDraft` call sites so New Collection passes canonical HM block content and forces persistence even
 for a navigated public draft; otherwise there would be no IndexedDB row/type for the file-browser overlay. Add
-`New Folder` alongside `New Document` in `useWebCreateDocumentMenuItem`.
+`New Collection` alongside `New Document` in `useWebCreateDocumentMenuItem`.
 
 - [ ] **Step 5: Verify creation and publish retargeting**
 
 Run desktop publish-utils/create tests and web create-draft tests. Assert the empty include retargets to the final
 account/path on both publish actors.
 
-## Task 7: Make shared Folder UI thin, confirmed, and toast-free
+## Task 7: Make shared Collection UI thin, confirmed, and toast-free
 
 - [ ] **Step 1: Write failing shared UI tests**
 
 Cover:
 
-- Document menu shows Convert to Folder only when editable.
-- Folder menu shows Convert to Document only when editable.
+- Document menu shows Convert to Collection only when editable.
+- Collection menu shows Convert to Document only when editable.
 - Cancel leaves the machine snapshot unchanged.
 - Confirm sends one machine intent event.
 - The selector change swaps editor/table rendering.
-- No Folder conversion success or Undo toast is emitted.
+- No Collection conversion success or Undo toast is emitted.
 
 - [ ] **Step 2: Add controlled confirmation dialogs**
 
 Use existing shared AlertDialog components. UI state controls only which confirmation is open. Confirm callbacks send
-`folder.convertToFolder` or `folder.convertToDocument`; they do not rewrite content or metadata.
+`collection.convertToCollection` or `collection.convertToDocument`; they do not rewrite content or metadata.
 
 - [ ] **Step 3: Rename and simplify resource-page consumption**
 
-In `resource-page-common.tsx` use `selectIsFolder` and `selectFolderQueryBlock`, rename `DocumentFolderTable` to
-`DocumentFolderTable`, and rename query-change events. Remove the conversion-detection `useRef`/`useEffect` toast block
+In `resource-page-common.tsx` use `selectIsCollection` and `selectCollectionQueryBlock`, rename `DocumentCollectionTable` to
+`DocumentCollectionTable`, and rename query-change events. Remove the conversion-detection `useRef`/`useEffect` toast block
 and direct success toast from menu actions.
 
 - [ ] **Step 4: Remove all metadata-driven rendering paths**
 
 Update header, breadcrumbs, metadata affordances, tests, and menu-panel helpers so they consume the machine-derived
-Folder state passed through existing props/selectors. Do not introduce Folder synchronization effects.
+Collection state passed through existing props/selectors. Do not introduce Collection synchronization effects.
 
 - [ ] **Step 5: Run UI tests**
 
@@ -432,22 +432,22 @@ Expected: PASS.
 
 - [ ] **Step 1: Write failing precedence tests**
 
-In `site-file-browser.test.tsx`, provide published rows and matching listed drafts. Prove precedence for new Folder,
-Document → Folder, Folder → Document, navigation away, legacy missing draft type, and legacy metadata ignored.
+In `site-file-browser.test.tsx`, provide published rows and matching listed drafts. Prove precedence for new Collection,
+Document → Collection, Collection → Document, navigation away, legacy missing draft type, and legacy metadata ignored.
 
 - [ ] **Step 2: Load drafts through the universal client**
 
 Use the existing account draft listing abstraction (`useDirectoryWithDrafts` or a focused combination of `useDirectory`
 plus listed drafts) in `SiteFileBrowser`. Match drafts to rows using edit target for existing documents and
-location/path target for new documents. Build the tree from the effective rows so unpublished new Folders remain
+location/path target for new documents. Build the tree from the effective rows so unpublished new Collections remain
 present.
 
 - [ ] **Step 3: Render only effective typed values**
 
-Render the Folder icon from the overlaid domain string, not protobuf enum or metadata:
+Render the Collection icon from the overlaid domain string, not protobuf enum or metadata:
 
 ```tsx
-{doc.documentType === 'folder' ? <Grid3X3 aria-label="Folder" /> : /* private lock */}
+{doc.documentType === 'collection' ? <Grid3X3 aria-label="Collection" /> : /* private lock */}
 ```
 
 Ensure both desktop's universal client and web's IndexedDB-backed draft provider invalidate the account-draft query
@@ -466,7 +466,7 @@ Expected: PASS.
 - [ ] **Step 1: Scan feature code for the old keyword**
 
 ```bash
-grep -RIn --exclude-dir=node_modules --exclude-dir=.git -E 'DocumentFolder|documentFolder|isDocumentFolder|folder\.|Folder' frontend backend proto
+grep -RIn --exclude-dir=node_modules --exclude-dir=.git -E 'DocumentCollection|documentCollection|isDocumentCollection|collection\.|Collection' frontend backend proto
 ```
 
 Expected: no live feature identifiers or UI strings. Retain the legacy literal only in compatibility tests/docs that
@@ -517,14 +517,14 @@ Expected: all supported jobs PASS. If a run fails, use the concrete runner name 
 Before starting a live app, use Jean `get_run_environments` and test the already-running environment when available.
 Verify on both platforms:
 
-1. New Folder immediately renders Table and shows a Folder icon.
+1. New Collection immediately renders Table and shows a Collection icon.
 2. Navigate away before publishing; the icon remains.
 3. Publish; the icon remains and now comes from `DocumentInfo`.
-4. Convert a populated Document to Folder; cancel once, then confirm; content is removed only after confirmation.
-5. Convert Folder to Document; cancel once, then confirm; the query disappears only after confirmation.
+4. Convert a populated Document to Collection; cancel once, then confirm; content is removed only after confirmation.
+5. Convert Collection to Document; cancel once, then confirm; the query disappears only after confirmation.
 6. Reload between draft and publish states; rendering and icons remain correct.
 7. No conversion success/Undo toast appears.
-8. A one-query Card/List-shaped document still derives as Folder but renders Table for now.
+8. A one-query Card/List-shaped document still derives as Collection but renders Table for now.
 
 Record the exact Jean URLs/ports used in the completion recap.
 

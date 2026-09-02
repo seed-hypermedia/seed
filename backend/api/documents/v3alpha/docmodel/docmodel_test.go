@@ -416,11 +416,11 @@ func TestApplyChangeOpIndexOverflow(t *testing.T) {
 	})
 }
 
-func TestIsFolder(t *testing.T) {
+func TestIsCollection(t *testing.T) {
 	alice := coretest.NewTester("alice").Account
 	space := alice.Principal().String()
 
-	// The shape the folder editor maintains: one top-level Query block whose
+	// The shape the collection editor maintains: one top-level Query block whose
 	// query lists this very document's children.
 	queryBlock := func(id string, includes ...map[string]any) *documents.Block {
 		list := make([]any, len(includes))
@@ -455,12 +455,12 @@ func TestIsFolder(t *testing.T) {
 
 	notes := blob.IRI("hm://" + space + "/notes")
 
-	t.Run("single self-query block is a Folder", func(t *testing.T) {
+	t.Run("single self-query block is a Collection", func(t *testing.T) {
 		doc := load(notes, func(dm *Document) {
 			must.Do(dm.MoveBlock("q1", "", ""))
 			must.Do(dm.ReplaceBlock(queryBlock("q1", self("/notes"))))
 		})
-		require.True(t, doc.IsFolder())
+		require.True(t, doc.IsCollection())
 	})
 
 	t.Run("path without a leading slash still matches", func(t *testing.T) {
@@ -470,7 +470,7 @@ func TestIsFolder(t *testing.T) {
 			must.Do(dm.MoveBlock("q1", "", ""))
 			must.Do(dm.ReplaceBlock(queryBlock("q1", self("notes"))))
 		})
-		require.True(t, doc.IsFolder())
+		require.True(t, doc.IsCollection())
 	})
 
 	t.Run("AllDescendants counts, since it includes the direct children", func(t *testing.T) {
@@ -480,7 +480,7 @@ func TestIsFolder(t *testing.T) {
 				"space": space, "path": "/notes", "mode": "AllDescendants",
 			})))
 		})
-		require.True(t, doc.IsFolder())
+		require.True(t, doc.IsCollection())
 	})
 
 	t.Run("multiple includes do not qualify", func(t *testing.T) {
@@ -491,7 +491,7 @@ func TestIsFolder(t *testing.T) {
 				self("/notes"),
 			)))
 		})
-		require.False(t, doc.IsFolder())
+		require.False(t, doc.IsCollection())
 	})
 
 	t.Run("a root document collecting its own children", func(t *testing.T) {
@@ -500,18 +500,18 @@ func TestIsFolder(t *testing.T) {
 			must.Do(dm.MoveBlock("q1", "", ""))
 			must.Do(dm.ReplaceBlock(queryBlock("q1", self(""))))
 		})
-		require.True(t, doc.IsFolder())
+		require.True(t, doc.IsCollection())
 	})
 
-	t.Run("query for another path is not a folder", func(t *testing.T) {
+	t.Run("query for another path is not a collection", func(t *testing.T) {
 		doc := load(notes, func(dm *Document) {
 			must.Do(dm.MoveBlock("q1", "", ""))
 			must.Do(dm.ReplaceBlock(queryBlock("q1", self("/other"))))
 		})
-		require.False(t, doc.IsFolder())
+		require.False(t, doc.IsCollection())
 	})
 
-	t.Run("query for another space is not a folder", func(t *testing.T) {
+	t.Run("query for another space is not a collection", func(t *testing.T) {
 		bob := coretest.NewTester("bob").Account
 		doc := load(notes, func(dm *Document) {
 			must.Do(dm.MoveBlock("q1", "", ""))
@@ -519,7 +519,7 @@ func TestIsFolder(t *testing.T) {
 				"space": bob.Principal().String(), "path": "/notes", "mode": "Children",
 			})))
 		})
-		require.False(t, doc.IsFolder())
+		require.False(t, doc.IsCollection())
 	})
 
 	t.Run("one empty include is implicitly self-referential", func(t *testing.T) {
@@ -529,7 +529,7 @@ func TestIsFolder(t *testing.T) {
 				"space": "", "path": "", "mode": "Children",
 			})))
 		})
-		require.True(t, doc.IsFolder())
+		require.True(t, doc.IsCollection())
 	})
 
 	t.Run("a second top-level block disqualifies it", func(t *testing.T) {
@@ -539,7 +539,7 @@ func TestIsFolder(t *testing.T) {
 			must.Do(dm.MoveBlock("p1", "", "q1"))
 			must.Do(dm.ReplaceBlock(&documents.Block{Id: "p1", Type: "Paragraph", Text: "and a note"}))
 		})
-		require.False(t, doc.IsFolder())
+		require.False(t, doc.IsCollection())
 	})
 
 	t.Run("a child of the query block does not affect the type", func(t *testing.T) {
@@ -549,22 +549,22 @@ func TestIsFolder(t *testing.T) {
 			must.Do(dm.MoveBlock("q1.1", "q1", ""))
 			must.Do(dm.ReplaceBlock(&documents.Block{Id: "q1.1", Type: "Paragraph", Text: "nested"}))
 		})
-		require.True(t, doc.IsFolder())
+		require.True(t, doc.IsCollection())
 	})
 
-	t.Run("a single non-Query block is not a folder", func(t *testing.T) {
+	t.Run("a single non-Query block is not a collection", func(t *testing.T) {
 		doc := load(notes, func(dm *Document) {
 			must.Do(dm.MoveBlock("p1", "", ""))
 			must.Do(dm.ReplaceBlock(&documents.Block{Id: "p1", Type: "Paragraph", Text: "just prose"}))
 		})
-		require.False(t, doc.IsFolder())
+		require.False(t, doc.IsCollection())
 	})
 
-	t.Run("an empty document is not a folder", func(t *testing.T) {
+	t.Run("an empty document is not a collection", func(t *testing.T) {
 		doc := load(notes, func(dm *Document) {
 			must.Do(dm.SetMetadata("title", "Notes"))
 		})
-		require.False(t, doc.IsFolder())
+		require.False(t, doc.IsCollection())
 	})
 
 	t.Run("a query block with no query attribute is implicitly self-referential", func(t *testing.T) {
@@ -572,13 +572,13 @@ func TestIsFolder(t *testing.T) {
 			must.Do(dm.MoveBlock("q1", "", ""))
 			must.Do(dm.ReplaceBlock(&documents.Block{Id: "q1", Type: "Query"}))
 		})
-		require.True(t, doc.IsFolder())
+		require.True(t, doc.IsCollection())
 	})
 
-	t.Run("an uncommitted document is never a folder", func(t *testing.T) {
+	t.Run("an uncommitted document is never a collection", func(t *testing.T) {
 		doc := must.Do2(New(notes, cclock.New()))
 		must.Do(doc.MoveBlock("q1", "", ""))
 		must.Do(doc.ReplaceBlock(queryBlock("q1", self("/notes"))))
-		require.False(t, doc.IsFolder(), "a dirty document has no stable committed state")
+		require.False(t, doc.IsCollection(), "a dirty document has no stable committed state")
 	})
 }

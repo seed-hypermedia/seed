@@ -65,11 +65,11 @@ describe('web-draft-db', () => {
     expect(typeof loaded?.updatedAt).toBe('number')
   })
 
-  it('indexes Folder status from persisted content', async () => {
+  it('indexes Collection status from persisted content', async () => {
     await putWebDocDraft(
       makeDraft({
-        draftId: 'folder',
-        docId: 'hm://abc/folder',
+        draftId: 'collection',
+        docId: 'hm://abc/collection',
         content: [
           {
             block: {
@@ -86,12 +86,12 @@ describe('web-draft-db', () => {
       makeDraft({
         draftId: 'document',
         content: [{block: {id: 'p1', type: 'Paragraph', text: 'text'}, children: []} as any],
-        isFolder: true,
+        isCollection: true,
       }),
     )
 
-    expect((await getWebDocDraft('folder'))?.isFolder).toBe(true)
-    expect((await getWebDocDraft('document'))?.isFolder).toBe(false)
+    expect((await getWebDocDraft('collection'))?.isCollection).toBe(true)
+    expect((await getWebDocDraft('document'))?.isCollection).toBe(false)
   })
 
   it('lists drafts filtered by docId, newest first', async () => {

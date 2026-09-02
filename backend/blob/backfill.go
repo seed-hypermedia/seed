@@ -19,8 +19,8 @@ import (
 // blob inside a single write transaction, holding the only write connection for
 // its whole duration and blocking daemon startup in State_MIGRATING. That is
 // the right hammer for a field the read path cannot function without. It is the
-// wrong one here: an underived Folder flag simply reads as "not known to be a
-// Folder", and new and updated documents get the field on the ordinary write
+// wrong one here: an underived Collection flag simply reads as "not known to be a
+// Collection", and new and updated documents get the field on the ordinary write
 // path regardless. Only history needs filling in, and it can be filled in
 // without blocking startup.
 //
@@ -187,7 +187,7 @@ func (idx *Index) BackfillDocFields(ctx context.Context, limit int) (processed i
 // pendingDocFieldGenerations lists generations whose derived fields haven't been
 // computed, cheapest-to-probe first.
 //
-// Presence of the IsFolderAttr row *is* the bookkeeping — there is no
+// Presence of the IsCollectionAttr row *is* the bookkeeping — there is no
 // separate progress table to keep in sync, and a generation that fails to derive
 // still records the zero value (see deriveDocFieldsForGeneration), so a document
 // the model cannot rebuild is retried never rather than forever.
@@ -203,7 +203,7 @@ func pendingDocFieldGenerations(conn *sqlite.Conn, limit int) (keys []generation
 	if err := sqlitex.Exec(conn, qDocFieldsAttrKeyID(), func(row *sqlite.Stmt) error {
 		keyID = row.ColumnInt64(0)
 		return nil
-	}, IsFolderAttr); err != nil {
+	}, IsCollectionAttr); err != nil {
 		return nil, err
 	}
 

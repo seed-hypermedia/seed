@@ -18,7 +18,7 @@ import {
   getDocumentSyncIsPlaceholderData,
   getOldVersionEditBlockedToastOptions,
   getCitationsTargetId,
-  getFolderMenuPanelRoute,
+  getCollectionMenuPanelRoute,
   BACK_TO_TOP_SCROLL_OFFSET,
 } from '../resource-page-common'
 
@@ -28,18 +28,18 @@ describe('back to top visibility', () => {
   })
 })
 
-describe('getFolderMenuPanelRoute', () => {
+describe('getCollectionMenuPanelRoute', () => {
   const docId = hmId('alice', {path: ['projects']})
 
   it.each(['metadata', 'directory', 'collaborators', 'activity', 'comments'] as const)(
     'maps the %s menu item to the matching right panel',
     (key) => {
-      expect(getFolderMenuPanelRoute(key, docId)).toMatchObject({key, id: docId})
+      expect(getCollectionMenuPanelRoute(key, docId)).toMatchObject({key, id: docId})
     },
   )
 
   it('maps versions to the versions activity panel', () => {
-    expect(getFolderMenuPanelRoute('versions', docId)).toMatchObject({
+    expect(getCollectionMenuPanelRoute('versions', docId)).toMatchObject({
       key: 'activity',
       id: docId,
       filterEventType: ['Ref'],
@@ -47,7 +47,7 @@ describe('getFolderMenuPanelRoute', () => {
   })
 
   it('leaves menu actions without panel support unchanged', () => {
-    expect(getFolderMenuPanelRoute('export', docId)).toBeNull()
+    expect(getCollectionMenuPanelRoute('export', docId)).toBeNull()
   })
 })
 
