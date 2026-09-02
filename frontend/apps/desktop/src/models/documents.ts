@@ -351,7 +351,9 @@ export function usePublishResource(
 
           const allChanges = [
             ...navigationChanges,
-            ...getDocAttributeChanges(expandObjectRemovals(draft.metadata, editDocument?.metadata)),
+            ...getDocAttributeChanges(
+              expandObjectRemovals({...editDocument?.metadata, ...draft.metadata}, editDocument?.metadata),
+            ),
             ...changes.changes,
             ...deleteChanges,
           ]
