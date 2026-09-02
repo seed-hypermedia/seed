@@ -3527,6 +3527,7 @@ function DocumentCollection({
           tableConfig={tableConfig}
           onTableConfigChange={handleTableConfigChange}
           onTableSortingChange={handleTableSortingChange}
+          navigateCards
         />
       </div>
     </div>
