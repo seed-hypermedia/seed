@@ -3,6 +3,9 @@
   "private": true,
   "scripts": {
     "test": "pnpm web:test && pnpm shared:test && pnpm desktop:test:unit",
+    "onyx:dev": "cd frontend/apps/cli && bun run src/sync-onyx.ts dev",
+    "onyx:push": "cd frontend/apps/cli && bun run src/sync-onyx.ts push",
+    "onyx:pull": "cd frontend/apps/cli && bun run src/sync-onyx.ts pull",
     "shared:test": "pnpm --filter @shm/shared test",
     "format:check": "pnpm -r --parallel run format:check && (cd agents && bun run format:check) && (cd vault && bun run format:check)",
     "typecheck": "pnpm -r --parallel run typecheck",
