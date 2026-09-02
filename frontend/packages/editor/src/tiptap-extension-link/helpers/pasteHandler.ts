@@ -289,6 +289,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                         title,
                         type,
                         gwUrl: options.gwUrl,
+                        latestVersion: version,
                       }),
                     }),
                   )
@@ -312,6 +313,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                         sourceUrl: normalizedHmUrl,
                         hmId: unpackHmId(normalizedHmUrl),
                         gwUrl: options.gwUrl,
+                        latestVersion: version,
                       }),
                     }),
                   )
@@ -407,17 +409,20 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
               if (linkMetaResult?.hmId) {
                 const fullHmUrl = packHmId(linkMetaResult.hmId)
 
-                // If title is missing (e.g. domain store resolution), fetch it
+                // If title or version is missing (e.g. domain store
+                // resolution), fetch the resource for them.
                 let title = linkMetaResult.title
                 let type: 'Comment' | 'Document' = linkMetaResult.type === 'Comment' ? 'Comment' : 'Document'
-                if (!title && options.universalClient) {
+                let latestVersion = linkMetaResult.hmId.version ?? null
+                if ((!title || !latestVersion) && options.universalClient) {
                   const fetched = await fetchResourceTitle(
                     linkMetaResult.hmId,
                     options.universalClient,
                     linkMetaResult.hmId.blockRef,
                   )
-                  title = fetched.title
+                  title = title || fetched.title
                   type = fetched.type || type
+                  latestVersion = latestVersion ?? fetched.version
                 }
 
                 const displayText = title || fullHmUrl
@@ -448,6 +453,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                       title,
                       type,
                       gwUrl: options.gwUrl,
+                      latestVersion,
                     }),
                   }),
                 )
@@ -584,17 +590,20 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
             const fullHmUrl = packHmId(linkMetaResult.hmId)
             const currentPos = view.state.selection.$from.pos - link.href.length
 
-            // If title is missing (e.g. domain store resolution), fetch it
+            // If title or version is missing (e.g. domain store resolution),
+            // fetch the resource for them.
             let title = linkMetaResult.title
             let type: 'Comment' | 'Document' = linkMetaResult.type === 'Comment' ? 'Comment' : 'Document'
-            if (!title && options.universalClient) {
+            let latestVersion = linkMetaResult.hmId.version ?? null
+            if ((!title || !latestVersion) && options.universalClient) {
               const fetched = await fetchResourceTitle(
                 linkMetaResult.hmId,
                 options.universalClient,
                 linkMetaResult.hmId.blockRef,
               )
-              title = fetched.title
+              title = title || fetched.title
               type = fetched.type || type
+              latestVersion = latestVersion ?? fetched.version
             }
 
             if (title) {
@@ -622,6 +631,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                   title,
                   type,
                   gwUrl: options.gwUrl,
+                  latestVersion,
                 }),
               }),
             )

@@ -29,6 +29,7 @@ export function getLinkMenuItems({
   title,
   type,
   gwUrl,
+  latestVersion,
 }: {
   isLoading: boolean // true is spinner needs to be shown
   hmId?: UnpackedHypermediaId | null // if the link is an embeddable link
@@ -38,8 +39,12 @@ export function getLinkMenuItems({
   title?: string | null // resource title if any
   type?: 'Document' | 'Comment' | null // resource type if any
   gwUrl: StateStream<string>
+  latestVersion?: string | null // resource latest version
 }) {
   let linkMenuItems: LinkMenuItem[] = []
+  // Embeds always store a version. The link's own version wins,
+  // otherwise the resolved latest version.
+  const embedHmId = hmId ? {...hmId, version: hmId.version ?? latestVersion ?? null, latest: false} : hmId
 
   if (sourceUrl && !isHypermediaScheme(sourceUrl)) {
     linkMenuItems = [
@@ -135,7 +140,7 @@ export function getLinkMenuItems({
             const {state, schema} = editor._tiptapEditor
             const {selection} = state
             if (!selection.empty) return
-            const hmRef = hmIdToURL(hmId)
+            const hmRef = hmIdToURL(embedHmId!)
             const node = schema.nodes.embed.create({
               url: hmRef,
               view: 'Content',
@@ -153,7 +158,7 @@ export function getLinkMenuItems({
             const {state, schema} = editor._tiptapEditor
             const {selection} = state
             if (!selection.empty) return
-            const hmRef = hmIdToURL(hmId)
+            const hmRef = hmIdToURL(embedHmId!)
             const node = schema.nodes.embed.create({url: hmRef, view: 'Link'})
             insertNode(editor, sourceUrl || hmRef, node)
           },
@@ -170,7 +175,7 @@ export function getLinkMenuItems({
             const {state, schema} = editor._tiptapEditor
             const {selection} = state
             if (!selection.empty) return
-            const hmRef = hmIdToURL(hmId)
+            const hmRef = hmIdToURL(embedHmId!)
             const node = schema.nodes.embed.create({
               url: hmRef,
               view: 'Card',
