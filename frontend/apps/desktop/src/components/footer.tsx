@@ -2,7 +2,9 @@ import {getUpdateStatusLabel, useUpdateStatus} from '@/components/auto-updater'
 import {useConnectionSummary} from '@/models/contacts'
 import {useDaemonInfo} from '@/models/daemon'
 import {getAggregatedDiscoveryStream, getDiscoveryStream, getSubscriptionKeysStream} from '@/models/entities'
+import {getActivePushStream} from '@/models/push-status'
 import {DiscoveryState} from '@seed-hypermedia/client/hm-types'
+import {hostnameStripProtocol} from '@shm/shared'
 import {Task, TaskName} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
 import {useResource} from '@shm/shared/models/entity'
@@ -16,6 +18,7 @@ import {Progress} from '@shm/ui/components/progress'
 import {FooterWrapper} from '@shm/ui/footer'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from '@shm/ui/hover-card'
 import {Cable} from '@shm/ui/icons'
+import {pushProgress} from '@shm/ui/push-toast'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -57,6 +60,7 @@ export default function Footer({
       </div>
 
       <div className="flex flex-1 items-center justify-end gap-1">
+        <PushStatusIndicator />
         <DaemonTasksIndicator />
         <SubscriptionsPanel />
         {children}
@@ -234,6 +238,85 @@ function SubscriptionsPanel() {
         </div>
       </PopoverContent>
     </Popover>
+  )
+}
+
+// Footer indicator for a publish-triggered push to servers.
+function PushStatusIndicator() {
+  const active = useStream(getActivePushStream())
+  const pushState = useStream(active?.pushStatus)
+  if (!active) return null
+
+  const {done, total} = pushProgress(pushState)
+  const hosts = pushState?.hosts ?? []
+
+  let summary: string
+  if (active.status === 'loading') {
+    summary = total > 0 ? `Publishing to servers… (${done}/${total})` : 'Publishing to servers…'
+  } else if (active.status === 'success') {
+    summary = total > 0 ? `Published to ${total} server${total === 1 ? '' : 's'}` : 'Published to servers'
+  } else {
+    summary = 'Failed to push to servers'
+  }
+
+  return (
+    <HoverCard openDelay={200}>
+      <HoverCardTrigger asChild>
+        <div className="flex cursor-default items-center gap-2 px-2">
+          {active.status === 'loading' ? (
+            <Spinner size="small" className="size-3" />
+          ) : (
+            <span
+              className={cn(
+                'size-1.5 shrink-0 rounded-full',
+                active.status === 'success' ? 'bg-green-500' : 'bg-destructive',
+              )}
+            />
+          )}
+          <SizableText
+            size="xs"
+            className={cn('select-none', active.status === 'error' ? 'text-destructive' : 'text-muted-foreground')}
+            style={{fontSize: 10}}
+          >
+            {summary}
+          </SizableText>
+        </div>
+      </HoverCardTrigger>
+      {(hosts.length > 0 || active.errorMessage) && (
+        <HoverCardContent side="top" align="end" className="w-80">
+          <div className="flex flex-col gap-2">
+            <SizableText size="sm" className="font-medium">
+              {summary}
+            </SizableText>
+            {active.errorMessage && (
+              <SizableText size="xs" className="text-destructive">
+                {active.errorMessage}
+              </SizableText>
+            )}
+            <div className="flex max-h-64 flex-col gap-1.5 overflow-y-auto">
+              {hosts.map(({host, message, status}) => (
+                <div key={host} className="flex items-center gap-2 text-xs">
+                  {status === 'pending' ? (
+                    <Spinner size="small" className="size-3 shrink-0" />
+                  ) : (
+                    <span
+                      className={cn(
+                        'size-1.5 shrink-0 rounded-full',
+                        status === 'success' ? 'bg-green-500' : 'bg-destructive',
+                      )}
+                    />
+                  )}
+                  <span className="text-foreground min-w-0 flex-1 truncate">{hostnameStripProtocol(host)}</span>
+                  <span className="text-muted-foreground/70 shrink-0 text-[10px]">
+                    {message || (status === 'pending' ? 'Syncing…' : status)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </HoverCardContent>
+      )}
+    </HoverCard>
   )
 }
 

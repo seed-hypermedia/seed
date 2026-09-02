@@ -1,18 +1,19 @@
 import {reportError} from '@/errors'
 import {usePushResource} from '@/models/documents'
 import {usePushOnCopy, usePushOnPublish} from '@/models/gateway-settings'
+import {trackPushInFooter} from '@/models/push-status'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {writeableStateStream} from '@shm/shared/utils/stream'
-import {CopiedToast, PushedToast, PushResourceStatus} from '@shm/ui/push-toast'
+import {CopiedToast, PushResourceStatus} from '@shm/ui/push-toast'
 import {toast} from '@shm/ui/toast'
 import {useCallback} from 'react'
 
 /**
  * Shared helper used after publishing a document/comment or copying a link.
- * Gates on the user's `pushOnPublish` or `pushOnCopy` preference, pushes to
- * the relevant servers, and surfaces progress via a toast. Fire-and-forget —
- * the returned callback never rejects and the push lifecycle is owned by
- * `toast.promise`.
+ * Gates on the user's `pushOnPublish` or `pushOnCopy` preference and pushes
+ * to the relevant servers. Publish-triggered pushes surface progress in the
+ * window footer. Copy-triggered pushes keep a toast as immediate feedback
+ * next to the action. Fire-and-forget — the returned callback never rejects.
  */
 export function usePushAfterAction() {
   const pushResource = usePushResource()
@@ -24,12 +25,15 @@ export function usePushAfterAction() {
       if (setting === 'never') return
       const [setStatus, status] = writeableStateStream<PushResourceStatus | null>(null)
       const promise = pushResource(params.id, params.onlyPushToHost, setStatus)
-      const Toast = params.trigger === 'copy' ? CopiedToast : PushedToast
-      toast.promise(promise, {
-        loading: <Toast pushStatus={status} status="loading" />,
-        success: <Toast pushStatus={status} status="success" />,
-        error: (err) => <Toast pushStatus={status} status="error" errorMessage={err?.message} />,
-      })
+      if (params.trigger === 'copy') {
+        toast.promise(promise, {
+          loading: <CopiedToast pushStatus={status} status="loading" />,
+          success: <CopiedToast pushStatus={status} status="success" />,
+          error: (err) => <CopiedToast pushStatus={status} status="error" errorMessage={err?.message} />,
+        })
+      } else {
+        trackPushInFooter(promise, status)
+      }
       promise.catch((err) => {
         console.error('[push-after-action]', params.trigger, err)
         reportError(err, {
