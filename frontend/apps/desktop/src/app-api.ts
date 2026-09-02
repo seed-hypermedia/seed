@@ -32,6 +32,7 @@ import {providerOAuthApi} from './app-provider-oauth'
 import {recentSignersApi} from './app-recent-signers'
 import {recentsApi} from './app-recents'
 import {secureStorageApi} from './app-secure-storage'
+import {servicesApi, startServicesInvalidationBridge} from './app-services-api'
 import {getAgentsServerState, getLocalAgentsServerUrl} from './agents-server-process'
 import {appSettingsApi, getStoredNetworkConfig, networkConfigSchema, writeNetworkConfig} from './app-settings'
 import {sitesApi} from './app-sites'
@@ -244,9 +245,12 @@ function getRouteRefocusKey(route: NavRoute): string | null {
   return route.key
 }
 
+startServicesInvalidationBridge()
+
 export const router = t.router({
   drafts: draftsApi,
   experiments: experimentsApi,
+  services: servicesApi,
   providerOAuth: providerOAuthApi,
   diagnosis: diagnosisApi,
   documentCardCleanup: documentCardCleanupApi,

@@ -1,0 +1,9 @@
+/**
+ * Menu-bar (tray) icon for the service manager: a ring with a centre dot, black on transparent so
+ * macOS can render it as a template image in both light and dark menu bars. Generated as PNG bytes
+ * so the icon does not depend on the packaged assets directory layout.
+ */
+export const TRAY_ICON_PNG_1X_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAiUlEQVR42mNgwA70gTgfiOuhOB8qRhCAFO0H4v848H58BoEk3iMpjAdieyiORzL4PTZDYJrfQxXjAvFI6lAMgZkeT4Q345FcCbcdRQDNZdj8DLMQLJePw/b5SIE3H4crQHrB0fQfGljorkLGyC6xh4rVU8UAir1AcSBSHI1USUgUJ2WqZCaysjMAN1JZ8TXdP6gAAAAASUVORK5CYII='
+export const TRAY_ICON_PNG_2X_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABCElEQVR42s1XbQ3EIAydg0lAwiQgASlImIRJQgISJuEk7FjSXC69lu9d2+T9WYCWvvcYLEt/mAQLMMsf4k5yJMSEi0GEMVMLuncYMkk5BJjbHSvs5hrEAWs1J+dafcKi/ksDHr6dGWrW0eS1LeUoqyqCSv5KcB0UOpjbVMRBTDCDzomEJtjW4Z2bSfbFnSCpxLy5iVZ2hJ5+qswOmBB4gybHfY3at4QdsFW6g9VCRD4vOSUwNi3Z7EQC/0SVSplWtlCHO03y7wttLx29OTo8pQPbwP9eUcDeoAOrogBxCsRFqMKG4geR+FEs/jNS8TsWv5CouJKJX0pVXMtVPExUPM3UPE4ffZ6/AXVuZ3wSBIzlAAAAAElFTkSuQmCC'

@@ -53,6 +53,8 @@ import autoUpdate from './auto-update'
 import {startMainDaemon, subscribeDaemonState} from './daemon'
 import {startLocalAgentsServer, stopLocalAgentsServer} from './agents-server-process'
 import {startApiServer, stopApiServer} from './app-http-server'
+import {startAutoStartServices, stopAllServices} from './app-services'
+import {createServicesTray} from './app-tray'
 import {startLocalServer, stopLocalServer} from './local-server'
 import * as logger from './logger'
 import {saveCidAsFile} from './save-cid-as-file'
@@ -178,6 +180,8 @@ app.on('before-quit', () => {
   stopApiServer()
   stopLocalServer()
   stopLocalAgentsServer()
+  // Signals every managed service now; the grace-period kill is best effort since quit does not wait.
+  void stopAllServices()
 
   // Stop memory monitoring
   memoryMonitor.stopTracking()
@@ -324,6 +328,10 @@ app.whenReady().then(async () => {
 
   // Initialize IPC handlers early so loading window can use them
   initializeIpcHandlers()
+
+  // The service manager is independent of the daemon: tray and auto-started services come up immediately.
+  createServicesTray()
+  startAutoStartServices()
 
   startDaemonWithLoadingWindow()
     .then(() => {

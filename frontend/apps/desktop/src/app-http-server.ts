@@ -1,6 +1,7 @@
 import * as http from 'http'
 import {handleApiAction, handleApiRequest} from '@shm/shared/api-server'
 import {API_HTTP_PORT, DAEMON_HTTP_URL} from '@shm/shared/constants'
+import {handleServicesHttpRequest, isServicesHttpPath} from './app-services-http'
 import {grpcClient} from './grpc-client'
 import * as logger from './logger'
 
@@ -8,7 +9,7 @@ let server: http.Server | null = null
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 }
 
@@ -70,6 +71,28 @@ export function startApiServer(): Promise<void> {
       if (!url.pathname.startsWith('/api/')) {
         res.writeHead(404, {'Content-Type': 'application/json'})
         res.end(JSON.stringify({error: 'Not found'}))
+        return
+      }
+
+      // The service manager has its own local API next to the hypermedia one.
+      if (isServicesHttpPath(url.pathname)) {
+        const readJson = async () => {
+          const text = Buffer.from(await readBody(req)).toString('utf8')
+          return text.trim() ? JSON.parse(text) : undefined
+        }
+        let servicesResult
+        try {
+          servicesResult = await handleServicesHttpRequest(
+            req.method || 'GET',
+            url.pathname,
+            url.searchParams,
+            readJson,
+          )
+        } catch (error) {
+          servicesResult = {status: 400, body: {error: (error as Error).message}}
+        }
+        res.writeHead(servicesResult.status, {'Content-Type': 'application/json'})
+        res.end(JSON.stringify(servicesResult.body))
         return
       }
 

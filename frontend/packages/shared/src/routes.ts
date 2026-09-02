@@ -390,6 +390,15 @@ export const apiInspectorRouteSchema = z.object({
 /** Navigation route for the desktop API inspector. */
 export type ApiInspectorRoute = z.infer<typeof apiInspectorRouteSchema>
 
+/** Route for the desktop service manager (long-running local shell commands). */
+export const servicesRouteSchema = z.object({
+  key: z.literal('services'),
+  /** Service whose logs are shown in the detail pane. */
+  serviceId: z.string().optional(),
+})
+/** Navigation route for the desktop service manager. */
+export type ServicesRoute = z.infer<typeof servicesRouteSchema>
+
 /** Route for the desktop Query Documents playground. */
 export const queryDocumentsRouteSchema = z.object({
   key: z.literal('query-documents'),
@@ -449,6 +458,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   agentSessionRouteSchema,
   agentRunRouteSchema,
   apiInspectorRouteSchema,
+  servicesRouteSchema,
   queryDocumentsRouteSchema,
   exploreRouteSchema,
   feedRouteSchema,

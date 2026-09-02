@@ -366,6 +366,11 @@ describe('navRouteSchema', () => {
     expect(navRouteSchema.parse({key: 'api-inspector'})).toEqual({key: 'api-inspector'})
   })
 
+  test('parses the services route with and without a selected service', () => {
+    expect(navRouteSchema.parse({key: 'services'})).toEqual({key: 'services'})
+    expect(navRouteSchema.parse({key: 'services', serviceId: 'abc'})).toEqual({key: 'services', serviceId: 'abc'})
+  })
+
   test('parses the query documents route', () => {
     expect(navRouteSchema.parse({key: 'query-documents'})).toEqual({key: 'query-documents'})
   })

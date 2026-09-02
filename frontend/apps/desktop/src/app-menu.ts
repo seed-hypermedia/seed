@@ -196,6 +196,16 @@ export function createAppMenu() {
             })
           },
         },
+        {
+          id: 'route_services',
+          label: 'Services',
+          accelerator: 'CmdOrCtrl+Shift+S',
+          click: () => {
+            openRoute({
+              key: 'services',
+            })
+          },
+        },
         {type: 'separator'},
         {role: 'resetZoom'},
         {role: 'zoomIn'},

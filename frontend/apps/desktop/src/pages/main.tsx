@@ -53,6 +53,7 @@ var InspectResource = lazy(() => import('./inspect-resource'))
 var InspectIpfs = lazy(() => import('./inspect-ipfs'))
 var DeletedContent = lazy(() => import('./deleted-content'))
 var ApiInspector = lazy(() => import('./api-inspector'))
+var Services = lazy(() => import('./services'))
 var QueryDocuments = lazy(() => import('./query-documents'))
 var Explore = lazy(() => import('./explore'))
 var Agents = lazy(() => import('./agents'))
@@ -451,6 +452,11 @@ function getPageComponent(navRoute: NavRoute) {
     case 'api-inspector':
       return {
         PageComponent: ApiInspector,
+        Fallback: BaseLoading,
+      }
+    case 'services':
+      return {
+        PageComponent: Services,
         Fallback: BaseLoading,
       }
     case 'query-documents':

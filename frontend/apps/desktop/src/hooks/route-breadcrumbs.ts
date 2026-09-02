@@ -85,6 +85,7 @@ const STATIC_WINDOW_TITLES: Partial<Record<NavRoute['key'], string>> = {
   'site-settings': 'Space Settings',
   'deleted-content': 'Deleted Content',
   'api-inspector': 'API Inspector',
+  services: 'Services',
   'query-documents': 'Query Documents',
   explore: 'Explore',
   agents: 'Agents',
@@ -147,6 +148,12 @@ export function computeSimpleRouteBreadcrumbs(routeKey: string): {
         items: [{name: 'API Inspector', id: null, crumbKey: 'api-inspector'}],
         icon: null,
         windowTitle: 'API Inspector',
+      }
+    case 'services':
+      return {
+        items: [{name: 'Services', id: null, crumbKey: 'services'}],
+        icon: null,
+        windowTitle: 'Services',
       }
     default:
       return null

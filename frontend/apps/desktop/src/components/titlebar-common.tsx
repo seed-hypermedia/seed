@@ -637,6 +637,8 @@ function getRouteLabel(route: NavRoute): string | null {
       return 'Settings'
     case 'api-inspector':
       return 'API Inspector'
+    case 'services':
+      return 'Services'
     case 'query-documents':
       return 'Query Documents'
     case 'explore':
