@@ -1,6 +1,6 @@
 # Hypermedia round-trip: edit `hypermedia/` in the Seed app, keep git as the source of truth
 
-Status: in progress (branch `feat/onyx-roundtrip`, based on `feat/onyx`). Started 2026-09-02.
+Status: Phases 1 and 2 done (branch `feat/onyx-roundtrip`, based on `feat/onyx`). Started 2026-09-02. Phase 3 (local dev loop) next.
 
 ## The problem
 

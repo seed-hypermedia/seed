@@ -28,6 +28,7 @@ import type {
 } from '@seed-hypermedia/client/hm-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import {freezeSchemaDraft} from '@shm/ui/onyx/schema-document'
 import {
   documentMachine,
   retargetQueryBlockIncludesForPublish,
@@ -286,9 +287,10 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
     editDocument?.detachedBlocks?.navigation ?? null,
   )
 
-  const metadataChanges = getDocAttributeChanges(
-    expandObjectRemovals(draft.metadata as HMMetadata, editDocument?.metadata),
-  )
+  // A draft's working schema is frozen into a blob here; the published
+  // metadata carries `schemaDefinition`, never `schemaDraft`.
+  const publishMetadata = await freezeSchemaDraft(deps.client, draft.metadata as HMMetadata)
+  const metadataChanges = getDocAttributeChanges(expandObjectRemovals(publishMetadata, editDocument?.metadata))
 
   const allChanges = [...navChanges, ...metadataChanges, ...blockDiff.changes, ...deleteChanges]
 

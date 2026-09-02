@@ -412,7 +412,7 @@ export function mergeAdjacentAnnotations(annotations: Annotation[]): Annotation[
   }
   const out: Annotation[] = []
   for (const {proto, ranges} of byKey.values()) {
-    ranges.sort((a, b) => a.s - b.s || a.e - b.e)
+    ranges.sort((a: {s: number; e: number}, b: {s: number; e: number}) => a.s - b.s || a.e - b.e)
     const merged: {s: number; e: number}[] = []
     for (const r of ranges) {
       const last = merged[merged.length - 1]
@@ -445,8 +445,8 @@ function sortKeys(value: unknown): unknown {
 export type BlockComment = {id: string; type?: string; attrs?: Record<string, unknown>}
 
 const COMMENT_BODY = /<!--\s*id:([A-Za-z0-9_-]+)(?:\s+type:([A-Za-z0-9_-]+))?(?:\s+attrs:(\{.*\}))?\s*-->/
-/** Trailing ` <!-- id:X [type:T] [attrs:{…}] -->` at the end of a line. */
-const TRAILING_COMMENT_RE = new RegExp('\\s*' + COMMENT_BODY.source + '\\s*$')
+/** Trailing ` <!-- id:X [type:T] [attrs:{…}] -->` at the end of a line (one separator space). */
+const TRAILING_COMMENT_RE = new RegExp(' ?' + COMMENT_BODY.source + '\\s*$')
 /** A line that is nothing but a block comment. */
 const STANDALONE_COMMENT_RE = new RegExp('^\\s*' + COMMENT_BODY.source + '\\s*$')
 /** `<!-- end:ID -->` closes the heading with that id. */
@@ -469,7 +469,7 @@ function commentFromMatch(m: RegExpMatchArray): BlockComment {
 /** Strip a trailing block comment from a string. */
 function stripBlockComment(s: string): {text: string; comment?: BlockComment} {
   const m = s.match(TRAILING_COMMENT_RE)
-  if (m) return {text: s.slice(0, m.index!).trimEnd(), comment: commentFromMatch(m)}
+  if (m) return {text: s.slice(0, m.index!), comment: commentFromMatch(m)}
   return {text: s}
 }
 
@@ -500,9 +500,11 @@ type LineInfo = {
 const MARKER_RE = /^([-*+] |\d+[.)] |> )/
 
 function analyzeLine(raw: string): LineInfo {
-  const line = raw.replace(/\t/g, '  ')
-  const indent = line.length - line.trimStart().length
-  let rest = line.slice(indent)
+  // Only the leading run of blanks is indentation (a tab counts as two
+  // columns); whitespace inside the content is content.
+  const lead = /^[ \t]*/.exec(raw)![0]
+  const indent = lead.replace(/\t/g, '  ').length
+  let rest = raw.slice(lead.length)
   const blank = rest.trim() === ''
   let marker = ''
   let markerKind: MarkerKind | undefined

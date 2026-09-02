@@ -562,9 +562,17 @@ function encodeHtmlAttr(s: string): string {
 /** Escape text so the inline parser reads it back verbatim. */
 function escapeInline(s: string, atLineStart: boolean): string {
   let out = s.replace(/[\\`*_~\[\]<]/g, (c) => '\\' + c).replace(/\n/g, '<br>')
-  if (atLineStart)
+  if (atLineStart) {
     out = out.replace(/^(#|[-+>|$]|\d+[.)])/, (m) => (m.length === 1 ? '\\' + m : m.slice(0, -1) + '\\' + m.slice(-1)))
+    // Leading whitespace would read as indentation.
+    if (/^\s/.test(out)) out = '\\' + out
+  }
   return out
+}
+
+/** Trailing whitespace would be lost to the separator before the id comment: escape its last character. */
+function escapeTrailingWhitespace(s: string): string {
+  return /\s$/.test(s) ? s.slice(0, -1) + '\\' + s.slice(-1) : s
 }
 
 function spansFromAnnotations(text: string, annotations: HMAnnotation[] | undefined): Span[] {
@@ -610,7 +618,7 @@ function spanPriority(s: Span): number {
 /** Render text + annotations as inline markdown. */
 function renderInline(text: string, annotations: HMAnnotation[] | undefined, options: RenderInlineOptions): string {
   const spans = spansFromAnnotations(text, annotations)
-  if (spans.length === 0) return escapeInline(text, options.atLineStart)
+  if (spans.length === 0) return escapeTrailingWhitespace(escapeInline(text, options.atLineStart))
 
   const boundaries = new Set<number>([0, text.length])
   for (const s of spans) {
@@ -672,7 +680,7 @@ function renderInline(text: string, annotations: HMAnnotation[] | undefined, opt
     }
   }
   while (stack.length) out += stack.pop()!.close
-  return out
+  return escapeTrailingWhitespace(out)
 }
 
 /** Open/close markers for a span, given the chunk it is about to wrap. */

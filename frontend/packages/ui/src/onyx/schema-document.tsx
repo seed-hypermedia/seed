@@ -9,7 +9,7 @@ import {Layers, Plus, SearchCode} from 'lucide-react'
 import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
 import {useMemo, useState} from 'react'
-import {useUniversalClient} from '@shm/shared'
+import {useUniversalClient, type UniversalClient} from '@shm/shared'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {Button} from '../button'
 import {Dialog, DialogContent, DialogHeader, DialogTitle} from '../components/dialog'
@@ -52,6 +52,29 @@ export function schemaDraftValue(metadata: unknown): Record<string, any> | null 
   if (!metadata || typeof metadata !== 'object') return null
   const raw = (metadata as Record<string, unknown>)[SCHEMA_DRAFT_KEY]
   return raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, any>) : null
+}
+
+/**
+ * Freeze a draft's working schema into a DAG-CBOR blob for publish.
+ *
+ * Returns the metadata to publish: `schemaDraft` removed and
+ * `schemaDefinition` pointing at the published blob. Metadata without a
+ * working schema passes through untouched. Both the desktop and the web
+ * publish paths call this, so a `schemaDraft` never reaches a published
+ * document.
+ */
+export async function freezeSchemaDraft<M extends Record<string, unknown> | undefined | null>(
+  client: {request: UniversalClient['request']},
+  metadata: M,
+): Promise<M> {
+  const draft = schemaDraftValue(metadata)
+  if (!draft) return metadata
+  const data = cbor.encode(dagJsonToIpld(draft) as any)
+  const digest = await sha256.digest(data)
+  const cid = CID.createV1(DAG_CBOR_CODE, digest).toString()
+  await client.request('PublishBlobs', {blobs: [{cid, data}]})
+  const {[SCHEMA_DRAFT_KEY]: _omit, ...rest} = metadata as Record<string, unknown>
+  return {...rest, [SCHEMA_DEFINITION_KEY]: `ipfs://${cid}`} as unknown as M
 }
 
 /** The bare schema CID a document points at via its `schemaDefinition` metadata, or null. */
