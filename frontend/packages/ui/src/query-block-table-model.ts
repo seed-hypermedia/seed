@@ -182,22 +182,60 @@ export function queryTableItemMatchesSearch(
   return text.includes(normalized)
 }
 
+export function getQueryTableColumnType(
+  columnId: string,
+  value: unknown,
+  descriptor?: QueryTableColumn,
+): QueryTableAttributeType {
+  if (descriptor) return descriptor.type
+  if (columnId === 'updated' || columnId === 'created') return 'date'
+  if (['children', 'comments', 'citations'].includes(columnId)) return 'number'
+  if (isTimestampValue(value)) return 'date'
+  if (typeof value === 'number' || typeof value === 'bigint') return 'number'
+  if (typeof value === 'boolean') return 'boolean'
+  if (value !== null && value !== undefined && value !== '') return inferAttributeType([value])
+  return 'text'
+}
+
+function toComparableValue(raw: unknown, type: QueryTableAttributeType) {
+  if (type === 'number' || type === 'boolean') {
+    const n = typeof raw === 'boolean' ? Number(raw) : Number(raw)
+    if (Number.isFinite(n)) return {type: 'number' as const, value: n}
+  }
+  if (type === 'date') {
+    const date = normalizeDate(raw as AnyTimestamp)
+    if (date) return {type: 'number' as const, value: date.getTime()}
+    const n = Number(raw)
+    if (Number.isFinite(n)) return {type: 'number' as const, value: n}
+  }
+  return {type: 'string' as const, value: queryTableValueToString(raw).toLocaleLowerCase()}
+}
+
 /** Applies temporary Query table filters using AND semantics. */
 export function filterQueryTableItems(
   items: HMDocumentInfo[],
   filters: QueryTableFilter[],
   context?: QueryTableValueContext,
+  descriptors?: QueryTableColumn[],
 ): HMDocumentInfo[] {
   return items.filter((item) =>
     filters.every((filter) => {
       const value = getQueryTableValue(item, filter.columnId, context)
-      const text = queryTableValueToString(value)
-      if (filter.operator === 'contains') return text.toLocaleLowerCase().includes(filter.value.toLocaleLowerCase())
-      if (filter.operator === 'equals') return text.toLocaleLowerCase() === filter.value.toLocaleLowerCase()
-      const left = Number(value)
-      const right = Number(filter.value)
-      if (!Number.isFinite(left) || !Number.isFinite(right)) return false
-      return filter.operator === 'greaterThan' ? left > right : left < right
+      const needle = filter.value.toLocaleLowerCase()
+      if (filter.operator === 'contains' || filter.operator === 'equals') {
+        const text = queryTableValueToString(value).toLocaleLowerCase()
+        return filter.operator === 'contains' ? text.includes(needle) : text === needle
+      }
+      const descriptor = descriptors?.find((d) => d.id === filter.columnId)
+      const type = getQueryTableColumnType(filter.columnId, value, descriptor)
+      const left = toComparableValue(value, type)
+      const right = toComparableValue(filter.value, type)
+      if (left.type === 'number' && right.type === 'number') {
+        return filter.operator === 'greaterThan' ? left.value > right.value : left.value < right.value
+      }
+      return filter.operator === 'greaterThan'
+        ? String(left.value) > String(right.value)
+        : String(left.value) < String(right.value)
     }),
   )
 }

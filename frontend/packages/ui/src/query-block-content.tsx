@@ -20,6 +20,7 @@ import {
   buildQueryTableColumns,
   filterQueryTableItems,
   getDocumentTags,
+  getQueryTableColumnType,
   getQueryTableSortValue,
   getQueryTableValue,
   moveQueryTableColumn,
@@ -168,7 +169,7 @@ export function QueryBlockContent({
 
   const filteredItems = useMemo(
     () =>
-      filterQueryTableItems(items, filters, context).filter((item) =>
+      filterQueryTableItems(items, filters, context, descriptors).filter((item) =>
         queryTableItemMatchesSearch(item, search, descriptors, context),
       ),
     [items, filters, context, search, descriptors],
@@ -230,10 +231,15 @@ export function QueryBlockContent({
     )
   }
 
+  const hasPrependItems = prependItems && prependItems.length > 0
+  const hasItems = sortedItems.length > 0 || hasPrependItems
+
   return (
     <div className="flex flex-col">
       <QueryBlockToolbar
         descriptors={descriptors}
+        items={items}
+        context={context}
         columnOrder={columnOrder}
         columnVisibility={columnVisibility}
         visibleColumnCount={visibleColumnCount}
@@ -246,7 +252,7 @@ export function QueryBlockContent({
         search={search}
         setSearch={setSearch}
       />
-      {sortedItems.length === 0 ? (
+      {!hasItems ? (
         <div className="text-muted-foreground flex h-28 items-center justify-center rounded-md border text-sm">
           {items.length === 0 ? 'No documents found.' : 'No documents match the current search and filters.'}
         </div>
@@ -276,7 +282,7 @@ export function QueryBlockContent({
           titleLinkOnly={titleLinkOnly}
         />
       ) : (
-        <QueryBlockList items={sortedItems} context={context} />
+        <QueryBlockList items={sortedItems} prependItems={prependItems} context={context} />
       )}
     </div>
   )
@@ -284,6 +290,8 @@ export function QueryBlockContent({
 
 function QueryBlockToolbar({
   descriptors,
+  items,
+  context,
   columnOrder,
   columnVisibility,
   visibleColumnCount,
@@ -297,6 +305,8 @@ function QueryBlockToolbar({
   setSearch,
 }: {
   descriptors: QueryTableColumn[]
+  items: HMDocumentInfo[]
+  context: QueryTableValueContext
   columnOrder: string[]
   columnVisibility: Record<string, boolean>
   visibleColumnCount: number
@@ -312,7 +322,13 @@ function QueryBlockToolbar({
   return (
     <div className="border-border bg-muted/30 flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
       <div className="flex items-center gap-2">
-        <FilterPopover descriptors={descriptors} filters={filters} setFilters={setFilters} />
+        <FilterPopover
+          descriptors={descriptors}
+          items={items}
+          context={context}
+          filters={filters}
+          setFilters={setFilters}
+        />
         <SortPopover descriptors={descriptors} sorting={sorting} setSorting={setSorting} />
         <AttributesPopover
           descriptors={descriptors}
@@ -339,10 +355,14 @@ function QueryBlockToolbar({
 
 function FilterPopover({
   descriptors,
+  items,
+  context,
   filters,
   setFilters,
 }: {
   descriptors: QueryTableColumn[]
+  items: HMDocumentInfo[]
+  context: QueryTableValueContext
   filters: QueryTableFilter[]
   setFilters: (filters: QueryTableFilter[]) => void
 }) {
@@ -362,17 +382,33 @@ function FilterPopover({
                 id={`filter-column-${index}`}
                 options={descriptors.map((d) => ({value: d.id, label: d.label}))}
                 value={filter.columnId}
-                onValue={(value) => setFilters(filters.map((f, i) => (i === index ? {...f, columnId: value} : f)))}
+                onValue={(value) => {
+                  const nextColumnType = getQueryTableColumnType(
+                    value,
+                    items[0] ? getQueryTableValue(items[0], value, context) : undefined,
+                    descriptors.find((d) => d.id === value),
+                  )
+                  setFilters(
+                    filters.map((f, i) =>
+                      i === index
+                        ? {
+                            ...f,
+                            columnId: value,
+                            operator:
+                              (nextColumnType === 'text' || nextColumnType === 'list') &&
+                              (f.operator === 'greaterThan' || f.operator === 'lessThan')
+                                ? 'contains'
+                                : f.operator,
+                          }
+                        : f,
+                    ),
+                  )
+                }}
                 className="flex-1"
               />
               <SelectField
                 id={`filter-operator-${index}`}
-                options={[
-                  {value: 'contains', label: 'contains'},
-                  {value: 'equals', label: 'equals'},
-                  {value: 'greaterThan', label: '>'},
-                  {value: 'lessThan', label: '<'},
-                ]}
+                options={getFilterOperatorOptions(filter.columnId, items, context, descriptors)}
                 value={filter.operator}
                 onValue={(value) =>
                   setFilters(
@@ -409,6 +445,25 @@ function FilterPopover({
       </PopoverContent>
     </Popover>
   )
+}
+
+function getFilterOperatorOptions(
+  columnId: string,
+  items: HMDocumentInfo[],
+  context: QueryTableValueContext,
+  descriptors: QueryTableColumn[],
+) {
+  const descriptor = descriptors.find((d) => d.id === columnId)
+  const value = items[0] ? getQueryTableValue(items[0], columnId, context) : undefined
+  const type = getQueryTableColumnType(columnId, value, descriptor)
+  const options = [
+    {value: 'contains', label: 'contains'},
+    {value: 'equals', label: 'equals'},
+  ]
+  if (type !== 'text' && type !== 'list') {
+    options.push({value: 'greaterThan', label: '>'}, {value: 'lessThan', label: '<'})
+  }
+  return options
 }
 
 function SortPopover({
@@ -578,10 +633,19 @@ function useProgressiveChunk<T>(items: T[]) {
   return {visibleCount, sentinelRef}
 }
 
-function QueryBlockList({items, context}: {items: HMDocumentInfo[]; context: QueryTableValueContext}) {
+function QueryBlockList({
+  items,
+  prependItems,
+  context,
+}: {
+  items: HMDocumentInfo[]
+  prependItems?: ReactNode[]
+  context: QueryTableValueContext
+}) {
   const {visibleCount, sentinelRef} = useProgressiveChunk(items)
   return (
     <div className="flex flex-col">
+      {prependItems}
       {items.slice(0, visibleCount).map((item) => (
         <QueryBlockListItem key={item.id.id} item={item} context={context} />
       ))}
@@ -694,13 +758,21 @@ function QueryBlockCard({
 }) {
   const title = getMetadataName(item.metadata) || item.path.at(-1) || 'Untitled'
   const updated = getQueryTableValue(item, 'updated', context)
+  const linkProps = useRouteLink({key: 'document', id: item.id})
+  const titleNode = titleLinkOnly ? (
+    <a {...linkProps} className="font-semibold hover:underline">
+      {title}
+    </a>
+  ) : (
+    <span className="font-semibold">{title}</span>
+  )
   const body = (
     <div className="border-border bg-background flex flex-col gap-3 rounded-lg border p-4 transition-shadow hover:shadow-sm">
       <div className="bg-muted text-muted-foreground flex h-9 w-9 items-center justify-center rounded-md">
         <FileText className="size-5" />
       </div>
       <div className="flex flex-col gap-1">
-        <span className="font-semibold">{title}</span>
+        {titleNode}
         <span className="text-muted-foreground text-sm">{formattedDate(updated as any)}</span>
       </div>
       <div className="mt-auto flex justify-end">
@@ -710,7 +782,6 @@ function QueryBlockCard({
   )
 
   if (navigateCards && !titleLinkOnly) {
-    const linkProps = useRouteLink({key: 'document', id: item.id})
     return (
       <a {...linkProps} className="block no-underline">
         {body}
@@ -718,11 +789,7 @@ function QueryBlockCard({
     )
   }
 
-  return (
-    <QueryBlockItemTitle item={item} className="block no-underline">
-      {body}
-    </QueryBlockItemTitle>
-  )
+  return body
 }
 
 function QueryBlockItemTitle({

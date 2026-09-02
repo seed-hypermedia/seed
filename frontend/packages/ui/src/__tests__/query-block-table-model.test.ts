@@ -76,6 +76,23 @@ describe('query block table model', () => {
     ).toEqual(['Two'])
   })
 
+  it('filters date columns using greaterThan and lessThan by comparing timestamps', () => {
+    const early = {...item('Early', {}), updateTime: '2026-01-01T00:00:00Z'} as HMDocumentInfo
+    const late = {...item('Late', {}), updateTime: '2026-03-01T00:00:00Z'} as HMDocumentInfo
+
+    expect(
+      filterQueryTableItems([early, late], [{columnId: 'updated', operator: 'greaterThan', value: '2026-02-15'}]).map(
+        (result) => result.metadata.name,
+      ),
+    ).toEqual(['Late'])
+
+    expect(
+      filterQueryTableItems([early, late], [{columnId: 'updated', operator: 'lessThan', value: '2026-02-15'}]).map(
+        (result) => result.metadata.name,
+      ),
+    ).toEqual(['Early'])
+  })
+
   it('moves a configured column without losing the others', () => {
     expect(moveQueryTableColumn(['title', 'metadata:status', 'updated'], 'metadata:status', -1)).toEqual([
       'metadata:status',

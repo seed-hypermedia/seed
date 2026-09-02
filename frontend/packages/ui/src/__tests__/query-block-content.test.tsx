@@ -181,6 +181,63 @@ describe('QueryBlockContent table view', () => {
   })
 })
 
+describe('QueryBlockContent list view with prepended draft items', () => {
+  it('renders prepended draft items even when no published documents match the query', () => {
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={[]}
+          style="List"
+          accountsMetadata={{}}
+          prependItems={[<div data-testid="draft-slot">Draft item</div>]}
+        />,
+      )
+    })
+
+    expect(container.querySelector('[data-testid="draft-slot"]')).toBeTruthy()
+    expect(container.textContent).not.toContain('No documents found.')
+    expect(container.textContent).not.toContain('No documents match the current search and filters.')
+  })
+})
+
+describe('QueryBlockContent card view navigation', () => {
+  function renderCard(props?: {navigateCards?: boolean; titleLinkOnly?: boolean}) {
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={makeItems(1)}
+          style="Card"
+          accountsMetadata={{}}
+          navigateCards={props?.navigateCards}
+          titleLinkOnly={props?.titleLinkOnly}
+        />,
+      )
+    })
+  }
+
+  it('wraps the whole card in an anchor when navigateCards is true and titleLinkOnly is false', () => {
+    renderCard({navigateCards: true, titleLinkOnly: false})
+
+    const links = container.querySelectorAll('a')
+    expect(links).toHaveLength(1)
+    expect(links[0]?.textContent).toContain('Item 0')
+  })
+
+  it('links only the card title when titleLinkOnly is true', () => {
+    renderCard({navigateCards: false, titleLinkOnly: true})
+
+    const links = container.querySelectorAll('a')
+    expect(links).toHaveLength(1)
+    expect(links[0]?.textContent).toBe('Item 0')
+  })
+
+  it('renders no anchor when neither navigateCards nor titleLinkOnly is true', () => {
+    renderCard({navigateCards: false, titleLinkOnly: false})
+
+    expect(container.querySelectorAll('a')).toHaveLength(0)
+  })
+})
+
 describe('QueryBlockContent progressive list rendering', () => {
   it('renders an initial chunk of rows, then loads more when the sentinel nears the viewport', () => {
     act(() => {
