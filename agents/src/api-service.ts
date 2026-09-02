@@ -210,6 +210,14 @@ export const MAX_MODEL_TOOL_RESULT_BYTES = 8 * 1024
 const MAX_WRITE_CONTENT_BYTES = 256 * 1024
 const DEFAULT_SESSION_PAGE_SIZE = 50
 const MAX_SESSION_PAGE_SIZE = 200
+/** TTL for cached per-session derived data (trigger context, continuation links); bounds staleness. */
+const SESSION_DERIVED_CACHE_TTL_MS = 2_000
+/** Cap for the per-session derived caches; a full clear past this keeps them from growing unbounded. */
+const SESSION_DERIVED_CACHE_MAX = 5_000
+/** Coalescing window for the per-session "list may have reordered" signal (see #signalSessionListChange). */
+const SESSION_LIST_SIGNAL_WINDOW_MS = 1_500
+/** Batching interval for streamed assistant text deltas before they are broadcast to subscribers. */
+const PARTIAL_FLUSH_INTERVAL_MS = 80
 const MAX_CONTEXT_LINES = 64
 const MAX_CONTEXT_LINE_BYTES = 2 * 1024
 const MAX_MESSAGE_ATTACHMENTS = 16
@@ -783,6 +791,19 @@ export class Service {
   readonly #runWaiters = new Map<string, Array<(run: runs.RunRecord) => void>>()
   /** Live workflow VMs whose cancellation was requested; their interrupt handlers check this. */
   readonly #workflowCancelFlags = new Set<string>()
+  // Per-session trigger-context and continuation-links are recomputed for EVERY session in every
+  // ListSessions response and every session-change broadcast. Under many polling clients that
+  // recomputation (an indexed query, two CBOR decodes, a JSON parse and a blocks→markdown render
+  // per session) saturates the single event loop. Both derive from rows that change rarely, so a
+  // short TTL cache collapses the repeated work while bounding staleness to a couple of seconds.
+  readonly #triggerContextCache = new Map<string, {at: number; value: api.AgentSessionTriggerContext | null}>()
+  readonly #continuationLinksCache = new Map<string, {at: number; value: SessionContinuationLinks}>()
+  // The `session-event` account-change is a "the session list may have reordered" signal that clients
+  // turn into a ListSessions refetch. A busy run appends dozens of events per turn, so emitting one
+  // per event makes every subscriber refetch the whole list dozens of times a turn. These maps
+  // coalesce that signal per session (leading + trailing) so a burst collapses to ~one refetch.
+  readonly #sessionListSignalAt = new Map<string, number>()
+  readonly #sessionListSignalTimer = new Map<string, ReturnType<typeof setTimeout>>()
   /** Whether untitled sessions get a dedicated model call to name them (server opt-in). */
   readonly #titleGenerationEnabled: boolean
   /** Sessions with a title generation in flight, so parks + finalizes do not double-spend. */
@@ -6742,6 +6763,13 @@ export class Service {
     piSession.state.messages = replayMessages as never
     let partialId = crypto.randomUUID()
     let partialText = ''
+    // Streamed text deltas are coalesced into ~PARTIAL_FLUSH_INTERVAL_MS batches before broadcast:
+    // a reasoning model emits hundreds of tokens per turn, and one WS frame per token per subscriber
+    // dominated the server's outbound traffic. Batching cuts that ~10-50x with no visible change to
+    // the client (it just appends slightly chunkier text). Any pending batch is flushed before any
+    // non-text event so transcript ordering is preserved.
+    let pendingDelta = ''
+    let pendingDeltaTimer: ReturnType<typeof setTimeout> | undefined
     let currentAssistantHadDelta = false
     let suppressCurrentAssistantEndFallback = false
     let finalError: string | undefined
@@ -6805,6 +6833,7 @@ export class Service {
 
     const appendAssistantMessage = (content: string): void => {
       if (!content.trim()) return
+      flushPendingDelta()
       this.#emit({type: 'session-partial', accountId, agentId: session.agentId, sessionId, partialId, done: true})
       assistantEvent = this.#appendSessionEvent(
         accountId,
@@ -6826,7 +6855,32 @@ export class Service {
       currentAssistantHadDelta = false
     }
 
+    // Broadcasts the accumulated text batch as one partial (and echoes it to the run log). Called on
+    // the flush timer and — crucially — before any non-text event, so the streamed text always
+    // reaches subscribers ahead of the tool call / message-end / progress event that follows it.
+    const flushPendingDelta = (): void => {
+      if (pendingDeltaTimer) {
+        clearTimeout(pendingDeltaTimer)
+        pendingDeltaTimer = undefined
+      }
+      if (!pendingDelta) return
+      const batch = pendingDelta
+      pendingDelta = ''
+      process.stdout.write(batch)
+      this.#emit({
+        type: 'session-partial',
+        accountId,
+        agentId: session.agentId,
+        sessionId,
+        partialId,
+        textDelta: batch,
+      })
+    }
+
     const unsubscribe = piSession.subscribe((event) => {
+      const isTextDelta = event.type === 'message_update' && event.assistantMessageEvent.type === 'text_delta'
+      // Keep streamed text ahead of whatever event comes next.
+      if (!isTextDelta) flushPendingDelta()
       if (
         awaitingFirstOutput &&
         (event.type === 'message_update' || event.type === 'message_end' || event.type === 'tool_execution_start')
@@ -6836,24 +6890,17 @@ export class Service {
         recordPerf('provider.ttft', ttftMs)
         logRun('provider first output', {ttftMs})
       }
-      if (event.type === 'message_update' && event.assistantMessageEvent.type === 'text_delta') {
+      if (isTextDelta && event.type === 'message_update' && event.assistantMessageEvent.type === 'text_delta') {
         const delta = event.assistantMessageEvent.delta
         if (!currentAssistantHadDelta) {
           logRun('assistant text streaming', {partialId})
           emitProgress({activity: {phase: 'responding'}})
           streamingLogOpen = true
         }
-        process.stdout.write(delta)
         partialText += delta
+        pendingDelta += delta
         currentAssistantHadDelta = true
-        this.#emit({
-          type: 'session-partial',
-          accountId,
-          agentId: session.agentId,
-          sessionId,
-          partialId,
-          textDelta: delta,
-        })
+        if (!pendingDeltaTimer) pendingDeltaTimer = setTimeout(flushPendingDelta, PARTIAL_FLUSH_INTERVAL_MS)
         return
       }
       if (event.type === 'message_end' && event.message.role === 'assistant') {
@@ -7047,6 +7094,7 @@ export class Service {
       logRun('turn ended after tool batch', {parked: runningSession.parkToolCallIds?.length ?? 0})
     } finally {
       endStreamingLog()
+      flushPendingDelta()
       this.#runningSessions.delete(runningSessionKey)
       unsubscribe()
       piSession.dispose()
@@ -7348,9 +7396,39 @@ export class Service {
       now,
     ])
     const info = {id, sessionId, seq, event, createdAt: now}
+    // Content stream: every event reaches the open session view immediately.
     this.#emit({type: 'session-event', accountId, agentId, event: info})
-    this.#emit({type: 'account-change', accountId, reason: 'session-event', agentId, sessionId})
+    // List-reorder signal: coalesced so a burst of events collapses to ~one ListSessions refetch.
+    this.#signalSessionListChange(accountId, agentId, sessionId)
     return info
+  }
+
+  /**
+   * Emits the `session-event` account-change (a "session list may have reordered" hint) at most
+   * once per {@link SESSION_LIST_SIGNAL_WINDOW_MS} per session: the first event fires immediately,
+   * and any further events within the window collapse into a single trailing emit. This keeps the
+   * sidebar's ordering fresh without turning every appended event into a fleet-wide refetch.
+   */
+  #signalSessionListChange(accountId: string, agentId: string, sessionId: string): void {
+    const key = `${accountId} ${sessionId}`
+    const now = Date.now()
+    const last = this.#sessionListSignalAt.get(key) ?? 0
+    if (now - last >= SESSION_LIST_SIGNAL_WINDOW_MS) {
+      this.#sessionListSignalAt.set(key, now)
+      this.#emit({type: 'account-change', accountId, reason: 'session-event', agentId, sessionId})
+      return
+    }
+    if (this.#sessionListSignalTimer.has(key)) return
+    const timer = setTimeout(
+      () => {
+        this.#sessionListSignalTimer.delete(key)
+        this.#sessionListSignalAt.set(key, Date.now())
+        this.#emit({type: 'account-change', accountId, reason: 'session-event', agentId, sessionId})
+      },
+      SESSION_LIST_SIGNAL_WINDOW_MS - (now - last),
+    )
+    timer.unref?.()
+    this.#sessionListSignalTimer.set(key, timer)
   }
 
   #updateSessionStatus(accountId: string, sessionId: string, status: api.SessionInfo['status'], now: number): void {
@@ -7751,7 +7829,17 @@ export class Service {
    * came back and branched again); the newest is the one advertised as "where this went".
    */
   #sessionContinuationLinks(accountId: string, sessionId: string): SessionContinuationLinks {
-    return sessionContinuationLinksOf(this.#db, accountId, sessionId)
+    const key = `${accountId} ${sessionId}`
+    const hit = this.#continuationLinksCache.get(key)
+    if (hit && Date.now() - hit.at < SESSION_DERIVED_CACHE_TTL_MS) return hit.value
+    const value = sessionContinuationLinksOf(this.#db, accountId, sessionId)
+    // Cache only once an edge exists; a session with no continuation is left uncached so a new
+    // continuation surfaces on the next read rather than after the TTL (no invalidation needed).
+    if (value.continuedFrom || value.continuedTo) {
+      if (this.#continuationLinksCache.size > SESSION_DERIVED_CACHE_MAX) this.#continuationLinksCache.clear()
+      this.#continuationLinksCache.set(key, {at: Date.now(), value})
+    }
+    return value
   }
 
   /**
@@ -7774,6 +7862,22 @@ export class Service {
   }
 
   #getSessionTriggerContext(accountId: string, sessionId: string): api.AgentSessionTriggerContext | null {
+    const key = `${accountId} ${sessionId}`
+    const hit = this.#triggerContextCache.get(key)
+    if (hit && Date.now() - hit.at < SESSION_DERIVED_CACHE_TTL_MS) return hit.value
+    const value = this.#computeSessionTriggerContext(accountId, sessionId)
+    // Cache only a present firing (the expensive path: CBOR decodes, a JSON parse and a
+    // blocks→markdown render). A session with no firing is left uncached, so the moment a trigger
+    // fires for it the next read recomputes instead of serving a stale null — no invalidation
+    // needed, and the no-firing read is just one indexed lookup.
+    if (value) {
+      if (this.#triggerContextCache.size > SESSION_DERIVED_CACHE_MAX) this.#triggerContextCache.clear()
+      this.#triggerContextCache.set(key, {at: Date.now(), value})
+    }
+    return value
+  }
+
+  #computeSessionTriggerContext(accountId: string, sessionId: string): api.AgentSessionTriggerContext | null {
     const row = this.#db
       .query<SessionTriggerRow, [string, string]>(
         `SELECT f.id AS firing_id, f.trigger_id, f.activity_key, f.activity_cbor, f.status, f.error,

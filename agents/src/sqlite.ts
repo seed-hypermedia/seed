@@ -13,6 +13,12 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // #getSessionTriggerContext filters trigger_firings by (account_id, session_id) with ORDER BY
+  // created_at, but the only usable index was the (account_id, …) autoindex prefix — so each call
+  // scanned every firing for the account and temp-b-tree-sorted (~9ms on prod). It runs once per
+  // session in every ListSessions and session-change broadcast, so under many polling clients it
+  // saturated the event loop. This index makes it a direct lookup (~0.05ms).
+  `CREATE INDEX IF NOT EXISTS trigger_firings_by_session ON trigger_firings (account_id, session_id, created_at);`,
   // Session continuation: the typed predecessor/successor edge continue_session creates, with the
   // projection manifest that says exactly what the successor started from.
   `CREATE TABLE session_continuations (

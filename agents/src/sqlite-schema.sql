@@ -164,6 +164,8 @@ CREATE TABLE trigger_firings (
 
 CREATE INDEX trigger_firings_by_trigger ON trigger_firings (trigger_id, created_at DESC);
 
+CREATE INDEX trigger_firings_by_session ON trigger_firings (account_id, session_id, created_at);
+
 CREATE TABLE activity_watermarks (
     account_id TEXT NOT NULL REFERENCES accounts (id),
     server_url TEXT NOT NULL,
