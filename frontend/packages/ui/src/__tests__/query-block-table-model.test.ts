@@ -28,20 +28,19 @@ function item(name: string, metadata: Record<string, unknown>): HMDocumentInfo {
 }
 
 describe('query block table model', () => {
-  it('orders discovered custom columns between title and default core columns', () => {
-    const columns = buildQueryTableColumns([item('One', {priority: 2}), item('Two', {status: 'Draft'})])
+  it('returns the core query table columns in the expected order', () => {
+    const columns = buildQueryTableColumns()
 
     expect(columns.map((column) => [column.id, column.defaultVisible])).toEqual([
       ['title', true],
-      ['metadata:priority', true],
-      ['metadata:status', true],
+      ['tags', true],
+      ['updated', true],
+      ['children', true],
       ['comments', true],
       ['citations', true],
-      ['updated', true],
-      ['authors', true],
+      ['authors', false],
       ['created', false],
       ['path', false],
-      ['children', false],
     ])
   })
 
@@ -54,15 +53,16 @@ describe('query block table model', () => {
   })
 
   it('searches all row data, including values belonging to hidden columns', () => {
-    expect(queryTableItemMatchesSearch(item('One', {secret: 'Needle'}), 'needle')).toBe(true)
+    expect(queryTableItemMatchesSearch(item('One', {secret: 'Needle'}), 'needle', buildQueryTableColumns())).toBe(true)
   })
 
   it('searches rows containing BigInt-backed activity values without throwing', () => {
     const row = item('One', {secret: 'Needle'}) as HMDocumentInfo & {activitySummary: {commentCount: bigint}}
     ;(row as any).activitySummary = {commentCount: 1n}
 
-    expect(() => queryTableItemMatchesSearch(row, 'needle')).not.toThrow()
-    expect(queryTableItemMatchesSearch(row, 'needle')).toBe(true)
+    const descriptors = buildQueryTableColumns()
+    expect(() => queryTableItemMatchesSearch(row, 'needle', descriptors)).not.toThrow()
+    expect(queryTableItemMatchesSearch(row, 'needle', descriptors)).toBe(true)
   })
 
   it('combines typed attribute filters with AND', () => {
@@ -74,6 +74,23 @@ describe('query block table model', () => {
         {columnId: 'metadata:status', operator: 'contains', value: 'read'},
       ]).map((result) => result.metadata.name),
     ).toEqual(['Two'])
+  })
+
+  it('filters date columns using greaterThan and lessThan by comparing timestamps', () => {
+    const early = {...item('Early', {}), updateTime: '2026-01-01T00:00:00Z'} as HMDocumentInfo
+    const late = {...item('Late', {}), updateTime: '2026-03-01T00:00:00Z'} as HMDocumentInfo
+
+    expect(
+      filterQueryTableItems([early, late], [{columnId: 'updated', operator: 'greaterThan', value: '2026-02-15'}]).map(
+        (result) => result.metadata.name,
+      ),
+    ).toEqual(['Late'])
+
+    expect(
+      filterQueryTableItems([early, late], [{columnId: 'updated', operator: 'lessThan', value: '2026-02-15'}]).map(
+        (result) => result.metadata.name,
+      ),
+    ).toEqual(['Early'])
   })
 
   it('moves a configured column without losing the others', () => {
