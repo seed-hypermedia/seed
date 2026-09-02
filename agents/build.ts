@@ -11,7 +11,7 @@ process.chdir(path.dirname(fileURLToPath(import.meta.url)))
 await rm(OUTDIR, {recursive: true, force: true})
 
 const result = await Bun.build({
-  entrypoints: ['./src/main.ts'],
+  entrypoints: ['./src/main.ts', './src/workflow-worker-entry.ts'],
   outdir: OUTDIR,
   target: 'bun',
   minify: process.env.NODE_ENV === 'production',
