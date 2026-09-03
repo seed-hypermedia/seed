@@ -1,7 +1,7 @@
 ---
 name: Faction
 summary: "A world-builder kit type: a page about a faction, order, house, or guild. Requires a `founded` date; links to its seat (a Place) and leader (a Character), and a"
-schemaDefinition: ipfs://bafyreihjtji3ktrqo7bky2ts7a5fn6lsr6k4hww2x23ztnvnxq66syah3y
+schemaDefinition: ipfs://bafyreihpy6erryjoq77aj6inxdsptnw7z3ukor3ps33bqddk73njujdqbq
 ---
 A world-builder kit type: a page about a faction, order, house, or guild. Requires a `founded` date; links to its seat (a Place) and leader (a Character), and a banner image. <!-- id:RvItBHZN -->
 

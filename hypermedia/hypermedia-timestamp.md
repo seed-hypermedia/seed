@@ -1,7 +1,7 @@
 ---
 name: Timestamp
 summary: A timestamp, encoded as an integer of Unix milliseconds.
-schemaDefinition: ipfs://bafyreidmrhyzguoenl5hs35totiupl6asimav4wtuwf3xy34ib6dshhhvm
+schemaDefinition: ipfs://bafyreifdp757xdc6dduixp7ldku45v7zv34jdnkavga2chz27hvlqb5lvm
 ---
 This document describes the **hypermedia-timestamp** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:DVkzg-Yi -->
 

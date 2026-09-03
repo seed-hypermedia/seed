@@ -10,7 +10,5 @@
     "value": {
       "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-value"
     }
-  },
-  "description": "A metadata attribute: a dotted key path (segments) and a value.",
-  "name": "Key/value"
+  }
 }

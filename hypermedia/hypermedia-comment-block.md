@@ -1,7 +1,7 @@
 ---
 name: Comment block
 summary: "A comment content block: a Block extended with a recursive list of child comment blocks."
-schemaDefinition: ipfs://bafyreido7bfqmeitfwrueasfrsxpsk2hryrpuki7lnokakc7lxe535szue
+schemaDefinition: ipfs://bafyreibgcsmzr4vjzuldgivo7nr734oa3uey74pvxfdertyjf5p25xsttq
 ---
 This document describes the **hypermedia-comment-block** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:mJYa3roS -->
 

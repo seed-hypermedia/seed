@@ -26,7 +26,5 @@
     "moreCommentsCount",
     "id",
     "type"
-  ],
-  "description": "A thread of comments grouped for display, with a count of elided replies. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.",
-  "name": "Comment group"
+  ]
 }

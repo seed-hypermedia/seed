@@ -16,7 +16,5 @@
         "member"
       ]
     }
-  },
-  "description": "One member of a site with their effective role. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.",
-  "name": "Site member"
+  }
 }
