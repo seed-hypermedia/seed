@@ -2,10 +2,12 @@ import {getMetadataName} from '@shm/shared/content'
 import {useResource} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
 import {packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {FileText, User, X} from 'lucide-react'
+import {FileCode2, FileText, User, X} from 'lucide-react'
 import {useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
+import {ONYX_SCHEMAS, refToName, schemaCid} from './onyx/onyx-engine'
+import {ONYX_PAGES} from './onyx/onyx-schemas.generated'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
@@ -101,10 +103,21 @@ export function HMEntityLink({
   const id = url ? unpackHmId(url) : null
   const resource = useResource(id)
   const document = resource.data && 'document' in resource.data ? resource.data.document : undefined
-  const title = getMetadataName(document?.metadata) || undefined
+  // A reference to a library type (a `type` or `ref` in a schema) is named by
+  // its bundled page even when the site does not carry that page (yet).
+  const slug = url.startsWith('hm://') ? refToName(url) : ''
+  const library = slug && ONYX_SCHEMAS[slug] ? slug : null
+  const title = document
+    ? getMetadataName(document.metadata)
+    : library
+      ? ONYX_PAGES[library]?.name ?? library
+      : undefined
+  const missing = !resource.isLoading && !document
   const isProfile = mode === 'profile' || (!!id && !id.path?.length)
-  const Icon = isProfile ? User : FileText
+  const Icon = library ? FileCode2 : isProfile ? User : FileText
   const label = title ?? (resource.isLoading ? 'Loading…' : id?.id ?? url)
+  // Opening a library type whose page is missing here shows the schema itself instead of a 404.
+  const openTarget = missing && library && schemaCid(library) ? `hm://inspect/ipfs/${schemaCid(library)}` : url
 
   const pill = (
     <span className="bg-accent text-accent-foreground inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full py-0.5 pr-2 pl-2 text-sm">
@@ -114,8 +127,10 @@ export function HMEntityLink({
   )
   if (!id || !onOpen) return pill
   return (
-    <Tooltip content={`Open ${id.id}`}>
-      <button type="button" className="flex max-w-full min-w-0 hover:opacity-80" onClick={() => onOpen(url)}>
+    <Tooltip
+      content={openTarget !== url ? `${title} — this site has no page for it; opens the schema` : `Open ${id.id}`}
+    >
+      <button type="button" className="flex max-w-full min-w-0 hover:opacity-80" onClick={() => onOpen(openTarget)}>
         {pill}
       </button>
     </Tooltip>
