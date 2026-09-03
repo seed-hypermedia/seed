@@ -47,7 +47,7 @@ const isInstance = (s) => s && typeof s === 'object' && typeof s.$type === 'stri
 
 // ── Names ────────────────────────────────────────────────────────────────────
 
-const KINDS = ['null', 'boolean', 'integer', 'float', 'string', 'bytes', 'list', 'map', 'link', 'any']
+const KINDS = ['null', 'boolean', 'integer', 'float', 'string', 'bytes', 'list', 'map', 'struct', 'link', 'any']
 const PRIMITIVES = new Set(KINDS.map((k) => `onyx-${k}`))
 
 /** basename -> exported TS type name (hypermedia-block-image -> HMBlockImage). */
@@ -95,6 +95,7 @@ const KIND_TS = {
   any: 'unknown',
   // bare map/list refs (no properties/items) are fully open:
   map: 'Record<string, unknown>',
+  struct: 'Record<string, unknown>',
   list: 'unknown[]',
 }
 
@@ -167,7 +168,7 @@ function emit(node, env, pad = '') {
 
   const kind = node.type ? kindOf(node.type) : null
 
-  if (kind === 'map' || (!kind && (node.properties || node.values))) {
+  if (kind === 'map' || kind === 'struct' || (!kind && (node.properties || node.values))) {
     return emitMapBody(node, env, pad)
   }
   if (kind === 'list') {

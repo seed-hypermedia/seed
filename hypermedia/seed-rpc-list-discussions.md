@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListDiscussions"
 summary: Lists threaded discussions on a document (optionally focused on one comment), plus citing discussions from other documents. One method of the Seed universal-cli
-schemaDefinition: ipfs://bafyreicdngmvkpqfcpajf57qd3gn75bvj5c5dg3rtknvgyaujidekcb34m
+schemaDefinition: ipfs://bafyreiheqwjo5ckqj64vqgmznlk3gar5ydhhkhfv4hhmkhwzq6q3gn3awy
 ---
 Lists threaded discussions on a document (optionally focused on one comment), plus citing discussions from other documents. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:unbh1D7h -->
 

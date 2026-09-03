@@ -1,7 +1,7 @@
 ---
 name: "RPC: SubjectContacts"
 summary: "Lists the contact records that name a subject. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pa"
-schemaDefinition: ipfs://bafyreif247mfl6jrwenebgmkcp6by24intofv4wo4zzl7slboaiw77tmpy
+schemaDefinition: ipfs://bafyreif3dqlscd5n5rbqdx4j4oayeeamtg6mvxzeh3nz2xp4gwbumebkgu
 ---
 Lists the contact records that name a subject. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:pML1FZCM -->
 

@@ -1,7 +1,7 @@
 ---
 name: Query
 summary: "A live document query: which spaces/paths to include, how to sort, and an optional result limit. Embedded in a Query block's attributes; also the input of the Q"
-schemaDefinition: ipfs://bafyreifau63axtuhrjj3xglhqsbudwyb5d35tn7aooi3eoxv5lqht4sv6a
+schemaDefinition: ipfs://bafyreiaagd53oqssneayhcbri46qw4mkypcq7qh6t3n5bkvwe3afsfcrou
 ---
 A live document query: which spaces/paths to include, how to sort, and an optional result limit. Embedded in a Query block's attributes; also the input of the Query API. <!-- id:rWL5NDLS -->
 

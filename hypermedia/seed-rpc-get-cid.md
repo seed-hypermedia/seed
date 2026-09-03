@@ -1,7 +1,7 @@
 ---
 name: "RPC: GetCID"
 summary: "Fetches a raw IPFS block by CID and decodes it. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you p"
-schemaDefinition: ipfs://bafyreidp3v4iacx55eoaixnu3tmzbg55kpe3cowol3kjz4p6xwtqynim2a
+schemaDefinition: ipfs://bafyreigvubmktut4tjbumrk22oodn7ubiftmzhsoz7544xgtn65kuqs3qa
 ---
 Fetches a raw IPFS block by CID and decodes it. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:KrdeFkDA -->
 

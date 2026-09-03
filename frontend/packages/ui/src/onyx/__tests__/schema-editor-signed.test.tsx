@@ -11,7 +11,7 @@ import type {ReactNode} from 'react'
 import {TooltipProvider} from '../../tooltip'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {UniversalAppProvider} from '@shm/shared/routing'
-import {MAP_URL, nameToUrl} from '../onyx-engine'
+import {MAP_URL, nameToUrl, STRUCT_URL} from '../onyx-engine'
 import {emptyStructSchema, isSignedBlobType, OnyxSchemaEditor, withRootKind} from '../onyx-schema-editor'
 import {isSignedBlobSchema, signedBlobTypeTag} from '../signed-blob'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
@@ -75,7 +75,7 @@ describe('schema root kind', () => {
 
     schema = withRootKind(schema, 'struct')
     expect(isSignedBlobType(schema)).toBe(false)
-    expect(schema.type).toBe(MAP_URL)
+    expect(schema.type).toBe(STRUCT_URL)
     expect(schema.properties.type).toBeUndefined()
     expect(schema.required).not.toContain('type')
   })

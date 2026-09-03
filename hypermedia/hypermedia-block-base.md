@@ -1,7 +1,7 @@
 ---
 name: Block (base)
 summary: "Fields shared by every concrete block type: id, optional revision, and the type discriminator. Concrete blocks extend this."
-schemaDefinition: ipfs://bafyreiffsergetvcp5nximvmety3tw5kwgizekk46ssa4pkwwosnbctv6q
+schemaDefinition: ipfs://bafyreiefhss7srxczodeeyionvk4vynkwnslpzt7bzspnflnx7euoabu6u
 ---
 This document describes the **hypermedia-block-base** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:ibCqRoF1 -->
 

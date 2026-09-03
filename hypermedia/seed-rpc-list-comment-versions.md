@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListCommentVersions"
 summary: "Lists the edit history (all versions) of a comment. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what y"
-schemaDefinition: ipfs://bafyreifnyuxzy5jg6vzjmh6n3i2lggg44gdfpuoxredu47a3vuext3cvbu
+schemaDefinition: ipfs://bafyreifejjdvjt72lzmp3ae4x4n7ktyacg2wd7gyzbwa754itl3xyedtmu
 ---
 Lists the edit history (all versions) of a comment. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:jtYHnqzi -->
 

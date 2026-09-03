@@ -1,7 +1,7 @@
 ---
 name: Button block
 summary: A labelled button linking somewhere.
-schemaDefinition: ipfs://bafyreigyecsyc7wdklj2kyx7tekksiuvbybdvragtvn2gvou6e2cjrjb6m
+schemaDefinition: ipfs://bafyreidmgls5dk5iop5gfe65yxnxo26kqa34rzmvsjnxjusbgd3qglcvoq
 ---
 This document describes the **hypermedia-block-button** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:4MIlhf71 -->
 

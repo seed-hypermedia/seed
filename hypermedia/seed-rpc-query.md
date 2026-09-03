@@ -1,7 +1,7 @@
 ---
 name: "RPC: Query"
 summary: "Runs a document query (the same shape a Query block embeds). One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field typ"
-schemaDefinition: ipfs://bafyreidcpq7dpcbqusbhwbqudjmyvgvqfpivgkllznbdwtyyf6xv4udyma
+schemaDefinition: ipfs://bafyreibm4h4nfylcvpj3hxhama2m3kb4n2osp2oucydmpdzjni4sb6s67m
 ---
 Runs a document query (the same shape a Query block embeds). One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:ikOICZ5G -->
 

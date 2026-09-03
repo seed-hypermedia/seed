@@ -16,8 +16,8 @@ export function instantiableLibrarySchemas(): {name: string; label: string; ref:
       if (name.startsWith('onyx-') || name.startsWith('seed-rpc')) return false
       if (s.$type !== undefined) return false // an instance file, not a schema
       if (s.anyOf) return false
-      const kind = s.type ? kindOf(s.type) : s.ref ? 'map' : null
-      return kind === 'map' && (s.properties || s.values)
+      const kind = s.type ? kindOf(s.type) : s.ref ? 'struct' : null
+      return (kind === 'map' || kind === 'struct') && (s.properties || s.values)
     })
     .map(([name]) => ({
       name,
