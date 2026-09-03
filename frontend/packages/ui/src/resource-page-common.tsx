@@ -3423,6 +3423,13 @@ function DocumentSchemaSection({document, canEdit}: {document: HMDocument; canEd
  * (`schemaDraft`, e.g. from the Extend Schema flow) is EDITED in place — the full schema editor,
  * saved onto the draft like any metadata change, and frozen into an IPFS blob at publish.
  */
+/** A published schema seeded into the editor sheds a legacy root `name`/`description`: the document
+ * carries those, and the next publish writes a schema without them. */
+function stripLegacyLabels(schema: Record<string, any>): Record<string, any> {
+  const {name: _n, description: _d, ...rest} = schema
+  return rest
+}
+
 function DocumentSchemaPage({document}: {document: HMDocument}) {
   const ctx = useDocumentSelector(selectContext)
   const send = useDocumentSend()
@@ -3450,12 +3457,7 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
         className="flex max-w-2xl flex-col gap-3"
         data-testid={draftSchema ? 'schema-draft-editor' : 'schema-editor'}
       >
-        <OnyxSchemaEditor schema={draftSchema ?? published!} onSchema={edit} />
-        <p className="text-muted-foreground/70 text-xs">
-          {draftSchema
-            ? 'Edited — publishing the document publishes this as a new immutable schema object it references.'
-            : 'Editing publishes a new immutable schema object when the document is published.'}
-        </p>
+        <OnyxSchemaEditor schema={draftSchema ?? stripLegacyLabels(published!)} onSchema={edit} />
       </div>
     )
   }
