@@ -9,10 +9,10 @@ This document describes the **seed-resource-error** type — a Seed API read-mod
 
 A **closed struct** with these fields: <!-- id:n1mrKLMs -->
   - `type` _(required)_ — `string` enum: `error` <!-- id:1M3e2c10 -->
-  - `id` _(required)_ — [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:5RWQ79uI -->
-  - `message` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:Oah0KuFe -->
+  - `id` _(required)_ — [seed-id](./seed-id.md) <!-- id:5RWQ79uI -->
+  - `message` _(required)_ — [string](./onyx-string.md) <!-- id:Oah0KuFe -->
 
 # Depends on <!-- id:6Gi0Ro6z -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:cFXjMpA0 -->
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:24MaXvx- -->
+- [string](./onyx-string.md) <!-- id:cFXjMpA0 -->
+- [seed-id](./seed-id.md) <!-- id:24MaXvx- -->

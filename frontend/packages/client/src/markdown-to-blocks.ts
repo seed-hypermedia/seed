@@ -565,7 +565,9 @@ function createImageNode(alt: string, url: string, comment?: BlockComment): Bloc
 function createTypedNode(visible: string, comment: BlockComment): BlockNode {
   const block = baseBlock(comment.type!, comment)
   const v = visible.trim()
-  const linkOnly = /^<([a-zA-Z][a-zA-Z0-9+.-]*:[^\s<>]*)>$/.exec(v)
+  // `<scheme:…>` or a relative file (`<./other.md>`, how an Embed of a sibling
+  // document is written when a space is exported to a directory).
+  const linkOnly = /^<((?:[a-zA-Z][a-zA-Z0-9+.-]*:|\.{1,2}\/)[^\s<>]*)>$/.exec(v)
   const labeled = v.startsWith('[') ? readLink(v, 0) : null
   if (linkOnly) {
     block.link = linkOnly[1]!

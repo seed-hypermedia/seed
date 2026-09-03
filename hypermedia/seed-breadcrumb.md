@@ -10,11 +10,11 @@ This document describes the **seed-breadcrumb** type — a Seed API read-model s
 # Shape <!-- id:7Ey_ElAb -->
 
 A **closed struct** with these fields: <!-- id:GaJkyvmU -->
-  - `name` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:KeXz3K4U -->
-  - `path` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:JM-WnnRQ -->
-  - `isMissing` — [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:O1QZ1BQ3 -->
+  - `name` _(required)_ — [string](./onyx-string.md) <!-- id:KeXz3K4U -->
+  - `path` _(required)_ — [string](./onyx-string.md) <!-- id:JM-WnnRQ -->
+  - `isMissing` — [boolean](./onyx-boolean.md) <!-- id:O1QZ1BQ3 -->
 
 # Depends on <!-- id:60zxuRgg -->
 
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:rTTj3a7l -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:vSJ_3OOj -->
+- [boolean](./onyx-boolean.md) <!-- id:rTTj3a7l -->
+- [string](./onyx-string.md) <!-- id:vSJ_3OOj -->

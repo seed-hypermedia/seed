@@ -1,6 +1,6 @@
 /**
  * Worker entry for the workflow-in-worker proof of concept (see workflow-worker-host.ts and
- * docs/worker-isolated-execution.md). Runs the unmodified {@link runWorkflowVM} with a proxy
+ * hypermedia/agent-worker-isolated-execution.md). Runs the unmodified {@link runWorkflowVM} with a proxy
  * WorkflowAdapters that marshals every effect back to the main thread.
  */
 import {runWorkflowVM, type WorkflowAdapters, type WorkflowJournalEntry} from './workflow-host'

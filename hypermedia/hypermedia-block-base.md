@@ -8,10 +8,10 @@ This document describes the **hypermedia-block-base** type — a Hypermedia Netw
 # Shape <!-- id:QptDZ4s_ -->
 
 A **closed struct** with these fields: <!-- id:oaPUbuet -->
-  - `id` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:HJepUEoZ -->
-  - `revision` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:wOo3etTY -->
-  - `type` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:Lsihdw38 -->
+  - `id` _(required)_ — [string](./onyx-string.md) <!-- id:HJepUEoZ -->
+  - `revision` — [string](./onyx-string.md) <!-- id:wOo3etTY -->
+  - `type` _(required)_ — [string](./onyx-string.md) <!-- id:Lsihdw38 -->
 
 # Depends on <!-- id:WX3NBBPn -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:3isavs_Q -->
+- [string](./onyx-string.md) <!-- id:3isavs_Q -->

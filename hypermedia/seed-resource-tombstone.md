@@ -9,8 +9,8 @@ This document describes the **seed-resource-tombstone** type — a Seed API read
 
 A **closed struct** with these fields: <!-- id:iq6WzySf -->
   - `type` _(required)_ — `string` enum: `tombstone` <!-- id:r8b5CNgx -->
-  - `id` _(required)_ — [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:ZERYE6t9 -->
+  - `id` _(required)_ — [seed-id](./seed-id.md) <!-- id:ZERYE6t9 -->
 
 # Depends on <!-- id:NkOEAKQC -->
 
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:iGUIKF_k -->
+- [seed-id](./seed-id.md) <!-- id:iGUIKF_k -->

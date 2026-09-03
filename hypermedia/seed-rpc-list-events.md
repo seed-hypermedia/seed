@@ -16,6 +16,6 @@ A **closed struct** with these fields: <!-- id:1xYbf7OV -->
 
 # Depends on <!-- id:y34ksrW0 -->
 
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:SyPfcrg3 -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:VrLbVG_X -->
-- [seed-activity-event](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-activity-event) <!-- id:K7mTe_LT -->
+- [boolean](./onyx-boolean.md) <!-- id:SyPfcrg3 -->
+- [string](./onyx-string.md) <!-- id:VrLbVG_X -->
+- [seed-activity-event](./seed-activity-event.md) <!-- id:K7mTe_LT -->

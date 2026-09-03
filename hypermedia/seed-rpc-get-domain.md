@@ -12,10 +12,10 @@ This document describes the **seed-rpc-get-domain** type — a Seed API read-mod
 A **closed struct** with these fields: <!-- id:SzX-JA_i -->
   - `key` _(required)_ — `string` enum: `GetDomain` <!-- id:0e_hZB9E -->
   - `input` _(required)_ — map { 2 fields } <!-- id:qnrvoO3P -->
-  - `output` _(required)_ — [seed-domain-info](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-domain-info) <!-- id:2MN5naQ7 -->
+  - `output` _(required)_ — [seed-domain-info](./seed-domain-info.md) <!-- id:2MN5naQ7 -->
 
 # Depends on <!-- id:bs3kYXsk -->
 
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:SUvr718b -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:tc1K4yXu -->
-- [seed-domain-info](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-domain-info) <!-- id:R5YpTEY6 -->
+- [boolean](./onyx-boolean.md) <!-- id:SUvr718b -->
+- [string](./onyx-string.md) <!-- id:tc1K4yXu -->
+- [seed-domain-info](./seed-domain-info.md) <!-- id:R5YpTEY6 -->

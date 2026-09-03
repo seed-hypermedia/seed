@@ -11,10 +11,10 @@ This document describes the **seed-rpc-account** type — a Seed API read-model 
 
 A **closed struct** with these fields: <!-- id:GaSmj_z8 -->
   - `key` _(required)_ — `string` enum: `Account` <!-- id:XtkZdN5R -->
-  - `input` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:Hts3kMP5 -->
-  - `output` _(required)_ — [seed-account-result](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-account-result) <!-- id:mi5qviZs -->
+  - `input` _(required)_ — [string](./onyx-string.md) <!-- id:Hts3kMP5 -->
+  - `output` _(required)_ — [seed-account-result](./seed-account-result.md) <!-- id:mi5qviZs -->
 
 # Depends on <!-- id:fl4WJGvJ -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:EgZGPF7j -->
-- [seed-account-result](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-account-result) <!-- id:ilaQtTDw -->
+- [string](./onyx-string.md) <!-- id:EgZGPF7j -->
+- [seed-account-result](./seed-account-result.md) <!-- id:ilaQtTDw -->

@@ -10,25 +10,25 @@ This document describes the **seed-comment** type — a Seed API read-model sche
 # Shape <!-- id:IaBONBBP -->
 
 A **closed struct** with these fields: <!-- id:hxnNqONe -->
-  - `id` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:dcjQthm9 -->
-  - `version` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:J4LrGM2E -->
-  - `author` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:7mfVIRZU -->
-  - `targetAccount` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:yJYYXSde -->
-  - `targetPath` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:-8lj6kOw -->
-  - `targetVersion` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:UAjhTGkE -->
-  - `replyParent` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:c-uNOGGX -->
-  - `replyParentVersion` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:UG5_yEyk -->
-  - `threadRoot` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:asBCWS_Y -->
-  - `threadRootVersion` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:fnFZa1Wa -->
-  - `capability` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:Th6VPgwz -->
-  - `content` _(required)_ — list of [hypermedia-block-node](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-node) <!-- id:kMrq60w0 -->
-  - `createTime` _(required)_ — [hypermedia-timestamp](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp) <!-- id:GVdcv7Mp -->
-  - `updateTime` _(required)_ — [hypermedia-timestamp](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp) <!-- id:B3HL3IYi -->
-  - `visibility` _(required)_ — [hypermedia-visibility](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-visibility) <!-- id:QGBLQ-HM -->
+  - `id` _(required)_ — [string](./onyx-string.md) <!-- id:dcjQthm9 -->
+  - `version` _(required)_ — [string](./onyx-string.md) <!-- id:J4LrGM2E -->
+  - `author` _(required)_ — [string](./onyx-string.md) <!-- id:7mfVIRZU -->
+  - `targetAccount` _(required)_ — [string](./onyx-string.md) <!-- id:yJYYXSde -->
+  - `targetPath` — [string](./onyx-string.md) <!-- id:-8lj6kOw -->
+  - `targetVersion` _(required)_ — [string](./onyx-string.md) <!-- id:UAjhTGkE -->
+  - `replyParent` — [string](./onyx-string.md) <!-- id:c-uNOGGX -->
+  - `replyParentVersion` — [string](./onyx-string.md) <!-- id:UG5_yEyk -->
+  - `threadRoot` — [string](./onyx-string.md) <!-- id:asBCWS_Y -->
+  - `threadRootVersion` — [string](./onyx-string.md) <!-- id:fnFZa1Wa -->
+  - `capability` — [string](./onyx-string.md) <!-- id:Th6VPgwz -->
+  - `content` _(required)_ — list of [hypermedia-block-node](./hypermedia-block-node.md) <!-- id:kMrq60w0 -->
+  - `createTime` _(required)_ — [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:GVdcv7Mp -->
+  - `updateTime` _(required)_ — [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:B3HL3IYi -->
+  - `visibility` _(required)_ — [hypermedia-visibility](./hypermedia-visibility.md) <!-- id:QGBLQ-HM -->
 
 # Depends on <!-- id:Wb9fPfnU -->
 
-- [hypermedia-block-node](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-node) <!-- id:bsiLyW0f -->
-- [hypermedia-timestamp](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp) <!-- id:c1mHO1av -->
-- [hypermedia-visibility](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-visibility) <!-- id:cKpRsaIH -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:KfWsCcfr -->
+- [hypermedia-block-node](./hypermedia-block-node.md) <!-- id:bsiLyW0f -->
+- [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:c1mHO1av -->
+- [hypermedia-visibility](./hypermedia-visibility.md) <!-- id:cKpRsaIH -->
+- [string](./onyx-string.md) <!-- id:KfWsCcfr -->

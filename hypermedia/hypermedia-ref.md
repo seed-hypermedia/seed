@@ -7,23 +7,23 @@ This document describes the **hypermedia-ref** type — a Hypermedia Network blo
 
 # Shape <!-- id:dpE2fWQB -->
 
-**Extends** [hypermedia-blob](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-blob) with these added fields: <!-- id:6u-Qshey -->
+**Extends** [hypermedia-blob](./hypermedia-blob.md) with these added fields: <!-- id:6u-Qshey -->
   - `type` — `string` enum: `Ref` <!-- id:4LKiQ2kT -->
-  - `space` — [hypermedia-principal](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-principal) <!-- id:idNr9FJM -->
-  - `path` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:8izgFQy0 -->
-  - `genesisBlob` — [hypermedia-cid](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-cid) <!-- id:cob0_GUo -->
-  - `capability` — [hypermedia-cid](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-cid) <!-- id:Wv5xpNAJ -->
-  - `heads` _(required)_ — list of [hypermedia-cid](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-cid) <!-- id:_B1tM30h -->
-  - `redirect` — [hypermedia-redirect-target](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-redirect-target) <!-- id:F5YoHwBj -->
-  - `generation` — [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:tPhi-Hlj -->
-  - `visibility` — [hypermedia-visibility](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-visibility) <!-- id:CgsyURu- -->
+  - `space` — [hypermedia-principal](./hypermedia-principal.md) <!-- id:idNr9FJM -->
+  - `path` — [string](./onyx-string.md) <!-- id:8izgFQy0 -->
+  - `genesisBlob` — [hypermedia-cid](./hypermedia-cid.md) <!-- id:cob0_GUo -->
+  - `capability` — [hypermedia-cid](./hypermedia-cid.md) <!-- id:Wv5xpNAJ -->
+  - `heads` _(required)_ — list of [hypermedia-cid](./hypermedia-cid.md) <!-- id:_B1tM30h -->
+  - `redirect` — [hypermedia-redirect-target](./hypermedia-redirect-target.md) <!-- id:F5YoHwBj -->
+  - `generation` — [integer](./onyx-integer.md) <!-- id:tPhi-Hlj -->
+  - `visibility` — [hypermedia-visibility](./hypermedia-visibility.md) <!-- id:CgsyURu- -->
 
 # Depends on <!-- id:L4KMjf3U -->
 
-- [hypermedia-blob](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-blob) <!-- id:qR-dN0GK -->
-- [hypermedia-cid](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-cid) <!-- id:h6XHAqQF -->
-- [hypermedia-principal](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-principal) <!-- id:CCI4-2aZ -->
-- [hypermedia-redirect-target](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-redirect-target) <!-- id:x_NaRzFr -->
-- [hypermedia-visibility](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-visibility) <!-- id:CDnB2GqZ -->
-- [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:1vZFCegM -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:B2_Qyt3Z -->
+- [hypermedia-blob](./hypermedia-blob.md) <!-- id:qR-dN0GK -->
+- [hypermedia-cid](./hypermedia-cid.md) <!-- id:h6XHAqQF -->
+- [hypermedia-principal](./hypermedia-principal.md) <!-- id:CCI4-2aZ -->
+- [hypermedia-redirect-target](./hypermedia-redirect-target.md) <!-- id:x_NaRzFr -->
+- [hypermedia-visibility](./hypermedia-visibility.md) <!-- id:CDnB2GqZ -->
+- [integer](./onyx-integer.md) <!-- id:1vZFCegM -->
+- [string](./onyx-string.md) <!-- id:B2_Qyt3Z -->

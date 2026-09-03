@@ -10,15 +10,15 @@ This document describes the **seed-activity-summary** type — a Seed API read-m
 # Shape <!-- id:OZXG0Zh7 -->
 
 A **closed struct** with these fields: <!-- id:Vs4HGtDy -->
-  - `latestCommentTime` — [hypermedia-timestamp](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp) <!-- id:1gqusC11 -->
-  - `latestCommentId` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:41uUwCp8 -->
+  - `latestCommentTime` — [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:1gqusC11 -->
+  - `latestCommentId` _(required)_ — [string](./onyx-string.md) <!-- id:41uUwCp8 -->
   - `commentCount` _(required)_ — `integer` <!-- id:qpnT9nNY -->
-  - `latestChangeTime` _(required)_ — [hypermedia-timestamp](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp) <!-- id:yf7D_UC5 -->
-  - `isUnread` _(required)_ — [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:9uyBbD00 -->
+  - `latestChangeTime` _(required)_ — [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:yf7D_UC5 -->
+  - `isUnread` _(required)_ — [boolean](./onyx-boolean.md) <!-- id:9uyBbD00 -->
   - `childrenCount` — `integer` <!-- id:def8jVg8 -->
 
 # Depends on <!-- id:TszmmNHn -->
 
-- [hypermedia-timestamp](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp) <!-- id:ggrj6Ddw -->
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:oHJaYRhQ -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:qCF6yVV1 -->
+- [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:ggrj6Ddw -->
+- [boolean](./onyx-boolean.md) <!-- id:oHJaYRhQ -->
+- [string](./onyx-string.md) <!-- id:qCF6yVV1 -->

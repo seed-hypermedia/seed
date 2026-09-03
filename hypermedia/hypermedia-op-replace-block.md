@@ -11,8 +11,8 @@ A **closed struct** with these fields: <!-- id:Sym_gHmT -->
   - `type` _(required)_ — `string` enum: `ReplaceBlock` <!-- id:WO4CBI3C -->
   - `block` _(required)_ — type variable `⟨Block⟩` <!-- id:PobCzv9L -->
 
-**Generic** over `⟨Block⟩` (default [hypermedia-block](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block)). <!-- id:apzRnVg1 -->
+**Generic** over `⟨Block⟩` (default [hypermedia-block](./hypermedia-block.md)). <!-- id:apzRnVg1 -->
 
 # Depends on <!-- id:zX0Jjt30 -->
 
-- [hypermedia-block](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block) <!-- id:F5Wi39wT -->
+- [hypermedia-block](./hypermedia-block.md) <!-- id:F5Wi39wT -->

@@ -7,11 +7,11 @@ This document describes the **hypermedia-block-nostr** type — a Hypermedia Net
 
 # Shape <!-- id:DfGwDfS7 -->
 
-**Extends** [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) with these added fields: <!-- id:SjE4B4KF -->
+**Extends** [hypermedia-block-base](./hypermedia-block-base.md) with these added fields: <!-- id:SjE4B4KF -->
   - `type` — `string` enum: `Nostr` <!-- id:MoC4GFpU -->
-  - `link` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:SUQtq_Ry -->
+  - `link` _(required)_ — [string](./onyx-string.md) <!-- id:SUQtq_Ry -->
 
 # Depends on <!-- id:pTk5fJAj -->
 
-- [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) <!-- id:7wMfK90x -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:MfbwVRsn -->
+- [hypermedia-block-base](./hypermedia-block-base.md) <!-- id:7wMfK90x -->
+- [string](./onyx-string.md) <!-- id:MfbwVRsn -->

@@ -16,5 +16,5 @@ A **closed struct** with these fields: <!-- id:DCfHjHME -->
 
 # Depends on <!-- id:Wk6DpqCs -->
 
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:iS-6L-Uf -->
-- [seed-raw-citation](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-raw-citation) <!-- id:Umt7r3Gz -->
+- [seed-id](./seed-id.md) <!-- id:iS-6L-Uf -->
+- [seed-raw-citation](./seed-raw-citation.md) <!-- id:Umt7r3Gz -->

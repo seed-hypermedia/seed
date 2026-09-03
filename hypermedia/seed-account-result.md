@@ -15,8 +15,8 @@ A **union** — a value matches one of these variants: <!-- id:HZf6WBQs -->
 
 # Depends on <!-- id:H_xarqfm -->
 
-- [hypermedia-metadata](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata) <!-- id:ht4dyEW_ -->
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:dq0xPHDe -->
-- [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:aTp6vL1V -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:BvamZwgP -->
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:-A7na0uO -->
+- [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:ht4dyEW_ -->
+- [boolean](./onyx-boolean.md) <!-- id:dq0xPHDe -->
+- [null](./onyx-null.md) <!-- id:aTp6vL1V -->
+- [string](./onyx-string.md) <!-- id:BvamZwgP -->
+- [seed-id](./seed-id.md) <!-- id:-A7na0uO -->

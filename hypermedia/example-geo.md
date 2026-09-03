@@ -8,11 +8,11 @@ This document describes the **example-geo** type — an example schema. Its form
 # Shape <!-- id:q-FnSm14 -->
 
 A **closed struct** with these fields: <!-- id:R0FMLE19 -->
-  - `lat` _(required)_ — [float](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float) <!-- id:5a0NrCBo -->
-  - `lng` _(required)_ — [float](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float) <!-- id:k9oKIATS -->
-  - `altitude` — [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:-HE-U6Db -->
+  - `lat` _(required)_ — [float](./onyx-float.md) <!-- id:5a0NrCBo -->
+  - `lng` _(required)_ — [float](./onyx-float.md) <!-- id:k9oKIATS -->
+  - `altitude` — [integer](./onyx-integer.md) <!-- id:-HE-U6Db -->
 
 # Depends on <!-- id:7PVAW069 -->
 
-- [float](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float) <!-- id:WAYPjFZV -->
-- [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:aL-GB7jv -->
+- [float](./onyx-float.md) <!-- id:WAYPjFZV -->
+- [integer](./onyx-integer.md) <!-- id:aL-GB7jv -->

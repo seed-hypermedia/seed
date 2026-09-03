@@ -7,17 +7,17 @@ This document describes the **hypermedia-block-paragraph** type — a Hypermedia
 
 # Shape <!-- id:l0o5Tte_ -->
 
-**Extends** [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) with these added fields: <!-- id:a3oACyxn -->
+**Extends** [hypermedia-block-base](./hypermedia-block-base.md) with these added fields: <!-- id:a3oACyxn -->
   - `type` — `string` enum: `Paragraph` <!-- id:tHz4ynCQ -->
-  - `text` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:_0H0S0T5 -->
-  - `annotations` — list of [hypermedia-annotation](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-annotation) <!-- id:pXxDvrgh -->
+  - `text` — [string](./onyx-string.md) <!-- id:_0H0S0T5 -->
+  - `annotations` — list of [hypermedia-annotation](./hypermedia-annotation.md) <!-- id:pXxDvrgh -->
   - `attributes` — map { 3 fields } <!-- id:ohl09HNZ -->
 
 # Depends on <!-- id:yL-NVw3Z -->
 
-- [hypermedia-annotation](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-annotation) <!-- id:T-dO1QZb -->
-- [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) <!-- id:-NxYvbtm -->
-- [hypermedia-children-type](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-children-type) <!-- id:YV6PY--I -->
-- [any](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any) <!-- id:Kyh6AeJj -->
-- [float](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float) <!-- id:MOYG_rHe -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:Pf_eLNrP -->
+- [hypermedia-annotation](./hypermedia-annotation.md) <!-- id:T-dO1QZb -->
+- [hypermedia-block-base](./hypermedia-block-base.md) <!-- id:-NxYvbtm -->
+- [hypermedia-children-type](./hypermedia-children-type.md) <!-- id:YV6PY--I -->
+- [any](./onyx-any.md) <!-- id:Kyh6AeJj -->
+- [float](./onyx-float.md) <!-- id:MOYG_rHe -->
+- [string](./onyx-string.md) <!-- id:Pf_eLNrP -->

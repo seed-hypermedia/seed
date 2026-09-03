@@ -8,19 +8,19 @@ This document describes the **hypermedia-op** type — a Hypermedia Network blob
 # Shape <!-- id:xCLEKTpg -->
 
 A **union** — a value matches one of these variants: <!-- id:bdgSe4Z4 -->
-  - [hypermedia-op-set-attributes](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-set-attributes) <!-- id:BP_gB1f4 -->
-  - [hypermedia-op-move-blocks](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-move-blocks) <!-- id:q_WzwIs6 -->
-  - [hypermedia-op-replace-block](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-replace-block)⟨Block = type variable `⟨Block⟩`⟩ <!-- id:DPvyep9M -->
-  - [hypermedia-op-delete-blocks](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-delete-blocks) <!-- id:PlfgegNY -->
-  - [hypermedia-op-set-key](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-set-key) <!-- id:HKHLdobn -->
+  - [hypermedia-op-set-attributes](./hypermedia-op-set-attributes.md) <!-- id:BP_gB1f4 -->
+  - [hypermedia-op-move-blocks](./hypermedia-op-move-blocks.md) <!-- id:q_WzwIs6 -->
+  - [hypermedia-op-replace-block](./hypermedia-op-replace-block.md)⟨Block = type variable `⟨Block⟩`⟩ <!-- id:DPvyep9M -->
+  - [hypermedia-op-delete-blocks](./hypermedia-op-delete-blocks.md) <!-- id:PlfgegNY -->
+  - [hypermedia-op-set-key](./hypermedia-op-set-key.md) <!-- id:HKHLdobn -->
 
-**Generic** over `⟨Block⟩` (default [hypermedia-block](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block)). <!-- id:VQIfC_d8 -->
+**Generic** over `⟨Block⟩` (default [hypermedia-block](./hypermedia-block.md)). <!-- id:VQIfC_d8 -->
 
 # Depends on <!-- id:BTjLtIcz -->
 
-- [hypermedia-block](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block) <!-- id:qhL6R4Ju -->
-- [hypermedia-op-delete-blocks](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-delete-blocks) <!-- id:I7YcxiFi -->
-- [hypermedia-op-move-blocks](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-move-blocks) <!-- id:QfAw7guU -->
-- [hypermedia-op-replace-block](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-replace-block) <!-- id:bKH963tB -->
-- [hypermedia-op-set-attributes](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-set-attributes) <!-- id:xn-9VfDd -->
-- [hypermedia-op-set-key](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-set-key) <!-- id:HylY6yqt -->
+- [hypermedia-block](./hypermedia-block.md) <!-- id:qhL6R4Ju -->
+- [hypermedia-op-delete-blocks](./hypermedia-op-delete-blocks.md) <!-- id:I7YcxiFi -->
+- [hypermedia-op-move-blocks](./hypermedia-op-move-blocks.md) <!-- id:QfAw7guU -->
+- [hypermedia-op-replace-block](./hypermedia-op-replace-block.md) <!-- id:bKH963tB -->
+- [hypermedia-op-set-attributes](./hypermedia-op-set-attributes.md) <!-- id:xn-9VfDd -->
+- [hypermedia-op-set-key](./hypermedia-op-set-key.md) <!-- id:HylY6yqt -->

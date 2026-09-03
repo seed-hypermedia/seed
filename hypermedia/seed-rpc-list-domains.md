@@ -16,4 +16,4 @@ A **closed struct** with these fields: <!-- id:9151imY0 -->
 
 # Depends on <!-- id:MHXgMWho -->
 
-- [seed-domain-info](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-domain-info) <!-- id:YRWfuQiw -->
+- [seed-domain-info](./seed-domain-info.md) <!-- id:YRWfuQiw -->

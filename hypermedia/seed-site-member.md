@@ -8,9 +8,9 @@ This document describes the **seed-site-member** type — a Seed API read-model 
 # Shape <!-- id:7NSDhta8 -->
 
 A **closed struct** with these fields: <!-- id:FIu9UTGK -->
-  - `account` _(required)_ — [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:CdShRyF7 -->
+  - `account` _(required)_ — [seed-id](./seed-id.md) <!-- id:CdShRyF7 -->
   - `role` _(required)_ — `string` enum: `owner` `writer` `member` <!-- id:rQoJfwbo -->
 
 # Depends on <!-- id:T1nSmVgV -->
 
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:DF2i2UIT -->
+- [seed-id](./seed-id.md) <!-- id:DF2i2UIT -->

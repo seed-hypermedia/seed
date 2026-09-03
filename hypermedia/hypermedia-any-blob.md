@@ -8,18 +8,18 @@ This document describes the **hypermedia-any-blob** type — a Hypermedia Networ
 # Shape <!-- id:vU-ROV7h -->
 
 A **union** — a value matches one of these variants: <!-- id:TsnOcutU -->
-  - [hypermedia-change](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-change) <!-- id:bRPYzuid -->
-  - [hypermedia-ref](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-ref) <!-- id:EP8vzpnL -->
-  - [hypermedia-profile](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-profile) <!-- id:ThGWnfaK -->
-  - [hypermedia-comment](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-comment) <!-- id:BsccYSi3 -->
-  - [hypermedia-capability](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-capability) <!-- id:xofU45np -->
-  - [hypermedia-contact](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-contact) <!-- id:qvwBCe01 -->
+  - [hypermedia-change](./hypermedia-change.md) <!-- id:bRPYzuid -->
+  - [hypermedia-ref](./hypermedia-ref.md) <!-- id:EP8vzpnL -->
+  - [hypermedia-profile](./hypermedia-profile.md) <!-- id:ThGWnfaK -->
+  - [hypermedia-comment](./hypermedia-comment.md) <!-- id:BsccYSi3 -->
+  - [hypermedia-capability](./hypermedia-capability.md) <!-- id:xofU45np -->
+  - [hypermedia-contact](./hypermedia-contact.md) <!-- id:qvwBCe01 -->
 
 # Depends on <!-- id:7fzRuDS8 -->
 
-- [hypermedia-capability](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-capability) <!-- id:IoFhiaE3 -->
-- [hypermedia-change](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-change) <!-- id:UhG4UV8N -->
-- [hypermedia-comment](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-comment) <!-- id:ZsN-8iYj -->
-- [hypermedia-contact](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-contact) <!-- id:5v8hyrIb -->
-- [hypermedia-profile](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-profile) <!-- id:DiDCtHSa -->
-- [hypermedia-ref](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-ref) <!-- id:WAyUTcQu -->
+- [hypermedia-capability](./hypermedia-capability.md) <!-- id:IoFhiaE3 -->
+- [hypermedia-change](./hypermedia-change.md) <!-- id:UhG4UV8N -->
+- [hypermedia-comment](./hypermedia-comment.md) <!-- id:ZsN-8iYj -->
+- [hypermedia-contact](./hypermedia-contact.md) <!-- id:5v8hyrIb -->
+- [hypermedia-profile](./hypermedia-profile.md) <!-- id:DiDCtHSa -->
+- [hypermedia-ref](./hypermedia-ref.md) <!-- id:WAyUTcQu -->

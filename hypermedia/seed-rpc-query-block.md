@@ -12,10 +12,10 @@ This document describes the **seed-rpc-query-block** type — a Seed API read-mo
 A **closed struct** with these fields: <!-- id:MNSUcwUS -->
   - `key` _(required)_ — `string` enum: `QueryBlock` <!-- id:tvvO2-wp -->
   - `input` _(required)_ — map { 1 fields } <!-- id:tJWuR30d -->
-  - `output` _(required)_ — one of [seed-query-block-payload](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-query-block-payload) | [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:VSpP7fZ1 -->
+  - `output` _(required)_ — one of [seed-query-block-payload](./seed-query-block-payload.md) | [null](./onyx-null.md) <!-- id:VSpP7fZ1 -->
 
 # Depends on <!-- id:I9m0maUM -->
 
-- [hypermedia-query](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-query) <!-- id:wzF0tC6g -->
-- [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:2IhT75Lz -->
-- [seed-query-block-payload](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-query-block-payload) <!-- id:K45Wipex -->
+- [hypermedia-query](./hypermedia-query.md) <!-- id:wzF0tC6g -->
+- [null](./onyx-null.md) <!-- id:2IhT75Lz -->
+- [seed-query-block-payload](./seed-query-block-payload.md) <!-- id:K45Wipex -->

@@ -16,5 +16,5 @@ A **closed struct** with these fields: <!-- id:HzFHBpWO -->
 
 # Depends on <!-- id:ardnz0nd -->
 
-- [any](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any) <!-- id:xxcRpn4k -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:rLVe6evY -->
+- [any](./onyx-any.md) <!-- id:xxcRpn4k -->
+- [string](./onyx-string.md) <!-- id:rLVe6evY -->

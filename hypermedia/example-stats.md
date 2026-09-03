@@ -13,9 +13,9 @@ A **closed struct** with these fields: <!-- id:G2YL1Yf3 -->
   - `strength` _(required)_ — `integer` (1–10) <!-- id:Z9r2yevr -->
   - `intellect` _(required)_ — `integer` (1–10) <!-- id:VbVkvo-D -->
   - `charisma` _(required)_ — `integer` (1–10) <!-- id:RKip766b -->
-  - `alignment` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) (one of `lawful`, `neutral`, `chaotic`) <!-- id:yokYx90K -->
-  - `traits` — list of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:g0sFEEZM -->
+  - `alignment` — [string](./onyx-string.md) (one of `lawful`, `neutral`, `chaotic`) <!-- id:yokYx90K -->
+  - `traits` — list of [string](./onyx-string.md) <!-- id:g0sFEEZM -->
 
 # Depends on <!-- id:gbkbOHZl -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:mX_FWlal -->
+- [string](./onyx-string.md) <!-- id:mX_FWlal -->

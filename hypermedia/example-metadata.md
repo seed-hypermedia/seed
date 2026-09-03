@@ -7,8 +7,8 @@ This document describes the **example-metadata** type — an example schema. Its
 
 # Shape <!-- id:Dk6oJzch -->
 
-An **open map** — every value: [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string). <!-- id:MgzOBW0c -->
+An **open map** — every value: [string](./onyx-string.md). <!-- id:MgzOBW0c -->
 
 # Depends on <!-- id:c4_XHSQX -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:LFfxYoRK -->
+- [string](./onyx-string.md) <!-- id:LFfxYoRK -->

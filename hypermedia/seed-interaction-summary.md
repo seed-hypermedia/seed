@@ -14,9 +14,9 @@ A **closed struct** with these fields: <!-- id:ErHfF34X -->
   - `comments` _(required)_ — `integer` <!-- id:-x9xLFCo -->
   - `changes` _(required)_ — `integer` <!-- id:Mi6241x6 -->
   - `children` _(required)_ — `integer` <!-- id:trlRp_lK -->
-  - `authorUids` — list of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:tQurr8ya -->
+  - `authorUids` — list of [string](./onyx-string.md) <!-- id:tQurr8ya -->
   - `blocks` _(required)_ — map ⟨ \* : map { 2 fields } ⟩ <!-- id:-FgTqWtB -->
 
 # Depends on <!-- id:a54ycyYA -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:dBRMpu1a -->
+- [string](./onyx-string.md) <!-- id:dBRMpu1a -->

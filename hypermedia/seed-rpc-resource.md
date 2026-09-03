@@ -11,10 +11,10 @@ This document describes the **seed-rpc-resource** type — a Seed API read-model
 
 A **closed struct** with these fields: <!-- id:utly96z5 -->
   - `key` _(required)_ — `string` enum: `Resource` <!-- id:UToawi30 -->
-  - `input` _(required)_ — [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:FVQ72Tj4 -->
-  - `output` _(required)_ — [seed-resource](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-resource) <!-- id:-cmT97ah -->
+  - `input` _(required)_ — [seed-id](./seed-id.md) <!-- id:FVQ72Tj4 -->
+  - `output` _(required)_ — [seed-resource](./seed-resource.md) <!-- id:-cmT97ah -->
 
 # Depends on <!-- id:jnPQmqvS -->
 
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:gdMZoKdz -->
-- [seed-resource](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-resource) <!-- id:Qt87mW4L -->
+- [seed-id](./seed-id.md) <!-- id:gdMZoKdz -->
+- [seed-resource](./seed-resource.md) <!-- id:Qt87mW4L -->

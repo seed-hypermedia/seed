@@ -11,15 +11,15 @@ This document describes the **seed-citation** type — a Seed API read-model sch
 
 A **closed struct** with these fields: <!-- id:VmqoRbRO -->
   - `source` _(required)_ — one of map { 4 fields } | map { 4 fields } <!-- id:MdIAs04J -->
-  - `isExactVersion` _(required)_ — [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:UJZmjhTF -->
-  - `targetFragment` _(required)_ — one of [seed-parsed-fragment](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-parsed-fragment) | [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:wzdqS34J -->
-  - `targetId` _(required)_ — [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:StfBx79G -->
+  - `isExactVersion` _(required)_ — [boolean](./onyx-boolean.md) <!-- id:UJZmjhTF -->
+  - `targetFragment` _(required)_ — one of [seed-parsed-fragment](./seed-parsed-fragment.md) | [null](./onyx-null.md) <!-- id:wzdqS34J -->
+  - `targetId` _(required)_ — [seed-id](./seed-id.md) <!-- id:StfBx79G -->
 
 # Depends on <!-- id:DfdIjFgi -->
 
-- [hypermedia-timestamp](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp) <!-- id:qmlMMX_K -->
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:bMN0_lDm -->
-- [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:y97zthBM -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:Ecgkvu07 -->
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:ZVKjgJT0 -->
-- [seed-parsed-fragment](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-parsed-fragment) <!-- id:sJ6YEHCt -->
+- [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:qmlMMX_K -->
+- [boolean](./onyx-boolean.md) <!-- id:bMN0_lDm -->
+- [null](./onyx-null.md) <!-- id:y97zthBM -->
+- [string](./onyx-string.md) <!-- id:Ecgkvu07 -->
+- [seed-id](./seed-id.md) <!-- id:ZVKjgJT0 -->
+- [seed-parsed-fragment](./seed-parsed-fragment.md) <!-- id:sJ6YEHCt -->

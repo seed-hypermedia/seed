@@ -6101,7 +6101,7 @@ export class Service {
         },
         isCanceled: () => this.#workflowCancelFlags.has(run.id),
       }
-      // Phase-1 worker isolation (docs/worker-isolated-execution.md): opt in with
+      // Phase-1 worker isolation (hypermedia/agent-worker-isolated-execution.md): opt in with
       // SEED_AGENTS_WORKFLOW_WORKER=1 to run the QuickJS VM off the main event loop. Off by default,
       // the in-process path is byte-for-byte unchanged.
       outcome =

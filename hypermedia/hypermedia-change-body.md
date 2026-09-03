@@ -8,13 +8,13 @@ This document describes the **hypermedia-change-body** type — a Hypermedia Net
 # Shape <!-- id:BpgwjtEP -->
 
 A **closed struct** with these fields: <!-- id:xndwO-1C -->
-  - `opCount` — [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:cRrknZYz -->
-  - `ops` — list of [hypermedia-op](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op)⟨Block = type variable `⟨Block⟩`⟩ <!-- id:5HwZMPHJ -->
+  - `opCount` — [integer](./onyx-integer.md) <!-- id:cRrknZYz -->
+  - `ops` — list of [hypermedia-op](./hypermedia-op.md)⟨Block = type variable `⟨Block⟩`⟩ <!-- id:5HwZMPHJ -->
 
-**Generic** over `⟨Block⟩` (default [hypermedia-block](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block)). <!-- id:8rrUhiVB -->
+**Generic** over `⟨Block⟩` (default [hypermedia-block](./hypermedia-block.md)). <!-- id:8rrUhiVB -->
 
 # Depends on <!-- id:C3Z8Yr0_ -->
 
-- [hypermedia-block](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block) <!-- id:JW5qQu6z -->
-- [hypermedia-op](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op) <!-- id:10QhAwJr -->
-- [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:f2oL511e -->
+- [hypermedia-block](./hypermedia-block.md) <!-- id:JW5qQu6z -->
+- [hypermedia-op](./hypermedia-op.md) <!-- id:10QhAwJr -->
+- [integer](./onyx-integer.md) <!-- id:f2oL511e -->

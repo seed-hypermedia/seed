@@ -9,9 +9,9 @@ This document describes the **example-myapp-change** type — an example schema.
 
 # Shape <!-- id:5RtaMMvP -->
 
-An **instantiation** of the generic [hypermedia-change](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-change), binding: `Block` = [example-app-block](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-app-block). <!-- id:opH3cmUc -->
+An **instantiation** of the generic [hypermedia-change](./hypermedia-change.md), binding: `Block` = [example-app-block](./example-app-block.md). <!-- id:opH3cmUc -->
 
 # Depends on <!-- id:vKAY-r3N -->
 
-- [example-app-block](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-app-block) <!-- id:NIY6gxFu -->
-- [hypermedia-change](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-change) <!-- id:aGdttcAj -->
+- [example-app-block](./example-app-block.md) <!-- id:NIY6gxFu -->
+- [hypermedia-change](./hypermedia-change.md) <!-- id:aGdttcAj -->

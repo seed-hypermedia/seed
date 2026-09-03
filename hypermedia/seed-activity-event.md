@@ -9,8 +9,8 @@ This document describes the **seed-activity-event** type — a Seed API read-mod
 
 # Shape <!-- id:jk2YPQ-- -->
 
-An **open map** — every value: [any](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any). <!-- id:sBIDM6B6 -->
+An **open map** — every value: [any](./onyx-any.md). <!-- id:sBIDM6B6 -->
 
 # Depends on <!-- id:ZdlPpe18 -->
 
-- [any](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any) <!-- id:sc0AkmF_ -->
+- [any](./onyx-any.md) <!-- id:sc0AkmF_ -->

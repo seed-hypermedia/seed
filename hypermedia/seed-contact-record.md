@@ -10,17 +10,17 @@ This document describes the **seed-contact-record** type — a Seed API read-mod
 # Shape <!-- id:OPcW0q1Y -->
 
 A **closed struct** with these fields: <!-- id:ugdqxq2C -->
-  - `id` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:aqCipWke -->
-  - `subject` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:bMulhxTe -->
-  - `name` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:KYAzDSpX -->
-  - `account` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:mkd9FU0y -->
-  - `signer` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:ayR30qBL -->
-  - `createTime` — [hypermedia-timestamp](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp) <!-- id:oIDm5uXY -->
-  - `updateTime` — [hypermedia-timestamp](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp) <!-- id:onjq-D5J -->
-  - `subscribe` — [hypermedia-contact-subscribe](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-contact-subscribe) <!-- id:sD_jerc- -->
+  - `id` _(required)_ — [string](./onyx-string.md) <!-- id:aqCipWke -->
+  - `subject` _(required)_ — [string](./onyx-string.md) <!-- id:bMulhxTe -->
+  - `name` _(required)_ — [string](./onyx-string.md) <!-- id:KYAzDSpX -->
+  - `account` _(required)_ — [string](./onyx-string.md) <!-- id:mkd9FU0y -->
+  - `signer` _(required)_ — [string](./onyx-string.md) <!-- id:ayR30qBL -->
+  - `createTime` — [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:oIDm5uXY -->
+  - `updateTime` — [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:onjq-D5J -->
+  - `subscribe` — [hypermedia-contact-subscribe](./hypermedia-contact-subscribe.md) <!-- id:sD_jerc- -->
 
 # Depends on <!-- id:1vh3aSIz -->
 
-- [hypermedia-contact-subscribe](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-contact-subscribe) <!-- id:iqkqluZP -->
-- [hypermedia-timestamp](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp) <!-- id:CYoLI_wb -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:gMda6qOD -->
+- [hypermedia-contact-subscribe](./hypermedia-contact-subscribe.md) <!-- id:iqkqluZP -->
+- [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:CYoLI_wb -->
+- [string](./onyx-string.md) <!-- id:gMda6qOD -->

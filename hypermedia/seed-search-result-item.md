@@ -10,18 +10,18 @@ This document describes the **seed-search-result-item** type — a Seed API read
 # Shape <!-- id:7_SrO2k5 -->
 
 A **closed struct** with these fields: <!-- id:funk1VF2 -->
-  - `id` _(required)_ — [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:u3BNAqJ- -->
-  - `commentId` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:zE7xXAp- -->
-  - `metadata` — [hypermedia-metadata](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata) <!-- id:fu8241-R -->
-  - `title` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:aUnRcaQs -->
-  - `icon` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:nXDyjj9x -->
-  - `parentNames` _(required)_ — list of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:5J6naQQF -->
-  - `versionTime` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:eRekKhdW -->
-  - `searchQuery` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:RrP0uj-3 -->
+  - `id` _(required)_ — [seed-id](./seed-id.md) <!-- id:u3BNAqJ- -->
+  - `commentId` — [string](./onyx-string.md) <!-- id:zE7xXAp- -->
+  - `metadata` — [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:fu8241-R -->
+  - `title` _(required)_ — [string](./onyx-string.md) <!-- id:aUnRcaQs -->
+  - `icon` _(required)_ — [string](./onyx-string.md) <!-- id:nXDyjj9x -->
+  - `parentNames` _(required)_ — list of [string](./onyx-string.md) <!-- id:5J6naQQF -->
+  - `versionTime` — [string](./onyx-string.md) <!-- id:eRekKhdW -->
+  - `searchQuery` _(required)_ — [string](./onyx-string.md) <!-- id:RrP0uj-3 -->
   - `type` _(required)_ — `string` enum: `document` `contact` `comment` <!-- id:ow59ehEv -->
 
 # Depends on <!-- id:ikD0x8fX -->
 
-- [hypermedia-metadata](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata) <!-- id:e03fcW5T -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:u5Z_32fj -->
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:FD_zY--5 -->
+- [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:e03fcW5T -->
+- [string](./onyx-string.md) <!-- id:u5Z_32fj -->
+- [seed-id](./seed-id.md) <!-- id:FD_zY--5 -->

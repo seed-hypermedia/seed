@@ -11,9 +11,9 @@ This document describes the **seed-discovery-status** type — a Seed API read-m
 
 A **closed struct** with these fields: <!-- id:30yArQuX -->
   - `state` _(required)_ — `string` enum: `pending` `found` `failed` <!-- id:9LZFnDbh -->
-  - `version` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:8vEiaWJC -->
-  - `error` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:7izs2ZlP -->
+  - `version` — [string](./onyx-string.md) <!-- id:8vEiaWJC -->
+  - `error` — [string](./onyx-string.md) <!-- id:7izs2ZlP -->
 
 # Depends on <!-- id:2Ac_QMa3 -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:mvuguHT_ -->
+- [string](./onyx-string.md) <!-- id:mvuguHT_ -->

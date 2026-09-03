@@ -10,8 +10,8 @@ This document describes the **example-constrained** type — an example schema. 
 A **closed struct** with these fields: <!-- id:XZkJ0jr0 -->
   - `username` _(required)_ — `string` <!-- id:baxMEaLA -->
   - `score` _(required)_ — `integer` <!-- id:MU1mTe3O -->
-  - `tags` — list of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:mA94BPqd -->
+  - `tags` — list of [string](./onyx-string.md) <!-- id:mA94BPqd -->
 
 # Depends on <!-- id:OQmAkkji -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:iav6y69T -->
+- [string](./onyx-string.md) <!-- id:iav6y69T -->

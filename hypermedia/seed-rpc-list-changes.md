@@ -16,6 +16,6 @@ A **closed struct** with these fields: <!-- id:CpilCY5t -->
 
 # Depends on <!-- id:xbUuATMI -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:CR9fgC3y -->
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:5kkwJiCD -->
-- [seed-raw-document-change](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-raw-document-change) <!-- id:3-1Dl14U -->
+- [string](./onyx-string.md) <!-- id:CR9fgC3y -->
+- [seed-id](./seed-id.md) <!-- id:5kkwJiCD -->
+- [seed-raw-document-change](./seed-raw-document-change.md) <!-- id:3-1Dl14U -->

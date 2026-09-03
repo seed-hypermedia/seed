@@ -10,17 +10,17 @@ This document describes the **seed-capability** type — a Seed API read-model s
 # Shape <!-- id:U635-Zyt -->
 
 A **closed struct** with these fields: <!-- id:9qhgoTmA -->
-  - `id` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:p0Pqs-hQ -->
-  - `accountUid` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:3FK_99NA -->
-  - `role` _(required)_ — [hypermedia-role](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-role) <!-- id:9j3W7BSF -->
-  - `capabilityId` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:jGkFhD5o -->
-  - `grantId` _(required)_ — [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:kw33mNHc -->
-  - `label` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:mit3zxzN -->
-  - `createTime` _(required)_ — [hypermedia-timestamp](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp) <!-- id:fOzDuCtH -->
+  - `id` _(required)_ — [string](./onyx-string.md) <!-- id:p0Pqs-hQ -->
+  - `accountUid` _(required)_ — [string](./onyx-string.md) <!-- id:3FK_99NA -->
+  - `role` _(required)_ — [hypermedia-role](./hypermedia-role.md) <!-- id:9j3W7BSF -->
+  - `capabilityId` — [string](./onyx-string.md) <!-- id:jGkFhD5o -->
+  - `grantId` _(required)_ — [seed-id](./seed-id.md) <!-- id:kw33mNHc -->
+  - `label` — [string](./onyx-string.md) <!-- id:mit3zxzN -->
+  - `createTime` _(required)_ — [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:fOzDuCtH -->
 
 # Depends on <!-- id:Thx5b8sf -->
 
-- [hypermedia-role](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-role) <!-- id:L2yWRuzu -->
-- [hypermedia-timestamp](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp) <!-- id:3XGFsdz3 -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:6MwjyTWx -->
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:RiWTRYEb -->
+- [hypermedia-role](./hypermedia-role.md) <!-- id:L2yWRuzu -->
+- [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:3XGFsdz3 -->
+- [string](./onyx-string.md) <!-- id:6MwjyTWx -->
+- [seed-id](./seed-id.md) <!-- id:RiWTRYEb -->

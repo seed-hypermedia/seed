@@ -8,12 +8,12 @@ This document describes the **hypermedia-redirect-target** type — a Hypermedia
 # Shape <!-- id:Mw7vaa0_ -->
 
 A **closed struct** with these fields: <!-- id:vOHPKMNt -->
-  - `space` — [hypermedia-principal](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-principal) <!-- id:BX1XxAo1 -->
-  - `path` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:tkiZCNDO -->
-  - `republish` — [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:f8ILSJ4c -->
+  - `space` — [hypermedia-principal](./hypermedia-principal.md) <!-- id:BX1XxAo1 -->
+  - `path` — [string](./onyx-string.md) <!-- id:tkiZCNDO -->
+  - `republish` — [boolean](./onyx-boolean.md) <!-- id:f8ILSJ4c -->
 
 # Depends on <!-- id:n0grsHmb -->
 
-- [hypermedia-principal](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-principal) <!-- id:dMEzYQIO -->
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:zkw60tb9 -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:jyHqppJd -->
+- [hypermedia-principal](./hypermedia-principal.md) <!-- id:dMEzYQIO -->
+- [boolean](./onyx-boolean.md) <!-- id:zkw60tb9 -->
+- [string](./onyx-string.md) <!-- id:jyHqppJd -->

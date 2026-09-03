@@ -8,10 +8,10 @@ This document describes the **example-address** type — an example schema. Its 
 # Shape <!-- id:lFNyvCCx -->
 
 A **closed struct** with these fields: <!-- id:XGrPnmSZ -->
-  - `street` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:HT49CZz8 -->
-  - `city` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:qzZ2rGQ3 -->
-  - `postalCode` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:PeOlj5sn -->
+  - `street` _(required)_ — [string](./onyx-string.md) <!-- id:HT49CZz8 -->
+  - `city` _(required)_ — [string](./onyx-string.md) <!-- id:qzZ2rGQ3 -->
+  - `postalCode` — [string](./onyx-string.md) <!-- id:PeOlj5sn -->
 
 # Depends on <!-- id:Rd4ib7lU -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:WE2Dzd5r -->
+- [string](./onyx-string.md) <!-- id:WE2Dzd5r -->

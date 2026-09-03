@@ -10,13 +10,13 @@ This document describes the **seed-metadata-payload** type — a Seed API read-m
 # Shape <!-- id:XIHou5Ec -->
 
 A **closed struct** with these fields: <!-- id:0j_x3TEg -->
-  - `id` _(required)_ — [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:mHdVfkvN -->
-  - `metadata` _(required)_ — one of [hypermedia-metadata](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata) | [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:l5DeUFH2 -->
-  - `hasSite` — [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:ElbUiqOU -->
+  - `id` _(required)_ — [seed-id](./seed-id.md) <!-- id:mHdVfkvN -->
+  - `metadata` _(required)_ — one of [hypermedia-metadata](./hypermedia-metadata.md) | [null](./onyx-null.md) <!-- id:l5DeUFH2 -->
+  - `hasSite` — [boolean](./onyx-boolean.md) <!-- id:ElbUiqOU -->
 
 # Depends on <!-- id:jWMfRp8f -->
 
-- [hypermedia-metadata](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata) <!-- id:YHNL_4BR -->
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:KXwYZO0v -->
-- [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:6NloaXgX -->
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:L9kGhYH8 -->
+- [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:YHNL_4BR -->
+- [boolean](./onyx-boolean.md) <!-- id:KXwYZO0v -->
+- [null](./onyx-null.md) <!-- id:6NloaXgX -->
+- [seed-id](./seed-id.md) <!-- id:L9kGhYH8 -->

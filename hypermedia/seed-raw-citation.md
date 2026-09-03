@@ -10,21 +10,21 @@ This document describes the **seed-raw-citation** type — a Seed API read-model
 # Shape <!-- id:Qooxep7h -->
 
 A **closed struct** with these fields: <!-- id:VSMoMOwV -->
-  - `source` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:xbMuwlRc -->
-  - `sourceType` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:QCGc8Mib -->
-  - `sourceContext` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:EB2X99HS -->
+  - `source` _(required)_ — [string](./onyx-string.md) <!-- id:xbMuwlRc -->
+  - `sourceType` — [string](./onyx-string.md) <!-- id:QCGc8Mib -->
+  - `sourceContext` — [string](./onyx-string.md) <!-- id:EB2X99HS -->
   - `sourceBlob` — map { 3 fields } <!-- id:HWqmQC6t -->
-  - `sourceDocument` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:tGPuH7j_ -->
-  - `target` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:mcQ_zF31 -->
-  - `targetVersion` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:9r6v5-Jt -->
-  - `targetFragment` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:ETitOUBu -->
-  - `isExactVersion` — [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:JjU7xHVn -->
-  - `targetBlockRevision` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:5F30tb_v -->
-  - `mentionType` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:wQ9hjuTI -->
-  - `isExact` — [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:PmdMfCaq -->
+  - `sourceDocument` — [string](./onyx-string.md) <!-- id:tGPuH7j_ -->
+  - `target` — [string](./onyx-string.md) <!-- id:mcQ_zF31 -->
+  - `targetVersion` — [string](./onyx-string.md) <!-- id:9r6v5-Jt -->
+  - `targetFragment` — [string](./onyx-string.md) <!-- id:ETitOUBu -->
+  - `isExactVersion` — [boolean](./onyx-boolean.md) <!-- id:JjU7xHVn -->
+  - `targetBlockRevision` — [string](./onyx-string.md) <!-- id:5F30tb_v -->
+  - `mentionType` — [string](./onyx-string.md) <!-- id:wQ9hjuTI -->
+  - `isExact` — [boolean](./onyx-boolean.md) <!-- id:PmdMfCaq -->
 
 # Depends on <!-- id:dPIrJcel -->
 
-- [hypermedia-timestamp](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp) <!-- id:hBJ55G_b -->
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:lRrCLPEF -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:Z4_aA0VM -->
+- [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:hBJ55G_b -->
+- [boolean](./onyx-boolean.md) <!-- id:lRrCLPEF -->
+- [string](./onyx-string.md) <!-- id:Z4_aA0VM -->

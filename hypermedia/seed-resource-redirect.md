@@ -11,11 +11,11 @@ This document describes the **seed-resource-redirect** type — a Seed API read-
 
 A **closed struct** with these fields: <!-- id:gXsjb7Rl -->
   - `type` _(required)_ — `string` enum: `redirect` <!-- id:74-eVXWJ -->
-  - `id` _(required)_ — [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:KDi6IPw0 -->
-  - `redirectTarget` _(required)_ — [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:Vwc2UeaH -->
-  - `republish` — [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:D60uDSWr -->
+  - `id` _(required)_ — [seed-id](./seed-id.md) <!-- id:KDi6IPw0 -->
+  - `redirectTarget` _(required)_ — [seed-id](./seed-id.md) <!-- id:Vwc2UeaH -->
+  - `republish` — [boolean](./onyx-boolean.md) <!-- id:D60uDSWr -->
 
 # Depends on <!-- id:dIJpaWek -->
 
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:GXI1oXzy -->
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:ILFvu60V -->
+- [boolean](./onyx-boolean.md) <!-- id:GXI1oXzy -->
+- [seed-id](./seed-id.md) <!-- id:ILFvu60V -->

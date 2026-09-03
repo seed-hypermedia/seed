@@ -9,10 +9,10 @@ This document describes the **seed-redirect-info** type — a Seed API read-mode
 
 A **closed struct** with these fields: <!-- id:H9UhYokL -->
   - `type` _(required)_ — `string` enum: `redirect` <!-- id:BJPYeobL -->
-  - `target` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:yhCOxGRG -->
-  - `republish` — [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:jjdxxctm -->
+  - `target` _(required)_ — [string](./onyx-string.md) <!-- id:yhCOxGRG -->
+  - `republish` — [boolean](./onyx-boolean.md) <!-- id:jjdxxctm -->
 
 # Depends on <!-- id:uX4Hsf16 -->
 
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:ViQ8FoIh -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:uzKMxK4F -->
+- [boolean](./onyx-boolean.md) <!-- id:ViQ8FoIh -->
+- [string](./onyx-string.md) <!-- id:uzKMxK4F -->

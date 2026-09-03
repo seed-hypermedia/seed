@@ -10,8 +10,8 @@ This document describes the **seed-query-block-item-summary** type — a Seed AP
 A **closed struct** with these fields: <!-- id:qq18fyuR -->
   - `comments` _(required)_ — `integer` <!-- id:npWZl1gz -->
   - `children` — `integer` <!-- id:3mQ5Cg-9 -->
-  - `authorUids` — list of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:h7HlbaFp -->
+  - `authorUids` — list of [string](./onyx-string.md) <!-- id:h7HlbaFp -->
 
 # Depends on <!-- id:sjAu9-Sn -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:5lfnuo9f -->
+- [string](./onyx-string.md) <!-- id:5lfnuo9f -->

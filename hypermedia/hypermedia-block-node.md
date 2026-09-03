@@ -10,9 +10,9 @@ This document describes the **hypermedia-block-node** type — a Hypermedia Netw
 # Shape <!-- id:RgXO3NxT -->
 
 A **closed struct** with these fields: <!-- id:LM850y9F -->
-  - `block` _(required)_ — [hypermedia-block](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block) <!-- id:SwY5yaNk -->
-  - `children` — list of [hypermedia-block-node](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-node) <!-- id:5Kul9cSX -->
+  - `block` _(required)_ — [hypermedia-block](./hypermedia-block.md) <!-- id:SwY5yaNk -->
+  - `children` — list of [hypermedia-block-node](./hypermedia-block-node.md) <!-- id:5Kul9cSX -->
 
 # Depends on <!-- id:sFTXQt8U -->
 
-- [hypermedia-block](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block) <!-- id:36MLJaY3 -->
+- [hypermedia-block](./hypermedia-block.md) <!-- id:36MLJaY3 -->

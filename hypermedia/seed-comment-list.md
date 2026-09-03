@@ -10,10 +10,10 @@ This document describes the **seed-comment-list** type — a Seed API read-model
 # Shape <!-- id:PppnBW7I -->
 
 A **closed struct** with these fields: <!-- id:KZctBNHM -->
-  - `comments` _(required)_ — list of [seed-comment](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-comment) <!-- id:kVFQBkzL -->
-  - `authors` _(required)_ — map ⟨ \* : [seed-metadata-payload](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-metadata-payload) ⟩ <!-- id:ZBgvETJb -->
+  - `comments` _(required)_ — list of [seed-comment](./seed-comment.md) <!-- id:kVFQBkzL -->
+  - `authors` _(required)_ — map ⟨ \* : [seed-metadata-payload](./seed-metadata-payload.md) ⟩ <!-- id:ZBgvETJb -->
 
 # Depends on <!-- id:Xlb8F54n -->
 
-- [seed-comment](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-comment) <!-- id:uEtChrVR -->
-- [seed-metadata-payload](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-metadata-payload) <!-- id:Dt3ONyxv -->
+- [seed-comment](./seed-comment.md) <!-- id:uEtChrVR -->
+- [seed-metadata-payload](./seed-metadata-payload.md) <!-- id:Dt3ONyxv -->

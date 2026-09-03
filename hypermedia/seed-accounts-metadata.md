@@ -9,8 +9,8 @@ This document describes the **seed-accounts-metadata** type — a Seed API read-
 
 # Shape <!-- id:bBb-OVOx -->
 
-An **open map** — every value: [seed-metadata-payload](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-metadata-payload). <!-- id:STXR7Lms -->
+An **open map** — every value: [seed-metadata-payload](./seed-metadata-payload.md). <!-- id:STXR7Lms -->
 
 # Depends on <!-- id:naBMAOd_ -->
 
-- [seed-metadata-payload](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-metadata-payload) <!-- id:3J-SED2K -->
+- [seed-metadata-payload](./seed-metadata-payload.md) <!-- id:3J-SED2K -->

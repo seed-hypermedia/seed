@@ -9,10 +9,10 @@ This document describes the **hypermedia-op-move-blocks** type — a Hypermedia 
 
 A **closed struct** with these fields: <!-- id:dhIYxPj9 -->
   - `type` _(required)_ — `string` enum: `MoveBlocks` <!-- id:NTqXHSfq -->
-  - `parent` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:6ypREaYl -->
-  - `blocks` _(required)_ — list of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:-kAVnOCA -->
-  - `ref` — list of [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:Iz-XiAnh -->
+  - `parent` — [string](./onyx-string.md) <!-- id:6ypREaYl -->
+  - `blocks` _(required)_ — list of [string](./onyx-string.md) <!-- id:-kAVnOCA -->
+  - `ref` — list of [integer](./onyx-integer.md) <!-- id:Iz-XiAnh -->
 
 # Depends on <!-- id:9VGfsEKn -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:AmT0qRL2 -->
+- [string](./onyx-string.md) <!-- id:AmT0qRL2 -->

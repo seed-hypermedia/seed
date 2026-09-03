@@ -12,8 +12,8 @@ This document describes the **seed-block-range** type — a Seed API read-model 
 A **closed struct** with these fields: <!-- id:N88QDkke -->
   - `start` — `integer` <!-- id:sZD7rgCl -->
   - `end` — `integer` <!-- id:sqGFTb5g -->
-  - `expanded` — [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:uWwInii1 -->
+  - `expanded` — [boolean](./onyx-boolean.md) <!-- id:uWwInii1 -->
 
 # Depends on <!-- id:JTmQ38m4 -->
 
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:-9DkLtVZ -->
+- [boolean](./onyx-boolean.md) <!-- id:-9DkLtVZ -->
