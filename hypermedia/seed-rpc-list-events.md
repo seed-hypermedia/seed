@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListEvents"
 summary: "Pages through the activity feed, with author/type/resource filters. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` fi"
-schemaDefinition: ipfs://bafyreigcsbadzeef26pbufofxbfz5dn2sqrqo7dsr6jex2yuvas67drjhm
+schemaDefinition: ipfs://bafyreid5kpy5i2bbwjlvwyvpnqpqgrs63ghhyr36kffsj3ecnf2srxzsua
 ---
 Pages through the activity feed, with author/type/resource filters. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:8NB6bWqQ -->
 

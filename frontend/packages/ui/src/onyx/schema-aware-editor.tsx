@@ -22,7 +22,7 @@ function fitsStructForm(value: unknown): value is OnyxSchema {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const v = value as OnyxSchema
   if (v.anyOf) return false
-  return !v.type || kindOf(v.type) === 'map'
+  return !v.type || kindOf(v.type) === 'map' || kindOf(v.type) === 'struct'
 }
 
 /** The starting value for a new object of `schema`: a blank struct when it's the meta-schema. */
