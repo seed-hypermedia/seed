@@ -2,8 +2,11 @@
 import {useState} from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
-import {afterEach, beforeEach, describe, expect, it} from 'vitest'
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+import type {ReactNode} from 'react'
 import {TooltipProvider} from '../../tooltip'
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
+import {UniversalAppProvider} from '@shm/shared/routing'
 import {isOnyxSchema, kindOf, type OnyxSchema} from '../onyx-engine'
 import {emptyStructSchema, OnyxSchemaEditor} from '../onyx-schema-editor'
 
@@ -12,6 +15,8 @@ let root: Root
 
 beforeEach(() => {
   ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
+  // Full DOM renders of the editor are slow when the suite runs in parallel.
+  vi.setConfig({testTimeout: 20_000})
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -21,13 +26,26 @@ afterEach(() => {
   container.remove()
 })
 
+// The type picker searches through the app client; the stub answers nothing.
+const testClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
+const stubUniversalClient = {request: async () => null} as any
+function AppShell({children}: {children: ReactNode}) {
+  return (
+    <QueryClientProvider client={testClient}>
+      <UniversalAppProvider openUrl={() => {}} openRoute={null} universalClient={stubUniversalClient}>
+        <TooltipProvider>{children}</TooltipProvider>
+      </UniversalAppProvider>
+    </QueryClientProvider>
+  )
+}
+
 // Controlled wrapper that exposes the latest schema for assertions.
 let latest: OnyxSchema
 function Harness({initial}: {initial: OnyxSchema}) {
   const [schema, setSchema] = useState(initial)
   latest = schema
   return (
-    <TooltipProvider>
+    <AppShell>
       <OnyxSchemaEditor
         schema={schema}
         onSchema={(s) => {
@@ -35,7 +53,7 @@ function Harness({initial}: {initial: OnyxSchema}) {
           setSchema(s)
         }}
       />
-    </TooltipProvider>
+    </AppShell>
   )
 }
 const click = (el: Element) => act(() => el.dispatchEvent(new MouseEvent('click', {bubbles: true})))
