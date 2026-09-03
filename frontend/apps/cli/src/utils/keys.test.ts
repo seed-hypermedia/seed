@@ -95,6 +95,62 @@ beforeEach(() => {
 
 afterEach(() => {
   delete process.env.SEED_VAULT_PATH
+  delete process.env.SEED_CLI_KEYFILE
+  delete process.env.SEED_CLI_MNEMONIC
+})
+
+/** An unencrypted `.hmkey.json` payload for a test key, as the app exports it. */
+function keyfileJson(key: TestKey, publicKey = key.accountId): string {
+  return JSON.stringify({
+    createTime: '2026-01-01T00:00:00.000Z',
+    publicKey,
+    keyB64: Buffer.from(key.privateKey).toString('base64'),
+  })
+}
+
+describe('signing key from the environment', () => {
+  test('SEED_CLI_KEYFILE (an exported .hmkey.json) wins over every stored key', async () => {
+    state.vaultAccounts = [asVaultAccount(vaultMain)]
+    state.keyringKeys = [keyringMain]
+    const envKey = makeKey('ci', 9)
+    process.env.SEED_CLI_KEYFILE = keyfileJson(envKey)
+    const key = await resolveSigningKey(undefined, OPTS)
+    expect(key.source).toBe('env')
+    expect(key.accountId).toBe(envKey.accountId)
+    expect(key.privateKey).toEqual(envKey.privateKey)
+    // --key may name the same account, or the env key itself, but nothing else.
+    expect((await resolveSigningKey(envKey.accountId, OPTS)).accountId).toBe(envKey.accountId)
+    expect((await resolveSigningKey('env', OPTS)).accountId).toBe(envKey.accountId)
+    await expect(resolveSigningKey('main', OPTS)).rejects.toThrow('SEED_CLI_KEYFILE is set')
+  })
+
+  test('SEED_CLI_KEYFILE rejects a key file whose publicKey does not match its key', async () => {
+    const envKey = makeKey('ci', 9)
+    process.env.SEED_CLI_KEYFILE = keyfileJson(envKey, makeKey('other', 8).accountId)
+    await expect(resolveSigningKey(undefined, OPTS)).rejects.toThrow('publicKey does not match')
+  })
+
+  test('SEED_CLI_KEYFILE rejects an encrypted key file with guidance', async () => {
+    const envKey = makeKey('ci', 9)
+    const payload = {...JSON.parse(keyfileJson(envKey)), encryption: {kdf: 'argon2id', cipher: 'xchacha20poly1305'}}
+    process.env.SEED_CLI_KEYFILE = JSON.stringify(payload)
+    await expect(resolveSigningKey(undefined, OPTS)).rejects.toThrow('export it without a password')
+  })
+
+  test('SEED_CLI_KEYFILE rejects junk', async () => {
+    process.env.SEED_CLI_KEYFILE = 'not json'
+    await expect(resolveSigningKey(undefined, OPTS)).rejects.toThrow('SEED_CLI_KEYFILE is not a usable .hmkey.json')
+  })
+
+  test('SEED_CLI_MNEMONIC still works, and both at once is an error', async () => {
+    process.env.SEED_CLI_MNEMONIC =
+      'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
+    const key = await resolveSigningKey(undefined, OPTS)
+    expect(key.source).toBe('env')
+    expect(key.accountId.startsWith('z')).toBe(true)
+    process.env.SEED_CLI_KEYFILE = keyfileJson(makeKey('ci', 9))
+    await expect(resolveSigningKey(undefined, OPTS)).rejects.toThrow('use one')
+  })
 })
 
 describe('resolveSigningKey precedence', () => {
