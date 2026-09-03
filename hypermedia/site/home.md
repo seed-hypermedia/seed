@@ -23,14 +23,18 @@ New to Onyx? These four pages explain the system from the top down before the re
 # Using Onyx in the Seed app <!-- id:L_DgXvRt -->
 The schema features live behind **Developer Mode** (Settings → Developers on desktop; on by default on web). Once enabled, every document's options menu gains the building-block entries below. <!-- id:5Fs6bCbF -->
 
-## Browse the schemas <!-- id:aRoEaieX -->
-The type system is browsed through its own published documents — this account. Every schema has a page here (this site's navigation, or the links in every chapter), and each schema page's header carries a tag that opens the **schema browser** at `/hm/schema/<cid>`: the schema's fields (kinds, required/optional), union variants, extension (inherited vs added fields), generic parameters, targets, its `hm://` URL and CID, and its source `dag-json`. **Every reference is a link** — a field's type, a dependency, a target, an `hm://` value in the source — so you navigate the graph by clicking. The header's **New** button creates a blob that follows the schema. The same page serves schemas you publish yourself. <!-- id:vbG_WGq1 -->
+## Browse the schema tour <!-- id:aRoEaieX -->
+Open **Onyx Schema Tour** from any document's options menu (or visit `/hm/onyx`). The tour is a browsable, in-app view of the whole type system: <!-- id:vbG_WGq1 -->
+  - A catalog of every schema, grouped into the meta-schema, primitives, examples, and the Hypermedia network's real blob schemas. <!-- id:Ic9Qwwbd -->
+  - Each schema renders as a page: its fields (with kinds and required/optional), union variants, extension (inherited vs added fields), generic parameters, its published `hm://` URL and CID, and its source `dag-json`. <!-- id:K_Hww_2j -->
+  - **Every reference is a link.** Types are documents: click a field's type, a dependency, or an `hm://` value in the source to navigate to that schema. Each page also lists what it _depends on_ and what _depends on it_. <!-- id:U8TGynZc -->
+  - Under each schema is a **live editor** — build a value of that schema (or, on the meta-schema, build a _schema_) and watch it validate on every keystroke, by the same engine as the reference validator. <!-- id:Lvsl4-lc -->
 
 ## Create a schema <!-- id:pGXQjMrq -->
 Choose **New Schema** from the options menu. This opens the editor pointed at the meta-schema, so the form itself only offers choices a valid schema can make — pick a kind, add properties, mark them required, add enums or unions. Publishing mints a content-addressed schema blob you can reference by CID or name. <!-- id:ggmcQl7m -->
 
 ## Create typed data <!-- id:X0q30aDs -->
-Choose **New Blob** for a blank DAG-CBOR object, or **New** from a schema's page (or **New Instance** in the inspector) to start a value pre-seeded to match a schema. The editor is _schema-respecting_: it suggests the schema's fields, offers dropdowns for enums and union variants, renders `link` and `bytes` with the right controls, and flags anything that doesn't conform — without blocking you. <!-- id:o1oySfG7 -->
+Choose **New Blob** for a blank DAG-CBOR object, or **New Instance** (from a schema's page in the inspector) to start a value pre-seeded to match a schema. The editor is _schema-respecting_: it suggests the schema's fields, offers dropdowns for enums and union variants, renders `link` and `bytes` with the right controls, and flags anything that doesn't conform — without blocking you. <!-- id:o1oySfG7 -->
 
 ## Type a document's metadata with a schema <!-- id:94quIzFe -->
 In a document's **Attributes** editor, attach a schema as a field: click the schema-field button (or type a schema's `ipfs://…` URL as the field's name). The field then becomes schema-driven — dropdowns for literal unions, search-assisted inputs for `hm://` references, and advisory warnings when a value doesn't match. <!-- id:d5xNGHyZ -->
@@ -53,4 +57,7 @@ The concepts, in reading order: <!-- id:MLxtm7My -->
   8. [Glossary](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/glossary) — every term in one place. <!-- id:lZdOYrQc -->
 
 # Under the hood <!-- id:IbNZWutg -->
-Onyx ships a dependency-free reference validator that proves the meta-schema describes itself, validates every schema against it, and confirms the union _rejects_ malformed schemas; a deterministic publisher that hashes each schema to its DAG-CBOR CID; a TypeScript generator that turns every schema into a TS type (maps become interfaces, enums become literal unions, extension becomes intersection, and `Change<Block>` becomes a real TS generic); and a schema explorer that renders every schema as a page. That same validator is ported into the Seed app, so the in-app schema pages and editors can never disagree with the reference oracle. <!-- id:-VNyXPT9 -->
+Onyx ships a dependency-free reference validator that proves the meta-schema describes itself, validates every schema against it, and confirms the union _rejects_ malformed schemas; a deterministic publisher that hashes each schema to its DAG-CBOR CID; a TypeScript generator that turns every schema into a TS type (maps become interfaces, enums become literal unions, extension becomes intersection, and `Change<Block>` becomes a real TS generic); and a schema explorer that renders every schema as a page. That same validator is ported into the Seed app, so the in-app tour and editors can never disagree with the reference oracle. <!-- id:-VNyXPT9 -->
+<!-- end:IbNZWutg -->
+
+<hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/sprout-resource> <!-- id:ATdZ9MA6WT type:Embed attrs:{"view":"Card"} -->

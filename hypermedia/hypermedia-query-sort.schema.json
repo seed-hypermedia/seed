@@ -18,5 +18,7 @@
         "ActivityTime"
       ]
     }
-  }
+  },
+  "description": "One sort term for a Query block's results, optionally reversed.",
+  "name": "Query sort"
 }

@@ -9,12 +9,12 @@ The Hypermedia Network stores its data as **DAG-CBOR blobs** in IPFS. There are 
 Every blob embeds a base envelope, [Signed blob](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-blob): <!-- id:iAwaugHT -->
 
 <!-- id:fmRGB5ga -->
-| field <!-- col:Na_LusWI --> | type <!-- col:YfdND9jO --> | meaning <!-- col:apHHZNTY --> <!-- id:L2hr53_i --> |
+| field <!-- col:QDXqnDiH --> | type <!-- col:Wdc_fgoB --> | meaning <!-- col:FVItG8md --> <!-- id:l8an2_DE --> |
 | --- | --- | --- |
-| `type` | string | the blob discriminator ("Change", "Ref", …) <!-- id:LNP4UQva --> |
-| `signer` | `principal` (bytes) | the signer's public key <!-- id:zLRfKK_J --> |
-| `sig` | `signature` (bytes) | signature over the blob <!-- id:-Ei4jwGH --> |
-| `ts` | `timestamp` (integer) | Unix-millisecond time <!-- id:KFMnuu6T --> |
+| `type` | string | the blob discriminator ("Change", "Ref", …) <!-- id:WLcTiayY --> |
+| `signer` | `principal` (bytes) | the signer's public key <!-- id:8zO6tjGh --> |
+| `sig` | `signature` (bytes) | signature over the blob <!-- id:lD2RIqxm --> |
+| `ts` | `timestamp` (integer) | Unix-millisecond time <!-- id:nFpKKNpd --> |
 
 Each concrete type **extends** it (Onyx extension — [the schema language](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema-language)), inheriting those four fields and overriding `type` with a single-value enum: <!-- id:zUkl9LQZ -->
   - `hypermedia-change` — an append-only document change, linked into a causal DAG by `deps`; carries a `change-body` of ops. <!-- id:XNtWFQFG -->
@@ -39,12 +39,12 @@ A Change's body is a list of `op`s — themselves a union (SetAttributes / MoveB
 Document content is made of **blocks**. We want two things that pull in opposite directions: **strict, concrete types** (so implementations can dispatch on `block.type` with type-safe, per-type handlers) _and_ **openness** (so a newer client's block type doesn't make an older client reject the whole document). These can't both live in a single validation pass — an open fallback always swallows a malformed known block — so the model provides _layers_, and you pick per workflow: <!-- id:6ghDI01J -->
 
 <!-- id:HpD_T3GL -->
-| workflow <!-- col:A8vgaFo4 --> | needs <!-- col:FIP8KiW3 --> | use <!-- col:th7BETUL --> <!-- id:3LkiV5Ju --> |
+| workflow <!-- col:SJYqm_FR --> | needs <!-- col:zZHghcu8 --> | use <!-- col:rop7Xg0X --> <!-- id:vpbDuOwM --> |
 | --- | --- | --- |
-| rendering / dispatch | strict per-type shapes + graceful fallback | concrete types + `hypermedia-block` <!-- id:wtvu7DPR --> |
-| authoring / editing | strict validation | `hypermedia-block-core` <!-- id:Ro2A82OD --> |
-| sync / storage (forward-compat) | never reject unknown | `hypermedia-block` <!-- id:AINzic-b --> |
-| codegen | the enumerable set | `hypermedia-block-core` <!-- id:U7UTeDDh --> |
+| rendering / dispatch | strict per-type shapes + graceful fallback | concrete types + `hypermedia-block` <!-- id:2Rqie-wF --> |
+| authoring / editing | strict validation | `hypermedia-block-core` <!-- id:ZTfLAdj0 --> |
+| sync / storage (forward-compat) | never reject unknown | `hypermedia-block` <!-- id:23bmRunT --> |
+| codegen | the enumerable set | `hypermedia-block-core` <!-- id:L8JGoNbX --> |
 
 <!-- id:nNN-eoL8 -->
 - The fifteen **concrete blocks** — `hypermedia-block-paragraph`, `hypermedia-block-heading`, `hypermedia-block-code`, `hypermedia-block-math`, `hypermedia-block-image`, `hypermedia-block-video`, `hypermedia-block-file`, `hypermedia-block-button`, `hypermedia-block-embed`, `hypermedia-block-web-embed`, `hypermedia-block-nostr`, `hypermedia-block-table`, `hypermedia-block-table-row`, `hypermedia-block-table-column`, `hypermedia-block-query` — each **extends** `hypermedia-block-base`, closed, with a `type` enum and typed attributes. <!-- id:85wzIKeC -->
@@ -69,11 +69,11 @@ To make _Change itself_ strict over an app's block set — not just the wire blo
 The wire types map onto Onyx primitives, wrapped as self-explanatory aliases: <!-- id:LTD8_m45 -->
 
 <!-- id:vu31Ab-i -->
-| Hypermedia <!-- col:j2TJEeAE --> | CBOR <!-- col:MtDD3BVp --> | Onyx <!-- col:oSB2aUn3 --> <!-- id:arRS7EvK --> |
+| Hypermedia <!-- col:qw20V0RJ --> | CBOR <!-- col:sFcNjdqi --> | Onyx <!-- col:sw0Ibvi3 --> <!-- id:G6__5qUK --> |
 | --- | --- | --- |
-| `principal`, `signature` | byte string | `bytes` <!-- id:TzmlTPbZ --> |
-| `cid` | CBOR tag-42 link | `link` <!-- id:IJ4BEYnA --> |
-| `timestamp` | int64 (Unix ms) | `integer` <!-- id:2fLazMHg --> |
+| `principal`, `signature` | byte string | `bytes` <!-- id:WvSCivUk --> |
+| `cid` | CBOR tag-42 link | `link` <!-- id:aAp0ivQG --> |
+| `timestamp` | int64 (Unix ms) | `integer` <!-- id:_oHdoW-v --> |
 
 Every one of these schemas is validated in `validate.mjs` — as a well-formed schema, and against real blob-shaped data (a Ref, a Capability, a Change with ops, the union, and metadata), with negative cases for wrong `type` tags, missing required fields, and unknown keys. <!-- id:jy52yYgY -->
 

@@ -457,10 +457,24 @@ function compareAnnotations(a: Record<string, unknown>, b: Record<string, unknow
   return sa - sb || eb - ea || String(a.type).localeCompare(String(b.type))
 }
 
+/** An annotation covering no text (every range empty) carries no meaning. */
+function hasRange(a: Record<string, unknown>): boolean {
+  const starts = (a.starts as number[] | undefined) || []
+  const ends = (a.ends as number[] | undefined) || []
+  return starts.some((s, i) => (ends[i] ?? -1) > s)
+}
+
 /** An annotation reduced to its meaning: no empty link/attributes, fixed key order. */
 function canonicalAnnotation(ann: unknown): Record<string, unknown> {
   const a = (ann || {}) as Record<string, unknown>
-  const out: Record<string, unknown> = {type: a.type, starts: a.starts, ends: a.ends}
+  const starts = (a.starts as number[] | undefined) || []
+  const ends = (a.ends as number[] | undefined) || []
+  const keep = starts.map((s, i) => i).filter((i) => (ends[i] ?? -1) > starts[i]!)
+  const out: Record<string, unknown> = {
+    type: a.type,
+    starts: keep.map((i) => starts[i]),
+    ends: keep.map((i) => ends[i]),
+  }
   if (a.link) out.link = a.link
   const attrs = a.attributes as Record<string, unknown> | undefined
   if (attrs && Object.keys(attrs).length > 0) {
@@ -482,8 +496,8 @@ function isBlockContentEqual(old: APIBlock, newBlock: SeedBlock): boolean {
 
   // Compare annotations semantically: the API spells out empty `link` /
   // `attributes` and its own key order, the markdown parser does not.
-  const oldAnn = (old.annotations || []).map(canonicalAnnotation).sort(compareAnnotations)
-  const newAnn = (newBlock.annotations || []).map(canonicalAnnotation).sort(compareAnnotations)
+  const oldAnn = (old.annotations || []).map(canonicalAnnotation).filter(hasRange).sort(compareAnnotations)
+  const newAnn = (newBlock.annotations || []).map(canonicalAnnotation).filter(hasRange).sort(compareAnnotations)
   if (oldAnn.length !== newAnn.length) return false
   if (oldAnn.length > 0 && JSON.stringify(oldAnn) !== JSON.stringify(newAnn)) {
     return false

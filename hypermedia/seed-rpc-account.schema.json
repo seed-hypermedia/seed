@@ -19,5 +19,7 @@
     "key",
     "input",
     "output"
-  ]
+  ],
+  "description": "Resolves an account by uid. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.",
+  "name": "RPC: Account"
 }

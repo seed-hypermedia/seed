@@ -22,5 +22,7 @@
     "subscribe": {
       "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-contact-subscribe"
     }
-  }
+  },
+  "description": "A contact record: one account's named reference to another account (the subject), with subscription preferences.",
+  "name": "Contact"
 }

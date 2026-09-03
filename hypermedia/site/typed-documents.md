@@ -6,11 +6,11 @@ summary: How a Hypermedia document declares what it is — the schema, childrenS
 Every document's metadata may carry up to three schema-related fields. They are declared on the base document schema, [hypermedia-metadata](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata), and each one says a different thing: <!-- id:eKwMrgCU -->
 
 <!-- id:IWXxmzY8 -->
-| field <!-- col:syOB__s3 --> | the sentence it says <!-- col:iuGjj9Zb --> | value <!-- col:k9J1pCAU --> <!-- id:DDmSl1B7 --> |
+| field <!-- col:Bf70KZPY --> | the sentence it says <!-- col:QNHARA77 --> | value <!-- col:982dpIgh --> <!-- id:bAOtxS8S --> |
 | --- | --- | --- |
-| `schema` | "**This** document conforms to that type." | an `hm://` document URL or `ipfs://<cid>` <!-- id:6LOwKWsi --> |
-| `childrenSchema` | "My **children** must conform to that type." | an `hm://` document URL or `ipfs://<cid>` <!-- id:Bbu4jgwa --> |
-| `schemaDefinition` | "This document **defines** a type others can reference." | `ipfs://<cid>` of a schema blob <!-- id:rE3Irrim --> |
+| `schema` | "**This** document conforms to that type." | an `hm://` document URL or `ipfs://<cid>` <!-- id:VPaKDU5r --> |
+| `childrenSchema` | "My **children** must conform to that type." | an `hm://` document URL or `ipfs://<cid>` <!-- id:4Vxh-35k --> |
+| `schemaDefinition` | "This document **defines** a type others can reference." | `ipfs://<cid>` of a schema blob <!-- id:NDbOpl8N --> |
 
 The one that trips people up is the last. `schemaDefinition` does **not** mean "this document follows a schema." It means "this document _is the home page of_ a schema." A document that describes what a person is sets `schemaDefinition`. A document about a particular person — Bob — sets `schema`, pointing at the person document. A value is never a type. <!-- id:tVwNj-Kz -->
 

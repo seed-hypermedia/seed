@@ -2,7 +2,7 @@
 name: How Onyx Works
 summary: The system end to end — from a schema file in the repository to a signed blob on the network, a browsable document, a resolved reference in the app, a generated TypeScript type, and a typed API call.
 ---
-# In one paragraph <!-- id:7s8eFKqO -->
+# The tour in one paragraph <!-- id:7s8eFKqO -->
 A schema is written as a small JSON file. A publisher hashes it to its DAG-CBOR CID and records that in a lockfile. A sync uploads the blob and publishes a companion document at an `hm://` URL under the Onyx account, whose metadata points at the blob. Apps bundle the library, resolve any other reference over the network, and run one validation engine — the same one the reference validator uses — to drive explorers, editors, forms, and warnings. A generator turns every schema into a TypeScript type. And the read API is itself described by schemas, so the API console is derived rather than written. Each of those is a layer below. <!-- id:UiSIhbqU -->
 
 ``` <!-- id:UwMwRuEn -->
@@ -16,7 +16,7 @@ A schema is written as a small JSON file. A publisher hashes it to its DAG-CBOR 
               ┌─────────────────────────────┼──────────────────────────┐
               ▼                             ▼                          ▼
    bundled registry in the app     resolved over the network     typegen.mjs
-   (schema pages, editors, …)      (schema / childrenSchema)     (TS types)
+   (tour, editors, inspector)      (schema / childrenSchema)     (TS types)
 ```
 
 # Layer 1 — Values and the codec <!-- id:yNp--FS1 -->
@@ -29,12 +29,12 @@ A schema is a `map` value that constrains other values. It takes one of seven sh
 The library is a folder of pairs: `<name>.json` (the schema, in dag-json) and `<name>.md` (its human explanation). Four families live side by side, distinguished by prefix: <!-- id:aoVPGRff -->
 
 <!-- id:QKRHc2jO -->
-| prefix <!-- col:B_ywUfmQ --> | family <!-- col:6jWUU7sQ --> | examples <!-- col:h7E3SjSV --> <!-- id:aG_sIemW --> |
+| prefix <!-- col:PpnISgiK --> | family <!-- col:u7IW2VGz --> | examples <!-- col:UvNmWoqE --> <!-- id:rMJt-Vv8 --> |
 | --- | --- | --- |
-| `onyx-` | the meta-schema, its seven variants, and one canonical primitive per kind | `onyx-schema`, `onyx-map-schema`, `onyx-string` <!-- id:8yxmkVAA --> |
-| `hypermedia-` | the Hypermedia Network's real blobs and the full block model | `hypermedia-change`, `hypermedia-block-table`, `hypermedia-document` <!-- id:duaAo61C --> |
-| `seed-` | the Seed API's read models and its RPC catalog | `seed-resource`, `seed-search-results`, `seed-rpc-query` <!-- id:SCntQ5E_ --> |
-| `example-` | teaching schemas covering every feature, plus live instances | `example-person`, `example-folder`, `example-bob` <!-- id:eHKRmecB --> |
+| `onyx-` | the meta-schema, its seven variants, and one canonical primitive per kind | `onyx-schema`, `onyx-map-schema`, `onyx-string` <!-- id:bPX-_f4P --> |
+| `hypermedia-` | the Hypermedia Network's real blobs and the full block model | `hypermedia-change`, `hypermedia-block-table`, `hypermedia-document` <!-- id:f30AmSqt --> |
+| `seed-` | the Seed API's read models and its RPC catalog | `seed-resource`, `seed-search-results`, `seed-rpc-query` <!-- id:uMrZ9ndC --> |
+| `example-` | teaching schemas covering every feature, plus live instances | `example-person`, `example-folder`, `example-bob` <!-- id:uU6GnKnu --> |
 
 Inside a schema, every reference is an `hm://` URL under the Onyx account: `hm://z6MkmZUb…/string`, `hm://z6MkmZUb…/hypermedia-metadata`. Primitives and meta-schema drop their `onyx-` prefix in public; everything else keeps its prefix. A reference is therefore always a real, published, clickable document — never a dead placeholder. <!-- id:HVN-l5c6 -->
 
@@ -51,23 +51,23 @@ The result is that the type system dogfoods the network it types: browse the acc
 A schema reference can arrive in three forms, and the app resolves each differently: <!-- id:ZVviNKyM -->
 
 <!-- id:uSHoX7eZ -->
-| reference <!-- col:xS4a4ZP_ --> | example <!-- col:dr8uo3_3 --> | how it resolves <!-- col:CnXVr6aL --> <!-- id:VS4ByADc --> |
+| reference <!-- col:JXT6M672 --> | example <!-- col:lj87cEho --> | how it resolves <!-- col:FkwrUKdr --> <!-- id:DxBoBqwn --> |
 | --- | --- | --- |
-| bundled library URL | `hm://z6MkmZUb…/map` | locally, from the registry compiled into the app — no network <!-- id:LMCHHe7g --> |
-| IPFS CID | `ipfs://bafy…` | fetch the blob directly (bundled if known, otherwise from the daemon) <!-- id:f2hAopTA --> |
-| any Hypermedia document URL | `hm://acme/person` | fetch the document, read its `metadata.schemaDefinition`, then fetch that blob <!-- id:yAs0MdG7 --> |
+| bundled library URL | `hm://z6MkmZUb…/map` | locally, from the registry compiled into the app — no network <!-- id:_MyC7yOr --> |
+| IPFS CID | `ipfs://bafy…` | fetch the blob directly (bundled if known, otherwise from the daemon) <!-- id:0XLNPaVl --> |
+| any Hypermedia document URL | `hm://acme/person` | fetch the document, read its `metadata.schemaDefinition`, then fetch that blob <!-- id:a2Tm8pMr --> |
 
 The third form is what makes types extensible by anyone: a schema published under any account is as resolvable as one from the library. Because network resolution is asynchronous, the app exposes it through hooks — one that resolves a single reference, and one that computes a document's _effective_ schema (its own `schema`, or its parent's `childrenSchema`). See [typed documents](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/typed-documents). <!-- id:abCKIpn0 -->
 
 # Layer 6 — The engine and the app <!-- id:_2KVPjV5 -->
 There is one validation engine. The dependency-free reference validator proves the meta-schema describes itself, validates every schema in the library against it, checks positive and negative data cases for the examples, and confirms the union rejects malformed schemas. That same engine is ported line-for-line into the app, so nothing the app shows can disagree with the reference oracle. On top of it sit: <!-- id:7XvEeHE4 -->
-  - the **schema browser** (`/hm/schema/<cid>`) — every schema rendered as a page with fields, variants, inherited versus added properties, generic parameters, targets, URL and CID, dependencies and dependents, a New button, and — for API methods — a live call panel; <!-- id:JFNU8FGg -->
+  - the **schema tour and explorer** — every schema rendered as a page with fields, variants, inherited versus added properties, generic parameters, URL and CID, dependencies and dependents, and a live editor; <!-- id:JFNU8FGg -->
   - the **schema editor** — a form driven by the meta-schema, so it can only produce valid schemas; <!-- id:QdeIRLDj -->
   - the **value editor** — a schema-respecting form for building conforming data: dropdowns for enums and union variants, the right controls for `link` and `bytes`, title pills for document references, file pickers for IPFS references; <!-- id:SKTxHaI7 -->
   - the **document integration** — required attributes as fixed rows, red non-blocking validation, and the header actions on a schema-definition document; <!-- id:tvgeEE11 -->
   - the **inspector** — recognizes the signed blob types, detects when a blob _is_ a schema, and validates a blob against its attached schema. <!-- id:Ig_ARwrI -->
 
-These live behind Developer Mode in the Seed app (on by default on the web). The library is browsed through its own published documents (this site); any schema blob, bundled or published, has a full page at `/hm/schema/<cid>` where every reference — a library type, an `hm://` type document, an `ipfs://` schema — is a link, so a schema graph is browsed by clicking. Signed-blob schemas (anything extending [Signed blob](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-blob)) get a signing form instead of a plain editor: the envelope is filled and signed with the selected account at publish time. <!-- id:3fjjdA74 -->
+These live behind Developer Mode in the Seed app (on by default on the web) and at the `/hm/onyx` route; any schema blob, bundled or published, has a full page at `/hm/schema/<cid>` where every reference — a library type, an `hm://` type document, an `ipfs://` schema — is a link, so a schema graph is browsed by clicking. Signed-blob schemas (anything extending [Signed blob](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-blob)) get a signing form instead of a plain editor: the envelope is filled and signed with the selected account at publish time. <!-- id:3fjjdA74 -->
 
 # Layer 7 — Generated code <!-- id:jpRr0H4N -->
 `typegen.mjs` walks the library and emits one TypeScript type per schema: maps become object types, `enum` becomes a literal union, `anyOf` a union, extension an intersection, open maps an index signature, and `params` / `var` / `args` real generics — so `Change<Block>` in the schema is `Change<Block>` in TypeScript. Self-referential schemas like a recursive JSON value come out as legal recursive types. A `--check` mode fails when the generated file is stale. The schemas, not hand-written type declarations, are the source of truth for the app's data types. <!-- id:e53sOros -->

@@ -14,5 +14,7 @@
         "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-tree"
       }
     }
-  }
+  },
+  "description": "A node holding an integer value and links to child nodes.",
+  "name": "Tree"
 }

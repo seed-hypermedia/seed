@@ -6,17 +6,17 @@ summary: The nine IPLD kinds every Onyx value is built from — including link a
 Onyx types values drawn from the **IPLD data model** — the same set of kinds DAG-CBOR can encode. There are **nine kinds**. Every value is exactly one of them; there is nothing else. <!-- id:geSDK1S_ -->
 
 <!-- id:a8BD2izY -->
-| kind <!-- col:NTqUuFjc --> | JSON / dag-json form <!-- col:KOExwfqT --> | notes <!-- col:LgY86lfS --> <!-- id:dhYW6462 --> |
+| kind <!-- col:HbgVvtTb --> | JSON / dag-json form <!-- col:FqheG8jM --> | notes <!-- col:bWMpxxLR --> <!-- id:OvMqcdvO --> |
 | --- | --- | --- |
-| `null` | `null` | <!-- id:_qcnQiPF --> |
-| `boolean` | `true` / `false` | <!-- id:tZObRnqQ --> |
-| `integer` | `42` | DAG-CBOR encodes ints and floats **differently** <!-- id:YSF3huaq --> |
-| `float` | `3.14` | <!-- id:YYbi-BM4 --> |
-| `string` | `"hi"` | UTF-8 text <!-- id:j4EhiKWf --> |
-| `bytes` | `{"/":{"bytes":"aGVsbG8"}}` | raw octets; base64 in dag-json <!-- id:1ZeLESpe --> |
-| `list` | `[…]` | ordered sequence <!-- id:31d1o0Cc --> |
-| `map` | `{…}` | keys are strings; ordered, unique <!-- id:7Z_8k-mg --> |
-| `link` | `{"/":"bafy…"}` | a **CID** — a content-addressed pointer to another block <!-- id:iV1wHiwi --> |
+| `null` | `null` | <!-- id:IBoVXWo- --> |
+| `boolean` | `true` / `false` | <!-- id:RwAQFxQi --> |
+| `integer` | `42` | DAG-CBOR encodes ints and floats **differently** <!-- id:cVihAylW --> |
+| `float` | `3.14` | <!-- id:1cgFWZ3X --> |
+| `string` | `"hi"` | UTF-8 text <!-- id:V5tUQxNr --> |
+| `bytes` | `{"/":{"bytes":"aGVsbG8"}}` | raw octets; base64 in dag-json <!-- id:e1LXXg47 --> |
+| `list` | `[…]` | ordered sequence <!-- id:A4hk_Kp6 --> |
+| `map` | `{…}` | keys are strings; ordered, unique <!-- id:3jxicrAc --> |
+| `link` | `{"/":"bafy…"}` | a **CID** — a content-addressed pointer to another block <!-- id:5u1QRTvd --> |
 
 ## Why these are all _built-in_ <!-- id:e_fqk8Sk -->
 A recurring question when adopting IPLD: are `link` and `bytes` special types we define in the schema language, or primitives? **Primitives.** And this is not a new decision — it is the _same_ status `string` and `integer` already have. <!-- id:vRNfqKAc -->
@@ -46,11 +46,11 @@ Onyx uses this same machinery on itself: schemas link to other schemas, so the t
 A kind like `string` is a _name in the vocabulary_; `{"type":"string"}` is the _schema_ for a string value. Onyx ships that schema as a canonical, named block — one per kind: <!-- id:bmWAAKox -->
 
 <!-- id:IRoeKmq3 -->
-| primitive <!-- col:BCYAnSIu --> | is exactly <!-- col:-MhyCbhm --> | typed by <!-- col:EoQiIbL_ --> <!-- id:JN8HqxSQ --> |
+| primitive <!-- col:Khg0aF44 --> | is exactly <!-- col:y6M-JfyQ --> | typed by <!-- col:AADEz9yl --> <!-- id:5Ox6LZWF --> |
 | --- | --- | --- |
-| `onyx-null`, `onyx-boolean`, `onyx-integer`, `onyx-float`, `onyx-string`, `onyx-bytes` | `{ "type": "<kind>" }` | `onyx-scalar-schema` <!-- id:gIDNcotP --> |
-| `onyx-link` | `{ "type": "link" }` | `onyx-link-schema` <!-- id:dqskfjWW --> |
-| `onyx-map`, `onyx-list` | `{ "type": "<kind>" }` | `onyx-map-schema` / `onyx-list-schema` <!-- id:FBjb1oo1 --> |
+| `onyx-null`, `onyx-boolean`, `onyx-integer`, `onyx-float`, `onyx-string`, `onyx-bytes` | `{ "type": "<kind>" }` | `onyx-scalar-schema` <!-- id:idSfV3A2 --> |
+| `onyx-link` | `{ "type": "link" }` | `onyx-link-schema` <!-- id:VcOv81bN --> |
+| `onyx-map`, `onyx-list` | `{ "type": "<kind>" }` | `onyx-map-schema` / `onyx-list-schema` <!-- id:zNbu4gjL --> |
 
 These are the **standard library**. Two layers, not to be confused: <!-- id:zEmQScRC -->
   - `onyx-scalar-schema` (a meta-schema _variant_) describes the _shape_ `{type:<scalar>, enum?}` — it is the **type of** `onyx-string`. <!-- id:FBr8EANM -->

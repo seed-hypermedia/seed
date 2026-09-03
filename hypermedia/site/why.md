@@ -40,13 +40,13 @@ Validation in Onyx is deliberately two-speed. **At rest it is advisory**: a blob
 
 # What Onyx is not <!-- id:h0dABmfh -->
 <!-- id:utOrwOxn -->
-| It is not <!-- col:dd-nz8aA --> | Because <!-- col:Gff2LIs1 --> <!-- id:YWUUKFtB --> |
+| It is not <!-- col:DTSldmk2 --> | Because <!-- col:cveLwo3h --> <!-- id:gMG14EHP --> |
 | --- | --- |
-| a re-implementation of JSON Schema | breadth is a non-goal; Onyx is intentionally tiny and must stay self-describing <!-- id:XeRU14SK --> |
-| IPLD Schema | Onyx schemas are themselves IPLD data and hypermedia documents, and references are names that can recurse <!-- id:ToAJw2Gp --> |
-| a query or transformation language | it types data, nothing more; queries live in the hypermedia layer <!-- id:0r4LfnVm --> |
-| an abstraction over IPLD | links and content addressing are surfaced on purpose; they are the point <!-- id:SG2QYEJ- --> |
-| a gate on writing | violations warn; they never block a save <!-- id:nlWw3Isl --> |
+| a re-implementation of JSON Schema | breadth is a non-goal; Onyx is intentionally tiny and must stay self-describing <!-- id:INWG0Cxy --> |
+| IPLD Schema | Onyx schemas are themselves IPLD data and hypermedia documents, and references are names that can recurse <!-- id:AMRqP6pA --> |
+| a query or transformation language | it types data, nothing more; queries live in the hypermedia layer <!-- id:MWHaO1Hx --> |
+| an abstraction over IPLD | links and content addressing are surfaced on purpose; they are the point <!-- id:X7KnF8E7 --> |
+| a gate on writing | violations warn; they never block a save <!-- id:BMF06lQT --> |
 
 # Where to go next <!-- id:sHUHAcIF -->
 Read [how Onyx works](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/how-it-works) for the system end to end, [typed documents](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/typed-documents) for the document-binding model, or go straight to the reference chapters from the [home page](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb). <!-- id:mdWI56L4 -->

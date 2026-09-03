@@ -9,7 +9,7 @@
       ],
       "properties": {
         "born": {
-          "description": "Birth date (ISO 8601 `YYYY-MM-DD`) \u2014 rendered as a date picker.",
+          "description": "Birth date (ISO 8601 `YYYY-MM-DD`) — rendered as a date picker.",
           "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date"
         },
         "died": {
@@ -27,7 +27,7 @@
           ]
         },
         "home": {
-          "description": "The place this character calls home \u2014 a page conforming to the Place type.",
+          "description": "The place this character calls home — a page conforming to the Place type.",
           "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-hm-url",
           "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-place-doc"
         },
@@ -46,10 +46,12 @@
           "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-stats"
         },
         "notes": {
-          "description": "An `ipfs://` object with no declared schema \u2014 free-form data.",
+          "description": "An `ipfs://` object with no declared schema — free-form data.",
           "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-ipfs"
         }
       }
     }
-  }
+  },
+  "description": "A world-builder kit type: a page about a character. Extends the base document; its metadata requires a `born` date and a `role`, and links the character to a home place, a faction, a portrait file, and a stats object (an `ipfs://` object that must conform to `example-stats`). `notes` is an untyped object link — any DAG-CBOR value.",
+  "name": "Character"
 }

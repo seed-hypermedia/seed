@@ -53,12 +53,12 @@ Now recursion just works. `example-folder` references `hm://example.com/file`, a
 This is the same split as **IPFS vs IPNS**, or a hash vs a domain name: <!-- id:37_9006m -->
 
 <!-- id:b8lxpwqz -->
-| <!-- col:jHHN4-wI --> | content ref (CID) <!-- col:7HEAQdOV --> | name ref (`hm://` URL) <!-- col:P3gPtqaz --> <!-- id:6jDC8URG --> |
+| <!-- col:i64Tf63L --> | content ref (CID) <!-- col:QiR19bbP --> | name ref (`hm://` URL) <!-- col:cXmrifvD --> <!-- id:85oBMjqa --> |
 | --- | --- | --- |
-| identifies | exact immutable bytes | an authority + path <!-- id:GHWJaHub --> |
-| resolves via | the hash itself | the authority's signing key → current content <!-- id:Xo3GDJiz --> |
-| cycles | impossible | fine <!-- id:-VRFzpvL --> |
-| use for | pinning an exact version | recursive / owned / evolving types <!-- id:YbBac1rm --> |
+| identifies | exact immutable bytes | an authority + path <!-- id:-jl6UOTj --> |
+| resolves via | the hash itself | the authority's signing key → current content <!-- id:4zSZmgf2 --> |
+| cycles | impossible | fine <!-- id:mcDC4EuJ --> |
+| use for | pinning an exact version | recursive / owned / evolving types <!-- id:X58GiMnr --> |
 
 An **authority** is a public key. A domain like `hyper.media` resolves to one, and that key signs everything published under it, so `hm://hyper.media/string` is a verifiable, owned name. Schemas reference each other across authorities freely — `example-person` (`hm://example.com/…`) references `hm://hyper.media/string` — and you can still pin any name to an exact CID when you want an immutable snapshot. Names for recursion and identity; CIDs for immutability. <!-- id:nsuDvsJA -->
 

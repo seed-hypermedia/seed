@@ -4,5 +4,7 @@
     "Card",
     "List",
     "Table"
-  ]
+  ],
+  "description": "How a Query block presents its results: a card grid, a compact list, or a table.",
+  "name": "Query style"
 }

@@ -4,3 +4,13 @@ summary: The variant for a union — a value matching any one of several alterna
 schemaDefinition: ipfs://bafyreie7xnwnhehhqqsfrwdivesji4sdaig2lq4xcvfvnxtlwayxxp2nrq
 ---
 This document describes the **onyx-union-schema** type — a meta-schema variant. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:C3PmGxab -->
+
+# Shape <!-- id:0stCYc3t -->
+A **closed struct** with these fields: <!-- id:Y_Txjo0B -->
+  - `anyOf` _(required)_ — list of [schema](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema) <!-- id:aPkIeirH -->
+  - `name` — `string` <!-- id:zfJVsmkn -->
+  - `description` — `string` <!-- id:Mfcuk4fO -->
+  - `params` — map ⟨ \* : [schema](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema) ⟩ <!-- id:WIZIEvso -->
+
+# Depends on <!-- id:KU0BDVHI -->
+- [schema](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema) <!-- id:XRX69ozh -->

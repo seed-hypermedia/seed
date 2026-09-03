@@ -14,5 +14,7 @@
     "data": {
       "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/bytes"
     }
-  }
+  },
+  "description": "A binary payload tagged with a MIME type and optional size.",
+  "name": "Blob"
 }

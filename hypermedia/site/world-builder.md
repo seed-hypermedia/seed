@@ -6,12 +6,12 @@ summary: A worked demonstration of typed documents — one menu action scaffolds
 With Developer Mode on, a document's options menu offers **New World…**. Give it a name, a genre, and the date its chronicle begins, and it publishes, under that document: <!-- id:hMxoClp7 -->
 
 <!-- id:ept4FZO2 -->
-| page <!-- col:SbW960uM --> | binding <!-- col:hdMNc1Nq --> | what you see <!-- col:abViQ5bf --> <!-- id:uvlHF93q --> |
+| page <!-- col:G2YgYgtP --> | binding <!-- col:5f0PsXQO --> | what you see <!-- col:fhc3ZVh3 --> <!-- id:7k9AXIZN --> |
 | --- | --- | --- |
-| the world root | `schema` = [World](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-world-doc) | a genre and an epoch date in Attributes, a card view of everything below <!-- id:UCOwTKps --> |
-| `types/character`, `types/place`, `types/faction`, `types/event` | `schemaDefinition` = its schema blob | a type page: a schema tag, a **Create** button, and an editable schema <!-- id:JGFpz6Ew --> |
-| `characters`, `places`, `factions`, `events` | `childrenSchema` = the matching type page | a folder whose pages are typed by inheritance, with a live table of its children <!-- id:PIY1LKnt --> |
-| one starter page per type | inherited from its folder | required rows already filled: a date picker, title pills pointing at the other starters, and object fields ready to create <!-- id:0QV6TENO --> |
+| the world root | `schema` = [World](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-world-doc) | a genre and an epoch date in Attributes, a card view of everything below <!-- id:wfQles9Y --> |
+| `types/character`, `types/place`, `types/faction`, `types/event` | `schemaDefinition` = its schema blob | a type page: a schema tag, a **Create** button, and an editable schema <!-- id:u8IY1F4u --> |
+| `characters`, `places`, `factions`, `events` | `childrenSchema` = the matching type page | a folder whose pages are typed by inheritance, with a live table of its children <!-- id:14EcwdVE --> |
+| one starter page per type | inherited from its folder | required rows already filled: a date picker, title pills pointing at the other starters, and object fields ready to create <!-- id:IBq3SRGz --> |
 
 The kit's schemas are the library's [Character](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-character-doc), [Place](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-place-doc), [Faction](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-faction-doc), and [Event](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-event-doc) — republished with every `target` rewritten to point at _your_ type pages. A Character's `home` no longer targets the library's Place; it targets `hm://<you>/<world>/types/place`, a document that does not exist until the same publish creates it. Names, not hashes, are what make that possible. <!-- id:9HXzcmv9 -->
 

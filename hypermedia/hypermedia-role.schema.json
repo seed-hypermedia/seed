@@ -3,5 +3,7 @@
   "enum": [
     "WRITER",
     "AGENT"
-  ]
+  ],
+  "description": "A capability role: WRITER (edit a document) or AGENT (act on behalf of an account).",
+  "name": "Role"
 }

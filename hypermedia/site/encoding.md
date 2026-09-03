@@ -16,10 +16,10 @@ DAG-CBOR is not human-editable, so in this repo everything is written in **dag-j
 JSON has no native way to write bytes or a link, so dag-json borrows the map syntax with **one reserved key, `/`**: <!-- id:YpcMmEMS -->
 
 <!-- id:gZfcUpHN -->
-| kind <!-- col:Cep9gQMS --> | dag-json <!-- col:xdMsVtGS --> | DAG-CBOR <!-- col:vMQicrR4 --> <!-- id:VFbbTFma --> |
+| kind <!-- col:Lf10HYeS --> | dag-json <!-- col:M8I8Wqkg --> | DAG-CBOR <!-- col:7vTETkPd --> <!-- id:Je27na7i --> |
 | --- | --- | --- |
-| link | `{"/":"bafy…"}` | CID (tag 42) <!-- id:RcA5X6nw --> |
-| bytes | `{"/":{"bytes":"aGVsbG8"}}` | byte string (major type 2), base64 in JSON <!-- id:DBdkzHCW --> |
+| link | `{"/":"bafy…"}` | CID (tag 42) <!-- id:WXOoojol --> |
+| bytes | `{"/":{"bytes":"aGVsbG8"}}` | byte string (major type 2), base64 in JSON <!-- id:FtMcyizZ --> |
 
 **These are not maps.** They are the JSON _spelling_ of two distinct kinds. In DAG-CBOR the ambiguity disappears — a link is a tagged CID, bytes are a byte string — but in dag-json they wear map syntax. This is the source of dag-json's one footgun: a genuine data map that happens to have a single `/` key is indistinguishable from a link. <!-- id:Bq6LLLsU -->
 
