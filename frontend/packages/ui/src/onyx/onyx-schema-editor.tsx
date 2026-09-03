@@ -18,6 +18,7 @@ import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '../
 import {Tooltip} from '../tooltip'
 import {cn} from '../utils'
 import {kindOf, kindUrl, MAP_URL, nameToUrl, ONYX_SCHEMAS, refToName, validate, type OnyxSchema} from './onyx-engine'
+import {SchemaTypeInput} from './schema-type-input'
 
 /** The field kinds a struct property can take (friendly labels). */
 const FIELD_KINDS: {kind: string; label: string}[] = [
@@ -242,9 +243,12 @@ function useSchemaHistory(schema: OnyxSchema, onSchema: (s: OnyxSchema) => void)
 export function OnyxSchemaEditor({
   schema,
   onSchema: onSchemaProp,
+  hideModeToggle,
 }: {
   schema: OnyxSchema
   onSchema: (s: OnyxSchema) => void
+  /** The host offers its own raw/JSON switch (the blob inspector): no Fields/JSON tabs here. */
+  hideModeToggle?: boolean
 }) {
   const {change: onSchema, onKeyDown} = useSchemaHistory(schema, onSchemaProp)
   const fits = structFormFits(schema)
@@ -276,7 +280,7 @@ export function OnyxSchemaEditor({
   )
   return (
     <div className="flex flex-col gap-2" onKeyDown={onKeyDown} data-testid="schema-editor-root">
-      {modeToggle}
+      {!hideModeToggle && modeToggle}
       {showForm ? (
         <StructSchemaForm schema={schema} onSchema={onSchema} />
       ) : (
@@ -384,35 +388,37 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
     onSchema(next ? {...rest, values: next} : rest)
   }
 
-  // What the schema's root IS: a plain struct, the signed-blob envelope, or an
-  // extension of any other type (its base named by a raw ref). Fully editable —
-  // extending anything is a matter of picking "Extends" and pasting the base.
-  const extendsRef = !schema.type && typeof schema.ref === 'string' && !signed ? schema.ref : undefined
-  const rootKind: SchemaRootKind = signed ? 'signed' : extendsRef !== undefined ? 'extends' : 'struct'
-  const setExtendsRef = (ref: string) => {
+  // The root type is a type reference like any other: a primitive kind URL (map,
+  // list, string…) is the schema's `type`; any other schema document is its `ref`
+  // (the schema extends it). Picking the Hypermedia Blob envelope pins a type tag.
+  const rootUrl: string =
+    typeof schema.type === 'string' ? schema.type : typeof schema.ref === 'string' ? schema.ref : ''
+  const setRootType = (url: string) => {
+    if (url === SIGNED_BLOB_URL) return onSchema(withRootKind(schema, 'signed'))
     const {type: _t, ref: _r, ...rest} = schema
-    onSchema({...rest, ref, properties: schema.properties ?? {}, required: schema.required ?? []})
+    const props: Record<string, any> = {...(rest.properties ?? {})}
+    const req = new Set<string>(Array.isArray(rest.required) ? rest.required : [])
+    if (signed) {
+      delete props.type
+      req.delete('type')
+    }
+    const base = {...rest, properties: props, required: Array.from(req)}
+    onSchema(kindOf(url) !== url ? {...base, type: url} : {...base, ref: url})
   }
-  const setRootKind = (kind: SchemaRootKind) => {
-    if (kind !== rootKind) onSchema(withRootKind(schema, kind))
+  // A field whose type is being picked from the search (no kind chosen yet).
+  const [pickingField, setPickingField] = useState<string | null>(null)
+  const setFieldType = (name: string, url: string) => {
+    setPickingField(null)
+    commit({...properties, [name]: kindOf(url) !== url ? {type: url} : {ref: url}}, required)
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1" data-testid="schema-root-kind">
-        <label className="text-muted-foreground text-xs font-medium">Root kind</label>
+      <div className="flex flex-col gap-1" data-testid="schema-root-type">
+        <label className="text-muted-foreground text-xs font-medium">Type</label>
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={rootKind} onValueChange={(kind) => setRootKind(kind as 'struct' | 'signed' | 'extends')}>
-            <SelectTrigger className="w-44 shrink-0" aria-label="Root kind">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="struct">Struct (fields)</SelectItem>
-              <SelectItem value="signed">Signed blob</SelectItem>
-              <SelectItem value="extends">Extends a type…</SelectItem>
-            </SelectContent>
-          </Select>
-          {rootKind === 'signed' && (
+          <SchemaTypeInput value={rootUrl} onChange={setRootType} ariaLabel="Root type" className="w-56" />
+          {signed && (
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground text-xs">type tag</span>
               <Input
@@ -424,23 +430,7 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
               />
             </div>
           )}
-          {rootKind === 'extends' && (
-            <Input
-              value={extendsRef ?? ''}
-              aria-label="Base type ref"
-              placeholder="hm://… or ipfs://… base type"
-              className="min-w-64 flex-1 font-mono text-xs"
-              onChange={(e) => setExtendsRef(e.target.value)}
-            />
-          )}
         </div>
-        <p className="text-muted-foreground text-xs">
-          {rootKind === 'struct'
-            ? 'A plain object made of the fields below.'
-            : rootKind === 'signed'
-              ? 'Extends the Hypermedia envelope — signer, signature, and timestamp are inherited and filled at signing time; the type tag is the discriminator.'
-              : 'Inherits everything from the base type; the fields below are added on top of it.'}
-        </p>
       </div>
 
       {
@@ -503,8 +493,32 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
                   aria-label="Field name"
                   onChange={(e) => renameField(name, e.target.value)}
                 />
-                <Select value={propKind(ps)} onValueChange={(kind) => setFieldKind(name, kind)}>
-                  <SelectTrigger className="w-36 shrink-0">
+                {propKind(ps) === CUSTOM_KIND || pickingField === name ? (
+                  <SchemaTypeInput
+                    value={
+                      pickingField === name
+                        ? ''
+                        : typeof ps?.ref === 'string'
+                          ? ps.ref
+                          : typeof ps?.type === 'string'
+                            ? ps.type
+                            : ''
+                    }
+                    onChange={(url) => setFieldType(name, url)}
+                    ariaLabel={`Type of ${name}`}
+                    placeholder={pickingField === name ? 'search types…' : customLabel(ps)}
+                    className="w-44 shrink-0"
+                  />
+                ) : null}
+                <Select
+                  value={propKind(ps) === CUSTOM_KIND ? CUSTOM_KIND : pickingField === name ? 'pick' : propKind(ps)}
+                  onValueChange={(kind) => {
+                    if (kind === 'pick') return setPickingField(name)
+                    setPickingField(null)
+                    setFieldKind(name, kind)
+                  }}
+                >
+                  <SelectTrigger className="w-36 shrink-0" aria-label={`Kind of ${name}`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -518,6 +532,7 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
                         {label}
                       </SelectItem>
                     ))}
+                    <SelectItem value="pick">Other type…</SelectItem>
                   </SelectContent>
                 </Select>
                 {isReferenceKind(propKind(ps)) && (
