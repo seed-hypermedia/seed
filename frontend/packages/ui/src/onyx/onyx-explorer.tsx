@@ -432,13 +432,6 @@ export function OnyxSchemaPage({
         <span className="text-muted-foreground">· a primitive — the standard-library schema for the {k} kind</span>
       </p>
     )
-    main = (
-      <p className="text-sm">
-        Its <code className="bg-muted rounded px-1">type</code> is <code className="bg-muted rounded px-1">{url}</code>{' '}
-        — it names itself, the self-grounding axiom for the {k} kind. Reference it as{' '}
-        <code className="bg-muted rounded px-1">{`{ "ref": "${url}" }`}</code> to type any value as {k}.
-      </p>
-    )
   } else if (isUnion) {
     lead = (
       <p className="text-sm">

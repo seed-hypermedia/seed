@@ -117,7 +117,6 @@ import {
   Quote,
   Search,
   Table as TableIcon,
-  FileCode2,
 } from 'lucide-react'
 import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
@@ -3410,14 +3409,7 @@ function DocumentSchemaSection({document, canEdit}: {document: HMDocument; canEd
   const hasDraft = !!schemaDraftValue(metadata) && canEdit
   if (!hasDraft && !schemaDefinitionCid(metadata)) return null
   return (
-    <section
-      className="border-border/60 bg-muted/20 mb-6 rounded-lg border px-4 pt-3 pb-4"
-      data-testid="document-schema-section"
-    >
-      <div className="text-muted-foreground mb-3 inline-flex items-center gap-1.5 text-xs font-medium">
-        <FileCode2 className="size-3.5" />
-        {hasDraft ? 'Schema (draft)' : 'Schema'}
-      </div>
+    <section className="border-border/60 bg-muted/20 mb-6 rounded-lg border p-4" data-testid="document-schema-section">
       <DocumentSchemaPage document={document} />
     </section>
   )
