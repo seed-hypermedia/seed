@@ -60,7 +60,7 @@ const dependencies = (name) => [...collectRefs(schemas[name])].filter((n) => n !
 const isInstance = (s) => !!(s && s.$type && 'value' in s)
 const isPrimitive = (name) =>
   name.startsWith('onyx-') &&
-  ['null', 'boolean', 'integer', 'float', 'string', 'bytes', 'list', 'map', 'link', 'any'].includes(
+  ['null', 'boolean', 'integer', 'float', 'string', 'bytes', 'list', 'map', 'struct', 'link', 'any'].includes(
     name.replace(/^onyx-/, ''),
   )
 const isMeta = (name) => name === 'onyx-schema' || (name.startsWith('onyx-') && name.endsWith('-schema'))
@@ -166,7 +166,7 @@ function shapeSection(name, s) {
   } else if (s.ref && !s.type) {
     const parent = refToName(s.ref)
     lines.push(`An **alias** of ${schemas[parent] ? link(parent) : '`' + parent + '`'}.`)
-  } else if (kindOf(s.type) === 'map' && s.properties) {
+  } else if ((kindOf(s.type) === 'struct' || kindOf(s.type) === 'map') && s.properties) {
     lines.push(`A ${s.values ? 'map' : '**closed struct**'} with these fields:\n`)
     lines.push(...fieldLines(s.properties, s.required))
   } else if (kindOf(s.type) === 'map' && s.values) {

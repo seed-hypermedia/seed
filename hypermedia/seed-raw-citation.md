@@ -1,7 +1,7 @@
 ---
 name: Raw citation
 summary: A citation in raw indexed form, before client-side resolution into a seed-citation. A derived read model computed by the Seed daemon/API for clients — not a sig
-schemaDefinition: ipfs://bafyreia2qonhdsbijcuqv43bpl3e3lgk4yopalasbprdrvyefpnrl5sntu
+schemaDefinition: ipfs://bafyreiajw7lkcf6d4wluqnwwtpfuiapq4mlso2xul65riafgmajyism2ni
 ---
 A citation in raw indexed form, before client-side resolution into a seed-citation. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:ax5Fn9Xm -->
 

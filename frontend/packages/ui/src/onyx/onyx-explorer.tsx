@@ -29,7 +29,19 @@ import {
 
 // --- classification --------------------------------------------------------
 
-const KINDS = ['null', 'boolean', 'integer', 'float', 'string', 'bytes', 'list', 'map', 'link', 'any'] as const
+const KINDS = [
+  'null',
+  'boolean',
+  'integer',
+  'float',
+  'string',
+  'bytes',
+  'list',
+  'map',
+  'struct',
+  'link',
+  'any',
+] as const
 const isPrimitive = (name: string) => KINDS.includes(name.replace(/^onyx-/, '') as any) && name.startsWith('onyx-')
 const primitiveKind = (name: string) => name.replace(/^onyx-/, '')
 const isMetaVariant = (name: string) => name.startsWith('onyx-') && name.endsWith('-schema') && name !== 'onyx-schema'
@@ -39,6 +51,7 @@ const kindPrimitive = (kind: string) => (ONYX_SCHEMAS[`onyx-${kind}`] ? `onyx-${
 
 const kindColor: Record<string, string> = {
   map: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300',
+  struct: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
   list: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
   string: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
   integer: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300',
@@ -195,7 +208,7 @@ function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React
         <SchemaRef node={node.items} nav={nav} />
       </span>
     )
-  if (k === 'map') {
+  if (k === 'map' || k === 'struct') {
     if (node.properties)
       return (
         <span>
@@ -513,9 +526,10 @@ export function OnyxSchemaPage({
         <span className="text-muted-foreground">alias of</span> <Chip label={parent} onClick={() => nav(parent)} />
       </p>
     )
-  } else if (kindOf(schema.type) === 'map' && schema.properties) {
+  } else if ((kindOf(schema.type) === 'struct' || kindOf(schema.type) === 'map') && schema.properties) {
+    const base = kindOf(schema.type) === 'struct' ? 'onyx-struct' : 'onyx-map'
     lead = (
-      <ExtendsLine slug="onyx-map" onClick={() => nav('onyx-map')}>
+      <ExtendsLine slug={base} onClick={() => nav(base)}>
         <span className="text-muted-foreground">
           {' '}
           · {schema.values ? 'open' : 'closed'}, {Object.keys(schema.properties).length} fields
@@ -528,7 +542,7 @@ export function OnyxSchemaPage({
       const k = kindOf(schema.type) || 'any'
       lead = <ExtendsLine slug={`onyx-${k}`} onClick={() => nav(`onyx-${k}`)} />
     }
-    if (kindOf(schema.type) === 'map' && schema.values)
+    if ((kindOf(schema.type) === 'map' || kindOf(schema.type) === 'struct') && schema.values)
       main = (
         <p className="text-sm">
           Open map — every value: <SchemaRef node={schema.values} nav={nav} />

@@ -1,7 +1,7 @@
 ---
 name: Metadata payload
 summary: A resource id with its resolved metadata (null when the document has none). A derived read model computed by the Seed daemon/API for clients — not a signed netw
-schemaDefinition: ipfs://bafyreif5ps4e5tbeyrxw42ptqed2tmz3masqu3xwcffzq6a3ofgpdkqxxe
+schemaDefinition: ipfs://bafyreibdsnfrfrxdddhtis6lm67wem77nvkvxvpwao6txyu57i6br4ormy
 ---
 A resource id with its resolved metadata (null when the document has none). A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:Y5u7CGw2 -->
 

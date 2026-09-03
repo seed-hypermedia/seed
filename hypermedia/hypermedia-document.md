@@ -1,7 +1,7 @@
 ---
 name: Document
 summary: The base Hypermedia document — resolved metadata (including the schema-binding fields `schema`, `childrenSchema`, `schemaDefinition`) plus the content block tre
-schemaDefinition: ipfs://bafyreie46eszo2jzswjnve6pn2lhoetgq2wws333ci45d3c6an7ddobfza
+schemaDefinition: ipfs://bafyreifko2clfbxzt5qnjfhoxshm54vnyzh3suup5vrbip46ffx7opnozq
 ---
 The base Hypermedia document — resolved metadata (including the schema-binding fields `schema`, `childrenSchema`, `schemaDefinition`) plus the content block tree. Every typed document schema EXTENDS this via `ref: hm://seed.hyper.media/document`, refining `metadata` (e.g. requiring an extra field) and/or `content`. A document's effective conformance schema is its metadata's `schema`, or — for a child — its parent's `childrenSchema`. <!-- id:qIPS3d4t -->
 

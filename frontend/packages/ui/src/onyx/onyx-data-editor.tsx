@@ -42,7 +42,8 @@ function seed(schema0: OnyxSchema, env: Env, reg: OnyxRegistry): unknown {
   if (schema.enum) return schema.enum[0]
   const kind = schema.type ? kindOf(schema.type) : null
   switch (kind) {
-    case 'map': {
+    case 'map':
+    case 'struct': {
       const o: Record<string, unknown> = {}
       for (const k of schema.required ?? []) o[k] = seed(schema.properties?.[k] ?? {}, e, reg)
       return o
@@ -126,7 +127,7 @@ function Node({schema: schema0, value, onChange, env, reg, depth}: NodeProps) {
   if (schema.enum) return <EnumNode schema={schema} value={value} onChange={onChange} />
 
   const kind = schema.type ? kindOf(schema.type) : null
-  if (kind === 'map')
+  if (kind === 'map' || kind === 'struct')
     return <MapNode schema={schema} value={value} onChange={onChange} env={e} reg={reg} depth={depth} />
   if (kind === 'list')
     return <ListNode schema={schema} value={value} onChange={onChange} env={e} reg={reg} depth={depth} />

@@ -84,7 +84,7 @@ function typeMatches(type, d) {
     case "string": return typeof d === "string";
     case "bytes": return isBytes(d);
     case "list": return Array.isArray(d);
-    case "map": return typeOf(d) === "map";
+    case "map": case "struct": return typeOf(d) === "map";
     case "link": return isLink(d);
     default: return false;
   }
@@ -182,7 +182,7 @@ export function validate(schema0, data, path = "$", env0 = {}) {
     errors.push(`${path}: expected ${kind}, got ${typeOf(data)}`);
     return errors;
   }
-  if (kind === "map") {
+  if (kind === "map" || kind === "struct") {
     for (const key of schema.required ?? []) if (!(key in data)) errors.push(`${path}: missing required "${key}"`);
     const closed = schema.properties && !schema.values;
     for (const [key, value] of Object.entries(data)) {
@@ -280,6 +280,11 @@ const K = (k) => `hm://hyper.media/${k}`;
 failed += reportReject("scalar carrying `items`", validate(meta, { type: K("string"), items: { type: K("integer") } }));
 failed += reportReject("scalar carrying `properties`", validate(meta, { type: K("string"), properties: {} }));
 failed += reportReject("map schema with an unknown keyword", validate(meta, { type: K("map"), bogus: 1 }));
+failed += reportReject("struct schema with an unknown keyword", validate(meta, { type: K("struct"), bogus: 1 }));
+const U = (k) => `hm://${ONYX}/${k}`;
+failed += report("a struct with fields is a valid schema", validate(meta, { type: U("struct"), properties: { a: { type: U("string") } }, required: ["a"] }));
+failed += report("a map of values is a valid schema", validate(meta, { type: U("map"), values: { type: U("integer") } }));
+failed += report("a legacy map with fields (published before struct) still validates", validate(meta, { type: U("map"), properties: { a: { type: U("string") } } }));
 failed += reportReject("node with neither type nor ref nor anyOf", validate(meta, { properties: {} }));
 failed += reportReject("union with a non-schema arm", validate(meta, { anyOf: [{ nope: 1 }] }));
 failed += reportReject("bare kind name instead of a URL", validate(meta, { type: "string" }));
