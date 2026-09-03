@@ -6,7 +6,8 @@
 // and the source dag-json with clickable `ref`/`type` links. Types are
 // documents: clicking a reference navigates to that schema.
 
-import {createContext, useContext} from 'react'
+import {ChevronRight} from 'lucide-react'
+import {createContext, useContext, useState} from 'react'
 import {useOnyxSchemaRegistry} from './onyx-schema-registry-cid'
 import {isSignedBlobSchema} from './signed-blob'
 import {cn} from '../utils'
@@ -258,26 +259,50 @@ function SourceJson({schema, nav}: {schema: any; nav: (slug: string) => void}) {
 
 // --- the schema page -------------------------------------------------------
 
+/**
+ * What a schema depends on and what references it. Secondary information, so it
+ * starts collapsed behind one quiet line with the counts; opening it shows the chips.
+ */
 function DepLists({name, nav}: {name: string; nav: (slug: string) => void}) {
   const deps = dependencies(name)
   const rdeps = dependents(name)
+  const [open, setOpen] = useState(false)
   if (!deps.length && !rdeps.length) return null
+  const summary = [
+    deps.length ? `depends on ${deps.length}` : null,
+    rdeps.length ? `referenced by ${rdeps.length}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
   return (
-    <div className="my-4 flex flex-col gap-2">
-      {deps.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-muted-foreground text-xs font-medium">Depends on:</span>
-          {deps.map((d) => (
-            <Chip key={d} label={d} onClick={() => nav(d)} variant="dep" />
-          ))}
-        </div>
-      )}
-      {rdeps.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-muted-foreground text-xs font-medium">Referenced by:</span>
-          {rdeps.map((d) => (
-            <Chip key={d} label={d} onClick={() => nav(d)} variant="dep" />
-          ))}
+    <div className="mt-3 flex flex-col gap-2" data-testid="schema-dep-lists">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="text-muted-foreground/70 hover:text-muted-foreground inline-flex w-fit cursor-pointer items-center gap-1 text-xs"
+      >
+        <ChevronRight className={cn('size-3 transition-transform', open && 'rotate-90')} />
+        {summary}
+      </button>
+      {open && (
+        <div className="flex flex-col gap-2 pl-4">
+          {deps.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-muted-foreground text-xs">Depends on</span>
+              {deps.map((d) => (
+                <Chip key={d} label={d} onClick={() => nav(d)} variant="dep" />
+              ))}
+            </div>
+          )}
+          {rdeps.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-muted-foreground text-xs">Referenced by</span>
+              {rdeps.map((d) => (
+                <Chip key={d} label={d} onClick={() => nav(d)} variant="dep" />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
