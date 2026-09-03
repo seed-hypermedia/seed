@@ -2620,6 +2620,7 @@ function DocumentBody({
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
+            variant="default"
             onClick={() => {
               if (!pendingDocumentConversion) return
               console.info('[Collection draft debug] document conversion confirmed', {

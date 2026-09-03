@@ -37,12 +37,12 @@ function DeleteDraftDialog({
           onClick={() => {
             onClose()
           }}
-          variant="ghost"
+          variant="outline"
         >
           Cancel
         </Button>
         <Button
-          variant="ghost"
+          variant="destructive"
           onClick={() => {
             if (input.onConfirm) {
               void Promise.resolve(input.onConfirm()).then(input.onSuccess)
