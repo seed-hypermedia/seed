@@ -19,7 +19,7 @@ seed-cli space import hm://<uid> --dir ./seed-docs --dry-run
 seed-cli space import self --dir ./seed-docs
 ```
 
-Publishes the directory into the space, updating existing documents block by block. `self` means the signing key's own space. The signing key comes from the vault or keyring, or from the `SEED_CLI_MNEMONIC` environment variable, which is how CI signs. <!-- id:zcB4OI7D -->
+Publishes the directory into the space, updating existing documents block by block. `self` means the signing key's own space. The signing key comes from the vault or keyring, or from the environment, which is how CI signs: `SEED_CLI_KEYFILE` holds the contents of an unencrypted `.hmkey.json` exported from the app, or `SEED_CLI_MNEMONIC` holds a BIP-39 phrase. <!-- id:zcB4OI7D -->
 
 # space dev <!-- id:dpshaoY4 -->
 

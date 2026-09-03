@@ -538,7 +538,8 @@ seed-cli space import <space> --dir <path> [--dry-run] [-k, --key <name>]
 
 Publishes the directory into the space. Each file is diffed by block id against the current document and published as a
 change on its existing history; unchanged documents produce nothing. A file without ids is matched to the existing
-document by position. In CI, set `SEED_CLI_MNEMONIC` to sign without a stored key and use `self` as the space.
+document by position. In CI, sign without a stored key by setting `SEED_CLI_KEYFILE` to the contents of an unencrypted
+`.hmkey.json` (or `SEED_CLI_MNEMONIC` to a BIP-39 phrase) and use `self` as the space.
 
 ### space dev
 

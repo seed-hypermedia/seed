@@ -1,9 +1,9 @@
 name: Repo HM sync (seed-docs)
 
 # Publishes seed-docs/ to its Hypermedia site whenever main changes it.
-# Signs with SEED_DOCS_MNEMONIC (a repository secret): the site is that key's
-# own space. Documents are updated block by block; unchanged pages publish
-# nothing.
+# Signs with SEED_DOCS_KEYFILE (a repository secret holding the contents of an
+# unencrypted .hmkey.json, as exported by the app): the site is that key's own
+# space. Documents are updated block by block; unchanged pages publish nothing.
 
 on:
   workflow_dispatch:
@@ -36,10 +36,10 @@ jobs:
       - name: Publish seed-docs to hyper.media
         working-directory: frontend/apps/cli
         env:
-          SEED_CLI_MNEMONIC: ${{ secrets.SEED_DOCS_MNEMONIC }}
+          SEED_CLI_KEYFILE: ${{ secrets.SEED_DOCS_KEYFILE }}
         run: |
-          if [ -z "$SEED_CLI_MNEMONIC" ]; then
-            echo "SEED_DOCS_MNEMONIC secret is not set; skipping publish."
+          if [ -z "$SEED_CLI_KEYFILE" ]; then
+            echo "SEED_DOCS_KEYFILE secret is not set; skipping publish."
             exit 0
           fi
           bun run src/index.ts space import self --dir ../../../seed-docs --server https://hyper.media

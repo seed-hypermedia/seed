@@ -12,10 +12,11 @@
  * are the daemon's job. Key creation/removal in the CLI stays on the keyring.
  */
 
+import * as keyfile from '@seed-hypermedia/client/keyfile'
 import {loadLocalVaultAccounts, type VaultLocalAccount} from '@seed-hypermedia/client/vault-local'
 import {loadConfig} from '../config'
 import {printWarning} from '../output'
-import {deriveKeyPairFromMnemonic} from './key-derivation'
+import {deriveKeyPairFromMnemonic, keyPairFromPrivateKey} from './key-derivation'
 import {getDefaultKey, getKey, listKeys, type KeyringKey} from './keyring'
 
 export type KeySource = 'vault' | 'keyring' | 'env'
@@ -106,15 +107,16 @@ export async function findDefaultKey(opts: KeyOptions): Promise<ResolvedKey | nu
 export async function resolveSigningKey(keyFlag: string | undefined, opts: KeyOptions): Promise<ResolvedKey> {
   const envHint = opts.dev ? ' --dev' : ''
 
-  // Non-interactive environments (CI) pass the key as a mnemonic in
-  // SEED_CLI_MNEMONIC; it wins over every stored key.
-  const envMnemonic = process.env.SEED_CLI_MNEMONIC?.trim()
-  if (envMnemonic) {
-    const pair = deriveKeyPairFromMnemonic(envMnemonic)
-    if (keyFlag && keyFlag !== 'env' && keyFlag !== pair.accountId) {
-      throw new Error(`SEED_CLI_MNEMONIC is set (account ${pair.accountId}) but --key ${keyFlag} was requested.`)
+  // Non-interactive environments (CI) pass the key in the environment; it
+  // wins over every stored key.
+  const envKey = await resolveEnvKey()
+  if (envKey) {
+    if (keyFlag && keyFlag !== 'env' && keyFlag !== envKey.pair.accountId) {
+      throw new Error(
+        `${envKey.variable} is set (account ${envKey.pair.accountId}) but --key ${keyFlag} was requested.`,
+      )
     }
-    return {name: 'env', ...pair, source: 'env'}
+    return {name: 'env', ...envKey.pair, source: 'env'}
   }
 
   if (keyFlag) {
@@ -133,6 +135,38 @@ export async function resolveSigningKey(keyFlag: string | undefined, opts: KeyOp
     )
   }
   return key
+}
+
+/**
+ * Reads a signing key from the environment, for CI and other non-interactive
+ * runs. SEED_CLI_KEYFILE holds the contents of an unencrypted `.hmkey.json`
+ * (the format the app and vault export), SEED_CLI_MNEMONIC a BIP-39 phrase.
+ * A raw key cannot be turned back into a mnemonic, so exported keys use the
+ * former. Setting both is a configuration error.
+ */
+async function resolveEnvKey(): Promise<{variable: string; pair: ReturnType<typeof keyPairFromPrivateKey>} | null> {
+  const envKeyfile = process.env.SEED_CLI_KEYFILE?.trim()
+  const envMnemonic = process.env.SEED_CLI_MNEMONIC?.trim()
+  if (envKeyfile && envMnemonic) {
+    throw new Error('Both SEED_CLI_KEYFILE and SEED_CLI_MNEMONIC are set; use one.')
+  }
+  if (envKeyfile) {
+    let seed: Uint8Array
+    try {
+      const payload = keyfile.parse(envKeyfile)
+      if (payload.encryption) {
+        throw new Error('the key file is password-encrypted; export it without a password')
+      }
+      seed = (await keyfile.load(envKeyfile)).seed
+    } catch (error) {
+      throw new Error(`SEED_CLI_KEYFILE is not a usable .hmkey.json: ${(error as Error).message}`)
+    }
+    return {variable: 'SEED_CLI_KEYFILE', pair: keyPairFromPrivateKey(seed)}
+  }
+  if (envMnemonic) {
+    return {variable: 'SEED_CLI_MNEMONIC', pair: deriveKeyPairFromMnemonic(envMnemonic)}
+  }
+  return null
 }
 
 /** Lists all known keys: vault identities first, then keyring keys. */
