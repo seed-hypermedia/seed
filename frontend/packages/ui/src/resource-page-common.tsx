@@ -110,7 +110,6 @@ import {
   FilePen,
   FileText,
   Grid3X3,
-  Info,
   List as ListIcon,
   MoreHorizontal,
   Quote,
@@ -391,6 +390,51 @@ export function getCollectionMenuPanelRoute(key: string, docId: UnpackedHypermed
   if (key === 'activity') return {key: 'activity', id: docId}
   if (key === 'comments') return {key: 'comments', id: docId}
   return null
+}
+
+/** Removes redundant document destinations and orders the remaining menu actions by intent. */
+export function orderDocumentMenuItems(items: MenuItemType[]): MenuItemType[] {
+  const hiddenKeys = new Set(['metadata', 'directory', 'all-documents'])
+  const visibleItems = items.filter((item) => !hiddenKeys.has(item.key))
+  const itemOrder = [
+    'new',
+    'options',
+    'versions',
+    'convert-to-collection',
+    'convert-to-document',
+    'copy-link',
+    'link-site',
+    'link',
+    'publish-site',
+    'publish-custom-domain',
+    'email-subscribers',
+    'move',
+    'duplicate',
+    'branch',
+    'republish',
+    'export',
+    'citation-fragments-toggle',
+    'inspect',
+  ]
+  const byKey = new Map(visibleItems.map((item) => [item.key, item]))
+  const orderedItems: MenuItemType[] = []
+  const consumed = new Set<string>()
+
+  for (const key of itemOrder) {
+    const item = byKey.get(key)
+    if (item && item.variant !== 'destructive') {
+      orderedItems.push(item)
+      consumed.add(key)
+    }
+  }
+  for (const item of visibleItems) {
+    if (!consumed.has(item.key) && item.variant !== 'destructive') orderedItems.push(item)
+  }
+  for (const item of visibleItems) {
+    if (item.variant === 'destructive') orderedItems.push(item)
+  }
+
+  return orderedItems
 }
 
 /** Returns a stable key for the exact document resource being viewed, including version state. */
@@ -2487,18 +2531,6 @@ function DocumentBody({
     [showCitationFragments],
   )
 
-  const metadataMenuItem = useMemo<MenuItemType | null>(() => {
-    if (route.key === 'inspect' || route.key === 'metadata') return null
-    return {
-      key: 'metadata',
-      label: 'Attributes',
-      icon: <Info className="size-4" />,
-      onClick: () => {
-        navigate({key: 'metadata', id: {...docId, blockRef: null, blockRange: null}})
-      },
-    }
-  }, [docId, navigate, route.key])
-
   const convertToDocumentMenuItem = useMemo<MenuItemType | null>(() => {
     if (!isCollection || !canEditCurrentRoute) return null
     return {
@@ -2524,7 +2556,6 @@ function DocumentBody({
     unorderedItems.push(citationFragmentToggleMenuItem)
     if (inspectMenuItem) unorderedItems.push(inspectMenuItem)
     if (documentOptionsMenuItem) unorderedItems.push(documentOptionsMenuItem)
-    if (metadataMenuItem) unorderedItems.push(metadataMenuItem)
     if (convertToCollectionMenuItem) unorderedItems.push(convertToCollectionMenuItem)
     if (convertToDocumentMenuItem) unorderedItems.push(convertToDocumentMenuItem)
     if (isCollection) {
@@ -2548,49 +2579,13 @@ function DocumentBody({
       const drop = (key: string) => key === 'copy-link' || key.startsWith('copy-') || key === 'share'
       unorderedItems = unorderedItems.filter((item) => !drop(item.key))
     }
-    // Contextual menu items ordering
-    const itemOrder = [
-      'new',
-      'versions',
-      'options',
-      'metadata',
-      'convert-to-collection',
-      'convert-to-document',
-      'copy-link',
-      'link-site',
-      'link',
-      'move',
-      'duplicate',
-      'branch',
-      'export',
-      'directory',
-      'all-documents',
-    ]
-    const byKey = new Map(unorderedItems.map((i) => [i.key, i]))
-    const orderedItems: MenuItemType[] = []
-    const consumed = new Set<string>()
-    for (const key of itemOrder) {
-      const item = byKey.get(key)
-      if (item && item.variant !== 'destructive') {
-        orderedItems.push(item)
-        consumed.add(key)
-      }
-    }
-    for (const item of unorderedItems) {
-      if (consumed.has(item.key) || item.variant === 'destructive') continue
-      orderedItems.push(item)
-    }
-    for (const item of unorderedItems) {
-      if (item.variant === 'destructive') orderedItems.push(item)
-    }
-    return orderedItems
+    return orderDocumentMenuItems(unorderedItems)
   }, [
     optionsMenuItems,
     extraMenuItems,
     citationFragmentToggleMenuItem,
     inspectMenuItem,
     documentOptionsMenuItem,
-    metadataMenuItem,
     convertToCollectionMenuItem,
     convertToDocumentMenuItem,
     isUnpublishedDraft,

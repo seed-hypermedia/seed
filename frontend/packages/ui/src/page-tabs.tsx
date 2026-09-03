@@ -38,6 +38,8 @@ export interface PageTabProps extends Omit<ButtonProps, 'variant' | 'asChild'> {
   tooltip?: string
   /** Optional count badge (e.g., comments count) */
   count?: number
+  /** Whether to render the count when it is zero. */
+  showZeroCount?: boolean
   /** Optional icon component from lucide-react */
   icon?: LucideIcon
   /** Whether this tab is currently active */
@@ -63,6 +65,7 @@ export function PageTab({
   label,
   tooltip,
   count,
+  showZeroCount = false,
   icon: Icon,
   active = false,
   showLabel = true,
@@ -77,7 +80,7 @@ export function PageTab({
     <>
       {Icon && <Icon className="size-4" />}
       {label && showLabel ? <span className="hidden truncate text-sm md:block">{label}</span> : null}
-      {count ? <span className="text-sm">{count}</span> : null}
+      {count || (showZeroCount && count === 0) ? <span className="text-sm">{count}</span> : null}
     </>
   )
 

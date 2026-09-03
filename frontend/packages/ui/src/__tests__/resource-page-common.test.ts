@@ -19,6 +19,7 @@ import {
   getOldVersionEditBlockedToastOptions,
   getCitationsTargetId,
   getCollectionMenuPanelRoute,
+  orderDocumentMenuItems,
   BACK_TO_TOP_SCROLL_OFFSET,
 } from '../resource-page-common'
 
@@ -48,6 +49,28 @@ describe('getCollectionMenuPanelRoute', () => {
 
   it('leaves menu actions without panel support unchanged', () => {
     expect(getCollectionMenuPanelRoute('export', docId)).toBeNull()
+  })
+})
+
+describe('orderDocumentMenuItems', () => {
+  it('removes redundant destinations and groups the remaining document actions by intent', () => {
+    const item = (key: string, variant?: 'destructive') => ({key, label: key, icon: null, variant})
+
+    expect(
+      orderDocumentMenuItems([
+        item('delete', 'destructive'),
+        item('inspect'),
+        item('all-documents'),
+        item('export'),
+        item('move'),
+        item('metadata'),
+        item('copy-link'),
+        item('directory'),
+        item('versions'),
+        item('options'),
+        item('new'),
+      ]).map(({key}) => key),
+    ).toEqual(['new', 'options', 'versions', 'copy-link', 'move', 'export', 'inspect', 'delete'])
   })
 })
 

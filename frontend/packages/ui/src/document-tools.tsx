@@ -46,7 +46,7 @@ export function DocumentTools({
   commentsCount?: number
   citationsCount?: number
   collabsCount?: number
-  /** Number of custom (non-built-in) metadata fields; shows the Attributes tab with a count when > 0. */
+  /** Number of custom (non-built-in) metadata fields shown on the always-visible Attributes tab. */
   metadataCount?: number
   /** Rendered immediately to the right of the active tab pill. When no tab is active, rendered as last sibling. */
   activeTabAction?: React.ReactNode
@@ -130,6 +130,7 @@ export function DocumentTools({
     tooltip: string
     icon: LucideIcon
     count?: number
+    showZeroCount?: boolean
     active: boolean
     route: NavRoute
     bg?: string
@@ -254,21 +255,15 @@ export function DocumentTools({
               panel: panelFor(),
             },
           },
-          // Hidden by default; shown when the view is active (opened from the
-          // options menu) or once the document has custom attributes, with a
-          // count of those custom fields.
-          ...(activeTab === 'metadata' || metadataCount > 0
-            ? [
-                {
-                  label: 'Attributes',
-                  tooltip: 'Open Document Attributes',
-                  icon: Info,
-                  active: activeTab === 'metadata',
-                  count: metadataCount,
-                  route: {key: 'metadata', id: idWithoutBlock, panel: panelFor()} as NavRoute,
-                },
-              ]
-            : []),
+          {
+            label: 'Attributes',
+            tooltip: 'Open Document Attributes',
+            icon: Info,
+            active: activeTab === 'metadata',
+            count: metadataCount,
+            showZeroCount: true,
+            route: {key: 'metadata', id: idWithoutBlock, panel: panelFor()} as NavRoute,
+          },
         ]
   const hasActive = buttons.some((b) => b.active)
   const standaloneAction =
@@ -294,6 +289,7 @@ export function DocumentTools({
             tooltip={button.tooltip}
             icon={button.icon}
             count={button.count}
+            showZeroCount={button.showZeroCount}
             bg={button.bg}
             showLabel
             trailingAction={button.active ? activeTabAction : undefined}
@@ -310,6 +306,7 @@ export function DocumentTools({
           tooltip={button.tooltip}
           icon={button.icon}
           count={button.count}
+          showZeroCount={button.showZeroCount}
           bg={button.bg}
           showLabel={showLabels}
           trailingAction={button.active ? activeTabAction : undefined}
