@@ -54,6 +54,24 @@ import {sha256} from 'multiformats/hashes/sha2'
 import {hmBlockNodeToBlockNode} from './block-diff'
 import {resolveFileLinks} from './file-links'
 
+/** Run `fn` over `items` with at most `limit` in flight; results in input order. */
+async function mapPool<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length)
+  let next = 0
+  const workers = Array.from({length: Math.min(limit, items.length)}, async () => {
+    for (;;) {
+      const i = next++
+      if (i >= items.length) return
+      out[i] = await fn(items[i]!, i)
+    }
+  })
+  await Promise.all(workers)
+  return out
+}
+
+/** How many documents are fetched or published at once. */
+const CONCURRENCY = 6
+
 // ─── Layout ──────────────────────────────────────────────────────────────────
 
 export type SpaceLayout = {
@@ -230,11 +248,9 @@ export async function listSpaceDocuments(client: SeedClient, uid: string): Promi
   const home = await client.request('Resource', hmId(uid))
   if (home.type === 'document') docs.push(home.document)
   const query = await client.request('Query', {includes: [{space: uid, path: '', mode: 'AllDescendants'}]})
-  for (const info of query?.results || []) {
-    if (info.type !== 'document') continue
-    const res = await client.request('Resource', hmId(uid, {path: info.path}))
-    if (res.type === 'document') docs.push(res.document)
-  }
+  const infos = (query?.results || []).filter((info) => info.type === 'document')
+  const fetched = await mapPool(infos, CONCURRENCY, (info) => client.request('Resource', hmId(uid, {path: info.path})))
+  for (const res of fetched) if (res.type === 'document') docs.push(res.document)
   return docs
 }
 
@@ -338,7 +354,7 @@ export async function exportDocument(
 export async function exportSpace(opts: ExportOptions): Promise<ExportResult> {
   const result = emptyExportResult()
   const docs = await listSpaceDocuments(opts.client, opts.uid)
-  for (const doc of docs) await exportDocument(opts, doc, result)
+  await mapPool(docs, CONCURRENCY, (doc) => exportDocument(opts, doc, result))
   return result
 }
 
@@ -618,7 +634,11 @@ function prepareFile(opts: ImportOptions, layout: SpaceLayout, file: string) {
  * Every link in `files` that would be broken once published (see
  * findBrokenLinks), against the set of paths the whole directory publishes.
  */
-export function checkLinks(opts: ImportOptions, files?: string[]): BrokenLink[] {
+export function checkLinks(
+  opts: ImportOptions,
+  files?: string[],
+  prepared: Map<string, ReturnType<typeof prepareFile>> = new Map(),
+): BrokenLink[] {
   const layout = opts.layout || defaultLayout
   const all = listMarkdownFiles(opts.dir)
   const publishedPaths = new Set<string>()
@@ -629,7 +649,9 @@ export function checkLinks(opts: ImportOptions, files?: string[]): BrokenLink[] 
   const broken: BrokenLink[] = []
   for (const file of files ?? all) {
     if (layout.pathForFile(file) === null) continue
-    broken.push(...findBrokenLinks(file, prepareFile(opts, layout, file).nodes, opts.account, publishedPaths))
+    let prep = prepared.get(file)
+    if (!prep) prepared.set(file, (prep = prepareFile(opts, layout, file)))
+    broken.push(...findBrokenLinks(file, prep.nodes, opts.account, publishedPaths))
   }
   return broken
 }
@@ -643,7 +665,8 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
   let index: Promise<BlockIndex> | undefined
 
   // Nothing is published while a link would break.
-  const broken = checkLinks(opts, files)
+  const prepared = new Map<string, ReturnType<typeof prepareFile>>()
+  const broken = checkLinks(opts, files, prepared)
   if (broken.length) {
     const lines = broken.slice(0, 50).map((b) => `  ${b.file}: ${b.link}  (${b.reason})`)
     if (broken.length > 50) lines.push(`  … and ${broken.length - 50} more`)
@@ -652,13 +675,15 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     )
   }
 
-  for (const file of files) {
+  const processFile = async (file: string) => {
     const path = layout.pathForFile(file)
     if (path === null) {
       result.skipped.push(file)
-      continue
+      return
     }
-    const {raw, tree, metadata: fileMetadata, nodes} = prepareFile(opts, layout, file)
+    let prep = prepared.get(file)
+    if (!prep) prepared.set(file, (prep = prepareFile(opts, layout, file)))
+    const {raw, tree, metadata: fileMetadata, nodes} = prep
     const schema = await readSchemaFile(opts.dir, file, layout)
     const metadata = applySchemaMetadata(opts.metadataFor ? opts.metadataFor(file, fileMetadata) : fileMetadata, schema)
     // The schema blob rides along with the change that binds it.
@@ -696,7 +721,7 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
       ops.push(...flattenToOperations(newTree))
       log(`create  ${label}  (${file})`)
       result.created.push(file)
-      if (opts.dryRun) continue
+      if (opts.dryRun) return
       const {unsignedBytes, ts} = createChangeOps({ops})
       const changeBlock = await createChange(unsignedBytes, opts.signer)
       const ref = await createVersionRef(
@@ -718,18 +743,23 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
           ...resolved.blobs.map((b) => ({data: b.data, cid: b.cid})),
         ],
       })
-      continue
+      return
     }
 
     const baseId =
       movedFrom === null ? id : hmId(opts.account, {path: movedFrom ? movedFrom.replace(/^\//, '').split('/') : []})
-    const base = await resolveEditableDocument(opts.client, baseId)
+    // The Resource call already returned the current document, which is all a
+    // diff needs. The editable state (genesis, heads, depth) costs a fetch of
+    // the whole change history, so it is resolved only to publish — which for
+    // an unchanged document never happens.
+    let base: Awaited<ReturnType<typeof resolveEditableDocument>> | undefined
+    const getBase = async () => (base ??= await resolveEditableDocument(opts.client, baseId))
     if (movedFrom !== null) {
       log(`move    ${movedFrom || '(home)'} -> ${label}  (${file})`)
       result.moved.push(`${movedFrom} -> ${path}`)
-      if (!opts.dryRun) await publishMove(opts, movedFrom, path, base.document)
+      if (!opts.dryRun) await publishMove(opts, movedFrom, path, (await getBase()).document)
     }
-    const oldDoc = base.document
+    const oldDoc = movedFrom === null && existing.type === 'document' ? existing.document : (await getBase()).document
     const oldNodes = (oldDoc.content || []).map(toAPIBlockNode)
     const oldMap = createBlocksMap(oldNodes)
     // A hand-written file carries no block ids: match its blocks to the
@@ -747,13 +777,13 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     if (ops.length === 0) {
       log(`same    ${label}`)
       result.unchanged.push(file)
-      continue
+      return
     }
     log(`update  ${label}  (${file}: ${ops.length} op${ops.length === 1 ? '' : 's'})`)
     result.updated.push(file)
-    if (opts.dryRun) continue
+    if (opts.dryRun) return
 
-    const state = base.state
+    const state = (await getBase()).state
     const {unsignedBytes, ts} = createChangeOps({
       ops,
       genesisCid: CID.parse(state.genesis),
@@ -781,5 +811,6 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
       ],
     })
   }
+  await mapPool(files, CONCURRENCY, processFile)
   return result
 }
