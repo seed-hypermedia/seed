@@ -22,6 +22,11 @@ import {OnyxRpcConsole, RpcCallPanel, rpcMethodForSlug} from './onyx-rpc-console
 import {useOnyxSchemaRegistry} from './onyx-schema-registry-cid'
 import {schemaDefinitionCid} from './schema-document'
 
+/** The URL of a library page inside a space that mirrors the library (`onyx-` stripped, like the Onyx site). */
+export function libraryPageUrl(space: string, slug: string): string {
+  return `hm://${space}/${slug.startsWith('onyx-') ? slug.slice(5) : slug}`
+}
+
 /** Under a bundled API schema, the live call panel (the union page is the whole console). */
 function RpcSection({slug}: {slug: string}) {
   if (slug === 'seed-rpc')
@@ -47,6 +52,7 @@ export function OnyxSchemaBrowserPage({
   navigate,
   openUrl,
   embedded,
+  linkSpace,
 }: {
   /** The schema blob CID. Optional when `docId` is given. */
   cid?: string
@@ -57,6 +63,9 @@ export function OnyxSchemaBrowserPage({
   /** Rendered inside a document's Schema tool tab: no page container and no header of its own —
    * the tab names the view and the document's options menu carries the schema actions. */
   embedded?: boolean
+  /** The space to link sibling library pages in (the site being browsed mirrors the library);
+   * absent, links go to the canonical Onyx site. */
+  linkSpace?: string
 }) {
   // Reached via `<doc URL>/:schema`: resolve the defining doc's schemaDefinition.
   const docResource = useResource(cidProp ? null : docId)
@@ -76,7 +85,7 @@ export function OnyxSchemaBrowserPage({
   // the bare-CID browser.
   const nav = (slug: string) => {
     if (!schemaCid(slug)) return
-    const url = nameToUrl(slug)
+    const url = linkSpace ? libraryPageUrl(linkSpace, slug) : nameToUrl(slug)
     if (url) return openUrl(url)
     const c = schemaCid(slug)
     if (c) goToCid(c)
