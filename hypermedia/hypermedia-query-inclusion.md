@@ -1,7 +1,7 @@
 ---
 name: Query inclusion
 summary: "One source a Query block pulls documents from: a space (account), an optional path prefix inside it, and whether to list direct Children or AllDescendants."
-schemaDefinition: ipfs://bafyreigcth62qjk727fpqndfbjok7lq36p244uunxjbk75h7vfebjkzt2y
+schemaDefinition: ipfs://bafyreifl6utzto52fdt5y35nawzinbdkn4qmfdmmjoy3pkue5jdnbgvsw4
 ---
 This document describes the **hypermedia-query-inclusion** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:FNiZQ7M3 -->
 

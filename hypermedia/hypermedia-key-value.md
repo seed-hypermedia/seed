@@ -1,7 +1,7 @@
 ---
 name: Key/value
 summary: "A metadata attribute: a dotted key path (segments) and a value."
-schemaDefinition: ipfs://bafyreiaz5xf2fhm4eap7q32fivn7knethvx5sj6d7snnw6uqyzsvgfl2s4
+schemaDefinition: ipfs://bafyreifgcczlm2z7zedapax6oxpoia554xco6imosoqify62y55piwjnii
 ---
 This document describes the **hypermedia-key-value** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:KBi_5PW1 -->
 

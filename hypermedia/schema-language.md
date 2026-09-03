@@ -55,17 +55,17 @@ The rules, all reusing existing keywords — no `extends` keyword needed: <!-- i
 
 A **bare** `{ "ref": X }` (no refinements) is a pure include, not an extension. The distinction is exactly whether refinements are present. This is validated by `validate.mjs` (see the `employee data` / `extension …` checks). <!-- id:QzURq80i -->
 
-## Closed maps <!-- id:SFVk1Mph -->
+## Structs and maps <!-- id:SFVk1Mph -->
 
-A `map` with `properties` and **no** `values` is **closed**: keys not listed in `properties` are rejected. Add `values` and the map is open — extra keys are allowed as long as their values match the `values` schema. So: <!-- id:8FWAU877 -->
-  - `properties`, no `values` → **closed struct** (fixed field set) <!-- id:AjvS967n -->
-  - `values`, no `properties` → **open map** (uniform value type, any keys) <!-- id:e1GSoOu5 -->
-  - both → known fields via `properties`, everything else must match `values` <!-- id:3wP9hZuQ -->
-  - neither → any map <!-- id:0R9RPaBS -->
+A `struct` names its fields in `properties` and is **closed**: keys not listed are rejected. Add `values` and it is open — extra keys are allowed as long as their values match the `values` schema. A `map` has no named fields; every key's value matches `values`. So: <!-- id:8FWAU877 -->
+  - `struct` with `properties`, no `values` → **closed struct** (fixed field set) <!-- id:AjvS967n -->
+  - `map` with `values` → **map** (uniform value type, any keys) <!-- id:e1GSoOu5 -->
+  - `struct` with both → known fields via `properties`, everything else must match `values` <!-- id:3wP9hZuQ -->
+  - a bare `map` or `struct` → any map <!-- id:0R9RPaBS -->
 
 ```json <!-- id:KIYtikI2 -->
 // closed struct — {name, age} and nothing else
-{ "type": "map", "required": ["name"],
+{ "type": "struct", "required": ["name"],
   "properties": { "name": { "type": "string" }, "age": { "type": "integer" } } }
 ```
 
@@ -130,12 +130,13 @@ The parameter threads through references (each level passes it down with `args`)
 
 ## How Onyx describes itself <!-- id:zWshFjlg -->
 
-This is the crux, and with unions it is sharper than "a loose map with optional keys." `onyx-schema` is a **discriminated union of seven variants** — the seven shapes a schema can take: <!-- id:lI_lySSK -->
+This is the crux, and with unions it is sharper than "a loose map with optional keys." `onyx-schema` is a **discriminated union of eight variants** — the eight shapes a schema can take: <!-- id:lI_lySSK -->
 
 <!-- id:yZg8-sNO -->
 | variant <!-- col:kO3_qHrQ --> | matches <!-- col:rCN3fgm3 --> | discriminant <!-- col:zzQn7svL --> <!-- id:4VFkvrKJ --> |
 | --- | --- | --- |
-| `onyx-map-schema` | `{type:"map", properties?, required?, values?}` | `type` = `map` <!-- id:bCtL9MQx --> |
+| `onyx-struct-schema` | `{type:"struct", properties?, required?, values?}` | `type` = `struct` |
+| `onyx-map-schema` | `{type:"map", values?}` | `type` = `map` <!-- id:bCtL9MQx --> |
 | `onyx-list-schema` | `{type:"list", items?}` | `type` = `list` <!-- id:Y2gJAANc --> |
 | `onyx-scalar-schema` | `{type: null\|boolean\|integer\|float\|string\|bytes, enum?}` | `type` = a scalar kind <!-- id:wkuOsUIy --> |
 | `onyx-link-schema` | `{type:"link", ref?}` | `type` = `link` <!-- id:GXuPWZG4 --> |
@@ -155,7 +156,7 @@ node validate.mjs
 `onyx-schema` is `{ "anyOf": [ …seven refs… ] }`. Validate it against itself: <!-- id:Gjr5KNDl -->
   1. It matches the **`onyx-union-schema`** variant (it has an `anyOf` that is a list of schemas). <!-- id:deE1RQMk -->
   2. Each item in that `anyOf` is a bare `{ref: …}`, which matches the **`onyx-include-schema`** variant. <!-- id:yYBUIRiY -->
-  3. Each variant file (e.g. `onyx-map-schema`) is itself a `{type:"map", …}`, which matches the **`onyx-map-schema`** variant. <!-- id:3RbdlEZc -->
+  3. Each variant file (e.g. `onyx-map-schema`) is itself a `{type:"struct", …}`, which matches the **`onyx-struct-schema`** variant. <!-- id:3RbdlEZc -->
 
 The meta-schema is a union whose variants _include a union variant_, and it validates as that variant. The fixed point holds one level richer than before. <!-- id:pUf5EFPl -->
 

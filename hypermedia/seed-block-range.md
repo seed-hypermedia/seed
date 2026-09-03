@@ -1,7 +1,7 @@
 ---
 name: Block range
 summary: "A selection within a block: either character offsets (start/end) or the whole block expanded. A derived read model computed by the Seed daemon/API for clients —"
-schemaDefinition: ipfs://bafyreie2gjgobge4jm4g4b2laduqxwmtmzo4ysiw2d7vb3i5oqqhcjsyzq
+schemaDefinition: ipfs://bafyreie62itymxdw7o7czpojc366cptb6jvykm7rpzyik5mtubkojbyxwu
 ---
 A selection within a block: either character offsets (start/end) or the whole block expanded. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:cbPv3bBq -->
 
