@@ -95,6 +95,39 @@ function openInDevApp(url: string): boolean {
   }
 }
 
+/** Block until the daemon (gRPC-web) and the desktop app's HTTP API both answer. */
+async function waitForDevApp(daemonUrl: string, apiUrl: string): Promise<void> {
+  const grpc = createGRPCClient(createGrpcWebTransport({baseUrl: daemonUrl}))
+  const daemonUp = () =>
+    grpc.daemon.listKeys({}).then(
+      () => true,
+      () => false,
+    )
+  // Any HTTP answer means the app's API server is listening (404 included).
+  const apiUp = () =>
+    fetch(`${apiUrl}/api/`).then(
+      () => true,
+      () => false,
+    )
+  let announced = false
+  for (;;) {
+    const [daemon, api] = await Promise.all([daemonUp(), apiUp()])
+    if (daemon && api) {
+      if (announced) printInfo('Desktop dev app is up.')
+      return
+    }
+    if (!announced) {
+      printInfo(
+        `Waiting for the desktop dev app (daemon ${daemonUrl}${daemon ? ' ok' : ''}, API ${apiUrl}${
+          api ? ' ok' : ''
+        })...`,
+      )
+      announced = true
+    }
+    await new Promise((r) => setTimeout(r, 2000))
+  }
+}
+
 export type DevLoopOptions = {
   dir: string
   apiUrl: string
@@ -119,14 +152,10 @@ export async function runDevLoop(opts: DevLoopOptions) {
   printInfo(`Daemon:  ${opts.daemonUrl}`)
   printInfo(`API:     ${opts.apiUrl}`)
 
-  let localKeys: Array<{name: string; publicKey: string}>
-  try {
-    localKeys = await ensureDaemonKey(opts.daemonUrl, words, account)
-  } catch (err) {
-    throw new Error(
-      `Cannot reach the daemon at ${opts.daemonUrl} (${(err as Error).message}). Start the desktop dev app first.`,
-    )
-  }
+  // Under `./dev up` this pane starts while the desktop pane is still building
+  // the app and its daemon, so wait for both rather than fail.
+  await waitForDevApp(opts.daemonUrl, opts.apiUrl)
+  const localKeys = await ensureDaemonKey(opts.daemonUrl, words, account)
 
   const client = createSeedClient(opts.apiUrl)
   const signer = createSignerFromKey(keyPair)
