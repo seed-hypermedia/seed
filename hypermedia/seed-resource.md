@@ -10,18 +10,18 @@ This document describes the **seed-resource** type — a Seed API read-model sch
 # Shape <!-- id:QnWTk-_C -->
 
 A **union** — a value matches one of these variants: <!-- id:jNUpA86w -->
-  - [seed-resource-document](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-resource-document) <!-- id:_NMQg8CE -->
-  - [seed-resource-comment](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-resource-comment) <!-- id:7TyvB5RT -->
-  - [seed-resource-redirect](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-resource-redirect) <!-- id:Qk2kHMNK -->
-  - [seed-resource-not-found](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-resource-not-found) <!-- id:puViM4jF -->
-  - [seed-resource-tombstone](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-resource-tombstone) <!-- id:4g2ZdiEu -->
-  - [seed-resource-error](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-resource-error) <!-- id:zAIVwKIe -->
+  - [seed-resource-document](./seed-resource-document.md) <!-- id:_NMQg8CE -->
+  - [seed-resource-comment](./seed-resource-comment.md) <!-- id:7TyvB5RT -->
+  - [seed-resource-redirect](./seed-resource-redirect.md) <!-- id:Qk2kHMNK -->
+  - [seed-resource-not-found](./seed-resource-not-found.md) <!-- id:puViM4jF -->
+  - [seed-resource-tombstone](./seed-resource-tombstone.md) <!-- id:4g2ZdiEu -->
+  - [seed-resource-error](./seed-resource-error.md) <!-- id:zAIVwKIe -->
 
 # Depends on <!-- id:N8NdNOBK -->
 
-- [seed-resource-comment](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-resource-comment) <!-- id:H4xXgtvX -->
-- [seed-resource-document](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-resource-document) <!-- id:TXHngH-I -->
-- [seed-resource-error](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-resource-error) <!-- id:UEIBXH0y -->
-- [seed-resource-not-found](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-resource-not-found) <!-- id:fm6kS7fS -->
-- [seed-resource-redirect](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-resource-redirect) <!-- id:g4RUXR0d -->
-- [seed-resource-tombstone](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-resource-tombstone) <!-- id:30MZAJAa -->
+- [seed-resource-comment](./seed-resource-comment.md) <!-- id:H4xXgtvX -->
+- [seed-resource-document](./seed-resource-document.md) <!-- id:TXHngH-I -->
+- [seed-resource-error](./seed-resource-error.md) <!-- id:UEIBXH0y -->
+- [seed-resource-not-found](./seed-resource-not-found.md) <!-- id:fm6kS7fS -->
+- [seed-resource-redirect](./seed-resource-redirect.md) <!-- id:g4RUXR0d -->
+- [seed-resource-tombstone](./seed-resource-tombstone.md) <!-- id:30MZAJAa -->

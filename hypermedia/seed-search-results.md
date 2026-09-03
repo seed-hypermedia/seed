@@ -10,11 +10,11 @@ This document describes the **seed-search-results** type — a Seed API read-mod
 # Shape <!-- id:9ucgCNE3 -->
 
 A **closed struct** with these fields: <!-- id:YHpy0iy7 -->
-  - `entities` _(required)_ — list of [seed-search-result-item](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-search-result-item) <!-- id:KmQctIUf -->
-  - `searchQuery` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:DKVjSdy9 -->
-  - `nextPageToken` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:xIqVZi0C -->
+  - `entities` _(required)_ — list of [seed-search-result-item](./seed-search-result-item.md) <!-- id:KmQctIUf -->
+  - `searchQuery` _(required)_ — [string](./onyx-string.md) <!-- id:DKVjSdy9 -->
+  - `nextPageToken` _(required)_ — [string](./onyx-string.md) <!-- id:xIqVZi0C -->
 
 # Depends on <!-- id:3XiUHP7C -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:b9Kfh0VR -->
-- [seed-search-result-item](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-search-result-item) <!-- id:9uDnhRLl -->
+- [string](./onyx-string.md) <!-- id:b9Kfh0VR -->
+- [seed-search-result-item](./seed-search-result-item.md) <!-- id:9uDnhRLl -->

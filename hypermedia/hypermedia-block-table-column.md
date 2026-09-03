@@ -7,13 +7,13 @@ This document describes the **hypermedia-block-table-column** type — a Hyperme
 
 # Shape <!-- id:TfYjxpaq -->
 
-**Extends** [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) with these added fields: <!-- id:Vc-3f7Au -->
+**Extends** [hypermedia-block-base](./hypermedia-block-base.md) with these added fields: <!-- id:Vc-3f7Au -->
   - `type` — `string` enum: `TableColumn` <!-- id:lyKmvrCD -->
   - `attributes` — map { 4 fields } <!-- id:a7O4P0xL -->
 
 # Depends on <!-- id:xtBSktC5 -->
 
-- [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) <!-- id:54ILX_5f -->
-- [hypermedia-children-type](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-children-type) <!-- id:Unn54V5j -->
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:jnBF15oW -->
-- [float](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float) <!-- id:SWXNYg6f -->
+- [hypermedia-block-base](./hypermedia-block-base.md) <!-- id:54ILX_5f -->
+- [hypermedia-children-type](./hypermedia-children-type.md) <!-- id:Unn54V5j -->
+- [boolean](./onyx-boolean.md) <!-- id:jnBF15oW -->
+- [float](./onyx-float.md) <!-- id:SWXNYg6f -->

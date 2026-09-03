@@ -7,19 +7,19 @@ This document describes the **hypermedia-change** type — a Hypermedia Network 
 
 # Shape <!-- id:NQM1VhDF -->
 
-**Extends** [hypermedia-blob](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-blob) with these added fields: <!-- id:WtuABanO -->
+**Extends** [hypermedia-blob](./hypermedia-blob.md) with these added fields: <!-- id:WtuABanO -->
   - `type` — `string` enum: `Change` <!-- id:vuVh1zRN -->
-  - `genesis` — [hypermedia-cid](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-cid) <!-- id:OjyRoI0Z -->
-  - `deps` — list of [hypermedia-cid](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-cid) <!-- id:14sUK5dG -->
-  - `depth` — [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:WymiRSox -->
-  - `body` — [hypermedia-change-body](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-change-body)⟨Block = type variable `⟨Block⟩`⟩ <!-- id:uBgg3XsN -->
+  - `genesis` — [hypermedia-cid](./hypermedia-cid.md) <!-- id:OjyRoI0Z -->
+  - `deps` — list of [hypermedia-cid](./hypermedia-cid.md) <!-- id:14sUK5dG -->
+  - `depth` — [integer](./onyx-integer.md) <!-- id:WymiRSox -->
+  - `body` — [hypermedia-change-body](./hypermedia-change-body.md)⟨Block = type variable `⟨Block⟩`⟩ <!-- id:uBgg3XsN -->
 
-**Generic** over `⟨Block⟩` (default [hypermedia-block](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block)). <!-- id:R7cLitDd -->
+**Generic** over `⟨Block⟩` (default [hypermedia-block](./hypermedia-block.md)). <!-- id:R7cLitDd -->
 
 # Depends on <!-- id:04pSmVGM -->
 
-- [hypermedia-blob](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-blob) <!-- id:WMAGmaBA -->
-- [hypermedia-block](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block) <!-- id:FapoGwga -->
-- [hypermedia-change-body](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-change-body) <!-- id:_jOGY6LF -->
-- [hypermedia-cid](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-cid) <!-- id:63xfnTGa -->
-- [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:fvXmpXcE -->
+- [hypermedia-blob](./hypermedia-blob.md) <!-- id:WMAGmaBA -->
+- [hypermedia-block](./hypermedia-block.md) <!-- id:FapoGwga -->
+- [hypermedia-change-body](./hypermedia-change-body.md) <!-- id:_jOGY6LF -->
+- [hypermedia-cid](./hypermedia-cid.md) <!-- id:63xfnTGa -->
+- [integer](./onyx-integer.md) <!-- id:fvXmpXcE -->

@@ -10,11 +10,11 @@ This document describes the **seed-raw-document-change** type — a Seed API rea
 # Shape <!-- id:FxmCqSQ7 -->
 
 A **closed struct** with these fields: <!-- id:mWeaUv6g -->
-  - `id` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:Agokfkd5 -->
-  - `author` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:YpaiMQ30 -->
-  - `deps` — list of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:-2iRqM1r -->
-  - `createTime` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:TEUlsbe8 -->
+  - `id` — [string](./onyx-string.md) <!-- id:Agokfkd5 -->
+  - `author` — [string](./onyx-string.md) <!-- id:YpaiMQ30 -->
+  - `deps` — list of [string](./onyx-string.md) <!-- id:-2iRqM1r -->
+  - `createTime` — [string](./onyx-string.md) <!-- id:TEUlsbe8 -->
 
 # Depends on <!-- id:x-YC6YOj -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:NePRTnJk -->
+- [string](./onyx-string.md) <!-- id:NePRTnJk -->

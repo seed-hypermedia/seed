@@ -8,12 +8,12 @@ This document describes the **example-blob** type — an example schema. Its for
 # Shape <!-- id:vesnh_LB -->
 
 A **closed struct** with these fields: <!-- id:v5doVNjp -->
-  - `mime` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:MN-579Cf -->
-  - `size` — [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:tB72shxZ -->
-  - `data` _(required)_ — [bytes](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/bytes) <!-- id:Q_T-l5Cr -->
+  - `mime` _(required)_ — [string](./onyx-string.md) <!-- id:MN-579Cf -->
+  - `size` — [integer](./onyx-integer.md) <!-- id:tB72shxZ -->
+  - `data` _(required)_ — [bytes](./onyx-bytes.md) <!-- id:Q_T-l5Cr -->
 
 # Depends on <!-- id:CyOF5f4t -->
 
-- [bytes](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/bytes) <!-- id:X1u_H1kI -->
-- [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:v3gQbJMy -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:P1GB2FQT -->
+- [bytes](./onyx-bytes.md) <!-- id:X1u_H1kI -->
+- [integer](./onyx-integer.md) <!-- id:v3gQbJMy -->
+- [string](./onyx-string.md) <!-- id:P1GB2FQT -->

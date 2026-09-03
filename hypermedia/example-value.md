@@ -8,14 +8,14 @@ This document describes the **example-value** type — an example schema. Its fo
 # Shape <!-- id:r2x_xElQ -->
 
 A **union** — a value matches one of these variants: <!-- id:CaQ1qtr3 -->
-  - [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:R51R892c -->
-  - [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:0z5JkiP8 -->
-  - [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:2WXDUcve -->
-  - [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:_tAHmUYD -->
+  - [string](./onyx-string.md) <!-- id:R51R892c -->
+  - [integer](./onyx-integer.md) <!-- id:0z5JkiP8 -->
+  - [boolean](./onyx-boolean.md) <!-- id:2WXDUcve -->
+  - [null](./onyx-null.md) <!-- id:_tAHmUYD -->
 
 # Depends on <!-- id:5rTldh8q -->
 
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:Bc29oMOs -->
-- [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:YhbdJAMR -->
-- [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:VkEPDTco -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:BMopbHvt -->
+- [boolean](./onyx-boolean.md) <!-- id:Bc29oMOs -->
+- [integer](./onyx-integer.md) <!-- id:YhbdJAMR -->
+- [null](./onyx-null.md) <!-- id:VkEPDTco -->
+- [string](./onyx-string.md) <!-- id:BMopbHvt -->

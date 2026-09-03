@@ -8,9 +8,9 @@ This document describes the **hypermedia-contact-subscribe** type — a Hypermed
 # Shape <!-- id:u3UrzpQ1 -->
 
 A **closed struct** with these fields: <!-- id:_ytcLXM1 -->
-  - `site` — [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:3ldQ_dA1 -->
-  - `profile` — [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:_b3klfc7 -->
+  - `site` — [boolean](./onyx-boolean.md) <!-- id:3ldQ_dA1 -->
+  - `profile` — [boolean](./onyx-boolean.md) <!-- id:_b3klfc7 -->
 
 # Depends on <!-- id:4YYxJr-6 -->
 
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:LxIPmPhY -->
+- [boolean](./onyx-boolean.md) <!-- id:LxIPmPhY -->

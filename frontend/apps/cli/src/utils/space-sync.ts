@@ -119,6 +119,73 @@ function relativeToHmLinks(nodes: HMBlockNode[], file: string, account: string, 
   })
 }
 
+/**
+ * Relative links to files that are not documents (`./images/x.png`, `./spec.pdf`)
+ * become `file://` links to their absolute path, which the import uploads as
+ * blobs (resolveFileLinks). The parser already writes `file://./x` for a
+ * relative image; anything still relative that exists on disk is treated the
+ * same. Links that resolve to nothing are left alone for the link check.
+ */
+function relativeAssetsToFileLinks(nodes: HMBlockNode[], dir: string, file: string): HMBlockNode[] {
+  const fileDir = resolve(dir, dirname(file))
+  return rewriteLinks(nodes, (link) => {
+    let rel: string | null = null
+    if (/^file:\/\/(?!\/)/.test(link)) rel = link.slice('file://'.length)
+    else if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(link) && !link.startsWith('/') && !link.startsWith('#')) rel = link
+    if (rel === null || /\.md(#.*)?$/.test(rel)) return link
+    const abs = resolve(fileDir, rel.split('#')[0]!)
+    return existsSync(abs) && statSync(abs).isFile() ? `file://${abs}` : link
+  })
+}
+
+export type BrokenLink = {file: string; link: string; reason: string}
+
+/** Every link in a tree: block links and annotation links. */
+function collectLinks(nodes: HMBlockNode[], out: string[] = []): string[] {
+  for (const node of nodes) {
+    const block = node.block as Record<string, unknown>
+    if (typeof block.link === 'string' && block.link) out.push(block.link)
+    for (const a of (block.annotations as Array<Record<string, unknown>> | undefined) || []) {
+      if (typeof a.link === 'string' && a.link) out.push(a.link)
+    }
+    if (node.children) collectLinks(node.children, out)
+  }
+  return out
+}
+
+/**
+ * Links that would be broken once published: a link into this space whose
+ * path no file in the directory publishes, a relative file link that resolves
+ * to nothing, or a `file://` asset that does not exist. External links
+ * (http, ipfs, other spaces) are not checked.
+ */
+export function findBrokenLinks(
+  file: string,
+  nodes: HMBlockNode[],
+  account: string,
+  publishedPaths: Set<string>,
+): BrokenLink[] {
+  const broken: BrokenLink[] = []
+  for (const link of collectLinks(nodes)) {
+    const space = new RegExp(`^hm://${account}(/[^#?]*)?([#?].*)?$`).exec(link)
+    if (space) {
+      const path = (space[1] || '').replace(/\/$/, '')
+      if (!publishedPaths.has(path)) {
+        broken.push({file, link, reason: `no document at ${path || '(home)'} in the directory`})
+      }
+      continue
+    }
+    if (link.startsWith('file://')) {
+      if (!existsSync(link.slice('file://'.length))) broken.push({file, link, reason: 'file not found'})
+      continue
+    }
+    if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(link) && !link.startsWith('#') && !link.startsWith('/')) {
+      broken.push({file, link, reason: 'relative link resolves to no published document or file'})
+    }
+  }
+  return broken
+}
+
 /** `hm://<account>/<path>` → `./other.md` (relative to `file`) when the layout maps the path to a file. */
 function hmToRelativeLinks(nodes: HMBlockNode[], file: string, account: string, layout: SpaceLayout): HMBlockNode[] {
   if (!layout.fileForLinkPath) return nodes
@@ -535,6 +602,38 @@ export function metadataDiffOp(
   return attrs.length ? {type: 'SetAttributes', attrs} : null
 }
 
+/** A file parsed and its links rewritten for `account`: what the import publishes. */
+function prepareFile(opts: ImportOptions, layout: SpaceLayout, file: string) {
+  const raw = readFileSync(resolve(opts.dir, file), 'utf8')
+  const {tree, metadata} = parseMarkdown(raw)
+  const nodes = relativeAssetsToFileLinks(
+    relativeToHmLinks(markdownBlockNodesToHMBlockNodes(tree), file, opts.account, layout),
+    opts.dir,
+    file,
+  )
+  return {raw, tree, metadata, nodes}
+}
+
+/**
+ * Every link in `files` that would be broken once published (see
+ * findBrokenLinks), against the set of paths the whole directory publishes.
+ */
+export function checkLinks(opts: ImportOptions, files?: string[]): BrokenLink[] {
+  const layout = opts.layout || defaultLayout
+  const all = listMarkdownFiles(opts.dir)
+  const publishedPaths = new Set<string>()
+  for (const f of all) {
+    const p = layout.pathForFile(f)
+    if (p !== null) publishedPaths.add(p)
+  }
+  const broken: BrokenLink[] = []
+  for (const file of files ?? all) {
+    if (layout.pathForFile(file) === null) continue
+    broken.push(...findBrokenLinks(file, prepareFile(opts, layout, file).nodes, opts.account, publishedPaths))
+  }
+  return broken
+}
+
 export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
   const layout = opts.layout || defaultLayout
   const log = opts.log || (() => {})
@@ -543,29 +642,40 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
   const allFiles = new Set(listMarkdownFiles(opts.dir))
   let index: Promise<BlockIndex> | undefined
 
+  // Nothing is published while a link would break.
+  const broken = checkLinks(opts, files)
+  if (broken.length) {
+    const lines = broken.slice(0, 50).map((b) => `  ${b.file}: ${b.link}  (${b.reason})`)
+    if (broken.length > 50) lines.push(`  … and ${broken.length - 50} more`)
+    throw new Error(
+      `${broken.length} broken link${broken.length === 1 ? '' : 's'} in ${opts.dir}:\n${lines.join('\n')}`,
+    )
+  }
+
   for (const file of files) {
     const path = layout.pathForFile(file)
     if (path === null) {
       result.skipped.push(file)
       continue
     }
-    const raw = readFileSync(resolve(opts.dir, file), 'utf8')
-    const {tree, metadata: fileMetadata} = parseMarkdown(raw)
+    const {raw, tree, metadata: fileMetadata, nodes} = prepareFile(opts, layout, file)
     const schema = await readSchemaFile(opts.dir, file, layout)
     const metadata = applySchemaMetadata(opts.metadataFor ? opts.metadataFor(file, fileMetadata) : fileMetadata, schema)
     // The schema blob rides along with the change that binds it.
     const schemaBlobs = schema?.kind === 'type' ? [{data: schema.data, cid: schema.cid}] : []
-    const resolved = await resolveFileLinks(
-      relativeToHmLinks(markdownBlockNodesToHMBlockNodes(tree), file, opts.account, layout),
-    )
+    const resolved = await resolveFileLinks(nodes)
     const newTree = resolved.nodes.map(hmBlockNodeToBlockNode)
     const id = hmId(opts.account, {path: path ? path.replace(/^\//, '').split('/') : []})
 
     const existing = await opts.client.request('Resource', id)
     const label = path || '(home)'
+    // The directory is the truth about what lives at a path: a deleted document
+    // (tombstone) or a redirect there is replaced by a fresh one. The new Ref's
+    // generation is later than theirs, which is what takes the path over.
+    const absent = existing.type === 'not-found' || existing.type === 'tombstone' || existing.type === 'redirect'
 
     let movedFrom: string | null = null
-    if (existing.type === 'not-found') {
+    if (absent) {
       // No document here yet: a rename/move of an existing one, or a new one.
       const ids = explicitBlockIds(raw, tree)
       if (ids.length) {
@@ -579,7 +689,7 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
       }
     }
 
-    if (existing.type === 'not-found' && movedFrom === null) {
+    if (absent && movedFrom === null) {
       const ops: DocumentOperation[] = []
       const metaOp = metadataDiffOp(undefined, metadata as Record<string, unknown>)
       if (metaOp) ops.push(metaOp)

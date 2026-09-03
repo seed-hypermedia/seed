@@ -7,8 +7,8 @@ This document describes the **example-registry** type — an example schema. Its
 
 # Shape <!-- id:7KOpTiq_ -->
 
-An **open map** — every value: `link` → [example-person](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-person). <!-- id:b5qLt404 -->
+An **open map** — every value: `link` → [example-person](./example-person.md). <!-- id:b5qLt404 -->
 
 # Depends on <!-- id:IUK3dNSa -->
 
-- [example-person](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-person) <!-- id:N37AJThA -->
+- [example-person](./example-person.md) <!-- id:N37AJThA -->

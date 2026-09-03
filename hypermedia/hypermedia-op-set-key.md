@@ -9,10 +9,10 @@ This document describes the **hypermedia-op-set-key** type — a Hypermedia Netw
 
 A **closed struct** with these fields: <!-- id:V7WX1yMd -->
   - `type` _(required)_ — `string` enum: `SetKey` <!-- id:P7fT8krq -->
-  - `key` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:WmbuE6qh -->
-  - `value` — [hypermedia-value](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-value) <!-- id:4tkeslz0 -->
+  - `key` — [string](./onyx-string.md) <!-- id:WmbuE6qh -->
+  - `value` — [hypermedia-value](./hypermedia-value.md) <!-- id:4tkeslz0 -->
 
 # Depends on <!-- id:_E_R0ssw -->
 
-- [hypermedia-value](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-value) <!-- id:qm09nK_o -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:O0_PIyLu -->
+- [hypermedia-value](./hypermedia-value.md) <!-- id:qm09nK_o -->
+- [string](./onyx-string.md) <!-- id:O0_PIyLu -->

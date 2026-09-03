@@ -9,19 +9,19 @@ This document describes the **example-faction-doc** type — an example schema. 
 
 # Shape <!-- id:5EsVMAhL -->
 
-**Extends** [hypermedia-document](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-document) with these added fields: <!-- id:-hXTuVju -->
-  - `metadata` — [hypermedia-metadata](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata) <!-- id:tGO7Z_Te -->
-  - _adds to [hypermedia-metadata](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata):_ <!-- id:JFmr_1Iy -->
-  - `founded` _(required)_ — [date](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date) <!-- id:IKQ8ylg_ -->
-  - `dissolved` — [date](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date) <!-- id:goqd0e_j -->
-  - `seat` — [hypermedia-hm-url](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-hm-url) (→ must conform to [example-place-doc](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-place-doc)) <!-- id:ii5ONvHX -->
-  - `leader` — [hypermedia-hm-url](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-hm-url) (→ must conform to [example-character-doc](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-character-doc)) <!-- id:4wLuR37p -->
-  - `banner` — [hypermedia-ipfs](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-ipfs) <!-- id:z9Hj7vQe -->
+**Extends** [hypermedia-document](./hypermedia-document.md) with these added fields: <!-- id:-hXTuVju -->
+  - `metadata` — [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:tGO7Z_Te -->
+  - _adds to [hypermedia-metadata](./hypermedia-metadata.md):_ <!-- id:JFmr_1Iy -->
+  - `founded` _(required)_ — [date](./onyx-date.md) <!-- id:IKQ8ylg_ -->
+  - `dissolved` — [date](./onyx-date.md) <!-- id:goqd0e_j -->
+  - `seat` — [hypermedia-hm-url](./hypermedia-hm-url.md) (→ must conform to [example-place-doc](./example-place-doc.md)) <!-- id:ii5ONvHX -->
+  - `leader` — [hypermedia-hm-url](./hypermedia-hm-url.md) (→ must conform to [example-character-doc](./example-character-doc.md)) <!-- id:4wLuR37p -->
+  - `banner` — [hypermedia-ipfs](./hypermedia-ipfs.md) <!-- id:z9Hj7vQe -->
 
 # Depends on <!-- id:FhzqPOgw -->
 
-- [hypermedia-document](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-document) <!-- id:ykhnuylE -->
-- [hypermedia-hm-url](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-hm-url) <!-- id:-qmfs1ee -->
-- [hypermedia-ipfs](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-ipfs) <!-- id:niUF-Oyt -->
-- [hypermedia-metadata](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata) <!-- id:AisaIh3L -->
-- [date](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date) <!-- id:CiiSksy4 -->
+- [hypermedia-document](./hypermedia-document.md) <!-- id:ykhnuylE -->
+- [hypermedia-hm-url](./hypermedia-hm-url.md) <!-- id:-qmfs1ee -->
+- [hypermedia-ipfs](./hypermedia-ipfs.md) <!-- id:niUF-Oyt -->
+- [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:AisaIh3L -->
+- [date](./onyx-date.md) <!-- id:CiiSksy4 -->

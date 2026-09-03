@@ -7,17 +7,17 @@ This document describes the **hypermedia-contact** type — a Hypermedia Network
 
 # Shape <!-- id:ME2Gye2p -->
 
-**Extends** [hypermedia-blob](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-blob) with these added fields: <!-- id:WjOZXUDV -->
+**Extends** [hypermedia-blob](./hypermedia-blob.md) with these added fields: <!-- id:WjOZXUDV -->
   - `type` — `string` enum: `Contact` <!-- id:NIqiWA2a -->
-  - `id` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:3n_-393R -->
-  - `account` — [hypermedia-principal](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-principal) <!-- id:zI4HdIy8 -->
-  - `subject` — [hypermedia-principal](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-principal) <!-- id:bkt0fx8L -->
-  - `name` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:SQCjgwlt -->
-  - `subscribe` — [hypermedia-contact-subscribe](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-contact-subscribe) <!-- id:EtgdYE7E -->
+  - `id` — [string](./onyx-string.md) <!-- id:3n_-393R -->
+  - `account` — [hypermedia-principal](./hypermedia-principal.md) <!-- id:zI4HdIy8 -->
+  - `subject` — [hypermedia-principal](./hypermedia-principal.md) <!-- id:bkt0fx8L -->
+  - `name` — [string](./onyx-string.md) <!-- id:SQCjgwlt -->
+  - `subscribe` — [hypermedia-contact-subscribe](./hypermedia-contact-subscribe.md) <!-- id:EtgdYE7E -->
 
 # Depends on <!-- id:5LiFHG4S -->
 
-- [hypermedia-blob](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-blob) <!-- id:WeX8VjDl -->
-- [hypermedia-contact-subscribe](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-contact-subscribe) <!-- id:id0JfSFv -->
-- [hypermedia-principal](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-principal) <!-- id:x0-Ea1K- -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:BjAJTc65 -->
+- [hypermedia-blob](./hypermedia-blob.md) <!-- id:WeX8VjDl -->
+- [hypermedia-contact-subscribe](./hypermedia-contact-subscribe.md) <!-- id:id0JfSFv -->
+- [hypermedia-principal](./hypermedia-principal.md) <!-- id:x0-Ea1K- -->
+- [string](./onyx-string.md) <!-- id:BjAJTc65 -->

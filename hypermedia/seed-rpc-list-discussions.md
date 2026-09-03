@@ -16,8 +16,8 @@ A **closed struct** with these fields: <!-- id:uJXPLY-q -->
 
 # Depends on <!-- id:nX0aBcJ0 -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:LeFBWwLK -->
-- [seed-comment-group](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-comment-group) <!-- id:lJbYAfO0 -->
-- [seed-external-comment-group](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-external-comment-group) <!-- id:C9Smaf8c -->
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:U1EQAqgK -->
-- [seed-metadata-payload](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-metadata-payload) <!-- id:sJQj_K4p -->
+- [string](./onyx-string.md) <!-- id:LeFBWwLK -->
+- [seed-comment-group](./seed-comment-group.md) <!-- id:lJbYAfO0 -->
+- [seed-external-comment-group](./seed-external-comment-group.md) <!-- id:C9Smaf8c -->
+- [seed-id](./seed-id.md) <!-- id:U1EQAqgK -->
+- [seed-metadata-payload](./seed-metadata-payload.md) <!-- id:sJQj_K4p -->

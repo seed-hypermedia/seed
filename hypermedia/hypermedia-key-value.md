@@ -8,10 +8,10 @@ This document describes the **hypermedia-key-value** type — a Hypermedia Netwo
 # Shape <!-- id:VMONYTkt -->
 
 A **closed struct** with these fields: <!-- id:NyettGx4 -->
-  - `key` — list of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:STJDSKAR -->
-  - `value` — [hypermedia-value](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-value) <!-- id:7qky9GU7 -->
+  - `key` — list of [string](./onyx-string.md) <!-- id:STJDSKAR -->
+  - `value` — [hypermedia-value](./hypermedia-value.md) <!-- id:7qky9GU7 -->
 
 # Depends on <!-- id:vLWqKSnN -->
 
-- [hypermedia-value](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-value) <!-- id:yrWGRztM -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:v5aghFcs -->
+- [hypermedia-value](./hypermedia-value.md) <!-- id:yrWGRztM -->
+- [string](./onyx-string.md) <!-- id:v5aghFcs -->

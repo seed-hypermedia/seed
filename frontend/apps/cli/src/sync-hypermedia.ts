@@ -1,5 +1,5 @@
 /**
- * sync-hypermedia.ts — the hypermedia/ schema library ⇄ its Hypermedia site.
+ * sync-hypermedia.ts — hypermedia/ (developer docs, Onyx library, agents docs) ⇄ its Hypermedia site.
  *
  *   cd frontend/apps/cli
  *   bun run src/sync-hypermedia.ts push [--dry-run] [--server <url>] [--key <name>]
@@ -7,13 +7,9 @@
  *   bun run src/sync-hypermedia.ts dev  [--api <url>] [--daemon <url>] [--interval <ms>] [--no-push]
  *
  * This is `seed-cli space import / export / dev` (utils/space-sync.ts) with the
- * library's own layout on top:
- *
- *   <basename>.md + <basename>.schema.json  → hm://<space>/<publicName>
- *       publicName strips `onyx-` from primitives/meta (onyx-string → /string)
- *   site/home.md                            → hm://<space>            (root)
- *   site/<name>.md                          → hm://<space>/<name>
- *   top-level .md without a schema file     → not published (README.md, …)
+ * folder's own layout on top (see `layout` below): one flat directory holding
+ * the developer docs, the Onyx schema library and the agents docs, where
+ * `onyx-<x>.md` publishes at /<x> and everything else at its file name.
  *
  * Schema files are handled by the generic import: a type file becomes the
  * document's `schemaDefinition` blob, a `{$type, value}` file makes the
@@ -62,40 +58,29 @@ function basenameForPublicName(name: string): string {
   return name
 }
 
-function hasSchemaFile(basename: string): boolean {
-  return existsSync(resolve(SCHEMAS_DIR, `${basename}.schema.json`))
-}
-
-/** How documents of the space map onto hypermedia/. */
+/**
+ * How documents of the space map onto hypermedia/: one flat directory.
+ *   index.md      → the home document
+ *   README.md     → not published (it describes the folder on GitHub)
+ *   onyx-<x>.md   → /<x>   (primitives and meta-schemas keep their public names)
+ *   <x>.md        → /<x>
+ * A schema file sits beside its document as <basename>.schema.json.
+ */
 export const layout: SpaceLayout = {
   pathForFile(file) {
-    if (file.startsWith('site/')) {
-      const name = file.slice('site/'.length).replace(/\.md$/, '')
-      return name === 'home' ? '' : `/${name}`
-    }
-    if (file.includes('/')) return null
-    const basename = file.replace(/\.md$/, '')
-    // Only schema-backed top-level docs are published (README.md etc. are not).
-    return hasSchemaFile(basename) ? `/${publicName(basename)}` : null
+    if (file === 'index.md') return ''
+    if (file === 'README.md') return null
+    if (file.includes('/')) return '/' + file.replace(/\.md$/, '')
+    return '/' + publicName(file.replace(/\.md$/, ''))
   },
-  fileForPath(path, doc) {
-    if (path === '') return 'site/home.md'
-    const name = path.replace(/^\//, '')
-    if (name.includes('/')) return `site/${name}.md`
-    const basename = basenameForPublicName(name)
-    const meta = (doc.metadata || {}) as Record<string, unknown>
-    if (hasSchemaFile(basename) || meta.schemaDefinition) return `${basename}.md`
-    return `site/${name}.md`
+  fileForPath(path) {
+    if (path === '') return 'index.md'
+    return `${basenameForPublicName(path.replace(/^\//, ''))}.md`
   },
-  schemaFileFor(mdFile) {
-    return mdFile.startsWith('site/') ? null : mdFile.replace(/\.md$/, '.schema.json')
-  },
+  schemaFileFor: (mdFile) => mdFile.replace(/\.md$/, '.schema.json'),
   fileForLinkPath(path) {
-    if (path === '') return 'site/home.md'
-    const name = path.replace(/^\//, '')
-    if (name.includes('/')) return `site/${name}.md`
-    const basename = basenameForPublicName(name)
-    return hasSchemaFile(basename) ? `${basename}.md` : `site/${name}.md`
+    if (path === '') return 'index.md'
+    return `${basenameForPublicName(path.replace(/^\//, ''))}.md`
   },
 }
 
@@ -182,7 +167,8 @@ function noSigner(): HMSigner {
 async function push(args: string[]) {
   const dryRun = args.includes('--dry-run')
   const serverUrl = argValue(args, '--server') ?? 'https://hyper.media'
-  const keyName = argValue(args, '--key') ?? 'main'
+  // The onyx key by default; in CI the key is SEED_CLI_MNEMONIC (see utils/keys.ts).
+  const keyName = argValue(args, '--key') ?? (process.env.SEED_CLI_MNEMONIC ? undefined : 'main')
 
   // A dry run needs no signer: it only diffs against the server.
   const key = dryRun

@@ -10,36 +10,36 @@ This document describes the **hypermedia-block-core** type — a Hypermedia Netw
 # Shape <!-- id:3vJCYHye -->
 
 A **union** — a value matches one of these variants: <!-- id:k29A1dG- -->
-  - [hypermedia-block-paragraph](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-paragraph) <!-- id:fW1wQHLx -->
-  - [hypermedia-block-heading](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-heading) <!-- id:75e1rNp2 -->
-  - [hypermedia-block-code](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-code) <!-- id:7Ec0B_-v -->
-  - [hypermedia-block-math](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-math) <!-- id:QDycSCAv -->
-  - [hypermedia-block-image](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-image) <!-- id:x4aS8q5D -->
-  - [hypermedia-block-video](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-video) <!-- id:TvkBIH9a -->
-  - [hypermedia-block-file](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-file) <!-- id:wwjUU6fC -->
-  - [hypermedia-block-button](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-button) <!-- id:sb8WZ95W -->
-  - [hypermedia-block-embed](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-embed) <!-- id:KJCJBVDD -->
-  - [hypermedia-block-web-embed](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-web-embed) <!-- id:ABQQB7N2 -->
-  - [hypermedia-block-nostr](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-nostr) <!-- id:6ExFE8P8 -->
-  - [hypermedia-block-table](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-table) <!-- id:-L7Iz0oX -->
-  - [hypermedia-block-table-row](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-table-row) <!-- id:yOaWDqYC -->
-  - [hypermedia-block-table-column](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-table-column) <!-- id:ljw-Ub92 -->
-  - [hypermedia-block-query](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-query) <!-- id:9J2S1IJf -->
+  - [hypermedia-block-paragraph](./hypermedia-block-paragraph.md) <!-- id:fW1wQHLx -->
+  - [hypermedia-block-heading](./hypermedia-block-heading.md) <!-- id:75e1rNp2 -->
+  - [hypermedia-block-code](./hypermedia-block-code.md) <!-- id:7Ec0B_-v -->
+  - [hypermedia-block-math](./hypermedia-block-math.md) <!-- id:QDycSCAv -->
+  - [hypermedia-block-image](./hypermedia-block-image.md) <!-- id:x4aS8q5D -->
+  - [hypermedia-block-video](./hypermedia-block-video.md) <!-- id:TvkBIH9a -->
+  - [hypermedia-block-file](./hypermedia-block-file.md) <!-- id:wwjUU6fC -->
+  - [hypermedia-block-button](./hypermedia-block-button.md) <!-- id:sb8WZ95W -->
+  - [hypermedia-block-embed](./hypermedia-block-embed.md) <!-- id:KJCJBVDD -->
+  - [hypermedia-block-web-embed](./hypermedia-block-web-embed.md) <!-- id:ABQQB7N2 -->
+  - [hypermedia-block-nostr](./hypermedia-block-nostr.md) <!-- id:6ExFE8P8 -->
+  - [hypermedia-block-table](./hypermedia-block-table.md) <!-- id:-L7Iz0oX -->
+  - [hypermedia-block-table-row](./hypermedia-block-table-row.md) <!-- id:yOaWDqYC -->
+  - [hypermedia-block-table-column](./hypermedia-block-table-column.md) <!-- id:ljw-Ub92 -->
+  - [hypermedia-block-query](./hypermedia-block-query.md) <!-- id:9J2S1IJf -->
 
 # Depends on <!-- id:JBcAio2a -->
 
-- [hypermedia-block-button](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-button) <!-- id:95PkR0Va -->
-- [hypermedia-block-code](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-code) <!-- id:DoP-3lbb -->
-- [hypermedia-block-embed](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-embed) <!-- id:UfVtGs18 -->
-- [hypermedia-block-file](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-file) <!-- id:Ow6Vn6_c -->
-- [hypermedia-block-heading](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-heading) <!-- id:meGTMyiV -->
-- [hypermedia-block-image](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-image) <!-- id:doCZBWWs -->
-- [hypermedia-block-math](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-math) <!-- id:0MMgVlyZ -->
-- [hypermedia-block-nostr](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-nostr) <!-- id:SI8QCc3A -->
-- [hypermedia-block-paragraph](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-paragraph) <!-- id:W3kzTSxB -->
-- [hypermedia-block-query](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-query) <!-- id:WrG0RsBf -->
-- [hypermedia-block-table](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-table) <!-- id:HSmtp1t4 -->
-- [hypermedia-block-table-column](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-table-column) <!-- id:PrKyJUKP -->
-- [hypermedia-block-table-row](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-table-row) <!-- id:JeH5fZ83 -->
-- [hypermedia-block-video](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-video) <!-- id:ZxfdkwxA -->
-- [hypermedia-block-web-embed](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-web-embed) <!-- id:yFyvlYFu -->
+- [hypermedia-block-button](./hypermedia-block-button.md) <!-- id:95PkR0Va -->
+- [hypermedia-block-code](./hypermedia-block-code.md) <!-- id:DoP-3lbb -->
+- [hypermedia-block-embed](./hypermedia-block-embed.md) <!-- id:UfVtGs18 -->
+- [hypermedia-block-file](./hypermedia-block-file.md) <!-- id:Ow6Vn6_c -->
+- [hypermedia-block-heading](./hypermedia-block-heading.md) <!-- id:meGTMyiV -->
+- [hypermedia-block-image](./hypermedia-block-image.md) <!-- id:doCZBWWs -->
+- [hypermedia-block-math](./hypermedia-block-math.md) <!-- id:0MMgVlyZ -->
+- [hypermedia-block-nostr](./hypermedia-block-nostr.md) <!-- id:SI8QCc3A -->
+- [hypermedia-block-paragraph](./hypermedia-block-paragraph.md) <!-- id:W3kzTSxB -->
+- [hypermedia-block-query](./hypermedia-block-query.md) <!-- id:WrG0RsBf -->
+- [hypermedia-block-table](./hypermedia-block-table.md) <!-- id:HSmtp1t4 -->
+- [hypermedia-block-table-column](./hypermedia-block-table-column.md) <!-- id:PrKyJUKP -->
+- [hypermedia-block-table-row](./hypermedia-block-table-row.md) <!-- id:JeH5fZ83 -->
+- [hypermedia-block-video](./hypermedia-block-video.md) <!-- id:ZxfdkwxA -->
+- [hypermedia-block-web-embed](./hypermedia-block-web-embed.md) <!-- id:yFyvlYFu -->

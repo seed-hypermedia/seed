@@ -11,10 +11,10 @@ This document describes the **seed-rpc-list-accounts** type — a Seed API read-
 
 A **closed struct** with these fields: <!-- id:HtDCnuN6 -->
   - `key` _(required)_ — `string` enum: `ListAccounts` <!-- id:nrPBInN4 -->
-  - `input` _(required)_ — one of map | [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:rapKkCzO -->
+  - `input` _(required)_ — one of map | [null](./onyx-null.md) <!-- id:rapKkCzO -->
   - `output` _(required)_ — map { 1 fields } <!-- id:0hkz1VKc -->
 
 # Depends on <!-- id:bHnYGVgD -->
 
-- [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:QJ8U0HIB -->
-- [seed-metadata-payload](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-metadata-payload) <!-- id:_CB4100E -->
+- [null](./onyx-null.md) <!-- id:QJ8U0HIB -->
+- [seed-metadata-payload](./seed-metadata-payload.md) <!-- id:_CB4100E -->

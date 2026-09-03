@@ -10,19 +10,19 @@ This document describes the **seed-id** type — a Seed API read-model schema (d
 # Shape <!-- id:dv0g4WNA -->
 
 A **closed struct** with these fields: <!-- id:fh7Sxe0r -->
-  - `id` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:fskPAU7S -->
-  - `uid` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:XfHXweTr -->
-  - `path` _(required)_ — one of list of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) | [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:B8EHAbPu -->
-  - `version` _(required)_ — one of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) | [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:pib8La4i -->
-  - `blockRef` _(required)_ — one of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) | [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:ZNfUNSa6 -->
-  - `blockRange` _(required)_ — one of [seed-block-range](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-block-range) | [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:g9HesrHj -->
-  - `hostname` _(required)_ — one of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) | [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:-103U5pY -->
-  - `scheme` _(required)_ — one of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) | [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:RXYVaFte -->
-  - `latest` — one of [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) | [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:Nxnyb22b -->
+  - `id` _(required)_ — [string](./onyx-string.md) <!-- id:fskPAU7S -->
+  - `uid` _(required)_ — [string](./onyx-string.md) <!-- id:XfHXweTr -->
+  - `path` _(required)_ — one of list of [string](./onyx-string.md) | [null](./onyx-null.md) <!-- id:B8EHAbPu -->
+  - `version` _(required)_ — one of [string](./onyx-string.md) | [null](./onyx-null.md) <!-- id:pib8La4i -->
+  - `blockRef` _(required)_ — one of [string](./onyx-string.md) | [null](./onyx-null.md) <!-- id:ZNfUNSa6 -->
+  - `blockRange` _(required)_ — one of [seed-block-range](./seed-block-range.md) | [null](./onyx-null.md) <!-- id:g9HesrHj -->
+  - `hostname` _(required)_ — one of [string](./onyx-string.md) | [null](./onyx-null.md) <!-- id:-103U5pY -->
+  - `scheme` _(required)_ — one of [string](./onyx-string.md) | [null](./onyx-null.md) <!-- id:RXYVaFte -->
+  - `latest` — one of [boolean](./onyx-boolean.md) | [null](./onyx-null.md) <!-- id:Nxnyb22b -->
 
 # Depends on <!-- id:gwqKPqVh -->
 
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:yqoRG8aN -->
-- [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:Wl4BhCsF -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:n_YOHrze -->
-- [seed-block-range](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-block-range) <!-- id:dTVQ_nVA -->
+- [boolean](./onyx-boolean.md) <!-- id:yqoRG8aN -->
+- [null](./onyx-null.md) <!-- id:Wl4BhCsF -->
+- [string](./onyx-string.md) <!-- id:n_YOHrze -->
+- [seed-block-range](./seed-block-range.md) <!-- id:dTVQ_nVA -->

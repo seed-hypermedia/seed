@@ -10,12 +10,12 @@ This document describes the **seed-comment-group** type — a Seed API read-mode
 # Shape <!-- id:bn9hhdhT -->
 
 A **closed struct** with these fields: <!-- id:hQ_A0BRE -->
-  - `comments` _(required)_ — list of [seed-comment](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-comment) <!-- id:6j0dIlAA -->
+  - `comments` _(required)_ — list of [seed-comment](./seed-comment.md) <!-- id:6j0dIlAA -->
   - `moreCommentsCount` _(required)_ — `integer` <!-- id:YX7_v3Cs -->
-  - `id` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:LESTYzIE -->
+  - `id` _(required)_ — [string](./onyx-string.md) <!-- id:LESTYzIE -->
   - `type` _(required)_ — `string` enum: `commentGroup` <!-- id:8G00dDGM -->
 
 # Depends on <!-- id:zRpGsTRj -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:Cmnm7JiI -->
-- [seed-comment](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-comment) <!-- id:fg2iMFOh -->
+- [string](./onyx-string.md) <!-- id:Cmnm7JiI -->
+- [seed-comment](./seed-comment.md) <!-- id:fg2iMFOh -->

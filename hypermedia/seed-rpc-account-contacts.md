@@ -11,10 +11,10 @@ This document describes the **seed-rpc-account-contacts** type — a Seed API re
 
 A **closed struct** with these fields: <!-- id:epckzhLV -->
   - `key` _(required)_ — `string` enum: `AccountContacts` <!-- id:KXx30EJe -->
-  - `input` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:6uKQDTTS -->
-  - `output` _(required)_ — list of [seed-contact-record](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-contact-record) <!-- id:rqQUbF0Q -->
+  - `input` _(required)_ — [string](./onyx-string.md) <!-- id:6uKQDTTS -->
+  - `output` _(required)_ — list of [seed-contact-record](./seed-contact-record.md) <!-- id:rqQUbF0Q -->
 
 # Depends on <!-- id:RyPlOCvq -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:OUn04mcR -->
-- [seed-contact-record](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-contact-record) <!-- id:ETTURl3n -->
+- [string](./onyx-string.md) <!-- id:OUn04mcR -->
+- [seed-contact-record](./seed-contact-record.md) <!-- id:ETTURl3n -->

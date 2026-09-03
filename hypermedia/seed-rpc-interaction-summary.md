@@ -12,9 +12,9 @@ This document describes the **seed-rpc-interaction-summary** type — a Seed API
 A **closed struct** with these fields: <!-- id:C6ObWmqI -->
   - `key` _(required)_ — `string` enum: `InteractionSummary` <!-- id:jeZVsYXW -->
   - `input` _(required)_ — map { 1 fields } <!-- id:8lSMzs7Y -->
-  - `output` _(required)_ — [seed-interaction-summary](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-interaction-summary) <!-- id:atPqOBD3 -->
+  - `output` _(required)_ — [seed-interaction-summary](./seed-interaction-summary.md) <!-- id:atPqOBD3 -->
 
 # Depends on <!-- id:UaUlHKko -->
 
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:IvcbCWto -->
-- [seed-interaction-summary](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-interaction-summary) <!-- id:EIwlmCUh -->
+- [seed-id](./seed-id.md) <!-- id:IvcbCWto -->
+- [seed-interaction-summary](./seed-interaction-summary.md) <!-- id:EIwlmCUh -->

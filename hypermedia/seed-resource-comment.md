@@ -9,10 +9,10 @@ This document describes the **seed-resource-comment** type — a Seed API read-m
 
 A **closed struct** with these fields: <!-- id:CTozbhjz -->
   - `type` _(required)_ — `string` enum: `comment` <!-- id:ZLI-MfCl -->
-  - `id` _(required)_ — [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:UInd1qiG -->
-  - `comment` _(required)_ — [seed-comment](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-comment) <!-- id:YUJFaUl6 -->
+  - `id` _(required)_ — [seed-id](./seed-id.md) <!-- id:UInd1qiG -->
+  - `comment` _(required)_ — [seed-comment](./seed-comment.md) <!-- id:YUJFaUl6 -->
 
 # Depends on <!-- id:Mg_oNLnv -->
 
-- [seed-comment](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-comment) <!-- id:LtTxleFu -->
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:ExCrWOlT -->
+- [seed-comment](./seed-comment.md) <!-- id:LtTxleFu -->
+- [seed-id](./seed-id.md) <!-- id:ExCrWOlT -->

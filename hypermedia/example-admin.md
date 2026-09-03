@@ -7,10 +7,10 @@ This document describes the **example-admin** type — an example schema. Its fo
 
 # Shape <!-- id:7bCLqs7s -->
 
-**Extends** [example-employee](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-employee) with these added fields: <!-- id:tNotYurF -->
-  - `permissions` _(required)_ — list of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:lrACY6mq -->
+**Extends** [example-employee](./example-employee.md) with these added fields: <!-- id:tNotYurF -->
+  - `permissions` _(required)_ — list of [string](./onyx-string.md) <!-- id:lrACY6mq -->
 
 # Depends on <!-- id:rrJYZRvC -->
 
-- [example-employee](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-employee) <!-- id:NuTdLmU4 -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:HihJcAsQ -->
+- [example-employee](./example-employee.md) <!-- id:NuTdLmU4 -->
+- [string](./onyx-string.md) <!-- id:HihJcAsQ -->

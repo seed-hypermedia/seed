@@ -12,8 +12,8 @@ A **closed struct** with these fields: <!-- id:f0WtHHnG -->
   - `ref` — `string` <!-- id:9EpX2r1A -->
   - `name` — `string` <!-- id:l3kcRCy0 -->
   - `description` — `string` <!-- id:X1qTBkc0 -->
-  - `params` — map ⟨ \* : [schema](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema) ⟩ <!-- id:WvvPXIYj -->
+  - `params` — map ⟨ \* : [schema](./onyx-schema.md) ⟩ <!-- id:WvvPXIYj -->
 
 # Depends on <!-- id:ZrXqrtqn -->
 
-- [schema](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema) <!-- id:zSD-j6tg -->
+- [schema](./onyx-schema.md) <!-- id:zSD-j6tg -->

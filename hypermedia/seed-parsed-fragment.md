@@ -9,10 +9,10 @@ This document describes the **seed-parsed-fragment** type — a Seed API read-mo
 
 # Shape <!-- id:syZag7R2 -->
 
-**Extends** [seed-block-range](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-block-range) with these added fields: <!-- id:yEQ1-H8j -->
-  - `blockId` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:HheegK47 -->
+**Extends** [seed-block-range](./seed-block-range.md) with these added fields: <!-- id:yEQ1-H8j -->
+  - `blockId` _(required)_ — [string](./onyx-string.md) <!-- id:HheegK47 -->
 
 # Depends on <!-- id:iQNSAaXE -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:TnlsTizM -->
-- [seed-block-range](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-block-range) <!-- id:Szbd6UUI -->
+- [string](./onyx-string.md) <!-- id:TnlsTizM -->
+- [seed-block-range](./seed-block-range.md) <!-- id:Szbd6UUI -->

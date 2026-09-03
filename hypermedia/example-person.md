@@ -8,15 +8,15 @@ This document describes the **example-person** type — an example schema. Its f
 # Shape <!-- id:nO4ZbXuU -->
 
 A **closed struct** with these fields: <!-- id:51ZzX9mF -->
-  - `name` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:YKA6rXKs -->
-  - `age` — [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:6Bn2OXOQ -->
-  - `active` — [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:IP0tRSYe -->
-  - `home` — [example-address](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-address) <!-- id:unQF92CR -->
-  - `nicknames` — list of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:frbGcNPJ -->
+  - `name` _(required)_ — [string](./onyx-string.md) <!-- id:YKA6rXKs -->
+  - `age` — [integer](./onyx-integer.md) <!-- id:6Bn2OXOQ -->
+  - `active` — [boolean](./onyx-boolean.md) <!-- id:IP0tRSYe -->
+  - `home` — [example-address](./example-address.md) <!-- id:unQF92CR -->
+  - `nicknames` — list of [string](./onyx-string.md) <!-- id:frbGcNPJ -->
 
 # Depends on <!-- id:m3wQHzN9 -->
 
-- [example-address](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-address) <!-- id:I8YpzqPS -->
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:JFRlonA9 -->
-- [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:ahaLhNaq -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:IXcpwC8q -->
+- [example-address](./example-address.md) <!-- id:I8YpzqPS -->
+- [boolean](./onyx-boolean.md) <!-- id:JFRlonA9 -->
+- [integer](./onyx-integer.md) <!-- id:ahaLhNaq -->
+- [string](./onyx-string.md) <!-- id:IXcpwC8q -->
