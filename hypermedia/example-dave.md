@@ -1,16 +1,13 @@
 ---
 name: "Example: Dave"
-summary: "example-dave — instance."
+summary: example-dave — instance.
+schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-employee
 ---
+# Shape <!-- id:Os9PIhqM -->
 
-# Example: Dave
+This is example **data** — an instance of [example-employee](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-employee). <!-- id:fFqRN3DJ -->
 
-
-## Shape
-
-This is example **data** — an instance of [example-employee](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-employee).
-
-```json
+```json <!-- id:Bxw6luWU -->
 {
   "name": "Dave",
   "employeeId": "E-9",

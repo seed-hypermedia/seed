@@ -29,5 +29,7 @@
     "role",
     "grantId",
     "createTime"
-  ]
+  ],
+  "description": "A capability as the API returns it: who was granted which role on which grant id. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.",
+  "name": "Capability (payload)"
 }

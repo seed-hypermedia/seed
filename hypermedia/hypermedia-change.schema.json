@@ -32,5 +32,7 @@
     "Block": {
       "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block"
     }
-  }
+  },
+  "description": "An append-only change to a document, linked into a causal DAG via deps. Carries the operations that mutate document content and metadata.",
+  "name": "Change"
 }

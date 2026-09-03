@@ -1,16 +1,13 @@
 ---
 name: "Example: Root"
-summary: "example-root — instance."
+summary: example-root — instance.
+schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-admin
 ---
+# Shape <!-- id:CKgHCGIO -->
 
-# Example: Root
+This is example **data** — an instance of [example-admin](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-admin). <!-- id:-w3Ha2pD -->
 
-
-## Shape
-
-This is example **data** — an instance of [example-admin](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-admin).
-
-```json
+```json <!-- id:xVOgJ_PO -->
 {
   "name": "Root",
   "employeeId": "E-0",

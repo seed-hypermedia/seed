@@ -33,5 +33,7 @@
     "key",
     "input",
     "output"
-  ]
+  ],
+  "description": "Runs a Query block's query and returns everything its rendering needs. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.",
+  "name": "RPC: QueryBlock"
 }

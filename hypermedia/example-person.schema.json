@@ -22,5 +22,7 @@
         "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
       }
     }
-  }
+  },
+  "description": "A person with a name, age, active flag, home address, and nicknames.",
+  "name": "Person"
 }

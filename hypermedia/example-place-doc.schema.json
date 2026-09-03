@@ -44,5 +44,7 @@
         }
       }
     }
-  }
+  },
+  "description": "A world-builder kit type: a page about a place. Its metadata requires a `kind`, may carry a `founded` date, nests inside a `region` (another Place), and links to a coordinates object (an `ipfs://` object conforming to Geo point).",
+  "name": "Place"
 }
