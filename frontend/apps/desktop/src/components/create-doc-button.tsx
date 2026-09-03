@@ -39,8 +39,8 @@ export function useCreateDocumentMenuItem({
   })
   const myAccountIds = useMyAccountIds()
   const experiments = useExperiments().data
-  // The Hypermedia Schemas dev toggle (Settings → Developer Mode) exposes schema creation here.
-  const schemasEnabled = !!experiments?.developerMode && !!experiments?.hypermediaSchemas
+  // The Hypermedia Schemas dev toggle (Settings → Developers) exposes schema creation here.
+  const schemasEnabled = !!experiments?.hypermediaSchemas
   const importing = useImporting(locationId)
   const importDialog = useImportDialog()
 
