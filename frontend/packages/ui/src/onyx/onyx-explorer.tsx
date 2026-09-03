@@ -611,7 +611,6 @@ export function OnyxSchemaByCid({
 }) {
   const bundled = nameForCid(cid)
   const {byCid, isLoading} = useOnyxSchemaRegistry(bundled ? [] : [cid])
-  const open = useRefClick(nav)
   if (bundled) return <OnyxSchemaPage slug={bundled} nav={nav} hideIdentity={hideIdentity} />
   const schema = byCid[cid]
   if (!schema)
@@ -620,6 +619,23 @@ export function OnyxSchemaByCid({
         {isLoading ? 'Fetching schema…' : `Searching the network for ipfs://${cid}…`}
       </div>
     )
+  return <OnyxSchemaView schema={schema} nav={nav} hideIdentity={hideIdentity} cid={cid} />
+}
+
+/** A schema object rendered read-only: its base, parameters, variants or fields. */
+export function OnyxSchemaView({
+  schema,
+  nav,
+  hideIdentity,
+  cid,
+}: {
+  schema: OnyxSchema
+  nav: (slug: string) => void
+  hideIdentity?: boolean
+  /** Shown in the identity block when known. */
+  cid?: string
+}) {
+  const open = useRefClick(nav)
   const isExt = !!schema.ref && !schema.type
   const parentName = isExt ? baseRefLabel(schema.ref) : null
   const kind = schema.type ? kindOf(schema.type) : null
@@ -628,10 +644,12 @@ export function OnyxSchemaByCid({
     <div className="flex flex-col gap-2" data-testid="schema-by-cid">
       {!hideIdentity && (
         <>
-          <p className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-            <span>ipfs://</span>
-            <code className="bg-muted rounded px-1 py-0.5">{cid}</code>
-          </p>
+          {cid && (
+            <p className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+              <span>ipfs://</span>
+              <code className="bg-muted rounded px-1 py-0.5">{cid}</code>
+            </p>
+          )}
           {schema.description && <p className="text-sm">{schema.description}</p>}
         </>
       )}
