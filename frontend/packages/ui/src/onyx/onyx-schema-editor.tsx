@@ -170,15 +170,6 @@ export function OnyxSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSche
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <label className="text-muted-foreground text-xs font-medium">Description</label>
-        <Input
-          value={typeof schema.description === 'string' ? schema.description : ''}
-          placeholder="What this type represents (optional)"
-          onChange={(e) => onSchema({...schema, description: e.target.value || undefined})}
-        />
-      </div>
-
       <div className="flex flex-col gap-1" data-testid="schema-root-kind">
         <label className="text-muted-foreground text-xs font-medium">Root kind</label>
         <div className="flex flex-wrap items-center gap-2">

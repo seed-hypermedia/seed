@@ -1,7 +1,7 @@
 ---
 name: Raw capability
 summary: A capability as indexed, in raw wire form (all fields optional strings). A derived read model computed by the Seed daemon/API for clients — not a signed network
-schemaDefinition: ipfs://bafyreiafgwgt737ftgxviybfqjr5szysf2n3ly665fvzfimtl7tri7ekwe
+schemaDefinition: ipfs://bafyreihdeeevhag6agjrmuiu6co5hkdnhepn2jmcuyfz5u44afacfyyoga
 ---
 A capability as indexed, in raw wire form (all fields optional strings). A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:S4b_KI-P -->
 

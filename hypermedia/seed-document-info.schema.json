@@ -90,7 +90,5 @@
     "generationInfo",
     "metadata",
     "visibility"
-  ],
-  "description": "One document in a listing (query results, directories): identity, authorship, timestamps, breadcrumbs, and its activity summary — without the full content. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.",
-  "name": "Document info"
+  ]
 }

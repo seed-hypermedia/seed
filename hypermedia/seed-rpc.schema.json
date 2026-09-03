@@ -78,7 +78,5 @@
     {
       "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-subject-contacts"
     }
-  ],
-  "description": "The union of every read-only method of the Seed universal-client API. Each variant pins a method key and types its input and output — the machine-readable catalog the in-app API console is driven by.",
-  "name": "RPC"
+  ]
 }

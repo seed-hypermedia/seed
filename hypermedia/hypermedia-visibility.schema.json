@@ -3,7 +3,5 @@
   "enum": [
     "",
     "Private"
-  ],
-  "description": "Resource visibility: \"\" (empty) for public, \"Private\" for private.",
-  "name": "Visibility"
+  ]
 }

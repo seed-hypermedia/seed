@@ -1,7 +1,7 @@
 ---
 name: Date
 summary: "A calendar date as an ISO 8601 string, `YYYY-MM-DD` (e.g. `2026-08-26`). A refinement of string — the value is still plain text on the wire — with `format: date"
-schemaDefinition: ipfs://bafyreig5rxdzflcdq6erkcxtcgijyzyezmfipke2k4op2xymelufptoyvi
+schemaDefinition: ipfs://bafyreias4fhv7ebvzlrfqdc734ixwombrmq7u6xht3s4e4m35cqsjzpbci
 ---
 A calendar date as an ISO 8601 string, `YYYY-MM-DD` (e.g. `2026-08-26`). A refinement of string — the value is still plain text on the wire — with `format: date` so an editor renders a date picker rather than a text box, and a pattern so a validator can check the shape without parsing. <!-- id:6bGoK_9Q -->
 
