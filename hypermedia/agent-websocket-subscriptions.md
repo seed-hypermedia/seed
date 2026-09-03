@@ -1,38 +1,36 @@
 ---
-name: "WebSocket subscriptions"
-summary: "The Agents WebSocket API delivers live account, agent, and session updates after a signed subscription handshake."
+name: WebSocket subscriptions
+summary: The Agents WebSocket API delivers live account, agent, and session updates after a signed subscription handshake.
 ---
-The Agents WebSocket API delivers live account, agent, and session updates after a signed subscription handshake.
+The Agents WebSocket API delivers live account, agent, and session updates after a signed subscription handshake. <!-- id:xPzzllRE -->
 
-Endpoint:
+Endpoint: <!-- id:81Qi_5av -->
 
-```text
+```text <!-- id:W1ldgCLe -->
 /agents/ws
 ```
 
-Local URL (dev; release builds use port 3050):
+Local URL (dev; release builds use port 3050): <!-- id:WN40e7Mr -->
 
-```text
+```text <!-- id:5ExdGmxf -->
 ws://localhost:3051/agents/ws
 ```
 
-Desktop URL helper: `getAgentWebSocketUrl()` in `frontend/apps/desktop/src/agents-client.ts`.
+Desktop URL helper: `getAgentWebSocketUrl()` in `frontend/apps/desktop/src/agents-client.ts`. <!-- id:RwWUii1G -->
 
-## Transport
+# Transport <!-- id:Ylw5APIb -->
 
-Client → server:
+Client → server: <!-- id:My7LMnqv -->
+  - binary DAG-CBOR `SignedActionEnvelope` whose action is `Subscribe`. <!-- id:iIh1wzuq -->
 
-- binary DAG-CBOR `SignedActionEnvelope` whose action is `Subscribe`.
+Server → client: <!-- id:3mOMpyjG -->
+  - JSON string `AgentWSEvent` values. <!-- id:cGn80quA -->
 
-Server → client:
+Server-to-client events are not individually signed; authorization happens at subscription time on the socket. <!-- id:qiBmul3r -->
 
-- JSON string `AgentWSEvent` values.
+# Subscribe action <!-- id:KlNP4q1p -->
 
-Server-to-client events are not individually signed; authorization happens at subscription time on the socket.
-
-## Subscribe action
-
-```ts
+```ts <!-- id:O21Jvvv7 -->
 type Subscribe = {
   _: 'Subscribe'
   key: `account/${string}` | `agents/${string}` | `sessions/${string}` | `runs/${string}`
@@ -40,12 +38,11 @@ type Subscribe = {
 }
 ```
 
-Desktop must omit `afterSeq` when absent. Do not sign `afterSeq: undefined`. `signAgentAction()` adds a signed `ts`
-timestamp, and the server rejects stale/future subscriptions using the same 30-second window as HTTP actions.
+Desktop must omit `afterSeq` when absent. Do not sign `afterSeq: undefined`. `signAgentAction()` adds a signed `ts` timestamp, and the server rejects stale/future subscriptions using the same 30-second window as HTTP actions. <!-- id:g9HwBwFE -->
 
-## Server events
+# Server events <!-- id:o7iR-u63 -->
 
-```ts
+```ts <!-- id:iuamjr10 -->
 type AgentWSEvent =
   | {_: 'connected'; connectedAt: number}
   | {_: 'subscribed'; key: string; accountId: string}
@@ -71,94 +68,78 @@ type AgentWSEvent =
   | {_: 'error'; message: string}
 ```
 
-## Subscription keys
+# Subscription keys <!-- id:JtmJRPxg -->
 
-### `account/<accountId>`
+## `account/<accountId>` <!-- id:fx6p0P_O -->
 
-Account-wide notifications. The Agents list page uses this to refresh when agents/sessions/events change.
+Account-wide notifications. The Agents list page uses this to refresh when agents/sessions/events change. <!-- id:4p7cKI91 -->
 
-### `agents/<agentId>`
+## `agents/<agentId>` <!-- id:Y8P8IKFA -->
 
-Agent detail updates and related session changes. The agent detail page uses this key.
+Agent detail updates and related session changes. The agent detail page uses this key. <!-- id:9vTDX5vq -->
 
-### `sessions/<sessionId>`
+## `sessions/<sessionId>` <!-- id:ELCfheex -->
 
-Session event stream. The session page uses this key and receives:
+Session event stream. The session page uses this key and receives: <!-- id:NXHgLurt -->
+  - replay of durable events after `afterSeq`; <!-- id:vefKgvP0 -->
+  - future durable `append` events — every actor's, not just the agent's: a verb the user ran through `InvokeSessionTool` arrives on this stream as `tool_call`/`tool_result` events stamped `actor: 'user'`; <!-- id:L36itckc -->
+  - session status `change` events; <!-- id:3riezm5W -->
+  - live `appendPartial` events carrying assistant text deltas, cumulative run usage, and the current `AgentRunActivity` (`phase`, `toolName`, `toolCallId`, `detail`, and the `outputTail` of a long-running tool call). <!-- id:AWpS15pl -->
 
-- replay of durable events after `afterSeq`;
-- future durable `append` events — every actor's, not just the agent's: a verb the user ran through `InvokeSessionTool`
-  arrives on this stream as `tool_call`/`tool_result` events stamped `actor: 'user'`;
-- session status `change` events;
-- live `appendPartial` events carrying assistant text deltas, cumulative run usage, and the current `AgentRunActivity`
-  (`phase`, `toolName`, `toolCallId`, `detail`, and the `outputTail` of a long-running tool call).
+## `runs/<rootRunId>` <!-- id:qUHl4Dod -->
 
-### `runs/<rootRunId>`
+One subscription streams a whole run tree (the key is the ROOT run id; `root_run_id` is denormalized on every run row for this). On subscribe the server sends a snapshot — one `change` per run in the tree — followed by durable journal `append` replay (`afterSeq` applies per run). Live events: <!-- id:HlrThHks -->
+  - `change` with a `RunInfo` whenever any run in the tree changes status/usage/plan; <!-- id:3RReb-lv -->
+  - `append` with a workflow journal entry, tagged with the originating `runId`; <!-- id:XkkU9407 -->
+  - `appendPartial` with ephemeral workflow progress (`ctx.progress`) and tool activity, tagged with `runId`. <!-- id:4xtACkHI -->
 
-One subscription streams a whole run tree (the key is the ROOT run id; `root_run_id` is denormalized on every run row
-for this). On subscribe the server sends a snapshot — one `change` per run in the tree — followed by durable journal
-`append` replay (`afterSeq` applies per run). Live events:
+The pinned run card on the session page is durable-first: it reconstructs from `ListRuns` + `GetRunJournal` and uses this stream only for liveness. <!-- id:Iui6gCKg -->
 
-- `change` with a `RunInfo` whenever any run in the tree changes status/usage/plan;
-- `append` with a workflow journal entry, tagged with the originating `runId`;
-- `appendPartial` with ephemeral workflow progress (`ctx.progress`) and tool activity, tagged with `runId`.
+# Authorization <!-- id:WrZAbvQ7 -->
 
-The pinned run card on the session page is durable-first: it reconstructs from `ListRuns` + `GetRunJournal` and uses
-this stream only for liveness.
+`Service.verifySubscription()` verifies: <!-- id:Df5IOCWO -->
+  1. signed envelope shape; <!-- id:JnnBW67S -->
+  2. signed action timestamp is within 30 seconds of server local time; <!-- id:Dca-RSwH -->
+  3. Ed25519 signature; <!-- id:bE9T2ugC -->
+  4. signer authorization for account; <!-- id:ezvGnO9q -->
+  5. requested key belongs to the account. <!-- id:8C2Q0c3R -->
 
-## Authorization
+Rules: <!-- id:VJd0eD_k -->
+  - `account/<accountId>` must equal verified account ID. <!-- id:axsKmzfR -->
+  - `agents/<agentId>` requires owner or accepted reader/writer access. <!-- id:GUmWMoXO -->
+  - `sessions/<sessionId>` requires owner or accepted reader/writer access to its agent. <!-- id:c2GU3GL- -->
+  - `runs/<rootRunId>` requires owner or accepted reader/writer access to its agent. <!-- id:JQdvUlVm -->
+  - Accepted collaborators receive the agent's live service events under their own account subscription; pending and revoked collaborators do not. <!-- id:cMdZUdG1 -->
+  - A socket may not switch accounts after a successful subscription. <!-- id:JAODdem0 -->
 
-`Service.verifySubscription()` verifies:
+# Replay <!-- id:V2Zm4-wC -->
 
-1. signed envelope shape;
-2. signed action timestamp is within 30 seconds of server local time;
-3. Ed25519 signature;
-4. signer authorization for account;
-5. requested key belongs to the account.
+Only durable session events are replayed. Live partials are not persisted and cannot be replayed. <!-- id:Jy3_Xd4u -->
 
-Rules:
+For `sessions/<id>` with `afterSeq`, server sends: <!-- id:pSK8r44j -->
+  1. `subscribed`; <!-- id:DvtwIk6Y -->
+  2. session `change`; <!-- id:mTWZ9qTP -->
+  3. durable `append` events where `seq > afterSeq`. <!-- id:Hi-9bxpk -->
 
-- `account/<accountId>` must equal verified account ID.
-- `agents/<agentId>` requires owner or accepted reader/writer access.
-- `sessions/<sessionId>` requires owner or accepted reader/writer access to its agent.
-- `runs/<rootRunId>` requires owner or accepted reader/writer access to its agent.
-- Accepted collaborators receive the agent's live service events under their own account subscription; pending and
-  revoked collaborators do not.
-- A socket may not switch accounts after a successful subscription.
+# Durable appends vs partial appends <!-- id:Wjl8ZQla -->
 
-## Replay
+## `append` <!-- id:J139aPp4 -->
 
-Only durable session events are replayed. Live partials are not persisted and cannot be replayed.
+`append` is durable. It maps to a row in `session_events`. <!-- id:FdScUpRF -->
 
-For `sessions/<id>` with `afterSeq`, server sends:
+Desktop behavior: <!-- id:ofVmfTqC -->
+  - inserts the event into the `GetSession` cache; <!-- id:GzSQQzFt -->
+  - removes matching optimistic user events; <!-- id:RVwuDBnh -->
+  - clears visible partial for that session because final durable data arrived; <!-- id:diuPSNYn -->
+  - while that session is open, extracts `hm://` references from structured tool results and assistant messages and keeps them subscribed through the desktop sync service until the session closes. This runs only for the exact mounted `sessions/<id>` socket (a full session page or the selected Assistant-sidebar session), never account/agent sockets or background sessions. Comment references recursively subscribe to their target document, ensuring newly published comments and documents from a remote agent server are locally available before their links are opened. <!-- id:zNms67AN -->
 
-1. `subscribed`;
-2. session `change`;
-3. durable `append` events where `seq > afterSeq`.
+## `appendPartial` <!-- id:lCik3Bqk -->
 
-## Durable appends vs partial appends
+`appendPartial` is non-durable. It represents in-progress assistant text. <!-- id:EQU0HBy_ -->
 
-### `append`
+Example: <!-- id:8qGefmAC -->
 
-`append` is durable. It maps to a row in `session_events`.
-
-Desktop behavior:
-
-- inserts the event into the `GetSession` cache;
-- removes matching optimistic user events;
-- clears visible partial for that session because final durable data arrived;
-- while that session is open, extracts `hm://` references from structured tool results and assistant messages and keeps
-  them subscribed through the desktop sync service until the session closes. This runs only for the exact mounted
-  `sessions/<id>` socket (a full session page or the selected Assistant-sidebar session), never account/agent sockets or
-  background sessions. Comment references recursively subscribe to their target document, ensuring newly published
-  comments and documents from a remote agent server are locally available before their links are opened.
-
-### `appendPartial`
-
-`appendPartial` is non-durable. It represents in-progress assistant text.
-
-Example:
-
-```json
+```json <!-- id:7B0OHzqV -->
 {
   "_": "appendPartial",
   "key": "sessions/abc",
@@ -167,9 +148,9 @@ Example:
 }
 ```
 
-The server eventually sends:
+The server eventually sends: <!-- id:-eigGcgR -->
 
-```json
+```json <!-- id:ZHJBsrFh -->
 {
   "_": "appendPartial",
   "key": "sessions/abc",
@@ -178,51 +159,45 @@ The server eventually sends:
 }
 ```
 
-Desktop keeps the partial visible on `done` and clears it only when a durable `append` arrives. The Pi-backed runtime
-emits a fresh partial stream for each assistant turn and appends that turn's durable assistant message at Pi
-`message_end`, before any following tool execution events. This lets streamed text before a tool call settle into the
-durable event list ahead of the durable `tool_call` row instead of waiting until the whole agent run ends.
+Desktop keeps the partial visible on `done` and clears it only when a durable `append` arrives. The Pi-backed runtime emits a fresh partial stream for each assistant turn and appends that turn's durable assistant message at Pi `message_end`, before any following tool execution events. This lets streamed text before a tool call settle into the durable event list ahead of the durable `tool_call` row instead of waiting until the whole agent run ends. <!-- id:FPf42YK5 -->
 
-## Streaming diagnostics
+# Streaming diagnostics <!-- id:7SQoXZwS -->
 
-Server logs:
+Server logs: <!-- id:FLNvd71Y -->
+  - `[agents/ws] open` <!-- id:knRDRXQh -->
+  - `[agents/ws] subscribed` <!-- id:0S-0pPvn -->
+  - `[agents/ws] publish partial` <!-- id:wu7N9Vjz -->
+  - `[agents/ws] send partial` <!-- id:KnBaZCXZ -->
+  - `[agents/ws] skip partial; no subscription` <!-- id:142-kLCo -->
+  - `[agents/ws] close` <!-- id:9pNS00lm -->
 
-- `[agents/ws] open`
-- `[agents/ws] subscribed`
-- `[agents/ws] publish partial`
-- `[agents/ws] send partial`
-- `[agents/ws] skip partial; no subscription`
-- `[agents/ws] close`
+Desktop logs: <!-- id:PU7dcq0z -->
+  - `[agents/ws] connecting` <!-- id:2qs4WeML -->
+  - `[agents/ws] open; signing subscribe` <!-- id:29bR419F -->
+  - `[agents/ws] subscribe sent` <!-- id:PHd4Go1O -->
+  - `[agents/ws] subscribed event` <!-- id:hZA-6I7E -->
+  - `[agents/ws] partial event` <!-- id:GO31b_5F -->
+  - `[agents/ws] partial state updated` <!-- id:rYK9XIr8 -->
+  - `[agents/ws] partial marked done; keeping visible until durable append` <!-- id:AQ8qW7N5 -->
+  - `[agents/ws] ignored malformed message` <!-- id:65NDxmvj -->
 
-Desktop logs:
+Troubleshooting sequence: <!-- id:sttnj-Cy -->
+  1. Confirm desktop receives `subscribed event`. <!-- id:55kyt-pO -->
+  2. Confirm server logs `publish partial`. <!-- id:Oft3wYee -->
+  3. Confirm server logs `send partial`, not `skip partial`. <!-- id:ktqE5NP1 -->
+  4. Confirm desktop logs `partial event` and `partial state updated`. <!-- id:0KQE_u5d -->
+  5. Confirm UI logs `rendering streaming assistant partial`. <!-- id:vtUFFYIB -->
 
-- `[agents/ws] connecting`
-- `[agents/ws] open; signing subscribe`
-- `[agents/ws] subscribe sent`
-- `[agents/ws] subscribed event`
-- `[agents/ws] partial event`
-- `[agents/ws] partial state updated`
-- `[agents/ws] partial marked done; keeping visible until durable append`
-- `[agents/ws] ignored malformed message`
+# Known limitations <!-- id:bA1vFtbR -->
 
-Troubleshooting sequence:
+- Server-to-client events use JSON instead of CBOR. <!-- id:bNYv16Kh -->
+- Events are not individually signed. <!-- id:DSPsyFrn -->
+- Partial chunks are not durable and are not replayed. <!-- id:XbXehDbz -->
+- No explicit unsubscribe message exists. <!-- id:852_Oe-H -->
+- No heartbeat/ping protocol exists. <!-- id:xQB-n7mf -->
+- No backpressure/subscription-limit handling exists. <!-- id:U8R9vXoS -->
+- Desktop reconnect resubscribes but does not implement a full persistent cursor manager for every resource type. <!-- id:HUccfbAA -->
 
-1. Confirm desktop receives `subscribed event`.
-2. Confirm server logs `publish partial`.
-3. Confirm server logs `send partial`, not `skip partial`.
-4. Confirm desktop logs `partial event` and `partial state updated`.
-5. Confirm UI logs `rendering streaming assistant partial`.
+# Future work <!-- id:RGNIvPpy -->
 
-## Known limitations
-
-- Server-to-client events use JSON instead of CBOR.
-- Events are not individually signed.
-- Partial chunks are not durable and are not replayed.
-- No explicit unsubscribe message exists.
-- No heartbeat/ping protocol exists.
-- No backpressure/subscription-limit handling exists.
-- Desktop reconnect resubscribes but does not implement a full persistent cursor manager for every resource type.
-
-## Future work
-
-See [Future projects](./agent-future-projects.md): WebSocket protocol v2, run records, stop/cancel controls, and metrics.
+See [Future projects](./agent-future-projects.md): WebSocket protocol v2, run records, stop/cancel controls, and metrics. <!-- id:kEebyX8V -->
