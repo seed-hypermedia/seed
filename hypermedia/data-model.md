@@ -33,13 +33,13 @@ JSON has one number type; DAG-CBOR has two, encoded with different major types. 
 
 The seam is JavaScript/JSON, which cannot tell `3.0` from `3`. The reference validator therefore treats `integer` strictly (`Number.isInteger`) and `float` permissively (any number). A real DAG-CBOR pipeline preserves the distinction in the bytes, where it is unambiguous. <!-- id:clWBjXCZ -->
 
-## `map` vs `struct` — one kind, two constraints <!-- id:MQy2plVQ -->
+## `map` vs `struct` — one kind of data, two types <!-- id:MQy2plVQ -->
 
-At the **data-model** level there is only `map`. There is no separate "object" or "struct" kind. "Struct" is a _schema-level_ idea: a map whose keys are known in advance. Onyx expresses both shapes over the single `map` kind: <!-- id:N8qkl2B3 -->
-  - known, named fields → constrain with `properties` (struct-like) <!-- id:ubG-u-aL -->
-  - arbitrary keys, uniform values → constrain with `values` (open map) <!-- id:dFwJHUze -->
+At the **data-model** level there is only `map`: DAG-CBOR has no separate object or struct kind. Onyx gives that one kind two types, because the two ways of using a map are different things: <!-- id:N8qkl2B3 -->
+  - [`struct`](./onyx-struct.md) — the keys are known field names, each with its own schema (`properties`, `required`); closed unless `values` opens it to extra keys <!-- id:ubG-u-aL -->
+  - [`map`](./onyx-map.md) — the keys are data; every value matches one schema (`values`) <!-- id:dFwJHUze -->
 
-See [the schema language](./schema-language.md). This is why the vocabulary has no `object` type: the kind is `map`, and _how_ you constrain it is a separate axis. <!-- id:Ig-D69Z- -->
+Both validate the same bytes. The type tells a form which fields to show, a validator which keys are stray, and a generated type whether to emit named members or an index signature. See [the schema language](./schema-language.md). <!-- id:Ig-D69Z- -->
 
 ## `link` is the whole point <!-- id:vq_2Quam -->
 
@@ -56,7 +56,7 @@ A kind like `string` is a _name in the vocabulary_; `{"type":"string"}` is the _
 | --- | --- | --- |
 | `onyx-null`, `onyx-boolean`, `onyx-integer`, `onyx-float`, `onyx-string`, `onyx-bytes` | `{ "type": "<kind>" }` | `onyx-scalar-schema` <!-- id:idSfV3A2 --> |
 | `onyx-link` | `{ "type": "link" }` | `onyx-link-schema` <!-- id:VcOv81bN --> |
-| `onyx-map`, `onyx-list` | `{ "type": "<kind>" }` | `onyx-map-schema` / `onyx-list-schema` <!-- id:zNbu4gjL --> |
+| `onyx-struct`, `onyx-map`, `onyx-list` | `{ "type": "<kind>" }` | `onyx-struct-schema` / `onyx-map-schema` / `onyx-list-schema` <!-- id:zNbu4gjL --> |
 
 These are the **standard library**. Two layers, not to be confused: <!-- id:zEmQScRC -->
   - `onyx-scalar-schema` (a meta-schema _variant_) describes the _shape_ `{type:<scalar>, enum?}` — it is the **type of** `onyx-string`. <!-- id:FBr8EANM -->

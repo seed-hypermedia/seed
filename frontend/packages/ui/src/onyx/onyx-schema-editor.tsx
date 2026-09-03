@@ -17,7 +17,17 @@ import {Textarea} from '../components/textarea'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '../select-dropdown'
 import {Tooltip} from '../tooltip'
 import {cn} from '../utils'
-import {kindOf, kindUrl, MAP_URL, nameToUrl, ONYX_SCHEMAS, refToName, validate, type OnyxSchema} from './onyx-engine'
+import {
+  kindOf,
+  kindUrl,
+  MAP_URL,
+  nameToUrl,
+  ONYX_SCHEMAS,
+  refToName,
+  STRUCT_URL,
+  validate,
+  type OnyxSchema,
+} from './onyx-engine'
 import {SchemaTypeInput} from './schema-type-input'
 
 /** The field kinds a struct property can take (friendly labels). */
@@ -33,7 +43,8 @@ const FIELD_KINDS: {kind: string; label: string}[] = [
   {kind: 'link', label: 'IPLD link'},
   {kind: 'bytes', label: 'Bytes'},
   {kind: 'list', label: 'List'},
-  {kind: 'map', label: 'Object'},
+  {kind: 'struct', label: 'Struct'},
+  {kind: 'map', label: 'Map'},
   {kind: 'any', label: 'Anything'},
 ]
 
@@ -69,7 +80,7 @@ function customLabel(ps: any): string {
 /** Whether the struct form can show (and safely rewrite) this schema. */
 export function structFormFits(schema: OnyxSchema): boolean {
   if (schema.anyOf || schema.items || schema.enum || schema.args) return false
-  if (schema.type) return kindOf(schema.type) === 'map'
+  if (schema.type) return kindOf(schema.type) === 'struct' || kindOf(schema.type) === 'map'
   return typeof schema.ref === 'string'
 }
 
@@ -94,7 +105,8 @@ function kindSchema(kind: string): OnyxSchema {
   if (kind === 'date') return {ref: nameToUrl('onyx-date')!}
   if (kind === 'date-time') return {ref: nameToUrl('onyx-date-time')!}
   if (kind === 'list') return {type: kindUrl('list'), items: {}}
-  if (kind === 'map') return {type: MAP_URL, values: {}}
+  if (kind === 'struct') return {type: STRUCT_URL, properties: {}, required: []}
+  if (kind === 'map') return {type: MAP_URL, values: {ref: ANY_URL}}
   return {type: kindUrl(kind)}
 }
 
@@ -114,7 +126,7 @@ const signedTypeTag = (schema: OnyxSchema): string => {
 const isReferenceKind = (kind: string) => kind === 'hm-url' || kind === 'ipfs'
 
 /** An empty starter struct schema. */
-export const emptyStructSchema = (): OnyxSchema => ({type: MAP_URL, properties: {}, required: []})
+export const emptyStructSchema = (): OnyxSchema => ({type: STRUCT_URL, properties: {}, required: []})
 
 /** What a schema's root can be: a plain struct, the signed-blob envelope, or an extension of any base type. */
 export type SchemaRootKind = 'struct' | 'signed' | 'extends'
@@ -138,7 +150,7 @@ export function withRootKind(schema: OnyxSchema, kind: SchemaRootKind): OnyxSche
     delete properties.type
     required.delete('type')
   }
-  if (kind === 'struct') return {...rest, type: MAP_URL, properties, required: Array.from(required)}
+  if (kind === 'struct') return {...rest, type: STRUCT_URL, properties, required: Array.from(required)}
   const baseRef = !schema.type && typeof schema.ref === 'string' && schema.ref !== SIGNED_BLOB_URL ? schema.ref : ''
   return {...rest, ref: baseRef, properties, required: Array.from(required)}
 }
@@ -301,7 +313,11 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
     const req = Array.from(nextRequired).filter((k) => k in nextProps)
     // A ref-rooted schema EXTENDS something — the signed-blob envelope or any base schema (the
     // "Extend Schema" flow). Editing fields must never silently drop that root.
-    const root = !schema.type && typeof schema.ref === 'string' ? {ref: schema.ref} : {type: MAP_URL}
+    // A map that gains named fields is a struct; a bare struct with only a `values` tail stays a struct.
+    const root =
+      !schema.type && typeof schema.ref === 'string'
+        ? {ref: schema.ref}
+        : {type: kindOf(schema.type) === 'map' && Object.keys(nextProps).length === 0 ? MAP_URL : STRUCT_URL}
     const {type: _t, ref: _r, ...rest} = schema
     onSchema({...rest, ...root, properties: nextProps, ...(req.length ? {required: req} : {required: []})})
   }

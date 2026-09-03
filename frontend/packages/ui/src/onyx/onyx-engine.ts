@@ -53,6 +53,8 @@ export function kindUrl(kind: string): string {
 
 /** The map kind URL (the shape every struct/metadata schema declares). */
 export const MAP_URL = kindUrl('map')
+/** The struct kind: a map with known, named fields (`properties`). Same bytes as a map. */
+export const STRUCT_URL = kindUrl('struct')
 
 /** Published DAG-CBOR CID for a schema, by basename or ANY hm:// URL form
  * (onyx-account or legacy dev-authority) — normalized through the bundle. */
@@ -141,6 +143,7 @@ function typeMatches(type: string, d: any): boolean {
     case 'list':
       return Array.isArray(d)
     case 'map':
+    case 'struct':
       return typeOf(d) === 'map'
     case 'link':
       return isLink(d)
@@ -261,7 +264,7 @@ export function validate(
     errors.push(`${path}: expected ${kind}, got ${typeOf(data)}`)
     return errors
   }
-  if (kind === 'map') {
+  if (kind === 'map' || kind === 'struct') {
     for (const key of schema.required ?? []) if (!(key in data)) errors.push(`${path}: missing required "${key}"`)
     const closed = schema.properties && !schema.values
     for (const [key, value] of Object.entries(data)) {

@@ -1,7 +1,7 @@
 ---
 name: Image block
 summary: An image, referenced by a URL (typically ipfs://).
-schemaDefinition: ipfs://bafyreiezaiew4b5r4rex4eaovvzvovibknwrjgnkqwawmicptsqjxcmcam
+schemaDefinition: ipfs://bafyreigilum37xx6l4y2n4t5p3lvpiltmibf2tcufibafvaghjinnsf7ra
 ---
 This document describes the **hypermedia-block-image** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:VjEBnK6Y -->
 

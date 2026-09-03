@@ -1,7 +1,7 @@
 ---
 name: Union schema
 summary: The variant for a union — a value matching any one of several alternatives (anyOf).
-schemaDefinition: ipfs://bafyreidpyyoeymz6fkonkkfegwvvukwnamfl2dl7nrl5rksn5npqzwdvey
+schemaDefinition: ipfs://bafyreig2npravoa4cooc7y42lbnagzkrsd6ybbhaeaq4u3afvozljrl2ou
 ---
 This document describes the **onyx-union-schema** type — a meta-schema variant. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:C3PmGxab -->
 
