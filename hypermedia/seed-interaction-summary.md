@@ -1,7 +1,7 @@
 ---
 name: Interaction summary
 summary: Aggregate interaction counts for a document — citations, comments, changes, child documents, distinct authors — plus per-block citation/comment counts. A derive
-schemaDefinition: ipfs://bafyreidbymjxw24blfa5iqwpfbq4kh2bohrdis5xsgb7q6wvw7eytbkiue
+schemaDefinition: ipfs://bafyreic3yjluiknvi6aro5hw4upw74kqnl7fb5tf3bz6ob3sfi2vr4zwt4
 ---
 Aggregate interaction counts for a document — citations, comments, changes, child documents, distinct authors — plus per-block citation/comment counts. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:PWw560Ku -->
 

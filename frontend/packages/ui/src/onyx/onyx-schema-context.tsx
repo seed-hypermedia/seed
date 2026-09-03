@@ -41,7 +41,7 @@ export function onyxSubschema(
     if (!resolved || resolved.__missing || resolved.__unbound) return 'unresolved'
     if (resolved.anyOf) return 'unresolved' // can't statically pick a union variant
     const kind = resolved.type ? kindOf(resolved.type) : null
-    if (kind === 'map') {
+    if (kind === 'map' || kind === 'struct') {
       const child = (typeof seg === 'string' && resolved.properties?.[seg]) || resolved.values
       if (!child) return undefined
       schema = child

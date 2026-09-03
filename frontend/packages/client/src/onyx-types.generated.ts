@@ -1157,7 +1157,7 @@ export type OnyxListSchema = {
 
 /**
  * Map schema
- * The variant for a map value — a closed struct (via properties) or an open map (via values).
+ * The variant for a map — arbitrary keys whose values all match one schema (values). Known fields belong to a struct schema.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map-schema
  */
 export type OnyxMapSchema = {
@@ -1204,6 +1204,7 @@ export type OnyxScalarSchema = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema
  */
 export type OnyxSchema =
+  | OnyxStructSchema
   | OnyxMapSchema
   | OnyxListSchema
   | OnyxScalarSchema
@@ -1211,6 +1212,21 @@ export type OnyxSchema =
   | OnyxIncludeSchema
   | OnyxUnionSchema
   | OnyxVarSchema
+
+/**
+ * Struct schema
+ * The variant for a struct — known fields via properties and required, optionally open to extra keys via values.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct-schema
+ */
+export type OnyxStructSchema = {
+  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct'
+  properties?: {[key: string]: OnyxSchema}
+  required?: string[]
+  values?: OnyxSchema
+  description?: string
+  params?: {[key: string]: OnyxSchema}
+  name?: string
+}
 
 /**
  * Union schema

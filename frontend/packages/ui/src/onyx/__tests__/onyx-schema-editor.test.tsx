@@ -63,7 +63,7 @@ const findButton = (text: string) =>
 describe('OnyxSchemaEditor (struct form)', () => {
   it('emptyStructSchema is a valid Onyx map schema', () => {
     const s = emptyStructSchema()
-    expect(kindOf(s.type)).toBe('map')
+    expect(kindOf(s.type)).toBe('struct')
     expect(isOnyxSchema(s)).toBe(true)
   })
 
@@ -71,7 +71,7 @@ describe('OnyxSchemaEditor (struct form)', () => {
     act(() => root.render(<Harness initial={emptyStructSchema()} />))
     click(findButton('Add field'))
     expect(Object.keys(latest.properties ?? {})).toHaveLength(1)
-    expect(kindOf(latest.type)).toBe('map')
+    expect(kindOf(latest.type)).toBe('struct')
     expect(isOnyxSchema(latest)).toBe(true)
     // the field defaults to a text/string property
     const first = Object.values(latest.properties ?? {})[0] as OnyxSchema
