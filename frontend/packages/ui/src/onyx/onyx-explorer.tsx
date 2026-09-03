@@ -263,7 +263,7 @@ function SourceJson({schema, nav}: {schema: any; nav: (slug: string) => void}) {
  * What a schema depends on and what references it. Secondary information, so it
  * starts collapsed behind one quiet line with the counts; opening it shows the chips.
  */
-function DepLists({name, nav}: {name: string; nav: (slug: string) => void}) {
+export function DepLists({name, nav}: {name: string; nav: (slug: string) => void}) {
   const deps = dependencies(name)
   const rdeps = dependents(name)
   const [open, setOpen] = useState(false)
@@ -280,7 +280,7 @@ function DepLists({name, nav}: {name: string; nav: (slug: string) => void}) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="text-muted-foreground/70 hover:text-muted-foreground inline-flex w-fit cursor-pointer items-center gap-1 text-xs"
+        className="text-muted-foreground hover:text-foreground inline-flex w-fit cursor-pointer items-center gap-1 text-xs"
       >
         <ChevronRight className={cn('size-3 transition-transform', open && 'rotate-90')} />
         {summary}

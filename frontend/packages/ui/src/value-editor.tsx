@@ -1107,12 +1107,17 @@ export function ValueDisplay({value, rules = CBOR_VALUE_RULES}: {value: unknown;
     if (entries.length === 0) return <p className="text-muted-foreground text-sm">No fields</p>
     return (
       <div className={NESTED_GROUP_CLASS}>
-        {entries.map(([key, child]) => (
-          <div key={key} className="flex flex-col gap-1">
-            <span className={FIELD_LABEL_CLASS}>{key}</span>
-            <ValueDisplay value={child} rules={rules} />
-          </div>
-        ))}
+        {entries.map(([key, child]) => {
+          // A leaf (text, number, a reference pill) sits on the label's line;
+          // a nested object or list opens its own block under the label.
+          const nested = isPlainObject(child) ? Object.keys(child).length > 0 : Array.isArray(child) && child.length > 0
+          return (
+            <div key={key} className={nested ? 'flex flex-col gap-1' : 'flex flex-wrap items-center gap-x-2 gap-y-0.5'}>
+              <span className={cn(FIELD_LABEL_CLASS, !nested && 'shrink-0')}>{key}</span>
+              <ValueDisplay value={child} rules={rules} />
+            </div>
+          )
+        })}
       </div>
     )
   }

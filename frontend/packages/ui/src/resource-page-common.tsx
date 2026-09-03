@@ -163,7 +163,7 @@ import {useEffectiveDocSchema} from './onyx/onyx-schema-resolve'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from './components/dialog'
 import {DocumentTools} from './document-tools'
 import {nameForCid, nameToUrl, ONYX_SCHEMAS} from './onyx/onyx-engine'
-import {OnyxNavContext, OnyxSchemaView} from './onyx/onyx-explorer'
+import {DepLists, OnyxNavContext, OnyxSchemaView} from './onyx/onyx-explorer'
 import {useOnyxSchemaRegistry} from './onyx/onyx-schema-registry-cid'
 import {DocumentTopBar} from './document-top-bar'
 import {
@@ -3426,6 +3426,19 @@ function DocumentSchemaSection({document, canEdit}: {document: HMDocument; canEd
  * (`schemaDraft`, e.g. from the Extend Schema flow) is EDITED in place — the full schema editor,
  * saved onto the draft like any metadata change, and frozen into an IPFS blob at publish.
  */
+/**
+ * The bundled library schema a document IS, by its path (`/timestamp` → onyx-timestamp,
+ * `/hypermedia-timestamp` → hypermedia-timestamp), whatever version of the blob it currently
+ * points at. Dependencies are computed over the bundled library, so this is what names them.
+ */
+function bundledSlugForDocument(document: HMDocument): string | null {
+  const name = (document.path || '').replace(/^\//, '')
+  if (!name || name.includes('/')) return null
+  if (ONYX_SCHEMAS[name]) return name
+  if (ONYX_SCHEMAS[`onyx-${name}`]) return `onyx-${name}`
+  return null
+}
+
 /** A published schema seeded into the editor sheds a legacy root `name`/`description`: the document
  * carries those, and the next publish writes a schema without them. */
 function stripLegacyLabels(schema: Record<string, any>): Record<string, any> {
@@ -3449,6 +3462,8 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
   // editor, the first change starts a draft (`schemaDraft`), and publishing freezes that into a
   // new IPFS object the document then references. Bundled library schemas need no fetch.
   const bundled = cid ? nameForCid(cid) : undefined
+  // The library schema this document is, by path — its blob may be an older version than the bundle.
+  const librarySlug = bundledSlugForDocument(document)
   const {byCid, isLoading} = useOnyxSchemaRegistry(cid && !bundled && canEditCurrentRoute ? [cid] : [])
   const published = cid ? (bundled ? ONYX_SCHEMAS[bundled] : byCid[cid]) : undefined
   const edit = (next: Record<string, any>) => {
@@ -3476,6 +3491,7 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
               // Exactly what readers see (core-type leads, variants, collapsed dependencies).
               <OnyxSchemaBrowserPage embedded cid={cid!} navigate={navigate} openUrl={openUrl} />
             )}
+            {librarySlug && (draftSchema || !bundled) && <DepLists name={librarySlug} nav={nav} />}
           </div>
           <Button
             variant="ghost"
@@ -3507,7 +3523,20 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
   if (canEditCurrentRoute && isLoading) {
     return <div className="text-muted-foreground p-4 text-sm">Fetching schema…</div>
   }
-  return <OnyxSchemaBrowserPage embedded cid={cid} navigate={navigate} openUrl={openUrl} />
+  return (
+    <>
+      <OnyxSchemaBrowserPage embedded cid={cid} navigate={navigate} openUrl={openUrl} />
+      {librarySlug && !bundled && (
+        <DepLists
+          name={librarySlug}
+          nav={(slug) => {
+            const url = nameToUrl(slug)
+            if (url) openUrl(url)
+          }}
+        />
+      )}
+    </>
+  )
 }
 
 function DocumentMetadataPage({

@@ -6,12 +6,30 @@
 // the component renders the matching controls (tag input / base-ref input).
 import {act} from 'react-dom/test-utils'
 import {createRoot, type Root} from 'react-dom/client'
-import {afterEach, beforeEach, describe, expect, it} from 'vitest'
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+import type {ReactNode} from 'react'
 import {TooltipProvider} from '../../tooltip'
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
+import {UniversalAppProvider} from '@shm/shared/routing'
 import {MAP_URL, nameToUrl} from '../onyx-engine'
 import {emptyStructSchema, isSignedBlobType, OnyxSchemaEditor, withRootKind} from '../onyx-schema-editor'
 import {isSignedBlobSchema, signedBlobTypeTag} from '../signed-blob'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
+// Full DOM renders of the editor are slow when the suite runs in parallel.
+vi.setConfig({testTimeout: 20_000})
+
+// The type picker searches through the app client; the stub answers nothing.
+const testClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
+const stubUniversalClient = {request: async () => null} as any
+function AppShell({children}: {children: ReactNode}) {
+  return (
+    <QueryClientProvider client={testClient}>
+      <UniversalAppProvider openUrl={() => {}} openRoute={null} universalClient={stubUniversalClient}>
+        <TooltipProvider>{children}</TooltipProvider>
+      </UniversalAppProvider>
+    </QueryClientProvider>
+  )
+}
 
 describe('schema root kind', () => {
   let container: HTMLDivElement
@@ -29,9 +47,9 @@ describe('schema root kind', () => {
   const render = (schema: any, onSchema: (s: any) => void = () => {}) =>
     act(() =>
       root.render(
-        <TooltipProvider>
+        <AppShell>
           <OnyxSchemaEditor schema={schema} onSchema={onSchema} />
-        </TooltipProvider>,
+        </AppShell>,
       ),
     )
 
@@ -62,7 +80,7 @@ describe('schema root kind', () => {
     expect(schema.required).not.toContain('type')
   })
 
-  it('extends roots the schema on any base ref, editable in the base-ref input, and fields survive', () => {
+  it('extends roots the schema on any base ref, editable in the type input, and fields survive', () => {
     let schema: any = {
       ...emptyStructSchema(),
       properties: {permissions: {type: MAP_URL}},
@@ -76,13 +94,16 @@ describe('schema root kind', () => {
 
     let latest: any = schema
     render(schema, (s) => (latest = s))
-    const refInput = container.querySelector('[aria-label="Base type ref"]') as HTMLInputElement
+    const refInput = container.querySelector('[aria-label="Root type"]') as HTMLInputElement
     expect(refInput).toBeTruthy()
-    // Typing a base ref roots the extension on it.
+    // Pasting a base ref and pressing Enter roots the extension on it.
     act(() => {
       const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
       setter.call(refInput, 'ipfs://bafyBase')
       refInput.dispatchEvent(new Event('input', {bubbles: true}))
+    })
+    act(() => {
+      refInput.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}))
     })
     expect(latest.ref).toBe('ipfs://bafyBase')
     expect(latest.type).toBeUndefined()
