@@ -1,8 +1,9 @@
 /**
  * The Repo HM sync dev loop behind `seed-cli space dev` (and sync-hypermedia.ts
  * dev): publish a directory of markdown into the daemon behind a running
- * desktop dev app under a throwaway key, then write every document published
- * in the app straight back into the directory.
+ * desktop dev app under a throwaway key, then keep the two in step both ways:
+ * every document published in the app is written back into the directory, and
+ * every .md or .schema.json changed on disk is pushed into the daemon.
  *
  * The app is the editor; git is where you commit. The dev daemon is a peer
  * like any other, so the site does propagate to whatever network it is on;
@@ -12,7 +13,7 @@ import {createGrpcWebTransport} from '@connectrpc/connect-web'
 import {createSeedClient, type HMSigner, type SeedClient} from '@seed-hypermedia/client'
 import {createGRPCClient} from '@shm/shared/grpc-client'
 import {spawn} from 'node:child_process'
-import {existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, readFileSync, unlinkSync, watch, writeFileSync} from 'node:fs'
 import {resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {printInfo, printSuccess, printWarning} from '../output'
@@ -142,6 +143,10 @@ export type DevLoopOptions = {
   beforePush?: (ctx: {client: SeedClient; signer: HMSigner; account: string}) => Promise<void>
   /** Called after each tick that wrote files, with the files written. */
   onWritten?: (files: string[]) => void
+  /** Watch the files too and push a changed .md / .schema.json (default true). */
+  watchFiles?: boolean
+  /** Called after a file change was pushed, with the files pushed. */
+  onPushed?: (files: string[]) => void
 }
 
 /** The dev loop behind `space dev`, reusable by directories with their own layout (see sync-hypermedia.ts). */
@@ -198,9 +203,75 @@ export async function runDevLoop(opts: DevLoopOptions) {
   // Which file each document lives in, so a document moved in the app takes
   // its file along (the old one is removed).
   const files = (await exportSpace({client, uid: account, dir: opts.dir, layout})).files
+  const stamp = () => new Date().toLocaleTimeString()
+
+  // ── files → daemon ──
+  // Both sides are watched. The daemon side wins nothing: a file changed on
+  // disk (a checkout, a pull, a hand edit) is pushed as it is, because git is
+  // the source of truth. The loop's own write-backs are not hand edits, so a
+  // file it wrote moments ago is ignored when the watcher reports it.
+  const selfWrites = new Map<string, number>()
+  const noteSelfWrite = (file: string) => selfWrites.set(file, Date.now())
+  const pending = new Set<string>()
+  let pushTimer: ReturnType<typeof setTimeout> | null = null
+  let pushing: Promise<void> = Promise.resolve()
+  const pushPending = () => {
+    pushing = pushing.then(async () => {
+      const batch = Array.from(pending)
+      pending.clear()
+      const mdFiles = new Set<string>()
+      for (const f of batch) {
+        if (f.endsWith('.md')) mdFiles.add(f)
+        else if (f.endsWith('.schema.json')) mdFiles.add(f.replace(/\.schema\.json$/, '.md'))
+      }
+      const only = Array.from(mdFiles).filter((f) => existsSync(resolve(opts.dir, f)))
+      for (const f of mdFiles) {
+        if (!only.includes(f))
+          printInfo(`${stamp()}  ${f} is gone from disk; its document stays until deleted in the app`)
+      }
+      if (!only.length) return
+      try {
+        const result = await importSpace({
+          client,
+          signer,
+          account,
+          dir: opts.dir,
+          layout,
+          metadataFor: opts.metadataFor,
+          only,
+          log: (line) => printInfo(`${stamp()}  ${line}`),
+        })
+        const pushed = [...result.created, ...result.updated, ...result.moved.map((m) => m.split(' -> ')[1] ?? m)]
+        if (pushed.length && opts.onPushed) opts.onPushed(only)
+      } catch (err) {
+        printWarning(`${stamp()}  push failed: ${(err as Error).message}`)
+      }
+    })
+  }
+  if (opts.watchFiles !== false) {
+    try {
+      watch(opts.dir, {recursive: true}, (_event, filename) => {
+        if (!filename) return
+        const rel = String(filename).replace(/\\/g, '/')
+        if (rel.startsWith('.') || rel.includes('/.')) return
+        if (!rel.endsWith('.md') && !rel.endsWith('.schema.json')) return
+        const wrote = selfWrites.get(rel)
+        if (wrote !== undefined && Date.now() - wrote < 3000) return
+        pending.add(rel)
+        if (pushTimer) clearTimeout(pushTimer)
+        pushTimer = setTimeout(pushPending, 600)
+      })
+      printInfo('Watching the files too: a changed .md or .schema.json is pushed into the daemon (the file wins).')
+    } catch (err) {
+      printWarning(`Cannot watch the files (${(err as Error).message}); hand edits are pushed on the next start.`)
+    }
+  }
+
+  // ── daemon → files ──
   printInfo(`Watching ${versions.size} documents every ${opts.intervalMs}ms. Ctrl-C to stop.`)
   for (;;) {
     await new Promise((r) => setTimeout(r, opts.intervalMs))
+    await pushing
     let next: Map<string, string>
     try {
       next = await listSpaceVersions(client, account)
@@ -208,13 +279,15 @@ export async function runDevLoop(opts: DevLoopOptions) {
       printWarning(`poll failed: ${(err as Error).message}`)
       continue
     }
-    const stamp = () => new Date().toLocaleTimeString()
     const written: string[] = []
     for (const [path, version] of next) {
       if (versions.get(path) === version) continue
       try {
         const res = await exportPath({client, uid: account, dir: opts.dir, layout}, path)
-        for (const file of res.written) printInfo(`${stamp()}  wrote ${file}`)
+        for (const file of res.written) {
+          noteSelfWrite(file)
+          printInfo(`${stamp()}  wrote ${file}`)
+        }
         written.push(...res.written)
         if (res.written.length === 0) printInfo(`${stamp()}  ${path || '(home)'} republished, no file change`)
         if (res.file) files.set(path, res.file)
@@ -228,6 +301,7 @@ export async function runDevLoop(opts: DevLoopOptions) {
       const file = files.get(path)
       if (!file) continue
       try {
+        noteSelfWrite(file)
         unlinkSync(resolve(opts.dir, file))
         printInfo(`${stamp()}  removed ${file}`)
       } catch {
