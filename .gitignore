@@ -153,3 +153,7 @@ __pycache__/
 .playwright-mcp/
 .superpowers/
 .keys
+
+# Repo HM sync: throwaway dev keys (space dev / hm-sync)
+hypermedia/.dev/
+seed-docs/.dev/

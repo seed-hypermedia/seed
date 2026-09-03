@@ -282,7 +282,7 @@ function renderNode(
     case 'Code': {
       const lang = (attributes.language as string) || ''
       let fenceLen = 3
-      for (const m of text.matchAll(/`+/g)) fenceLen = Math.max(fenceLen, m[0].length + 1)
+      for (const m of Array.from(text.matchAll(/`+/g))) fenceLen = Math.max(fenceLen, m[0].length + 1)
       const fence = '`'.repeat(fenceLen)
       out.push(ind + marker + fence + lang + ' ' + comment)
       for (const line of text.split('\n')) out.push(line ? contentInd + line : '')
@@ -627,7 +627,7 @@ function renderInline(text: string, annotations: HMAnnotation[] | undefined, opt
     boundaries.add(s.start)
     boundaries.add(s.end)
   }
-  const points = [...boundaries].sort((a, b) => a - b)
+  const points = Array.from(boundaries).sort((a, b) => a - b)
 
   type Open = {span: Span; close: string}
   const stack: Open[] = []
@@ -706,7 +706,8 @@ function markersFor(s: Span, chunk: string, fullText: string): [string, string] 
       // Fence longer than any backtick run in the whole span, and a space pad
       // when the chunk starts/ends with a backtick or a space.
       let fenceLen = 1
-      for (const m of fullText.slice(s.start, s.end).matchAll(/`+/g)) fenceLen = Math.max(fenceLen, m[0].length + 1)
+      for (const m of Array.from(fullText.slice(s.start, s.end).matchAll(/`+/g)))
+        fenceLen = Math.max(fenceLen, m[0].length + 1)
       const fence = '`'.repeat(fenceLen)
       const pad = /^[` ]|[` ]$/.test(chunk) ? ' ' : ''
       return [fence + pad, pad + fence]
