@@ -22,6 +22,7 @@ import {deriveKeyPairFromMnemonic, generateMnemonic, type KeyPair} from '../util
 import {keyOptions, resolveSigningKey} from '../utils/keys'
 import {createSignerFromKey} from '../utils/signer'
 import {exportPath, exportSpace, importSpace, listSpaceVersions} from '../utils/space-sync'
+import {unlinkSync} from 'node:fs'
 
 function spaceUid(id: string): string {
   const unpacked = unpackHmId(id.startsWith('hm://') ? id : `hm://${id}`)
@@ -90,8 +91,10 @@ export function registerSpaceCommands(program: Command) {
         if (!globalOpts.quiet) {
           printSuccess(
             `${options.dryRun ? 'Would publish' : 'Published'} to hm://${account}: ${result.created.length} created, ${
-              result.updated.length
-            } updated, ${result.unchanged.length} unchanged, ${result.skipped.length} skipped`,
+              result.moved.length
+            } moved, ${result.updated.length} updated, ${result.unchanged.length} unchanged, ${
+              result.skipped.length
+            } skipped`,
           )
         }
       } catch (error) {
@@ -183,7 +186,7 @@ async function runDevLoop(opts: {dir: string; apiUrl: string; daemonUrl: string;
     printInfo('Publishing the directory into the local daemon...')
     const result = await importSpace({client, signer, account, dir: opts.dir, log: printInfo})
     printInfo(
-      `${result.created.length} created, ${result.updated.length} updated, ${result.unchanged.length} unchanged.`,
+      `${result.created.length} created, ${result.moved.length} moved, ${result.updated.length} updated, ${result.unchanged.length} unchanged.`,
     )
   }
 
@@ -193,6 +196,9 @@ async function runDevLoop(opts: {dir: string; apiUrl: string; daemonUrl: string;
   spawnSync('open', [url], {stdio: 'ignore'})
 
   let versions = await listSpaceVersions(client, account)
+  // Which file each document lives in, so a document moved in the app takes
+  // its file along (the old one is removed).
+  const files = (await exportSpace({client, uid: account, dir: opts.dir})).files
   printInfo(`Watching ${versions.size} documents every ${opts.intervalMs}ms. Ctrl-C to stop.`)
   for (;;) {
     await new Promise((r) => setTimeout(r, opts.intervalMs))
@@ -203,16 +209,30 @@ async function runDevLoop(opts: {dir: string; apiUrl: string; daemonUrl: string;
       printWarning(`poll failed: ${(err as Error).message}`)
       continue
     }
+    const stamp = () => new Date().toLocaleTimeString()
     for (const [path, version] of next) {
       if (versions.get(path) === version) continue
-      const stamp = new Date().toLocaleTimeString()
       try {
-        const written = await exportPath({client, uid: account, dir: opts.dir}, path)
-        for (const file of written) printInfo(`${stamp}  wrote ${file}`)
-        if (written.length === 0) printInfo(`${stamp}  ${path || '(home)'} republished, no file change`)
+        const res = await exportPath({client, uid: account, dir: opts.dir}, path)
+        for (const file of res.written) printInfo(`${stamp()}  wrote ${file}`)
+        if (res.written.length === 0) printInfo(`${stamp()}  ${path || '(home)'} republished, no file change`)
+        if (res.file) files.set(path, res.file)
       } catch (err) {
         printWarning(`${path || '(home)'}: ${(err as Error).message}`)
       }
+    }
+    // A path that vanished was moved away (or deleted): drop its file.
+    for (const [path] of versions) {
+      if (next.has(path)) continue
+      const file = files.get(path)
+      if (!file) continue
+      try {
+        unlinkSync(resolve(opts.dir, file))
+        printInfo(`${stamp()}  removed ${file}`)
+      } catch {
+        // already gone
+      }
+      files.delete(path)
     }
     versions = next
   }

@@ -31,7 +31,7 @@ Edit the directory in the desktop dev app. See [Repo HM sync](./repo-hm-sync.md)
 
 # In this repository
 
-- `pnpm docs:dev` runs the editing loop for `seed-docs/`.
+- `./dev hm-sync` runs the editing loop for `seed-docs/` (`./dev hm-sync <dir>` for any other folder).
 - `pnpm docs:push` publishes `seed-docs/` to hyper.media with your key.
 - `pnpm docs:pull` writes the published site back into `seed-docs/`.
 - A commit to `main` that touches `seed-docs/` publishes it from CI.

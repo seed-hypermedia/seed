@@ -548,7 +548,7 @@ seed-cli space dev --dir <path> [--api <url>] [--daemon <url>] [--interval <ms>]
 
 Edit the directory in the desktop dev app: a throwaway key is created under `<path>/.dev/` (self-ignored) and registered
 in the app's daemon, the directory is published there, and every document published in the app is written straight back
-to the directory. Nothing reaches the network.
+to the directory. Nothing reaches the network. In this repository, `./dev hm-sync [dir]` runs it.
 
 ---
 
