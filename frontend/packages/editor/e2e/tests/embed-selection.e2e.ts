@@ -185,16 +185,16 @@ test.describe('Embed card selection (real DocumentEditor + machine)', () => {
     // A saved draft cursor makes placeCursor dispatch a TextSelection + a rAF re-apply.
     await setupRealEditor(page, {cursor: 3, startEditing: false})
 
-    const machineBefore = await page.evaluate(() => JSON.stringify(window.TEST_MACHINE.state()))
-    expect(machineBefore).toBe('"loaded"')
+    const machineBefore = await page.evaluate(() => window.TEST_MACHINE.matches('loaded'))
+    expect(machineBefore).toBe(true)
 
     await clickEmbedBody(page, 1)
     // Wait a few frames so the placeCursor rAF re-apply has definitely run.
     await page.waitForTimeout(300)
 
     const s = await snapshot(page)
-    const machineAfter = await page.evaluate(() => JSON.stringify(window.TEST_MACHINE.state()))
-    expect(machineAfter).toContain('editing')
+    const machineAfter = await page.evaluate(() => window.TEST_MACHINE.matches('editing'))
+    expect(machineAfter).toBe(true)
     expect(s.pm.kind, 'card selection must survive the edit-start cursor placement').toBe('NodeSelection')
     expect(s.pm.blockId).toBe('embed-pub')
     expect(s.outline).toBe(1)
