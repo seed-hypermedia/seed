@@ -1,10 +1,10 @@
 // Scaffold a co-located Markdown doc for every Onyx schema in hypermedia/*.schema.json,
 // written next to the schema as hypermedia/<name>.md. Each doc describes one
-// concept (a type) in prose; the sync step (frontend/apps/cli/src/sync-onyx.ts)
+// concept (a type) in prose; the sync step (frontend/apps/cli/src/sync-hypermedia.ts)
 // publishes it as hm://<onyx>/<name> with a `schemaDefinition` metadata field
 // linking to that schema's IPFS CID, and the app renders the schema itself
 // (shape, references) live in the document's Schema tab. After the first push,
-// `sync-onyx.ts pull` writes the doc back with block ids, and from then on the
+// `sync-hypermedia.ts pull` writes the doc back with block ids, and from then on the
 // Seed app is the editor.
 //
 // The .md files are HAND-AUTHORABLE source: an existing schemas/<name>.md is

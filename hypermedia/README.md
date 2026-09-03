@@ -133,7 +133,7 @@ validator:
 
 Every `<name>.schema.json` has a co-located `<name>.md` explaining the concept;
 narrative pages live in `site/`. This folder and the onyx site are two forms of
-the same content, kept in sync by `frontend/apps/cli/src/sync-onyx.ts`:
+the same content, kept in sync by `frontend/apps/cli/src/sync-hypermedia.ts`:
 
 - **push** verifies every schema against `schemas.lock.json`, publishes the
   schema blobs, then publishes each markdown file as a document — a **type**
@@ -146,10 +146,10 @@ the same content, kept in sync by `frontend/apps/cli/src/sync-onyx.ts`:
 
 ```sh
 cd frontend/apps/cli
-bun run src/sync-onyx.ts push --dry-run   # what would change on hyper.media
-bun run src/sync-onyx.ts push             # publish (signing key: main)
-bun run src/sync-onyx.ts pull             # bring edits made in the Seed app back into git
-bun run src/sync-onyx.ts dev              # the local editing loop (see below)
+bun run src/sync-hypermedia.ts push --dry-run   # what would change on hyper.media
+bun run src/sync-hypermedia.ts push             # publish (signing key: main)
+bun run src/sync-hypermedia.ts pull             # bring edits made in the Seed app back into git
+bun run src/sync-hypermedia.ts dev              # the local editing loop (see below)
 ```
 
 **Editing locally.** With the desktop dev app running (`./dev run-desktop`),

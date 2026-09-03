@@ -1,10 +1,10 @@
 /**
- * sync-onyx.ts — the Onyx library (hypermedia/) ⇄ its Hypermedia site.
+ * sync-hypermedia.ts — the hypermedia/ schema library ⇄ its Hypermedia site.
  *
  *   cd frontend/apps/cli
- *   bun run src/sync-onyx.ts push [--dry-run] [--server <url>] [--key <name>]
- *   bun run src/sync-onyx.ts pull [--server <url>] [--space <uid>]
- *   bun run src/sync-onyx.ts dev  [--api <url>] [--daemon <url>] [--no-push]
+ *   bun run src/sync-hypermedia.ts push [--dry-run] [--server <url>] [--key <name>]
+ *   bun run src/sync-hypermedia.ts pull [--server <url>] [--space <uid>]
+ *   bun run src/sync-hypermedia.ts dev  [--api <url>] [--daemon <url>] [--no-push]
  *
  * push: verify every hypermedia/*.schema.json against schemas.lock.json,
  *       publish the schema blobs, then import hypermedia/ as documents. A
@@ -88,8 +88,8 @@ const LOCK_PATH = resolve(SCHEMAS_DIR, 'schemas.lock.json')
 
 // ── Naming ────────────────────────────────────────────────────────────────────
 
-/** The onyx account: the space the library is published under. */
-const ONYX = 'z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
+/** The space the library is published under. */
+const SITE = 'z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
 
 /** Public doc name for a schema file basename: strip `onyx-` from primitives/meta. */
 function publicName(basename: string): string {
@@ -103,7 +103,7 @@ function basenameForPublicName(name: string): string {
 }
 
 function basenameToLockUrl(basename: string): string {
-  return `hm://${ONYX}/${publicName(basename)}`
+  return `hm://${SITE}/${publicName(basename)}`
 }
 
 function hasSchemaFile(basename: string): boolean {
@@ -189,7 +189,7 @@ function argValue(args: string[], flag: string): string | undefined {
 }
 
 /** A TYPE doc DEFINES its schema; an INSTANCE doc CONFORMS to its $type. */
-function onyxMetadataFor(schemas: SchemaSet) {
+function schemaMetadataFor(schemas: SchemaSet) {
   return (file: string, metadata: HMMetadata): HMMetadata => {
     if (file.startsWith('site/')) return metadata
     const basename = file.replace(/\.md$/, '')
@@ -222,7 +222,7 @@ async function pushTo(client: SeedClient, signer: HMSigner, account: string, dry
     layout,
     dryRun,
     log: (line) => console.log('  ' + line),
-    metadataFor: onyxMetadataFor(schemas),
+    metadataFor: schemaMetadataFor(schemas),
   })
   console.log(
     `\n${dryRun ? 'DRY RUN' : 'DONE'}: ${result.created.length} created, ${result.updated.length} updated, ${
@@ -249,10 +249,10 @@ async function push(args: string[]) {
   const key = dryRun
     ? await resolveSigningKey(keyName, {dev: false}).catch(() => null)
     : await resolveSigningKey(keyName, {dev: false})
-  const account = key?.accountId ?? argValue(args, '--space') ?? ONYX
+  const account = key?.accountId ?? argValue(args, '--space') ?? SITE
   const signer = key ? createSignerFromKey(key) : noSigner()
   console.log(
-    `Account: ${account}${account === ONYX ? ' (onyx)' : '  ! not the onyx account'}${key ? '' : '  (no key)'}`,
+    `Account: ${account}${account === SITE ? ' (the site)' : '  ! not the site account'}${key ? '' : '  (no key)'}`,
   )
   console.log(`Server:  ${serverUrl}`)
   console.log(`Mode:    ${dryRun ? 'DRY RUN' : 'PUBLISH'}\n`)
@@ -270,7 +270,7 @@ function noSigner(): HMSigner {
 
 async function pull(args: string[]) {
   const serverUrl = argValue(args, '--server') ?? 'https://hyper.media'
-  const uid = argValue(args, '--space') ?? ONYX
+  const uid = argValue(args, '--space') ?? SITE
   console.log(`Space:  hm://${uid}`)
   console.log(`Server: ${serverUrl}\n`)
 
@@ -288,7 +288,7 @@ async function pull(args: string[]) {
 // commit. Nothing reaches the network until you `push`.
 
 const DEV_DIR = resolve(SCHEMAS_DIR, '.dev')
-const DEV_MNEMONIC_FILE = resolve(DEV_DIR, 'onyx-dev.mnemonic')
+const DEV_MNEMONIC_FILE = resolve(DEV_DIR, 'dev-key.mnemonic')
 
 /** The unencrypted dev key: a mnemonic in a gitignored file, created on first use. */
 function loadOrCreateDevKey(): {keyPair: KeyPair; words: string[]; created: boolean} {
@@ -310,7 +310,7 @@ async function ensureDaemonKey(daemonUrl: string, words: string[], accountId: st
   const grpc = createGRPCClient(createGrpcWebTransport({baseUrl: daemonUrl}))
   const existing = await grpc.daemon.listKeys({})
   if (existing.keys.some((k) => k.publicKey === accountId)) return
-  const name = `onyx-dev-${accountId.slice(-6)}`
+  const name = `dev-${accountId.slice(-6)}`
   await grpc.daemon.registerKey({mnemonic: words, name})
   console.log(`Registered key "${name}" in the daemon.`)
 }
@@ -390,9 +390,9 @@ async function main() {
   if (command === 'dev') return dev(args)
   console.error(
     [
-      'usage: sync-onyx.ts push [--dry-run] [--server <url>] [--key <name>]',
-      '       sync-onyx.ts pull [--server <url>] [--space <uid>]',
-      '       sync-onyx.ts dev  [--api <url>] [--daemon <url>] [--interval <ms>] [--no-push]',
+      'usage: sync-hypermedia.ts push [--dry-run] [--server <url>] [--key <name>]',
+      '       sync-hypermedia.ts pull [--server <url>] [--space <uid>]',
+      '       sync-hypermedia.ts dev  [--api <url>] [--daemon <url>] [--interval <ms>] [--no-push]',
     ].join('\n'),
   )
   process.exit(2)

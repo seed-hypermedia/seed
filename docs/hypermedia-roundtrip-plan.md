@@ -5,7 +5,7 @@ Status: Phases 1–3 done (branch `feat/onyx-roundtrip`, based on `feat/onyx`). 
 ## The problem
 
 `hypermedia/*.md` and `hypermedia/*.schema.json` are the source of truth for the Onyx type library and its docs, and
-`frontend/apps/cli/src/sync-onyx.ts` publishes them to the onyx site. Editing markdown and JSON by hand is not how we
+`frontend/apps/cli/src/sync-hypermedia.ts` publishes them to the onyx site. Editing markdown and JSON by hand is not how we
 want to author this content. We want to edit it in the real Seed app, and have the result land back in the folder as
 markdown and JSON, so git stays the source of truth and the network stays a publication of it.
 
@@ -79,11 +79,11 @@ desktop's markdown draft write path (which is gated on exactly this work).
 
 ### Phase 3: local dev loop
 
-- `sync-onyx.ts dev`: dev key in `hypermedia/.dev/` (gitignored), registered in the local daemon over gRPC-web, push, open, poll document versions (one Query + one Resource call per tick; simpler than parsing the feed), write
+- `sync-hypermedia.ts dev`: dev key in `hypermedia/.dev/` (gitignored), registered in the local daemon over gRPC-web, push, open, poll document versions (one Query + one Resource call per tick; simpler than parsing the feed), write
   back.
 - Conflict rule for v1: while the loop runs, the app is the writer and git is where you commit. Folder edits are pushed
   on start and on demand, not watched, to avoid ping-pong.
 
 ### Phase 4: publish
 
-- `sync-onyx` uses the update-push. No other change.
+- `sync-hypermedia.ts push` uses the update-push. No other change.
