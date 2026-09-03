@@ -77,7 +77,14 @@ import {sha256} from 'multiformats/hashes/sha2'
 import {deriveKeyPairFromMnemonic, generateMnemonic, type KeyPair} from './utils/key-derivation'
 import {resolveSigningKey} from './utils/keys'
 import {createSignerFromKey} from './utils/signer'
-import {exportPath, exportSpace, importSpace, listSpaceVersions, type SpaceLayout} from './utils/space-sync'
+import {
+  exportPath,
+  exportSpace,
+  grantWriters,
+  importSpace,
+  listSpaceVersions,
+  type SpaceLayout,
+} from './utils/space-sync'
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
@@ -305,14 +312,24 @@ function loadOrCreateDevKey(): {keyPair: KeyPair; words: string[]; created: bool
   return {keyPair: deriveKeyPairFromMnemonic(words), words, created}
 }
 
-/** Make sure the daemon holds the dev key, so the app can edit as that account. */
-async function ensureDaemonKey(daemonUrl: string, words: string[], accountId: string) {
+/**
+ * Make sure the daemon holds the dev key, so the app can edit as that account.
+ * Returns every key the daemon holds (name + account id).
+ */
+async function ensureDaemonKey(
+  daemonUrl: string,
+  words: string[],
+  accountId: string,
+): Promise<Array<{name: string; publicKey: string}>> {
   const grpc = createGRPCClient(createGrpcWebTransport({baseUrl: daemonUrl}))
   const existing = await grpc.daemon.listKeys({})
-  if (existing.keys.some((k) => k.publicKey === accountId)) return
-  const name = `dev-${accountId.slice(-6)}`
-  await grpc.daemon.registerKey({mnemonic: words, name})
-  console.log(`Registered key "${name}" in the daemon.`)
+  if (!existing.keys.some((k) => k.publicKey === accountId)) {
+    const name = `dev-${accountId.slice(-6)}`
+    await grpc.daemon.registerKey({mnemonic: words, name})
+    console.log(`Registered key "${name}" in the daemon.`)
+  }
+  const keys = await grpc.daemon.listKeys({})
+  return keys.keys.map((k) => ({name: k.name, publicKey: k.publicKey}))
 }
 
 async function dev(args: string[]) {
@@ -327,8 +344,9 @@ async function dev(args: string[]) {
   console.log(`Daemon:  ${daemonUrl}`)
   console.log(`API:     ${apiUrl}\n`)
 
+  let localKeys: Array<{name: string; publicKey: string}>
   try {
-    await ensureDaemonKey(daemonUrl, words, account)
+    localKeys = await ensureDaemonKey(daemonUrl, words, account)
   } catch (err) {
     throw new Error(
       `Cannot reach the daemon at ${daemonUrl} (${
@@ -339,6 +357,9 @@ async function dev(args: string[]) {
 
   const client = createSeedClient(apiUrl)
   const signer = createSignerFromKey(keyPair)
+
+  // Every account in the app can edit the dev site, not just the dev key.
+  await grantWriters({client, signer, account, log: (line) => console.log('  ' + line)}, localKeys)
 
   if (!skipPush) {
     console.log('Pushing hypermedia/ into the local daemon...')
