@@ -37,5 +37,7 @@
         "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any"
       }
     }
-  }
+  },
+  "description": "An example third-party block type: a poll with a question and options. It extends the shared block base, exactly like a core block.",
+  "name": "Poll block (custom)"
 }

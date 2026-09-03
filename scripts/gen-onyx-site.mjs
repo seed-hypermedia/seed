@@ -1,9 +1,11 @@
 // Scaffold a co-located Markdown doc for every Onyx schema in hypermedia/*.schema.json,
-// written next to the schema as schemas/<name>.md. Each doc describes one
-// concept (a type); the sync step (frontend/apps/cli/src/sync-onyx.ts) publishes
-// it as hm://<onyx>/<name> with a `schemaDefinition` metadata field linking to
-// that schema's IPFS CID. Cross-references become hm:// links under the onyx
-// identity, so the whole library is one linked site.
+// written next to the schema as hypermedia/<name>.md. Each doc describes one
+// concept (a type) in prose; the sync step (frontend/apps/cli/src/sync-hypermedia.ts)
+// publishes it as hm://<onyx>/<name> with a `schemaDefinition` metadata field
+// linking to that schema's IPFS CID, and the app renders the schema itself
+// (shape, references) live in the document's Schema tab. After the first push,
+// `sync-hypermedia.ts pull` writes the doc back with block ids, and from then on the
+// Seed app is the editor.
 //
 // The .md files are HAND-AUTHORABLE source: an existing schemas/<name>.md is
 // left untouched (the generator only SCAFFOLDS what's missing). Pass --force to
@@ -18,7 +20,8 @@ const BASE = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
 const AUTHORITY = [
   ['onyx-', 'hyper.media'],
   ['hypermedia-', 'seed.hyper.media'],
-  ['seed-', 'seed.hyper.media'], ['example-', 'example.com'],
+  ['seed-', 'seed.hyper.media'],
+  ['example-', 'example.com'],
 ]
 const SRC = 'hypermedia'
 const OUT = 'hypermedia'
@@ -112,7 +115,8 @@ function category(name, s) {
   if (isMeta(name)) return 'a meta-schema variant'
   if (isPrimitive(name)) return 'a primitive'
   if (name.startsWith('hypermedia-')) return 'a Hypermedia Network blob schema'
-  if (name.startsWith('seed-')) return 'a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob)'
+  if (name.startsWith('seed-'))
+    return 'a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob)'
   if (name.startsWith('example-')) return 'an example schema'
   return 'a schema'
 }
@@ -192,23 +196,18 @@ for (const [name, s] of Object.entries(schemas).sort(([a], [b]) => a.localeCompa
   const cat = category(name, s)
   const desc = s.description ? s.description + '\n\n' : ''
   const summary = (s.description || `${title} — ${cat}.`).replace(/\n/g, ' ').slice(0, 160)
-  const deps = dependencies(name)
-  const depLine = deps.length ? `\n## Depends on\n\n${deps.map((d) => `- ${link(d)}`).join('\n')}\n` : ''
+  // The schema itself (shape, dependencies) is not repeated in prose: the app
+  // renders it live from the document's schemaDefinition in the Schema tab.
   const instanceNote = isInstance(s)
-    ? ''
-    : `\nThis document describes the **${name}** type — ${cat}. Its formal schema is attached (the \`schemaDefinition\` in this document's metadata), so the app can show it and create values of this type.\n`
+    ? `This is example **data** — an instance of ${
+        schemas[refToName(s.$type)] ? link(refToName(s.$type)) : '`' + refToName(s.$type) + '`'
+      }.\n`
+    : `This document describes the **${name}** type — ${cat}. Its formal schema is attached (the \`schemaDefinition\` in this document's metadata), so the app can show it and create values of this type.\n`
   const md = `---
 name: ${JSON.stringify(title)}
 summary: ${JSON.stringify(summary)}
 ---
-
-# ${title}
-
-${desc}${instanceNote}
-## Shape
-
-${shapeSection(name, s)}
-${depLine}`
+${desc}${instanceNote}`
   const out = join(OUT, `${name}.md`)
   if (!FORCE && existsSync(out)) continue // never clobber a hand-authored doc
   writeFileSync(out, md)
