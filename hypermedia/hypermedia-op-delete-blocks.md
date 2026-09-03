@@ -9,8 +9,8 @@ This document describes the **hypermedia-op-delete-blocks** type — a Hypermedi
 
 A **closed struct** with these fields: <!-- id:hVjHrQ0n -->
   - `type` _(required)_ — `string` enum: `DeleteBlocks` <!-- id:zKHm9p4w -->
-  - `blocks` _(required)_ — list of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:C3LbdbSU -->
+  - `blocks` _(required)_ — list of [string](./onyx-string.md) <!-- id:C3LbdbSU -->
 
 # Depends on <!-- id:MskatxS8 -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:_2S5kV0V -->
+- [string](./onyx-string.md) <!-- id:_2S5kV0V -->

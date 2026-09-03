@@ -7,11 +7,11 @@ This document describes the **hypermedia-block-web-embed** type — a Hypermedia
 
 # Shape <!-- id:Q5buqKEc -->
 
-**Extends** [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) with these added fields: <!-- id:smg-tBbR -->
+**Extends** [hypermedia-block-base](./hypermedia-block-base.md) with these added fields: <!-- id:smg-tBbR -->
   - `type` — `string` enum: `WebEmbed` <!-- id:c2wlVeW6 -->
-  - `link` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:-den0FTt -->
+  - `link` _(required)_ — [string](./onyx-string.md) <!-- id:-den0FTt -->
 
 # Depends on <!-- id:U9-iiqv6 -->
 
-- [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) <!-- id:aptiE36d -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:vCCkhfdX -->
+- [hypermedia-block-base](./hypermedia-block-base.md) <!-- id:aptiE36d -->
+- [string](./onyx-string.md) <!-- id:vCCkhfdX -->

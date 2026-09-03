@@ -9,10 +9,10 @@ This document describes the **seed-resource-document** type — a Seed API read-
 
 A **closed struct** with these fields: <!-- id:4vWhQD8X -->
   - `type` _(required)_ — `string` enum: `document` <!-- id:-ZUj4U6x -->
-  - `id` _(required)_ — [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:lPijxTTm -->
-  - `document` _(required)_ — [seed-document](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-document) <!-- id:HFUZ5Hqy -->
+  - `id` _(required)_ — [seed-id](./seed-id.md) <!-- id:lPijxTTm -->
+  - `document` _(required)_ — [seed-document](./seed-document.md) <!-- id:HFUZ5Hqy -->
 
 # Depends on <!-- id:FEOuuSm1 -->
 
-- [seed-document](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-document) <!-- id:9L9x-KOf -->
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:gb8yXdwT -->
+- [seed-document](./seed-document.md) <!-- id:9L9x-KOf -->
+- [seed-id](./seed-id.md) <!-- id:gb8yXdwT -->

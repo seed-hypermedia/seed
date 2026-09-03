@@ -7,17 +7,17 @@ This document describes the **hypermedia-capability** type — a Hypermedia Netw
 
 # Shape <!-- id:Z4Q_8BDH -->
 
-**Extends** [hypermedia-blob](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-blob) with these added fields: <!-- id:r1SXPido -->
+**Extends** [hypermedia-blob](./hypermedia-blob.md) with these added fields: <!-- id:r1SXPido -->
   - `type` — `string` enum: `Capability` <!-- id:SyOFox8W -->
-  - `delegate` _(required)_ — [hypermedia-principal](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-principal) <!-- id:kjRR_hac -->
-  - `audience` — [hypermedia-principal](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-principal) <!-- id:7U5hD2qS -->
-  - `path` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:1kkgb2vD -->
-  - `role` — [hypermedia-role](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-role) <!-- id:rR-UJPdL -->
-  - `label` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:vvjLBzH9 -->
+  - `delegate` _(required)_ — [hypermedia-principal](./hypermedia-principal.md) <!-- id:kjRR_hac -->
+  - `audience` — [hypermedia-principal](./hypermedia-principal.md) <!-- id:7U5hD2qS -->
+  - `path` — [string](./onyx-string.md) <!-- id:1kkgb2vD -->
+  - `role` — [hypermedia-role](./hypermedia-role.md) <!-- id:rR-UJPdL -->
+  - `label` — [string](./onyx-string.md) <!-- id:vvjLBzH9 -->
 
 # Depends on <!-- id:8jobVV8F -->
 
-- [hypermedia-blob](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-blob) <!-- id:-Km-MHD- -->
-- [hypermedia-principal](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-principal) <!-- id:3nHrzASo -->
-- [hypermedia-role](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-role) <!-- id:-FedhZti -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:C6Jjf4J4 -->
+- [hypermedia-blob](./hypermedia-blob.md) <!-- id:-Km-MHD- -->
+- [hypermedia-principal](./hypermedia-principal.md) <!-- id:3nHrzASo -->
+- [hypermedia-role](./hypermedia-role.md) <!-- id:-FedhZti -->
+- [string](./onyx-string.md) <!-- id:C6Jjf4J4 -->

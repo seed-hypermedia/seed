@@ -8,22 +8,22 @@ This document describes the **onyx-any** type — a primitive. Its formal schema
 # Shape <!-- id:B6ckZa1m -->
 
 A **union** — a value matches one of these variants: <!-- id:6EezA2oG -->
-  - [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:cWQtIR13 -->
-  - [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:8wkCTWj0 -->
-  - [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:yhTYx7Wv -->
-  - [float](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float) <!-- id:q_ivdjoq -->
-  - [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:iXK9KfV0 -->
-  - [bytes](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/bytes) <!-- id:oowqeiVG -->
-  - [link](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/link) <!-- id:5jlyKmWE -->
-  - list of [any](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any) <!-- id:HOSZE8Y1 -->
-  - map ⟨ \* : [any](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any) ⟩ <!-- id:zhX2rUxo -->
+  - [null](./onyx-null.md) <!-- id:cWQtIR13 -->
+  - [boolean](./onyx-boolean.md) <!-- id:8wkCTWj0 -->
+  - [integer](./onyx-integer.md) <!-- id:yhTYx7Wv -->
+  - [float](./onyx-float.md) <!-- id:q_ivdjoq -->
+  - [string](./onyx-string.md) <!-- id:iXK9KfV0 -->
+  - [bytes](./onyx-bytes.md) <!-- id:oowqeiVG -->
+  - [link](./onyx-link.md) <!-- id:5jlyKmWE -->
+  - list of [any](./onyx-any.md) <!-- id:HOSZE8Y1 -->
+  - map ⟨ \* : [any](./onyx-any.md) ⟩ <!-- id:zhX2rUxo -->
 
 # Depends on <!-- id:J36yzGwM -->
 
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:GtOFz5XG -->
-- [bytes](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/bytes) <!-- id:KPaOP9M- -->
-- [float](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float) <!-- id:ORak9602 -->
-- [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:8pn0Cxu_ -->
-- [link](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/link) <!-- id:w35p-zQq -->
-- [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:3eQVhAK1 -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:Wgktcf4G -->
+- [boolean](./onyx-boolean.md) <!-- id:GtOFz5XG -->
+- [bytes](./onyx-bytes.md) <!-- id:KPaOP9M- -->
+- [float](./onyx-float.md) <!-- id:ORak9602 -->
+- [integer](./onyx-integer.md) <!-- id:8pn0Cxu_ -->
+- [link](./onyx-link.md) <!-- id:w35p-zQq -->
+- [null](./onyx-null.md) <!-- id:3eQVhAK1 -->
+- [string](./onyx-string.md) <!-- id:Wgktcf4G -->

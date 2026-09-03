@@ -7,8 +7,8 @@ This document describes the **example-counts** type — an example schema. Its f
 
 # Shape <!-- id:HAIEHYTj -->
 
-An **open map** — every value: [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer). <!-- id:9Ol_g_fE -->
+An **open map** — every value: [integer](./onyx-integer.md). <!-- id:9Ol_g_fE -->
 
 # Depends on <!-- id:f6cv9Bff -->
 
-- [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:M8e80CMf -->
+- [integer](./onyx-integer.md) <!-- id:M8e80CMf -->

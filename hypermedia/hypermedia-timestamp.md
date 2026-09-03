@@ -7,8 +7,8 @@ This document describes the **hypermedia-timestamp** type — a Hypermedia Netwo
 
 # Shape <!-- id:Ttq6DOyz -->
 
-An **alias** of [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer). <!-- id:W5eiRn_4 -->
+An **alias** of [integer](./onyx-integer.md). <!-- id:W5eiRn_4 -->
 
 # Depends on <!-- id:A0S4HwL- -->
 
-- [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:scFx2aH0 -->
+- [integer](./onyx-integer.md) <!-- id:scFx2aH0 -->

@@ -10,10 +10,10 @@ This document describes the **hypermedia-document** type — a Hypermedia Networ
 # Shape <!-- id:2f5svJlU -->
 
 A **closed struct** with these fields: <!-- id:3x9xTU5x -->
-  - `metadata` — [hypermedia-metadata](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata) <!-- id:JqWmcBXD -->
-  - `content` — list of [hypermedia-block-node](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-node) <!-- id:7I3IBxKI -->
+  - `metadata` — [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:JqWmcBXD -->
+  - `content` — list of [hypermedia-block-node](./hypermedia-block-node.md) <!-- id:7I3IBxKI -->
 
 # Depends on <!-- id:S3YgMiYc -->
 
-- [hypermedia-block-node](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-node) <!-- id:4_ANAoOp -->
-- [hypermedia-metadata](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata) <!-- id:ZuflGkc7 -->
+- [hypermedia-block-node](./hypermedia-block-node.md) <!-- id:4_ANAoOp -->
+- [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:ZuflGkc7 -->

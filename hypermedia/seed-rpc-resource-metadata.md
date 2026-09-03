@@ -11,10 +11,10 @@ This document describes the **seed-rpc-resource-metadata** type — a Seed API r
 
 A **closed struct** with these fields: <!-- id:5AAU-kvD -->
   - `key` _(required)_ — `string` enum: `ResourceMetadata` <!-- id:HerqY_zj -->
-  - `input` _(required)_ — [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:1XN_xHq6 -->
-  - `output` _(required)_ — [seed-metadata-payload](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-metadata-payload) <!-- id:EGkLBWqc -->
+  - `input` _(required)_ — [seed-id](./seed-id.md) <!-- id:1XN_xHq6 -->
+  - `output` _(required)_ — [seed-metadata-payload](./seed-metadata-payload.md) <!-- id:EGkLBWqc -->
 
 # Depends on <!-- id:OV283JHj -->
 
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:_dSHDZrd -->
-- [seed-metadata-payload](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-metadata-payload) <!-- id:x5jQfnso -->
+- [seed-id](./seed-id.md) <!-- id:_dSHDZrd -->
+- [seed-metadata-payload](./seed-metadata-payload.md) <!-- id:x5jQfnso -->

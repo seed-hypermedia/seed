@@ -10,10 +10,10 @@ This document describes the **example-app-block** type — an example schema. It
 # Shape <!-- id:5oTKaFB5 -->
 
 A **union** — a value matches one of these variants: <!-- id:gD5uxIi- -->
-  - [hypermedia-block-core](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-core) <!-- id:TxopPATn -->
-  - [example-poll-block](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-poll-block) <!-- id:6LssErVh -->
+  - [hypermedia-block-core](./hypermedia-block-core.md) <!-- id:TxopPATn -->
+  - [example-poll-block](./example-poll-block.md) <!-- id:6LssErVh -->
 
 # Depends on <!-- id:ccNjEdYm -->
 
-- [example-poll-block](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-poll-block) <!-- id:wbfKb6k5 -->
-- [hypermedia-block-core](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-core) <!-- id:fORBRaGS -->
+- [example-poll-block](./example-poll-block.md) <!-- id:wbfKb6k5 -->
+- [hypermedia-block-core](./hypermedia-block-core.md) <!-- id:fORBRaGS -->

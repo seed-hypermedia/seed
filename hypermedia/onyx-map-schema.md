@@ -9,13 +9,13 @@ This document describes the **onyx-map-schema** type — a meta-schema variant. 
 
 A **closed struct** with these fields: <!-- id:tobWRH1P -->
   - `type` _(required)_ — `string` enum: `map` <!-- id:uoqTZgf3 -->
-  - `properties` — map ⟨ \* : [schema](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema) ⟩ <!-- id:X3L1FJjV -->
+  - `properties` — map ⟨ \* : [schema](./onyx-schema.md) ⟩ <!-- id:X3L1FJjV -->
   - `required` — list of `string` <!-- id:MK6hvmur -->
-  - `values` — [schema](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema) <!-- id:orZ1de-U -->
+  - `values` — [schema](./onyx-schema.md) <!-- id:orZ1de-U -->
   - `name` — `string` <!-- id:mSTdLOPL -->
   - `description` — `string` <!-- id:aWAzbwvR -->
-  - `params` — map ⟨ \* : [schema](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema) ⟩ <!-- id:6fKAJWXB -->
+  - `params` — map ⟨ \* : [schema](./onyx-schema.md) ⟩ <!-- id:6fKAJWXB -->
 
 # Depends on <!-- id:VZpWi77O -->
 
-- [schema](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema) <!-- id:0VHAY2ye -->
+- [schema](./onyx-schema.md) <!-- id:0VHAY2ye -->
