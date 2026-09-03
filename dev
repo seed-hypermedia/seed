@@ -282,6 +282,15 @@ def main():
 
         return run("pnpm desktop", args=args)
 
+    @cmd(cmds, "hm-sync", "Edit a directory of markdown in the desktop dev app (Repo HM sync). Default: seed-docs/")
+    def hm_sync(args):
+        rest = [a for a in args if a != "--"]
+        directory = rest[0] if rest and not rest[0].startswith("-") else "seed-docs"
+        flags = " ".join(rest[1:] if rest and not rest[0].startswith("-") else rest)
+        return run(
+            f"cd frontend/apps/cli && bun run src/index.ts space dev --dir {os.path.abspath(directory)} {flags}"
+        )
+
     @cmd(cmds, "run-desktop-profiler", "Run desktop app with memory profiler window.")
     def run_desktop_profiler(args):
         run("node scripts/cleanup-desktop.js")

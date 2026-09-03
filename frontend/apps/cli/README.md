@@ -513,6 +513,45 @@ Returns the decoded IPLD block data as JSON.
 
 ---
 
+## Space Commands (repo HM sync)
+
+Mirror a whole space to a directory of markdown files in a repository and back. The markdown is the lossless dialect of
+`@seed-hypermedia/client` (`blocksToMarkdown` / `parseMarkdown`): every block type, annotation, attribute and metadata
+key survives a round trip, block ids ride in trailing `<!-- id:… -->` comments, and links between documents of the space
+are written as relative file links. The repository's `seed-docs/` folder is published this way from CI.
+
+### space export
+
+```
+seed-cli space export <space> --dir <path>
+```
+
+Writes every document of the space into the directory: the home document as `index.md`, a document at `/a/b` as
+`a/b.md`, and the schema blob a document defines (`metadata.schemaDefinition`) as `<file>.schema.json`. Only files whose
+content changed are touched. `<space>` may be `self` for the signing key's own space.
+
+### space import
+
+```
+seed-cli space import <space> --dir <path> [--dry-run] [-k, --key <name>]
+```
+
+Publishes the directory into the space. Each file is diffed by block id against the current document and published as a
+change on its existing history; unchanged documents produce nothing. A file without ids is matched to the existing
+document by position. In CI, set `SEED_CLI_MNEMONIC` to sign without a stored key and use `self` as the space.
+
+### space dev
+
+```
+seed-cli space dev --dir <path> [--api <url>] [--daemon <url>] [--interval <ms>] [--no-push]
+```
+
+Edit the directory in the desktop dev app: a throwaway key is created under `<path>/.dev/` (self-ignored) and registered
+in the app's daemon, the directory is published there, and every document published in the app is written straight back
+to the directory. Nothing reaches the network. In this repository, `./dev hm-sync [dir]` runs it.
+
+---
+
 ## Account Commands
 
 All account commands live under `seed-cli account <subcommand>`.
@@ -905,8 +944,8 @@ Keys come from two sources:
 
 - **The vault** (`vault.json`) — the encrypted identity store of the Seed desktop app and daemon. The CLI auto-detects
   it (or use `--vault <path>` / `SEED_VAULT_PATH` / `seed-cli config --vault-path`), unlocks it with the secret in the
-  OS keychain (or `SEED_VAULT_KEK` on headless machines), and can sign with any identity in it. Read-only: the CLI
-  never modifies the vault.
+  OS keychain (or `SEED_VAULT_KEK` on headless machines), and can sign with any identity in it. Read-only: the CLI never
+  modifies the vault.
 - **The OS keyring** (macOS Keychain / Linux libsecret) — the legacy store, still used for keys the CLI creates itself.
 
 The vault wins when a name exists in both. `key list` shows each key's `source`. See `docs/KEYS.md` for details.

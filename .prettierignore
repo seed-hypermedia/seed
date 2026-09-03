@@ -1,0 +1,4 @@
+# Markdown mirrored to a Hypermedia space by `seed-cli space import/export`:
+# the files are the exporter's canonical form (one block per line, ids in
+# trailing comments), which prose wrapping would break.
+seed-docs/

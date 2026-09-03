@@ -150,9 +150,22 @@ describe('computeReplaceOps', () => {
 
     const replaceOps = ops.filter((o) => o.type === 'ReplaceBlock')
     expect(replaceOps).toHaveLength(0)
-    // Should still have MoveBlocks
+    // Same blocks in the same order under the same parent: nothing to move
+    // either, so an untouched document yields no ops at all.
+    expect(ops).toHaveLength(0)
+  })
+
+  test('reordered blocks produce a MoveBlocks', () => {
+    const old = [apiBlock('a', 'Paragraph', 'A'), apiBlock('b', 'Paragraph', 'B')]
+    const map = createBlocksMap(old)
+    const matched = [newBlock('b', 'Paragraph', 'B'), newBlock('a', 'Paragraph', 'A')]
+
+    const ops = computeReplaceOps(map, matched)
+
+    expect(ops.filter((o) => o.type === 'ReplaceBlock')).toHaveLength(0)
     const moveOps = ops.filter((o) => o.type === 'MoveBlocks')
-    expect(moveOps.length).toBeGreaterThanOrEqual(1)
+    expect(moveOps).toHaveLength(1)
+    expect((moveOps[0] as any).blocks).toEqual(['b', 'a'])
   })
 
   test('changed text produces ReplaceBlock', () => {
@@ -219,7 +232,12 @@ describe('computeReplaceOps', () => {
   test('nested children produce ops with correct parent', () => {
     const old = [apiBlockWithChildren('h1', 'Heading', 'Title', [apiBlock('p1', 'Paragraph', 'Old child')])]
     const map = createBlocksMap(old)
-    const matched = [newBlockWithChildren('h1', 'Heading', 'Title', [newBlock('p1', 'Paragraph', 'New child')])]
+    const matched = [
+      newBlockWithChildren('h1', 'Heading', 'Title', [
+        newBlock('p1', 'Paragraph', 'New child'),
+        newBlock('p2', 'Paragraph', 'Added child'),
+      ]),
+    ]
 
     const ops = computeReplaceOps(map, matched)
 
@@ -227,10 +245,10 @@ describe('computeReplaceOps', () => {
     const replaceOps = ops.filter((o) => o.type === 'ReplaceBlock')
     expect(replaceOps.some((o: any) => o.block.id === 'p1')).toBe(true)
 
-    // MoveBlocks for children should have parent 'h1'
+    // The children level changed (p2 is new), so its MoveBlocks has parent 'h1'
     const childMoves = ops.filter((o) => o.type === 'MoveBlocks' && (o as any).parent === 'h1')
     expect(childMoves).toHaveLength(1)
-    expect((childMoves[0] as any).blocks).toContain('p1')
+    expect((childMoves[0] as any).blocks).toEqual(['p1', 'p2'])
   })
 
   test('different annotation counts trigger ReplaceBlock', () => {
