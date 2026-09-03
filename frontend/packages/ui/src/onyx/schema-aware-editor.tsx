@@ -71,7 +71,7 @@ export function SchemaAwareEditor({
           onCancel={() => setJson(false)}
         />
       ) : (
-        <OnyxSchemaEditor schema={value} onSchema={onValue} />
+        <OnyxSchemaEditor schema={value} onSchema={onValue} hideModeToggle />
       )}
     </div>
   )

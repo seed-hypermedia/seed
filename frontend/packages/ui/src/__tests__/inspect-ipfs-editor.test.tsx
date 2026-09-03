@@ -183,7 +183,7 @@ describe('InspectIpfsPage as the blob editor', () => {
     const cid = CID.createV1(0x71, await sha256.digest(cbor.encode(schema))).toString()
     const docUrl = 'hm://z6MkOwner/world/types/character'
     const {client, published} = mount(cid, {[cid]: schema}, {editField: {docUrl, field: 'schemaDefinition'}})
-    await waitFor(() => !!container.querySelector('input[value="Stats"]'))
+    await waitFor(() => !!container.querySelector('[data-testid="schema-form"]'))
     // Opens straight into a draft; the title row says what is being edited, once.
     const bar = container.querySelector('[data-document-top-bar]')!
     expect(bar.textContent).toMatch(/Editing\s*schemaDefinition\s*of\s*Character/)
@@ -196,15 +196,9 @@ describe('InspectIpfsPage as the blob editor', () => {
     // Nothing to publish until something changes.
     expect(publish.disabled).toBe(true)
     expect(container.textContent).not.toContain('Unpublished')
-    const nameInput = container.querySelector('input[value="Stats"]') as HTMLInputElement
-    expect(nameInput).toBeTruthy()
-    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
-    await act(async () => {
-      setValue.call(nameInput, 'Stats v2')
-      nameInput.dispatchEvent(new Event('input', {bubbles: true}))
-      nameInput.dispatchEvent(new FocusEvent('focusout', {bubbles: true}))
-    })
-    await flush()
+    // A schema carries no name of its own; edit it by adding a field.
+    const addField = [...container.querySelectorAll('button')].find((b) => b.textContent?.includes('Add field'))!
+    act(() => addField.click())
     expect(publish.disabled).toBe(false)
     expect(container.querySelector('[data-testid="blob-status"]')!.textContent).toBe('Unpublished changes')
     // Publish asks for confirmation, naming the field and document.
