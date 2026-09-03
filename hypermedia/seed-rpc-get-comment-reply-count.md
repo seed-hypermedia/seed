@@ -16,4 +16,4 @@ A **closed struct** with these fields: <!-- id:YNWk_gey -->
 
 # Depends on <!-- id:ruuwrb5M -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:L1b4cqBz -->
+- [string](./onyx-string.md) <!-- id:L1b4cqBz -->

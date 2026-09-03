@@ -10,17 +10,17 @@ This document describes the **seed-domain-info** type — a Seed API read-model 
 # Shape <!-- id:ekpw-cCp -->
 
 A **closed struct** with these fields: <!-- id:xuUlh0JO -->
-  - `domain` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:0oRkcHc4 -->
-  - `lastCheck` _(required)_ — one of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) | [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:op-PJX0_ -->
-  - `status` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:-nDqsTzH -->
-  - `lastSuccess` _(required)_ — one of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) | [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:02R65FHg -->
-  - `registeredAccountUid` _(required)_ — one of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) | [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:te87btfE -->
-  - `peerId` _(required)_ — one of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) | [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:PLQslevr -->
-  - `isGateway` _(required)_ — [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:e9kFFZZK -->
-  - `lastError` _(required)_ — one of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) | [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:KicuZnnK -->
+  - `domain` _(required)_ — [string](./onyx-string.md) <!-- id:0oRkcHc4 -->
+  - `lastCheck` _(required)_ — one of [string](./onyx-string.md) | [null](./onyx-null.md) <!-- id:op-PJX0_ -->
+  - `status` _(required)_ — [string](./onyx-string.md) <!-- id:-nDqsTzH -->
+  - `lastSuccess` _(required)_ — one of [string](./onyx-string.md) | [null](./onyx-null.md) <!-- id:02R65FHg -->
+  - `registeredAccountUid` _(required)_ — one of [string](./onyx-string.md) | [null](./onyx-null.md) <!-- id:te87btfE -->
+  - `peerId` _(required)_ — one of [string](./onyx-string.md) | [null](./onyx-null.md) <!-- id:PLQslevr -->
+  - `isGateway` _(required)_ — [boolean](./onyx-boolean.md) <!-- id:e9kFFZZK -->
+  - `lastError` _(required)_ — one of [string](./onyx-string.md) | [null](./onyx-null.md) <!-- id:KicuZnnK -->
 
 # Depends on <!-- id:IX_BCuo3 -->
 
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:DyUUe03G -->
-- [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:QzHgJRnw -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:UW_sdNOt -->
+- [boolean](./onyx-boolean.md) <!-- id:DyUUe03G -->
+- [null](./onyx-null.md) <!-- id:QzHgJRnw -->
+- [string](./onyx-string.md) <!-- id:UW_sdNOt -->

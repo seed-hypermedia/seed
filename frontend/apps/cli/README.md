@@ -518,7 +518,7 @@ Returns the decoded IPLD block data as JSON.
 Mirror a whole space to a directory of markdown files in a repository and back. The markdown is the lossless dialect of
 `@seed-hypermedia/client` (`blocksToMarkdown` / `parseMarkdown`): every block type, annotation, attribute and metadata
 key survives a round trip, block ids ride in trailing `<!-- id:… -->` comments, and links between documents of the space
-are written as relative file links. The repository's `seed-docs/` folder is published this way from CI.
+are written as relative file links. The repository's `hypermedia/` folder is published this way from CI (`sync-hypermedia.ts`).
 
 ### space export
 

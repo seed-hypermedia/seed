@@ -11,11 +11,11 @@ This document describes the **seed-rpc-query** type — a Seed API read-model sc
 
 A **closed struct** with these fields: <!-- id:BqgxY2nD -->
   - `key` _(required)_ — `string` enum: `Query` <!-- id:LqFcY9h4 -->
-  - `input` _(required)_ — [hypermedia-query](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-query) <!-- id:3CteGWBj -->
-  - `output` _(required)_ — one of [seed-query-result](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-query-result) | [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:e3b637gr -->
+  - `input` _(required)_ — [hypermedia-query](./hypermedia-query.md) <!-- id:3CteGWBj -->
+  - `output` _(required)_ — one of [seed-query-result](./seed-query-result.md) | [null](./onyx-null.md) <!-- id:e3b637gr -->
 
 # Depends on <!-- id:6QyI0lnv -->
 
-- [hypermedia-query](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-query) <!-- id:vBboMmrJ -->
-- [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:BVB9w3KD -->
-- [seed-query-result](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-query-result) <!-- id:_MQGXI7B -->
+- [hypermedia-query](./hypermedia-query.md) <!-- id:vBboMmrJ -->
+- [null](./onyx-null.md) <!-- id:BVB9w3KD -->
+- [seed-query-result](./seed-query-result.md) <!-- id:_MQGXI7B -->

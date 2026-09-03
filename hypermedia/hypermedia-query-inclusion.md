@@ -8,10 +8,10 @@ This document describes the **hypermedia-query-inclusion** type — a Hypermedia
 # Shape <!-- id:dNz8ygnf -->
 
 A **closed struct** with these fields: <!-- id:6nE0LZik -->
-  - `space` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:_Oh8MBbr -->
-  - `path` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:9WR91zo6 -->
+  - `space` _(required)_ — [string](./onyx-string.md) <!-- id:_Oh8MBbr -->
+  - `path` — [string](./onyx-string.md) <!-- id:9WR91zo6 -->
   - `mode` _(required)_ — `string` enum: `Children` `AllDescendants` <!-- id:7v3c9tNP -->
 
 # Depends on <!-- id:NBioyAez -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:y2iLFCcl -->
+- [string](./onyx-string.md) <!-- id:y2iLFCcl -->

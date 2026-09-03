@@ -12,11 +12,11 @@ This document describes the **seed-rpc-search** type — a Seed API read-model s
 A **closed struct** with these fields: <!-- id:xZHVDSnU -->
   - `key` _(required)_ — `string` enum: `Search` <!-- id:jyBd_Pa7 -->
   - `input` _(required)_ — map { 11 fields } <!-- id:ngg4oBL5 -->
-  - `output` _(required)_ — [seed-search-results](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-search-results) <!-- id:OlDlHyNJ -->
+  - `output` _(required)_ — [seed-search-results](./seed-search-results.md) <!-- id:OlDlHyNJ -->
 
 # Depends on <!-- id:OUtj28Fz -->
 
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:XSL1ytom -->
-- [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:T4EMUh_q -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:pea6QrJ4 -->
-- [seed-search-results](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-search-results) <!-- id:oDACMPrv -->
+- [boolean](./onyx-boolean.md) <!-- id:XSL1ytom -->
+- [integer](./onyx-integer.md) <!-- id:T4EMUh_q -->
+- [string](./onyx-string.md) <!-- id:pea6QrJ4 -->
+- [seed-search-results](./seed-search-results.md) <!-- id:oDACMPrv -->
