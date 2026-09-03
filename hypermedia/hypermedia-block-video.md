@@ -1,7 +1,7 @@
 ---
 name: Video block
 summary: A video, referenced by a URL.
-schemaDefinition: ipfs://bafyreigj752nalxd42eyvodnw7io2yf7gotnjgharkvbgzwl3zud7kdktq
+schemaDefinition: ipfs://bafyreie6gv75ucgl5c7np6abckxhfur4ivohptz73avdcvaibtor5r3mze
 ---
 This document describes the **hypermedia-block-video** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:EYK9AnN- -->
 

@@ -1,7 +1,7 @@
 ---
 name: "Example: Address"
 summary: "A postal address: street and city (required) plus an optional postal code."
-schemaDefinition: ipfs://bafyreigumuyohvqdkfbxcnoodmf2fynhrootgifgkyhck6cwolfzmoflru
+schemaDefinition: ipfs://bafyreibywjuavvgcc7v4aewv2cfnqxzjfmd27lo6pqh23ifip3av5unxey
 ---
 This document describes the **example-address** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:zGVF-gc0 -->
 

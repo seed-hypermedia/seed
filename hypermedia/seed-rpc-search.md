@@ -1,7 +1,7 @@
 ---
 name: "RPC: Search"
 summary: "Searches the network for documents, contacts, and comments. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field type"
-schemaDefinition: ipfs://bafyreidknaifb67i6w72iexqgs65t536k773q4jypfd2x3vyamsltu3pyq
+schemaDefinition: ipfs://bafyreicnmgyjaepohvuhxlwxqbzpexnnvtuyhyfkma4dgsl5tubc736bjy
 ---
 Searches the network for documents, contacts, and comments. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:6M7UDKGx -->
 
