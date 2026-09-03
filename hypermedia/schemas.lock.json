@@ -106,16 +106,16 @@
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp": "bafyreifdp757xdc6dduixp7ldku45v7zv34jdnkavga2chz27hvlqb5lvm",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-value": "bafyreiftf7u5653uxirt47dbv3ir4h6dcmmpkc63a3jcfdkkgpdk7xhupi",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-visibility": "bafyreibjiqfz2yjylaq3zougm4pmjjachtxkfnuzuosy27mhyrxuqvnnze",
-    "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/include-schema": "bafyreihchbo7bdjrh5ytcxfoa4o5vf6eurcxsnk6idoawfa4qkv2dtiovm",
+    "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/include-schema": "bafyreiao4ihabkfnwixroz6qf3euzrb2dj3z35ivxh2rwzis6k5d43itcq",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer": "bafyreieammx4j6wazd6douaqwznnu23kp3d4nj7bhyfadyfh7j4bgcebze",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/link": "bafyreif7e4777snpct3iqfq2fdayahrt22t5rkodphhgbb4mrr6fawd2eq",
-    "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/link-schema": "bafyreiftegf3ag4kfh763ityagm5renit7k3ebc4vksxa65knvrwjiqsom",
+    "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/link-schema": "bafyreifwu6cf3vjrjel7z735kq22lcnyk6zqovjjzhqejvhuih34nruds4",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list": "bafyreiaj54f5iuh5qj5hqvdq5nzlzjbydyeq5cgjjav5zgewuhylwtiyla",
-    "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list-schema": "bafyreifrjfhsay2v4rdmvhzioxxnqjd6wfr4xr65s36cd2kzpbeukwvbqu",
+    "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list-schema": "bafyreiej7zydqngzqamxrtormknimn5to6cigodnp343g3dt5b3m6mv44m",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map": "bafyreihx27axfprby465bchmgv7g4kwoyiclofqnja3ylemya53rm4vsty",
-    "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map-schema": "bafyreihqmvqoisv3lf6pi7hbagbw36zhho46paznbuqffz6c3qjt6ftzsi",
+    "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map-schema": "bafyreifc4ipm5glg2r7rnjcsr4db63awqrnu5isnfnzfpezafba7f4mkfa",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null": "bafyreicws6ws3urqutoym62iaazpnumfj7ku6upliyrrot4j3yabmepkai",
-    "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/scalar-schema": "bafyreibma2m22xzvbbgwdzjkirhnmposgbeu4jv5v2lbzx3v6n7umhgvbu",
+    "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/scalar-schema": "bafyreielq3itovxwrcmcbc55bqcutum6e5od4h3bedkedgdcg4tyyevvae",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema": "bafyreietxvwzpko6rr3foidhxe62f2dpap7n7s6ly3af2spw7qelcfrwym",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-account-result": "bafyreif645fqgbltalunaiki3mpobkhfpawvaxcyt6jxckfsbzyfdt5u6i",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-accounts-metadata": "bafyreib2iq636rfjzbme77gaavewnyldrf4kbnecwwlkinvb42x5r3ldxy",
@@ -185,7 +185,7 @@
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-site-member": "bafyreie565bt243c5re4l3ukii23froizhyha4vryuhlmdo3wbbyozrkmm",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/sprout-resource": "bafyreie4a2f7wyerb4wxcw4wgzadhwc6mk2inevwsg2ms53gxytskmawse",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string": "bafyreib4yhhtwfe4qt5zgvv7zr632t7kvxmnuv4rckbwuazrtqktjqr4si",
-    "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/union-schema": "bafyreif3jpfqqktwxjziqwj5mue5nd5g7womhn2l7yiogr2mg42pxvqhga",
-    "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/var-schema": "bafyreigguvhao5jsjxrxlggpk7egppkwo5d3ib5ffa2d35zzt4rjnbwrty"
+    "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/union-schema": "bafyreidpyyoeymz6fkonkkfegwvvukwnamfl2dl7nrl5rksn5npqzwdvey",
+    "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/var-schema": "bafyreie3zjoickatzsf2yhillfvpk6xji2jevbbrospwmvcd7oh5kwkg2y"
   }
 }

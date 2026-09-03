@@ -1124,6 +1124,7 @@ export type OnyxIncludeSchema = {
   description?: string
   params?: {[key: string]: OnyxSchema}
   args?: {[key: string]: OnyxSchema}
+  name?: string
 }
 
 /**
@@ -1136,6 +1137,7 @@ export type OnyxLinkSchema = {
   ref?: string
   description?: string
   params?: {[key: string]: OnyxSchema}
+  name?: string
 }
 
 /**
@@ -1150,6 +1152,7 @@ export type OnyxListSchema = {
   maxItems?: number
   description?: string
   params?: {[key: string]: OnyxSchema}
+  name?: string
 }
 
 /**
@@ -1164,6 +1167,7 @@ export type OnyxMapSchema = {
   values?: OnyxSchema
   description?: string
   params?: {[key: string]: OnyxSchema}
+  name?: string
 }
 
 /**
@@ -1191,6 +1195,7 @@ export type OnyxScalarSchema = {
   maximum?: number
   description?: string
   params?: {[key: string]: OnyxSchema}
+  name?: string
 }
 
 /**
@@ -1216,6 +1221,7 @@ export type OnyxUnionSchema = {
   anyOf: OnyxSchema[]
   description?: string
   params?: {[key: string]: OnyxSchema}
+  name?: string
 }
 
 /**
@@ -1226,6 +1232,7 @@ export type OnyxUnionSchema = {
 export type OnyxVarSchema = {
   var: string
   description?: string
+  name?: string
 }
 
 /**
