@@ -21,7 +21,7 @@ import {printError, printInfo, printSuccess, printWarning} from '../output'
 import {deriveKeyPairFromMnemonic, generateMnemonic, type KeyPair} from '../utils/key-derivation'
 import {keyOptions, resolveSigningKey} from '../utils/keys'
 import {createSignerFromKey} from '../utils/signer'
-import {exportPath, exportSpace, importSpace, listSpaceVersions} from '../utils/space-sync'
+import {exportPath, exportSpace, grantWriters, importSpace, listSpaceVersions} from '../utils/space-sync'
 import {unlinkSync} from 'node:fs'
 
 function spaceUid(id: string): string {
@@ -154,14 +154,24 @@ function loadOrCreateDevKey(dir: string): {keyPair: KeyPair; words: string[]; cr
   return {keyPair: deriveKeyPairFromMnemonic(words), words, created}
 }
 
-/** Make sure the daemon holds the dev key, so the app can edit as that account. */
-async function ensureDaemonKey(daemonUrl: string, words: string[], accountId: string) {
+/**
+ * Make sure the daemon holds the dev key, so the app can edit as that account.
+ * Returns every key the daemon holds (name + account id).
+ */
+async function ensureDaemonKey(
+  daemonUrl: string,
+  words: string[],
+  accountId: string,
+): Promise<Array<{name: string; publicKey: string}>> {
   const grpc = createGRPCClient(createGrpcWebTransport({baseUrl: daemonUrl}))
   const existing = await grpc.daemon.listKeys({})
-  if (existing.keys.some((k) => k.publicKey === accountId)) return
-  const name = `dev-${accountId.slice(-6)}`
-  await grpc.daemon.registerKey({mnemonic: words, name})
-  printInfo(`Registered key "${name}" in the daemon.`)
+  if (!existing.keys.some((k) => k.publicKey === accountId)) {
+    const name = `dev-${accountId.slice(-6)}`
+    await grpc.daemon.registerKey({mnemonic: words, name})
+    printInfo(`Registered key "${name}" in the daemon.`)
+  }
+  const keys = await grpc.daemon.listKeys({})
+  return keys.keys.map((k) => ({name: k.name, publicKey: k.publicKey}))
 }
 
 async function runDevLoop(opts: {dir: string; apiUrl: string; daemonUrl: string; intervalMs: number; push: boolean}) {
@@ -171,8 +181,9 @@ async function runDevLoop(opts: {dir: string; apiUrl: string; daemonUrl: string;
   printInfo(`Daemon:  ${opts.daemonUrl}`)
   printInfo(`API:     ${opts.apiUrl}`)
 
+  let localKeys: Array<{name: string; publicKey: string}>
   try {
-    await ensureDaemonKey(opts.daemonUrl, words, account)
+    localKeys = await ensureDaemonKey(opts.daemonUrl, words, account)
   } catch (err) {
     throw new Error(
       `Cannot reach the daemon at ${opts.daemonUrl} (${(err as Error).message}). Start the desktop dev app first.`,
@@ -181,6 +192,9 @@ async function runDevLoop(opts: {dir: string; apiUrl: string; daemonUrl: string;
 
   const client = createSeedClient(opts.apiUrl)
   const signer = createSignerFromKey(keyPair)
+
+  // Every account in the app can edit the dev site, not just the dev key.
+  await grantWriters({client, signer, account, log: printInfo}, localKeys)
 
   if (opts.push) {
     printInfo('Publishing the directory into the local daemon...')

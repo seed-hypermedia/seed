@@ -18,6 +18,7 @@ import {existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSyn
 import {dirname, join, normalize, relative, resolve} from 'node:path'
 import {
   blocksToMarkdown,
+  createCapability,
   createChange,
   createChangeOps,
   createRedirectRef,
@@ -284,6 +285,32 @@ export async function listSpaceVersions(client: SeedClient, uid: string): Promis
     versions.set('/' + info.path.join('/'), info.version)
   }
   return versions
+}
+
+// ─── Writers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Give every other account WRITER access to the space, so any of the keys in
+ * the local daemon can edit the dev site in the app. Idempotent: accounts that
+ * already hold a space-wide WRITER capability are skipped.
+ */
+export async function grantWriters(
+  opts: {client: SeedClient; signer: HMSigner; account: string; log?: (line: string) => void},
+  accounts: Array<{name: string; publicKey: string}>,
+): Promise<string[]> {
+  const log = opts.log || (() => {})
+  const existing = await opts.client.request('ListCapabilities', {targetId: hmId(opts.account)})
+  const writers = new Set(
+    (existing.capabilities || []).filter((c) => c.role === 'WRITER' && !c.path).map((c) => c.delegate),
+  )
+  const granted: string[] = []
+  for (const {name, publicKey} of accounts) {
+    if (publicKey === opts.account || writers.has(publicKey)) continue
+    await opts.client.publish(await createCapability({delegateUid: publicKey, role: 'WRITER'}, opts.signer))
+    log(`writer  ${name} (${publicKey})`)
+    granted.push(publicKey)
+  }
+  return granted
 }
 
 // ─── Import ──────────────────────────────────────────────────────────────────
