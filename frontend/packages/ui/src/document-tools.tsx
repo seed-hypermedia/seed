@@ -35,7 +35,6 @@ export function DocumentTools({
   collabsCount = 0,
   metadataCount = 0,
   schemaCid = null,
-  hasDraftSchema = false,
   activeTabAction,
   existingDraft,
   currentPanel,
@@ -51,10 +50,8 @@ export function DocumentTools({
   collabsCount?: number
   /** Number of custom (non-built-in) metadata fields; shows the Attributes tab with a count when > 0. */
   metadataCount?: number
-  /** The schema CID the document defines (`schemaDefinition`); shows the Schema tab. Fully hidden otherwise. */
+  /** The schema CID the document defines (`schemaDefinition`); carried on the `schema` route. */
   schemaCid?: string | null
-  /** True when the draft carries a working schema (`schemaDraft`) — the tab shows for editing it. */
-  hasDraftSchema?: boolean
   /** Rendered immediately to the right of the active tab pill. When no tab is active, rendered as last sibling. */
   activeTabAction?: React.ReactNode
   existingDraft?: HMExistingDraft | false
@@ -276,9 +273,11 @@ export function DocumentTools({
                 },
               ]
             : []),
-          // Only for documents that define a schema; everyone else never sees it. The route
-          // carries the CID too, so CID-addressed affordances (the dev Inspect) work on the tab.
-          ...(activeTab === 'schema' || schemaCid || hasDraftSchema
+          // The schema a document defines renders above its body (DocumentSchemaSection), so the
+          // tab is not offered; it only shows while the `schema` route itself is open, so that
+          // route keeps a tab to sit on. The route carries the CID too, so CID-addressed
+          // affordances (the dev Inspect) work there.
+          ...(activeTab === 'schema'
             ? [
                 {
                   label: 'Schema',

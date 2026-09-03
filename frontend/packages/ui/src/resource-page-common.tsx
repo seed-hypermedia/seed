@@ -117,6 +117,7 @@ import {
   Quote,
   Search,
   Table as TableIcon,
+  FileCode2,
 } from 'lucide-react'
 import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
@@ -2852,7 +2853,6 @@ function DocumentBody({
             collabsCount={peopleCount}
             metadataCount={countCustomMetadataFields(metadata)}
             schemaCid={schemaDefinitionCid(metadata)}
-            hasDraftSchema={!!schemaDraftValue(metadata)}
             layoutProps={
               isMobile
                 ? undefined
@@ -3399,9 +3399,35 @@ function HomeDocumentMetadataControls({
 /** Metadata view wired to the document machine: edits stage into the draft
  * and publish through the standard publish flow. */
 /**
- * The Schema tab. A published schema (`schemaDefinition`) is browsed in place; a draft's working
- * schema (`schemaDraft`, e.g. from the Extend Schema flow) is EDITED in place — the full schema
- * editor, saved onto the draft like any metadata change, and frozen into an IPFS blob at publish.
+ * The schema a document defines, shown above its body: a published schema
+ * (`schemaDefinition`) is browsed in place; a draft's working schema (`schemaDraft`) is edited in
+ * place by anyone who can edit the document. Quiet framing — the document's own header carries the
+ * name and description, and the secondary parts (dependencies) start collapsed.
+ */
+function DocumentSchemaSection({document, canEdit}: {document: HMDocument; canEdit: boolean}) {
+  const ctx = useDocumentSelector(selectContext)
+  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  const hasDraft = !!schemaDraftValue(metadata) && canEdit
+  if (!hasDraft && !schemaDefinitionCid(metadata)) return null
+  return (
+    <section
+      className="border-border/60 bg-muted/20 mb-6 rounded-lg border px-4 pt-3 pb-4"
+      data-testid="document-schema-section"
+    >
+      <div className="text-muted-foreground mb-3 inline-flex items-center gap-1.5 text-xs font-medium">
+        <FileCode2 className="size-3.5" />
+        {hasDraft ? 'Schema (draft)' : 'Schema'}
+      </div>
+      <DocumentSchemaPage document={document} />
+    </section>
+  )
+}
+
+/**
+ * The schema view: the body of {@link DocumentSchemaSection}, and the `schema` route on its own. A
+ * published schema (`schemaDefinition`) is browsed in place; a draft's working schema
+ * (`schemaDraft`, e.g. from the Extend Schema flow) is EDITED in place — the full schema editor,
+ * saved onto the draft like any metadata change, and frozen into an IPFS blob at publish.
  */
 function DocumentSchemaPage({document}: {document: HMDocument}) {
   const ctx = useDocumentSelector(selectContext)
@@ -3416,9 +3442,8 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
   if (draftSchema && canEditCurrentRoute) {
     return (
       <div className="flex max-w-2xl flex-col gap-3" data-testid="schema-draft-editor">
-        <p className="text-muted-foreground text-sm">
-          Draft schema — it becomes an immutable IPFS object, referenced by this document, when the document is
-          published.
+        <p className="text-muted-foreground/80 text-xs">
+          Becomes an immutable IPFS object, referenced by this document, when the document is published.
         </p>
         <OnyxSchemaEditor
           schema={draftSchema}
@@ -4127,6 +4152,7 @@ function ContentViewWithOutline({
       )}
 
       <div {...mainContentProps} className={cn(mainContentProps.className, 'px-4 pt-8')}>
+        <DocumentSchemaSection document={document} canEdit={canEdit} />
         {canEdit && (
           <RequiredAttributesEditor
             conformanceSchema={conformanceSchema}
