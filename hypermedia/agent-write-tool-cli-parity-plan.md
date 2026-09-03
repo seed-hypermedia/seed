@@ -1,71 +1,71 @@
 ---
-name: "Agent write tool CLI-parity plan"
-summary: "This document plans a unified model-facing Seed write tool for Agents. The tool should expose the complete Seed write surface in a way that is easy for a…"
+name: Agent write tool CLI-parity plan
+summary: This document plans a unified model-facing Seed write tool for Agents. The tool should expose the complete Seed write surface in a way that is easy for a…
 ---
-> **STATUS (2026-08-13): the command set was built and still runs; the tool that wrapped it is gone.**
->
-> This plan predates the five verbs. There is no tool named `write` taking a `{command, ...}` envelope. There is a
-> **write verb**, `write {address, content?, options?}`, and the whole surface below lives under it: an `hm://` address
-> plus `options.action` selects the operation. The short actions (`document`, `update`, `comment`, `move`, `redirect`,
-> `delete`, `fork`) are named directly; every dotted command this plan specified (`draft.create`, `profile.update`,
-> `capability.create`, `contact.*`, …) passes through to the same signed command handlers unchanged. So the semantics,
-> the draft storage model, the markdown/JSON conversion, and the dry-run rules below are still accurate — the input
-> envelope is not.
->
-> **What else changed:** the same verb also writes `~/memory/**` files, authors `~/tools/**` lambda documents, and
-> writes `ipfs://` — hypermedia is one address family among several. Permission moved from `"write"` in
-> `AgentDefinition.tools` to the **publish grant** (`'publish'`, with the legacy write-group names mapped onto it),
-> because verbs are always on and cannot be toggled; memory and tool writes are never gated by it. Signer selection
-> through `AgentDefinition.signingKeys` is unchanged.
->
-> **Still open:** the follow-ups recorded in `write-tool-implementation-notes.md` (file:// link resolution, PDF input,
-> `document.create` force/existing-path behaviour, `--delete-blocks` parity) were never picked up.
+<!-- id:iyEGJoWJ -->
+> **STATUS (2026-08-13): the command set was built and still runs; the tool that wrapped it is gone.** <!-- id:yhnGB8ai -->
 
-This document plans a unified model-facing Seed write tool for Agents. The tool should expose the complete Seed write
-surface in a way that is easy for a model to call while staying as close as possible to the Seed CLI command model.
+\> <!-- id:gv7EeU7j -->
+  > This plan predates the five verbs. There is no tool named `write` taking a `{command, ...}` envelope. There is a <!-- id:JQ4riafa -->
+  > **write verb**, `write {address, content?, options?}`, and the whole surface below lives under it: an `hm://` address <!-- id:oCgpw462 -->
+  > plus `options.action` selects the operation. The short actions (`document`, `update`, `comment`, `move`, `redirect`, <!-- id:rSdYNwbC -->
+  > `delete`, `fork`) are named directly; every dotted command this plan specified (`draft.create`, `profile.update`, <!-- id:n8FaXvfl -->
+  > `capability.create`, `contact.*`, …) passes through to the same signed command handlers unchanged. So the semantics, <!-- id:mctQD1k0 -->
+  > the draft storage model, the markdown/JSON conversion, and the dry-run rules below are still accurate — the input <!-- id:cI3efC6r -->
+  > envelope is not. <!-- id:PaZUqVC_ -->
 
-The core idea is one tool:
+\> <!-- id:iHDAk2h1 -->
+  > **What else changed:** the same verb also writes `~/memory/**` files, authors `~/tools/**` lambda documents, and <!-- id:nysLzVqX -->
+  > writes `ipfs://` — hypermedia is one address family among several. Permission moved from `"write"` in <!-- id:jW4XmIxR -->
+  > `AgentDefinition.tools` to the **publish grant** (`'publish'`, with the legacy write-group names mapped onto it), <!-- id:AslwrfnG -->
+  > because verbs are always on and cannot be toggled; memory and tool writes are never gated by it. Signer selection <!-- id:dLbJ5ONo -->
+  > through `AgentDefinition.signingKeys` is unchanged. <!-- id:RcCbd7Ka -->
 
-```ts
+\> <!-- id:HU7LpN3u -->
+  > **Still open:** the follow-ups recorded in `write-tool-implementation-notes.md` (file:// link resolution, PDF input, <!-- id:N3lxnGQe -->
+  > `document.create` force/existing-path behaviour, `--delete-blocks` parity) were never picked up. <!-- id:GpEZpGFc -->
+
+This document plans a unified model-facing Seed write tool for Agents. The tool should expose the complete Seed write surface in a way that is easy for a model to call while staying as close as possible to the Seed CLI command model. <!-- id:p1UN98Yk -->
+
+The core idea is one tool: <!-- id:B1b17bfE -->
+
+```ts <!-- id:V5gCb4zT -->
 write(input)
 ```
 
-The tool must be implemented with the same TypeScript SDK/shared code paths used by the CLI and desktop where possible.
-It must not shell out to `seed-cli`, `npx`, or any other command-line process.
+The tool must be implemented with the same TypeScript SDK/shared code paths used by the CLI and desktop where possible. It must not shell out to `seed-cli`, `npx`, or any other command-line process. <!-- id:iqOw_DSr -->
 
-## Goals
+# Goals <!-- id:Qc2XvOS- -->
 
-- Provide one model-facing tool for all Seed writes.
-- Keep command names, option names, value shapes, and behavior as close to the CLI as possible.
-- Support the complete write surface:
-  - documents, including document changes and refs;
-  - document drafts;
-  - markdown/frontmatter conversion;
-  - JSON block input;
-  - comments;
-  - capabilities;
-  - contacts;
-  - profiles.
-- Use agent-selected server-side HM account keys for signing.
-- Let users refer to signing identities by profile name while the implementation signs with the public key account ID.
-- Keep writes auditable through durable session tool events.
-- Support `dryRun` where practical so agents can stage or preview write operations before publishing.
+- Provide one model-facing tool for all Seed writes. <!-- id:afKIsGxn -->
+- Keep command names, option names, value shapes, and behavior as close to the CLI as possible. <!-- id:CbJxchxv -->
+- Support the complete write surface: <!-- id:tzdK9yjz -->
+  - documents, including document changes and refs; <!-- id:AM0K5D-I -->
+  - document drafts; <!-- id:mnyrIjxz -->
+  - markdown/frontmatter conversion; <!-- id:R2nPXbCM -->
+  - JSON block input; <!-- id:qyO2Nyzs -->
+  - comments; <!-- id:Se1XNlO4 -->
+  - capabilities; <!-- id:CoA54P9t -->
+  - contacts; <!-- id:PDldKflX -->
+  - profiles. <!-- id:UJw5Weg0 -->
+- Use agent-selected server-side HM account keys for signing. <!-- id:lTb5vvHW -->
+- Let users refer to signing identities by profile name while the implementation signs with the public key account ID. <!-- id:Qssk4v21 -->
+- Keep writes auditable through durable session tool events. <!-- id:KZs9D4Wo -->
+- Support `dryRun` where practical so agents can stage or preview write operations before publishing. <!-- id:JNHTg7Lm -->
 
-## Non-goals
+# Non-goals <!-- id:P8DaTDdi -->
 
-- Do not invoke the CLI through `child_process`, `bun`, `npx`, temp files, or shell commands.
-- Do not use desktop-local keyrings or local CLI accounts.
-- Do not let a tool call use every account key owned by the user. The tool may only use keys selected on the agent.
-- Do not invent new protocol semantics when the CLI or TS SDK already has a meaning for an operation.
-- Do not expose low-level internals like `publish_blobs` as separate model-facing tools unless future product direction
-  explicitly calls for that.
+- Do not invoke the CLI through `child_process`, `bun`, `npx`, temp files, or shell commands. <!-- id:Ug6LA4eE -->
+- Do not use desktop-local keyrings or local CLI accounts. <!-- id:fe_KqG5e -->
+- Do not let a tool call use every account key owned by the user. The tool may only use keys selected on the agent. <!-- id:mRO5UlYz -->
+- Do not invent new protocol semantics when the CLI or TS SDK already has a meaning for an operation. <!-- id:MJYKxCwf -->
+- Do not expose low-level internals like `publish_blobs` as separate model-facing tools unless future product direction explicitly calls for that. <!-- id:8H3rHaxx -->
 
-## Guiding principle: structured CLI parity
+# Guiding principle: structured CLI parity <!-- id:0RZ8Y81X -->
 
-The model-facing API should be a structured form of CLI commands. Instead of exposing many tiny tools, the single tool
-routes by a CLI-like command name:
+The model-facing API should be a structured form of CLI commands. Instead of exposing many tiny tools, the single tool routes by a CLI-like command name: <!-- id:j1BZXzXm -->
 
-```ts
+```ts <!-- id:fo5BOt_V -->
 type WriteHypermediaInput = {
   command: WriteCommand
   signer?: SignerSelector
@@ -76,9 +76,9 @@ type WriteHypermediaInput = {
 }
 ```
 
-Example:
+Example: <!-- id:TgzUxnvp -->
 
-```ts
+```ts <!-- id:XLBnVtLt -->
 await write({
   command: 'document.create',
   signer: {profileName: 'Docs Bot'},
@@ -90,61 +90,57 @@ await write({
 })
 ```
 
-Where possible, field names inside `input` should mirror CLI option names. If the CLI uses `--location`, the tool should
-prefer `location` over a new synonym like `parent`. If the CLI uses `--edit`, the tool should prefer `edit` over
-`document`.
+Where possible, field names inside `input` should mirror CLI option names. If the CLI uses `--location`, the tool should prefer `location` over a new synonym like `parent`. If the CLI uses `--edit`, the tool should prefer `edit` over `document`. <!-- id:DIVNAm0p -->
 
-## Required CLI audit before implementation
+# Required CLI audit before implementation <!-- id:9uOya8D7 -->
 
-Before implementation, inspect the CLI and shared packages to create an exact command map. The current expected source
-locations are:
+Before implementation, inspect the CLI and shared packages to create an exact command map. The current expected source locations are: <!-- id:JzvlhZPd -->
+  - `frontend/apps/cli/src/**` <!-- id:0Dy1sk1g -->
+  - `frontend/packages/client/src/**` <!-- id:k-Muunn4 -->
+  - `frontend/packages/shared/src/**` <!-- id:dCxozboX -->
+  - `frontend/packages/editor/src/**` <!-- id:LcyfKBCp -->
 
-- `frontend/apps/cli/src/**`
-- `frontend/packages/client/src/**`
-- `frontend/packages/shared/src/**`
-- `frontend/packages/editor/src/**`
+The audit must cover: <!-- id:Y13oCzBE -->
+  - document create/update/publish behavior; <!-- id:WROqbeKK -->
+  - document refs and redirects; <!-- id:qlZTZJow -->
+  - draft create/update/get/list/delete/publish behavior; <!-- id:y_675pSF -->
+  - markdown/frontmatter parsing; <!-- id:Mc6h-1ro -->
+  - JSON block parsing; <!-- id:tLj6ahBb -->
+  - comment create/update/delete behavior; <!-- id:jC8vox5g -->
+  - capability create/grant/revoke behavior; <!-- id:YrKzTKyA -->
+  - contact create/update/delete or follow/unfollow behavior; <!-- id:wcswyjgt -->
+  - profile update/alias behavior; <!-- id:ulj9z5lW -->
+  - publish APIs used by each command; <!-- id:zl_OzGmI -->
+  - output shape and error behavior. <!-- id:tTpVSlW4 -->
 
-The audit must cover:
+The audit should populate this table with exact command names and helpers: <!-- id:0cNCDkpS -->
 
-- document create/update/publish behavior;
-- document refs and redirects;
-- draft create/update/get/list/delete/publish behavior;
-- markdown/frontmatter parsing;
-- JSON block parsing;
-- comment create/update/delete behavior;
-- capability create/grant/revoke behavior;
-- contact create/update/delete or follow/unfollow behavior;
-- profile update/alias behavior;
-- publish APIs used by each command;
-- output shape and error behavior.
+<!-- id:Kh_MCk37 -->
+| CLI command <!-- col:iSa_j6DB --> | Tool command <!-- col:Dm1B2WyW --> | CLI flags/options <!-- col:bXqB11Eq --> | Existing TS helper <!-- col:RCJg_1-j --> | Extraction needed <!-- col:nbfjm9bz --> | Notes <!-- col:S62AGZgW --> <!-- id:zsuTG8_U --> |
+| --- | --- | --- | --- | --- | --- |
+| `seed document create ...` | `document.create` | TBD | TBD | TBD | Must publish changes and refs. <!-- id:e2-pO2MF --> |
+| `seed document update ...` | `document.update` | TBD | TBD | TBD | Must support markdown conversion. <!-- id:1ezQB0Rn --> |
+| `seed document ref ...` | `document.ref` | TBD | TBD | TBD | Exact ref fields must match SDK/CLI. <!-- id:lNxk6mRT --> |
+| `seed document redirect ...` | `document.redirect` | TBD | TBD | TBD | Include only if CLI supports it. <!-- id:YRihXrCL --> |
+| `seed draft create ...` | `draft.create` | TBD | TBD | TBD | Server-side agent draft storage. <!-- id:LkBMMwlZ --> |
+| `seed draft update ...` | `draft.update` | TBD | TBD | TBD | Preserve unspecified draft fields. <!-- id:r5LChYu6 --> |
+| `seed draft get ...` | `draft.get` | TBD | TBD | TBD | Size-limited output. <!-- id:sDknlqUi --> |
+| `seed draft list ...` | `draft.list` | TBD | TBD | TBD | Account-scoped listing. <!-- id:l1l3u70o --> |
+| `seed draft delete ...` | `draft.delete` | TBD | TBD | TBD | Keep audit/status decision open. <!-- id:jHFxzelS --> |
+| `seed draft publish ...` | `draft.publish` | TBD | TBD | TBD | Publishes changes and refs. <!-- id:nI6mo7mz --> |
+| `seed comment create ...` | `comment.create` | TBD | TBD | TBD | Replies may be a flag or command. <!-- id:z2lxlt7h --> |
+| `seed comment update ...` | `comment.update` | TBD | TBD | TBD | Match comment edit semantics. <!-- id:HSHnw8fi --> |
+| `seed comment delete ...` | `comment.delete` | TBD | TBD | TBD | Match tombstone/delete semantics. <!-- id:wdZUBjkQ --> |
+| `seed capability ...` | `capability.*` | TBD | TBD | TBD | Do not invent revoke if unsupported. <!-- id:0Y1PVbg2 --> |
+| `seed contact ...` | `contact.*` | TBD | TBD | TBD | Clarify contact vs follow terminology. <!-- id:8tcbjB62 --> |
+| `seed profile update ...` | `profile.update` | TBD | `createProfile` likely | TBD | Reuse server-side profile publishing helper. <!-- id:cPVMYAAw --> |
+| `seed profile alias ...` | `profile.alias` | TBD | TBD | TBD | Include only if CLI/SDK supports it. <!-- id:IN8TbrdD --> |
 
-The audit should populate this table with exact command names and helpers:
+# Signer selection and identity context <!-- id:ldGorz11 -->
 
-| CLI command                  | Tool command        | CLI flags/options | Existing TS helper     | Extraction needed | Notes                                        |
-| ---------------------------- | ------------------- | ----------------- | ---------------------- | ----------------- | -------------------------------------------- |
-| `seed document create ...`   | `document.create`   | TBD               | TBD                    | TBD               | Must publish changes and refs.               |
-| `seed document update ...`   | `document.update`   | TBD               | TBD                    | TBD               | Must support markdown conversion.            |
-| `seed document ref ...`      | `document.ref`      | TBD               | TBD                    | TBD               | Exact ref fields must match SDK/CLI.         |
-| `seed document redirect ...` | `document.redirect` | TBD               | TBD                    | TBD               | Include only if CLI supports it.             |
-| `seed draft create ...`      | `draft.create`      | TBD               | TBD                    | TBD               | Server-side agent draft storage.             |
-| `seed draft update ...`      | `draft.update`      | TBD               | TBD                    | TBD               | Preserve unspecified draft fields.           |
-| `seed draft get ...`         | `draft.get`         | TBD               | TBD                    | TBD               | Size-limited output.                         |
-| `seed draft list ...`        | `draft.list`        | TBD               | TBD                    | TBD               | Account-scoped listing.                      |
-| `seed draft delete ...`      | `draft.delete`      | TBD               | TBD                    | TBD               | Keep audit/status decision open.             |
-| `seed draft publish ...`     | `draft.publish`     | TBD               | TBD                    | TBD               | Publishes changes and refs.                  |
-| `seed comment create ...`    | `comment.create`    | TBD               | TBD                    | TBD               | Replies may be a flag or command.            |
-| `seed comment update ...`    | `comment.update`    | TBD               | TBD                    | TBD               | Match comment edit semantics.                |
-| `seed comment delete ...`    | `comment.delete`    | TBD               | TBD                    | TBD               | Match tombstone/delete semantics.            |
-| `seed capability ...`        | `capability.*`      | TBD               | TBD                    | TBD               | Do not invent revoke if unsupported.         |
-| `seed contact ...`           | `contact.*`         | TBD               | TBD                    | TBD               | Clarify contact vs follow terminology.       |
-| `seed profile update ...`    | `profile.update`    | TBD               | `createProfile` likely | TBD               | Reuse server-side profile publishing helper. |
-| `seed profile alias ...`     | `profile.alias`     | TBD               | TBD                    | TBD               | Include only if CLI/SDK supports it.         |
+Agents already allow each agent definition to select multiple server-side HM account keys: <!-- id:EWjLirIZ -->
 
-## Signer selection and identity context
-
-Agents already allow each agent definition to select multiple server-side HM account keys:
-
-```ts
+```ts <!-- id:g9jRNrWH -->
 type AgentDefinition = {
   tools?: string[]
   signingKey?: string // legacy single-key field
@@ -152,28 +148,26 @@ type AgentDefinition = {
 }
 ```
 
-The write tool may only use identities selected in `signingKeys`, falling back to legacy `signingKey` for old agents.
+The write tool may only use identities selected in `signingKeys`, falling back to legacy `signingKey` for old agents. <!-- id:cEHVSFP5 -->
 
-Model-facing signer selector:
+Model-facing signer selector: <!-- id:sh75YvIj -->
 
-```ts
+```ts <!-- id:IE6Jg3IW -->
 type SignerSelector = {profileName: string} | {publicKey: string}
 ```
 
-Resolution rules:
+Resolution rules: <!-- id:VP6blaIX -->
+  1. If `publicKey` is supplied, it must match the public key/account ID of one selected signing identity. <!-- id:lh2nn6bO -->
+  2. If `profileName` is supplied, it must exactly match one selected identity label. <!-- id:MjMZWLB- -->
+  3. If no signer is supplied and exactly one identity is selected, use that identity. <!-- id:RdxwL7xT -->
+  4. If no signer is supplied and multiple identities are selected, return a structured error asking for a signer. <!-- id:VWAHRWFN -->
+  5. If a profile name matches more than one selected identity, return a structured ambiguity error and list matching public keys. <!-- id:-Ee9wZwb -->
+  6. Never resolve a signer outside the selected signing identities. <!-- id:-Nm4jwxb -->
+  7. Never return or log private key material. <!-- id:seXhnssh -->
 
-1. If `publicKey` is supplied, it must match the public key/account ID of one selected signing identity.
-2. If `profileName` is supplied, it must exactly match one selected identity label.
-3. If no signer is supplied and exactly one identity is selected, use that identity.
-4. If no signer is supplied and multiple identities are selected, return a structured error asking for a signer.
-5. If a profile name matches more than one selected identity, return a structured ambiguity error and list matching
-   public keys.
-6. Never resolve a signer outside the selected signing identities.
-7. Never return or log private key material.
+When write tools are enabled, append selected identities to the agent system prompt: <!-- id:p5oUiGMW -->
 
-When write tools are enabled, append selected identities to the agent system prompt:
-
-```xml
+```xml <!-- id:umqFu5SN -->
 <available_signing_identities>
 [
   {
@@ -184,33 +178,31 @@ When write tools are enabled, append selected identities to the agent system pro
 </available_signing_identities>
 ```
 
-Prompt guidance should say:
+Prompt guidance should say: <!-- id:q6ifdnU_ -->
+  > Use `write` for Seed write operations. Users may refer to signing identities by profile name. Signing uses the public <!-- id:FcQy7_lI -->
+  > key account ID. If a requested identity is ambiguous, ask for clarification or use the public key. <!-- id:k0KyQg6B -->
 
-> Use `write` for Seed write operations. Users may refer to signing identities by profile name. Signing uses the public
-> key account ID. If a requested identity is ambiguous, ask for clarification or use the public key.
+# Tool registration and permissions <!-- id:Sa1MIiRz -->
 
-## Tool registration and permissions
+Supported Seed tool names should include: <!-- id:t-cdvhj1 -->
 
-Supported Seed tool names should include:
-
-```ts
+```ts <!-- id:S-vZIIEi -->
 'read'
 'write'
 ```
 
-Permission behavior:
+Permission behavior: <!-- id:SC-MuURI -->
+  - Legacy agents with `tools` omitted keep the old default: `read` only. <!-- id:3eDRBqp8 -->
+  - `write` is never enabled by default. <!-- id:kHgzp_8L -->
+  - The desktop Tools tab should expose a separate toggle for `write`. <!-- id:gsFieNJu -->
+  - The write tool should be callable only when the agent definition includes `write`. <!-- id:F7WA2gRH -->
+  - Even when enabled, write operations requiring signatures should fail clearly if no signing identities are selected. <!-- id:HG2VtSu5 -->
 
-- Legacy agents with `tools` omitted keep the old default: `read` only.
-- `write` is never enabled by default.
-- The desktop Tools tab should expose a separate toggle for `write`.
-- The write tool should be callable only when the agent definition includes `write`.
-- Even when enabled, write operations requiring signatures should fail clearly if no signing identities are selected.
+# Proposed command set <!-- id:_rdFf85s -->
 
-## Proposed command set
+Exact names should be finalized after the CLI audit. The initial target set is: <!-- id:f6oJkYvV -->
 
-Exact names should be finalized after the CLI audit. The initial target set is:
-
-```ts
+```ts <!-- id:ftwrJPSr -->
 type WriteCommand =
   // Drafts
   | 'draft.create'
@@ -245,14 +237,13 @@ type WriteCommand =
   | 'profile.alias'
 ```
 
-If the CLI uses materially different words, prefer the CLI names unless they are too ambiguous for model use. In that
-case, document the intentional mismatch in the command map.
+If the CLI uses materially different words, prefer the CLI names unless they are too ambiguous for model use. In that case, document the intentional mismatch in the command map. <!-- id:cIcke5YG -->
 
-## Common input envelope
+# Common input envelope <!-- id:zdguVK2n -->
 
-Every write command should use the same outer envelope:
+Every write command should use the same outer envelope: <!-- id:X6ldIgO9 -->
 
-```ts
+```ts <!-- id:USdr_QS4 -->
 type WriteHypermediaInput = {
   command: WriteCommand
   signer?: SignerSelector
@@ -263,20 +254,19 @@ type WriteHypermediaInput = {
 }
 ```
 
-Field meanings:
+Field meanings: <!-- id:TyO4ArBR -->
+  - `command`: CLI-like command name. <!-- id:xGQSAZNr -->
+  - `signer`: selected profile name or public key. <!-- id:zd7jyY_e -->
+  - `server`: optional publish/resolve server override if CLI supports this. Otherwise omit or reject. <!-- id:TqDe2-0r -->
+  - `dev`: optional dev server flag if CLI supports this. <!-- id:I0-gFEML -->
+  - `dryRun`: validate and prepare the write without publishing blobs or mutating server state. <!-- id:7PTm0kQC -->
+  - `input`: command-specific options, named to match CLI flags. <!-- id:qZUg7cVp -->
 
-- `command`: CLI-like command name.
-- `signer`: selected profile name or public key.
-- `server`: optional publish/resolve server override if CLI supports this. Otherwise omit or reject.
-- `dev`: optional dev server flag if CLI supports this.
-- `dryRun`: validate and prepare the write without publishing blobs or mutating server state.
-- `input`: command-specific options, named to match CLI flags.
+# Common output envelope <!-- id:DuB3TQxl -->
 
-## Common output envelope
+The tool should return structured output instead of CLI prose: <!-- id:F3TySdf- -->
 
-The tool should return structured output instead of CLI prose:
-
-```ts
+```ts <!-- id:dEomI9f3 -->
 type WriteHypermediaResult = {
   type: 'hypermedia_write_result'
   command: WriteCommand
@@ -303,9 +293,9 @@ type WriteHypermediaResult = {
 }
 ```
 
-Expected domain errors should return structured errors when possible:
+Expected domain errors should return structured errors when possible: <!-- id:REayCuAD -->
 
-```ts
+```ts <!-- id:rnwrxWkN -->
 type WriteHypermediaError = {
   type: 'hypermedia_write_error'
   command?: WriteCommand
@@ -314,30 +304,29 @@ type WriteHypermediaError = {
 }
 ```
 
-Unexpected implementation failures can still surface as tool execution errors, but common user/model errors should be
-machine-readable.
+Unexpected implementation failures can still surface as tool execution errors, but common user/model errors should be machine-readable. <!-- id:HUVJ5Wsw -->
 
-## Markdown and document content conversion
+# Markdown and document content conversion <!-- id:5rXEwHZS -->
 
-Document writes and drafts must support CLI-equivalent markdown conversion.
+Document writes and drafts must support CLI-equivalent markdown conversion. <!-- id:hAmDtx0p -->
 
-Supported content formats:
+Supported content formats: <!-- id:Yr5J-S6j -->
 
-```ts
+```ts <!-- id:iZDhUOYh -->
 type DocumentContentFormat = 'markdown' | 'json'
 ```
 
-Possible future formats, only if the CLI path is safely extractable:
+Possible future formats, only if the CLI path is safely extractable: <!-- id:vFUygJpe -->
 
-```ts
+```ts <!-- id:9IopdAtN -->
 type FutureDocumentContentFormat = 'pdf'
 ```
 
-### Markdown input
+## Markdown input <!-- id:07bpLjnT -->
 
-Example:
+Example: <!-- id:L_XFQUG_ -->
 
-```ts
+```ts <!-- id:McKwGK1U -->
 {
   command: 'document.create',
   signer: {profileName: 'Docs Bot'},
@@ -349,10 +338,9 @@ Example:
 }
 ```
 
-Markdown conversion must support the same frontmatter fields as the CLI. The exact list must be confirmed in the CLI
-audit. Expected fields include:
+Markdown conversion must support the same frontmatter fields as the CLI. The exact list must be confirmed in the CLI audit. Expected fields include: <!-- id:jMGgqAVg -->
 
-```yaml
+```yaml <!-- id:_uZznF5n -->
 ---
 name: My Document Title
 summary: A short summary
@@ -367,28 +355,27 @@ layout: Seed/Default
 ---
 ```
 
-The parser should produce:
+The parser should produce: <!-- id:njk5k8R3 -->
 
-```ts
+```ts <!-- id:hFFtPUsK -->
 type ParsedDocumentContent = {
   metadata: HMMetadata
   blocks: HMBlockNode[]
 }
 ```
 
-Open questions to answer during audit:
+Open questions to answer during audit: <!-- id:Sqb1Zskh -->
+  - Does frontmatter `name` override the first Markdown heading? <!-- id:be7BQtPV -->
+  - If no frontmatter name exists, does the first heading become metadata name? <!-- id:3_BJ_ONO -->
+  - Are unsupported frontmatter keys preserved, ignored, or rejected? <!-- id:s5EfgYIm -->
+  - Are images uploaded/imported during markdown conversion, or are existing URLs required? <!-- id:Mr-XIAag -->
+  - Does CLI normalize headings or block IDs in a specific way? <!-- id:e7dgQ_jx -->
 
-- Does frontmatter `name` override the first Markdown heading?
-- If no frontmatter name exists, does the first heading become metadata name?
-- Are unsupported frontmatter keys preserved, ignored, or rejected?
-- Are images uploaded/imported during markdown conversion, or are existing URLs required?
-- Does CLI normalize headings or block IDs in a specific way?
+## JSON block input <!-- id:eAnPGeH7 -->
 
-### JSON block input
+The tool should also support JSON block input for CLI parity and advanced users: <!-- id:4s0VYPIp -->
 
-The tool should also support JSON block input for CLI parity and advanced users:
-
-```ts
+```ts <!-- id:TXzfYLxk -->
 {
   command: 'document.create',
   input: {
@@ -399,25 +386,23 @@ The tool should also support JSON block input for CLI parity and advanced users:
 }
 ```
 
-It should accept either:
+It should accept either: <!-- id:Z4zukhrE -->
+  - already-parsed JSON values; or <!-- id:LMzHESzr -->
+  - a string containing JSON, if the CLI accepts JSON file content. <!-- id:QuL4OyOh -->
 
-- already-parsed JSON values; or
-- a string containing JSON, if the CLI accepts JSON file content.
+Validation must ensure the result is a valid HM document block tree. <!-- id:K1RWYnc5 -->
 
-Validation must ensure the result is a valid HM document block tree.
+## Shared conversion module <!-- id:aE2JJ6EP -->
 
-### Shared conversion module
+If markdown/frontmatter conversion currently lives inside CLI command handlers, extract it to a shared module used by both CLI and Agents. Preferred destination after audit: <!-- id:8YONStPL -->
 
-If markdown/frontmatter conversion currently lives inside CLI command handlers, extract it to a shared module used by
-both CLI and Agents. Preferred destination after audit:
-
-```text
+```text <!-- id:GdO4V4k6 -->
 frontend/packages/client/src/document-content.ts
 ```
 
-Possible exports:
+Possible exports: <!-- id:Hxen8UqK -->
 
-```ts
+```ts <!-- id:K0cDmw8Q -->
 export type ParsedDocumentContent = {
   metadata: HMMetadata
   blocks: HMBlockNode[]
@@ -430,29 +415,27 @@ export function parseDocumentContent(input: {
 }): ParsedDocumentContent
 ```
 
-Agents should depend on this shared module, not on CLI command files.
+Agents should depend on this shared module, not on CLI command files. <!-- id:r5Hwumbr -->
 
-## Draft mode
+# Draft mode <!-- id:10Q08v9E -->
 
-The write tool must support document draft workflows equivalent to the CLI draft model.
+The write tool must support document draft workflows equivalent to the CLI draft model. <!-- id:rrMYBXSh -->
 
-Important product decision: agent drafts should be server-side drafts owned by the Agents service, not desktop-local CLI
-or app draft files.
+Important product decision: agent drafts should be server-side drafts owned by the Agents service, not desktop-local CLI or app draft files. <!-- id:Ei_0_i-b -->
 
-Rationale:
+Rationale: <!-- id:hTlKCdPD -->
+  - Agents may run on a remote server. <!-- id:27Rw-7XB -->
+  - The desktop draft directory is local to a user machine. <!-- id:GEeVv8V9 -->
+  - Agent sessions need durable replay and continuity on the server. <!-- id:c7ESyDmX -->
+  - Drafts created by an agent should be available to future agent runs against the same server. <!-- id:BIEkChD6 -->
 
-- Agents may run on a remote server.
-- The desktop draft directory is local to a user machine.
-- Agent sessions need durable replay and continuity on the server.
-- Drafts created by an agent should be available to future agent runs against the same server.
+This is semantic CLI parity, not storage parity. <!-- id:GmxBiP5M -->
 
-This is semantic CLI parity, not storage parity.
+## Draft storage <!-- id:ojBy5Ihd -->
 
-### Draft storage
+Add an Agents service table similar to: <!-- id:OgTEmVqU -->
 
-Add an Agents service table similar to:
-
-```sql
+```sql <!-- id:Lq9q3R90 -->
 CREATE TABLE agent_drafts (
   id TEXT PRIMARY KEY,
   account_id TEXT NOT NULL,
@@ -475,28 +458,27 @@ CREATE TABLE agent_drafts (
 );
 ```
 
-Index recommendations:
+Index recommendations: <!-- id:RgVV3xmC -->
 
-```sql
+```sql <!-- id:9g2pqbN_ -->
 CREATE INDEX agent_drafts_account_updated_idx ON agent_drafts(account_id, updated_at DESC);
 CREATE INDEX agent_drafts_agent_updated_idx ON agent_drafts(account_id, agent_id, updated_at DESC);
 CREATE INDEX agent_drafts_status_idx ON agent_drafts(account_id, status);
 ```
 
-`status` values:
+`status` values: <!-- id:srQODa0V -->
 
-```ts
+```ts <!-- id:jG1zytS- -->
 type DraftStatus = 'idle' | 'published' | 'deleted'
 ```
 
-A hard delete can still be implemented, but retaining `published` and `deleted` statuses is useful for auditability and
-session continuity.
+A hard delete can still be implemented, but retaining `published` and `deleted` statuses is useful for auditability and session continuity. <!-- id:pEyGEpJg -->
 
-### `draft.create`
+## `draft.create` <!-- id:q8FYnoTC -->
 
-Tool input:
+Tool input: <!-- id:6XNLi5BN -->
 
-```ts
+```ts <!-- id:ZCpwdEs8 -->
 {
   command: 'draft.create',
   signer?: SignerSelector,
@@ -513,23 +495,21 @@ Tool input:
 }
 ```
 
-Behavior:
+Behavior: <!-- id:jMN107bF -->
+  - Parse markdown/frontmatter or JSON blocks. <!-- id:qrSIxx74 -->
+  - Store parsed content and metadata in `agent_drafts`. <!-- id:pk86RqIq -->
+  - Store routing metadata: <!-- id:2tW9bK09 -->
+    - `edit` for updating an existing document; <!-- id:4AFlyuh8 -->
+    - `location` for creating under a parent/location; <!-- id:RLP_FXlM -->
+    - `path` or equivalent CLI field; <!-- id:aNnPO2LR -->
+    - `visibility`. <!-- id:pB2CatJZ -->
+  - Do not publish blobs. <!-- id:AX62-5Fp -->
+  - If `signer` is supplied, store the selected signer secret name as the intended publishing account. <!-- id:VRlQJXtF -->
+  - If `signer` is omitted, allow draft creation but require/resolve signer at publish time unless CLI semantics require a key earlier. <!-- id:dIXgoXEx -->
 
-- Parse markdown/frontmatter or JSON blocks.
-- Store parsed content and metadata in `agent_drafts`.
-- Store routing metadata:
-  - `edit` for updating an existing document;
-  - `location` for creating under a parent/location;
-  - `path` or equivalent CLI field;
-  - `visibility`.
-- Do not publish blobs.
-- If `signer` is supplied, store the selected signer secret name as the intended publishing account.
-- If `signer` is omitted, allow draft creation but require/resolve signer at publish time unless CLI semantics require a
-  key earlier.
+Output: <!-- id:GyR6C_OF -->
 
-Output:
-
-```ts
+```ts <!-- id:h8bTUAmN -->
 {
   type: 'hypermedia_write_result',
   command: 'draft.create',
@@ -538,11 +518,11 @@ Output:
 }
 ```
 
-### `draft.update`
+## `draft.update` <!-- id:HOjAqC6S -->
 
-Tool input:
+Tool input: <!-- id:QJpZ6KwX -->
 
-```ts
+```ts <!-- id:3z3No196 -->
 {
   command: 'draft.update',
   input: {
@@ -559,19 +539,18 @@ Tool input:
 }
 ```
 
-Behavior:
+Behavior: <!-- id:CghJUd1v -->
+  - Load an existing account-owned draft. <!-- id:8ly9bhGr -->
+  - Modify content and/or routing metadata. <!-- id:Ir5D2GEv -->
+  - Preserve unspecified fields. <!-- id:R_U0iI9G -->
+  - Treat explicit `null` as clearing optional fields where CLI semantics allow clearing. <!-- id:TTvw91AU -->
+  - Update `updated_at`. <!-- id:SbvY_VRX -->
 
-- Load an existing account-owned draft.
-- Modify content and/or routing metadata.
-- Preserve unspecified fields.
-- Treat explicit `null` as clearing optional fields where CLI semantics allow clearing.
-- Update `updated_at`.
+## `draft.get` <!-- id:2sTwKkno -->
 
-### `draft.get`
+Tool input: <!-- id:wnEnzkSo -->
 
-Tool input:
-
-```ts
+```ts <!-- id:dIpLp7qL -->
 {
   command: 'draft.get',
   input: {
@@ -581,19 +560,17 @@ Tool input:
 }
 ```
 
-Behavior:
+Behavior: <!-- id:KegJpW9B -->
+  - Return draft metadata and content. <!-- id:jyS_m0I0 -->
+  - If `format: 'json'`, return blocks and metadata. <!-- id:neA4WgTT -->
+  - If `format: 'markdown'`, return markdown only if there is a shared block-to-markdown converter matching CLI behavior. Otherwise return JSON and a warning. <!-- id:R7Mfd6X7 -->
+  - Bound output size. Large drafts should return metadata plus a truncation warning. <!-- id:BrvZkYNz -->
 
-- Return draft metadata and content.
-- If `format: 'json'`, return blocks and metadata.
-- If `format: 'markdown'`, return markdown only if there is a shared block-to-markdown converter matching CLI behavior.
-  Otherwise return JSON and a warning.
-- Bound output size. Large drafts should return metadata plus a truncation warning.
+## `draft.list` <!-- id:3t8t8P6g -->
 
-### `draft.list`
+Tool input: <!-- id:NuWFDTc1 -->
 
-Tool input:
-
-```ts
+```ts <!-- id:BKC1M_0T -->
 {
   command: 'draft.list',
   input?: {
@@ -603,17 +580,16 @@ Tool input:
 }
 ```
 
-Behavior:
+Behavior: <!-- id:AWifC0EG -->
+  - List account-owned drafts. <!-- id:8WyXvq8B -->
+  - Prefer current agent drafts first if `agent_id` is stored. <!-- id:M1JQE1yB -->
+  - Include title, status, routing fields, updated time, published target/version if present. <!-- id:MVdvvatt -->
 
-- List account-owned drafts.
-- Prefer current agent drafts first if `agent_id` is stored.
-- Include title, status, routing fields, updated time, published target/version if present.
+## `draft.delete` <!-- id:Jzdpfi0h -->
 
-### `draft.delete`
+Tool input: <!-- id:HreMm6Mk -->
 
-Tool input:
-
-```ts
+```ts <!-- id:B-6dtBRh -->
 {
   command: 'draft.delete',
   input: {
@@ -622,17 +598,16 @@ Tool input:
 }
 ```
 
-Behavior:
+Behavior: <!-- id:SA8OTt6c -->
+  - Mark the draft deleted or hard-delete depending on final product choice. <!-- id:7ia1mPxA -->
+  - Return a structured result. <!-- id:7cD0OQbu -->
+  - Do not contact the HM server. <!-- id:j_37rFIg -->
 
-- Mark the draft deleted or hard-delete depending on final product choice.
-- Return a structured result.
-- Do not contact the HM server.
+## `draft.publish` <!-- id:gfxoZlWo -->
 
-### `draft.publish`
+Tool input: <!-- id:X08UygzK -->
 
-Tool input:
-
-```ts
+```ts <!-- id:7s-UZnvo -->
 {
   command: 'draft.publish',
   signer?: SignerSelector,
@@ -643,25 +618,24 @@ Tool input:
 }
 ```
 
-Behavior:
+Behavior: <!-- id:hQdKQpbe -->
+  - Load an account-owned draft. <!-- id:NtDl78PN -->
+  - Resolve signer from request, stored intended signer, or selected identity defaults. <!-- id:xcyTZ8FU -->
+  - Publish as: <!-- id:QsSefyD1 -->
+    - update if `edit` is set; <!-- id:j6f4pCS0 -->
+    - child/location create if `location` is set; <!-- id:-iRlFqXm -->
+    - root document create otherwise. <!-- id:jUhKOBxM -->
+  - Publish document changes and refs. <!-- id:KhVqLocN -->
+  - Mark draft as published with `published_at`, `published_id`, and `published_version`. <!-- id:QVWGfWgT -->
+  - Return canonical HM ID/URL/version. <!-- id:81D3lZfw -->
 
-- Load an account-owned draft.
-- Resolve signer from request, stored intended signer, or selected identity defaults.
-- Publish as:
-  - update if `edit` is set;
-  - child/location create if `location` is set;
-  - root document create otherwise.
-- Publish document changes and refs.
-- Mark draft as published with `published_at`, `published_id`, and `published_version`.
-- Return canonical HM ID/URL/version.
+# Documents: changes and refs <!-- id:_qzfGvxh -->
 
-## Documents: changes and refs
+Document commands must publish both document changes and refs where CLI semantics require both. <!-- id:k4ye6V7F -->
 
-Document commands must publish both document changes and refs where CLI semantics require both.
+All direct document publish commands should use one internal helper also used by `draft.publish`: <!-- id:Uu4oSvge -->
 
-All direct document publish commands should use one internal helper also used by `draft.publish`:
-
-```ts
+```ts <!-- id:E5mqI9aZ -->
 async function publishDocumentFromParsedContent(input: {
   client: SeedClient
   signer: ResolvedSigner
@@ -675,21 +649,20 @@ async function publishDocumentFromParsedContent(input: {
 }): Promise<DocumentPublishResult>
 ```
 
-Responsibilities:
+Responsibilities: <!-- id:XWLd57CE -->
+  1. Resolve `edit` or `location` HM IDs. <!-- id:r_FMxYhq -->
+  2. Determine whether the operation is a genesis/create, child create, or update. <!-- id:ETe_O68k -->
+  3. Create the correct document change blobs. <!-- id:Xvyyp6-P -->
+  4. Sign changes with the selected server-side HM key. <!-- id:LSNHZyPB -->
+  5. Create or update refs as the CLI would. <!-- id:nmT2TDmX -->
+  6. Publish all required blobs to the configured HM server. <!-- id:peNccdkc -->
+  7. Return canonical ID, version, refs, and CIDs. <!-- id:sh0jUvrZ -->
 
-1. Resolve `edit` or `location` HM IDs.
-2. Determine whether the operation is a genesis/create, child create, or update.
-3. Create the correct document change blobs.
-4. Sign changes with the selected server-side HM key.
-5. Create or update refs as the CLI would.
-6. Publish all required blobs to the configured HM server.
-7. Return canonical ID, version, refs, and CIDs.
+## `document.create` <!-- id:SvTNUMAW -->
 
-### `document.create`
+Tool input: <!-- id:P1evfv7j -->
 
-Tool input:
-
-```ts
+```ts <!-- id:L44O7-wO -->
 {
   command: 'document.create',
   signer?: SignerSelector,
@@ -705,18 +678,17 @@ Tool input:
 }
 ```
 
-Behavior:
+Behavior: <!-- id:8rdE8jn4 -->
+  - Parse content. <!-- id:CgnxUG23 -->
+  - If `location` is set, create under that location according to CLI semantics. <!-- id:v7Rg2ZiI -->
+  - If `location` is omitted, create a root/top-level document according to CLI semantics. <!-- id:i5Lwxrpx -->
+  - Publish changes and refs. <!-- id:jXl1SMHD -->
 
-- Parse content.
-- If `location` is set, create under that location according to CLI semantics.
-- If `location` is omitted, create a root/top-level document according to CLI semantics.
-- Publish changes and refs.
+## `document.update` <!-- id:wOFDdnxz -->
 
-### `document.update`
+Tool input: <!-- id:K_05KpGL -->
 
-Tool input:
-
-```ts
+```ts <!-- id:sHCWpnh9 -->
 {
   command: 'document.update',
   signer?: SignerSelector,
@@ -732,18 +704,17 @@ Tool input:
 }
 ```
 
-Behavior:
+Behavior: <!-- id:zynrdCS6 -->
+  - Resolve the document named by `edit`. <!-- id:6LvZuAUU -->
+  - If `expectedVersion` is supplied and current latest version differs, return a structured conflict error. <!-- id:PetUbBoi -->
+  - Parse content. <!-- id:hIXPXvsP -->
+  - Publish changes and refs. <!-- id:TArmTMfY -->
 
-- Resolve the document named by `edit`.
-- If `expectedVersion` is supplied and current latest version differs, return a structured conflict error.
-- Parse content.
-- Publish changes and refs.
+## `document.ref` <!-- id:5wgEiAok -->
 
-### `document.ref`
+Tool input must mirror the exact CLI/SDK ref structure. A provisional shape: <!-- id:PGLmJyss -->
 
-Tool input must mirror the exact CLI/SDK ref structure. A provisional shape:
-
-```ts
+```ts <!-- id:-SRVO1pW -->
 {
   command: 'document.ref',
   signer?: SignerSelector,
@@ -758,17 +729,16 @@ Tool input must mirror the exact CLI/SDK ref structure. A provisional shape:
 }
 ```
 
-Behavior:
+Behavior: <!-- id:OanVQ5tH -->
+  - Create a version ref exactly as the CLI does. <!-- id:tG-a3QAG -->
+  - Publish the ref blob. <!-- id:ytgZWEHd -->
+  - Return ref CID and target version. <!-- id:R0gUH4ZM -->
 
-- Create a version ref exactly as the CLI does.
-- Publish the ref blob.
-- Return ref CID and target version.
+## `document.redirect` <!-- id:XSj9gvy9 -->
 
-### `document.redirect`
+Include only if supported by CLI/SDK. Provisional shape: <!-- id:OG9QRbHy -->
 
-Include only if supported by CLI/SDK. Provisional shape:
-
-```ts
+```ts <!-- id:1P7QoWyv -->
 {
   command: 'document.redirect',
   signer?: SignerSelector,
@@ -782,29 +752,27 @@ Include only if supported by CLI/SDK. Provisional shape:
 }
 ```
 
-Behavior:
+Behavior: <!-- id:p6r_PPBW -->
+  - Create a redirect ref exactly as the CLI does. <!-- id:MM2hIzvI -->
+  - Publish the ref blob. <!-- id:fpWu6NiC -->
 
-- Create a redirect ref exactly as the CLI does.
-- Publish the ref blob.
+# Comments <!-- id:zUbXn2nP -->
 
-## Comments
+Commands should mirror the CLI after audit. Initial expected commands: <!-- id:aFuo9RJ7 -->
 
-Commands should mirror the CLI after audit. Initial expected commands:
-
-```ts
+```ts <!-- id:zP85taku -->
 'comment.create'
 'comment.update'
 'comment.delete'
 ```
 
-Potential reply support should follow CLI naming. If CLI uses `comment create --reply-to`, do not add a separate
-`comment.reply` command unless it materially improves model use. Prefer CLI parity.
+Potential reply support should follow CLI naming. If CLI uses `comment create --reply-to`, do not add a separate `comment.reply` command unless it materially improves model use. Prefer CLI parity. <!-- id:vH_ZiT_T -->
 
-### `comment.create`
+## `comment.create` <!-- id:Mh5LqKPh -->
 
-Provisional input:
+Provisional input: <!-- id:7HV-ZZhe -->
 
-```ts
+```ts <!-- id:O3KdC5lU -->
 {
   command: 'comment.create',
   signer?: SignerSelector,
@@ -818,9 +786,9 @@ Provisional input:
 }
 ```
 
-### `comment.update`
+## `comment.update` <!-- id:GDCOE3T9 -->
 
-```ts
+```ts <!-- id:xyXxtsMQ -->
 {
   command: 'comment.update',
   signer?: SignerSelector,
@@ -832,9 +800,9 @@ Provisional input:
 }
 ```
 
-### `comment.delete`
+## `comment.delete` <!-- id:1DmGqnmq -->
 
-```ts
+```ts <!-- id:2EXjdlI0 -->
 {
   command: 'comment.delete',
   signer?: SignerSelector,
@@ -844,24 +812,22 @@ Provisional input:
 }
 ```
 
-Implementation should use or extract shared helpers from the TS client/comment modules. It must preserve CLI semantics
-for comment IDs, replies, tombstones, and block targets.
+Implementation should use or extract shared helpers from the TS client/comment modules. It must preserve CLI semantics for comment IDs, replies, tombstones, and block targets. <!-- id:zx-7b_LT -->
 
-## Capabilities
+# Capabilities <!-- id:NcYzRrQ2 -->
 
-The write tool must support capability writes. Do not invent revoke/delete behavior if the CLI or protocol does not
-support it; the audit must determine exact semantics.
+The write tool must support capability writes. Do not invent revoke/delete behavior if the CLI or protocol does not support it; the audit must determine exact semantics. <!-- id:783oRuHy -->
 
-Initial expected commands:
+Initial expected commands: <!-- id:IS8upJox -->
 
-```ts
+```ts <!-- id:Vb2OrkXm -->
 'capability.grant'
 'capability.revoke'
 ```
 
-Provisional grant input:
+Provisional grant input: <!-- id:9kIlgMMY -->
 
-```ts
+```ts <!-- id:ZFCKwMQC -->
 {
   command: 'capability.grant',
   signer?: SignerSelector,
@@ -876,29 +842,27 @@ Provisional grant input:
 }
 ```
 
-Open questions:
+Open questions: <!-- id:qKBDj99a -->
+  - What role names does the CLI expose? <!-- id:oFb9crlm -->
+  - Are capabilities path-scoped, document-scoped, or account-scoped in the CLI? <!-- id:rzZFNGNC -->
+  - Is revoke implemented as a new blob, a tombstone, a ref, or not supported? <!-- id:ACXq-RMv -->
+  - Are capabilities published to the same server with normal blob publishing? <!-- id:c72GXpFp -->
 
-- What role names does the CLI expose?
-- Are capabilities path-scoped, document-scoped, or account-scoped in the CLI?
-- Is revoke implemented as a new blob, a tombstone, a ref, or not supported?
-- Are capabilities published to the same server with normal blob publishing?
+# Contacts <!-- id:Tny4xeLb -->
 
-## Contacts
+The write tool must support contact writes. Exact command names should match the CLI. The CLI may use words like `contact`, `follow`, or `unfollow`; choose parity after audit. <!-- id:sgfJDv4n -->
 
-The write tool must support contact writes. Exact command names should match the CLI. The CLI may use words like
-`contact`, `follow`, or `unfollow`; choose parity after audit.
+Initial expected commands: <!-- id:lRc59pca -->
 
-Initial expected commands:
-
-```ts
+```ts <!-- id:XzEymG1x -->
 'contact.create'
 'contact.update'
 'contact.delete'
 ```
 
-Provisional create/update input:
+Provisional create/update input: <!-- id:WFdNtwfy -->
 
-```ts
+```ts <!-- id:WYt07Y2- -->
 {
   command: 'contact.create',
   signer?: SignerSelector,
@@ -911,7 +875,7 @@ Provisional create/update input:
 }
 ```
 
-```ts
+```ts <!-- id:TADlCU1c -->
 {
   command: 'contact.update',
   signer?: SignerSelector,
@@ -924,7 +888,7 @@ Provisional create/update input:
 }
 ```
 
-```ts
+```ts <!-- id:ayM_uqqY -->
 {
   command: 'contact.delete',
   signer?: SignerSelector,
@@ -934,30 +898,29 @@ Provisional create/update input:
 }
 ```
 
-Open questions:
+Open questions: <!-- id:ARRCVKIk -->
+  - Does the CLI distinguish following an account from creating a contact blob? <!-- id:z5KCdZJM -->
+  - Are local subscriptions involved, or only published contact blobs? <!-- id:3daatp3P -->
+  - Does delete mean tombstone, replacement, or local removal? <!-- id:lFzi3ekW -->
 
-- Does the CLI distinguish following an account from creating a contact blob?
-- Are local subscriptions involved, or only published contact blobs?
-- Does delete mean tombstone, replacement, or local removal?
+# Profiles <!-- id:nFtVHgw0 -->
 
-## Profiles
+Profiles are both a standalone write domain and part of account management. <!-- id:zI7vFumy -->
 
-Profiles are both a standalone write domain and part of account management.
+Expected commands: <!-- id:2KgNwYX4 -->
 
-Expected commands:
-
-```ts
+```ts <!-- id:HRsT-hgN -->
 'profile.update'
 'profile.alias'
 ```
 
-`profile.alias` should only be included if the CLI/SDK supports profile aliases.
+`profile.alias` should only be included if the CLI/SDK supports profile aliases. <!-- id:DSKkyWvT -->
 
-### `profile.update`
+## `profile.update` <!-- id:jLSL9IzO -->
 
-Input:
+Input: <!-- id:qjRctKu3 -->
 
-```ts
+```ts <!-- id:X3bkMeaK -->
 {
   command: 'profile.update',
   signer?: SignerSelector,
@@ -969,19 +932,17 @@ Input:
 }
 ```
 
-Behavior:
+Behavior: <!-- id:VQ_gspIR -->
+  - Resolve signer. <!-- id:jZQ9EV2Z -->
+  - Create a profile blob with the selected key. <!-- id:f8UWSeS6 -->
+  - Publish it to the configured HM server. <!-- id:QDZmxcL9 -->
+  - If the signer corresponds to a managed server-side key and `name` changes, update secret metadata label so the UI and future prompt context use the new profile name. <!-- id:Q5CP4v8B -->
 
-- Resolve signer.
-- Create a profile blob with the selected key.
-- Publish it to the configured HM server.
-- If the signer corresponds to a managed server-side key and `name` changes, update secret metadata label so the UI and
-  future prompt context use the new profile name.
+## `profile.alias` <!-- id:3-xDguNb -->
 
-### `profile.alias`
+Provisional input: <!-- id:1DPZYc2o -->
 
-Provisional input:
-
-```ts
+```ts <!-- id:CsNvIChe -->
 {
   command: 'profile.alias',
   signer?: SignerSelector,
@@ -991,61 +952,57 @@ Provisional input:
 }
 ```
 
-Finalize only after CLI audit.
+Finalize only after CLI audit. <!-- id:btKsMt8Z -->
 
-## Dry-run semantics
+# Dry-run semantics <!-- id:uEaAU5GN -->
 
-`dryRun: true` should be supported for as many commands as possible.
+`dryRun: true` should be supported for as many commands as possible. <!-- id:JCO1ZSue -->
 
-Dry-run should:
+Dry-run should: <!-- id:UA5JI-QH -->
+  - validate input; <!-- id:foSBGNbG -->
+  - resolve signer; <!-- id:P5o8TtZV -->
+  - resolve targets where safe; <!-- id:z1Mdlz0Q -->
+  - parse markdown/frontmatter; <!-- id:1MHml_7W -->
+  - prepare blobs or preview data; <!-- id:qolYuyYD -->
+  - return planned CIDs/targets/warnings where possible; <!-- id:lY5nd6_k -->
+  - not call the HM server publish endpoint; <!-- id:NiFjEVD7 -->
+  - not mutate local draft state except for explicitly local draft commands where dry-run means preview only. <!-- id:dLdgp7fL -->
 
-- validate input;
-- resolve signer;
-- resolve targets where safe;
-- parse markdown/frontmatter;
-- prepare blobs or preview data;
-- return planned CIDs/targets/warnings where possible;
-- not call the HM server publish endpoint;
-- not mutate local draft state except for explicitly local draft commands where dry-run means preview only.
+For draft commands: <!-- id:zhHRFoDB -->
+  - `draft.create` with `dryRun` should parse and validate but not insert a row. <!-- id:H5pZ-j5O -->
+  - `draft.update` with `dryRun` should preview changed fields but not update the row. <!-- id:4C_VDqBt -->
+  - `draft.delete` with `dryRun` should confirm that the draft exists but not delete it. <!-- id:oBTK3Kw5 -->
+  - `draft.publish` with `dryRun` should prepare publish data but not publish or mark the draft published. <!-- id:yV2lINCX -->
 
-For draft commands:
+If a command cannot faithfully dry-run in v1, it should return a structured error or warning rather than pretending. <!-- id:VzwAG-1- -->
 
-- `draft.create` with `dryRun` should parse and validate but not insert a row.
-- `draft.update` with `dryRun` should preview changed fields but not update the row.
-- `draft.delete` with `dryRun` should confirm that the draft exists but not delete it.
-- `draft.publish` with `dryRun` should prepare publish data but not publish or mark the draft published.
+# Validation and limits <!-- id:Pj8261SV -->
 
-If a command cannot faithfully dry-run in v1, it should return a structured error or warning rather than pretending.
+All tool input is an external boundary and must be validated there. <!-- id:9Zryu9wf -->
 
-## Validation and limits
+Recommended limits: <!-- id:tkdAqhai -->
+  - command string: known command only; <!-- id:i7dII46j -->
+  - signer profile/public key: bounded string length; <!-- id:_Ulj4nW4 -->
+  - markdown content: bounded, e.g. 256 KiB initially; <!-- id:jHbu7LEj -->
+  - JSON blocks: bounded by JSON size and normalized block count; <!-- id:mB-Ab0NN -->
+  - metadata: bounded by encoded byte size; <!-- id:g2a3RrVF -->
+  - draft list limit: bounded, e.g. max 100; <!-- id:ahCWNxOt -->
+  - path/name: bounded and validated according to CLI rules; <!-- id:Zc-AHTWL -->
+  - server URL: only HTTP/HTTPS if overrides are allowed. <!-- id:mgcyhkgE -->
 
-All tool input is an external boundary and must be validated there.
+Avoid repeating defensive normalization in deep helper functions. Normalize at the tool boundary, then pass typed values internally. <!-- id:pMB2E2zQ -->
 
-Recommended limits:
+# Internal architecture <!-- id:9nhXPCwK -->
 
-- command string: known command only;
-- signer profile/public key: bounded string length;
-- markdown content: bounded, e.g. 256 KiB initially;
-- JSON blocks: bounded by JSON size and normalized block count;
-- metadata: bounded by encoded byte size;
-- draft list limit: bounded, e.g. max 100;
-- path/name: bounded and validated according to CLI rules;
-- server URL: only HTTP/HTTPS if overrides are allowed.
+Add a dedicated implementation module to keep `api-service.ts` from becoming too large: <!-- id:GKQizxzf -->
 
-Avoid repeating defensive normalization in deep helper functions. Normalize at the tool boundary, then pass typed values
-internally.
-
-## Internal architecture
-
-Add a dedicated implementation module to keep `api-service.ts` from becoming too large:
-
-```text
+```text <!-- id:3Y3sGFW2 -->
 agents/src/write-tool.ts
 ```
 
-Possible exports:
+Possible exports: <!-- id:YZoOMBrL -->
 
-```ts
+```ts <!-- id:0TUcdwcw -->
 export type WriteToolContext = {
   db: Database
   accountId: string
@@ -1057,19 +1014,19 @@ export type WriteToolContext = {
 export function createWriteHypermediaPiTool(context: WriteToolContext): PiToolDefinition
 ```
 
-If implementation becomes too large, split by domain only when it improves ownership:
+If implementation becomes too large, split by domain only when it improves ownership: <!-- id:M1vkZAz2 -->
 
-```text
+```text <!-- id:i_8sYgSB -->
 agents/src/write-tool.ts
 agents/src/write-tool-documents.ts
 agents/src/write-tool-identity.ts
 ```
 
-Start minimal and avoid many tiny modules.
+Start minimal and avoid many tiny modules. <!-- id:A6IYnusT -->
 
-Core flow:
+Core flow: <!-- id:5A4qApxQ -->
 
-```ts
+```ts <!-- id:riUmiGPA -->
 async function executeWriteTool(context: WriteToolContext, rawInput: unknown) {
   const input = normalizeWriteInput(rawInput)
 
@@ -1090,14 +1047,13 @@ async function executeWriteTool(context: WriteToolContext, rawInput: unknown) {
 }
 ```
 
-## Shared signing helpers
+# Shared signing helpers <!-- id:bzG5Nqda -->
 
-Create shared server-side helpers for agent signing identities. These can live near the write tool or in
-`api-service.ts` until they need reuse.
+Create shared server-side helpers for agent signing identities. These can live near the write tool or in `api-service.ts` until they need reuse. <!-- id:evM75B0y -->
 
-Suggested types:
+Suggested types: <!-- id:_4V6N1NN -->
 
-```ts
+```ts <!-- id:DxANGklo -->
 type AgentSigningIdentityMetadata = {
   secretName: string
   profileName: string
@@ -1109,88 +1065,79 @@ type ResolvedAgentSigner = AgentSigningIdentityMetadata & {
 }
 ```
 
-Suggested functions:
+Suggested functions: <!-- id:ohGt7Tur -->
 
-```ts
+```ts <!-- id:FiDYDjHM -->
 listAgentSigningIdentityMetadata(db, accountId, allowedSecretNames): AgentSigningIdentityMetadata[]
 resolveWriteSigner(db, accountId, allowedSecretNames, selector): ResolvedAgentSigner
 loadSigningIdentityKeyPair(db, accountId, secretName): NobleKeyPair
 ```
 
-These helpers should:
+These helpers should: <!-- id:K3_yZlJZ -->
+  - filter by account ID; <!-- id:ch16Ek7- -->
+  - filter by selected secret names; <!-- id:PhGNaSYp -->
+  - verify `metadata.kind === 'hm-account-key'`; <!-- id:eTchD6WK -->
+  - use metadata `accountId` as public key; <!-- id:PtoGxmel -->
+  - use metadata `label` as profile name; <!-- id:dQXx-xz- -->
+  - decrypt the seed only after the signer is resolved; <!-- id:HBN10mOA -->
+  - never return raw seed values. <!-- id:QkJDA3pN -->
 
-- filter by account ID;
-- filter by selected secret names;
-- verify `metadata.kind === 'hm-account-key'`;
-- use metadata `accountId` as public key;
-- use metadata `label` as profile name;
-- decrypt the seed only after the signer is resolved;
-- never return raw seed values.
+# Publish client <!-- id:iYzb-L37 -->
 
-## Publish client
+Use the TypeScript SDK/shared client: <!-- id:GLIcLRHa -->
 
-Use the TypeScript SDK/shared client:
-
-```ts
+```ts <!-- id:UBWGFjhl -->
 createSeedClient(hmServerUrl)
 ```
 
-Use shared blob/document/comment/capability/contact/profile helpers from the packages used by CLI. If CLI-only logic is
-needed, extract it to a shared package first.
+Use shared blob/document/comment/capability/contact/profile helpers from the packages used by CLI. If CLI-only logic is needed, extract it to a shared package first. <!-- id:C5wbCd2L -->
 
-The Agents service should not depend on CLI command handlers directly.
+The Agents service should not depend on CLI command handlers directly. <!-- id:yxhi3La1 -->
 
-## UI changes
+# UI changes <!-- id:75FzS37r -->
 
-The Tools tab should expose:
+The Tools tab should expose: <!-- id:icb-H-b9 -->
+  - `read` toggle; <!-- id:SxFXb_n8 -->
+  - `write` toggle; <!-- id:oroJ8jJ4 -->
+  - multi-select signing identities; <!-- id:XNF7sH_K -->
+  - profile names and public keys for each identity; <!-- id:9hEFuE9R -->
+  - inline new-account panel. <!-- id:1n_z1nJP -->
 
-- `read` toggle;
-- `write` toggle;
-- multi-select signing identities;
-- profile names and public keys for each identity;
-- inline new-account panel.
+When `write` is enabled without selected signing identities, the UI should show a warning. The server should still enforce this at runtime. <!-- id:NfG6ZrbX -->
 
-When `write` is enabled without selected signing identities, the UI should show a warning. The server should still
-enforce this at runtime.
+Manage accounts should continue supporting: <!-- id:4vCEG64p -->
+  - create server-side HM account key; <!-- id:LTdICOLQ -->
+  - publish profile blob on create; <!-- id:2zDIeOAC -->
+  - rename/publish profile blob; <!-- id:4hsZzns4 -->
+  - delete key. <!-- id:I4F7ybiX -->
 
-Manage accounts should continue supporting:
+Recommended safety improvement: block deleting a signing identity if any agent still references it in `signingKeys`, or remove it from affected agents in the same transaction. Blocking is safer for v1. <!-- id:VqFNNSeE -->
 
-- create server-side HM account key;
-- publish profile blob on create;
-- rename/publish profile blob;
-- delete key.
+# Tool result rendering <!-- id:gTjk1E5f -->
 
-Recommended safety improvement: block deleting a signing identity if any agent still references it in `signingKeys`, or
-remove it from affected agents in the same transaction. Blocking is safer for v1.
+Initial fallback JSON rendering is acceptable, but write results should receive first-class rendering soon because users need trust and visibility around writes. <!-- id:RjXFKdYN -->
 
-## Tool result rendering
+Render fields: <!-- id:A1pPyrQe -->
+  - command; <!-- id:l1Wel5ga -->
+  - signer profile name; <!-- id:6BevX2jU -->
+  - signer public key; <!-- id:9B0yZYOi -->
+  - dry-run status; <!-- id:g5_JzuG9 -->
+  - draft ID; <!-- id:Bf49RBEL -->
+  - document ID/version/URL; <!-- id:taMBa6m6 -->
+  - comment/capability/contact/profile IDs; <!-- id:xM2G4Oqz -->
+  - published CIDs; <!-- id:iPK0wq60 -->
+  - warnings/errors. <!-- id:2BzdehMH -->
 
-Initial fallback JSON rendering is acceptable, but write results should receive first-class rendering soon because users
-need trust and visibility around writes.
+# Auditability <!-- id:nSy5VqK2 -->
 
-Render fields:
+For v1, durable session events are the audit log: <!-- id:Et_cSsYL -->
+  - tool call input; <!-- id:ArdFW6qj -->
+  - tool result output; <!-- id:v2946V5G -->
+  - errors. <!-- id:QM0y0oEX -->
 
-- command;
-- signer profile name;
-- signer public key;
-- dry-run status;
-- draft ID;
-- document ID/version/URL;
-- comment/capability/contact/profile IDs;
-- published CIDs;
-- warnings/errors.
+Longer-term, consider a dedicated table: <!-- id:SMVBLgv1 -->
 
-## Auditability
-
-For v1, durable session events are the audit log:
-
-- tool call input;
-- tool result output;
-- errors.
-
-Longer-term, consider a dedicated table:
-
-```sql
+```sql <!-- id:_6doJv5P -->
 CREATE TABLE agent_write_audit (
   id TEXT PRIMARY KEY,
   account_id TEXT NOT NULL,
@@ -1205,177 +1152,172 @@ CREATE TABLE agent_write_audit (
 );
 ```
 
-A dedicated audit table is not required for initial implementation if durable session events are reliable and easy to
-inspect.
+A dedicated audit table is not required for initial implementation if durable session events are reliable and easy to inspect. <!-- id:0ju9iyj8 -->
 
-## Implementation phases
+# Implementation phases <!-- id:i-GuJiEa -->
 
-### Phase 0: CLI audit
+## Phase 0: CLI audit <!-- id:L6nHezTc -->
 
-- Read CLI command implementations for all write domains.
-- Fill in the command map table in this document.
-- Identify reusable TS SDK/shared helpers.
-- Identify CLI-local logic that must be extracted.
-- Confirm exact command names and field names.
+- Read CLI command implementations for all write domains. <!-- id:zCbEGS8t -->
+- Fill in the command map table in this document. <!-- id:9AbEUPY6 -->
+- Identify reusable TS SDK/shared helpers. <!-- id:Osg5F1TK -->
+- Identify CLI-local logic that must be extracted. <!-- id:ll5ytx0J -->
+- Confirm exact command names and field names. <!-- id:r_rQkisJ -->
 
-### Phase 1: content conversion extraction
+## Phase 1: content conversion extraction <!-- id:q7E7FcdU -->
 
-- Extract markdown/frontmatter and JSON block parsing into a shared module if needed.
-- Update CLI to use the shared module if it was previously command-local.
-- Add unit tests for markdown/frontmatter conversion.
+- Extract markdown/frontmatter and JSON block parsing into a shared module if needed. <!-- id:cywpRdMU -->
+- Update CLI to use the shared module if it was previously command-local. <!-- id:oY8Ri7e6 -->
+- Add unit tests for markdown/frontmatter conversion. <!-- id:0Soz_07Z -->
 
-### Phase 2: tool shell and signer resolution
+## Phase 2: tool shell and signer resolution <!-- id:D2gRM9_p -->
 
-- Add `write` as a known Seed tool.
-- Register the Pi tool when enabled on the agent.
-- Add signer resolution by profile name/public key.
-- Return structured errors for missing, ambiguous, or unselected signers.
-- Add tests for signer resolution and permission enforcement.
+- Add `write` as a known Seed tool. <!-- id:H6N4lbnH -->
+- Register the Pi tool when enabled on the agent. <!-- id:8TQFqExc -->
+- Add signer resolution by profile name/public key. <!-- id:hku-s5dv -->
+- Return structured errors for missing, ambiguous, or unselected signers. <!-- id:9Jsj6AbN -->
+- Add tests for signer resolution and permission enforcement. <!-- id:i_FRJDPI -->
 
-### Phase 3: server-side drafts
+## Phase 3: server-side drafts <!-- id:dCxmHxFd -->
 
-- Add `agent_drafts` persistence.
-- Implement:
-  - `draft.create`
-  - `draft.update`
-  - `draft.get`
-  - `draft.list`
-  - `draft.delete`
-- Support `dryRun` for draft commands.
-- Add account-scoping tests.
+- Add `agent_drafts` persistence. <!-- id:7YmHBJNi -->
+- Implement: <!-- id:F2_hyPIY -->
+  - `draft.create` <!-- id:fjzj4ySi -->
+  - `draft.update` <!-- id:oJOOlpq4 -->
+  - `draft.get` <!-- id:-sp9MJXL -->
+  - `draft.list` <!-- id:wATvR9yR -->
+  - `draft.delete` <!-- id:n7rgccZE -->
+- Support `dryRun` for draft commands. <!-- id:F84Eb7lJ -->
+- Add account-scoping tests. <!-- id:VLsmXHaf -->
 
-### Phase 4: profiles
+## Phase 4: profiles <!-- id:tz-obea4 -->
 
-- Refactor existing profile publishing helper for reuse.
-- Implement `profile.update`.
-- Implement `profile.alias` only if CLI/SDK supports it.
-- Ensure profile name changes update managed signing identity metadata.
+- Refactor existing profile publishing helper for reuse. <!-- id:ATtm9A0X -->
+- Implement `profile.update`. <!-- id:drp0j7js -->
+- Implement `profile.alias` only if CLI/SDK supports it. <!-- id:1IgAJQ0- -->
+- Ensure profile name changes update managed signing identity metadata. <!-- id:dB53pcKx -->
 
-### Phase 5: documents and draft publish
+## Phase 5: documents and draft publish <!-- id:HtAbRVnA -->
 
-- Implement shared `publishDocumentFromParsedContent`.
-- Implement:
-  - `document.create`
-  - `document.update`
-  - `document.ref`
-  - `document.redirect` if supported
-  - `draft.publish`
-- Ensure document create/update publishes both changes and refs.
-- Support markdown and JSON input.
-- Support conflict detection via `expectedVersion` if CLI/SDK semantics allow it.
+- Implement shared `publishDocumentFromParsedContent`. <!-- id:nh5gciVw -->
+- Implement: <!-- id:RUy2uHty -->
+  - `document.create` <!-- id:5AsyVlY8 -->
+  - `document.update` <!-- id:lpjorDTZ -->
+  - `document.ref` <!-- id:QXM7tlse -->
+  - `document.redirect` if supported <!-- id:_w-cTxeQ -->
+  - `draft.publish` <!-- id:dFOTXGYG -->
+- Ensure document create/update publishes both changes and refs. <!-- id:psoS0RSj -->
+- Support markdown and JSON input. <!-- id:5f05R-5G -->
+- Support conflict detection via `expectedVersion` if CLI/SDK semantics allow it. <!-- id:8_Jc12lW -->
 
-### Phase 6: comments
+## Phase 6: comments <!-- id:Z-C4V0t0 -->
 
-- Implement comment create/update/delete using shared SDK helpers.
-- Preserve reply semantics according to CLI.
-- Support CLI-equivalent content parsing for comments.
+- Implement comment create/update/delete using shared SDK helpers. <!-- id:wvgU8xrm -->
+- Preserve reply semantics according to CLI. <!-- id:Mh-9SZCt -->
+- Support CLI-equivalent content parsing for comments. <!-- id:VrbxYntZ -->
 
-### Phase 7: capabilities and contacts
+## Phase 7: capabilities and contacts <!-- id:VSxNxyGc -->
 
-- Implement capability commands exactly as supported by CLI/SDK.
-- Implement contact commands exactly as supported by CLI/SDK.
-- Document any unsupported revoke/delete semantics instead of inventing behavior.
+- Implement capability commands exactly as supported by CLI/SDK. <!-- id:KUAeoQZe -->
+- Implement contact commands exactly as supported by CLI/SDK. <!-- id:K6iM9S4P -->
+- Document any unsupported revoke/delete semantics instead of inventing behavior. <!-- id:sra7DbIA -->
 
-### Phase 8: UI rendering and safety hardening
+## Phase 8: UI rendering and safety hardening <!-- id:0kZTOqpv -->
 
-- Add rich write tool result rendering.
-- Add warnings in Tools tab for write tool without selected signers.
-- Add deletion guard for signing identities used by agents.
-- Consider optional dry-run-first policy.
-- Consider dedicated write audit table.
+- Add rich write tool result rendering. <!-- id:toro7oBJ -->
+- Add warnings in Tools tab for write tool without selected signers. <!-- id:vhiE6UT6 -->
+- Add deletion guard for signing identities used by agents. <!-- id:Tzrrp5rU -->
+- Consider optional dry-run-first policy. <!-- id:f_imzkn0 -->
+- Consider dedicated write audit table. <!-- id:ktOx1qQ9 -->
 
-## Test plan
+# Test plan <!-- id:gzqepxQL -->
 
-### CLI parity tests
+## CLI parity tests <!-- id:q2R1wc0A -->
 
-After the audit, write tests that verify equivalent inputs produce equivalent SDK calls or blobs for CLI and tool shared
-helpers where practical.
+After the audit, write tests that verify equivalent inputs produce equivalent SDK calls or blobs for CLI and tool shared helpers where practical. <!-- id:XxdNUGvP -->
 
-### Content conversion tests
+## Content conversion tests <!-- id:k8jSyykG -->
 
-- Markdown heading becomes title if CLI does that.
-- Frontmatter metadata is parsed correctly.
-- Frontmatter overrides or merges according to CLI semantics.
-- JSON block input validates.
-- Invalid JSON returns a clear error.
-- Oversized content is rejected.
+- Markdown heading becomes title if CLI does that. <!-- id:BKvuZp8a -->
+- Frontmatter metadata is parsed correctly. <!-- id:2aWsE3mj -->
+- Frontmatter overrides or merges according to CLI semantics. <!-- id:1-F8EODW -->
+- JSON block input validates. <!-- id:mZLs0IrG -->
+- Invalid JSON returns a clear error. <!-- id:oORfYItR -->
+- Oversized content is rejected. <!-- id:QUm93uqy -->
 
-### Signer tests
+## Signer tests <!-- id:pII9fMfa -->
 
-- Single selected signer can be omitted.
-- Multiple selected signers require explicit signer.
-- Signer by profile name works.
-- Signer by public key works.
-- Ambiguous profile name returns structured error.
-- Unselected public key is rejected.
-- Missing/deleted secret is rejected.
+- Single selected signer can be omitted. <!-- id:hoFfAFw3 -->
+- Multiple selected signers require explicit signer. <!-- id:f_g0Bnve -->
+- Signer by profile name works. <!-- id:BkzGsP9j -->
+- Signer by public key works. <!-- id:1ch0TUK5 -->
+- Ambiguous profile name returns structured error. <!-- id:t_fpGWG4 -->
+- Unselected public key is rejected. <!-- id:iK_QWhmI -->
+- Missing/deleted secret is rejected. <!-- id:sdhMj4Si -->
 
-### Draft tests
+## Draft tests <!-- id:K2vbaszH -->
 
-- `draft.create` stores parsed markdown and metadata.
-- `draft.update` preserves unspecified fields.
-- `draft.get` returns bounded content.
-- `draft.list` is account-scoped.
-- `draft.delete` marks or removes the draft.
-- `draft.publish` publishes changes and refs.
-- `dryRun` draft commands do not mutate state.
+- `draft.create` stores parsed markdown and metadata. <!-- id:BOI3wPh1 -->
+- `draft.update` preserves unspecified fields. <!-- id:KSv2y4ix -->
+- `draft.get` returns bounded content. <!-- id:UlhCh4lq -->
+- `draft.list` is account-scoped. <!-- id:J1q7vlnD -->
+- `draft.delete` marks or removes the draft. <!-- id:_2pvgKPU -->
+- `draft.publish` publishes changes and refs. <!-- id:77nGcied -->
+- `dryRun` draft commands do not mutate state. <!-- id:d-YVBY9o -->
 
-### Document tests
+## Document tests <!-- id:2JLZW7EL -->
 
-- `document.create` from markdown publishes changes and refs.
-- `document.create` with `location` creates the correct child/location ref.
-- `document.update` from markdown publishes changes and refs.
-- `document.update` with stale `expectedVersion` returns conflict.
-- `document.ref` publishes a ref blob.
-- `document.redirect` publishes redirect ref if supported.
-- `dryRun` document commands publish nothing.
+- `document.create` from markdown publishes changes and refs. <!-- id:SwvtUAZt -->
+- `document.create` with `location` creates the correct child/location ref. <!-- id:7qUp43Cr -->
+- `document.update` from markdown publishes changes and refs. <!-- id:kgFjcCCW -->
+- `document.update` with stale `expectedVersion` returns conflict. <!-- id:tKG4xuMF -->
+- `document.ref` publishes a ref blob. <!-- id:bOyhULDR -->
+- `document.redirect` publishes redirect ref if supported. <!-- id:qSkGlPxw -->
+- `dryRun` document commands publish nothing. <!-- id:JgsW0veb -->
 
-### Profile tests
+## Profile tests <!-- id:2T-EpWBY -->
 
-- `profile.update` publishes a profile blob.
-- Managed signing identity rename updates metadata label.
-- `dryRun` profile update publishes nothing.
+- `profile.update` publishes a profile blob. <!-- id:xwSp_5aU -->
+- Managed signing identity rename updates metadata label. <!-- id:uRlTFlzD -->
+- `dryRun` profile update publishes nothing. <!-- id:bmt0RS9q -->
 
-### Comment tests
+## Comment tests <!-- id:E5XmpquE -->
 
-- `comment.create` publishes expected comment blob(s).
-- Reply semantics match CLI.
-- `comment.update` and `comment.delete` match CLI semantics.
+- `comment.create` publishes expected comment blob(s). <!-- id:q6ayPi-E -->
+- Reply semantics match CLI. <!-- id:bdHFig_q -->
+- `comment.update` and `comment.delete` match CLI semantics. <!-- id:GMId_J6c -->
 
-### Capability tests
+## Capability tests <!-- id:7bIEF2C8 -->
 
-- Capability grant creates/publishes expected blob(s).
-- Revoke behavior matches CLI or returns unsupported if absent.
+- Capability grant creates/publishes expected blob(s). <!-- id:WG6aJmIS -->
+- Revoke behavior matches CLI or returns unsupported if absent. <!-- id:ZDmKMrxh -->
 
-### Contact tests
+## Contact tests <!-- id:-GoZbjVO -->
 
-- Contact create/update/delete match CLI semantics.
-- Local subscription side effects, if any, are not accidentally invoked from the Agents service unless explicitly
-  intended.
+- Contact create/update/delete match CLI semantics. <!-- id:rStcHz3S -->
+- Local subscription side effects, if any, are not accidentally invoked from the Agents service unless explicitly intended. <!-- id:_N0ywdtJ -->
 
-## Open questions
+# Open questions <!-- id:w7Uy6UOG -->
 
-- What are the exact CLI command names and flags for each write domain?
-- Which markdown/frontmatter parser does the CLI currently use?
-- Does CLI support block-to-markdown export for drafts, or only markdown-to-block conversion?
-- Does profile alias exist in CLI/SDK today?
-- What are the exact capability role names and revoke semantics?
-- Are contacts pure published blobs or do CLI commands also mutate local subscription state?
-- Should document `expectedVersion` be exposed if the CLI does not expose it?
-- Should `server` overrides be accepted, or should Agents always use the configured HM server?
-- Should `dryRun` be exposed for every command even if CLI does not have a dry-run flag?
-- Should account deletion be blocked if any agent references the signing key?
+- What are the exact CLI command names and flags for each write domain? <!-- id:Nnt5ak2n -->
+- Which markdown/frontmatter parser does the CLI currently use? <!-- id:gD-xIqmM -->
+- Does CLI support block-to-markdown export for drafts, or only markdown-to-block conversion? <!-- id:ECgzlIGy -->
+- Does profile alias exist in CLI/SDK today? <!-- id:Kfnm8xUK -->
+- What are the exact capability role names and revoke semantics? <!-- id:EpCPF7Fu -->
+- Are contacts pure published blobs or do CLI commands also mutate local subscription state? <!-- id:2D9Y6uHd -->
+- Should document `expectedVersion` be exposed if the CLI does not expose it? <!-- id:9T-4XOXs -->
+- Should `server` overrides be accepted, or should Agents always use the configured HM server? <!-- id:N_jzmgiC -->
+- Should `dryRun` be exposed for every command even if CLI does not have a dry-run flag? <!-- id:NSWeRh86 -->
+- Should account deletion be blocked if any agent references the signing key? <!-- id:cQrK1_La -->
 
-## Recommended first implementation slice
+# Recommended first implementation slice <!-- id:NkeFetbf -->
 
-The smallest useful end-to-end slice is:
+The smallest useful end-to-end slice is: <!-- id:EYPhnWJL -->
+  1. Finish CLI audit for profiles, drafts, and documents. <!-- id:58kyePqx -->
+  2. Add `write` tool shell and signer resolution. <!-- id:7qc5BKdQ -->
+  3. Implement shared markdown/frontmatter parsing if needed. <!-- id:LN009tEw -->
+  4. Implement server-side `draft.create`, `draft.get`, and `draft.publish`. <!-- id:e83azl67 -->
+  5. Implement `profile.update`. <!-- id:zUkpzV3B -->
+  6. Implement `document.create` and `document.update` using the same draft publish pipeline. <!-- id:lhA836G1 -->
 
-1. Finish CLI audit for profiles, drafts, and documents.
-2. Add `write` tool shell and signer resolution.
-3. Implement shared markdown/frontmatter parsing if needed.
-4. Implement server-side `draft.create`, `draft.get`, and `draft.publish`.
-5. Implement `profile.update`.
-6. Implement `document.create` and `document.update` using the same draft publish pipeline.
-
-This proves the full architecture: CLI-parity structured input, selected signer resolution, markdown conversion,
-server-side drafts, document changes, refs, and publishing through the TS SDK.
+This proves the full architecture: CLI-parity structured input, selected signer resolution, markdown conversion, server-side drafts, document changes, refs, and publishing through the TS SDK. <!-- id:F5a5rM0Z -->
