@@ -49,6 +49,7 @@ export {filterChildDrafts}
 import {hmId, hmIdToURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath, hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {DocNavigationItem} from '@shm/ui/navigation'
+import {freezeSchemaDraft} from '@shm/ui/onyx/schema-document'
 import {PushResourceStatus} from '@shm/ui/push-toast'
 import {useMutation, UseMutationOptions, useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {findParentNode} from '@tiptap/core'
@@ -349,11 +350,15 @@ export function usePublishResource(
           const changes = compareBlocksWithMap(blocksMap, newContent, '')
           const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
 
+          // A draft's working schema is frozen into a blob here; the published
+          // metadata carries `schemaDefinition`, never `schemaDraft`.
+          const publishMetadata = await freezeSchemaDraft(desktopUniversalClient, {
+            ...editDocument?.metadata,
+            ...draft.metadata,
+          })
           const allChanges = [
             ...navigationChanges,
-            ...getDocAttributeChanges(
-              expandObjectRemovals({...editDocument?.metadata, ...draft.metadata}, editDocument?.metadata),
-            ),
+            ...getDocAttributeChanges(expandObjectRemovals(publishMetadata, editDocument?.metadata)),
             ...changes.changes,
             ...deleteChanges,
           ]
@@ -1074,15 +1079,18 @@ export function useCreateDraft(
     visibility,
     initialMetadata,
     initialContent,
+    location,
   }: {
     visibility?: HMResourceVisibility
     initialMetadata?: HMDraft['metadata']
     initialContent?: EditorBlock[]
+    /** Call-time location override, for flows that pick the destination in a dialog. */
+    location?: {locationUid?: HMDraftMeta['locationUid']; locationPath?: HMDraftMeta['locationPath']}
   } = {}) => {
     const hasInitialData = initialMetadata !== undefined || initialContent !== undefined
     const plan = computeNewDraftParams(
       visibility,
-      draftParams,
+      location ? {...draftParams, ...location} : draftParams,
       selectedAccountId ?? undefined,
       () => nanoid(10),
       () => nanoid(21),

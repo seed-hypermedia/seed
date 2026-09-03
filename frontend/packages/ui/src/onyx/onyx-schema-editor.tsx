@@ -1,0 +1,284 @@
+// A purpose-built GUI for authoring an Onyx schema — presented as a struct (a
+// list of fields), NOT as raw schema JSON. A schema carries no name of its own;
+// the defining document names and describes the type. Each field has a
+// name, a kind, and a `required` checkbox (the schema's `required` array is
+// derived from the checkboxes). A "JSON" escape hatch reveals the raw editor for
+// shapes the struct form doesn't cover (unions, generics, nesting). Kept visually
+// minimal and consistent with the value editor that renders the forms this
+// schema defines.
+import {Plus, X} from 'lucide-react'
+import {Button} from '../button'
+import {Checkbox} from '../components/checkbox'
+import {Input} from '../components/input'
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '../select-dropdown'
+import {Tooltip} from '../tooltip'
+import {kindOf, kindUrl, MAP_URL, nameToUrl, refToName, type OnyxSchema} from './onyx-engine'
+
+/** The field kinds a struct property can take (friendly labels). */
+const FIELD_KINDS: {kind: string; label: string}[] = [
+  {kind: 'string', label: 'Text'},
+  {kind: 'hm-url', label: 'HM link'},
+  {kind: 'ipfs', label: 'IPFS file / object'},
+  {kind: 'date', label: 'Date'},
+  {kind: 'date-time', label: 'Date & time'},
+  {kind: 'integer', label: 'Whole number'},
+  {kind: 'float', label: 'Number'},
+  {kind: 'boolean', label: 'Toggle'},
+  {kind: 'link', label: 'IPLD link'},
+  {kind: 'bytes', label: 'Bytes'},
+  {kind: 'list', label: 'List'},
+  {kind: 'map', label: 'Object'},
+]
+
+/** The kind a property schema declares (best-effort; defaults to text). */
+function propKind(ps: any): string {
+  const refName = typeof ps?.ref === 'string' ? refToName(ps.ref) : null
+  if (ps?.format === 'hm-url' || refName === 'hypermedia-hm-url') return 'hm-url'
+  if (ps?.format === 'ipfs' || refName === 'hypermedia-ipfs') return 'ipfs'
+  if (ps?.format === 'date' || refName === 'onyx-date') return 'date'
+  if (ps?.format === 'date-time' || refName === 'onyx-date-time') return 'date-time'
+  if (ps?.type) return kindOf(ps.type)
+  if (refName?.startsWith('onyx-')) return refName.slice(5)
+  return 'string'
+}
+
+/** The property schema for a chosen kind. */
+function kindSchema(kind: string): OnyxSchema {
+  if (kind === 'hm-url') return {type: kindUrl('string'), format: 'hm-url'}
+  if (kind === 'ipfs') return {type: kindUrl('string'), format: 'ipfs'}
+  // The built-in date types are includes of the library schemas, which carry
+  // the format (→ a date picker) and the pattern (→ validation).
+  if (kind === 'date') return {ref: nameToUrl('onyx-date')!}
+  if (kind === 'date-time') return {ref: nameToUrl('onyx-date-time')!}
+  if (kind === 'list') return {type: kindUrl('list'), items: {}}
+  if (kind === 'map') return {type: MAP_URL, values: {}}
+  return {type: kindUrl(kind)}
+}
+
+/** The signed-blob envelope every Hypermedia blob extends. */
+const SIGNED_BLOB_URL = nameToUrl('hypermedia-blob')!
+/** True when the schema extends the signed-blob envelope. */
+export const isSignedBlobType = (schema: OnyxSchema) => !schema.type && schema.ref === SIGNED_BLOB_URL
+/** The pinned `type` tag of a signed-blob schema ('' when none). */
+const signedTypeTag = (schema: OnyxSchema): string => {
+  const t = schema.properties?.type
+  return t && Array.isArray(t.enum) && typeof t.enum[0] === 'string' ? t.enum[0] : ''
+}
+
+/** Kinds whose value references something else, and so may carry a `target` type. */
+const isReferenceKind = (kind: string) => kind === 'hm-url' || kind === 'ipfs'
+
+/** An empty starter struct schema. */
+export const emptyStructSchema = (): OnyxSchema => ({type: MAP_URL, properties: {}, required: []})
+
+/** What a schema's root can be: a plain struct, the signed-blob envelope, or an extension of any base type. */
+export type SchemaRootKind = 'struct' | 'signed' | 'extends'
+
+/**
+ * The schema rewritten with a new root kind, fields preserved. Signed pins a `type` tag (kept if
+ * already set, else "Custom"); leaving signed drops the pinned tag; `extends` keeps an existing
+ * non-envelope base ref (or starts blank, for the user to paste any base).
+ */
+export function withRootKind(schema: OnyxSchema, kind: SchemaRootKind): OnyxSchema {
+  const properties: Record<string, any> = {...(schema.properties ?? {})}
+  const required = new Set<string>(Array.isArray(schema.required) ? schema.required : [])
+  const {type: _t, ref: _r, ...rest} = schema
+  if (kind === 'signed') {
+    const tag = signedTypeTag(schema) || 'Custom'
+    properties.type = {type: kindUrl('string'), enum: [tag]}
+    required.add('type')
+    return {...rest, ref: SIGNED_BLOB_URL, properties, required: Array.from(required)}
+  }
+  if (isSignedBlobType(schema)) {
+    delete properties.type
+    required.delete('type')
+  }
+  if (kind === 'struct') return {...rest, type: MAP_URL, properties, required: Array.from(required)}
+  const baseRef = !schema.type && typeof schema.ref === 'string' && schema.ref !== SIGNED_BLOB_URL ? schema.ref : ''
+  return {...rest, ref: baseRef, properties, required: Array.from(required)}
+}
+
+export function OnyxSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSchema: (s: OnyxSchema) => void}) {
+  const properties: Record<string, any> = schema.properties ?? {}
+  const required = new Set<string>(Array.isArray(schema.required) ? schema.required : [])
+  const entries = Object.entries(properties)
+  const signed = isSignedBlobType(schema)
+
+  const commit = (nextProps: Record<string, any>, nextRequired: Set<string>) => {
+    // Drop required entries whose field no longer exists.
+    const req = Array.from(nextRequired).filter((k) => k in nextProps)
+    // A ref-rooted schema EXTENDS something — the signed-blob envelope or any base schema (the
+    // "Extend Schema" flow). Editing fields must never silently drop that root.
+    const root = !schema.type && typeof schema.ref === 'string' ? {ref: schema.ref} : {type: MAP_URL}
+    const {type: _t, ref: _r, ...rest} = schema
+    onSchema({...rest, ...root, properties: nextProps, ...(req.length ? {required: req} : {required: []})})
+  }
+  const setTypeTag = (tag: string) => {
+    commit(
+      {...properties, type: {type: kindUrl('string'), enum: [tag.trim() || 'Custom']}},
+      new Set(Array.from(required).concat('type')),
+    )
+  }
+  const renameField = (oldName: string, newName: string) => {
+    if (newName === oldName || newName in properties) return
+    // Preserve order while renaming the key.
+    const nextProps: Record<string, any> = {}
+    for (const [k, v] of entries) nextProps[k === oldName ? newName : k] = v
+    const nextRequired = new Set(required)
+    if (nextRequired.delete(oldName)) nextRequired.add(newName)
+    commit(nextProps, nextRequired)
+  }
+  const setFieldKind = (name: string, kind: string) => commit({...properties, [name]: kindSchema(kind)}, required)
+  // A reference field (HM link / IPFS) may name the type its target should
+  // conform to — this is how one type points at another (character.home → place).
+  const setFieldTarget = (name: string, target: string) => {
+    const {target: _old, ...rest} = properties[name] ?? {}
+    commit({...properties, [name]: target.trim() ? {...rest, target: target.trim()} : rest}, required)
+  }
+  const setRequired = (name: string, on: boolean) => {
+    const next = new Set(required)
+    if (on) next.add(name)
+    else next.delete(name)
+    commit(properties, next)
+  }
+  const removeField = (name: string) => {
+    const nextProps = {...properties}
+    delete nextProps[name]
+    const next = new Set(required)
+    next.delete(name)
+    commit(nextProps, next)
+  }
+  const addField = () => {
+    let n = 1
+    let name = 'field'
+    while (name in properties) name = `field${++n}`
+    commit({...properties, [name]: kindSchema('string')}, required)
+  }
+
+  // What the schema's root IS: a plain struct, the signed-blob envelope, or an
+  // extension of any other type (its base named by a raw ref). Fully editable —
+  // extending anything is a matter of picking "Extends" and pasting the base.
+  const extendsRef = !schema.type && typeof schema.ref === 'string' && !signed ? schema.ref : undefined
+  const rootKind: SchemaRootKind = signed ? 'signed' : extendsRef !== undefined ? 'extends' : 'struct'
+  const setExtendsRef = (ref: string) => {
+    const {type: _t, ref: _r, ...rest} = schema
+    onSchema({...rest, ref, properties: schema.properties ?? {}, required: schema.required ?? []})
+  }
+  const setRootKind = (kind: SchemaRootKind) => {
+    if (kind !== rootKind) onSchema(withRootKind(schema, kind))
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1">
+        <label className="text-muted-foreground text-xs font-medium">Description</label>
+        <Input
+          value={typeof schema.description === 'string' ? schema.description : ''}
+          placeholder="What this type represents (optional)"
+          onChange={(e) => onSchema({...schema, description: e.target.value || undefined})}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1" data-testid="schema-root-kind">
+        <label className="text-muted-foreground text-xs font-medium">Root kind</label>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={rootKind} onValueChange={(kind) => setRootKind(kind as 'struct' | 'signed' | 'extends')}>
+            <SelectTrigger className="w-44 shrink-0" aria-label="Root kind">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="struct">Struct (fields)</SelectItem>
+              <SelectItem value="signed">Signed blob</SelectItem>
+              <SelectItem value="extends">Extends a type…</SelectItem>
+            </SelectContent>
+          </Select>
+          {rootKind === 'signed' && (
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground text-xs">type tag</span>
+              <Input
+                value={signedTypeTag(schema)}
+                aria-label="Type tag"
+                placeholder="e.g. Vote"
+                className="w-48 font-mono text-sm"
+                onChange={(e) => setTypeTag(e.target.value)}
+              />
+            </div>
+          )}
+          {rootKind === 'extends' && (
+            <Input
+              value={extendsRef ?? ''}
+              aria-label="Base type ref"
+              placeholder="hm://… or ipfs://… base type"
+              className="min-w-64 flex-1 font-mono text-xs"
+              onChange={(e) => setExtendsRef(e.target.value)}
+            />
+          )}
+        </div>
+        <p className="text-muted-foreground text-xs">
+          {rootKind === 'struct'
+            ? 'A plain object made of the fields below.'
+            : rootKind === 'signed'
+              ? 'Extends the Hypermedia envelope — signer, signature, and timestamp are inherited and filled at signing time; the type tag is the discriminator.'
+              : 'Inherits everything from the base type; the fields below are added on top of it.'}
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-muted-foreground text-xs font-medium">Fields</label>
+        <div className="flex flex-col gap-1.5">
+          {entries.length === 0 && <p className="text-muted-foreground text-sm">No fields yet.</p>}
+          {entries
+            .filter(([name]) => !(signed && name === 'type'))
+            .map(([name, ps], index) => (
+              // Stable index key: renaming changes the property name but not the
+              // row's identity, so the (controlled) name input never remounts and
+              // keeps focus while typing.
+              <div key={index} className="flex items-center gap-2">
+                <Input
+                  value={name}
+                  className="flex-1 font-mono text-sm"
+                  aria-label="Field name"
+                  onChange={(e) => renameField(name, e.target.value)}
+                />
+                <Select value={propKind(ps)} onValueChange={(kind) => setFieldKind(name, kind)}>
+                  <SelectTrigger className="w-36 shrink-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FIELD_KINDS.map(({kind, label}) => (
+                      <SelectItem key={kind} value={kind}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {isReferenceKind(propKind(ps)) && (
+                  <Tooltip content="Target type — the schema the referenced document or object should conform to (an hm:// type document or ipfs:// schema). Optional.">
+                    <Input
+                      value={typeof ps?.target === 'string' ? ps.target : ''}
+                      placeholder="target type (hm:// or ipfs://)"
+                      aria-label={`Target type for ${name}`}
+                      className="w-52 shrink-0 font-mono text-xs"
+                      onChange={(e) => setFieldTarget(name, e.target.value)}
+                    />
+                  </Tooltip>
+                )}
+                <Tooltip content="Required — a value of this type must include this field">
+                  <label className="text-muted-foreground flex shrink-0 cursor-pointer items-center gap-1 text-xs">
+                    <Checkbox checked={required.has(name)} onCheckedChange={(on) => setRequired(name, on === true)} />
+                    required
+                  </label>
+                </Tooltip>
+                <Button variant="ghost" size="iconSm" aria-label={`Remove ${name}`} onClick={() => removeField(name)}>
+                  <X className="size-4" />
+                </Button>
+              </div>
+            ))}
+        </div>
+        <Button variant="outline" size="sm" className="mt-1 w-fit gap-1" onClick={addField}>
+          <Plus className="size-4" /> Add field
+        </Button>
+      </div>
+    </div>
+  )
+}

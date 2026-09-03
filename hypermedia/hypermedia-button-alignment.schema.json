@@ -1,0 +1,10 @@
+{
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+  "enum": [
+    "flex-start",
+    "center",
+    "flex-end"
+  ],
+  "description": "Horizontal alignment of a Button block.",
+  "name": "Button alignment"
+}

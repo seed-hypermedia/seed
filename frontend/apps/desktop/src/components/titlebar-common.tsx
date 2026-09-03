@@ -66,6 +66,7 @@ import {
   ChevronRight,
   ChevronUp,
   Database,
+  FileCode2,
   Lock,
   LogIn,
   LogOut,
@@ -703,6 +704,21 @@ function LocalAgentsOmnibarToken() {
   )
 }
 
+/** The omnibar for a BARE-CID schema page: a "Schema" tag followed by the CID. A schema reached
+ * from its defining document is a document route (`id` set) and shows the normal /:schema URL. */
+function SchemaOmnibarToken({cid}: {cid?: string}) {
+  const label = cid
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-2" data-testid="schema-omnibar-token">
+      <div className="bg-muted text-muted-foreground no-select flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs">
+        <FileCode2 className="size-3" />
+        <span>Schema</span>
+      </div>
+      <span className="text-muted-foreground min-w-0 flex-1 truncate font-mono text-xs">{label}</span>
+    </div>
+  )
+}
+
 /**
  * Hook to construct displayable URL from current route
  * Priority: validated custom siteUrl > gatewayUrl (never hm://)
@@ -856,7 +872,24 @@ function useCurrentRouteUrl(): {
     }
 
     if (route.key === 'inspect-ipfs') {
+      // Editing a blob in a document field's context: the logical location is
+      // the document's Attributes tab, at that field.
+      if (route.editField) {
+        const docId = unpackHmId(route.editField.docUrl)
+        if (docId) {
+          const attributesUrl = routeToUrl({key: 'metadata', id: docId}, {hostname: validatedSiteUrl || gwUrl})
+          const url = `${attributesUrl}/${route.editField.field}`
+          return {displayUrl: url, copyableUrl: attributesUrl}
+        }
+      }
       const url = routeToUrl(route, {hostname: validatedSiteUrl || gwUrl})
+      return {displayUrl: url, copyableUrl: url}
+    }
+
+    if (route.key === 'schema') {
+      // Bare-CID form only (the doc form matched routeId above): shown as the Schema token;
+      // copying yields the schema blob's ipfs URL.
+      const url = `ipfs://${route.cid}`
       return {displayUrl: url, copyableUrl: url}
     }
 
@@ -897,6 +930,9 @@ function getRouteId(route: NavRoute): UnpackedHypermediaId | null {
     route.key === 'site-settings'
   ) {
     return route.id
+  }
+  if (route.key === 'schema') {
+    return route.id ?? null
   }
   if (route.key === 'explore') {
     return route.context.type === 'site' ? route.context.id : null
@@ -979,6 +1015,7 @@ function useOmnibarState(currentUrl: string | null) {
           value.startsWith('http://') ||
           value.startsWith('https://') ||
           value.startsWith('hm://') ||
+          value.startsWith('ipfs://') ||
           (value.includes('.') && !value.includes(' '))
 
         if (!looksLikeUrl) {
@@ -1069,7 +1106,7 @@ export function Omnibar() {
             const isHttpUrl = url.startsWith('http://') || url.startsWith('https://')
             const unpacked = unpackHmId(url)
 
-            if (unpacked) {
+            if (unpacked || url.startsWith('ipfs://')) {
               // Sync navigation - blur immediately
               handleUrlNavigation(url)
               blur()
@@ -1146,6 +1183,8 @@ export function Omnibar() {
         <div className="flex min-w-0 flex-1 items-center overflow-hidden">
           {isLocalAgentsRoute ? (
             <LocalAgentsOmnibarToken />
+          ) : route.key === 'schema' && !route.id ? (
+            <SchemaOmnibarToken cid={route.cid} />
           ) : route.key === 'account-settings' ? (
             <AccountSettingsOmnibarLabel
               accountUid={route.accountUid}

@@ -63,6 +63,7 @@ import {queryQueryBlock} from '@shm/shared/models/queries'
 import {
   documentMachine,
   DocumentMachineProvider,
+  selectCanEdit,
   selectCanEditCurrentRoute,
   selectContext,
   selectDraftOverlayAllowed,
@@ -147,6 +148,17 @@ import {
   HomeDocumentMetadataAffordanceBar,
 } from './document-metadata-affordances'
 import {DocumentMetadataView} from './document-metadata-view'
+import {RequiredAttributesEditor} from './required-attributes-editor'
+import {
+  SCHEMA_DRAFT_KEY,
+  schemaDefinitionCid,
+  schemaDraftValue,
+  SchemaDocumentHeaderActions,
+  useSchemaMenuItems,
+} from './onyx/schema-document'
+import {OnyxSchemaEditor} from './onyx/onyx-schema-editor'
+import {OnyxSchemaBrowserPage} from './onyx/schema-browser'
+import {useEffectiveDocSchema} from './onyx/onyx-schema-resolve'
 import {DocumentTools} from './document-tools'
 import {DocumentTopBar} from './document-top-bar'
 import {
@@ -448,6 +460,7 @@ export type ActiveView =
   | 'all-documents'
   | 'explore'
   | 'metadata'
+  | 'schema'
 
 /** Returns the document and focused comment rendered by a comments panel. */
 export function getCommentsPanelTarget(
@@ -477,6 +490,10 @@ export function getDocumentContentAction({
   actionButtons: ReactNode
   allMenuItems: MenuItemType[]
 }) {
+  // The Schema tab is read-only, but its actions (Extend Schema, New <Type>, Inspect via dev
+  // menu) live in the regular options dropdown — so the plain action buttons must render there,
+  // without the editing/draft chrome.
+  if (activeView === 'schema') return actionButtons
   if (activeView !== 'content' && activeView !== 'metadata') return null
   if (editingFloatingActions) return editingFloatingActions({menuItems: allMenuItems})
   if (!isEditing && hasDraft && draftActions) return draftActions({menuItems: allMenuItems})
@@ -731,6 +748,8 @@ function getActiveView(routeKey: string): ActiveView {
       return 'site-profile'
     case 'metadata':
       return 'metadata'
+    case 'schema':
+      return 'schema'
     default:
       return 'content'
   }
@@ -761,6 +780,9 @@ export interface ResourcePageProps {
   optionsMenuItems?: MenuItemType[]
   /** Root-level creation menu shown beside Home in the file explorer. */
   fileBrowserCreateMenuItem?: MenuItemType | null
+  /** Platform handler for "Extend Schema": opens a flow that creates an extending document draft.
+   * Absent (web), extend falls back to the raw blob-draft route. */
+  onExtendSchema?: (baseSchemaCid: string) => void
   /** @deprecated use optionsMenuItems */
   extraMenuItems?: MenuItemType[]
   /** Existing draft info for showing draft indicator in toolbar */
@@ -860,6 +882,7 @@ export function ResourcePage({
   resourceId,
   CommentEditor,
   optionsMenuItems,
+  onExtendSchema,
   fileBrowserCreateMenuItem,
   extraMenuItems,
   existingDraft,
@@ -1346,6 +1369,7 @@ export function ResourcePage({
             siteUrl={siteHomeDocument?.metadata?.siteUrl}
             CommentEditor={CommentEditor}
             optionsMenuItems={optionsMenuItems}
+            onExtendSchema={onExtendSchema}
             extraMenuItems={extraMenuItems}
             existingDraft={existingDraft}
             reservedDraftId={reservedDraftId}
@@ -1659,6 +1683,7 @@ function DocumentBody({
   routeDocId,
   docId,
   document,
+  onExtendSchema,
   documentSyncRouteKey,
   documentIsPlaceholderData,
   activeView,
@@ -1709,6 +1734,8 @@ function DocumentBody({
   siteUrl?: string
   CommentEditor?: React.ComponentType<CommentEditorProps>
   optionsMenuItems?: MenuItemType[]
+  /** Platform handler for "Extend Schema" (see {@link ResourcePageProps.onExtendSchema}). */
+  onExtendSchema?: (baseSchemaCid: string) => void
   extraMenuItems?: MenuItemType[]
   existingDraft?: HMExistingDraft | false
   reservedDraftId?: string | null
@@ -2519,12 +2546,16 @@ function DocumentBody({
     }
   }, [canEditCurrentRoute, isCollection])
 
+  // The schema actions (New <Type> / Extend) ride in the regular options menu; the list is
+  // empty unless the document defines a schema.
+  const schemaMenuItems = useSchemaMenuItems(document?.metadata, {onExtendSchema})
   const allMenuItems = useMemo(() => {
     let unorderedItems: MenuItemType[] = [...(optionsMenuItems ?? extraMenuItems ?? [])]
     unorderedItems.push(citationFragmentToggleMenuItem)
     if (inspectMenuItem) unorderedItems.push(inspectMenuItem)
     if (documentOptionsMenuItem) unorderedItems.push(documentOptionsMenuItem)
     if (metadataMenuItem) unorderedItems.push(metadataMenuItem)
+    unorderedItems.push(...schemaMenuItems)
     if (convertToCollectionMenuItem) unorderedItems.push(convertToCollectionMenuItem)
     if (convertToDocumentMenuItem) unorderedItems.push(convertToDocumentMenuItem)
     if (isCollection) {
@@ -2593,6 +2624,7 @@ function DocumentBody({
     metadataMenuItem,
     convertToCollectionMenuItem,
     convertToDocumentMenuItem,
+    schemaMenuItems,
     isUnpublishedDraft,
     isCollection,
     docId,
@@ -2650,6 +2682,21 @@ function DocumentBody({
     actionButtons,
     allMenuItems,
   })
+  // A document that DEFINES a type (carries a `schemaDefinition`) gets header
+  // actions: a tag that opens the schema, and a button to create a value of it.
+  // Use draft-merged metadata so an unpublished schemaDefinition still surfaces
+  // (same source the Attributes tab reads).
+  const headerMetadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  const schemaDocActions = schemaDefinitionCid(headerMetadata) ? (
+    <SchemaDocumentHeaderActions metadata={headerMetadata} />
+  ) : null
+  const topBarActions =
+    schemaDocActions || documentContentAction ? (
+      <>
+        {schemaDocActions}
+        {documentContentAction}
+      </>
+    ) : null
   const floatingButtonsAction = activeView === 'content' && !documentContentAction ? floatingButtons : null
 
   // The bar always states where you are, so a home document is its own single crumb.
@@ -2665,7 +2712,7 @@ function DocumentBody({
           </>
         ) : null
       }
-      actions={documentContentAction}
+      actions={topBarActions}
       isMobile={isMobile}
     />
   )
@@ -2804,6 +2851,8 @@ function DocumentBody({
             citationsCount={interactionSummary.data?.citations || 0}
             collabsCount={peopleCount}
             metadataCount={countCustomMetadataFields(metadata)}
+            schemaCid={schemaDefinitionCid(metadata)}
+            hasDraftSchema={!!schemaDraftValue(metadata)}
             layoutProps={
               isMobile
                 ? undefined
@@ -2818,7 +2867,8 @@ function DocumentBody({
               activeView !== 'content' &&
               activeView !== 'site-profile' &&
               activeView !== 'all-documents' &&
-              activeView !== 'explore' ? (
+              activeView !== 'explore' &&
+              activeView !== 'schema' ? (
                 <OpenInPanelButton
                   id={docId}
                   panelRoute={
@@ -2827,7 +2877,7 @@ function DocumentBody({
                       : {
                           key: activeView as Exclude<
                             ActiveView,
-                            'content' | 'site-profile' | 'all-documents' | 'explore'
+                            'content' | 'site-profile' | 'all-documents' | 'explore' | 'schema'
                           >,
                           id: docId,
                         }
@@ -3049,6 +3099,7 @@ function EditableDocumentHeader({
   version,
   fileUpload,
   flushByline,
+  titleAccessory,
 }: {
   docId: UnpackedHypermediaId
   docMetadata: HMDocument['metadata']
@@ -3058,6 +3109,7 @@ function EditableDocumentHeader({
   version?: HMDocument['version'] | null
   fileUpload?: (file: File) => Promise<string>
   flushByline?: boolean
+  titleAccessory?: React.ReactNode
 }) {
   const ctx = useDocumentSelector(selectContext)
   const isEditing = useDocumentSelector(selectIsEditing)
@@ -3079,6 +3131,7 @@ function EditableDocumentHeader({
       visibility={visibility as any}
       version={version}
       flushByline={flushByline}
+      titleAccessory={titleAccessory}
       mobileBylineAction={
         <DocumentMetadataAffordanceButtons
           metadata={metadata}
@@ -3159,7 +3212,7 @@ function PanelContentRenderer({
     case 'metadata':
       return (
         <div className="px-4">
-          <DocumentMetadataPage document={document} fileUpload={fileUpload} />
+          <DocumentMetadataPage docId={docId} document={document} fileUpload={fileUpload} />
         </div>
       )
     case 'activity':
@@ -3345,10 +3398,51 @@ function HomeDocumentMetadataControls({
 
 /** Metadata view wired to the document machine: edits stage into the draft
  * and publish through the standard publish flow. */
+/**
+ * The Schema tab. A published schema (`schemaDefinition`) is browsed in place; a draft's working
+ * schema (`schemaDraft`, e.g. from the Extend Schema flow) is EDITED in place — the full schema
+ * editor, saved onto the draft like any metadata change, and frozen into an IPFS blob at publish.
+ */
+function DocumentSchemaPage({document}: {document: HMDocument}) {
+  const ctx = useDocumentSelector(selectContext)
+  const send = useDocumentSend()
+  const {beginEditIfNeeded} = useEditorGate()
+  const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
+  const navigate = useNavigate()
+  const openUrl = useOpenUrl()
+  // Draft metadata (partial) overrides published metadata, same as the Attributes tab.
+  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  const draftSchema = schemaDraftValue(metadata)
+  if (draftSchema && canEditCurrentRoute) {
+    return (
+      <div className="flex max-w-2xl flex-col gap-3" data-testid="schema-draft-editor">
+        <p className="text-muted-foreground text-sm">
+          Draft schema — it becomes an immutable IPFS object, referenced by this document, when the document is
+          published.
+        </p>
+        <OnyxSchemaEditor
+          schema={draftSchema}
+          onSchema={(next) => {
+            beginEditIfNeeded()
+            send({type: 'change', metadata: {[SCHEMA_DRAFT_KEY]: next} as any})
+          }}
+        />
+      </div>
+    )
+  }
+  const cid = schemaDefinitionCid(metadata)
+  if (!cid) {
+    return <div className="text-muted-foreground p-4 text-sm">This document does not define a schema.</div>
+  }
+  return <OnyxSchemaBrowserPage embedded cid={cid} navigate={navigate} openUrl={openUrl} />
+}
+
 function DocumentMetadataPage({
+  docId,
   document,
   fileUpload,
 }: {
+  docId: UnpackedHypermediaId
   document: HMDocument
   fileUpload?: (file: File) => Promise<string>
 }) {
@@ -3360,6 +3454,9 @@ function DocumentMetadataPage({
 
   // Draft metadata (partial) overrides published metadata, same as the options panel.
   const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  // The schema this document conforms to (own `schema`, else parent's
+  // `childrenSchema`) — drives required-field rows + advisory validation.
+  const {metadataSchema: conformanceSchema} = useEffectiveDocSchema(docId, metadata)
 
   // Open an uploaded IPFS file reference in its own dedicated viewer window/tab.
   const openFile = useCallback((cid: string) => openUrl(`hm://inspect/ipfs/${cid}`, true), [openUrl])
@@ -3367,10 +3464,30 @@ function DocumentMetadataPage({
   // sentinel path puts the viewer into create mode.
   const onCreateBlob = useCallback(() => openUrl('hm://inspect/ipfs/new', true), [openUrl])
 
+  // Direct, in-context editing of the IPFS objects a PUBLISHED document's
+  // metadata references (schemaDefinition, …): the blob page opens in the
+  // field's context and publishing updates the document directly. Not offered
+  // for a field the draft has already changed — the draft would win on publish.
+  const navigate = useNavigate()
+  const isPublished = !!(ctx.document?.version || document.version)
+  const draftPatch = ctx.metadata || {}
+  const directEdit = useMemo(
+    () =>
+      isPublished && canEditCurrentRoute
+        ? {
+            isFieldEditable: (key: string) => (draftPatch as Record<string, unknown>)[key] === undefined,
+            onEditField: (key: string, cid: string) =>
+              navigate({key: 'inspect-ipfs', ipfsPath: cid, editField: {docUrl: docId.id, field: key}}),
+          }
+        : undefined,
+    [isPublished, canEditCurrentRoute, draftPatch, navigate, docId.id],
+  )
+
   return (
     <DocumentMetadataView
       metadata={metadata as any}
       canEdit={canEditCurrentRoute}
+      conformanceSchema={conformanceSchema}
       onMetadata={(patch) => {
         if (!canEditCurrentRoute) return
         beginEditIfNeeded()
@@ -3378,7 +3495,9 @@ function DocumentMetadataPage({
       }}
       fileUpload={fileUpload}
       openFile={openFile}
+      openUrl={openUrl}
       onCreateBlob={onCreateBlob}
+      directEdit={directEdit}
     />
   )
 }
@@ -3773,7 +3892,16 @@ function MainContent({
         <PageLayout contentMaxWidth={contentMaxWidth}>
           {/* Extra left padding in the main view; the panel render keeps its own. */}
           <div className="pl-4">
-            <DocumentMetadataPage document={document} fileUpload={fileUpload} />
+            <DocumentMetadataPage docId={docId} document={document} fileUpload={fileUpload} />
+          </div>
+        </PageLayout>
+      )
+
+    case 'schema':
+      return (
+        <PageLayout contentMaxWidth={contentMaxWidth}>
+          <div className="pl-4">
+            <DocumentSchemaPage document={document} />
           </div>
         </PageLayout>
       )
@@ -3942,6 +4070,17 @@ function ContentViewWithOutline({
 }) {
   const ctx = useDocumentSelector(selectContext)
   const rootChildrenType = (ctx.metadata?.childrenType ?? document.metadata?.childrenType) || 'Group'
+  // Required custom attributes (from the doc's schema) render above the body.
+  const canEdit = useDocumentSelector(selectCanEdit)
+  const isEditing = useDocumentSelector(selectIsEditing)
+  const send = useDocumentSend()
+  const requiredAttrMetadata = useMemo(
+    () => ({...document.metadata, ...ctx.metadata}),
+    [document.metadata, ctx.metadata],
+  )
+  // The schema this document must conform to (own `schema`, else parent's
+  // `childrenSchema`) — drives the always-visible required attributes.
+  const {metadataSchema: conformanceSchema} = useEffectiveDocSchema(resourceId, requiredAttrMetadata)
   // existingDraftContent may arrive in HMBlockNode[] or
   // EditorBlock[] shape. Pick the outline builder that matches.
   const outlineSource = existingDraftContent ?? document.content ?? []
@@ -3988,6 +4127,18 @@ function ContentViewWithOutline({
       )}
 
       <div {...mainContentProps} className={cn(mainContentProps.className, 'px-4 pt-8')}>
+        {canEdit && (
+          <RequiredAttributesEditor
+            conformanceSchema={conformanceSchema}
+            metadata={requiredAttrMetadata}
+            onMetadata={(patch) => {
+              // A published doc isn't editing yet — enter editing first so the
+              // `change` is accepted (drafts are already in the editing state).
+              if (!isEditing) send({type: 'edit.start'})
+              send({type: 'change', metadata: patch})
+            }}
+          />
+        )}
         <DocumentContentHandoff ssrContentHTML={ssrContentHTML} editorMounted={!!DocumentContentComponent}>
           {DocumentContentComponent ? (
             <DocumentContentComponent

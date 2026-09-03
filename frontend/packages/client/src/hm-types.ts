@@ -597,9 +597,15 @@ export const HMDocumentMetadataSchema = z
     // Import taxonomy fields (comma-separated values from external sources like WordPress)
     importCategories: z.string().optional(),
     importTags: z.string().optional(),
+    // JSON-stringified schema definition; present iff this document describes a schema (see notes/onyx-schema-as-document.md).
+    schemaDefinition: z.string().optional(),
+    // The WORKING schema object a draft carries while its schema is being authored. Publish
+    // freezes it into a DAG-CBOR blob and replaces it with `schemaDefinition: ipfs://<cid>`;
+    // it must never reach a published document as-is.
+    schemaDraft: z.unknown().optional(),
   })
   // Metadata is an open/extensible attribute map: the document data model
-  // supports arbitrary keys (custom fields authored in the metadata editor).
+  // supports arbitrary keys (custom fields, schema-keyed `ipfs://…` fields).
   // Preserve unknown keys instead of stripping them, so custom metadata
   // survives draft save/load and the published-document read-back.
   .passthrough()

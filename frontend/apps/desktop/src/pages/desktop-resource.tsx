@@ -79,6 +79,7 @@ import {displayHostname, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {isReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
+import {schemaCid} from '@shm/ui/onyx/index'
 import {createCopyLinkMenuItem} from '@shm/ui/copy-link-menu'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
@@ -88,9 +89,12 @@ import {ResourcePage} from '@shm/ui/resource-page-common'
 import type {AttributeAutocomplete, AttributeSuggestionKind} from '@shm/ui/value-editor'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
+import {pageFrameStyles} from '@shm/ui/container'
 import {useAppDialog} from '@shm/ui/universal-dialog'
+import {blobBuilderMenuItems} from '@shm/ui/onyx/blob-menu-items'
+import {WorldBuilderDialog} from '@/components/world-builder-dialog'
 import {useMutation} from '@tanstack/react-query'
-import {Copy, FileInput, History, Layers, LayoutList, Split} from 'lucide-react'
+import {Braces, Copy, FileCode2, FileInput, Globe, History, Layers, LayoutList, Split} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {fromPromise} from 'xstate'
@@ -221,6 +225,7 @@ export default function DesktopResourcePage() {
     'site-profile',
     'all-documents',
     'metadata',
+    'schema',
   ]
   if (!supportedKeys.includes(route.key)) {
     throw new Error(`DesktopResourcePage: unsupported route ${route.key}`)
@@ -808,6 +813,7 @@ export default function DesktopResourcePage() {
   const {exportDocument, openDirectory} = useAppContext()
   const deleteEntity = useDeleteDialog()
   const destinationDialog = useAppDialog(DocumentDestinationDialog, {className: 'w-full max-w-2xl'})
+  const worldBuilderDialog = useAppDialog(WorldBuilderDialog, {className: 'w-full max-w-xl'})
 
   const menuItems: MenuItemType[] = []
 
@@ -977,6 +983,23 @@ export default function DesktopResourcePage() {
     onClick: () => navigate({key: 'all-documents', id: hmId(docId.uid)}),
   })
 
+  // Experimental building blocks live behind the Hypermedia Schemas dev toggle
+  // (Settings → Developers → Developer Tools); the blob/schema editor pages offer these too.
+  if (experiments?.hypermediaSchemas) {
+    menuItems.push(...blobBuilderMenuItems(navigate))
+
+    // The World Builder: scaffold a typed ontology (types + folders + starter
+    // pages) under this document — the showcase for typed documents.
+    if (canEdit) {
+      menuItems.push({
+        key: 'new-world',
+        label: 'New World…',
+        icon: <Globe className="size-4" />,
+        onClick: () => worldBuilderDialog.open({parentId: docId}),
+      })
+    }
+  }
+
   // Publish / Unpublish site options (only for home documents)
   if (!docId.path?.length && canEdit) {
     if (siteUrl) {
@@ -1089,7 +1112,7 @@ export default function DesktopResourcePage() {
   const followIntent = useFollowProfileIntent(route.key === 'site-profile' ? route.accountUid || docId.uid : docId.uid)
 
   return (
-    <div className="relative h-full max-h-full overflow-hidden rounded-lg border bg-white">
+    <div className={pageFrameStyles}>
       <CommentsProvider
         useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
         onReplyClick={onReplyClick}
@@ -1118,6 +1141,9 @@ export default function DesktopResourcePage() {
                     canEdit={canEdit}
                     CommentEditor={CommentBox}
                     optionsMenuItems={menuItems}
+                    onExtendSchema={(baseSchemaCid) =>
+                      destinationDialog.open({id: docId, mode: 'extend-schema', extendSchema: {baseSchemaCid}})
+                    }
                     fileBrowserCreateMenuItem={fileBrowserCreateMenuItem}
                     existingDraft={existingDraft}
                     reservedDraftId={
@@ -1165,6 +1191,7 @@ export default function DesktopResourcePage() {
       {copySiteUrlContent}
       {deleteEntity.content}
       {destinationDialog.content}
+      {worldBuilderDialog.content}
       {editProfileDialog.content}
       {removeSiteDialog.content}
       {publishSite.content}

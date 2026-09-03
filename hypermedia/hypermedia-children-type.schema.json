@@ -1,0 +1,12 @@
+{
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+  "enum": [
+    "Group",
+    "Ordered",
+    "Unordered",
+    "Blockquote",
+    "Grid"
+  ],
+  "description": "How a block's children are laid out: Group (default), Ordered, Unordered, Blockquote, or Grid.",
+  "name": "Children type"
+}

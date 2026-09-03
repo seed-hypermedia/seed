@@ -1,0 +1,22 @@
+{
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+  "required": [
+    "account",
+    "role"
+  ],
+  "properties": {
+    "account": {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id"
+    },
+    "role": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+      "enum": [
+        "owner",
+        "writer",
+        "member"
+      ]
+    }
+  },
+  "description": "One member of a site with their effective role. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.",
+  "name": "Site member"
+}

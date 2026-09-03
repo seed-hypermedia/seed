@@ -25,6 +25,7 @@ import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
 import {WebFeedPage} from '@/web-feed-page'
 import {shouldBypassServerDocumentFetchForWebDraftShell} from '@/document-edit/web-draft-shell'
 import {WebInspectorPage, WebResourcePage} from '@/web-resource-page'
+import {extractSchemaRouteFromPath, WebSchemaPage} from '@/web-schema'
 import {wrapJSON} from '@/wrapping.server'
 import {Code} from '@connectrpc/connect'
 import {HeadersFunction} from '@remix-run/node'
@@ -42,6 +43,7 @@ import {
   hypermediaUrlToRoute,
   hmId,
   InspectTab,
+  SchemaRoute,
   isSiteProfileTab,
   VIEW_TERMS,
   viewTermToRouteKey,
@@ -69,11 +71,25 @@ type ExtendedSitePayload = SiteDocumentPayload & {
 type InspectIpfsPayload = {
   kind: 'inspect-ipfs'
   ipfsPath: string
+  editField?: {docUrl: string; field: string}
   originHomeId: UnpackedHypermediaId
   siteHost: string
 }
 
-type DocumentPayload = ExtendedSitePayload | InspectIpfsPayload | SiteSettingsEmailsPayload | 'unregistered' | 'no-site'
+type SchemaPayload = {
+  kind: 'schema'
+  route: SchemaRoute
+  originHomeId: UnpackedHypermediaId
+  siteHost: string
+}
+
+type DocumentPayload =
+  | ExtendedSitePayload
+  | InspectIpfsPayload
+  | SiteSettingsEmailsPayload
+  | SchemaPayload
+  | 'unregistered'
+  | 'no-site'
 
 function isInspectIpfsPayload(data: DocumentPayload): data is InspectIpfsPayload {
   return typeof data === 'object' && 'kind' in data && data.kind === 'inspect-ipfs'
@@ -238,6 +254,9 @@ export const meta: MetaFunction<typeof loader> = (args) => {
   if ('kind' in payload && payload.kind === 'site-settings-emails') {
     return [{title: 'Email Subscribers'}]
   }
+  if ('kind' in payload && payload.kind === 'schema') {
+    return [{title: payload.route.cid ? `Schema · ${payload.route.cid.slice(0, 12)}…` : 'Schema'}]
+  }
   return documentPageMeta({
     // @ts-ignore
     data: args.data,
@@ -347,9 +366,12 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     if (isDataRequest && ctx.enabled) {
       printInstrumentationSummary(ctx)
     }
+    const editFieldKey = url.searchParams.get('editField')
+    const editDoc = url.searchParams.get('editDoc')
     return wrapJSON({
       kind: 'inspect-ipfs',
       ipfsPath: inspectIpfsPath,
+      editField: editFieldKey && editDoc ? {field: editFieldKey, docUrl: editDoc} : undefined,
       originHomeId: hmId(registeredAccountUid),
       siteHost: hostname,
     } satisfies InspectIpfsPayload)
@@ -474,13 +496,20 @@ export default function UnifiedDocumentPage() {
       <WebSiteProvider
         originHomeId={data.originHomeId}
         siteHost={data.siteHost}
-        initialRoute={createInspectIpfsNavRoute(data.ipfsPath)}
+        initialRoute={createInspectIpfsNavRoute(data.ipfsPath, data.editField)}
       >
-        <InnerInspectIpfsPage ipfsPath={data.ipfsPath} />
+        <InnerInspectIpfsPage ipfsPath={data.ipfsPath} editField={data.editField} />
       </WebSiteProvider>
     )
   }
-  const siteData: ExtendedSitePayload = data
+  if ('kind' in data && data.kind === 'schema') {
+    return (
+      <WebSiteProvider originHomeId={data.originHomeId} siteHost={data.siteHost} initialRoute={data.route}>
+        <WebSchemaPage />
+      </WebSiteProvider>
+    )
+  }
+  const siteData: ExtendedSitePayload = data as ExtendedSitePayload
 
   // The resource isn't available locally yet; discovery is running in the
   // background. Render a fast shim page that polls until it arrives.
@@ -534,7 +563,9 @@ export default function UnifiedDocumentPage() {
       dehydratedState={siteData.dehydratedState}
       initialRoute={siteData.isInspect ? initialInspectRoute : initialRouteWithExploreParams}
     >
-      {siteData.viewTerm === 'feed' && !siteData.isInspect ? (
+      {siteData.viewTerm === 'schema' && !siteData.isInspect ? (
+        <WebSchemaPage />
+      ) : siteData.viewTerm === 'feed' && !siteData.isInspect ? (
         <WebFeedPage docId={siteData.id} />
       ) : siteData.isInspect ? (
         <InnerInspectorPage docId={siteData.id} />
@@ -555,7 +586,7 @@ function InnerInspectorPage({docId}: {docId: UnpackedHypermediaId}) {
   return <WebInspectorPage docId={docId} />
 }
 
-function InnerInspectIpfsPage({ipfsPath}: {ipfsPath: string}) {
+function InnerInspectIpfsPage({ipfsPath, editField}: {ipfsPath: string; editField?: {docUrl: string; field: string}}) {
   const navState = useNavigationState()
   const getRouteForUrl = useCallback((url: string) => {
     if (url.startsWith('ipfs://')) {
@@ -578,6 +609,7 @@ function InnerInspectIpfsPage({ipfsPath}: {ipfsPath: string}) {
   return (
     <InspectIpfsPage
       ipfsPath={ipfsPath}
+      editField={editField}
       exitRoute={exitRoute}
       getRouteForUrl={getRouteForUrl}
       gatewayUrl={gatewayUrl}

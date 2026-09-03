@@ -573,8 +573,10 @@ function ClearHistoryButton() {
 export function DeveloperSettings() {
   const experiments = useUniversalAppContext().experiments
   const writeExperiments = useWriteExperiments()
+  const enabledDeveloperMode = experiments?.developerMode
   const enabledDevTools = experiments?.developerTools
   const enabledPubContentDevMenu = experiments?.pubContentDevMenu
+  const enabledHypermediaSchemas = experiments?.hypermediaSchemas
   const enabledAdvancedCopyLinkOptions = experiments?.advancedCopyLinkOptions
   const embeddingEnabled = experiments?.embeddingEnabled
   const [showEmbeddingConfirm, setShowEmbeddingConfirm] = useState(false)
@@ -612,6 +614,20 @@ export function DeveloperSettings() {
     <>
       <SettingsCard label="ADVANCED SEARCH">
         <SettingsRow
+          label="Developer Mode"
+          description="Unlocks experimental building blocks in regular menus: raw IPFS blob and schema authoring from document options, and other in-progress features."
+          right={
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => writeExperiments.mutate({developerMode: !enabledDeveloperMode})}
+            >
+              {enabledDeveloperMode ? 'Disable Developer Mode' : 'Enable Developer Mode'}
+            </Button>
+          }
+        />
+        <Separator />
+        <SettingsRow
           label="Embedding / AI Features"
           description="Enable AI-powered document embeddings for semantic search and related content features. This will restart the background service."
           right={
@@ -637,6 +653,17 @@ export function DeveloperSettings() {
         />
         {enabledDevTools ? (
           <>
+            <Separator />
+            <SettingsRow
+              label="Hypermedia Schemas"
+              description="Expose schema features in regular menus: New > Schema creates a schema document, and schema building blocks appear in document options."
+              right={
+                <Switch
+                  checked={!!enabledHypermediaSchemas}
+                  onCheckedChange={(checked) => writeExperiments.mutate({hypermediaSchemas: checked})}
+                />
+              }
+            />
             <Separator />
             <SettingsRow
               label="Publication Content Dev Tools"
