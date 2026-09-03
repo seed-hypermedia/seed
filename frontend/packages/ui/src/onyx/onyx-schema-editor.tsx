@@ -33,6 +33,7 @@ const FIELD_KINDS: {kind: string; label: string}[] = [
   {kind: 'bytes', label: 'Bytes'},
   {kind: 'list', label: 'List'},
   {kind: 'map', label: 'Object'},
+  {kind: 'any', label: 'Anything'},
 ]
 
 /** A type parameter as a field kind: `var:T`. */
@@ -48,6 +49,7 @@ function propKind(ps: any): string {
   if (ps?.format === 'ipfs' || refName === 'hypermedia-ipfs') return 'ipfs'
   if (ps?.format === 'date' || refName === 'onyx-date') return 'date'
   if (ps?.format === 'date-time' || refName === 'onyx-date-time') return 'date-time'
+  if (refName === 'onyx-any') return 'any'
   if (ps?.anyOf || ps?.args || ps?.enum) return CUSTOM_KIND
   if (ps?.type) return kindOf(ps.type)
   if (refName?.startsWith('onyx-')) return refName.slice(5)
@@ -65,7 +67,7 @@ function customLabel(ps: any): string {
 
 /** Whether the struct form can show (and safely rewrite) this schema. */
 export function structFormFits(schema: OnyxSchema): boolean {
-  if (schema.anyOf || schema.items || schema.values || schema.enum || schema.args) return false
+  if (schema.anyOf || schema.items || schema.enum || schema.args) return false
   if (schema.type) return kindOf(schema.type) === 'map'
   return typeof schema.ref === 'string'
 }
@@ -83,6 +85,7 @@ function replaceVar(node: any, from: string, to: string | OnyxSchema): any {
 /** The property schema for a chosen kind. */
 function kindSchema(kind: string): OnyxSchema {
   if (kind.startsWith('var:')) return {var: kind.slice(4)}
+  if (kind === 'any') return {ref: ANY_URL}
   if (kind === 'hm-url') return {type: kindUrl('string'), format: 'hm-url'}
   if (kind === 'ipfs') return {type: kindUrl('string'), format: 'ipfs'}
   // The built-in date types are includes of the library schemas, which carry
@@ -323,6 +326,14 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
   }
   const fieldKinds = [...FIELD_KINDS, ...paramEntries.map(([name]) => ({kind: varKind(name), label: `⟨${name}⟩`}))]
 
+  // `values`: the schema every field NOT listed above must satisfy. Present, the
+  // struct is open (extra fields allowed, typed); absent, it is closed.
+  const values: any = schema.values
+  const setValues = (next: OnyxSchema | null) => {
+    const {values: _v, ...rest} = schema
+    onSchema(next ? {...rest, values: next} : rest)
+  }
+
   // What the schema's root IS: a plain struct, the signed-blob envelope, or an
   // extension of any other type (its base named by a raw ref). Fully editable —
   // extending anything is a matter of picking "Extends" and pasting the base.
@@ -485,6 +496,36 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
         <Button variant="outline" size="sm" className="mt-1 w-fit gap-1" onClick={addField}>
           <Plus className="size-4" /> Add field
         </Button>
+        <div className="mt-2 flex flex-wrap items-center gap-2" data-testid="schema-values">
+          <Tooltip content="Open struct — fields other than the ones above are allowed, and must have this kind">
+            <label className="text-muted-foreground flex cursor-pointer items-center gap-1 text-xs">
+              <Checkbox
+                checked={values !== undefined}
+                onCheckedChange={(on) => setValues(on === true ? {ref: ANY_URL} : null)}
+              />
+              other fields allowed
+            </label>
+          </Tooltip>
+          {values !== undefined && (
+            <Select value={propKind(values)} onValueChange={(kind) => setValues(kindSchema(kind))}>
+              <SelectTrigger className="w-36 shrink-0" aria-label="Kind of other fields">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {propKind(values) === CUSTOM_KIND && (
+                  <SelectItem value={CUSTOM_KIND} disabled>
+                    {customLabel(values)}
+                  </SelectItem>
+                )}
+                {fieldKinds.map(({kind, label}) => (
+                  <SelectItem key={kind} value={kind}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
       </div>
     </div>
   )
