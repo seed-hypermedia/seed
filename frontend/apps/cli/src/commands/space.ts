@@ -108,6 +108,7 @@ export function registerSpaceCommands(program: Command) {
     .option('--daemon <url>', 'Daemon gRPC-web endpoint', 'http://localhost:58001')
     .option('--interval <ms>', 'Poll interval', '2000')
     .option('--no-push', 'Do not publish the directory into the daemon first')
+    .option('--no-watch', 'Do not push files changed on disk while the loop runs')
     .action(async (options) => {
       try {
         await runDevLoop({
@@ -116,6 +117,7 @@ export function registerSpaceCommands(program: Command) {
           daemonUrl: options.daemon,
           intervalMs: Number(options.interval),
           push: options.push !== false,
+          watchFiles: options.watch !== false,
         })
       } catch (error) {
         printError((error as Error).message)
