@@ -36,7 +36,5 @@
         }
       }
     }
-  },
-  "description": "A block that embeds a live query: its results (documents from the queried spaces) render in place, styled as cards, a list, or a table.",
-  "name": "Query block"
+  }
 }

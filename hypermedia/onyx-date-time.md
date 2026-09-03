@@ -1,7 +1,7 @@
 ---
 name: Date-time
 summary: An instant as an RFC 3339 / ISO 8601 string, `YYYY-MM-DDTHH:MM:SS[.sss]Z` or with a numeric offset (e.g. `2026-08-26T14:30:00Z`). A refinement of string with `f
-schemaDefinition: ipfs://bafyreifn2y4e6svtomahzbikyrjaxgjp5e2oqs2jqzqzvbepcrxgl7ojam
+schemaDefinition: ipfs://bafyreic3g76lmaoju2gqpwfsbglatomg75g56dgbxs4nhdwm6ka5fn46t4
 ---
 An instant as an RFC 3339 / ISO 8601 string, `YYYY-MM-DDTHH:MM:SS[.sss]Z` or with a numeric offset (e.g. `2026-08-26T14:30:00Z`). A refinement of string with `format: date-time` so an editor renders a date-and-time picker, and a pattern that checks the shape. <!-- id:Us7SMTBC -->
 

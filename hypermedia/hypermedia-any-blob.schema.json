@@ -18,7 +18,5 @@
     {
       "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-contact"
     }
-  ],
-  "description": "Any Hypermedia CBOR blob — the discriminated union of the six blob types, tagged on the type field.",
-  "name": "Any blob"
+  ]
 }

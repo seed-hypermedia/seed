@@ -7,7 +7,5 @@
     "blockId": {
       "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     }
-  },
-  "description": "A parsed URL fragment addressing a block (and optionally a range inside it). A derived read model computed by the Seed daemon/API for clients — not a signed network blob.",
-  "name": "Parsed fragment"
+  }
 }

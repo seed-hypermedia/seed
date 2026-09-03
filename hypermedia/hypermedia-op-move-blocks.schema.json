@@ -26,7 +26,5 @@
         "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer"
       }
     }
-  },
-  "description": "Move blocks under a parent, using RGA CRDT reference ids.",
-  "name": "MoveBlocks op"
+  }
 }

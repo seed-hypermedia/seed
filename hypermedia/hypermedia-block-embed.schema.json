@@ -30,7 +30,5 @@
         "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any"
       }
     }
-  },
-  "description": "An embed of another Hypermedia document (an hm:// URL).",
-  "name": "Embed block"
+  }
 }

@@ -6,7 +6,5 @@
     "Unordered",
     "Blockquote",
     "Grid"
-  ],
-  "description": "How a block's children are laid out: Group (default), Ordered, Unordered, Blockquote, or Grid.",
-  "name": "Children type"
+  ]
 }

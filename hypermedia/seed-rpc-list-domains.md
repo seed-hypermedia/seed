@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListDomains"
 summary: "Lists all site domains the daemon knows about. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pa"
-schemaDefinition: ipfs://bafyreihcgqjezgocontusbpefz4s7ddey326ajsjawmvbg5ncggd6jxom4
+schemaDefinition: ipfs://bafyreic74nppguftt4vggc5vm6dpwxlnu7r6b7fki7vu3bg7ynfbz4rdea
 ---
 Lists all site domains the daemon knows about. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:EU590VBL -->
 

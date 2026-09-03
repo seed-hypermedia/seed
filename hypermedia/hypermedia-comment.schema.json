@@ -43,7 +43,5 @@
     "visibility": {
       "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-visibility"
     }
-  },
-  "description": "A comment on a document version, threaded via threadRoot and replyParent. Its body is a tree of comment blocks.",
-  "name": "Comment"
+  }
 }

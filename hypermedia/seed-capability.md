@@ -1,7 +1,7 @@
 ---
 name: Capability (payload)
 summary: "A capability as the API returns it: who was granted which role on which grant id. A derived read model computed by the Seed daemon/API for clients — not a signe"
-schemaDefinition: ipfs://bafyreies4pkfd3nv2urvzu5q7i4ufbcysdh2q3tiwyrxs6hqbiojs4t4qy
+schemaDefinition: ipfs://bafyreiho33spgkqing6r3lvnvttn6y4c3swxcw2mnkepbpvqlsqqccgdlu
 ---
 A capability as the API returns it: who was granted which role on which grant id. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:07W6OLh9 -->
 

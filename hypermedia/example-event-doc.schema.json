@@ -41,7 +41,5 @@
         }
       }
     }
-  },
-  "description": "A world-builder kit type: a page about something that happened. Requires a `date` and links the event to a location (a Place), a protagonist (a Character), and optionally an `ends` date for spans.",
-  "name": "Event"
+  }
 }

@@ -25,7 +25,5 @@
     "label": {
       "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     }
-  },
-  "description": "A delegation granting a role (WRITER or AGENT) from a space owner (the signer) to a delegate key, optionally scoped to a path.",
-  "name": "Capability"
+  }
 }

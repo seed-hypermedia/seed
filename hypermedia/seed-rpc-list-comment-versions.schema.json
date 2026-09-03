@@ -37,7 +37,5 @@
     "key",
     "input",
     "output"
-  ],
-  "description": "Lists the edit history (all versions) of a comment. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.",
-  "name": "RPC: ListCommentVersions"
+  ]
 }

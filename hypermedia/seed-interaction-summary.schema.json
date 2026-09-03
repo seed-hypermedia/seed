@@ -50,7 +50,5 @@
         }
       }
     }
-  },
-  "description": "Aggregate interaction counts for a document — citations, comments, changes, child documents, distinct authors — plus per-block citation/comment counts. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.",
-  "name": "Interaction summary"
+  }
 }

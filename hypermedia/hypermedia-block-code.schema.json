@@ -27,7 +27,5 @@
         "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any"
       }
     }
-  },
-  "description": "A code block, optionally tagged with a language.",
-  "name": "Code block"
+  }
 }

@@ -21,7 +21,5 @@
         }
       }
     }
-  },
-  "description": "One row of a Table block. Its children are Paragraph cell blocks, each carrying a columnId attribute referencing a TableColumn id.",
-  "name": "Table row block"
+  }
 }

@@ -17,7 +17,5 @@
   "required": [
     "comments",
     "authors"
-  ],
-  "description": "A list of comments plus the metadata payloads of every author involved. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.",
-  "name": "Comment list"
+  ]
 }

@@ -1,7 +1,7 @@
 ---
 name: "Example: MyApp change"
 summary: A Change instantiated with this app's block type — Change<example-app-block>. Because Block is bound, its ReplaceBlock ops are validated strictly against the ap
-schemaDefinition: ipfs://bafyreig6idenuzv7axgnnspamdugu5cqda5t3pde2fxqtlfaxfcsp3eube
+schemaDefinition: ipfs://bafyreia733z3qwxlzphyedpx4ijiay26pvemflteh2qufwegsdflxj5yti
 ---
 A Change instantiated with this app's block type — Change\<example-app-block>. Because Block is bound, its ReplaceBlock ops are validated strictly against the app's blocks (core + Poll), deep inside the op stack — a block type the app doesn't know is rejected, unlike the open default Change. <!-- id:oQwgI4Kv -->
 

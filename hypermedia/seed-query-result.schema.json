@@ -21,7 +21,5 @@
   "required": [
     "in",
     "results"
-  ],
-  "description": "The documents a query matched, listed under the queried id. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.",
-  "name": "Query result"
+  ]
 }

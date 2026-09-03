@@ -31,7 +31,5 @@
         }
       }
     }
-  },
-  "description": "A world-builder kit type: a page about a faction, order, house, or guild. Requires a `founded` date; links to its seat (a Place) and leader (a Character), and a banner image.",
-  "name": "Faction"
+  }
 }

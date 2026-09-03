@@ -19,7 +19,5 @@
     "key",
     "input",
     "output"
-  ],
-  "description": "Fetches one comment by id or version CID. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.",
-  "name": "RPC: Comment"
+  ]
 }

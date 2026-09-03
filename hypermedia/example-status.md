@@ -1,7 +1,7 @@
 ---
 name: "Example: Status"
 summary: "A publication status: draft, published, or archived."
-schemaDefinition: ipfs://bafyreia4x6ipvm3lidwvflhw5f2vv6hncard5d24uhfxo2ti443ppsprfy
+schemaDefinition: ipfs://bafyreibmfhywmgp6hfp6yrgkb5edojjush627gx6l5iw2w7sy67gczxnwi
 ---
 This document describes the **example-status** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:rq6vJlcj -->
 
