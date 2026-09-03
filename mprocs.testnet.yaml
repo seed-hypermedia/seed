@@ -53,3 +53,12 @@ procs:
   desktop:
     shell: './dev run-desktop'
     autostart: true
+
+  # Repo HM sync: hypermedia/ (the Onyx schema library) edited in the desktop
+  # app above. Waits for the app's daemon, pushes the directory into it under a
+  # throwaway key (hypermedia/.dev/, gitignored), opens the site in the dev
+  # app, and writes every document published there back to the files. Point it
+  # at another folder with `./dev hm-sync <dir>` (seed-docs/ works the same way).
+  hm-sync:
+    shell: './dev hm-sync hypermedia'
+    autostart: true
