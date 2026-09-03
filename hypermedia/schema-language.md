@@ -135,7 +135,7 @@ This is the crux, and with unions it is sharper than "a loose map with optional 
 <!-- id:yZg8-sNO -->
 | variant <!-- col:kO3_qHrQ --> | matches <!-- col:rCN3fgm3 --> | discriminant <!-- col:zzQn7svL --> <!-- id:4VFkvrKJ --> |
 | --- | --- | --- |
-| `onyx-struct-schema` | `{type:"struct", properties?, required?, values?}` | `type` = `struct` |
+| `onyx-struct-schema` | `{type:"struct", properties?, required?, values?}` | `type` = `struct` <!-- id:dS0FU-PD --> |
 | `onyx-map-schema` | `{type:"map", values?}` | `type` = `map` <!-- id:bCtL9MQx --> |
 | `onyx-list-schema` | `{type:"list", items?}` | `type` = `list` <!-- id:Y2gJAANc --> |
 | `onyx-scalar-schema` | `{type: null\|boolean\|integer\|float\|string\|bytes, enum?}` | `type` = a scalar kind <!-- id:wkuOsUIy --> |
