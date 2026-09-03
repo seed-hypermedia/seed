@@ -7,8 +7,8 @@ This document describes the **example-status** type — an example schema. Its f
 
 # Shape <!-- id:sZ1X32AZ -->
 
-An **alias** of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string). <!-- id:UnZxtZQt -->
+An **alias** of [string](./onyx-string.md). <!-- id:UnZxtZQt -->
 
 # Depends on <!-- id:_fQOQayD -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:683BR9ah -->
+- [string](./onyx-string.md) <!-- id:683BR9ah -->

@@ -8,9 +8,9 @@ This document describes the **hypermedia-query-sort** type — a Hypermedia Netw
 # Shape <!-- id:P0EJDwNB -->
 
 A **closed struct** with these fields: <!-- id:9JJXnFXo -->
-  - `reverse` — [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:d_agsTi8 -->
+  - `reverse` — [boolean](./onyx-boolean.md) <!-- id:d_agsTi8 -->
   - `term` _(required)_ — `string` enum: `Path` `Title` `CreateTime` `UpdateTime` `DisplayTime` `ActivityTime` <!-- id:GeGLwkRQ -->
 
 # Depends on <!-- id:qCmEO3j- -->
 
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:ycEmiVRJ -->
+- [boolean](./onyx-boolean.md) <!-- id:ycEmiVRJ -->

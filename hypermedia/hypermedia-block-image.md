@@ -7,18 +7,18 @@ This document describes the **hypermedia-block-image** type — a Hypermedia Net
 
 # Shape <!-- id:cbXa8mno -->
 
-**Extends** [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) with these added fields: <!-- id:kPTX80QP -->
+**Extends** [hypermedia-block-base](./hypermedia-block-base.md) with these added fields: <!-- id:kPTX80QP -->
   - `type` — `string` enum: `Image` <!-- id:_SNfeCgs -->
-  - `text` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:DXG_XHw7 -->
-  - `annotations` — list of [hypermedia-annotation](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-annotation) <!-- id:Q7w7I2Hz -->
-  - `link` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:UYcsuvkH -->
+  - `text` — [string](./onyx-string.md) <!-- id:DXG_XHw7 -->
+  - `annotations` — list of [hypermedia-annotation](./hypermedia-annotation.md) <!-- id:Q7w7I2Hz -->
+  - `link` _(required)_ — [string](./onyx-string.md) <!-- id:UYcsuvkH -->
   - `attributes` — map { 4 fields } <!-- id:iqHIaSba -->
 
 # Depends on <!-- id:YPRiA03F -->
 
-- [hypermedia-annotation](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-annotation) <!-- id:MVA73uC9 -->
-- [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) <!-- id:DkHjROke -->
-- [hypermedia-children-type](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-children-type) <!-- id:MBr7gZWy -->
-- [any](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any) <!-- id:Zxb9Dkoq -->
-- [float](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float) <!-- id:cA9WSlCZ -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:BB8A96g9 -->
+- [hypermedia-annotation](./hypermedia-annotation.md) <!-- id:MVA73uC9 -->
+- [hypermedia-block-base](./hypermedia-block-base.md) <!-- id:DkHjROke -->
+- [hypermedia-children-type](./hypermedia-children-type.md) <!-- id:MBr7gZWy -->
+- [any](./onyx-any.md) <!-- id:Zxb9Dkoq -->
+- [float](./onyx-float.md) <!-- id:cA9WSlCZ -->
+- [string](./onyx-string.md) <!-- id:BB8A96g9 -->

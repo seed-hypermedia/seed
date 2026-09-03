@@ -9,8 +9,8 @@ This document describes the **seed-resource-not-found** type — a Seed API read
 
 A **closed struct** with these fields: <!-- id:erYiDX2c -->
   - `type` _(required)_ — `string` enum: `not-found` <!-- id:1DwJBRbq -->
-  - `id` _(required)_ — [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:TaNDKqak -->
+  - `id` _(required)_ — [seed-id](./seed-id.md) <!-- id:TaNDKqak -->
 
 # Depends on <!-- id:cW26WYlZ -->
 
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:GbP_pjWq -->
+- [seed-id](./seed-id.md) <!-- id:GbP_pjWq -->

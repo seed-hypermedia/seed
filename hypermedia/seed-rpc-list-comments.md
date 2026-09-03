@@ -12,9 +12,9 @@ This document describes the **seed-rpc-list-comments** type — a Seed API read-
 A **closed struct** with these fields: <!-- id:uftselk_ -->
   - `key` _(required)_ — `string` enum: `ListComments` <!-- id:Ak291hhk -->
   - `input` _(required)_ — map { 1 fields } <!-- id:vY6Hzd1z -->
-  - `output` _(required)_ — [seed-comment-list](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-comment-list) <!-- id:1RJBX7B9 -->
+  - `output` _(required)_ — [seed-comment-list](./seed-comment-list.md) <!-- id:1RJBX7B9 -->
 
 # Depends on <!-- id:uWwOxPlK -->
 
-- [seed-comment-list](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-comment-list) <!-- id:E15hQPIY -->
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:lN6X6Wve -->
+- [seed-comment-list](./seed-comment-list.md) <!-- id:E15hQPIY -->
+- [seed-id](./seed-id.md) <!-- id:lN6X6Wve -->

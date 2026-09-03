@@ -7,11 +7,11 @@ This document describes the **example-employee** type — an example schema. Its
 
 # Shape <!-- id:FRM7SadU -->
 
-**Extends** [example-person](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-person) with these added fields: <!-- id:XUqvPhRC -->
-  - `employeeId` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:VBcJW2v6 -->
-  - `department` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:LKh9yy5V -->
+**Extends** [example-person](./example-person.md) with these added fields: <!-- id:XUqvPhRC -->
+  - `employeeId` _(required)_ — [string](./onyx-string.md) <!-- id:VBcJW2v6 -->
+  - `department` — [string](./onyx-string.md) <!-- id:LKh9yy5V -->
 
 # Depends on <!-- id:Ah7bnx2c -->
 
-- [example-person](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-person) <!-- id:oci5ofGp -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:qBjztCB9 -->
+- [example-person](./example-person.md) <!-- id:oci5ofGp -->
+- [string](./onyx-string.md) <!-- id:qBjztCB9 -->

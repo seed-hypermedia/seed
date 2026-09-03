@@ -1,5 +1,5 @@
 /**
- * Warm-pool contract tests (docs/exec-warm-pool.md, "Seam contract"): principal-key isolation,
+ * Warm-pool contract tests (hypermedia/agent-exec-warm-pool.md, "Seam contract"): principal-key isolation,
  * same-key serialization, reset-before-park, lifetime independent of call timeout, and
  * unhealthy-release eviction/drain — the exact list ion's review gated the pool on.
  */

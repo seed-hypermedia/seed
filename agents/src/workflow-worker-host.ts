@@ -1,5 +1,5 @@
 /**
- * Phase-1 proof of concept for worker-isolated run execution (see docs/worker-isolated-execution.md).
+ * Phase-1 proof of concept for worker-isolated run execution (see hypermedia/agent-worker-isolated-execution.md).
  *
  * Runs the QuickJS workflow VM in a dedicated Worker thread so its CPU-bound compute no longer
  * blocks the main event loop (the HTTP API and WebSocket broadcast). The worker executes the exact

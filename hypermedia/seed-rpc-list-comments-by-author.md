@@ -12,9 +12,9 @@ This document describes the **seed-rpc-list-comments-by-author** type — a Seed
 A **closed struct** with these fields: <!-- id:LP2wLk4H -->
   - `key` _(required)_ — `string` enum: `ListCommentsByAuthor` <!-- id:6ScncCpi -->
   - `input` _(required)_ — map { 1 fields } <!-- id:NyEpluIW -->
-  - `output` _(required)_ — [seed-comment-list](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-comment-list) <!-- id:r5kRTsmu -->
+  - `output` _(required)_ — [seed-comment-list](./seed-comment-list.md) <!-- id:r5kRTsmu -->
 
 # Depends on <!-- id:OKsUfq8K -->
 
-- [seed-comment-list](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-comment-list) <!-- id:-JnWEZdC -->
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:DFyGRqV- -->
+- [seed-comment-list](./seed-comment-list.md) <!-- id:-JnWEZdC -->
+- [seed-id](./seed-id.md) <!-- id:DFyGRqV- -->

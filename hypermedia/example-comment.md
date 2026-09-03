@@ -8,11 +8,11 @@ This document describes the **example-comment** type — an example schema. Its 
 # Shape <!-- id:AXyKri0d -->
 
 A **closed struct** with these fields: <!-- id:3Otnxlec -->
-  - `text` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:bu5Hac5I -->
-  - `author` — `link` → [example-person](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-person) <!-- id:WYmBsELU -->
-  - `replies` — list of `link` → [example-comment](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-comment) <!-- id:QBOcn3S2 -->
+  - `text` _(required)_ — [string](./onyx-string.md) <!-- id:bu5Hac5I -->
+  - `author` — `link` → [example-person](./example-person.md) <!-- id:WYmBsELU -->
+  - `replies` — list of `link` → [example-comment](./example-comment.md) <!-- id:QBOcn3S2 -->
 
 # Depends on <!-- id:lneTxSMU -->
 
-- [example-person](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-person) <!-- id:g8oGaQtn -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:9yUAwscV -->
+- [example-person](./example-person.md) <!-- id:g8oGaQtn -->
+- [string](./onyx-string.md) <!-- id:9yUAwscV -->

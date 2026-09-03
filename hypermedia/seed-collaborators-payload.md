@@ -10,16 +10,16 @@ This document describes the **seed-collaborators-payload** type — a Seed API r
 # Shape <!-- id:0pHZWhFV -->
 
 A **closed struct** with these fields: <!-- id:aPWcE-eZ -->
-  - `publisherUid` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:dNxcOhZ0 -->
-  - `parentCapabilities` _(required)_ — list of [seed-capability](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-capability) <!-- id:1Qe1cDdo -->
-  - `grantedCapabilities` _(required)_ — list of [seed-capability](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-capability) <!-- id:F1LujJDo -->
-  - `grantedMembers` _(required)_ — list of [seed-site-member](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-site-member) <!-- id:MgzEcRK6 -->
-  - `members` _(required)_ — list of [seed-site-member](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-site-member) <!-- id:0jqsG9an -->
-  - `accounts` _(required)_ — [seed-accounts-metadata](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-accounts-metadata) <!-- id:iTCASGut -->
+  - `publisherUid` _(required)_ — [string](./onyx-string.md) <!-- id:dNxcOhZ0 -->
+  - `parentCapabilities` _(required)_ — list of [seed-capability](./seed-capability.md) <!-- id:1Qe1cDdo -->
+  - `grantedCapabilities` _(required)_ — list of [seed-capability](./seed-capability.md) <!-- id:F1LujJDo -->
+  - `grantedMembers` _(required)_ — list of [seed-site-member](./seed-site-member.md) <!-- id:MgzEcRK6 -->
+  - `members` _(required)_ — list of [seed-site-member](./seed-site-member.md) <!-- id:0jqsG9an -->
+  - `accounts` _(required)_ — [seed-accounts-metadata](./seed-accounts-metadata.md) <!-- id:iTCASGut -->
 
 # Depends on <!-- id:EuNEDEuM -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:wh5e0WNl -->
-- [seed-accounts-metadata](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-accounts-metadata) <!-- id:VDls_Pgs -->
-- [seed-capability](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-capability) <!-- id:DNmDsWAi -->
-- [seed-site-member](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-site-member) <!-- id:0RjtWQQY -->
+- [string](./onyx-string.md) <!-- id:wh5e0WNl -->
+- [seed-accounts-metadata](./seed-accounts-metadata.md) <!-- id:VDls_Pgs -->
+- [seed-capability](./seed-capability.md) <!-- id:DNmDsWAi -->
+- [seed-site-member](./seed-site-member.md) <!-- id:0RjtWQQY -->

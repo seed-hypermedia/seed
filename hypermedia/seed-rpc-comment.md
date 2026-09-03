@@ -11,10 +11,10 @@ This document describes the **seed-rpc-comment** type — a Seed API read-model 
 
 A **closed struct** with these fields: <!-- id:gjgJsWAB -->
   - `key` _(required)_ — `string` enum: `Comment` <!-- id:sgUIu7Zp -->
-  - `input` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:TEXCgfQs -->
-  - `output` _(required)_ — [seed-comment](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-comment) <!-- id:9BhGxGzo -->
+  - `input` _(required)_ — [string](./onyx-string.md) <!-- id:TEXCgfQs -->
+  - `output` _(required)_ — [seed-comment](./seed-comment.md) <!-- id:9BhGxGzo -->
 
 # Depends on <!-- id:xwY-oZ3c -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:BEyrCqg4 -->
-- [seed-comment](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-comment) <!-- id:gF5PMV1e -->
+- [string](./onyx-string.md) <!-- id:BEyrCqg4 -->
+- [seed-comment](./seed-comment.md) <!-- id:gF5PMV1e -->
