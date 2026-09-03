@@ -428,8 +428,7 @@ export function OnyxSchemaPage({
     const k = primitiveKind(slug)
     lead = (
       <p className="text-sm">
-        <KindBadge kind={k} nav={nav} />{' '}
-        <span className="text-muted-foreground">· a primitive — the standard-library schema for the {k} kind</span>
+        <KindBadge kind={k} nav={nav} /> <span className="text-muted-foreground">· Core Type</span>
       </p>
     )
   } else if (isUnion) {
