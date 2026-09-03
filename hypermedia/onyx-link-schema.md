@@ -1,25 +1,19 @@
 ---
-name: "Link schema"
-summary: "The variant for a link (CID), optionally naming the expected target type."
+name: Link schema
+summary: The variant for a link (CID), optionally naming the expected target type.
+schemaDefinition: ipfs://bafyreicjbpeiuhnhmptmweyzryzmtuba6t6qaksxlry3kdcm4hini4mtta
 ---
+This document describes the **onyx-link-schema** type — a meta-schema variant. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:QZ0YT6sU -->
 
-# Link schema
+# Shape <!-- id:oZ8Ewg1C -->
 
-The variant for a link (CID), optionally naming the expected target type.
+A **closed struct** with these fields: <!-- id:f0WtHHnG -->
+  - `type` _(required)_ — `string` enum: `link` <!-- id:aINr0L9m -->
+  - `ref` — `string` <!-- id:9EpX2r1A -->
+  - `name` — `string` <!-- id:l3kcRCy0 -->
+  - `description` — `string` <!-- id:X1qTBkc0 -->
+  - `params` — map ⟨ \* : [schema](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema) ⟩ <!-- id:WvvPXIYj -->
 
+# Depends on <!-- id:ZrXqrtqn -->
 
-This document describes the **onyx-link-schema** type — a meta-schema variant. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type.
-
-## Shape
-
-A **closed struct** with these fields:
-
-- `type` *(required)* — `string` enum: `link`
-- `ref` — `string`
-- `name` — `string`
-- `description` — `string`
-- `params` — map ⟨ * : [schema](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema) ⟩
-
-## Depends on
-
-- [schema](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema)
+- [schema](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema) <!-- id:zSD-j6tg -->

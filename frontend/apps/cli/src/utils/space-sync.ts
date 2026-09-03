@@ -13,6 +13,13 @@
  * A `SpaceLayout` maps document paths to files. The default layout puts the
  * home document at `index.md` and `/a/b` at `a/b.md`; a schema blob goes to
  * `<file>.schema.json` beside the document that defines it.
+ *
+ * Schemas travel with their documents. Export writes the DAG-CBOR blob a
+ * document's `metadata.schemaDefinition` points at as `<file>.schema.json`;
+ * import encodes that file back to canonical DAG-CBOR, publishes the blob with
+ * the document, and sets `schemaDefinition: ipfs://<cid>` (the file is the
+ * truth, whatever the frontmatter says). A `{$type, value}` file is an
+ * instance, not a type: its document conforms to `$type` (`metadata.schema`).
  */
 import {existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
 import {dirname, join, normalize, relative, resolve} from 'node:path'
@@ -40,8 +47,10 @@ import {
   toAPIBlockNode,
 } from '@seed-hypermedia/client/block-diff'
 import type {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
+import * as dagCbor from '@ipld/dag-cbor'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {CID} from 'multiformats/cid'
+import {sha256} from 'multiformats/hashes/sha2'
 import {hmBlockNodeToBlockNode} from './block-diff'
 import {resolveFileLinks} from './file-links'
 
@@ -316,6 +325,48 @@ export async function grantWriters(
   return granted
 }
 
+// ─── Schemas ─────────────────────────────────────────────────────────────────
+
+export type SchemaFile =
+  /** A type: the document DEFINES this schema (`schemaDefinition: ipfs://<cid>`). */
+  | {kind: 'type'; cid: string; data: Uint8Array}
+  /** An instance (`{$type, value}`): the document CONFORMS to `$type` (`schema`). */
+  | {kind: 'instance'; type: string}
+
+/** Canonical DAG-CBOR encoding of a schema object and its CID (v1, sha2-256, dag-cbor). */
+export async function encodeSchemaBlob(obj: unknown): Promise<{data: Uint8Array; cid: string}> {
+  const data = dagCbor.encode(obj)
+  const hash = await sha256.digest(data)
+  return {data: new Uint8Array(data), cid: CID.create(1, dagCbor.code, hash).toString()}
+}
+
+/** The schema file beside a markdown file, when the layout maps one and it exists. */
+export async function readSchemaFile(dir: string, mdFile: string, layout: SpaceLayout): Promise<SchemaFile | null> {
+  const schemaFile = layout.schemaFileFor(mdFile)
+  if (!schemaFile) return null
+  const full = resolve(dir, schemaFile)
+  if (!existsSync(full)) return null
+  const obj = JSON.parse(readFileSync(full, 'utf8')) as Record<string, unknown> | null
+  if (obj && typeof obj === 'object' && typeof obj.$type === 'string' && 'value' in obj) {
+    return {kind: 'instance', type: obj.$type}
+  }
+  const {data, cid} = await encodeSchemaBlob(obj)
+  return {kind: 'type', cid, data}
+}
+
+/** The metadata a schema file implies for its document. */
+export function applySchemaMetadata(metadata: HMMetadata, schema: SchemaFile | null): HMMetadata {
+  if (!schema) return metadata
+  const out = {...(metadata as Record<string, unknown>)}
+  if (schema.kind === 'instance') {
+    out.schema = schema.type
+    delete out.schemaDefinition
+  } else {
+    out.schemaDefinition = `ipfs://${schema.cid}`
+  }
+  return out as HMMetadata
+}
+
 // ─── Import ──────────────────────────────────────────────────────────────────
 
 export type ImportOptions = {
@@ -500,7 +551,10 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     }
     const raw = readFileSync(resolve(opts.dir, file), 'utf8')
     const {tree, metadata: fileMetadata} = parseMarkdown(raw)
-    const metadata = opts.metadataFor ? opts.metadataFor(file, fileMetadata) : fileMetadata
+    const schema = await readSchemaFile(opts.dir, file, layout)
+    const metadata = applySchemaMetadata(opts.metadataFor ? opts.metadataFor(file, fileMetadata) : fileMetadata, schema)
+    // The schema blob rides along with the change that binds it.
+    const schemaBlobs = schema?.kind === 'type' ? [{data: schema.data, cid: schema.cid}] : []
     const resolved = await resolveFileLinks(
       relativeToHmLinks(markdownBlockNodesToHMBlockNodes(tree), file, opts.account, layout),
     )
@@ -550,6 +604,7 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
         blobs: [
           {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
           ...ref.blobs,
+          ...schemaBlobs,
           ...resolved.blobs.map((b) => ({data: b.data, cid: b.cid})),
         ],
       })
@@ -611,6 +666,7 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
       blobs: [
         {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
         ...ref.blobs,
+        ...schemaBlobs,
         ...resolved.blobs.map((b) => ({data: b.data, cid: b.cid})),
       ],
     })

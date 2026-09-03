@@ -18,5 +18,7 @@
         "AllDescendants"
       ]
     }
-  }
+  },
+  "description": "One source a Query block pulls documents from: a space (account), an optional path prefix inside it, and whether to list direct Children or AllDescendants.",
+  "name": "Query inclusion"
 }

@@ -7,5 +7,7 @@
     "profile": {
       "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean"
     }
-  }
+  },
+  "description": "Subscription preferences for a contact: subscribe to the subject's site and/or profile.",
+  "name": "Contact subscription"
 }

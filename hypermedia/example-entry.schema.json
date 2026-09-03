@@ -6,5 +6,7 @@
     {
       "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-file"
     }
-  ]
+  ],
+  "description": "Either a folder or a file (a union).",
+  "name": "Filesystem entry"
 }

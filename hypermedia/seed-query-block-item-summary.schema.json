@@ -18,5 +18,7 @@
   },
   "required": [
     "comments"
-  ]
+  ],
+  "description": "Per-result interaction counts a Query block shows on its cards. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.",
+  "name": "Query block item summary"
 }

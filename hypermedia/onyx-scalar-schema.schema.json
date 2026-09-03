@@ -28,11 +28,11 @@
       "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     },
     "format": {
-      "description": "A semantic hint for editors/renderers \u2014 the value is still a plain string. Known: `hm-url` (a Hypermedia document reference), `hm-profile` (an account reference), `ipfs` (an ipfs://<cid> reference to a file or DAG-CBOR object), `date` (an ISO 8601 `YYYY-MM-DD` calendar date), `date-time` (an RFC 3339 instant).",
+      "description": "A semantic hint for editors/renderers — the value is still a plain string. Known: `hm-url` (a Hypermedia document reference), `hm-profile` (an account reference), `ipfs` (an ipfs://<cid> reference to a file or DAG-CBOR object), `date` (an ISO 8601 `YYYY-MM-DD` calendar date), `date-time` (an RFC 3339 instant).",
       "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     },
     "target": {
-      "description": "For a reference-valued string (`format: hm-url` or `format: ipfs`): the schema the referenced document or object is expected to conform to \u2014 an `hm://` schema-document URL or `ipfs://<cid>`. Advisory: an editor pre-seeds and validates the target against it; a validator does not dereference the reference.",
+      "description": "For a reference-valued string (`format: hm-url` or `format: ipfs`): the schema the referenced document or object is expected to conform to — an `hm://` schema-document URL or `ipfs://<cid>`. Advisory: an editor pre-seeds and validates the target against it; a validator does not dereference the reference.",
       "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     },
     "minimum": {
@@ -49,6 +49,11 @@
       "values": {
         "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema"
       }
+    },
+    "name": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     }
-  }
+  },
+  "description": "The variant for a scalar value (null, boolean, integer, float, string, bytes), optionally restricted by enum or pattern, or given a semantic `format` (hm-url, hm-profile, ipfs, date, date-time) that a UI renders as a richer input, with an optional `target` naming the schema a reference should point at.",
+  "name": "Scalar schema"
 }

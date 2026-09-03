@@ -54,5 +54,7 @@
     "key",
     "input",
     "output"
-  ]
+  ],
+  "description": "Lists threaded discussions on a document (optionally focused on one comment), plus citing discussions from other documents. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.",
+  "name": "RPC: ListDiscussions"
 }

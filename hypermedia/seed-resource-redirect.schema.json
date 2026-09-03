@@ -21,5 +21,7 @@
     "republish": {
       "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean"
     }
-  }
+  },
+  "description": "A resource that redirects to another id (optionally republishing its content in place). A derived read model computed by the Seed daemon/API for clients — not a signed network blob.",
+  "name": "Resource: redirect"
 }
