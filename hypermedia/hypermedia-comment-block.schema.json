@@ -7,5 +7,7 @@
         "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-comment-block"
       }
     }
-  }
+  },
+  "description": "A comment content block: a Block extended with a recursive list of child comment blocks.",
+  "name": "Comment block"
 }

@@ -7,19 +7,19 @@
   ],
   "properties": {
     "strength": {
-      "description": "1\u201310",
+      "description": "1–10",
       "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer",
       "minimum": 1,
       "maximum": 10
     },
     "intellect": {
-      "description": "1\u201310",
+      "description": "1–10",
       "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer",
       "minimum": 1,
       "maximum": 10
     },
     "charisma": {
-      "description": "1\u201310",
+      "description": "1–10",
       "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer",
       "minimum": 1,
       "maximum": 10
@@ -39,5 +39,7 @@
         "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
       }
     }
-  }
+  },
+  "description": "A character's attribute block — the object a character page links to from its `stats` field. Lives as its own DAG-CBOR blob (an `ipfs://` reference), so it can hold integers and enums that document metadata cannot.",
+  "name": "Character stats"
 }

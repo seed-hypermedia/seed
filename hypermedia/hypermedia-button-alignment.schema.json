@@ -4,5 +4,7 @@
     "flex-start",
     "center",
     "flex-end"
-  ]
+  ],
+  "description": "Horizontal alignment of a Button block.",
+  "name": "Button alignment"
 }
