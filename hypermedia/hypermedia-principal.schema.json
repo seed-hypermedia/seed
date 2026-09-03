@@ -1,3 +1,5 @@
 {
-  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/bytes"
+  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/bytes",
+  "description": "A public key identifying an account, agent, or space — raw CBOR bytes (a packed multicodec key).",
+  "name": "Principal"
 }

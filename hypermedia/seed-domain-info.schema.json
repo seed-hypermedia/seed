@@ -70,5 +70,7 @@
     "peerId",
     "isGateway",
     "lastError"
-  ]
+  ],
+  "description": "The daemon's view of a site domain: registration, gateway status, and health-check results. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.",
+  "name": "Domain info"
 }
