@@ -98,7 +98,10 @@ function rewriteLinks(nodes: HMBlockNode[], visit: LinkVisitor): HMBlockNode[] {
 function relativeToHmLinks(nodes: HMBlockNode[], file: string, account: string, layout: SpaceLayout): HMBlockNode[] {
   const fileDir = dirname(file)
   return rewriteLinks(nodes, (link) => {
-    const m = /^(\.{1,2}\/[^#?]*\.md|[^:/#?][^#?]*\.md)(#.*)?$/.exec(link)
+    // Only relative paths: a link with a scheme (`https://…/README.md`,
+    // `mailto:`) or an absolute path is not a file in this directory.
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(link) || link.startsWith('/')) return link
+    const m = /^(\.{1,2}\/[^#?]*\.md|[^#?]+\.md)(#.*)?$/.exec(link)
     if (!m) return link
     const target = normalize(join(fileDir, m[1]!)).replace(/\\/g, '/')
     const path = layout.pathForFile(target)

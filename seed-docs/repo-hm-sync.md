@@ -22,6 +22,6 @@ Text is escaped so that markdown syntax characters survive, newlines inside a bl
 
 # Editing in the app <!-- id:j-kcO6jR -->
 
-`space dev` turns the desktop dev app into the editor for a directory. It creates a throwaway key under `.dev/` in the directory, registers it in the app's own daemon, publishes the directory there, and then watches the daemon. Every document you publish in the app is written straight back as a file, so `git diff` shows the edit within seconds. Nothing reaches the network until you import into a real space. <!-- id:sRBhq3FC -->
+`space dev` turns the desktop dev app into the editor for a directory. It creates a throwaway key under `.dev/` in the directory, registers it in the app's own daemon, publishes the directory there, and then watches the daemon. Every document you publish in the app is written straight back as a file, so `git diff` shows the edit within seconds. Only the dev app is watched: the production Seed app registers the same `hm://` scheme, and an edit made there reaches the directory only once the two daemons happen to sync. <!-- id:sRBhq3FC -->
 
 While the loop runs, the app is the writer and git is where you commit. <!-- id:2YxRmFf1 -->

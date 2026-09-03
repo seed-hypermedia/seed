@@ -13,16 +13,16 @@ import {createSeedClient} from '@seed-hypermedia/client'
 import {createGRPCClient} from '@shm/shared/grpc-client'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import type {Command} from 'commander'
-import {spawnSync} from 'node:child_process'
-import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs'
+import {spawn} from 'node:child_process'
+import {existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync} from 'node:fs'
 import {resolve} from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {getClient} from '../index'
 import {printError, printInfo, printSuccess, printWarning} from '../output'
 import {deriveKeyPairFromMnemonic, generateMnemonic, type KeyPair} from '../utils/key-derivation'
 import {keyOptions, resolveSigningKey} from '../utils/keys'
 import {createSignerFromKey} from '../utils/signer'
 import {exportPath, exportSpace, grantWriters, importSpace, listSpaceVersions} from '../utils/space-sync'
-import {unlinkSync} from 'node:fs'
 
 function spaceUid(id: string): string {
   const unpacked = unpackHmId(id.startsWith('hm://') ? id : `hm://${id}`)
@@ -133,8 +133,9 @@ export function registerSpaceCommands(program: Command) {
 //
 // The app is the editor; git is where you commit. The directory is published
 // into the daemon behind a running desktop dev app under a throwaway key, and
-// every document published in the app is written straight back. Nothing
-// reaches the network.
+// every document published in the app is written straight back. The dev
+// daemon is a peer like any other, so the site does propagate to whatever
+// network it is on; only the dev daemon is watched, though.
 
 /** The unencrypted dev key: a mnemonic in `<dir>/.dev/` (self-ignored), created on first use. */
 function loadOrCreateDevKey(dir: string): {keyPair: KeyPair; words: string[]; created: boolean} {
@@ -174,6 +175,35 @@ async function ensureDaemonKey(
   return keys.keys.map((k) => ({name: k.name, publicKey: k.publicKey}))
 }
 
+/**
+ * Open a URL in the running desktop dev app. `open hm://…` would hand the URL
+ * to whichever app the OS has registered for the scheme, usually the
+ * production Seed app, whose daemon is not the one this loop watches. The dev
+ * app holds Electron's single-instance lock, so launching a second dev
+ * instance with the URL as an argument forwards it to the running one
+ * (`second-instance` in the desktop main process) and exits.
+ * Returns false when the dev checkout or its Electron binary cannot be found.
+ */
+function openInDevApp(url: string): boolean {
+  const repoRoot = resolve(fileURLToPath(new URL('../../../../..', import.meta.url)))
+  const desktopDir = resolve(repoRoot, 'frontend/apps/desktop')
+  const candidates =
+    process.platform === 'darwin'
+      ? ['node_modules/electron/dist/Electron.app/Contents/MacOS/Electron']
+      : process.platform === 'win32'
+        ? ['node_modules/electron/dist/electron.exe']
+        : ['node_modules/electron/dist/electron']
+  const electron = candidates.map((c) => resolve(repoRoot, c)).find((c) => existsSync(c))
+  if (!electron || !existsSync(resolve(desktopDir, '.vite/build/main.js'))) return false
+  try {
+    const child = spawn(electron, ['.', url], {cwd: desktopDir, stdio: 'ignore', detached: true})
+    child.unref()
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function runDevLoop(opts: {dir: string; apiUrl: string; daemonUrl: string; intervalMs: number; push: boolean}) {
   const {keyPair, words, created} = loadOrCreateDevKey(opts.dir)
   const account = keyPair.accountId
@@ -206,8 +236,16 @@ async function runDevLoop(opts: {dir: string; apiUrl: string; daemonUrl: string;
 
   const url = `hm://${account}`
   printSuccess(`Site: ${url}`)
-  printInfo('Open it in the desktop app (paste the URL in the omnibar). Edit and publish; files update here.')
-  spawnSync('open', [url], {stdio: 'ignore'})
+  if (openInDevApp(url)) {
+    printInfo('Opened in the desktop DEV app. Edit and publish there; files update here.')
+  } else {
+    printInfo('Paste the URL into the omnibar of the desktop DEV app. Edit and publish there; files update here.')
+  }
+  printWarning(
+    'Only the dev app (the one behind ' +
+      opts.daemonUrl +
+      ') is watched. The production Seed app registers the same hm:// scheme, so do not open the site from a link: edits made there never reach this directory.',
+  )
 
   let versions = await listSpaceVersions(client, account)
   // Which file each document lives in, so a document moved in the app takes
