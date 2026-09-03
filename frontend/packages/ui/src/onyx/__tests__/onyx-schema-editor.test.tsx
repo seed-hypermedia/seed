@@ -164,4 +164,17 @@ describe('OnyxSchemaEditor (generics and JSON mode)', () => {
     setValue(JSON.stringify({anyOf: [{ref: BLOCK}, {ref: MAP}]}))
     expect(latest.anyOf).toHaveLength(2)
   })
+
+  it('a struct with open extra values edits as fields; unchecking closes it', () => {
+    const VALUE = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-value'
+    act(() => {
+      root.render(<Harness initial={{type: MAP, properties: {type: {ref: MAP}}, values: {ref: VALUE}}} />)
+    })
+    expect(container.querySelector('[data-testid="schema-json-editor"]')).toBeNull()
+    const values = container.querySelector('[data-testid="schema-values"]')!
+    expect(values.textContent).toContain('other fields allowed')
+    click(values.querySelector('button[role="checkbox"]')!)
+    expect(latest.values).toBeUndefined()
+    expect(latest.properties.type).toEqual({ref: MAP})
+  })
 })
