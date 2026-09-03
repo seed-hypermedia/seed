@@ -9,7 +9,7 @@
 // cannot mangle them. Kept visually minimal and consistent with the value
 // editor that renders the forms this schema defines.
 import {Plus, X} from 'lucide-react'
-import {useEffect, useMemo, useState} from 'react'
+import {useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from '../button'
 import {Checkbox} from '../components/checkbox'
 import {Input} from '../components/input'
@@ -192,7 +192,61 @@ function RawSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSchema: (s: 
   )
 }
 
-export function OnyxSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSchema: (s: OnyxSchema) => void}) {
+/**
+ * Undo/redo for a controlled schema. Every edit goes straight into the document draft and the
+ * inputs are controlled, so the browser's own undo has nothing to work with; this keeps the
+ * history instead. Edits within a short burst (typing) coalesce into one step.
+ */
+function useSchemaHistory(schema: OnyxSchema, onSchema: (s: OnyxSchema) => void) {
+  const past = useRef<OnyxSchema[]>([])
+  const future = useRef<OnyxSchema[]>([])
+  const lastEditAt = useRef(0)
+  const change = (next: OnyxSchema) => {
+    const now = Date.now()
+    if (now - lastEditAt.current > 800) past.current.push(schema)
+    lastEditAt.current = now
+    future.current = []
+    onSchema(next)
+  }
+  const undo = () => {
+    const prev = past.current.pop()
+    if (!prev) return
+    future.current.push(schema)
+    lastEditAt.current = 0
+    onSchema(prev)
+  }
+  const redo = () => {
+    const next = future.current.pop()
+    if (!next) return
+    past.current.push(schema)
+    lastEditAt.current = 0
+    onSchema(next)
+  }
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (!(e.metaKey || e.ctrlKey) || e.altKey) return
+    const key = e.key.toLowerCase()
+    if (key === 'z') {
+      e.preventDefault()
+      e.stopPropagation()
+      if (e.shiftKey) redo()
+      else undo()
+    } else if (key === 'y' && e.ctrlKey) {
+      e.preventDefault()
+      e.stopPropagation()
+      redo()
+    }
+  }
+  return {change, onKeyDown}
+}
+
+export function OnyxSchemaEditor({
+  schema,
+  onSchema: onSchemaProp,
+}: {
+  schema: OnyxSchema
+  onSchema: (s: OnyxSchema) => void
+}) {
+  const {change: onSchema, onKeyDown} = useSchemaHistory(schema, onSchemaProp)
   const fits = structFormFits(schema)
   const [mode, setMode] = useState<'form' | 'json'>(fits ? 'form' : 'json')
   const showForm = mode === 'form' && fits
@@ -220,18 +274,14 @@ export function OnyxSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSche
       ))}
     </div>
   )
-  if (!showForm) {
-    return (
-      <div className="flex flex-col gap-2">
-        {modeToggle}
-        <RawSchemaEditor schema={schema} onSchema={onSchema} />
-      </div>
-    )
-  }
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2" onKeyDown={onKeyDown} data-testid="schema-editor-root">
       {modeToggle}
-      <StructSchemaForm schema={schema} onSchema={onSchema} />
+      {showForm ? (
+        <StructSchemaForm schema={schema} onSchema={onSchema} />
+      ) : (
+        <RawSchemaEditor schema={schema} onSchema={onSchema} />
+      )}
     </div>
   )
 }
