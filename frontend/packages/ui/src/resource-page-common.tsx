@@ -163,6 +163,7 @@ import {useEffectiveDocSchema} from './onyx/onyx-schema-resolve'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from './components/dialog'
 import {DocumentTools} from './document-tools'
 import {nameForCid, nameToUrl, ONYX_SCHEMAS} from './onyx/onyx-engine'
+import {libraryPageUrl} from './onyx/schema-browser'
 import {DepLists, OnyxNavContext, OnyxSchemaView} from './onyx/onyx-explorer'
 import {useOnyxSchemaRegistry} from './onyx/onyx-schema-registry-cid'
 import {DocumentTopBar} from './document-top-bar'
@@ -3464,6 +3465,12 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
   const bundled = cid ? nameForCid(cid) : undefined
   // The library schema this document is, by path — its blob may be an older version than the bundle.
   const librarySlug = bundledSlugForDocument(document)
+  // A site that mirrors the library (the dev site, the Onyx site itself) links its own pages.
+  const linkSpace = librarySlug ? document.account : undefined
+  const navLibrary = (slug: string) => {
+    const url = linkSpace ? libraryPageUrl(linkSpace, slug) : nameToUrl(slug)
+    if (url) openUrl(url)
+  }
   const {byCid, isLoading} = useOnyxSchemaRegistry(cid && !bundled && canEditCurrentRoute ? [cid] : [])
   const published = cid ? (bundled ? ONYX_SCHEMAS[bundled] : byCid[cid]) : undefined
   const edit = (next: Record<string, any>) => {
@@ -3474,10 +3481,7 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
   // the view follows the draft as it is edited.
   if (canEditCurrentRoute && (draftSchema || published)) {
     const current = draftSchema ?? stripLegacyLabels(published!)
-    const nav = (slug: string) => {
-      const url = nameToUrl(slug)
-      if (url) openUrl(url)
-    }
+    const nav = navLibrary
     return (
       <div className="flex flex-col gap-2" data-testid={draftSchema ? 'schema-draft-view' : 'schema-view'}>
         <div className="flex items-start justify-between gap-3">
@@ -3489,7 +3493,7 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
               </OnyxNavContext.Provider>
             ) : (
               // Exactly what readers see (core-type leads, variants, collapsed dependencies).
-              <OnyxSchemaBrowserPage embedded cid={cid!} navigate={navigate} openUrl={openUrl} />
+              <OnyxSchemaBrowserPage embedded cid={cid!} navigate={navigate} openUrl={openUrl} linkSpace={linkSpace} />
             )}
             {librarySlug && (draftSchema || !bundled) && <DepLists name={librarySlug} nav={nav} />}
           </div>
@@ -3525,16 +3529,8 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
   }
   return (
     <>
-      <OnyxSchemaBrowserPage embedded cid={cid} navigate={navigate} openUrl={openUrl} />
-      {librarySlug && !bundled && (
-        <DepLists
-          name={librarySlug}
-          nav={(slug) => {
-            const url = nameToUrl(slug)
-            if (url) openUrl(url)
-          }}
-        />
-      )}
+      <OnyxSchemaBrowserPage embedded cid={cid} navigate={navigate} openUrl={openUrl} linkSpace={linkSpace} />
+      {librarySlug && !bundled && <DepLists name={librarySlug} nav={navLibrary} />}
     </>
   )
 }
