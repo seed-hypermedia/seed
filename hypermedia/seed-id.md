@@ -1,7 +1,7 @@
 ---
 name: Hypermedia ID (parsed)
 summary: "A parsed hm:// identifier as clients pass it around: account uid, path segments, pinned version, block reference, and origin hints. Fields the URL does not carr"
-schemaDefinition: ipfs://bafyreic4b4o36yhhu6rcezh37aexajxipoucpgthsrt6cbvpgvkcblipua
+schemaDefinition: ipfs://bafyreibdhhotb3orxzhreoxepe6ut2xfykiabb6tkidngxt6g7wg7lkyby
 ---
 A parsed hm:// identifier as clients pass it around: account uid, path segments, pinned version, block reference, and origin hints. Fields the URL does not carry are null. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:_G2YLDZ8 -->
 

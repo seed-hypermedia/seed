@@ -1,7 +1,7 @@
 ---
 name: Parsed fragment
 summary: A parsed URL fragment addressing a block (and optionally a range inside it). A derived read model computed by the Seed daemon/API for clients — not a signed net
-schemaDefinition: ipfs://bafyreid5g5tiajvqu2iouce53asui6ois525sajhglkrbfk6plquge4guu
+schemaDefinition: ipfs://bafyreighbgitb6oa5seokemnys4wrvoybbx3q5j2o6zebwifmoa6ki753a
 ---
 A parsed URL fragment addressing a block (and optionally a range inside it). A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:z7-8RBgX -->
 

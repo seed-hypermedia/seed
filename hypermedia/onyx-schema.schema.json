@@ -21,7 +21,5 @@
     {
       "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/var-schema"
     }
-  ],
-  "description": "The meta-schema: a discriminated union of the shapes a schema can take. It is a valid instance of itself.",
-  "name": "Onyx schema"
+  ]
 }

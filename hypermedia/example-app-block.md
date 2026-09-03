@@ -1,7 +1,7 @@
 ---
 name: "Example: App block (extended core)"
 summary: "How a third party extends the block model: the union of Hypermedia's core blocks PLUS their own custom blocks (here, a Poll). Strict — it accepts core blocks an"
-schemaDefinition: ipfs://bafyreif5nw3vkeuvrpweamnisvag7luprrdcrznpc5ddn7qnyhy7l6fgtm
+schemaDefinition: ipfs://bafyreig4ywpyi7corleclfrnsl24y23vcvekc2nzd44p52hzpgyqcabp24
 ---
 How a third party extends the block model: the union of Hypermedia's core blocks PLUS their own custom blocks (here, a Poll). Strict — it accepts core blocks and Polls, and rejects block types it doesn't know. An app validates its documents against this. <!-- id:U9a6O76e -->
 

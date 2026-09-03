@@ -222,6 +222,31 @@ function childDoc(child, pad) {
 }
 
 /** Emit one exported type declaration for a top-level schema. */
+/** `name` and `summary` from `<basename>.md`'s frontmatter, when the page exists. */
+function pageFrontmatter(basename) {
+  let text
+  try {
+    text = readFileSync(resolve(DIR, `${basename}.md`), 'utf8')
+  } catch {
+    return {}
+  }
+  const m = /^---\n([\s\S]*?)\n---/.exec(text)
+  if (!m) return {}
+  const out = {}
+  for (const line of m[1].split('\n')) {
+    const kv = /^(name|summary):\s*(.*)$/.exec(line)
+    if (!kv) continue
+    let v = kv[2].trim()
+    if (/^".*"$/.test(v)) {
+      try {
+        v = JSON.parse(v)
+      } catch {}
+    }
+    out[kv[1]] = v
+  }
+  return out
+}
+
 function emitSchema(basename) {
   const schema = schemas[basename]
   const name = tsName(basename)
@@ -231,8 +256,12 @@ function emitSchema(basename) {
         .map(([p, d]) => `${p} = ${emit(d, new Set(), '')}`)
         .join(', ')}>`
     : ''
+  // A schema carries no name or description of its own; its document does. Take the
+  // doc comment from the co-located page's frontmatter.
   const docLines = []
-  if (schema.name) docLines.push(schema.name)
+  const page = pageFrontmatter(basename)
+  if (page.name) docLines.push(page.name)
+  if (page.summary) docLines.push(page.summary)
   if (schema.description) docLines.push(schema.description)
   docLines.push(`Schema: hm://${ONYX}/${basename.startsWith('onyx-') ? basename.slice(5) : basename}`)
   const doc = `/**\n * ${docLines.join('\n * ').replace(/\*\//g, '*\\/')}\n */`

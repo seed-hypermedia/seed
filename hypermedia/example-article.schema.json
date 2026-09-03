@@ -46,7 +46,5 @@
     "meta": {
       "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-metadata"
     }
-  },
-  "description": "A published article: status, author, tags, a bytes body, cover image, comments, and metadata.",
-  "name": "Article"
+  }
 }
