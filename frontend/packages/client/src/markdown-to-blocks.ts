@@ -411,7 +411,7 @@ export function mergeAdjacentAnnotations(annotations: Annotation[]): Annotation[
     byKey.set(key, entry)
   }
   const out: Annotation[] = []
-  for (const {proto, ranges} of byKey.values()) {
+  for (const {proto, ranges} of Array.from(byKey.values())) {
     ranges.sort((a: {s: number; e: number}, b: {s: number; e: number}) => a.s - b.s || a.e - b.e)
     const merged: {s: number; e: number}[] = []
     for (const r of ranges) {

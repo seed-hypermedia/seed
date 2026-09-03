@@ -156,3 +156,4 @@ __pycache__/
 
 # onyx local editing loop: throwaway dev key (sync-onyx.ts dev)
 hypermedia/.dev/
+seed-docs/.dev/
