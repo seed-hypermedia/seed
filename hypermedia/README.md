@@ -149,7 +149,7 @@ cd frontend/apps/cli
 bun run src/sync-hypermedia.ts push --dry-run   # what would change on hyper.media
 bun run src/sync-hypermedia.ts push             # publish (signing key: main)
 bun run src/sync-hypermedia.ts pull             # bring edits made in the Seed app back into git
-bun run src/sync-hypermedia.ts dev              # the local editing loop (see below)
+bun run src/sync-hypermedia.ts dev              # the local editing loop (see below)  — or: ./dev hm-sync
 ```
 
 **Editing locally.** With the desktop dev app running (`./dev run-desktop`),

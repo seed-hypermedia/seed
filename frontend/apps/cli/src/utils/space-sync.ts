@@ -20,11 +20,13 @@ import {
   blocksToMarkdown,
   createChange,
   createChangeOps,
+  createRedirectRef,
   createVersionRef,
   flattenToOperations,
   markdownBlockNodesToHMBlockNodes,
   parseMarkdown,
   resolveEditableDocument,
+  type BlockNode,
   type DocumentOperation,
   type HMSigner,
   type SeedClient,
@@ -35,7 +37,7 @@ import {
   rebindTableIdentities,
   toAPIBlockNode,
 } from '@seed-hypermedia/client/block-diff'
-import type {HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
+import type {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {CID} from 'multiformats/cid'
 import {hmBlockNodeToBlockNode} from './block-diff'
@@ -73,6 +75,12 @@ export type ExportResult = {
   written: string[]
   unchanged: string[]
   skipped: string[]
+  /** Markdown file written (or found unchanged) for each document path. */
+  files: Map<string, string>
+}
+
+export function emptyExportResult(): ExportResult {
+  return {written: [], unchanged: [], skipped: [], files: new Map()}
 }
 
 /** Every document in a space: the home document plus all descendants. */
@@ -158,7 +166,7 @@ function reorderLike(value: unknown, template: unknown): unknown {
 export async function exportDocument(
   opts: Omit<ExportOptions, 'uid'>,
   doc: HMDocument,
-  result: ExportResult = {written: [], unchanged: [], skipped: []},
+  result: ExportResult = emptyExportResult(),
 ): Promise<ExportResult> {
   const layout = opts.layout || defaultLayout
   const log = opts.log || (() => {})
@@ -168,6 +176,7 @@ export async function exportDocument(
     result.skipped.push(path || '(home)')
     return result
   }
+  result.files.set(path, file)
   const md = blocksToMarkdown(doc, {ipfsGateway: false})
   const changed = writeIfChanged(resolve(opts.dir, file), md)
   ;(changed ? result.written : result.unchanged).push(file)
@@ -185,21 +194,21 @@ export async function exportDocument(
 }
 
 export async function exportSpace(opts: ExportOptions): Promise<ExportResult> {
-  const result: ExportResult = {written: [], unchanged: [], skipped: []}
+  const result = emptyExportResult()
   const docs = await listSpaceDocuments(opts.client, opts.uid)
   for (const doc of docs) await exportDocument(opts, doc, result)
   return result
 }
 
-/** Export the document at one path; returns the files written. */
-export async function exportPath(opts: ExportOptions, path: string): Promise<string[]> {
+/** Export the document at one path: the files written, and the markdown file it maps to. */
+export async function exportPath(opts: ExportOptions, path: string): Promise<{written: string[]; file: string | null}> {
   const res = await opts.client.request(
     'Resource',
     hmId(opts.uid, {path: path ? path.replace(/^\//, '').split('/') : []}),
   )
-  if (res.type !== 'document') return []
+  if (res.type !== 'document') return {written: [], file: null}
   const result = await exportDocument(opts, res.document)
-  return result.written
+  return {written: result.written, file: result.files.get(path) ?? null}
 }
 
 /** Current version of every document in a space, by path ('' = home). One Query + one Resource call. */
@@ -239,6 +248,94 @@ export type ImportResult = {
   updated: string[]
   unchanged: string[]
   skipped: string[]
+  /** Documents moved to a new path, as `from -> to`. */
+  moved: string[]
+}
+
+// ─── Move detection ──────────────────────────────────────────────────────────
+//
+// Block ids travel with the file, so a file whose ids belong to a document at
+// another path is that document, renamed or moved. A move keeps the history:
+// a Version Ref at the destination points at the current version, and a
+// Redirect Ref at the source keeps old links resolving — the same two blobs
+// `seed-cli document move` publishes.
+
+/** Where every block id of a space lives: block id → document path. */
+export type BlockIndex = {byBlock: Map<string, string>; docs: Map<string, HMDocument>}
+
+export async function buildBlockIndex(client: SeedClient, uid: string): Promise<BlockIndex> {
+  const byBlock = new Map<string, string>()
+  const docs = new Map<string, HMDocument>()
+  for (const doc of await listSpaceDocuments(client, uid)) {
+    const path = doc.path || ''
+    docs.set(path, doc)
+    const walk = (nodes: HMBlockNode[] | undefined) => {
+      for (const n of nodes || []) {
+        byBlock.set((n.block as {id: string}).id, path)
+        walk(n.children)
+      }
+    }
+    walk(doc.content)
+  }
+  return {byBlock, docs}
+}
+
+/**
+ * The path a file's blocks came from, when a majority of its explicit ids
+ * belong to one document; null otherwise (a new document, or a hand-written
+ * file with no ids).
+ */
+export function findMovedFrom(byBlock: Map<string, string>, blockIds: string[]): string | null {
+  const tally = new Map<string, number>()
+  for (const id of blockIds) {
+    const path = byBlock.get(id)
+    if (path !== undefined) tally.set(path, (tally.get(path) ?? 0) + 1)
+  }
+  let best: string | null = null
+  let bestCount = 0
+  for (const [path, count] of tally) {
+    if (count > bestCount) {
+      best = path
+      bestCount = count
+    }
+  }
+  return bestCount > 0 && bestCount * 2 > blockIds.length ? best : null
+}
+
+/** Block ids the file states explicitly (an id comment in the source, not a generated one). */
+function explicitBlockIds(raw: string, tree: BlockNode[]): string[] {
+  const ids: string[] = []
+  const walk = (nodes: BlockNode[]) => {
+    for (const n of nodes) {
+      if (raw.includes(`<!-- id:${n.block.id}`)) ids.push(n.block.id)
+      walk(n.children)
+    }
+  }
+  walk(tree)
+  return ids
+}
+
+/** Publish a move: Version Ref at `to`, Redirect Ref at `from`. */
+async function publishMove(opts: ImportOptions, from: string, to: string, doc: HMDocument) {
+  const genesis = (doc as {generationInfo?: {genesis?: string}}).generationInfo?.genesis ?? doc.genesis
+  const dest = await createVersionRef(
+    {space: opts.account, path: to, genesis, version: doc.version, generation: Date.now(), capability: opts.capability},
+    opts.signer,
+  )
+  await opts.client.publish(dest)
+  const redirect = await createRedirectRef(
+    {
+      space: opts.account,
+      path: from,
+      genesis,
+      generation: Date.now(),
+      targetSpace: opts.account,
+      targetPath: to,
+      capability: opts.capability,
+    },
+    opts.signer,
+  )
+  await opts.client.publish(redirect)
 }
 
 /** All markdown files under `dir`, relative, sorted. */
@@ -298,8 +395,10 @@ export function metadataDiffOp(
 export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
   const layout = opts.layout || defaultLayout
   const log = opts.log || (() => {})
-  const result: ImportResult = {created: [], updated: [], unchanged: [], skipped: []}
+  const result: ImportResult = {created: [], updated: [], unchanged: [], skipped: [], moved: []}
   const files = opts.only ?? listMarkdownFiles(opts.dir)
+  const allFiles = new Set(listMarkdownFiles(opts.dir))
+  let index: Promise<BlockIndex> | undefined
 
   for (const file of files) {
     const path = layout.pathForFile(file)
@@ -317,7 +416,22 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     const existing = await opts.client.request('Resource', id)
     const label = path || '(home)'
 
+    let movedFrom: string | null = null
     if (existing.type === 'not-found') {
+      // No document here yet: a rename/move of an existing one, or a new one.
+      const ids = explicitBlockIds(raw, tree)
+      if (ids.length) {
+        index ??= buildBlockIndex(opts.client, opts.account)
+        const {byBlock, docs} = await index
+        const from = findMovedFrom(byBlock, ids)
+        // A copy (the source file still exists) is a new document, not a move.
+        const sourceDoc = from === null ? undefined : docs.get(from)
+        const sourceFile = sourceDoc ? layout.fileForPath(from!, sourceDoc) : null
+        if (from !== null && !(sourceFile && allFiles.has(sourceFile))) movedFrom = from
+      }
+    }
+
+    if (existing.type === 'not-found' && movedFrom === null) {
       const ops: DocumentOperation[] = []
       const metaOp = metadataDiffOp(undefined, metadata as Record<string, unknown>)
       if (metaOp) ops.push(metaOp)
@@ -348,7 +462,14 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
       continue
     }
 
-    const base = await resolveEditableDocument(opts.client, id)
+    const baseId =
+      movedFrom === null ? id : hmId(opts.account, {path: movedFrom ? movedFrom.replace(/^\//, '').split('/') : []})
+    const base = await resolveEditableDocument(opts.client, baseId)
+    if (movedFrom !== null) {
+      log(`move    ${movedFrom || '(home)'} -> ${label}  (${file})`)
+      result.moved.push(`${movedFrom} -> ${path}`)
+      if (!opts.dryRun) await publishMove(opts, movedFrom, path, base.document)
+    }
     const oldDoc = base.document
     const oldNodes = (oldDoc.content || []).map(toAPIBlockNode)
     const oldMap = createBlocksMap(oldNodes)

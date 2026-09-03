@@ -32,7 +32,7 @@
  */
 
 import {spawnSync} from 'node:child_process'
-import {existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync} from 'node:fs'
 import {dirname, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {gunzipSync, inflateRawSync, inflateSync} from 'node:zlib'
@@ -225,9 +225,9 @@ async function pushTo(client: SeedClient, signer: HMSigner, account: string, dry
     metadataFor: schemaMetadataFor(schemas),
   })
   console.log(
-    `\n${dryRun ? 'DRY RUN' : 'DONE'}: ${result.created.length} created, ${result.updated.length} updated, ${
-      result.unchanged.length
-    } unchanged.`,
+    `\n${dryRun ? 'DRY RUN' : 'DONE'}: ${result.created.length} created, ${result.moved.length} moved, ${
+      result.updated.length
+    } updated, ${result.unchanged.length} unchanged.`,
   )
   return result
 }
@@ -353,6 +353,9 @@ async function dev(args: string[]) {
 
   // Watch: poll document versions and write back whatever changed.
   let versions = await listSpaceVersions(client, account)
+  // Which file each document lives in, so a document moved in the app takes
+  // its file along (the old one is removed).
+  const files = (await exportSpace({client, uid: account, dir: SCHEMAS_DIR, layout})).files
   console.log(`Watching ${versions.size} documents every ${intervalMs}ms. Ctrl-C to stop.\n`)
   for (;;) {
     await new Promise((r) => setTimeout(r, intervalMs))
@@ -367,16 +370,30 @@ async function dev(args: string[]) {
     for (const [path, version] of next) {
       if (versions.get(path) === version) continue
       try {
-        const written = await exportPath({client, uid: account, dir: SCHEMAS_DIR, layout}, path)
-        for (const file of written) {
+        const res = await exportPath({client, uid: account, dir: SCHEMAS_DIR, layout}, path)
+        for (const file of res.written) {
           console.log(`  ${new Date().toLocaleTimeString()}  wrote ${file}`)
           if (file.endsWith('.schema.json')) schemaChanged = true
         }
-        if (written.length === 0)
+        if (res.written.length === 0)
           console.log(`  ${new Date().toLocaleTimeString()}  ${path || '(home)'} republished, no file change`)
+        if (res.file) files.set(path, res.file)
       } catch (err) {
         console.log(`  ! ${path || '(home)'}: ${(err as Error).message}`)
       }
+    }
+    // A path that vanished was moved away (or deleted): drop its file.
+    for (const [path] of versions) {
+      if (next.has(path)) continue
+      const file = files.get(path)
+      if (!file) continue
+      try {
+        unlinkSync(resolve(SCHEMAS_DIR, file))
+        console.log(`  ${new Date().toLocaleTimeString()}  removed ${file}`)
+      } catch {
+        // already gone
+      }
+      files.delete(path)
     }
     versions = next
     if (schemaChanged) refreshSchemaArtifacts()
