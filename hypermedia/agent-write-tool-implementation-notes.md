@@ -1,119 +1,107 @@
 ---
-name: "write implementation notes"
-summary: "These notes describe the first implementation slice of the Agents write tool. They are intended to help the next engineer understand what was built, how it…"
+name: write implementation notes
+summary: These notes describe the first implementation slice of the Agents write tool. They are intended to help the next engineer understand what was built, how it…
 ---
-> **STATUS (2026-08-13): accurate as a record of the first slice; the envelope and the permission model have both
-> changed.**
->
-> The command implementations, draft storage, markdown/frontmatter conversion, and signer resolution described here are
-> still what runs. What moved: this tool is now the **write verb**, `write {address, content?, options?}` — an `hm://`
-> address with `options.action` where these notes say `command`, and the same verb also covers `~/memory/**`,
-> `~/tools/**` and `ipfs://`. The two-layer permission model in "High-level summary" is now one layer plus one: the
-> **publish grant** (`'publish'` in `definition.tools`, legacy write-group names mapped onto it) replaces `"write"` in
-> the tools array, and `AgentDefinition.signingKeys` still selects the identity. Verbs themselves are always on and are
-> never grants.
->
-> The "Known limitations and follow-ups" at the end are all still open.
+<!-- id:6ZpxBUcm -->
+> **STATUS (2026-08-13): accurate as a record of the first slice; the envelope and the permission model have both** <!-- id:dUfJE3oB -->
+> changed. <!-- id:mnuKSzVl -->
 
-These notes describe the first implementation slice of the Agents `write` tool. They are intended to help the next
-engineer understand what was built, how it maps to CLI behavior, where the code lives, and which gaps remain.
+\> <!-- id:lAkYSy_b -->
+  > The command implementations, draft storage, markdown/frontmatter conversion, and signer resolution described here are <!-- id:Vkz6djIC -->
+  > still what runs. What moved: this tool is now the **write verb**, `write {address, content?, options?}` — an `hm://` <!-- id:426PEAVX -->
+  > address with `options.action` where these notes say `command`, and the same verb also covers `~/memory/**`, <!-- id:3NwR-6qi -->
+  > `~/tools/**` and `ipfs://`. The two-layer permission model in "High-level summary" is now one layer plus one: the <!-- id:dLC9SENj -->
+  > **publish grant** (`'publish'` in `definition.tools`, legacy write-group names mapped onto it) replaces `"write"` in <!-- id:RYFhFuKX -->
+  > the tools array, and `AgentDefinition.signingKeys` still selects the identity. Verbs themselves are always on and are <!-- id:KqfpSP-A -->
+  > never grants. <!-- id:Ekqilbp8 -->
 
-## High-level summary
+\> <!-- id:64vn5r8h -->
+  > The "Known limitations and follow-ups" at the end are all still open. <!-- id:2B9TfZRL -->
 
-Agents now have a single model-facing write tool:
+These notes describe the first implementation slice of the Agents `write` tool. They are intended to help the next engineer understand what was built, how it maps to CLI behavior, where the code lives, and which gaps remain. <!-- id:RKNgGPbj -->
 
-```text
+# High-level summary <!-- id:BzP1_Sr8 -->
+
+Agents now have a single model-facing write tool: <!-- id:HGQwDc_6 -->
+
+```text <!-- id:b0Fx2VzC -->
 write
 ```
 
-The tool is intended to be the structured, SDK-backed equivalent of Seed CLI write commands. It does **not** shell out
-to the CLI. It uses TypeScript SDK/shared helpers from `@seed-hypermedia/client` and `@shm/shared/blobs`.
+The tool is intended to be the structured, SDK-backed equivalent of Seed CLI write commands. It does **not** shell out to the CLI. It uses TypeScript SDK/shared helpers from `@seed-hypermedia/client` and `@shm/shared/blobs`. <!-- id:JuYndSXz -->
 
-The implementation is intentionally permissioned in two layers:
+The implementation is intentionally permissioned in two layers: <!-- id:_wyZCdnQ -->
+  1. The agent must have `write` in `AgentDefinition.tools`. <!-- id:I-TVkQga -->
+  2. The operation must use one of the signing identities selected in `AgentDefinition.signingKeys`. <!-- id:7xuGSbYX -->
 
-1. The agent must have `write` in `AgentDefinition.tools`.
-2. The operation must use one of the signing identities selected in `AgentDefinition.signingKeys`.
+Selected identities are exposed to the model in the system prompt with both their profile name and public key. The tool can resolve a signer by either profile name or public key. <!-- id:T_W3b0w1 -->
 
-Selected identities are exposed to the model in the system prompt with both their profile name and public key. The tool
-can resolve a signer by either profile name or public key.
+# Main files changed <!-- id:4ODE7JdJ -->
 
-## Main files changed
+## Runtime/tool implementation <!-- id:9keIrQmw -->
 
-### Runtime/tool implementation
+- `agents/src/api-service.ts` <!-- id:S7fg1WhH -->
+  - Adds `WRITE_HYPERMEDIA_TOOL_NAME`. <!-- id:-vgdacgI -->
+  - Registers `createWriteHypermediaPiTool(...)` in the Pi agent session. <!-- id:53PwnRn7 -->
+  - Allows `write` through the Seed tool allowlist when explicitly enabled. <!-- id:oId1oe61 -->
+  - Implements signer resolution for selected server-side HM account keys. <!-- id:zP208j9J -->
+  - Implements the current `write` command router and command handlers. <!-- id:TWx8RdDU -->
+  - Implements server-side draft command handlers. <!-- id:CQ1OxmlH -->
+  - Reuses SDK/shared helpers for document changes/refs, comments, capabilities, contacts, profiles, and markdown conversion. <!-- id:5AWc9RHd -->
 
-- `agents/src/api-service.ts`
-  - Adds `WRITE_HYPERMEDIA_TOOL_NAME`.
-  - Registers `createWriteHypermediaPiTool(...)` in the Pi agent session.
-  - Allows `write` through the Seed tool allowlist when explicitly enabled.
-  - Implements signer resolution for selected server-side HM account keys.
-  - Implements the current `write` command router and command handlers.
-  - Implements server-side draft command handlers.
-  - Reuses SDK/shared helpers for document changes/refs, comments, capabilities, contacts, profiles, and markdown
-    conversion.
+## Draft persistence <!-- id:VbosW-qT -->
 
-### Draft persistence
+- `agents/src/sqlite-schema.sql` <!-- id:NZ0SMGsT -->
+  - Adds the `agent_drafts` table and indexes. <!-- id:ZxiBue2s -->
+- `agents/src/sqlite.ts` <!-- id:DXJRAkWd -->
+  - Adds a migration for `agent_drafts`. <!-- id:YeKj5d12 -->
+- `agents/src/sqlite.test.ts` <!-- id:Q5Vm5gGh -->
+  - Updates migration tests to include `agent_drafts`. <!-- id:mNdaa8M2 -->
 
-- `agents/src/sqlite-schema.sql`
+## Tests <!-- id:4-0LJE_z -->
 
-  - Adds the `agent_drafts` table and indexes.
+- `agents/src/api-service.test.ts` <!-- id:WWB1j4Yh -->
+  - Adds an integration-style test that runs a Pi/OpenAI mocked tool-call loop for `write`. <!-- id:moV7ngEq -->
+  - Verifies profile update, draft creation from markdown/frontmatter, capability creation, contact creation, and draft metadata persistence. <!-- id:fn8c6m_M -->
 
-- `agents/src/sqlite.ts`
+## Desktop UI <!-- id:W6D-VuHk -->
 
-  - Adds a migration for `agent_drafts`.
+- `frontend/apps/desktop/src/pages/agents.tsx` <!-- id:x4DJRj0M -->
+  - Adds a visible `write` tool toggle. <!-- id:yNPV8u4p -->
+  - Updates Tools tab copy so selected keys are described as immediately usable for signing/publishing. <!-- id:UYabDkJB -->
 
-- `agents/src/sqlite.test.ts`
-  - Updates migration tests to include `agent_drafts`.
+## Docs <!-- id:nmaPur7H -->
 
-### Tests
+- `agents/docs/write-tool-cli-parity-plan.md` <!-- id:6EnkpL5a -->
+  - Detailed planning/design document for CLI parity and future work. <!-- id:PPx-UVYc -->
+- `agents/docs/write-tool-implementation-notes.md` <!-- id:sYP7Jasl -->
+  - This file. <!-- id:3Fwru87f -->
+- Existing docs updated to stop describing signing/publishing tools as purely future work. <!-- id:dxLN5vAL -->
 
-- `agents/src/api-service.test.ts`
-  - Adds an integration-style test that runs a Pi/OpenAI mocked tool-call loop for `write`.
-  - Verifies profile update, draft creation from markdown/frontmatter, capability creation, contact creation, and draft
-    metadata persistence.
+# Tool registration behavior <!-- id:4fUUb8_z -->
 
-### Desktop UI
+The Pi session setup now registers both custom tools: <!-- id:DLy_zyHQ -->
 
-- `frontend/apps/desktop/src/pages/agents.tsx`
-  - Adds a visible `write` tool toggle.
-  - Updates Tools tab copy so selected keys are described as immediately usable for signing/publishing.
-
-### Docs
-
-- `agents/docs/write-tool-cli-parity-plan.md`
-
-  - Detailed planning/design document for CLI parity and future work.
-
-- `agents/docs/write-tool-implementation-notes.md`
-
-  - This file.
-
-- Existing docs updated to stop describing signing/publishing tools as purely future work.
-
-## Tool registration behavior
-
-The Pi session setup now registers both custom tools:
-
-```ts
+```ts <!-- id:JWk8oa8C -->
 customTools: [
   createReadHypermediaPiTool(),
   createWriteHypermediaPiTool({...}),
 ]
 ```
 
-The available tool list still preserves legacy defaults:
+The available tool list still preserves legacy defaults: <!-- id:GZUshGQf -->
+  - If `definition.tools === undefined`, only `read` is enabled. <!-- id:0FRCMw5S -->
+  - If `definition.tools` is explicit, it is filtered to known Seed tools: <!-- id:HBCu34ST -->
+    - `read` <!-- id:WCERnD7M -->
+    - `write` <!-- id:f_YSwULK -->
 
-- If `definition.tools === undefined`, only `read` is enabled.
-- If `definition.tools` is explicit, it is filtered to known Seed tools:
-  - `read`
-  - `write`
+This means `write` is **not** automatically enabled for old agents. <!-- id:76pRFAs2 -->
 
-This means `write` is **not** automatically enabled for old agents.
+# Tool input envelope <!-- id:qtHeBqBf -->
 
-## Tool input envelope
+The implemented tool uses the planned structured command envelope: <!-- id:3BRwWzEM -->
 
-The implemented tool uses the planned structured command envelope:
-
-```ts
+```ts <!-- id:N4pzAHPy -->
 type WriteHypermediaInput = {
   command: string
   signer?: {
@@ -127,22 +115,19 @@ type WriteHypermediaInput = {
 }
 ```
 
-Important security note: although the schema accepts `server` and `dev` for CLI-parity shape, the implementation
-currently rejects them for writes:
+Important security note: although the schema accepts `server` and `dev` for CLI-parity shape, the implementation currently rejects them for writes: <!-- id:Ii34k-OQ -->
 
-```text
+```text <!-- id:isacGb4- -->
 write publishes only to the configured agent HM server
 ```
 
-This was deliberate. Allowing the model to choose arbitrary publish servers would let a prompt/tool call exfiltrate
-signed records to an attacker-controlled endpoint. Read tools can still accept server overrides; write tools cannot in
-this first implementation.
+This was deliberate. Allowing the model to choose arbitrary publish servers would let a prompt/tool call exfiltrate signed records to an attacker-controlled endpoint. Read tools can still accept server overrides; write tools cannot in this first implementation. <!-- id:ZyMSLVtd -->
 
-## Tool output envelope
+# Tool output envelope <!-- id:rVPaJzEB -->
 
-Successful commands return structured details similar to:
+Successful commands return structured details similar to: <!-- id:aVgfnOJo -->
 
-```ts
+```ts <!-- id:3ArGPhG3 -->
 {
   type: 'hypermedia_write_result',
   command: 'profile.update',
@@ -155,9 +140,9 @@ Successful commands return structured details similar to:
 }
 ```
 
-Expected domain conflicts/errors can return:
+Expected domain conflicts/errors can return: <!-- id:G6MZ9kq7 -->
 
-```ts
+```ts <!-- id:66DREAUF -->
 {
   type: 'hypermedia_write_error',
   command: 'document.update',
@@ -166,131 +151,130 @@ Expected domain conflicts/errors can return:
 }
 ```
 
-Unexpected failures still surface as tool errors through Pi and are persisted as `tool_result.error`.
+Unexpected failures still surface as tool errors through Pi and are persisted as `tool_result.error`. <!-- id:ZASI7_D0 -->
 
-## Signer resolution
+# Signer resolution <!-- id:qMeBGLMf -->
 
-The tool only resolves signers from the agent-selected signing identities:
+The tool only resolves signers from the agent-selected signing identities: <!-- id:5ycyrdA5 -->
 
-```ts
+```ts <!-- id:K7vTpxZ3 -->
 definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
 ```
 
-Resolution rules:
+Resolution rules: <!-- id:xt4Jt9nI -->
+  1. If `signer.publicKey` is supplied, it must match the `metadata.accountId` of a selected HM account key secret. <!-- id:NAj-ttkT -->
+  2. If `signer.profileName` is supplied, it must exactly match the `metadata.label` of a selected HM account key secret. <!-- id:YeuybNma -->
+  3. If no signer is supplied and exactly one identity is selected, that identity is used. <!-- id:ko4Jc7j2 -->
+  4. If no signer is supplied and multiple identities are selected, the tool errors and asks for an explicit signer. <!-- id:4BVyDkT4 -->
+  5. If a profile name is ambiguous, the tool errors and asks for public key selection. <!-- id:nA4KYVRA -->
+  6. Secrets are decrypted only after a selected identity is resolved. <!-- id:pB2JXtML -->
 
-1. If `signer.publicKey` is supplied, it must match the `metadata.accountId` of a selected HM account key secret.
-2. If `signer.profileName` is supplied, it must exactly match the `metadata.label` of a selected HM account key secret.
-3. If no signer is supplied and exactly one identity is selected, that identity is used.
-4. If no signer is supplied and multiple identities are selected, the tool errors and asks for an explicit signer.
-5. If a profile name is ambiguous, the tool errors and asks for public key selection.
-6. Secrets are decrypted only after a selected identity is resolved.
+The server-side key is converted to the SDK `HMSigner` shape: <!-- id:EIpAzAWs -->
 
-The server-side key is converted to the SDK `HMSigner` shape:
-
-```ts
+```ts <!-- id:Wq4tRkVD -->
 {
   getPublicKey: async () => keyPair.principal,
   sign: (data) => keyPair.sign(data),
 }
 ```
 
-Raw seed/private key material is never returned in API or tool output.
+Raw seed/private key material is never returned in API or tool output. <!-- id:g4ymZpCA -->
 
-## Implemented commands
+# Implemented commands <!-- id:GaLyS0QQ -->
 
-The first implementation supports these command names:
+The first implementation supports these command names: <!-- id:fTqyVWYy -->
 
-### Drafts
+## Drafts <!-- id:9rw_rAVv -->
 
-- `draft.create`
-- `draft.update`
-- `draft.get`
-- `draft.list`
-- `draft.delete`
-- `draft.publish`
+<!-- id:KkB4QqGG -->
+- `draft.create` <!-- id:hPvgpeWI -->
+- `draft.update` <!-- id:iz5AcpeG -->
+- `draft.get` <!-- id:W2F-gB-h -->
+- `draft.list` <!-- id:fiXv-pNG -->
+- `draft.delete` <!-- id:JNid1Rn2 -->
+- `draft.publish` <!-- id:8dE4jUCG -->
 
-Drafts are server-side Agents drafts, not desktop/CLI local draft files.
+Drafts are server-side Agents drafts, not desktop/CLI local draft files. <!-- id:aZ4UQ13- -->
 
-### Documents
+## Documents <!-- id:RpUY2N7I -->
 
-- `document.create`
-- `document.update`
-- `document.delete`
-- `document.fork`
-- `document.move`
-- `document.redirect`
-- `document.ref`
+<!-- id:OugqSXVm -->
+- `document.create` <!-- id:O38cbvan -->
+- `document.update` <!-- id:GFnZ24GB -->
+- `document.delete` <!-- id:-a6NFIzS -->
+- `document.fork` <!-- id:MSz7mwHp -->
+- `document.move` <!-- id:LimYpYEa -->
+- `document.redirect` <!-- id:r28G2A3A -->
+- `document.ref` <!-- id:N7_hhu8J -->
 
-Document create/update publishes document changes and refs using SDK helpers.
+Document create/update publishes document changes and refs using SDK helpers. <!-- id:p9P7SSdd -->
 
-### Comments
+## Comments <!-- id:85q3VQCe -->
 
-- `comment.create`
-- `comment.update`
-- `comment.delete`
+- `comment.create` <!-- id:viK9XAIG -->
+- `comment.update` <!-- id:ArqUrpEE -->
+- `comment.delete` <!-- id:3ZgE7KGe -->
 
-### Capabilities
+## Capabilities <!-- id:UkFkZYUa -->
 
-- `capability.create`
-- `capability.grant`
+<!-- id:8tvzkuzb -->
+- `capability.create` <!-- id:-M1h139G -->
+- `capability.grant` <!-- id:wmI5lJL9 -->
 
-`capability.grant` is accepted as an alias for `capability.create`.
+`capability.grant` is accepted as an alias for `capability.create`. <!-- id:bdftGr_R -->
 
-### Contacts
+## Contacts <!-- id:H_5ngXH0 -->
 
-- `contact.create`
-- `contact.delete`
+<!-- id:xqnwvvVz -->
+- `contact.create` <!-- id:EIR2tBEU -->
+- `contact.delete` <!-- id:LQtvsZhi -->
 
-The CLI currently exposes contact create/delete/list. This tool implements write commands only, so list is intentionally
-not included here.
+The CLI currently exposes contact create/delete/list. This tool implements write commands only, so list is intentionally not included here. <!-- id:p7Y1Fqkw -->
 
-### Profiles
+## Profiles <!-- id:Z7r7tdBB -->
 
-- `profile.update`
-- `profile.alias`
+<!-- id:MqOiwXGq -->
+- `profile.update` <!-- id:wH9kEmUY -->
+- `profile.alias` <!-- id:TOaoEyB4 -->
 
-There is no current CLI profile write command, but profile blobs are a required write domain for Agents account
-management and signer display names.
+There is no current CLI profile write command, but profile blobs are a required write domain for Agents account management and signer display names. <!-- id:3gaLQU9a -->
 
-## Markdown/frontmatter and JSON block support
+# Markdown/frontmatter and JSON block support <!-- id:YSZxIUSY -->
 
-Document and draft commands support:
+Document and draft commands support: <!-- id:9SFhq40h -->
 
-```ts
+```ts <!-- id:nMPwARt0 -->
 format: 'markdown' | 'json'
 ```
 
-If `format` is omitted:
+If `format` is omitted: <!-- id:-0SSuHD4 -->
+  - string content beginning with `[` or `{` is treated as JSON; <!-- id:fVehzRMl -->
+  - other string content is treated as markdown; <!-- id:G63meSFo -->
+  - non-string content is treated as JSON. <!-- id:Vurpehc5 -->
 
-- string content beginning with `[` or `{` is treated as JSON;
-- other string content is treated as markdown;
-- non-string content is treated as JSON.
+Markdown parsing uses shared SDK helpers: <!-- id:AzX6PMrG -->
+  - `parseMarkdown` <!-- id:aq0d57vk -->
+  - `markdownBlockNodesToHMBlockNodes` <!-- id:GGB9fvzE -->
+  - `flattenToOperations` <!-- id:uS6Ptj7r -->
 
-Markdown parsing uses shared SDK helpers:
+JSON block input is validated using: <!-- id:brHsjvvy -->
 
-- `parseMarkdown`
-- `markdownBlockNodesToHMBlockNodes`
-- `flattenToOperations`
-
-JSON block input is validated using:
-
-```ts
+```ts <!-- id:fKEtsCQQ -->
 HMBlockNodeSchema
 ```
 
-Metadata is merged from:
+Metadata is merged from: <!-- id:nQ8CJ_cM -->
+  1. defaults, where supplied; <!-- id:XM_cQnt9 -->
+  2. frontmatter/input metadata; <!-- id:NPBoJJkJ -->
+  3. explicit command input fields. <!-- id:AVYca6gZ -->
 
-1. defaults, where supplied;
-2. frontmatter/input metadata;
-3. explicit command input fields.
+Metadata size is bounded with `MAX_METADATA_CBOR_BYTES`. <!-- id:ROtD6C_J -->
 
-Metadata size is bounded with `MAX_METADATA_CBOR_BYTES`.
+# Draft storage model <!-- id:AUQmF_x7 -->
 
-## Draft storage model
+The new table: <!-- id:-hGnkD_O -->
 
-The new table:
-
-```sql
+```sql <!-- id:bZ4LmeIX -->
 CREATE TABLE agent_drafts (
     id TEXT PRIMARY KEY,
     account_id TEXT NOT NULL REFERENCES accounts (id),
@@ -313,297 +297,269 @@ CREATE TABLE agent_drafts (
 ) WITHOUT ROWID;
 ```
 
-Indexes:
+Indexes: <!-- id:sr7EHrBR -->
 
-```sql
+```sql <!-- id:piWp_Jt_ -->
 CREATE INDEX agent_drafts_account_updated_idx ON agent_drafts (account_id, updated_at DESC);
 CREATE INDEX agent_drafts_agent_updated_idx ON agent_drafts (account_id, agent_id, updated_at DESC);
 CREATE INDEX agent_drafts_status_idx ON agent_drafts (account_id, status);
 ```
 
-Draft access is scoped by both:
+Draft access is scoped by both: <!-- id:1oFj_AD3 -->
+  - `account_id` <!-- id:xnG0hcZw -->
+  - `agent_id` <!-- id:bZTEcuqk -->
 
-- `account_id`
-- `agent_id`
+This prevents one agent under the same account from reading/updating/deleting/publishing another agent’s draft if it somehow learns the draft ID. <!-- id:wYKWsVaw -->
 
-This prevents one agent under the same account from reading/updating/deleting/publishing another agent’s draft if it
-somehow learns the draft ID.
+`draft.delete` is soft delete: <!-- id:jGRqoGbL -->
 
-`draft.delete` is soft delete:
-
-```text
+```text <!-- id:lvY3Qkxo -->
 status = 'deleted'
 ```
 
-`draft.list` excludes deleted drafts.
+`draft.list` excludes deleted drafts. <!-- id:Mqj_mJGG -->
 
-## Document behavior
+# Document behavior <!-- id:NFUmI_SC -->
 
-### `document.create`
+## `document.create` <!-- id:94iMj_xt -->
 
-The tool:
+The tool: <!-- id:OfPgrudu -->
+  1. Parses content. <!-- id:APdMSPVz -->
+  2. Merges metadata. <!-- id:OkdjajOn -->
+  3. Builds a `SetAttributes` operation for metadata. <!-- id:LMK-ZF_l -->
+  4. Builds content operations. <!-- id:zI6Ok3n4 -->
+  5. Creates a genesis change. <!-- id:C4MoAFqS -->
+  6. Creates a signed content change. <!-- id:avsw38V7 -->
+  7. Creates a version ref. <!-- id:k7GXhOtn -->
+  8. Publishes all blobs with `client.publish(...)`. <!-- id:m13Qgbh2 -->
 
-1. Parses content.
-2. Merges metadata.
-3. Builds a `SetAttributes` operation for metadata.
-4. Builds content operations.
-5. Creates a genesis change.
-6. Creates a signed content change.
-7. Creates a version ref.
-8. Publishes all blobs with `client.publish(...)`.
+Default path is derived from metadata name/title via a local slugifier. <!-- id:_oHbsUw3 -->
 
-Default path is derived from metadata name/title via a local slugifier.
+## `document.update` <!-- id:nqH8h0u9 -->
 
-### `document.update`
+The tool: <!-- id:M_RU6esU -->
+  1. Resolves the target ID with `resolveIdWithClient`. <!-- id:LMZBpJGh -->
+  2. Fetches current `Resource`. <!-- id:JUfMb38N -->
+  3. Checks `expectedVersion` if provided. <!-- id:CJdqpIDI -->
+  4. Parses new content. <!-- id:VG6UWITW -->
+  5. Uses block diff helpers: <!-- id:f0Vh3IA6 -->
+     - `createBlocksMap` <!-- id:njGJ_b5e -->
+     - `hmBlockNodeToBlockNode` <!-- id:uqVLv_eq -->
+     - `computeReplaceOps` <!-- id:kFrJPYss -->
+  6. Resolves document state with `resolveDocumentState`. <!-- id:jlUs170b -->
+  7. Creates a signed change. <!-- id:mvCTzram -->
+  8. Creates a version ref. <!-- id:RyFL_ek_ -->
+  9. Publishes change/ref blobs. <!-- id:wSP8Mhm4 -->
 
-The tool:
+Using `computeReplaceOps` matters because it can remove blocks missing from the replacement content. A naive full list of `ReplaceBlock`/`MoveBlocks` operations can leave stale blocks behind. <!-- id:a-06FEmn -->
 
-1. Resolves the target ID with `resolveIdWithClient`.
-2. Fetches current `Resource`.
-3. Checks `expectedVersion` if provided.
-4. Parses new content.
-5. Uses block diff helpers:
-   - `createBlocksMap`
-   - `hmBlockNodeToBlockNode`
-   - `computeReplaceOps`
-6. Resolves document state with `resolveDocumentState`.
-7. Creates a signed change.
-8. Creates a version ref.
-9. Publishes change/ref blobs.
+## Refs, redirects, fork, move <!-- id:Ff_Se9pD -->
 
-Using `computeReplaceOps` matters because it can remove blocks missing from the replacement content. A naive full list
-of `ReplaceBlock`/`MoveBlocks` operations can leave stale blocks behind.
+<!-- id:wcW_7Acg -->
+- `document.ref` can either publish an explicit version ref or, when given `source` and `destination`, behave like a fork. <!-- id:riaVL6_Q -->
+- `document.fork` is routed through the same source/destination ref path. <!-- id:gFHTp8uG -->
+- `document.move` publishes a destination version ref and then a redirect from the source. <!-- id:w4lootAN -->
+- `document.redirect` publishes a redirect ref. <!-- id:kvsWxogh -->
 
-### Refs, redirects, fork, move
+Redirect now resolves capabilities for delegated write cases. <!-- id:TX2XOzAD -->
 
-- `document.ref` can either publish an explicit version ref or, when given `source` and `destination`, behave like a
-  fork.
-- `document.fork` is routed through the same source/destination ref path.
-- `document.move` publishes a destination version ref and then a redirect from the source.
-- `document.redirect` publishes a redirect ref.
+# Comments <!-- id:3Q_FYeTd -->
 
-Redirect now resolves capabilities for delegated write cases.
+Comment commands reuse SDK helpers: <!-- id:Vk3ijQqO -->
+  - `createComment` <!-- id:kDSLxsHd -->
+  - `updateComment` <!-- id:sFt15AWk -->
+  - `deleteComment` <!-- id:mA392pJP -->
 
-## Comments
+Comment body markdown uses the same markdown parser and `markdownBlockNodesToHMBlockNodes` conversion. Empty comments produce an empty paragraph so the published comment still has content shape. <!-- id:rNgOgh-0 -->
 
-Comment commands reuse SDK helpers:
+`comment.create` resolves the document target, fetches the target document version, and publishes a comment against that version. <!-- id:MIYFI5Gi -->
 
-- `createComment`
-- `updateComment`
-- `deleteComment`
+Reply support is included through `reply`/`replyTo` fields. <!-- id:UVCXEMRS -->
 
-Comment body markdown uses the same markdown parser and `markdownBlockNodesToHMBlockNodes` conversion. Empty comments
-produce an empty paragraph so the published comment still has content shape.
+# Capabilities <!-- id:eCdJIiD6 -->
 
-`comment.create` resolves the document target, fetches the target document version, and publishes a comment against that
-version.
+Capability writes use SDK helper: <!-- id:-hcTByv4 -->
 
-Reply support is included through `reply`/`replyTo` fields.
-
-## Capabilities
-
-Capability writes use SDK helper:
-
-```ts
+```ts <!-- id:WKgegrZ- -->
 createCapability({delegateUid, role, path, label}, signer)
 ```
 
-Accepted roles are:
+Accepted roles are: <!-- id:qXzPYWJ5 -->
+  - `WRITER` <!-- id:6-cGdkWI -->
+  - `AGENT` <!-- id:Sy3cCbVg -->
 
-- `WRITER`
-- `AGENT`
+The tool normalizes role input to uppercase and rejects anything else. <!-- id:e_yFUM-- -->
 
-The tool normalizes role input to uppercase and rejects anything else.
+# Contacts <!-- id:zcQilN7L -->
 
-## Contacts
+Contact writes use SDK helpers: <!-- id:JzWbE4DY -->
+  - `createContact` <!-- id:F7HF03ts -->
+  - `deleteContact` <!-- id:DgZ5uurj -->
 
-Contact writes use SDK helpers:
+`contact.create` currently follows the CLI-exposed shape: <!-- id:x16wgexq -->
 
-- `createContact`
-- `deleteContact`
-
-`contact.create` currently follows the CLI-exposed shape:
-
-```ts
+```ts <!-- id:G30ZI7yY -->
 {
   subject: string
   name: string
 }
 ```
 
-`contact.delete` requires a contact record ID. Unlike the CLI, this first implementation does not resolve a contact CID
-through `/ipfs/<cid>` before deletion.
+`contact.delete` requires a contact record ID. Unlike the CLI, this first implementation does not resolve a contact CID through `/ipfs/<cid>` before deletion. <!-- id:43P5B2mp -->
 
-## Profiles
+# Profiles <!-- id:uZO1uLGo -->
 
-Profile writes use shared blob helpers from `@shm/shared/blobs`:
+Profile writes use shared blob helpers from `@shm/shared/blobs`: <!-- id:ELqZWV8D -->
+  - `createProfile` <!-- id:V5ZKbk7d -->
+  - `createProfileAlias` <!-- id:jIjqdhkj -->
 
-- `createProfile`
-- `createProfileAlias`
+`profile.update` publishes a profile blob. If the signer is a managed server-side HM account key, the secret metadata label is also updated so the Tools tab and future system prompts show the new profile name. <!-- id:POrPaBns -->
 
-`profile.update` publishes a profile blob. If the signer is a managed server-side HM account key, the secret metadata
-label is also updated so the Tools tab and future system prompts show the new profile name.
+`profile.alias` decodes the provided alias principal and publishes an alias profile blob. <!-- id:VvKIFEoJ -->
 
-`profile.alias` decodes the provided alias principal and publishes an alias profile blob.
+# Desktop UI behavior <!-- id:Ox6GqjoM -->
 
-## Desktop UI behavior
+The Tools tab now includes: <!-- id:W46a_5qY -->
 
-The Tools tab now includes:
-
-```text
+```text <!-- id:wHs_PCsD -->
 write — Write Seed content
 ```
 
-The copy says selected account keys can be used to create, sign, and publish Seed content. The UI still autosaves tool
-toggles and signing key selection.
+The copy says selected account keys can be used to create, sign, and publish Seed content. The UI still autosaves tool toggles and signing key selection. <!-- id:9h8sIvRc -->
 
-`write` should be explicitly enabled by the user. It is not enabled by default for existing agents.
+`write` should be explicitly enabled by the user. It is not enabled by default for existing agents. <!-- id:qfHdhB9x -->
 
-## Integration test details
+# Integration test details <!-- id:e1s7NY9m -->
 
-The main integration test is in `agents/src/api-service.test.ts`:
+The main integration test is in `agents/src/api-service.test.ts`: <!-- id:IJ4ozWBS -->
 
-```text
+```text <!-- id:Rpqcw5fI -->
 runs write profile and draft tool calls with selected signing identities
 ```
 
-It mocks `globalThis.fetch` for both:
+It mocks `globalThis.fetch` for both: <!-- id:R28ziDvA -->
+  - OpenAI-compatible streaming tool-call responses; <!-- id:ep4pMNgz -->
+  - Seed `PublishBlobs` calls. <!-- id:RoevCLJS -->
 
-- OpenAI-compatible streaming tool-call responses;
-- Seed `PublishBlobs` calls.
+The model mock emits `write` tool calls for: <!-- id:WtZL9-Qs -->
+  - `profile.update` <!-- id:Lud4Oz6S -->
+  - `draft.create` <!-- id:-voiof93 -->
+  - `capability.create` <!-- id:9ov-ssOH -->
+  - `contact.create` <!-- id:B5dQYcaa -->
 
-The model mock emits `write` tool calls for:
+The test verifies: <!-- id:PYvjRLbR -->
+  - Pi/OpenAI payload exposes both `read` and `write` when configured. <!-- id:B1S8votn -->
+  - The prompt includes the selected signing identity profile name. <!-- id:5OBfcnPA -->
+  - Tool results are returned into the Pi message loop. <!-- id:PA1cfAsy -->
+  - Four publish calls occur: <!-- id:3NreprTu -->
+    1. profile publish during signing identity creation; <!-- id:UOnX_mgN -->
+    2. profile update from `write`; <!-- id:jYUjh5di -->
+    3. capability create; <!-- id:O19fMnyx -->
+    4. contact create. <!-- id:kXIBHrPJ -->
+  - A draft row is stored. <!-- id:RM6RHDNO -->
+  - Markdown frontmatter metadata, including `summary`, is preserved in `metadata_cbor`. <!-- id:HEzIb3hE -->
 
-- `profile.update`
-- `draft.create`
-- `capability.create`
-- `contact.create`
+# Validation run during implementation <!-- id:7xLdQp_v -->
 
-The test verifies:
+The following validations passed after this implementation: <!-- id:bW-bdloc -->
 
-- Pi/OpenAI payload exposes both `read` and `write` when configured.
-- The prompt includes the selected signing identity profile name.
-- Tool results are returned into the Pi message loop.
-- Four publish calls occur:
-  1. profile publish during signing identity creation;
-  2. profile update from `write`;
-  3. capability create;
-  4. contact create.
-- A draft row is stored.
-- Markdown frontmatter metadata, including `summary`, is preserved in `metadata_cbor`.
-
-## Validation run during implementation
-
-The following validations passed after this implementation:
-
-```bash
+```bash <!-- id:HxriTSUN -->
 cd agents && bun check
 cd agents && bun test
 pnpm typecheck
 git diff --check
 ```
 
-## Subagent review feedback applied
+# Subagent review feedback applied <!-- id:K5He14yq -->
 
-A reviewer subagent flagged several issues. The critical ones were fixed:
+A reviewer subagent flagged several issues. The critical ones were fixed: <!-- id:OdRmaV3W -->
 
-### Arbitrary write server selection
+## Arbitrary write server selection <!-- id:HdBjusAf -->
 
-Problem: accepting `server`/`dev` would allow the model to publish signed blobs to arbitrary endpoints.
+Problem: accepting `server`/`dev` would allow the model to publish signed blobs to arbitrary endpoints. <!-- id:hucaPpok -->
 
-Fix: `write` rejects `server` and `dev` for writes and always uses the configured agent HM server.
+Fix: `write` rejects `server` and `dev` for writes and always uses the configured agent HM server. <!-- id:rLH-WlC9 -->
 
-### Draft scoping
+## Draft scoping <!-- id:7DMidKhi -->
 
-Problem: drafts were account-scoped only.
+Problem: drafts were account-scoped only. <!-- id:nrb3cCwW -->
 
-Fix: draft get/update/list/delete/publish access is now scoped by both account and agent.
+Fix: draft get/update/list/delete/publish access is now scoped by both account and agent. <!-- id:atUoNn9J -->
 
-Other fixes applied from review:
+Other fixes applied from review: <!-- id:T2vG5-5G -->
+  - `draft.list` excludes soft-deleted drafts. <!-- id:1tsiJOjq -->
+  - `document.update` uses block diffing instead of naive replacement ops. <!-- id:AhNJpLuY -->
+  - `document.redirect` resolves and passes capability for delegated writes. <!-- id:JOODMvNb -->
+  - JSON block input validates with `HMBlockNodeSchema`. <!-- id:TMwVw5KE -->
+  - Metadata is size-limited. <!-- id:R4ICtNK3 -->
+  - Tools tab copy was updated to reflect write tool availability. <!-- id:LmzusnEg -->
 
-- `draft.list` excludes soft-deleted drafts.
-- `document.update` uses block diffing instead of naive replacement ops.
-- `document.redirect` resolves and passes capability for delegated writes.
-- JSON block input validates with `HMBlockNodeSchema`.
-- Metadata is size-limited.
-- Tools tab copy was updated to reflect write tool availability.
+# Known limitations and follow-ups <!-- id:4tK7zPs0 -->
 
-## Known limitations and follow-ups
+This is a broad first slice, but it is not the final polished write system. <!-- id:j9EK_XpZ -->
 
-This is a broad first slice, but it is not the final polished write system.
+## Document creation does not yet include file:// link resolution <!-- id:REdud7bi -->
 
-### Document creation does not yet include file:// link resolution
+The CLI resolves `file://` links in markdown/JSON blocks and metadata into IPFS blobs. The current tool does not resolve local files. This is probably correct for server-side Agents until there is a clear file-upload story, but it is a CLI-parity gap. <!-- id:rqTAb9wP -->
 
-The CLI resolves `file://` links in markdown/JSON blocks and metadata into IPFS blobs. The current tool does not resolve
-local files. This is probably correct for server-side Agents until there is a clear file-upload story, but it is a
-CLI-parity gap.
+## PDF input is not implemented <!-- id:Y4XaAUtL -->
 
-### PDF input is not implemented
+The CLI can import PDFs through `pdfToBlocks`. The tool currently supports only markdown and JSON. <!-- id:or_7RnqU -->
 
-The CLI can import PDFs through `pdfToBlocks`. The tool currently supports only markdown and JSON.
+## `document.create` force/existing-path behavior is incomplete <!-- id:XjEhuCpf -->
 
-### `document.create` force/existing-path behavior is incomplete
+The CLI checks existing document paths and requires `--force` to avoid accidental lineage replacement. This implementation does not yet perform that exact guard. <!-- id:1H1lHaST -->
 
-The CLI checks existing document paths and requires `--force` to avoid accidental lineage replacement. This
-implementation does not yet perform that exact guard.
+## `document.update --delete-blocks` parity is not implemented <!-- id:4U1dw6Ql -->
 
-### `document.update --delete-blocks` parity is not implemented
+The tool uses replacement diffing for full-content updates, but it does not expose a separate `deleteBlocks` input like CLI `--delete-blocks`. <!-- id:RvoQMcqd -->
 
-The tool uses replacement diffing for full-content updates, but it does not expose a separate `deleteBlocks` input like
-CLI `--delete-blocks`.
+## `document.update --parent` is not implemented <!-- id:ygi5p3wJ -->
 
-### `document.update --parent` is not implemented
+The CLI declares `--parent`, though the current CLI implementation may not use it meaningfully. The tool does not implement parent insertion semantics. <!-- id:DxhTtAkR -->
 
-The CLI declares `--parent`, though the current CLI implementation may not use it meaningfully. The tool does not
-implement parent insertion semantics.
+## Draft publish ignores some stored routing fields <!-- id:vpEjTUk2 -->
 
-### Draft publish ignores some stored routing fields
+`draft.publish` currently distinguishes update vs create through `edit_target`; it does not fully implement all `location_target`, `visibility`, and path semantics from CLI drafts. <!-- id:faUGCJUe -->
 
-`draft.publish` currently distinguishes update vs create through `edit_target`; it does not fully implement all
-`location_target`, `visibility`, and path semantics from CLI drafts.
+## Contact update is not implemented <!-- id:kzFALZxm -->
 
-### Contact update is not implemented
+The SDK supports `updateContact`, but the CLI currently exposes create/delete/list. The initial tool implements create/delete only. <!-- id:6k2MSg9J -->
 
-The SDK supports `updateContact`, but the CLI currently exposes create/delete/list. The initial tool implements
-create/delete only.
+## Capability revoke is not implemented <!-- id:Y-12JQBe -->
 
-### Capability revoke is not implemented
+The CLI currently exposes capability create. Revoke semantics are not implemented here because they were not found in the CLI audit. <!-- id:oeRpeZnO -->
 
-The CLI currently exposes capability create. Revoke semantics are not implemented here because they were not found in
-the CLI audit.
+## Contact delete by CID is not implemented <!-- id:pJWNTvM2 -->
 
-### Contact delete by CID is not implemented
+The CLI accepts either a contact record ID or CID and can resolve the CID through `/ipfs/<cid>`. The tool currently expects a record ID. <!-- id:4Ky1izX7 -->
 
-The CLI accepts either a contact record ID or CID and can resolve the CID through `/ipfs/<cid>`. The tool currently
-expects a record ID.
+## Rich UI rendering is not implemented <!-- id:gPW_yFcf -->
 
-### Rich UI rendering is not implemented
+Tool results persist as structured events and fall back to JSON rendering. A future UI pass should render write results with command, signer, IDs, versions, and CIDs. <!-- id:qFincCqH -->
 
-Tool results persist as structured events and fall back to JSON rendering. A future UI pass should render write results
-with command, signer, IDs, versions, and CIDs.
+## Dedicated audit table is not implemented <!-- id:BbsUUNcy -->
 
-### Dedicated audit table is not implemented
+Durable session tool events are the current audit trail. A dedicated write audit table may be useful later. <!-- id:JgPXOjjE -->
 
-Durable session tool events are the current audit trail. A dedicated write audit table may be useful later.
+## Write confirmation/dry-run-first policy is not implemented <!-- id:hDq1FO7_ -->
 
-### Write confirmation/dry-run-first policy is not implemented
+The tool supports `dryRun` for many commands, but there is no user policy requiring dry run before publish. <!-- id:lerw9mKM -->
 
-The tool supports `dryRun` for many commands, but there is no user policy requiring dry run before publish.
+# Suggested next implementation priorities <!-- id:dL8zKCPb -->
 
-## Suggested next implementation priorities
-
-1. Improve `draft.publish` to fully honor CLI draft routing:
-   - `edit`
-   - `location`
-   - `visibility`
-   - `path`
-2. Add document create existing-path/`force` guard.
-3. Add document metadata/file-link handling strategy for server-side Agents.
-4. Add direct tests for signer resolution edge cases:
-   - omitted signer with one identity;
-   - omitted signer with multiple identities;
-   - ambiguous profile names;
-   - unselected public key rejection.
-5. Add direct tests for document create/update publishing with mocked Resource/ListChanges/PublishBlobs responses.
-6. Add rich UI rendering for `write` results.
-7. Consider splitting `write` implementation out of `api-service.ts` once the shape stabilizes.
+1. Improve `draft.publish` to fully honor CLI draft routing: <!-- id:F-sgcvIb -->
+   - `edit` <!-- id:xu_PmAX5 -->
+   - `location` <!-- id:gTagqcnL -->
+   - `visibility` <!-- id:UbvzhPyo -->
+   - `path` <!-- id:wP6JUDCX -->
+2. Add document create existing-path/`force` guard. <!-- id:XIziDqAO -->
+3. Add document metadata/file-link handling strategy for server-side Agents. <!-- id:N9W-40mv -->
+4. Add direct tests for signer resolution edge cases: <!-- id:rWVc8w8J -->
+   - omitted signer with one identity; <!-- id:bpisi4Ca -->
+   - omitted signer with multiple identities; <!-- id:Rj-HnkQ9 -->
+   - ambiguous profile names; <!-- id:64VXMDk7 -->
+   - unselected public key rejection. <!-- id:TjWBIi-9 -->
+5. Add direct tests for document create/update publishing with mocked Resource/ListChanges/PublishBlobs responses. <!-- id:SojVaqec -->
+6. Add rich UI rendering for `write` results. <!-- id:tyL7CrEH -->
+7. Consider splitting `write` implementation out of `api-service.ts` once the shape stabilizes. <!-- id:c50YeAbh -->

@@ -11,16 +11,16 @@ The folder is also an example of a workflow: the markdown is the source of truth
 - [Repo HM sync](./repo-hm-sync.md) — the lossless markdown dialect and the export, import and dev commands. <!-- id:m2GuhDRm -->
 - [CLI](./cli.md) — the `seed-cli` commands this folder is published with. <!-- id:4Fo9jG63 -->
 
-# Onyx <!-- id:8Dr_Do__ -->
+# Onyx <!-- id:G9c9jn03 -->
 
-[Onyx](./onyx.md) is the self-describing type system for content-addressed data that Hypermedia documents are built from. Every schema in the library is a page here, with its formal definition attached, and the reference chapters explain the system from the top down: <!-- id:3-51KQjX -->
-  - [Why Onyx](./why.md), [How Onyx works](./how-it-works.md), [Typed documents](./typed-documents.md), [The World Builder](./world-builder.md), [The typed API](./api.md) <!-- id:eQA6AFw6 -->
-  - [The data model](./data-model.md), [The schema language](./schema-language.md), [References & naming](./references.md), [Encoding](./encoding.md), [Examples](./examples.md), [Onyx on the Hypermedia Network](./hypermedia.md), [Design rationale](./design.md), [Glossary](./glossary.md) <!-- id:P2SB-Eg- -->
-  - [Hypermedia Permissions System](./permissions-system.md) — a design investigation into permissions and privacy for Hypermedia content. <!-- id:0HhHb8Jo -->
+[Onyx](./onyx.md) is the self-describing type system for content-addressed data that Hypermedia documents are built from. Every schema in the library is a page here, with its formal definition attached, and the reference chapters explain the system from the top down: <!-- id:lsYfVMeq -->
+  - [Why Onyx](./why.md), [How Onyx works](./how-it-works.md), [Typed documents](./typed-documents.md), [The World Builder](./world-builder.md), [The typed API](./api.md) <!-- id:u75glGr1 -->
+  - [The data model](./data-model.md), [The schema language](./schema-language.md), [References & naming](./references.md), [Encoding](./encoding.md), [Examples](./examples.md), [Onyx on the Hypermedia Network](./hypermedia.md), [Design rationale](./design.md), [Glossary](./glossary.md) <!-- id:CEaJilu0 -->
+  - [Hypermedia Permissions System](./permissions-system.md) — a design investigation into permissions and privacy for Hypermedia content. <!-- id:SIUblIDE -->
 
-# Agents <!-- id:1j0CwRtD -->
+# Agents <!-- id:v3ihjVoi -->
 
-[Seed Agents](./agents.md) is the account-scoped agent runtime, the Harness: a Bun service with a signed API, SQLite persistence and a desktop UI. Its documentation is the `agent-` pages: <!-- id:Ge61H-W6 -->
-  - Start with [the system overview](./agent-system-overview.md), [the glossary](./agent-glossary.md) and [development](./agent-development.md). <!-- id:XDjTPkcM -->
-  - Design and operations: [tools](./agent-tools.md), [the signed API](./agent-signed-api.md), [persistence](./agent-persistence.md), [security](./agent-security.md), [operations](./agent-operations.md), [troubleshooting](./agent-troubleshooting.md). <!-- id:ijAqIuIA -->
-  - The Harness rebuild: [plan](./agent-harness-plan.md), [build log](./agent-harness-build-log.md), [roadmap](./agent-roadmap.md), [future projects](./agent-future-projects.md). <!-- id:WklnvKjQ -->
+[Seed Agents](./agents.md) is the account-scoped agent runtime, the Harness: a Bun service with a signed API, SQLite persistence and a desktop UI. Its documentation is the `agent-` pages: <!-- id:ugp7F8mP -->
+  - Start with [the system overview](./agent-system-overview.md), [the glossary](./agent-glossary.md) and [development](./agent-development.md). <!-- id:JqSMa6qL -->
+  - Design and operations: [tools](./agent-tools.md), [the signed API](./agent-signed-api.md), [persistence](./agent-persistence.md), [security](./agent-security.md), [operations](./agent-operations.md), [troubleshooting](./agent-troubleshooting.md). <!-- id:M4LYVFUH -->
+  - The Harness rebuild: [plan](./agent-harness-plan.md), [build log](./agent-harness-build-log.md), [roadmap](./agent-roadmap.md), [future projects](./agent-future-projects.md). <!-- id:BlXxGsCb -->
