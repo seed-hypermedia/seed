@@ -366,6 +366,38 @@ describe('resolvePublishPath', () => {
       }),
     ).toEqual(['my-cool-doc'])
   })
+
+  it('honours the persisted rename path over the auto-derived slug', () => {
+    expect(
+      resolvePublishPath({
+        ...baseArgs,
+        currentPath: ['parent', '-abc'],
+        persistedPath: ['parent', 'renamed-slug'],
+      }),
+    ).toEqual(['parent', 'renamed-slug'])
+  })
+
+  it('honours the persisted rename path over pathOverride', () => {
+    expect(
+      resolvePublishPath({
+        ...baseArgs,
+        currentPath: ['parent', '-abc'],
+        pathOverride: ['parent', 'override-slug'],
+        persistedPath: ['parent', 'renamed-slug'],
+      }),
+    ).toEqual(['parent', 'renamed-slug'])
+  })
+
+  it('ignores the persisted rename path for private drafts', () => {
+    expect(
+      resolvePublishPath({
+        ...baseArgs,
+        isPrivate: true,
+        currentPath: ['-abc'],
+        persistedPath: ['parent', 'renamed-slug'],
+      }),
+    ).toEqual(['-abc'])
+  })
 })
 
 describe('computeNewDraftParams', () => {

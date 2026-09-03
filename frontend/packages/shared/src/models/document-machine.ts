@@ -288,6 +288,16 @@ export type DocumentMachineContext = {
   transientResourceError: TransientResourceError
   /** True after this old-version visit has already warned about blocked edit attempts. */
   oldVersionEditNoticeShown: boolean
+  /**
+   * Durable path the user picked for a not-yet-published draft via the rename
+   * affordance. Hydrated from the draft on load, persisted via `writeDraft`, and
+   * honored at publish time in place of the title-derived slug.
+   */
+  publishPath: string[] | null
+  /** Error from the most recent rename attempt, surfaced in the publish popover. */
+  renameError: string | null
+  /** Transient path captured from `rename.commit`/`rename.retry` while the rename actor runs. */
+  renameTargetPath: string[] | null
 }
 
 function contentToEditorBlocks(content: HMBlockNode[] | EditorBlock[] | null | undefined): EditorBlock[] {
@@ -367,6 +377,8 @@ export type DocumentMachineEvent =
       mineTouchedIds?: string[] | null
       /** Three-way merge base captured when the draft was first started or last rebased. */
       baseBlocks?: HMBlockNode[] | null
+      /** Durable rename path persisted on the draft. */
+      publishPath?: string[] | null
     }
   | {
       type: 'draft.externallyModified'
@@ -380,6 +392,7 @@ export type DocumentMachineEvent =
       deps?: string[] | null
       mineTouchedIds?: string[] | null
       baseBlocks?: HMBlockNode[] | null
+      publishPath?: string[] | null
     }
   | {type: '_save.started'}
   | {type: '_save.completed'}
@@ -391,6 +404,10 @@ export type DocumentMachineEvent =
   | {type: 'rebase.dismiss'}
   | {type: 'resource.transientError'; error: NonNullable<TransientResourceError>}
   | {type: 'resource.recovered'}
+  | {type: 'rename.start'}
+  | {type: 'rename.cancel'}
+  | {type: 'rename.commit'; path: string[]}
+  | {type: 'rename.retry'; path: string[]}
 
 /** Input for the writeDraft actor. */
 export type WriteDraftInput = {
@@ -407,6 +424,8 @@ export type WriteDraftInput = {
   mineTouchedIds: string[]
   /** Three-way merge base captured at edit-start (or updated by `rebase.apply`). */
   baseBlocks: HMBlockNode[] | null
+  /** Durable rename path persisted on the draft. */
+  publishPath?: string[] | null
   /** Explicit editor content for machine-owned repairs when no editor is mounted. */
   contentOverride?: EditorBlock[]
 }
@@ -448,7 +467,96 @@ export type PushDocumentInput = {
   publishedDocument: HMDocument
 }
 
+/** Input for the renameDocument actor — relocates an already-published document. */
+export type RenameDocumentInput = {
+  from: UnpackedHypermediaId
+  path: string[]
+  signingAccountUid: string | null
+}
+
+/** Output from the renameDocument actor. */
+export type RenameDocumentOutput = {
+  to: UnpackedHypermediaId
+}
+
+/** Input for the renameDraft actor — persists the rename path onto an unpublished draft. */
+export type RenameDraftInput = {
+  draftId: string
+  path: string[]
+}
+
 export type DocumentMachineState = StateFrom<typeof documentMachine>
+
+/** Parallel rename region shared by the `loaded` and `editing` top-level states. */
+function renameRegion(): any {
+  return {
+    initial: 'idle',
+    states: {
+      idle: {
+        on: {
+          'rename.start': {target: 'renaming'},
+        },
+      },
+      renaming: {
+        on: {
+          'rename.cancel': {target: 'idle', actions: ['clearRenameTarget']},
+          'rename.commit': [
+            {target: 'committingPublished', guard: 'isPublished', actions: ['captureRenamePath']},
+            {target: 'committingDraft', actions: ['captureRenamePath']},
+          ],
+        },
+      },
+      committingPublished: {
+        entry: ['clearRenameError'],
+        invoke: {
+          id: 'renameDocument',
+          src: 'renameDocument',
+          input: ({context}: {context: DocumentMachineContext}) => ({
+            from: context.documentId,
+            path: context.renameTargetPath ?? [],
+            signingAccountUid: context.signingAccountId ?? context.publishAccountUid,
+          }),
+          onDone: {
+            target: 'idle',
+            actions: ['emitRenamed', 'clearRenameTarget'],
+          },
+          onError: {
+            target: 'error',
+            actions: ['setRenameError'],
+          },
+        },
+      },
+      committingDraft: {
+        entry: ['clearRenameError'],
+        invoke: {
+          id: 'renameDraft',
+          src: 'renameDraft',
+          input: ({context}: {context: DocumentMachineContext}) => ({
+            draftId: context.draftId ?? '',
+            path: context.renameTargetPath ?? [],
+          }),
+          onDone: {
+            target: 'idle',
+            actions: ['setPublishPathFromResult'],
+          },
+          onError: {
+            target: 'error',
+            actions: ['setRenameError'],
+          },
+        },
+      },
+      error: {
+        on: {
+          'rename.retry': [
+            {target: 'committingPublished', guard: 'isPublished', actions: ['captureRenamePath']},
+            {target: 'committingDraft', actions: ['captureRenamePath']},
+          ],
+          'rename.cancel': {target: 'idle', actions: ['clearRenameTarget']},
+        },
+      },
+    },
+  }
+}
 
 // -- Machine --
 
@@ -457,7 +565,10 @@ export const documentMachine = setup({
     input: {} as DocumentMachineInput,
     context: {} as DocumentMachineContext,
     events: {} as DocumentMachineEvent,
-    emitted: {} as {type: 'scrolling'} | {type: 'oldVersionEditBlocked'},
+    emitted: {} as
+      | {type: 'scrolling'}
+      | {type: 'oldVersionEditBlocked'}
+      | {type: 'renamed'; oldId: string; newId: string},
   },
   actions: {
     setDocumentData: assign({
@@ -626,6 +737,9 @@ export const documentMachine = setup({
       pendingExitEditingAfterSave: false,
       referencedChildDraftIds: [],
       pendingDeletedChildDraftIds: [],
+      publishPath: null,
+      renameError: null,
+      renameTargetPath: null,
     }),
     clearEditingState: assign({
       // Preserve draftId and metadata so re-entering editing reuses the same draft
@@ -639,6 +753,8 @@ export const documentMachine = setup({
       pendingPathOverride: null,
       pendingPublish: false,
       pendingExitEditingAfterSave: false,
+      renameError: null,
+      renameTargetPath: null,
     }),
     promotePendingRemoteDocument: assign({
       document: ({context}) =>
@@ -766,6 +882,35 @@ export const documentMachine = setup({
     clearPathOverride: assign({
       pendingPathOverride: null,
     }),
+    captureRenamePath: assign({
+      renameTargetPath: ({context, event}) =>
+        event.type === 'rename.commit' || event.type === 'rename.retry' ? event.path : context.renameTargetPath,
+      renameError: null,
+    }),
+    clearRenameError: assign({
+      renameError: null,
+    }),
+    setRenameError: assign({
+      renameError: ({event}) => {
+        const err = (event as any).error
+        return err instanceof Error ? err.message : typeof err === 'string' ? err : 'Rename failed'
+      },
+    }),
+    setPublishPathFromResult: assign({
+      publishPath: ({context}) => context.renameTargetPath,
+      renameTargetPath: null,
+    }),
+    clearRenameTarget: assign({
+      renameTargetPath: null,
+    }),
+    emitRenamed: emit(({context, event}): {type: 'renamed'; oldId: string; newId: string} => {
+      const output = (event as any).output as RenameDocumentOutput | undefined
+      return {
+        type: 'renamed',
+        oldId: context.documentId.id,
+        newId: output?.to?.id ?? context.documentId.id,
+      }
+    }),
     markPendingPublish: assign({
       pendingPublish: true,
     }),
@@ -849,6 +994,12 @@ export const documentMachine = setup({
           return event.baseBlocks
         }
         return context.baseBlocks
+      },
+      publishPath: ({event, context}) => {
+        if (event.type === 'draft.resolved' && event.publishPath && event.publishPath.length) {
+          return event.publishPath
+        }
+        return context.publishPath
       },
       referencedChildDraftIds: ({event, context}) => {
         if (event.type === 'draft.resolved' && event.content) return collectChildDraftIds(event.content)
@@ -985,6 +1136,17 @@ export const documentMachine = setup({
         }
         return context.baseBlocks
       },
+      publishPath: ({context, event}) => {
+        if (
+          event.type === 'draft.externallyModified' &&
+          event.source === 'document-card-cleanup' &&
+          event.draftId === context.draftId &&
+          event.publishPath
+        ) {
+          return event.publishPath
+        }
+        return context.publishPath
+      },
       hasChangedWhileSaving: ({context, event}) => {
         if (
           event.type === 'draft.externallyModified' &&
@@ -1111,6 +1273,7 @@ export const documentMachine = setup({
     routeDisallowsDraftOverlay: ({context, event}) =>
       event.type === 'version.changed' &&
       !shouldAllowDraftOverlay(event.isLatest, event.routeVersion ?? context.routeVersion),
+    isPublished: ({context}) => !!context.publishedVersion,
   },
   actors: {
     writeDraft: fromPromise<WriteDraftOutput, WriteDraftInput>(async () => {
@@ -1121,6 +1284,12 @@ export const documentMachine = setup({
     }),
     discardDraft: fromPromise<void, DiscardDraftInput>(async () => {
       throw new Error('discardDraft actor must be provided via .provide()')
+    }),
+    renameDocument: fromPromise<RenameDocumentOutput, RenameDocumentInput>(async () => {
+      throw new Error('renameDocument actor must be provided via .provide()')
+    }),
+    renameDraft: fromPromise<{path: string[]}, RenameDraftInput>(async () => {
+      throw new Error('renameDraft actor must be provided via .provide()')
     }),
     pushDocument: fromPromise<void, PushDocumentInput>(async () => {
       // Default no-op: consumers that want push-on-publish must provide this actor.
@@ -1194,6 +1363,9 @@ export const documentMachine = setup({
     error: null,
     transientResourceError: null,
     oldVersionEditNoticeShown: false,
+    publishPath: null,
+    renameError: null,
+    renameTargetPath: null,
   }),
   initial: 'loading',
   states: {
@@ -1233,6 +1405,7 @@ export const documentMachine = setup({
     },
 
     loaded: {
+      type: 'parallel',
       on: {
         'edit.start': [
           {
@@ -1305,6 +1478,9 @@ export const documentMachine = setup({
           actions: ['clearShouldAutoEdit', 'setDepsFromPublished', 'snapshotBaseBlocks'],
         },
       ],
+      states: {
+        rename: renameRegion(),
+      },
     },
 
     editing: {
@@ -1378,6 +1554,7 @@ export const documentMachine = setup({
         },
       },
       states: {
+        rename: renameRegion(),
         draft: {
           initial: 'idle',
           on: {
@@ -1558,6 +1735,7 @@ export const documentMachine = setup({
                   // the existing content instead of persisting an empty draft
                   // body that blanks the Content tab and wipes content on publish.
                   baseBlocks: context.baseBlocks ?? context.document?.content ?? null,
+                  publishPath: context.publishPath,
                   contentOverride: getMachineOwnedContentOverride(context),
                 }),
                 onDone: [
@@ -1682,6 +1860,7 @@ export const documentMachine = setup({
                   // the existing content instead of persisting an empty draft
                   // body that blanks the Content tab and wipes content on publish.
                   baseBlocks: context.baseBlocks ?? context.document?.content ?? null,
+                  publishPath: context.publishPath,
                   contentOverride: getMachineOwnedContentOverride(context),
                 }),
                 onDone: [

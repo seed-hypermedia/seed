@@ -35,12 +35,16 @@ import {
   type EditorAccessor,
   type PublishInput,
   type PushDocumentInput,
+  type RenameDocumentInput,
+  type RenameDocumentOutput,
+  type RenameDraftInput,
   type WriteDraftInput,
   type WriteDraftOutput,
 } from '@shm/shared/models/document-machine'
 import {invalidateAfterPublish} from '@shm/shared/models/post-publish-cache'
-import {invalidateQueries, refetchQueriesByKey} from '@shm/shared/models/query-client'
+import {invalidateQueries, queryClient, refetchQueriesByKey} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
+import {queryDirectory} from '@shm/shared/models/queries'
 import type {UniversalClient} from '@shm/shared/universal-client'
 import {
   compareBlocksWithMap,
@@ -65,6 +69,7 @@ import {
   type WebDocDraft,
 } from './web-draft-db'
 import {getWebDraftPlaceholderId, isWebDraftPlaceholderPath, isWebPrivateDraftPlaceholderPath} from './web-draft-path'
+import {moveWebDocuments} from '../web-move-document-dialog'
 
 /** @deprecated Use `EditorAccessor` from `@shm/shared/models/document-machine` instead. */
 export type WebEditorAccessor = EditorAccessor
@@ -94,10 +99,38 @@ export function createWebDocumentMachine(deps: CreateWebDocumentMachineDeps) {
       writeDraft: makeWriteDraftActor(deps),
       publishDocument: makePublishDocumentActor(deps),
       discardDraft: makeDiscardDraftActor(deps),
+      renameDocument: makeRenameDocumentActor(deps),
+      renameDraft: makeRenameDraftActor(deps),
       pushDocument: fromPromise<void, PushDocumentInput>(async () => {
         // V1: no-op. Future: post to a web push endpoint.
       }),
     },
+  })
+}
+
+function makeRenameDocumentActor(deps: CreateWebDocumentMachineDeps) {
+  return fromPromise<RenameDocumentOutput, RenameDocumentInput>(async ({input}) => {
+    const to = hmId(input.from.uid, {path: input.path})
+    if (!input.signingAccountUid) throw new Error('No signing account available for rename')
+    const childDocuments = await queryClient.fetchQuery(queryDirectory(deps.client, input.from, 'AllDescendants'))
+    await moveWebDocuments(deps.client, {
+      from: input.from,
+      to,
+      childDocuments,
+      signingAccountId: input.signingAccountUid,
+      capabilityId: deps.getCapabilityCid(),
+    })
+    return {to}
+  })
+}
+
+function makeRenameDraftActor(deps: CreateWebDocumentMachineDeps) {
+  return fromPromise<{path: string[]}, RenameDraftInput>(async ({input}) => {
+    const draft = await getWebDocDraft(input.draftId)
+    if (!draft) throw new Error(`Draft ${input.draftId} not found`)
+    await putWebDocDraft({...draft, publishPath: input.path})
+    invalidateQueries(['web-doc-draft', deps.docId.id])
+    return {path: input.path}
   })
 }
 
@@ -172,6 +205,7 @@ export async function writeWebDraft(
           ? 'PUBLIC'
           : undefined),
     cursorPosition,
+    publishPath: input.publishPath ?? existingDraft?.publishPath ?? null,
   }
   await putWebDocDraft(record)
   invalidateQueries(['web-doc-draft', deps.docId.id])
@@ -265,11 +299,13 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
   const isPlaceholderPath = isWebDraftPlaceholderPath(currentPath, draft.draftId)
   const publishPath = isPrivate
     ? currentPath
-    : input.pathOverride
-      ? input.pathOverride
-      : !editDocument && isPlaceholderPath
-        ? computeInlineDraftPublishPath(currentPath, (draft.metadata as HMMetadata).name || '', draft.draftId)
-        : currentPath
+    : draft.publishPath && draft.publishPath.length
+      ? draft.publishPath
+      : input.pathOverride
+        ? input.pathOverride
+        : !editDocument && isPlaceholderPath
+          ? computeInlineDraftPublishPath(currentPath, (draft.metadata as HMMetadata).name || '', draft.draftId)
+          : currentPath
   const publishedDocId =
     publishPath === currentPath ? deps.docId : hmId(deps.docId.uid, {...deps.docId, path: publishPath})
   const publishBlocks = !editDocument

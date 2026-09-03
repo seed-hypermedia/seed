@@ -86,7 +86,9 @@ describe('documentMachine rebase transitions', () => {
     expect(ctx.pendingRemoteDocument).toBe(remoteDocument)
     expect(selectPendingRemoteVersion(actor.getSnapshot())).toBe('remoteVersion')
     // Still in editing (rebase detection/apply happens outside machine)
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
+    expect(actor.getSnapshot().value).toEqual({
+      editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle', rename: 'idle'},
+    })
     actor.stop()
   })
 

@@ -1310,6 +1310,12 @@ export const HMDraftContentSchema = z.object({
    * started (or last rebased). Acts as the merge base for three-way diff.
    */
   baseBlocks: z.array(z.any()).optional(),
+  /**
+   * Optional path the user picked for this not-yet-published draft via the
+   * rename affordance in the publish popover. Persisted so it survives reloads
+   * and is honored at publish time instead of the title-derived slug.
+   */
+  publishPath: z.array(z.string()).optional(),
 })
 
 export type HMDraftContent = z.infer<typeof HMDraftContentSchema>

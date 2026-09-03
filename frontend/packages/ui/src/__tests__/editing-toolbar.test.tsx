@@ -11,6 +11,10 @@ const {selectMock, sendMock, unpublishedChangeCountMock, useAccountMock} = vi.ho
     document: null as any,
     draftId: null as string | null,
     metadata: {} as Record<string, any>,
+    renameState: 'idle' as 'idle' | 'renaming' | 'committing' | 'error',
+    renameError: null as string | null,
+    publishPath: null as string[] | null,
+    effectivePublishPath: [] as string[],
   },
   sendMock: vi.fn(),
   unpublishedChangeCountMock: vi.fn(() => 0),
@@ -33,6 +37,10 @@ vi.mock('@shm/shared/models/use-document-machine', () => ({
   selectDraftId: (s: any) => s.context.draftId,
   selectMetadata: (s: any) => s.context.metadata,
   selectSaveIndicatorStatus: () => 'hidden',
+  selectRenameState: () => selectMock.renameState,
+  selectRenameError: () => selectMock.renameError,
+  selectPublishPath: () => selectMock.publishPath,
+  selectEffectivePublishPath: () => selectMock.effectivePublishPath,
 }))
 
 vi.mock('@shm/shared/models/use-unpublished-change-count', () => ({
@@ -57,7 +65,6 @@ vi.mock('../tooltip', async () => {
 })
 
 import {PublishButtonWithPopover, PublishPopoverBody} from '../editing-toolbar'
-import {pathNameify} from '@shm/shared/utils/path'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 function renderNode(node: React.ReactNode) {
@@ -169,7 +176,7 @@ describe('editing-toolbar publish disabled states', () => {
         popoverPublishButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
       })
 
-      expect(sendMock).toHaveBeenCalledWith({type: 'publish.start', pathOverride: undefined})
+      expect(sendMock).toHaveBeenCalledWith({type: 'publish.start'})
       sendMock.mockClear()
 
       act(() => {
@@ -239,11 +246,15 @@ describe('editing-toolbar publish disabled states', () => {
   })
 })
 
-describe('PublishPopoverBody permalink editing', () => {
+describe('PublishPopoverBody rename path editing', () => {
   beforeEach(() => {
-    selectMock.document = {version: '', metadata: {}}
+    selectMock.document = {version: 'bafy123', metadata: {}}
     selectMock.draftId = 'draft-1'
-    selectMock.metadata = {name: 'My Doc'}
+    selectMock.metadata = {}
+    selectMock.renameState = 'idle'
+    selectMock.renameError = null
+    selectMock.publishPath = null
+    selectMock.effectivePublishPath = ['parent', 'my-doc']
     sendMock.mockReset()
     unpublishedChangeCountMock.mockReset()
     unpublishedChangeCountMock.mockReturnValue(1)
@@ -251,88 +262,80 @@ describe('PublishPopoverBody permalink editing', () => {
     useAccountMock.mockReturnValue({data: undefined})
   })
 
-  it('turns a typed trailing space into an editable dash separator', () => {
-    const docId = hmId('acct-1', {path: ['parent', 'my']})
-    const {container, root} = renderNode(
+  function renderBody(docId: ReturnType<typeof hmId>) {
+    return renderNode(
       <PublishPopoverBody
         docId={docId}
         changeCount={1}
         onPublish={vi.fn()}
         onClose={vi.fn()}
         publishDisabled={false}
-        slugify={pathNameify}
+        getDocumentUrl={() => 'https://example.com/parent/my-doc'}
       />,
     )
+  }
 
+  it('shows a pencil button and no input by default for a published doc', () => {
+    const {container, root} = renderBody(hmId('acct-1', {path: ['parent', 'my-doc']}))
     try {
-      const input = findInput(container)!
-      act(() => {
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
-        setter.call(input, '/my ')
-        input.dispatchEvent(new Event('input', {bubbles: true}))
-      })
-
-      expect(input.value).toBe('/my-')
+      expect(findInput(container)).toBeNull()
+      expect(container.querySelector('button[aria-label="Edit path"]')).toBeTruthy()
     } finally {
       cleanup(root, container)
     }
   })
 
-  it('does not create a leading dash from a leading space', () => {
-    const docId = hmId('acct-1', {path: ['parent', 'my']})
-    const {container, root} = renderNode(
-      <PublishPopoverBody
-        docId={docId}
-        changeCount={1}
-        onPublish={vi.fn()}
-        onClose={vi.fn()}
-        publishDisabled={false}
-        slugify={pathNameify}
-      />,
-    )
-
+  it('hides the pencil for home documents', () => {
+    const {container, root} = renderBody(hmId('acct-1', {path: []}))
     try {
-      const input = findInput(container)!
-      act(() => {
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
-        setter.call(input, '/ my doc')
-        input.dispatchEvent(new Event('input', {bubbles: true}))
-      })
-
-      expect(input.value).toBe('/my-doc')
+      expect(container.querySelector('button[aria-label="Edit path"]')).toBeNull()
     } finally {
       cleanup(root, container)
     }
   })
 
-  it('trims a trailing space-created dash from the publish override', () => {
-    const docId = hmId('acct-1', {path: ['parent', 'my']})
-    const onPublish = vi.fn()
-    const {container, root} = renderNode(
-      <PublishPopoverBody
-        docId={docId}
-        changeCount={1}
-        onPublish={onPublish}
-        onClose={vi.fn()}
-        publishDisabled={false}
-        slugify={pathNameify}
-      />,
-    )
-
+  it('hides the pencil for private documents', () => {
+    selectMock.document = {version: 'bafy123', metadata: {}, visibility: 'PRIVATE'}
+    const {container, root} = renderBody(hmId('acct-1', {path: ['parent', 'my-doc']}))
     try {
-      const input = findInput(container)!
-      act(() => {
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
-        setter.call(input, '/my ')
-        input.dispatchEvent(new Event('input', {bubbles: true}))
-      })
+      expect(container.querySelector('button[aria-label="Edit path"]')).toBeNull()
+    } finally {
+      cleanup(root, container)
+    }
+  })
 
-      const publishButton = findButtonByText(container, 'Publish: Make it live now')
+  it('sends rename.start when the pencil is clicked', () => {
+    const {container, root} = renderBody(hmId('acct-1', {path: ['parent', 'my-doc']}))
+    try {
+      const pencil = container.querySelector('button[aria-label="Edit path"]') as HTMLButtonElement
       act(() => {
-        publishButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+        pencil.dispatchEvent(new MouseEvent('click', {bubbles: true}))
       })
+      expect(sendMock).toHaveBeenCalledWith({type: 'rename.start'})
+    } finally {
+      cleanup(root, container)
+    }
+  })
 
-      expect(onPublish).toHaveBeenCalledWith(['parent', 'my'])
+  it('renders an input with save and cancel buttons while renaming', () => {
+    selectMock.renameState = 'renaming'
+    const {container, root} = renderBody(hmId('acct-1', {path: ['parent', 'my-doc']}))
+    try {
+      expect(findInput(container)).toBeTruthy()
+      expect(container.querySelector('button[aria-label="Save path"]')).toBeTruthy()
+      expect(container.querySelector('button[aria-label="Cancel path edit"]')).toBeTruthy()
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
+  it('shows an error and retry button in the error state', () => {
+    selectMock.renameState = 'error'
+    selectMock.renameError = 'A document already exists at this path.'
+    const {container, root} = renderBody(hmId('acct-1', {path: ['parent', 'my-doc']}))
+    try {
+      expect(container.textContent).toContain('A document already exists at this path.')
+      expect(container.querySelector('button[aria-label="Retry rename"]')).toBeTruthy()
     } finally {
       cleanup(root, container)
     }

@@ -87,9 +87,11 @@ export function resolvePublishPath(args: {
   isPrivate: boolean
   existsAtDestination: boolean
   pathOverride?: string[]
+  persistedPath?: string[]
 }): string[] {
-  const {currentPath, draftId, draftName, isPrivate, existsAtDestination, pathOverride} = args
+  const {currentPath, draftId, draftName, isPrivate, existsAtDestination, pathOverride, persistedPath} = args
   if (isPrivate) return currentPath
+  if (persistedPath && persistedPath.length) return persistedPath
   if (pathOverride) return pathOverride
   if (existsAtDestination) return currentPath
   if (currentPath.length === 0) return currentPath

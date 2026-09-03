@@ -10,6 +10,10 @@ const {selectMock, useResourceMock, useAccountMock} = vi.hoisted(() => ({
     document: null as any,
     draftId: null as string | null,
     metadata: {} as Record<string, any>,
+    renameState: 'idle' as 'idle' | 'renaming' | 'committing' | 'error',
+    renameError: null as string | null,
+    publishPath: null as string[] | null,
+    effectivePublishPath: [] as string[],
   },
   useResourceMock: vi.fn(),
   useAccountMock: vi.fn(),
@@ -32,6 +36,10 @@ vi.mock('@shm/shared/models/use-document-machine', () => ({
   selectDocument: (s: any) => s.context.document,
   selectDraftId: (s: any) => s.context.draftId,
   selectMetadata: (s: any) => s.context.metadata,
+  selectRenameState: () => selectMock.renameState,
+  selectRenameError: () => selectMock.renameError,
+  selectPublishPath: () => selectMock.publishPath,
+  selectEffectivePublishPath: () => selectMock.effectivePublishPath,
   selectEditorBaseline: () => null,
   selectNavigation: () => undefined,
   selectSaveIndicatorStatus: () => 'hidden',
@@ -93,8 +101,6 @@ vi.mock('@shm/ui/tooltip', async () => {
   }
 })
 
-import {pathNameify} from '@shm/shared/utils/path'
-import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {PublishPopoverBody} from '../editing-toolbar'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -104,7 +110,7 @@ function setSnapshot(opts: {document?: any; draftId?: string | null; metadata?: 
   selectMock.metadata = opts.metadata ?? {}
 }
 
-function renderPopover(docId: ReturnType<typeof hmId>, onPublish: (override?: string[]) => void) {
+function renderPopover(docId: ReturnType<typeof hmId>, onPublish: () => void) {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
@@ -116,8 +122,7 @@ function renderPopover(docId: ReturnType<typeof hmId>, onPublish: (override?: st
         onPublish={onPublish}
         onClose={vi.fn()}
         publishDisabled={false}
-        slugify={pathNameify}
-        computeFirstPublishPath={computeInlineDraftPublishPath}
+        getDocumentUrl={() => 'https://example.com/parent/my-cool-doc'}
       />,
     )
   })
@@ -135,72 +140,78 @@ function findInput(container: HTMLDivElement) {
   return container.querySelector('input') as HTMLInputElement | null
 }
 
-function findButtonByText(container: HTMLDivElement, label: string) {
-  return Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.trim() === label) as
-    | HTMLButtonElement
-    | undefined
-}
-
 describe('PublishPopoverBody', () => {
   beforeEach(() => {
     selectMock.document = null
     selectMock.draftId = null
     selectMock.metadata = {}
+    selectMock.renameState = 'idle'
+    selectMock.renameError = null
+    selectMock.publishPath = null
+    selectMock.effectivePublishPath = ['parent', 'my-cool-doc']
     useResourceMock.mockReset()
     useAccountMock.mockReset()
     useResourceMock.mockReturnValue({data: undefined})
     useAccountMock.mockReturnValue({data: undefined})
   })
 
-  it('shows the editable permalink input on first publish (no published version)', () => {
-    setSnapshot({
-      document: {version: '', metadata: {}},
-      draftId: 'abc',
-      metadata: {name: 'My Cool Doc'},
-    })
-    const docId = hmId('acct-1', {path: ['parent', '-abc']})
-    const onPublish = vi.fn()
-
-    const {container, root} = renderPopover(docId, onPublish)
-    try {
-      const input = findInput(container)
-      expect(input).toBeTruthy()
-      // Auto-filled from the title slug because the path is the placeholder.
-      expect(input!.value).toBe('/my-cool-doc')
-    } finally {
-      cleanup(root, container)
-    }
-  })
-
-  it('hides the editable permalink for re-publishes (existing published version)', () => {
+  it('shows a pencil button and no input for a published doc', () => {
     setSnapshot({
       document: {version: 'bafy123', metadata: {}},
       draftId: 'abc',
       metadata: {name: 'My Cool Doc'},
     })
     const docId = hmId('acct-1', {path: ['parent', 'my-cool-doc']})
-    const onPublish = vi.fn()
-
-    const {container, root} = renderPopover(docId, onPublish)
+    const {container, root} = renderPopover(docId, vi.fn())
     try {
       expect(findInput(container)).toBeNull()
+      expect(container.querySelector('button[aria-label="Edit path"]')).toBeTruthy()
     } finally {
       cleanup(root, container)
     }
   })
 
-  it('hides the editable permalink for home-doc edits (empty path)', () => {
+  it('shows a pencil button and no input for a first-publish doc', () => {
+    setSnapshot({
+      document: {version: '', metadata: {}},
+      draftId: 'abc',
+      metadata: {name: 'My Cool Doc'},
+    })
+    const docId = hmId('acct-1', {path: ['parent', '-abc']})
+    const {container, root} = renderPopover(docId, vi.fn())
+    try {
+      expect(findInput(container)).toBeNull()
+      expect(container.querySelector('button[aria-label="Edit path"]')).toBeTruthy()
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
+  it('hides the pencil for home-doc edits (empty path)', () => {
     setSnapshot({
       document: {version: '', metadata: {}},
       draftId: 'abc',
       metadata: {name: 'Home'},
     })
     const docId = hmId('acct-1', {path: []})
-    const onPublish = vi.fn()
-
-    const {container, root} = renderPopover(docId, onPublish)
+    const {container, root} = renderPopover(docId, vi.fn())
     try {
-      expect(findInput(container)).toBeNull()
+      expect(container.querySelector('button[aria-label="Edit path"]')).toBeNull()
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
+  it('hides the pencil for private docs', () => {
+    setSnapshot({
+      document: {version: 'bafy123', metadata: {}, visibility: 'PRIVATE'},
+      draftId: 'abc',
+      metadata: {name: 'My Private Doc'},
+    })
+    const docId = hmId('acct-1', {path: ['my-cool-doc']})
+    const {container, root} = renderPopover(docId, vi.fn())
+    try {
+      expect(container.querySelector('button[aria-label="Edit path"]')).toBeNull()
     } finally {
       cleanup(root, container)
     }
@@ -213,9 +224,7 @@ describe('PublishPopoverBody', () => {
       metadata: {name: 'My Cool Doc'},
     })
     const docId = hmId('acct-1', {path: ['parent', '-abc']})
-    const onPublish = vi.fn()
-
-    const {container, root} = renderPopover(docId, onPublish)
+    const {container, root} = renderPopover(docId, vi.fn())
     try {
       expect(container.textContent).toContain('Not yet published')
       const matchingButton = Array.from(container.querySelectorAll('button')).find(
@@ -227,81 +236,19 @@ describe('PublishPopoverBody', () => {
     }
   })
 
-  it('forwards the user-typed override to onPublish when Publish is clicked', () => {
+  it('renders an input with save and cancel buttons while renaming', () => {
+    selectMock.renameState = 'renaming'
     setSnapshot({
       document: {version: '', metadata: {}},
       draftId: 'abc',
       metadata: {name: 'My Cool Doc'},
     })
     const docId = hmId('acct-1', {path: ['parent', '-abc']})
-    const onPublish = vi.fn()
-
-    const {container, root} = renderPopover(docId, onPublish)
+    const {container, root} = renderPopover(docId, vi.fn())
     try {
-      const input = findInput(container)!
-      // Simulate the user editing the permalink to a new slug.
-      act(() => {
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
-        setter.call(input, '/my-typed-slug')
-        input.dispatchEvent(new Event('input', {bubbles: true}))
-      })
-      const publishButton = findButtonByText(container, 'Publish: Make it live now')
-      act(() => {
-        publishButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
-      })
-      expect(onPublish).toHaveBeenCalledWith(['parent', 'my-typed-slug'])
-    } finally {
-      cleanup(root, container)
-    }
-  })
-
-  it('disables permalink editing for private first-publish docs', () => {
-    setSnapshot({
-      document: {version: '', metadata: {}, visibility: 'PRIVATE'},
-      draftId: 'abc',
-      metadata: {name: 'My Private Doc'},
-    })
-    const docId = hmId('acct-1', {path: ['-abc']})
-    const onPublish = vi.fn()
-
-    const {container, root} = renderPopover(docId, onPublish)
-    try {
-      const input = findInput(container)!
-      expect(input).toBeTruthy()
-      expect(input.disabled).toBe(true)
-      expect(container.textContent).toContain('Private document paths are generated automatically.')
-
-      act(() => {
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
-        setter.call(input, '/my-typed-slug')
-        input.dispatchEvent(new Event('input', {bubbles: true}))
-      })
-      const publishButton = findButtonByText(container, 'Publish: Make it live now')
-      act(() => {
-        publishButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
-      })
-      expect(onPublish).toHaveBeenCalledWith(undefined)
-    } finally {
-      cleanup(root, container)
-    }
-  })
-
-  it('omits the override when the user has not edited the input', () => {
-    setSnapshot({
-      document: {version: '', metadata: {}},
-      draftId: 'abc',
-      metadata: {name: 'My Cool Doc'},
-    })
-    const docId = hmId('acct-1', {path: ['parent', '-abc']})
-    const onPublish = vi.fn()
-
-    const {container, root} = renderPopover(docId, onPublish)
-    try {
-      const publishButton = findButtonByText(container, 'Publish: Make it live now')
-      act(() => {
-        publishButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
-      })
-      expect(onPublish).toHaveBeenCalledWith(undefined)
+      expect(findInput(container)).toBeTruthy()
+      expect(container.querySelector('button[aria-label="Save path"]')).toBeTruthy()
+      expect(container.querySelector('button[aria-label="Cancel path edit"]')).toBeTruthy()
     } finally {
       cleanup(root, container)
     }

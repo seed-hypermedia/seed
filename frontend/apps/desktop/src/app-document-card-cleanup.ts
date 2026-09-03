@@ -310,6 +310,7 @@ async function cleanupParentDraft(job: DocumentCardCleanupJob, draft: Awaited<Re
     cursorPosition: draft.cursorPosition,
     mineTouchedIds: draft.mineTouchedIds,
     baseBlocks: draft.baseBlocks,
+    publishPath: draft.publishPath,
   })
   appInvalidateQueries([queryKeys.DRAFT, draft.id])
   cleanupInfo(`${CLEANUP_LOG_PREFIX} broadcasting draft externally modified`, {

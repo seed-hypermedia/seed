@@ -821,6 +821,8 @@ export interface ResourcePageProps {
   existingDraftMineTouchedIds?: string[]
   /** Three-way merge base captured at draft start or last rebase, persisted across reloads. */
   existingDraftBaseBlocks?: HMBlockNode[]
+  /** Rename path persisted on the draft via the publish-popover rename affordance. */
+  existingDraftPublishPath?: string[]
   /** Base deps captured for the draft. Used by platform wrappers and tests. */
   existingDraftDeps?: string[]
   /** Platform-specific confirm workflow for discarding the synthetic versions-panel draft row. */
@@ -913,6 +915,7 @@ export function ResourcePage({
   existingDraftCursorPosition,
   existingDraftMineTouchedIds,
   existingDraftBaseBlocks,
+  existingDraftPublishPath,
   existingDraftDeps,
   draftVersionOnDiscardConfirm,
   floatingButtons,
@@ -1398,6 +1401,7 @@ export function ResourcePage({
             existingDraftCursorPosition={existingDraftCursorPosition}
             existingDraftMineTouchedIds={existingDraftMineTouchedIds}
             existingDraftBaseBlocks={existingDraftBaseBlocks}
+            existingDraftPublishPath={existingDraftPublishPath}
             existingDraftDeps={existingDraftDeps}
             draftVersionEntry={draftVersionEntry}
             floatingButtons={floatingButtons}
@@ -1719,6 +1723,7 @@ function DocumentBody({
   existingDraftCursorPosition,
   existingDraftMineTouchedIds,
   existingDraftBaseBlocks,
+  existingDraftPublishPath,
   existingDraftDeps,
   draftVersionEntry,
   floatingButtons,
@@ -1761,6 +1766,7 @@ function DocumentBody({
   existingDraftCursorPosition?: number
   existingDraftMineTouchedIds?: string[]
   existingDraftBaseBlocks?: HMBlockNode[]
+  existingDraftPublishPath?: string[]
   existingDraftDeps?: string[]
   draftVersionEntry?: DraftVersionEntry
   floatingButtons?: ReactNode
@@ -1818,6 +1824,7 @@ function DocumentBody({
           deps?: string[] | null
           mineTouchedIds?: string[] | null
           baseBlocks?: HMBlockNode[] | null
+          publishPath?: string[] | null
         }
       | undefined
     if (existingDraft === undefined) {
@@ -1833,6 +1840,7 @@ function DocumentBody({
         deps: existingDraftDeps ?? null,
         mineTouchedIds: existingDraftMineTouchedIds ?? null,
         baseBlocks: existingDraftBaseBlocks ?? null,
+        publishPath: existingDraftPublishPath ?? null,
       }
     } else {
       result = undefined // draft found but content not loaded yet
@@ -1845,6 +1853,7 @@ function DocumentBody({
     existingDraftDeps,
     existingDraftMineTouchedIds,
     existingDraftBaseBlocks,
+    existingDraftPublishPath,
   ])
   useDraftResolutionSync(draftResolution)
   const publishedVersion = useDocumentSelector(selectPublishedVersion)

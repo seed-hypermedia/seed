@@ -10,17 +10,15 @@ import {canCreateChildDocuments} from '@shm/shared/document-utils'
 import {HomeDraftProvider} from '@shm/shared/home-draft-context'
 import {type EditorAccessor} from '@shm/shared/models/document-machine'
 import {useResource} from '@shm/shared/models/entity'
-import {selectContext, useDocumentMachineRef} from '@shm/shared/models/use-document-machine'
+import {selectContext, useDocumentMachineRef, useOnDocumentRenamed} from '@shm/shared/models/use-document-machine'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {replaceRouteDocumentId} from '@shm/shared/routes'
 import {getDraftPlaceholderParentId} from '@shm/shared/utils/breadcrumbs'
 import {useCommentNavigation} from '@shm/shared/utils/comment-navigation'
 import type {DocumentCardActionOrigin} from '@shm/shared/utils/document-actions'
-import {createWebHMUrl, latestId} from '@shm/shared/utils/entity-id-url'
+import {createWebHMUrl, latestId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
-import {pathNameify} from '@shm/shared/utils/path'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
-import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {getDraftReturnParentId, isReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
 import {Button} from '@shm/ui/button'
 import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
@@ -107,6 +105,11 @@ function WebDraftExternalModificationListener() {
   return null
 }
 
+function WebDocumentRenameNavigator({onRenamed}: {onRenamed: (payload: {oldId: string; newId: string}) => void}) {
+  useOnDocumentRenamed(onRenamed)
+  return null
+}
+
 export interface WebResourcePageProps {
   docId: UnpackedHypermediaId
   CommentEditor?: React.ComponentType<CommentEditorProps>
@@ -162,6 +165,11 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   // Post-publish: navigate to latest version so user sees published content
   const replaceRouteRef = useRef(replaceRoute)
   replaceRouteRef.current = replaceRoute
+  const handleDocumentRenamed = useCallback(({newId}: {oldId: string; newId: string}) => {
+    const newDocId = unpackHmId(newId)
+    if (!newDocId) return
+    replaceRouteRef.current({key: 'document', id: newDocId} as any)
+  }, [])
   const routeRef = useRef(route)
   routeRef.current = route
   const onPublishSuccess = useCallback(
@@ -317,6 +325,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   })
   const existingDraftContent = isDraftStale ? undefined : draftData?.content ?? undefined
   const existingDraftCursorPosition = isDraftStale ? undefined : draftData?.cursorPosition ?? undefined
+  const existingDraftPublishPath = isDraftStale ? undefined : draftData?.publishPath ?? undefined
 
   // Garbage-collect old IDB drafts once per session.
   useEffect(() => {
@@ -409,8 +418,6 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
           toast.success('Draft changes discarded')
         }
       },
-      slugify: pathNameify,
-      computeFirstPublishPath: computeInlineDraftPublishPath,
       onGoToVersions: (id: UnpackedHypermediaId) => {
         navigate({
           key: 'document',
@@ -672,7 +679,12 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                           linkExtensionOptions={linkExtensionOptions}
                           canEdit={effectiveCanEdit}
                           machine={machine}
-                          machineExtras={<WebDraftExternalModificationListener />}
+                          machineExtras={
+                            <>
+                              <WebDraftExternalModificationListener />
+                              <WebDocumentRenameNavigator onRenamed={handleDocumentRenamed} />
+                            </>
+                          }
                           signingAccountId={signingAccountId ?? undefined}
                           publishAccountUid={signingAccountId ?? undefined}
                           onEditorReady={onEditorReady}
@@ -681,6 +693,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                           existingDraftVisibility={draftData?.visibility}
                           existingDraftContent={existingDraftContent}
                           existingDraftCursorPosition={existingDraftCursorPosition}
+                          existingDraftPublishPath={existingDraftPublishPath}
                           existingDraftDeps={draftData?.deps}
                           draftVersionOnDiscardConfirm={webToolbarCallbacks.onDiscardConfirm}
                           editingFloatingActions={editingFloatingActions}

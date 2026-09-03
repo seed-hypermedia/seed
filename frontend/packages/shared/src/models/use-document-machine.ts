@@ -6,6 +6,7 @@ import {useActorRef, useSelector} from '@xstate/react'
 import {createContext, createElement, ReactNode, useContext, useEffect, useMemo, useRef} from 'react'
 import {ActorRefFrom, SnapshotFrom} from 'xstate'
 import {applyRebasePlan, classifyRebase} from '../utils/document-changes'
+import {computeInlineDraftPublishPath} from '../utils/publish-paths'
 import {
   documentMachine,
   getCollectionEditorBlocks,
@@ -15,6 +16,9 @@ import {
   DiscardDraftInput,
   PendingRebase,
   PublishInput,
+  RenameDocumentInput,
+  RenameDocumentOutput,
+  RenameDraftInput,
   shouldAllowDraftOverlay,
   TransientResourceError,
   WriteDraftOutput,
@@ -38,6 +42,8 @@ export type DocumentMachineProvidedActors = {
   writeDraft: (input: WriteDraftInput) => Promise<WriteDraftOutput>
   publishDocument: (input: PublishInput) => Promise<HMDocument>
   discardDraft: (input: DiscardDraftInput) => Promise<void>
+  renameDocument: (input: RenameDocumentInput) => Promise<RenameDocumentOutput>
+  renameDraft: (input: RenameDraftInput) => Promise<{path: string[]}>
 }
 
 // -- React context --
@@ -288,6 +294,26 @@ export function useOldVersionEditBlocked(onBlocked: () => void) {
   }, [actorRef])
 }
 
+/**
+ * Subscribe to the document machine's emitted `renamed` event, fired after a
+ * successful published-document rename. Hosts navigate to the new id here.
+ */
+export function useOnDocumentRenamed(onRenamed: (payload: {oldId: string; newId: string}) => void) {
+  const actorRef = useDocumentMachineRefOptional()
+  const callbackRef = useRef(onRenamed)
+  callbackRef.current = onRenamed
+
+  useEffect(() => {
+    if (!actorRef) return
+    const sub = actorRef.on('renamed', (event) => {
+      callbackRef.current({oldId: event.oldId, newId: event.newId})
+    })
+    return () => {
+      sub.unsubscribe()
+    }
+  }, [actorRef])
+}
+
 export type DocumentSyncAction = 'loaded' | 'remoteUpdate' | 'skip'
 
 /**
@@ -435,6 +461,7 @@ export function useDraftResolutionSync(
         deps?: string[] | null
         mineTouchedIds?: string[] | null
         baseBlocks?: HMBlockNode[] | null
+        publishPath?: string[] | null
       }
     | undefined,
 ) {
@@ -460,6 +487,7 @@ export function useDraftResolutionSync(
         deps: resolved.deps ?? null,
         mineTouchedIds: resolved.mineTouchedIds ?? null,
         baseBlocks: resolved.baseBlocks ?? null,
+        publishPath: resolved.publishPath ?? null,
       })
     } else if (resolved !== undefined && sentRef.current) {
       documentEmbedCleanupInfo(
@@ -596,6 +624,57 @@ export function selectHasUnsavedChanges(snapshot: DocumentMachineSnapshot): bool
 /** The current document data. */
 export function selectDocument(snapshot: DocumentMachineSnapshot): HMDocument | null {
   return snapshot.context.document
+}
+
+/** Rename region state, shared across the `loaded` and `editing` top-level states. */
+export type RenameState = 'idle' | 'renaming' | 'committing' | 'error'
+
+/** Whether the machine's rename region is in a committing state. */
+function matchesCommitting(snapshot: DocumentMachineSnapshot): boolean {
+  return (
+    snapshot.matches({loaded: {rename: 'committingPublished'}}) ||
+    snapshot.matches({loaded: {rename: 'committingDraft'}}) ||
+    snapshot.matches({editing: {rename: 'committingPublished'}}) ||
+    snapshot.matches({editing: {rename: 'committingDraft'}})
+  )
+}
+
+/** The rename region state (`idle`, `renaming`, `committing`, or `error`). */
+export function selectRenameState(snapshot: DocumentMachineSnapshot): RenameState {
+  if (snapshot.matches({loaded: {rename: 'renaming'}}) || snapshot.matches({editing: {rename: 'renaming'}})) {
+    return 'renaming'
+  }
+  if (matchesCommitting(snapshot)) return 'committing'
+  if (snapshot.matches({loaded: {rename: 'error'}}) || snapshot.matches({editing: {rename: 'error'}})) {
+    return 'error'
+  }
+  return 'idle'
+}
+
+/** Error message from the most recent failed rename attempt. */
+export function selectRenameError(snapshot: DocumentMachineSnapshot): string | null {
+  return snapshot.context.renameError
+}
+
+/** Durable rename path persisted on the draft (unpublished docs only). */
+export function selectPublishPath(snapshot: DocumentMachineSnapshot): string[] | null {
+  return snapshot.context.publishPath
+}
+
+/**
+ * The path the document will be available at: the persisted rename path for
+ * unpublished docs, the title-derived slug suggestion, or the current path.
+ */
+export function selectEffectivePublishPath(snapshot: DocumentMachineSnapshot): string[] {
+  const ctx = snapshot.context
+  const path = ctx.documentId.path ?? []
+  if (ctx.publishedVersion) return path
+  if (ctx.publishPath && ctx.publishPath.length) return ctx.publishPath
+  const lastSeg = path.at(-1) || ''
+  if (ctx.draftId && lastSeg === `-${ctx.draftId}`) {
+    return computeInlineDraftPublishPath(path, ctx.metadata?.name || '', ctx.draftId)
+  }
+  return path
 }
 
 /** Pending metadata changes set during this editing session (e.g. title/summary edits). */

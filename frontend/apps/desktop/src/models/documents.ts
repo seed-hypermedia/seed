@@ -331,6 +331,7 @@ export function usePublishResource(
             isPrivate: draft.visibility === 'PRIVATE',
             existsAtDestination: !!existingDocVersion,
             pathOverride,
+            persistedPath: draft.publishPath ?? undefined,
           })
           const resolvedDestinationId =
             resolvedPath === destinationId.path ? destinationId : hmId(destinationId.uid, {path: resolvedPath})

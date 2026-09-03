@@ -553,6 +553,7 @@ export const draftsApi = t.router({
         cursorPosition: z.number().optional(),
         mineTouchedIds: z.array(z.string()).optional(),
         baseBlocks: z.array(z.any()).optional(),
+        publishPath: z.array(z.string()).optional(),
       }),
     )
     .mutation(async ({input}) => {
@@ -598,6 +599,7 @@ export const draftsApi = t.router({
         cursorPosition: input.cursorPosition,
         mineTouchedIds: input.mineTouchedIds,
         baseBlocks: input.baseBlocks,
+        publishPath: input.publishPath,
       }
 
       HMDraftContentSchema.parse(draft)

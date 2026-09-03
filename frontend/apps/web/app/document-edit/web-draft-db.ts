@@ -40,6 +40,8 @@ export interface WebDocDraft {
   visibility?: HMResourceVisibility
   /** Cursor offset to restore on re-entering editing. */
   cursorPosition: number | null
+  /** Optional path the user picked via the publish-popover rename affordance. */
+  publishPath?: string[] | null
   /** Wall-clock timestamp of last save. Used for cleanup. */
   updatedAt: number
   /** Type derived from the persisted draft content. */

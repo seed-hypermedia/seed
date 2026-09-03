@@ -5,8 +5,6 @@ import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {getDraftPlaceholderParentId} from '@shm/shared/utils/breadcrumbs'
 import {createSiteUrl, createWebHMUrl, hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
-import {pathNameify} from '@shm/shared/utils/path'
-import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {getDraftReturnParentId} from '@shm/shared/utils/reserved-draft-ids'
 import {useResource} from '@shm/shared/models/entity'
 import {selectDraftId, useDocumentSelector} from '@shm/shared/models/use-document-machine'
@@ -98,8 +96,6 @@ export function useDesktopToolbarCallbacks(docId: UnpackedHypermediaId): {
           },
         })
       },
-      slugify: pathNameify,
-      computeFirstPublishPath: computeInlineDraftPublishPath,
       onGoToVersions: (id: UnpackedHypermediaId) => {
         navigate({
           key: 'document',

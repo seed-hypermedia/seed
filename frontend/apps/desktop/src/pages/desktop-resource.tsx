@@ -25,6 +25,7 @@ import {
   autoLinkParentAfterPublish,
   resolveDraftWriteAnchors,
   // useChildDrafts,
+  useMoveDocument,
   usePublishResource,
 } from '@/models/documents'
 import {useExistingDraft} from '@/models/drafts'
@@ -64,6 +65,9 @@ import {
   documentMachine,
   PublishInput,
   PushDocumentInput,
+  RenameDocumentInput,
+  RenameDocumentOutput,
+  RenameDraftInput,
   WriteDraftInput,
   WriteDraftOutput,
 } from '@shm/shared/models/document-machine'
@@ -71,7 +75,7 @@ import {useDocumentInspector} from '@shm/shared/models/document-machine-inspect'
 import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {selectContext, useDocumentMachineRef} from '@shm/shared/models/use-document-machine'
+import {selectContext, useDocumentMachineRef, useOnDocumentRenamed} from '@shm/shared/models/use-document-machine'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {getDraftIdFromDraftPathSegment, isPrivateDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {useCommentNavigation} from '@shm/shared/utils/comment-navigation'
@@ -107,6 +111,12 @@ function cleanupInfo(...args: unknown[]) {
 
 function cleanupError(...args: unknown[]) {
   if (isCleanupLoggingEnabled()) console.error(...args)
+}
+
+/** Navigates to the new path after a successful published-document rename. */
+function DocumentRenameNavigator({onRenamed}: {onRenamed: (payload: {oldId: string; newId: string}) => void}) {
+  useOnDocumentRenamed(onRenamed)
+  return null
 }
 
 async function deleteDraftsForCleanup(parentDraftId: string, childDraftIds: string[]) {
@@ -537,6 +547,7 @@ export default function DesktopResourcePage() {
           visibility: draftVisibility,
           mineTouchedIds: input.mineTouchedIds.length ? input.mineTouchedIds : undefined,
           baseBlocks: input.baseBlocks ?? undefined,
+          publishPath: input.publishPath ?? undefined,
         })
         invalidateQueries([queryKeys.DRAFT, result.id])
         invalidateQueries([queryKeys.DRAFTS_LIST])
@@ -560,6 +571,12 @@ export default function DesktopResourcePage() {
   const broadcastWindowEvent = useBroadcastWindowEvent()
   const broadcastWindowEventRef = useRef(broadcastWindowEvent)
   broadcastWindowEventRef.current = broadcastWindowEvent
+  const handleDocumentRenamed = useCallback(({oldId, newId}: {oldId: string; newId: string}) => {
+    const newDocId = unpackHmId(newId)
+    if (!newDocId) return
+    replaceRouteRef.current({key: 'document', id: newDocId} as any)
+    broadcastWindowEventRef.current({type: 'document_path_changed', oldId, newId})
+  }, [])
   const publishDocumentActor = useMemo(
     () =>
       fromPromise<any, PublishInput>(async ({input}) => {
@@ -699,6 +716,56 @@ export default function DesktopResourcePage() {
     [],
   )
 
+  // Rename actors: published docs relocate via the move mutation, unpublished
+  // drafts persist the rename path onto the draft record.
+  const moveDocument = useMoveDocument()
+  const moveDocumentRef = useRef(moveDocument)
+  moveDocumentRef.current = moveDocument
+
+  const renameDocumentActor = useMemo(
+    () =>
+      fromPromise<RenameDocumentOutput, RenameDocumentInput>(async ({input}) => {
+        const to = hmId(input.from.uid, {path: input.path})
+        if (!input.signingAccountUid) throw new Error('No signing account available for rename')
+        await moveDocumentRef.current.mutateAsync({
+          from: input.from,
+          to,
+          signingAccountId: input.signingAccountUid,
+        })
+        return {to}
+      }),
+    [],
+  )
+
+  const renameDraftActor = useMemo(
+    () =>
+      fromPromise<{path: string[]}, RenameDraftInput>(async ({input}) => {
+        const draft = await client.drafts.get.query(input.draftId)
+        if (!draft) throw new Error(`Draft ${input.draftId} not found`)
+        await client.drafts.write.mutate({
+          id: draft.id,
+          locationUid: draft.locationUid,
+          locationPath: draft.locationPath,
+          editUid: draft.editUid,
+          editPath: draft.editPath,
+          metadata: draft.metadata || {},
+          content: draft.content,
+          deps: draft.deps || [],
+          navigation: draft.navigation,
+          visibility: draft.visibility,
+          cursorPosition: draft.cursorPosition,
+          mineTouchedIds: draft.mineTouchedIds,
+          baseBlocks: draft.baseBlocks,
+          publishPath: input.path,
+        })
+        invalidateQueries([queryKeys.DRAFT, input.draftId])
+        invalidateQueries([queryKeys.DRAFTS_LIST])
+        invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
+        return {path: input.path}
+      }),
+    [],
+  )
+
   // Provide actors to the document machine
   const machine = useMemo(
     () =>
@@ -707,10 +774,19 @@ export default function DesktopResourcePage() {
           writeDraft: writeDraftActor,
           publishDocument: publishDocumentActor,
           discardDraft: discardDraftActor,
+          renameDocument: renameDocumentActor,
+          renameDraft: renameDraftActor,
           pushDocument: pushDocumentActor,
         },
       }),
-    [writeDraftActor, publishDocumentActor, discardDraftActor, pushDocumentActor],
+    [
+      writeDraftActor,
+      publishDocumentActor,
+      discardDraftActor,
+      renameDocumentActor,
+      renameDraftActor,
+      pushDocumentActor,
+    ],
   )
 
   // Get site URL for publication actions
@@ -1132,6 +1208,7 @@ export default function DesktopResourcePage() {
                     existingDraftCursorPosition={draftData?.cursorPosition}
                     existingDraftMineTouchedIds={draftData?.mineTouchedIds}
                     existingDraftBaseBlocks={draftData?.baseBlocks}
+                    existingDraftPublishPath={draftData?.publishPath}
                     existingDraftDeps={draftData?.deps}
                     draftVersionOnDiscardConfirm={draftVersionToolbarCallbacks.onDiscardConfirm}
                     rightActions={<JoinButton siteUid={docId.uid} />}
@@ -1142,7 +1219,12 @@ export default function DesktopResourcePage() {
                     DocumentContentComponent={DocumentEditorWithImport}
                     machine={machine}
                     onEditorReady={handleEditorReady}
-                    machineExtras={<DraftExternalModificationMachineLogger />}
+                    machineExtras={
+                      <>
+                        <DraftExternalModificationMachineLogger />
+                        <DocumentRenameNavigator onRenamed={handleDocumentRenamed} />
+                      </>
+                    }
                     editingFloatingActions={editingFloatingActions}
                     signingAccountId={selectedAccountId || undefined}
                     publishAccountUid={selectedAccount?.id?.uid || undefined}

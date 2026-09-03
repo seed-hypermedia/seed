@@ -5,15 +5,20 @@ import {useAccount} from '@shm/shared/models/entity'
 import {
   selectDocument,
   selectDraftId,
+  selectEffectivePublishPath,
   selectMetadata,
+  selectPublishPath,
+  selectRenameError,
+  selectRenameState,
   selectSaveIndicatorStatus,
   useDocumentSelector,
   useDocumentSend,
 } from '@shm/shared/models/use-document-machine'
 import {useUnpublishedChangeCount} from '@shm/shared/models/use-unpublished-change-count'
 import {type AnyTimestamp, formattedDateMedium, formattedDateShort, normalizeDate} from '@shm/shared/utils/date'
-import {Check, ChevronRight, Clock, Copy, FileDiff, Trash} from 'lucide-react'
-import React, {forwardRef, useMemo, useRef, useState} from 'react'
+import {pathNameify} from '@shm/shared/utils/path'
+import {Check, ChevronRight, Clock, Copy, FileDiff, Pencil, Trash, X} from 'lucide-react'
+import React, {forwardRef, useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
 import {Popover, PopoverAnchor, PopoverContent} from './components/popover'
@@ -32,10 +37,6 @@ export type EditingToolbarCallbacks = {
   getDocumentUrl?: (docId: UnpackedHypermediaId) => string | null
   /** Confirm + perform discard. Desktop opens delete-draft dialog; web shows a simple confirm. */
   onDiscardConfirm?: (draftId: string, send: (e: DocumentMachineEvent) => void) => void
-  /** Path-segment slugifier for the first-publish editable permalink. */
-  slugify?: (raw: string) => string
-  /** First-publish slug suggestion. */
-  computeFirstPublishPath?: (parentPath: string[], title: string, draftId: string) => string[]
   /** Navigate to document versions panel. Row hidden when undefined. */
   onGoToVersions?: (docId: UnpackedHypermediaId) => void
   /**
@@ -79,13 +80,6 @@ function formatRelativeTime(updateTime: AnyTimestamp): string | null {
   return formattedDateShort(date)
 }
 
-function slugifyEditedPathSegment(raw: string, slugify: (raw: string) => string): string {
-  const withoutLeadingWhitespace = raw.replace(/^\s+/, '')
-  const slug = slugify(withoutLeadingWhitespace)
-  if (!slug) return ''
-  return /\s$/.test(withoutLeadingWhitespace) ? `${slug}-` : slug
-}
-
 /**
  * Popover body shown when the user clicks Publish.
  * Exported for testing.
@@ -98,56 +92,72 @@ export function PublishPopoverBody({
   publishDisabled,
   unpublishedChildCount = 0,
   getDocumentUrl,
-  slugify,
-  computeFirstPublishPath,
   onGoToVersions,
 }: {
   docId: UnpackedHypermediaId
   changeCount: number
-  onPublish: (pathOverride?: string[]) => void
+  onPublish: () => void
   onClose: () => void
   publishDisabled: boolean
   /** When greater than 0, publish is blocked because the doc embeds child drafts that haven't been published yet. */
   unpublishedChildCount?: number
 } & EditingToolbarCallbacks) {
   const publishedDoc = useDocumentSelector(selectDocument)
-  const draftId = useDocumentSelector(selectDraftId)
   const metadata = useDocumentSelector(selectMetadata)
+  const renameState = useDocumentSelector(selectRenameState)
+  const renameError = useDocumentSelector(selectRenameError)
+  const persistedPublishPath = useDocumentSelector(selectPublishPath)
+  const effectivePath = useDocumentSelector(selectEffectivePublishPath)
+  const send = useDocumentSend()
 
   const homeDraftOverride = useIsHomeDraftOverride()
   const isHomeDoc = homeDraftOverride ?? (docId.path?.length ?? 0) === 0
   const isFirstPublish = !publishedDoc?.version && !isHomeDoc
   const isPrivate = publishedDoc?.visibility === 'PRIVATE'
-  const lastSeg = docId.path?.at(-1) || ''
-  const isPlaceholderPath = !!draftId && lastSeg === `-${draftId}`
 
-  const slugFromTitle = useMemo(() => {
-    if (!isFirstPublish || !draftId || !isPlaceholderPath || !computeFirstPublishPath) return null
-    return computeFirstPublishPath(docId.path ?? [], metadata?.name || '', draftId)
-  }, [isFirstPublish, isPlaceholderPath, docId.path, metadata?.name, draftId, computeFirstPublishPath])
+  const [renameSegment, setRenameSegment] = useState<string | null>(null)
 
-  const autoSlugSegment = slugFromTitle?.at(-1) ?? lastSeg
-  const lastAutoSlugRef = useRef<string | null>(null)
-  const [editedPathSegment, setEditedPathSegment] = useState<string | null>(null)
-  const userEditedRef = useRef(false)
+  const renameActive = renameState === 'renaming' || renameState === 'committing' || renameState === 'error'
+  const committing = renameState === 'committing'
 
-  if (autoSlugSegment !== lastAutoSlugRef.current) {
-    lastAutoSlugRef.current = autoSlugSegment
-    if (!userEditedRef.current) {
-      setEditedPathSegment(autoSlugSegment)
+  const startRename = () => {
+    if (isFirstPublish) {
+      const persisted = persistedPublishPath?.at(-1)
+      setRenameSegment(persisted ? persisted : pathNameify(metadata?.name || ''))
+    } else {
+      setRenameSegment(docId.path?.at(-1) ?? '')
     }
+    send({type: 'rename.start'})
   }
 
-  const effectivePathSegment = editedPathSegment ?? autoSlugSegment ?? ''
-  const normalizedPathSegment = slugify ? slugify(effectivePathSegment) : effectivePathSegment
-  const previewPath = useMemo(() => {
-    if (!isFirstPublish) return docId.path
-    const parent = (docId.path ?? []).slice(0, -1)
-    return [...parent, normalizedPathSegment || `untitled-${draftId ?? ''}`]
-  }, [isFirstPublish, docId.path, normalizedPathSegment, draftId])
+  const cancelRename = () => {
+    setRenameSegment(null)
+    send({type: 'rename.cancel'})
+  }
 
-  const effectiveDocId = isFirstPublish ? {...docId, path: previewPath} : docId
+  const buildPath = () => {
+    const slug = pathNameify((renameSegment ?? '').trim())
+    const parent = (effectivePath ?? []).slice(0, -1)
+    return {slug, path: [...parent, slug]}
+  }
+
+  const commitRename = () => {
+    const {path} = buildPath()
+    send({type: 'rename.commit', path})
+  }
+
+  const retryRename = () => {
+    const {path} = buildPath()
+    send({type: 'rename.retry', path})
+  }
+
+  const currentSlug = pathNameify((renameSegment ?? '').trim())
+  const unchanged = !isFirstPublish && currentSlug === (docId.path?.at(-1) ?? '')
+  const canCommitRename = !committing && currentSlug.length > 0 && !unchanged
+
+  const effectiveDocId = {...docId, path: effectivePath}
   const documentUrl = getDocumentUrl?.(effectiveDocId) ?? null
+  const canRename = !isHomeDoc && !isPrivate
 
   const firstAuthorUid = publishedDoc?.authors?.[0]
   const authorAccount = useAccount(firstAuthorUid)
@@ -160,7 +170,61 @@ export function PublishPopoverBody({
       {/* URL row */}
       <div className="flex flex-col gap-3">
         <p className="text-base font-medium">Your document will be available at</p>
-        {documentUrl ? (
+        {renameActive ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <Input
+                autoFocus
+                value={renameSegment ?? ''}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRenameSegment(e.target.value)}
+                onFocus={(e: React.FocusEvent<HTMLInputElement>) => e.target.select()}
+                onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                  if (e.key === 'Enter' && canCommitRename) {
+                    commitRename()
+                  } else if (e.key === 'Escape') {
+                    cancelRename()
+                  } else if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
+                    e.stopPropagation()
+                    ;(e.target as HTMLInputElement).select()
+                  }
+                }}
+                placeholder="document-path"
+                className="h-10 border-black/10 text-sm dark:border-white/20"
+              />
+              <Tooltip content="Save">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label="Save path"
+                  className="shrink-0"
+                  disabled={!canCommitRename}
+                  onClick={commitRename}
+                >
+                  {committing ? <Spinner className="size-4" /> : <Check size={18} />}
+                </Button>
+              </Tooltip>
+              <Tooltip content="Cancel">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label="Cancel path edit"
+                  className="shrink-0"
+                  onClick={cancelRename}
+                >
+                  <X size={18} />
+                </Button>
+              </Tooltip>
+            </div>
+            {renameState === 'error' ? (
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-destructive text-sm">{renameError ?? 'Failed to rename'}</p>
+                <Button size="sm" variant="ghost" aria-label="Retry rename" onClick={retryRename}>
+                  Retry
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ) : documentUrl ? (
           <div className="flex items-center gap-3">
             <span
               className="text-muted-foreground min-w-0 flex-1 text-sm"
@@ -174,6 +238,13 @@ export function PublishPopoverBody({
             >
               {documentUrl}
             </span>
+            {canRename ? (
+              <Tooltip content="Edit path">
+                <Button size="icon" variant="ghost" aria-label="Edit path" className="shrink-0" onClick={startRename}>
+                  <Pencil size={18} />
+                </Button>
+              </Tooltip>
+            ) : null}
             <Tooltip content="Copy URL">
               <Button
                 size="icon"
@@ -191,32 +262,6 @@ export function PublishPopoverBody({
           <div className="text-muted-foreground flex items-center gap-2 text-sm">
             <Spinner className="size-4" />
             <span>Loading…</span>
-          </div>
-        )}
-        {isFirstPublish && slugify && (
-          <div className="flex flex-col gap-2">
-            <p className="text-muted-foreground text-sm">Edit your permalink</p>
-            <Input
-              value={`/${effectivePathSegment}`}
-              disabled={isPrivate}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                if (isPrivate) return
-                userEditedRef.current = true
-                const raw = e.target.value.replace(/^\//, '')
-                setEditedPathSegment(slugifyEditedPathSegment(raw, slugify))
-              }}
-              onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
-                  e.stopPropagation()
-                  ;(e.target as HTMLInputElement).select()
-                }
-              }}
-              placeholder="/document-path"
-              className="h-10 border-black/10 text-sm dark:border-white/20"
-            />
-            {isPrivate ? (
-              <p className="text-muted-foreground text-sm">Private document paths are generated automatically.</p>
-            ) : null}
           </div>
         )}
       </div>
@@ -291,11 +336,7 @@ export function PublishPopoverBody({
               'bg-neutral-100 text-neutral-500 hover:bg-neutral-100 disabled:opacity-100 dark:bg-neutral-800 dark:text-neutral-400',
           )}
           disabled={publishDisabled}
-          onClick={() => {
-            const override =
-              isFirstPublish && !isPrivate && userEditedRef.current && previewPath ? previewPath : undefined
-            onPublish(override)
-          }}
+          onClick={() => onPublish()}
         >
           Publish: Make it live now
         </Button>
@@ -349,8 +390,6 @@ export function PublishButtonWithPopover({
   unpublishedChildCount = 0,
   getDocumentUrl,
   onDiscardConfirm,
-  slugify,
-  computeFirstPublishPath,
   onGoToVersions,
   getUnpublishedChildCount,
   onPublishIntercept,
@@ -391,13 +430,13 @@ export function PublishButtonWithPopover({
 
   const allItems = [...existingMenuItems, ...editingTrailingItems]
 
-  const publishNow = (pathOverride?: string[]) => {
+  const publishNow = () => {
     if (!canPublish) return
     popoverState.onOpenChange(false)
     // Signed-out drafts hand off to account creation instead of publishing directly.
-    if (onPublishIntercept?.(pathOverride)) return
+    if (onPublishIntercept?.()) return
     send({type: 'edit.start'})
-    send({type: 'publish.start', pathOverride})
+    send({type: 'publish.start'})
   }
 
   const handlePublishTriggerClick = (e: React.MouseEvent) => {
@@ -425,8 +464,6 @@ export function PublishButtonWithPopover({
             publishDisabled={!canPublish}
             unpublishedChildCount={effectiveUnpublishedChildCount}
             getDocumentUrl={getDocumentUrl}
-            slugify={slugify}
-            computeFirstPublishPath={computeFirstPublishPath}
             onGoToVersions={onGoToVersions}
           />
         </PopoverContent>
