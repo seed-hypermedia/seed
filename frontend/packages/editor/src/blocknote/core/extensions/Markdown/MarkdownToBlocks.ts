@@ -1,6 +1,7 @@
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import {DOMParser as ProseMirrorDOMParser} from '@tiptap/pm/model'
 import rehypeStringify from 'rehype-stringify'
+import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
 import {unified} from 'unified'
@@ -214,6 +215,7 @@ export const MarkdownToBlocks = async (markdown: string, editor: BlockNoteEditor
 
   const file = await unified()
     .use(remarkParse)
+    .use(remarkGfm)
     .use(remarkCodeClass)
     .use(remarkImageWidth)
     .use(remarkRehype)

@@ -37,6 +37,10 @@ function checkMarkdownSymbols(text: string) {
   const blockMd = /(^|\n)\s*(#{1,6}\s+|>\s+|```|(\d+)\.\s+|[-+*]\s+)/m
   if (blockMd.test(text)) return true
 
+  // GFM table. A delimiter row like `| --- | :--: |` is mandatory in GFM syntax.
+  const tableMd = /(^|\n)\s*\|?[ \t]*:?-+:?[ \t]*(\|[ \t]*:?-+:?[ \t]*)+\|?[ \t]*(\n|$)/
+  if (tableMd.test(text)) return true
+
   // Inline markdown checks
   const inlineMd =
     /(\*\*[^*\n]+?\*\*|__[^_\n]+?__|\*[^*\n]+?\*|_[^_\n]+?_|`[^`\n]+?`|\[[^\]]+?\]\([^)]+?\)|!\[[^\]]*?\]\([^)]+?\))/m

@@ -453,6 +453,29 @@ test.describe('Copy and Paste', () => {
       // const blocks = await editorHelpers.getBlocks()
     })
 
+    test('Should paste markdown table as a table block', async ({editorHelpers, page}) => {
+      await editorHelpers.setClipboardText(markdownContent.table)
+      await editorHelpers.paste()
+      await page.waitForTimeout(100)
+
+      const blocks = await editorHelpers.getBlocks()
+      // Regression check.
+      const table = blocks.find((b: any) => b.type === 'table')
+      expect(table, 'markdown table must import as a table block').toBeDefined()
+
+      const columns = (table.children ?? []).filter((c: any) => c.type === 'tableColumn')
+      const rows = (table.children ?? []).filter((c: any) => c.type === 'tableRow')
+      expect(columns.length).toBe(2)
+      expect(rows.length).toBe(3) // header row and two data rows
+
+      // Cell values survived the round-trip.
+      const text = await editorHelpers.getEditorText()
+      expect(text).toContain('Name')
+      expect(text).toContain('Age')
+      expect(text).toContain('Bob')
+      expect(text).toContain('27')
+    })
+
     test('Should paste complex markdown document', async ({editorHelpers, page}) => {
       await editorHelpers.setClipboardText(markdownContent.complexDocument)
       await editorHelpers.paste()

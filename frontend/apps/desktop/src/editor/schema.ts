@@ -5,7 +5,9 @@ import {FileBlock} from '@shm/editor/file'
 import {HMHeadingBlockContent} from '@shm/editor/heading-component-plugin'
 import {ImageBlock} from '@shm/editor/image'
 import {MathBlock} from '@shm/editor/math'
+import {SlotBlock} from '@shm/editor/slot-block'
 import CodeBlockLowlight from '@shm/editor/tiptap-extension-code-block'
+import {Table} from '@shm/editor/tiptap-extension-table'
 import {UnknownBlock} from '@shm/editor/unknown-block'
 import {VideoBlock} from '@shm/editor/video'
 import {WebEmbed} from '@shm/editor/web-embed'
@@ -43,6 +45,14 @@ export const hmBlockSchema: BlockSchema = {
   ['web-embed']: WebEmbed,
   math: MathBlock('math'),
   query: QueryBlock,
+  table: {
+    propSchema: {
+      ...defaultProps,
+    },
+    // @ts-ignore
+    node: Table,
+  },
+  slot: SlotBlock,
   unknown: UnknownBlock,
 }
 

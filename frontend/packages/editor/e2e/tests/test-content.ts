@@ -192,6 +192,11 @@ export const markdownContent = {
 
   blockquote: '> This is a quote',
 
+  table: `| Name | Age |
+| ---- | --- |
+| Bob | 30 |
+| Ana | 27 |`,
+
   code: '`inline code`',
   codeBlock: '```\nfunction hello() {\n  return "world";\n}\n```',
 
