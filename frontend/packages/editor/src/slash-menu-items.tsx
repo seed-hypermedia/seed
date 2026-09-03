@@ -422,7 +422,7 @@ export function getSlashMenuItems({
                     ]
                   : [],
               ),
-              querySort: '[{"key": "updated", "reverse": true}]',
+              querySort: '[{"term": "updated", "reverse": true}]',
               defaultOpen: 'true',
             },
           } as PartialBlock<HMBlockSchema>,

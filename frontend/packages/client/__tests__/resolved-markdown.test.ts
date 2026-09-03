@@ -169,7 +169,7 @@ describe('resolved markdown', () => {
 
   it('resolves query blocks in shared resolved markdown', async () => {
     const c = client({
-      'Query:{"includes":[{"space":"site","path":"/","mode":"Children"}],"sort":[{"key":"updated","reverse":true}],"limit":5}':
+      'Query:{"includes":[{"space":"site","path":"/","mode":"Children"}],"sort":[{"term":"updated","reverse":true}],"limit":5}':
         {
           results: [{id: {id: 'hm://site/result', uid: 'site', path: ['result']}, metadata: {name: 'Query Result'}}],
         },
@@ -181,7 +181,7 @@ describe('resolved markdown', () => {
 
     expect(c.request).toHaveBeenCalledWith('Query', {
       includes: [{space: 'site', path: '/', mode: 'Children'}],
-      sort: [{key: 'updated', reverse: true}],
+      sort: [{term: 'updated', reverse: true}],
       limit: 5,
     })
     expect(markdown).toContain('- [Query Result](hm://site/result)')

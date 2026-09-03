@@ -93,7 +93,7 @@ describe('QueryBlock.getData', () => {
       {
         query: {
           includes: [{space: 'alice', path: '/projects', mode: 'Children'}],
-          sort: [{key: 'updated', reverse: true}],
+          sort: [{term: 'updated', reverse: true}],
           limit: 1,
         },
       },

@@ -170,10 +170,10 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         navigateCards
         tableConfig={tableConfig}
         onTableConfigChange={(config) => assign({tableConfig: JSON.stringify(config)})}
-        tableSorting={querySort.map(({key, reverse}) => ({id: key, desc: reverse}))}
+        tableSorting={querySort.map(({term, reverse}) => ({id: term, desc: reverse}))}
         onTableSortingChange={(sorting) => {
           assign({
-            querySort: JSON.stringify(sorting.map(({id, desc}) => ({key: id, reverse: desc}))),
+            querySort: JSON.stringify(sorting.map(({id, desc}) => ({term: id, reverse: desc}))),
           })
         }}
       />
@@ -412,12 +412,12 @@ function QuerySettings({
               />
               <SelectField
                 // @ts-ignore
-                value={querySort[0].key}
+                value={querySort[0].term}
                 onValue={(value) => {
                   let newVal = [
                     {
                       ...querySort[0],
-                      key: value,
+                      term: value,
                     },
                   ]
                   onValuesChange({

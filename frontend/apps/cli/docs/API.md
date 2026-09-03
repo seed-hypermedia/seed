@@ -154,7 +154,7 @@ GET /api/Query?includes=[...]&sort=[...]&limit=N
     mode: 'Children' | 'AllDescendants'
   }>,
   sort?: Array<{
-    key: string,      // title, path, created, updated, activity, displayTime, or metadata:<attr>
+    term: string,      // title, path, created, updated, activity, displayTime, or metadata:<attr>
     reverse?: boolean // true = descending
   }>,
   limit?: number

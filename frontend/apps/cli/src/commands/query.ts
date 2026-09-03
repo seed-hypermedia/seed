@@ -17,7 +17,7 @@ export function registerQueryCommands(program: Command) {
     .option('-p, --path <path>', 'Path prefix')
     .option('-m, --mode <mode>', 'Query mode: Children or AllDescendants', 'Children')
     .option('-l, --limit <n>', 'Limit results', parseInt)
-    .option('--sort <key>', 'Sort by: title, path, created, updated, activity, displayTime')
+    .option('--sort <term>', 'Sort by: title, path, created, updated, activity, displayTime')
     .option('--reverse', 'Reverse sort order')
     .option('-q, --quiet', 'Output IDs and names only')
     .action(async (space: string, options, cmd) => {
@@ -36,7 +36,7 @@ export function registerQueryCommands(program: Command) {
         ]
 
         const sort: HMQuerySort[] | undefined = options.sort
-          ? [{key: options.sort, reverse: options.reverse}]
+          ? [{term: options.sort, reverse: options.reverse}]
           : undefined
 
         const result = await client.request('Query', {includes, sort, limit: options.limit})

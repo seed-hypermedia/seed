@@ -11,7 +11,7 @@ import {normalizeQuerySort} from '@seed-hypermedia/client/hm-types'
 
 export const defaultQueryIncludes = '[{"space":"","path":"","mode":"Children"}]'
 // Newest-first (updated descending), matching the previous UpdateTime default.
-export const defaultQuerySort = '[{"key":"updated","reverse":true}]'
+export const defaultQuerySort = '[{"term":"updated","reverse":true}]'
 
 export type QueryBlockInputProps = {
   queryIncludes?: string
@@ -21,7 +21,7 @@ export type QueryBlockInputProps = {
 
 export function getQueryBlockInput(
   props: QueryBlockInputProps,
-): {query: {includes: any[]; sort: {key: string; reverse: boolean}[]; limit: number | undefined}} | null {
+): {query: {includes: any[]; sort: {term: string; reverse: boolean}[]; limit: number | undefined}} | null {
   const queryIncludes = JSON.parse(props.queryIncludes || defaultQueryIncludes)
   const parsedSort = JSON.parse(props.querySort || defaultQuerySort)
   const querySort = normalizeQuerySort(parsedSort)

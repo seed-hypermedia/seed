@@ -16,12 +16,12 @@ export const QUERY_BLOCK_DEFAULT_PAGE_SIZE = 100
 const METADATA_SORT_PREFIX = 'metadata:'
 
 /**
- * Maps a canonical query-block sort key to the DocumentSort the QueryDocuments
- * API should use. Returns null for keys the server cannot sort by
+ * Maps a canonical query-block sort term to the DocumentSort the QueryDocuments
+ * API should use. Returns null for terms the server cannot sort by
  * (children/citations/tags/authors), which are sorted client-side instead.
  */
-export function sortKeyToDocumentSort(key: string, reverse: boolean): DocumentSort | null {
-  switch (key) {
+export function sortTermToDocumentSort(term: string, reverse: boolean): DocumentSort | null {
+  switch (term) {
     case 'title':
       return new DocumentSort({attribute: BuiltinSortAttribute.NAME, descending: reverse})
     case 'path':
@@ -37,8 +37,8 @@ export function sortKeyToDocumentSort(key: string, reverse: boolean): DocumentSo
     case 'displayTime':
       return new DocumentSort({key: 'displayPublishTime', descending: reverse})
     default:
-      if (key.startsWith(METADATA_SORT_PREFIX)) {
-        return new DocumentSort({key: key.slice(METADATA_SORT_PREFIX.length), descending: reverse})
+      if (term.startsWith(METADATA_SORT_PREFIX)) {
+        return new DocumentSort({key: term.slice(METADATA_SORT_PREFIX.length), descending: reverse})
       }
       return null
   }
@@ -56,8 +56,8 @@ function toPathMatchPath(path: string | undefined): string {
  * data. Returns null when there is no resolvable target (no space selected).
  *
  * The include's space/path are expressed as SpaceMatch + PathMatch (subtree)
- * filters, and each sort rule is mapped through {@link sortKeyToDocumentSort};
- * unsupported sort keys are omitted so the server applies its default order.
+ * filters, and each sort rule is mapped through {@link sortTermToDocumentSort};
+ * unsupported sort terms are omitted so the server applies its default order.
  */
 export function queryToQueryDocumentsRequest(query: HMQuery): QueryDocumentsRequest | null {
   const include = query.includes?.[0]
@@ -75,8 +75,8 @@ export function queryToQueryDocumentsRequest(query: HMQuery): QueryDocumentsRequ
     }),
   ]
 
-  const sort = normalizeQuerySort(query.sort as Array<{key?: string; term?: string; reverse?: boolean}> | undefined)
-    .map((rule) => sortKeyToDocumentSort(rule.key, rule.reverse))
+  const sort = normalizeQuerySort(query.sort as Array<{term?: string; reverse?: boolean}> | undefined)
+    .map((rule) => sortTermToDocumentSort(rule.term, rule.reverse))
     .filter((rule): rule is DocumentSort => rule !== null)
 
   // The limit is applied by the caller after post-filtering (as the previous

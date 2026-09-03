@@ -155,10 +155,10 @@ export function queryBlockSortedItems({
   if (sort.length !== 1) return entries
   const rule = sort[0]
   if (!rule) return entries
-  const {key, reverse} = rule
+  const {term, reverse} = rule
 
   const valueOf = (entry: HMDocumentInfo): string | number => {
-    switch (key) {
+    switch (term) {
       case 'title':
         return titleOfEntry(entry) || ''
       case 'path':

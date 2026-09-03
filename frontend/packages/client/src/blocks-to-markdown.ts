@@ -973,13 +973,13 @@ async function resolveQuery(block: HMBlock, depth: number, ctx: ResolveContext):
     const queryConfig = attrs?.query as
       | {
           includes?: Array<{space: string; path?: string; mode?: string}>
-          sort?: Array<{key?: string; term?: string; reverse?: boolean}>
+          sort?: Array<{term?: string; reverse?: boolean}>
           limit?: number
         }
       | undefined
 
     let includes: Array<{space: string; path?: string; mode: 'Children' | 'AllDescendants'}>
-    let sort: Array<{key: string; reverse: boolean}> | undefined
+    let sort: Array<{term: string; reverse: boolean}> | undefined
     let limit: number | undefined
 
     if (queryConfig?.includes) {
@@ -1005,7 +1005,7 @@ async function resolveQuery(block: HMBlock, depth: number, ctx: ResolveContext):
 
     const results = await ctx.client.request('Query', {
       includes,
-      sort: sort?.length ? sort : [{key: 'updated', reverse: true}],
+      sort: sort?.length ? sort : [{term: 'updated', reverse: true}],
       limit: limit || 10,
     })
 

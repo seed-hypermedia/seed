@@ -19,6 +19,7 @@ import {cn} from './utils'
 import {
   buildQueryTableColumns,
   filterQueryTableItems,
+  getQuerySortColumns,
   getDocumentTags,
   getQueryTableColumnType,
   getQueryTableSortValue,
@@ -74,7 +75,7 @@ export function QueryBlockContent({
   tableSorting,
   onTableSortingChange,
 }: QueryBlockContentProps) {
-  const descriptors = useMemo(() => buildQueryTableColumns(), [])
+  const descriptors = useMemo(() => buildQueryTableColumns(items), [items])
 
   const citationSummaries = useInteractionSummaries(items.map((item) => item.id))
   const citationCounts = useMemo(() => {
@@ -325,7 +326,11 @@ function QueryBlockToolbar({
           filters={filters}
           setFilters={setFilters}
         />
-        <SortPopover descriptors={descriptors} sorting={sorting} setSorting={setSorting} />
+        <SortPopover
+          descriptors={getQuerySortColumns(descriptors, columnVisibility)}
+          sorting={sorting}
+          setSorting={setSorting}
+        />
         {showAttributes ? (
           <AttributesPopover
             descriptors={descriptors}
@@ -710,7 +715,15 @@ function QueryBlockCards({
   const restItems = firstItem ? items.slice(1) : items
   const {visibleCount, sentinelRef} = useProgressiveChunk(restItems)
   const count = typeof columnCount === 'number' ? columnCount : Number.parseInt(columnCount, 10) || 3
-  const gridCols = count === 1 ? 'grid-cols-1' : count === 2 ? 'grid-cols-2' : 'grid-cols-3'
+  // Cards are responsive regardless of the saved column count: one column on
+  // narrow screens, two on medium, and only reach the saved count (max three)
+  // on large screens.
+  const gridCols =
+    count === 1
+      ? 'grid-cols-1'
+      : count === 2
+        ? 'grid-cols-1 md:grid-cols-2'
+        : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
   const hasPrependItems = prependItems && prependItems.length > 0
 
   return (

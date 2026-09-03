@@ -296,7 +296,7 @@ Accepts record ID (authority/tsid) or CID.
 - `-p, --path <path>`: Path prefix
 - `-m, --mode <mode>`: Query mode: `Children` (default) or `AllDescendants`
 - `-l, --limit <n>`: Limit results
-- `--sort <key>`: Sort by: `title`, `path`, `created`, `updated`, `activity`, `displayTime`
+- `--sort <term>`: Sort by: `title`, `path`, `created`, `updated`, `activity`, `displayTime`
 - `--reverse`: Reverse sort order
 - `-q, --quiet`: Output IDs and names only
 

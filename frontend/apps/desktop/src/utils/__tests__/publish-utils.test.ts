@@ -25,7 +25,7 @@ describe('buildDocumentCollectionDraftSeed', () => {
           columnCount: '3',
           queryLimit: '',
           queryIncludes: '[{"space":"","path":"","mode":"Children"}]',
-          querySort: '[{"term":"UpdateTime","reverse":false}]',
+          querySort: '[{"term":"updated","reverse":true}]',
           defaultOpen: 'true',
           tableConfig: '',
         },

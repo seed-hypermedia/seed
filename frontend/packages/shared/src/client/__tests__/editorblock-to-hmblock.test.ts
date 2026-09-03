@@ -827,7 +827,7 @@ describe('EditorBlock to HMBlock', () => {
         props: {
           banner: 'true',
           queryIncludes: '[{"space": "FOO_SPACE", "path": "", "mode": "Children"}]',
-          querySort: '[{"key": "updated", "reverse": true}]',
+          querySort: '[{"term": "updated", "reverse": true}]',
           queryLimit: '10',
           style: 'Card',
           columnCount: '1',
@@ -845,7 +845,7 @@ describe('EditorBlock to HMBlock', () => {
           banner: true,
           query: {
             includes: [{space: 'FOO_SPACE', path: '', mode: 'Children'}],
-            sort: [{key: 'updated', reverse: true}],
+            sort: [{term: 'updated', reverse: true}],
             limit: 10,
           },
         },

@@ -202,9 +202,7 @@ describe('documentHasSelfQuery', () => {
     expect(documentHasSelfQuery(doc, documentId)).toBe(false)
   })
 
-  it('returns false when query includes have empty space (unconfigured)', () => {
-    // Unified semantics: empty space is not a self-match — the editor renders
-    // empty for an unconfigured query block, so it does not auto-include children.
+  it('returns true for the implicit empty target used by collections', () => {
     const doc = createDocument([
       {
         block: {
@@ -221,7 +219,7 @@ describe('documentHasSelfQuery', () => {
         },
       },
     ] as HMBlockNode[])
-    expect(documentHasSelfQuery(doc, documentId)).toBe(false)
+    expect(documentHasSelfQuery(doc, documentId)).toBe(true)
   })
 
   it('returns false when query includes match space but path is empty (and parent path is not root)', () => {
@@ -374,7 +372,7 @@ describe('documentHasSelfQuery', () => {
     expect(documentHasSelfQuery(doc, documentId)).toBe(true)
   })
 
-  it('returns false when query has no includes', () => {
+  it('returns true when a collection query has no includes', () => {
     const doc = createDocument([
       {
         block: {
@@ -391,10 +389,10 @@ describe('documentHasSelfQuery', () => {
         },
       },
     ] as HMBlockNode[])
-    expect(documentHasSelfQuery(doc, documentId)).toBe(false)
+    expect(documentHasSelfQuery(doc, documentId)).toBe(true)
   })
 
-  it('returns false when query attributes are missing', () => {
+  it('returns true when a collection query uses its implicit target', () => {
     const doc = createDocument([
       {
         block: {
@@ -404,6 +402,6 @@ describe('documentHasSelfQuery', () => {
         },
       },
     ] as HMBlockNode[])
-    expect(documentHasSelfQuery(doc, documentId)).toBe(false)
+    expect(documentHasSelfQuery(doc, documentId)).toBe(true)
   })
 })

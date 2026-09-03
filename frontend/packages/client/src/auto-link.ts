@@ -61,16 +61,16 @@ export function documentContainsLinkToChild(document: HMDocument, childId: Unpac
  * Check if a document has a self-referential Query block
  * (a query to itself that would automatically include children).
  *
- * A query block is self-referential when one of its `query.includes` entries
- * has `space === documentId.uid` AND a path that, after normalization, equals
- * the document's path. Empty `space` or `path` does not count as self — that
- * represents an unconfigured query block, which the editor renders empty.
+ * A query block is self-referential when its target is implicit/empty or one
+ * of its `query.includes` entries targets the document. New Collections use
+ * the implicit empty target until it is resolved against their published ID.
  */
 export function documentHasSelfQuery(document: HMDocument, documentId: UnpackedHypermediaId): boolean {
   const parentPathStr = (documentId.path || []).join('/')
 
   function isSelfMatch(include: {space?: string; path?: string} | undefined): boolean {
     if (!include) return false
+    if (!include.space && !include.path) return true
     if (include.space !== documentId.uid) return false
     const includePath = entityQueryPathToHmIdPath(include.path)
     return (includePath || []).join('/') === parentPathStr
@@ -80,6 +80,7 @@ export function documentHasSelfQuery(document: HMDocument, documentId: UnpackedH
     for (const node of nodes) {
       if (node.block.type === 'Query') {
         const includes = node.block.attributes?.query?.includes
+        if (!includes || includes.length === 0) return true
         if (includes?.some(isSelfMatch)) return true
       }
       if (node.children && searchBlocks(node.children)) return true

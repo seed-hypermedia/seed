@@ -3,6 +3,8 @@ import {describe, expect, it} from 'vitest'
 import {
   buildQueryTableColumns,
   filterQueryTableItems,
+  getDocumentTags,
+  getQuerySortColumns,
   inferAttributeType,
   moveQueryTableColumn,
   queryTableItemMatchesSearch,
@@ -41,6 +43,43 @@ describe('query block table model', () => {
       ['authors', false],
       ['created', false],
       ['path', false],
+    ])
+  })
+
+  it('discovers custom metadata fields as table columns', () => {
+    const columns = buildQueryTableColumns([
+      item('One', {status: 'Ready', priority: 2, type: 'Collection'}),
+      item('Two', {status: 'Draft', priority: 5}),
+    ])
+
+    expect(columns.slice(-2)).toEqual([
+      {id: 'metadata:priority', label: 'Priority', type: 'number', defaultVisible: false},
+      {id: 'metadata:status', label: 'Status', type: 'text', defaultVisible: false},
+    ])
+    expect(columns.some(({id}) => id === 'metadata:type')).toBe(false)
+  })
+
+  it('does not turn unrelated metadata attributes into tags', () => {
+    expect(getDocumentTags(item('One', {type: 'Collection', status: 'Ready'}))).toEqual([])
+    expect(getDocumentTags(item('Two', {tags: ['one', 'two'], type: 'Collection'}))).toEqual(['one', 'two'])
+  })
+
+  it('offers every predefined column and only visible custom columns for sorting', () => {
+    const columns = buildQueryTableColumns([item('One', {status: 'Ready', priority: 2})])
+
+    expect(
+      getQuerySortColumns(columns, {'metadata:status': true, 'metadata:priority': false}).map(({id}) => id),
+    ).toEqual([
+      'title',
+      'tags',
+      'updated',
+      'children',
+      'comments',
+      'citations',
+      'authors',
+      'created',
+      'path',
+      'metadata:status',
     ])
   })
 

@@ -222,7 +222,7 @@ type HMQuery = {
     mode: 'Children' | 'AllDescendants'
   }>
   sort?: Array<{
-    key: string
+    term: string
     reverse?: boolean
   }>
   limit?: number

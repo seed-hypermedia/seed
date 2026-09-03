@@ -1,33 +1,33 @@
 import {describe, expect, it} from 'vitest'
 import {BuiltinSortAttribute} from '../../client/grpc-types'
-import {queryToQueryDocumentsRequest, sortKeyToDocumentSort} from '../query-block-sort'
+import {queryToQueryDocumentsRequest, sortTermToDocumentSort} from '../query-block-sort'
 
-describe('sortKeyToDocumentSort', () => {
+describe('sortTermToDocumentSort', () => {
   it('maps builtin keys to the matching BuiltinSortAttribute', () => {
-    expect(sortKeyToDocumentSort('title', true)?.attribute).toBe(BuiltinSortAttribute.NAME)
-    expect(sortKeyToDocumentSort('path', true)?.attribute).toBe(BuiltinSortAttribute.PATH)
-    expect(sortKeyToDocumentSort('created', true)?.attribute).toBe(BuiltinSortAttribute.CREATE_TIME)
-    expect(sortKeyToDocumentSort('updated', true)?.attribute).toBe(BuiltinSortAttribute.UPDATE_TIME)
-    expect(sortKeyToDocumentSort('activity', true)?.attribute).toBe(BuiltinSortAttribute.ACTIVITY_TIME)
-    expect(sortKeyToDocumentSort('comments', true)?.attribute).toBe(BuiltinSortAttribute.COMMENT_COUNT)
+    expect(sortTermToDocumentSort('title', true)?.attribute).toBe(BuiltinSortAttribute.NAME)
+    expect(sortTermToDocumentSort('path', true)?.attribute).toBe(BuiltinSortAttribute.PATH)
+    expect(sortTermToDocumentSort('created', true)?.attribute).toBe(BuiltinSortAttribute.CREATE_TIME)
+    expect(sortTermToDocumentSort('updated', true)?.attribute).toBe(BuiltinSortAttribute.UPDATE_TIME)
+    expect(sortTermToDocumentSort('activity', true)?.attribute).toBe(BuiltinSortAttribute.ACTIVITY_TIME)
+    expect(sortTermToDocumentSort('comments', true)?.attribute).toBe(BuiltinSortAttribute.COMMENT_COUNT)
   })
 
   it('honors the descending flag', () => {
-    expect(sortKeyToDocumentSort('updated', true)?.descending).toBe(true)
-    expect(sortKeyToDocumentSort('updated', false)?.descending).toBe(false)
+    expect(sortTermToDocumentSort('updated', true)?.descending).toBe(true)
+    expect(sortTermToDocumentSort('updated', false)?.descending).toBe(false)
   })
 
   it('maps metadata-prefixed keys to attribute keys', () => {
-    const sort = sortKeyToDocumentSort('metadata:status', false)
+    const sort = sortTermToDocumentSort('metadata:status', false)
     expect(sort?.key).toBe('status')
     expect(sort?.attribute).toBe(BuiltinSortAttribute.UNSPECIFIED)
   })
 
   it('returns null for keys the server cannot sort by', () => {
-    expect(sortKeyToDocumentSort('children', false)).toBeNull()
-    expect(sortKeyToDocumentSort('citations', false)).toBeNull()
-    expect(sortKeyToDocumentSort('tags', false)).toBeNull()
-    expect(sortKeyToDocumentSort('authors', false)).toBeNull()
+    expect(sortTermToDocumentSort('children', false)).toBeNull()
+    expect(sortTermToDocumentSort('citations', false)).toBeNull()
+    expect(sortTermToDocumentSort('tags', false)).toBeNull()
+    expect(sortTermToDocumentSort('authors', false)).toBeNull()
   })
 })
 
@@ -40,8 +40,8 @@ describe('queryToQueryDocumentsRequest', () => {
     const request = queryToQueryDocumentsRequest({
       includes: [{space: 'alice', path: 'projects', mode: 'AllDescendants'}],
       sort: [
-        {key: 'updated', reverse: true},
-        {key: 'metadata:status', reverse: false},
+        {term: 'updated', reverse: true},
+        {term: 'metadata:status', reverse: false},
       ],
       limit: 5,
     })
@@ -58,7 +58,7 @@ describe('queryToQueryDocumentsRequest', () => {
   it('omits sort keys the server cannot sort by', () => {
     const request = queryToQueryDocumentsRequest({
       includes: [{space: 'alice', path: '', mode: 'Children'}],
-      sort: [{key: 'children', reverse: false}],
+      sort: [{term: 'children', reverse: false}],
     })
     expect(request!.sort).toHaveLength(0)
   })

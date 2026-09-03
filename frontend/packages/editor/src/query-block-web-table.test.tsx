@@ -70,7 +70,7 @@ function RenderQueryBlock() {
       props: {
         style: 'Table',
         queryIncludes: '[{"space":"alice","path":"","mode":"Children"}]',
-        querySort: '[{"key":"updated","reverse":true}]',
+        querySort: '[{"term":"updated","reverse":true}]',
         banner: 'false',
         columnCount: '3',
         tableConfig: '',
@@ -123,7 +123,7 @@ describe('QueryBlock web table rendering', () => {
 
     expect(updateBlockMock).toHaveBeenCalledWith('q-table', {
       props: {
-        querySort: JSON.stringify([{key: 'authors', reverse: false}]),
+        querySort: JSON.stringify([{term: 'authors', reverse: false}]),
       },
     })
   })

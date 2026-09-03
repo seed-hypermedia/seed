@@ -148,7 +148,7 @@ describe('document collection helpers', () => {
         props: expect.objectContaining({
           style: 'Table',
           queryIncludes: JSON.stringify([{space: '', path: '', mode: 'Children'}]),
-          querySort: JSON.stringify([{key: 'updated', reverse: true}]),
+          querySort: JSON.stringify([{term: 'updated', reverse: true}]),
           tableConfig,
         }),
       }),

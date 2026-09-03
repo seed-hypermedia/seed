@@ -3460,7 +3460,7 @@ function DocumentCollection({
       send({
         type: 'collection.query.change',
         props: {
-          querySort: JSON.stringify(sorting.map(({id, desc}) => ({key: id, reverse: desc}))),
+          querySort: JSON.stringify(sorting.map(({id, desc}) => ({term: id, reverse: desc}))),
         },
       })
     },
@@ -3513,7 +3513,7 @@ function DocumentCollection({
           isDiscovering={query.isLoading}
           tableConfig={tableConfig}
           onTableConfigChange={handleTableConfigChange}
-          tableSorting={querySort.map(({key, reverse}) => ({id: key, desc: reverse}))}
+          tableSorting={querySort.map(({term, reverse}) => ({id: term, desc: reverse}))}
           onTableSortingChange={handleTableSortingChange}
           navigateCards
         />
@@ -3529,49 +3529,12 @@ function CollectionQuerySettings({
   props?: Partial<EditorQueryBlock['props']>
   onChange: (changes: Partial<EditorQueryBlock['props']>) => void
 }) {
-  const querySort = useMemo(() => {
-    try {
-      return normalizeQuerySort(JSON.parse(props?.querySort || '[]'))
-    } catch {
-      return []
-    }
-  }, [props?.querySort])
-  const currentSort = querySort[0] || {key: 'updated', reverse: true}
   const limit = props?.queryLimit || ''
   const columnCount = props?.columnCount || '3'
   const banner = props?.banner === 'true'
 
   return (
     <div className="flex flex-col gap-3 p-1">
-      <SelectField
-        id="query-sort-term"
-        label="Sort by"
-        options={[
-          {value: 'updated', label: 'Last Modified'},
-          {value: 'created', label: 'Created'},
-          {value: 'title', label: 'Name'},
-        ]}
-        value={currentSort.key}
-        onValue={(value) => onChange({querySort: JSON.stringify([{key: value, reverse: currentSort.reverse}])})}
-      />
-      <div className="flex gap-2">
-        <Button
-          variant={!currentSort.reverse ? 'secondary' : 'outline'}
-          size="sm"
-          className="flex-1"
-          onClick={() => onChange({querySort: JSON.stringify([{key: currentSort.key, reverse: false}])})}
-        >
-          Asc
-        </Button>
-        <Button
-          variant={currentSort.reverse ? 'secondary' : 'outline'}
-          size="sm"
-          className="flex-1"
-          onClick={() => onChange({querySort: JSON.stringify([{key: currentSort.key, reverse: true}])})}
-        >
-          Desc
-        </Button>
-      </div>
       <SelectField
         id="query-column-count"
         label="Columns"

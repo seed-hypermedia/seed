@@ -12,16 +12,16 @@ function createDirectoryResolver(client: GRPCClient) {
   async function getDirectory(
     id: UnpackedHypermediaId,
     mode: 'Children' | 'AllDescendants' = 'AllDescendants',
-    sort?: Array<{key: string; reverse: boolean}>,
+    sort?: Array<{term: string; reverse: boolean}>,
   ) {
-    const key = sort?.length === 1 ? sort[0]?.key : undefined
+    const term = sort?.length === 1 ? sort[0]?.term : undefined
     const reverse = sort?.length === 1 ? !!sort[0]?.reverse : false
     const sortOptions =
-      key === 'activity'
+      term === 'activity'
         ? {attribute: SortAttribute.ACTIVITY_TIME, descending: reverse}
-        : key === 'title'
+        : term === 'title'
           ? {attribute: SortAttribute.NAME, descending: reverse}
-          : key === 'path'
+          : term === 'path'
             ? {attribute: SortAttribute.PATH, descending: reverse}
             : undefined
 
@@ -65,7 +65,7 @@ export function createQueryResolver(client: GRPCClient) {
     if (!inId) return null
 
     const sort = normalizeQuerySort(query.sort)
-    const effectiveSort = sort.length === 1 ? sort : [{key: 'updated', reverse: true}]
+    const effectiveSort = sort.length === 1 ? sort : [{term: 'updated', reverse: true}]
 
     const dir = await getDirectory(inId, mode, effectiveSort)
     const sortedDir = queryBlockSortedItems({entries: dir, sort: effectiveSort})

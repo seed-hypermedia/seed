@@ -31,6 +31,8 @@ export type QueryTableValueContext = {
   citationCounts?: Record<string, number>
 }
 
+const RESERVED_METADATA_KEYS = new Set(Array.from(BUILTIN_METADATA_KEYS).concat('type'))
+
 /** Infers one simple table type from the non-empty values of an attribute. */
 export function inferAttributeType(values: unknown[]): QueryTableAttributeType {
   const present = values.filter((value) => value !== null && value !== undefined && value !== '')
@@ -49,9 +51,9 @@ export function inferAttributeType(values: unknown[]): QueryTableAttributeType {
   return 'text'
 }
 
-/** Builds the stable core columns for Query table rows. */
-export function buildQueryTableColumns(): QueryTableColumn[] {
-  return [
+/** Builds the stable core columns and discovered metadata columns for Query table rows. */
+export function buildQueryTableColumns(items: HMDocumentInfo[] = []): QueryTableColumn[] {
+  const coreColumns: QueryTableColumn[] = [
     {id: 'title', label: 'Name', type: 'text', defaultVisible: true},
     {id: 'tags', label: 'Tags', type: 'list', defaultVisible: true},
     {id: 'updated', label: 'Last Modified', type: 'date', defaultVisible: true},
@@ -62,6 +64,29 @@ export function buildQueryTableColumns(): QueryTableColumn[] {
     {id: 'created', label: 'Created', type: 'date', defaultVisible: false},
     {id: 'path', label: 'Path', type: 'text', defaultVisible: false},
   ]
+  const metadataKeys = Array.from(
+    new Set(items.flatMap((item) => Object.keys(item.metadata).filter((key) => !RESERVED_METADATA_KEYS.has(key)))),
+  ).sort()
+
+  return coreColumns.concat(
+    metadataKeys.map((key) => ({
+      id: `metadata:${key}`,
+      label: key
+        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+        .replace(/[_-]+/g, ' ')
+        .replace(/^./, (character) => character.toUpperCase()),
+      type: inferAttributeType(items.map((item) => item.metadata[key])),
+      defaultVisible: false,
+    })),
+  )
+}
+
+/** Returns all predefined sort fields and the custom metadata fields currently visible in the table. */
+export function getQuerySortColumns(
+  columns: QueryTableColumn[],
+  columnVisibility: Record<string, boolean>,
+): QueryTableColumn[] {
+  return columns.filter((column) => !column.id.startsWith('metadata:') || columnVisibility[column.id] === true)
 }
 
 /** Extracts the list of tag values for a document from its metadata. */
@@ -76,18 +101,7 @@ export function getDocumentTags(item: HMDocumentInfo): string[] {
   if (Array.isArray(raw)) {
     return raw.map(String).filter(Boolean)
   }
-  const tags: string[] = []
-  for (const [key, value] of Object.entries(item.metadata)) {
-    if (BUILTIN_METADATA_KEYS.has(key)) continue
-    if (typeof value === 'string' && value) {
-      tags.push(value)
-    } else if (Array.isArray(value)) {
-      for (const v of value) {
-        if (typeof v === 'string' && v) tags.push(v)
-      }
-    }
-  }
-  return tags
+  return []
 }
 
 /** Returns the value addressed by a stable Query table column ID. */
@@ -178,6 +192,7 @@ export function queryTableItemMatchesSearch(
   if (!normalized) return true
   const text = descriptors
     .map((column) => queryTableValueToString(getQueryTableValue(item, column.id, context)).toLocaleLowerCase())
+    .concat(queryTableValueToString(item.metadata).toLocaleLowerCase())
     .join('\n')
   return text.includes(normalized)
 }

@@ -188,7 +188,7 @@ describe('QueryBlockContent table view', () => {
       'Comments',
       'Backlinks',
     ])
-    expect(container.textContent).toContain('Ready')
+    expect(container.textContent).not.toContain('Ready')
   })
 })
 
