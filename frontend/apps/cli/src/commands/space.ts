@@ -1,7 +1,7 @@
 /**
- * `space export` / `space import` / `space dev`: mirror a whole space to a
- * directory of markdown files and back, and edit that directory in the Seed
- * app. See utils/space-sync.ts for the file mapping and the update semantics.
+ * Repo HM sync — `space export` / `space import` / `space dev`: mirror a whole
+ * space to a directory of markdown files in a repository and back, and edit
+ * that directory in the Seed app. See utils/space-sync.ts for the file mapping and the update semantics.
  *
  *   seed-cli space export hm://<uid> --dir ./docs
  *   seed-cli space import hm://<uid> --dir ./docs [--dry-run]

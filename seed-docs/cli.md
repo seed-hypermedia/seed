@@ -27,7 +27,7 @@ Publishes the directory into the space, updating existing documents block by blo
 seed-cli space dev --dir ./seed-docs
 ```
 
-Edit the directory in the desktop dev app. See [Markdown sync](./markdown-sync.md).
+Edit the directory in the desktop dev app. See [Repo HM sync](./repo-hm-sync.md).
 
 # In this repository
 

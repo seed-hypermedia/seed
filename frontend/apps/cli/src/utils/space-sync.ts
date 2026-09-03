@@ -1,5 +1,5 @@
 /**
- * Space ⇄ directory sync: export every document of a space to markdown files
+ * Repo HM sync (space ⇄ directory): export every document of a space to markdown files
  * (plus the schema blob a type document defines), and import a directory of
  * markdown files back as document updates.
  *

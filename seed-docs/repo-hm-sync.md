@@ -1,8 +1,8 @@
 ---
-name: Markdown sync
-summary: How a directory of markdown files and a Hypermedia space mirror each other without losing anything, and how to edit either side.
+name: Repo HM sync
+summary: How a directory of markdown files in a git repository and a Hypermedia space mirror each other without losing anything, and how to edit either side.
 ---
-A Hypermedia document is a tree of typed blocks with annotations and metadata. Markdown has syntax for most of that and none for the rest. The sync keeps a directory of markdown files and a Hypermedia space in step by using a markdown dialect that carries everything a document can hold, so a document exported to a file and imported again is the same document, and a file exported from a document and re-exported is the same text.
+A Hypermedia document is a tree of typed blocks with annotations and metadata. Markdown has syntax for most of that and none for the rest. Repo HM sync keeps a directory of markdown files in a git repository and a Hypermedia space in step by using a markdown dialect that carries everything a document can hold, so a document exported to a file and imported again is the same document, and a file exported from a document and re-exported is the same text.
 
 # The dialect
 

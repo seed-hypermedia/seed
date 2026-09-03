@@ -1,4 +1,4 @@
-name: Sync seed-docs
+name: Repo HM sync (seed-docs)
 
 # Publishes seed-docs/ to its Hypermedia site whenever main changes it.
 # Signs with SEED_DOCS_MNEMONIC (a repository secret): the site is that key's
