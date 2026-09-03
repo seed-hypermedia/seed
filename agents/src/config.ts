@@ -62,7 +62,7 @@ export type Config = {
     allowNetwork: boolean
     /** Upstream DNS nameservers for sandbox name resolution. */
     dnsServers: string[]
-    /** Keep microVMs alive between executions (docs/exec-warm-pool.md). Off unless opted in. */
+    /** Keep microVMs alive between executions (hypermedia/agent-exec-warm-pool.md). Off unless opted in. */
     warmPool: boolean
     /** Maximum retained pool entries — transient overflow VMs can exceed it (see CodeExecConfig). */
     poolMaxVms: number

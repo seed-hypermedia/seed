@@ -7,8 +7,8 @@ This document describes the **hypermedia-cid** type — a Hypermedia Network blo
 
 # Shape <!-- id:efsrvawv -->
 
-An **alias** of [link](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/link). <!-- id:bqb7XsxG -->
+An **alias** of [link](./onyx-link.md). <!-- id:bqb7XsxG -->
 
 # Depends on <!-- id:1T45v5dv -->
 
-- [link](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/link) <!-- id:WkXd4lGr -->
+- [link](./onyx-link.md) <!-- id:WkXd4lGr -->

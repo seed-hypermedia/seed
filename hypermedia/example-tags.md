@@ -7,8 +7,8 @@ This document describes the **example-tags** type — an example schema. Its for
 
 # Shape <!-- id:TDDDsjPQ -->
 
-A **list** of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string). <!-- id:Ls_az06c -->
+A **list** of [string](./onyx-string.md). <!-- id:Ls_az06c -->
 
 # Depends on <!-- id:xCoOOesT -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:U3hUw9dR -->
+- [string](./onyx-string.md) <!-- id:U3hUw9dR -->

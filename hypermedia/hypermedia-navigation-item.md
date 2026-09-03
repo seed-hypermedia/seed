@@ -9,10 +9,10 @@ This document describes the **hypermedia-navigation-item** type — a Hypermedia
 
 A **closed struct** with these fields: <!-- id:Mu8YSSfc -->
   - `type` _(required)_ — `string` enum: `Link` <!-- id:Q8-nnpcx -->
-  - `id` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:WEDCihgA -->
-  - `text` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:rF9qJUPE -->
-  - `link` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:9jmT0dlV -->
+  - `id` _(required)_ — [string](./onyx-string.md) <!-- id:WEDCihgA -->
+  - `text` _(required)_ — [string](./onyx-string.md) <!-- id:rF9qJUPE -->
+  - `link` _(required)_ — [string](./onyx-string.md) <!-- id:9jmT0dlV -->
 
 # Depends on <!-- id:jX5d4-tm -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:vc-qjhSN -->
+- [string](./onyx-string.md) <!-- id:vc-qjhSN -->

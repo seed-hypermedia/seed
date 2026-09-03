@@ -8,18 +8,18 @@ This document describes the **example-json** type — an example schema. Its for
 # Shape <!-- id:MpnY_Cdp -->
 
 A **union** — a value matches one of these variants: <!-- id:LeYxSEKh -->
-  - [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:dlUEmbPh -->
-  - [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:WAJK2blO -->
-  - [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:ilz7JEhq -->
-  - [float](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float) <!-- id:9h0fuk1V -->
-  - [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:HsFuiAVe -->
-  - list of [example-json](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-json) <!-- id:LjwzOynV -->
-  - map ⟨ \* : [example-json](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-json) ⟩ <!-- id:EvT76FYf -->
+  - [null](./onyx-null.md) <!-- id:dlUEmbPh -->
+  - [boolean](./onyx-boolean.md) <!-- id:WAJK2blO -->
+  - [integer](./onyx-integer.md) <!-- id:ilz7JEhq -->
+  - [float](./onyx-float.md) <!-- id:9h0fuk1V -->
+  - [string](./onyx-string.md) <!-- id:HsFuiAVe -->
+  - list of [example-json](./example-json.md) <!-- id:LjwzOynV -->
+  - map ⟨ \* : [example-json](./example-json.md) ⟩ <!-- id:EvT76FYf -->
 
 # Depends on <!-- id:-Dr_wY1e -->
 
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:-g3SgUVF -->
-- [float](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float) <!-- id:irteeJM_ -->
-- [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:7Jtvm8Zo -->
-- [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:M_y7MmNP -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:f_KyPTCR -->
+- [boolean](./onyx-boolean.md) <!-- id:-g3SgUVF -->
+- [float](./onyx-float.md) <!-- id:irteeJM_ -->
+- [integer](./onyx-integer.md) <!-- id:7Jtvm8Zo -->
+- [null](./onyx-null.md) <!-- id:M_y7MmNP -->
+- [string](./onyx-string.md) <!-- id:f_KyPTCR -->

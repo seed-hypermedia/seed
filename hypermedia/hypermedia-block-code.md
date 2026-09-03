@@ -7,15 +7,15 @@ This document describes the **hypermedia-block-code** type — a Hypermedia Netw
 
 # Shape <!-- id:Wlv2TURN -->
 
-**Extends** [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) with these added fields: <!-- id:M3xZk6r7 -->
+**Extends** [hypermedia-block-base](./hypermedia-block-base.md) with these added fields: <!-- id:M3xZk6r7 -->
   - `type` — `string` enum: `Code` <!-- id:F_X9vLc- -->
-  - `text` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:1CNgUNEp -->
+  - `text` — [string](./onyx-string.md) <!-- id:1CNgUNEp -->
   - `attributes` — map { 3 fields } <!-- id:IzYor5cE -->
 
 # Depends on <!-- id:1PZKCBGr -->
 
-- [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) <!-- id:UPJREQHL -->
-- [hypermedia-children-type](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-children-type) <!-- id:lrSmJj0P -->
-- [any](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any) <!-- id:FPY-Yu6f -->
-- [float](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float) <!-- id:dPDYHZ7F -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:ui04XeY6 -->
+- [hypermedia-block-base](./hypermedia-block-base.md) <!-- id:UPJREQHL -->
+- [hypermedia-children-type](./hypermedia-children-type.md) <!-- id:lrSmJj0P -->
+- [any](./onyx-any.md) <!-- id:FPY-Yu6f -->
+- [float](./onyx-float.md) <!-- id:dPDYHZ7F -->
+- [string](./onyx-string.md) <!-- id:ui04XeY6 -->

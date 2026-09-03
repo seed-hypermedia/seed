@@ -9,16 +9,16 @@ This document describes the **example-world-doc** type — an example schema. It
 
 # Shape <!-- id:f1KbJ2ci -->
 
-**Extends** [hypermedia-document](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-document) with these added fields: <!-- id:qfyt9Gtj -->
-  - `metadata` — [hypermedia-metadata](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata) <!-- id:0iNrXaS0 -->
-  - _adds to [hypermedia-metadata](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata):_ <!-- id:r0KTtnBZ -->
-  - `genre` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) (one of `fantasy`, `science-fiction`, `historical`, `contemporary`, `mythic`) <!-- id:0ujhBQvU -->
-  - `epoch` — [date](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date) <!-- id:U_Ww1oVZ -->
-  - `tagline` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:JSSPut80 -->
+**Extends** [hypermedia-document](./hypermedia-document.md) with these added fields: <!-- id:qfyt9Gtj -->
+  - `metadata` — [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:0iNrXaS0 -->
+  - _adds to [hypermedia-metadata](./hypermedia-metadata.md):_ <!-- id:r0KTtnBZ -->
+  - `genre` _(required)_ — [string](./onyx-string.md) (one of `fantasy`, `science-fiction`, `historical`, `contemporary`, `mythic`) <!-- id:0ujhBQvU -->
+  - `epoch` — [date](./onyx-date.md) <!-- id:U_Ww1oVZ -->
+  - `tagline` — [string](./onyx-string.md) <!-- id:JSSPut80 -->
 
 # Depends on <!-- id:isqmdDcM -->
 
-- [hypermedia-document](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-document) <!-- id:HZ4iDpUw -->
-- [hypermedia-metadata](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata) <!-- id:w3N25OWp -->
-- [date](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date) <!-- id:vd6ctMNl -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:3hGaivVk -->
+- [hypermedia-document](./hypermedia-document.md) <!-- id:HZ4iDpUw -->
+- [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:w3N25OWp -->
+- [date](./onyx-date.md) <!-- id:vd6ctMNl -->
+- [string](./onyx-string.md) <!-- id:3hGaivVk -->

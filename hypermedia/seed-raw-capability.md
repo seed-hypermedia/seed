@@ -10,17 +10,17 @@ This document describes the **seed-raw-capability** type — a Seed API read-mod
 # Shape <!-- id:kxlkQVIw -->
 
 A **closed struct** with these fields: <!-- id:7_GLzvLR -->
-  - `id` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:U2Qviex5 -->
-  - `issuer` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:yOvtdkqY -->
-  - `delegate` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:TGDpUXn0 -->
-  - `account` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:4suz9Snp -->
-  - `path` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:eYzicjYG -->
-  - `role` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:d4nXy9NT -->
-  - `noRecursive` — [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:vSzBLiYk -->
-  - `label` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:YkFuZisn -->
-  - `createTime` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:naEyeK_O -->
+  - `id` — [string](./onyx-string.md) <!-- id:U2Qviex5 -->
+  - `issuer` — [string](./onyx-string.md) <!-- id:yOvtdkqY -->
+  - `delegate` — [string](./onyx-string.md) <!-- id:TGDpUXn0 -->
+  - `account` — [string](./onyx-string.md) <!-- id:4suz9Snp -->
+  - `path` — [string](./onyx-string.md) <!-- id:eYzicjYG -->
+  - `role` — [string](./onyx-string.md) <!-- id:d4nXy9NT -->
+  - `noRecursive` — [boolean](./onyx-boolean.md) <!-- id:vSzBLiYk -->
+  - `label` — [string](./onyx-string.md) <!-- id:YkFuZisn -->
+  - `createTime` — [string](./onyx-string.md) <!-- id:naEyeK_O -->
 
 # Depends on <!-- id:kqu-NLeV -->
 
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:VgTRhZY0 -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:Lc5Z-FdC -->
+- [boolean](./onyx-boolean.md) <!-- id:VgTRhZY0 -->
+- [string](./onyx-string.md) <!-- id:Lc5Z-FdC -->

@@ -7,16 +7,16 @@ This document describes the **hypermedia-block-video** type — a Hypermedia Net
 
 # Shape <!-- id:P9bV1JXS -->
 
-**Extends** [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) with these added fields: <!-- id:kf5ps0sg -->
+**Extends** [hypermedia-block-base](./hypermedia-block-base.md) with these added fields: <!-- id:kf5ps0sg -->
   - `type` — `string` enum: `Video` <!-- id:5rdECHj3 -->
-  - `link` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:efxgTfxI -->
+  - `link` _(required)_ — [string](./onyx-string.md) <!-- id:efxgTfxI -->
   - `attributes` — map { 7 fields } <!-- id:B0S2hL6h -->
 
 # Depends on <!-- id:zuMUGUt2 -->
 
-- [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) <!-- id:YMbblegu -->
-- [hypermedia-children-type](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-children-type) <!-- id:euMK0Tqe -->
-- [any](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any) <!-- id:7biHOJn7 -->
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:669ZOxEU -->
-- [float](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float) <!-- id:vMQpMpWI -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:rDzm7GKO -->
+- [hypermedia-block-base](./hypermedia-block-base.md) <!-- id:YMbblegu -->
+- [hypermedia-children-type](./hypermedia-children-type.md) <!-- id:euMK0Tqe -->
+- [any](./onyx-any.md) <!-- id:7biHOJn7 -->
+- [boolean](./onyx-boolean.md) <!-- id:669ZOxEU -->
+- [float](./onyx-float.md) <!-- id:vMQpMpWI -->
+- [string](./onyx-string.md) <!-- id:rDzm7GKO -->

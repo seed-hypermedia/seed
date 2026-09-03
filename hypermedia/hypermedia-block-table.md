@@ -9,12 +9,12 @@ This document describes the **hypermedia-block-table** type — a Hypermedia Net
 
 # Shape <!-- id:axji3Nx3 -->
 
-**Extends** [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) with these added fields: <!-- id:WAdLuZ1t -->
+**Extends** [hypermedia-block-base](./hypermedia-block-base.md) with these added fields: <!-- id:WAdLuZ1t -->
   - `type` — `string` enum: `Table` <!-- id:OIXFENDr -->
   - `attributes` — map { 2 fields } <!-- id:1Ug72bRZ -->
 
 # Depends on <!-- id:AgnaGp59 -->
 
-- [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) <!-- id:fu5elJWe -->
-- [hypermedia-children-type](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-children-type) <!-- id:hg7kQizu -->
-- [float](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float) <!-- id:k8jv_Gf6 -->
+- [hypermedia-block-base](./hypermedia-block-base.md) <!-- id:fu5elJWe -->
+- [hypermedia-children-type](./hypermedia-children-type.md) <!-- id:hg7kQizu -->
+- [float](./onyx-float.md) <!-- id:k8jv_Gf6 -->

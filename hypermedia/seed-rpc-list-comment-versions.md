@@ -16,5 +16,5 @@ A **closed struct** with these fields: <!-- id:SGcsRaoX -->
 
 # Depends on <!-- id:WmdsrswR -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:NRiz7Dmr -->
-- [seed-comment](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-comment) <!-- id:-J30-WLH -->
+- [string](./onyx-string.md) <!-- id:NRiz7Dmr -->
+- [seed-comment](./seed-comment.md) <!-- id:-J30-WLH -->

@@ -7,13 +7,13 @@ This document describes the **hypermedia-block-table-row** type — a Hypermedia
 
 # Shape <!-- id:rU9d2YT4 -->
 
-**Extends** [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) with these added fields: <!-- id:YSpWVasd -->
+**Extends** [hypermedia-block-base](./hypermedia-block-base.md) with these added fields: <!-- id:YSpWVasd -->
   - `type` — `string` enum: `TableRow` <!-- id:35dzjlct -->
   - `attributes` — map { 3 fields } <!-- id:isb0u9Q- -->
 
 # Depends on <!-- id:bJfnmYvm -->
 
-- [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) <!-- id:hgpcc-H3 -->
-- [hypermedia-children-type](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-children-type) <!-- id:wlSrjJ0K -->
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:x3gfdVig -->
-- [float](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float) <!-- id:XcI_JSRk -->
+- [hypermedia-block-base](./hypermedia-block-base.md) <!-- id:hgpcc-H3 -->
+- [hypermedia-children-type](./hypermedia-children-type.md) <!-- id:wlSrjJ0K -->
+- [boolean](./onyx-boolean.md) <!-- id:x3gfdVig -->
+- [float](./onyx-float.md) <!-- id:XcI_JSRk -->

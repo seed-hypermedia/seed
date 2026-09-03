@@ -17,8 +17,8 @@ A **closed struct** with these fields: <!-- id:rcFn9Ub4 -->
   - `maximum` — `integer` <!-- id:pfQyXxpR -->
   - `name` — `string` <!-- id:zMmY3mCD -->
   - `description` — `string` <!-- id:UJp1sZQT -->
-  - `params` — map ⟨ \* : [schema](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema) ⟩ <!-- id:yg8qUnxp -->
+  - `params` — map ⟨ \* : [schema](./onyx-schema.md) ⟩ <!-- id:yg8qUnxp -->
 
 # Depends on <!-- id:TfDCyaJ4 -->
 
-- [schema](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema) <!-- id:dI-HwBiD -->
+- [schema](./onyx-schema.md) <!-- id:dI-HwBiD -->

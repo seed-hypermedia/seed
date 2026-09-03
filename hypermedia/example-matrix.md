@@ -7,8 +7,8 @@ This document describes the **example-matrix** type — an example schema. Its f
 
 # Shape <!-- id:lFU1NPys -->
 
-A **list** of list of [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer). <!-- id:_B8RPwVA -->
+A **list** of list of [integer](./onyx-integer.md). <!-- id:_B8RPwVA -->
 
 # Depends on <!-- id:b1FsZOLU -->
 
-- [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:sF6gNfzM -->
+- [integer](./onyx-integer.md) <!-- id:sF6gNfzM -->

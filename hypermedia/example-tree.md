@@ -8,9 +8,9 @@ This document describes the **example-tree** type — an example schema. Its for
 # Shape <!-- id:qHaa2ZeF -->
 
 A **closed struct** with these fields: <!-- id:yQtqZKJv -->
-  - `value` _(required)_ — [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:3BtaYYI8 -->
-  - `children` — list of `link` → [example-tree](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-tree) <!-- id:VRg-fWag -->
+  - `value` _(required)_ — [integer](./onyx-integer.md) <!-- id:3BtaYYI8 -->
+  - `children` — list of `link` → [example-tree](./example-tree.md) <!-- id:VRg-fWag -->
 
 # Depends on <!-- id:j7V1B1aL -->
 
-- [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:G7JqZKJV -->
+- [integer](./onyx-integer.md) <!-- id:G7JqZKJV -->

@@ -12,10 +12,10 @@ This document describes the **seed-rpc-discovery-status** type — a Seed API re
 A **closed struct** with these fields: <!-- id:w4vuYwBh -->
   - `key` _(required)_ — `string` enum: `DiscoveryStatus` <!-- id:zAkdae6f -->
   - `input` _(required)_ — map { 4 fields } <!-- id:1DDf6AyS -->
-  - `output` _(required)_ — [seed-discovery-status](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-discovery-status) <!-- id:H5NLEiwZ -->
+  - `output` _(required)_ — [seed-discovery-status](./seed-discovery-status.md) <!-- id:H5NLEiwZ -->
 
 # Depends on <!-- id:rIVmhfIF -->
 
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:qYe5vPW7 -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:Ev6PVaa6 -->
-- [seed-discovery-status](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-discovery-status) <!-- id:xHV9GDA8 -->
+- [boolean](./onyx-boolean.md) <!-- id:qYe5vPW7 -->
+- [string](./onyx-string.md) <!-- id:Ev6PVaa6 -->
+- [seed-discovery-status](./seed-discovery-status.md) <!-- id:xHV9GDA8 -->

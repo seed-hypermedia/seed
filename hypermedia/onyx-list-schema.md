@@ -9,13 +9,13 @@ This document describes the **onyx-list-schema** type — a meta-schema variant.
 
 A **closed struct** with these fields: <!-- id:ToJn8dIq -->
   - `type` _(required)_ — `string` enum: `list` <!-- id:wXiDx1hX -->
-  - `items` — [schema](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema) <!-- id:YUFWpQYx -->
+  - `items` — [schema](./onyx-schema.md) <!-- id:YUFWpQYx -->
   - `minItems` — `integer` <!-- id:UorggIMz -->
   - `maxItems` — `integer` <!-- id:8Z5D87tc -->
   - `name` — `string` <!-- id:uT4MH4xg -->
   - `description` — `string` <!-- id:SOgZ0Enf -->
-  - `params` — map ⟨ \* : [schema](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema) ⟩ <!-- id:pFgVtJ7z -->
+  - `params` — map ⟨ \* : [schema](./onyx-schema.md) ⟩ <!-- id:pFgVtJ7z -->
 
 # Depends on <!-- id:pg22iU2j -->
 
-- [schema](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema) <!-- id:6dFto7C5 -->
+- [schema](./onyx-schema.md) <!-- id:6dFto7C5 -->

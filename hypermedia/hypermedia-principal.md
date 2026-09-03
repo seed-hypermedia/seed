@@ -7,8 +7,8 @@ This document describes the **hypermedia-principal** type — a Hypermedia Netwo
 
 # Shape <!-- id:sT34p2wb -->
 
-An **alias** of [bytes](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/bytes). <!-- id:xRB39OHx -->
+An **alias** of [bytes](./onyx-bytes.md). <!-- id:xRB39OHx -->
 
 # Depends on <!-- id:EnW07RcY -->
 
-- [bytes](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/bytes) <!-- id:uebSMAU- -->
+- [bytes](./onyx-bytes.md) <!-- id:uebSMAU- -->

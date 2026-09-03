@@ -11,30 +11,30 @@ This document describes the **seed-document-info** type — a Seed API read-mode
 
 A **closed struct** with these fields: <!-- id:JQCMU3uI -->
   - `type` _(required)_ — `string` enum: `document` <!-- id:EkpuRfkl -->
-  - `id` _(required)_ — [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:4VVfYH_e -->
-  - `path` _(required)_ — list of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:A9ajQXb_ -->
-  - `authors` _(required)_ — list of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:_uPzrha3 -->
-  - `createTime` _(required)_ — [hypermedia-timestamp](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp) <!-- id:3RABUqT6 -->
-  - `updateTime` _(required)_ — [hypermedia-timestamp](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp) <!-- id:BkzIrpr_ -->
-  - `sortTime` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:JIjiRvAQ -->
-  - `genesis` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:Z1kajVwn -->
-  - `version` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:M6ZV22FP -->
-  - `breadcrumbs` _(required)_ — list of [seed-breadcrumb](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-breadcrumb) <!-- id:6-_0qrTO -->
-  - `activitySummary` _(required)_ — [seed-activity-summary](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-activity-summary) <!-- id:_7KE0iso -->
+  - `id` _(required)_ — [seed-id](./seed-id.md) <!-- id:4VVfYH_e -->
+  - `path` _(required)_ — list of [string](./onyx-string.md) <!-- id:A9ajQXb_ -->
+  - `authors` _(required)_ — list of [string](./onyx-string.md) <!-- id:_uPzrha3 -->
+  - `createTime` _(required)_ — [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:3RABUqT6 -->
+  - `updateTime` _(required)_ — [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:BkzIrpr_ -->
+  - `sortTime` _(required)_ — [string](./onyx-string.md) <!-- id:JIjiRvAQ -->
+  - `genesis` _(required)_ — [string](./onyx-string.md) <!-- id:Z1kajVwn -->
+  - `version` _(required)_ — [string](./onyx-string.md) <!-- id:M6ZV22FP -->
+  - `breadcrumbs` _(required)_ — list of [seed-breadcrumb](./seed-breadcrumb.md) <!-- id:6-_0qrTO -->
+  - `activitySummary` _(required)_ — [seed-activity-summary](./seed-activity-summary.md) <!-- id:_7KE0iso -->
   - `generationInfo` _(required)_ — map { 2 fields } <!-- id:TAxxiK1e -->
-  - `redirectInfo` — [seed-redirect-info](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-redirect-info) <!-- id:RDlcQ0Cv -->
-  - `metadata` _(required)_ — [hypermedia-metadata](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata) <!-- id:sJz5N_pg -->
-  - `firstImageInContent` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:5w2RRbrg -->
-  - `visibility` _(required)_ — [hypermedia-visibility](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-visibility) <!-- id:d1YCn1pJ -->
+  - `redirectInfo` — [seed-redirect-info](./seed-redirect-info.md) <!-- id:RDlcQ0Cv -->
+  - `metadata` _(required)_ — [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:sJz5N_pg -->
+  - `firstImageInContent` — [string](./onyx-string.md) <!-- id:5w2RRbrg -->
+  - `visibility` _(required)_ — [hypermedia-visibility](./hypermedia-visibility.md) <!-- id:d1YCn1pJ -->
 
 # Depends on <!-- id:IsmdwRwB -->
 
-- [hypermedia-metadata](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata) <!-- id:Q7Z96een -->
-- [hypermedia-timestamp](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp) <!-- id:bAnZCGsa -->
-- [hypermedia-visibility](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-visibility) <!-- id:AeCWNO95 -->
-- [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:9guKeYjp -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:f4Izt9d_ -->
-- [seed-activity-summary](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-activity-summary) <!-- id:uce6DPdj -->
-- [seed-breadcrumb](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-breadcrumb) <!-- id:pW674sZt -->
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:f-OIRb8y -->
-- [seed-redirect-info](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-redirect-info) <!-- id:9I8fkVGm -->
+- [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:Q7Z96een -->
+- [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:bAnZCGsa -->
+- [hypermedia-visibility](./hypermedia-visibility.md) <!-- id:AeCWNO95 -->
+- [integer](./onyx-integer.md) <!-- id:9guKeYjp -->
+- [string](./onyx-string.md) <!-- id:f4Izt9d_ -->
+- [seed-activity-summary](./seed-activity-summary.md) <!-- id:uce6DPdj -->
+- [seed-breadcrumb](./seed-breadcrumb.md) <!-- id:pW674sZt -->
+- [seed-id](./seed-id.md) <!-- id:f-OIRb8y -->
+- [seed-redirect-info](./seed-redirect-info.md) <!-- id:9I8fkVGm -->

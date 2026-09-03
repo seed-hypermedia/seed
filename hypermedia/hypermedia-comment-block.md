@@ -7,9 +7,9 @@ This document describes the **hypermedia-comment-block** type — a Hypermedia N
 
 # Shape <!-- id:KpgzcxVT -->
 
-**Extends** [hypermedia-block](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block) with these added fields: <!-- id:tCclGqa- -->
-  - `children` — list of [hypermedia-comment-block](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-comment-block) <!-- id:2Z5R3yQN -->
+**Extends** [hypermedia-block](./hypermedia-block.md) with these added fields: <!-- id:tCclGqa- -->
+  - `children` — list of [hypermedia-comment-block](./hypermedia-comment-block.md) <!-- id:2Z5R3yQN -->
 
 # Depends on <!-- id:vdGecCjq -->
 
-- [hypermedia-block](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block) <!-- id:ijTeP4H8 -->
+- [hypermedia-block](./hypermedia-block.md) <!-- id:ijTeP4H8 -->
