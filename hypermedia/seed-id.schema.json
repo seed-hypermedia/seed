@@ -90,7 +90,5 @@
         }
       ]
     }
-  },
-  "description": "A parsed hm:// identifier as clients pass it around: account uid, path segments, pinned version, block reference, and origin hints. Fields the URL does not carry are null. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.",
-  "name": "Hypermedia ID (parsed)"
+  }
 }

@@ -22,7 +22,5 @@
   },
   "values": {
     "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-value"
-  },
-  "description": "An inline text annotation (bold, link, …) over character ranges, plus arbitrary inline attributes.",
-  "name": "Annotation"
+  }
 }

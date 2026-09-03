@@ -17,7 +17,5 @@
   "required": [
     "type",
     "target"
-  ],
-  "description": "Marks a listed document as a redirect to another target. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.",
-  "name": "Redirect info"
+  ]
 }

@@ -44,7 +44,5 @@
         "comment"
       ]
     }
-  },
-  "description": "One hit of a network search: the matched id with display info (title, icon, breadcrumb parent names) and what kind of entity matched. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.",
-  "name": "Search result item"
+  }
 }
