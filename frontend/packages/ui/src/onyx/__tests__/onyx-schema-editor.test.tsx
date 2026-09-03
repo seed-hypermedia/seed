@@ -94,3 +94,74 @@ describe('OnyxSchemaEditor (struct form)', () => {
     expect(latest.required ?? []).not.toContain('a')
   })
 })
+
+describe('OnyxSchemaEditor (generics and JSON mode)', () => {
+  const MAP = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map'
+  const BLOCK = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block'
+
+  it('shows a generic schema’s type parameters and offers them as field kinds', () => {
+    act(() => {
+      root.render(
+        <Harness
+          initial={{type: MAP, params: {Block: {ref: BLOCK}}, properties: {body: {var: 'Block'}}, required: []}}
+        />,
+      )
+    })
+    const params = container.querySelector('[data-testid="schema-params"]')!
+    expect(params.textContent).toContain('Type parameters')
+    const nameInput = params.querySelector('input[aria-label="Type parameter name"]') as HTMLInputElement
+    expect(nameInput.value).toBe('Block')
+    const defInput = params.querySelector('input[aria-label="Default type for Block"]') as HTMLInputElement
+    expect(defInput.value).toBe(BLOCK)
+    // The field typed by the parameter reads as ⟨Block⟩, not as text.
+    expect(container.textContent).toContain('⟨Block⟩')
+  })
+
+  it('adding a type parameter makes the schema generic; removing it falls fields back to the default', () => {
+    act(() => {
+      root.render(<Harness initial={emptyStructSchema()} />)
+    })
+    click(findButton('Make generic'))
+    expect(latest.params).toEqual({T: {ref: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any'}})
+    expect(isOnyxSchema(latest)).toBe(true)
+    click(findButton('Add field'))
+    // Point the new field at the parameter, then drop the parameter.
+    act(() => {
+      root.render(<Harness key="remount" initial={{...latest, properties: {field: {var: 'T'}}}} />)
+    })
+    const remove = container.querySelector('button[aria-label="Remove type parameter T"]')!
+    click(remove)
+    expect(latest.params).toBeUndefined()
+    expect(latest.properties.field).toEqual({ref: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any'})
+    expect(isOnyxSchema(latest)).toBe(true)
+  })
+
+  it('a union is edited as JSON, with the form unavailable', () => {
+    act(() => {
+      root.render(<Harness initial={{anyOf: [{ref: BLOCK}, {type: MAP, properties: {}, required: []}]}} />)
+    })
+    const json = container.querySelector('[data-testid="schema-json-editor"] textarea') as HTMLTextAreaElement
+    expect(json).toBeTruthy()
+    expect(JSON.parse(json.value).anyOf).toHaveLength(2)
+    const formTab = [...container.querySelectorAll('button[role="tab"]')].find((b) => b.textContent === 'Fields')!
+    expect((formTab as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('valid JSON commits; a syntax error does not', () => {
+    act(() => {
+      root.render(<Harness initial={{anyOf: [{ref: BLOCK}]}} />)
+    })
+    const json = container.querySelector('[data-testid="schema-json-editor"] textarea') as HTMLTextAreaElement
+    const setValue = (v: string) =>
+      act(() => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!
+        setter.call(json, v)
+        json.dispatchEvent(new Event('input', {bubbles: true}))
+      })
+    setValue('{"anyOf": [')
+    expect(latest.anyOf).toHaveLength(1)
+    expect(container.textContent).toMatch(/JSON|Unexpected|Expected/i)
+    setValue(JSON.stringify({anyOf: [{ref: BLOCK}, {ref: MAP}]}))
+    expect(latest.anyOf).toHaveLength(2)
+  })
+})
