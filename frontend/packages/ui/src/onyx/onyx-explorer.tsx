@@ -8,6 +8,7 @@
 
 import {ChevronRight} from 'lucide-react'
 import {createContext, useContext, useState} from 'react'
+import {ONYX_PAGES} from './onyx-schemas.generated'
 import {useOnyxSchemaRegistry} from './onyx-schema-registry-cid'
 import {isSignedBlobSchema} from './signed-blob'
 import {cn} from '../utils'
@@ -50,6 +51,19 @@ const kindColor: Record<string, string> = {
   var: 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-950 dark:text-fuchsia-300',
   instance: 'bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300',
   any: 'bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400',
+}
+
+/** The display name of a library schema: its page's name, else its slug. */
+const pageName = (slug: string) => ONYX_PAGES[slug]?.name ?? slug
+
+/** "Extends <base>": the type a schema is built on, named by its page and linking to it. */
+function ExtendsLine({slug, onClick, children}: {slug: string; onClick?: () => void; children?: React.ReactNode}) {
+  return (
+    <p className="text-sm" data-testid="schema-extends">
+      <span className="text-muted-foreground">Extends</span> <Chip label={pageName(slug)} onClick={onClick} />
+      {children}
+    </p>
+  )
 }
 
 function Tag({kind, children}: {kind: string; children?: React.ReactNode}) {
@@ -471,11 +485,9 @@ export function OnyxSchemaPage({
     const origins: Record<string, 'added' | 'inherited'> = {}
     for (const k of Object.keys(eff.properties || {})) origins[k] = added.has(k) ? 'added' : 'inherited'
     lead = (
-      <p className="text-sm">
-        <KindBadge kind={kindOf(eff.type)} nav={nav} /> <span className="text-muted-foreground">· extends</span>{' '}
-        <Chip label={parent} onClick={() => nav(parent)} />{' '}
-        <span className="text-muted-foreground">· +{added.size} field(s)</span>
-      </p>
+      <ExtendsLine slug={parent} onClick={() => nav(parent)}>
+        <span className="text-muted-foreground"> · +{added.size} field(s)</span>
+      </ExtendsLine>
     )
     main = <FieldsTable properties={eff.properties || {}} required={req} origins={origins} nav={nav} />
   } else if (hasRef && schema.args) {
@@ -503,20 +515,19 @@ export function OnyxSchemaPage({
     )
   } else if (kindOf(schema.type) === 'map' && schema.properties) {
     lead = (
-      <p className="text-sm">
-        Root kind: <KindBadge kind="map" nav={nav} />{' '}
+      <ExtendsLine slug="onyx-map" onClick={() => nav('onyx-map')}>
         <span className="text-muted-foreground">
-          · {schema.values ? 'map' : 'closed struct'}, {Object.keys(schema.properties).length} fields
+          {' '}
+          · {schema.values ? 'open' : 'closed'}, {Object.keys(schema.properties).length} fields
         </span>
-      </p>
+      </ExtendsLine>
     )
     main = <FieldsTable properties={schema.properties} required={new Set(schema.required || [])} nav={nav} />
   } else {
-    lead = (
-      <p className="text-sm">
-        Root kind: <KindBadge kind={kindOf(schema.type) || 'any'} nav={nav} />
-      </p>
-    )
+    {
+      const k = kindOf(schema.type) || 'any'
+      lead = <ExtendsLine slug={`onyx-${k}`} onClick={() => nav(`onyx-${k}`)} />
+    }
     if (kindOf(schema.type) === 'map' && schema.values)
       main = (
         <p className="text-sm">
@@ -653,15 +664,15 @@ export function OnyxSchemaView({
           {schema.description && <p className="text-sm">{schema.description}</p>}
         </>
       )}
-      {isExt && parentName && (
-        <p className="text-sm">
-          <span className="text-muted-foreground">Extends</span>{' '}
-          <Chip label={parentName} onClick={() => open(schema.ref)} />
+      {isExt && parentName ? (
+        <ExtendsLine slug={parentName} onClick={() => open(schema.ref)}>
           {isSigned && (
             <span className="text-muted-foreground"> — a signed blob: the envelope (signer, sig, ts) is inherited</span>
           )}
-        </p>
-      )}
+        </ExtendsLine>
+      ) : kind ? (
+        <ExtendsLine slug={`onyx-${kind}`} onClick={() => nav(`onyx-${kind}`)} />
+      ) : null}
       {schema.params && (
         <p className="text-sm" data-testid="schema-params">
           <span className="text-muted-foreground">Generic over</span>{' '}
@@ -694,10 +705,6 @@ export function OnyxSchemaView({
         </div>
       ) : schema.properties ? (
         <FieldsTable properties={schema.properties} required={new Set(schema.required || [])} nav={nav} />
-      ) : kind ? (
-        <p className="text-sm">
-          Root kind: <KindBadge kind={kind} nav={nav} />
-        </p>
       ) : null}
     </div>
   )
