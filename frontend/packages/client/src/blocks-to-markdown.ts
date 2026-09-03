@@ -722,11 +722,6 @@ function markersFor(s: Span, chunk: string, fullText: string): [string, string] 
   }
 }
 
-/** Kept for the table emitter. */
-function applyAnnotations(text: string, annotations: HMAnnotation[] | undefined): string {
-  return renderInline(text, annotations, {atLineStart: false})
-}
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
@@ -738,13 +733,6 @@ function formatMediaUrl(url: string, useGateway: boolean): string {
     return `https://ipfs.io/ipfs/${cid}`
   }
   return url
-}
-
-/**
- * Create indentation string.
- */
-function indent(depth: number): string {
-  return '  '.repeat(depth)
 }
 
 /**

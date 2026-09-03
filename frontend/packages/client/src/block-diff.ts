@@ -469,7 +469,7 @@ function canonicalAnnotation(ann: unknown): Record<string, unknown> {
   const a = (ann || {}) as Record<string, unknown>
   const starts = (a.starts as number[] | undefined) || []
   const ends = (a.ends as number[] | undefined) || []
-  const keep = starts.map((s, i) => i).filter((i) => (ends[i] ?? -1) > starts[i]!)
+  const keep = starts.map((_, i) => i).filter((i) => (ends[i] ?? -1) > starts[i]!)
   const out: Record<string, unknown> = {
     type: a.type,
     starts: keep.map((i) => starts[i]),
