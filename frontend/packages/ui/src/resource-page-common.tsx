@@ -117,6 +117,7 @@ import {
   Quote,
   Search,
   Table as TableIcon,
+  Pencil,
 } from 'lucide-react'
 import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
@@ -159,8 +160,10 @@ import {
 import {OnyxSchemaEditor} from './onyx/onyx-schema-editor'
 import {OnyxSchemaBrowserPage} from './onyx/schema-browser'
 import {useEffectiveDocSchema} from './onyx/onyx-schema-resolve'
+import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from './components/dialog'
 import {DocumentTools} from './document-tools'
-import {nameForCid, ONYX_SCHEMAS} from './onyx/onyx-engine'
+import {nameForCid, nameToUrl, ONYX_SCHEMAS} from './onyx/onyx-engine'
+import {OnyxNavContext, OnyxSchemaView} from './onyx/onyx-explorer'
 import {useOnyxSchemaRegistry} from './onyx/onyx-schema-registry-cid'
 import {DocumentTopBar} from './document-top-bar'
 import {
@@ -3441,6 +3444,7 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
   const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
   const draftSchema = schemaDraftValue(metadata)
   const cid = schemaDefinitionCid(metadata)
+  const [schemaDialogOpen, setSchemaDialogOpen] = useState(false)
   // Write access to the document is write access to its schema: the published schema seeds the
   // editor, the first change starts a draft (`schemaDraft`), and publishing freezes that into a
   // new IPFS object the document then references. Bundled library schemas need no fetch.
@@ -3451,13 +3455,49 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
     beginEditIfNeeded()
     send({type: 'change', metadata: {[SCHEMA_DRAFT_KEY]: next} as any})
   }
+  // Writers see the schema read-only too, with an Edit button that opens the editor in a dialog;
+  // the view follows the draft as it is edited.
   if (canEditCurrentRoute && (draftSchema || published)) {
+    const current = draftSchema ?? stripLegacyLabels(published!)
+    const nav = (slug: string) => {
+      const url = nameToUrl(slug)
+      if (url) openUrl(url)
+    }
     return (
-      <div
-        className="flex max-w-2xl flex-col gap-3"
-        data-testid={draftSchema ? 'schema-draft-editor' : 'schema-editor'}
-      >
-        <OnyxSchemaEditor schema={draftSchema ?? stripLegacyLabels(published!)} onSchema={edit} />
+      <div className="flex flex-col gap-2" data-testid={draftSchema ? 'schema-draft-view' : 'schema-view'}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            {draftSchema ? (
+              // The draft is not a blob yet: render the object itself.
+              <OnyxNavContext.Provider value={{openRef: (ref) => openUrl(ref)}}>
+                <OnyxSchemaView schema={draftSchema} nav={nav} hideIdentity />
+              </OnyxNavContext.Provider>
+            ) : (
+              // Exactly what readers see (core-type leads, variants, collapsed dependencies).
+              <OnyxSchemaBrowserPage embedded cid={cid!} navigate={navigate} openUrl={openUrl} />
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground shrink-0 gap-1"
+            data-testid="schema-edit-button"
+            onClick={() => setSchemaDialogOpen(true)}
+          >
+            <Pencil className="size-3.5" /> Edit
+          </Button>
+        </div>
+        <Dialog open={schemaDialogOpen} onOpenChange={setSchemaDialogOpen}>
+          <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit schema</DialogTitle>
+              <DialogDescription>
+                Changes stay in the document draft; publishing the document publishes them as a new schema object.
+              </DialogDescription>
+            </DialogHeader>
+            <OnyxSchemaEditor schema={current} onSchema={edit} />
+          </DialogContent>
+        </Dialog>
       </div>
     )
   }
