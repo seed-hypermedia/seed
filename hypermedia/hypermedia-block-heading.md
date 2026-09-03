@@ -7,17 +7,17 @@ This document describes the **hypermedia-block-heading** type — a Hypermedia N
 
 # Shape <!-- id:lCAihj5P -->
 
-**Extends** [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) with these added fields: <!-- id:2v9m5JN5 -->
+**Extends** [hypermedia-block-base](./hypermedia-block-base.md) with these added fields: <!-- id:2v9m5JN5 -->
   - `type` — `string` enum: `Heading` <!-- id:aPgD9CRs -->
-  - `text` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:EA1orVgz -->
-  - `annotations` — list of [hypermedia-annotation](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-annotation) <!-- id:VOJAwECN -->
+  - `text` — [string](./onyx-string.md) <!-- id:EA1orVgz -->
+  - `annotations` — list of [hypermedia-annotation](./hypermedia-annotation.md) <!-- id:VOJAwECN -->
   - `attributes` — map { 2 fields } <!-- id:GvMoQ1bo -->
 
 # Depends on <!-- id:rJp_AZEn -->
 
-- [hypermedia-annotation](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-annotation) <!-- id:rjNj96kD -->
-- [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) <!-- id:OeY-jnQk -->
-- [hypermedia-children-type](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-children-type) <!-- id:-ujzzmqw -->
-- [any](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any) <!-- id:jbfVLj7H -->
-- [float](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float) <!-- id:uyaQRe-W -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:sjgu9T7j -->
+- [hypermedia-annotation](./hypermedia-annotation.md) <!-- id:rjNj96kD -->
+- [hypermedia-block-base](./hypermedia-block-base.md) <!-- id:OeY-jnQk -->
+- [hypermedia-children-type](./hypermedia-children-type.md) <!-- id:-ujzzmqw -->
+- [any](./onyx-any.md) <!-- id:jbfVLj7H -->
+- [float](./onyx-float.md) <!-- id:uyaQRe-W -->
+- [string](./onyx-string.md) <!-- id:sjgu9T7j -->

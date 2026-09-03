@@ -11,12 +11,12 @@ This document describes the **hypermedia-blob** type — a Hypermedia Network bl
 
 A **closed struct** with these fields: <!-- id:bQI8hkFy -->
   - `type` _(required)_ — `string` <!-- id:LQdoRLZZ -->
-  - `signer` _(required)_ — [hypermedia-principal](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-principal) <!-- id:CtQVur6r -->
-  - `sig` _(required)_ — [hypermedia-signature](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-signature) <!-- id:enu99wz8 -->
-  - `ts` _(required)_ — [hypermedia-timestamp](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp) <!-- id:kWIJ7his -->
+  - `signer` _(required)_ — [hypermedia-principal](./hypermedia-principal.md) <!-- id:CtQVur6r -->
+  - `sig` _(required)_ — [hypermedia-signature](./hypermedia-signature.md) <!-- id:enu99wz8 -->
+  - `ts` _(required)_ — [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:kWIJ7his -->
 
 # Depends on <!-- id:jpOci9E7 -->
 
-- [hypermedia-principal](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-principal) <!-- id:y9c8QnRC -->
-- [hypermedia-signature](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-signature) <!-- id:dsCKf5iI -->
-- [hypermedia-timestamp](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp) <!-- id:OFc0RrUw -->
+- [hypermedia-principal](./hypermedia-principal.md) <!-- id:y9c8QnRC -->
+- [hypermedia-signature](./hypermedia-signature.md) <!-- id:dsCKf5iI -->
+- [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:OFc0RrUw -->

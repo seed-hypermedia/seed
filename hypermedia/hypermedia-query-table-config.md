@@ -12,5 +12,5 @@ A **closed struct** with these fields: <!-- id:qLiRI5k4 -->
 
 # Depends on <!-- id:DxO1nCj8 -->
 
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:Wq6ojngJ -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:MnlSsHHu -->
+- [boolean](./onyx-boolean.md) <!-- id:Wq6ojngJ -->
+- [string](./onyx-string.md) <!-- id:MnlSsHHu -->

@@ -10,11 +10,11 @@ This document describes the **hypermedia-query** type — a Hypermedia Network b
 # Shape <!-- id:lq2339R1 -->
 
 A **closed struct** with these fields: <!-- id:2wTIZ4R0 -->
-  - `includes` _(required)_ — list of [hypermedia-query-inclusion](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-query-inclusion) <!-- id:dsd-GXt3 -->
-  - `sort` — list of [hypermedia-query-sort](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-query-sort) <!-- id:OV-3krlD -->
+  - `includes` _(required)_ — list of [hypermedia-query-inclusion](./hypermedia-query-inclusion.md) <!-- id:dsd-GXt3 -->
+  - `sort` — list of [hypermedia-query-sort](./hypermedia-query-sort.md) <!-- id:OV-3krlD -->
   - `limit` — `integer` <!-- id:oioonYyE -->
 
 # Depends on <!-- id:pvslUZ8E -->
 
-- [hypermedia-query-inclusion](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-query-inclusion) <!-- id:Yva40J_Y -->
-- [hypermedia-query-sort](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-query-sort) <!-- id:yQzR9VU3 -->
+- [hypermedia-query-inclusion](./hypermedia-query-inclusion.md) <!-- id:Yva40J_Y -->
+- [hypermedia-query-sort](./hypermedia-query-sort.md) <!-- id:yQzR9VU3 -->

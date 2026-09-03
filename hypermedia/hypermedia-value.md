@@ -8,14 +8,14 @@ This document describes the **hypermedia-value** type — a Hypermedia Network b
 # Shape <!-- id:-_VwZsPA -->
 
 A **union** — a value matches one of these variants: <!-- id:FP14r8De -->
-  - [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:q_-3ZaLh -->
-  - [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:IdkeOjM8 -->
-  - [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:t0GZMYM_ -->
-  - [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:k5elhASZ -->
+  - [string](./onyx-string.md) <!-- id:q_-3ZaLh -->
+  - [integer](./onyx-integer.md) <!-- id:IdkeOjM8 -->
+  - [boolean](./onyx-boolean.md) <!-- id:t0GZMYM_ -->
+  - [null](./onyx-null.md) <!-- id:k5elhASZ -->
 
 # Depends on <!-- id:7ToAc9Am -->
 
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:S2OmrZel -->
-- [integer](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer) <!-- id:to5AEXO- -->
-- [null](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null) <!-- id:0H0AVvuc -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:pkVoFHW4 -->
+- [boolean](./onyx-boolean.md) <!-- id:S2OmrZel -->
+- [integer](./onyx-integer.md) <!-- id:to5AEXO- -->
+- [null](./onyx-null.md) <!-- id:0H0AVvuc -->
+- [string](./onyx-string.md) <!-- id:pkVoFHW4 -->

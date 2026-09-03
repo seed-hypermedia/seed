@@ -8,11 +8,11 @@ This document describes the **seed-query-result** type — a Seed API read-model
 # Shape <!-- id:IU9zCBCy -->
 
 A **closed struct** with these fields: <!-- id:EvmdoseV -->
-  - `in` _(required)_ — [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:JZ6P9O4y -->
-  - `results` _(required)_ — list of [seed-document-info](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-document-info) <!-- id:eo8ia6we -->
+  - `in` _(required)_ — [seed-id](./seed-id.md) <!-- id:JZ6P9O4y -->
+  - `results` _(required)_ — list of [seed-document-info](./seed-document-info.md) <!-- id:eo8ia6we -->
   - `mode` — `string` enum: `Children` `AllDescendants` <!-- id:RePHCtTX -->
 
 # Depends on <!-- id:uRtiQkyh -->
 
-- [seed-document-info](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-document-info) <!-- id:U3vw88Mz -->
-- [seed-id](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id) <!-- id:l99ph1Cb -->
+- [seed-document-info](./seed-document-info.md) <!-- id:U3vw88Mz -->
+- [seed-id](./seed-id.md) <!-- id:l99ph1Cb -->

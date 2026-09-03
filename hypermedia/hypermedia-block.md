@@ -10,16 +10,16 @@ This document describes the **hypermedia-block** type — a Hypermedia Network b
 # Shape <!-- id:QiFjidUz -->
 
 A map with these fields: <!-- id:fsTkb0Vo -->
-  - `id` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:JojT7-nZ -->
-  - `revision` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:lffsHj-T -->
-  - `type` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:cLTKblZl -->
-  - `text` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:Vp36I-vY -->
-  - `link` — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:C8thhIEg -->
-  - `annotations` — list of [hypermedia-annotation](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-annotation) <!-- id:9JbkXwGl -->
+  - `id` _(required)_ — [string](./onyx-string.md) <!-- id:JojT7-nZ -->
+  - `revision` — [string](./onyx-string.md) <!-- id:lffsHj-T -->
+  - `type` _(required)_ — [string](./onyx-string.md) <!-- id:cLTKblZl -->
+  - `text` — [string](./onyx-string.md) <!-- id:Vp36I-vY -->
+  - `link` — [string](./onyx-string.md) <!-- id:C8thhIEg -->
+  - `annotations` — list of [hypermedia-annotation](./hypermedia-annotation.md) <!-- id:9JbkXwGl -->
   - `attributes` — map { 0 fields } <!-- id:wLVIaOrw -->
 
 # Depends on <!-- id:EltAo080 -->
 
-- [hypermedia-annotation](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-annotation) <!-- id:g8o6nDyl -->
-- [any](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any) <!-- id:ehYTDbOa -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:xj1lJl3u -->
+- [hypermedia-annotation](./hypermedia-annotation.md) <!-- id:g8o6nDyl -->
+- [any](./onyx-any.md) <!-- id:ehYTDbOa -->
+- [string](./onyx-string.md) <!-- id:xj1lJl3u -->

@@ -10,14 +10,14 @@ This document describes the **seed-external-comment-group** type — a Seed API 
 # Shape <!-- id:PPPTPxbz -->
 
 A **closed struct** with these fields: <!-- id:cipbf9F9 -->
-  - `comments` _(required)_ — list of [seed-comment](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-comment) <!-- id:qmdxLO_A -->
+  - `comments` _(required)_ — list of [seed-comment](./seed-comment.md) <!-- id:qmdxLO_A -->
   - `moreCommentsCount` _(required)_ — `integer` <!-- id:-VwVHou7 -->
-  - `id` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:WG16mV8b -->
-  - `target` _(required)_ — [seed-metadata-payload](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-metadata-payload) <!-- id:orsrQswM -->
+  - `id` _(required)_ — [string](./onyx-string.md) <!-- id:WG16mV8b -->
+  - `target` _(required)_ — [seed-metadata-payload](./seed-metadata-payload.md) <!-- id:orsrQswM -->
   - `type` _(required)_ — `string` enum: `externalCommentGroup` <!-- id:tH1zI9sl -->
 
 # Depends on <!-- id:GONsXZm0 -->
 
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:FI8ROgf3 -->
-- [seed-comment](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-comment) <!-- id:HUGkQkES -->
-- [seed-metadata-payload](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-metadata-payload) <!-- id:Q5L7rBRv -->
+- [string](./onyx-string.md) <!-- id:FI8ROgf3 -->
+- [seed-comment](./seed-comment.md) <!-- id:HUGkQkES -->
+- [seed-metadata-payload](./seed-metadata-payload.md) <!-- id:Q5L7rBRv -->

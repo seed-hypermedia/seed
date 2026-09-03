@@ -7,17 +7,17 @@ This document describes the **example-poll-block** type — an example schema. I
 
 # Shape <!-- id:aF0A6qUJ -->
 
-**Extends** [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) with these added fields: <!-- id:AU7ub5dT -->
+**Extends** [hypermedia-block-base](./hypermedia-block-base.md) with these added fields: <!-- id:AU7ub5dT -->
   - `type` — `string` enum: `Poll` <!-- id:a5Im9O50 -->
-  - `question` _(required)_ — [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:MVAEf3cE -->
-  - `options` _(required)_ — list of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:pU77dcCF -->
+  - `question` _(required)_ — [string](./onyx-string.md) <!-- id:MVAEf3cE -->
+  - `options` _(required)_ — list of [string](./onyx-string.md) <!-- id:pU77dcCF -->
   - `attributes` — map { 3 fields } <!-- id:jJ3NLW4y -->
 
 # Depends on <!-- id:czM-qx6F -->
 
-- [hypermedia-block-base](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base) <!-- id:JO2qNB-c -->
-- [hypermedia-children-type](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-children-type) <!-- id:RHMZeOH4 -->
-- [any](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any) <!-- id:Ljf2W4Wk -->
-- [boolean](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean) <!-- id:-D8eUkTH -->
-- [float](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float) <!-- id:6y4r4lDq -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:w5tshfF6 -->
+- [hypermedia-block-base](./hypermedia-block-base.md) <!-- id:JO2qNB-c -->
+- [hypermedia-children-type](./hypermedia-children-type.md) <!-- id:RHMZeOH4 -->
+- [any](./onyx-any.md) <!-- id:Ljf2W4Wk -->
+- [boolean](./onyx-boolean.md) <!-- id:-D8eUkTH -->
+- [float](./onyx-float.md) <!-- id:6y4r4lDq -->
+- [string](./onyx-string.md) <!-- id:w5tshfF6 -->

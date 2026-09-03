@@ -7,8 +7,8 @@ This document describes the **hypermedia-signature** type — a Hypermedia Netwo
 
 # Shape <!-- id:ILsS2SOP -->
 
-An **alias** of [bytes](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/bytes). <!-- id:OMQsN3IL -->
+An **alias** of [bytes](./onyx-bytes.md). <!-- id:OMQsN3IL -->
 
 # Depends on <!-- id:oO6smokS -->
 
-- [bytes](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/bytes) <!-- id:p9KTsAgq -->
+- [bytes](./onyx-bytes.md) <!-- id:p9KTsAgq -->

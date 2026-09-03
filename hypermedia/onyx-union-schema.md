@@ -8,11 +8,11 @@ This document describes the **onyx-union-schema** type — a meta-schema variant
 # Shape <!-- id:0stCYc3t -->
 
 A **closed struct** with these fields: <!-- id:Y_Txjo0B -->
-  - `anyOf` _(required)_ — list of [schema](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema) <!-- id:aPkIeirH -->
+  - `anyOf` _(required)_ — list of [schema](./onyx-schema.md) <!-- id:aPkIeirH -->
   - `name` — `string` <!-- id:zfJVsmkn -->
   - `description` — `string` <!-- id:Mfcuk4fO -->
-  - `params` — map ⟨ \* : [schema](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema) ⟩ <!-- id:WIZIEvso -->
+  - `params` — map ⟨ \* : [schema](./onyx-schema.md) ⟩ <!-- id:WIZIEvso -->
 
 # Depends on <!-- id:KU0BDVHI -->
 
-- [schema](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema) <!-- id:XRX69ozh -->
+- [schema](./onyx-schema.md) <!-- id:XRX69ozh -->

@@ -9,11 +9,11 @@ This document describes the **example-person-doc** type — an example schema. I
 
 # Shape <!-- id:bStR0Oxc -->
 
-**Extends** [hypermedia-document](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-document) with these added fields: <!-- id:Zw6v2bIk -->
-  - `metadata` — [hypermedia-metadata](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata) <!-- id:Ol0rxiOr -->
+**Extends** [hypermedia-document](./hypermedia-document.md) with these added fields: <!-- id:Zw6v2bIk -->
+  - `metadata` — [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:Ol0rxiOr -->
 
 # Depends on <!-- id:ZbLY5eTj -->
 
-- [hypermedia-document](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-document) <!-- id:7bov8S7- -->
-- [hypermedia-metadata](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata) <!-- id:3rI0P7tP -->
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:HGDaIkqh -->
+- [hypermedia-document](./hypermedia-document.md) <!-- id:7bov8S7- -->
+- [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:3rI0P7tP -->
+- [string](./onyx-string.md) <!-- id:HGDaIkqh -->
