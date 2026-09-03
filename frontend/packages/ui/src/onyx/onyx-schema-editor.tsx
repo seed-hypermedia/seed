@@ -2,17 +2,22 @@
 // list of fields), NOT as raw schema JSON. A schema carries no name of its own;
 // the defining document names and describes the type. Each field has a
 // name, a kind, and a `required` checkbox (the schema's `required` array is
-// derived from the checkboxes). A "JSON" escape hatch reveals the raw editor for
-// shapes the struct form doesn't cover (unions, generics, nesting). Kept visually
-// minimal and consistent with the value editor that renders the forms this
-// schema defines.
+// derived from the checkboxes). A generic schema lists its type parameters,
+// and a field can take a parameter as its kind. A "JSON" mode is the escape
+// hatch for shapes the struct form doesn't cover (unions, open maps, lists,
+// instantiations): it is the default there, and the form is unavailable so it
+// cannot mangle them. Kept visually minimal and consistent with the value
+// editor that renders the forms this schema defines.
 import {Plus, X} from 'lucide-react'
+import {useEffect, useMemo, useState} from 'react'
 import {Button} from '../button'
 import {Checkbox} from '../components/checkbox'
 import {Input} from '../components/input'
+import {Textarea} from '../components/textarea'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '../select-dropdown'
 import {Tooltip} from '../tooltip'
-import {kindOf, kindUrl, MAP_URL, nameToUrl, refToName, type OnyxSchema} from './onyx-engine'
+import {cn} from '../utils'
+import {kindOf, kindUrl, MAP_URL, nameToUrl, ONYX_SCHEMAS, refToName, validate, type OnyxSchema} from './onyx-engine'
 
 /** The field kinds a struct property can take (friendly labels). */
 const FIELD_KINDS: {kind: string; label: string}[] = [
@@ -30,20 +35,54 @@ const FIELD_KINDS: {kind: string; label: string}[] = [
   {kind: 'map', label: 'Object'},
 ]
 
+/** A type parameter as a field kind: `var:T`. */
+const varKind = (name: string) => `var:${name}`
+/** A field whose schema the form cannot express: shown by name, never rewritten unless a kind is picked. */
+const CUSTOM_KIND = 'custom'
+
 /** The kind a property schema declares (best-effort; defaults to text). */
 function propKind(ps: any): string {
+  if (typeof ps?.var === 'string') return varKind(ps.var)
   const refName = typeof ps?.ref === 'string' ? refToName(ps.ref) : null
   if (ps?.format === 'hm-url' || refName === 'hypermedia-hm-url') return 'hm-url'
   if (ps?.format === 'ipfs' || refName === 'hypermedia-ipfs') return 'ipfs'
   if (ps?.format === 'date' || refName === 'onyx-date') return 'date'
   if (ps?.format === 'date-time' || refName === 'onyx-date-time') return 'date-time'
+  if (ps?.anyOf || ps?.args || ps?.enum) return CUSTOM_KIND
   if (ps?.type) return kindOf(ps.type)
   if (refName?.startsWith('onyx-')) return refName.slice(5)
+  if (refName) return CUSTOM_KIND
   return 'string'
+}
+
+/** What to call a custom field's type: its ref's name, or its shape. */
+function customLabel(ps: any): string {
+  if (typeof ps?.ref === 'string') return refToName(ps.ref)
+  if (ps?.anyOf) return `one of ${ps.anyOf.length}`
+  if (ps?.enum) return 'enum'
+  return 'custom'
+}
+
+/** Whether the struct form can show (and safely rewrite) this schema. */
+export function structFormFits(schema: OnyxSchema): boolean {
+  if (schema.anyOf || schema.items || schema.values || schema.enum || schema.args) return false
+  if (schema.type) return kindOf(schema.type) === 'map'
+  return typeof schema.ref === 'string'
+}
+
+/** Every `{var: from}` in a schema renamed to `to` (or replaced by `to` when it is an object). */
+function replaceVar(node: any, from: string, to: string | OnyxSchema): any {
+  if (Array.isArray(node)) return node.map((n) => replaceVar(n, from, to))
+  if (!node || typeof node !== 'object') return node
+  if (node.var === from && Object.keys(node).length === 1) return typeof to === 'string' ? {var: to} : to
+  const out: Record<string, any> = {}
+  for (const [k, v] of Object.entries(node)) out[k] = replaceVar(v, from, to)
+  return out
 }
 
 /** The property schema for a chosen kind. */
 function kindSchema(kind: string): OnyxSchema {
+  if (kind.startsWith('var:')) return {var: kind.slice(4)}
   if (kind === 'hm-url') return {type: kindUrl('string'), format: 'hm-url'}
   if (kind === 'ipfs') return {type: kindUrl('string'), format: 'ipfs'}
   // The built-in date types are includes of the library schemas, which carry
@@ -55,6 +94,8 @@ function kindSchema(kind: string): OnyxSchema {
   return {type: kindUrl(kind)}
 }
 
+/** The `any` schema: what a type parameter defaults to when nothing narrower is given. */
+const ANY_URL = nameToUrl('onyx-any')!
 /** The signed-blob envelope every Hypermedia blob extends. */
 const SIGNED_BLOB_URL = nameToUrl('hypermedia-blob')!
 /** True when the schema extends the signed-blob envelope. */
@@ -98,7 +139,101 @@ export function withRootKind(schema: OnyxSchema, kind: SchemaRootKind): OnyxSche
   return {...rest, ref: baseRef, properties, required: Array.from(required)}
 }
 
+/** The raw schema as JSON, for shapes the form does not cover. Syntax errors block the commit;
+ * meta-schema violations are advisory, like everywhere else in the editors. */
+function RawSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSchema: (s: OnyxSchema) => void}) {
+  const [text, setText] = useState(() => JSON.stringify(schema, null, 2))
+  const [syntaxError, setSyntaxError] = useState<string | null>(null)
+  // Follow outside changes (the form, a draft reload) while the text still parses to something else.
+  useEffect(() => {
+    try {
+      if (JSON.stringify(JSON.parse(text)) !== JSON.stringify(schema)) setText(JSON.stringify(schema, null, 2))
+    } catch {
+      // the user is mid-edit; keep their text
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schema])
+  const warnings = useMemo(() => {
+    const meta = ONYX_SCHEMAS['onyx-schema']
+    return meta ? validate(meta, schema).slice(0, 5) : []
+  }, [schema])
+  return (
+    <div className="flex flex-col gap-1.5" data-testid="schema-json-editor">
+      <Textarea
+        value={text}
+        spellCheck={false}
+        aria-label="Schema JSON"
+        className="min-h-48 font-mono text-xs"
+        onChange={(e) => {
+          setText(e.target.value)
+          try {
+            const parsed = JSON.parse(e.target.value)
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('a schema is an object')
+            setSyntaxError(null)
+            onSchema(parsed)
+          } catch (err) {
+            setSyntaxError((err as Error).message)
+          }
+        }}
+      />
+      {syntaxError ? (
+        <p className="text-destructive text-xs">{syntaxError}</p>
+      ) : (
+        warnings.map((w) => (
+          <p key={w} className="text-xs text-amber-600">
+            {w}
+          </p>
+        ))
+      )}
+    </div>
+  )
+}
+
 export function OnyxSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSchema: (s: OnyxSchema) => void}) {
+  const fits = structFormFits(schema)
+  const [mode, setMode] = useState<'form' | 'json'>(fits ? 'form' : 'json')
+  const showForm = mode === 'form' && fits
+  const modeToggle = (
+    <div className="flex items-center gap-1 self-end" role="tablist" aria-label="Schema editor mode">
+      {(['form', 'json'] as const).map((m) => (
+        <button
+          key={m}
+          type="button"
+          role="tab"
+          aria-selected={showForm ? m === 'form' : m === 'json'}
+          disabled={m === 'form' && !fits}
+          title={
+            m === 'form' && !fits ? 'This shape (union, list, open map, instantiation) is edited as JSON' : undefined
+          }
+          onClick={() => setMode(m)}
+          className={cn(
+            'rounded px-2 py-0.5 text-xs',
+            (showForm ? m === 'form' : m === 'json') ? 'bg-muted text-foreground' : 'text-muted-foreground',
+            m === 'form' && !fits ? 'cursor-not-allowed opacity-50' : 'hover:text-foreground cursor-pointer',
+          )}
+        >
+          {m === 'form' ? 'Fields' : 'JSON'}
+        </button>
+      ))}
+    </div>
+  )
+  if (!showForm) {
+    return (
+      <div className="flex flex-col gap-2">
+        {modeToggle}
+        <RawSchemaEditor schema={schema} onSchema={onSchema} />
+      </div>
+    )
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      {modeToggle}
+      <StructSchemaForm schema={schema} onSchema={onSchema} />
+    </div>
+  )
+}
+
+function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s: OnyxSchema) => void}) {
   const properties: Record<string, any> = schema.properties ?? {}
   const required = new Set<string>(Array.isArray(schema.required) ? schema.required : [])
   const entries = Object.entries(properties)
@@ -154,6 +289,39 @@ export function OnyxSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSche
     while (name in properties) name = `field${++n}`
     commit({...properties, [name]: kindSchema('string')}, required)
   }
+
+  // Type parameters (`params`): a generic schema names them here and fields
+  // use them as kinds (`{var: T}`). Each has a default — the schema used when an
+  // instantiation binds nothing — a ref, `any` when left blank.
+  const params: Record<string, any> = schema.params ?? {}
+  const paramEntries = Object.entries(params)
+  const setParams = (next: Record<string, any>, body: OnyxSchema = schema) => {
+    const {params: _p, ...rest} = body
+    onSchema(Object.keys(next).length ? {...rest, params: next} : rest)
+  }
+  const addParam = () => {
+    let name = 'T'
+    let n = 1
+    while (name in params) name = `T${++n}`
+    setParams({...params, [name]: {ref: ANY_URL}})
+  }
+  const renameParam = (from: string, to: string) => {
+    const name = to.trim()
+    if (!name || name === from || name in params) return
+    const next: Record<string, any> = {}
+    for (const [k, v] of paramEntries) next[k === from ? name : k] = v
+    setParams(next, replaceVar(schema, from, name))
+  }
+  const setParamDefault = (name: string, ref: string) => {
+    setParams({...params, [name]: {ref: ref.trim() || ANY_URL}})
+  }
+  const removeParam = (name: string) => {
+    const next = {...params}
+    delete next[name]
+    // Fields typed by the parameter fall back to its default.
+    setParams(next, replaceVar(schema, name, params[name] ?? {ref: ANY_URL}))
+  }
+  const fieldKinds = [...FIELD_KINDS, ...paramEntries.map(([name]) => ({kind: varKind(name), label: `⟨${name}⟩`}))]
 
   // What the schema's root IS: a plain struct, the signed-blob envelope, or an
   // extension of any other type (its base named by a raw ref). Fully editable —
@@ -214,6 +382,49 @@ export function OnyxSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSche
         </p>
       </div>
 
+      {
+        <div className="flex flex-col gap-1" data-testid="schema-params">
+          {paramEntries.length > 0 && (
+            <>
+              <label className="text-muted-foreground text-xs font-medium">Type parameters</label>
+              <div className="flex flex-col gap-1.5">
+                {paramEntries.map(([name, def], index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <span className="text-muted-foreground text-xs">⟨</span>
+                    <Input
+                      value={name}
+                      aria-label="Type parameter name"
+                      className="w-32 font-mono text-sm"
+                      onChange={(e) => renameParam(name, e.target.value)}
+                    />
+                    <span className="text-muted-foreground text-xs">⟩ default</span>
+                    <Input
+                      value={typeof def?.ref === 'string' && def.ref !== ANY_URL ? def.ref : ''}
+                      aria-label={`Default type for ${name}`}
+                      placeholder="any (or an hm:// / ipfs:// type)"
+                      className="min-w-64 flex-1 font-mono text-xs"
+                      onChange={(e) => setParamDefault(name, e.target.value)}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="iconSm"
+                      aria-label={`Remove type parameter ${name}`}
+                      onClick={() => removeParam(name)}
+                    >
+                      <X className="size-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          <Button variant="ghost" size="sm" className="text-muted-foreground w-fit gap-1 text-xs" onClick={addParam}>
+            <Plus className="size-3.5" />{' '}
+            {paramEntries.length ? 'Add type parameter' : 'Make generic (add a type parameter)'}
+          </Button>
+        </div>
+      }
+
       <div className="flex flex-col gap-1">
         <label className="text-muted-foreground text-xs font-medium">Fields</label>
         <div className="flex flex-col gap-1.5">
@@ -236,7 +447,12 @@ export function OnyxSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSche
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {FIELD_KINDS.map(({kind, label}) => (
+                    {propKind(ps) === CUSTOM_KIND && (
+                      <SelectItem value={CUSTOM_KIND} disabled>
+                        {customLabel(ps)}
+                      </SelectItem>
+                    )}
+                    {fieldKinds.map(({kind, label}) => (
                       <SelectItem key={kind} value={kind}>
                         {label}
                       </SelectItem>
