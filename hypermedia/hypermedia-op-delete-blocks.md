@@ -1,22 +1,16 @@
 ---
-name: "DeleteBlocks op"
-summary: "Delete blocks by id."
+name: DeleteBlocks op
+summary: Delete blocks by id.
+schemaDefinition: ipfs://bafyreifrmnhg2bof2fjzmca7yweslzcmfcvkejzuhillxl5jgjuu5dzcua
 ---
+This document describes the **hypermedia-op-delete-blocks** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:O5i7-yOi -->
 
-# DeleteBlocks op
+# Shape <!-- id:ZBAbxMDE -->
 
-Delete blocks by id.
+A **closed struct** with these fields: <!-- id:hVjHrQ0n -->
+  - `type` _(required)_ — `string` enum: `DeleteBlocks` <!-- id:zKHm9p4w -->
+  - `blocks` _(required)_ — list of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:C3LbdbSU -->
 
+# Depends on <!-- id:MskatxS8 -->
 
-This document describes the **hypermedia-op-delete-blocks** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type.
-
-## Shape
-
-A **closed struct** with these fields:
-
-- `type` *(required)* — `string` enum: `DeleteBlocks`
-- `blocks` *(required)* — list of [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string)
-
-## Depends on
-
-- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string)
+- [string](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string) <!-- id:_2S5kV0V -->

@@ -39,5 +39,7 @@
     "grantedMembers",
     "members",
     "accounts"
-  ]
+  ],
+  "description": "A document's collaboration picture: the publisher, inherited and directly granted capabilities, effective members, and their metadata. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.",
+  "name": "Collaborators payload"
 }

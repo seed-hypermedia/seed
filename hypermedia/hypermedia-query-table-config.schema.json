@@ -26,5 +26,7 @@
         }
       }
     }
-  }
+  },
+  "description": "Persisted presentation settings for a Query block's Table view: which columns are visible and how wide they are.",
+  "name": "Query table config"
 }

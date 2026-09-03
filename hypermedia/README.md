@@ -129,20 +129,49 @@ validator:
 - **Explorer / data editor** — browse any schema and build a conforming value
   (the published documents are the catalog; any schema opens at `/hm/schema/<cid>`).
 
-## Publishing
+## Publishing and editing
 
-Every `onyx/<name>.json` has a co-located, hand-authorable `onyx/<name>.md`
-explaining the concept. `frontend/apps/cli/src/sync-onyx.ts` publishes, under the
-onyx account: every schema blob (CIDs verified against `schemas.lock.json`), plus
-one document per schema at its public name — a **type** doc gets
-`schemaDefinition` = its CID; an **instance** doc (`{$type, value}`) gets
-`schema` = its `$type`. Narrative pages come from `onyx/site/`.
+Every `<name>.schema.json` has a co-located `<name>.md` explaining the concept;
+narrative pages live in `site/`. This folder and the onyx site are two forms of
+the same content, kept in sync by `frontend/apps/cli/src/sync-hypermedia.ts`:
+
+- **push** verifies every schema against `schemas.lock.json`, publishes the
+  schema blobs, then publishes each markdown file as a document — a **type**
+  doc gets `schemaDefinition` = its CID; an **instance** doc (`{$type, value}`)
+  gets `schema` = its `$type`. A document that already exists is updated in
+  place, block by block; unchanged documents are skipped.
+- **pull** writes every document of the site back here — markdown per document
+  (block ids included), and the schema blob of each type document as its
+  `*.schema.json` — then refreshes the lockfile and the bundled registry.
 
 ```sh
-node scripts/gen-onyx-site.mjs          # scaffold any missing onyx/<name>.md (--force to regenerate)
-cd frontend/apps/cli && bun run src/sync-onyx.ts --dry-run   # preview
-cd frontend/apps/cli && bun run src/sync-onyx.ts             # publish to hyper.media
+cd frontend/apps/cli
+bun run src/sync-hypermedia.ts push --dry-run   # what would change on hyper.media
+bun run src/sync-hypermedia.ts push             # publish (signing key: main)
+bun run src/sync-hypermedia.ts pull             # bring edits made in the Seed app back into git
+bun run src/sync-hypermedia.ts dev              # the local editing loop (see below)  — or: ./dev hm-sync
 ```
+
+**Editing locally.** With the desktop dev app running (`./dev run-desktop`),
+`dev` publishes this folder into the app's own daemon under a throwaway key
+(a mnemonic in `hypermedia/.dev/`, gitignored, created on first use and
+registered in the daemon so the app can edit as that account), opens the site,
+and then watches that daemon: every document you publish in the app is written
+straight back here — markdown, and the schema JSON when a type changed — so
+`git diff` shows your edit within seconds. Nothing reaches hyper.media until you
+`push`. While the loop runs, the app is the writer; hand edits to the files are
+pushed on the next `dev` start (or with `--no-push` skipped altogether).
+
+The markdown is the lossless dialect of `@seed-hypermedia/client`
+(`blocksToMarkdown` / `parseMarkdown`): every block type, annotation, attribute
+and metadata key survives a round trip, so **the Seed app is the editor** — edit
+a page or a schema in the app, publish, `pull`, review the diff, commit. Hand
+edits to the files still work, and `push` diffs them against the live document.
+A new schema starts as a `*.schema.json` plus a doc scaffolded by
+`node scripts/gen-onyx-site.mjs` (prose only — the app renders the shape and
+references from the schema itself); after the first push, `pull` writes the doc
+back with block ids. `seed-cli space export` / `space import` do the same for
+any space.
 
 ---
 

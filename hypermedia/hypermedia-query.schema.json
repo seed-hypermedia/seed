@@ -20,5 +20,7 @@
       "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer",
       "minimum": 0
     }
-  }
+  },
+  "description": "A live document query: which spaces/paths to include, how to sort, and an optional result limit. Embedded in a Query block's attributes; also the input of the Query API.",
+  "name": "Query"
 }
