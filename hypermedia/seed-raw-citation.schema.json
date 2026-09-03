@@ -51,5 +51,7 @@
   },
   "required": [
     "source"
-  ]
+  ],
+  "description": "A citation in raw indexed form, before client-side resolution into a seed-citation. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.",
+  "name": "Raw citation"
 }

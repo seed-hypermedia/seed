@@ -70,5 +70,7 @@
     "key",
     "input",
     "output"
-  ]
+  ],
+  "description": "Pages through the activity feed, with author/type/resource filters. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.",
+  "name": "RPC: ListEvents"
 }

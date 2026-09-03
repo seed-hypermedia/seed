@@ -1,0 +1,28 @@
+---
+name: Hypermedia Permissions System
+summary: A permissions redesign taken seriously - the original idea, its adversarial review against the real codebase, and the rebuilt design where everything is a grant.
+displayAuthor: Eric Vicenti
+---
+This is a design investigation into a permissions and privacy system for Hypermedia content on IPFS. It began as a three-pillar proposal (signed publish envelopes, read capabilities, link-transitive access), which was then torn apart against the actual codebase and prior art, and rebuilt into something smaller and stronger. <!-- id:mwdSU03M -->
+
+# The verdict in four sentences <!-- id:uPvgEtXA -->
+
+**The original proposal was one-third redundant, one-third dangerous, and one-third right.** The "signed publish envelope" already exists — the Ref blob carries CID, signer, timestamp, and visibility, and is already the sole authority on publicness; what's missing is validation around it, not another envelope. Timestamp-ordered semantics would be built on attacker-controlled input that is _already_ the system's live weak point (deletion and visibility are both last-writer-wins on unvalidated timestamps). But read capabilities are a genuine hole — today the only way to let someone read a private doc is to grant them root write on the whole space — and link-transitive access, once restricted to _owner-signed_ structure, is exactly the propagation rule the indexer already runs. <!-- id:EZ9ettDl -->
+
+The rebuild rests on one observation: **the system already has a permissions model that doesn't know it.** The `blob_visibility` table's `space = 0` rows are grants to the audience "everyone"; its `space = N` rows are grants to "members of N." Public was never a different thing from private — just a grant with the widest audience. Making the audience column first-class unifies public publishing, private spaces, document sharing, share links, and comments under a single signed statement kind, with almost every ingredient already in the code. <!-- id:05Ug_JK4 -->
+
+# Reading order <!-- id:MaQz0lAs -->
+
+1. **[How Privacy Works Today](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/permissions-system/current-state)** — the map of what exists: the signed blob kinds, the visibility table and its four propagation rules, read-as-write access checks, filtered sync, and the eight cracks (irreversible publicness, hardcoded-public `CreateRef`, opt-in enforcement, and more). Start here; everything else argues against this baseline. <!-- id:3YG-2Jdv -->
+2. **[Tearing the Proposal Apart](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/permissions-system/critique)** — five attacks on the original pillars, each ending in a verdict. Includes the honest benefit accounting: this is one feature (sharing with outsiders) plus one debt payment (coherent enforcement), not a platform. <!-- id:quSoTmEL -->
+3. **[Permissions Rabbit Holes](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/permissions-system/rabbit-holes)** — the six tar pits (revocation, time, transitive access, history, groups, the query-surface perimeter), ranked by depth, each with its pragmatic escape. The theme: never "solve it," always "choose honest semantics that don't require solving it." <!-- id:NHeUVEWl -->
+4. **[Prior Art for Content Permissions](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/permissions-system/prior-art)** — what UCAN, Tahoe-LAFS, macaroons/Biscuit, Scuttlebutt, Matrix, and object-capability systems each learned the hard way, and the one asymmetry none of them had that we get to exploit. <!-- id:CnCMfRFA -->
+5. **[Everything Is a Grant](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/permissions-system/grants)** — the rebuilt design: one Grant statement kind with first-class audiences, propagation over owner-signed structure, an epoch-based auth chain replacing timestamp ordering, comments unified by audience-reference, an explicit trusted-server model with an encryption slot, and a deliberately small v1. <!-- id:wB1RUGmk -->
+6. **[The V1 Proposal (Archived)](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/permissions-system/v1-proposal)** — the original document, preserved unchanged as the subject of the critique. <!-- id:PCkQJpwI -->
+
+# The three decisions that matter <!-- id:5Tw-zVZS -->
+
+If you read nothing else, these are the load-bearing choices, argued across the docs above: <!-- id:QXbl6G3r -->
+  - **Ordering by DAG position, never by timestamp.** Grants, revocations, visibility changes, and deletions order by epoch in a signed auth chain (promoting Ref's existing `generation` field). Timestamps become advisory. This one choice resolves the revocation, time, and membership rabbit holes — and fixes two live bugs. <!-- id:tf2bQdEW -->
+  - **Grants cover the owner's bundle.** Access propagates only through owner-signed structure (the existing rule table), never through bare CID mentions. One sentence of fence separates the system's most elegant rule from an access-laundering machine. <!-- id:7Pqxzyo2 -->
+  - **Trusted-server enforcement, stated honestly.** Grants constrain what honest servers serve; they are not cryptographic secrecy, and the UI must say so. The Grant schema carries an unused wrapped-key slot so encryption can arrive later as a layer, not a redesign. <!-- id:KG4RF43g -->
