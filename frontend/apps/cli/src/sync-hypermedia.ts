@@ -4,7 +4,7 @@
  *   cd frontend/apps/cli
  *   bun run src/sync-hypermedia.ts push [--dry-run] [--server <url>] [--key <name>]
  *   bun run src/sync-hypermedia.ts pull [--server <url>] [--space <uid>]
- *   bun run src/sync-hypermedia.ts dev  [--api <url>] [--daemon <url>] [--interval <ms>] [--no-push]
+ *   bun run src/sync-hypermedia.ts dev  [--api <url>] [--daemon <url>] [--interval <ms>] [--no-push] [--no-watch]
  *
  * This is `seed-cli space import / export / dev` (utils/space-sync.ts) with the
  * folder's own layout on top (see `layout` below): one flat directory holding
@@ -206,6 +206,7 @@ async function dev(args: string[]) {
     daemonUrl: argValue(args, '--daemon') ?? 'http://localhost:58001',
     intervalMs: Number(argValue(args, '--interval') ?? 2000),
     push: !args.includes('--no-push'),
+    watchFiles: !args.includes('--no-watch'),
     layout,
     beforePush: async ({client}) => {
       const blobs = await loadSchemaBlobs()
@@ -214,6 +215,11 @@ async function dev(args: string[]) {
     },
     onWritten: (files) => {
       if (files.some((f) => f.endsWith('.schema.json'))) refreshSchemaArtifacts()
+    },
+    // A schema edited on disk was pushed with its new CID; keep the lockfile and registry in step.
+    onPushed: (files) => {
+      if (files.some((f) => existsSync(resolve(SCHEMAS_DIR, f.replace(/\.md$/, '.schema.json')))))
+        refreshSchemaArtifacts()
     },
   })
 }
