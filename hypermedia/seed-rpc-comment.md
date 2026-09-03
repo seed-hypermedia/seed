@@ -1,7 +1,7 @@
 ---
 name: "RPC: Comment"
 summary: "Fetches one comment by id or version CID. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `"
-schemaDefinition: ipfs://bafyreife2khl6gi7wdesrm4w2krtlh4amytefk32tptt5xwdc2wglyucwa
+schemaDefinition: ipfs://bafyreibweqbzmvzgu5lrfhwdh3h7krqfbf5rucanxn2ln6hojwee73go3e
 ---
 Fetches one comment by id or version CID. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:iF3gr7CN -->
 

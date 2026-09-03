@@ -1,7 +1,7 @@
 ---
 name: "RPC: QueryBlock"
 summary: "Runs a Query block's query and returns everything its rendering needs. One method of the Seed universal-client API: `request(key, input) -> output`. The `input`"
-schemaDefinition: ipfs://bafyreicjc4wwp6x45pylwfxrvdv33fbaw5y6yoohnfq6cqij2wmnu6qai4
+schemaDefinition: ipfs://bafyreiecu2pyb5ddu5dckljggksqb5agboj6nwo36sz4dv2zw4jzdx57mm
 ---
 Runs a Query block's query and returns everything its rendering needs. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:9vWOoz-M -->
 

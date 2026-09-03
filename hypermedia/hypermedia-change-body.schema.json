@@ -20,7 +20,5 @@
     "Block": {
       "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block"
     }
-  },
-  "description": "The operations payload of a Change: an operation count hint and the list of ops.",
-  "name": "Change body"
+  }
 }

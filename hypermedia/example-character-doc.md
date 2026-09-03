@@ -1,7 +1,7 @@
 ---
 name: Character
 summary: "A world-builder kit type: a page about a character. Extends the base document; its metadata requires a `born` date and a `role`, and links the character to a ho"
-schemaDefinition: ipfs://bafyreibuzqvotme3rl4f5tlwxu6srjtkexujkbfy6hwm5vbsuzkkxvutoi
+schemaDefinition: ipfs://bafyreibakwjv2w6ww5z3h6u7znszbqcm6fkf24ub4ruwiopx5owrce2a2y
 ---
 A world-builder kit type: a page about a character. Extends the base document; its metadata requires a `born` date and a `role`, and links the character to a home place, a faction, a portrait file, and a stats object (an `ipfs://` object that must conform to `example-stats`). `notes` is an untyped object link — any DAG-CBOR value. <!-- id:QPklbVhv -->
 

@@ -32,7 +32,7 @@ describe('OnyxSchemaPage renders every schema shape without crashing', () => {
 
   it('a primitive (self-grounding axiom)', () => {
     renderPage('onyx-string')
-    expect(container.textContent).toContain('primitive')
+    expect(container.textContent).toContain('Core Type')
   })
 
   it('a meta variant', () => {

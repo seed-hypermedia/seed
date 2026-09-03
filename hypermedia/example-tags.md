@@ -1,7 +1,7 @@
 ---
 name: "Example: Tags"
 summary: A list of string tags — List<String>.
-schemaDefinition: ipfs://bafyreigadup6npciyoxyz3qifoyaj5e6vptyxe6ogikwaeez2ieyl7usry
+schemaDefinition: ipfs://bafyreicc6aduoi5rz2vwaxq2phsvuvgnht2vlpfxnedtfmwnbzbp6ft3c4
 ---
 This document describes the **example-tags** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:cATUti10 -->
 

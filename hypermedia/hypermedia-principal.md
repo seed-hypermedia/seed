@@ -1,7 +1,7 @@
 ---
 name: Principal
 summary: A public key identifying an account, agent, or space — raw CBOR bytes (a packed multicodec key).
-schemaDefinition: ipfs://bafyreidwhumx4fmlxqhsvnismkfj5zr4ef7frhhgfgreo7oyilkvcbcgxe
+schemaDefinition: ipfs://bafyreieh5g5sddxixgeh6lr5ovt6tkekl2naovj4jehsz22olecmfqlxui
 ---
 This document describes the **hypermedia-principal** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:nSTESG7U -->
 
