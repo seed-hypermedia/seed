@@ -268,7 +268,7 @@ describe('queryQueryBlock', () => {
     const input = {
       query: {
         includes: [{space: docA.uid, path: '/old-name', mode: 'Children' as const}],
-        sort: [{term: 'UpdateTime' as const, reverse: false}],
+        sort: [{key: 'updated', reverse: true}],
         limit: 10,
       },
     }

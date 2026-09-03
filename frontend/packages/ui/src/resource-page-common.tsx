@@ -10,6 +10,7 @@ import {
   HMQueryTableConfig,
   HMRawCitation,
   HMResource,
+  normalizeQuerySort,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {
@@ -3414,7 +3415,7 @@ function DocumentCollection({
   }, [docId.path, docId.uid, props?.queryIncludes])
   const querySort = useMemo(() => {
     try {
-      return JSON.parse(props?.querySort || '[]')
+      return normalizeQuerySort(JSON.parse(props?.querySort || '[]'))
     } catch {
       return []
     }
@@ -3459,14 +3460,11 @@ function DocumentCollection({
       send({
         type: 'collection.query.change',
         props: {
-          tableConfig: JSON.stringify({
-            columns: tableConfig?.columns ?? [],
-            sorting,
-          }),
+          querySort: JSON.stringify(sorting.map(({id, desc}) => ({key: id, reverse: desc}))),
         },
       })
     },
-    [canEdit, beginEditIfNeeded, send, tableConfig?.columns],
+    [canEdit, beginEditIfNeeded, send],
   )
 
   return (
@@ -3515,6 +3513,7 @@ function DocumentCollection({
           isDiscovering={query.isLoading}
           tableConfig={tableConfig}
           onTableConfigChange={handleTableConfigChange}
+          tableSorting={querySort.map(({key, reverse}) => ({id: key, desc: reverse}))}
           onTableSortingChange={handleTableSortingChange}
           navigateCards
         />
@@ -3532,12 +3531,12 @@ function CollectionQuerySettings({
 }) {
   const querySort = useMemo(() => {
     try {
-      return JSON.parse(props?.querySort || '[]')
+      return normalizeQuerySort(JSON.parse(props?.querySort || '[]'))
     } catch {
       return []
     }
   }, [props?.querySort])
-  const currentSort = querySort[0] || {term: 'UpdateTime', reverse: false}
+  const currentSort = querySort[0] || {key: 'updated', reverse: true}
   const limit = props?.queryLimit || ''
   const columnCount = props?.columnCount || '3'
   const banner = props?.banner === 'true'
@@ -3548,19 +3547,19 @@ function CollectionQuerySettings({
         id="query-sort-term"
         label="Sort by"
         options={[
-          {value: 'UpdateTime', label: 'Last Modified'},
-          {value: 'CreateTime', label: 'Created'},
-          {value: 'Name', label: 'Name'},
+          {value: 'updated', label: 'Last Modified'},
+          {value: 'created', label: 'Created'},
+          {value: 'title', label: 'Name'},
         ]}
-        value={currentSort.term}
-        onValue={(value) => onChange({querySort: JSON.stringify([{term: value, reverse: currentSort.reverse}])})}
+        value={currentSort.key}
+        onValue={(value) => onChange({querySort: JSON.stringify([{key: value, reverse: currentSort.reverse}])})}
       />
       <div className="flex gap-2">
         <Button
           variant={!currentSort.reverse ? 'secondary' : 'outline'}
           size="sm"
           className="flex-1"
-          onClick={() => onChange({querySort: JSON.stringify([{term: currentSort.term, reverse: false}])})}
+          onClick={() => onChange({querySort: JSON.stringify([{key: currentSort.key, reverse: false}])})}
         >
           Asc
         </Button>
@@ -3568,7 +3567,7 @@ function CollectionQuerySettings({
           variant={currentSort.reverse ? 'secondary' : 'outline'}
           size="sm"
           className="flex-1"
-          onClick={() => onChange({querySort: JSON.stringify([{term: currentSort.term, reverse: true}])})}
+          onClick={() => onChange({querySort: JSON.stringify([{key: currentSort.key, reverse: true}])})}
         >
           Desc
         </Button>

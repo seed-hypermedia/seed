@@ -57,6 +57,9 @@ const HMQueryTableColumnSchema = z.object({
 
 const HMQueryTableConfigSchema = z.object({
   columns: z.array(HMQueryTableColumnSchema),
+  // Legacy `sorting` field from the pre-unification table config. Sort now lives
+  // in the query's `sort` field; this is tolerated (and ignored) so old
+  // persisted documents still validate without crashing.
   sorting: z.array(z.object({id: z.string(), desc: z.boolean()})).optional(),
 })
 
@@ -847,17 +850,56 @@ export const HMQueryInclusionSchema = z.object({
   mode: z.union([z.literal('Children'), z.literal('AllDescendants')]),
 })
 
-export const HMQuerySortSchema = z.object({
-  reverse: z.boolean().default(false),
-  term: z.union([
-    z.literal('Path'),
-    z.literal('Title'),
-    z.literal('CreateTime'),
-    z.literal('UpdateTime'),
-    z.literal('DisplayTime'),
-    z.literal('ActivityTime'),
-  ]),
-})
+// Legacy `querySort` terms from before sort was unified on `{key, reverse}`.
+// Maps each term to its canonical sort key (see QueryBlockSortKey in @shm/shared).
+const legacySortTermToKey: Record<string, string> = {
+  Title: 'title',
+  Path: 'path',
+  CreateTime: 'created',
+  UpdateTime: 'updated',
+  DisplayTime: 'displayTime',
+  ActivityTime: 'activity',
+}
+
+// Legacy time-based terms sorted newest-first by default, so their `reverse`
+// flag was inverted relative to the unified `reverse` (descending) semantics.
+const legacyTimeSortTerms = new Set(['CreateTime', 'UpdateTime', 'DisplayTime', 'ActivityTime'])
+
+/**
+ * Normalizes one sort entry from either the legacy `{term, reverse}` shape or
+ * the canonical `{key, reverse}` shape. Time-based legacy terms sorted
+ * newest-first by default, so their `reverse` flag is flipped to match the
+ * unified `reverse` (descending) semantics.
+ */
+export function normalizeQuerySortEntry(entry: {key?: string; term?: string; reverse?: boolean}): {
+  key: string
+  reverse: boolean
+} {
+  const key = entry.key ?? (entry.term ? legacySortTermToKey[entry.term] ?? entry.term : undefined)
+  let reverse = entry.reverse ?? false
+  if (entry.term && !entry.key && legacyTimeSortTerms.has(entry.term)) {
+    reverse = !reverse
+  }
+  return {key: key ?? 'updated', reverse}
+}
+
+/** Normalizes a whole sort array, tolerating legacy `{term, reverse}` entries. */
+export function normalizeQuerySort(sort: Array<{key?: string; term?: string; reverse?: boolean}> | undefined): {
+  key: string
+  reverse: boolean
+}[] {
+  if (!Array.isArray(sort)) return []
+  return sort.map(normalizeQuerySortEntry)
+}
+
+export const HMQuerySortSchema = z
+  .object({
+    key: z.string().optional(),
+    // Legacy term field, accepted and normalized into `key`.
+    term: z.string().optional(),
+    reverse: z.boolean().optional(),
+  })
+  .transform(normalizeQuerySortEntry)
 export type HMQuerySort = z.infer<typeof HMQuerySortSchema>
 
 export const HMQuerySchema = z.object({

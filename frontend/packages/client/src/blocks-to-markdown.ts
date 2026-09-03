@@ -18,6 +18,7 @@
  * `{ipfsGateway: false}` to keep `ipfs://` links verbatim.
  */
 
+import {stringify as stringifyYaml} from 'yaml'
 import type {SeedClient} from './client'
 import type {
   HMAnnotation,
@@ -28,8 +29,7 @@ import type {
   HMMetadata,
   UnpackedHypermediaId,
 } from './hm-types'
-import {unpackHmId} from './hm-types'
-import {stringify as stringifyYaml} from 'yaml'
+import {normalizeQuerySort, unpackHmId} from './hm-types'
 
 // ─── Options ─────────────────────────────────────────────────────────────────
 
@@ -969,18 +969,17 @@ async function resolveQuery(block: HMBlock, depth: number, ctx: ResolveContext):
   const ind = resolvedIndent(depth)
 
   try {
-    type SortTerm = 'Path' | 'Title' | 'CreateTime' | 'UpdateTime' | 'DisplayTime'
     const attrs = (block as {attributes?: Record<string, unknown>}).attributes
     const queryConfig = attrs?.query as
       | {
           includes?: Array<{space: string; path?: string; mode?: string}>
-          sort?: Array<{term: SortTerm; reverse?: boolean}>
+          sort?: Array<{key?: string; term?: string; reverse?: boolean}>
           limit?: number
         }
       | undefined
 
     let includes: Array<{space: string; path?: string; mode: 'Children' | 'AllDescendants'}>
-    let sort: Array<{term: SortTerm; reverse: boolean}> | undefined
+    let sort: Array<{key: string; reverse: boolean}> | undefined
     let limit: number | undefined
 
     if (queryConfig?.includes) {
@@ -989,7 +988,7 @@ async function resolveQuery(block: HMBlock, depth: number, ctx: ResolveContext):
         path: inc.path,
         mode: (inc.mode as 'Children' | 'AllDescendants') || 'Children',
       }))
-      sort = queryConfig.sort?.map((s) => ({term: s.term, reverse: s.reverse ?? false}))
+      sort = normalizeQuerySort(queryConfig.sort)
       limit = queryConfig.limit
     } else {
       const space = (attrs?.space as string) || ''
@@ -1006,7 +1005,7 @@ async function resolveQuery(block: HMBlock, depth: number, ctx: ResolveContext):
 
     const results = await ctx.client.request('Query', {
       includes,
-      sort: sort || [{term: 'UpdateTime', reverse: true}],
+      sort: sort?.length ? sort : [{key: 'updated', reverse: true}],
       limit: limit || 10,
     })
 

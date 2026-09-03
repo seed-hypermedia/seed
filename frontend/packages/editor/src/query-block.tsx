@@ -1,5 +1,10 @@
 import {EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
-import {HMBlockQuery, HMQueryTableConfig, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {
+  HMBlockQuery,
+  HMQueryTableConfig,
+  UnpackedHypermediaId,
+  normalizeQuerySort,
+} from '@seed-hypermedia/client/hm-types'
 import {entityQueryPathToHmIdPath} from '@shm/shared'
 import {queryQueryBlock} from '@shm/shared/models/queries'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
@@ -89,7 +94,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   }, [block.props.queryIncludes])
 
   const querySort = useMemo(() => {
-    return JSON.parse(block.props.querySort || defaultQuerySort)
+    return normalizeQuerySort(JSON.parse(block.props.querySort || defaultQuerySort))
   }, [block.props.querySort])
 
   const banner = block.props.banner === 'true'
@@ -165,13 +170,10 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         navigateCards
         tableConfig={tableConfig}
         onTableConfigChange={(config) => assign({tableConfig: JSON.stringify(config)})}
-        tableSorting={tableConfig?.sorting}
+        tableSorting={querySort.map(({key, reverse}) => ({id: key, desc: reverse}))}
         onTableSortingChange={(sorting) => {
           assign({
-            tableConfig: JSON.stringify({
-              columns: tableConfig?.columns ?? [],
-              sorting,
-            }),
+            querySort: JSON.stringify(sorting.map(({id, desc}) => ({key: id, reverse: desc}))),
           })
         }}
       />
@@ -410,12 +412,12 @@ function QuerySettings({
               />
               <SelectField
                 // @ts-ignore
-                value={querySort[0].term}
+                value={querySort[0].key}
                 onValue={(value) => {
                   let newVal = [
                     {
                       ...querySort[0],
-                      term: value,
+                      key: value,
                     },
                   ]
                   onValuesChange({
@@ -429,11 +431,11 @@ function QuerySettings({
                 label="Sort by"
                 id="sort"
                 options={[
-                  {label: 'Update time', value: 'UpdateTime'},
-                  {label: 'Create time', value: 'CreateTime'},
-                  {label: 'Display time', value: 'DisplayTime'},
-                  {label: 'Latest activity', value: 'ActivityTime'},
-                  {label: 'By Title', value: 'Title'},
+                  {label: 'Update time', value: 'updated'},
+                  {label: 'Create time', value: 'created'},
+                  {label: 'Display time', value: 'displayTime'},
+                  {label: 'Latest activity', value: 'activity'},
+                  {label: 'By Title', value: 'title'},
                 ]}
               />
               {block.props.style == 'Card' ? (

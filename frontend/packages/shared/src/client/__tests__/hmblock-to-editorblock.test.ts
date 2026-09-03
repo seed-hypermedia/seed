@@ -869,13 +869,13 @@ describe('HMBlock to EditorBlock', () => {
         type: 'Query',
         text: ``,
         annotations: [],
-        // @ts-expect-error
         attributes: {
           style: 'Card',
           columnCount: 1,
+          banner: false,
           query: {
             includes: [{space: 'FOO_SPACE', path: '', mode: 'Children'}],
-            sort: [{term: 'UpdateTime', reverse: false}],
+            sort: [{key: 'updated', reverse: true}],
           },
         },
         revision: 'revision123',
@@ -894,7 +894,7 @@ describe('HMBlock to EditorBlock', () => {
         ],
         props: {
           queryIncludes: '[{"space":"FOO_SPACE","path":"","mode":"Children"}]',
-          querySort: '[{"term":"UpdateTime","reverse":false}]',
+          querySort: '[{"key":"updated","reverse":true}]',
           queryLimit: '',
           style: 'Card',
           columnCount: '1',

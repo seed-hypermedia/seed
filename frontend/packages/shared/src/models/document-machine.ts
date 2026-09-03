@@ -45,7 +45,7 @@ export function createDefaultCollectionQueryBlock(blockId: string): EditorQueryB
       columnCount: '3',
       queryLimit: '',
       queryIncludes: JSON.stringify([{space: '', path: '', mode: 'Children'}]),
-      querySort: JSON.stringify([{term: 'UpdateTime', reverse: false}]),
+      querySort: JSON.stringify([{key: 'updated', reverse: true}]),
       defaultOpen: 'true',
       tableConfig: '',
     },

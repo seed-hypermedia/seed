@@ -751,6 +751,10 @@ func documentFilterSQL(filter *documents.DocumentFilter, args *colx.Slice[any], 
 	}
 }
 
+// documentNameSortSQL sorts by the document's "name" attribute, matching the
+// ListDirectory NAME ordering.
+const documentNameSortSQL = "COALESCE((SELECT value FROM document_attributes da WHERE da.resource = dg.resource AND da.key = (SELECT id FROM document_attribute_keys WHERE key = 'name') AND da.kind = 's'), '')"
+
 func documentSortSQL(sort []*documents.DocumentSort, args *colx.Slice[any]) (string, error) {
 	if len(sort) == 0 {
 		return "r.iri ASC", nil
@@ -760,17 +764,47 @@ func documentSortSQL(sort []*documents.DocumentSort, args *colx.Slice[any]) (str
 	}
 	parts := make([]string, 0, len(sort)+1)
 	for _, item := range sort {
-		if item == nil || item.Key == "" {
-			return "", status.Error(codes.InvalidArgument, "sort attribute key is required")
+		if item == nil {
+			return "", status.Error(codes.InvalidArgument, "sort attribute is required")
 		}
-		args.Append(item.Key)
+		expr, err := documentSortExprSQL(item, args)
+		if err != nil {
+			return "", err
+		}
 		direction := "ASC"
 		if item.Descending {
 			direction = "DESC"
 		}
-		parts = append(parts, "(SELECT value FROM document_attributes da WHERE da.resource = dg.resource AND da.key = (SELECT id FROM document_attribute_keys WHERE key = ?)) "+direction)
+		parts = append(parts, expr+" "+direction)
 	}
 	return strings.Join(append(parts, "r.iri ASC"), ", "), nil
+}
+
+// documentSortExprSQL returns the SQL expression a single DocumentSort orders
+// by. Built-in fields take precedence over the user-defined attribute key.
+func documentSortExprSQL(item *documents.DocumentSort, args *colx.Slice[any]) (string, error) {
+	switch item.Attribute {
+	case documents.BuiltinSortAttribute_BUILTIN_SORT_ATTRIBUTE_UNSPECIFIED:
+		if item.Key == "" {
+			return "", status.Error(codes.InvalidArgument, "sort attribute key is required")
+		}
+		args.Append(item.Key)
+		return "(SELECT value FROM document_attributes da WHERE da.resource = dg.resource AND da.key = (SELECT id FROM document_attribute_keys WHERE key = ?))", nil
+	case documents.BuiltinSortAttribute_BUILTIN_SORT_ATTRIBUTE_NAME:
+		return documentNameSortSQL, nil
+	case documents.BuiltinSortAttribute_BUILTIN_SORT_ATTRIBUTE_PATH:
+		return "r.iri", nil
+	case documents.BuiltinSortAttribute_BUILTIN_SORT_ATTRIBUTE_CREATE_TIME:
+		return "dg.genesis_change_time", nil
+	case documents.BuiltinSortAttribute_BUILTIN_SORT_ATTRIBUTE_UPDATE_TIME:
+		return "dg.last_change_time", nil
+	case documents.BuiltinSortAttribute_BUILTIN_SORT_ATTRIBUTE_ACTIVITY_TIME:
+		return "activity_time", nil
+	case documents.BuiltinSortAttribute_BUILTIN_SORT_ATTRIBUTE_COMMENT_COUNT:
+		return "comment_count", nil
+	default:
+		return "", status.Errorf(codes.InvalidArgument, "unsupported sort attribute %v", item.Attribute)
+	}
 }
 
 // emitTelemetry records a single checkpoint for the given hm:// URL.

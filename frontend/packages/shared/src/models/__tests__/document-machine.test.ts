@@ -138,7 +138,6 @@ describe('document collection helpers', () => {
     actor.send({type: 'collection.convertToCollection'})
     const tableConfig = JSON.stringify({
       columns: [{id: 'title', visible: true}],
-      sorting: [{id: 'title', desc: true}],
     })
     actor.send({type: 'collection.query.change', props: {tableConfig}})
 
@@ -149,7 +148,7 @@ describe('document collection helpers', () => {
         props: expect.objectContaining({
           style: 'Table',
           queryIncludes: JSON.stringify([{space: '', path: '', mode: 'Children'}]),
-          querySort: JSON.stringify([{term: 'UpdateTime', reverse: false}]),
+          querySort: JSON.stringify([{key: 'updated', reverse: true}]),
           tableConfig,
         }),
       }),

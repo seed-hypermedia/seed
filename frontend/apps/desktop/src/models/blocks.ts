@@ -167,7 +167,7 @@ function isQueryEqual(q1?: HMQuery, q2?: HMQuery): boolean {
 
     if (!sort1 || !sort2) return false
     if (sort1.reverse !== sort2.reverse) return false
-    if (sort1.term !== sort2.term) return false
+    if (sort1.key !== sort2.key) return false
   }
   return true
 }

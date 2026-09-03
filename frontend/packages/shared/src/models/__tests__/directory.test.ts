@@ -67,7 +67,7 @@ describe('createQueryResolver', () => {
 
     const result = await resolver({
       includes: [{space: 'alice', path: '/projects', mode: 'Children'}],
-      sort: [{term: 'ActivityTime', reverse: false}],
+      sort: [{key: 'activity', reverse: true}],
     })
 
     expect(listDirectory).toHaveBeenCalledWith({
@@ -104,7 +104,7 @@ describe('createQueryResolver', () => {
 
     const result = await resolver({
       includes: [{space: 'alice', path: '/projects', mode: 'AllDescendants'}],
-      sort: [{term: 'UpdateTime', reverse: false}],
+      sort: [{key: 'updated', reverse: true}],
     })
 
     expect(listDirectory).toHaveBeenCalledWith({

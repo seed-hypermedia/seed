@@ -54,6 +54,86 @@ func TestDocumentSortLimit(t *testing.T) {
 	require.ErrorContains(t, err, "at most 16 sort attributes are supported")
 }
 
+func TestDocumentSortSQLBuiltin(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		sort      *documents.DocumentSort
+		wantExpr  string
+		wantArgs  int
+		wantError codes.Code
+	}{
+		{
+			name:     "name",
+			sort:     &documents.DocumentSort{Attribute: documents.BuiltinSortAttribute_BUILTIN_SORT_ATTRIBUTE_NAME},
+			wantExpr: documentNameSortSQL,
+		},
+		{
+			name:     "path",
+			sort:     &documents.DocumentSort{Attribute: documents.BuiltinSortAttribute_BUILTIN_SORT_ATTRIBUTE_PATH},
+			wantExpr: "r.iri",
+		},
+		{
+			name:     "create time",
+			sort:     &documents.DocumentSort{Attribute: documents.BuiltinSortAttribute_BUILTIN_SORT_ATTRIBUTE_CREATE_TIME},
+			wantExpr: "dg.genesis_change_time",
+		},
+		{
+			name:     "update time",
+			sort:     &documents.DocumentSort{Attribute: documents.BuiltinSortAttribute_BUILTIN_SORT_ATTRIBUTE_UPDATE_TIME},
+			wantExpr: "dg.last_change_time",
+		},
+		{
+			name:     "activity time",
+			sort:     &documents.DocumentSort{Attribute: documents.BuiltinSortAttribute_BUILTIN_SORT_ATTRIBUTE_ACTIVITY_TIME},
+			wantExpr: "activity_time",
+		},
+		{
+			name:     "comment count",
+			sort:     &documents.DocumentSort{Attribute: documents.BuiltinSortAttribute_BUILTIN_SORT_ATTRIBUTE_COMMENT_COUNT},
+			wantExpr: "comment_count",
+		},
+		{
+			name:     "attribute key",
+			sort:     &documents.DocumentSort{Key: "priority"},
+			wantExpr: "(SELECT value FROM document_attributes da WHERE da.resource = dg.resource AND da.key = (SELECT id FROM document_attribute_keys WHERE key = ?))",
+			wantArgs: 1,
+		},
+		{
+			name:      "missing key",
+			sort:      &documents.DocumentSort{},
+			wantError: codes.InvalidArgument,
+		},
+		{
+			name:      "unknown builtin",
+			sort:      &documents.DocumentSort{Attribute: documents.BuiltinSortAttribute(99)},
+			wantError: codes.InvalidArgument,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			args := colx.Slice[any]{}
+			sql, err := documentSortSQL([]*documents.DocumentSort{tc.sort}, &args)
+			if tc.wantError != codes.OK {
+				require.Equal(t, tc.wantError, status.Code(err))
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, args, tc.wantArgs)
+			require.Contains(t, sql, tc.wantExpr)
+			require.Contains(t, sql, "ASC")
+		})
+	}
+
+	// Descending direction is honored.
+	args := colx.Slice[any]{}
+	sql, err := documentSortSQL([]*documents.DocumentSort{{Attribute: documents.BuiltinSortAttribute_BUILTIN_SORT_ATTRIBUTE_UPDATE_TIME, Descending: true}}, &args)
+	require.NoError(t, err)
+	require.Contains(t, sql, "dg.last_change_time DESC")
+}
+
 func TestDocumentChangePublishing(t *testing.T) {
 	t.Parallel()
 

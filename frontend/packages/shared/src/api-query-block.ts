@@ -1,14 +1,17 @@
 import {
   HMAccountsMetadata,
+  HMDocumentInfo,
+  HMQuery,
   HMQueryBlockItemSummary,
   HMQueryBlockRequest,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {GRPCClient} from './grpc-client'
 import {hmIdPathToEntityQueryPath} from './utils/path-api'
-import {hmId} from './utils'
+import {entityQueryPathToHmIdPath, hmId} from './utils'
 import {HMRequestImplementation} from './api-types'
-import {createQueryResolver} from './models/directory'
+import {queryToQueryDocumentsRequest} from './models/query-block-sort'
+import {prepareHMDocumentInfo} from './models/entity'
 import {loadAccount} from './api-account'
 
 function readMetadataStringField(
@@ -148,6 +151,41 @@ async function loadVisibleAccountsMetadata(
 }
 
 /**
+ * Resolves query-block results through the QueryDocuments API, preserving the
+ * previous resolver's semantics: the target document itself is excluded and, in
+ * "Children" mode, only direct children are kept.
+ */
+async function resolveQueryDocuments(
+  grpcClient: GRPCClient,
+  query: HMQuery,
+): Promise<{in: UnpackedHypermediaId; results: HMDocumentInfo[]; mode: 'Children' | 'AllDescendants'} | null> {
+  const request = queryToQueryDocumentsRequest(query)
+  if (!request) return null
+  const include = query.includes[0]!
+  const inId = hmId(include.space, {path: entityQueryPathToHmIdPath(include.path)})
+  if (!inId) return null
+
+  const documents: HMDocumentInfo[] = []
+  let pageToken = ''
+  do {
+    request.pageToken = pageToken
+    const response = await grpcClient.documents.queryDocuments(request)
+    documents.push(...response.documents.map((doc) => prepareHMDocumentInfo(doc)))
+    pageToken = response.nextPageToken || ''
+  } while (pageToken)
+
+  const mode = include.mode
+  const results = documents.filter((doc: HMDocumentInfo) => {
+    if (doc.id.id === inId.id) return false
+    if (!doc.id.id.startsWith(inId.id)) return false
+    if (mode === 'Children') return (doc.id.path?.length || 0) === (inId.path?.length || 0) + 1
+    return true
+  })
+
+  return {in: inId, results, mode}
+}
+
+/**
  * Loads everything needed to render a query block in one API request.
  */
 export const QueryBlock: HMRequestImplementation<HMQueryBlockRequest> = {
@@ -171,10 +209,8 @@ export const QueryBlock: HMRequestImplementation<HMQueryBlockRequest> = {
     const instrumentedGrpcClient = createInstrumentedGRPCClient(grpcClient, perf.grpcRequests)
 
     try {
-      const getQueryResults = createQueryResolver(instrumentedGrpcClient)
-
       const queryResolverStartedAt = now()
-      const queryResult = await getQueryResults(input.query)
+      const queryResult = await resolveQueryDocuments(instrumentedGrpcClient, input.query)
       perf.phaseDurationsMs.queryResolver += now() - queryResolverStartedAt
       if (!queryResult) {
         perf.status = 'empty'

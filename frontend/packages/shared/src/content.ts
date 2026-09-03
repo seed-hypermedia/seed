@@ -116,24 +116,12 @@ export function getAccountName(document: HMDocument | null | undefined) {
   return '?'
 }
 
-function lastUpdateSort(a: HMDocumentInfo, b: HMDocumentInfo) {
-  return lastUpdateOfEntry(b) - lastUpdateOfEntry(a)
-}
-
 function lastUpdateOfEntry(entry: HMDocumentInfo) {
   return normalizeDate(entry.updateTime)?.getTime() || 0
 }
 
-function createTimeSort(a: HMDocumentInfo, b: HMDocumentInfo) {
-  return createTimeOfEntry(b) - createTimeOfEntry(a)
-}
-
 function createTimeOfEntry(entry: HMDocumentInfo) {
   return normalizeDate(entry.createTime)?.getTime() || 0
-}
-
-function displayPublishTimeSort(a: HMDocumentInfo, b: HMDocumentInfo) {
-  return displayPublishTimeOfEntry(b) - displayPublishTimeOfEntry(a)
 }
 
 function displayPublishTimeOfEntry(entry: HMDocumentInfo): number {
@@ -152,18 +140,8 @@ function activityTimeOfEntry(entry: HMDocumentInfo): number {
   return Math.max(changeTime, commentTime) || normalizeDate(entry.updateTime)?.getTime() || 0
 }
 
-function activityTimeSort(a: HMDocumentInfo, b: HMDocumentInfo) {
-  return activityTimeOfEntry(b) - activityTimeOfEntry(a)
-}
-
 function titleOfEntry(entry: HMDocumentInfo) {
   return entry.metadata.name
-}
-
-function titleSort(ea: HMDocumentInfo, eb: HMDocumentInfo) {
-  const a = titleOfEntry(ea) || ''
-  const b = titleOfEntry(eb) || ''
-  return a.localeCompare(b, undefined, {sensitivity: 'base'})
 }
 
 export function queryBlockSortedItems({
@@ -173,39 +151,39 @@ export function queryBlockSortedItems({
   entries: Array<HMDocumentInfo>
   sort: NonNullable<HMBlockQuery['attributes']['query']['sort']>
 }) {
-  let res: Array<HMDocumentInfo> = []
-  if (!entries) return res
+  if (!entries?.length) return entries ?? []
+  if (sort.length !== 1) return entries
+  const rule = sort[0]
+  if (!rule) return entries
+  const {key, reverse} = rule
 
-  if (sort.length !== 1) return res
-
-  const sortTerm = sort?.[0]?.term
-
-  if (sortTerm == 'Title') {
-    res = [...entries].sort(titleSort)
+  const valueOf = (entry: HMDocumentInfo): string | number => {
+    switch (key) {
+      case 'title':
+        return titleOfEntry(entry) || ''
+      case 'path':
+        return entry.path?.join('/') || ''
+      case 'created':
+        return createTimeOfEntry(entry)
+      case 'updated':
+        return lastUpdateOfEntry(entry)
+      case 'displayTime':
+        return displayPublishTimeOfEntry(entry)
+      case 'activity':
+        return activityTimeOfEntry(entry)
+      default:
+        return ''
+    }
   }
 
-  if (sortTerm == 'CreateTime') {
-    res = [...entries].sort(createTimeSort)
-  }
+  const res = [...entries].sort((a, b) => {
+    const aValue = valueOf(a)
+    const bValue = valueOf(b)
+    if (typeof aValue === 'number' && typeof bValue === 'number') return aValue - bValue
+    return String(aValue).localeCompare(String(bValue), undefined, {sensitivity: 'base', numeric: true})
+  })
 
-  if (sortTerm == 'UpdateTime') {
-    res = [...entries].sort(lastUpdateSort)
-  }
-
-  if (sortTerm === 'DisplayTime') {
-    res = [...entries].sort(displayPublishTimeSort)
-  }
-
-  if (sortTerm === 'ActivityTime') {
-    res = [...entries].sort(activityTimeSort)
-  }
-
-  // if (sortTerm == 'Path') {
-  //   // TODO
-  //   return entries
-  // }
-
-  return sort?.[0]?.reverse ? [...res].reverse() : res
+  return reverse ? res.reverse() : res
 }
 
 export type RefDefinition = {

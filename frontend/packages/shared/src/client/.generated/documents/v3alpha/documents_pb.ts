@@ -76,6 +76,72 @@ proto3.util.setEnumType(SortAttribute, "com.seed.documents.v3alpha.SortAttribute
 ]);
 
 /**
+ * Built-in document fields that can be used for sorting QueryDocuments.
+ *
+ * @generated from enum com.seed.documents.v3alpha.BuiltinSortAttribute
+ */
+export enum BuiltinSortAttribute {
+  /**
+   * No built-in field specified.
+   *
+   * @generated from enum value: BUILTIN_SORT_ATTRIBUTE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Sort by the document name/title.
+   *
+   * @generated from enum value: BUILTIN_SORT_ATTRIBUTE_NAME = 1;
+   */
+  NAME = 1,
+
+  /**
+   * Sort by the document path.
+   *
+   * @generated from enum value: BUILTIN_SORT_ATTRIBUTE_PATH = 2;
+   */
+  PATH = 2,
+
+  /**
+   * Sort by document creation time.
+   *
+   * @generated from enum value: BUILTIN_SORT_ATTRIBUTE_CREATE_TIME = 3;
+   */
+  CREATE_TIME = 3,
+
+  /**
+   * Sort by document last-update time.
+   *
+   * @generated from enum value: BUILTIN_SORT_ATTRIBUTE_UPDATE_TIME = 4;
+   */
+  UPDATE_TIME = 4,
+
+  /**
+   * Sort by document activity time (latest comment or change).
+   *
+   * @generated from enum value: BUILTIN_SORT_ATTRIBUTE_ACTIVITY_TIME = 5;
+   */
+  ACTIVITY_TIME = 5,
+
+  /**
+   * Sort by the number of comments on the document.
+   *
+   * @generated from enum value: BUILTIN_SORT_ATTRIBUTE_COMMENT_COUNT = 6;
+   */
+  COMMENT_COUNT = 6,
+}
+// Retrieve enum metadata with: proto3.getEnumType(BuiltinSortAttribute)
+proto3.util.setEnumType(BuiltinSortAttribute, "com.seed.documents.v3alpha.BuiltinSortAttribute", [
+  { no: 0, name: "BUILTIN_SORT_ATTRIBUTE_UNSPECIFIED" },
+  { no: 1, name: "BUILTIN_SORT_ATTRIBUTE_NAME" },
+  { no: 2, name: "BUILTIN_SORT_ATTRIBUTE_PATH" },
+  { no: 3, name: "BUILTIN_SORT_ATTRIBUTE_CREATE_TIME" },
+  { no: 4, name: "BUILTIN_SORT_ATTRIBUTE_UPDATE_TIME" },
+  { no: 5, name: "BUILTIN_SORT_ATTRIBUTE_ACTIVITY_TIME" },
+  { no: 6, name: "BUILTIN_SORT_ATTRIBUTE_COMMENT_COUNT" },
+]);
+
+/**
  * Scalar and container kinds supported by user-defined document attributes.
  *
  * @generated from enum com.seed.documents.v3alpha.DocumentAttributeKind
@@ -2602,7 +2668,7 @@ export class DocumentFilter_PathMatch extends Message<DocumentFilter_PathMatch> 
  */
 export class DocumentSort extends Message<DocumentSort> {
   /**
-   * User-defined attribute key to sort by.
+   * User-defined attribute key to sort by. Mutually exclusive with `attribute`.
    *
    * @generated from field: string key = 1;
    */
@@ -2615,6 +2681,13 @@ export class DocumentSort extends Message<DocumentSort> {
    */
   descending = false;
 
+  /**
+   * Built-in document field to sort by. Mutually exclusive with `key`.
+   *
+   * @generated from field: com.seed.documents.v3alpha.BuiltinSortAttribute attribute = 3;
+   */
+  attribute = BuiltinSortAttribute.UNSPECIFIED;
+
   constructor(data?: PartialMessage<DocumentSort>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2625,6 +2698,7 @@ export class DocumentSort extends Message<DocumentSort> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "descending", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 3, name: "attribute", kind: "enum", T: proto3.getEnumType(BuiltinSortAttribute) },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentSort {

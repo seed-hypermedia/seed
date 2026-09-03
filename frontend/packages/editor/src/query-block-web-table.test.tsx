@@ -70,7 +70,7 @@ function RenderQueryBlock() {
       props: {
         style: 'Table',
         queryIncludes: '[{"space":"alice","path":"","mode":"Children"}]',
-        querySort: '[{"term":"UpdateTime","reverse":false}]',
+        querySort: '[{"key":"updated","reverse":true}]',
         banner: 'false',
         columnCount: '3',
         tableConfig: '',
@@ -111,7 +111,7 @@ describe('QueryBlock web table rendering', () => {
     expect(container.textContent).toContain('Visible Table Note')
   })
 
-  it('persists table sorting as publishable block configuration', () => {
+  it('persists table sorting as query sort', () => {
     act(() => {
       root.render(<RenderQueryBlock />)
     })
@@ -123,7 +123,7 @@ describe('QueryBlock web table rendering', () => {
 
     expect(updateBlockMock).toHaveBeenCalledWith('q-table', {
       props: {
-        tableConfig: JSON.stringify({columns: [], sorting: [{id: 'authors', desc: false}]}),
+        querySort: JSON.stringify([{key: 'authors', reverse: false}]),
       },
     })
   })

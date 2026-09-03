@@ -304,7 +304,7 @@ const fixtures: Record<FixtureName, Block<HMBlockSchema>[]> = {
         columnCount: '1',
         queryLimit: '',
         queryIncludes: JSON.stringify([{space: 'bafy-doc-uid', path: '', mode: 'Children'}]),
-        querySort: JSON.stringify([{term: 'UpdateTime', reverse: false}]),
+        querySort: JSON.stringify([{key: 'updated', reverse: true}]),
         banner: 'false',
       },
       content: [],

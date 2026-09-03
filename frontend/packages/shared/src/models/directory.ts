@@ -1,4 +1,5 @@
 import {HMDocumentInfo, HMQuery, HMQueryResult, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {normalizeQuerySort} from '@seed-hypermedia/client/hm-types'
 import {SortAttribute} from '../client/.generated/documents/v3alpha/documents_pb'
 import {queryBlockSortedItems} from '../content'
 import {GRPCClient} from '../grpc-client'
@@ -11,16 +12,18 @@ function createDirectoryResolver(client: GRPCClient) {
   async function getDirectory(
     id: UnpackedHypermediaId,
     mode: 'Children' | 'AllDescendants' = 'AllDescendants',
-    sort?: HMQuery['sort'],
+    sort?: Array<{key: string; reverse: boolean}>,
   ) {
-    const sortTerm = sort?.length === 1 ? sort[0]?.term : undefined
+    const key = sort?.length === 1 ? sort[0]?.key : undefined
     const reverse = sort?.length === 1 ? !!sort[0]?.reverse : false
     const sortOptions =
-      sortTerm === 'ActivityTime'
-        ? {attribute: SortAttribute.ACTIVITY_TIME, descending: !reverse}
-        : sortTerm === 'Title'
+      key === 'activity'
+        ? {attribute: SortAttribute.ACTIVITY_TIME, descending: reverse}
+        : key === 'title'
           ? {attribute: SortAttribute.NAME, descending: reverse}
-          : undefined
+          : key === 'path'
+            ? {attribute: SortAttribute.PATH, descending: reverse}
+            : undefined
 
     const documents = await listAllPages(
       (pageToken) =>
@@ -53,21 +56,19 @@ function createDirectoryResolver(client: GRPCClient) {
 export function createQueryResolver(client: GRPCClient) {
   const getDirectory = createDirectoryResolver(client)
   async function getQueryResults(query: HMQuery): Promise<HMQueryResult | null> {
-    const {includes, sort} = query
+    const {includes} = query
     if (includes.length !== 1) return null // only support one include for now
     const {path, mode, space} = includes[0]!
     const inId = hmId(space, {
       path: entityQueryPathToHmIdPath(path),
     })
-    const dir = await getDirectory(inId, mode, sort)
     if (!inId) return null
 
-    const sortedDir = sort
-      ? queryBlockSortedItems({entries: dir, sort})
-      : queryBlockSortedItems({
-          entries: dir,
-          sort: [{term: 'UpdateTime', reverse: false}],
-        })
+    const sort = normalizeQuerySort(query.sort)
+    const effectiveSort = sort.length === 1 ? sort : [{key: 'updated', reverse: true}]
+
+    const dir = await getDirectory(inId, mode, effectiveSort)
+    const sortedDir = queryBlockSortedItems({entries: dir, sort: effectiveSort})
     return {in: inId, results: sortedDir, mode} satisfies HMQueryResult
   }
 

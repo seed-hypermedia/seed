@@ -3,8 +3,8 @@ import {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
 import {QueryBlock} from '../api-query-block'
 import {hmId} from '../utils/entity-id-url'
 
-vi.mock('../models/directory', () => ({
-  createQueryResolver: vi.fn(),
+vi.mock('../models/entity', () => ({
+  prepareHMDocumentInfo: vi.fn((doc) => doc),
 }))
 
 vi.mock('../api-account', () => ({
@@ -12,9 +12,8 @@ vi.mock('../api-account', () => ({
 }))
 
 import {loadAccount} from '../api-account'
-import {createQueryResolver} from '../models/directory'
 
-const queryTarget = hmId('alice', {path: ['projects'], latest: true})
+const queryTarget = hmId('alice', {path: ['projects']})
 const docA = hmId('alice', {path: ['projects', 'a'], version: 'v1', latest: true})
 const docB = hmId('alice', {path: ['projects', 'b'], version: 'v2', latest: true})
 
@@ -65,18 +64,13 @@ const resultB: HMDocumentInfo = {
 }
 
 describe('QueryBlock.getData', () => {
-  it('returns only the fields needed by query block rendering and logs perf data', async () => {
-    vi.mocked(createQueryResolver).mockReturnValue(
-      vi.fn().mockResolvedValue({
-        in: queryTarget,
-        mode: 'Children',
-        results: [resultA, resultB],
-      }),
-    )
+  it('resolves results via QueryDocuments and returns only the fields needed by rendering', async () => {
+    const queryDocuments = vi.fn().mockResolvedValue({documents: [resultA, resultB], nextPageToken: ''})
 
     const consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
     const grpcClient = {
       documents: {
+        queryDocuments,
         getDocumentInfo: vi.fn().mockResolvedValue({
           metadata: {
             toJson: () => ({name: 'Projects'}),
@@ -99,7 +93,7 @@ describe('QueryBlock.getData', () => {
       {
         query: {
           includes: [{space: 'alice', path: '/projects', mode: 'Children'}],
-          sort: [{term: 'UpdateTime', reverse: false}],
+          sort: [{key: 'updated', reverse: true}],
           limit: 1,
         },
       },
@@ -123,6 +117,7 @@ describe('QueryBlock.getData', () => {
       },
     })
 
+    expect(queryDocuments).toHaveBeenCalledTimes(1)
     expect(grpcClient.documents.getDocumentInfo).toHaveBeenCalledWith({
       account: queryTarget.uid,
       path: '/projects',
@@ -137,22 +132,20 @@ describe('QueryBlock.getData', () => {
     expect(perfSummary.resolvedItemCount).toBe(2)
     expect(perfSummary.returnedItemCount).toBe(1)
     expect(perfSummary.visibleContributorCount).toBe(1)
+    expect(perfSummary.grpcRequests.byMethod['documents.queryDocuments'].count).toBe(1)
     expect(perfSummary.grpcRequests.byMethod['documents.getDocumentInfo'].count).toBe(1)
     expect(perfSummary.grpcRequests.byMethod['documents.batchGetAccounts'].count).toBe(1)
-    expect(perfSummary.grpcRequests.byMethod['resources.listCitations']).toBeUndefined()
 
     consoleInfoSpy.mockRestore()
   })
 
-  it('returns null when the underlying query resolver returns null and still logs perf data', async () => {
-    vi.mocked(createQueryResolver).mockReturnValue(vi.fn().mockResolvedValue(null))
-
+  it('returns null when there is no resolvable target and still logs perf data', async () => {
     const consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
     const result = await QueryBlock.getData(
       {} as any,
       {
         query: {
-          includes: [{space: 'alice', path: '/projects', mode: 'Children'}],
+          includes: [{space: '', path: '', mode: 'Children'}],
         },
       },
       undefined as any,

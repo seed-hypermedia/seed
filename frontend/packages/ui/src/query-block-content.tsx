@@ -119,7 +119,7 @@ export function QueryBlockContent({
       if (!nextOrder.includes(descriptor.id)) nextOrder.push(descriptor.id)
       if (!(descriptor.id in nextVisibility)) nextVisibility[descriptor.id] = descriptor.defaultVisible
     }
-    setSorting(cfg?.sorting ?? tableSorting ?? [])
+    setSorting(tableSorting ?? [])
     setColumnOrder(nextOrder)
     setColumnVisibility(nextVisibility)
     setColumnSizing(nextSizing)
@@ -127,7 +127,6 @@ export function QueryBlockContent({
 
   const getTableConfig = useCallback(
     (overrides?: {
-      sorting?: SortingState
       columnOrder?: string[]
       columnVisibility?: Record<string, boolean>
       columnSizing?: Record<string, number>
@@ -135,17 +134,15 @@ export function QueryBlockContent({
       const order = overrides?.columnOrder ?? columnOrder
       const visibility = overrides?.columnVisibility ?? columnVisibility
       const sizing = overrides?.columnSizing ?? columnSizing
-      const sort = overrides?.sorting ?? sorting
       return {
         columns: order.map((id) => ({
           id,
           visible: visibility[id] !== false,
           width: sizing[id],
         })),
-        sorting: sort,
       }
     },
-    [columnOrder, columnVisibility, columnSizing, sorting],
+    [columnOrder, columnVisibility, columnSizing],
   )
 
   const persistTableConfig = useCallback(
@@ -158,13 +155,9 @@ export function QueryBlockContent({
   const setSortingAndPersist = useCallback(
     (next: SortingState) => {
       setSorting(next)
-      if (onTableSortingChange) {
-        onTableSortingChange(next)
-      } else {
-        persistTableConfig({sorting: next})
-      }
+      onTableSortingChange?.(next)
     },
-    [onTableSortingChange, persistTableConfig],
+    [onTableSortingChange],
   )
 
   const filteredItems = useMemo(

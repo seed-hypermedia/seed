@@ -7,8 +7,11 @@
  * client refetches after mount).
  */
 
+import {normalizeQuerySort} from '@seed-hypermedia/client/hm-types'
+
 export const defaultQueryIncludes = '[{"space":"","path":"","mode":"Children"}]'
-export const defaultQuerySort = '[{"term":"UpdateTime","reverse":false}]'
+// Newest-first (updated descending), matching the previous UpdateTime default.
+export const defaultQuerySort = '[{"key":"updated","reverse":true}]'
 
 export type QueryBlockInputProps = {
   queryIncludes?: string
@@ -18,9 +21,10 @@ export type QueryBlockInputProps = {
 
 export function getQueryBlockInput(
   props: QueryBlockInputProps,
-): {query: {includes: any[]; sort: any; limit: number | undefined}} | null {
+): {query: {includes: any[]; sort: {key: string; reverse: boolean}[]; limit: number | undefined}} | null {
   const queryIncludes = JSON.parse(props.queryIncludes || defaultQueryIncludes)
-  const querySort = JSON.parse(props.querySort || defaultQuerySort)
+  const parsedSort = JSON.parse(props.querySort || defaultQuerySort)
+  const querySort = normalizeQuerySort(parsedSort)
   const parsedLimit = parseInt(props.queryLimit || '', 10)
   if (!queryIncludes?.[0]?.space) return null
   return {

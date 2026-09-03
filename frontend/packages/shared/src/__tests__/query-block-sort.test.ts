@@ -46,41 +46,41 @@ describe('queryBlockSortedItems', () => {
   const docC = makeEntry({name: 'C', updateTime: '2024-02-01T00:00:00Z', createTime: '2024-03-01T00:00:00Z'})
 
   it('returns empty for empty entries', () => {
-    expect(queryBlockSortedItems({entries: [], sort: [{term: 'UpdateTime', reverse: false}]})).toEqual([])
+    expect(queryBlockSortedItems({entries: [], sort: [{key: 'updated', reverse: true}]})).toEqual([])
   })
 
-  it('returns empty when sort array has != 1 element', () => {
-    expect(queryBlockSortedItems({entries: [docA], sort: []})).toEqual([])
+  it('returns unchanged when sort array has != 1 element', () => {
+    expect(queryBlockSortedItems({entries: [docA], sort: []})).toEqual([docA])
   })
 
-  it('sorts by UpdateTime descending by default', () => {
-    const result = queryBlockSortedItems({entries: [docA, docB, docC], sort: [{term: 'UpdateTime', reverse: false}]})
+  it('sorts by updated descending (newest first)', () => {
+    const result = queryBlockSortedItems({entries: [docA, docB, docC], sort: [{key: 'updated', reverse: true}]})
     expect(result.map((d) => d.metadata.name)).toEqual(['B', 'C', 'A'])
   })
 
-  it('sorts by UpdateTime ascending when reversed', () => {
-    const result = queryBlockSortedItems({entries: [docA, docB, docC], sort: [{term: 'UpdateTime', reverse: true}]})
+  it('sorts by updated ascending (oldest first)', () => {
+    const result = queryBlockSortedItems({entries: [docA, docB, docC], sort: [{key: 'updated', reverse: false}]})
     expect(result.map((d) => d.metadata.name)).toEqual(['A', 'C', 'B'])
   })
 
-  it('sorts by CreateTime descending by default', () => {
-    const result = queryBlockSortedItems({entries: [docA, docB, docC], sort: [{term: 'CreateTime', reverse: false}]})
+  it('sorts by created descending (newest first)', () => {
+    const result = queryBlockSortedItems({entries: [docA, docB, docC], sort: [{key: 'created', reverse: true}]})
     expect(result.map((d) => d.metadata.name)).toEqual(['C', 'B', 'A'])
   })
 
-  it('sorts by Title alphabetically', () => {
-    const result = queryBlockSortedItems({entries: [docC, docA, docB], sort: [{term: 'Title', reverse: false}]})
+  it('sorts by title alphabetically', () => {
+    const result = queryBlockSortedItems({entries: [docC, docA, docB], sort: [{key: 'title', reverse: false}]})
     expect(result.map((d) => d.metadata.name)).toEqual(['A', 'B', 'C'])
   })
 
-  it('sorts by Title reversed', () => {
-    const result = queryBlockSortedItems({entries: [docC, docA, docB], sort: [{term: 'Title', reverse: true}]})
+  it('sorts by title descending', () => {
+    const result = queryBlockSortedItems({entries: [docC, docA, docB], sort: [{key: 'title', reverse: true}]})
     expect(result.map((d) => d.metadata.name)).toEqual(['C', 'B', 'A'])
   })
 })
 
 describe('queryBlockSortedItems — ActivityTime', () => {
-  it('sorts by latest activity (comment time wins over change time)', () => {
+  it('sorts by latest activity descending (comment time wins over change time)', () => {
     const oldEditRecentComment = makeEntry({
       name: 'OldEditRecentComment',
       updateTime: '2024-01-01T00:00:00Z',
@@ -100,13 +100,13 @@ describe('queryBlockSortedItems — ActivityTime', () => {
 
     const result = queryBlockSortedItems({
       entries: [recentEditNoComment, veryOld, oldEditRecentComment],
-      sort: [{term: 'ActivityTime', reverse: false}],
+      sort: [{key: 'activity', reverse: true}],
     })
     // oldEditRecentComment has comment at June, recentEditNoComment at May, veryOld at Jan 2023
     expect(result.map((d) => d.metadata.name)).toEqual(['OldEditRecentComment', 'RecentEditNoComment', 'VeryOld'])
   })
 
-  it('sorts by latest activity reversed (oldest activity first)', () => {
+  it('sorts by latest activity ascending (oldest activity first)', () => {
     const recent = makeEntry({
       name: 'Recent',
       updateTime: '2024-06-01T00:00:00Z',
@@ -120,7 +120,7 @@ describe('queryBlockSortedItems — ActivityTime', () => {
 
     const result = queryBlockSortedItems({
       entries: [recent, old],
-      sort: [{term: 'ActivityTime', reverse: true}],
+      sort: [{key: 'activity', reverse: false}],
     })
     expect(result.map((d) => d.metadata.name)).toEqual(['Old', 'Recent'])
   })
@@ -137,7 +137,7 @@ describe('queryBlockSortedItems — ActivityTime', () => {
 
     const result = queryBlockSortedItems({
       entries: [oldUpdate, recentUpdate],
-      sort: [{term: 'ActivityTime', reverse: false}],
+      sort: [{key: 'activity', reverse: true}],
     })
     expect(result.map((d) => d.metadata.name)).toEqual(['RecentUpdate', 'OldUpdate'])
   })
@@ -158,7 +158,7 @@ describe('queryBlockSortedItems — ActivityTime', () => {
 
     const result = queryBlockSortedItems({
       entries: [changeWins, commentWins],
-      sort: [{term: 'ActivityTime', reverse: false}],
+      sort: [{key: 'activity', reverse: true}],
     })
     // commentWins has Aug activity, changeWins has Jul
     expect(result.map((d) => d.metadata.name)).toEqual(['CommentWins', 'ChangeWins'])
