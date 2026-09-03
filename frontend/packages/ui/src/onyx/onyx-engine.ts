@@ -329,7 +329,11 @@ export function isOnyxSchema(value: unknown, reg: OnyxRegistry = {}): boolean {
 
 // --- dependency graph (for the explorer) -----------------------------------
 
-/** All schema refs a schema node mentions (recursively), as basenames. */
+/**
+ * All schemas a schema node mentions (recursively), as basenames: every `ref`,
+ * and every `type` naming a core type (a struct depends on `struct`, a map on
+ * `map`), so a core type's page can list who builds on it.
+ */
 export function collectRefs(schema: any, acc = new Set<string>()): Set<string> {
   if (!schema || typeof schema !== 'object') return acc
   if (Array.isArray(schema)) {
@@ -337,8 +341,12 @@ export function collectRefs(schema: any, acc = new Set<string>()): Set<string> {
     return acc
   }
   if (typeof schema.ref === 'string') acc.add(refToName(schema.ref))
+  if (typeof schema.type === 'string') {
+    const kind = kindOf(schema.type)
+    if (kind !== schema.type && ONYX_SCHEMAS[`onyx-${kind}`]) acc.add(`onyx-${kind}`)
+  }
   for (const [k, v] of Object.entries(schema)) {
-    if (k === 'ref') continue
+    if (k === 'ref' || k === 'type' || k === 'enum') continue
     if (v && typeof v === 'object') collectRefs(v, acc)
   }
   return acc
