@@ -18,11 +18,6 @@
       "values": {
         "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema"
       }
-    },
-    "name": {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     }
-  },
-  "description": "The variant for a union — a value matching any one of several alternatives (anyOf).",
-  "name": "Union schema"
+  }
 }

@@ -14,7 +14,5 @@
   "required": [
     "name",
     "path"
-  ],
-  "description": "One ancestor entry of a document's path, resolved to a display name. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.",
-  "name": "Breadcrumb"
+  ]
 }

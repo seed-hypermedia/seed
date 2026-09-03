@@ -78,7 +78,5 @@
     "visibility": {
       "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-visibility"
     }
-  },
-  "description": "A document as the API returns it to clients: the signed document's metadata and content plus derived fields (resolved version, authors, timestamps, visibility). A derived read model computed by the Seed daemon/API for clients — not a signed network blob.",
-  "name": "Document (payload)"
+  }
 }

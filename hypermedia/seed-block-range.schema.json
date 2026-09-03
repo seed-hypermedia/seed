@@ -12,7 +12,5 @@
     "expanded": {
       "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean"
     }
-  },
-  "description": "A selection within a block: either character offsets (start/end) or the whole block expanded. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.",
-  "name": "Block range"
+  }
 }
