@@ -160,6 +160,8 @@ import {OnyxSchemaEditor} from './onyx/onyx-schema-editor'
 import {OnyxSchemaBrowserPage} from './onyx/schema-browser'
 import {useEffectiveDocSchema} from './onyx/onyx-schema-resolve'
 import {DocumentTools} from './document-tools'
+import {nameForCid, ONYX_SCHEMAS} from './onyx/onyx-engine'
+import {useOnyxSchemaRegistry} from './onyx/onyx-schema-registry-cid'
 import {DocumentTopBar} from './document-top-bar'
 import {
   createDocumentVersionsPanelRoute,
@@ -3431,25 +3433,37 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
   // Draft metadata (partial) overrides published metadata, same as the Attributes tab.
   const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
   const draftSchema = schemaDraftValue(metadata)
-  if (draftSchema && canEditCurrentRoute) {
+  const cid = schemaDefinitionCid(metadata)
+  // Write access to the document is write access to its schema: the published schema seeds the
+  // editor, the first change starts a draft (`schemaDraft`), and publishing freezes that into a
+  // new IPFS object the document then references. Bundled library schemas need no fetch.
+  const bundled = cid ? nameForCid(cid) : undefined
+  const {byCid, isLoading} = useOnyxSchemaRegistry(cid && !bundled && canEditCurrentRoute ? [cid] : [])
+  const published = cid ? (bundled ? ONYX_SCHEMAS[bundled] : byCid[cid]) : undefined
+  const edit = (next: Record<string, any>) => {
+    beginEditIfNeeded()
+    send({type: 'change', metadata: {[SCHEMA_DRAFT_KEY]: next} as any})
+  }
+  if (canEditCurrentRoute && (draftSchema || published)) {
     return (
-      <div className="flex max-w-2xl flex-col gap-3" data-testid="schema-draft-editor">
-        <p className="text-muted-foreground/80 text-xs">
-          Becomes an immutable IPFS object, referenced by this document, when the document is published.
+      <div
+        className="flex max-w-2xl flex-col gap-3"
+        data-testid={draftSchema ? 'schema-draft-editor' : 'schema-editor'}
+      >
+        <OnyxSchemaEditor schema={draftSchema ?? published!} onSchema={edit} />
+        <p className="text-muted-foreground/70 text-xs">
+          {draftSchema
+            ? 'Edited — publishing the document publishes this as a new immutable schema object it references.'
+            : 'Editing publishes a new immutable schema object when the document is published.'}
         </p>
-        <OnyxSchemaEditor
-          schema={draftSchema}
-          onSchema={(next) => {
-            beginEditIfNeeded()
-            send({type: 'change', metadata: {[SCHEMA_DRAFT_KEY]: next} as any})
-          }}
-        />
       </div>
     )
   }
-  const cid = schemaDefinitionCid(metadata)
   if (!cid) {
     return <div className="text-muted-foreground p-4 text-sm">This document does not define a schema.</div>
+  }
+  if (canEditCurrentRoute && isLoading) {
+    return <div className="text-muted-foreground p-4 text-sm">Fetching schema…</div>
   }
   return <OnyxSchemaBrowserPage embedded cid={cid} navigate={navigate} openUrl={openUrl} />
 }
