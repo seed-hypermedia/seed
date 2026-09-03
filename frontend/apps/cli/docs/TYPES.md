@@ -222,7 +222,7 @@ type HMQuery = {
     mode: 'Children' | 'AllDescendants'
   }>
   sort?: Array<{
-    term: 'Path' | 'Title' | 'CreateTime' | 'UpdateTime' | 'DisplayTime'
+    key: string
     reverse?: boolean
   }>
   limit?: number

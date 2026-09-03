@@ -154,8 +154,8 @@ GET /api/Query?includes=[...]&sort=[...]&limit=N
     mode: 'Children' | 'AllDescendants'
   }>,
   sort?: Array<{
-    term: 'Path' | 'Title' | 'CreateTime' | 'UpdateTime' | 'DisplayTime',
-    reverse?: boolean
+    key: string,      // title, path, created, updated, activity, displayTime, or metadata:<attr>
+    reverse?: boolean // true = descending
   }>,
   limit?: number
 }

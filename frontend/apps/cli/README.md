@@ -1164,7 +1164,7 @@ seed-cli query <space> [options]
 | `-p, --path <path>` | Path prefix to filter                                               |
 | `-m, --mode <mode>` | `Children` (default) or `AllDescendants`                            |
 | `-l, --limit <n>`   | Maximum results                                                     |
-| `--sort <term>`     | Sort by: `Path`, `Title`, `CreateTime`, `UpdateTime`, `DisplayTime` |
+| `--sort <key>`     | Sort by: `title`, `path`, `created`, `updated`, `activity`, `displayTime` |
 | `--reverse`         | Reverse sort order                                                  |
 | `-q, --quiet`       | Output `ID<tab>name` per line                                       |
 
