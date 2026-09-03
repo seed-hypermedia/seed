@@ -989,8 +989,8 @@ export default function DesktopResourcePage() {
   })
 
   // Experimental building blocks live behind the Hypermedia Schemas dev toggle
-  // (Settings → Developer Mode); the blob/schema editor pages offer these too.
-  if (experiments?.developerMode && experiments?.hypermediaSchemas) {
+  // (Settings → Developers → Developer Tools); the blob/schema editor pages offer these too.
+  if (experiments?.hypermediaSchemas) {
     menuItems.push(...blobBuilderMenuItems(navigate))
 
     // The World Builder: scaffold a typed ontology (types + folders + starter

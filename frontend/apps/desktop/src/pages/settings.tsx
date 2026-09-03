@@ -576,6 +576,7 @@ export function DeveloperSettings() {
   const enabledDeveloperMode = experiments?.developerMode
   const enabledDevTools = experiments?.developerTools
   const enabledPubContentDevMenu = experiments?.pubContentDevMenu
+  const enabledHypermediaSchemas = experiments?.hypermediaSchemas
   const enabledAdvancedCopyLinkOptions = experiments?.advancedCopyLinkOptions
   const embeddingEnabled = experiments?.embeddingEnabled
   const [showEmbeddingConfirm, setShowEmbeddingConfirm] = useState(false)
@@ -625,21 +626,6 @@ export function DeveloperSettings() {
             </Button>
           }
         />
-        {enabledDeveloperMode ? (
-          <>
-            <Separator />
-            <SettingsRow
-              label="Hypermedia Schemas"
-              description="Expose schema features in regular menus: New > Schema creates a schema document, and schema building blocks appear in document options."
-              right={
-                <Switch
-                  checked={!!experiments?.hypermediaSchemas}
-                  onCheckedChange={(checked) => writeExperiments.mutate({hypermediaSchemas: checked})}
-                />
-              }
-            />
-          </>
-        ) : null}
         <Separator />
         <SettingsRow
           label="Embedding / AI Features"
@@ -667,6 +653,17 @@ export function DeveloperSettings() {
         />
         {enabledDevTools ? (
           <>
+            <Separator />
+            <SettingsRow
+              label="Hypermedia Schemas"
+              description="Expose schema features in regular menus: New > Schema creates a schema document, and schema building blocks appear in document options."
+              right={
+                <Switch
+                  checked={!!enabledHypermediaSchemas}
+                  onCheckedChange={(checked) => writeExperiments.mutate({hypermediaSchemas: checked})}
+                />
+              }
+            />
             <Separator />
             <SettingsRow
               label="Publication Content Dev Tools"
