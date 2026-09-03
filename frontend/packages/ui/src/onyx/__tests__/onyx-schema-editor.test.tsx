@@ -177,4 +177,21 @@ describe('OnyxSchemaEditor (generics and JSON mode)', () => {
     expect(latest.values).toBeUndefined()
     expect(latest.properties.type).toEqual({ref: MAP})
   })
+
+  it('Cmd+Z undoes the last edit and Shift+Cmd+Z redoes it', () => {
+    act(() => {
+      root.render(<Harness initial={emptyStructSchema()} />)
+    })
+    click(findButton('Add field'))
+    expect(Object.keys(latest.properties)).toEqual(['field'])
+    const editor = container.querySelector('[data-testid="schema-editor-root"]')!
+    const key = (shift: boolean) =>
+      act(() => {
+        editor.dispatchEvent(new KeyboardEvent('keydown', {key: 'z', metaKey: true, shiftKey: shift, bubbles: true}))
+      })
+    key(false)
+    expect(Object.keys(latest.properties)).toEqual([])
+    key(true)
+    expect(Object.keys(latest.properties)).toEqual(['field'])
+  })
 })
