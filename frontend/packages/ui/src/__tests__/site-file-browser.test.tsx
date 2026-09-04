@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import type {HMDocumentInfo, HMListedDraft} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
+import {latestId} from '@shm/shared/utils/entity-id-url'
 import {act} from 'react-dom/test-utils'
 import {createRoot, type Root} from 'react-dom/client'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
@@ -139,6 +140,7 @@ describe('SiteFileBrowser', () => {
 
   it('shows title matches as a flat list and navigates', () => {
     const install = makeDoc(['guides', 'install'], 'Install Seed')
+    install.id = hmId('site', {path: ['guides', 'install'], version: 'listed-version', latest: false})
     const onNavigate = vi.fn()
     const onPrefetch = vi.fn()
     useDirectoryWithDraftsMock.mockReturnValue({
@@ -171,10 +173,10 @@ describe('SiteFileBrowser', () => {
     )!
     act(() => result.dispatchEvent(new MouseEvent('pointerover', {bubbles: true})))
     act(() => result.focus())
-    expect(onPrefetch).toHaveBeenNthCalledWith(1, install.id)
-    expect(onPrefetch).toHaveBeenNthCalledWith(2, install.id)
+    expect(onPrefetch).toHaveBeenNthCalledWith(1, latestId(install.id))
+    expect(onPrefetch).toHaveBeenNthCalledWith(2, latestId(install.id))
     act(() => result.click())
-    expect(onNavigate).toHaveBeenCalledWith(install.id)
+    expect(onNavigate).toHaveBeenCalledWith(latestId(install.id))
   })
 
   it('hides search by default and focuses it when revealed', () => {

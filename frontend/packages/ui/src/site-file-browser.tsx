@@ -2,6 +2,7 @@ import type {HMDocumentInfo, HMListedDraft, UnpackedHypermediaId} from '@seed-hy
 import {hmId} from '@shm/shared'
 import {isDraftPlaceholderPath, type HMListedDraftWithLocation} from '@shm/shared/draft-breadcrumb-context'
 import {useDirectoryWithDrafts} from '@shm/shared/models/entity'
+import {latestId} from '@shm/shared/utils/entity-id-url'
 import {
   buildDocumentTree,
   filterDocumentsByTitle,
@@ -214,6 +215,7 @@ export function SiteFileBrowser({
                 const isFiltered = !!query.trim()
                 const isActive = doc.id.id === activeDocumentId?.id
                 const isExpanded = row ? expandedPaths.has(row.pathKey) : false
+                const navigationId = unpublishedDraftIds.has(doc.id.id) ? doc.id : latestId(doc.id)
                 return (
                   <div
                     key={doc.id.id}
@@ -240,9 +242,9 @@ export function SiteFileBrowser({
                     <button
                       type="button"
                       aria-current={isActive ? 'page' : undefined}
-                      onPointerEnter={() => onPrefetch?.(doc.id)}
-                      onFocus={() => onPrefetch?.(doc.id)}
-                      onClick={() => onNavigate(doc.id)}
+                      onPointerEnter={() => onPrefetch?.(navigationId)}
+                      onFocus={() => onPrefetch?.(navigationId)}
+                      onClick={() => onNavigate(navigationId)}
                       className="hover:bg-accent/60 focus-visible:ring-ring flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-left text-sm outline-none focus-visible:ring-2"
                     >
                       {doc.isCollection ? (
