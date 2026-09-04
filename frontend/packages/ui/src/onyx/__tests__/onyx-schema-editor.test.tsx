@@ -132,7 +132,8 @@ describe('OnyxSchemaEditor (generics and JSON mode)', () => {
     const defInput = params.querySelector('input[aria-label="Default type for Block"]') as HTMLInputElement
     expect(defInput.value).toBe(BLOCK)
     // The field typed by the parameter reads as ⟨Block⟩, not as text.
-    expect(container.textContent).toContain('⟨Block⟩')
+    const typeInput = container.querySelector('input[aria-label="Type of body"]') as HTMLInputElement
+    expect(typeInput.value).toBe('⟨Block⟩')
   })
 
   it('adding a type parameter makes the schema generic; removing it falls fields back to the default', () => {
