@@ -249,10 +249,24 @@ export async function runDevLoop(opts: DevLoopOptions) {
 
   const url = `hm://${account}`
   printSuccess(`Site: ${url}`)
-  if (openInDevApp(url)) {
-    printInfo('Opened in the desktop DEV app. Edit and publish there; files update here.')
-  } else {
-    printInfo('Paste the URL into the omnibar of the desktop DEV app. Edit and publish there; files update here.')
+  const openSite = () => {
+    if (openInDevApp(url)) printInfo('Opened in the desktop DEV app. Edit and publish there; files update here.')
+    else printInfo('Paste the URL into the omnibar of the desktop DEV app. Edit and publish there; files update here.')
+  }
+  // The first run of a folder opens its new site; later runs open on request,
+  // so a restart does not steal focus (o in the pane; Ctrl-C still quits).
+  if (created) openSite()
+  if (process.stdin.isTTY) {
+    printInfo(created ? 'Press o to open the site again.' : 'Press o to open the site in the dev app.')
+    process.stdin.setRawMode(true)
+    process.stdin.resume()
+    process.stdin.setEncoding('utf8')
+    process.stdin.on('data', (key: string) => {
+      if (key === 'o' || key === 'O') openSite()
+      else if (key === '\u0003') process.exit(0)
+    })
+  } else if (!created) {
+    printInfo('Open it in the dev app when you like; the loop does not open it on a restart.')
   }
   printWarning(
     'Only the dev app (the one behind ' +
