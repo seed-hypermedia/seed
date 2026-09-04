@@ -90,6 +90,14 @@ export function SiteFileBrowserLayout({
     }),
     [collapsed],
   )
+  const mobileControls = useMemo<SiteFileBrowserControls>(
+    () => ({
+      collapsed: !mobileOpen,
+      setCollapsed: (nextCollapsed) => onMobileOpenChange(!nextCollapsed),
+      claimRevealButton: () => () => {},
+    }),
+    [mobileOpen, onMobileOpenChange],
+  )
 
   useEffect(() => {
     setIsClient(true)
@@ -151,7 +159,7 @@ export function SiteFileBrowserLayout({
 
   if (isMobile) {
     return (
-      <>
+      <SiteFileBrowserContext.Provider value={mobileControls}>
         <div className="min-h-0 flex-1">{children}</div>
         {mobileOpen
           ? createPortal(
@@ -191,7 +199,7 @@ export function SiteFileBrowserLayout({
               document.body,
             )
           : null}
-      </>
+      </SiteFileBrowserContext.Provider>
     )
   }
 
