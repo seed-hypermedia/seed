@@ -20,6 +20,17 @@
  * - `exec.total`             — whole execute_code span as the model experiences it
  * - `run.dispatch_delay`     — run became dispatchable → executor actually started
  * - `tool.<name>`            — each tool call's execution span, by tool name
+ * - `tool.call.<inner>`      — the `call` verb's span split by the callable it dispatched to
+ * - `prep.provider_runtime` / `prep.system_prompt` / `prep.tool_sync` / `prep.pi_session` /
+ *   `prep.replay`            — the segments inside `provider.request_gap`, so the pre-turn silence
+ *                              the user waits through is attributable; unnamed remainder = gap
+ *                              minus these
+ * - `provider.ttft.<provider>.<model>` / `provider.turn.<provider>.<model>` — the provider spans
+ *   tagged by provider+model, so one slow model is visible next to the blend
+ *
+ * Per-session attribution lives elsewhere: each turn's ttft/turn duration is stamped on the
+ * session events it appends (`SessionEventMeta.turn`), and `GET /api/perf/sessions/:id` serves a
+ * rollup of one session's model vs tool vs idle time (see `session-perf.ts`).
  *
  * Counters (occurrences, not durations):
  * - `provider.error.<provider>.<model>.<reason>` — provider turn errors, reason normalized to the

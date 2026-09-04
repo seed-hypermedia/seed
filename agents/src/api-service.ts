@@ -103,7 +103,8 @@ import type {
 } from '@seed-hypermedia/client/hm-types'
 import {hmIdPathToEntityQueryPath, unpackHmId} from '@seed-hypermedia/client/hm-types'
 import * as pi from '@mariozechner/pi-coding-agent'
-import {providerErrorReason, recordPerf, recordPerfCount} from '@/perf'
+import {providerErrorReason, recordPerf, recordPerfCount, startPerfSpan} from '@/perf'
+import {sessionPerfRollup, type SessionPerfRollup} from '@/session-perf'
 import {getModels} from '@mariozechner/pi-ai'
 import type {OAuthCredentials} from '@mariozechner/pi-ai/oauth'
 import {openaiCodexOAuthProvider} from '@mariozechner/pi-ai/oauth'
@@ -5677,6 +5678,37 @@ export class Service {
     })
   }
 
+  /**
+   * Timing rollup for one session (`GET /api/perf/sessions/:id`): model vs tool vs idle time from
+   * the durable rows, no content. Null when the session does not exist — the caller 404s.
+   */
+  sessionPerf(sessionId: string): SessionPerfRollup | null {
+    const session = this.#db.query<{id: string}, [string]>(`SELECT id FROM sessions WHERE id = ?`).get(sessionId)
+    if (!session) return null
+    const runRows = this.#db
+      .query<
+        {id: string; status: string; created_at: number; started_at: number | null; finished_at: number | null},
+        [string]
+      >(`SELECT id, status, created_at, started_at, finished_at FROM runs WHERE session_id = ? ORDER BY created_at ASC`)
+      .all(sessionId)
+    const eventRows = this.#db
+      .query<SessionEventRow, [string]>(
+        `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
+      )
+      .all(sessionId)
+    return sessionPerfRollup(
+      sessionId,
+      runRows.map((row) => ({
+        id: row.id,
+        status: row.status,
+        createdAt: row.created_at,
+        startedAt: row.started_at,
+        finishedAt: row.finished_at,
+      })),
+      eventRows.map((row) => ({seq: row.seq, createdAt: row.created_at, event: cbor.decode(row.event_cbor)})),
+    )
+  }
+
   #sessionHasToolResult(sessionId: string, toolCallId: string): boolean {
     const rows = this.#db
       .query<SessionEventRow, [string]>(
@@ -6523,7 +6555,11 @@ export class Service {
           this.#continueSessionFromAgent(accountId, liveRun, sessionId, session.agentId, live, toolCallId, input),
       }
     })()
+    // The request_gap sub-spans below (`prep.*`) name where pre-turn time goes; anything they do
+    // not cover shows up as the difference against `provider.request_gap` in the same snapshot.
+    const endProviderRuntimeSpan = startPerfSpan('prep.provider_runtime')
     const {provider, authStorage, modelRegistry, model} = await this.#piProviderRuntime(accountId, definition)
+    endProviderRuntimeSpan()
 
     const cwd = this.#dataDir
     // Retry policy belongs to the run queue (interactive turns fail fast, background runs ride the
@@ -6531,6 +6567,7 @@ export class Service {
     // timer that dispose() does not cancel, so it would replay the turn after the run finalized.
     const settingsManager = pi.SettingsManager.inMemory({compaction: {enabled: false}, retry: {enabled: false}})
     const agentStateDir = this.#agentMemoryStateDir(accountId, session.agentId)
+    const endSystemPromptSpan = startPerfSpan('prep.system_prompt')
     const resourceLoader = createSeedPiResourceLoader(
       await this.#agentSystemPrompt(
         accountId,
@@ -6540,6 +6577,7 @@ export class Service {
         run ? this.#spawnContextForRun(run).spec : undefined,
       ),
     )
+    endSystemPromptSpan()
     // Agents list execute_code by default; drop it silently when this host cannot run sandboxes
     // (unsupported platform, missing runtime) so the model never sees a tool that can only fail.
     const codeExecAvailable = (await this.#codeExec.availability()).available
@@ -6549,6 +6587,7 @@ export class Service {
     const enabledCallables = enabledCallableTools(definition, codeExecAvailable)
     // The agent's own documents — authored lambdas and the tools of its enabled MCP servers — are
     // promotable too; the projection is re-derived here so it matches the definition being run.
+    const endToolSyncSpan = startPerfSpan('prep.tool_sync')
     this.#syncAgentMcpTools(accountId, session.agentId, definition)
     const documentTools = new Set(
       toolDocs
@@ -6562,7 +6601,9 @@ export class Service {
     const expandedCallables = this.#expandedCallablesForSession(sessionId)
       .map(normalizeSeedToolName)
       .filter((name) => enabledCallables.includes(name) || documentTools.has(name))
+    endToolSyncSpan()
     const mcpPool = this.#createMcpPool(accountId)
+    const endPiSessionSpan = startPerfSpan('prep.pi_session')
     const {session: piSession} = await pi.createAgentSession({
       cwd,
       agentDir: path.join(this.#dataDir, 'pi'),
@@ -6638,6 +6679,7 @@ export class Service {
       sessionManager: pi.SessionManager.inMemory(cwd),
       settingsManager,
     })
+    endPiSessionSpan()
 
     const mergeModelDefaults = provider.modelDefaults
     // Provider latency markers, set as each request leaves and cleared by the first streamed
@@ -6645,6 +6687,10 @@ export class Service {
     let lastRequestSentAt = 0
     let firstRequestSent = false
     let awaitingFirstOutput = false
+    // TTFT of the in-flight turn, held until message_end folds it into that turn's timing meta.
+    let lastTtftMs: number | undefined
+    // Bounded metric suffix (providers × configured models), same shape the error counters use.
+    const providerModelTag = `${model.provider}.${definition.model ?? 'default'}`
     piSession.agent.onPayload = (payload) => {
       // The next provider request is the tool batch's end: if this turn spawned sub-sessions (park)
       // or delivered its typed result, the turn is over — refuse to send another provider request.
@@ -6677,7 +6723,9 @@ export class Service {
       if (mergeModelDefaults) next = mergePiPayloadDefaults(next, mergeModelDefaults)
       return next
     }
+    const endReplaySpan = startPerfSpan('prep.replay')
     const replayMessages = this.#piMessages(sessionId)
+    endReplaySpan()
     const runInput = run && isRecord(run.input) ? run.input : undefined
     const queuedUserEventIds =
       runInput?.queuedBehindAnotherTurn === true && Array.isArray(runInput.userEventIds)
@@ -6788,6 +6836,9 @@ export class Service {
     let assistantEvent: api.SessionEvent | undefined
     const appendedToolCalls = new Set<string>()
     const toolStartedAt = new Map<string, number>()
+    // Inner tool a `call` verb dispatched to, so `tool.call` splits into `tool.call.<inner>` and a
+    // slow callable (a web search, an execute) is visible instead of blurred into one span.
+    const toolInnerName = new Map<string, string>()
 
     const runStartedAt = Date.now()
     let turnCount = 0
@@ -6826,10 +6877,12 @@ export class Service {
     // is stamped on the event as it is written and the transcript stays able to explain itself.
     let turnStartedAt = Date.now()
     let turnUsageForMeta: api.AgentRunUsage | undefined
+    let turnTimingForMeta: NonNullable<api.SessionEventMeta['turn']> | undefined
     const messageMeta = (): api.SessionEventMeta => ({
       ...(definition.model ? {model: definition.model} : {}),
       ...(model.provider ? {provider: model.provider} : {}),
       ...(turnUsageForMeta ? {usage: {...turnUsageForMeta}} : {}),
+      ...(turnTimingForMeta ? {turn: {...turnTimingForMeta}} : {}),
       durationMs: Math.max(0, Date.now() - turnStartedAt),
     })
     // Provenance for tool events: which model/provider issued the call and what its turn cost.
@@ -6839,6 +6892,7 @@ export class Service {
         ...(definition.model ? {model: definition.model} : {}),
         ...(model.provider ? {provider: model.provider} : {}),
         ...(turnUsageForMeta ? {usage: {...turnUsageForMeta}} : {}),
+        ...(turnTimingForMeta ? {turn: {...turnTimingForMeta}} : {}),
       }
       return Object.keys(meta).length ? meta : undefined
     }
@@ -6858,6 +6912,7 @@ export class Service {
       // message is timed from here so no stretch of wall time is counted twice.
       turnStartedAt = Date.now()
       turnUsageForMeta = undefined
+      turnTimingForMeta = undefined
       partialId = crypto.randomUUID()
     }
 
@@ -6899,7 +6954,10 @@ export class Service {
       ) {
         awaitingFirstOutput = false
         const ttftMs = Date.now() - lastRequestSentAt
+        lastTtftMs = ttftMs
         recordPerf('provider.ttft', ttftMs)
+        // The same span tagged by provider+model, so one slow model is visible next to the blend.
+        recordPerf(`provider.ttft.${providerModelTag}`, ttftMs)
         logRun('provider first output', {ttftMs})
       }
       if (isTextDelta && event.type === 'message_update' && event.assistantMessageEvent.type === 'text_delta') {
@@ -6923,7 +6981,19 @@ export class Service {
           usage?: {input?: number; output?: number; cacheRead?: number; cacheWrite?: number}
         }
         turnCount += 1
-        if (lastRequestSentAt) recordPerf('provider.turn', Date.now() - lastRequestSentAt)
+        if (lastRequestSentAt) {
+          const turnMs = Date.now() - lastRequestSentAt
+          recordPerf('provider.turn', turnMs)
+          recordPerf(`provider.turn.${providerModelTag}`, turnMs)
+          // Stamped onto every event this turn appends, so a transcript can explain per turn where
+          // its wall time went (model vs tools) instead of only via process-wide aggregates.
+          turnTimingForMeta = {
+            index: turnCount,
+            ...(lastTtftMs !== undefined ? {ttftMs: lastTtftMs} : {}),
+            turnMs,
+          }
+          lastTtftMs = undefined
+        }
         const turnUsage = assistantMessage.usage
         if (turnUsage) {
           turnUsageForMeta = {
@@ -6977,6 +7047,14 @@ export class Service {
           suppressCurrentAssistantEndFallback = true
         }
         toolStartedAt.set(event.toolCallId, Date.now())
+        if (
+          event.toolName === seedVerbRegistry.call.name &&
+          isRecord(event.args) &&
+          typeof event.args.tool === 'string'
+        ) {
+          // Cardinality is bounded: only enabled callables and this agent's own documents dispatch.
+          toolInnerName.set(event.toolCallId, event.args.tool)
+        }
         logRun('tool call start', {
           tool: event.toolName,
           toolCallId: event.toolCallId,
@@ -7017,7 +7095,13 @@ export class Service {
         }
         const startedAt = toolStartedAt.get(event.toolCallId)
         toolStartedAt.delete(event.toolCallId)
-        if (startedAt !== undefined) recordPerf(`tool.${event.toolName}`, Date.now() - startedAt)
+        const innerName = toolInnerName.get(event.toolCallId)
+        toolInnerName.delete(event.toolCallId)
+        if (startedAt !== undefined) {
+          const toolMs = Date.now() - startedAt
+          recordPerf(`tool.${event.toolName}`, toolMs)
+          if (innerName) recordPerf(`tool.${event.toolName}.${innerName}`, toolMs)
+        }
         logRun(event.isError ? 'tool call failed' : 'tool call end', {
           tool: event.toolName,
           toolCallId: event.toolCallId,

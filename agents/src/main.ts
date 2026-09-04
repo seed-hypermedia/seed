@@ -133,6 +133,13 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
   // Aggregate latency stats (metric names and millisecond percentiles only — no ids, no content),
   // so "is this server slow, and where" is one curl away. Same exposure class as /api/health.
   const perf = () => Response.json(perfSnapshot(), {headers: corsHeaders()})
+  // Per-session timing rollup (tool names, counts, and milliseconds only — no content, no
+  // arguments). The full session UUID is required and unguessable; unknown ids 404.
+  const sessionPerf = (req: BunRequest) => {
+    const rollup = svc.sessionPerf(req.params.sessionId ?? '')
+    if (!rollup) return Response.json({error: 'Session not found'}, {status: 404, headers: corsHeaders()})
+    return Response.json(rollup, {headers: corsHeaders()})
+  }
   return {
     '/api/message': {OPTIONS: options, POST: message},
     '/agents/api/message': {OPTIONS: options, POST: message},
@@ -144,6 +151,8 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
     '/agents/api/version': {GET: version},
     '/api/perf': {GET: perf},
     '/agents/api/perf': {GET: perf},
+    '/api/perf/sessions/:sessionId': {GET: sessionPerf},
+    '/agents/api/perf/sessions/:sessionId': {GET: sessionPerf},
   }
 }
 
