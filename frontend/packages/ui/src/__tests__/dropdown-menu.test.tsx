@@ -4,6 +4,7 @@ import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {DropdownMenu, DropdownMenuTrigger} from '../components/dropdown-menu'
+import {OptionsDropdown} from '../options-dropdown'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -50,5 +51,20 @@ describe('DropdownMenuTrigger', () => {
 
     const trigger = container.querySelector('[data-slot="dropdown-menu-trigger"]')
     expect(trigger?.className).toContain('data-[state=open]:opacity-100')
+  })
+})
+
+describe('OptionsDropdown', () => {
+  it('only hides hover actions on devices that support hover', () => {
+    act(() => {
+      root.render(<OptionsDropdown hiddenUntilItemHover menuItems={[{key: 'open', label: 'Open', icon: <span />}]} />)
+    })
+
+    const trigger = container.querySelector('[data-slot="dropdown-menu-trigger"]')
+    const actionContainer = trigger?.parentElement
+
+    expect(actionContainer?.className).toContain('hover-hover:opacity-0')
+    expect(actionContainer?.className).toContain('hover-hover:group-hover/item:opacity-100')
+    expect(actionContainer?.className.split(' ')).not.toContain('opacity-0')
   })
 })

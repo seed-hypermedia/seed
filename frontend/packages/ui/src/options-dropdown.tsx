@@ -166,8 +166,8 @@ export function OptionsDropdown({
   return (
     <div
       className={cn(
-        'flex group-hover/item:opacity-100',
-        !popoverState.open && hiddenUntilItemHover ? 'opacity-0' : 'opacity-100',
+        'hover-hover:group-hover/item:opacity-100 flex',
+        !popoverState.open && hiddenUntilItemHover ? 'hover-hover:opacity-0' : 'opacity-100',
         className,
         popoverState.open && '!opacity-100',
       )}
