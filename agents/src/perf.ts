@@ -38,6 +38,8 @@
  *   correlated with `run.dispatch_delay` / `provider.request_gap` / `provider.ttft` in the same
  *   snapshot.
  * - `run.retry.<code>`       — queue-level retries of failed runs, by error code.
+ * - `web_read.cache_hit` / `web_read.cache_miss` / `web_read.coalesced` — the web_read page
+ *   cache's effectiveness (see web-tools.ts).
  * - `exec.pool_hit` / `exec.pool_miss` / `exec.pool_overflow` — warm-pool acquisition outcomes.
  * - `exec.pool_reset_exhausted` / `exec.pool_reset_error` / `exec.pool_probe_failed` — why a
  *   pooled VM was disposed: its park reset ran out of pass budget (the guest's own verdict), the
