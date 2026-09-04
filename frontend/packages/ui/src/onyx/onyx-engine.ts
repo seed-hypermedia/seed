@@ -7,7 +7,7 @@
 // list, map, link. In dag-json form a link is {"/":"<cid>"} and bytes is
 // {"/":{"bytes":"<base64>"}} — both distinct kinds, NOT maps.
 
-import {ONYX_AUTHORITY, ONYX_MANIFEST, ONYX_SCHEMAS} from './onyx-schemas.generated'
+import {ONYX_AUTHORITY, ONYX_MANIFEST, ONYX_PAGES, ONYX_SCHEMAS} from './onyx-schemas.generated'
 
 export type OnyxSchema = Record<string, any>
 /** basename (no .json) -> schema, e.g. "onyx-map-schema". A caller may pass a
@@ -390,6 +390,27 @@ export function isOnyxSchema(value: unknown, reg: OnyxRegistry = {}): boolean {
   const meta = ONYX_SCHEMAS['onyx-schema']
   if (!meta || !value || typeof value !== 'object') return false
   return validate(meta, value, '$', {}, reg).length === 0
+}
+
+/**
+ * What a schema IS, as a page to open: a union, a type parameter, a core type
+ * (Struct, Map, String…), or the type it extends. Null when nothing names it.
+ */
+export function schemaShape(schema: OnyxSchema | undefined): {label: string; slug: string} | null {
+  if (!schema || typeof schema !== 'object') return null
+  if (Array.isArray(schema.anyOf)) return {label: 'Union', slug: 'onyx-union-schema'}
+  if (typeof schema.var === 'string') return {label: `⟨${schema.var}⟩`, slug: 'onyx-var-schema'}
+  if (typeof schema.type === 'string') {
+    const kind = kindOf(schema.type)
+    const slug = kind !== schema.type ? `onyx-${kind}` : refToName(schema.type)
+    if (ONYX_SCHEMAS[slug]) return {label: ONYX_PAGES[slug]?.name ?? slug, slug}
+    return null
+  }
+  if (typeof schema.ref === 'string') {
+    const slug = refToName(schema.ref)
+    return ONYX_SCHEMAS[slug] ? {label: ONYX_PAGES[slug]?.name ?? slug, slug} : null
+  }
+  return null
 }
 
 // --- dependency graph (for the explorer) -----------------------------------

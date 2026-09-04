@@ -32,7 +32,7 @@ import {
 import {seedValue} from './onyx/onyx-data-editor'
 import {emptyStructSchema} from './onyx/onyx-schema-editor'
 import {SchemaAwareEditor} from './onyx/schema-aware-editor'
-import {isOnyxSchema, ONYX_SCHEMAS, schemaCid} from './onyx/onyx-engine'
+import {ONYX_SCHEMAS, isOnyxSchema, nameToUrl, schemaCid, schemaShape} from './onyx/onyx-engine'
 import {useResolvedSchema} from './onyx/onyx-schema-resolve'
 import {SchemaPicker} from './onyx/schema-picker'
 import {OnyxSchemaProvider} from './onyx/onyx-schema-context'
@@ -454,6 +454,11 @@ export function InspectIpfsPage({
               <SchemaStatusRow
                 attachedSchemaCid={attachedSchemaCid}
                 valueIsSchema={valueIsSchema}
+                shape={valueIsSchema ? schemaShape(advisoryTarget as any) : undefined}
+                onOpenType={(slug) => {
+                  const url = nameToUrl(slug)
+                  if (url) openHmUrl(url)
+                }}
                 schemaLoaded={!!schema}
                 schemaLoading={!!attachedSchemaCid && schemaRegistry.isLoading && !schema}
                 onOpenSchema={attachedSchemaCid ? () => navigate({key: 'schema', cid: attachedSchemaCid}) : undefined}
@@ -540,6 +545,11 @@ export function InspectIpfsPage({
             <SchemaStatusRow
               attachedSchemaCid={attachedSchemaCid}
               valueIsSchema={valueIsSchema}
+              shape={valueIsSchema ? schemaShape(advisoryTarget as any) : undefined}
+              onOpenType={(slug) => {
+                const url = nameToUrl(slug)
+                if (url) openHmUrl(url)
+              }}
               schemaLoaded={!!schema}
               schemaLoading={!!attachedSchemaCid && schemaRegistry.isLoading && !schema}
               onOpenSchema={attachedSchemaCid ? () => navigate({key: 'schema', cid: attachedSchemaCid}) : undefined}
