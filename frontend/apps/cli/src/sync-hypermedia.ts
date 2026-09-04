@@ -4,7 +4,7 @@
  *   cd frontend/apps/cli
  *   bun run src/sync-hypermedia.ts push [--dry-run] [--server <url>] [--key <name>]
  *   bun run src/sync-hypermedia.ts pull [--server <url>] [--space <uid>]
- *   bun run src/sync-hypermedia.ts dev  [--api <url>] [--daemon <url>] [--interval <ms>] [--no-push] [--no-watch]
+ *   bun run src/sync-hypermedia.ts dev  [--api <url>] [--daemon <url>] [--interval <ms>] [--no-push] [--no-watch] [--keep-stale]
  *
  * This is `seed-cli space import / export / dev` (utils/space-sync.ts) with the
  * folder's own layout on top (see `layout` below): one flat directory holding
@@ -207,6 +207,30 @@ async function dev(args: string[]) {
     intervalMs: Number(argValue(args, '--interval') ?? 2000),
     push: !args.includes('--no-push'),
     watchFiles: !args.includes('--no-watch'),
+    retireStale: !args.includes('--keep-stale'),
+    // The dev site is current now; say whether the canonical Onyx site on
+    // hyper.media is, so stale data there is never a surprise.
+    afterStart: async () => {
+      const server = argValue(args, '--server') ?? 'https://hyper.media'
+      try {
+        const result = await importSpace({
+          client: createSeedClient(server),
+          signer: noSigner(),
+          account: SITE,
+          dir: SCHEMAS_DIR,
+          layout,
+          dryRun: true,
+        })
+        const behind = result.created.length + result.updated.length + result.moved.length
+        if (behind === 0) console.log(`The Onyx site on ${server} matches this folder.`)
+        else
+          console.log(
+            `⚠ The Onyx site on ${server} (hm://${SITE}) is BEHIND this folder: ${result.created.length} to create, ${result.moved.length} to move, ${result.updated.length} to update. Run \`pnpm hypermedia:push\` (signs with the main key) to publish it.`,
+          )
+      } catch (err) {
+        console.log(`Could not compare with ${server}: ${(err as Error).message}`)
+      }
+    },
     layout,
     beforePush: async ({client}) => {
       const blobs = await loadSchemaBlobs()
