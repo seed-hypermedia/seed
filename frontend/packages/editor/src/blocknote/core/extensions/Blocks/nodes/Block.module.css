@@ -174,6 +174,22 @@ NESTED BLOCKS
   display: list-item !important;
 }
 
+/* WebKit duplicates native markers when layout containment is applied to
+ * list items, especially when their text wraps. Keep containment on regular
+ * blocks, but opt semantic list items out. */
+.blockChildren[data-list-type='Unordered'] > .blockNode,
+.blockChildren[data-list-type='Ordered'] > .blockNode {
+  contain: none;
+}
+
+/* A Slot only carries a nested group. It has no visible content of its own,
+ * so rendering its wrapper as a list item gives Safari an extra marker that
+ * it aligns with the first visible descendant. */
+.blockChildren[data-list-type='Unordered'] > .blockNode:has(> .blockContent[data-content-type='slot']),
+.blockChildren[data-list-type='Ordered'] > .blockNode:has(> .blockContent[data-content-type='slot']) {
+  display: block !important;
+}
+
 .blockChildren[data-list-type='Unordered'] > span[data-decoration-type='link-dropdown'] {
   display: list-item !important;
 }
