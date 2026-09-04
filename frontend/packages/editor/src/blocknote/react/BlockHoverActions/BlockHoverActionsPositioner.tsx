@@ -178,6 +178,11 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
 
   const rect = hoverState.referenceRect
   const blockId = hoverState.blockId
+  const scrollViewport = editor.prosemirrorView?.dom.closest('[data-slot="scroll-area-viewport"]')
+  if (scrollViewport) {
+    const viewportRect = scrollViewport.getBoundingClientRect()
+    if (rect.top < viewportRect.top || rect.top >= viewportRect.bottom) return null
+  }
   if (!canReferenceBlock) {
     return null
   }

@@ -194,7 +194,7 @@ export function SiteHeader({
     <header
       ref={headerRef}
       className={cn(
-        'border-border dark:bg-background z-20 flex w-full transform-gpu border-b bg-white px-4 py-2 transition-transform duration-200',
+        'border-border dark:bg-background relative z-40 flex w-full transform-gpu border-b bg-white px-4 py-2 transition-transform duration-200',
         {
           'flex-col': isCenterLayout,
           'flex-row items-center': !isCenterLayout,

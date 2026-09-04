@@ -82,6 +82,7 @@ describe('DocumentTopBar', () => {
     )
 
     expect(container.querySelector('nav[aria-label="Breadcrumb"]')).not.toBeNull()
+    expect(container.querySelector('[data-document-top-bar]')?.className).toContain('z-40')
     expect(container.querySelector('[aria-current="page"]')?.textContent).toBe('Doc')
     expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === 'Publish')).toBe(true)
   })
@@ -97,6 +98,8 @@ describe('DocumentTopBar', () => {
 
     const status = container.querySelector('[data-document-status]')
     const breadcrumbs = container.querySelector('nav[aria-label="Breadcrumb"]')
+    expect(container.querySelector('[data-document-top-bar]')?.className).toContain('relative')
+    expect(container.querySelector('[data-document-top-bar]')?.className).toContain('z-40')
     expect(status?.textContent).toBe('Private')
     expect(status?.parentElement?.contains(breadcrumbs)).toBe(true)
     expect(breadcrumbs?.className).not.toContain('flex-1')
