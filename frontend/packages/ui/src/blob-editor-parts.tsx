@@ -24,12 +24,17 @@ export function SchemaStatusRow({
   schemaLoaded,
   schemaLoading,
   onOpenSchema,
+  shape,
+  onOpenType,
 }: {
   attachedSchemaCid: string | undefined
   valueIsSchema: boolean
   schemaLoaded: boolean
   schemaLoading: boolean
   onOpenSchema?: () => void
+  /** For a blob that is a schema: what it is (Union, Struct, …), as a page to open. */
+  shape?: {label: string; slug: string} | null
+  onOpenType?: (slug: string) => void
 }) {
   const warningCount = useSchemaWarningCount()
   // Root-level warnings (missing required keys, root type mismatch…) have no
@@ -42,6 +47,19 @@ export function SchemaStatusRow({
         <FileCode2 className="size-3.5" />
         {valueIsSchema ? 'This blob is a schema' : 'Schema attached'}
       </span>
+      {valueIsSchema && shape && (
+        <button
+          type="button"
+          data-testid="schema-shape"
+          onClick={onOpenType ? () => onOpenType(shape.slug) : undefined}
+          className={cn(
+            'border-primary/30 text-primary inline-flex items-center rounded border px-1.5 py-0.5 font-mono text-xs',
+            onOpenType && 'hover:bg-muted cursor-pointer',
+          )}
+        >
+          {shape.label}
+        </button>
+      )}
       {!valueIsSchema && attachedSchemaCid && (
         <button
           className={cn(
