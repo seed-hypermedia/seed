@@ -16,6 +16,11 @@ import {ONYX_PAGES} from './onyx-schemas.generated'
 
 const isTypeUrl = (text: string) => /^(hm|ipfs):\/\/\S+$/.test(text.trim())
 
+/** An entry offered before the search results: a URL to set, or a schema to apply as is. */
+export type TypeOption = {label: string; hint?: string; url?: string; schema?: Record<string, any>}
+
+const publicName = (url: string) => url.split('/').pop() ?? url
+
 /** The display name of a type URL: its bundled page's name, else the defining document's name, else the URL. */
 export function useTypeLabel(url: string): string {
   const slug = url ? refToName(url) : ''
@@ -31,12 +36,21 @@ export function useTypeLabel(url: string): string {
 export function SchemaTypeInput({
   value,
   onChange,
+  onPick,
+  options = [],
+  label: labelOverride,
   ariaLabel,
   placeholder = 'type',
   className,
 }: {
   value: string
   onChange: (url: string) => void
+  /** Applies an option that carries a schema (a string format, a type parameter). */
+  onPick?: (schema: Record<string, any>) => void
+  /** Offered before the search results, filtered by the query. */
+  options?: TypeOption[]
+  /** What to show for the current value when it is not a URL (⟨T⟩, HM link). */
+  label?: string
   ariaLabel: string
   placeholder?: string
   className?: string
@@ -44,7 +58,8 @@ export function SchemaTypeInput({
   // `text` is the query while the user types; null shows the current type's name.
   const [text, setText] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
-  const label = useTypeLabel(value)
+  const resolvedLabel = useTypeLabel(value)
+  const label = labelOverride ?? resolvedLabel
   const query = text ?? ''
   const parsed = useMemo(
     () =>
@@ -59,6 +74,16 @@ export function SchemaTypeInput({
     setText(null)
     setOpen(false)
   }
+  const pick = (option: TypeOption) => {
+    if (option.schema && onPick) onPick(option.schema)
+    else if (option.url) onChange(option.url)
+    setText(null)
+    setOpen(false)
+  }
+  const q = query.trim().toLowerCase()
+  const shownOptions = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options
+  const optionNames = new Set(options.map((o) => (o.url ? publicName(o.url) : '')))
+  const documents = results.documents.filter((r) => r.type === 'document' && !optionNames.has(r.id.path?.at(-1) ?? ''))
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverAnchor asChild>
@@ -95,16 +120,32 @@ export function SchemaTypeInput({
         onOpenAutoFocus={(e) => e.preventDefault()}
         data-testid="schema-type-results"
       >
-        {results.documents.length === 0 ? (
+        {shownOptions.map((o) => (
+          <button
+            key={`opt:${o.label}`}
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => pick(o)}
+            className="hover:bg-muted flex w-full items-baseline justify-between gap-2 rounded px-2 py-1 text-left"
+            data-testid="schema-type-option"
+          >
+            <span className="text-sm">{o.label}</span>
+            {o.hint && <span className="text-muted-foreground text-[10px]">{o.hint}</span>}
+          </button>
+        ))}
+        {shownOptions.length > 0 && documents.length > 0 && <div className="border-border my-1 border-t" />}
+        {documents.length === 0 ? (
           <p className="text-muted-foreground px-2 py-1.5 text-xs">
             {results.isLoading
               ? 'Searching…'
               : text && isTypeUrl(text)
                 ? 'Press Enter to use this URL'
-                : 'No schema documents found'}
+                : shownOptions.length
+                  ? 'Any document that defines a schema can be typed here'
+                  : 'No schema documents found'}
           </p>
         ) : (
-          results.documents.map((r) => {
+          documents.map((r) => {
             if (r.type !== 'document') return null
             const name = r.document?.metadata?.name || r.id.path?.at(-1) || r.id.uid
             const where = [r.id.uid.slice(0, 8) + '…', ...(r.id.path ?? [])].join('/')
