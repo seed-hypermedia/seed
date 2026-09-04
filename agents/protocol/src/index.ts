@@ -1425,6 +1425,21 @@ export type SessionEventMeta = {
   /** Wall time this message or tool call took, in milliseconds. */
   durationMs?: number
   /**
+   * Provider timing for the model turn that produced this event, stamped once at turn end. This is
+   * where "the agent feels slow" becomes attributable per turn instead of only in process-wide
+   * aggregates: `turnMs` is provider request sent → assistant turn complete, `ttftMs` the slice of
+   * that spent waiting for the first streamed output event. Absent on legacy events and on events
+   * appended outside a model turn.
+   */
+  turn?: {
+    /** 1-based turn index within the run that produced this event. */
+    index?: number
+    /** Provider request sent → first streamed output event, in milliseconds. */
+    ttftMs?: number
+    /** Provider request sent → assistant turn complete, in milliseconds. */
+    turnMs?: number
+  }
+  /**
    * On a user message a continuation replayed into its successor: the exact predecessor event it
    * is a verbatim copy of. The message is the user's, not a paraphrase — this is its provenance.
    */
