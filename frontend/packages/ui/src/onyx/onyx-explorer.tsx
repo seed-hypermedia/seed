@@ -468,8 +468,8 @@ export function OnyxSchemaPage({
     )
   } else if (isUnion) {
     lead = (
-      <p className="text-sm">
-        <Tag kind="union">{isMeta ? 'discriminated union' : 'union'}</Tag>{' '}
+      <p className="text-sm" data-testid="schema-union-lead">
+        <Chip label="Union" onClick={() => nav('onyx-union-schema')} />{' '}
         <span className="text-muted-foreground">
           · {isMeta ? `${schema.anyOf.length} variants, tagged on type` : `one of ${schema.anyOf.length} alternatives`}
         </span>
@@ -578,7 +578,7 @@ export function OnyxSchemaPage({
       {lead}
       {isMeta && (
         <Callout tone="meta">
-          This is the <strong>meta-schema</strong> — the discriminated union describing what every Onyx schema is,{' '}
+          This is the <strong>meta-schema</strong> — the union describing what every Onyx schema is,{' '}
           <em>including itself</em>. It validates against its own <code>union</code> variant, whose <code>anyOf</code>{' '}
           items validate against its <code>include</code> variant. The loop closes.
         </Callout>
@@ -713,8 +713,11 @@ export function OnyxSchemaView({
         // A root union as a LIST — one variant per row. Inlining them (with the "one of …"
         // phrasing SchemaRef uses for nested unions) wraps into an unreadable clutter here.
         <div className="flex flex-col gap-1.5" data-testid="schema-union-variants">
-          <p className="text-muted-foreground text-sm">
-            One of {schema.anyOf.length} variant{schema.anyOf.length === 1 ? '' : 's'}:
+          <p className="text-sm">
+            <Chip label="Union" onClick={() => nav('onyx-union-schema')} />{' '}
+            <span className="text-muted-foreground">
+              · one of {schema.anyOf.length} variant{schema.anyOf.length === 1 ? '' : 's'}:
+            </span>
           </p>
           <ul className="flex flex-col gap-0.5 pl-1">
             {schema.anyOf.map((v: any, i: number) => (
