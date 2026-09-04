@@ -191,6 +191,73 @@ describe('executeWebRead tiers', () => {
     await expect(executeWebRead({}, {url: 'ftp://x'})).rejects.toThrow(/http/)
   })
 
+  // Regression: the fetch deadline must cover the BODY, not just the headers. A server that
+  // responds 200 quickly and then stalls the stream held prod `web_read` calls for 31s against a
+  // 15s timeout (the timer used to be cleared as soon as headers arrived).
+  describe('body-stall deadline', () => {
+    function stallingServer(): {url: string; stop: () => void} {
+      const server = Bun.serve({
+        port: 0,
+        fetch() {
+          const stream = new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('<html><body><p>partial'))
+              // Never close, never enqueue again: headers + a taste of body, then silence.
+            },
+          })
+          return new Response(stream, {headers: {'content-type': 'text/html'}})
+        },
+      })
+      return {url: `http://127.0.0.1:${server.port}/page`, stop: () => server.stop(true)}
+    }
+
+    test('a stalled static body escalates to crawl4ai instead of hanging', async () => {
+      const site = stallingServer()
+      const crawler = Bun.serve({
+        port: 0,
+        fetch: () =>
+          Response.json({success: true, markdown: '# Rendered\n\n' + 'rendered by browser tier '.repeat(20)}),
+      })
+      try {
+        const startedAt = Date.now()
+        const out = await executeWebRead(
+          {crawlerUrl: `http://127.0.0.1:${crawler.port}`, fetchTimeoutMs: 250},
+          {url: site.url},
+        )
+        expect(out.source).toBe('crawl4ai')
+        // Well under the old unbounded hang: the static tier gave up at its deadline.
+        expect(Date.now() - startedAt).toBeLessThan(3_000)
+      } finally {
+        site.stop()
+        crawler.stop(true)
+      }
+    })
+
+    test('a stalled body with no crawler fails cleanly at the deadline', async () => {
+      const site = stallingServer()
+      try {
+        const startedAt = Date.now()
+        await expect(executeWebRead({fetchTimeoutMs: 250}, {url: site.url})).rejects.toThrow(/Could not extract/)
+        expect(Date.now() - startedAt).toBeLessThan(3_000)
+      } finally {
+        site.stop()
+      }
+    })
+
+    test('raw mode also bounds body streaming', async () => {
+      const site = stallingServer()
+      try {
+        const startedAt = Date.now()
+        await expect(executeWebRead({fetchTimeoutMs: 250}, {url: site.url, raw: true})).rejects.toThrow(
+          /Could not fetch/,
+        )
+        expect(Date.now() - startedAt).toBeLessThan(3_000)
+      } finally {
+        site.stop()
+      }
+    })
+  })
+
   test('uses a human-readable source label in the summary', async () => {
     mockFetch((url) => {
       if (url === 'https://blog.test/post') return htmlResponse(ARTICLE_HTML)

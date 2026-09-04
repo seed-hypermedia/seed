@@ -25,6 +25,10 @@ export type WebToolsConfig = {
   crawlerUrl?: string
   /** Bearer token for Crawl4AI (Crawl4AI >= 0.9 is secure-by-default and requires it). */
   crawlerToken?: string
+  /** Override for FETCH_TIMEOUT_MS (tests exercise the deadline without waiting 15s). */
+  fetchTimeoutMs?: number
+  /** Override for CRAWL_TIMEOUT_MS. */
+  crawlTimeoutMs?: number
 }
 
 /** Keep markdown comfortably under the 256 KiB tool-result cap, leaving room for metadata. */
@@ -64,11 +68,20 @@ function boundedInteger(value: unknown, fallback: number, min: number, max: numb
   return Math.max(min, Math.min(max, Math.floor(value)))
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+/**
+ * Runs one whole network exchange — headers AND body consumption — under a single deadline.
+ *
+ * A signal passed only to `fetch()` stops guarding the moment headers arrive, so a server that
+ * responds quickly and then stalls the body stream hangs the caller unbounded. Measured in prod as
+ * 31s `web_read` calls out of the "static" tier whose timeout is nominally 15s. Every read of
+ * `res.text()` / `res.json()` must therefore happen inside the exchange callback, under the same
+ * signal that guards the fetch.
+ */
+async function withFetchDeadline<T>(timeoutMs: number, exchange: (signal: AbortSignal) => Promise<T>): Promise<T> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    return await fetch(url, {...init, signal: controller.signal})
+    return await exchange(controller.signal)
   } finally {
     clearTimeout(timer)
   }
@@ -146,17 +159,20 @@ type SearxngResponse = {
 /** Alternate engines used to route around an engine that rate-limited the first query. */
 const FALLBACK_ENGINES = 'duckduckgo,bing,startpage,wikipedia'
 
-async function querySearxng(searxngUrl: string, params: URLSearchParams, engines?: string): Promise<SearxngResponse> {
+async function querySearxng(
+  searxngUrl: string,
+  params: URLSearchParams,
+  engines: string | undefined,
+  timeoutMs: number,
+): Promise<SearxngResponse> {
   const url = new URL('/search', searxngUrl)
   url.search = params.toString()
   if (engines) url.searchParams.set('engines', engines)
-  const res = await fetchWithTimeout(
-    url.toString(),
-    {headers: {Accept: 'application/json', 'User-Agent': USER_AGENT}},
-    FETCH_TIMEOUT_MS,
-  )
-  if (!res.ok) throw new Error(`SearXNG request failed: HTTP ${res.status}`)
-  const body: unknown = await res.json()
+  const body: unknown = await withFetchDeadline(timeoutMs, async (signal) => {
+    const res = await fetch(url.toString(), {headers: {Accept: 'application/json', 'User-Agent': USER_AGENT}, signal})
+    if (!res.ok) throw new Error(`SearXNG request failed: HTTP ${res.status}`)
+    return res.json()
+  })
   if (!isRecord(body) || !Array.isArray(body.results)) throw new Error('SearXNG returned an unexpected response')
   const results: WebSearchResult[] = body.results.flatMap((entry) => {
     if (!isRecord(entry) || typeof entry.url !== 'string') return []
@@ -192,10 +208,11 @@ export async function executeWebSearch(config: WebToolsConfig, raw: unknown): Pr
     params.set('time_range', input.timeRange)
   params.set('language', boundedString(input.language, 16) || 'en')
 
-  let {results, unresponsiveEngines} = await querySearxng(config.searxngUrl, params)
+  const timeoutMs = config.fetchTimeoutMs ?? FETCH_TIMEOUT_MS
+  let {results, unresponsiveEngines} = await querySearxng(config.searxngUrl, params, undefined, timeoutMs)
   // If upstream engines blocked the query and nothing came back, retry once with a different engine set.
   if (results.length === 0 && unresponsiveEngines.length > 0) {
-    const retry = await querySearxng(config.searxngUrl, params, FALLBACK_ENGINES)
+    const retry = await querySearxng(config.searxngUrl, params, FALLBACK_ENGINES, timeoutMs)
     results = retry.results
     unresponsiveEngines = retry.unresponsiveEngines
   }
@@ -248,15 +265,17 @@ export function parseWikiTitle(url: URL): string | null {
 }
 
 /** Returns the MediaWiki scriptpath for a host (e.g. "/w"), or null if the host is not MediaWiki. */
-async function discoverMediaWiki(origin: string): Promise<string | null> {
+async function discoverMediaWiki(origin: string, timeoutMs: number): Promise<string | null> {
   if (mediaWikiHostCache.has(origin)) return mediaWikiHostCache.get(origin) ?? null
   let scriptpath: string | null = null
   for (const candidate of ['/w', '']) {
     try {
       const api = `${origin}${candidate}/api.php?action=query&meta=siteinfo&siprop=general&format=json`
-      const res = await fetchWithTimeout(api, {headers: {'User-Agent': USER_AGENT}}, FETCH_TIMEOUT_MS)
-      if (!res.ok) continue
-      const body: unknown = await res.json()
+      const body: unknown = await withFetchDeadline(timeoutMs, async (signal) => {
+        const res = await fetch(api, {headers: {'User-Agent': USER_AGENT}, signal})
+        if (!res.ok) return undefined
+        return res.json()
+      })
       const general = isRecord(body) && isRecord(body.query) ? body.query.general : undefined
       const generator = isRecord(general) && typeof general.generator === 'string' ? general.generator : ''
       if (generator.startsWith('MediaWiki')) {
@@ -272,16 +291,19 @@ async function discoverMediaWiki(origin: string): Promise<string | null> {
 }
 
 /** Reads a MediaWiki page as markdown via the REST Parsoid HTML endpoint. Returns null to fall through. */
-async function readMediaWiki(url: URL): Promise<{title: string; markdown: string} | null> {
+async function readMediaWiki(url: URL, timeoutMs: number): Promise<{title: string; markdown: string} | null> {
   const title = parseWikiTitle(url)
   if (!title) return null
-  const scriptpath = await discoverMediaWiki(url.origin)
+  const scriptpath = await discoverMediaWiki(url.origin, timeoutMs)
   if (scriptpath === null) return null
   const restUrl = `${url.origin}${scriptpath}/rest.php/v1/page/${encodeURIComponent(title)}/html`
   try {
-    const res = await fetchWithTimeout(restUrl, {headers: {'User-Agent': USER_AGENT}}, FETCH_TIMEOUT_MS)
-    if (!res.ok) return null
-    const html = await res.text()
+    const html = await withFetchDeadline(timeoutMs, async (signal) => {
+      const res = await fetch(restUrl, {headers: {'User-Agent': USER_AGENT}, signal})
+      if (!res.ok) return null
+      return res.text()
+    })
+    if (html === null) return null
     const extracted = extractReadableMarkdown(html, url.toString())
     if (extracted) return extracted
     // Parsoid HTML occasionally defeats Readability; fall back to a direct conversion of the body.
@@ -294,29 +316,30 @@ async function readMediaWiki(url: URL): Promise<{title: string; markdown: string
 }
 
 /** Fetches a URL and extracts main-content markdown in-process. Returns null to escalate. */
-async function readStatic(url: string): Promise<{title: string; markdown: string; finalUrl: string} | null> {
-  let res: Response
+async function readStatic(
+  url: string,
+  timeoutMs: number,
+): Promise<{title: string; markdown: string; finalUrl: string} | null> {
+  let fetched: {html: string; finalUrl: string} | null
   try {
-    res = await fetchWithTimeout(
-      url,
-      {headers: {'User-Agent': USER_AGENT, Accept: 'text/html,application/xhtml+xml'}, redirect: 'follow'},
-      FETCH_TIMEOUT_MS,
-    )
+    fetched = await withFetchDeadline(timeoutMs, async (signal) => {
+      const res = await fetch(url, {
+        headers: {'User-Agent': USER_AGENT, Accept: 'text/html,application/xhtml+xml'},
+        redirect: 'follow',
+        signal,
+      })
+      if (!res.ok) return null
+      const contentType = res.headers.get('content-type') ?? ''
+      if (!contentType.includes('html') && !contentType.includes('xml') && contentType !== '') return null
+      return {html: await res.text(), finalUrl: res.url || url}
+    })
   } catch {
     return null
   }
-  if (!res.ok) return null
-  const contentType = res.headers.get('content-type') ?? ''
-  if (!contentType.includes('html') && !contentType.includes('xml') && contentType !== '') return null
-  let html: string
-  try {
-    html = await res.text()
-  } catch {
-    return null
-  }
-  const extracted = extractReadableMarkdown(html, url)
+  if (fetched === null) return null
+  const extracted = extractReadableMarkdown(fetched.html, url)
   if (!extracted) return null
-  return {...extracted, finalUrl: res.url || url}
+  return {...extracted, finalUrl: fetched.finalUrl}
 }
 
 /** Renders a URL to markdown via the self-hosted Crawl4AI headless browser. Returns null to fall through. */
@@ -333,13 +356,11 @@ async function readCrawl4ai(
   // Browser rendering is transiently flaky under concurrency; one retry covers the common hiccup.
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const res = await fetchWithTimeout(
-        endpoint,
-        {method: 'POST', headers, body: JSON.stringify(body)},
-        CRAWL_TIMEOUT_MS,
-      )
-      if (!res.ok) continue
-      const data: unknown = await res.json()
+      const data: unknown = await withFetchDeadline(config.crawlTimeoutMs ?? CRAWL_TIMEOUT_MS, async (signal) => {
+        const res = await fetch(endpoint, {method: 'POST', headers, body: JSON.stringify(body), signal})
+        if (!res.ok) return undefined
+        return res.json()
+      })
       if (!isRecord(data) || data.success !== true || typeof data.markdown !== 'string') continue
       const markdown = data.markdown.trim()
       if (markdown.length === 0) continue
@@ -355,18 +376,25 @@ async function readCrawl4ai(
 const RAW_TEXT_CONTENT_TYPE = /(^$)|text|json|xml|javascript|ecmascript|csv|yaml|x-sh|x-www-form/i
 
 /** Fetches a URL and returns its body verbatim (no extraction/conversion). Throws on failure or binary content. */
-async function readRaw(url: string): Promise<{body: string; finalUrl: string; contentType: string}> {
-  let res: Response
+async function readRaw(url: string, timeoutMs: number): Promise<{body: string; finalUrl: string; contentType: string}> {
   try {
-    res = await fetchWithTimeout(url, {headers: {'User-Agent': USER_AGENT}, redirect: 'follow'}, FETCH_TIMEOUT_MS)
+    return await withFetchDeadline(timeoutMs, async (signal) => {
+      const res = await fetch(url, {headers: {'User-Agent': USER_AGENT}, redirect: 'follow', signal})
+      if (!res.ok) throw new Error(`Could not fetch ${url} (raw): HTTP ${res.status}`)
+      const contentType = (res.headers.get('content-type') ?? '').split(';')[0]?.trim() ?? ''
+      if (!RAW_TEXT_CONTENT_TYPE.test(contentType))
+        throw new Error(`web_read raw mode only supports text responses; got content-type "${contentType}"`)
+      return {body: await res.text(), finalUrl: res.url || url, contentType}
+    })
   } catch (error) {
+    // The exchange's own errors (HTTP status, content-type) already read well; wrap only transport failures.
+    if (
+      error instanceof Error &&
+      (error.message.startsWith('Could not fetch') || error.message.startsWith('web_read raw mode'))
+    )
+      throw error
     throw new Error(`Could not fetch ${url} (raw): ${error instanceof Error ? error.message : 'request failed'}`)
   }
-  if (!res.ok) throw new Error(`Could not fetch ${url} (raw): HTTP ${res.status}`)
-  const contentType = (res.headers.get('content-type') ?? '').split(';')[0]?.trim() ?? ''
-  if (!RAW_TEXT_CONTENT_TYPE.test(contentType))
-    throw new Error(`web_read raw mode only supports text responses; got content-type "${contentType}"`)
-  return {body: await res.text(), finalUrl: res.url || url, contentType}
 }
 
 export async function executeWebRead(config: WebToolsConfig, raw: unknown): Promise<Record<string, unknown>> {
@@ -383,9 +411,11 @@ export async function executeWebRead(config: WebToolsConfig, raw: unknown): Prom
     throw new Error('web_read only supports http(s) URLs')
   const query = boundedString(input.query, 512)
 
+  const timeoutMs = config.fetchTimeoutMs ?? FETCH_TIMEOUT_MS
+
   // Raw mode: return the response body verbatim (source code, JSON APIs, config files) with no extraction.
   if (input.raw === true) {
-    const fetched = await readRaw(rawUrl)
+    const fetched = await readRaw(rawUrl, timeoutMs)
     const {markdown, truncated} = boundMarkdown(fetched.body)
     return {
       summary: `Fetched ${fetched.finalUrl} via ${WEB_READ_SOURCE_LABEL.raw}${truncated ? ' (truncated)' : ''}.`,
@@ -405,14 +435,14 @@ export async function executeWebRead(config: WebToolsConfig, raw: unknown): Prom
 
   // Tier 1: MediaWiki API (clean, no browser) when the URL looks like a wiki page.
   if (parseWikiTitle(parsed)) {
-    const wiki = await readMediaWiki(parsed)
+    const wiki = await readMediaWiki(parsed, timeoutMs)
     attempts.push('mediawiki')
     if (wiki) result = {...wiki, source: 'mediawiki', finalUrl: rawUrl}
   }
 
   // Tier 2: in-process static extraction.
   if (!result) {
-    const stat = await readStatic(rawUrl)
+    const stat = await readStatic(rawUrl, timeoutMs)
     attempts.push('static')
     if (stat) result = {title: stat.title, markdown: stat.markdown, source: 'static', finalUrl: stat.finalUrl}
   }
