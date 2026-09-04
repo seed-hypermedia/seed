@@ -175,9 +175,10 @@ function NotificationButtonForAccount({accountUid}: {accountUid: string}) {
       >
         <Bell className="size-4" />
         {unreadCount > 0 ? (
-          <span className="flex h-5 min-w-5 items-center justify-center rounded-lg bg-red-500 px-1 text-[12px] font-bold text-white">
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
+          <>
+            <span aria-hidden="true" className="absolute top-1 right-1 size-2 rounded-full bg-red-500" />
+            <span className="sr-only">{unreadCount} unread notifications</span>
+          </>
         ) : null}
       </Button>
     </Tooltip>

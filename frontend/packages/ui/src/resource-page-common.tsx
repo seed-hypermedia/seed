@@ -1596,7 +1596,6 @@ export function PageShell({
         rightActions={rightActions}
         editNavPane={editNavPanePortalRef ? undefined : editNavPane}
         editNavPanePortalRef={editNavPanePortalRef}
-        onOpenFileBrowser={() => setIsFileBrowserOpen(true)}
       />
       <TransientResourceBanner error={transientResourceError ?? null} />
       <SiteFileBrowserLayout

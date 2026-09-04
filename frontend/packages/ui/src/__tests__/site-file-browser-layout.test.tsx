@@ -4,7 +4,7 @@ import {act} from 'react-dom/test-utils'
 import {createRoot, type Root} from 'react-dom/client'
 import {renderToString} from 'react-dom/server'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {SiteFileBrowserLayout} from '../site-file-browser-layout'
+import {SiteFileBrowserLayout, useSiteFileBrowserControls} from '../site-file-browser-layout'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 const mediaMock = vi.hoisted(() => ({value: {xs: false}}))
@@ -73,6 +73,15 @@ function renderLayout() {
       </SiteFileBrowserLayout>,
     )
   })
+}
+
+function MobileFileBrowserTrigger() {
+  const controls = useSiteFileBrowserControls()
+  return (
+    <button type="button" aria-label="Open file browser from content" onClick={() => controls?.setCollapsed(false)}>
+      Open files
+    </button>
+  )
 }
 
 describe('SiteFileBrowserLayout', () => {
@@ -188,5 +197,31 @@ describe('SiteFileBrowserLayout', () => {
     expect(drawer?.className).toContain('max-w-[80dvw]')
     expect(drawer?.className).toContain('shrink-0')
     expect(drawer?.className).toContain('motion-safe:slide-in-from-left')
+  })
+
+  it('lets page chrome open the mobile file browser', () => {
+    mediaMock.value = {xs: true}
+    const onMobileOpenChange = vi.fn()
+
+    act(() => {
+      root.render(
+        <SiteFileBrowserLayout
+          siteId={hmId('site')}
+          activeDocumentId={hmId('site')}
+          siteName="Site"
+          mobileOpen={false}
+          onMobileOpenChange={onMobileOpenChange}
+          onNavigate={vi.fn()}
+        >
+          <MobileFileBrowserTrigger />
+        </SiteFileBrowserLayout>,
+      )
+    })
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[aria-label="Open file browser from content"]')?.click()
+    })
+
+    expect(onMobileOpenChange).toHaveBeenCalledWith(true)
   })
 })

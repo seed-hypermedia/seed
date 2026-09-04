@@ -17,7 +17,7 @@ import {useResponsiveItems} from './use-responsive-items'
 
 import {IS_DESKTOP} from '@shm/shared/constants'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {Activity, FolderTree, Lock} from 'lucide-react'
+import {Activity, Lock} from 'lucide-react'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {DocNavigationItem, DocumentOutline, DocumentSmallListItem, useNodesOutline} from './navigation'
 import {HeaderSearch, MobileSearch} from './search'
@@ -83,7 +83,6 @@ export function SiteHeader({
   notifyServiceHost: _notifyServiceHost,
   routeType,
   rightActions,
-  onOpenFileBrowser,
 }: {
   siteHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId | null
@@ -106,7 +105,6 @@ export function SiteHeader({
   notifyServiceHost?: string
   routeType?: NavRoute['key']
   rightActions?: React.ReactNode
-  onOpenFileBrowser?: () => void
 }) {
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
   const [isMobileSearchActive, setIsMobileSearchActive] = useState(false)
@@ -127,20 +125,6 @@ export function SiteHeader({
     : {document: siteHomeDocument ?? undefined, id: siteHomeId} // Non-home: use site home (may be undefined while loading)
   const headerSearch = (
     <>
-      {onOpenFileBrowser ? (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="md:hidden"
-          aria-label="Open file browser"
-          onClick={() => {
-            setIsMobileMenuOpen(false)
-            onOpenFileBrowser()
-          }}
-        >
-          <FolderTree size={20} />
-        </Button>
-      ) : null}
       <Button
         variant="ghost"
         size="icon"
@@ -210,7 +194,7 @@ export function SiteHeader({
           'flex-start': !isCenterLayout,
         })}
       >
-        <div className={cn('flex overflow-hidden', isCenterLayout ? 'flex-1 justify-center' : 'shrink-0')}>
+        <div className={cn('flex min-w-0 overflow-hidden', isCenterLayout ? 'flex-1 justify-center' : '')}>
           <SiteLogo id={headerHomeId} metadata={draftMetadata || homeDoc.document?.metadata} />
         </div>
         {routeType != 'draft' && isCenterLayout ? (
