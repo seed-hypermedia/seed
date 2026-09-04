@@ -109,6 +109,7 @@ export function registerSpaceCommands(program: Command) {
     .option('--interval <ms>', 'Poll interval', '2000')
     .option('--no-push', 'Do not publish the directory into the daemon first')
     .option('--no-watch', 'Do not push files changed on disk while the loop runs')
+    .option('--keep-stale', 'Leave the dev sites of earlier loops in the daemon instead of retiring them')
     .action(async (options) => {
       try {
         await runDevLoop({
@@ -118,6 +119,7 @@ export function registerSpaceCommands(program: Command) {
           intervalMs: Number(options.interval),
           push: options.push !== false,
           watchFiles: options.watch !== false,
+          retireStale: !options.keepStale,
         })
       } catch (error) {
         printError((error as Error).message)
