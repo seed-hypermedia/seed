@@ -14,7 +14,6 @@ import {Button} from '../button'
 import {Checkbox} from '../components/checkbox'
 import {Input} from '../components/input'
 import {Textarea} from '../components/textarea'
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '../select-dropdown'
 import {Tooltip} from '../tooltip'
 import {cn} from '../utils'
 import {
@@ -28,7 +27,8 @@ import {
   validate,
   type OnyxSchema,
 } from './onyx-engine'
-import {SchemaTypeInput} from './schema-type-input'
+import {ONYX_PAGES} from './onyx-schemas.generated'
+import {SchemaTypeInput, type TypeOption} from './schema-type-input'
 
 /** The field kinds a struct property can take (friendly labels). */
 const FIELD_KINDS: {kind: string; label: string}[] = [
@@ -336,7 +336,6 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
     if (nextRequired.delete(oldName)) nextRequired.add(newName)
     commit(nextProps, nextRequired)
   }
-  const setFieldKind = (name: string, kind: string) => commit({...properties, [name]: kindSchema(kind)}, required)
   // A reference field (HM link / IPFS) may name the type its target should
   // conform to — this is how one type points at another (character.home → place).
   const setFieldTarget = (name: string, target: string) => {
@@ -394,7 +393,30 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
     // Fields typed by the parameter fall back to its default.
     setParams(next, replaceVar(schema, name, params[name] ?? {ref: ANY_URL}))
   }
-  const fieldKinds = [...FIELD_KINDS, ...paramEntries.map(([name]) => ({kind: varKind(name), label: `⟨${name}⟩`}))]
+  // What a field can be typed as, offered before the search over every schema
+  // document: the type parameters, the two string formats (a kind of string
+  // with a picker), and the core types. Anything else is found by searching.
+  const fieldTypeOptions: TypeOption[] = [
+    ...paramEntries.map(([name]) => ({label: `⟨${name}⟩`, hint: 'type parameter', schema: {var: name}})),
+    {label: 'HM link', hint: 'string · hm-url', schema: kindSchema('hm-url')},
+    {label: 'IPFS file / object', hint: 'string · ipfs', schema: kindSchema('ipfs')},
+    ...FIELD_KINDS.filter(({kind}) => !isReferenceKind(kind)).map(({kind, label}) => {
+      const slug = `onyx-${kind}`
+      return {label: ONYX_PAGES[slug]?.name ?? label, hint: 'core type', url: nameToUrl(slug)!}
+    }),
+  ]
+  /** The type URL a property schema names (its ref or type), '' for a format or parameter. */
+  const fieldUrl = (ps: any): string =>
+    typeof ps?.ref === 'string' ? ps.ref : typeof ps?.type === 'string' ? ps.type : ''
+  /** A label for the shapes a URL does not name: a parameter, a string format, a union… */
+  const fieldLabel = (ps: any): string | undefined => {
+    const k = propKind(ps)
+    if (k.startsWith('var:')) return `⟨${k.slice(4)}⟩`
+    if (k === 'hm-url') return 'HM link'
+    if (k === 'ipfs') return 'IPFS file / object'
+    if (k === CUSTOM_KIND && !fieldUrl(ps)) return customLabel(ps)
+    return undefined
+  }
 
   // `values`: the schema every field NOT listed above must satisfy. Present, the
   // struct is open (extra fields allowed, typed); absent, it is closed.
@@ -421,12 +443,10 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
     const base = {...rest, properties: props, required: Array.from(req)}
     onSchema(kindOf(url) !== url ? {...base, type: url} : {...base, ref: url})
   }
-  // A field whose type is being picked from the search (no kind chosen yet).
-  const [pickingField, setPickingField] = useState<string | null>(null)
   const setFieldType = (name: string, url: string) => {
-    setPickingField(null)
     commit({...properties, [name]: kindOf(url) !== url ? {type: url} : {ref: url}}, required)
   }
+  const setFieldSchema = (name: string, next: OnyxSchema) => commit({...properties, [name]: next}, required)
 
   return (
     <div className="flex flex-col gap-4">
@@ -509,48 +529,15 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
                   aria-label="Field name"
                   onChange={(e) => renameField(name, e.target.value)}
                 />
-                {propKind(ps) === CUSTOM_KIND || pickingField === name ? (
-                  <SchemaTypeInput
-                    value={
-                      pickingField === name
-                        ? ''
-                        : typeof ps?.ref === 'string'
-                          ? ps.ref
-                          : typeof ps?.type === 'string'
-                            ? ps.type
-                            : ''
-                    }
-                    onChange={(url) => setFieldType(name, url)}
-                    ariaLabel={`Type of ${name}`}
-                    placeholder={pickingField === name ? 'search types…' : customLabel(ps)}
-                    className="w-44 shrink-0"
-                  />
-                ) : null}
-                <Select
-                  value={propKind(ps) === CUSTOM_KIND ? CUSTOM_KIND : pickingField === name ? 'pick' : propKind(ps)}
-                  onValueChange={(kind) => {
-                    if (kind === 'pick') return setPickingField(name)
-                    setPickingField(null)
-                    setFieldKind(name, kind)
-                  }}
-                >
-                  <SelectTrigger className="w-36 shrink-0" aria-label={`Kind of ${name}`}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {propKind(ps) === CUSTOM_KIND && (
-                      <SelectItem value={CUSTOM_KIND} disabled>
-                        {customLabel(ps)}
-                      </SelectItem>
-                    )}
-                    {fieldKinds.map(({kind, label}) => (
-                      <SelectItem key={kind} value={kind}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="pick">Other type…</SelectItem>
-                  </SelectContent>
-                </Select>
+                <SchemaTypeInput
+                  value={fieldUrl(ps)}
+                  label={fieldLabel(ps)}
+                  options={fieldTypeOptions}
+                  onChange={(url) => setFieldType(name, url)}
+                  onPick={(next) => setFieldSchema(name, next)}
+                  ariaLabel={`Type of ${name}`}
+                  className="w-44 shrink-0"
+                />
                 {isReferenceKind(propKind(ps)) && (
                   <Tooltip content="Target type — the schema the referenced document or object should conform to (an hm:// type document or ipfs:// schema). Optional.">
                     <Input
@@ -588,23 +575,15 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
             </label>
           </Tooltip>
           {values !== undefined && (
-            <Select value={propKind(values)} onValueChange={(kind) => setValues(kindSchema(kind))}>
-              <SelectTrigger className="w-36 shrink-0" aria-label="Kind of other fields">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {propKind(values) === CUSTOM_KIND && (
-                  <SelectItem value={CUSTOM_KIND} disabled>
-                    {customLabel(values)}
-                  </SelectItem>
-                )}
-                {fieldKinds.map(({kind, label}) => (
-                  <SelectItem key={kind} value={kind}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SchemaTypeInput
+              value={fieldUrl(values)}
+              label={fieldLabel(values)}
+              options={fieldTypeOptions}
+              onChange={(url) => setValues(kindOf(url) !== url ? {type: url} : {ref: url})}
+              onPick={(next) => setValues(next)}
+              ariaLabel="Type of other fields"
+              className="w-44 shrink-0"
+            />
           )}
         </div>
       </div>
