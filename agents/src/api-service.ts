@@ -781,7 +781,7 @@ export class Service {
   /** Accepted collaborator audiences, cached because partial text events can arrive per token. */
   readonly #collaboratorAudience = new Map<string, Array<{account_id: string; role: api.AgentCollaboratorRole}>>()
   /** Short-lived profile labels for model-facing member rosters; account IDs remain authoritative. */
-  readonly #accountDisplayNames = new Map<string, {displayName?: string; expiresAt: number}>()
+  readonly #accountDisplayNames = new Map<string, {displayName?: string; expiresAt: number; refreshing?: boolean}>()
   /** In-flight background dispatch setup (trigger prompt builds + enqueues); the runs themselves live in the queue. */
   readonly #pendingTriggerSessions = new Set<Promise<void>>()
   /** Sessions with a user verb mid-execution: agent runs must not start under them (reverse 409). */
@@ -818,7 +818,10 @@ export class Service {
    * prompt embeds, and it runs on every GetSession (each session open, each WS resubscribe) — so
    * it is cached against the prompt blocks' JSON with a short TTL to pick up remote doc edits.
    */
-  readonly #resolvedSystemPromptCache = new Map<string, {source: string; value: string; expiresAt: number}>()
+  readonly #resolvedSystemPromptCache = new Map<
+    string,
+    {source: string; value: string; expiresAt: number; refreshing?: boolean}
+  >()
   /** Chunked uploads staged on disk, keyed by upload id. Abandoned uploads expire after a TTL. */
   readonly #uploads = new Map<string, StagedFileUpload>()
   /** Pending provider OAuth sign-ins (StartProviderOAuth … GetProviderOAuthStatus). */
@@ -6343,20 +6346,36 @@ export class Service {
         ...collaborators.map((row) => ({accountId: row.account_id, role: row.role})),
       ].map(async (member) => {
         const cached = this.#accountDisplayNames.get(member.accountId)
-        if (cached && cached.expiresAt > Date.now()) {
+        const resolveDisplayName = async (): Promise<string> => {
+          const profile = await client.request('Account', member.accountId, {signal: AbortSignal.timeout(1_000)})
+          const rawName = profile.type === 'account' ? profile.metadata?.name : undefined
+          return typeof rawName === 'string' ? rawName.trim().slice(0, 200) : ''
+        }
+        const store = (displayName: string, ttlMs: number) =>
+          this.#accountDisplayNames.set(member.accountId, {
+            ...(displayName ? {displayName} : {}),
+            expiresAt: Date.now() + ttlMs,
+          })
+        if (cached) {
+          // Serve even a stale label and refresh off the turn path: a cold lookup holds the whole
+          // run's system prompt hostage for up to the 1s timeout per member, and display names are
+          // cosmetic next to the authoritative account IDs.
+          if (cached.expiresAt <= Date.now() && !cached.refreshing) {
+            cached.refreshing = true
+            void resolveDisplayName()
+              .then((displayName) => store(displayName, 5 * 60_000))
+              .catch(() => {
+                cached.refreshing = false
+              })
+          }
           return {...member, ...(cached.displayName ? {displayName: cached.displayName} : {})}
         }
         try {
-          const profile = await client.request('Account', member.accountId, {signal: AbortSignal.timeout(1_000)})
-          const rawName = profile.type === 'account' ? profile.metadata?.name : undefined
-          const displayName = typeof rawName === 'string' ? rawName.trim().slice(0, 200) : ''
-          this.#accountDisplayNames.set(member.accountId, {
-            ...(displayName ? {displayName} : {}),
-            expiresAt: Date.now() + 5 * 60_000,
-          })
+          const displayName = await resolveDisplayName()
+          store(displayName, 5 * 60_000)
           return {...member, ...(displayName ? {displayName} : {})}
         } catch {
-          this.#accountDisplayNames.set(member.accountId, {expiresAt: Date.now() + 30_000})
+          store('', 30_000)
           return member
         }
       }),
@@ -6385,8 +6404,27 @@ export class Service {
     const promptSource = safeJSONStringify(promptBlocks)
     const cachedPrompt = this.#resolvedSystemPromptCache.get(agentId)
     let systemPrompt: string
-    if (cachedPrompt && cachedPrompt.source === promptSource && cachedPrompt.expiresAt > Date.now()) {
+    if (cachedPrompt && cachedPrompt.source === promptSource) {
+      // Serve the cached resolution even past its TTL and refresh off the turn path: embedded
+      // hm:// content going a few minutes stale is invisible next to the ~1.2s pre-turn stall
+      // every cache-cold run paid (prep.system_prompt 1175ms vs 1ms warm, measured in prod). A
+      // CHANGED prompt source still resolves synchronously — that is new content, not a refresh.
       systemPrompt = cachedPrompt.value
+      if (cachedPrompt.expiresAt <= Date.now() && !cachedPrompt.refreshing) {
+        cachedPrompt.refreshing = true
+        void promptBlocksToResolvedMarkdown(promptBlocks, createSeedClient(this.#hmServerUrl))
+          .then((value) => {
+            this.#resolvedSystemPromptCache.set(agentId, {
+              source: promptSource,
+              value,
+              expiresAt: Date.now() + RESOLVED_PROMPT_CACHE_TTL_MS,
+            })
+          })
+          .catch(() => {
+            // Keep serving the stale value; the flag reset lets the next expiry retry.
+            cachedPrompt.refreshing = false
+          })
+      }
     } else {
       systemPrompt = await promptBlocksToResolvedMarkdown(promptBlocks, createSeedClient(this.#hmServerUrl))
       this.#resolvedSystemPromptCache.set(agentId, {
