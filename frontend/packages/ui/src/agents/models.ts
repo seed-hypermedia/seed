@@ -147,7 +147,11 @@ function applySessionToCaches(serverUrl: string, accountUid: string, session: Se
  * emit, so the client no longer refetches every agent query per event — that blanket invalidation
  * was most of the idle request load, and its refetch races flashed editing UIs to stale values.
  */
-function invalidateForAccountChange(
+/**
+ * Applies one `account/<uid>` change event to the query caches. Exported for tests: the refetch
+ * policy per reason is what keeps unmounted lists honest on the web client.
+ */
+export function invalidateForAccountChange(
   serverUrl: string,
   accountUid: string,
   value: {reason?: string; agentId?: string; sessionId?: string},
@@ -193,7 +197,21 @@ function invalidateForAccountChange(
       invalidateQueries(['agents', 'provider-models', serverUrl, accountUid])
       return
     case 'session-created':
-    case 'session-deleted':
+    case 'session-deleted': {
+      // A session the runtime created — a continuation successor, a trigger firing, start_session —
+      // usually arrives while the agent page and the sessions list are unmounted (the user is in the
+      // predecessor session). The web query client never refetches on mount, so an active-only
+      // invalidation would leave those cached lists without the new session until a full reload.
+      // Membership changes are rare enough to refetch even the inactive copies.
+      const refetchType = 'all'
+      invalidateQueries(['agents', 'sessions', serverUrl, accountUid], {refetchType})
+      if (sessionId) {
+        invalidateQueries(['agents', 'session', serverUrl, accountUid, sessionId])
+        invalidateQueries(['agents', 'child-sessions', serverUrl, accountUid], {refetchType})
+      }
+      if (agentId) invalidateQueries(['agents', 'detail', serverUrl, accountUid, agentId], {refetchType})
+      return
+    }
     case 'session-updated':
     case 'user-title-wins':
     case 'session-event':
@@ -1761,6 +1779,10 @@ export function useAgentDetail(
     enabled: !!serverUrl && !!accountUid && !!agentId,
     retry: false,
     useErrorBoundary: false,
+    // The sessions tab is a membership list. Any invalidation that landed while the page was away
+    // (a session the runtime created, a WebSocket gap) must be honored when it comes back, even on
+    // the web client, whose defaults never refetch on mount.
+    refetchOnMount: true,
   })
 }
 
