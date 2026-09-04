@@ -418,6 +418,17 @@ describe('getCommentsPanelTarget', () => {
     })
   })
 
+  it('uses the resolved document version when an inline-comments panel targets the same unpinned document', () => {
+    const resolvedMainDocId = hmId('alice', {path: ['embedded-doc'], version: 'resolved-version'})
+    const panelRoute: Extract<NavRoute, {key: 'document'}>['panel'] = {
+      key: 'comments',
+      id: mainDocId,
+      targetBlockId: 'paragraph',
+    }
+
+    expect(getCommentsPanelTarget(resolvedMainDocId, panelRoute).docId.version).toBe('resolved-version')
+  })
+
   it('uses the main document when no comments panel is open or another panel type is open', () => {
     expect(getCommentsPanelTarget(mainDocId, null)).toEqual({docId: mainDocId, openComment: undefined})
     expect(

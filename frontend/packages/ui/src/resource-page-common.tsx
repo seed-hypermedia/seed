@@ -499,9 +499,16 @@ export function getCommentsPanelTarget(
   docId: UnpackedHypermediaId,
   panelRoute: DocumentPanelRoute | null,
 ): {docId: UnpackedHypermediaId; openComment?: string} {
-  return panelRoute?.key === 'comments'
-    ? {docId: panelRoute.id ?? docId, openComment: panelRoute.openComment}
-    : {docId, openComment: undefined}
+  if (panelRoute?.key !== 'comments') return {docId, openComment: undefined}
+
+  const panelDocId = panelRoute.id ?? docId
+  return {
+    docId:
+      panelDocId.id === docId.id && !panelDocId.version && docId.version
+        ? {...panelDocId, version: docId.version}
+        : panelDocId,
+    openComment: panelRoute.openComment,
+  }
 }
 
 /** Selects the action controls shown for document content. */
