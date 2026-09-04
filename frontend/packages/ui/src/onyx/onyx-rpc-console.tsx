@@ -13,7 +13,7 @@ import {Button} from '../button'
 import {Spinner} from '../spinner'
 import {cn} from '../utils'
 import {OnyxDataEditor, seedValue} from './onyx-data-editor'
-import {ONYX_SCHEMAS, refToName, validate, type OnyxSchema} from './onyx-engine'
+import {ONYX_SCHEMAS, type OnyxSchema, fieldSchema, refToName, validate} from './onyx-engine'
 
 export type RpcMethod = {
   /** The schema basename, e.g. `seed-rpc-search`. */
@@ -34,15 +34,11 @@ export function rpcMethods(): RpcMethod[] {
     if (!variant.ref) continue
     const slug = refToName(variant.ref)
     const schema = ONYX_SCHEMAS[slug]
-    const key = schema?.properties?.key?.enum?.[0]
-    if (typeof key !== 'string' || !schema.properties?.input || !schema.properties?.output) continue
-    methods.push({
-      slug,
-      key,
-      description: schema.description,
-      input: schema.properties.input,
-      output: schema.properties.output,
-    })
+    const key = fieldSchema(schema, 'key')?.enum?.[0]
+    const input = fieldSchema(schema, 'input')
+    const output = fieldSchema(schema, 'output')
+    if (typeof key !== 'string' || !input || !output) continue
+    methods.push({slug, key, description: schema.description, input, output})
   }
   return methods.sort((a, b) => a.key.localeCompare(b.key))
 }

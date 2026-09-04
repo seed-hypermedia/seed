@@ -1,7 +1,7 @@
 ---
 name: Map schema
 summary: The variant for a map — arbitrary keys whose values all match one schema (values). Known fields belong to a struct schema.
-schemaDefinition: ipfs://bafyreidkqaqzmbpgwrkgwjw2o32qgxusvt7voh2gezexr6ghngydessgwy
+schemaDefinition: ipfs://bafyreicceurf3phhe3dy5dufci36b7hjma3oyfaundkdsvzd2ykkxnikfe
 ---
 This document describes the **onyx-map-schema** type — a meta-schema variant. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:N3w6Zkyv -->
 

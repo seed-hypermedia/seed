@@ -1,7 +1,7 @@
 ---
 name: Scalar schema
 summary: The variant for a scalar value (null, boolean, integer, float, string, bytes), optionally restricted by enum.
-schemaDefinition: ipfs://bafyreihue3ygn2wrq3klngcif6u7buyv34h5h5zhqcm3tvnuasc3zs6rmq
+schemaDefinition: ipfs://bafyreiceot4kfswxeoz3xrqm6pybyellbkcg7fzpimtbkq2y7pzskor5hy
 ---
 This document describes the **onyx-scalar-schema** type — a meta-schema variant. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:_2uzPk_g -->
 

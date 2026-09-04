@@ -5,7 +5,16 @@
 // schema-keyed keys are validated against their (inlined) schemas; every other
 // key is accepted (`values: {}` — the empty schema imposes no constraint).
 import {parseCidString} from '../dag-json'
-import {ONYX_SCHEMAS, resolveSchema, STRUCT_URL, type OnyxRegistry, type OnyxSchema} from './onyx-engine'
+import {
+  fieldsToProperties,
+  ONYX_SCHEMAS,
+  resolveSchema,
+  STRUCT_URL,
+  structFields,
+  type OnyxRegistry,
+  type OnyxSchema,
+  type StructField,
+} from './onyx-engine'
 
 const DAG_CBOR_CODE = 0x71
 
@@ -39,7 +48,13 @@ export function buildSchemaKeyRoot(keys: string[], byCid: Record<string, OnyxSch
     if (cid && byCid[cid]) properties[key] = byCid[cid]!
   }
   if (Object.keys(properties).length === 0) return undefined
-  return {type: STRUCT_URL, properties, values: {}}
+  return {
+    type: STRUCT_URL,
+    properties: fieldsToProperties(
+      Object.entries(properties).map(([name, schema]) => ({name, schema, required: false})),
+    ),
+    values: {},
+  }
 }
 
 /**
@@ -57,10 +72,9 @@ export function documentMetadataSchema(
 ): OnyxSchema {
   const base = resolveSchema(ONYX_SCHEMAS['hypermedia-metadata']).schema
   const doc = resolveSchema(docTypeSchema, {}, registry).schema
-  return {
-    type: STRUCT_URL,
-    properties: {...(base.properties || {}), ...(doc.properties || {}), ...extraProps},
-    required: Array.from(new Set<string>([...(base.required || []), ...(doc.required || [])])),
-    values: {},
-  }
+  const byName = new Map<string, StructField>()
+  for (const f of structFields(base)) byName.set(f.name, f)
+  for (const f of structFields(doc)) byName.set(f.name, f)
+  for (const [name, schema] of Object.entries(extraProps)) byName.set(name, {name, schema, required: false})
+  return {type: STRUCT_URL, properties: fieldsToProperties(Array.from(byName.values())), values: {}}
 }

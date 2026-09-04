@@ -1,7 +1,7 @@
 ---
 name: "RPC: ResourceMetadata"
 summary: "Fetches only a resource's metadata payload. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass;"
-schemaDefinition: ipfs://bafyreig4nkurnwlmjx7rhy45sq6ixqybvzr3x4vcejowhqfxyc2h2ijk44
+schemaDefinition: ipfs://bafyreibzwo2blo6z7hum32755lonpoiwwft7har34n4f6ywyfkgcnyamim
 ---
 Fetches only a resource's metadata payload. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:C2feHa74 -->
 

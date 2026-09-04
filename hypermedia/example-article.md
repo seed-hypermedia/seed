@@ -1,7 +1,7 @@
 ---
 name: "Example: Article"
 summary: "A published article: status, author, tags, a bytes body, cover image, comments, and metadata."
-schemaDefinition: ipfs://bafyreigwcdu4nitdi5wsjdvpw32qrke3qbfnc3yuewqf2whszjbkmw5bgu
+schemaDefinition: ipfs://bafyreic6rzwigj7bxy3ddkwmb7h3xgzcp24wjukue3beiq44fqvvoube7m
 ---
 This document describes the **example-article** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:mDywKS1k -->
 
