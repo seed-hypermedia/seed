@@ -2824,11 +2824,11 @@ function SessionListItem({
           <SizableText weight="bold" className="min-w-0 flex-1 truncate">
             {session.title || 'Untitled session'}
           </SizableText>
-          <span className="flex max-w-[50%] flex-none flex-col items-end gap-1">
+          <span className="flex max-w-[50%] flex-none flex-wrap items-center justify-end gap-x-2 gap-y-1">
+            {session.continuedFrom ? <ContinuedFromListChip link={session.continuedFrom} /> : null}
             <SizableText size="sm" color="muted" className="whitespace-nowrap">
               {formattedDateMedium(new Date(session.updatedAt))}
             </SizableText>
-            {session.continuedFrom ? <ContinuedFromListChip link={session.continuedFrom} /> : null}
           </span>
         </span>
         {session.description ? (
