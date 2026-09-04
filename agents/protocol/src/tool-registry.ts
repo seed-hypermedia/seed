@@ -511,7 +511,7 @@ const continueSessionVerb = {
       sources: {
         type: 'array',
         description:
-          'Exact references the successor may need: {kind: "resource", url, relevance} for hm:// or web content; {kind: "memory", path, relevance} for a memory file; {kind: "session_events", fromSeq, toSeq, relevance} or {kind: "session_event", seq, relevance} for a range of this thread (seqs as shown by read thread:<id>). Each carries a one-line relevance.',
+          'Exact references the successor may need: {kind: "resource", url, relevance} for hm:// or web content; {kind: "memory", path, relevance} for a memory file; {kind: "session_events", fromSeq, toSeq, relevance} or {kind: "session_event", seq, relevance} for events of THIS thread — leave sessionId out; you do not know your own thread id and the runtime fills it in. Only set sessionId to cite a different thread of yours whose `thread:<id>` you have actually seen (a predecessor named in your lineage block, or one you read with `read thread:<id>`); never guess or construct an id. Seqs are the [seq] numbers shown by read thread:<id>. Each carries a one-line relevance.',
         items: {
           type: 'object',
           additionalProperties: false,
@@ -521,7 +521,11 @@ const continueSessionVerb = {
             version: {type: 'string'},
             blockId: {type: 'string'},
             path: {type: 'string'},
-            sessionId: {type: 'string', description: 'Defaults to this session.'},
+            sessionId: {
+              type: 'string',
+              description:
+                'OMIT for this thread (the runtime fills in the current session; you do not know its id). Set only to a thread id you have seen verbatim — from your lineage block or a `read thread:<id>` result — to cite another thread of yours. A made-up or unseen id is rejected and the continuation fails.',
+            },
             fromSeq: {type: 'number'},
             toSeq: {type: 'number'},
             seq: {type: 'number'},

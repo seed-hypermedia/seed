@@ -4070,7 +4070,10 @@ export class Service {
         .query<{n: number}, [string, string]>(`SELECT COUNT(*) AS n FROM sessions WHERE id = ? AND agent_id = ?`)
         .get(id, agentId)
       if (!owned?.n) {
-        throw new APIError(400, `Source thread ${id} does not exist, or is not one of this agent's threads`)
+        throw new APIError(
+          400,
+          `Source thread ${id} does not exist, or is not one of this agent's threads. To cite this session's own events, omit sessionId; only cite another thread by an id you have seen verbatim.`,
+        )
       }
       const max =
         this.#db
