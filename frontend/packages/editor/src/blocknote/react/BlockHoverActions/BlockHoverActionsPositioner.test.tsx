@@ -155,6 +155,7 @@ describe('BlockHoverActionsPositioner', () => {
 
     expect(card.className).toContain('flex-col')
     expect(wrapper.dataset.bnBlockHoverActions).toBe('true')
+    expect(wrapper.style.zIndex).toBe('10')
     expect(wrapper.style.left).toBe('24px')
     expect(wrapper.style.paddingLeft).toBe('')
     expect(container.querySelector('[data-bn-block-hover-bridge="true"]')).toBeNull()
