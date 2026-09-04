@@ -16,7 +16,15 @@ import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, unpackHmId} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {parseCidString} from '../dag-json'
-import {ONYX_SCHEMAS, type OnyxRegistry, type OnyxSchema, refToName, resolveSchema, schemaCid} from './onyx-engine'
+import {
+  ONYX_SCHEMAS,
+  type OnyxRegistry,
+  type OnyxSchema,
+  fieldSchema,
+  refToName,
+  resolveSchema,
+  schemaCid,
+} from './onyx-engine'
 import {useOnyxSchemaRegistry} from './onyx-schema-registry-cid'
 import {schemaDefinitionCid} from './schema-document'
 
@@ -62,7 +70,7 @@ export function classifyRef(ref: string | null | undefined): RefKind {
 export function metadataSchemaOf(schema: OnyxSchema | undefined, reg: OnyxRegistry = {}): OnyxSchema | undefined {
   if (!schema) return undefined
   const resolved = resolveSchema(schema, {}, reg).schema
-  const metaProp = resolved.properties?.metadata
+  const metaProp = fieldSchema(resolved, 'metadata')
   if (metaProp) return resolveSchema(metaProp, {}, reg).schema
   return resolved
 }

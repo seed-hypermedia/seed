@@ -124,15 +124,26 @@ function category(name, s) {
 /** One bullet per field; a field that is itself a refinement (a nested struct
  * or an extension adding properties — e.g. a typed document's `metadata`) lists
  * its own fields indented beneath it. */
-function fieldLines(props, required, indent = '') {
-  const req = new Set(required || [])
+const isPropertyEntry = (v) =>
+  !!v && typeof v === 'object' && 'value' in v && !('type' in v || 'ref' in v || 'anyOf' in v || 'var' in v)
+/** A struct's fields: `properties[name] = {value, required?, description?}`, or the older shape. */
+function structFields(node) {
+  const legacyRequired = new Set(node.required || [])
+  return Object.entries(node.properties || {}).map(([name, entry]) =>
+    isPropertyEntry(entry)
+      ? {name, schema: entry.value ?? {}, required: entry.required === true, description: entry.description}
+      : {name, schema: entry ?? {}, required: legacyRequired.has(name), description: entry?.description},
+  )
+}
+function fieldLines(node, indent = '') {
   const out = []
-  for (const [k, v] of Object.entries(props || {})) {
-    out.push(`${indent}- \`${k}\`${req.has(k) ? ' *(required)*' : ''} — ${summarize(v)}`)
+  for (const f of structFields(node)) {
+    const v = f.schema
+    out.push(`${indent}- \`${f.name}\`${f.required ? ' *(required)*' : ''} — ${summarize(v)}${f.description ? ` — ${f.description}` : ''}`)
     if (v && typeof v === 'object' && v.properties && !v.anyOf) {
       const head = v.ref && !v.type ? `${indent}  - *adds to ${summarize({ref: v.ref})}:*` : null
       if (head) out.push(head)
-      out.push(...fieldLines(v.properties, v.required, indent + (head ? '    ' : '  ')))
+      out.push(...fieldLines(v, indent + (head ? '    ' : '  ')))
     }
   }
   return out
@@ -153,7 +164,7 @@ function shapeSection(name, s) {
   } else if (hasExt) {
     const parent = refToName(s.ref)
     lines.push(`**Extends** ${schemas[parent] ? link(parent) : '`' + parent + '`'} with these added fields:\n`)
-    lines.push(...fieldLines(s.properties || {}, s.required))
+    lines.push(...fieldLines(s))
   } else if (s.ref && !s.type && s.args) {
     const parent = refToName(s.ref)
     lines.push(
@@ -168,7 +179,7 @@ function shapeSection(name, s) {
     lines.push(`An **alias** of ${schemas[parent] ? link(parent) : '`' + parent + '`'}.`)
   } else if ((kindOf(s.type) === 'struct' || kindOf(s.type) === 'map') && s.properties) {
     lines.push(`A ${s.values ? 'map' : '**closed struct**'} with these fields:\n`)
-    lines.push(...fieldLines(s.properties, s.required))
+    lines.push(...fieldLines(s))
   } else if (kindOf(s.type) === 'map' && s.values) {
     lines.push(`An **open map** — every value: ${summarize(s.values)}.`)
   } else if (kindOf(s.type) === 'list') {

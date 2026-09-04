@@ -1,7 +1,7 @@
 ---
 name: Reference schema
 summary: "The variant for a reference: a bare include, or an extension when it carries refinements."
-schemaDefinition: ipfs://bafyreihyw3o3yl5qjefq2v4hy6zfqsp5f64mqteaklqr3mnsjfktxwkx5y
+schemaDefinition: ipfs://bafyreiblyywhdzpf6wgb7swqif2cwd7o6wl2irkyj3nl27w24zkfmedqr4
 ---
 This document describes the **onyx-include-schema** type — a meta-schema variant. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:HXN4g1ct -->
 

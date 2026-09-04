@@ -1,4 +1,5 @@
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
+import {fieldSchema, requiredFieldNames, structFields} from './onyx/onyx-engine'
 import {Braces, Check, FileCode2} from 'lucide-react'
 import {useEffect, useMemo, useState} from 'react'
 import {seedValue} from './onyx/onyx-data-editor'
@@ -176,7 +177,11 @@ export function DocumentMetadataView({
     // their semantic types (e.g. `schema`/`childrenSchema` render as HM-link
     // pills, `icon`/`cover` as IPFS files) even without a conformance schema; the
     // conformance schema (if any) adds/refines on top.
-    return documentMetadataSchema(conformanceSchema ?? {}, keyRoot?.properties as Record<string, OnyxSchema>, byCid)
+    return documentMetadataSchema(
+      conformanceSchema ?? {},
+      Object.fromEntries(structFields(keyRoot).map((f) => [f.name, f.schema])),
+      byCid,
+    )
   }, [keysDep, pendingSchemaCid, byCid, conformanceSchema])
 
   // Custom required fields declared by the conformance schema are ALWAYS shown
@@ -184,20 +189,14 @@ export function DocumentMetadataView({
   // fields (name/summary) and the schema-binding fields live elsewhere / are
   // authored specially, so they're excluded from the required rows.
   const requiredKeys = useMemo(
-    () =>
-      (Array.isArray(schemaRoot?.required) ? (schemaRoot!.required as string[]) : []).filter(
-        (k) => !RESERVED_METADATA_KEYS.has(k),
-      ),
+    () => requiredFieldNames(schemaRoot).filter((k) => !RESERVED_METADATA_KEYS.has(k)),
     [schemaRoot],
   )
   const requiredRows = useMemo(
     () =>
       requiredKeys.map((key) => ({
         key,
-        value:
-          key in current && current[key] != null
-            ? current[key]
-            : seedValue((schemaRoot?.properties?.[key] as OnyxSchema) ?? {}),
+        value: key in current && current[key] != null ? current[key] : seedValue(fieldSchema(schemaRoot, key) ?? {}),
       })),
     [requiredKeys, current, schemaRoot],
   )

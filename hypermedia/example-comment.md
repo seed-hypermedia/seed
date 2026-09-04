@@ -1,7 +1,7 @@
 ---
 name: "Example: Comment"
 summary: A comment with an author and replies, which are themselves comments.
-schemaDefinition: ipfs://bafyreiclpdfjvtywqvxoeudwj3ribg5ziugx32lkaonzdpy6jrm3zwah5a
+schemaDefinition: ipfs://bafyreiewjk4y2oy6p3kjfqjry4bz4zbzcjx3s5ti5rzbdtk4dj3l42ipi4
 ---
 This document describes the **example-comment** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:eEEczx8i -->
 
