@@ -17,7 +17,17 @@ import {Button} from '../button'
 import {Input} from '../components/input'
 import {Switch} from '../components/switch'
 import {cn} from '../utils'
-import {kindOf, loadFrom, type OnyxRegistry, type OnyxSchema, refToName, resolveSchema, validate} from './onyx-engine'
+import {
+  type OnyxRegistry,
+  type OnyxSchema,
+  fieldSchema,
+  kindOf,
+  loadFrom,
+  refToName,
+  resolveSchema,
+  structFields,
+  validate,
+} from './onyx-engine'
 
 // Recursive schemas (the meta-schema, onyx-any) are infinitely deep, so the form
 // expands lazily — optional fields build only when included — and this cap falls
@@ -45,7 +55,7 @@ function seed(schema0: OnyxSchema, env: Env, reg: OnyxRegistry): unknown {
     case 'map':
     case 'struct': {
       const o: Record<string, unknown> = {}
-      for (const k of schema.required ?? []) o[k] = seed(schema.properties?.[k] ?? {}, e, reg)
+      for (const f of structFields(schema)) if (f.required) o[f.name] = seed(f.schema, e, reg)
       return o
     }
     case 'list':
@@ -84,7 +94,7 @@ function variantLabel(v: OnyxSchema, reg: OnyxRegistry): string {
   if (v.anyOf) return 'one of ' + v.anyOf.length
   if (v.ref && v.type === undefined) {
     const t = loadFrom(reg, v.ref)
-    const kinds = t?.properties?.type?.enum
+    const kinds = fieldSchema(t, 'type')?.enum
     if (kinds) return kinds.map((u: string) => kindOf(u)).join(' · ')
     const b = refToName(v.ref)
     const structural = t ? Object.keys(t).filter((k) => k !== 'name' && k !== 'description') : []
@@ -346,8 +356,9 @@ type Extra = {id: number; key: string; value: unknown}
 
 function MapNode({schema, value, onChange, env, reg, depth}: NodeProps) {
   const v: Record<string, unknown> = isRecord(value) ? value : {}
-  const props = (schema.properties || {}) as Record<string, OnyxSchema>
-  const required = new Set<string>(schema.required || [])
+  const fields = structFields(schema)
+  const props: Record<string, OnyxSchema> = Object.fromEntries(fields.map((f) => [f.name, f.schema]))
+  const required = new Set<string>(fields.filter((f) => f.required).map((f) => f.name))
   const openValues = schema.values as OnyxSchema | undefined
   const known = new Set(Object.keys(props))
 

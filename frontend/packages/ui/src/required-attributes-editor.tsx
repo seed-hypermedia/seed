@@ -6,6 +6,7 @@
 // rows — so an author fills them in-place instead of hunting for the Attributes
 // tab. The caller resolves the schema (see useEffectiveDocSchema) and passes its
 // metadata sub-schema as `conformanceSchema`.
+import {fieldSchema, requiredFieldNames} from './onyx/onyx-engine'
 import {useMemo} from 'react'
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {seedValue} from './onyx/onyx-data-editor'
@@ -41,20 +42,14 @@ export function RequiredAttributesEditor({
   )
 
   const requiredKeys = useMemo(
-    () =>
-      (Array.isArray(schemaRoot?.required) ? (schemaRoot!.required as string[]) : []).filter(
-        (k) => !RESERVED_METADATA_KEYS.has(k),
-      ),
+    () => requiredFieldNames(schemaRoot).filter((k) => !RESERVED_METADATA_KEYS.has(k)),
     [schemaRoot],
   )
   const requiredRows = useMemo(
     () =>
       requiredKeys.map((key) => ({
         key,
-        value:
-          key in current && current[key] != null
-            ? current[key]
-            : seedValue((schemaRoot?.properties?.[key] as OnyxSchema) ?? {}),
+        value: key in current && current[key] != null ? current[key] : seedValue(fieldSchema(schemaRoot, key) ?? {}),
       })),
     [requiredKeys, current, schemaRoot],
   )

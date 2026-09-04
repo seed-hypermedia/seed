@@ -2,52 +2,68 @@
   "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-document",
   "properties": {
     "metadata": {
-      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata",
-      "required": [
-        "born",
-        "role"
-      ],
-      "properties": {
-        "born": {
-          "description": "Birth date (ISO 8601 `YYYY-MM-DD`) — rendered as a date picker.",
-          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date"
-        },
-        "died": {
-          "description": "Death date, if any.",
-          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date"
-        },
-        "role": {
-          "description": "Narrative role.",
-          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
-          "enum": [
-            "hero",
-            "villain",
-            "ally",
-            "neutral"
-          ]
-        },
-        "home": {
-          "description": "The place this character calls home — a page conforming to the Place type.",
-          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-hm-url",
-          "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-place-doc"
-        },
-        "faction": {
-          "description": "The faction this character belongs to.",
-          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-hm-url",
-          "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-faction-doc"
-        },
-        "portrait": {
-          "description": "A portrait image file on IPFS.",
-          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-ipfs"
-        },
-        "stats": {
-          "description": "An `ipfs://` object that must conform to Character stats (a required target schema).",
-          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-ipfs",
-          "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-stats"
-        },
-        "notes": {
-          "description": "An `ipfs://` object with no declared schema — free-form data.",
-          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-ipfs"
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata",
+        "properties": {
+          "born": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date"
+            },
+            "required": true,
+            "description": "Birth date (ISO 8601 `YYYY-MM-DD`) — rendered as a date picker."
+          },
+          "died": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date"
+            },
+            "description": "Death date, if any."
+          },
+          "role": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+              "enum": [
+                "hero",
+                "villain",
+                "ally",
+                "neutral"
+              ]
+            },
+            "required": true,
+            "description": "Narrative role."
+          },
+          "home": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-hm-url",
+              "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-place-doc"
+            },
+            "description": "The place this character calls home — a page conforming to the Place type."
+          },
+          "faction": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-hm-url",
+              "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-faction-doc"
+            },
+            "description": "The faction this character belongs to."
+          },
+          "portrait": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-ipfs"
+            },
+            "description": "A portrait image file on IPFS."
+          },
+          "stats": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-ipfs",
+              "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-stats"
+            },
+            "description": "An `ipfs://` object that must conform to Character stats (a required target schema)."
+          },
+          "notes": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-ipfs"
+            },
+            "description": "An `ipfs://` object with no declared schema — free-form data."
+          }
         }
       }
     }

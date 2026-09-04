@@ -1,7 +1,7 @@
 ---
 name: DeleteBlocks op
 summary: Delete blocks by id.
-schemaDefinition: ipfs://bafyreievz3mztp3zpu5duce6gybqoqdyuoq7lonei2cxjhidpnnzk6oy6y
+schemaDefinition: ipfs://bafyreiekc3ox6hwsgfh5tso6uwxparl34diprzx4jgljzmyz6f6yhhom3y
 ---
 This document describes the **hypermedia-op-delete-blocks** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:O5i7-yOi -->
 

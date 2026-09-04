@@ -1,7 +1,7 @@
 ---
 name: "RPC: DiscoveryStatus"
 summary: "Reports the state of a background discovery task. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you"
-schemaDefinition: ipfs://bafyreieihqealvy7iehezpwxtjk6pzgicsdoyujdc3abu5y3qj6ifcgdne
+schemaDefinition: ipfs://bafyreiblasfcxaelwqxv4ls3ozcuwqvqvuxdj3bfeehsj2zkgyi7rkgwly
 ---
 Reports the state of a background discovery task. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:s7Yt7azE -->
 

@@ -1,7 +1,7 @@
 ---
 name: "Example: Admin"
 summary: An employee, extended with a list of permissions.
-schemaDefinition: ipfs://bafyreiaqduzpr7fh7awwq53issium5ppigvkcb3hevuv3smibtmycdmcv4
+schemaDefinition: ipfs://bafyreihpugc6f5d35aijp3w6vhhzrfh5or7j55kewc5szmn5mt3z764txi
 ---
 This document describes the **example-admin** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:5TfHks-3 -->
 

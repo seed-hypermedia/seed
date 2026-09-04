@@ -248,7 +248,7 @@ export function InspectIpfsPage({
     if (isMetaSeed) {
       // An extension starts rooted on the base schema (`ref`, no `type`) — the same shape the
       // signed-blob envelope uses — with its own fields empty and ready to add.
-      setEditJson(extendBaseCid ? {ref: `ipfs://${extendBaseCid}`, properties: {}, required: []} : emptyStructSchema())
+      setEditJson(extendBaseCid ? {ref: `ipfs://${extendBaseCid}`, properties: {}} : emptyStructSchema())
     } else if (isPlainObject(starter)) setEditJson({...starter, schema: {'/': seedSchemaCid}})
     else setEditJson(starter !== undefined ? starter : {schema: {'/': seedSchemaCid}})
   }, [isDraft, editJson, seedSchemaCid, seedSchema, isMetaSeed, extendBaseCid])

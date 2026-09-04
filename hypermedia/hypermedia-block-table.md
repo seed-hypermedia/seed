@@ -1,7 +1,7 @@
 ---
 name: Table block
 summary: "A table container. Its children are TableColumn blocks (childless; their sibling order defines column display order) followed by TableRow blocks whose children "
-schemaDefinition: ipfs://bafyreidtsa53c3ucc2yk6p7ddrmnybjbrx7zm6gssvowmwih6alcp4elk4
+schemaDefinition: ipfs://bafyreid4emvnxuf3yeefmy2ic37zqxajij5gm5b3xvlpmv6ztbuppbxnji
 ---
 A table container. Its children are TableColumn blocks (childless; their sibling order defines column display order) followed by TableRow blocks whose children are Paragraph cells carrying a columnId attribute — cell identity is (row, columnId), never grid position, which is what lets concurrent CRDT edits merge cleanly. <!-- id:62GngDOo -->
 

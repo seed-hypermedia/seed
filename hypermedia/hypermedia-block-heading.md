@@ -1,7 +1,7 @@
 ---
 name: Heading block
 summary: A section heading.
-schemaDefinition: ipfs://bafyreiel56drglsisymoarlx6kfcxuyog7gzgaaxvazakismpxejoaltsi
+schemaDefinition: ipfs://bafyreihkk7sif4d6twhvjvuu3ss46accjbecfdqwl2s37is37lmnqkh52e
 ---
 This document describes the **hypermedia-block-heading** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:wmJHjzZa -->
 
