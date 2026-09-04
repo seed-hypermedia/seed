@@ -10,7 +10,7 @@ import {draggable, dropTargetForElements, monitorForElements} from '@atlaskit/pr
 import {setCustomNativeDragPreview} from '@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview'
 import {autoScrollForElements} from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element'
 import {unsafeOverflowAutoScrollForElements} from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/unsafe-overflow/element'
-import {Plugin, PluginKey} from 'prosemirror-state'
+import {Plugin, PluginKey, TextSelection} from 'prosemirror-state'
 import type {BlockNoteEditor} from '../../BlockNoteEditor'
 import type {BlockSchema} from '../../extensions/Blocks/api/blockTypes'
 import {executeBlockMove} from './block-move-executor'
@@ -22,6 +22,8 @@ import {MultipleNodeSelection} from './MultipleNodeSelection'
 type CleanupFn = () => void
 
 const EDITOR_BLOCK_TYPE = 'editor-block'
+const EDITOR_TEXT_TYPE = 'editor-text'
+const EDITOR_TEXT_MIME = 'application/x-seed-heading-text-drag'
 
 // Unique editor ID counter for scoping drops to a single editor instance
 let editorIdCounter = 0
@@ -46,12 +48,22 @@ export function setupBlockDraggable<BSchema extends BlockSchema>(
   stateManager: DragStateManager,
   editorDragId: string,
 ): CleanupFn {
-  return draggable({
+  const onNativeDragStart = (event: DragEvent) => {
+    const blockId = getBlockId()
+    if (!blockId || !event.dataTransfer) return
+    prepareHeadingTextDrag(editor, blockId, event.dataTransfer)
+  }
+  element.addEventListener('dragstart', onNativeDragStart)
+
+  const cleanupDraggable = draggable({
     element,
     dragHandle: dragHandleEl,
     getInitialData() {
       const blockId = getBlockId()
       if (!blockId) return {type: EDITOR_BLOCK_TYPE, blockIds: [], editorId: editorDragId}
+      if (isHeadingTextDrag(editor, blockId)) {
+        return {type: EDITOR_TEXT_TYPE, editorId: editorDragId}
+      }
 
       const selection = editor.prosemirrorView.state.selection
       let blockIds: string[] = [blockId]
@@ -76,6 +88,8 @@ export function setupBlockDraggable<BSchema extends BlockSchema>(
       return {type: EDITOR_BLOCK_TYPE, blockIds, editorId: editorDragId}
     },
     onGenerateDragPreview({source, nativeSetDragImage}) {
+      if (source.data.type === EDITOR_TEXT_TYPE) return
+
       const blockIds = (source.data.blockIds as string[]) || []
       stateManager.dispatch({type: 'PREVIEW', sourceBlockIds: blockIds})
 
@@ -97,10 +111,13 @@ export function setupBlockDraggable<BSchema extends BlockSchema>(
         },
       })
     },
-    onDragStart() {
+    onDragStart({source}) {
+      if (source.data.type === EDITOR_TEXT_TYPE) return
       stateManager.dispatch({type: 'START'})
     },
     onDrop({source, location}) {
+      if (source.data.type === EDITOR_TEXT_TYPE) return
+
       const state = stateManager.getState()
       if (state.type === 'dragging' && state.instruction) {
         const blockIds = (source.data.blockIds as string[]) || []
@@ -109,6 +126,53 @@ export function setupBlockDraggable<BSchema extends BlockSchema>(
       stateManager.dispatch({type: 'DROP'})
     },
   })
+
+  return () => {
+    element.removeEventListener('dragstart', onNativeDragStart)
+    cleanupDraggable()
+  }
+}
+
+/** Returns whether dragging this handle should preserve a heading text selection. */
+export function isHeadingTextDrag<BSchema extends BlockSchema>(
+  editor: BlockNoteEditor<BSchema>,
+  blockId: string | undefined,
+): boolean {
+  if (!blockId) return false
+
+  const selection = editor.prosemirrorView.state.selection
+  if (!(selection instanceof TextSelection) || selection.empty) return false
+  if (selection.$from.parent !== selection.$to.parent || selection.$from.parent.type.name !== 'heading') return false
+
+  for (let depth = selection.$from.depth - 1; depth > 0; depth--) {
+    const node = selection.$from.node(depth)
+    if (node.type.name === 'blockNode') {
+      return node.attrs.id === blockId
+    }
+  }
+
+  return false
+}
+
+/** Creates ProseMirror's native move payload for selected heading text. */
+export function prepareHeadingTextDrag<BSchema extends BlockSchema>(
+  editor: BlockNoteEditor<BSchema>,
+  blockId: string,
+  dataTransfer: DataTransfer,
+): boolean {
+  if (!isHeadingTextDrag(editor, blockId)) return false
+
+  const view = editor.prosemirrorView
+  const slice = view.state.selection.content()
+  const clipboard = view.serializeForClipboard(slice)
+
+  dataTransfer.clearData()
+  dataTransfer.setData('text/html', clipboard.dom.innerHTML)
+  dataTransfer.setData('text/plain', clipboard.text)
+  dataTransfer.setData(EDITOR_TEXT_MIME, 'true')
+  dataTransfer.effectAllowed = 'move'
+  view.dragging = {slice, move: true}
+  return true
 }
 
 // ---------------------------------------------------------------------------
@@ -242,7 +306,7 @@ export function createBlockDragGuardPlugin(): Plugin {
             rawTarget && rawTarget.nodeType === 1 ? (rawTarget as HTMLElement) : rawTarget?.parentElement ?? null
           if (!targetEl) return false
 
-          if (targetEl.closest('[data-drag-handle]')) {
+          if (targetEl.closest('[data-drag-handle]') && !event.dataTransfer?.types.includes(EDITOR_TEXT_MIME)) {
             // Drag originated from the SideMenu — let Pragmatic DnD own it.
             return true
           }

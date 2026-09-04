@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
-import {TextSelection} from 'prosemirror-state'
+import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {describe, expect, it} from 'vitest'
 import {BlockNoteEditor} from '../BlockNoteEditor'
 import type {PartialBlock} from '../extensions/Blocks/api/blockTypes'
 import {getBlockInfoWithManualOffset} from '../extensions/Blocks/helpers/getBlockInfoFromPos'
+import {isHeadingTextDrag, prepareHeadingTextDrag} from '../extensions/SideMenu/pragmatic-dnd-bridge'
 
 type PartialAnyBlock = PartialBlock<any>
 
@@ -51,6 +52,69 @@ function blockElement(editor: BlockNoteEditor<any>, blockId: string) {
 }
 
 describe('heading section selection', () => {
+  it('uses text drag semantics for a TextSelection inside heading text', () => {
+    const editor = createEditor([
+      {
+        id: 'section',
+        type: 'heading',
+        content: 'Heading',
+        children: [{id: 'child', type: 'paragraph', content: 'Child text'}],
+      },
+    ])
+    const heading = getBlockInfo(editor, 'section')
+
+    setTextSelection(editor, heading.blockContent.beforePos + 1, heading.blockContent.afterPos - 1)
+
+    expect(isHeadingTextDrag(editor, 'section')).toBe(true)
+
+    editor._tiptapEditor.destroy()
+  })
+
+  it('creates a text-only payload without heading children', () => {
+    const editor = createEditor([
+      {
+        id: 'section',
+        type: 'heading',
+        content: 'Heading',
+        children: [{id: 'child', type: 'paragraph', content: 'Child text'}],
+      },
+    ])
+    const heading = getBlockInfo(editor, 'section')
+    const transferred = new Map<string, string>()
+    const dataTransfer = {
+      clearData: () => transferred.clear(),
+      setData: (type: string, value: string) => transferred.set(type, value),
+      effectAllowed: 'none',
+    } as DataTransfer
+
+    setTextSelection(editor, heading.blockContent.beforePos + 1, heading.blockContent.afterPos - 1)
+
+    expect(prepareHeadingTextDrag(editor, 'section', dataTransfer)).toBe(true)
+    expect(transferred.get('text/plain')).toBe('Heading')
+    expect(transferred.get('text/plain')).not.toContain('Child text')
+
+    editor._tiptapEditor.destroy()
+  })
+
+  it('keeps block drag semantics for a heading NodeSelection', () => {
+    const editor = createEditor([
+      {
+        id: 'section',
+        type: 'heading',
+        content: 'Heading',
+        children: [{id: 'child', type: 'paragraph', content: 'Child text'}],
+      },
+    ])
+    const heading = getBlockInfo(editor, 'section')
+    const {state, view} = editor._tiptapEditor
+
+    view.dispatch(state.tr.setSelection(NodeSelection.create(state.doc, heading.blockContent.beforePos)))
+
+    expect(isHeadingTextDrag(editor, 'section')).toBe(false)
+
+    editor._tiptapEditor.destroy()
+  })
+
   it('keeps heading-to-child text selections out of full-block selection', () => {
     const editor = createEditor([
       {
