@@ -1,7 +1,7 @@
 ---
 name: Code block
 summary: A code block, optionally tagged with a language.
-schemaDefinition: ipfs://bafyreigu6p7bzjj6zdffjtjiptu6qws6nziysh3gpnhf2wn3dzp4inrfpi
+schemaDefinition: ipfs://bafyreicdmfvtohonb6sggqrgejvlsu5v4md6xewgdrnbjvcaavnyuptekq
 ---
 This document describes the **hypermedia-block-code** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:fqG3-TI_ -->
 

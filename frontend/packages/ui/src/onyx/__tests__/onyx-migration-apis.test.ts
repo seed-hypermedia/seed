@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {isOnyxSchema, kindOf, ONYX_SCHEMAS, validate} from '../onyx-engine'
+import {ONYX_SCHEMAS, isOnyxSchema, kindOf, requiredFieldNames, validate} from '../onyx-engine'
 import {documentMetadataSchema} from '../onyx-metadata-schema-keys'
 import {onyxSubschema, parseOnyxError} from '../onyx-schema-context'
 import {literalEnumOptions, suggestedFieldType} from '../onyx-value-editor-schema'
@@ -73,7 +73,7 @@ describe('documentMetadataSchema (document-schema extension)', () => {
     expect(merged.properties).toHaveProperty('department')
     expect(merged.properties).toHaveProperty('name') // person's name too, same key
     // employee's required field surfaces as required
-    expect(merged.required).toContain('employeeId')
+    expect(requiredFieldNames(merged)).toContain('employeeId')
     // open: arbitrary keys (e.g. schemaDefinition itself) are accepted
     expect(merged.values).toEqual({})
     expect(

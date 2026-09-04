@@ -13,17 +13,19 @@ import {useOnyxSchemaRegistry} from './onyx-schema-registry-cid'
 import {isSignedBlobSchema} from './signed-blob'
 import {cn} from '../utils'
 import {
+  ONYX_SCHEMAS,
+  type OnyxSchema,
+  type StructField,
   dependencies,
   dependents,
   isInstance,
   kindOf,
   nameForCid,
   nameToUrl,
-  ONYX_SCHEMAS,
   refToName,
   resolveSchema,
   schemaCid,
-  type OnyxSchema,
+  structFields,
   validate,
 } from './onyx-engine'
 
@@ -212,8 +214,8 @@ function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React
     if (node.properties)
       return (
         <span>
-          <KindBadge kind="map" nav={nav} />{' '}
-          <span className="text-muted-foreground">{`{ ${Object.keys(node.properties).length} fields }`}</span>
+          <KindBadge kind={k} nav={nav} />{' '}
+          <span className="text-muted-foreground">{`{ ${structFields(node).length} fields }`}</span>
         </span>
       )
     if (node.values)
@@ -337,16 +339,17 @@ export function DepLists({name, nav}: {name: string; nav: (slug: string) => void
 }
 
 function FieldsTable({
-  properties,
-  required,
+  fields,
   origins,
   nav,
 }: {
-  properties: Record<string, any>
-  required: Set<string>
+  fields: StructField[]
   origins?: Record<string, 'added' | 'inherited'>
   nav: (slug: string) => void
 }) {
+  const required = new Set(fields.filter((f) => f.required).map((f) => f.name))
+  const properties = Object.fromEntries(fields.map((f) => [f.name, f.schema]))
+  const descriptions = Object.fromEntries(fields.filter((f) => f.description).map((f) => [f.name, f.description!]))
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -360,7 +363,12 @@ function FieldsTable({
         <tbody>
           {Object.entries(properties).map(([k, v]) => (
             <tr key={k} className="border-border/50 border-b last:border-0">
-              <td className="py-1.5 pr-4 font-mono">{k}</td>
+              <td className="py-1.5 pr-4 font-mono">
+                {k}
+                {descriptions[k] && (
+                  <div className="text-muted-foreground max-w-md font-sans text-xs font-normal">{descriptions[k]}</div>
+                )}
+              </td>
               <td className="py-1.5 pr-4">
                 <SchemaRef node={v} nav={nav} />
               </td>
@@ -493,16 +501,16 @@ export function OnyxSchemaPage({
   } else if (hasExt) {
     const parent = refToName(schema.ref)
     const eff = resolveSchema(schema).schema
-    const added = new Set(Object.keys(schema.properties || {}))
-    const req = new Set<string>(eff.required || [])
+    const added = new Set(structFields(schema).map((f) => f.name))
+    const effFields = structFields(eff)
     const origins: Record<string, 'added' | 'inherited'> = {}
-    for (const k of Object.keys(eff.properties || {})) origins[k] = added.has(k) ? 'added' : 'inherited'
+    for (const f of effFields) origins[f.name] = added.has(f.name) ? 'added' : 'inherited'
     lead = (
       <ExtendsLine slug={parent} onClick={() => nav(parent)}>
         <span className="text-muted-foreground"> · +{added.size} field(s)</span>
       </ExtendsLine>
     )
-    main = <FieldsTable properties={eff.properties || {}} required={req} origins={origins} nav={nav} />
+    main = <FieldsTable fields={effFields} origins={origins} nav={nav} />
   } else if (hasRef && schema.args) {
     const parent = refToName(schema.ref)
     lead = (
@@ -532,11 +540,11 @@ export function OnyxSchemaPage({
       <ExtendsLine slug={base} onClick={() => nav(base)}>
         <span className="text-muted-foreground">
           {' '}
-          · {schema.values ? 'open' : 'closed'}, {Object.keys(schema.properties).length} fields
+          · {schema.values ? 'open' : 'closed'}, {structFields(schema).length} fields
         </span>
       </ExtendsLine>
     )
-    main = <FieldsTable properties={schema.properties} required={new Set(schema.required || [])} nav={nav} />
+    main = <FieldsTable fields={structFields(schema)} nav={nav} />
   } else {
     {
       const k = kindOf(schema.type) || 'any'
@@ -718,7 +726,7 @@ export function OnyxSchemaView({
           </ul>
         </div>
       ) : schema.properties ? (
-        <FieldsTable properties={schema.properties} required={new Set(schema.required || [])} nav={nav} />
+        <FieldsTable fields={structFields(schema)} nav={nav} />
       ) : null}
     </div>
   )

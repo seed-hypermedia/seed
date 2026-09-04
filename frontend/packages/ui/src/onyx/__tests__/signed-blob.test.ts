@@ -6,7 +6,7 @@ import * as ed from '@noble/ed25519'
 import {sha512} from '@noble/hashes/sha2.js'
 import * as cbor from '@shm/shared/cbor'
 import {describe, expect, it, vi} from 'vitest'
-import {kindUrl, nameToUrl, ONYX_SCHEMAS, validate} from '../onyx-engine'
+import {ONYX_SCHEMAS, kindUrl, nameToUrl, requiredFieldNames, validate} from '../onyx-engine'
 import {
   isSignedBlobSchema,
   publishSignedBlob,
@@ -56,7 +56,7 @@ describe('signed-blob schemas', () => {
   it('strips the envelope and the pinned type from the form schema', () => {
     const body = stripSignedBlobEnvelope(VOTE)
     expect(Object.keys(body.properties)).toEqual(['target', 'choice'])
-    expect(body.required).toEqual(['target', 'choice'])
+    expect(requiredFieldNames(body)).toEqual(['target', 'choice'])
     expect(validate(body, {target: 'hm://x/y', choice: 'yes'})).toEqual([])
   })
 })

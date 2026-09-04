@@ -6,7 +6,7 @@
 import {createContext, useContext, useMemo, type ReactNode} from 'react'
 import {isDagJsonLink} from '../dag-json'
 import type {ValuePath} from '../value-editor'
-import {kindOf, resolveSchema, validate, type OnyxRegistry, type OnyxSchema} from './onyx-engine'
+import {type OnyxRegistry, type OnyxSchema, fieldSchema, kindOf, resolveSchema, validate} from './onyx-engine'
 
 /** An advisory schema warning at a value path (Onyx port of v1's SchemaWarning). */
 export type SchemaWarning = {path: (string | number)[]; message: string}
@@ -42,7 +42,7 @@ export function onyxSubschema(
     if (resolved.anyOf) return 'unresolved' // can't statically pick a union variant
     const kind = resolved.type ? kindOf(resolved.type) : null
     if (kind === 'map' || kind === 'struct') {
-      const child = (typeof seg === 'string' && resolved.properties?.[seg]) || resolved.values
+      const child = (typeof seg === 'string' && fieldSchema(resolved, seg)) || resolved.values
       if (!child) return undefined
       schema = child
     } else if (kind === 'list') {

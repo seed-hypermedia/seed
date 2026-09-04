@@ -1,7 +1,7 @@
 ---
 name: Contact subscription
 summary: "Subscription preferences for a contact: subscribe to the subject's site and/or profile."
-schemaDefinition: ipfs://bafyreigpivj435g3tajyfzg5b2e4ey6rx44loic6qtnhk3doqlwblrmdi4
+schemaDefinition: ipfs://bafyreib2u3kfl26k7vgpxmj5pmgzwgea7luurzh3hybyme4i2raqm5xwky
 ---
 This document describes the **hypermedia-contact-subscribe** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:O3n3Cn_O -->
 

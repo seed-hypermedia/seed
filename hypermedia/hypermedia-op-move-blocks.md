@@ -1,7 +1,7 @@
 ---
 name: MoveBlocks op
 summary: Move blocks under a parent, using RGA CRDT reference ids.
-schemaDefinition: ipfs://bafyreigf7orlodhue53rlwqpaojopl2fuzvh5jkx3hxcsfqiop6is6josi
+schemaDefinition: ipfs://bafyreibxqydk5rsxh7pg6zqoubek3cjqdsf56c6de5cdpjxy7u5u3bjsue
 ---
 This document describes the **hypermedia-op-move-blocks** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:niF7ZUUC -->
 

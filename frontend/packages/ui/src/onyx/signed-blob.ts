@@ -12,7 +12,14 @@ import * as cbor from '@shm/shared/cbor'
 import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
 import {dagJsonToIpld, findSeedIndexerCollision} from '../dag-json'
-import {resolveSchema, type OnyxRegistry, type OnyxSchema} from './onyx-engine'
+import {
+  type OnyxRegistry,
+  type OnyxSchema,
+  fieldSchema,
+  fieldsToProperties,
+  resolveSchema,
+  structFields,
+} from './onyx-engine'
 
 /** The envelope fields every signed blob carries; filled by the signer, never typed. */
 export const SIGNED_BLOB_ENVELOPE = ['signer', 'sig', 'ts'] as const
@@ -22,13 +29,13 @@ export function isSignedBlobSchema(schema: OnyxSchema | undefined, reg: OnyxRegi
   if (!schema) return false
   const {schema: resolved} = resolveSchema(schema, {}, reg)
   const props = resolved?.properties
-  return !!props && SIGNED_BLOB_ENVELOPE.every((k) => k in props)
+  return !!props && SIGNED_BLOB_ENVELOPE.every((k) => fieldSchema(resolved, k) !== undefined)
 }
 
 /** The single `type` tag a signed-blob schema pins (a one-value enum), if any. */
 export function signedBlobTypeTag(schema: OnyxSchema, reg: OnyxRegistry = {}): string | undefined {
   const {schema: resolved} = resolveSchema(schema, {}, reg)
-  const t = resolved?.properties?.type
+  const t = fieldSchema(resolved, 'type')
   const tag = t && Array.isArray(t.enum) && t.enum.length === 1 ? t.enum[0] : undefined
   return typeof tag === 'string' ? tag : undefined
 }
@@ -41,13 +48,8 @@ export function stripSignedBlobEnvelope(schema: OnyxSchema, reg: OnyxRegistry = 
   const {schema: resolved} = resolveSchema(schema, {}, reg)
   const hidden = new Set<string>(SIGNED_BLOB_ENVELOPE)
   if (signedBlobTypeTag(schema, reg)) hidden.add('type')
-  const properties: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(resolved.properties ?? {})) if (!hidden.has(k)) properties[k] = v
-  const required = (resolved.required ?? []).filter((k: string) => !hidden.has(k))
-  const out: OnyxSchema = {...resolved, properties}
-  if (required.length) out.required = required
-  else delete out.required
-  return out
+  const {required: _legacy, ...rest} = resolved
+  return {...rest, properties: fieldsToProperties(structFields(resolved).filter((f) => !hidden.has(f.name)))}
 }
 
 export type SignedBlobResult = {cid: string; data: Uint8Array; ts: number; signer: Uint8Array}

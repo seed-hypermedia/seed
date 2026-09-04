@@ -1,7 +1,7 @@
 ---
 name: "RPC: Account"
 summary: "Resolves an account by uid. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types "
-schemaDefinition: ipfs://bafyreia2ufympsfkfqa7i2klrbrcegvzyzcp4dqo6spaprandnlzmwjcqm
+schemaDefinition: ipfs://bafyreifqhrn3xuvtypv7qkfindambjwakzftl6y4pcuh6ns4lcngliu7qe
 ---
 Resolves an account by uid. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:6J7TokxK -->
 

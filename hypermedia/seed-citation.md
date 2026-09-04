@@ -1,7 +1,7 @@
 ---
 name: Citation
 summary: "One mention of a target resource from elsewhere on the network: the citing source (a document 'd' or a comment 'c'), whether it pinned the exact version, and th"
-schemaDefinition: ipfs://bafyreicwyk4l22ingsymhhd73eaf3baljbalzcmqbsn7kcylsaaum7ysji
+schemaDefinition: ipfs://bafyreihljuy6wm54tskaflzjajcyv2mv3qdvr7laawgok5n6xzg2bobcnq
 ---
 One mention of a target resource from elsewhere on the network: the citing source (a document 'd' or a comment 'c'), whether it pinned the exact version, and the fragment it points at. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:vp-ojCpz -->
 

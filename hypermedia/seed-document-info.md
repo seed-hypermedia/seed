@@ -1,7 +1,7 @@
 ---
 name: Document info
 summary: "One document in a listing (query results, directories): identity, authorship, timestamps, breadcrumbs, and its activity summary — without the full content. A de"
-schemaDefinition: ipfs://bafyreiebqybrcrsqkymmllloppwt7sdtaawydef5q3h7m3n7fkreh5wu5e
+schemaDefinition: ipfs://bafyreif4typd7up4has4vceeylndqxkoff4vifgssw5oeoz5hi5dvvbcvy
 ---
 One document in a listing (query results, directories): identity, authorship, timestamps, breadcrumbs, and its activity summary — without the full content. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:OgH907y3 -->
 

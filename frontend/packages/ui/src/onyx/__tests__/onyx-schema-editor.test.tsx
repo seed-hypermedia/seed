@@ -7,7 +7,7 @@ import type {ReactNode} from 'react'
 import {TooltipProvider} from '../../tooltip'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {UniversalAppProvider} from '@shm/shared/routing'
-import {isOnyxSchema, kindOf, type OnyxSchema} from '../onyx-engine'
+import {type OnyxSchema, fieldSchema, isOnyxSchema, kindOf, requiredFieldNames, structFields} from '../onyx-engine'
 import {emptyStructSchema, OnyxSchemaEditor} from '../onyx-schema-editor'
 
 let container: HTMLDivElement
@@ -74,24 +74,22 @@ describe('OnyxSchemaEditor (struct form)', () => {
     expect(kindOf(latest.type)).toBe('struct')
     expect(isOnyxSchema(latest)).toBe(true)
     // the field defaults to a text/string property
-    const first = Object.values(latest.properties ?? {})[0] as OnyxSchema
+    const first = structFields(latest)[0]!.schema
     expect(kindOf(first.type)).toBe('string')
   })
 
   it('required is derived from the per-field checkbox, not authored as an array', () => {
-    act(() =>
-      root.render(<Harness initial={{type: 'hm://hyper.media/map', name: 'T', properties: {}, required: []}} />),
-    )
+    act(() => root.render(<Harness initial={{type: 'hm://hyper.media/map', properties: {}}} />))
     click(findButton('Add field'))
     // toggle the required checkbox for the new field
     const checkbox = container.querySelector('[role="checkbox"]') as HTMLElement
     expect(checkbox).toBeTruthy()
     click(checkbox)
     const fieldName = Object.keys(latest.properties ?? {})[0]!
-    expect(latest.required).toContain(fieldName)
+    expect(requiredFieldNames(latest)).toContain(fieldName)
     // untoggle → removed from required
     click(container.querySelector('[role="checkbox"]') as HTMLElement)
-    expect(latest.required ?? []).not.toContain(fieldName)
+    expect(requiredFieldNames(latest)).not.toContain(fieldName)
   })
 
   it('removing a field also clears it from required', () => {
@@ -101,15 +99,14 @@ describe('OnyxSchemaEditor (struct form)', () => {
           initial={{
             type: 'hm://hyper.media/map',
             name: 'T',
-            properties: {a: {type: 'hm://hyper.media/string'}},
-            required: ['a'],
+            properties: {a: {value: {type: 'hm://hyper.media/string'}, required: true}},
           }}
         />,
       ),
     )
     click(container.querySelector('[aria-label="Remove a"]')!)
     expect(Object.keys(latest.properties ?? {})).toHaveLength(0)
-    expect(latest.required ?? []).not.toContain('a')
+    expect(requiredFieldNames(latest)).not.toContain('a')
   })
 })
 
@@ -120,9 +117,7 @@ describe('OnyxSchemaEditor (generics and JSON mode)', () => {
   it('shows a generic schema’s type parameters and offers them as field kinds', () => {
     act(() => {
       root.render(
-        <Harness
-          initial={{type: MAP, params: {Block: {ref: BLOCK}}, properties: {body: {var: 'Block'}}, required: []}}
-        />,
+        <Harness initial={{type: MAP, params: {Block: {ref: BLOCK}}, properties: {body: {value: {var: 'Block'}}}}} />,
       )
     })
     const params = container.querySelector('[data-testid="schema-params"]')!
@@ -146,12 +141,12 @@ describe('OnyxSchemaEditor (generics and JSON mode)', () => {
     click(findButton('Add field'))
     // Point the new field at the parameter, then drop the parameter.
     act(() => {
-      root.render(<Harness key="remount" initial={{...latest, properties: {field: {var: 'T'}}}} />)
+      root.render(<Harness key="remount" initial={{...latest, properties: {field: {value: {var: 'T'}}}}} />)
     })
     const remove = container.querySelector('button[aria-label="Remove type parameter T"]')!
     click(remove)
     expect(latest.params).toBeUndefined()
-    expect(latest.properties.field).toEqual({ref: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any'})
+    expect(fieldSchema(latest, 'field')).toEqual({ref: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any'})
     expect(isOnyxSchema(latest)).toBe(true)
   })
 
@@ -187,14 +182,14 @@ describe('OnyxSchemaEditor (generics and JSON mode)', () => {
   it('a struct with open extra values edits as fields; unchecking closes it', () => {
     const VALUE = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-value'
     act(() => {
-      root.render(<Harness initial={{type: MAP, properties: {type: {ref: MAP}}, values: {ref: VALUE}}} />)
+      root.render(<Harness initial={{type: MAP, properties: {type: {value: {ref: MAP}}}, values: {ref: VALUE}}} />)
     })
     expect(container.querySelector('[data-testid="schema-json-editor"]')).toBeNull()
     const values = container.querySelector('[data-testid="schema-values"]')!
     expect(values.textContent).toContain('other fields allowed')
     click(values.querySelector('button[role="checkbox"]')!)
     expect(latest.values).toBeUndefined()
-    expect(latest.properties.type).toEqual({ref: MAP})
+    expect(fieldSchema(latest, 'type')).toEqual({ref: MAP})
   })
 
   it('Cmd+Z undoes the last edit and Shift+Cmd+Z redoes it', () => {

@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListAccounts"
 summary: "Lists all known accounts as metadata payloads. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pa"
-schemaDefinition: ipfs://bafyreifnisbhraiwnkznrrpbsncpugyjxybhcbzxsndhqve7oomxclsqzy
+schemaDefinition: ipfs://bafyreiaggochqevqv25jxe7g4sdkc7qjnkmvj6ry4za2glzkzb6tty3gda
 ---
 Lists all known accounts as metadata payloads. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:5KM-97Ry -->
 

@@ -1,3 +1,4 @@
+import {structFields} from './onyx/onyx-engine'
 import {
   AlertCircle,
   ArrowRight,
@@ -671,13 +672,13 @@ function SchemaNodeView({
 
       {(schemaType === 'object' || (!schemaType && resolvedSchema.properties)) && resolvedSchema.properties ? (
         <div className="mt-4 space-y-3">
-          {Object.entries(resolvedSchema.properties).map(([propertyName, propertySchema]) => (
+          {structFields(resolvedSchema).map((field) => (
             <SchemaNodeView
-              key={propertyName}
+              key={field.name}
               rootSchema={rootSchema}
-              schema={propertySchema}
-              name={propertyName}
-              required={resolvedSchema.required?.includes(propertyName)}
+              schema={field.schema}
+              name={field.name}
+              required={field.required}
             />
           ))}
         </div>
