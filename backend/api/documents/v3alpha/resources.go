@@ -174,7 +174,7 @@ func (srv *Server) ListCitations(ctx context.Context, in *documents.ListCitation
 			return err
 		}
 
-		return nil
+		return resolveCommentSourceDocuments(conn, resp.Citations)
 	}); err != nil {
 		return nil, err
 	}
@@ -607,6 +607,41 @@ type citationsCursor struct {
 	LinkID int64 `json:"l"`
 }
 
+// resolveCommentSourceDocuments rewrites the SourceDocument of comment citations to the
+// current location of the document each comment was written against.
+//
+// The query reports the IRI recorded in the comment blob, which is the path the target
+// document had when the comment was created. If that document was moved since, the
+// recorded path now redirects, and clients that look up the comment there (to render a
+// preview, or the citing discussion) would be sent to a redirected document.
+func resolveCommentSourceDocuments(conn *sqlite.Conn, citations []*documents.Citation) error {
+	var iris []string
+	seen := make(map[string]struct{})
+	for _, c := range citations {
+		if c.SourceType != "Comment" || c.SourceDocument == "" {
+			continue
+		}
+		if _, ok := seen[c.SourceDocument]; ok {
+			continue
+		}
+		seen[c.SourceDocument] = struct{}{}
+		iris = append(iris, c.SourceDocument)
+	}
+
+	moved, err := blob.ResolveRedirects(conn, iris)
+	if err != nil {
+		return fmt.Errorf("failed to resolve comment source documents: %w", err)
+	}
+
+	for _, c := range citations {
+		if current, ok := moved[c.SourceDocument]; ok && c.SourceType == "Comment" {
+			c.SourceDocument = current
+		}
+	}
+
+	return nil
+}
+
 func (cc *citationsCursor) FromString(s string) error {
 	data, err := base64.RawURLEncoding.DecodeString(s)
 	if err != nil {
@@ -670,6 +705,14 @@ SELECT
 // on every recursion level. A resource whose latest generation redirects elsewhere has
 // a row in the CTE, so the seed's NOT IN check preserves the old "target is not itself
 // redirected" behavior, including for resources with no generations at all.
+//
+// The Comment branch reports source_iri as the document the comment was written
+// against (structural_blobs.resource), not the requested target: a comment on some
+// other document that merely links to the target is a citation from that other
+// document, and callers need it to find and render the comment. Comments on a
+// since-moved document still carry the path at write time; ListCitations resolves
+// those forward to the document's current path in Go (resolveCommentSourceDocuments)
+// so this query only has to join the resource row.
 const qListCitationsTpl = `
 WITH RECURSIVE
 redirected AS MATERIALIZED (
@@ -740,7 +783,7 @@ citing_blobs AS (
   JOIN structural_blobs sb ON sb.id = changes.id AND sb.type = 'Comment'
 )
 SELECT
-    (SELECT iri FROM redirect_ancestors WHERE depth = 0) AS source_iri,
+    source_resources.iri AS source_iri,
     blobs.codec,
     blobs.multihash,
 	public_keys.principal AS author,
@@ -759,6 +802,7 @@ SELECT
 FROM redirect_ancestors ra
 CROSS JOIN resource_links ON resource_links.target = ra.resource
 CROSS JOIN structural_blobs ON structural_blobs.id = resource_links.source
+JOIN resources AS source_resources ON source_resources.id = structural_blobs.resource
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN public_blobs pb ON pb.id = blobs.id

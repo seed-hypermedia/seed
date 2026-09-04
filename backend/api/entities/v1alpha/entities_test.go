@@ -14,7 +14,9 @@ import (
 	"seed/backend/storage"
 	"seed/backend/util/must"
 	"testing"
+	"time"
 
+	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -48,6 +50,7 @@ func (f *fakeDiscoverer) TouchHotTask(iri blob.IRI, version blob.Version, recurs
 type testServices struct {
 	documents *documentsapi.Server
 	entities  *Server
+	idx       *blob.Index
 	me        coretest.Tester
 }
 
@@ -64,8 +67,137 @@ func newTestServices(t *testing.T, name string) testServices {
 	return testServices{
 		documents: documentsapi.NewServer(config.Base{}, ks, idx, db, logging.New("seed/documents"+"/"+name, "debug"), nil),
 		entities:  NewServer(config.Base{}, db, nil, nil, logging.New("seed/entities"+"/"+name, "debug")),
+		idx:       idx,
 		me:        u,
 	}
+}
+
+// publishDocument stores a genesis change and a ref for it at path, and returns the
+// document's version (which is also its genesis, being a single change).
+func (svc testServices) publishDocument(t *testing.T, path string, ts time.Time) string {
+	t.Helper()
+
+	ctx := context.Background()
+	kp := svc.me.Account
+
+	change, err := blob.NewChange(kp, cid.Undef, nil, 0, blob.ChangeBody{}, ts)
+	require.NoError(t, err)
+
+	ref, err := blob.NewRef(kp, ts.UnixMilli(), change.CID, kp.Principal(), path, []cid.Cid{change.CID}, ts, blob.VisibilityPublic)
+	require.NoError(t, err)
+
+	require.NoError(t, svc.idx.Put(ctx, change))
+	require.NoError(t, svc.idx.Put(ctx, ref))
+
+	return change.CID.String()
+}
+
+// TestListEntityMentions_CommentSourceDocument covers the twin of the
+// ListCitations comment query (see TestListCitations_CommentSourceDocument in the
+// documents API): a comment mention must report the document the comment lives on,
+// at that document's current path, rather than the requested entity.
+func TestListEntityMentions_CommentSourceDocument(t *testing.T) {
+	t.Parallel()
+
+	svc := newTestServices(t, "alice")
+	ctx := context.Background()
+	space := svc.me.Account.Principal().String()
+
+	// Distinct timestamps so that each document gets its own genesis change.
+	base := time.Unix(1_700_000_000, 0).UTC()
+
+	svc.publishDocument(t, "", base)
+	citedVersion := svc.publishDocument(t, "/cited", base.Add(time.Second))
+	otherVersion := svc.publishDocument(t, "/other", base.Add(2*time.Second))
+
+	comment := func(path, version, text, link string) *documents.Comment {
+		t.Helper()
+		cmt, err := svc.documents.CreateComment(ctx, &documents.CreateCommentRequest{
+			SigningKeyName: "main",
+			TargetAccount:  space,
+			TargetPath:     path,
+			TargetVersion:  version,
+			Content: []*documents.BlockNode{
+				{Block: &documents.Block{Id: "b1", Type: "paragraph", Text: text, Link: link}},
+			},
+		})
+		require.NoError(t, err)
+		return cmt
+	}
+
+	move := func(version, from, to string) {
+		t.Helper()
+		_, err := svc.documents.CreateRef(ctx, &documents.CreateRefRequest{
+			Account:        space,
+			Path:           to,
+			SigningKeyName: "main",
+			Target: &documents.RefTarget{
+				Target: &documents.RefTarget_Version_{
+					Version: &documents.RefTarget_Version{Genesis: version, Version: version},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = svc.documents.CreateRef(ctx, &documents.CreateRefRequest{
+			Account:        space,
+			Path:           from,
+			SigningKeyName: "main",
+			Target: &documents.RefTarget{
+				Target: &documents.RefTarget_Redirect_{
+					Redirect: &documents.RefTarget_Redirect{Account: space, Path: to},
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	commentMentions := func(iri string) map[string]*entpb.Mention {
+		t.Helper()
+		res, err := svc.entities.ListEntityMentions(ctx, &entpb.ListEntityMentionsRequest{Id: iri, PageSize: 50})
+		require.NoError(t, err)
+		out := make(map[string]*entpb.Mention)
+		for _, m := range res.Mentions {
+			require.Equal(t, iri, m.Target, "mention must report the requested target")
+			if m.SourceType != "Comment" {
+				continue
+			}
+			require.NotContains(t, out, m.Source, "comment must be listed once")
+			out[m.Source] = m
+		}
+		return out
+	}
+
+	citedIRI := "hm://" + space + "/cited"
+
+	direct := comment("/cited", citedVersion, "Direct comment", "")
+	external := comment("/other", otherVersion, "Comment linking to the cited document", citedIRI)
+
+	mentions := commentMentions(citedIRI)
+	require.Len(t, mentions, 2, "both the direct and the linking comment mention the document")
+	require.Equal(t, citedIRI, mentions["hm://"+direct.Id].SourceDocument, "a direct comment lives on the cited document")
+	require.Equal(t, "hm://"+space+"/other", mentions["hm://"+external.Id].SourceDocument, "a linking comment lives on its own document, not on the cited one")
+
+	// The citing document moves twice; the comment blob still records /other.
+	move(otherVersion, "/other", "/other-moved")
+	move(otherVersion, "/other-moved", "/other-final")
+
+	mentions = commentMentions(citedIRI)
+	require.Len(t, mentions, 2)
+	require.Equal(t, citedIRI, mentions["hm://"+direct.Id].SourceDocument)
+	require.Equal(t, "hm://"+space+"/other-final", mentions["hm://"+external.Id].SourceDocument, "the citing comment's document must be reported at its current path")
+
+	// The cited document moves: the old path stops serving mentions, and on the new
+	// path the direct comment is attributed to the document's current path.
+	move(citedVersion, "/cited", "/cited-moved")
+	movedIRI := "hm://" + space + "/cited-moved"
+
+	require.Empty(t, commentMentions(citedIRI), "a redirected path must not serve mentions")
+
+	mentions = commentMentions(movedIRI)
+	require.Len(t, mentions, 2, "mentions must follow the cited document to its new path")
+	require.Equal(t, movedIRI, mentions["hm://"+direct.Id].SourceDocument)
+	require.Equal(t, "hm://"+space+"/other-final", mentions["hm://"+external.Id].SourceDocument)
 }
 
 func TestIsValidIriFilter(t *testing.T) {
