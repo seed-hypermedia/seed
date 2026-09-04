@@ -155,6 +155,7 @@ export const SideMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
         content={sideMenuElement}
         getReferenceClientRect={getReferenceClientRect}
         interactive={true}
+        zIndex={10}
         visible={show}
         animation={'fade'}
         offset={[topOffset, rightOffset]}

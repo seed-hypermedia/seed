@@ -155,6 +155,7 @@ describe('BlockHoverActionsPositioner', () => {
 
     expect(card.className).toContain('flex-col')
     expect(wrapper.dataset.bnBlockHoverActions).toBe('true')
+    expect(wrapper.style.zIndex).toBe('10')
     expect(wrapper.style.left).toBe('24px')
     expect(wrapper.style.paddingLeft).toBe('')
     expect(container.querySelector('[data-bn-block-hover-bridge="true"]')).toBeNull()
@@ -180,6 +181,30 @@ describe('BlockHoverActionsPositioner', () => {
     expect(wrapper.style.right).toBe('4px')
     expect(wrapper.style.left).toBe('')
     expect(wrapper.style.paddingLeft).toBe('')
+  })
+
+  it('hides actions when their block scrolls outside the document viewport', () => {
+    const viewport = document.createElement('div')
+    viewport.dataset.slot = 'scroll-area-viewport'
+    Object.defineProperty(viewport, 'getBoundingClientRect', {
+      value: () => ({...rect(100, 500), bottom: 500, height: 400}),
+    })
+    document.body.appendChild(viewport)
+    viewport.appendChild(editorDom)
+
+    const block = document.createElement('div')
+    block.dataset.id = 'block-1'
+    appendPublishedContent(block)
+    editorDom.appendChild(block)
+
+    renderPositioner()
+
+    act(() => {
+      listeners[0]({show: true, blockId: 'block-1', referenceRect: rect(80, 200)})
+    })
+
+    expect(container.querySelector('[data-bn-block-hover-actions="true"]')).toBeNull()
+    viewport.remove()
   })
 
   it('uses ProseMirror block revision state when the DOM has no data-revision attribute', () => {

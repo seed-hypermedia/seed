@@ -35,10 +35,10 @@ export function DocumentTopBar({
     <div
       data-document-top-bar=""
       className={cn(
-        'border-border dark:bg-background flex h-12 w-full shrink-0 items-center gap-2 bg-white px-4',
+        'border-border dark:bg-background relative z-40 flex h-12 w-full shrink-0 items-center gap-2 bg-white px-4',
         // The border is the only separator; nothing is elevated over the content.
         'border-b',
-        isMobile && 'sticky top-0 z-30',
+        isMobile && 'sticky top-0',
       )}
     >
       <div className="flex min-w-0 flex-1 items-center gap-2">
