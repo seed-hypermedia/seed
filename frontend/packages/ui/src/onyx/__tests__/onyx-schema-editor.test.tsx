@@ -150,21 +150,37 @@ describe('OnyxSchemaEditor (generics and JSON mode)', () => {
     expect(isOnyxSchema(latest)).toBe(true)
   })
 
-  it('a union is edited as JSON, with the form unavailable', () => {
+  it('a union edits its options in the form: each option a type, add and remove', () => {
     act(() => {
-      root.render(<Harness initial={{anyOf: [{ref: BLOCK}, {type: MAP, properties: {}, required: []}]}} />)
+      root.render(<Harness initial={{anyOf: [{ref: BLOCK}, {type: MAP, properties: {}}]}} />)
     })
-    const json = container.querySelector('[data-testid="schema-json-editor"] textarea') as HTMLTextAreaElement
-    expect(json).toBeTruthy()
-    expect(JSON.parse(json.value).anyOf).toHaveLength(2)
-    const formTab = [...container.querySelectorAll('button[role="tab"]')].find((b) => b.textContent === 'Fields')!
-    expect((formTab as HTMLButtonElement).disabled).toBe(true)
+    expect(container.querySelector('[data-testid="schema-json-editor"]')).toBeNull()
+    const rootType = container.querySelector('input[aria-label="Root type"]') as HTMLInputElement
+    expect(rootType.value).toBe('Union')
+    const options = container.querySelector('[data-testid="schema-union-options"]')!
+    expect(options.querySelectorAll('input[aria-label^="union option"]')).toHaveLength(2)
+    click(findButton('Add option'))
+    expect(latest.anyOf).toHaveLength(3)
+    click(container.querySelector('button[aria-label="Remove union option 1"]')!)
+    expect(latest.anyOf).toHaveLength(2)
+    expect(isOnyxSchema(latest)).toBe(true)
+  })
+
+  it('a list root edits its item type', () => {
+    act(() => {
+      root.render(
+        <Harness initial={{type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list', items: {ref: BLOCK}}} />,
+      )
+    })
+    expect(container.querySelector('[data-testid="schema-list-items"] input')).toBeTruthy()
+    expect(container.textContent).not.toContain('Add field')
   })
 
   it('valid JSON commits; a syntax error does not', () => {
     act(() => {
       root.render(<Harness initial={{anyOf: [{ref: BLOCK}]}} />)
     })
+    click([...container.querySelectorAll('button[role="tab"]')].find((b) => b.textContent === 'JSON')!)
     const json = container.querySelector('[data-testid="schema-json-editor"] textarea') as HTMLTextAreaElement
     const setValue = (v: string) =>
       act(() => {

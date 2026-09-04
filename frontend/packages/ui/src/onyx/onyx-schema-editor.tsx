@@ -83,9 +83,33 @@ function customLabel(ps: any): string {
 
 /** Whether the struct form can show (and safely rewrite) this schema. */
 export function structFormFits(schema: OnyxSchema): boolean {
-  if (schema.anyOf || schema.items || schema.enum || schema.args) return false
-  if (schema.type) return kindOf(schema.type) === 'struct' || kindOf(schema.type) === 'map'
+  if (schema.enum || schema.args) return false
+  if (Array.isArray(schema.anyOf)) return true
+  if (schema.type) return ['struct', 'map', 'list'].includes(kindOf(schema.type))
   return typeof schema.ref === 'string'
+}
+
+/** A union, offered to fields and to the root alike; the picked entry starts with one open option. */
+const unionOption = (): TypeOption => ({
+  label: 'Union',
+  hint: 'one of several types',
+  schema: {anyOf: [{ref: ANY_URL}]},
+})
+
+/** The schema a picked type URL stands for: a core type is `type`, any other schema document `ref`. */
+const typeSchemaFor = (url: string): OnyxSchema => (kindOf(url) !== url ? {type: url} : {ref: url})
+/** The type URL a schema node names (its ref or type), '' for a union, a format or a parameter. */
+const nodeUrl = (ps: any): string =>
+  typeof ps?.ref === 'string' ? ps.ref : typeof ps?.type === 'string' ? ps.type : ''
+/** A label for the shapes a URL does not name: a union, a parameter, a string format… */
+function nodeLabel(ps: any): string | undefined {
+  if (Array.isArray(ps?.anyOf)) return 'Union'
+  const k = propKind(ps)
+  if (k.startsWith('var:')) return `⟨${k.slice(4)}⟩`
+  if (k === 'hm-url') return 'HM link'
+  if (k === 'ipfs') return 'IPFS file / object'
+  if (k === CUSTOM_KIND && !nodeUrl(ps)) return customLabel(ps)
+  return undefined
 }
 
 /** Every `{var: from}` in a schema renamed to `to` (or replaced by `to` when it is an object). */
@@ -108,7 +132,7 @@ function kindSchema(kind: string): OnyxSchema {
   // the format (→ a date picker) and the pattern (→ validation).
   if (kind === 'date') return {ref: nameToUrl('onyx-date')!}
   if (kind === 'date-time') return {ref: nameToUrl('onyx-date-time')!}
-  if (kind === 'list') return {type: kindUrl('list'), items: {}}
+  if (kind === 'list') return {type: kindUrl('list'), items: {ref: ANY_URL}}
   if (kind === 'struct') return {type: STRUCT_URL, properties: {}}
   if (kind === 'map') return {type: MAP_URL, values: {ref: ANY_URL}}
   return {type: kindUrl(kind)}
@@ -283,7 +307,7 @@ export function OnyxSchemaEditor({
             m === 'form' && !fits ? 'cursor-not-allowed opacity-50' : 'hover:text-foreground cursor-pointer',
           )}
         >
-          {m === 'form' ? 'Fields' : 'JSON'}
+          {m === 'form' ? 'Form' : 'JSON'}
         </button>
       ))}
     </div>
@@ -295,6 +319,93 @@ export function OnyxSchemaEditor({
         <StructSchemaForm schema={schema} onSchema={onSchema} />
       ) : (
         <RawSchemaEditor schema={schema} onSchema={onSchema} />
+      )}
+    </div>
+  )
+}
+
+/** The alternatives of a union, each a type of its own. */
+function UnionOptionsEditor({
+  schema,
+  onSchema,
+  options,
+  ariaPrefix,
+}: {
+  schema: OnyxSchema
+  onSchema: (s: OnyxSchema) => void
+  options: TypeOption[]
+  ariaPrefix: string
+}) {
+  const arms: OnyxSchema[] = Array.isArray(schema.anyOf) ? schema.anyOf : []
+  const set = (next: OnyxSchema[]) => onSchema({...schema, anyOf: next})
+  return (
+    <div className="flex basis-full flex-col gap-1.5 pl-4" data-testid="schema-union-options">
+      <label className="text-muted-foreground text-xs font-medium">One of</label>
+      {arms.map((arm, i) => (
+        <div key={i} className="flex flex-wrap items-center gap-2">
+          <SchemaTypeInput
+            value={nodeUrl(arm)}
+            label={nodeLabel(arm)}
+            options={options}
+            onChange={(url) => set(arms.map((a, j) => (j === i ? typeSchemaFor(url) : a)))}
+            onPick={(next) => set(arms.map((a, j) => (j === i ? next : a)))}
+            ariaLabel={`${ariaPrefix} option ${i + 1}`}
+            className="w-56"
+          />
+          <Button
+            variant="ghost"
+            size="iconSm"
+            aria-label={`Remove ${ariaPrefix} option ${i + 1}`}
+            onClick={() => set(arms.filter((_, j) => j !== i))}
+          >
+            <X className="size-4" />
+          </Button>
+        </div>
+      ))}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="text-muted-foreground w-fit gap-1 text-xs"
+        onClick={() => set([...arms, {ref: ANY_URL}])}
+      >
+        <Plus className="size-3.5" /> Add option
+      </Button>
+    </div>
+  )
+}
+
+/** What a list holds. */
+function ListItemsEditor({
+  schema,
+  onSchema,
+  options,
+  ariaPrefix,
+}: {
+  schema: OnyxSchema
+  onSchema: (s: OnyxSchema) => void
+  options: TypeOption[]
+  ariaPrefix: string
+}) {
+  const items: OnyxSchema = schema.items ?? {ref: ANY_URL}
+  return (
+    <div className="flex basis-full flex-wrap items-center gap-2 pl-4" data-testid="schema-list-items">
+      <span className="text-muted-foreground text-xs">of</span>
+      <SchemaTypeInput
+        value={nodeUrl(items)}
+        label={nodeLabel(items)}
+        options={options}
+        onChange={(url) => onSchema({...schema, items: typeSchemaFor(url)})}
+        onPick={(next) => onSchema({...schema, items: next})}
+        ariaLabel={`${ariaPrefix} item type`}
+        className="w-56"
+      />
+      {Array.isArray(items.anyOf) && (
+        <UnionOptionsEditor
+          schema={items}
+          onSchema={(next) => onSchema({...schema, items: next})}
+          options={options}
+          ariaPrefix={`${ariaPrefix} item`}
+        />
       )}
     </div>
   )
@@ -400,6 +511,7 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
   // with a picker), and the core types. Anything else is found by searching.
   const fieldTypeOptions: TypeOption[] = [
     ...paramEntries.map(([name]) => ({label: `⟨${name}⟩`, hint: 'type parameter', schema: {var: name}})),
+    unionOption(),
     {label: 'HM link', hint: 'string · hm-url', schema: kindSchema('hm-url')},
     {label: 'IPFS file / object', hint: 'string · ipfs', schema: kindSchema('ipfs')},
     ...FIELD_KINDS.filter(({kind}) => !isReferenceKind(kind)).map(({kind, label}) => {
@@ -407,18 +519,8 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
       return {label: ONYX_PAGES[slug]?.name ?? label, hint: 'core type', url: nameToUrl(slug)!}
     }),
   ]
-  /** The type URL a property schema names (its ref or type), '' for a format or parameter. */
-  const fieldUrl = (ps: any): string =>
-    typeof ps?.ref === 'string' ? ps.ref : typeof ps?.type === 'string' ? ps.type : ''
-  /** A label for the shapes a URL does not name: a parameter, a string format, a union… */
-  const fieldLabel = (ps: any): string | undefined => {
-    const k = propKind(ps)
-    if (k.startsWith('var:')) return `⟨${k.slice(4)}⟩`
-    if (k === 'hm-url') return 'HM link'
-    if (k === 'ipfs') return 'IPFS file / object'
-    if (k === CUSTOM_KIND && !fieldUrl(ps)) return customLabel(ps)
-    return undefined
-  }
+  const fieldUrl = nodeUrl
+  const fieldLabel = nodeLabel
 
   // `values`: the schema every field NOT listed above must satisfy. Present, the
   // struct is open (extra fields allowed, typed); absent, it is closed.
@@ -431,19 +533,38 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
   // The root type is a type reference like any other: a primitive kind URL (map,
   // list, string…) is the schema's `type`; any other schema document is its `ref`
   // (the schema extends it). Picking the Hypermedia Blob envelope pins a type tag.
-  const rootUrl: string =
-    typeof schema.type === 'string' ? schema.type : typeof schema.ref === 'string' ? schema.ref : ''
+  const rootIsUnion = Array.isArray(schema.anyOf)
+  const rootIsList = !rootIsUnion && kindOf(schema.type) === 'list'
+  const rootUrl: string = rootIsUnion ? '' : nodeUrl(schema)
+  const rootTypeOptions: TypeOption[] = [
+    unionOption(),
+    ...FIELD_KINDS.filter(({kind}) => !isReferenceKind(kind)).map(({kind, label}) => ({
+      label: ONYX_PAGES[`onyx-${kind}`]?.name ?? label,
+      hint: 'core type',
+      url: nameToUrl(`onyx-${kind}`)!,
+    })),
+  ]
   const setRootType = (url: string) => {
     if (url === SIGNED_BLOB_URL) return onSchema(withRootKind(schema, 'signed'))
-    const {type: _t, ref: _r, ...rest} = schema
-    const props: Record<string, any> = {...(rest.properties ?? {})}
-    const req = new Set<string>(Array.isArray(rest.required) ? rest.required : [])
-    if (signed) {
-      delete props.type
-      req.delete('type')
+    const {type: _t, ref: _r, anyOf: _a, required: _legacy, ...rest} = schema
+    const kind = kindOf(url)
+    if (kind !== url && kind !== 'struct' && kind !== 'map') {
+      // A leaf or list root has no fields.
+      const {properties: _p, values: _v, ...leaf} = rest
+      return onSchema(
+        kind === 'list' ? {...leaf, type: url, items: schema.items ?? {ref: ANY_URL}} : {...leaf, type: url},
+      )
     }
-    const base = {...rest, properties: props, required: Array.from(req)}
-    onSchema(kindOf(url) !== url ? {...base, type: url} : {...base, ref: url})
+    const kept = structFields(schema).filter((f) => !(signed && f.name === 'type'))
+    const base = {...rest, properties: fieldsToProperties(kept)}
+    onSchema(kind !== url ? {...base, type: url} : {...base, ref: url})
+  }
+  /** A picked option carrying a schema (Union): the root becomes that shape, keeping generics and description. */
+  const setRootSchema = (next: OnyxSchema) => {
+    const keep: OnyxSchema = {}
+    if (schema.params) keep.params = schema.params
+    if (schema.description) keep.description = schema.description
+    onSchema({...keep, ...(next.anyOf && schema.anyOf ? {...next, anyOf: schema.anyOf} : next)})
   }
   const setFieldType = (name: string, url: string) => {
     commit({...properties, [name]: kindOf(url) !== url ? {type: url} : {ref: url}}, required)
@@ -455,7 +576,18 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
       <div className="flex flex-col gap-1" data-testid="schema-root-type">
         <label className="text-muted-foreground text-xs font-medium">Type</label>
         <div className="flex flex-wrap items-center gap-2">
-          <SchemaTypeInput value={rootUrl} onChange={setRootType} ariaLabel="Root type" className="w-56" />
+          <SchemaTypeInput
+            value={rootUrl}
+            label={rootIsUnion ? 'Union' : undefined}
+            options={rootTypeOptions}
+            onChange={setRootType}
+            onPick={setRootSchema}
+            ariaLabel="Root type"
+            className="w-56"
+          />
+          {rootIsList && (
+            <ListItemsEditor schema={schema} onSchema={onSchema} options={fieldTypeOptions} ariaPrefix="list" />
+          )}
           {signed && (
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground text-xs">type tag</span>
@@ -469,6 +601,9 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
             </div>
           )}
         </div>
+        {rootIsUnion && (
+          <UnionOptionsEditor schema={schema} onSchema={onSchema} options={fieldTypeOptions} ariaPrefix="union" />
+        )}
       </div>
 
       {
@@ -514,88 +649,106 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
         </div>
       }
 
-      <div className="flex flex-col gap-1">
-        <label className="text-muted-foreground text-xs font-medium">Fields</label>
-        <div className="flex flex-col gap-1.5">
-          {entries.length === 0 && <p className="text-muted-foreground text-sm">No fields yet.</p>}
-          {entries
-            .filter(([name]) => !(signed && name === 'type'))
-            .map(([name, ps], index) => (
-              // Stable index key: renaming changes the property name but not the
-              // row's identity, so the (controlled) name input never remounts and
-              // keeps focus while typing.
-              <div key={index} className="flex flex-wrap items-center gap-2">
-                <Input
-                  value={name}
-                  className="flex-1 font-mono text-sm"
-                  aria-label="Field name"
-                  onChange={(e) => renameField(name, e.target.value)}
-                />
-                <SchemaTypeInput
-                  value={fieldUrl(ps)}
-                  label={fieldLabel(ps)}
-                  options={fieldTypeOptions}
-                  onChange={(url) => setFieldType(name, url)}
-                  onPick={(next) => setFieldSchema(name, next)}
-                  ariaLabel={`Type of ${name}`}
-                  className="w-44 shrink-0"
-                />
-                {isReferenceKind(propKind(ps)) && (
-                  <Tooltip content="Target type — the schema the referenced document or object should conform to (an hm:// type document or ipfs:// schema). Optional.">
-                    <Input
-                      value={typeof ps?.target === 'string' ? ps.target : ''}
-                      placeholder="target type (hm:// or ipfs://)"
-                      aria-label={`Target type for ${name}`}
-                      className="w-52 shrink-0 font-mono text-xs"
-                      onChange={(e) => setFieldTarget(name, e.target.value)}
-                    />
+      {!rootIsUnion && !rootIsList && (
+        <div className="flex flex-col gap-1">
+          <label className="text-muted-foreground text-xs font-medium">Fields</label>
+          <div className="flex flex-col gap-1.5">
+            {entries.length === 0 && <p className="text-muted-foreground text-sm">No fields yet.</p>}
+            {entries
+              .filter(([name]) => !(signed && name === 'type'))
+              .map(([name, ps], index) => (
+                // Stable index key: renaming changes the property name but not the
+                // row's identity, so the (controlled) name input never remounts and
+                // keeps focus while typing.
+                <div key={index} className="flex flex-wrap items-center gap-2">
+                  <Input
+                    value={name}
+                    className="flex-1 font-mono text-sm"
+                    aria-label="Field name"
+                    onChange={(e) => renameField(name, e.target.value)}
+                  />
+                  <SchemaTypeInput
+                    value={fieldUrl(ps)}
+                    label={fieldLabel(ps)}
+                    options={fieldTypeOptions}
+                    onChange={(url) => setFieldType(name, url)}
+                    onPick={(next) => setFieldSchema(name, next)}
+                    ariaLabel={`Type of ${name}`}
+                    className="w-44 shrink-0"
+                  />
+                  {isReferenceKind(propKind(ps)) && (
+                    <Tooltip content="Target type — the schema the referenced document or object should conform to (an hm:// type document or ipfs:// schema). Optional.">
+                      <Input
+                        value={typeof ps?.target === 'string' ? ps.target : ''}
+                        placeholder="target type (hm:// or ipfs://)"
+                        aria-label={`Target type for ${name}`}
+                        className="w-52 shrink-0 font-mono text-xs"
+                        onChange={(e) => setFieldTarget(name, e.target.value)}
+                      />
+                    </Tooltip>
+                  )}
+                  <Tooltip content="Required — a value of this type must include this field">
+                    <label className="text-muted-foreground flex shrink-0 cursor-pointer items-center gap-1 text-xs">
+                      <Checkbox checked={required.has(name)} onCheckedChange={(on) => setRequired(name, on === true)} />
+                      required
+                    </label>
                   </Tooltip>
-                )}
-                <Tooltip content="Required — a value of this type must include this field">
-                  <label className="text-muted-foreground flex shrink-0 cursor-pointer items-center gap-1 text-xs">
-                    <Checkbox checked={required.has(name)} onCheckedChange={(on) => setRequired(name, on === true)} />
-                    required
-                  </label>
-                </Tooltip>
-                <Button variant="ghost" size="iconSm" aria-label={`Remove ${name}`} onClick={() => removeField(name)}>
-                  <X className="size-4" />
-                </Button>
-                <Input
-                  value={field(name)?.description ?? ''}
-                  placeholder="description"
-                  aria-label={`Description of ${name}`}
-                  className="text-muted-foreground basis-full text-xs"
-                  onChange={(e) => setFieldDescription(name, e.target.value)}
+                  <Button variant="ghost" size="iconSm" aria-label={`Remove ${name}`} onClick={() => removeField(name)}>
+                    <X className="size-4" />
+                  </Button>
+                  <Input
+                    value={field(name)?.description ?? ''}
+                    placeholder="description"
+                    aria-label={`Description of ${name}`}
+                    className="text-muted-foreground basis-full text-xs"
+                    onChange={(e) => setFieldDescription(name, e.target.value)}
+                  />
+                  {Array.isArray(ps?.anyOf) && (
+                    <UnionOptionsEditor
+                      schema={ps}
+                      onSchema={(next) => setFieldSchema(name, next)}
+                      options={fieldTypeOptions}
+                      ariaPrefix={name}
+                    />
+                  )}
+                  {kindOf(ps?.type) === 'list' && (
+                    <ListItemsEditor
+                      schema={ps}
+                      onSchema={(next) => setFieldSchema(name, next)}
+                      options={fieldTypeOptions}
+                      ariaPrefix={name}
+                    />
+                  )}
+                </div>
+              ))}
+          </div>
+          <Button variant="outline" size="sm" className="mt-1 w-fit gap-1" onClick={addField}>
+            <Plus className="size-4" /> Add field
+          </Button>
+          <div className="mt-2 flex flex-wrap items-center gap-2" data-testid="schema-values">
+            <Tooltip content="Open struct — fields other than the ones above are allowed, and must have this kind">
+              <label className="text-muted-foreground flex cursor-pointer items-center gap-1 text-xs">
+                <Checkbox
+                  checked={values !== undefined}
+                  onCheckedChange={(on) => setValues(on === true ? {ref: ANY_URL} : null)}
                 />
-              </div>
-            ))}
-        </div>
-        <Button variant="outline" size="sm" className="mt-1 w-fit gap-1" onClick={addField}>
-          <Plus className="size-4" /> Add field
-        </Button>
-        <div className="mt-2 flex flex-wrap items-center gap-2" data-testid="schema-values">
-          <Tooltip content="Open struct — fields other than the ones above are allowed, and must have this kind">
-            <label className="text-muted-foreground flex cursor-pointer items-center gap-1 text-xs">
-              <Checkbox
-                checked={values !== undefined}
-                onCheckedChange={(on) => setValues(on === true ? {ref: ANY_URL} : null)}
+                other fields allowed
+              </label>
+            </Tooltip>
+            {values !== undefined && (
+              <SchemaTypeInput
+                value={fieldUrl(values)}
+                label={fieldLabel(values)}
+                options={fieldTypeOptions}
+                onChange={(url) => setValues(kindOf(url) !== url ? {type: url} : {ref: url})}
+                onPick={(next) => setValues(next)}
+                ariaLabel="Type of other fields"
+                className="w-44 shrink-0"
               />
-              other fields allowed
-            </label>
-          </Tooltip>
-          {values !== undefined && (
-            <SchemaTypeInput
-              value={fieldUrl(values)}
-              label={fieldLabel(values)}
-              options={fieldTypeOptions}
-              onChange={(url) => setValues(kindOf(url) !== url ? {type: url} : {ref: url})}
-              onPick={(next) => setValues(next)}
-              ariaLabel="Type of other fields"
-              className="w-44 shrink-0"
-            />
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
