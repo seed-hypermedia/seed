@@ -103,7 +103,7 @@ import type {
 } from '@seed-hypermedia/client/hm-types'
 import {hmIdPathToEntityQueryPath, unpackHmId} from '@seed-hypermedia/client/hm-types'
 import * as pi from '@mariozechner/pi-coding-agent'
-import {providerErrorReason, recordPerf, recordPerfCount} from '@/perf'
+import {providerErrorReason, recordPerf, recordPerfCount, startPerfSpan} from '@/perf'
 import {sessionPerfRollup, type SessionPerfRollup} from '@/session-perf'
 import {getModels} from '@mariozechner/pi-ai'
 import type {OAuthCredentials} from '@mariozechner/pi-ai/oauth'
@@ -6552,7 +6552,11 @@ export class Service {
           this.#continueSessionFromAgent(accountId, liveRun, sessionId, session.agentId, live, toolCallId, input),
       }
     })()
+    // The request_gap sub-spans below (`prep.*`) name where pre-turn time goes; anything they do
+    // not cover shows up as the difference against `provider.request_gap` in the same snapshot.
+    const endProviderRuntimeSpan = startPerfSpan('prep.provider_runtime')
     const {provider, authStorage, modelRegistry, model} = await this.#piProviderRuntime(accountId, definition)
+    endProviderRuntimeSpan()
 
     const cwd = this.#dataDir
     // Retry policy belongs to the run queue (interactive turns fail fast, background runs ride the
@@ -6560,6 +6564,7 @@ export class Service {
     // timer that dispose() does not cancel, so it would replay the turn after the run finalized.
     const settingsManager = pi.SettingsManager.inMemory({compaction: {enabled: false}, retry: {enabled: false}})
     const agentStateDir = this.#agentMemoryStateDir(accountId, session.agentId)
+    const endSystemPromptSpan = startPerfSpan('prep.system_prompt')
     const resourceLoader = createSeedPiResourceLoader(
       await this.#agentSystemPrompt(
         accountId,
@@ -6569,6 +6574,7 @@ export class Service {
         run ? this.#spawnContextForRun(run).spec : undefined,
       ),
     )
+    endSystemPromptSpan()
     // Agents list execute_code by default; drop it silently when this host cannot run sandboxes
     // (unsupported platform, missing runtime) so the model never sees a tool that can only fail.
     const codeExecAvailable = (await this.#codeExec.availability()).available
@@ -6578,6 +6584,7 @@ export class Service {
     const enabledCallables = enabledCallableTools(definition, codeExecAvailable)
     // The agent's own documents — authored lambdas and the tools of its enabled MCP servers — are
     // promotable too; the projection is re-derived here so it matches the definition being run.
+    const endToolSyncSpan = startPerfSpan('prep.tool_sync')
     this.#syncAgentMcpTools(accountId, session.agentId, definition)
     const documentTools = new Set(
       toolDocs
@@ -6591,7 +6598,9 @@ export class Service {
     const expandedCallables = this.#expandedCallablesForSession(sessionId)
       .map(normalizeSeedToolName)
       .filter((name) => enabledCallables.includes(name) || documentTools.has(name))
+    endToolSyncSpan()
     const mcpPool = this.#createMcpPool(accountId)
+    const endPiSessionSpan = startPerfSpan('prep.pi_session')
     const {session: piSession} = await pi.createAgentSession({
       cwd,
       agentDir: path.join(this.#dataDir, 'pi'),
@@ -6667,6 +6676,7 @@ export class Service {
       sessionManager: pi.SessionManager.inMemory(cwd),
       settingsManager,
     })
+    endPiSessionSpan()
 
     const mergeModelDefaults = provider.modelDefaults
     // Provider latency markers, set as each request leaves and cleared by the first streamed
@@ -6710,7 +6720,9 @@ export class Service {
       if (mergeModelDefaults) next = mergePiPayloadDefaults(next, mergeModelDefaults)
       return next
     }
+    const endReplaySpan = startPerfSpan('prep.replay')
     const replayMessages = this.#piMessages(sessionId)
+    endReplaySpan()
     const runInput = run && isRecord(run.input) ? run.input : undefined
     const queuedUserEventIds =
       runInput?.queuedBehindAnotherTurn === true && Array.isArray(runInput.userEventIds)

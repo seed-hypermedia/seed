@@ -21,6 +21,10 @@
  * - `run.dispatch_delay`     — run became dispatchable → executor actually started
  * - `tool.<name>`            — each tool call's execution span, by tool name
  * - `tool.call.<inner>`      — the `call` verb's span split by the callable it dispatched to
+ * - `prep.provider_runtime` / `prep.system_prompt` / `prep.tool_sync` / `prep.pi_session` /
+ *   `prep.replay`            — the segments inside `provider.request_gap`, so the pre-turn silence
+ *                              the user waits through is attributable; unnamed remainder = gap
+ *                              minus these
  * - `provider.ttft.<provider>.<model>` / `provider.turn.<provider>.<model>` — the provider spans
  *   tagged by provider+model, so one slow model is visible next to the blend
  *
