@@ -1,7 +1,7 @@
 ---
 name: Query sort
 summary: One sort term for a Query block's results, optionally reversed.
-schemaDefinition: ipfs://bafyreib7iwnllxfoobkbs6uz4vtvh6jarn74ehigrqdutceyqnkng34ade
+schemaDefinition: ipfs://bafyreichlzpq3beadaquvsflicivxdkjq3w2pxye6epbxt4a5oufvhvxp4
 ---
 This document describes the **hypermedia-query-sort** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:eaWXyOUU -->
 

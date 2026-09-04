@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {ONYX_SCHEMAS, resolveSchema, schemaCid, validate} from '../onyx-engine'
+import {ONYX_SCHEMAS, fieldSchema, requiredFieldNames, resolveSchema, schemaCid, validate} from '../onyx-engine'
 import {bareCid, classifyRef, metadataSchemaOf} from '../onyx-schema-resolve'
 
 const ONYX = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
@@ -10,7 +10,7 @@ describe('hypermedia-metadata semantic field formats', () => {
   // the value editor keys off to render the richer HM-link / IPFS-file inputs.
   const fieldFormat = (key: string) => {
     const meta = resolveSchema(ONYX_SCHEMAS['hypermedia-metadata']).schema
-    return resolveSchema(meta.properties![key]).schema.format
+    return resolveSchema(fieldSchema(meta, key)!).schema.format
   }
   it('schema and childrenSchema are HM links (hm-url)', () => {
     expect(fieldFormat('schema')).toBe('hm-url')
@@ -70,7 +70,7 @@ describe('metadataSchemaOf', () => {
   it('document-shaped: returns the nested metadata sub-schema (required surname)', () => {
     const meta = metadataSchemaOf(ONYX_SCHEMAS['example-person-doc'])
     expect(meta).toBeTruthy()
-    expect(meta!.required).toContain('surname')
+    expect(requiredFieldNames(meta)).toContain('surname')
     // it is the extended base metadata: standard fields inherited
     expect(meta!.properties).toHaveProperty('name')
     expect(meta!.properties).toHaveProperty('surname')
@@ -81,7 +81,7 @@ describe('metadataSchemaOf', () => {
   it('flat schema: is its own metadata schema', () => {
     const meta = metadataSchemaOf(ONYX_SCHEMAS['example-person'])
     // example-person is a flat map with required name — used directly
-    expect(meta!.required).toContain('name')
+    expect(requiredFieldNames(meta)).toContain('name')
     expect(meta!.properties).toHaveProperty('age')
   })
   it('undefined passes through', () => {

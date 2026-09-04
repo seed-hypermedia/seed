@@ -57,7 +57,7 @@ A **bare** `{ "ref": X }` (no refinements) is a pure include, not an extension. 
 
 ## Structs and maps <!-- id:SFVk1Mph -->
 
-A `struct` names its fields in `properties` and is **closed**: keys not listed are rejected. Add `values` and it is open — extra keys are allowed as long as their values match the `values` schema. A `map` has no named fields; every key's value matches `values`. So: <!-- id:8FWAU877 -->
+A `struct` names its fields in `properties`, one [property](./onyx-property.md) per field: `properties[name]` is `{value, required?, description?}` — the schema the field's value must match, whether a value must include it, and what it is for. A struct is **closed**: keys not listed are rejected. Add `values` and it is open — extra keys are allowed as long as their values match the `values` schema. A `map` has no named fields; every key's value matches `values`. So: <!-- id:8FWAU877 -->
   - `struct` with `properties`, no `values` → **closed struct** (fixed field set) <!-- id:AjvS967n -->
   - `map` with `values` → **map** (uniform value type, any keys) <!-- id:e1GSoOu5 -->
   - `struct` with both → known fields via `properties`, everything else must match `values` <!-- id:3wP9hZuQ -->
@@ -65,8 +65,10 @@ A `struct` names its fields in `properties` and is **closed**: keys not listed a
 
 ```json <!-- id:KIYtikI2 -->
 // closed struct — {name, age} and nothing else
-{ "type": "struct", "required": ["name"],
-  "properties": { "name": { "type": "string" }, "age": { "type": "integer" } } }
+{ "type": "struct",
+  "properties": {
+    "name": { "value": { "type": "string" }, "required": true, "description": "Full name" },
+    "age":  { "value": { "type": "integer" } } } }
 ```
 
 ```json <!-- id:uOkzD_Gb -->
@@ -135,7 +137,7 @@ This is the crux, and with unions it is sharper than "a loose map with optional 
 <!-- id:yZg8-sNO -->
 | variant <!-- col:kO3_qHrQ --> | matches <!-- col:rCN3fgm3 --> | discriminant <!-- col:zzQn7svL --> <!-- id:4VFkvrKJ --> |
 | --- | --- | --- |
-| `onyx-struct-schema` | `{type:"struct", properties?, required?, values?}` | `type` = `struct` <!-- id:dS0FU-PD --> |
+| `onyx-struct-schema` | `{type:"struct", properties?: {name: {value, required?, description?}}, values?}` | `type` = `struct` <!-- id:dS0FU-PD --> |
 | `onyx-map-schema` | `{type:"map", values?}` | `type` = `map` <!-- id:bCtL9MQx --> |
 | `onyx-list-schema` | `{type:"list", items?}` | `type` = `list` <!-- id:Y2gJAANc --> |
 | `onyx-scalar-schema` | `{type: null\|boolean\|integer\|float\|string\|bytes, enum?}` | `type` = a scalar kind <!-- id:wkuOsUIy --> |

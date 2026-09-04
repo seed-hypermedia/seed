@@ -1114,8 +1114,8 @@ export type OnyxDateTime = string
  */
 export type OnyxIncludeSchema = {
   ref: string
-  properties?: {[key: string]: OnyxSchema}
-  required?: string[]
+  /** Fields the extension adds to (or overrides in) the base struct, as properties. */
+  properties?: {[key: string]: OnyxProperty}
   values?: OnyxSchema
   items?: OnyxSchema
   enum?: unknown[]
@@ -1162,12 +1162,29 @@ export type OnyxListSchema = {
  */
 export type OnyxMapSchema = {
   type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map'
+  /** Legacy: fields written as name → schema by maps published before struct existed. New schemas with named fields are structs. */
   properties?: {[key: string]: OnyxSchema}
+  /** Legacy: the required field names of a map published before struct existed. */
   required?: string[]
+  /** The schema every value of the map must match. */
   values?: OnyxSchema
   description?: string
   params?: {[key: string]: OnyxSchema}
   name?: string
+}
+
+/**
+ * Property
+ * One field of a struct — its value schema, whether a value must include it, and a description of what it is for.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/property
+ */
+export type OnyxProperty = {
+  /** The schema the field's value must match. */
+  value: OnyxSchema
+  /** A value of the struct must include this field. Absent means optional. */
+  required?: boolean
+  /** What the field is for, for people and for the editors that show it. */
+  description?: string
 }
 
 /**
@@ -1219,12 +1236,17 @@ export type OnyxSchema =
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct-schema
  */
 export type OnyxStructSchema = {
+  /** Always the struct core type. */
   type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct'
-  properties?: {[key: string]: OnyxSchema}
-  required?: string[]
+  /** The fields by name: each a property with its value schema, whether it is required, and a description. */
+  properties?: {[key: string]: OnyxProperty}
+  /** Opens the struct: keys other than the named fields are allowed and their values must match this schema. */
   values?: OnyxSchema
+  /** What the struct is for, when it is written inline; a published schema is described by its page. */
   description?: string
+  /** Type parameters of a generic struct, each with its default schema. */
   params?: {[key: string]: OnyxSchema}
+  /** Legacy: a name some published schemas still carry. New schemas are named by their page. */
   name?: string
 }
 

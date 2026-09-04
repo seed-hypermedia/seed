@@ -92,14 +92,43 @@ function typeMatches(type, d) {
 
 const REFINE = ["properties", "required", "values", "items", "enum"];
 
+// A struct writes its fields as `properties[name] = {value, required?, description?}`;
+// older blobs wrote `properties[name] = <schema>` with a `required` list. Both read.
+const isPropertyEntry = (v) =>
+  !!v && typeof v === "object" && "value" in v && !("type" in v || "ref" in v || "anyOf" in v || "var" in v);
+export function structFields(schema) {
+  if (!schema || !schema.properties || typeof schema.properties !== "object") return [];
+  const legacyRequired = new Set(Array.isArray(schema.required) ? schema.required : []);
+  return Object.entries(schema.properties).map(([name, entry]) =>
+    isPropertyEntry(entry)
+      ? { name, schema: entry.value ?? {}, required: entry.required === true, description: entry.description }
+      : { name, schema: entry ?? {}, required: legacyRequired.has(name), description: entry?.description },
+  );
+}
+export function fieldSchema(schema, name) {
+  const entry = schema?.properties?.[name];
+  if (entry === undefined) return undefined;
+  return isPropertyEntry(entry) ? entry.value : entry;
+}
+export function fieldsToProperties(fields) {
+  const out = {};
+  for (const f of fields) {
+    const e = { value: f.schema };
+    if (f.required) e.required = true;
+    if (f.description) e.description = f.description;
+    out[f.name] = e;
+  }
+  return out;
+}
+
 // Merge an extension node's refinements over its (already-resolved) parent — a
-// subtype: parent's fields plus the new ones, required unioned.
+// subtype: parent's fields plus the new ones (an extension may override a field).
 export function mergeExtend(parent, ext) {
   const merged = { type: parent.type };
-  const props = { ...(parent.properties || {}), ...(ext.properties || {}) };
-  if (Object.keys(props).length) merged.properties = props;
-  const req = [...new Set([...(parent.required || []), ...(ext.required || [])])];
-  if (req.length) merged.required = req;
+  const byName = new Map();
+  for (const f of structFields(parent)) byName.set(f.name, f);
+  for (const f of structFields(ext)) byName.set(f.name, f);
+  if (byName.size) merged.properties = fieldsToProperties([...byName.values()]);
   const values = ext.values ?? parent.values;
   if (values) merged.values = values;
   const items = ext.items ?? parent.items;
@@ -183,10 +212,10 @@ export function validate(schema0, data, path = "$", env0 = {}) {
     return errors;
   }
   if (kind === "map" || kind === "struct") {
-    for (const key of schema.required ?? []) if (!(key in data)) errors.push(`${path}: missing required "${key}"`);
+    for (const f of structFields(schema)) if (f.required && !(f.name in data)) errors.push(`${path}: missing required "${f.name}"`);
     const closed = schema.properties && !schema.values;
     for (const [key, value] of Object.entries(data)) {
-      const child = schema.properties?.[key] ?? schema.values;
+      const child = fieldSchema(schema, key) ?? schema.values;
       if (child) errors.push(...validate(child, value, `${path}.${key}`, env));
       else if (closed) errors.push(`${path}: unexpected key "${key}"`);
     }
@@ -282,7 +311,8 @@ failed += reportReject("scalar carrying `properties`", validate(meta, { type: K(
 failed += reportReject("map schema with an unknown keyword", validate(meta, { type: K("map"), bogus: 1 }));
 failed += reportReject("struct schema with an unknown keyword", validate(meta, { type: K("struct"), bogus: 1 }));
 const U = (k) => `hm://${ONYX}/${k}`;
-failed += report("a struct with fields is a valid schema", validate(meta, { type: U("struct"), properties: { a: { type: U("string") } }, required: ["a"] }));
+failed += report("a struct with fields is a valid schema", validate(meta, { type: U("struct"), properties: { a: { value: { type: U("string") }, required: true, description: "an a" } } }));
+failed += reportReject("a struct field must be a property ({value, …}), not a bare schema", validate(meta, { type: U("struct"), properties: { a: { type: U("string") } } }));
 failed += report("a map of values is a valid schema", validate(meta, { type: U("map"), values: { type: U("integer") } }));
 failed += report("a legacy map with fields (published before struct) still validates", validate(meta, { type: U("map"), properties: { a: { type: U("string") } } }));
 failed += reportReject("node with neither type nor ref nor anyOf", validate(meta, { properties: {} }));

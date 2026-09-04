@@ -1,7 +1,7 @@
 ---
 name: "Example: File"
 summary: example-file — an example schema.
-schemaDefinition: ipfs://bafyreicga4oqtxgz6too3mlb4gzhuwjvgkqevqhr47pqqfjmyvmtbfiori
+schemaDefinition: ipfs://bafyreih6ncdo2mkq2l7jt3wzotqpht7olebhdufoeasz7vblexm5rp6y6i
 ---
 This document describes the **example-file** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:3vFag6Mh -->
 

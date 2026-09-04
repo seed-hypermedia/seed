@@ -185,17 +185,28 @@ function emit(node, env, pad = '') {
   return 'unknown'
 }
 
-/** Emit an object-type body from a map node's properties/required/values. */
+/** A struct's fields: `properties[name] = {value, required?, description?}`, or the older
+ * `properties[name] = <schema>` plus a `required` list. */
+const isPropertyEntry = (v) =>
+  !!v && typeof v === 'object' && 'value' in v && !('type' in v || 'ref' in v || 'anyOf' in v || 'var' in v)
+function structFields(node) {
+  const legacyRequired = new Set(node.required || [])
+  return Object.entries(node.properties || {}).map(([name, entry]) =>
+    isPropertyEntry(entry)
+      ? {name, schema: entry.value ?? {}, required: entry.required === true, description: entry.description}
+      : {name, schema: entry ?? {}, required: legacyRequired.has(name), description: entry?.description},
+  )
+}
+
+/** Emit an object-type body from a struct node's fields and `values`. */
 function emitMapBody(node, env, pad) {
-  const props = node.properties || {}
-  const required = new Set(node.required || [])
   const inner = pad + '  '
   const lines = []
-  for (const [key, child] of Object.entries(props)) {
-    const doc = childDoc(child, inner)
-    const opt = required.has(key) ? '' : '?'
-    const safeKey = /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key) ? key : JSON.stringify(key)
-    lines.push(`${doc}${inner}${safeKey}${opt}: ${emit(child, env, inner)}`)
+  for (const field of structFields(node)) {
+    const doc = childDoc(field.schema, inner, field.description)
+    const opt = field.required ? '' : '?'
+    const safeKey = /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(field.name) ? field.name : JSON.stringify(field.name)
+    lines.push(`${doc}${inner}${safeKey}${opt}: ${emit(field.schema, env, inner)}`)
   }
   let body = lines.length ? `{\n${lines.join('\n')}\n${pad}}` : '{}'
   if (node.values) {
@@ -210,10 +221,11 @@ function emitMapBody(node, env, pad) {
   return body
 }
 
-/** A property's JSDoc line (from its own name/description/constraints), or ''. */
-function childDoc(child, pad) {
+/** A property's JSDoc line (from the field's description and the schema's constraints), or ''. */
+function childDoc(child, pad, description) {
   if (!child || typeof child !== 'object') return ''
   const bits = []
+  if (description) bits.push(description)
   if (child.description) bits.push(child.description)
   for (const c of ['minLength', 'maxLength', 'pattern', 'format', 'minimum', 'maximum']) {
     if (child[c] !== undefined) bits.push(`${c}: ${JSON.stringify(child[c])}`)

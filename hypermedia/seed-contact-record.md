@@ -1,7 +1,7 @@
 ---
 name: Contact record
 summary: "A contact as the API returns it: who named whom what, signed by which key, with timestamps and subscription preferences. A derived read model computed by the Se"
-schemaDefinition: ipfs://bafyreih4vtmcp5jozeaubvgfuebvmslop4tzyas4aqeazthzb3pflcaqrm
+schemaDefinition: ipfs://bafyreica3tudjqq6qnhlpjrmk4jkfrtigkpvibeos5qmk4ioskwthswbhu
 ---
 A contact as the API returns it: who named whom what, signed by which key, with timestamps and subscription preferences. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:bdxMgVZL -->
 

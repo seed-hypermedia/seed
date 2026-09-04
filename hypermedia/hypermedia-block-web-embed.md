@@ -1,7 +1,7 @@
 ---
 name: Web embed block
 summary: An embed of an external web resource (an http(s) URL).
-schemaDefinition: ipfs://bafyreibl2bdb5je4a4c2yjhvtelrcnn3mvpjwbzgpuwwpbk3ldhcklg4je
+schemaDefinition: ipfs://bafyreif5aaet6amrfhed7oez57jeda6ya2n6dwy3pxtbhhkpcrjor7fjj4
 ---
 This document describes the **hypermedia-block-web-embed** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:XGtQTo6l -->
 

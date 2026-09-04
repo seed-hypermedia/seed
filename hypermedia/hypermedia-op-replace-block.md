@@ -1,7 +1,7 @@
 ---
 name: ReplaceBlock op
 summary: Replace the content of a block.
-schemaDefinition: ipfs://bafyreigii2oq2dqu5kwfznobaihffqw2imapr2xnbd6nnlzt4afifrb72e
+schemaDefinition: ipfs://bafyreidjpvwqrxnlqynodbqhrj7lk34bzccpucqiscoxt76mgfzwmk472e
 ---
 This document describes the **hypermedia-op-replace-block** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:W0uu_eZA -->
 

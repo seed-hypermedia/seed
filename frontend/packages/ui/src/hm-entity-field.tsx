@@ -6,7 +6,7 @@ import {FileCode2, FileText, User, X} from 'lucide-react'
 import {useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
-import {ONYX_SCHEMAS, refToName, schemaCid} from './onyx/onyx-engine'
+import {ONYX_SCHEMAS, refToName} from './onyx/onyx-engine'
 import {ONYX_PAGES} from './onyx/onyx-schemas.generated'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
@@ -112,12 +112,9 @@ export function HMEntityLink({
     : library
       ? ONYX_PAGES[library]?.name ?? library
       : undefined
-  const missing = !resource.isLoading && !document
   const isProfile = mode === 'profile' || (!!id && !id.path?.length)
   const Icon = library ? FileCode2 : isProfile ? User : FileText
   const label = title ?? (resource.isLoading ? 'Loading…' : id?.id ?? url)
-  // Opening a library type whose page is missing here shows the schema itself instead of a 404.
-  const openTarget = missing && library && schemaCid(library) ? `hm://inspect/ipfs/${schemaCid(library)}` : url
 
   const pill = (
     <span className="bg-accent text-accent-foreground inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full py-0.5 pr-2 pl-2 text-sm">
@@ -127,10 +124,8 @@ export function HMEntityLink({
   )
   if (!id || !onOpen) return pill
   return (
-    <Tooltip
-      content={openTarget !== url ? `${title} — this site has no page for it; opens the schema` : `Open ${id.id}`}
-    >
-      <button type="button" className="flex max-w-full min-w-0 hover:opacity-80" onClick={() => onOpen(openTarget)}>
+    <Tooltip content={`Open ${id.id}`}>
+      <button type="button" className="flex max-w-full min-w-0 hover:opacity-80" onClick={() => onOpen(url)}>
         {pill}
       </button>
     </Tooltip>

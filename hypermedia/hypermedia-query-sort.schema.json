@@ -1,22 +1,24 @@
 {
   "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
-  "required": [
-    "term"
-  ],
   "properties": {
     "reverse": {
-      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean"
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean"
+      }
     },
     "term": {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
-      "enum": [
-        "Path",
-        "Title",
-        "CreateTime",
-        "UpdateTime",
-        "DisplayTime",
-        "ActivityTime"
-      ]
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+        "enum": [
+          "Path",
+          "Title",
+          "CreateTime",
+          "UpdateTime",
+          "DisplayTime",
+          "ActivityTime"
+        ]
+      },
+      "required": true
     }
   }
 }

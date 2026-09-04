@@ -1,5 +1,5 @@
 ---
 name: Example Tree
-schemaDefinition: ipfs://bafyreifgi3gbxd2honbjhew5xuvrhq6hcqfklurmly4fnwc54ib5ux4aoa
+schemaDefinition: ipfs://bafyreib7zdgmt6x3uu2mjtjtvrca7yc7kpm2rgx2aci3fyxrccyy6nroqu
 ---
 asdfg <!-- id:YRiWpCey -->

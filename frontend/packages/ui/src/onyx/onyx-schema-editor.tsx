@@ -17,15 +17,19 @@ import {Textarea} from '../components/textarea'
 import {Tooltip} from '../tooltip'
 import {cn} from '../utils'
 import {
+  MAP_URL,
+  ONYX_SCHEMAS,
+  type OnyxSchema,
+  STRUCT_URL,
+  type StructField,
+  fieldSchema,
+  fieldsToProperties,
   kindOf,
   kindUrl,
-  MAP_URL,
   nameToUrl,
-  ONYX_SCHEMAS,
   refToName,
-  STRUCT_URL,
+  structFields,
   validate,
-  type OnyxSchema,
 } from './onyx-engine'
 import {ONYX_PAGES} from './onyx-schemas.generated'
 import {SchemaTypeInput, type TypeOption} from './schema-type-input'
@@ -105,7 +109,7 @@ function kindSchema(kind: string): OnyxSchema {
   if (kind === 'date') return {ref: nameToUrl('onyx-date')!}
   if (kind === 'date-time') return {ref: nameToUrl('onyx-date-time')!}
   if (kind === 'list') return {type: kindUrl('list'), items: {}}
-  if (kind === 'struct') return {type: STRUCT_URL, properties: {}, required: []}
+  if (kind === 'struct') return {type: STRUCT_URL, properties: {}}
   if (kind === 'map') return {type: MAP_URL, values: {ref: ANY_URL}}
   return {type: kindUrl(kind)}
 }
@@ -118,7 +122,7 @@ const SIGNED_BLOB_URL = nameToUrl('hypermedia-blob')!
 export const isSignedBlobType = (schema: OnyxSchema) => !schema.type && schema.ref === SIGNED_BLOB_URL
 /** The pinned `type` tag of a signed-blob schema ('' when none). */
 const signedTypeTag = (schema: OnyxSchema): string => {
-  const t = schema.properties?.type
+  const t = fieldSchema(schema, 'type')
   return t && Array.isArray(t.enum) && typeof t.enum[0] === 'string' ? t.enum[0] : ''
 }
 
@@ -126,7 +130,7 @@ const signedTypeTag = (schema: OnyxSchema): string => {
 const isReferenceKind = (kind: string) => kind === 'hm-url' || kind === 'ipfs'
 
 /** An empty starter struct schema. */
-export const emptyStructSchema = (): OnyxSchema => ({type: STRUCT_URL, properties: {}, required: []})
+export const emptyStructSchema = (): OnyxSchema => ({type: STRUCT_URL, properties: {}})
 
 /** What a schema's root can be: a plain struct, the signed-blob envelope, or an extension of any base type. */
 export type SchemaRootKind = 'struct' | 'signed' | 'extends'
@@ -137,22 +141,16 @@ export type SchemaRootKind = 'struct' | 'signed' | 'extends'
  * non-envelope base ref (or starts blank, for the user to paste any base).
  */
 export function withRootKind(schema: OnyxSchema, kind: SchemaRootKind): OnyxSchema {
-  const properties: Record<string, any> = {...(schema.properties ?? {})}
-  const required = new Set<string>(Array.isArray(schema.required) ? schema.required : [])
-  const {type: _t, ref: _r, ...rest} = schema
+  const fields = structFields(schema).filter((f) => !(isSignedBlobType(schema) && f.name === 'type'))
+  const {type: _t, ref: _r, required: _legacy, ...rest} = schema
   if (kind === 'signed') {
     const tag = signedTypeTag(schema) || 'Custom'
-    properties.type = {type: kindUrl('string'), enum: [tag]}
-    required.add('type')
-    return {...rest, ref: SIGNED_BLOB_URL, properties, required: Array.from(required)}
+    const withTag = [{name: 'type', schema: {type: kindUrl('string'), enum: [tag]}, required: true}, ...fields]
+    return {...rest, ref: SIGNED_BLOB_URL, properties: fieldsToProperties(withTag)}
   }
-  if (isSignedBlobType(schema)) {
-    delete properties.type
-    required.delete('type')
-  }
-  if (kind === 'struct') return {...rest, type: STRUCT_URL, properties, required: Array.from(required)}
+  if (kind === 'struct') return {...rest, type: STRUCT_URL, properties: fieldsToProperties(fields)}
   const baseRef = !schema.type && typeof schema.ref === 'string' && schema.ref !== SIGNED_BLOB_URL ? schema.ref : ''
-  return {...rest, ref: baseRef, properties, required: Array.from(required)}
+  return {...rest, ref: baseRef, properties: fieldsToProperties(fields)}
 }
 
 /** The raw schema as JSON, for shapes the form does not cover. Syntax errors block the commit;
@@ -303,24 +301,37 @@ export function OnyxSchemaEditor({
 }
 
 function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s: OnyxSchema) => void}) {
-  const properties: Record<string, any> = schema.properties ?? {}
-  const required = new Set<string>(Array.isArray(schema.required) ? schema.required : [])
+  const fields = structFields(schema)
+  const properties: Record<string, any> = Object.fromEntries(fields.map((f) => [f.name, f.schema]))
+  const required = new Set<string>(fields.filter((f) => f.required).map((f) => f.name))
   const entries = Object.entries(properties)
   const signed = isSignedBlobType(schema)
 
-  const commit = (nextProps: Record<string, any>, nextRequired: Set<string>) => {
-    // Drop required entries whose field no longer exists.
-    const req = Array.from(nextRequired).filter((k) => k in nextProps)
+  /** Write the fields back as `properties[name] = {value, required?, description?}`. */
+  const commitFields = (next: StructField[]) => {
     // A ref-rooted schema EXTENDS something — the signed-blob envelope or any base schema (the
     // "Extend Schema" flow). Editing fields must never silently drop that root.
     // A map that gains named fields is a struct; a bare struct with only a `values` tail stays a struct.
     const root =
       !schema.type && typeof schema.ref === 'string'
         ? {ref: schema.ref}
-        : {type: kindOf(schema.type) === 'map' && Object.keys(nextProps).length === 0 ? MAP_URL : STRUCT_URL}
-    const {type: _t, ref: _r, ...rest} = schema
-    onSchema({...rest, ...root, properties: nextProps, ...(req.length ? {required: req} : {required: []})})
+        : {type: kindOf(schema.type) === 'map' && next.length === 0 ? MAP_URL : STRUCT_URL}
+    const {type: _t, ref: _r, required: _legacy, ...rest} = schema
+    onSchema({...rest, ...root, properties: fieldsToProperties(next)})
   }
+  const field = (name: string) => fields.find((f) => f.name === name)
+  /** The fields with one replaced (or, when `next` is null, removed). */
+  const withField = (name: string, next: StructField | null): StructField[] =>
+    next === null ? fields.filter((f) => f.name !== name) : fields.map((f) => (f.name === name ? next : f))
+  const commit = (nextProps: Record<string, any>, nextRequired: Set<string>) =>
+    commitFields(
+      Object.entries(nextProps).map(([name, sch]) => ({
+        name,
+        schema: sch,
+        required: nextRequired.has(name),
+        description: field(name)?.description,
+      })),
+    )
   const setTypeTag = (tag: string) => {
     commit(
       {...properties, type: {type: kindUrl('string'), enum: [tag.trim() || 'Custom']}},
@@ -329,12 +340,11 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
   }
   const renameField = (oldName: string, newName: string) => {
     if (newName === oldName || newName in properties) return
-    // Preserve order while renaming the key.
-    const nextProps: Record<string, any> = {}
-    for (const [k, v] of entries) nextProps[k === oldName ? newName : k] = v
-    const nextRequired = new Set(required)
-    if (nextRequired.delete(oldName)) nextRequired.add(newName)
-    commit(nextProps, nextRequired)
+    commitFields(fields.map((f) => (f.name === oldName ? {...f, name: newName} : f)))
+  }
+  const setFieldDescription = (name: string, description: string) => {
+    const f = field(name)
+    if (f) commitFields(withField(name, {...f, description: description.trim() || undefined}))
   }
   // A reference field (HM link / IPFS) may name the type its target should
   // conform to — this is how one type points at another (character.home → place).
@@ -343,23 +353,15 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
     commit({...properties, [name]: target.trim() ? {...rest, target: target.trim()} : rest}, required)
   }
   const setRequired = (name: string, on: boolean) => {
-    const next = new Set(required)
-    if (on) next.add(name)
-    else next.delete(name)
-    commit(properties, next)
+    const f = field(name)
+    if (f) commitFields(withField(name, {...f, required: on}))
   }
-  const removeField = (name: string) => {
-    const nextProps = {...properties}
-    delete nextProps[name]
-    const next = new Set(required)
-    next.delete(name)
-    commit(nextProps, next)
-  }
+  const removeField = (name: string) => commitFields(withField(name, null))
   const addField = () => {
     let n = 1
     let name = 'field'
     while (name in properties) name = `field${++n}`
-    commit({...properties, [name]: kindSchema('string')}, required)
+    commitFields([...fields, {name, schema: kindSchema('string'), required: false}])
   }
 
   // Type parameters (`params`): a generic schema names them here and fields
@@ -522,7 +524,7 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
               // Stable index key: renaming changes the property name but not the
               // row's identity, so the (controlled) name input never remounts and
               // keeps focus while typing.
-              <div key={index} className="flex items-center gap-2">
+              <div key={index} className="flex flex-wrap items-center gap-2">
                 <Input
                   value={name}
                   className="flex-1 font-mono text-sm"
@@ -558,6 +560,13 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
                 <Button variant="ghost" size="iconSm" aria-label={`Remove ${name}`} onClick={() => removeField(name)}>
                   <X className="size-4" />
                 </Button>
+                <Input
+                  value={field(name)?.description ?? ''}
+                  placeholder="description"
+                  aria-label={`Description of ${name}`}
+                  className="text-muted-foreground basis-full text-xs"
+                  onChange={(e) => setFieldDescription(name, e.target.value)}
+                />
               </div>
             ))}
         </div>

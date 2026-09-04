@@ -1,7 +1,7 @@
 ---
 name: "RPC: GetDomain"
 summary: "Checks a site domain's registration and health. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you p"
-schemaDefinition: ipfs://bafyreidh76vbfke6mablrcexmkrtiva7sxadgxxotp3om33es66chqnpmy
+schemaDefinition: ipfs://bafyreiam6td4bjzg2gzhhw7ahqkgc3mmcgsy322djiweyxvn5dvlegljza
 ---
 Checks a site domain's registration and health. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:2l4-eCts -->
 

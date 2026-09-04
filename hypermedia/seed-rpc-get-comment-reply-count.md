@@ -1,7 +1,7 @@
 ---
 name: "RPC: GetCommentReplyCount"
 summary: "Counts the replies under a comment. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output"
-schemaDefinition: ipfs://bafyreidp53uj2fwvawgjxkejxjnqotznjlreygzecd5avttgb3dhgz3aoy
+schemaDefinition: ipfs://bafyreic5wqo64rxd6ifzipcw5s6qxdx5txxsoitmhp2ogb27edwhlexffm
 ---
 Counts the replies under a comment. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:POuk7vni -->
 

@@ -11,7 +11,7 @@ import type {ReactNode} from 'react'
 import {TooltipProvider} from '../../tooltip'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {UniversalAppProvider} from '@shm/shared/routing'
-import {MAP_URL, nameToUrl, STRUCT_URL} from '../onyx-engine'
+import {MAP_URL, STRUCT_URL, fieldSchema, nameToUrl, requiredFieldNames} from '../onyx-engine'
 import {emptyStructSchema, isSignedBlobType, OnyxSchemaEditor, withRootKind} from '../onyx-schema-editor'
 import {isSignedBlobSchema, signedBlobTypeTag} from '../signed-blob'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
@@ -60,8 +60,8 @@ describe('schema root kind', () => {
     expect(schema.ref).toBe(nameToUrl('hypermedia-blob'))
     expect(schema.type).toBeUndefined()
     // Schemas carry no name, so the pinned tag starts as the editable default.
-    expect(schema.properties.type.enum).toEqual(['Custom'])
-    expect(schema.required).toContain('type')
+    expect(fieldSchema(schema, 'type')!.enum).toEqual(['Custom'])
+    expect(requiredFieldNames(schema)).toContain('type')
     // The engine sees a real signed-blob schema with the tag.
     expect(isSignedBlobSchema(schema)).toBe(true)
     expect(signedBlobTypeTag(schema)).toBe('Custom')
@@ -76,21 +76,20 @@ describe('schema root kind', () => {
     schema = withRootKind(schema, 'struct')
     expect(isSignedBlobType(schema)).toBe(false)
     expect(schema.type).toBe(STRUCT_URL)
-    expect(schema.properties.type).toBeUndefined()
-    expect(schema.required).not.toContain('type')
+    expect(fieldSchema(schema, 'type')).toBeUndefined()
+    expect(requiredFieldNames(schema)).not.toContain('type')
   })
 
   it('extends roots the schema on any base ref, editable in the type input, and fields survive', () => {
     let schema: any = {
       ...emptyStructSchema(),
-      properties: {permissions: {type: MAP_URL}},
-      required: ['permissions'],
+      properties: {permissions: {value: {type: MAP_URL}, required: true}},
     }
     schema = withRootKind(schema, 'extends')
     expect(schema.type).toBeUndefined()
     expect(schema.ref).toBe('')
-    expect(schema.properties.permissions).toBeTruthy()
-    expect(schema.required).toContain('permissions')
+    expect(fieldSchema(schema, 'permissions')).toBeTruthy()
+    expect(requiredFieldNames(schema)).toContain('permissions')
 
     let latest: any = schema
     render(schema, (s) => (latest = s))
@@ -112,7 +111,7 @@ describe('schema root kind', () => {
     const signed = withRootKind(emptyStructSchema(), 'signed')
     const extended = withRootKind(signed, 'extends')
     expect(extended.ref).toBe('')
-    expect(extended.properties.type).toBeUndefined()
-    expect(extended.required).not.toContain('type')
+    expect(fieldSchema(extended, 'type')).toBeUndefined()
+    expect(requiredFieldNames(extended)).not.toContain('type')
   })
 })

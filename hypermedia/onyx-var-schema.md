@@ -1,7 +1,7 @@
 ---
 name: Variable schema
 summary: "A type-variable reference: matches whatever a generic's parameter is bound to. Written { \"var\": \"<name>\" }."
-schemaDefinition: ipfs://bafyreidgi64olfshaguiimjazsfyvjubcqaagcdymsxwduw23zsz4dyziq
+schemaDefinition: ipfs://bafyreihdzl5frlzufa2itdf75obmj2eo3dbqqrg4q32xw2marvnz2ezpky
 ---
 This document describes the **onyx-var-schema** type — a meta-schema variant. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:V8YaGKHo -->
 
