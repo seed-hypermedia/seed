@@ -644,11 +644,16 @@ export function ContinuedMessageChip({
 }
 
 /** The chip a session list shows on a predecessor: where it went. */
-export function ContinuedListChip({link}: {link: SessionContinuationLink}) {
+/**
+ * Session-list chip on a successor: names the session it continues. Shown on the successor rather
+ * than the predecessor because a session can be continued many times — "continued in" would have
+ * to pick one — while every successor has exactly one predecessor.
+ */
+export function ContinuedFromListChip({link}: {link: SessionContinuationLink}) {
   return (
-    <span className="bg-muted text-muted-foreground mt-2 inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-xs">
+    <span className="bg-muted text-muted-foreground inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-xs">
       <Split className="size-3 flex-none" />
-      <span className="min-w-0 truncate">Continued in {link.title ? `“${link.title}”` : 'a new session'}</span>
+      <span className="min-w-0 truncate">Continued from {link.title ? `“${link.title}”` : 'an earlier session'}</span>
     </span>
   )
 }

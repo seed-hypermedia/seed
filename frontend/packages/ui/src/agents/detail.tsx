@@ -53,7 +53,7 @@ import {
 } from './models'
 import {describeAgentError} from './errors'
 import {SessionStatusDot, SubSessionsDisclosure} from './session-children'
-import {ContinuedListChip} from './continuation'
+import {ContinuedFromListChip} from './continuation'
 import {useSelectedAccountId} from './account'
 import {useClickNavigate, useNavigate} from './navigation'
 import {markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/client'
@@ -2817,14 +2817,19 @@ function SessionListItem({
   return (
     <div className="hover:bg-muted flex flex-col items-start rounded-lg px-3 py-2 transition-colors">
       <button type="button" className="flex w-full flex-col gap-0.5 text-left max-sm:min-h-10" onClick={onOpen}>
-        <span className="flex w-full items-center gap-3">
-          <SessionStatusDot status={session.status} />
+        <span className="flex w-full items-start gap-3">
+          <span className="flex h-5 flex-none items-center">
+            <SessionStatusDot status={session.status} />
+          </span>
           <SizableText weight="bold" className="min-w-0 flex-1 truncate">
             {session.title || 'Untitled session'}
           </SizableText>
-          <SizableText size="sm" color="muted" className="flex-none whitespace-nowrap">
-            {formattedDateMedium(new Date(session.updatedAt))}
-          </SizableText>
+          <span className="flex max-w-[50%] flex-none flex-col items-end gap-1">
+            <SizableText size="sm" color="muted" className="whitespace-nowrap">
+              {formattedDateMedium(new Date(session.updatedAt))}
+            </SizableText>
+            {session.continuedFrom ? <ContinuedFromListChip link={session.continuedFrom} /> : null}
+          </span>
         </span>
         {session.description ? (
           <SizableText size="sm" color="muted" className="line-clamp-3 w-full pl-5">
@@ -2832,7 +2837,6 @@ function SessionListItem({
           </SizableText>
         ) : null}
       </button>
-      {session.continuedTo ? <ContinuedListChip link={session.continuedTo} /> : null}
       {session.startedByTrigger ? (
         <button
           type="button"
