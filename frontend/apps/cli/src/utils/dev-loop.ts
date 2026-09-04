@@ -12,9 +12,10 @@
 import {createGrpcWebTransport} from '@connectrpc/connect-web'
 import {createSeedClient, type HMSigner, type SeedClient} from '@seed-hypermedia/client'
 import {createGRPCClient} from '@shm/shared/grpc-client'
+import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {spawn} from 'node:child_process'
 import {existsSync, mkdirSync, readFileSync, unlinkSync, watch, writeFileSync} from 'node:fs'
-import {resolve} from 'node:path'
+import {basename, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {printInfo, printSuccess, printWarning} from '../output'
 import {deriveKeyPairFromMnemonic, generateMnemonic, type KeyPair} from './key-derivation'
@@ -47,24 +48,75 @@ function loadOrCreateDevKey(dir: string): {keyPair: KeyPair; words: string[]; cr
   return {keyPair: deriveKeyPairFromMnemonic(words), words, created}
 }
 
+/** The daemon key name for a directory's dev site: `hm-sync-<dir name>` (key names are [a-zA-Z0-9_-]). */
+const devKeyName = (dir: string) => `hm-sync-${basename(dir).replace(/[^a-zA-Z0-9_-]/g, '_')}`
+/** A key this loop (or an earlier version of it) registered: ours to retire when it goes stale. */
+const isDevSiteKey = (name: string) => name.startsWith('hm-sync-') || /^dev-[A-Za-z0-9]{6}$/.test(name)
+
 /**
- * Make sure the daemon holds the dev key, so the app can edit as that account.
- * Returns every key the daemon holds (name + account id).
+ * Make sure the daemon holds the dev key under this directory's name, so the
+ * app can edit as that account. Returns every key the daemon holds.
  */
 async function ensureDaemonKey(
   daemonUrl: string,
+  dir: string,
   words: string[],
   accountId: string,
 ): Promise<Array<{name: string; publicKey: string}>> {
   const grpc = createGRPCClient(createGrpcWebTransport({baseUrl: daemonUrl}))
+  const name = devKeyName(dir)
   const existing = await grpc.daemon.listKeys({})
-  if (!existing.keys.some((k) => k.publicKey === accountId)) {
-    const name = `dev-${accountId.slice(-6)}`
+  const ours = existing.keys.find((k) => k.publicKey === accountId)
+  if (!ours) {
     await grpc.daemon.registerKey({mnemonic: words, name})
     printInfo(`Registered key "${name}" in the daemon.`)
+  } else if (ours.name !== name && !existing.keys.some((k) => k.name === name)) {
+    await grpc.daemon.updateKey({currentName: ours.name, newName: name})
   }
   const keys = await grpc.daemon.listKeys({})
   return keys.keys.map((k) => ({name: k.name, publicKey: k.publicKey}))
+}
+
+/**
+ * Retire the dev sites of earlier loops: every other key this loop registered
+ * (`hm-sync:*`, or `dev-xxxxxx` from before the naming) still in the daemon.
+ * Their documents are tombstoned so they stop turning up in search and links,
+ * and the key is removed. The home document cannot be tombstoned (the daemon
+ * refuses), so an empty home remains. Stale sites are how "old data" keeps
+ * showing up: a regenerated key, another checkout, a renamed directory.
+ */
+async function retireStaleDevSites(
+  daemonUrl: string,
+  client: SeedClient,
+  keys: Array<{name: string; publicKey: string}>,
+  current: string,
+) {
+  const grpc = createGRPCClient(createGrpcWebTransport({baseUrl: daemonUrl}))
+  for (const key of keys) {
+    if (key.publicKey === current || !isDevSiteKey(key.name)) continue
+    try {
+      const versions = await listSpaceVersions(client, key.publicKey)
+      let removed = 0
+      for (const path of versions.keys()) {
+        if (path === '') continue
+        try {
+          await grpc.documents.createRef({
+            account: key.publicKey,
+            path: hmIdPathToEntityQueryPath(path.replace(/^\//, '').split('/')),
+            signingKeyName: key.name,
+            target: {target: {case: 'tombstone', value: {}}},
+          })
+          removed++
+        } catch (err) {
+          printWarning(`  could not remove ${key.publicKey.slice(-6)}${path}: ${(err as Error).message}`)
+        }
+      }
+      await grpc.daemon.deleteKey({name: key.name})
+      printInfo(`Retired the stale dev site of key "${key.name}" (${key.publicKey}): ${removed} documents removed.`)
+    } catch (err) {
+      printWarning(`Could not retire dev site ${key.publicKey}: ${(err as Error).message}`)
+    }
+  }
 }
 
 /**
@@ -147,6 +199,10 @@ export type DevLoopOptions = {
   watchFiles?: boolean
   /** Called after a file change was pushed, with the files pushed. */
   onPushed?: (files: string[]) => void
+  /** Tombstone the documents of earlier dev sites in this daemon and drop their keys (default true). */
+  retireStale?: boolean
+  /** Runs once the loop is watching, e.g. to report whether the canonical site is behind. */
+  afterStart?: (ctx: {client: SeedClient; account: string}) => void | Promise<void>
 }
 
 /** The dev loop behind `space dev`, reusable by directories with their own layout (see sync-hypermedia.ts). */
@@ -160,13 +216,18 @@ export async function runDevLoop(opts: DevLoopOptions) {
   // Under `./dev up` this pane starts while the desktop pane is still building
   // the app and its daemon, so wait for both rather than fail.
   await waitForDevApp(opts.daemonUrl, opts.apiUrl)
-  const localKeys = await ensureDaemonKey(opts.daemonUrl, words, account)
+  const localKeys = await ensureDaemonKey(opts.daemonUrl, opts.dir, words, account)
 
   const client = createSeedClient(opts.apiUrl)
   const signer = createSignerFromKey(keyPair)
 
+  if (opts.retireStale !== false) await retireStaleDevSites(opts.daemonUrl, client, localKeys, account)
+
   // Every account in the app can edit the dev site, not just the dev key.
-  await grantWriters({client, signer, account, log: printInfo}, localKeys)
+  await grantWriters(
+    {client, signer, account, log: printInfo},
+    localKeys.filter((k) => k.publicKey === account || !isDevSiteKey(k.name)),
+  )
 
   const layout = opts.layout
   if (opts.push) {
@@ -269,6 +330,11 @@ export async function runDevLoop(opts: DevLoopOptions) {
 
   // ── daemon → files ──
   printInfo(`Watching ${versions.size} documents every ${opts.intervalMs}ms. Ctrl-C to stop.`)
+  if (opts.afterStart) {
+    void Promise.resolve(opts.afterStart({client, account})).catch((err) =>
+      printWarning(`after-start check failed: ${(err as Error).message}`),
+    )
+  }
   for (;;) {
     await new Promise((r) => setTimeout(r, opts.intervalMs))
     await pushing
