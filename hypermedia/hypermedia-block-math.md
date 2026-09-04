@@ -1,7 +1,7 @@
 ---
 name: Math block
 summary: A block of LaTeX/KaTeX math.
-schemaDefinition: ipfs://bafyreibrtyrsnunijprfoaymtpf7wem64ogzbyybr4zckcr4st5ab522g4
+schemaDefinition: ipfs://bafyreianxdgaemva37x6b6ft7y7qyzviyds46cr5jqfl7zz2wcrw4ri45i
 ---
 This document describes the **hypermedia-block-math** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:usrj-I7W -->
 

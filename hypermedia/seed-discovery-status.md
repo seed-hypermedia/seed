@@ -1,7 +1,7 @@
 ---
 name: Discovery status
 summary: "The state of a background discovery task for a resource: pending, found (with the resolved version), or failed (with the error). A derived read model computed b"
-schemaDefinition: ipfs://bafyreie3tanuzo4s32xrhwzcownsozevgqmeurokyrspszok6nrfcfevxu
+schemaDefinition: ipfs://bafyreicumny7hsy5pj237krtj3jhaopf3me4sutsrxca77gltgbjzc5suy
 ---
 The state of a background discovery task for a resource: pending, found (with the resolved version), or failed (with the error). A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:qgX0_Pnd -->
 

@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListChanges"
 summary: "Lists a document's change history. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output`"
-schemaDefinition: ipfs://bafyreigjteo74cnrbft7ntd7qhoaavpx6paetuf5tewj55etweqazx3cqm
+schemaDefinition: ipfs://bafyreices3qx4d4irp4rgsl7bkah5zxmwswsalj3w5xzsopg3c3wgtvfn4
 ---
 Lists a document's change history. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:ihAmEwiL -->
 

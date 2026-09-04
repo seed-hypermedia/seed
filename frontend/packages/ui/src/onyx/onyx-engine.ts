@@ -154,13 +154,78 @@ function typeMatches(type: string, d: any): boolean {
 
 const REFINE = ['properties', 'required', 'values', 'items', 'enum']
 
+// --- struct fields ----------------------------------------------------------
+//
+// A struct writes its fields as `properties[name] = {value, required?, description?}`.
+// Schemas published before that wrote `properties[name] = <schema>` with a
+// separate `required` list; those blobs are immutable, so every reader goes
+// through these helpers and accepts both.
+
+/** A struct field entry: the field's schema, whether a value must include it, what it is for. */
+export type PropertyEntry = {value: OnyxSchema; required?: boolean; description?: string}
+/** A struct field, whichever shape the schema wrote it in. */
+export type StructField = {name: string; schema: OnyxSchema; required: boolean; description?: string}
+
+/** True for a `properties` entry in the current shape ({value, …}); a schema node never has `value`. */
+export function isPropertyEntry(v: any): v is PropertyEntry {
+  return !!v && typeof v === 'object' && 'value' in v && !('type' in v || 'ref' in v || 'anyOf' in v || 'var' in v)
+}
+
+/** A struct's fields, in declaration order. */
+export function structFields(schema: OnyxSchema | undefined): StructField[] {
+  if (!schema || !schema.properties || typeof schema.properties !== 'object') return []
+  const legacyRequired = new Set<string>(Array.isArray(schema.required) ? schema.required : [])
+  return Object.entries(schema.properties as Record<string, any>).map(([name, entry]) =>
+    isPropertyEntry(entry)
+      ? {
+          name,
+          schema: entry.value ?? {},
+          required: entry.required === true,
+          description: typeof entry.description === 'string' ? entry.description : undefined,
+        }
+      : {
+          name,
+          schema: entry ?? {},
+          required: legacyRequired.has(name),
+          description: typeof entry?.description === 'string' ? entry.description : undefined,
+        },
+  )
+}
+
+/** The schema of one field, or undefined when the struct has no such field. */
+export function fieldSchema(schema: OnyxSchema | undefined, name: string): OnyxSchema | undefined {
+  const entry = schema?.properties?.[name]
+  if (entry === undefined) return undefined
+  return isPropertyEntry(entry) ? entry.value : entry
+}
+
+/** The names of the fields a value must include. */
+export function requiredFieldNames(schema: OnyxSchema | undefined): string[] {
+  return structFields(schema)
+    .filter((f) => f.required)
+    .map((f) => f.name)
+}
+
+/** `properties` in the current shape. */
+export function fieldsToProperties(fields: StructField[]): Record<string, PropertyEntry> {
+  const out: Record<string, PropertyEntry> = {}
+  for (const f of fields) {
+    const e: PropertyEntry = {value: f.schema}
+    if (f.required) e.required = true
+    if (f.description) e.description = f.description
+    out[f.name] = e
+  }
+  return out
+}
+
 /** Merge an extension node's refinements over its (resolved) parent — a subtype. */
 export function mergeExtend(parent: OnyxSchema, ext: OnyxSchema): OnyxSchema {
   const merged: OnyxSchema = {type: parent.type}
-  const props = {...(parent.properties || {}), ...(ext.properties || {})}
-  if (Object.keys(props).length) merged.properties = props
-  const req = Array.from(new Set([...(parent.required || []), ...(ext.required || [])]))
-  if (req.length) merged.required = req
+  // The parent's fields, then the extension's (an extension may override a field).
+  const byName = new Map<string, StructField>()
+  for (const f of structFields(parent)) byName.set(f.name, f)
+  for (const f of structFields(ext)) byName.set(f.name, f)
+  if (byName.size) merged.properties = fieldsToProperties(Array.from(byName.values()))
   const values = ext.values ?? parent.values
   if (values) merged.values = values
   const items = ext.items ?? parent.items
@@ -265,10 +330,10 @@ export function validate(
     return errors
   }
   if (kind === 'map' || kind === 'struct') {
-    for (const key of schema.required ?? []) if (!(key in data)) errors.push(`${path}: missing required "${key}"`)
+    for (const key of requiredFieldNames(schema)) if (!(key in data)) errors.push(`${path}: missing required "${key}"`)
     const closed = schema.properties && !schema.values
     for (const [key, value] of Object.entries(data)) {
-      const child = schema.properties?.[key] ?? schema.values
+      const child = fieldSchema(schema, key) ?? schema.values
       if (child) errors.push(...validate(child, value, `${path}.${key}`, env, reg))
       else if (closed) errors.push(`${path}: unexpected key "${key}"`)
     }

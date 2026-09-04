@@ -1,7 +1,7 @@
 ---
 name: Activity summary
 summary: "Latest-activity digest carried on document listings: newest comment/change and unread state. A derived read model computed by the Seed daemon/API for clients — "
-schemaDefinition: ipfs://bafyreifs2mjziynbhola6xnoikstasv5itfyrf7fr3urtnhmxavcxcr6zy
+schemaDefinition: ipfs://bafyreic7olfb2hgal63ogk4vgbraez7n5fuvjel6zuylp66lz4gc6qolfm
 ---
 Latest-activity digest carried on document listings: newest comment/change and unread state. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:tbPPJsiv -->
 
