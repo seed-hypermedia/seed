@@ -83,7 +83,9 @@ Write to \`ipfs://\` with exactly one source:
 {"address":"ipfs://","options":{"fromPath":"~/memory/site-assets/icon.png"}}
 \`\`\`
 
-The result includes the CID and \`ipfs://\` URL. Publishing is public, requires the agent's publish grant, and does not support \`dryRun\` or a signer.`,
+The result includes the CID and \`ipfs://\` URL. Publishing is public, requires the agent's publish grant, and does not support \`dryRun\` or a signer.
+
+The gateway serves the blob only once public Hypermedia content references it (a document image, a comment, a profile icon); an \`ipfs://\` URL on its own does not display anywhere yet. To show your user a file from memory in this chat, do not publish it — reference its memory path in markdown instead: \`![caption](~/memory/path/to/image.png)\`.`,
   },
   documents: {
     summary: 'Create, update, move, redirect, fork, delete, and publish Seed documents.',
