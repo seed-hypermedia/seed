@@ -7,6 +7,10 @@
 - Read `AGENTS.local.md` files if they exist. These are local instructions not checked into the repo. They have
   precedence over other instructions.
 
+## Primary Docs
+
+See `hypermedia/*` for the available docs, which you are responsible for helping keep up-to-date.
+
 ## Subtree AGENTS.md Map
 
 - `backend/AGENTS.md` for `backend/**`.
