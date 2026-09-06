@@ -26,6 +26,7 @@ import {
 } from './tool-summary'
 import {useOpenUrl} from './navigation'
 import {useOpenAgentSession} from './open-session-context'
+import {MarkdownAssetContext, type MarkdownAssetScope} from './markdown'
 import {useFullAgentSessionEvent, useRun, useRunTree, useSessionAttachmentDataUrls, useSessionRuns} from './models'
 import {Notice} from '@shm/ui/notice'
 import {descendantsOf, isTerminalRun, RunTimerProgress, RunWorkHierarchy, useRunTreeView} from './run-work'
@@ -98,99 +99,113 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({
   const isUser = !isSystem && message.role === 'user'
   const rawMarkdown = message.rawMarkdown ?? message.content
   const resolvedBlocks = useAttachmentResolvedBlocks(serverUrl, message)
+  const selectedAccountId = useSelectedAccountId()
+  // Inline images in the markdown (`![…](~/memory/…)`, `attachment:<id>`) resolve against this
+  // agent and session; see MarkdownImage.
+  const assetScope = useMemo<MarkdownAssetScope>(
+    () => ({serverUrl, accountUid: accountUid ?? selectedAccountId, agentId, sessionId: message.sessionId}),
+    [serverUrl, accountUid, selectedAccountId, agentId, message.sessionId],
+  )
 
   return (
-    <div className="group/message my-1.5" data-message-kind={isSystem ? 'system' : isUser ? 'user' : 'assistant'}>
-      {isSystem ? (
-        <SystemMessageRow
-          content={message.content || ''}
-          rawMarkdownButton={rawMarkdown ? <RawMarkdownButton onClick={() => setShowRawMarkdown(true)} /> : null}
-        />
-      ) : isUser ? (
-        <div className="flex items-start gap-1">
-          <div className="ml-6 min-w-0 flex-1 rounded-lg border border-sky-200 bg-sky-100 px-3 py-2 text-[13px] break-words text-slate-950 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-50 [&_.ProseMirror]:!text-[13px] [&_.hm-prose]:!text-[13px]">
-            {resolvedBlocks?.length ? (
-              <div className="text-foreground rounded-md bg-transparent px-1 py-0.5 [&_.ProseMirror]:!bg-transparent [&_.bn-container]:!bg-transparent [&_.bn-editor]:!bg-transparent [&_.hm-prose]:!font-sans [&_.hm-prose]:!text-base">
-                <Suspense fallback={<Markdown>{message.content || ''}</Markdown>}>
-                  <RichMessageBlocks blocks={resolvedBlocks} />
-                </Suspense>
-              </div>
-            ) : (
-              <Markdown>{message.content || ''}</Markdown>
-            )}
-            {message.contextLines?.length ? <MessageContextInfo lines={message.contextLines} /> : null}
-            {message.meta?.continuedFrom ? (
-              <ContinuedMessageChip continuedFrom={message.meta.continuedFrom} serverUrl={serverUrl} />
-            ) : null}
-          </div>
-          {rawMarkdown ? <RawMarkdownButton onClick={() => setShowRawMarkdown(true)} /> : null}
-          <UserMessageOrigin meta={message.meta} />
-        </div>
-      ) : (
-        <AssistantMessageParts
-          parts={getAssistantMessageParts(message)}
-          liveActivity={liveActivity}
-          serverUrl={serverUrl}
-          accountUid={accountUid}
-          agentId={agentId}
-          sessionId={message.sessionId}
-          rawMarkdownButton={rawMarkdown ? <RawMarkdownButton onClick={() => setShowRawMarkdown(true)} /> : null}
-        />
-      )}
-      {message.errorMessage ? <AgentErrorRow message={message.errorMessage} className="mt-1" /> : null}
-      {rawMarkdown ? (
-        <Dialog open={showRawMarkdown} onOpenChange={setShowRawMarkdown}>
-          {/* `w-full` is restated because passing a max-w overrides DialogContent's own; without a
-              width the dialog shrink-to-fits its longest line and spills past a phone viewport. */}
-          <DialogContent className="w-full max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Message details</DialogTitle>
-              <DialogDescription>This is the exact markdown text represented by this message.</DialogDescription>
-            </DialogHeader>
-            {message.shareUrl ? (
-              <div className="flex flex-col gap-2">
-                <div className="text-muted-foreground text-xs">Share URL</div>
-                <div className="flex gap-2">
-                  <code className="bg-muted min-w-0 flex-1 overflow-auto rounded-md p-2 text-xs whitespace-nowrap">
-                    {message.shareUrl}
-                  </code>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => void navigator.clipboard?.writeText(message.shareUrl!)}
-                  >
-                    Copy
-                  </Button>
+    <MarkdownAssetContext.Provider value={assetScope}>
+      <div className="group/message my-1.5" data-message-kind={isSystem ? 'system' : isUser ? 'user' : 'assistant'}>
+        {isSystem ? (
+          <SystemMessageRow
+            content={message.content || ''}
+            rawMarkdownButton={rawMarkdown ? <RawMarkdownButton onClick={() => setShowRawMarkdown(true)} /> : null}
+          />
+        ) : isUser ? (
+          <div className="flex items-start gap-1">
+            <div className="ml-6 min-w-0 flex-1 rounded-lg border border-sky-200 bg-sky-100 px-3 py-2 text-[13px] break-words text-slate-950 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-50 [&_.ProseMirror]:!text-[13px] [&_.hm-prose]:!text-[13px]">
+              {resolvedBlocks?.length ? (
+                <div className="text-foreground rounded-md bg-transparent px-1 py-0.5 [&_.ProseMirror]:!bg-transparent [&_.bn-container]:!bg-transparent [&_.bn-editor]:!bg-transparent [&_.hm-prose]:!font-sans [&_.hm-prose]:!text-base">
+                  <Suspense fallback={<Markdown>{message.content || ''}</Markdown>}>
+                    <RichMessageBlocks blocks={resolvedBlocks} />
+                  </Suspense>
                 </div>
-              </div>
-            ) : null}
-            <div className="flex flex-wrap gap-2 text-xs">
-              {message.sessionId ? (
-                <span className="bg-muted rounded px-2 py-1">Session: {message.sessionId}</span>
-              ) : null}
-              {message.eventId ? <span className="bg-muted rounded px-2 py-1">Message: {message.eventId}</span> : null}
-              {typeof message.seq === 'number' ? (
-                <span className="bg-muted rounded px-2 py-1">Seq: {message.seq}</span>
+              ) : (
+                <Markdown>{message.content || ''}</Markdown>
+              )}
+              {message.contextLines?.length ? <MessageContextInfo lines={message.contextLines} /> : null}
+              {message.meta?.continuedFrom ? (
+                <ContinuedMessageChip continuedFrom={message.meta.continuedFrom} serverUrl={serverUrl} />
               ) : null}
             </div>
-            <EventMetaSection meta={message.meta} times={message.createdAt ? {sentAt: message.createdAt} : undefined} />
-            <pre className="bg-muted max-h-[50vh] overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
-              {rawMarkdown}
-            </pre>
-            {message.contextLines?.length ? (
-              <div className="flex flex-col gap-2">
-                <div className="text-muted-foreground text-xs">
-                  Context shared with the agent (attached to this message, hidden from the chat)
+            {rawMarkdown ? <RawMarkdownButton onClick={() => setShowRawMarkdown(true)} /> : null}
+            <UserMessageOrigin meta={message.meta} />
+          </div>
+        ) : (
+          <AssistantMessageParts
+            parts={getAssistantMessageParts(message)}
+            liveActivity={liveActivity}
+            serverUrl={serverUrl}
+            accountUid={accountUid}
+            agentId={agentId}
+            sessionId={message.sessionId}
+            rawMarkdownButton={rawMarkdown ? <RawMarkdownButton onClick={() => setShowRawMarkdown(true)} /> : null}
+          />
+        )}
+        {message.errorMessage ? <AgentErrorRow message={message.errorMessage} className="mt-1" /> : null}
+        {rawMarkdown ? (
+          <Dialog open={showRawMarkdown} onOpenChange={setShowRawMarkdown}>
+            {/* `w-full` is restated because passing a max-w overrides DialogContent's own; without a
+              width the dialog shrink-to-fits its longest line and spills past a phone viewport. */}
+            <DialogContent className="w-full max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Message details</DialogTitle>
+                <DialogDescription>This is the exact markdown text represented by this message.</DialogDescription>
+              </DialogHeader>
+              {message.shareUrl ? (
+                <div className="flex flex-col gap-2">
+                  <div className="text-muted-foreground text-xs">Share URL</div>
+                  <div className="flex gap-2">
+                    <code className="bg-muted min-w-0 flex-1 overflow-auto rounded-md p-2 text-xs whitespace-nowrap">
+                      {message.shareUrl}
+                    </code>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void navigator.clipboard?.writeText(message.shareUrl!)}
+                    >
+                      Copy
+                    </Button>
+                  </div>
                 </div>
-                <pre className="bg-muted max-h-[30vh] overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
-                  {message.contextLines.join('\n')}
-                </pre>
+              ) : null}
+              <div className="flex flex-wrap gap-2 text-xs">
+                {message.sessionId ? (
+                  <span className="bg-muted rounded px-2 py-1">Session: {message.sessionId}</span>
+                ) : null}
+                {message.eventId ? (
+                  <span className="bg-muted rounded px-2 py-1">Message: {message.eventId}</span>
+                ) : null}
+                {typeof message.seq === 'number' ? (
+                  <span className="bg-muted rounded px-2 py-1">Seq: {message.seq}</span>
+                ) : null}
               </div>
-            ) : null}
-          </DialogContent>
-        </Dialog>
-      ) : null}
-    </div>
+              <EventMetaSection
+                meta={message.meta}
+                times={message.createdAt ? {sentAt: message.createdAt} : undefined}
+              />
+              <pre className="bg-muted max-h-[50vh] overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
+                {rawMarkdown}
+              </pre>
+              {message.contextLines?.length ? (
+                <div className="flex flex-col gap-2">
+                  <div className="text-muted-foreground text-xs">
+                    Context shared with the agent (attached to this message, hidden from the chat)
+                  </div>
+                  <pre className="bg-muted max-h-[30vh] overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
+                    {message.contextLines.join('\n')}
+                  </pre>
+                </div>
+              ) : null}
+            </DialogContent>
+          </Dialog>
+        ) : null}
+      </div>
+    </MarkdownAssetContext.Provider>
   )
 })
 
