@@ -10,6 +10,7 @@ import {executeCallVerb, executeReadVerb, executeWriteVerb, type AgentServicePiT
 import {encode as cborEncode} from '@/cbor'
 import {LAMBDA_RESULT_PREFIX} from '@/code-exec'
 import * as toolDocs from '@/tool-documents'
+import * as agentMemory from '@/agent-memory'
 import * as sqlite from '@/sqlite'
 import type {CodeExecutor} from '@/code-exec'
 
@@ -94,6 +95,24 @@ describe('read verb', () => {
 
     const root = await executeReadVerb(context, {address: '~/memory/'})
     expect(Array.isArray(root.entries)).toBe(true)
+  })
+
+  test('reading a binary memory file says how to show it in chat, not just how to publish it', async () => {
+    const context = makeContext()
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0])
+    agentMemory.writeMemoryFile(context.stateDir, 'ads/one.png', png)
+    const file = await executeReadVerb(context, {address: '~/memory/ads/one.png'})
+    expect(file.encoding).toBe('binary')
+    expect(file.mimeType).toBe('image/png')
+    // Bytes never reach the model; the summary points at the chat-rendered memory path first.
+    expect(file.data).toBeUndefined()
+    expect(String(file.summary)).toContain('Show it in chat with ![caption](~/memory/ads/one.png)')
+    expect(String(file.summary)).toContain('write ipfs://')
+
+    // The ipfs guide is honest about what an ipfs:// URL can and cannot do.
+    const guide = await executeReadVerb(context, {address: '~/tools/write/ipfs'})
+    expect(String(guide.markdown)).toContain('does not display anywhere yet')
+    expect(String(guide.markdown)).toContain('![caption](~/memory/path/to/image.png)')
   })
 
   test('~/tools lists verbs and callables; ~/tools/<name> returns the contract', async () => {
