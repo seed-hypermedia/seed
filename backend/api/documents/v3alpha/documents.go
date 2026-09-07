@@ -2324,7 +2324,7 @@ const qDocumentsOuterColumns = `    (SELECT 1 FROM unread_resources WHERE iri = 
     -- multiple links or changes from one document still count once. Drive
     -- from the target index so work is proportional to this document's inbound
     -- links rather than to the whole resource_links table.
-    (SELECT count(DISTINCT sb.genesis_blob)
+    (SELECT count(DISTINCT coalesce(sb.genesis_blob, sb.id))
       FROM resource_links rl INDEXED BY resource_links_by_target
       JOIN structural_blobs sb ON sb.id = rl.source
       WHERE rl.target = (SELECT r.id FROM resources r WHERE r.iri = i.iri)
