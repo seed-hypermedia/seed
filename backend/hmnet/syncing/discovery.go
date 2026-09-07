@@ -115,6 +115,23 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		return "", fmt.Errorf("remote content discovery is disabled")
 	}
 
+	indexKey := DiscoveryKey{
+		IRI:       entityID,
+		Recursive: recursive,
+		DepthOne:  depthOne,
+		BlobTypes: BlobTypesString(blobTypes),
+	}
+	defer func() {
+		if resultVersion != "" {
+			return
+		}
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if err := deleteEmptyScope(cleanupCtx, s.db, indexKey); err != nil {
+			s.log.Debug("RBSREmptyScopeCleanupFailed", zap.String("iri", string(entityID)), zap.Error(err))
+		}
+	}()
+
 	discoverStart := time.Now()
 	// This is the single entry point for every sync session — scheduler tasks,
 	// gRPC DiscoverEntity, and direct subscription calls all funnel here — so
