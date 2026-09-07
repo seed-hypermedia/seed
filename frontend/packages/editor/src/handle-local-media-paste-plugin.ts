@@ -42,6 +42,18 @@ export const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
         const items = Array.from(event.clipboardData?.items || [])
         const files = Array.from(event.clipboardData?.files || [])
 
+        // Browsers may expose both rich HTML and an image File for one copy.
+        // Let the schema preserve the complete HTML instead of replacing it with
+        // the first image flavor and dropping adjacent text or additional images.
+        // Other file types have no equivalent rich-HTML representation, so they
+        // must continue through the attachment handlers below.
+        if (
+          rawHtml &&
+          (items.some((item) => item.type.startsWith('image/')) || files.some((file) => file.type.startsWith('image/')))
+        ) {
+          return false
+        }
+
         if (items.length === 0 && files.length === 0) {
           return false
         }

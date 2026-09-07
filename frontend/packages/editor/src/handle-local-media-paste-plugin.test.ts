@@ -7,13 +7,14 @@ describe('local media paste helpers', () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
     const getAsFile = vi.fn(() => null)
+    const imageFile = new File(['image'], 'paste.png', {type: 'image/png'})
     const event = {
       clipboardData: {
         getData: vi.fn((type: string) =>
           type === 'text/html' ? '<p>before</p><img src="https://example.com/image.jpg"><p>after</p>' : '',
         ),
         items: [{type: 'text/html', getAsFile}],
-        files: [],
+        files: [imageFile],
       },
     }
     const view = {
@@ -29,7 +30,7 @@ describe('local media paste helpers', () => {
 
     expect(plugin.props.handlePaste?.(view as never, event as never, undefined as never)).toBe(false)
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(getAsFile).toHaveBeenCalledOnce()
+    expect(getAsFile).not.toHaveBeenCalled()
 
     vi.unstubAllGlobals()
   })
@@ -67,6 +68,43 @@ describe('local media paste helpers', () => {
     await vi.waitFor(() => expect(dispatch).toHaveBeenCalledWith('transaction'))
     expect(handleFileAttachment).toHaveBeenCalledWith(file)
     expect(create).toHaveBeenCalledWith({name: 'paste.png', url: 'ipfs://cid', displaySrc: ''})
+  })
+
+  it.each([
+    {type: 'video/mp4', name: 'clip.mp4', nodeType: 'video'},
+    {type: 'application/pdf', name: 'notes.pdf', nodeType: 'file'},
+  ])('claims a mixed HTML + $nodeType clipboard attachment', async ({type, name, nodeType}) => {
+    const file = new File(['attachment'], name, {type})
+    const handleFileAttachment = vi.fn().mockResolvedValue({url: 'ipfs://cid'})
+    const create = vi.fn((props: Record<string, any>) => ({type: nodeType, props}))
+    const insert = vi.fn(() => 'transaction')
+    const dispatch = vi.fn()
+    const plugin = handleLocalMediaPastePlugin({handleFileAttachment})
+    const view = {
+      dom: {closest: vi.fn(() => null)},
+      dispatch,
+      state: {
+        schema: {nodes: {[nodeType]: {create}}},
+        tr: {insert},
+        selection: {
+          $anchor: {
+            parent: {type: {name: 'paragraph'}, nodeSize: 3},
+            end: () => 1,
+          },
+        },
+      },
+    }
+    const event = {
+      clipboardData: {
+        getData: vi.fn((flavor: string) => (flavor === 'text/html' ? '<p>attachment</p>' : '')),
+        items: [{type, getAsFile: vi.fn(() => file)}],
+        files: [file],
+      },
+    }
+
+    expect(plugin.props.handlePaste?.(view as never, event as never, undefined as never)).toBe(true)
+    await vi.waitFor(() => expect(dispatch).toHaveBeenCalledWith('transaction'))
+    expect(handleFileAttachment).toHaveBeenCalledWith(file)
   })
 
   it('maps desktop/web document upload results to IPFS node props', () => {

@@ -4,15 +4,19 @@ import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import {htmlToBlocks} from '@shm/shared/html-to-blocks'
 import * as cheerio from 'cheerio'
 import {app, dialog} from 'electron'
+import {lookup} from 'dns/promises'
 import {readFile, writeFile} from 'fs/promises'
 import http from 'http'
 import https from 'https'
 import {nanoid} from 'nanoid'
+import {isIP} from 'net'
+import type {LookupFunction} from 'net'
 import {join} from 'path'
 import z from 'zod'
 import {getSigner, seedClient} from './app-client'
 import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
+import {isPublicIPAddress, normalizeIPHostname} from './remote-file-security'
 import {PostsFile, ScrapeStatus, scrapeUrl} from './web-scraper'
 import {serializeImportFile} from './wxr-crypto'
 import {cancelWXRImport, getImportStatus, hasActiveImport, resumeWXRImport, startWXRImport} from './wxr-import'
@@ -48,45 +52,171 @@ export async function uploadLocalFile(filePath: string) {
   }
 }
 
-function downloadFile(fileUrl: string): Promise<Blob> {
+const MAX_REMOTE_FILE_BYTES = 20 * 1024 * 1024
+const MAX_REMOTE_REDIRECTS = 5
+const REMOTE_FILE_TIMEOUT_MS = 15_000
+const MAX_CONCURRENT_REMOTE_DOWNLOADS = 4
+
+let activeRemoteDownloads = 0
+const remoteDownloadWaiters: Array<() => void> = []
+
+async function acquireRemoteDownloadSlot(): Promise<void> {
+  if (activeRemoteDownloads < MAX_CONCURRENT_REMOTE_DOWNLOADS) {
+    activeRemoteDownloads += 1
+    return
+  }
+  await new Promise<void>((resolve) => remoteDownloadWaiters.push(resolve))
+}
+
+function releaseRemoteDownloadSlot(): void {
+  const next = remoteDownloadWaiters.shift()
+  if (next) next()
+  else activeRemoteDownloads -= 1
+}
+
+async function withRemoteDownloadSlot<T>(operation: () => Promise<T>): Promise<T> {
+  await acquireRemoteDownloadSlot()
+  try {
+    return await operation()
+  } finally {
+    releaseRemoteDownloadSlot()
+  }
+}
+
+function remainingTime(deadline: number): number {
+  const remaining = deadline - Date.now()
+  if (remaining <= 0) throw new Error('Remote file download timed out')
+  return remaining
+}
+
+function withDeadline<T>(operation: Promise<T>, deadline: number): Promise<T> {
   return new Promise((resolve, reject) => {
-    const protocol = new URL(fileUrl).protocol === 'https:' ? https : http
-    protocol
-      .get(fileUrl, (response) => {
-        if (response.statusCode === 200) {
-          const chunks: Buffer[] = []
-          response.on('data', (chunk) => chunks.push(chunk))
-          response.on('end', () => {
-            const blob = new Blob(chunks, {
-              type: response.headers['content-type'],
-            })
-            resolve(blob)
-          })
-        } else if (
-          // Many image hosts 30x to a different URL before serving the data.
-          // Without following these the import surfaces as a generic
-          // "Couldn't fetch the image" error in the editor.
-          response.statusCode === 301 ||
-          response.statusCode === 302 ||
-          response.statusCode === 303 ||
-          response.statusCode === 307 ||
-          response.statusCode === 308
-        ) {
-          const location = response.headers.location
-          if (location) {
-            const next = new URL(location, fileUrl).toString()
-            downloadFile(next).then(resolve).catch(reject)
-          } else {
-            reject(new Error(`Redirect without location header`))
-          }
-        } else {
-          reject(new Error(`Failed to download file: ${response.statusCode}`))
-        }
-      })
-      .on('error', (err) => {
-        reject(err)
-      })
+    const timer = setTimeout(() => reject(new Error('Remote file download timed out')), remainingTime(deadline))
+    operation.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (error) => {
+        clearTimeout(timer)
+        reject(error)
+      },
+    )
   })
+}
+
+async function publicAddressFor(hostname: string, deadline: number) {
+  const normalizedHostname = normalizeIPHostname(hostname)
+  if (isIP(normalizedHostname)) {
+    if (!isPublicIPAddress(normalizedHostname)) throw new Error('Remote file URL resolves to a non-global network')
+    return {address: normalizedHostname, family: isIP(normalizedHostname) as 4 | 6}
+  }
+
+  const addresses = await withDeadline(lookup(normalizedHostname, {all: true, verbatim: true}), deadline)
+  if (addresses.length === 0 || addresses.some(({address}) => !isPublicIPAddress(address))) {
+    throw new Error('Remote file URL resolves to a non-global network')
+  }
+  return addresses[0] as {address: string; family: 4 | 6}
+}
+
+async function downloadFileWithRedirects(fileUrl: string, redirects: number, deadline: number): Promise<Blob> {
+  const parsed = new URL(fileUrl)
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('Remote file URL must use HTTP or HTTPS')
+  }
+  if (parsed.username || parsed.password) {
+    throw new Error('Remote file URL must not contain credentials')
+  }
+  if (redirects > MAX_REMOTE_REDIRECTS) {
+    throw new Error('Too many remote file redirects')
+  }
+
+  const {address, family} = await publicAddressFor(parsed.hostname, deadline)
+  const protocol = parsed.protocol === 'https:' ? https : http
+  const pinnedLookup: LookupFunction = ((
+    _hostname: string,
+    options: {all?: boolean},
+    callback: (...args: any[]) => void,
+  ) => {
+    if (options.all) callback(null, [{address, family}])
+    else callback(null, address, family)
+  }) as LookupFunction
+
+  const timeout = remainingTime(deadline)
+  return new Promise((resolve, reject) => {
+    let settled = false
+    let deadlineTimer: NodeJS.Timeout | undefined
+    const finishError = (error: Error) => {
+      if (settled) return
+      settled = true
+      if (deadlineTimer) clearTimeout(deadlineTimer)
+      reject(error)
+    }
+    const request = protocol.get(
+      parsed,
+      {
+        lookup: pinnedLookup,
+        family,
+      },
+      (response) => {
+        if (response.statusCode === 200) {
+          const declaredSize = Number(response.headers['content-length'] || 0)
+          if (declaredSize > MAX_REMOTE_FILE_BYTES) {
+            response.destroy()
+            finishError(new Error('Remote file exceeds the 20 MB limit'))
+            return
+          }
+
+          const chunks: Buffer[] = []
+          let size = 0
+          response.on('data', (chunk: Buffer) => {
+            size += chunk.length
+            if (size > MAX_REMOTE_FILE_BYTES) {
+              response.destroy()
+              finishError(new Error('Remote file exceeds the 20 MB limit'))
+              return
+            }
+            chunks.push(chunk)
+          })
+          response.on('end', () => {
+            if (settled) return
+            settled = true
+            if (deadlineTimer) clearTimeout(deadlineTimer)
+            resolve(new Blob(chunks, {type: response.headers['content-type']}))
+          })
+          response.on('error', finishError)
+          return
+        }
+
+        if ([301, 302, 303, 307, 308].includes(response.statusCode || 0)) {
+          const location = response.headers.location
+          response.destroy()
+          if (!location) {
+            finishError(new Error('Redirect without location header'))
+            return
+          }
+          downloadFileWithRedirects(new URL(location, parsed).toString(), redirects + 1, deadline)
+            .then((blob) => {
+              if (settled) return
+              settled = true
+              if (deadlineTimer) clearTimeout(deadlineTimer)
+              resolve(blob)
+            })
+            .catch(finishError)
+          return
+        }
+
+        response.destroy()
+        finishError(new Error(`Failed to download file: ${response.statusCode}`))
+      },
+    )
+    deadlineTimer = setTimeout(() => request.destroy(new Error('Remote file download timed out')), timeout)
+    request.on('error', finishError)
+  })
+}
+
+async function downloadFile(fileUrl: string): Promise<Blob> {
+  return withRemoteDownloadSlot(() => downloadFileWithRedirects(fileUrl, 0, Date.now() + REMOTE_FILE_TIMEOUT_MS))
 }
 
 export function extractMetaTags(html: string) {
