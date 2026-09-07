@@ -7,6 +7,7 @@ import {
   isOptimisticUserEcho,
   mergeConsecutiveToolMessageRows,
   retryableErrorRowKey,
+  sessionQueuedSince,
   sessionTurnStartedAt,
 } from '@shm/ui/agents/agent-session-rows'
 import {decodeAssistantSessionRef, encodeAssistantSessionRef} from '@shm/ui/agents/assistant-session-ref'
@@ -263,6 +264,32 @@ describe('buildAgentSessionChatRows step timing', () => {
     ])
   })
 
+  it('starts a step at the run start when the run picked the message up late (queue wait)', () => {
+    // User message at +1; the run sat in the queue and started at +30; the first call landed at +40.
+    const run = {
+      id: 'run-1',
+      status: 'running',
+      createdAt: 1_700_000_000_001,
+      startedAt: 1_700_000_000_030,
+      updatedAt: 1_700_000_000_030,
+    } as RunInfo
+    const events = [
+      event(1, {type: 'message', role: 'user', content: 'go'}),
+      {...event(2, {type: 'tool_call', id: 'call-1', name: 'search', input: {}}), createdAt: 1_700_000_000_040},
+      {...event(3, {type: 'tool_call', id: 'call-2', name: 'search', input: {}}), createdAt: 1_700_000_000_041},
+    ]
+    const withRuns = buildAgentSessionChatRows(events, {...CONTEXT, runs: [run]})
+    const starts = withRuns.flatMap((row) =>
+      (row.kind === 'message' ? row.message.parts ?? [] : []).map((part) => part.type === 'tool' && part.stepStartedAt),
+    )
+    expect(starts).toEqual([1_700_000_000_030, 1_700_000_000_030])
+    // Without the runs the wait still reads as deliberation, as it always did.
+    const withoutRuns = buildAgentSessionChatRows(events, CONTEXT)
+    const part =
+      withoutRuns[withoutRuns.length - 1]!.kind === 'message' ? withoutRuns.at(-1)!.message.parts?.[0] : undefined
+    expect(part?.type === 'tool' ? part.stepStartedAt : 'wrong').toBe(1_700_000_000_001)
+  })
+
   it('leaves the first event of a transcript with no step start', () => {
     const rows = buildAgentSessionChatRows(
       [event(1, {type: 'tool_call', id: 'call-1', name: 'search', input: {}})],
@@ -270,6 +297,32 @@ describe('buildAgentSessionChatRows step timing', () => {
     )
     const part = rows[0]!.kind === 'message' ? rows[0]!.message.parts?.[0] : undefined
     expect(part?.type === 'tool' ? part.stepStartedAt : 'wrong').toBeUndefined()
+  })
+})
+
+describe('sessionQueuedSince', () => {
+  const base = {id: 'run-1', account: 'acct', rootRunId: 'run-1', depth: 0, kind: 'agent', origin: 'user', title: 'go'}
+  it('is the creation time of a run that has never started', () => {
+    const run = {...base, status: 'queued', createdAt: 100, updatedAt: 100} as RunInfo
+    expect(sessionQueuedSince([run])).toBe(100)
+  })
+
+  it('is the requeue time of a run sent back to the queue after parking', () => {
+    const run = {...base, status: 'queued', createdAt: 100, startedAt: 120, updatedAt: 900} as RunInfo
+    expect(sessionQueuedSince([run])).toBe(900)
+  })
+
+  it('is nothing once the run is running, parked, or done', () => {
+    for (const status of ['running', 'waiting', 'succeeded', 'failed', 'canceled'] as const) {
+      expect(sessionQueuedSince([{...base, status, createdAt: 100, updatedAt: 100} as RunInfo])).toBeUndefined()
+    }
+    expect(sessionQueuedSince(undefined)).toBeUndefined()
+  })
+
+  it('looks only at the newest live run, so an old finished run cannot mask a queued one', () => {
+    const old = {...base, id: 'run-0', status: 'succeeded', createdAt: 50, updatedAt: 60} as RunInfo
+    const queued = {...base, status: 'queued', createdAt: 100, updatedAt: 100} as RunInfo
+    expect(sessionQueuedSince([queued, old])).toBe(100)
   })
 })
 

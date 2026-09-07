@@ -27,6 +27,7 @@ import {
   mergeConsecutiveToolMessageRows,
   buildAgentSessionUrl,
   chatRowEndsInThinkingGroup,
+  sessionQueuedSince,
   sessionTurnStartedAt,
   chatRowHasPendingToolCall,
   frozenRunIds,
@@ -856,6 +857,7 @@ function AssistantSessionChat({
             agentId: session.data?.session.agentId,
             sessionId,
             triggerContext: session.data?.triggerContext,
+            runs: sessionRuns.data,
           }),
           sessionRuns.data || [],
           // A model-driven agent keeps its checklist on the session, not on the run, so the freeze
@@ -878,7 +880,8 @@ function AssistantSessionChat({
   // The newest row of a streaming session, with nothing streaming below it, is the one a trailing
   // "Thinking" line speaks for — and while it does, the status bar below would only tick twice.
   const lastRow = rows[rows.length - 1]
-  const liveTailRowKey = isStreaming && !live.text ? lastRow?.key : undefined
+  const queuedSince = useMemo(() => sessionQueuedSince(sessionRuns.data), [sessionRuns.data])
+  const liveTailRowKey = isStreaming && !live.text && queuedSince === undefined ? lastRow?.key : undefined
   const thinkingLineShowing = !!lastRow && liveTailRowKey === lastRow.key && chatRowEndsInThinkingGroup(lastRow)
   const runStartedAt = useMemo(() => sessionTurnStartedAt(rows, sessionRuns.data), [rows, sessionRuns.data])
 
@@ -1020,15 +1023,16 @@ function AssistantSessionChat({
               <AssistantMessageParts parts={[{type: 'text', text: live.text}]} isStreaming={isStreaming} />
             ) : null}
             {isStreaming &&
-            !thinkingLineShowing &&
-            !(live.activity?.phase === 'tool' && rows.some(chatRowHasPendingToolCall)) ? (
+            (queuedSince !== undefined ||
+              (!thinkingLineShowing && !(live.activity?.phase === 'tool' && rows.some(chatRowHasPendingToolCall)))) ? (
               // Hidden while a thinking line or a pending tool row is showing its own live
-              // status, to avoid two spinners.
+              // status, to avoid two spinners. A queued run has no live status anywhere else.
               <AgentRunStatusBar
                 startedAt={runStartedAt}
                 serverUrl={serverUrl}
                 activity={live.activity}
                 usage={live.usage}
+                queuedSince={queuedSince}
               />
             ) : null}
             {autoScroll.showScrollButton ? (

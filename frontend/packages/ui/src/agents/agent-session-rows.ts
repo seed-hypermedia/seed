@@ -365,6 +365,29 @@ export type AgentSessionRowContext = {
   agentId?: string
   sessionId: string
   triggerContext?: AgentSessionTriggerContext | null
+  /**
+   * The session's runs, when the caller has them. A step's start is clamped to the start of the
+   * run that produced it: the gap between a user message and the run picking it up is queue wait
+   * (the server caps concurrent runs), not deliberation, and must not read as "Thought for 27m".
+   */
+  runs?: RunInfo[]
+}
+
+/**
+ * Since when the session's current run has been waiting for a worker, or undefined when no run is
+ * waiting. A run created but not yet started waits from its creation; a run sent back to the
+ * queue after parking (its `startedAt` is the first attempt's) waits from that requeue, which is
+ * the last thing that touched it. `claimed` counts as waiting: it lasts milliseconds and shows
+ * the same face.
+ */
+export function sessionQueuedSince(runs: RunInfo[] | undefined): number | undefined {
+  let newest: RunInfo | undefined
+  for (const run of runs ?? []) {
+    if (TERMINAL_RUN_STATUSES.has(run.status)) continue
+    if (!newest || run.createdAt > newest.createdAt) newest = run
+  }
+  if (!newest || (newest.status !== 'queued' && newest.status !== 'claimed')) return undefined
+  return newest.startedAt ? newest.updatedAt : newest.createdAt
 }
 
 /** Removes the `<trigger_context>` / `<trigger_instructions>` blocks appended to a trigger's first message. */
@@ -463,11 +486,26 @@ export function buildAgentSessionChatRows(
   let previousEventAt: number | undefined
   let previousEventType: string | undefined
   let previousStepStartedAt: number | undefined
+  const runStarts = (context.runs ?? [])
+    .map((run) => run.startedAt)
+    .filter((at): at is number => typeof at === 'number')
+    .sort((a, b) => a - b)
+  // The start of the run that produced an event at `at`: the newest run start at or before it.
+  const runStartBefore = (at: number): number | undefined => {
+    let found: number | undefined
+    for (const start of runStarts) {
+      if (start > at) break
+      found = start
+    }
+    return found
+  }
 
   for (const event of events) {
     const eventType = (event.event as {type?: string}).type
-    const stepStartedAt =
+    const stepBase =
       eventType === 'tool_call' && previousEventType === 'tool_call' ? previousStepStartedAt : previousEventAt
+    const runStart = eventType === 'tool_call' ? runStartBefore(event.createdAt) : undefined
+    const stepStartedAt = stepBase !== undefined && runStart !== undefined && runStart > stepBase ? runStart : stepBase
     previousEventAt = event.createdAt
     previousEventType = eventType
     previousStepStartedAt = stepStartedAt

@@ -36,6 +36,7 @@ import {
   mergeConsecutiveToolMessageRows,
   buildAgentSessionUrl,
   chatRowEndsInThinkingGroup,
+  sessionQueuedSince,
   sessionTurnStartedAt,
   chatRowHasPendingToolCall,
   frozenRunIds,
@@ -225,6 +226,7 @@ function AgentSessionPage({
             agentId,
             sessionId,
             triggerContext: session.data?.triggerContext ?? null,
+            runs: sessionRuns.data,
           }),
           sessionRuns.data || [],
           // A model-driven agent keeps its checklist on the session, not on the run, so the freeze
@@ -264,10 +266,14 @@ function AgentSessionPage({
   // pending state until the retried run actually starts streaming, which is what removes the row.
   const retryableRowKey = canChat ? retryableErrorRowKey(chatRows, !!isAgentBusy) : undefined
   const runStartedAt = useMemo(() => sessionTurnStartedAt(chatRows, sessionRuns.data), [chatRows, sessionRuns.data])
+  // A run still waiting for a worker is not thinking: the status bar says "Waiting to run" and no
+  // trailing thinking line ticks for it.
+  const queuedSince = useMemo(() => sessionQueuedSince(sessionRuns.data), [sessionRuns.data])
   // The newest row of a streaming session, with nothing streaming below it, is the one a trailing
   // "Thinking" line speaks for — and while it does, the status bar below would only tick twice.
   const lastChatRow = chatRows[chatRows.length - 1]
-  const liveTailRowKey = isAgentStreaming && !partialAssistantText ? lastChatRow?.key : undefined
+  const liveTailRowKey =
+    isAgentStreaming && !partialAssistantText && queuedSince === undefined ? lastChatRow?.key : undefined
   const thinkingLineShowing =
     !!lastChatRow && liveTailRowKey === lastChatRow.key && chatRowEndsInThinkingGroup(lastChatRow)
   // Sub-session affordances: the parent is loaded only for its title/route, and the child's own run
@@ -597,15 +603,17 @@ function AgentSessionPage({
                 ))}
                 {partialAssistantText ? <PartialAssistantRow text={partialAssistantText} /> : null}
                 {isAgentBusy &&
-                !thinkingLineShowing &&
-                !(liveState.activity?.phase === 'tool' && chatRows.some(chatRowHasPendingToolCall)) ? (
+                (queuedSince !== undefined ||
+                  (!thinkingLineShowing &&
+                    !(liveState.activity?.phase === 'tool' && chatRows.some(chatRowHasPendingToolCall)))) ? (
                   // Hidden while a thinking line or a pending tool row is showing its own live
-                  // status, to avoid two spinners.
+                  // status, to avoid two spinners. A queued run has no live status anywhere else.
                   <AgentRunStatusBar
                     startedAt={runStartedAt}
                     serverUrl={serverUrl}
                     activity={liveState.activity}
                     usage={liveState.usage}
+                    queuedSince={queuedSince}
                   />
                 ) : null}
                 {autoScroll.showScrollButton ? (

@@ -1,6 +1,6 @@
 import {type AgentRunActivity, type AgentRunUsage} from './client'
 import {cn} from '@shm/ui/utils'
-import {Loader2} from 'lucide-react'
+import {Clock, Loader2} from 'lucide-react'
 import {useServerNow} from './server-clock'
 
 /**
@@ -14,6 +14,7 @@ export function AgentRunStatusBar({
   serverUrl,
   activity,
   usage,
+  queuedSince,
   className,
 }: {
   /**
@@ -25,18 +26,43 @@ export function AgentRunStatusBar({
   serverUrl?: string
   activity?: AgentRunActivity
   usage?: AgentRunUsage
+  /**
+   * Since when the run has been waiting for a worker (see `sessionQueuedSince`). While set, the
+   * bar says so instead of "Working…": the server caps concurrent runs, and a person watching a
+   * spinner labelled as work forms expectations the queue cannot meet.
+   */
+  queuedSince?: number
   className?: string
 }) {
-  const now = useServerNow(serverUrl, startedAt !== undefined)
-  const elapsed = startedAt === undefined ? undefined : Math.max(0, now - startedAt)
+  const queued = queuedSince !== undefined
+  const countFrom = queued ? queuedSince : startedAt
+  const now = useServerNow(serverUrl, countFrom !== undefined)
+  const elapsed = countFrom === undefined ? undefined : Math.max(0, now - countFrom)
   return (
-    <div className={cn('text-muted-foreground flex items-center gap-2 py-2 text-xs', className)} aria-live="polite">
-      <Loader2 className="size-3.5 shrink-0 animate-spin" />
-      <span className="font-medium">{activityLabel(activity)}</span>
-      {activity?.detail ? <span className="max-w-64 min-w-0 truncate opacity-75">{activity.detail}</span> : null}
+    <div
+      className={cn('text-muted-foreground flex items-center gap-2 py-2 text-xs', className)}
+      aria-live="polite"
+      data-run-status={queued ? 'queued' : 'active'}
+    >
+      {queued ? <Clock className="size-3.5 shrink-0" /> : <Loader2 className="size-3.5 shrink-0 animate-spin" />}
+      <span className="font-medium">{queued ? 'Waiting to run…' : activityLabel(activity)}</span>
+      {queued ? (
+        <span
+          className="max-w-64 min-w-0 truncate opacity-75"
+          title="The server runs a limited number of agents at once"
+        >
+          Queued behind other runs on this server
+        </span>
+      ) : activity?.detail ? (
+        <span className="max-w-64 min-w-0 truncate opacity-75">{activity.detail}</span>
+      ) : null}
       <span className="ml-auto flex shrink-0 items-center gap-3 tabular-nums">
-        {elapsed !== undefined ? <span aria-label="Elapsed time">{formatElapsed(elapsed)}</span> : null}
-        {usage && usage.total > 0 ? <span aria-label="Tokens used">{formatTokenCount(usage.total)} tokens</span> : null}
+        {elapsed !== undefined ? (
+          <span aria-label={queued ? 'Time in queue' : 'Elapsed time'}>{formatElapsed(elapsed)}</span>
+        ) : null}
+        {!queued && usage && usage.total > 0 ? (
+          <span aria-label="Tokens used">{formatTokenCount(usage.total)} tokens</span>
+        ) : null}
       </span>
     </div>
   )
