@@ -285,8 +285,8 @@ describe('buildAgentSessionChatRows step timing', () => {
     expect(starts).toEqual([1_700_000_000_030, 1_700_000_000_030])
     // Without the runs the wait still reads as deliberation, as it always did.
     const withoutRuns = buildAgentSessionChatRows(events, CONTEXT)
-    const part =
-      withoutRuns[withoutRuns.length - 1]!.kind === 'message' ? withoutRuns.at(-1)!.message.parts?.[0] : undefined
+    const lastRow = withoutRuns.at(-1)
+    const part = lastRow?.kind === 'message' ? lastRow.message.parts?.[0] : undefined
     expect(part?.type === 'tool' ? part.stepStartedAt : 'wrong').toBe(1_700_000_000_001)
   })
 
