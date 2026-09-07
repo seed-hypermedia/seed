@@ -1838,6 +1838,184 @@ describe('api service', () => {
     }
   })
 
+  test('a new subscription sign-in replaces the cached credentials for later runs', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      let nextAccess = fakeCodexToken('access-1')
+      const svc = new apisvc.Service(db, dataDir, {
+        subscriptionAuth: true,
+        providerOAuth: new ProviderOAuthManager({
+          openai: async ({onAuth, onManualCodeInput}) => {
+            onAuth({url: 'https://auth.openai.com/oauth/authorize?client_id=test'})
+            await onManualCodeInput()
+            return {access: nextAccess, refresh: `refresh-${nextAccess.slice(-8)}`, expires: Date.now() + 3600_000}
+          },
+        }),
+      })
+      const signIn = async () => {
+        const started = await svc.message(
+          await apisvc.createSignedEnvelope(account, {action: {_: 'StartProviderOAuth', providerType: 'openai'}}),
+        )
+        if (started._ !== 'StartProviderOAuthResponse') throw new Error('unexpected response')
+        await svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'SubmitProviderOAuthCode', loginId: started.loginId, code: 'pasted-code'},
+          }),
+        )
+        await Bun.sleep(5)
+      }
+      await signIn()
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'ChatGPT',
+            provider: {type: 'openai', authMode: 'subscription', secretRefs: {oauth: 'openai-subscription-oauth'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Agent', systemPrompt: 'prompt', modelProvider: 'ChatGPT', model: 'gpt-5.6-sol'},
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      const bearers: string[] = []
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = url instanceof Request ? url.url : String(url)
+        if (!href.includes('/codex/responses')) throw new Error(`unexpected fetch: ${href}`)
+        bearers.push(String(new Headers(init?.headers).get('authorization')))
+        return codexStreamResponse([{text: 'Hello'}])
+      }) as unknown as typeof fetch
+      const send = async () =>
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {
+              _: 'MessageSession',
+              sessionId: createdSession.sessionId,
+              content: [{type: 'text', text: 'Hi'}],
+            },
+          }),
+        )
+      await send()
+      expect(bearers).toEqual([`Bearer ${fakeCodexToken('access-1')}`])
+
+      // Signing in again rewrites the secret; the next run must use the new token, not the cached one.
+      nextAccess = fakeCodexToken('access-2')
+      await signIn()
+      await send()
+      expect(bearers).toEqual([`Bearer ${fakeCodexToken('access-1')}`, `Bearer ${fakeCodexToken('access-2')}`])
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('a provider rejecting the subscription token mid-run refreshes it, or flags the sign-in for re-login', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir, {subscriptionAuth: true})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetSecret',
+            name: 'openai-subscription-oauth',
+            value: new TextEncoder().encode(
+              JSON.stringify({access: fakeCodexToken('stale'), refresh: 'refresh-1', expires: Date.now() + 3600_000}),
+            ),
+            metadata: {provider: 'openai', kind: 'provider-oauth'},
+          },
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'ChatGPT',
+            provider: {type: 'openai', authMode: 'subscription', secretRefs: {oauth: 'openai-subscription-oauth'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Agent', systemPrompt: 'prompt', modelProvider: 'ChatGPT', model: 'gpt-5.6-sol'},
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      const bearers: string[] = []
+      let rejectToken = true
+      let refreshOk = true
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = url instanceof Request ? url.url : String(url)
+        if (href.includes('/oauth/token')) {
+          if (!refreshOk) return new Response('{"error":"invalid_grant"}', {status: 401})
+          return Response.json({access_token: fakeCodexToken('fresh'), refresh_token: 'refresh-2', expires_in: 3600})
+        }
+        if (!href.includes('/codex/responses')) throw new Error(`unexpected fetch: ${href}`)
+        bearers.push(String(new Headers(init?.headers).get('authorization')))
+        if (rejectToken) return codexStreamResponse([{error: 'Provided authentication token is expired.'}])
+        return codexStreamResponse([{text: 'Hello'}])
+      }) as unknown as typeof fetch
+      const send = async () =>
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {
+              _: 'MessageSession',
+              sessionId: createdSession.sessionId,
+              content: [{type: 'text', text: 'Hi'}],
+            },
+          }),
+        )
+      const providerStatus = async () => {
+        const listed = await svc.message(
+          await apisvc.createSignedEnvelope(account, {action: {_: 'ListModelProviders'}}),
+        )
+        if (listed._ !== 'ListModelProvidersResponse') throw new Error('unexpected response')
+        return listed.providers[0]?.authStatus
+      }
+
+      // The provider says the (locally unexpired) token is expired: the run fails, but the token is
+      // refreshed in place so the retry succeeds without a new sign-in.
+      await expect(send()).rejects.toThrow(/refreshed/)
+      expect(bearers).toEqual([`Bearer ${fakeCodexToken('stale')}`])
+      expect(await providerStatus()).toBe('ok')
+      rejectToken = false
+      await send()
+      expect(bearers.at(-1)).toBe(`Bearer ${fakeCodexToken('fresh')}`)
+
+      // Rejected again and the refresh token is dead too: the sign-in is flagged for re-login.
+      rejectToken = true
+      refreshOk = false
+      await expect(send()).rejects.toThrow(/sign in with ChatGPT again/)
+      expect(await providerStatus()).toBe('needs-login')
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
   test('rejects subscription auth for provider types without OAuth support and without an oauth secret ref', async () => {
     const {db, dataDir, cleanup} = createTestState()
     try {
@@ -8518,6 +8696,40 @@ async function fetchBodyText(url: string | URL | Request, init?: RequestInit): P
   if (init?.body !== undefined) return String(init.body)
   if (url instanceof Request) return url.clone().text()
   return ''
+}
+
+/** A JWT-shaped access token Pi's Codex provider accepts: it reads the ChatGPT account id from the payload. */
+function fakeCodexToken(label: string): string {
+  const b64 = (value: string) => Buffer.from(value).toString('base64url')
+  const payload = {sub: label, 'https://api.openai.com/auth': {chatgpt_account_id: 'acct_test'}}
+  return `${b64('{"alg":"none"}')}.${b64(JSON.stringify(payload))}.sig`
+}
+
+/** A Codex (OpenAI Responses over chatgpt.com) SSE body: one text message, or a provider error event. */
+function codexStreamResponse(parts: Array<{text: string} | {error: string}>): Response {
+  const events: unknown[] = [{type: 'response.created', response: {id: 'resp_1'}}]
+  for (const part of parts) {
+    if ('error' in part) {
+      events.push({type: 'error', message: part.error})
+      continue
+    }
+    events.push(
+      {type: 'response.output_item.added', item: {type: 'message', id: 'msg_1', role: 'assistant', content: []}},
+      {type: 'response.content_part.added', part: {type: 'output_text', text: ''}},
+      {type: 'response.output_text.delta', delta: part.text},
+      {
+        type: 'response.output_item.done',
+        item: {type: 'message', id: 'msg_1', role: 'assistant', content: [{type: 'output_text', text: part.text}]},
+      },
+      {
+        type: 'response.completed',
+        response: {id: 'resp_1', status: 'completed', usage: {input_tokens: 1, output_tokens: 1, total_tokens: 2}},
+      },
+    )
+  }
+  return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''), {
+    headers: {'content-type': 'text/event-stream'},
+  })
 }
 
 function openAIUsage(): Record<string, number> {
