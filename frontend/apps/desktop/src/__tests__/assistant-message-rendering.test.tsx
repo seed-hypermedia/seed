@@ -86,6 +86,7 @@ vi.mock('@shm/ui/agents/models', () => ({
 }))
 
 import {AgentErrorRow, ChatMessageBubble} from '@shm/ui/agents/message-rendering'
+import {recordServerClockSample, resetServerClocks} from '@shm/ui/agents/server-clock'
 
 /** Renders one assistant bubble carrying the given parts. */
 function renderParts(
@@ -898,6 +899,7 @@ describe('thinking group', () => {
   })
   afterEach(() => {
     vi.useRealTimers()
+    resetServerClocks()
   })
 
   const t0 = Date.parse('2026-09-07T09:58:00Z')
@@ -923,6 +925,8 @@ describe('thinking group', () => {
     expect(container.textContent).toContain('Found two.')
     expect(container.textContent).toContain('Found three.')
     expect(findThinkingToggle(container)?.getAttribute('aria-expanded')).toBe('true')
+    // The line stays at the bottom; opening grows the burst above it.
+    expect(container.textContent!.indexOf('Found three.')).toBeLessThan(container.textContent!.indexOf('Thought for'))
 
     click(findThinkingToggle(container))
     expect(container.textContent).not.toContain('Found one.')
@@ -937,8 +941,9 @@ describe('thinking group', () => {
     expect(container.textContent).toContain('Thinking (2:00)')
     expect(container.textContent).not.toContain('Found one.')
     expect(container.querySelector('[data-thinking-group="active"]')).toBeTruthy()
-    // The pending row is the one on screen; it says so itself.
+    // The pending row is the one on screen; it says so itself, and the line sits under it.
     expect(container.textContent).toContain('Running')
+    expect(container.textContent!.indexOf('Running')).toBeLessThan(container.textContent!.indexOf('Thinking ('))
 
     act(() => {
       vi.advanceTimersByTime(3_000)
@@ -947,6 +952,16 @@ describe('thinking group', () => {
 
     click(findThinkingToggle(container))
     expect(container.textContent).toContain('Found one.')
+    cleanupRendered(root, container)
+  })
+
+  it('counts on the server clock, so skew between the machines does not show in the timer', () => {
+    // The server runs five minutes ahead of this machine; the call was stamped two server-minutes ago.
+    const serverUrl = 'http://agents.test'
+    recordServerClockSample(serverUrl, Date.now() + 5 * 60_000, 'handshake')
+    const {container, root} = renderParts([search('one', 5 * 60_000, false)], {serverUrl})
+    // Locally the call would look like it is three minutes in the future (clamped to 0:00).
+    expect(container.textContent).toContain('Thinking (2:00)')
     cleanupRendered(root, container)
   })
 

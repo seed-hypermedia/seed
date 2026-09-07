@@ -13,6 +13,7 @@ import {
   useRunTreeView,
   type PlanSettle,
 } from './run-work'
+import {useServerNow} from './server-clock'
 import {formatElapsed, formatTokenCount} from './agent-run-status'
 import {DelayedSpinner} from './header'
 import {useCancelRun, useRun, useSessionRuns, type AgentRunTreeLiveState} from './models'
@@ -393,7 +394,7 @@ function RunCardBody({
       {/* The run has stopped and is asking; the answer belongs where the question is. */}
       {!readOnly ? <ParkedRunActions run={run} serverUrl={serverUrl} accountUid={accountUid} /> : null}
 
-      <RunTimerProgress run={run} journal={liveState.journal} wide />
+      <RunTimerProgress run={run} journal={liveState.journal} serverUrl={serverUrl} wide />
 
       {progress && !isTerminal ? (
         <div className="flex flex-col gap-1">
@@ -437,7 +438,7 @@ function RunCardBody({
               ? 'Paused'
               : RUN_STATUS_LABELS[run.status]}
         </span>
-        <RunElapsed run={run} />
+        <RunElapsed run={run} serverUrl={serverUrl} />
         {!compact && usageTotal > 0 ? (
           <span className="text-muted-foreground ml-auto text-[10px]">{formatTokenCount(usageTotal)} tokens</span>
         ) : null}
@@ -691,15 +692,9 @@ function RunCardShell({children, compact, column}: {children: React.ReactNode; c
 }
 
 /** Live elapsed timer for a run, frozen once it finishes. */
-function RunElapsed({run}: {run: RunInfo}) {
-  const [now, setNow] = useState(() => Date.now())
+function RunElapsed({run, serverUrl}: {run: RunInfo; serverUrl?: string}) {
   const isTerminal = isTerminalRun(run.status)
-  useEffect(() => {
-    if (isTerminal) return
-    setNow(Date.now())
-    const interval = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(interval)
-  }, [isTerminal, run.id])
+  const now = useServerNow(serverUrl, !isTerminal)
   const startedAt = run.startedAt ?? run.createdAt
   const endedAt = isTerminal ? run.finishedAt ?? run.updatedAt : now
   return (

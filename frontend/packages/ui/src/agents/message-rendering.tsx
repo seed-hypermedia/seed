@@ -10,6 +10,7 @@ import {
   type ChatToolPart,
 } from './chat-parts'
 import {formatElapsed, formatThinkingDuration} from './agent-run-status'
+import {serverNow, useServerNow} from './server-clock'
 import {getSeedTool, type SeedToolMetadata} from '@seed-hypermedia/agents-protocol'
 import {
   detailLinkTarget,
@@ -65,7 +66,7 @@ import {
   Workflow,
   Wrench,
 } from 'lucide-react'
-import React, {Fragment, Suspense, useEffect, useMemo, useRef, useState} from 'react'
+import React, {Fragment, Suspense, useMemo, useRef, useState} from 'react'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {Markdown} from './markdown'
@@ -384,18 +385,6 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
   })
 })
 
-/** Re-renders once a second while `active`, returning the current time. */
-function useNowTicker(active: boolean): number {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (!active) return
-    setNow(Date.now())
-    const interval = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(interval)
-  }, [active])
-  return now
-}
-
 /**
  * A burst of tool calls, told as one line of thinking.
  *
@@ -426,10 +415,11 @@ function ThinkingGroup({
   // A call still waiting on its result keeps the line live; so does being the tail of a streaming
   // session, which covers the gap between one result and the next call.
   const active = isLiveTail || parts.some(isPendingToolPart)
-  // A part with no call stamp (a legacy transcript) is timed from when it appeared on screen.
-  const mountedAtRef = useRef(Date.now())
+  // Timed on the server's clock, from the first call's stamp; a part with no stamp (a legacy
+  // transcript) is timed from when it appeared on screen.
+  const mountedAtRef = useRef(serverNow(serverUrl))
   const startedAt = parts[0]?.calledAt ?? mountedAtRef.current
-  const now = useNowTicker(active)
+  const now = useServerNow(serverUrl, active)
   const completedAt = active ? undefined : thinkingGroupCompletedAt(parts)
   const durationMs = active
     ? Math.max(0, now - startedAt)
@@ -445,20 +435,10 @@ function ThinkingGroup({
   const visibleParts = expanded ? parts : active ? parts.slice(-1) : []
   const Chevron = expanded ? ChevronDown : ChevronRight
 
+  // The line sits under the calls it speaks for: live, it is the newest thing on the transcript,
+  // right where the eye already is; settled, opening it grows the burst upward and the line stays put.
   return (
     <div className="my-1.5 mr-6" data-thinking-group={active ? 'active' : 'done'}>
-      <button
-        type="button"
-        aria-expanded={expanded}
-        title={expanded ? 'Hide tool calls' : 'Show all tool calls'}
-        onClick={() => setExpanded((current) => !current)}
-        className="text-muted-foreground hover:text-foreground hover:bg-muted/60 flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left text-xs select-none"
-      >
-        {active ? <Loader2 className="size-3 shrink-0 animate-spin" /> : <Chevron className="size-3 shrink-0" />}
-        <span className="font-medium tabular-nums">{label}</span>
-        <span className="opacity-70">· {countLabel}</span>
-        {active ? <Chevron className="ml-auto size-3 shrink-0" /> : null}
-      </button>
       {visibleParts.length ? (
         <div>
           {visibleParts.map((part) => (
@@ -474,6 +454,18 @@ function ThinkingGroup({
           ))}
         </div>
       ) : null}
+      <button
+        type="button"
+        aria-expanded={expanded}
+        title={expanded ? 'Hide tool calls' : 'Show all tool calls'}
+        onClick={() => setExpanded((current) => !current)}
+        className="text-muted-foreground hover:text-foreground hover:bg-muted/60 flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left text-xs select-none"
+      >
+        {active ? <Loader2 className="size-3 shrink-0 animate-spin" /> : <Chevron className="size-3 shrink-0" />}
+        <span className="font-medium tabular-nums">{label}</span>
+        <span className="opacity-70">· {countLabel}</span>
+        {active ? <Chevron className="ml-auto size-3 shrink-0" /> : null}
+      </button>
     </div>
   )
 }
@@ -2277,7 +2269,7 @@ function DelegateRunView({
     <div className="flex min-w-0 flex-col gap-2">
       {/* A delegated child can be the thing waiting on you, so it gets the same answer affordance. */}
       <ParkedRunActions run={focus} serverUrl={serverUrl} accountUid={accountUid} />
-      <RunTimerProgress run={focus} journal={liveState.journal} wide />
+      <RunTimerProgress run={focus} journal={liveState.journal} serverUrl={serverUrl} wide />
       <RunWorkHierarchy
         run={focus}
         childRuns={children}

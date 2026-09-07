@@ -1,6 +1,6 @@
 import {agentAccessCanChat, agentAccessCanWrite} from './access'
 import {type AgentRunActivity, type AgentSessionTriggerContext} from './client'
-import {AgentRunStatusBar, useRunStartedAt} from './agent-run-status'
+import {AgentRunStatusBar} from './agent-run-status'
 import {SessionSummaryBanner} from './session-children'
 import {
   ContextUsageMeter,
@@ -36,6 +36,7 @@ import {
   mergeConsecutiveToolMessageRows,
   buildAgentSessionUrl,
   chatRowEndsInThinkingGroup,
+  sessionTurnStartedAt,
   chatRowHasPendingToolCall,
   frozenRunIds,
   getSharedEventIdFromHash,
@@ -251,7 +252,7 @@ function AgentSessionPage({
   // Deliberately not gated on the mutation being in flight: the button stays put and shows its
   // pending state until the retried run actually starts streaming, which is what removes the row.
   const retryableRowKey = canChat ? retryableErrorRowKey(chatRows, !!isAgentBusy) : undefined
-  const runStartedAt = useRunStartedAt(isAgentBusy)
+  const runStartedAt = useMemo(() => sessionTurnStartedAt(chatRows, sessionRuns.data), [chatRows, sessionRuns.data])
   // The newest row of a streaming session, with nothing streaming below it, is the one a trailing
   // "Thinking" line speaks for — and while it does, the status bar below would only tick twice.
   const lastChatRow = chatRows[chatRows.length - 1]
@@ -581,7 +582,12 @@ function AgentSessionPage({
                 !(liveState.activity?.phase === 'tool' && chatRows.some(chatRowHasPendingToolCall)) ? (
                   // Hidden while a thinking line or a pending tool row is showing its own live
                   // status, to avoid two spinners.
-                  <AgentRunStatusBar startedAt={runStartedAt} activity={liveState.activity} usage={liveState.usage} />
+                  <AgentRunStatusBar
+                    startedAt={runStartedAt}
+                    serverUrl={serverUrl}
+                    activity={liveState.activity}
+                    usage={liveState.usage}
+                  />
                 ) : null}
                 {autoScroll.showScrollButton ? (
                   <div className="pointer-events-none sticky bottom-2 flex justify-center">

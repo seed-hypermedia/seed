@@ -219,6 +219,31 @@ export function interleaveRunRecords(
 }
 
 /**
+ * When the turn now running on this session began, by the server's own stamps: the newest of the
+ * live run's start and the last user message on the log. Both survive a reload, unlike a clock
+ * started the moment this client noticed the session was busy — which snapped the elapsed timer
+ * back to zero on every refresh. The newer of the two wins so that a run parked from an earlier
+ * turn (a durable timer, say) cannot stretch the current turn's timer back to its own start.
+ */
+export function sessionTurnStartedAt(rows: AgentSessionChatRow[], runs: RunInfo[] | undefined): number | undefined {
+  let startedAt: number | undefined
+  const consider = (at: number | undefined) => {
+    if (at !== undefined && (startedAt === undefined || at > startedAt)) startedAt = at
+  }
+  for (const run of runs ?? []) {
+    if (!TERMINAL_RUN_STATUSES.has(run.status)) consider(run.startedAt ?? run.createdAt)
+  }
+  for (let index = rows.length - 1; index >= 0; index--) {
+    const row = rows[index]!
+    if (row.kind === 'message' && row.message.role === 'user' && row.message.actor !== 'system') {
+      consider(row.createdAt)
+      break
+    }
+  }
+  return startedAt
+}
+
+/**
  * Whether a row ends in a burst of thinking tool calls — the row whose "Thinking" line speaks for
  * the live run while it is the newest thing on the transcript, so the surfaces below it can stand
  * down their own status bar rather than tick twice.

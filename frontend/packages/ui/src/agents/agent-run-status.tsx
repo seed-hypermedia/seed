@@ -1,7 +1,7 @@
 import {type AgentRunActivity, type AgentRunUsage} from './client'
 import {cn} from '@shm/ui/utils'
 import {Loader2} from 'lucide-react'
-import {useEffect, useState} from 'react'
+import {useServerNow} from './server-clock'
 
 /**
  * The one live "what is the agent doing right now" status UI, shared by the full
@@ -11,44 +11,35 @@ import {useEffect, useState} from 'react'
  */
 export function AgentRunStatusBar({
   startedAt,
+  serverUrl,
   activity,
   usage,
   className,
 }: {
-  startedAt: number | null
+  /**
+   * When the turn began, by the server's clock (see `sessionTurnStartedAt`). Undefined until the
+   * server has said — the timer waits rather than counting from a guess.
+   */
+  startedAt: number | undefined
+  /** The server whose clock the timer counts against. */
+  serverUrl?: string
   activity?: AgentRunActivity
   usage?: AgentRunUsage
   className?: string
 }) {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (startedAt === null) return
-    setNow(Date.now())
-    const interval = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(interval)
-  }, [startedAt])
-  const elapsed = startedAt === null ? 0 : Math.max(0, now - startedAt)
+  const now = useServerNow(serverUrl, startedAt !== undefined)
+  const elapsed = startedAt === undefined ? undefined : Math.max(0, now - startedAt)
   return (
     <div className={cn('text-muted-foreground flex items-center gap-2 py-2 text-xs', className)} aria-live="polite">
       <Loader2 className="size-3.5 shrink-0 animate-spin" />
       <span className="font-medium">{activityLabel(activity)}</span>
       {activity?.detail ? <span className="max-w-64 min-w-0 truncate opacity-75">{activity.detail}</span> : null}
       <span className="ml-auto flex shrink-0 items-center gap-3 tabular-nums">
-        <span aria-label="Elapsed time">{formatElapsed(elapsed)}</span>
+        {elapsed !== undefined ? <span aria-label="Elapsed time">{formatElapsed(elapsed)}</span> : null}
         {usage && usage.total > 0 ? <span aria-label="Tokens used">{formatTokenCount(usage.total)} tokens</span> : null}
       </span>
     </div>
   )
-}
-
-/** Tracks when the current run began: set when `isBusy` turns on, cleared when it turns off. */
-export function useRunStartedAt(isBusy: boolean): number | null {
-  const [startedAt, setStartedAt] = useState<number | null>(null)
-  useEffect(() => {
-    if (isBusy) setStartedAt((prev) => prev ?? Date.now())
-    else setStartedAt(null)
-  }, [isBusy])
-  return startedAt
 }
 
 /** Human-readable label for the agent's current activity phase. */

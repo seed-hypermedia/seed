@@ -7,6 +7,7 @@ import {
   isOptimisticUserEcho,
   mergeConsecutiveToolMessageRows,
   retryableErrorRowKey,
+  sessionTurnStartedAt,
 } from '@shm/ui/agents/agent-session-rows'
 import {decodeAssistantSessionRef, encodeAssistantSessionRef} from '@shm/ui/agents/assistant-session-ref'
 
@@ -927,5 +928,40 @@ describe('continuation rows', () => {
       args: {title: 'Plan the offsite'},
       rawOutput: {successorSessionId: 'session-2'},
     })
+  })
+})
+
+describe('sessionTurnStartedAt', () => {
+  const run = (overrides: Partial<RunInfo>): RunInfo =>
+    ({id: 'run-1', status: 'running', createdAt: 1_000, ...overrides}) as RunInfo
+  const userRows = (createdAt: number) =>
+    buildAgentSessionChatRows([{...event(1, {type: 'message', role: 'user', content: 'go'}), createdAt}], CONTEXT)
+
+  it('anchors the timer on the live run the server reported', () => {
+    expect(sessionTurnStartedAt([], [run({startedAt: 5_000})])).toBe(5_000)
+    expect(sessionTurnStartedAt([], [run({createdAt: 4_000})])).toBe(4_000)
+  })
+
+  it('falls back to the last user message on the log', () => {
+    expect(sessionTurnStartedAt(userRows(3_000), [])).toBe(3_000)
+    expect(sessionTurnStartedAt(userRows(3_000), undefined)).toBe(3_000)
+  })
+
+  it('ignores finished runs, and a parked run older than the message that started this turn', () => {
+    expect(sessionTurnStartedAt(userRows(3_000), [run({status: 'succeeded', startedAt: 9_000})])).toBe(3_000)
+    expect(sessionTurnStartedAt(userRows(3_000), [run({status: 'waiting', startedAt: 1_000})])).toBe(3_000)
+    expect(sessionTurnStartedAt(userRows(3_000), [run({startedAt: 3_500})])).toBe(3_500)
+  })
+
+  it('does not mistake a runtime-authored prompt for the user starting a turn', () => {
+    const rows = buildAgentSessionChatRows(
+      [{...event(1, {type: 'message', role: 'user', content: 'continue', actor: 'system'}), createdAt: 3_000}],
+      CONTEXT,
+    )
+    expect(sessionTurnStartedAt(rows, [])).toBeUndefined()
+  })
+
+  it('knows nothing before the server has said anything', () => {
+    expect(sessionTurnStartedAt([], [])).toBeUndefined()
   })
 })

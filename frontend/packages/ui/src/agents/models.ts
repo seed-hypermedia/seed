@@ -36,6 +36,7 @@ import {
   type SigningIdentity,
   type SigningIdentityIcon,
 } from './client'
+import {recordServerClockSample} from './server-clock'
 import {isOptimisticUserEcho} from './agent-session-rows'
 import {moveAgentToServer, type MoveAgentOptions} from './move-agent'
 import {getAgentsPlatform} from './platform'
@@ -2934,6 +2935,16 @@ export type AgentSubscriptionKey = `account/${string}` | `agents/${string}` | `s
  * with backoff, tear down on unmount) is identical, only the event handling differs. `onEvent` is
  * held in a ref so a handler closing over render-scoped state never forces a reconnect.
  */
+/**
+ * Every message carries a server stamp of some kind; the clock module turns them into the offset
+ * every live timer counts against. See `server-clock.ts`.
+ */
+function recordServerClock(serverUrl: string, event: AgentWSEvent): void {
+  if (event._ === 'connected') recordServerClockSample(serverUrl, event.connectedAt, 'handshake')
+  else if (event._ === 'append' && 'event' in event) recordServerClockSample(serverUrl, event.event.createdAt, 'event')
+  else if (event._ === 'append') recordServerClockSample(serverUrl, event.createdAt, 'event')
+}
+
 function useSignedAgentSocket(
   serverUrl: string | undefined,
   accountUid: string | null | undefined,
@@ -2995,7 +3006,9 @@ function useSignedAgentSocket(
       ws.addEventListener('message', (message) => {
         void (async () => {
           try {
-            handlerRef.current(await parseMessage(message.data), log)
+            const event = await parseMessage(message.data)
+            if (serverUrl) recordServerClock(serverUrl, event)
+            handlerRef.current(event, log)
           } catch (error) {
             console.warn('[agents/ws] ignored malformed message', {
               serverUrl,
