@@ -2319,7 +2319,17 @@ const qDocumentsOuterColumns = `    (SELECT 1 FROM unread_resources WHERE iri = 
       WHERE cr.iri > i.iri || '/' AND cr.iri < i.iri || '0'
         AND instr(substr(cr.iri, length(i.iri) + 2), '/') = 0
         AND (SELECT cdg.is_deleted FROM document_generations cdg WHERE cdg.resource = cr.id ORDER BY cdg.generation DESC LIMIT 1) = 0
-    ) AS children_count`
+    ) AS children_count,
+    -- Distinct citing resources match InteractionSummary's document count:
+    -- multiple links or generations from one document still count once. Drive
+    -- from the target index so work is proportional to this document's inbound
+    -- links rather than to the whole resource_links table.
+    (SELECT count(DISTINCT sb.resource)
+      FROM resource_links rl INDEXED BY resource_links_by_target
+      JOIN structural_blobs sb ON sb.id = rl.source
+      WHERE rl.target = (SELECT r.id FROM resources r WHERE r.iri = i.iri)
+        AND sb.type = 'Change'
+    ) AS citation_count`
 
 // wrapDocumentsQuery wraps a query built by [baseDocumentsQuery] into an outer
 // SELECT that appends [qDocumentsOuterColumns]. The inner query keeps all the
@@ -2369,6 +2379,7 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		visibility        = blob.Visibility(row.ColumnText(inc()))
 		isUnread          = row.ColumnInt64(inc()) > 0
 		childrenCount     = row.ColumnInt64(inc())
+		citationCount     = row.ColumnInt64(inc())
 	)
 
 	iri := blob.IRI(iriRaw)
@@ -2527,6 +2538,7 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 			LatestChangeTime:  timestamppb.New(time.UnixMilli(lastChangeTime)),
 			IsUnread:          isUnread,
 			ChildrenCount:     int32(childrenCount), //nolint:gosec
+			CitationCount:     int32(citationCount), //nolint:gosec
 		},
 		GenerationInfo: &documents.GenerationInfo{
 			Genesis:    genesis,

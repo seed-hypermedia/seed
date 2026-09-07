@@ -1291,6 +1291,61 @@ func TestListDirectoryChildrenCount(t *testing.T) {
 	require.Equal(t, int32(0), children["/loner"])
 }
 
+func TestDocumentInfoCitationCount(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+	account := alice.me.Account.PublicKey.String()
+
+	target, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/target", "", "main").
+		SetMetadata("name", "Target").
+		Build())
+	require.NoError(t, err)
+	targetIRI := "hm://" + account + "/target"
+
+	source, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/source",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "link-1"}}},
+			{Op: &documents.DocumentChange_ReplaceBlock{ReplaceBlock: &documents.Block{Id: "link-1", Type: "paragraph", Text: "First link", Link: targetIRI}}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Another link from a later change of the same source must not inflate the
+	// document-level count.
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/source",
+		BaseVersion:    source.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "link-2", LeftSibling: "link-1"}}},
+			{Op: &documents.DocumentChange_ReplaceBlock{ReplaceBlock: &documents.Block{Id: "link-2", Type: "paragraph", Text: "Second link", Link: targetIRI + "#b1"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/other-source",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "link"}}},
+			{Op: &documents.DocumentChange_ReplaceBlock{ReplaceBlock: &documents.Block{Id: "link", Type: "paragraph", Text: "Other link", Link: targetIRI}}},
+		},
+	})
+	require.NoError(t, err)
+
+	got, err := alice.GetDocumentInfo(ctx, &documents.GetDocumentInfoRequest{Account: account, Path: "/target"})
+	require.NoError(t, err)
+	require.Equal(t, int32(2), got.ActivitySummary.CitationCount)
+	require.Equal(t, target.Version, got.Version)
+}
+
 func TestListDirectoryDerivesFallbackCoverImage(t *testing.T) {
 	t.Parallel()
 

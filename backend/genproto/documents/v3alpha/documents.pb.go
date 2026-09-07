@@ -4336,6 +4336,9 @@ type ActivitySummary struct {
 	LatestChangeTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=latest_change_time,json=latestChangeTime,proto3" json:"latest_change_time,omitempty"`
 	// Whether there's any unread activity on this document/account.
 	IsUnread bool `protobuf:"varint,5,opt,name=is_unread,json=isUnread,proto3" json:"is_unread,omitempty"`
+	// Output only. Number of distinct documents citing this document.
+	// Computed from the resource-links target index without enumerating citations.
+	CitationCount int32 `protobuf:"varint,7,opt,name=citation_count,json=citationCount,proto3" json:"citation_count,omitempty"`
 	// Output only. Number of alive direct child documents.
 	// Only populated in document listings; listing cards show it without
 	// fetching a per-document interaction summary.
@@ -4407,6 +4410,13 @@ func (x *ActivitySummary) GetIsUnread() bool {
 		return x.IsUnread
 	}
 	return false
+}
+
+func (x *ActivitySummary) GetCitationCount() int32 {
+	if x != nil {
+		return x.CitationCount
+	}
+	return 0
 }
 
 func (x *ActivitySummary) GetChildrenCount() int32 {
@@ -6473,13 +6483,14 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\agenesis\x18\x01 \x01(\tR\agenesis\x12\x1e\n" +
 	"\n" +
 	"generation\x18\x02 \x01(\x03R\n" +
-	"generation\"\xbc\x02\n" +
+	"generation\"\xe3\x02\n" +
 	"\x0fActivitySummary\x12J\n" +
 	"\x13latest_comment_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x11latestCommentTime\x12*\n" +
 	"\x11latest_comment_id\x18\x04 \x01(\tR\x0flatestCommentId\x12#\n" +
 	"\rcomment_count\x18\x02 \x01(\x05R\fcommentCount\x12H\n" +
 	"\x12latest_change_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x10latestChangeTime\x12\x1b\n" +
 	"\tis_unread\x18\x05 \x01(\bR\bisUnread\x12%\n" +
+	"\x0ecitation_count\x18\a \x01(\x05R\rcitationCount\x12%\n" +
 	"\x0echildren_count\x18\x06 \x01(\x05R\rchildrenCount\"S\n" +
 	"\n" +
 	"Breadcrumb\x12\x12\n" +
