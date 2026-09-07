@@ -37,7 +37,7 @@ import {
 } from 'lucide-react'
 import {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
-import {useMedia} from '@shm/ui/use-media'
+import {useMedia} from '../use-media'
 import {readAgentMemoryTabState, writeAgentMemoryTabState} from './memory-tab-state'
 
 /** Files above this size skip the inline preview fetch — pulling hundreds of MB stalls the UI. */
