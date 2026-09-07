@@ -4451,11 +4451,15 @@ describe('api service', () => {
       const assistantMeta = (session.events[1]?.event as {meta?: Record<string, unknown>}).meta
       expect(assistantMeta?.model).toBe('gpt-test')
       expect(assistantMeta?.provider).toBe('openai')
+      // A model with no reasoning control ran with none, and the row says so rather than nothing.
+      expect(assistantMeta?.reasoningLevel).toBe('off')
       expect(assistantMeta?.usage).toMatchObject({input: expect.any(Number), output: expect.any(Number)})
       expect(assistantMeta?.durationMs).toBeGreaterThanOrEqual(0)
       // A tool row's timing comes from the executor, which is the only thing that knows the real span.
-      const toolMeta = (session.events[3]?.event as {meta?: {durationMs?: number}}).meta
+      const toolMeta = (session.events[3]?.event as {meta?: {durationMs?: number; reasoningLevel?: string}}).meta
       expect(toolMeta?.durationMs).toBeGreaterThanOrEqual(0)
+      expect(toolMeta?.reasoningLevel).toBe('off')
+      expect((session.events[2]?.event as {meta?: {reasoningLevel?: string}}).meta?.reasoningLevel).toBe('off')
     } finally {
       globalThis.fetch = originalFetch
       db.close()
@@ -7058,6 +7062,19 @@ describe('api service', () => {
       plain,
     )
     expect(apisvc.restoreReasoningEffort(plain, definition)).toBe(plain)
+  })
+
+  test('effectiveReasoningLevel stamps the level a run really used', () => {
+    // A chosen level is the level, whatever the model.
+    expect(apisvc.effectiveReasoningLevel('openai', {model: 'gpt-5.6-terra', reasoningLevel: 'xhigh'})).toBe('xhigh')
+    // Unset on a model that can stop reasoning (or has none) means it ran with none.
+    expect(apisvc.effectiveReasoningLevel('openai', {model: 'gpt-5.2'})).toBe('off')
+    expect(apisvc.effectiveReasoningLevel('openai', {model: 'gpt-4o'})).toBe('off')
+    expect(apisvc.effectiveReasoningLevel('anthropic', {model: 'claude-sonnet-4-5'})).toBe('off')
+    // Unset on a model that cannot stop reasoning means the provider's own default applied.
+    expect(apisvc.effectiveReasoningLevel('openai', {model: 'gpt-5-mini'})).toBe('default')
+    expect(apisvc.effectiveReasoningLevel('openai', {model: 'o3'})).toBe('default')
+    expect(apisvc.effectiveReasoningLevel('google', {model: 'gemini-2.5-pro'})).toBe('default')
   })
 
   test('delegate fan-out parks the parent and child results resume it', async () => {

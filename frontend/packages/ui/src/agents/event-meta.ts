@@ -1,3 +1,4 @@
+import {isReasoningLevel, REASONING_LEVEL_LABELS} from '@seed-hypermedia/agents-protocol'
 import type {AgentRunUsage, SessionEventMeta} from './client'
 
 /**
@@ -61,6 +62,16 @@ export type EventTimes = {
   completedAt?: number
 }
 
+/**
+ * How hard the model thought, in the same words the reasoning picker uses. `off` and `default`
+ * are the two ways of running without a chosen level: none at all, or the provider's own choice
+ * for a model that cannot stop reasoning.
+ */
+export function formatReasoningLevel(level: NonNullable<SessionEventMeta['reasoningLevel']>): string {
+  if (isReasoningLevel(level)) return REASONING_LEVEL_LABELS[level]
+  return level === 'default' ? 'Provider default' : 'Off'
+}
+
 /** Sum of the categories when the stamp did not carry its own total. */
 function usageTotal(usage: AgentRunUsage): number {
   if (typeof usage.total === 'number' && usage.total > 0) return usage.total
@@ -78,6 +89,7 @@ export function eventMetaRows(meta: SessionEventMeta | undefined, times?: EventT
   if (meta?.signerId) rows.push({label: 'Signer', value: meta.signerId})
   if (meta?.model) rows.push({label: 'Model', value: meta.model})
   if (meta?.provider) rows.push({label: 'Provider', value: meta.provider})
+  if (meta?.reasoningLevel) rows.push({label: 'Reasoning', value: formatReasoningLevel(meta.reasoningLevel)})
   if (times?.sentAt) {
     const value = formatEventTime(times.sentAt)
     if (value) rows.push({label: 'Time', value})

@@ -11,6 +11,25 @@ describe('eventMetaRows', () => {
     expect(rows.find((row) => row.label === 'Started')?.value).toBe(formatEventTime(1_700_000_000_000))
   })
 
+  it("names the reasoning level beside the model, in the picker's own words", () => {
+    const rows = eventMetaRows({model: 'gpt-5.2', provider: 'openai', reasoningLevel: 'xhigh'})
+    expect(rows.map((row) => row.label)).toEqual(['Model', 'Provider', 'Reasoning'])
+    expect(rows.find((row) => row.label === 'Reasoning')?.value).toBe('X-High')
+    expect(
+      eventMetaRows({model: 'gpt-4o', reasoningLevel: 'off'}).find((row) => row.label === 'Reasoning')?.value,
+    ).toBe('Off')
+    expect(
+      eventMetaRows({model: 'o3', reasoningLevel: 'default'}).find((row) => row.label === 'Reasoning')?.value,
+    ).toBe('Provider default')
+  })
+
+  it('shows no reasoning row for an event stamped before the level was recorded', () => {
+    expect(eventMetaRows({model: 'gpt-5-mini', provider: 'openai'}).map((row) => row.label)).toEqual([
+      'Model',
+      'Provider',
+    ])
+  })
+
   it('shows a message send time even when the event carries no stamp at all', () => {
     const rows = eventMetaRows(undefined, {sentAt: 1_700_000_000_000})
     expect(rows).toEqual([{label: 'Time', value: formatEventTime(1_700_000_000_000)}])

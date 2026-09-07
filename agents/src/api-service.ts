@@ -7082,9 +7082,13 @@ export class Service {
     let turnStartedAt = Date.now()
     let turnUsageForMeta: api.AgentRunUsage | undefined
     let turnTimingForMeta: NonNullable<api.SessionEventMeta['turn']> | undefined
+    // The level the turn actually ran at, not merely the one configured: an unset level is `off`
+    // for most models, but a model that cannot stop reasoning ran at the provider's default.
+    const reasoningLevelForMeta = effectiveReasoningLevel(provider.type, definition)
     const messageMeta = (): api.SessionEventMeta => ({
       ...(definition.model ? {model: definition.model} : {}),
       ...(model.provider ? {provider: model.provider} : {}),
+      reasoningLevel: reasoningLevelForMeta,
       ...(turnUsageForMeta ? {usage: {...turnUsageForMeta}} : {}),
       ...(turnTimingForMeta ? {turn: {...turnTimingForMeta}} : {}),
       durationMs: Math.max(0, Date.now() - turnStartedAt),
@@ -7095,6 +7099,7 @@ export class Service {
       const meta: api.SessionEventMeta = {
         ...(definition.model ? {model: definition.model} : {}),
         ...(model.provider ? {provider: model.provider} : {}),
+        reasoningLevel: reasoningLevelForMeta,
         ...(turnUsageForMeta ? {usage: {...turnUsageForMeta}} : {}),
         ...(turnTimingForMeta ? {turn: {...turnTimingForMeta}} : {}),
       }
@@ -14647,6 +14652,20 @@ function mergePiPayloadDefaults(payload: unknown, defaults: Record<string, unkno
  * was validated against the live per-model matrix and is authoritative.
  * Exported for tests.
  */
+/**
+ * The reasoning level a run on `definition` really uses, for stamping on its events. A chosen
+ * level wins. Otherwise the run sends no level, which means `off` — except for models that cannot
+ * disable reasoning (`offBehavior: 'default'`), where the provider's own default applies.
+ */
+export function effectiveReasoningLevel(
+  providerType: string,
+  definition: Pick<api.AgentDefinition, 'model' | 'reasoningLevel'>,
+): NonNullable<api.SessionEventMeta['reasoningLevel']> {
+  if (definition.reasoningLevel) return definition.reasoningLevel
+  const support = modelReasoningSupport(providerType, definition.model)
+  return support?.offBehavior === 'default' ? 'default' : 'off'
+}
+
 export function restoreReasoningEffort(payload: unknown, definition: api.AgentDefinition): unknown {
   if (!definition.reasoningLevel) return payload
   if (!isRecord(payload) || !isRecord(payload.reasoning) || typeof payload.reasoning.effort !== 'string') {

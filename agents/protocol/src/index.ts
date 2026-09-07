@@ -1421,6 +1421,13 @@ export type SessionEventMeta = {
   model?: string
   /** Provider the model ran on, e.g. `openai`. */
   provider?: string
+  /**
+   * Reasoning level the model turn ran at: a chosen level, `off` when the model reasoned at none
+   * (chosen off, or a model with no reasoning control), or `default` when nothing was chosen and
+   * the model cannot turn reasoning off, so the provider's own default applied. Stamped beside
+   * `model` so a transcript row explains how hard the model thought, not only which model it was.
+   */
+  reasoningLevel?: ReasoningLevel | 'off' | 'default'
   /** Token usage for this one turn (not the run's cumulative total). */
   usage?: AgentRunUsage
   /** Wall time this message or tool call took, in milliseconds. */
