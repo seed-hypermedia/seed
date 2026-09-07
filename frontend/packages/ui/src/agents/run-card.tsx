@@ -14,7 +14,7 @@ import {
   type PlanSettle,
 } from './run-work'
 import {useServerNow} from './server-clock'
-import {formatElapsed, formatTokenCount} from './agent-run-status'
+import {formatElapsed, formatStepDuration, formatTokenCount} from './agent-run-status'
 import {DelayedSpinner} from './header'
 import {useCancelRun, useRun, useSessionRuns, type AgentRunTreeLiveState} from './models'
 import {useNavigate} from './navigation'
@@ -691,16 +691,46 @@ function RunCardShell({children, compact, column}: {children: React.ReactNode; c
   )
 }
 
-/** Live elapsed timer for a run, frozen once it finishes. */
+/** Queue waits shorter than this are dispatch latency, not something a person needs told about. */
+const NOTABLE_QUEUE_WAIT_MS = 10_000
+
+/**
+ * Live elapsed timer for a run, frozen once it finishes — plus how long the run sat in the queue
+ * before a worker picked it up, when that wait was long enough to be the reason the session felt
+ * slow. The server caps concurrent model runs, so a run can be created and then wait minutes for a
+ * slot; without this the wait reads as the model thinking.
+ */
 function RunElapsed({run, serverUrl}: {run: RunInfo; serverUrl?: string}) {
   const isTerminal = isTerminalRun(run.status)
   const now = useServerNow(serverUrl, !isTerminal)
   const startedAt = run.startedAt ?? run.createdAt
   const endedAt = isTerminal ? run.finishedAt ?? run.updatedAt : now
+  // A run that has not started yet is still waiting; one that has started shows its full wait.
+  const queuedMs = run.startedAt
+    ? run.startedAt - run.createdAt
+    : run.status === 'queued' || run.status === 'claimed'
+      ? now - run.createdAt
+      : 0
+  const queueLabel = run.startedAt ? 'queued' : 'in queue'
   return (
-    <span className="text-muted-foreground flex-none text-[10px] tabular-nums" aria-label="Elapsed time">
-      {formatElapsed(Math.max(0, endedAt - startedAt))}
-    </span>
+    <>
+      <span className="text-muted-foreground flex-none text-[10px] tabular-nums" aria-label="Elapsed time">
+        {formatElapsed(Math.max(0, endedAt - startedAt))}
+      </span>
+      {queuedMs >= NOTABLE_QUEUE_WAIT_MS ? (
+        <span
+          className="text-muted-foreground flex-none rounded-full border border-dashed px-1.5 py-0.5 text-[10px] tabular-nums"
+          title={
+            run.startedAt
+              ? 'Time this run waited for a free worker before it started (the server caps concurrent model runs)'
+              : 'Waiting for a free worker (the server caps concurrent model runs)'
+          }
+          aria-label="Queue wait"
+        >
+          {queueLabel} {formatStepDuration(queuedMs)}
+        </span>
+      ) : null}
+    </>
   )
 }
 

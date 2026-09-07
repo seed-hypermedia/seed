@@ -90,6 +90,8 @@ export function eventMetaRows(meta: SessionEventMeta | undefined, times?: EventT
   if (meta?.model) rows.push({label: 'Model', value: meta.model})
   if (meta?.provider) rows.push({label: 'Provider', value: meta.provider})
   if (meta?.reasoningLevel) rows.push({label: 'Reasoning', value: formatReasoningLevel(meta.reasoningLevel)})
+  const turnIndex = meta?.turn?.index
+  if (typeof turnIndex === 'number' && turnIndex > 0) rows.push({label: 'Turn', value: `#${turnIndex}`})
   if (times?.sentAt) {
     const value = formatEventTime(times.sentAt)
     if (value) rows.push({label: 'Time', value})
@@ -105,6 +107,13 @@ export function eventMetaRows(meta: SessionEventMeta | undefined, times?: EventT
   if (typeof meta?.durationMs === 'number' && meta.durationMs >= 0) {
     rows.push({label: 'Duration', value: formatEventDuration(meta.durationMs)})
   }
+  // The provider's own clock for the turn that produced this event: how long the model took in
+  // total, and how much of that was silence before the first token. This is the number to read
+  // when a session feels slow — a tool's duration says nothing about the thinking around it.
+  const turnMs = meta?.turn?.turnMs
+  if (typeof turnMs === 'number' && turnMs >= 0) rows.push({label: 'Model turn', value: formatEventDuration(turnMs)})
+  const ttftMs = meta?.turn?.ttftMs
+  if (typeof ttftMs === 'number' && ttftMs >= 0) rows.push({label: 'First token', value: formatEventDuration(ttftMs)})
   const usage = meta?.usage
   if (usage) {
     const total = usageTotal(usage)

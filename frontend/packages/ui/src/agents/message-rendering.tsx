@@ -507,10 +507,15 @@ function StatusUpdateRow({item}: {item: ChatToolPart}) {
   const title = getToolString(item.args, 'title')
   const description = getToolString(item.args, 'description')
   const isPending = item.result === undefined && item.rawOutput === undefined
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  // The model turn that wrote this update, on the provider's clock. A status update is the one row
+  // whose own tool time is always trivial, so the number worth showing beside it is how long the
+  // model took to get here.
+  const turnMs = item.meta?.turn?.turnMs
   return (
     <div
       className={cn(
-        'my-1 mr-6 rounded-lg border px-3 py-2 text-xs',
+        'group/statusrow my-1 mr-6 rounded-lg border px-3 py-2 text-xs',
         item.isError ? 'border-destructive/30 bg-destructive/5' : 'border-border bg-muted/40',
       )}
     >
@@ -522,11 +527,30 @@ function StatusUpdateRow({item}: {item: ChatToolPart}) {
           <Activity className="text-muted-foreground mt-0.5 size-3 shrink-0" />
         )}
         {title ? (
-          <span className="text-foreground min-w-0 text-sm font-medium">{title}</span>
+          <span className="text-foreground min-w-0 flex-1 text-sm font-medium">{title}</span>
         ) : (
-          <p className="text-foreground/85 min-w-0 text-[13px] leading-5 whitespace-pre-wrap">{description}</p>
+          <p className="text-foreground/85 min-w-0 flex-1 text-[13px] leading-5 whitespace-pre-wrap">{description}</p>
         )}
         {item.isError ? <ToolChip tone="error">Failed</ToolChip> : null}
+        {typeof turnMs === 'number' && turnMs >= 0 ? (
+          <span
+            className="text-muted-foreground mt-0.5 shrink-0 text-[10px] tabular-nums"
+            title="Model turn: provider request sent → response complete"
+          >
+            {formatStepDuration(turnMs)}
+          </span>
+        ) : null}
+        <button
+          type="button"
+          title="Model, timing, and raw payload for this update"
+          onClick={(event) => {
+            event.stopPropagation()
+            setDetailsOpen(true)
+          }}
+          className="hover:bg-background/70 text-muted-foreground hover:text-foreground bg-background/60 mt-0.5 shrink-0 rounded-full border p-0.75 opacity-0 transition-opacity group-hover/statusrow:opacity-100 focus-visible:opacity-100"
+        >
+          <Info className="size-3" />
+        </button>
       </div>
       {title && description ? (
         <p className="text-foreground/85 mt-1 text-[13px] leading-5 whitespace-pre-wrap">{description}</p>
@@ -534,6 +558,7 @@ function StatusUpdateRow({item}: {item: ChatToolPart}) {
       {item.isError && item.result ? (
         <pre className="text-destructive mt-1 whitespace-pre-wrap">{item.result}</pre>
       ) : null}
+      <ToolCallDebugDialog item={item} open={detailsOpen} onOpenChange={setDetailsOpen} />
     </div>
   )
 }

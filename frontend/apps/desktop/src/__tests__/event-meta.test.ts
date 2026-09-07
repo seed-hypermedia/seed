@@ -30,6 +30,25 @@ describe('eventMetaRows', () => {
     ])
   })
 
+  it('reads the provider turn timing off the stamp, after the wall-clock duration', () => {
+    const rows = eventMetaRows({
+      model: 'gpt-5.6-terra',
+      provider: 'openai-codex',
+      durationMs: 7,
+      turn: {index: 3, ttftMs: 1193, turnMs: 2405},
+    })
+    expect(rows.map((row) => row.label)).toEqual(['Model', 'Provider', 'Turn', 'Duration', 'Model turn', 'First token'])
+    expect(rows.find((row) => row.label === 'Turn')?.value).toBe('#3')
+    expect(rows.find((row) => row.label === 'Model turn')?.value).toBe('2.4s')
+    expect(rows.find((row) => row.label === 'First token')?.value).toBe('1.2s')
+  })
+
+  it('shows only the turn timing a partial stamp carries', () => {
+    const rows = eventMetaRows({model: 'gpt-5-mini', turn: {turnMs: 61_000}})
+    expect(rows.map((row) => row.label)).toEqual(['Model', 'Model turn'])
+    expect(rows[1]?.value).toBe('1m 1s')
+  })
+
   it('shows a message send time even when the event carries no stamp at all', () => {
     const rows = eventMetaRows(undefined, {sentAt: 1_700_000_000_000})
     expect(rows).toEqual([{label: 'Time', value: formatEventTime(1_700_000_000_000)}])
