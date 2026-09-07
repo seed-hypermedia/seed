@@ -52,6 +52,7 @@ import {
   Bot,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Clock3,
   Compass,
   Info,
@@ -433,7 +434,8 @@ function ThinkingGroup({
       : 'Finished thinking'
   const countLabel = `${parts.length} tool call${parts.length === 1 ? '' : 's'}`
   const visibleParts = expanded ? parts : active ? parts.slice(-1) : []
-  const Chevron = expanded ? ChevronDown : ChevronRight
+  // The burst opens above the line, so an open group points up at it.
+  const Chevron = expanded ? ChevronUp : ChevronRight
 
   // The line sits under the calls it speaks for: live, it is the newest thing on the transcript,
   // right where the eye already is; settled, opening it grows the burst upward and the line stays put.
