@@ -454,6 +454,7 @@
         "_": "\"UpdateSession\"",
         "modelOverride?": "SessionModelOverride | null",
         "sessionId": "string",
+        "thoroughness?": "\"deep\" | \"normal\" | \"quick\" | null",
         "title?": "string"
       }
     },
@@ -995,6 +996,7 @@
         "signingKey?": "string",
         "signingKeys?": "string[]",
         "systemPrompt": "AgentPromptBlock[] | string",
+        "thoroughness?": "Thoroughness",
         "tools?": "string[]"
       }
     },
@@ -1521,6 +1523,7 @@
         "runId?": "string",
         "startedByTrigger?": "AgentSessionTriggerSummary",
         "status": "\"error\" | \"idle\" | \"stopped\" | \"streaming\"",
+        "thoroughness?": "Thoroughness",
         "title?": "string",
         "updatedAt": "number"
       }
@@ -1557,6 +1560,9 @@
         "fileName?": "string",
         "mimeType?": "string"
       }
+    },
+    "Thoroughness": {
+      "alias": "\"deep\" | \"normal\" | \"quick\""
     },
     "TriggerContinuation": {
       "variants": {

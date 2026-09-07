@@ -25,6 +25,9 @@ export const migrations: string[] = [
   ALTER TABLE agents ADD COLUMN message_at INTEGER;
   ALTER TABLE agents ADD COLUMN message_from TEXT;
   ALTER TABLE agents ADD COLUMN activity_session_id TEXT;`,
+  // Per-session thoroughness override (a THOROUGHNESS_PRESETS key, or NULL for the agent's own):
+  // the delegation budget new runs in the session start with.
+  `ALTER TABLE sessions ADD COLUMN thoroughness TEXT;`,
   // #getSessionTriggerContext filters trigger_firings by (account_id, session_id) with ORDER BY
   // created_at, but the only usable index was the (account_id, …) autoindex prefix — so each call
   // scanned every firing for the account and temp-b-tree-sorted (~9ms on prod). It runs once per

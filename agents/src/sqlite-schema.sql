@@ -124,6 +124,7 @@ CREATE TABLE sessions (
     plan_cbor BLOB,
     model_override_cbor BLOB,
     description TEXT,
+    thoroughness TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     -- Latest message from a person, a trigger or the agent (see SessionActivity in the protocol).

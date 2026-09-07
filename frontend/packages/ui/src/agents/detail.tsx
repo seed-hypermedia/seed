@@ -138,9 +138,10 @@ import {
 import {AgentHeader, AgentSubpageHeader, type AgentPageTab} from './header'
 import {writeStickyAgentSession} from './sticky-session'
 import {MoveAgentDialog} from './move-agent-dialog'
-import {modelReasoningSupport, type ReasoningLevel} from '@seed-hypermedia/agents-protocol'
+import {modelReasoningSupport, type ReasoningLevel, type Thoroughness} from '@seed-hypermedia/agents-protocol'
 import {ProviderModelSelect} from './provider-model-select'
 import {coerceReasoningLevel, ReasoningSlider} from './reasoning-select'
+import {ThoroughnessPicker} from './thoroughness-select'
 import {pickDefaultProviderModel} from './model-utils'
 import {AgentPromptEditor, promptBlocksForRequest, promptBlocksToMarkdown} from './prompt-editor'
 import {AgentsNoAccountPage} from './no-account'
@@ -204,6 +205,7 @@ function AgentDetailPage({
   const [modelProvider, setModelProvider] = useState('')
   const [model, setModel] = useState('')
   const [reasoningLevel, setReasoningLevel] = useState<ReasoningLevel | undefined>(undefined)
+  const [thoroughness, setThoroughness] = useState<Thoroughness | undefined>(undefined)
   const [enabledModels, setEnabledModels] = useState<AgentModelRef[]>([])
   const providerModels = useProviderModels(serverUrl, selectedAccountId, modelProvider, agentId)
   const selectedProviderType = modelProviders.data?.find((provider) => provider.name === modelProvider)?.type
@@ -234,6 +236,7 @@ function AgentDetailPage({
       setModel(agent.data.agent.definition.model)
       setModelProvider(agent.data.agent.definition.modelProvider)
       setReasoningLevel(agent.data.agent.definition.reasoningLevel)
+      setThoroughness(agent.data.agent.definition.thoroughness)
       setEnabledModels(agent.data.agent.definition.enabledModels ?? [])
     }
     if (!promptDirty) {
@@ -375,6 +378,7 @@ function AgentDetailPage({
       model === persistedModel &&
       modelProvider === persistedProvider &&
       draftReasoningLevel === currentDefinition.reasoningLevel &&
+      thoroughness === currentDefinition.thoroughness &&
       sameModelRefs(enabledModels, currentDefinition.enabledModels ?? [])
     ) {
       setSettingsSaveState('idle')
@@ -390,6 +394,8 @@ function AgentDetailPage({
         // Avoid an explicit-undefined key: CBOR-encoding it would not equal an absent field.
         if (draftReasoningLevel) nextDefinition.reasoningLevel = draftReasoningLevel
         else delete nextDefinition.reasoningLevel
+        if (thoroughness) nextDefinition.thoroughness = thoroughness
+        else delete nextDefinition.thoroughness
         if (enabledModels.length) nextDefinition.enabledModels = enabledModels
         else delete nextDefinition.enabledModels
         void updateAgent
@@ -404,6 +410,7 @@ function AgentDetailPage({
             setModel(result.agent.definition.model)
             setModelProvider(result.agent.definition.modelProvider)
             setReasoningLevel(result.agent.definition.reasoningLevel)
+            setThoroughness(result.agent.definition.thoroughness)
             setEnabledModels(result.agent.definition.enabledModels ?? [])
             if (!promptDirty) {
               loadedPromptKeyRef.current = agentPromptStableKey(result.agent.definition.systemPrompt)
@@ -851,6 +858,16 @@ function AgentDetailPage({
                         />
                       </div>
                     ) : null}
+                    <div className="flex flex-col justify-end gap-1">
+                      <ThoroughnessPicker
+                        value={thoroughness ?? 'normal'}
+                        disabled={!canWrite}
+                        onChange={(next) => {
+                          setThoroughness(next)
+                          setNameModelDirty(true)
+                        }}
+                      />
+                    </div>
                   </div>
                   <div className="flex flex-col gap-2">
                     <SizableText

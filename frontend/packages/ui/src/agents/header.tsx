@@ -19,7 +19,8 @@ import {Badge} from '@shm/ui/components/badge'
 import {OptionsDropdown, type MenuItemType} from '@shm/ui/options-dropdown'
 import {PageTab} from '@shm/ui/page-tabs'
 import {coerceReasoningLevel, ReasoningPie, ReasoningSlider} from './reasoning-select'
-import {modelReasoningSupport, type ReasoningLevel} from '@seed-hypermedia/agents-protocol'
+import {modelReasoningSupport, type ReasoningLevel, type Thoroughness} from '@seed-hypermedia/agents-protocol'
+import {ThoroughnessPicker} from './thoroughness-select'
 import {SizableText} from '@shm/ui/text'
 import {
   ArrowLeft,
@@ -506,6 +507,7 @@ export function SessionModelBadge({
   serverUrl,
   sessionId,
   modelOverride,
+  thoroughness,
   canWrite,
 }: {
   agent: AgentHeaderInfo | undefined
@@ -513,6 +515,8 @@ export function SessionModelBadge({
   serverUrl: string
   sessionId: string
   modelOverride: SessionModelOverride | undefined
+  /** The session's delegation-budget override; absent means the agent's own applies. */
+  thoroughness?: Thoroughness
   canWrite: boolean
 }) {
   const accountUid = useSelectedAccountId()
@@ -678,6 +682,25 @@ export function SessionModelBadge({
             />
           </div>
         ) : null}
+        {/* How deep and wide this session's runs may delegate; "Default" follows the agent. Applies
+            from the next turn — runs already in flight keep the budget they started with. */}
+        <div className="border-border mt-1 border-t px-2 pt-2 pb-1">
+          <ThoroughnessPicker
+            compact
+            value={thoroughness}
+            inheritedValue={definition.thoroughness ?? 'normal'}
+            disabled={!canWrite || updateSession.isLoading}
+            onChange={(next) =>
+              updateSession.mutate(
+                {sessionId, thoroughness: next ?? null},
+                {
+                  onError: (error) =>
+                    toast.error(error instanceof Error ? error.message : 'Could not set the session thoroughness'),
+                },
+              )
+            }
+          />
+        </div>
         <div className="border-border mt-1 border-t p-1">
           <button
             type="button"
