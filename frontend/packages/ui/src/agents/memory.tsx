@@ -14,6 +14,8 @@ import {formattedDateMedium} from '@shm/shared/utils/date'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
+import {DialogTitle} from '@shm/ui/components/dialog'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import {Spinner} from '@shm/ui/spinner'
 import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
@@ -26,6 +28,7 @@ import {
   FileText,
   Folder,
   Globe,
+  Info,
   RotateCcw,
   Save,
   Trash2,
@@ -132,6 +135,7 @@ export function AgentMemoryTab({
   )
 
   const totals = rootQuery?.data?.totals
+  const memoryInfoDialog = useAppDialog(MemoryInfoDialog)
   const visibleEntries = entries.filter((entry) => isPathVisible(entry.path, expandedDirs))
 
   // Drop the selection when the selected file disappears from its directory's listing (e.g. the
@@ -521,21 +525,10 @@ export function AgentMemoryTab({
 
   return (
     <section className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-      <div className="flex flex-wrap items-start justify-between gap-2 sm:flex-nowrap sm:items-center">
-        <div className="flex min-w-0 flex-col">
-          <SizableText weight="bold">Memory</SizableText>
-          <SizableText size="xs" color="muted">
-            Private files this agent reads and writes across sessions.{' '}
-            {readOnly ? 'You have read-only access.' : 'You can edit everything here.'}
-            {totals
-              ? ` ${totals.files}${totals.truncated ? '+' : ''} file${
-                  totals.files === 1 && !totals.truncated ? '' : 's'
-                }, ${formatBytes(totals.bytes)}${totals.truncated ? '+' : ''}.`
-              : ''}
-          </SizableText>
-        </div>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {memoryInfoDialog.content}
         {!readOnly ? (
-          <div className="flex flex-none items-center gap-2">
+          <>
             <input
               ref={uploadInputRef}
               type="file"
@@ -572,8 +565,26 @@ export function AgentMemoryTab({
             >
               <FilePlus className="mr-2 size-4" /> New file
             </Button>
-          </div>
+          </>
         ) : null}
+        <OptionsDropdown
+          align="end"
+          ariaLabel="Memory options"
+          menuItems={[
+            {
+              key: 'memory-info',
+              label: 'Memory Info',
+              icon: <Info className="size-4" />,
+              onClick: () =>
+                memoryInfoDialog.open({
+                  totals,
+                  rootEntries: rootQuery?.data?.entries ?? [],
+                  loading: !rootQuery || rootQuery.isLoading,
+                  readOnly,
+                }),
+            },
+          ]}
+        />
       </div>
 
       {uploadProgress ? (
@@ -671,6 +682,66 @@ export function AgentMemoryTab({
         </PanelGroup>
       )}
     </section>
+  )
+}
+
+/**
+ * "Memory Info": what the header line used to say, on demand. The rollup comes from the root
+ * listing's bounded walk, so counts and bytes read as minimums (with a trailing +) when the walk
+ * was cut short; the top-level breakdown and latest change come from the root entries themselves.
+ */
+function MemoryInfoDialog({
+  input,
+}: {
+  input: {
+    totals?: {files: number; bytes: number; truncated: boolean}
+    rootEntries: AgentMemoryEntry[]
+    loading: boolean
+    readOnly: boolean
+  }
+  onClose: () => void
+}) {
+  const {totals, rootEntries, loading, readOnly} = input
+  const plus = totals?.truncated ? '+' : ''
+  const folders = rootEntries.filter((entry) => entry.type === 'dir')
+  const rootFiles = rootEntries.filter((entry) => entry.type === 'file')
+  const latest = rootEntries.reduce<number>((max, entry) => Math.max(max, entry.updatedAt), 0)
+  const rows: [string, string][] = [
+    ['Files', loading ? '…' : totals ? `${totals.files}${plus}` : '—'],
+    ['Size', loading ? '…' : totals ? `${formatBytes(totals.bytes)}${plus}` : '—'],
+    [
+      'Top level',
+      loading
+        ? '…'
+        : `${folders.length} folder${folders.length === 1 ? '' : 's'}, ${rootFiles.length} file${
+            rootFiles.length === 1 ? '' : 's'
+          }`,
+    ],
+    ['Last changed', loading ? '…' : latest ? formattedDateMedium(new Date(latest)) : '—'],
+    ['Your access', readOnly ? 'Read-only' : 'Read and write'],
+  ]
+  return (
+    <div className="flex min-w-0 flex-col gap-4">
+      <div>
+        <DialogTitle>Memory Info</DialogTitle>
+      </div>
+      <SizableText size="sm" color="muted">
+        Private files this agent reads and writes across sessions, through its own tools and this page.
+      </SizableText>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
+        {rows.map(([label, value]) => (
+          <div key={label} className="contents">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="min-w-0 truncate">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {totals?.truncated ? (
+        <SizableText size="xs" color="muted">
+          The memory is large, so counts and size are minimums from a bounded scan.
+        </SizableText>
+      ) : null}
+    </div>
   )
 }
 
