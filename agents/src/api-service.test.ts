@@ -8890,11 +8890,35 @@ describe('normalizeSubSessionSpec', () => {
     expect(() => apisvc.normalizeSubSessionSpec({brief: 'Do it.', agentId: 'other-agent'})).toThrow(/agentId/)
   })
 
-  test('carries a trimmed model request and drops an empty one', () => {
-    const spec = apisvc.normalizeSubSessionSpec({brief: 'Summarize.', model: '  openai/gpt-5-mini '})
+  test('carries a trimmed model request with its reasoning level and drops an empty one', () => {
+    const spec = apisvc.normalizeSubSessionSpec({
+      brief: 'Summarize.',
+      model: '  openai/gpt-5-mini ',
+      reasoningLevel: 'low',
+    })
     expect(spec.model).toBe('openai/gpt-5-mini')
+    expect(spec.reasoningLevel).toBe('low')
     expect(apisvc.normalizeSubSessionSpec({brief: 'Summarize.', model: '   '}).model).toBeUndefined()
     expect(apisvc.normalizeSubSessionSpec({brief: 'Summarize.'}).model).toBeUndefined()
+  })
+
+  test('a model without a reasoning level is refused instead of defaulted, and vice versa', () => {
+    expect(() => apisvc.normalizeSubSessionSpec({brief: 'Summarize.', model: 'openai/gpt-5-mini'})).toThrow(
+      /requires `reasoningLevel`/,
+    )
+    expect(() => apisvc.normalizeSubSessionSpec({brief: 'Summarize.', reasoningLevel: 'high'})).toThrow(
+      /reasoningLevel requires `model`/,
+    )
+    expect(() =>
+      apisvc.normalizeSubSessionSpec({brief: 'Summarize.', model: 'openai/gpt-5-mini', reasoningLevel: 'max'}),
+    ).toThrow(/must be one of: off, minimal, low, medium, high, xhigh/)
+    // Omitting both inherits the agent's model and level; `off` is an explicit choice of no reasoning.
+    const inherited = apisvc.normalizeDelegateModelChoice({})
+    expect(inherited).toEqual({})
+    expect(apisvc.normalizeDelegateModelChoice({model: 'gpt-5-mini', reasoningLevel: 'off'})).toEqual({
+      model: 'gpt-5-mini',
+      reasoningLevel: 'off',
+    })
   })
 })
 
@@ -8979,6 +9003,7 @@ describe('resolveDelegateModelRef', () => {
                           title: 'Cheap summarizer',
                           brief: 'Summarize the report.',
                           model: 'gpt-test-mini',
+                          reasoningLevel: 'off',
                         }),
                       },
                     },
@@ -9059,7 +9084,7 @@ describe('delegate model inside script children', () => {
       const account = blobs.generateNobleKeyPair()
       const workflowSource = [
         'export default async function (input, ctx) {',
-        "  const worker = await ctx.delegate({title: 'Mini worker', prompt: 'You are worker Mini.', input: 'Say hi', model: 'gpt-test-mini'})",
+        "  const worker = await ctx.delegate({title: 'Mini worker', prompt: 'You are worker Mini.', input: 'Say hi', model: 'gpt-test-mini', reasoningLevel: 'off'})",
         '  return {worker: worker.text}',
         '}',
       ].join('\n')

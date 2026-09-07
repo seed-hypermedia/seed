@@ -422,8 +422,12 @@ narrows the child's set — intersected against the parent's full callable set, 
 (`api-service.ts:2623`). `model` runs the child on one of the agent's enabled models ("provider/model", or a bare model
 id when unambiguous): the request is resolved by `resolveDelegateModelRef()` at spawn time against `enabledModels` plus
 the active pair, then stored as the child session's model override — the same mechanism the user's quick-switch uses, so
-run resolution and every client surface agree on what ran. Agents with more than one enabled model get system-prompt
-guidance to route cheap mechanical subtasks to cheaper models and hard reasoning to the strongest.
+run resolution and every client surface agree on what ran. `model` and `reasoningLevel` travel together
+(`normalizeDelegateModelChoice()`): a `model` without a `reasoningLevel` (`off` or one of the levels) is refused rather
+than defaulted, a level without a model is refused too, and omitting both inherits the agent's configured model and
+level. This is what keeps a child from silently running the agent's model with reasoning off — an override stores the
+level explicitly, and an absent level on an override means off. Agents with more than one enabled model get
+system-prompt guidance to route cheap mechanical subtasks to cheaper models and hard reasoning to the strongest.
 
 A child always runs as the delegating agent. Direct agent-to-agent delegation (`agentId`) was removed deliberately: a
 transcript readable by an agent's collaborators or the public must never leak the account's other agents or carry their

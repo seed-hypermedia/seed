@@ -5,6 +5,8 @@ import {
   getSeedTool,
   sessionEventActor,
   isReasoningLevel,
+  REASONING_LEVELS,
+  type ReasoningLevel,
   modelReasoningSupport,
   modelContextWindow,
   modelSupportsImageInput,
@@ -361,6 +363,48 @@ type SubSessionSpec = {
   output?: JsonSchema
   /** Requested child model: "provider/model" or a bare model id, resolved against the agent's enabled models at spawn. */
   model?: string
+  /**
+   * Reasoning level for the requested model. Required whenever `model` is set (`off` for none), so
+   * a child never silently runs a chosen model at a reasoning level nobody chose; absent together
+   * with `model`, both inherit from the agent.
+   */
+  reasoningLevel?: DelegateReasoningLevel
+}
+
+/** A delegate's reasoning choice: one of the levels, or `off` for no reasoning. */
+export type DelegateReasoningLevel = ReasoningLevel | 'off'
+
+const DELEGATE_REASONING_LEVELS = `off, ${REASONING_LEVELS.join(', ')}`
+
+/**
+ * Reads the `model` + `reasoningLevel` pair off a delegate-style input. The two travel together:
+ * setting a model without saying how hard it should think is refused rather than defaulted, and a
+ * level without a model has nothing to apply to — omit both and the child inherits the agent's
+ * configured model and level.
+ */
+export function normalizeDelegateModelChoice(input: Record<string, unknown>): {
+  model?: string
+  reasoningLevel?: DelegateReasoningLevel
+} {
+  const model = typeof input.model === 'string' && input.model.trim() ? input.model.trim() : undefined
+  const rawLevel = input.reasoningLevel
+  if (rawLevel !== undefined && rawLevel !== 'off' && !isReasoningLevel(rawLevel)) {
+    throw new APIError(400, `reasoningLevel must be one of: ${DELEGATE_REASONING_LEVELS}`)
+  }
+  const reasoningLevel = rawLevel as DelegateReasoningLevel | undefined
+  if (model && reasoningLevel === undefined) {
+    throw new APIError(
+      400,
+      `delegate with \`model\` also requires \`reasoningLevel\` (${DELEGATE_REASONING_LEVELS}); omit both to inherit the agent's model and reasoning level.`,
+    )
+  }
+  if (!model && reasoningLevel !== undefined) {
+    throw new APIError(
+      400,
+      "reasoningLevel requires `model`; omit both to inherit the agent's model and reasoning level.",
+    )
+  }
+  return model ? {model, reasoningLevel} : {}
 }
 
 /**
@@ -482,7 +526,7 @@ export function normalizeSubSessionSpec(raw: unknown): SubSessionSpec {
     ...(Array.isArray(input.tools)
       ? {tools: input.tools.filter((tool): tool is string => typeof tool === 'string')}
       : {}),
-    ...(typeof input.model === 'string' && input.model.trim() ? {model: input.model.trim()} : {}),
+    ...normalizeDelegateModelChoice(input),
   }
   if (input.output !== undefined) {
     const shapeErrors = validateJsonSchemaShape(input.output)
@@ -4273,10 +4317,10 @@ export class Service {
     // A title the parent chose is the agent naming the session; a truncated prompt is provisional
     // and the child names itself (status verb or the fallback namer) once it is running.
     const titleSource = input.title ? ('agent' as const) : ('system' as const)
-    const modelOverride =
-      typeof input.model === 'string' && input.model.trim()
-        ? this.#delegateModelOverride(accountId, agentId, input.model)
-        : undefined
+    const choice = normalizeDelegateModelChoice(input)
+    const modelOverride = choice.model
+      ? this.#delegateModelOverride(accountId, agentId, choice.model, choice.reasoningLevel!)
+      : undefined
     const session = this.#createSessionOnce(accountId, agentId, title, {
       parentSessionId,
       titleSource,
@@ -5613,7 +5657,9 @@ export class Service {
     // A requested model is resolved (and rejected) at spawn time, against this agent's own
     // enabled set, then stored as the child session's model override — the same mechanism a user's
     // quick-switch uses, so the run resolution and every client surface agree on what ran.
-    const modelOverride = spec.model ? this.#delegateModelOverride(accountId, childAgentId, spec.model) : undefined
+    const modelOverride = spec.model
+      ? this.#delegateModelOverride(accountId, childAgentId, spec.model, spec.reasoningLevel!)
+      : undefined
     const title = spec.title ?? (typeof spec.input === 'string' ? sessionTitleFromPrompt(spec.input) : 'Sub-session')
     const childRunId = crypto.randomUUID()
     const session = this.#createSessionOnce(accountId, childAgentId, title, {
@@ -5979,7 +6025,9 @@ export class Service {
     // Same contract as #spawnSubSession: a requested model resolves against this agent's enabled
     // set and becomes the child session's override. Scripts share normalizeSubSessionSpec, so
     // skipping this here silently ran ctx.delegate({model}) children on the agent's default model.
-    const modelOverride = spec.model ? this.#delegateModelOverride(accountId, childAgentId, spec.model) : undefined
+    const modelOverride = spec.model
+      ? this.#delegateModelOverride(accountId, childAgentId, spec.model, spec.reasoningLevel!)
+      : undefined
     const title = spec.title ?? (typeof spec.input === 'string' ? sessionTitleFromPrompt(spec.input) : 'Sub-session')
     const childRunId = crypto.randomUUID()
     const session = this.#createSessionOnce(accountId, childAgentId, title, {
@@ -6574,7 +6622,7 @@ export class Service {
     const modelChoicePrompt = otherModels.length
       ? `\n\nYou are running on ${activeModel}. Your user has also enabled these models for you: ${otherModels.join(
           ', ',
-        )}. When you delegate, pass \`model\` so each child runs on the model its task deserves: route simple, mechanical, or high-volume subtasks (extraction, reformatting, short summaries, routine lookups) to a cheaper/faster model, and route work that needs deep reasoning, difficult code, or careful judgment to the strongest enabled model — even when that is not the model you are running on. Judge tiers by model family and name. Omit \`model\` when the child should simply inherit its agent's configured model.`
+        )}. When you delegate, pass \`model\` so each child runs on the model its task deserves: route simple, mechanical, or high-volume subtasks (extraction, reformatting, short summaries, routine lookups) to a cheaper/faster model, and route work that needs deep reasoning, difficult code, or careful judgment to the strongest enabled model — even when that is not the model you are running on. Judge tiers by model family and name. Whenever you pass \`model\`, also pass \`reasoningLevel\` (off, minimal, low, medium, high, xhigh) — off for mechanical work, higher for hard problems. Omit both when the child should simply inherit its agent's configured model and reasoning level.`
       : ''
     const conversationMembersPrompt = await this.#conversationMembersPrompt(accountId, agentId)
     const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${modelChoicePrompt}${userActionsPrompt}${continuationPrompt}${conversationMembersPrompt}${spaceIndex}`
@@ -8188,9 +8236,19 @@ export class Service {
    * run the child: the name must resolve against that agent's enabled models, and the provider must
    * still exist for the account.
    */
-  #delegateModelOverride(accountId: string, agentId: string, requested: string): api.SessionModelOverride {
+  #delegateModelOverride(
+    accountId: string,
+    agentId: string,
+    requested: string,
+    reasoningLevel: DelegateReasoningLevel,
+  ): api.SessionModelOverride {
     const ref = resolveDelegateModelRef(this.#agentDefinition(accountId, agentId), requested)
-    const override = this.#normalizeSessionModelOverride(accountId, ref)
+    // `off` is the override's absent level: the run then sends no reasoning (or the provider
+    // default where reasoning cannot be disabled), matching what the user's quick-switch stores.
+    const override = this.#normalizeSessionModelOverride(accountId, {
+      ...ref,
+      ...(reasoningLevel === 'off' ? {} : {reasoningLevel}),
+    })
     if (!override) throw new APIError(400, `Model "${requested}" could not be resolved`)
     return override
   }
@@ -11359,7 +11417,7 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
       'Your memory lives in ~/memory/ and your tools in ~/tools/ — read and write them freely.',
       ...(definition.enabledModels?.length
         ? [
-            'Delegate children can run on any enabled model: pass `model` ("provider/model") to delegate — cheaper models for simple subtasks, stronger ones for hard reasoning.',
+            'Delegate children can run on any enabled model: pass `model` ("provider/model") together with `reasoningLevel` (off|minimal|low|medium|high|xhigh) to delegate — cheaper models with reasoning off for simple subtasks, stronger ones thinking harder for hard reasoning. Omit both to inherit your model and level.',
           ]
         : []),
       'Create, edit, enable, or disable automations with write ~/triggers/<name>; they take effect immediately. A trigger can start a thread for you, or — with continuation {kind: "tool"} or {kind: "script"} — run one of your ~/tools/ or a workflow script with no model at all, waking you only if it fails (onFailure: "thread").',
@@ -12452,6 +12510,7 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
           prompt: renderSubSessionInput(brief),
           ...(typeof input.title === 'string' ? {title: input.title} : {}),
           ...(typeof input.model === 'string' ? {model: input.model} : {}),
+          ...(input.reasoningLevel !== undefined ? {reasoningLevel: input.reasoningLevel} : {}),
         })
         return {
           summary: `Started detached child "${started.title}"; it is now running in the background.`,
