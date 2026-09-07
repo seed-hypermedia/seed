@@ -5,6 +5,7 @@ import {
   deriveDocumentType,
   documentMachine,
   DocumentMachineInput,
+  getEffectiveDocumentMetadata,
   PushDocumentInput,
   retargetQueryBlockIncludesForPublish,
   WriteDraftOutput,
@@ -42,6 +43,17 @@ const mockDocument = {
   genesis: 'bafygenesis',
   visibility: 'PUBLIC',
 } as unknown as HMDocument
+
+describe('getEffectiveDocumentMetadata', () => {
+  it('keeps freshly published metadata while applying staged edits', () => {
+    expect(
+      getEffectiveDocumentMetadata({
+        document: {...mockDocument, metadata: {name: 'Published title', summary: 'Published summary'}},
+        metadata: {summary: 'Draft summary'},
+      }),
+    ).toEqual({name: 'Published title', summary: 'Draft summary'})
+  })
+})
 
 describe('document collection helpers', () => {
   function queryWithIncludes(includes: unknown): EditorBlock {

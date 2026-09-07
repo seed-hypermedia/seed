@@ -322,7 +322,9 @@ function getMachineOwnedContentOverride(context: DocumentMachineContext): Editor
 }
 
 /** Returns the effective metadata derived from the published document and draft overlay. */
-export function getEffectiveDocumentMetadata(context: DocumentMachineContext): HMMetadata {
+export function getEffectiveDocumentMetadata(
+  context: Pick<DocumentMachineContext, 'document' | 'metadata'>,
+): HMMetadata {
   return {...(context.document?.metadata ?? {}), ...context.metadata}
 }
 

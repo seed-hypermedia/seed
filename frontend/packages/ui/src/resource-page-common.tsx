@@ -46,7 +46,11 @@ import type {
 import {findDraftForPath, isDraftPlaceholderPath, useDraftsForAccountSafe} from '@shm/shared/draft-breadcrumb-context'
 import {parseExploreQuery} from '@shm/shared/explore'
 import {useIsHomeDraftOverride} from '@shm/shared/home-draft-context'
-import type {DocumentMachineEvent, TransientResourceError} from '@shm/shared/models/document-machine'
+import {
+  getEffectiveDocumentMetadata,
+  type DocumentMachineEvent,
+  type TransientResourceError,
+} from '@shm/shared/models/document-machine'
 import {
   useAccount,
   useAccountsMetadata,
@@ -3077,10 +3081,10 @@ function EditableDocumentHeader({
   const send = useDocumentSend()
   const [summaryRequested, setSummaryRequested] = useState(false)
 
-  // Use machine context metadata if it has been changed, otherwise fall back to document metadata
-  const name = ctx.metadata?.name ?? docMetadata?.name ?? ''
-  const summary = ctx.metadata?.summary ?? docMetadata?.summary ?? ''
-  const metadata = {...(docMetadata || {}), ...ctx.metadata}
+  // Prefer the machine's freshly published document during the query-refetch gap, then apply draft edits.
+  const metadata = {...(docMetadata || {}), ...getEffectiveDocumentMetadata(ctx)}
+  const name = metadata.name ?? ''
+  const summary = metadata.summary ?? ''
 
   return (
     <DocumentHeader
