@@ -2316,6 +2316,7 @@ function DelegateRunView({
       <ParkedRunActions run={focus} serverUrl={serverUrl} accountUid={accountUid} />
       <RunTimerProgress run={focus} journal={liveState.journal} serverUrl={serverUrl} wide />
       <RunWorkHierarchy
+        serverUrl={serverUrl}
         run={focus}
         childRuns={children}
         plan={focus.plan}

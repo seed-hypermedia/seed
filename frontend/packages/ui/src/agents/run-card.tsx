@@ -314,6 +314,7 @@ function RunCardBody({
 
   const workHierarchy = (
     <RunWorkHierarchy
+      serverUrl={serverUrl}
       run={run}
       childRuns={childRuns}
       plan={plan}

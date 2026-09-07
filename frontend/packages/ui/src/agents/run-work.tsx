@@ -10,6 +10,7 @@ import {type RunInfo, type RunJournalEntryInfo, type RunPlan, type RunStatus} fr
 import {useServerNow} from './server-clock'
 import {useAgentRunTreeSubscription, useRunTree, type AgentRunTreeLiveState} from './models'
 import {SessionStatusDot} from './session-children'
+import {useOpenAgentRun} from './open-session-context'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import type {ChatToolPart} from './chat-parts'
 import {Bot, Check, ChevronDown, ChevronRight, CircleDashed, Clock3, Loader2, Minus, Workflow, X} from 'lucide-react'
@@ -271,7 +272,7 @@ function ChildRunPresence({
   errorToolPart,
   renderToolPart,
   timer,
-  onOpen,
+  onOpenSession,
 }: {
   run: RunInfo
   live: boolean
@@ -281,7 +282,7 @@ function ChildRunPresence({
   renderToolPart?: (part: ChatToolPart) => React.ReactNode
   timer?: RunTimer
   /** Opens the child's sub-session; surfaced inside the error inspector as the way deeper. */
-  onOpen?: () => void
+  onOpenSession?: () => void
 }) {
   const KindIcon = timer ? Clock3 : run.kind === 'workflow' ? Workflow : Bot
   const status = runStatusAsSessionStatus(run.status)
@@ -300,7 +301,7 @@ function ChildRunPresence({
           error={run.error}
           errorToolPart={errorToolPart}
           renderToolPart={renderToolPart}
-          onOpen={onOpen}
+          onOpen={onOpenSession}
         />
       ) : null}
     </>
@@ -316,7 +317,7 @@ function scriptErrorLine(stack: string): number | undefined {
 /**
  * A child run's failure, openable in place: truncated in the row, complete on click.
  *
- * The row it sits in is often itself a button (clicking a child row opens its sub-session), so the
+ * The row it sits in is often itself a button (clicking a child row opens its run page), so the
  * chip is a non-button trigger and every interaction inside it stops propagating — including from
  * the portaled popover content, whose React events still bubble through the component tree to the
  * row.
@@ -448,7 +449,7 @@ function CancelRunButton({run, onCancel, pending}: {run: RunInfo; onCancel: () =
 
 /**
  * One plan step, integrated with the child working it. The step IS the interactive row: when a
- * single child is attached, clicking the row opens its sub-session, its status dot and live
+ * single child is attached, clicking the row opens its run page, its status dot and live
  * activity ride along, and the child's cancel sits at the row's edge — one list, never a step row
  * with a duplicate child row stacked beneath it.
  *
@@ -466,6 +467,7 @@ export function PlanStepRow({
   renderToolPart,
   timer,
   onOpen,
+  onOpenSession,
   onCancel,
   cancelPending,
 }: {
@@ -479,7 +481,10 @@ export function PlanStepRow({
   errorToolPart?: ChatToolPart
   renderToolPart?: (part: ChatToolPart) => React.ReactNode
   timer?: RunTimer
+  /** Opens the child's run page; the whole row is the way there. */
   onOpen?: () => void
+  /** Opens the child's transcript, offered inside its error inspector. */
+  onOpenSession?: () => void
   onCancel?: () => void
   cancelPending?: boolean
 }) {
@@ -501,7 +506,7 @@ export function PlanStepRow({
           errorToolPart={errorToolPart}
           renderToolPart={renderToolPart}
           timer={timer}
-          onOpen={onOpen}
+          onOpenSession={onOpenSession}
         />
       ) : null}
     </>
@@ -537,6 +542,7 @@ export function RunChildRow({
   renderToolPart,
   timer,
   onOpen,
+  onOpenSession,
   onCancel,
   cancelPending,
 }: {
@@ -547,7 +553,10 @@ export function RunChildRow({
   errorToolPart?: ChatToolPart
   renderToolPart?: (part: ChatToolPart) => React.ReactNode
   timer?: RunTimer
+  /** Opens the run's page; the whole row is the way there. */
   onOpen?: () => void
+  /** Opens the run's transcript, offered inside its error inspector. */
+  onOpenSession?: () => void
   onCancel?: () => void
   cancelPending?: boolean
 }) {
@@ -564,7 +573,7 @@ export function RunChildRow({
         errorToolPart={errorToolPart}
         renderToolPart={renderToolPart}
         timer={timer}
-        onOpen={onOpen}
+        onOpenSession={onOpenSession}
       />
     </>
   )
@@ -594,6 +603,7 @@ const OPEN_TOOL_CALLS_LIMIT = 6
  * the chat's own tool-row UI. Every surface that shows a run's work composes this.
  */
 export function RunWorkHierarchy({
+  serverUrl,
   run,
   childRuns,
   plan,
@@ -605,6 +615,8 @@ export function RunWorkHierarchy({
   cancelPending,
   renderToolPart,
 }: {
+  /** Agent server the runs live on: where a child row's run page is. */
+  serverUrl: string
   run: RunInfo
   childRuns: RunInfo[]
   plan?: RunPlan
@@ -616,6 +628,7 @@ export function RunWorkHierarchy({
   journal: RunJournalEntryInfo[]
   liveState: AgentRunTreeLiveState
   compact?: boolean
+  /** Opens a child's transcript from inside its error inspector. The rows themselves open run pages. */
   onOpenSession?: (sessionId: string, agentId?: string) => void
   onCancelRun?: (runId: string) => void
   cancelPending?: boolean
@@ -624,6 +637,14 @@ export function RunWorkHierarchy({
 }) {
   const isTerminal = isTerminalRun(run.status)
   const settle: PlanSettle = isTerminal ? 'run-finished' : 'live'
+  const openRunFor = useOpenAgentRun()
+  // Every child row is the way to that run's own page: a script child has no transcript at all,
+  // and a delegate's transcript is one click further, from the run page. What "open" means on
+  // the hosting surface is the hook's call.
+  const openRun = (child: RunInfo) =>
+    openRunFor({runId: child.id, sessionId: child.sessionId, agentId: child.agentId, serverUrl})
+  const openSession = (child: RunInfo) =>
+    child.sessionId && onOpenSession ? () => onOpenSession(child.sessionId!, child.agentId) : undefined
 
   const {childrenByStep, unattachedChildren} = useMemo(() => {
     const byStep = new Map<string, RunInfo[]>()
@@ -676,7 +697,8 @@ export function RunWorkHierarchy({
       errorToolPart={failingToolPart(child)}
       renderToolPart={renderToolPart}
       timer={timerFor(child)}
-      onOpen={child.sessionId && onOpenSession ? () => onOpenSession(child.sessionId!, child.agentId) : undefined}
+      onOpen={openRun(child)}
+      onOpenSession={openSession(child)}
       onCancel={onCancelRun ? () => onCancelRun(child.id) : undefined}
       cancelPending={cancelPending}
     />
@@ -695,7 +717,7 @@ export function RunWorkHierarchy({
         <div className="flex min-w-0 flex-col gap-0.5">
           {(plan?.steps ?? []).flatMap((step) => {
             const attached = childrenByStep.get(step.id) ?? []
-            // One child: the step IS that child's row — clicking it opens the sub-session.
+            // One child: the step IS that child's row — clicking it opens the child's run page.
             // A BATCH (two or more): the step stops privileging any one of them. It falls back to a
             // plain grouping header and every child renders beneath it as a uniform peer, so no
             // sibling is dressed as the step while the rest hang off it.
@@ -714,11 +736,8 @@ export function RunWorkHierarchy({
                 errorToolPart={primary ? failingToolPart(primary) : undefined}
                 renderToolPart={renderToolPart}
                 timer={primary ? timerFor(primary) : undefined}
-                onOpen={
-                  primary?.sessionId && onOpenSession
-                    ? () => onOpenSession(primary.sessionId!, primary.agentId)
-                    : undefined
-                }
+                onOpen={primary ? openRun(primary) : undefined}
+                onOpenSession={primary ? openSession(primary) : undefined}
                 onCancel={primary && onCancelRun ? () => onCancelRun(primary.id) : undefined}
                 cancelPending={cancelPending}
               />,

@@ -196,6 +196,7 @@ function AgentRunPage({
 
             <section className="border-border bg-card flex flex-col gap-2 rounded-lg border p-3">
               <RunWorkHierarchy
+                serverUrl={serverUrl}
                 run={focus}
                 childRuns={children}
                 plan={focus.plan}
