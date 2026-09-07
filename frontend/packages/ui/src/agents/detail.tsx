@@ -563,8 +563,9 @@ function AgentDetailPage({
             isTriggerDetail
               ? 'max-w-4xl gap-4 pt-4 pb-4'
               : // The memory browser is a two-pane file explorer: reading width limits do not apply,
-                // so it takes the whole window.
-                `min-h-0 flex-1 gap-4 pt-4 pb-0 ${tab === 'memory' ? '' : 'max-w-4xl'}`
+                // so it takes the whole window. The side padding moves inside the header's own
+                // 4xl cap (and onto the browser) so the header's box matches the other tabs exactly.
+                `min-h-0 flex-1 gap-4 pt-4 pb-0 ${tab === 'memory' ? 'px-0' : 'max-w-4xl'}`
           }
         >
           {agent.isLoading ? (
@@ -585,7 +586,7 @@ function AgentDetailPage({
             <>
               {tab === 'memory' ? (
                 // The browser below spans the window; the header keeps the reading width of every other tab.
-                <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">{header}</div>
+                <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4">{header}</div>
               ) : (
                 header
               )}
@@ -668,16 +669,18 @@ function AgentDetailPage({
               ) : null}
 
               {tab === 'memory' ? (
-                <AgentMemoryTab
-                  serverUrl={serverUrl}
-                  accountUid={selectedAccountId ?? null}
-                  agentId={agentId}
-                  openPath={memoryPath}
-                  onOpenPathChange={(path) =>
-                    replaceRoute({key: 'agent', agentId, serverUrl, tab: 'memory', memoryPath: path})
-                  }
-                  readOnly={!canWrite}
-                />
+                <div className="flex min-h-0 flex-1 flex-col px-4">
+                  <AgentMemoryTab
+                    serverUrl={serverUrl}
+                    accountUid={selectedAccountId ?? null}
+                    agentId={agentId}
+                    openPath={memoryPath}
+                    onOpenPathChange={(path) =>
+                      replaceRoute({key: 'agent', agentId, serverUrl, tab: 'memory', memoryPath: path})
+                    }
+                    readOnly={!canWrite}
+                  />
+                </div>
               ) : null}
 
               {tab === 'tools' ? (
