@@ -746,16 +746,30 @@ SELECT
 // redirected" behavior, including for resources with no generations at all.
 var qInteractionSummary = dqb.Q(func() string {
 	return `
-WITH deleted_comments AS MATERIALIZED (
-  SELECT DISTINCT deleted_comment.extra_attrs->>'tsid' AS tsid
-  FROM resource_links deleted_link INDEXED BY resource_links_by_target
-  JOIN structural_blobs deleted_comment
-    ON deleted_comment.id = deleted_link.source
-    AND deleted_comment.type = 'Comment'
-    AND deleted_comment.extra_attrs->>'deleted' = '1'
-  LEFT JOIN public_blobs published_deleted ON published_deleted.id = deleted_comment.id
-  WHERE deleted_link.target = :target
-    AND (:publicOnly = 0 OR published_deleted.id IS NOT NULL)
+WITH comment_tsids AS MATERIALIZED (
+  SELECT DISTINCT candidate.extra_attrs->>'tsid' AS tsid
+  FROM resource_links candidate_link INDEXED BY resource_links_by_target
+  JOIN structural_blobs candidate
+    ON candidate.id = candidate_link.source AND candidate.type = 'Comment'
+  LEFT JOIN public_blobs published_candidate ON published_candidate.id = candidate.id
+  WHERE candidate_link.target = :target
+    AND (:publicOnly = 0 OR published_candidate.id IS NOT NULL)
+),
+current_comments AS MATERIALIZED (
+  SELECT
+    comment.id,
+    comment.extra_attrs->>'tsid' AS tsid,
+    comment.extra_attrs->>'deleted' AS deleted,
+    comment.author,
+    ROW_NUMBER() OVER (
+      PARTITION BY comment.extra_attrs->>'tsid'
+      ORDER BY comment.ts DESC, comment.id DESC
+    ) AS revision
+  FROM comment_tsids
+  JOIN structural_blobs comment
+    ON comment.extra_attrs->>'tsid' = comment_tsids.tsid AND comment.type = 'Comment'
+  LEFT JOIN public_blobs published_comment ON published_comment.id = comment.id
+  WHERE (:publicOnly = 0 OR published_comment.id IS NOT NULL)
 ),
 mentions AS MATERIALIZED (
   SELECT
@@ -796,18 +810,14 @@ mentions AS MATERIALIZED (
 
   SELECT
     'Comment' AS source_type,
-    comment.extra_attrs->>'tsid' AS source_id,
+    comment.tsid AS source_id,
     COALESCE(rl.extra_attrs->>'f', '') AS target_fragment,
     comment.author AS author
-  FROM resource_links rl INDEXED BY resource_links_by_target
-  JOIN structural_blobs comment ON comment.id = rl.source AND comment.type = 'Comment'
-  LEFT JOIN public_blobs published_comment ON published_comment.id = comment.id
-  WHERE rl.target = :target
-    AND (:publicOnly = 0 OR published_comment.id IS NOT NULL)
-    -- ListCitations removes every revision of a comment when a returned
-    -- revision marks that stable comment ID deleted. Do the same before
-    -- grouping, otherwise an older live revision survives the tombstone.
-    AND comment.extra_attrs->>'tsid' NOT IN (SELECT tsid FROM deleted_comments)
+  FROM current_comments comment
+  JOIN resource_links rl ON rl.source = comment.id AND rl.target = :target
+  -- Only the newest visible revision participates. This suppresses deleted
+  -- comments and edits that remove their link to the target.
+  WHERE comment.revision = 1 AND comment.deleted IS NULL
 ), fragment_counts AS (
   SELECT
     target_fragment,
