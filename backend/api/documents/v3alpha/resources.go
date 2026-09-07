@@ -227,19 +227,19 @@ func (srv *Server) ListCitations(ctx context.Context, in *documents.ListCitation
 // and authors rather than citation fan-out.
 func (srv *Server) GetInteractionSummary(ctx context.Context, in *documents.GetInteractionSummaryRequest) (*documents.InteractionSummary, error) {
 	if in.Iri == "" {
-		return nil, status.Error(codes.InvalidArgument, "must specify an IRI")
+		return nil, errutil.MissingArgument("iri")
 	}
 
 	targetURL, err := url.Parse(in.Iri)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid target IRI: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "failed to parse IRI '%s': %v", in.Iri, err)
 	}
-	if targetURL.Scheme != "hm" {
-		return nil, status.Errorf(codes.InvalidArgument, "unsupported IRI scheme %q", targetURL.Scheme)
+	if targetURL.Scheme != "hm" || targetURL.Host == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "expected hm:// resource IRI, got '%s'", in.Iri)
 	}
 	targetAccount, err := core.DecodePrincipal(targetURL.Host)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid target account: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "failed to parse account '%s': %v", targetURL.Host, err)
 	}
 	publicOnly, err := srv.isPublicOnlyFor(ctx, targetAccount, targetURL.Path)
 	if err != nil {
@@ -746,12 +746,27 @@ SELECT
 // redirected" behavior, including for resources with no generations at all.
 var qInteractionSummary = dqb.Q(func() string {
 	return `
-WITH mentions AS MATERIALIZED (
+WITH deleted_comments AS MATERIALIZED (
+  SELECT DISTINCT deleted_comment.extra_attrs->>'tsid' AS tsid
+  FROM resource_links deleted_link INDEXED BY resource_links_by_target
+  JOIN structural_blobs deleted_comment
+    ON deleted_comment.id = deleted_link.source
+    AND deleted_comment.type = 'Comment'
+    AND deleted_comment.extra_attrs->>'deleted' = '1'
+  LEFT JOIN public_blobs published_deleted ON published_deleted.id = deleted_comment.id
+  WHERE deleted_link.target = :target
+    AND (:publicOnly = 0 OR published_deleted.id IS NOT NULL)
+),
+mentions AS MATERIALIZED (
   SELECT
     'Ref' AS source_type,
     CAST(current_source.id AS TEXT) AS source_id,
     COALESCE(rl.extra_attrs->>'f', '') AS target_fragment,
-    change.author AS author
+    (SELECT current_ref.author
+     FROM structural_blobs current_ref
+     WHERE current_ref.resource = current_source.id AND current_ref.type = 'Ref'
+     ORDER BY current_ref.ts DESC, current_ref.id DESC
+     LIMIT 1) AS author
   FROM resource_links rl INDEXED BY resource_links_by_target
   JOIN structural_blobs change ON change.id = rl.source AND change.type = 'Change'
   JOIN resources current_source
@@ -792,18 +807,7 @@ WITH mentions AS MATERIALIZED (
     -- ListCitations removes every revision of a comment when a returned
     -- revision marks that stable comment ID deleted. Do the same before
     -- grouping, otherwise an older live revision survives the tombstone.
-    AND NOT EXISTS (
-      SELECT 1
-      FROM resource_links deleted_link INDEXED BY resource_links_by_target
-      JOIN structural_blobs deleted_comment
-        ON deleted_comment.id = deleted_link.source
-        AND deleted_comment.type = 'Comment'
-        AND deleted_comment.extra_attrs->>'tsid' = comment.extra_attrs->>'tsid'
-        AND deleted_comment.extra_attrs->>'deleted' = '1'
-      LEFT JOIN public_blobs published_deleted ON published_deleted.id = deleted_comment.id
-      WHERE deleted_link.target = :target
-        AND (:publicOnly = 0 OR published_deleted.id IS NOT NULL)
-    )
+    AND comment.extra_attrs->>'tsid' NOT IN (SELECT tsid FROM deleted_comments)
 ), fragment_counts AS (
   SELECT
     target_fragment,

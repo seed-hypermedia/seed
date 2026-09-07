@@ -1159,6 +1159,17 @@ func TestCommentCitations(t *testing.T) {
 		require.Equal(t, "Comment", citation.SourceType)
 		require.Equal(t, target.Version, citation.TargetVersion)
 	}
+
+	summary, err := alice.GetInteractionSummary(ctx, &pb.GetInteractionSummaryRequest{Iri: "hm://" + target.Id})
+	require.NoError(t, err)
+	require.Equal(t, int32(1), summary.CommentCount)
+	require.Equal(t, []string{alice.me.Account.PublicKey.String()}, summary.AuthorUids)
+
+	_, err = alice.DeleteComment(ctx, &pb.DeleteCommentRequest{Id: stableMention.Id, SigningKeyName: "main"})
+	require.NoError(t, err)
+	summary, err = alice.GetInteractionSummary(ctx, &pb.GetInteractionSummaryRequest{Iri: "hm://" + target.Id})
+	require.NoError(t, err)
+	require.Zero(t, summary.CommentCount, "a tombstone must suppress older revisions of the same comment")
 }
 
 func TestListCitations_TargetBlockRevisionAtMentionVersion(t *testing.T) {
