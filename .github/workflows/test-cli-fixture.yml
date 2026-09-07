@@ -48,7 +48,7 @@ jobs:
           go-version: '1.26.2'
 
       - name: Install native build dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential cmake
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake gnome-keyring libsecret-tools
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
@@ -94,7 +94,11 @@ jobs:
       # The package script boots one daemon and one web dev server for the whole
       # fixture suite, so the native stack is compiled once rather than per test.
       - name: Run CLI fixture tests
-        run: pnpm --filter @seed-hypermedia/cli test
+        run: |
+          dbus-run-session -- bash -c '
+            eval "$(printf %s ci-test-keyring | gnome-keyring-daemon --unlock)"
+            pnpm --filter @seed-hypermedia/cli test
+          '
         env:
           CGO_ENABLED: '1'
           GOFLAGS: '-tags=cpu'
