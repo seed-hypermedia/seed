@@ -36,6 +36,7 @@ import {
   mergeConsecutiveToolMessageRows,
   buildAgentSessionUrl,
   chatRowEndsInThinkingGroup,
+  sessionChildWait,
   sessionQueuedSince,
   sessionTurnStartedAt,
   chatRowHasPendingToolCall,
@@ -269,6 +270,8 @@ function AgentSessionPage({
   // A run still waiting for a worker is not thinking: the status bar says "Waiting to run" and no
   // trailing thinking line ticks for it.
   const queuedSince = useMemo(() => sessionQueuedSince(sessionRuns.data), [sessionRuns.data])
+  // A run parked on delegated children leaves the session idle, so the bar stays up to say so.
+  const childWait = useMemo(() => sessionChildWait(chatRows, sessionRuns.data), [chatRows, sessionRuns.data])
   // The newest row of a streaming session, with nothing streaming below it, is the one a trailing
   // "Thinking" line speaks for — and while it does, the status bar below would only tick twice.
   const lastChatRow = chatRows[chatRows.length - 1]
@@ -602,18 +605,21 @@ function AgentSessionPage({
                   </div>
                 ))}
                 {partialAssistantText ? <PartialAssistantRow text={partialAssistantText} /> : null}
-                {isAgentBusy &&
-                (queuedSince !== undefined ||
-                  (!thinkingLineShowing &&
-                    !(liveState.activity?.phase === 'tool' && chatRows.some(chatRowHasPendingToolCall)))) ? (
+                {(!isAgentBusy && childWait) ||
+                (isAgentBusy &&
+                  (queuedSince !== undefined ||
+                    (!thinkingLineShowing &&
+                      !(liveState.activity?.phase === 'tool' && chatRows.some(chatRowHasPendingToolCall))))) ? (
                   // Hidden while a thinking line or a pending tool row is showing its own live
-                  // status, to avoid two spinners. A queued run has no live status anywhere else.
+                  // status, to avoid two spinners. A queued run, or one parked on children, has no
+                  // live status anywhere else.
                   <AgentRunStatusBar
                     startedAt={runStartedAt}
                     serverUrl={serverUrl}
                     activity={liveState.activity}
                     usage={liveState.usage}
                     queuedSince={queuedSince}
+                    childWait={isAgentBusy ? undefined : childWait}
                   />
                 ) : null}
                 {autoScroll.showScrollButton ? (

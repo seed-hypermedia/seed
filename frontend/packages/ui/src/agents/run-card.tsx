@@ -28,13 +28,20 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
  *
  * "Waiting" alone is the least useful thing a card can say about a run that may sit for hours: the
  * question a person has is always WHY, and whether it is on them. Each wait reason answers that —
- * a budget pause and an approval need a human, a sleep does not. A run parked on its children just
- * keeps its title: the child rows below already show what is running, and a "waiting on N" line
- * would be one more spinner saying the same thing.
+ * a budget pause and an approval need a human, a sleep does not; a run parked on children names the
+ * child it is waiting for.
  */
-function parkedLabel(run: RunInfo): string | undefined {
+function parkedLabel(run: RunInfo, childRuns: RunInfo[] = []): string | undefined {
   const wait = run.wait
   if (wait?.reason === 'budget-pause') return wait.label || 'Paused: out of time budget'
+  if (wait?.reason === 'children') {
+    // The rows below show the children, but the header is what a person reads first — and a run
+    // that has waited an hour on one child must say so by name, not keep its own title.
+    const live = childRuns.filter((child) => child.parentRunId === run.id && !isTerminalRun(child.status))
+    if (live.length === 1) return `Waiting on: ${runTitle(live[0]!)}`
+    const count = Math.max(wait.pendingChildren ?? 0, live.length)
+    return count > 0 ? `Waiting on ${count} child runs` : undefined
+  }
   if (wait?.reason === 'event') {
     const until = wait.wakeAt ? ` (until ${formatWakeTime(wait.wakeAt)})` : ''
     return `${wait.label || 'Waiting for something to happen'}${until}`
@@ -309,7 +316,7 @@ function RunCardBody({
     if (isTerminal) setConfirmingCancel(false)
   }, [isTerminal])
 
-  const headerTitle = (isParked ? parkedLabel(run) : undefined) ?? cardTitle(run, plan, childRuns)
+  const headerTitle = (isParked ? parkedLabel(run, childRuns) : undefined) ?? cardTitle(run, plan, childRuns)
   const navigate = useNavigate()
 
   const workHierarchy = (

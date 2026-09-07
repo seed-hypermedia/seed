@@ -2,6 +2,8 @@ import {type AgentRunActivity, type AgentRunUsage} from './client'
 import {cn} from '@shm/ui/utils'
 import {Clock, Loader2} from 'lucide-react'
 import {useServerNow} from './server-clock'
+import type {SessionChildWait} from './agent-session-rows'
+import {useOpenAgentSession} from './open-session-context'
 
 /**
  * The one live "what is the agent doing right now" status UI, shared by the full
@@ -15,6 +17,7 @@ export function AgentRunStatusBar({
   activity,
   usage,
   queuedSince,
+  childWait,
   className,
 }: {
   /**
@@ -32,20 +35,42 @@ export function AgentRunStatusBar({
    * spinner labelled as work forms expectations the queue cannot meet.
    */
   queuedSince?: number
+  /**
+   * The delegated children the run is parked on (see `sessionChildWait`). The session reads as
+   * idle while its run waits on a child, so this is the only line that says the work is still going
+   * — and names the child, which is where the reader can watch it.
+   */
+  childWait?: SessionChildWait
   className?: string
 }) {
+  const openSession = useOpenAgentSession()
   const queued = queuedSince !== undefined
-  const countFrom = queued ? queuedSince : startedAt
+  const waitingOnChildren = !queued && childWait !== undefined
+  const countFrom = queued ? queuedSince : waitingOnChildren ? childWait.since : startedAt
   const now = useServerNow(serverUrl, countFrom !== undefined)
   const elapsed = countFrom === undefined ? undefined : Math.max(0, now - countFrom)
+  const childCount = childWait ? Math.max(childWait.pendingChildren ?? 0, childWait.children.length) : 0
+  const mode = queued ? 'queued' : waitingOnChildren ? 'children' : 'active'
   return (
     <div
       className={cn('text-muted-foreground flex items-center gap-2 py-2 text-xs', className)}
       aria-live="polite"
-      data-run-status={queued ? 'queued' : 'active'}
+      data-run-status={mode}
     >
-      {queued ? <Clock className="size-3.5 shrink-0" /> : <Loader2 className="size-3.5 shrink-0 animate-spin" />}
-      <span className="font-medium">{queued ? 'Waiting to run…' : activityLabel(activity)}</span>
+      {mode === 'active' ? (
+        <Loader2 className="size-3.5 shrink-0 animate-spin" />
+      ) : (
+        <Clock className="size-3.5 shrink-0" />
+      )}
+      <span className="font-medium">
+        {queued
+          ? 'Waiting to run…'
+          : waitingOnChildren
+            ? childCount > 1
+              ? `Waiting on ${childCount} child runs…`
+              : 'Waiting on a child run…'
+            : activityLabel(activity)}
+      </span>
       {queued ? (
         <span
           className="max-w-64 min-w-0 truncate opacity-75"
@@ -53,14 +78,34 @@ export function AgentRunStatusBar({
         >
           Queued behind other runs on this server
         </span>
+      ) : waitingOnChildren ? (
+        <span className="flex min-w-0 items-center gap-1.5 truncate">
+          {childWait.children.map((child) =>
+            child.sessionId ? (
+              <button
+                key={child.runId}
+                type="button"
+                className="hover:text-foreground min-w-0 truncate underline decoration-dotted underline-offset-2"
+                title="Open the child session"
+                onClick={(event) => openSession({sessionId: child.sessionId!, serverUrl, event})}
+              >
+                {child.title || 'Untitled child'}
+              </button>
+            ) : (
+              <span key={child.runId} className="min-w-0 truncate opacity-75">
+                {child.title || 'Untitled child'}
+              </span>
+            ),
+          )}
+        </span>
       ) : activity?.detail ? (
         <span className="max-w-64 min-w-0 truncate opacity-75">{activity.detail}</span>
       ) : null}
       <span className="ml-auto flex shrink-0 items-center gap-3 tabular-nums">
         {elapsed !== undefined ? (
-          <span aria-label={queued ? 'Time in queue' : 'Elapsed time'}>{formatElapsed(elapsed)}</span>
+          <span aria-label={mode === 'active' ? 'Elapsed time' : 'Time waiting'}>{formatElapsed(elapsed)}</span>
         ) : null}
-        {!queued && usage && usage.total > 0 ? (
+        {mode === 'active' && usage && usage.total > 0 ? (
           <span aria-label="Tokens used">{formatTokenCount(usage.total)} tokens</span>
         ) : null}
       </span>

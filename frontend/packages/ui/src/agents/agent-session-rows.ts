@@ -9,7 +9,7 @@ import {
 } from './client'
 import {type ChatBubbleMessage} from './chat-parts'
 import {isContinuationProjection, parseContinuationProjection, type ContinuationProjectionView} from './continuation'
-import {isThinkingToolPart, type ChatToolChild, type ChatToolPart} from './chat-parts'
+import {isPendingToolPart, isThinkingToolPart, type ChatToolChild, type ChatToolPart} from './chat-parts'
 import {sessionEventActor} from '@seed-hypermedia/agents-protocol'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 
@@ -241,6 +241,46 @@ export function sessionTurnStartedAt(rows: AgentSessionChatRow[], runs: RunInfo[
     }
   }
   return startedAt
+}
+
+/** What a session's current run is parked on: its delegated children, named where the log can. */
+export type SessionChildWait = {
+  /** When the run parked (its last transition), so the wait can be timed. */
+  since: number
+  /** Unresolved children the run reported, when it did. */
+  pendingChildren?: number
+  /** The pending delegations on the log, each a way into the child's own transcript. */
+  children: Array<{runId: string; sessionId?: string; title?: string}>
+}
+
+/**
+ * The delegated children the session's newest run is waiting on, or undefined when it is not
+ * parked on children. A parked parent reads as `idle` to the session status (nothing of its own is
+ * running), so without this the transcript ends in silence while a child works for an hour.
+ */
+export function sessionChildWait(
+  rows: AgentSessionChatRow[],
+  runs: RunInfo[] | undefined,
+): SessionChildWait | undefined {
+  let newest: RunInfo | undefined
+  for (const run of runs ?? []) {
+    if (TERMINAL_RUN_STATUSES.has(run.status)) continue
+    if (!newest || run.createdAt > newest.createdAt) newest = run
+  }
+  if (!newest || newest.status !== 'waiting' || newest.wait?.reason !== 'children') return undefined
+  const children: SessionChildWait['children'] = []
+  for (const row of rows) {
+    if (row.kind !== 'message') continue
+    for (const part of row.message.parts ?? []) {
+      if (part.type !== 'tool' || !part.child || !isPendingToolPart(part)) continue
+      children.push({runId: part.child.runId, sessionId: part.child.sessionId, title: part.child.title})
+    }
+  }
+  return {
+    since: newest.updatedAt,
+    ...(newest.wait.pendingChildren !== undefined ? {pendingChildren: newest.wait.pendingChildren} : {}),
+    children,
+  }
 }
 
 /**

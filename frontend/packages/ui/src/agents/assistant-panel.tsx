@@ -27,6 +27,7 @@ import {
   mergeConsecutiveToolMessageRows,
   buildAgentSessionUrl,
   chatRowEndsInThinkingGroup,
+  sessionChildWait,
   sessionQueuedSince,
   sessionTurnStartedAt,
   chatRowHasPendingToolCall,
@@ -881,6 +882,7 @@ function AssistantSessionChat({
   // "Thinking" line speaks for — and while it does, the status bar below would only tick twice.
   const lastRow = rows[rows.length - 1]
   const queuedSince = useMemo(() => sessionQueuedSince(sessionRuns.data), [sessionRuns.data])
+  const childWait = useMemo(() => sessionChildWait(rows, sessionRuns.data), [rows, sessionRuns.data])
   const liveTailRowKey = isStreaming && !live.text && queuedSince === undefined ? lastRow?.key : undefined
   const thinkingLineShowing = !!lastRow && liveTailRowKey === lastRow.key && chatRowEndsInThinkingGroup(lastRow)
   const runStartedAt = useMemo(() => sessionTurnStartedAt(rows, sessionRuns.data), [rows, sessionRuns.data])
@@ -1022,17 +1024,21 @@ function AssistantSessionChat({
             {live.text ? (
               <AssistantMessageParts parts={[{type: 'text', text: live.text}]} isStreaming={isStreaming} />
             ) : null}
-            {isStreaming &&
-            (queuedSince !== undefined ||
-              (!thinkingLineShowing && !(live.activity?.phase === 'tool' && rows.some(chatRowHasPendingToolCall)))) ? (
+            {(!isStreaming && childWait) ||
+            (isStreaming &&
+              (queuedSince !== undefined ||
+                (!thinkingLineShowing &&
+                  !(live.activity?.phase === 'tool' && rows.some(chatRowHasPendingToolCall))))) ? (
               // Hidden while a thinking line or a pending tool row is showing its own live
-              // status, to avoid two spinners. A queued run has no live status anywhere else.
+              // status, to avoid two spinners. A queued run, or one parked on children, has no
+              // live status anywhere else.
               <AgentRunStatusBar
                 startedAt={runStartedAt}
                 serverUrl={serverUrl}
                 activity={live.activity}
                 usage={live.usage}
                 queuedSince={queuedSince}
+                childWait={isStreaming ? undefined : childWait}
               />
             ) : null}
             {autoScroll.showScrollButton ? (

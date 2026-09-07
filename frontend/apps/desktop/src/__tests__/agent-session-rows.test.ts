@@ -7,6 +7,7 @@ import {
   isOptimisticUserEcho,
   mergeConsecutiveToolMessageRows,
   retryableErrorRowKey,
+  sessionChildWait,
   sessionQueuedSince,
   sessionTurnStartedAt,
 } from '@shm/ui/agents/agent-session-rows'
@@ -323,6 +324,54 @@ describe('sessionQueuedSince', () => {
     const old = {...base, id: 'run-0', status: 'succeeded', createdAt: 50, updatedAt: 60} as RunInfo
     const queued = {...base, status: 'queued', createdAt: 100, updatedAt: 100} as RunInfo
     expect(sessionQueuedSince([queued, old])).toBe(100)
+  })
+})
+
+describe('sessionChildWait', () => {
+  const base = {id: 'run-1', account: 'acct', rootRunId: 'run-1', depth: 0, kind: 'agent', origin: 'user', title: 'go'}
+  const parked = {
+    ...base,
+    status: 'waiting',
+    wait: {reason: 'children', pendingChildren: 1},
+    createdAt: 100,
+    startedAt: 110,
+    updatedAt: 500,
+  } as RunInfo
+
+  it('names the pending delegations of a run parked on its children, timed from the park', () => {
+    const rows = buildAgentSessionChatRows(
+      [
+        event(1, {type: 'message', role: 'user', content: 'go'}),
+        event(2, {type: 'tool_call', id: 'call-1', name: 'delegate', input: {title: 'Reconcile ledger'}}),
+        event(3, {
+          type: 'tool_spawn',
+          toolCallId: 'call-1',
+          runId: 'child-1',
+          sessionId: 'child-sess',
+          title: 'Reconcile ledger',
+        }),
+      ],
+      CONTEXT,
+    )
+    const wait = sessionChildWait(rows, [parked])
+    expect(wait?.since).toBe(500)
+    expect(wait?.pendingChildren).toBe(1)
+    expect(wait?.children).toEqual([{runId: 'child-1', sessionId: 'child-sess', title: 'Reconcile ledger'}])
+  })
+
+  it('is nothing for a run that is running, queued, sleeping, or done', () => {
+    for (const run of [
+      {...base, status: 'running', createdAt: 100, updatedAt: 100},
+      {...base, status: 'queued', createdAt: 100, updatedAt: 100},
+      {...base, status: 'waiting', wait: {reason: 'timer', wakeAt: 900}, createdAt: 100, updatedAt: 100},
+      {...base, status: 'succeeded', createdAt: 100, updatedAt: 100},
+    ] as RunInfo[]) {
+      expect(sessionChildWait([], [run])).toBeUndefined()
+    }
+  })
+
+  it('still reports the wait when the log has no pending delegation row to name', () => {
+    expect(sessionChildWait([], [parked])).toEqual({since: 500, pendingChildren: 1, children: []})
   })
 })
 
