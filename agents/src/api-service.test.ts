@@ -2155,6 +2155,98 @@ describe('api service', () => {
     }
   })
 
+  test('deleting a provider scrubs it from session overrides and agent model lists', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      for (const name of ['openai', 'anthropic']) {
+        await svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'SetSecret', name: `${name}-key`, value: new TextEncoder().encode('sk-test')},
+          }),
+        )
+        await svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'SetModelProvider', name, provider: {type: name, secretRefs: {apiKey: `${name}-key`}}},
+          }),
+        )
+      }
+      const createAgent = async (definition: AgentDefinition) => {
+        const created = await svc.message(
+          await apisvc.createSignedEnvelope(account, {action: {_: 'CreateAgent', definition}}),
+        )
+        if (created._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+        return created.agentId
+      }
+      // Runs on openai, with anthropic as a quick-switch alternative.
+      const switchable = await createAgent({
+        name: 'Switchable',
+        systemPrompt: 'p',
+        modelProvider: 'openai',
+        model: 'gpt-4.1',
+        enabledModels: [
+          {provider: 'openai', model: 'gpt-4.1'},
+          {provider: 'anthropic', model: 'claude-sonnet-5'},
+        ],
+      })
+      // Runs on openai with nothing to fall back to.
+      const stranded = await createAgent({
+        name: 'Stranded',
+        systemPrompt: 'p',
+        modelProvider: 'openai',
+        model: 'gpt-4.1',
+      })
+      // Runs on anthropic but a session is pinned to openai.
+      const pinned = await createAgent({
+        name: 'Pinned',
+        systemPrompt: 'p',
+        modelProvider: 'anthropic',
+        model: 'claude-sonnet-5',
+      })
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: pinned}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'UpdateSession',
+            sessionId: createdSession.sessionId,
+            modelOverride: {provider: 'openai', model: 'gpt-4.1'},
+          },
+        }),
+      )
+
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'DeleteModelProvider', name: 'openai'}}),
+      )
+
+      const getAgent = async (agentId: string) => {
+        const res = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'GetAgent', agentId}}))
+        if (res._ !== 'GetAgentResponse') throw new Error('unexpected response')
+        return res.agent.definition
+      }
+      // The switchable agent moved to its surviving quick-switch entry and dropped the dead one.
+      expect(await getAgent(switchable)).toMatchObject({
+        modelProvider: 'anthropic',
+        model: 'claude-sonnet-5',
+        enabledModels: [{provider: 'anthropic', model: 'claude-sonnet-5'}],
+      })
+      // The stranded agent keeps the dangling name for the UI to prompt on; nothing else changes.
+      expect(await getAgent(stranded)).toMatchObject({modelProvider: 'openai', model: 'gpt-4.1'})
+      // The pinned session follows its agent again.
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(session.session.modelOverride).toBeUndefined()
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
   test('lists models for a custom OpenAI-compatible provider using its configured base URL', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch

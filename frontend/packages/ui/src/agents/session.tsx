@@ -247,15 +247,14 @@ function AgentSessionPage({
   // runs, or run session tools.
   const canChat = !!agent.data && agentAccessCanChat(agent.data.agent.accessRole)
   const canWrite = !!agent.data && agentAccessCanWrite(agent.data.agent.accessRole)
-  // A provider deleted out from under the session (or its override) blocks sending until a
-  // provider that exists is chosen; the run would only fail with "Model provider not found".
+  // A provider deleted out from under the agent blocks sending until a provider that exists is
+  // chosen; the run would only fail with "Model provider not found".
   const sessionAgentId = session.data?.session.agentId ?? agentId
   const missingProvider = useMissingSessionProvider({
     serverUrl,
     accountUid: selectedAccountId,
     agentId: sessionAgentId,
     definition: agent.data?.agent.definition,
-    modelOverride: session.data?.session.modelOverride,
   })
   const isAgentStreaming = session.data?.session.status === 'streaming'
   const isAgentBusy = messageSession.isPending || isAgentStreaming

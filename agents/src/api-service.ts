@@ -2140,7 +2140,77 @@ export class Service {
       this.#db.run(`DELETE FROM secrets WHERE account_id = ? AND name = ?`, [accountId, secretName])
       this.#oauthBackends.delete(this.#oauthBackendKey(accountId, secretName))
     }
+    this.#scrubDeletedProviderReferences(accountId, name)
     return {_: 'DeleteModelProviderResponse', name}
+  }
+
+  /**
+   * A deleted provider must not linger anywhere a session or agent would still show it. Sessions
+   * pinned to it lose their override (they follow the agent again, which is what the runtime
+   * already did silently). Agents drop it from their quick-switch list, and an agent whose own
+   * pair pointed at it moves to its first surviving quick-switch entry — or keeps the dangling
+   * name, which the session UI turns into a "choose a model" gate, when nothing survives.
+   */
+  #scrubDeletedProviderReferences(accountId: string, providerName: string): void {
+    const sessionRows = this.#db
+      .query<{id: string; model_override_cbor: Uint8Array}, [string]>(
+        `SELECT id, model_override_cbor FROM sessions WHERE account_id = ? AND model_override_cbor IS NOT NULL`,
+      )
+      .all(accountId)
+    const now = Date.now()
+    const clearedSessions: string[] = []
+    for (const row of sessionRows) {
+      const override = cbor.decode<api.SessionModelOverride>(row.model_override_cbor)
+      if (override.provider !== providerName) continue
+      this.#db.run(`UPDATE sessions SET model_override_cbor = NULL, updated_at = ? WHERE account_id = ? AND id = ?`, [
+        now,
+        accountId,
+        row.id,
+      ])
+      clearedSessions.push(row.id)
+    }
+    const agentRows = this.#db
+      .query<{id: string; definition_cbor: Uint8Array}, [string]>(
+        `SELECT id, definition_cbor FROM agents WHERE account_id = ?`,
+      )
+      .all(accountId)
+    const changedAgents: string[] = []
+    for (const row of agentRows) {
+      const definition = cbor.decode<api.AgentDefinition>(row.definition_cbor)
+      const enabled = definition.enabledModels ?? []
+      const surviving = enabled.filter((entry) => entry.provider !== providerName)
+      const primaryGone = definition.modelProvider === providerName
+      if (!primaryGone && surviving.length === enabled.length) continue
+      const next: api.AgentDefinition = {...definition}
+      if (definition.enabledModels) next.enabledModels = surviving
+      if (primaryGone && surviving[0]) {
+        next.modelProvider = surviving[0].provider
+        next.model = surviving[0].model
+        const providerType = this.#db
+          .query<{type: string}, [string, string]>(`SELECT type FROM model_providers WHERE account_id = ? AND name = ?`)
+          .get(accountId, surviving[0].provider)?.type
+        const support = providerType ? modelReasoningSupport(providerType, next.model) : null
+        if (next.reasoningLevel && !support?.levels.includes(next.reasoningLevel)) delete next.reasoningLevel
+      }
+      this.#db.run(`UPDATE agents SET definition_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`, [
+        cbor.encode(next),
+        now,
+        accountId,
+        row.id,
+      ])
+      changedAgents.push(row.id)
+    }
+    for (const sessionId of clearedSessions) {
+      const session = this.#getSessionInfo(accountId, sessionId)
+      if (!session) continue
+      this.#emit({type: 'session-change', accountId, session})
+      this.#emit({type: 'account-change', accountId, reason: 'session-updated', agentId: session.agentId, sessionId})
+    }
+    for (const agentId of changedAgents) {
+      const agentInfo = this.#getAgentInfo(accountId, agentId)
+      if (agentInfo) this.#emit({type: 'agent-change', accountId, agent: agentInfo})
+      this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId})
+    }
   }
 
   // ---------------------------------------------------------------------------------------------
