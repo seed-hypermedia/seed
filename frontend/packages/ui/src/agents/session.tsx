@@ -66,6 +66,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {ArrowDown, CornerLeftUp, ExternalLink, Info, Link2, ScrollText, Trash2} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AgentHeader, AgentSubpageHeader, SessionModelBadge} from './header'
+import {writeStickyAgentSession} from './sticky-session'
 import {RunRecordCard, SessionRunCard} from './run-card'
 import {AgentRichMessageComposer, SubSessionDrivenNotice, TERMINAL_RUN_STATUSES} from './rich-message-composer'
 import {SessionProviderGate, useMissingSessionProvider} from './session-provider-gate'
@@ -307,6 +308,14 @@ function AgentSessionPage({
     setTitleDraft(persistedTitle)
     setTitleSaveState('idle')
   }, [loadedSessionId])
+
+  // This transcript is now the agent's open session: the Sessions tab brings the user back here
+  // from any other tab until the list is shown again (see sticky-session.ts). Keyed by the
+  // session's own agent, since a child session's route may carry its parent's agent id.
+  useEffect(() => {
+    if (!serverUrl || !sessionAgentId) return
+    writeStickyAgentSession(serverUrl, sessionAgentId, sessionId)
+  }, [serverUrl, sessionAgentId, sessionId])
 
   useEffect(() => {
     if (titleSaveState === 'idle') setTitleDraft(persistedTitle)

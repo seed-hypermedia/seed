@@ -134,6 +134,7 @@ import {
   type AgentAccountRenameStatus,
 } from './dialogs'
 import {AgentHeader, AgentSubpageHeader, type AgentPageTab} from './header'
+import {writeStickyAgentSession} from './sticky-session'
 import {MoveAgentDialog} from './move-agent-dialog'
 import {modelReasoningSupport, type ReasoningLevel} from '@seed-hypermedia/agents-protocol'
 import {ProviderModelSelect} from './provider-model-select'
@@ -212,6 +213,13 @@ function AgentDetailPage({
   const promptSaveIdRef = useRef(0)
   const loadedPromptKeyRef = useRef<string | null>(null)
   const startComposerRef = useRef<AgentsRichEditorSubmitHandle | null>(null)
+
+  // Showing the list is what closes the open session: back from a transcript, or Sessions clicked
+  // while already active, both land here and the tab goes back to leading to the list.
+  useEffect(() => {
+    if (tab !== 'sessions' || !serverUrl) return
+    writeStickyAgentSession(serverUrl, agentId, null)
+  }, [tab, serverUrl, agentId])
 
   useEffect(() => {
     if (!agent.data) return

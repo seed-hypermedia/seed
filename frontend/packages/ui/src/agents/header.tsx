@@ -9,6 +9,7 @@ import {
 import {modelLabel} from './model-utils'
 import {useSelectedAccountId} from './account'
 import {useNavigate} from './navigation'
+import {readStickyAgentSession} from './sticky-session'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {toast} from '@shm/ui/toast'
 import type {NavRoute} from '@shm/shared/routes'
@@ -345,6 +346,13 @@ export function AgentHeader({
 
   const activeTabLabel = tabs.find((tab) => tab.key === activeTab)?.label || 'Sessions'
   const currentAgentName = agentName ?? agent?.definition.name ?? 'Agent'
+  // From another tab, Sessions returns to the transcript that was open (see sticky-session.ts);
+  // while Sessions is already the active tab it always leads to the list.
+  const stickySessionId = agentId && activeTab !== 'sessions' ? readStickyAgentSession(serverUrl, agentId) : null
+  const tabRoute = (tab: AgentPageTab): NavRoute =>
+    tab === 'sessions' && stickySessionId
+      ? {key: 'agent-session', sessionId: stickySessionId, agentId, serverUrl}
+      : {key: 'agent', agentId: agentId!, serverUrl, tab: tab === 'sessions' ? undefined : tab}
 
   useIsomorphicLayoutEffect(() => {
     if (!containerRef.current || !measureRef.current) return
@@ -455,12 +463,7 @@ export function AgentHeader({
                 <PageTab
                   key={tab.key}
                   active={activeTab === tab.key}
-                  route={{
-                    key: 'agent',
-                    agentId,
-                    serverUrl,
-                    tab: tab.key === 'sessions' ? undefined : tab.key,
-                  }}
+                  route={tabRoute(tab.key)}
                   label={tab.label}
                   tooltip={tab.tooltip}
                   icon={tab.icon}
@@ -474,12 +477,7 @@ export function AgentHeader({
               <PageTab
                 key={tab.key}
                 active={activeTab === tab.key}
-                route={{
-                  key: 'agent',
-                  agentId,
-                  serverUrl,
-                  tab: tab.key === 'sessions' ? undefined : tab.key,
-                }}
+                route={tabRoute(tab.key)}
                 label={tab.label}
                 tooltip={tab.tooltip}
                 icon={tab.icon}
