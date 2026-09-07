@@ -7,7 +7,6 @@ import (
 	"seed/backend/core"
 	"seed/backend/ipfs"
 	"seed/backend/util/dqb"
-	"seed/backend/util/maybe"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"time"
@@ -336,14 +335,17 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 		panic("BUG: missing resource for comment target")
 	}
 
-	// Settle this comment's live version and the affected documents' activity.
+	spaceID := v.Space().String()
+
+	// Settle this comment's live version, the affected documents' activity, and
+	// the space total.
 	//
 	// Deliberately ahead of the document-generation bookkeeping below, and
 	// independent of it: that bookkeeping gives up when the comment's target
 	// changes aren't indexed yet (it can't tell which generation to credit), and
-	// nothing ever comes back to it, which is why it under-counts. These two
-	// tables are keyed by resource, so they don't need a generation and can be
-	// settled the moment the blob lands.
+	// nothing ever comes back to it, which is why it under-counts. None of these
+	// three need a generation -- they're keyed by resource or by space -- so they
+	// can be settled the moment the blob lands.
 	if err := updateCommentLive(ictx.conn, eb.TSID()); err != nil {
 		return err
 	}
@@ -352,9 +354,11 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 		return err
 	}
 
-	spaceID := v.Space().String()
+	if err := updateSpaceCommentStats(ictx.conn, spaceID); err != nil {
+		return err
+	}
 
-	// Update space comment stats.
+	// Update document generation comment stats.
 	{
 		changeIDs := make([]int64, len(v.Version))
 		for i, v := range v.Version {
@@ -415,27 +419,6 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 			}
 		}
 
-		var sm spaceCommentStats
-		if err := sm.load(ictx.conn, spaceID); err != nil {
-			return err
-		}
-
-		if !isTombstone {
-			if commentTime := v.Ts.UnixMilli(); commentTime > sm.LastCommentTime {
-				sm.LastCommentTime = commentTime
-				sm.LastComment = id
-			}
-		}
-
-		sm.CommentCount += delta
-		if sm.CommentCount < 0 {
-			sm.CommentCount = 0
-		}
-
-		if err := sm.save(ictx.conn); err != nil {
-			return err
-		}
-
 		if ictx.mustTrackUnreads {
 			if err := ensureUnread(ictx.conn, iri); err != nil {
 				return err
@@ -493,64 +476,4 @@ var qCommentTSIDPriorVersions = dqb.Str(`
 	WHERE type = 'Comment'
 	  AND extra_attrs->>'tsid' = ?1
 	  AND id != ?2;
-`)
-
-type spaceCommentStats struct {
-	shouldUpdate bool
-
-	ID              string
-	LastComment     int64
-	LastCommentTime int64
-	CommentCount    int64
-}
-
-func (sm *spaceCommentStats) load(conn *sqlite.Conn, spaceID string) (err error) {
-	sm.ID = spaceID
-
-	rows, discard, check := sqlitex.Query(conn, qLoadSpaceCommentStats(), spaceID).All()
-	defer discard(&err)
-	for row := range rows {
-		sm.shouldUpdate = true
-		row.Scan(&sm.LastComment, &sm.LastCommentTime, &sm.CommentCount)
-		break
-	}
-	if err := check(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-var qLoadSpaceCommentStats = dqb.Str(`
-	SELECT
-		last_comment,
-		last_comment_time,
-		comment_count
-	FROM spaces
-	WHERE id = :id;
-`)
-
-func (sm *spaceCommentStats) save(conn *sqlite.Conn) error {
-	var q string
-	if sm.shouldUpdate {
-		q = qUpdateSpaceCommentStats()
-	} else {
-		q = qInsertSpaceCommentStats()
-	}
-
-	return sqlitex.Exec(conn, q, nil, sm.ID, maybe.Any(sm.LastComment), sm.LastCommentTime, sm.CommentCount)
-}
-
-var qInsertSpaceCommentStats = dqb.Str(`
-	INSERT INTO spaces (id, last_comment, last_comment_time, comment_count)
-	VALUES (?1, ?2, ?3, ?4);
-`)
-
-var qUpdateSpaceCommentStats = dqb.Str(`
-	UPDATE spaces
-	SET
-		last_comment = ?2,
-		last_comment_time = ?3,
-		comment_count = ?4
-	WHERE id = ?1;
 `)

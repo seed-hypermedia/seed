@@ -240,6 +240,32 @@ func TestCommentStatsMatchLegacyAggregation(t *testing.T) {
 	require.Equal(t, want, rows(qMaintainedCommentStats),
 		"maintained comment stats diverged from the aggregation they replaced")
 
+	// The space total counts each live comment once, wherever in the space it was
+	// written -- six here: four on the moved document (two at /a, one at /b, one at
+	// /c) and two surviving on /stable. Unlike the per-document counts it does not
+	// follow redirects, because a comment belongs to exactly one space.
+	assertSpaceTotal := func(when string) {
+		t.Helper()
+
+		acc, err := alice.GetAccount(ctx, &pb.GetAccountRequest{Id: space})
+		require.NoError(t, err)
+		require.Equal(t, int32(6), acc.ActivitySummary.GetCommentCount(),
+			"space comment total is wrong %s", when)
+
+		spaceRows := func(query string) []string {
+			t.Helper()
+			conn, release, err := alice.db.ReadConn(ctx)
+			require.NoError(t, err)
+			defer release()
+			return readSpaceStatRows(t, conn, query)
+		}
+
+		require.Equal(t, spaceRows(qSpaceLiveCommentCount), spaceRows(qSpaceCommentStats),
+			"stored space stats diverged from a direct count over comment_live %s", when)
+	}
+
+	assertSpaceTotal("after incremental indexing")
+
 	// The migration that introduced these tables ships no backfill: it creates them
 	// empty and schedules a reindex, on the premise that replaying the blobs refills
 	// them. Check that premise here rather than discovering it on someone's daemon.
@@ -247,6 +273,44 @@ func TestCommentStatsMatchLegacyAggregation(t *testing.T) {
 
 	require.Equal(t, want, rows(qMaintainedCommentStats),
 		"a reindex must rebuild comment stats, since that is how the migration fills them")
+
+	assertSpaceTotal("after a reindex")
+}
+
+// The two halves of the space-total check: what is stored, and what it should be.
+// Same column shape, so they can be compared row for row.
+const qSpaceCommentStats = `
+	SELECT id, comment_count, last_comment_time, COALESCE(last_comment, 0)
+	FROM spaces ORDER BY id;
+`
+
+const qSpaceLiveCommentCount = `
+	SELECT s.id,
+	       (SELECT COUNT(*) FROM comment_live l JOIN resources r ON r.id = l.resource
+	         WHERE r.iri = 'hm://' || s.id
+	         OR (r.iri >= 'hm://' || s.id || '/' AND r.iri < 'hm://' || s.id || '0')),
+	       COALESCE((SELECT MAX(l.ts) FROM comment_live l JOIN resources r ON r.id = l.resource
+	         WHERE r.iri = 'hm://' || s.id
+	         OR (r.iri >= 'hm://' || s.id || '/' AND r.iri < 'hm://' || s.id || '0')), 0),
+	       COALESCE((SELECT l.blob_id FROM comment_live l JOIN resources r ON r.id = l.resource
+	         WHERE r.iri = 'hm://' || s.id
+	         OR (r.iri >= 'hm://' || s.id || '/' AND r.iri < 'hm://' || s.id || '0')
+	         ORDER BY l.ts DESC, l.blob_id DESC LIMIT 1), 0)
+	FROM spaces s ORDER BY s.id;
+`
+
+// readSpaceStatRows is readCommentStatRows' counterpart for the spaces table,
+// whose key is a text id rather than an integer resource.
+func readSpaceStatRows(t *testing.T, conn *sqlite.Conn, query string) []string {
+	t.Helper()
+
+	var out []string
+	require.NoError(t, sqlitex.ExecTransient(conn, strings.TrimSpace(query), func(stmt *sqlite.Stmt) error {
+		out = append(out, fmt.Sprintf("space=%s count=%d last_time=%d last_blob=%d",
+			stmt.ColumnText(0), stmt.ColumnInt64(1), stmt.ColumnInt64(2), stmt.ColumnInt64(3)))
+		return nil
+	}))
+	return out
 }
 
 // readCommentStatRows returns "resource=N count=N last_time=N last_blob=N" per row,

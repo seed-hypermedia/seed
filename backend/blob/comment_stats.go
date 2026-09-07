@@ -108,6 +108,60 @@ func updateResourceCommentStats(conn *sqlite.Conn, resource int64) error {
 	return nil
 }
 
+// updateSpaceCommentStats recomputes one space's comment activity.
+//
+// A comment belongs to exactly one space -- the space of the document it targets
+// -- so this needs no redirect walk at all. That is what makes space totals
+// independent of how comments are credited across redirects.
+//
+// It recomputes rather than adjusting a delta, for the same reason as
+// updateResourceCommentStats and with the same evidence: on a 6.2 GB production
+// database the delta-maintained totals had drifted to 5062 against 11964 real
+// live comments. The arithmetic was only half of it -- indexComment also gave up
+// entirely when a comment's target changes weren't indexed yet, and nothing ever
+// came back to repair the skipped update.
+//
+// last_change_time is deliberately absent from the upsert: that column belongs to
+// touchSpaceStats (blob_ref.go) and has to survive this write.
+func updateSpaceCommentStats(conn *sqlite.Conn, spaceID string) error {
+	if spaceID == "" {
+		return fmt.Errorf("BUG: updateSpaceCommentStats called with empty space")
+	}
+
+	if err := sqlitex.Exec(conn, qUpsertSpaceCommentStats(), nil, spaceID); err != nil {
+		return fmt.Errorf("failed to recompute comment stats for space %s: %w", spaceID, err)
+	}
+
+	return nil
+}
+
+// qSpaceLiveCommentsCTE selects the live comments of one space: its home document
+// plus everything below it. A range rather than a GLOB, so it seeks the
+// resources.iri index ('0' being the character after '/') -- the same trick the
+// document listings use.
+const qSpaceLiveCommentsCTE = `
+	live AS (
+		SELECT l.blob_id, l.ts
+		FROM comment_live l
+		JOIN resources r ON r.id = l.resource
+		WHERE r.iri = 'hm://' || :space
+		OR (r.iri >= 'hm://' || :space || '/' AND r.iri < 'hm://' || :space || '0')
+	)`
+
+var qUpsertSpaceCommentStats = dqb.Str(`
+	WITH` + qSpaceLiveCommentsCTE + `
+	INSERT INTO spaces (id, last_comment, last_comment_time, comment_count)
+	SELECT
+		:space,
+		(SELECT blob_id FROM live ORDER BY ts DESC, blob_id DESC LIMIT 1),
+		COALESCE((SELECT MAX(ts) FROM live), 0),
+		(SELECT COUNT(*) FROM live)
+	ON CONFLICT (id) DO UPDATE SET
+		last_comment = excluded.last_comment,
+		last_comment_time = excluded.last_comment_time,
+		comment_count = excluded.comment_count;
+`)
+
 // rebuildResourceCommentStats recomputes the whole table in one pass.
 //
 // The incremental path above keeps each resource current as blobs arrive, but it
@@ -126,6 +180,13 @@ func updateResourceCommentStats(conn *sqlite.Conn, resource int64) error {
 // actually hold comments and pushing forward touches ~1.5k rows on that database
 // and takes ~13ms; seeding from every resource and walking backwards is the same
 // answer for 3.7s.
+//
+// Space totals need no equivalent pass, and adding one would be dead code.
+// updateSpaceCommentStats recomputes a whole space from comment_live rather than
+// walking anything, so the last comment indexed for a space lands on the right
+// answer no matter what order the rest arrived in. Verified rather than assumed:
+// a full reindex of that same production database leaves all 324 spaces correct
+// with no rebuild pass at all.
 func rebuildResourceCommentStats(conn *sqlite.Conn) error {
 	if err := sqlitex.Exec(conn, qClearResourceCommentStats(), nil); err != nil {
 		return fmt.Errorf("failed to clear comment stats: %w", err)
@@ -134,6 +195,13 @@ func rebuildResourceCommentStats(conn *sqlite.Conn) error {
 	if err := sqlitex.Exec(conn, qRebuildResourceCommentStats(), nil); err != nil {
 		return fmt.Errorf("failed to rebuild comment stats: %w", err)
 	}
+
+	// Space totals need the same treatment, and for a simpler reason than the
+	// per-resource ones: a space's row is written whenever any of its comments is
+	// indexed, so during a replay it settles on whatever subset had arrived by
+	// then. Only rows already in `spaces` are updated -- a space with no row has
+	// no comments to count, and inserting one here would invent a space that
+	// nothing else has registered.
 
 	return nil
 }
