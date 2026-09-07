@@ -23,12 +23,10 @@ export const InteractionSummary: HMRequestImplementation<HMInteractionSummaryReq
         // behind it. That took production down on 2026-08-11; see
         // docs/daemon-saturation-incident.md.
         //
-        // Consequence: documents with more than LIST_PAGE_SIZE citations
-        // under-report their counts. That is a deliberate trade against
-        // unbounded work on a shared resource. It goes away once the daemon can
-        // report a citation count without enumerating citations, the way
-        // children_count already does for directories (see getDocumentInfo
-        // below, which does exactly that for children).
+        // This bounded page still supplies block-level detail and author IDs.
+        // The top-level document citation total comes from getDocumentInfo's
+        // index-driven aggregate below, so high-fan-out documents no longer
+        // under-report it.
         grpcClient.resources.listCitations({
           iri: id.id,
           pageSize: LIST_PAGE_SIZE,
@@ -54,8 +52,9 @@ export const InteractionSummary: HMRequestImplementation<HMInteractionSummaryReq
         version: latestDoc.version,
       })
       const childrenCount = docInfo.activitySummary?.childrenCount ?? 0
+      const citationCount = docInfo.activitySummary?.citationCount
 
-      return calculateInteractionSummary(citationsPage.citations, changes.changes, id, childrenCount)
+      return calculateInteractionSummary(citationsPage.citations, changes.changes, id, childrenCount, citationCount)
     } catch (e) {
       // If the document has been redirected, return empty summary.
       // queryResource handles following redirects, so this query will be

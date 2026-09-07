@@ -29,6 +29,26 @@ const emptySummary = {
 }
 
 describe('InteractionSummary.getData', () => {
+  it('uses the daemon citation count instead of the bounded citation page size', async () => {
+    const grpcClient = makeGrpcClient({
+      getDocumentInfo: vi.fn().mockResolvedValue({activitySummary: {childrenCount: 0, citationCount: 4321}}),
+      listCitations: vi.fn().mockResolvedValue({
+        citations: [
+          {
+            source: 'hm://z6MkCiter/source',
+            sourceType: 'Ref',
+            targetVersion: '',
+            targetFragment: '',
+            isExactVersion: false,
+          },
+        ],
+      }),
+    })
+
+    const result = await InteractionSummary.getData(grpcClient, {id: targetDocId}, dummyQueryDaemon)
+    expect(result.citations).toBe(4321)
+  })
+
   it('returns empty summary when document is marked as deleted', async () => {
     const grpcClient = makeGrpcClient({
       getDocument: vi

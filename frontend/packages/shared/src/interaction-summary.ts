@@ -104,6 +104,7 @@ export function calculateInteractionSummary(
   changes: ListDocumentChangesResponse['changes'],
   targetDocId: UnpackedHypermediaId,
   childrenCount: number = 0,
+  citationCount?: number,
 ): InteractionSummaryPayload {
   const allCitations = processResourceCitations(citations, targetDocId)
   const dedupedCitations = deduplicateCitations(allCitations)
@@ -128,7 +129,9 @@ export function calculateInteractionSummary(
   )
 
   return {
-    citations: uniqueDocSources.size, // Count distinct document sources citing this document
+    // Prefer the daemon's complete index-driven total. Falling back keeps the
+    // pure helper compatible with callers that only have a citation page.
+    citations: citationCount ?? uniqueDocSources.size,
     comments: uniqueCommentSources.size, // Count distinct comment sources
     changes: changes.length,
     children: childrenCount,
