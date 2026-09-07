@@ -94,13 +94,20 @@ func createTestDocumentChange(ctx context.Context, t *testing.T, app *App, in *a
 		return nil, err
 	}
 
+	prepareVisibility := in.Visibility
+	if existing == nil && in.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+		// Private creation is intentionally disabled in the public RPC. Prepare the
+		// content as public, then store the test fixture with a private Ref below.
+		prepareVisibility = documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC
+	}
+
 	prepared, err := app.RPC.DocumentsV3.PrepareChange(ctx, &documents.PrepareChangeRequest{
 		Account:     in.Account,
 		Path:        in.Path,
 		BaseVersion: in.BaseVersion,
 		Changes:     in.Changes,
 		Capability:  in.Capability,
-		Visibility:  in.Visibility,
+		Visibility:  prepareVisibility,
 	})
 	if err != nil {
 		return nil, err
