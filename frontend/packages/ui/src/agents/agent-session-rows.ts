@@ -9,7 +9,7 @@ import {
 } from './client'
 import {type ChatBubbleMessage} from './chat-parts'
 import {isContinuationProjection, parseContinuationProjection, type ContinuationProjectionView} from './continuation'
-import {type ChatToolChild, type ChatToolPart} from './chat-parts'
+import {isThinkingToolPart, type ChatToolChild, type ChatToolPart} from './chat-parts'
 import {sessionEventActor} from '@seed-hypermedia/agents-protocol'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 
@@ -218,6 +218,43 @@ export function interleaveRunRecords(
   return result
 }
 
+/**
+ * When the turn now running on this session began, by the server's own stamps: the newest of the
+ * live run's start and the last user message on the log. Both survive a reload, unlike a clock
+ * started the moment this client noticed the session was busy — which snapped the elapsed timer
+ * back to zero on every refresh. The newer of the two wins so that a run parked from an earlier
+ * turn (a durable timer, say) cannot stretch the current turn's timer back to its own start.
+ */
+export function sessionTurnStartedAt(rows: AgentSessionChatRow[], runs: RunInfo[] | undefined): number | undefined {
+  let startedAt: number | undefined
+  const consider = (at: number | undefined) => {
+    if (at !== undefined && (startedAt === undefined || at > startedAt)) startedAt = at
+  }
+  for (const run of runs ?? []) {
+    if (!TERMINAL_RUN_STATUSES.has(run.status)) consider(run.startedAt ?? run.createdAt)
+  }
+  for (let index = rows.length - 1; index >= 0; index--) {
+    const row = rows[index]!
+    if (row.kind === 'message' && row.message.role === 'user' && row.message.actor !== 'system') {
+      consider(row.createdAt)
+      break
+    }
+  }
+  return startedAt
+}
+
+/**
+ * Whether a row ends in a burst of thinking tool calls — the row whose "Thinking" line speaks for
+ * the live run while it is the newest thing on the transcript, so the surfaces below it can stand
+ * down their own status bar rather than tick twice.
+ */
+export function chatRowEndsInThinkingGroup(row: AgentSessionChatRow): boolean {
+  if (row.kind !== 'message') return false
+  const parts = row.message.parts
+  const last = parts?.[parts.length - 1]
+  return !!last && isThinkingToolPart(last)
+}
+
 /** A message row that is nothing but tool parts, and so can fuse with a neighboring one. */
 function isToolOnlyMessageRow(row: AgentSessionChatRow): row is Extract<AgentSessionChatRow, {kind: 'message'}> {
   if (row.kind !== 'message' || row.triggerContext) return false
@@ -419,8 +456,21 @@ export function buildAgentSessionChatRows(
   const rows: AgentSessionChatRow[] = []
   const toolRowsById = new Map<string, Extract<AgentSessionChatRow, {kind: 'message'}>>()
   let triggerCardAttached = false
+  // Where the step that produced a tool call began: the stamp of the event before it — except that
+  // calls the model issued together (one response, several tools: their call events land a few
+  // milliseconds apart with no result between) all began where the first of them did. Otherwise
+  // the deliberation lands on the first call alone and its siblings read as a few milliseconds.
+  let previousEventAt: number | undefined
+  let previousEventType: string | undefined
+  let previousStepStartedAt: number | undefined
 
   for (const event of events) {
+    const eventType = (event.event as {type?: string}).type
+    const stepStartedAt =
+      eventType === 'tool_call' && previousEventType === 'tool_call' ? previousStepStartedAt : previousEventAt
+    previousEventAt = event.createdAt
+    previousEventType = eventType
+    previousStepStartedAt = stepStartedAt
     const payload = event.event as {
       type?: string
       role?: string
@@ -513,6 +563,7 @@ export function buildAgentSessionChatRows(
         name: payload.name,
         args: isRecord(payload.input) ? payload.input : {input: payload.input},
         actor: sessionEventActor(event.event),
+        ...(stepStartedAt !== undefined ? {stepStartedAt} : {}),
         calledAt: event.createdAt,
         callSeq: event.seq,
         ...(event.truncated ? {callTruncated: true} : {}),

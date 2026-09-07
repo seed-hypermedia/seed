@@ -7,6 +7,7 @@ import {
   isOptimisticUserEcho,
   mergeConsecutiveToolMessageRows,
   retryableErrorRowKey,
+  sessionTurnStartedAt,
 } from '@shm/ui/agents/agent-session-rows'
 import {decodeAssistantSessionRef, encodeAssistantSessionRef} from '@shm/ui/agents/assistant-session-ref'
 
@@ -223,6 +224,52 @@ describe('buildAgentSessionChatRows', () => {
     const row = rows[0]!
     if (row.kind !== 'message') throw new Error('expected a message row')
     expect(row.message.shareUrl).toBeUndefined()
+  })
+})
+
+describe('buildAgentSessionChatRows step timing', () => {
+  it('stamps each call with the event before it, so a step counts the deliberation too', () => {
+    const rows = buildAgentSessionChatRows(
+      [
+        event(1, {type: 'message', role: 'user', content: 'go'}),
+        event(2, {type: 'tool_call', id: 'call-1', name: 'search', input: {}}),
+        event(3, {type: 'tool_result', toolCallId: 'call-1', name: 'search', output: {}}),
+        event(4, {type: 'tool_call', id: 'call-2', name: 'search', input: {}}),
+      ],
+      CONTEXT,
+    )
+    const parts = rows.flatMap((row) => (row.kind === 'message' ? row.message.parts ?? [] : []))
+    const calls = parts.filter((part) => part.type === 'tool')
+    expect(calls.map((part) => part.type === 'tool' && part.stepStartedAt)).toEqual([
+      1_700_000_000_001, 1_700_000_000_003,
+    ])
+  })
+
+  it('gives calls issued together the same start, so siblings do not read as milliseconds', () => {
+    const rows = buildAgentSessionChatRows(
+      [
+        event(1, {type: 'message', role: 'user', content: 'go'}),
+        event(2, {type: 'tool_call', id: 'call-1', name: 'read', input: {}}),
+        event(3, {type: 'tool_call', id: 'call-2', name: 'read', input: {}}),
+        event(4, {type: 'tool_result', toolCallId: 'call-1', name: 'read', output: {}}),
+        event(5, {type: 'tool_result', toolCallId: 'call-2', name: 'read', output: {}}),
+        event(6, {type: 'tool_call', id: 'call-3', name: 'read', input: {}}),
+      ],
+      CONTEXT,
+    )
+    const parts = rows.flatMap((row) => (row.kind === 'message' ? row.message.parts ?? [] : []))
+    expect(parts.map((part) => (part.type === 'tool' ? part.stepStartedAt : undefined))).toEqual([
+      1_700_000_000_001, 1_700_000_000_001, 1_700_000_000_005,
+    ])
+  })
+
+  it('leaves the first event of a transcript with no step start', () => {
+    const rows = buildAgentSessionChatRows(
+      [event(1, {type: 'tool_call', id: 'call-1', name: 'search', input: {}})],
+      CONTEXT,
+    )
+    const part = rows[0]!.kind === 'message' ? rows[0]!.message.parts?.[0] : undefined
+    expect(part?.type === 'tool' ? part.stepStartedAt : 'wrong').toBeUndefined()
   })
 })
 
@@ -927,5 +974,40 @@ describe('continuation rows', () => {
       args: {title: 'Plan the offsite'},
       rawOutput: {successorSessionId: 'session-2'},
     })
+  })
+})
+
+describe('sessionTurnStartedAt', () => {
+  const run = (overrides: Partial<RunInfo>): RunInfo =>
+    ({id: 'run-1', status: 'running', createdAt: 1_000, ...overrides}) as RunInfo
+  const userRows = (createdAt: number) =>
+    buildAgentSessionChatRows([{...event(1, {type: 'message', role: 'user', content: 'go'}), createdAt}], CONTEXT)
+
+  it('anchors the timer on the live run the server reported', () => {
+    expect(sessionTurnStartedAt([], [run({startedAt: 5_000})])).toBe(5_000)
+    expect(sessionTurnStartedAt([], [run({createdAt: 4_000})])).toBe(4_000)
+  })
+
+  it('falls back to the last user message on the log', () => {
+    expect(sessionTurnStartedAt(userRows(3_000), [])).toBe(3_000)
+    expect(sessionTurnStartedAt(userRows(3_000), undefined)).toBe(3_000)
+  })
+
+  it('ignores finished runs, and a parked run older than the message that started this turn', () => {
+    expect(sessionTurnStartedAt(userRows(3_000), [run({status: 'succeeded', startedAt: 9_000})])).toBe(3_000)
+    expect(sessionTurnStartedAt(userRows(3_000), [run({status: 'waiting', startedAt: 1_000})])).toBe(3_000)
+    expect(sessionTurnStartedAt(userRows(3_000), [run({startedAt: 3_500})])).toBe(3_500)
+  })
+
+  it('does not mistake a runtime-authored prompt for the user starting a turn', () => {
+    const rows = buildAgentSessionChatRows(
+      [{...event(1, {type: 'message', role: 'user', content: 'continue', actor: 'system'}), createdAt: 3_000}],
+      CONTEXT,
+    )
+    expect(sessionTurnStartedAt(rows, [])).toBeUndefined()
+  })
+
+  it('knows nothing before the server has said anything', () => {
+    expect(sessionTurnStartedAt([], [])).toBeUndefined()
   })
 })

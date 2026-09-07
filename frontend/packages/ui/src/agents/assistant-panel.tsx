@@ -26,6 +26,8 @@ import {
   interleaveRunRecords,
   mergeConsecutiveToolMessageRows,
   buildAgentSessionUrl,
+  chatRowEndsInThinkingGroup,
+  sessionTurnStartedAt,
   chatRowHasPendingToolCall,
   frozenRunIds,
   retryableErrorRowKey,
@@ -76,7 +78,7 @@ import {
 } from './continuation'
 import {OpenAgentSessionContext} from './open-session-context'
 import {agentAccessCanChat, agentAccessCanWrite} from './access'
-import {AgentRunStatusBar, useRunStartedAt} from './agent-run-status'
+import {AgentRunStatusBar} from './agent-run-status'
 import {AgentErrorRow, AssistantMessageParts, ChatMessageBubble} from './message-rendering'
 import {useChatAutoScroll} from './chat-autoscroll'
 import {
@@ -828,7 +830,6 @@ function AssistantSessionChat({
   const status = session.data?.session.status
   const isStreaming = status === 'streaming'
   const isBusy = messageSession.isPending || isStreaming
-  const runStartedAt = useRunStartedAt(isStreaming)
   // A sub-session still being driven by its parent is not the user's to message — same rule and
   // wording as the full session page.
   const parentSessionId = session.data?.session.parentSessionId
@@ -874,6 +875,12 @@ function AssistantSessionChat({
   )
   // Which runs the scroll already owns, so the pinned slot does not tell the same story twice.
   const frozenRuns = useMemo(() => frozenRunIds(rows), [rows])
+  // The newest row of a streaming session, with nothing streaming below it, is the one a trailing
+  // "Thinking" line speaks for — and while it does, the status bar below would only tick twice.
+  const lastRow = rows[rows.length - 1]
+  const liveTailRowKey = isStreaming && !live.text ? lastRow?.key : undefined
+  const thinkingLineShowing = !!lastRow && liveTailRowKey === lastRow.key && chatRowEndsInThinkingGroup(lastRow)
+  const runStartedAt = useMemo(() => sessionTurnStartedAt(rows, sessionRuns.data), [rows, sessionRuns.data])
 
   const doSendMessage = useCallback(
     (message: AgentSessionDraftMessage | AgentSessionDraftMessage[]) => {
@@ -964,6 +971,7 @@ function AssistantSessionChat({
                     key={row.key}
                     message={row.message}
                     liveActivity={chatRowHasPendingToolCall(row) ? live.activity : undefined}
+                    isLiveTail={row.key === liveTailRowKey}
                     serverUrl={serverUrl}
                     accountUid={accountUid}
                     agentId={session.data?.session.agentId}
@@ -1011,9 +1019,17 @@ function AssistantSessionChat({
             {live.text ? (
               <AssistantMessageParts parts={[{type: 'text', text: live.text}]} isStreaming={isStreaming} />
             ) : null}
-            {isStreaming && !(live.activity?.phase === 'tool' && rows.some(chatRowHasPendingToolCall)) ? (
-              // Hidden while a pending tool row is showing its own live status, to avoid two spinners.
-              <AgentRunStatusBar startedAt={runStartedAt} activity={live.activity} usage={live.usage} />
+            {isStreaming &&
+            !thinkingLineShowing &&
+            !(live.activity?.phase === 'tool' && rows.some(chatRowHasPendingToolCall)) ? (
+              // Hidden while a thinking line or a pending tool row is showing its own live
+              // status, to avoid two spinners.
+              <AgentRunStatusBar
+                startedAt={runStartedAt}
+                serverUrl={serverUrl}
+                activity={live.activity}
+                usage={live.usage}
+              />
             ) : null}
             {autoScroll.showScrollButton ? (
               <div className="pointer-events-none sticky bottom-2 flex justify-center">

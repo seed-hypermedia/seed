@@ -2,10 +2,17 @@ import {type AgentRunActivity, type RunInfo, type SessionEventMeta} from './clie
 import {eventMetaRows, type EventTimes} from './event-meta'
 import {
   buildLegacyChatMessageParts,
+  groupThinkingParts,
+  isPendingToolPart,
+  thinkingGroupCompletedAt,
+  toolDeliberationMs,
+  toolRunDurationMs,
   type ChatBubbleMessage,
   type ChatMessagePart,
   type ChatToolPart,
 } from './chat-parts'
+import {formatElapsed, formatStepDuration, formatThinkingDuration} from './agent-run-status'
+import {serverNow, useServerNow} from './server-clock'
 import {getSeedTool, type SeedToolMetadata} from '@seed-hypermedia/agents-protocol'
 import {
   detailLinkTarget,
@@ -20,7 +27,6 @@ import {
   resolveToolRowSummary,
   shortUrlLabel,
   toolCallAddress,
-  toolRowSourceChip,
   type ToolLinkTarget,
   type ToolRowSummary,
 } from './tool-summary'
@@ -47,6 +53,7 @@ import {
   Bot,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Clock3,
   Compass,
   Info,
@@ -61,7 +68,7 @@ import {
   Workflow,
   Wrench,
 } from 'lucide-react'
-import React, {Fragment, Suspense, useMemo, useState} from 'react'
+import React, {Fragment, Suspense, useMemo, useRef, useState} from 'react'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {Markdown} from './markdown'
@@ -78,6 +85,7 @@ import {
 export const ChatMessageBubble = React.memo(function ChatMessageBubble({
   message,
   liveActivity,
+  isLiveTail = false,
   serverUrl,
   accountUid,
   agentId,
@@ -85,6 +93,12 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({
   message: ChatBubbleMessage
   /** Live run activity, passed so a pending tool call row can show its in-flight progress. */
   liveActivity?: AgentRunActivity
+  /**
+   * This is the newest row of a session that is still streaming, with nothing streaming below it:
+   * a trailing burst of tool calls keeps ticking as "Thinking" even between calls, until the
+   * model's next message lands.
+   */
+  isLiveTail?: boolean
   /** Agent server URL, needed to resolve session attachment images for display. */
   serverUrl?: string
   /** Signing account for server-side record queries (delegate work views). */
@@ -139,6 +153,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({
           <AssistantMessageParts
             parts={getAssistantMessageParts(message)}
             liveActivity={liveActivity}
+            isLiveTail={isLiveTail}
             serverUrl={serverUrl}
             accountUid={accountUid}
             agentId={agentId}
@@ -294,6 +309,7 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
   parts,
   isStreaming = false,
   liveActivity,
+  isLiveTail = false,
   rawMarkdownButton,
   serverUrl,
   accountUid,
@@ -303,6 +319,8 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
   parts: ChatMessagePart[]
   isStreaming?: boolean
   liveActivity?: AgentRunActivity
+  /** See ChatMessageBubble: keeps a trailing thinking group live between tool calls. */
+  isLiveTail?: boolean
   rawMarkdownButton?: React.ReactNode
   /** Agent server the parts' tool calls ran on, for tools that link to server-side records. */
   serverUrl?: string
@@ -316,8 +334,24 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
   const rawButtonIndex = rawMarkdownButton
     ? parts.reduce((lastTextIndex, part, index) => (part.type === 'text' ? index : lastTextIndex), -1)
     : -1
+  const items = useMemo(() => groupThinkingParts(parts), [parts])
 
-  return parts.map((part, index) => {
+  return items.map((item, itemIndex) => {
+    if (item.kind === 'thinking') {
+      return (
+        <ThinkingGroup
+          key={`thinking:${item.parts[0]!.id}`}
+          parts={item.parts}
+          isLiveTail={isLiveTail && itemIndex === items.length - 1}
+          liveActivity={liveActivity}
+          serverUrl={serverUrl}
+          accountUid={accountUid}
+          agentId={agentId}
+          sessionId={sessionId}
+        />
+      )
+    }
+    const {part, index} = item
     if (part.type === 'tool' && part.name === 'continue_session') {
       // The conversation moved on from here: a transition card, not a tool row.
       return <ContinuationTransitionRow key={`${part.id}:${index}`} item={part} serverUrl={serverUrl} />
@@ -352,6 +386,117 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
     )
   })
 })
+
+/**
+ * A burst of tool calls, told as one line of thinking.
+ *
+ * While the agent is still at it the line ticks — "Thinking (0:42)" — over the most recent call,
+ * which is the only one worth watching. Once the burst is over it settles into "Thought for 2
+ * minutes" and folds every call away. The line is the toggle in both states: click to open the
+ * whole burst, click again to fold it back. A reader who opened it mid-run keeps it open when
+ * the run ends; nobody else sees the calls again unless they ask.
+ */
+function ThinkingGroup({
+  parts,
+  isLiveTail,
+  liveActivity,
+  serverUrl,
+  accountUid,
+  agentId,
+  sessionId,
+}: {
+  parts: ChatToolPart[]
+  isLiveTail: boolean
+  liveActivity?: AgentRunActivity
+  serverUrl?: string
+  accountUid?: string | null
+  agentId?: string
+  sessionId?: string
+}) {
+  const [expanded, setExpanded] = useState(false)
+  // A call still waiting on its result keeps the line live; so does being the tail of a streaming
+  // session, which covers the gap between one result and the next call.
+  const active = isLiveTail || parts.some(isPendingToolPart)
+  // Timed on the server's clock from where the first step began — the event before its call, so
+  // the deliberation that led to it counts here exactly as it counts on the row. A part with no
+  // stamp at all (a legacy transcript) is timed from when it appeared on screen.
+  const mountedAtRef = useRef(serverNow(serverUrl))
+  const startedAt = parts[0]?.stepStartedAt ?? parts[0]?.calledAt ?? mountedAtRef.current
+  const now = useServerNow(serverUrl, active)
+  const completedAt = active ? undefined : thinkingGroupCompletedAt(parts)
+  const durationMs = active
+    ? Math.max(0, now - startedAt)
+    : completedAt !== undefined
+      ? Math.max(0, completedAt - startedAt)
+      : undefined
+  const label = active
+    ? `Thinking (${formatElapsed(durationMs ?? 0)})`
+    : durationMs !== undefined
+      ? `Thought for ${formatThinkingDuration(durationMs)}`
+      : 'Finished thinking'
+  const visibleParts = expanded ? parts : active ? parts.slice(-1) : []
+  // The burst opens above the line, so an open group points up at it.
+  const Chevron = expanded ? ChevronUp : ChevronRight
+
+  // The line sits under the calls it speaks for: live, it is the newest thing on the transcript,
+  // right where the eye already is; settled, opening it grows the burst upward and the line stays put.
+  return (
+    <div className="my-1.5 mr-6" data-thinking-group={active ? 'active' : 'done'}>
+      {visibleParts.length ? (
+        <div>
+          {visibleParts.map((part, index) => {
+            // Opened, the burst tells where the time went: a divider before each batch of calls
+            // carries the deliberation that led to it, and every row carries only its own run.
+            const deliberationMs = expanded ? toolDeliberationMs(part, parts[parts.indexOf(part) - 1]) : undefined
+            return (
+              <Fragment key={part.id}>
+                {deliberationMs !== undefined && deliberationMs >= 1000 ? (
+                  <DeliberationDivider durationMs={deliberationMs} first={index === 0} />
+                ) : null}
+                <ToolCallItem
+                  item={part}
+                  liveActivity={liveActivity}
+                  serverUrl={serverUrl}
+                  accountUid={accountUid}
+                  agentId={agentId}
+                  sessionId={sessionId}
+                />
+              </Fragment>
+            )
+          })}
+        </div>
+      ) : null}
+      <button
+        type="button"
+        aria-expanded={expanded}
+        title={expanded ? 'Hide tool calls' : 'Show all tool calls'}
+        onClick={() => setExpanded((current) => !current)}
+        className="text-muted-foreground hover:text-foreground hover:bg-muted/60 my-2 flex w-full items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs select-none"
+      >
+        {active ? <Loader2 className="size-3 shrink-0 animate-spin" /> : null}
+        <span className="font-medium tabular-nums">{label}</span>
+        <Chevron className="size-3 shrink-0" />
+      </button>
+    </div>
+  )
+}
+
+/** The model's deliberation before a batch of calls, as a thin line between the rows. */
+function DeliberationDivider({durationMs, first}: {durationMs: number; first: boolean}) {
+  return (
+    <div
+      className={cn(
+        'text-muted-foreground/80 flex items-center gap-2 px-1 text-[10px] select-none',
+        first ? 'mb-1' : 'my-1',
+      )}
+      aria-label="Deliberation"
+    >
+      <span className="bg-border h-px flex-1" />
+      <span className="tabular-nums">thought for {formatStepDuration(durationMs)}</span>
+      <span className="bg-border h-px flex-1" />
+    </div>
+  )
+}
 
 /**
  * A `status` call as the transcript shows it. The description is a status line the reader is
@@ -639,14 +784,6 @@ function ToolChip({children, tone}: {children: React.ReactNode; tone?: 'error'})
  * Mono so it reads as a label rather than as more sentence, and never a link: the subject beside
  * it is the thing you click.
  */
-function ToolSourceChip({children}: {children: React.ReactNode}) {
-  return (
-    <span className="text-muted-foreground shrink-0 font-mono text-[9px] tracking-wide whitespace-nowrap opacity-80">
-      {children}
-    </span>
-  )
-}
-
 /**
  * One result link in a tool row's trailing strip. Quiet text rather than a pill: a web search
  * returns many of these, and a row of bordered chips overflowed the line while saying nothing a
@@ -2152,7 +2289,7 @@ function DelegateRunView({
     <div className="flex min-w-0 flex-col gap-2">
       {/* A delegated child can be the thing waiting on you, so it gets the same answer affordance. */}
       <ParkedRunActions run={focus} serverUrl={serverUrl} accountUid={accountUid} />
-      <RunTimerProgress run={focus} journal={liveState.journal} wide />
+      <RunTimerProgress run={focus} journal={liveState.journal} serverUrl={serverUrl} wide />
       <RunWorkHierarchy
         run={focus}
         childRuns={children}
@@ -2273,7 +2410,10 @@ export function ToolCallLine({
   const summary = getToolSummary(item)
   const links = getToolLinks(item)
   const addressSummary = resolveToolRowSummary(item)
-  const sourceChip = addressSummary?.chip ?? toolRowSourceChip(item)
+  // How long the tool itself ran, ticking on the server's clock while the call is out. The
+  // model's deliberation before the call is told separately, between batches (see ThinkingGroup).
+  const runNow = useServerNow(serverUrl, isPending)
+  const runDurationMs = toolRunDurationMs(item, runNow)
   const colorClass = item.isError
     ? 'border-destructive/30 bg-destructive/5'
     : isTimerWorkflow
@@ -2376,12 +2516,18 @@ export function ToolCallLine({
               </div>
             </>
           )}
-          {/* One quiet marker of where this came from, then the row's state, then the raw payload. */}
+          {/* The tool's own run time, then anything wrong with it, then the raw payload. */}
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
-            {sourceChip ? <ToolSourceChip>{sourceChip}</ToolSourceChip> : null}
-            {isPending ? (
-              <ToolChip>{isTimerWorkflow ? 'Scheduled' : render?.pendingLabel || 'Running'}</ToolChip>
+            {runDurationMs !== undefined ? (
+              <span
+                className="text-muted-foreground text-[10px] tabular-nums"
+                aria-label={isPending ? 'Running for' : 'Ran for'}
+                title="How long the tool ran"
+              >
+                {formatStepDuration(runDurationMs)}
+              </span>
             ) : null}
+            {isPending && isTimerWorkflow ? <ToolChip>Scheduled</ToolChip> : null}
             {item.isError ? <ToolChip tone="error">Failed</ToolChip> : null}
             {getFirstToolValue(item.rawOutput, ['dryRun']) === true ? <ToolChip>Dry run</ToolChip> : null}
             <button

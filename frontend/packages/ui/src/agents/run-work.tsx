@@ -7,6 +7,7 @@
  * injected via `renderToolPart` so this module stays import-cycle-free.
  */
 import {type RunInfo, type RunJournalEntryInfo, type RunPlan, type RunStatus} from './client'
+import {useServerNow} from './server-clock'
 import {useAgentRunTreeSubscription, useRunTree, type AgentRunTreeLiveState} from './models'
 import {SessionStatusDot} from './session-children'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
@@ -31,14 +32,18 @@ function activeRunTimer(run: RunInfo, journal: RunJournalEntryInfo[]): RunTimer 
   return {startedAt: timer?.createdAt ?? run.updatedAt, wakeAt: run.wait.wakeAt}
 }
 
-function TimerProgress({run, timer, wide = false}: {run: RunInfo; timer: RunTimer; wide?: boolean}) {
-  const [now, setNow] = useState(() => Date.now())
-
-  React.useEffect(() => {
-    setNow(Date.now())
-    const interval = setInterval(() => setNow(Date.now()), 1_000)
-    return () => clearInterval(interval)
-  }, [timer.startedAt, timer.wakeAt])
+function TimerProgress({
+  run,
+  timer,
+  serverUrl,
+  wide = false,
+}: {
+  run: RunInfo
+  timer: RunTimer
+  serverUrl?: string
+  wide?: boolean
+}) {
+  const now = useServerNow(serverUrl, true)
 
   const duration = Math.max(1, timer.wakeAt - timer.startedAt)
   const remaining = Math.max(0, timer.wakeAt - now)
@@ -82,14 +87,17 @@ function TimerProgress({run, timer, wide = false}: {run: RunInfo; timer: RunTime
 export function RunTimerProgress({
   run,
   journal,
+  serverUrl,
   wide = false,
 }: {
   run: RunInfo
   journal: RunJournalEntryInfo[]
+  /** The server whose clock the countdown counts against. */
+  serverUrl?: string
   wide?: boolean
 }) {
   const timer = useMemo(() => activeRunTimer(run, journal), [journal, run])
-  return timer ? <TimerProgress run={run} timer={timer} wide={wide} /> : null
+  return timer ? <TimerProgress run={run} timer={timer} serverUrl={serverUrl} wide={wide} /> : null
 }
 
 /** A run's title. Mandatory at creation, so the display layer never invents a label. */

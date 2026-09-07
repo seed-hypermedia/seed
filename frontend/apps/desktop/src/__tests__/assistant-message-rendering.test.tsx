@@ -2,7 +2,7 @@ import React from 'react'
 import {createRoot, Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import type {ChatMessagePart} from '@shm/ui/agents/chat-parts'
+import type {ChatMessagePart, ChatToolPart} from '@shm/ui/agents/chat-parts'
 
 /**
  * Rendering coverage for assistant/agent chat bubbles.
@@ -58,6 +58,7 @@ vi.mock('@shm/shared/utils/entity-id-url', async () => {
 
 vi.mock('@shm/ui/agents/markdown', () => ({
   Markdown: ({children}: {children: React.ReactNode}) => React.createElement('div', null, children),
+  MarkdownAssetContext: React.createContext(null),
 }))
 
 vi.mock('@shm/shared/models/entity', () => ({
@@ -85,22 +86,42 @@ vi.mock('@shm/ui/agents/models', () => ({
 }))
 
 import {AgentErrorRow, ChatMessageBubble} from '@shm/ui/agents/message-rendering'
+import {recordServerClockSample, resetServerClocks} from '@shm/ui/agents/server-clock'
 
-/** Renders one assistant bubble carrying the given tool part. */
-function renderToolPart(part: ChatMessagePart, serverUrl?: string, agentId?: string) {
+/** Renders one assistant bubble carrying the given parts. */
+function renderParts(
+  parts: ChatMessagePart[],
+  options: {serverUrl?: string; agentId?: string; isLiveTail?: boolean} = {},
+) {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
   act(() => {
     root.render(
       <ChatMessageBubble
-        message={{role: 'assistant', content: '', parts: [part]}}
-        serverUrl={serverUrl}
-        agentId={agentId}
+        message={{role: 'assistant', content: '', parts}}
+        serverUrl={options.serverUrl}
+        agentId={options.agentId}
+        isLiveTail={options.isLiveTail}
       />,
     )
   })
   return {container, root}
+}
+
+/** The "Thinking" / "Thought for" line that folds a burst of tool calls. */
+function findThinkingToggle(container: HTMLElement) {
+  return findButton(container, (element) => /^(Thinking|Thought for|Finished thinking)/.test(element.textContent ?? ''))
+}
+
+/**
+ * Renders one assistant bubble carrying the given tool part, opened: a settled tool call folds
+ * behind its "Thought" line, and these cases are about the row itself.
+ */
+function renderToolPart(part: ChatMessagePart, serverUrl?: string, agentId?: string) {
+  const rendered = renderParts([part], {serverUrl, agentId})
+  click(findThinkingToggle(rendered.container))
+  return rendered
 }
 
 /** Renders a bubble for an errored assistant message. */
@@ -277,7 +298,6 @@ describe('assistant message rendering', () => {
     // itself, so no "Read" verb in front of it.
     expect(container.textContent).not.toContain('Read')
     expect(container.textContent).toContain('Seed Notes')
-    expect(container.textContent).toContain('hm doc')
     expect(container.textContent).not.toContain('Project status and notes.')
 
     click(findButton(container, (element) => element.textContent === 'Seed Notes'))
@@ -313,7 +333,6 @@ describe('assistant message rendering', () => {
     // The linked path says what was read; no verb in front of it.
     expect(container.textContent).not.toContain('Read')
     expect(container.textContent).toContain('notes/competitors.md')
-    expect(container.textContent).toContain('memory')
     expect(container.textContent).not.toContain('Acme ships weekly.')
 
     click(findButton(container, (element) => element.textContent === 'notes/competitors.md'))
@@ -383,7 +402,6 @@ describe('assistant message rendering', () => {
     })
 
     expect(container.textContent).toContain('bun.sh/blog/bun-v1.2')
-    expect(container.textContent).toContain('web')
 
     click(findButton(container, (element) => element.textContent === 'bun.sh/blog/bun-v1.2'))
     expect(mockState.openUrl).toHaveBeenCalledWith('https://bun.sh/blog/bun-v1.2', false)
@@ -412,7 +430,6 @@ describe('assistant message rendering', () => {
     expect(container.textContent).toContain('Downloaded')
     expect(container.textContent).toContain('dl.txt')
     expect(container.textContent).toContain('from example.com/dl.txt')
-    expect(container.textContent).toContain('memory')
 
     cleanupRendered(root, container)
   })
@@ -868,5 +885,187 @@ describe('event info dialogs', () => {
     expect(document.body.textContent).not.toContain('Duration')
 
     cleanupRendered(root, container)
+  })
+})
+
+describe('thinking group', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-07T10:00:00Z'))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    resetServerClocks()
+  })
+
+  const t0 = Date.parse('2026-09-07T09:58:00Z')
+  const search = (id: string, offsetMs: number, done = true): ChatToolPart => ({
+    type: 'tool',
+    id,
+    name: 'search',
+    args: {query: id},
+    calledAt: t0 + offsetMs,
+    ...(done ? {result: `Found ${id}.`, rawOutput: {summary: `Found ${id}.`}, completedAt: t0 + offsetMs + 5_000} : {}),
+  })
+
+  it('folds a settled burst behind "Thought for", and the line opens and closes it', () => {
+    const {container, root} = renderParts([search('one', 0), search('two', 60_000), search('three', 115_000)])
+
+    expect(container.textContent).toContain('Thought for 2 minutes')
+    expect(container.textContent).not.toContain('Found one.')
+    expect(container.textContent).not.toContain('Found three.')
+
+    click(findThinkingToggle(container))
+    expect(container.textContent).toContain('Found one.')
+    expect(container.textContent).toContain('Found two.')
+    expect(container.textContent).toContain('Found three.')
+    expect(findThinkingToggle(container)?.getAttribute('aria-expanded')).toBe('true')
+    // The line stays at the bottom; opening grows the burst above it.
+    expect(container.textContent!.indexOf('Found three.')).toBeLessThan(container.textContent!.indexOf('Thought for'))
+
+    click(findThinkingToggle(container))
+    expect(container.textContent).not.toContain('Found one.')
+    expect(findThinkingToggle(container)?.getAttribute('aria-expanded')).toBe('false')
+    cleanupRendered(root, container)
+  })
+
+  it('tells where the time went: deliberation as a divider before each batch, rows with their own run', () => {
+    // 22s of thinking, then two reads issued together (5s each); 60s more thinking, then one more.
+    const {container, root} = renderParts([
+      {...search('one', 22_000), stepStartedAt: t0},
+      {...search('two', 22_100), stepStartedAt: t0},
+      {...search('three', 87_100), stepStartedAt: t0 + 27_100},
+    ])
+    expect(container.textContent).toContain('Thought for 2 minutes')
+    click(findThinkingToggle(container))
+    const dividers = Array.from(container.querySelectorAll('[aria-label="Deliberation"]')).map((el) => el.textContent)
+    expect(dividers).toEqual(['thought for 22s', 'thought for 1m 0s'])
+    const runs = Array.from(container.querySelectorAll('[aria-label="Ran for"]')).map((el) => el.textContent)
+    expect(runs).toEqual(['5s', '5s', '5s'])
+    // The divider sits above the batch it led to.
+    const text = container.textContent!
+    expect(text.indexOf('thought for 22s')).toBeLessThan(text.indexOf('Found one.'))
+    expect(text.indexOf('Found two.')).toBeLessThan(text.indexOf('thought for 1m 0s'))
+    expect(text.indexOf('thought for 1m 0s')).toBeLessThan(text.indexOf('Found three.'))
+    cleanupRendered(root, container)
+  })
+
+  it('leaves out a divider for a pause too short to matter', () => {
+    const {container, root} = renderParts([{...search('one', 400), stepStartedAt: t0}])
+    click(findThinkingToggle(container))
+    expect(container.querySelector('[aria-label="Deliberation"]')).toBeNull()
+    cleanupRendered(root, container)
+  })
+
+  it('ticks "Thinking" over only the most recent call while a call is pending', () => {
+    const {container, root} = renderParts([search('one', 0), search('two', 30_000, false)])
+
+    // Timed from the first call: two minutes ago at the mocked clock.
+    expect(container.textContent).toContain('Thinking (2:00)')
+    expect(container.textContent).not.toContain('Found one.')
+    expect(container.querySelector('[data-thinking-group="active"]')).toBeTruthy()
+    // The pending row is the one on screen, its own run time ticking, and the line sits under it.
+    expect(container.querySelector('[aria-label="Running for"]')?.textContent).toBe('1m 30s')
+    expect(container.textContent!.indexOf('1m 30s')).toBeLessThan(container.textContent!.indexOf('Thinking ('))
+
+    act(() => {
+      vi.advanceTimersByTime(3_000)
+    })
+    expect(container.textContent).toContain('Thinking (2:03)')
+
+    click(findThinkingToggle(container))
+    expect(container.textContent).toContain('Found one.')
+    cleanupRendered(root, container)
+  })
+
+  it('counts on the server clock, so skew between the machines does not show in the timer', () => {
+    // The server runs five minutes ahead of this machine; the call was stamped two server-minutes ago.
+    const serverUrl = 'http://agents.test'
+    recordServerClockSample(serverUrl, Date.now() + 5 * 60_000, 'handshake')
+    const {container, root} = renderParts([search('one', 5 * 60_000, false)], {serverUrl})
+    // Locally the call would look like it is three minutes in the future (clamped to 0:00).
+    expect(container.textContent).toContain('Thinking (2:00)')
+    cleanupRendered(root, container)
+  })
+
+  it('stays live at the tail of a streaming session even between calls', () => {
+    const {container, root} = renderParts([search('one', 0)], {isLiveTail: true})
+    expect(container.textContent).toContain('Thinking (')
+    expect(container.textContent).toContain('Found one.')
+    cleanupRendered(root, container)
+  })
+
+  it('keeps user-run verbs and status updates out of the fold', () => {
+    const {container, root} = renderParts([
+      search('one', 0),
+      {...search('mine', 10_000), actor: 'user'},
+      {type: 'tool', id: 'st', name: 'status', args: {description: 'Halfway there.'}, result: 'ok', rawOutput: {}},
+    ])
+    expect(container.textContent).toContain('Thought for')
+    expect(container.textContent).toContain('Found mine.')
+    expect(container.textContent).toContain('Halfway there.')
+    cleanupRendered(root, container)
+  })
+})
+
+describe('tool run time', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-07T10:00:00Z'))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const t0 = Date.parse('2026-09-07T09:58:00Z')
+
+  it("shows only the tool's own run on the row, from the executor's stamp when it left one", () => {
+    const {container, root} = renderToolPart({
+      type: 'tool',
+      id: 'call-1',
+      name: 'search',
+      args: {query: 'seed'},
+      result: 'Found 1.',
+      rawOutput: {summary: 'Found 1.'},
+      stepStartedAt: t0,
+      calledAt: t0 + 50_000,
+      completedAt: t0 + 65_000,
+      meta: {durationMs: 14_800},
+    })
+    expect(container.querySelector('[aria-label="Ran for"]')?.textContent).toBe('15s')
+    cleanupRendered(root, container)
+  })
+
+  it('falls back to the span between call and result', () => {
+    const {container, root} = renderToolPart({
+      type: 'tool',
+      id: 'call-1',
+      name: 'search',
+      args: {query: 'seed'},
+      result: 'Found 1.',
+      rawOutput: {summary: 'Found 1.'},
+      stepStartedAt: t0,
+      calledAt: t0 + 20_000,
+      completedAt: t0 + 20_400,
+    })
+    expect(container.querySelector('[aria-label="Ran for"]')?.textContent).toBe('0.4s')
+    cleanupRendered(root, container)
+  })
+
+  it('ticks while the call is out, and shows nothing without timing', () => {
+    const live = renderParts([
+      {type: 'tool', id: 'call-1', name: 'search', args: {query: 'seed'}, stepStartedAt: t0, calledAt: t0 + 30_000},
+    ])
+    expect(live.container.querySelector('[aria-label="Running for"]')?.textContent).toBe('1m 30s')
+    act(() => {
+      vi.advanceTimersByTime(2_000)
+    })
+    expect(live.container.querySelector('[aria-label="Running for"]')?.textContent).toBe('1m 32s')
+    expect(live.container.textContent).not.toContain('Running')
+    cleanupRendered(live.root, live.container)
+
+    const untimed = renderToolPart({type: 'tool', id: 'call-2', name: 'search', args: {}, result: 'ok', rawOutput: {}})
+    expect(untimed.container.querySelector('[aria-label="Ran for"]')).toBeNull()
+    cleanupRendered(untimed.root, untimed.container)
   })
 })
