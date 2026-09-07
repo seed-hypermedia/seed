@@ -456,8 +456,12 @@ export function buildAgentSessionChatRows(
   const rows: AgentSessionChatRow[] = []
   const toolRowsById = new Map<string, Extract<AgentSessionChatRow, {kind: 'message'}>>()
   let triggerCardAttached = false
+  // The stamp of the event before the one in hand: where the step that produced a tool call began.
+  let previousEventAt: number | undefined
 
   for (const event of events) {
+    const stepStartedAt = previousEventAt
+    previousEventAt = event.createdAt
     const payload = event.event as {
       type?: string
       role?: string
@@ -550,6 +554,7 @@ export function buildAgentSessionChatRows(
         name: payload.name,
         args: isRecord(payload.input) ? payload.input : {input: payload.input},
         actor: sessionEventActor(event.event),
+        ...(stepStartedAt !== undefined ? {stepStartedAt} : {}),
         calledAt: event.createdAt,
         callSeq: event.seq,
         ...(event.truncated ? {callTruncated: true} : {}),

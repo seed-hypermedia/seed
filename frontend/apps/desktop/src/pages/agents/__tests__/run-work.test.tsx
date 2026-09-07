@@ -209,9 +209,9 @@ describe('journaled tool rows', () => {
       />,
     )
 
-    // The workflow's own words lead, the source chip says where the work happened…
+    // The workflow's own words lead (no source chip beside them — the row's time takes that slot)…
     expect(container.textContent).toContain('Checking what we know about Acme')
-    expect(container.textContent).toContain('memory')
+    expect(container.textContent).not.toContain('memory')
     // …and the narration is itself the way into that memory file.
     const narration = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent === 'Checking what we know about Acme',

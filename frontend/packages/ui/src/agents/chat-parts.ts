@@ -46,6 +46,12 @@ export type ChatToolPart = {
    * into the child's work for its whole life, not only once its result has come back.
    */
   child?: ChatToolChild
+  /**
+   * When the agent set out on this step: the stamp of the event just before the call on the log
+   * (the previous result, or the message that started the turn). The step's time is measured
+   * from here, so it counts the model's deliberation as well as the tool's own run.
+   */
+  stepStartedAt?: number
   /** Durable timestamp of the call event — when the tool was invoked. */
   calledAt?: number
   /** Sequence of the call event, so a truncated input can be fetched whole with GetSessionEvent. */
@@ -240,4 +246,22 @@ export function thinkingGroupCompletedAt(parts: ChatToolPart[]): number | undefi
     if (completedAt !== undefined && (latest === undefined || completedAt > latest)) latest = completedAt
   }
   return latest
+}
+
+/**
+ * How long a step took, from the moment the agent set out on it (`stepStartedAt`, falling back to
+ * the call itself) to its result — or to `now` while it is still running. Undefined on a
+ * transcript with no timing to go on.
+ */
+export function toolStepDurationMs(part: ChatToolPart, now?: number): number | undefined {
+  const startedAt = part.stepStartedAt ?? part.calledAt
+  if (startedAt === undefined) return undefined
+  const endedAt = isPendingToolPart(part)
+    ? now
+    : part.completedAt ??
+      (part.calledAt !== undefined && part.meta?.durationMs !== undefined
+        ? part.calledAt + part.meta.durationMs
+        : undefined)
+  if (endedAt === undefined) return undefined
+  return Math.max(0, endedAt - startedAt)
 }

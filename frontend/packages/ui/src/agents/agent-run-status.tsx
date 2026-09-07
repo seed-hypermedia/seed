@@ -68,6 +68,16 @@ export function formatElapsed(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
+/** Formats a step's wall time compactly: "0.4s", "12s", "1m 5s", "1h 2m". */
+export function formatStepDuration(ms: number): string {
+  if (ms < 1000) return `${(ms / 1000).toFixed(1)}s`
+  const seconds = Math.round(ms / 1000)
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ${seconds % 60}s`
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+}
+
 /** Formats a settled thinking span in words ("12 seconds", "3 minutes", "1 hour 5 minutes"). */
 export function formatThinkingDuration(ms: number): string {
   const seconds = Math.round(ms / 1000)

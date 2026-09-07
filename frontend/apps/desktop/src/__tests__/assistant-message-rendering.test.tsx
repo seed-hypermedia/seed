@@ -298,7 +298,6 @@ describe('assistant message rendering', () => {
     // itself, so no "Read" verb in front of it.
     expect(container.textContent).not.toContain('Read')
     expect(container.textContent).toContain('Seed Notes')
-    expect(container.textContent).toContain('hm doc')
     expect(container.textContent).not.toContain('Project status and notes.')
 
     click(findButton(container, (element) => element.textContent === 'Seed Notes'))
@@ -334,7 +333,6 @@ describe('assistant message rendering', () => {
     // The linked path says what was read; no verb in front of it.
     expect(container.textContent).not.toContain('Read')
     expect(container.textContent).toContain('notes/competitors.md')
-    expect(container.textContent).toContain('memory')
     expect(container.textContent).not.toContain('Acme ships weekly.')
 
     click(findButton(container, (element) => element.textContent === 'notes/competitors.md'))
@@ -404,7 +402,6 @@ describe('assistant message rendering', () => {
     })
 
     expect(container.textContent).toContain('bun.sh/blog/bun-v1.2')
-    expect(container.textContent).toContain('web')
 
     click(findButton(container, (element) => element.textContent === 'bun.sh/blog/bun-v1.2'))
     expect(mockState.openUrl).toHaveBeenCalledWith('https://bun.sh/blog/bun-v1.2', false)
@@ -433,7 +430,6 @@ describe('assistant message rendering', () => {
     expect(container.textContent).toContain('Downloaded')
     expect(container.textContent).toContain('dl.txt')
     expect(container.textContent).toContain('from example.com/dl.txt')
-    expect(container.textContent).toContain('memory')
 
     cleanupRendered(root, container)
   })
@@ -941,9 +937,9 @@ describe('thinking group', () => {
     expect(container.textContent).toContain('Thinking (2:00)')
     expect(container.textContent).not.toContain('Found one.')
     expect(container.querySelector('[data-thinking-group="active"]')).toBeTruthy()
-    // The pending row is the one on screen; it says so itself, and the line sits under it.
-    expect(container.textContent).toContain('Running')
-    expect(container.textContent!.indexOf('Running')).toBeLessThan(container.textContent!.indexOf('Thinking ('))
+    // The pending row is the one on screen, its own step time ticking, and the line sits under it.
+    expect(container.querySelector('[aria-label="Time so far"]')?.textContent).toBe('1m 30s')
+    expect(container.textContent!.indexOf('1m 30s')).toBeLessThan(container.textContent!.indexOf('Thinking ('))
 
     act(() => {
       vi.advanceTimersByTime(3_000)
@@ -982,5 +978,67 @@ describe('thinking group', () => {
     expect(container.textContent).toContain('Found mine.')
     expect(container.textContent).toContain('Halfway there.')
     cleanupRendered(root, container)
+  })
+})
+
+describe('tool step time', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-07T10:00:00Z'))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const t0 = Date.parse('2026-09-07T09:58:00Z')
+
+  it('shows the whole step on the row: the deliberation before the call plus the call itself', () => {
+    const {container, root} = renderToolPart({
+      type: 'tool',
+      id: 'call-1',
+      name: 'search',
+      args: {query: 'seed'},
+      result: 'Found 1.',
+      rawOutput: {summary: 'Found 1.'},
+      stepStartedAt: t0,
+      calledAt: t0 + 50_000,
+      completedAt: t0 + 65_000,
+    })
+    expect(container.querySelector('[aria-label="Time taken"]')?.textContent).toBe('1m 5s')
+    // The source chip that used to sit there is gone.
+    expect(container.textContent).not.toContain('search results')
+    cleanupRendered(root, container)
+  })
+
+  it('falls back to the call itself when the log has no step start', () => {
+    const {container, root} = renderToolPart({
+      type: 'tool',
+      id: 'call-1',
+      name: 'search',
+      args: {query: 'seed'},
+      result: 'Found 1.',
+      rawOutput: {summary: 'Found 1.'},
+      calledAt: t0,
+      completedAt: t0 + 400,
+    })
+    expect(container.querySelector('[aria-label="Time taken"]')?.textContent).toBe('0.4s')
+    cleanupRendered(root, container)
+  })
+
+  it('ticks while the call is out, and shows nothing without timing', () => {
+    const live = renderParts([
+      {type: 'tool', id: 'call-1', name: 'search', args: {query: 'seed'}, stepStartedAt: t0, calledAt: t0 + 30_000},
+    ])
+    expect(live.container.querySelector('[aria-label="Time so far"]')?.textContent).toBe('2m 0s')
+    act(() => {
+      vi.advanceTimersByTime(2_000)
+    })
+    expect(live.container.querySelector('[aria-label="Time so far"]')?.textContent).toBe('2m 2s')
+    expect(live.container.textContent).not.toContain('Running')
+    cleanupRendered(live.root, live.container)
+
+    const untimed = renderToolPart({type: 'tool', id: 'call-2', name: 'search', args: {}, result: 'ok', rawOutput: {}})
+    expect(untimed.container.querySelector('[aria-label="Time taken"]')).toBeNull()
+    cleanupRendered(untimed.root, untimed.container)
   })
 })

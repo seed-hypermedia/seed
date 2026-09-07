@@ -227,6 +227,34 @@ describe('buildAgentSessionChatRows', () => {
   })
 })
 
+describe('buildAgentSessionChatRows step timing', () => {
+  it('stamps each call with the event before it, so a step counts the deliberation too', () => {
+    const rows = buildAgentSessionChatRows(
+      [
+        event(1, {type: 'message', role: 'user', content: 'go'}),
+        event(2, {type: 'tool_call', id: 'call-1', name: 'search', input: {}}),
+        event(3, {type: 'tool_result', toolCallId: 'call-1', name: 'search', output: {}}),
+        event(4, {type: 'tool_call', id: 'call-2', name: 'search', input: {}}),
+      ],
+      CONTEXT,
+    )
+    const parts = rows.flatMap((row) => (row.kind === 'message' ? row.message.parts ?? [] : []))
+    const calls = parts.filter((part) => part.type === 'tool')
+    expect(calls.map((part) => part.type === 'tool' && part.stepStartedAt)).toEqual([
+      1_700_000_000_001, 1_700_000_000_003,
+    ])
+  })
+
+  it('leaves the first event of a transcript with no step start', () => {
+    const rows = buildAgentSessionChatRows(
+      [event(1, {type: 'tool_call', id: 'call-1', name: 'search', input: {}})],
+      CONTEXT,
+    )
+    const part = rows[0]!.kind === 'message' ? rows[0]!.message.parts?.[0] : undefined
+    expect(part?.type === 'tool' ? part.stepStartedAt : 'wrong').toBeUndefined()
+  })
+})
+
 describe('retryableErrorRowKey', () => {
   const rows = (events: SessionEvent[]) => buildAgentSessionChatRows(events, CONTEXT)
 

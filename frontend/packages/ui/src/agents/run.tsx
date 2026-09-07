@@ -1,4 +1,5 @@
 import {useSelectedAccountId} from './account'
+import {formatStepDuration} from './agent-run-status'
 import {formatTokenCount} from './agent-run-status'
 import {type ChatToolPart} from './chat-parts'
 import {describeAgentError} from './errors'
@@ -40,14 +41,6 @@ const ORIGIN_LABELS: Record<RunInfo['origin'], string> = {
   agent: 'started by an agent',
   workflow: 'started by a script',
   system: 'started by the system',
-}
-
-function formatDuration(ms: number): string {
-  const seconds = Math.round(ms / 1000)
-  if (seconds < 60) return `${seconds}s`
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ${seconds % 60}s`
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
 }
 
 /**
@@ -102,7 +95,7 @@ function AgentRunPage({
         focus.kind === 'workflow' ? 'Script' : 'Agent run',
         ORIGIN_LABELS[focus.origin],
         formattedDateMedium(new Date(focus.createdAt)),
-        focus.startedAt && focus.finishedAt ? `ran ${formatDuration(focus.finishedAt - focus.startedAt)}` : null,
+        focus.startedAt && focus.finishedAt ? `ran ${formatStepDuration(focus.finishedAt - focus.startedAt)}` : null,
         (() => {
           const total = (focus.usage?.total ?? 0) + (focus.usage?.children?.total ?? 0)
           return total ? `${formatTokenCount(total)} tokens` : null

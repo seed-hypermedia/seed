@@ -5,11 +5,12 @@ import {
   groupThinkingParts,
   isPendingToolPart,
   thinkingGroupCompletedAt,
+  toolStepDurationMs,
   type ChatBubbleMessage,
   type ChatMessagePart,
   type ChatToolPart,
 } from './chat-parts'
-import {formatElapsed, formatThinkingDuration} from './agent-run-status'
+import {formatElapsed, formatStepDuration, formatThinkingDuration} from './agent-run-status'
 import {serverNow, useServerNow} from './server-clock'
 import {getSeedTool, type SeedToolMetadata} from '@seed-hypermedia/agents-protocol'
 import {
@@ -25,7 +26,6 @@ import {
   resolveToolRowSummary,
   shortUrlLabel,
   toolCallAddress,
-  toolRowSourceChip,
   type ToolLinkTarget,
   type ToolRowSummary,
 } from './tool-summary'
@@ -758,14 +758,6 @@ function ToolChip({children, tone}: {children: React.ReactNode; tone?: 'error'})
  * Mono so it reads as a label rather than as more sentence, and never a link: the subject beside
  * it is the thing you click.
  */
-function ToolSourceChip({children}: {children: React.ReactNode}) {
-  return (
-    <span className="text-muted-foreground shrink-0 font-mono text-[9px] tracking-wide whitespace-nowrap opacity-80">
-      {children}
-    </span>
-  )
-}
-
 /**
  * One result link in a tool row's trailing strip. Quiet text rather than a pill: a web search
  * returns many of these, and a row of bordered chips overflowed the line while saying nothing a
@@ -2392,7 +2384,10 @@ export function ToolCallLine({
   const summary = getToolSummary(item)
   const links = getToolLinks(item)
   const addressSummary = resolveToolRowSummary(item)
-  const sourceChip = addressSummary?.chip ?? toolRowSourceChip(item)
+  // The step's wall time, ticking on the server's clock while the call is out: from the moment
+  // the agent set out on it (its deliberation included) to the result.
+  const stepNow = useServerNow(serverUrl, isPending)
+  const stepDurationMs = toolStepDurationMs(item, stepNow)
   const colorClass = item.isError
     ? 'border-destructive/30 bg-destructive/5'
     : isTimerWorkflow
@@ -2495,12 +2490,22 @@ export function ToolCallLine({
               </div>
             </>
           )}
-          {/* One quiet marker of where this came from, then the row's state, then the raw payload. */}
+          {/* The step's time, then anything wrong with it, then the raw payload. */}
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
-            {sourceChip ? <ToolSourceChip>{sourceChip}</ToolSourceChip> : null}
-            {isPending ? (
-              <ToolChip>{isTimerWorkflow ? 'Scheduled' : render?.pendingLabel || 'Running'}</ToolChip>
+            {stepDurationMs !== undefined ? (
+              <span
+                className="text-muted-foreground text-[10px] tabular-nums"
+                aria-label={isPending ? 'Time so far' : 'Time taken'}
+                title={
+                  item.stepStartedAt !== undefined
+                    ? "From the previous step to this result, the model's deliberation included"
+                    : 'From the call to its result'
+                }
+              >
+                {formatStepDuration(stepDurationMs)}
+              </span>
             ) : null}
+            {isPending && isTimerWorkflow ? <ToolChip>Scheduled</ToolChip> : null}
             {item.isError ? <ToolChip tone="error">Failed</ToolChip> : null}
             {getFirstToolValue(item.rawOutput, ['dryRun']) === true ? <ToolChip>Dry run</ToolChip> : null}
             <button
