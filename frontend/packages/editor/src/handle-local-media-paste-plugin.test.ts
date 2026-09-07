@@ -1,49 +1,40 @@
-import {describe, expect, it, vi, afterEach} from 'vitest'
+import {describe, expect, it, vi} from 'vitest'
 import {
   createNodePropsFromAttachmentResult,
-  extractPastedImageSources,
-  imageSourceToFile,
+  handleLocalMediaPastePlugin,
 } from './handle-local-media-paste-plugin'
 
 describe('local media paste helpers', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('extracts pasted HTML image sources', () => {
-    const html = `
-      <p>before</p>
-      <img src="data:image/png;base64,abc" alt="pasted screenshot">
-      <img src="https://example.com/image.webp">
-    `
-
-    expect(extractPastedImageSources(html)).toEqual(['data:image/png;base64,abc', 'https://example.com/image.webp'])
-  })
-
-  it('skips Seed image block HTML that the schema parser handles', () => {
-    const html = `
-      <div data-content-type="image">
-        <img src="ipfs://already-a-block">
-      </div>
-      <p><img src="https://example.com/external.png"></p>
-    `
-
-    expect(extractPastedImageSources(html)).toEqual(['https://example.com/external.png'])
-  })
-
-  it('converts pasted HTML image sources to Files', async () => {
-    const blob = new Blob(['jpeg data'], {type: 'image/jpeg'})
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      blob: async () => blob,
-    }))
+  it('leaves rich HTML images to the editor parser without renderer fetch', () => {
+    const plugin = handleLocalMediaPastePlugin({})
+    const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
+    const getAsFile = vi.fn(() => null)
+    const event = {
+      clipboardData: {
+        getData: vi.fn((type: string) =>
+          type === 'text/html' ? '<p>before</p><img src="https://example.com/image.jpg"><p>after</p>' : '',
+        ),
+        items: [{type: 'text/html', getAsFile}],
+        files: [],
+      },
+    }
+    const view = {
+      state: {
+        selection: {
+          $anchor: {
+            parent: {type: {name: 'paragraph'}, nodeSize: 3},
+            end: () => 1,
+          },
+        },
+      },
+    }
 
-    const file = await imageSourceToFile('https://example.com/image.jpg', () => 123)
+    expect(plugin.props.handlePaste?.(view as never, event as never, undefined as never)).toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(getAsFile).toHaveBeenCalledOnce()
 
-    expect(fetchMock).toHaveBeenCalledWith('https://example.com/image.jpg')
-    expect(file.name).toBe('pasted-image-123.jpg')
-    expect(file.type).toBe('image/jpeg')
+    vi.unstubAllGlobals()
   })
 
   it('maps desktop/web document upload results to IPFS node props', () => {

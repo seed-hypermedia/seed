@@ -28,7 +28,7 @@ export const LocalMediaPastePlugin = Extension.create({
   },
 })
 
-const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
+export const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
   new Plugin({
     key: new PluginKey('pm-local-media-paste'),
     props: {
@@ -69,14 +69,6 @@ const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
           }
         }
 
-        const html = event.clipboardData?.getData('text/html') || ''
-        const htmlImageSources = extractPastedImageSources(html)
-        const firstHtmlImageSource = htmlImageSources[0]
-        if (firstHtmlImageSource) {
-          processImageSource(firstHtmlImageSource, view, insertPos, blockNoteEditor)
-          return true
-        }
-
         // Check for video and other file types
         for (const item of items) {
           if (item.type.startsWith('video/')) {
@@ -109,65 +101,6 @@ const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
       },
     },
   })
-
-/** Extract image URLs from pasted HTML, skipping Seed image blocks that the schema parser handles. */
-export function extractPastedImageSources(html: string): string[] {
-  if (!html) return []
-
-  const tempEl = document.createElement('div')
-  tempEl.innerHTML = html
-
-  return (
-    Array.from(tempEl.querySelectorAll('img[src]'))
-      // Skip images inside Seed image blocks and images inside tables.
-      .filter((imgEl) => !imgEl.closest('[data-content-type="image"]') && !imgEl.closest('table'))
-      .map((imgEl) => imgEl.getAttribute('src') || '')
-      .filter(Boolean)
-  )
-}
-
-/** Convert an image URL from pasted HTML into a File that can use the normal media insertion path. */
-export async function imageSourceToFile(src: string, now: () => number = Date.now): Promise<File> {
-  const response = await fetch(src)
-  if (!response.ok) {
-    throw new Error(`Image fetch failed with status ${response.status}`)
-  }
-  const blob = await response.blob()
-  const type = blob.type || 'image/png'
-  return new File([blob], `pasted-image-${now()}.${extensionForImageType(type)}`, {
-    type,
-  })
-}
-
-function extensionForImageType(type: string): string {
-  switch (type) {
-    case 'image/jpeg':
-    case 'image/jpg':
-      return 'jpg'
-    case 'image/gif':
-      return 'gif'
-    case 'image/webp':
-      return 'webp'
-    case 'image/svg+xml':
-      return 'svg'
-    case 'image/bmp':
-      return 'bmp'
-    case 'image/avif':
-      return 'avif'
-    default:
-      return 'png'
-  }
-}
-
-function processImageSource(src: string, view: any, insertPos: number, blockNoteEditor: any) {
-  imageSourceToFile(src)
-    .then((file) => {
-      processMedia(file, view, insertPos, blockNoteEditor, 'image')
-    })
-    .catch((error) => {
-      console.error('Error processing pasted HTML image:', error)
-    })
-}
 
 function processMedia(file: File, view: any, insertPos: number, blockNoteEditor: any, mediaType: LocalMediaType) {
   // Check if we're in a comment editor in the web app
