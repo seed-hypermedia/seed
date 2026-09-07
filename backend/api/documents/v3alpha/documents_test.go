@@ -1294,7 +1294,7 @@ func TestListDirectoryChildrenCount(t *testing.T) {
 func TestDocumentInfoCitationCount(t *testing.T) {
 	t.Parallel()
 
-	alice := newTestDocsAPI(t, "alice")
+	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{PublicOnly: true})
 	ctx := context.Background()
 	account := alice.me.Account.PublicKey.String()
 
@@ -1340,10 +1340,30 @@ func TestDocumentInfoCitationCount(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/private-source",
+		Visibility:     documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "private-link"}}},
+			{Op: &documents.DocumentChange_ReplaceBlock{ReplaceBlock: &documents.Block{Id: "private-link", Type: "paragraph", Text: "Private link", Link: targetIRI}}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Public-only anonymous reads must not reveal that a private document cites
+	// this target, matching ListCitations' public_blobs filter.
 	got, err := alice.GetDocumentInfo(ctx, &documents.GetDocumentInfoRequest{Account: account, Path: "/target"})
 	require.NoError(t, err)
 	require.Equal(t, int32(2), got.ActivitySummary.CitationCount)
 	require.Equal(t, target.Version, got.Version)
+
+	// The target account owner may read private citations on a public-only node.
+	ownerCtx := blob.WithAuthenticatedCaller(ctx, alice.me.Account.Principal())
+	got, err = alice.GetDocumentInfo(ownerCtx, &documents.GetDocumentInfoRequest{Account: account, Path: "/target"})
+	require.NoError(t, err)
+	require.Equal(t, int32(3), got.ActivitySummary.CitationCount)
 
 	// Moving a citing document must preserve its identity rather than counting
 	// both the historical and current paths.
