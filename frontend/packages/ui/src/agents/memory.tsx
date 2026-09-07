@@ -35,9 +35,10 @@ import {
   Upload,
   UploadCloud,
 } from 'lucide-react'
-import {useEffect, useMemo, useRef, useState} from 'react'
+import {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
 import {useMedia} from '@shm/ui/use-media'
+import {readAgentMemoryTabState, writeAgentMemoryTabState} from './memory-tab-state'
 
 /** Files above this size skip the inline preview fetch — pulling hundreds of MB stalls the UI. */
 const MAX_MEMORY_PREVIEW_BYTES = 32 * 1024 * 1024
@@ -72,8 +73,12 @@ export function AgentMemoryTab({
   // divider drags, with the split remembered per browser (PanelGroup autoSaveId → localStorage).
   const media = useMedia()
   const stacked = media.xs
+  // Where the user left this browser last time (memory-tab-state.ts): the tab unmounts on every
+  // tab switch, so the open file, expanded folders, and scroll offsets are picked up from here.
+  // A file named in the route (openPath) takes precedence over the remembered selection.
+  const [restored] = useState(() => readAgentMemoryTabState(serverUrl, agentId))
   /** Directories currently expanded in the tree; everything starts collapsed. */
-  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => new Set())
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => new Set(restored?.expandedDirs ?? []))
   // The tree loads one directory level per query — the root plus each expanded directory — so a
   // huge memory never needs a full recursive walk. Levels refresh over the WebSocket: every memory
   // mutation invalidates these queries, so there is no polling.
@@ -109,7 +114,9 @@ export function AgentMemoryTab({
   const deleteFile = useDeleteAgentMemoryFile(serverUrl, accountUid)
   const downloadFromWeb = useDownloadAgentMemoryFile(serverUrl, accountUid)
   const uploadToIpfs = useUploadAgentMemoryFileToIpfs(serverUrl, accountUid)
-  const [selectedPath, setSelectedPath] = useState<string | null>(null)
+  const [selectedPath, setSelectedPath] = useState<string | null>(() =>
+    openPath ? null : restored?.selectedPath ?? null,
+  )
   const [draftText, setDraftText] = useState<string | null>(null)
   const [newFilePath, setNewFilePath] = useState('')
   const [addPanel, setAddPanel] = useState<'none' | 'new-file' | 'from-url'>('none')
@@ -136,6 +143,61 @@ export function AgentMemoryTab({
 
   const totals = rootQuery?.data?.totals
   const memoryInfoDialog = useAppDialog(MemoryInfoDialog)
+
+  // Scroll offsets live in refs (a scroll is not a render) and are written with the rest of the
+  // state: on every selection/expansion change, shortly after each scroll, and on unmount.
+  const treeScrollRef = useRef<HTMLDivElement>(null)
+  const fileScrollRef = useRef<HTMLTextAreaElement>(null)
+  const scrollTopsRef = useRef({tree: restored?.treeScrollTop ?? 0, file: restored?.fileScrollTop ?? 0})
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const latestRef = useRef({selectedPath, expandedDirs})
+  latestRef.current = {selectedPath, expandedDirs}
+  function persistTabState() {
+    writeAgentMemoryTabState(serverUrl, agentId, {
+      selectedPath: latestRef.current.selectedPath,
+      expandedDirs: Array.from(latestRef.current.expandedDirs),
+      treeScrollTop: scrollTopsRef.current.tree,
+      fileScrollTop: scrollTopsRef.current.file,
+    })
+  }
+  function persistTabStateSoon() {
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current)
+    persistTimerRef.current = setTimeout(persistTabState, 250)
+  }
+  useEffect(() => {
+    persistTabState()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- persist reads the latest state via refs
+  }, [serverUrl, agentId, selectedPath, expandedDirs])
+  useEffect(
+    () => () => {
+      if (persistTimerRef.current) clearTimeout(persistTimerRef.current)
+      persistTabState()
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- unmount only
+    [],
+  )
+  // The remembered selection should also be the route's, so the URL stays copyable and a later
+  // listing refresh treats it like any opened file (see the openPath effect below).
+  useEffect(() => {
+    if (!openPath && restored?.selectedPath) onOpenPathChange?.(restored.selectedPath)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
+  }, [])
+  // Restore the tree scroll once every remembered folder has loaded: earlier, the tree is shorter
+  // than the offset and the browser would clamp it.
+  const treeScrollRestoredRef = useRef(!restored)
+  useLayoutEffect(() => {
+    if (treeScrollRestoredRef.current || !rootQuery?.data || loadingDirs.size) return
+    treeScrollRestoredRef.current = true
+    if (treeScrollRef.current) treeScrollRef.current.scrollTop = scrollTopsRef.current.tree
+  }, [rootQuery?.data, loadingDirs])
+  // Same for the file: once its text is in the textarea. Only the remembered file gets the offset;
+  // a different selection starts at the top.
+  const fileScrollRestoredRef = useRef(!restored?.selectedPath)
+  useLayoutEffect(() => {
+    if (fileScrollRestoredRef.current || !file.data || selectedPath !== restored?.selectedPath) return
+    fileScrollRestoredRef.current = true
+    if (fileScrollRef.current) fileScrollRef.current.scrollTop = scrollTopsRef.current.file
+  }, [file.data, selectedPath, restored?.selectedPath])
   const visibleEntries = entries.filter((entry) => isPathVisible(entry.path, expandedDirs))
 
   // Drop the selection when the selected file disappears from its directory's listing (e.g. the
@@ -151,6 +213,10 @@ export function AgentMemoryTab({
   }, [loadedLevels, selectedPath])
 
   function selectFile(path: string) {
+    if (path !== selectedPath) {
+      scrollTopsRef.current.file = 0
+      fileScrollRestoredRef.current = true
+    }
     setSelectedPath(path)
     setDraftText(null)
     setConfirmDeletePath(null)
@@ -317,6 +383,11 @@ export function AgentMemoryTab({
 
   const treePane = (
     <div
+      ref={treeScrollRef}
+      onScroll={(event) => {
+        scrollTopsRef.current.tree = event.currentTarget.scrollTop
+        persistTabStateSoon()
+      }}
       className={`flex h-full min-h-0 w-full flex-col overflow-y-auto p-2 ${
         dropTarget === '' ? 'ring-primary/50 ring-2 ring-inset' : ''
       }`}
@@ -508,6 +579,11 @@ export function AgentMemoryTab({
           ) : null}
           {file.data.encoding === 'utf8' ? (
             <textarea
+              ref={fileScrollRef}
+              onScroll={(event) => {
+                scrollTopsRef.current.file = event.currentTarget.scrollTop
+                persistTabStateSoon()
+              }}
               aria-label={`Memory file ${selectedPath}`}
               className="focus:ring-primary/25 min-h-0 flex-1 resize-none bg-transparent p-3 font-mono text-sm outline-none focus:ring-2"
               value={draftText ?? file.data.content ?? ''}
