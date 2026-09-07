@@ -40,7 +40,7 @@ import {
   Wrench,
 } from 'lucide-react'
 import {useSigningIdentities} from './models'
-import {HMIcon} from '@shm/ui/hm-icon'
+import {SigningIdentityIcon} from './signing-identity-icon'
 import {useRouteLink} from '@shm/shared/routing'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Fragment, type ReactNode, useEffect, useMemo, useRef, useState} from 'react'
@@ -260,7 +260,7 @@ function AgentIdentityChip({
           title={`Signs as ${displayName}`}
           className="border-border hover:bg-muted/60 flex max-w-56 min-w-0 flex-none items-center gap-1.5 rounded-full border py-0.5 pr-2 pl-0.5"
         >
-          <HMIcon id={hmId(accountId)} name={displayName} icon={identity.icon} size={20} />
+          <SigningIdentityIcon identity={identity} name={displayName} size={20} />
           <span className="text-muted-foreground min-w-0 truncate text-xs font-medium">{displayName}</span>
           <ChevronDown className="text-muted-foreground size-3 flex-none" />
         </button>

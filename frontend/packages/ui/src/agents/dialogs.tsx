@@ -36,6 +36,7 @@ import {ImportKeyDialog} from '@shm/ui/components/import-key-dialog'
 import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {SigningIdentityIcon} from './signing-identity-icon'
 import {Select, SelectContent, SelectDropdown, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {Notice} from '@shm/ui/notice'
@@ -696,7 +697,7 @@ export function EditAgentAccountDialog({
           {previewUrl ? (
             <img src={previewUrl} alt="" className="h-full w-full object-cover" />
           ) : (
-            <HMIcon id={profileId} name={label} icon={identity.icon} size={48} />
+            <SigningIdentityIcon identity={identity} name={label} size={48} />
           )}
         </label>
         <Input

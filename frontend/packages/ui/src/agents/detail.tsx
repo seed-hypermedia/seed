@@ -102,6 +102,7 @@ import {
   X,
 } from 'lucide-react'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {SigningIdentityIcon} from './signing-identity-icon'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 import {getSeedTool} from '@seed-hypermedia/agents-protocol'
 import {
@@ -1530,14 +1531,10 @@ function AuthorIdentityChip({
     ? ({key: 'site-profile', id: hmId(identity.accountId), tab: 'profile'} as const)
     : null
   const linkProps = useRouteLink(profileRoute)
-  // The live profile is authoritative: the agent (or any other client) can change its avatar
-  // without going through UpdateSigningIdentity, so the server's stored icon is only a fallback.
-  const account = useAccount(identity.accountId, {subscribe: true})
-  const icon = account.data?.metadata?.icon || identity.icon
   const content = (
     <>
       {identity.accountId ? (
-        <HMIcon id={hmId(identity.accountId)} name={displayName} icon={icon} size={24} />
+        <SigningIdentityIcon identity={identity} name={displayName} size={24} />
       ) : (
         <KeyRound className="text-muted-foreground size-4" />
       )}
@@ -1828,12 +1825,7 @@ function AgentToolsTab({
                               key: identity.id,
                               label: identity.label || identity.accountId || identity.name,
                               icon: identity.accountId ? (
-                                <HMIcon
-                                  id={hmId(identity.accountId)}
-                                  name={identity.label}
-                                  icon={identity.icon}
-                                  size={20}
-                                />
+                                <SigningIdentityIcon identity={identity} name={identity.label} size={20} />
                               ) : (
                                 <KeyRound className="size-4" />
                               ),
