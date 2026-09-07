@@ -7,7 +7,7 @@ describe('applyAgentSessionPartial', () => {
 
     const next = applyAgentSessionPartial(current, 'account/z6MkViewer', 'sessions/background-session', {
       textDelta: 'streamed output',
-      usage: {input: 10, output: 4, total: 14},
+      usage: {input: 10, output: 4, cacheRead: 0, cacheWrite: 0, total: 14},
     })
 
     expect(next).toBe(current)
@@ -21,10 +21,15 @@ describe('applyAgentSessionPartial', () => {
     })
     const done = applyAgentSessionPartial(unrelated, 'sessions/selected', 'sessions/selected', {
       done: true,
-      usage: {input: 12, output: 5, total: 17},
+      usage: {input: 12, output: 5, cacheRead: 0, cacheWrite: 0, total: 17},
     })
 
     expect(unrelated).toBe(first)
-    expect(done).toEqual({selected: {text: 'hello', usage: {input: 12, output: 5, total: 17}}})
+    expect(done).toEqual({
+      selected: {
+        text: 'hello',
+        usage: {input: 12, output: 5, cacheRead: 0, cacheWrite: 0, total: 17},
+      },
+    })
   })
 })
