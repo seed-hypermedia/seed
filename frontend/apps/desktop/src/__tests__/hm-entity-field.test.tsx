@@ -65,12 +65,16 @@ function renderField(value: Record<string, unknown>, schema: OnyxSchema) {
 }
 
 const PROFILE_SCHEMA: OnyxSchema = {
-  type: 'hm://hyper.media/map',
-  properties: {author: {type: 'hm://hyper.media/string', format: 'hm-profile'}},
+  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
+  properties: {
+    author: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string', format: 'hm-profile'},
+  },
 }
 const DOC_SCHEMA: OnyxSchema = {
-  type: 'hm://hyper.media/map',
-  properties: {post: {type: 'hm://hyper.media/string', format: 'hm-url'}},
+  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
+  properties: {
+    post: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string', format: 'hm-url'},
+  },
 }
 
 describe('HM entity fields', () => {

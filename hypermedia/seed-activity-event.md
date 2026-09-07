@@ -1,7 +1,7 @@
 ---
 name: Activity event
 summary: "One event of the activity feed. The event union is not yet pinned down schema-side, so this is an open map — tightening it is tracked follow-up work. A derived "
-schemaDefinition: ipfs://bafyreiajty6y6tu2qchtf3rmktx3qxj47velulumbnyrcghav77qfwwsmy
+schemaDefinition: ipfs://bafyreiamsmqm7aro5sjyqx2poiisc4v55dkoeb65wvdzrvshjpppfy3nae
 ---
 One event of the activity feed. The event union is not yet pinned down schema-side, so this is an open map — tightening it is tracked follow-up work. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:ohvGePiV -->
 
@@ -9,8 +9,8 @@ This document describes the **seed-activity-event** type — a Seed API read-mod
 
 # Shape <!-- id:jk2YPQ-- -->
 
-An **open map** — every value: [any](./onyx-any.md). <!-- id:sBIDM6B6 -->
+An **open map** — every value: [any](./hypermedia-any.md). <!-- id:sBIDM6B6 -->
 
 # Depends on <!-- id:ZdlPpe18 -->
 
-- [any](./onyx-any.md) <!-- id:sc0AkmF_ -->
+- [any](./hypermedia-any.md) <!-- id:sc0AkmF_ -->

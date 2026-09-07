@@ -1,7 +1,7 @@
 ---
 name: Heading block
 summary: A section heading.
-schemaDefinition: ipfs://bafyreihkk7sif4d6twhvjvuu3ss46accjbecfdqwl2s37is37lmnqkh52e
+schemaDefinition: ipfs://bafyreigcumb2h43agindimpxt6xwccp7fa7xrkiwlywqoxuk7cubi24k4u
 ---
 This document describes the **hypermedia-block-heading** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:wmJHjzZa -->
 
@@ -9,7 +9,7 @@ This document describes the **hypermedia-block-heading** type — a Hypermedia N
 
 **Extends** [hypermedia-block-base](./hypermedia-block-base.md) with these added fields: <!-- id:2v9m5JN5 -->
   - `type` — `string` enum: `Heading` <!-- id:aPgD9CRs -->
-  - `text` — [string](./onyx-string.md) <!-- id:EA1orVgz -->
+  - `text` — [string](./hypermedia-string.md) <!-- id:EA1orVgz -->
   - `annotations` — list of [hypermedia-annotation](./hypermedia-annotation.md) <!-- id:VOJAwECN -->
   - `attributes` — map { 2 fields } <!-- id:GvMoQ1bo -->
 
@@ -18,6 +18,6 @@ This document describes the **hypermedia-block-heading** type — a Hypermedia N
 - [hypermedia-annotation](./hypermedia-annotation.md) <!-- id:rjNj96kD -->
 - [hypermedia-block-base](./hypermedia-block-base.md) <!-- id:OeY-jnQk -->
 - [hypermedia-children-type](./hypermedia-children-type.md) <!-- id:-ujzzmqw -->
-- [any](./onyx-any.md) <!-- id:jbfVLj7H -->
-- [float](./onyx-float.md) <!-- id:uyaQRe-W -->
-- [string](./onyx-string.md) <!-- id:sjgu9T7j -->
+- [any](./hypermedia-any.md) <!-- id:jbfVLj7H -->
+- [float](./hypermedia-float.md) <!-- id:uyaQRe-W -->
+- [string](./hypermedia-string.md) <!-- id:sjgu9T7j -->

@@ -14,7 +14,7 @@ import {emptyStructSchema, OnyxSchemaEditor} from './onyx-schema-editor'
 
 /** True when `schema` is the bundled meta-schema — the value is a schema. */
 export function isMetaSchema(schema: OnyxSchema | undefined): boolean {
-  return !!schema && schema === ONYX_SCHEMAS['onyx-schema']
+  return !!schema && schema === ONYX_SCHEMAS['hypermedia-schema']
 }
 
 /** The struct form only fits map schemas (and ref-rooted extensions); unions etc. use JSON. */

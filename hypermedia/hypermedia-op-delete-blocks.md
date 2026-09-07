@@ -1,7 +1,7 @@
 ---
 name: DeleteBlocks op
 summary: Delete blocks by id.
-schemaDefinition: ipfs://bafyreiekc3ox6hwsgfh5tso6uwxparl34diprzx4jgljzmyz6f6yhhom3y
+schemaDefinition: ipfs://bafyreiajdjjvhcd3rkqezjacjvaqvo5xqgbyn4gjax4pqrhhahllo75c4e
 ---
 This document describes the **hypermedia-op-delete-blocks** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:O5i7-yOi -->
 
@@ -9,8 +9,8 @@ This document describes the **hypermedia-op-delete-blocks** type — a Hypermedi
 
 A **closed struct** with these fields: <!-- id:hVjHrQ0n -->
   - `type` _(required)_ — `string` enum: `DeleteBlocks` <!-- id:zKHm9p4w -->
-  - `blocks` _(required)_ — list of [string](./onyx-string.md) <!-- id:C3LbdbSU -->
+  - `blocks` _(required)_ — list of [string](./hypermedia-string.md) <!-- id:C3LbdbSU -->
 
 # Depends on <!-- id:MskatxS8 -->
 
-- [string](./onyx-string.md) <!-- id:_2S5kV0V -->
+- [string](./hypermedia-string.md) <!-- id:_2S5kV0V -->

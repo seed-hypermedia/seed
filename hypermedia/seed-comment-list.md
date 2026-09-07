@@ -1,7 +1,7 @@
 ---
 name: Comment list
 summary: "A list of comments plus the metadata payloads of every author involved. A derived read model computed by the Seed daemon/API for clients — not a signed network "
-schemaDefinition: ipfs://bafyreibuiw5ru6piik4krfavqgcp3fdd3dm3craubncoga6xfsm5otsyee
+schemaDefinition: ipfs://bafyreidilbnfzaebf6nhb477roemxaph26zgvq6c7tiakgicvg34kwt5m4
 ---
 A list of comments plus the metadata payloads of every author involved. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:YsLbrH3B -->
 

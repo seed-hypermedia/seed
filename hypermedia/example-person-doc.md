@@ -1,7 +1,7 @@
 ---
 name: "Example: Person document"
 summary: "A document that describes a person — the base document, refined so its metadata requires a `surname`. Illustrates the corrected model: a typed document schema e"
-schemaDefinition: ipfs://bafyreifzlqpd7km52qujf6lfu4hbxjzlub7wxefumgv7qxd5fv6lutoh3i
+schemaDefinition: ipfs://bafyreicwksf5lptusalgsf3kfbnbxlz5xtudhalv5qxbzg3ixfig7fn4my
 ---
 A document that describes a person — the base document, refined so its metadata requires a `surname`. Illustrates the corrected model: a typed document schema extends hm://seed.hyper.media/document and constrains `metadata`. Referenced by other documents via `schema`, and by a directory via `childrenSchema`. <!-- id:axdEuJ33 -->
 
@@ -16,4 +16,4 @@ This document describes the **example-person-doc** type — an example schema. I
 
 - [hypermedia-document](./hypermedia-document.md) <!-- id:7bov8S7- -->
 - [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:3rI0P7tP -->
-- [string](./onyx-string.md) <!-- id:HGDaIkqh -->
+- [string](./hypermedia-string.md) <!-- id:HGDaIkqh -->

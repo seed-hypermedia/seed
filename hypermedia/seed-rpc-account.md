@@ -1,7 +1,7 @@
 ---
 name: "RPC: Account"
 summary: "Resolves an account by uid. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types "
-schemaDefinition: ipfs://bafyreifqhrn3xuvtypv7qkfindambjwakzftl6y4pcuh6ns4lcngliu7qe
+schemaDefinition: ipfs://bafyreifisubtajwnl7thtpqvqezncifwu6s7jibjoxyvbeb4m5adt64wqy
 ---
 Resolves an account by uid. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:6J7TokxK -->
 
@@ -11,10 +11,10 @@ This document describes the **seed-rpc-account** type — a Seed API read-model 
 
 A **closed struct** with these fields: <!-- id:GaSmj_z8 -->
   - `key` _(required)_ — `string` enum: `Account` <!-- id:XtkZdN5R -->
-  - `input` _(required)_ — [string](./onyx-string.md) <!-- id:Hts3kMP5 -->
+  - `input` _(required)_ — [string](./hypermedia-string.md) <!-- id:Hts3kMP5 -->
   - `output` _(required)_ — [seed-account-result](./seed-account-result.md) <!-- id:mi5qviZs -->
 
 # Depends on <!-- id:fl4WJGvJ -->
 
-- [string](./onyx-string.md) <!-- id:EgZGPF7j -->
+- [string](./hypermedia-string.md) <!-- id:EgZGPF7j -->
 - [seed-account-result](./seed-account-result.md) <!-- id:ilaQtTDw -->

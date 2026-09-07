@@ -30,17 +30,16 @@ A schema is a `map` value that constrains other values. It takes one of seven sh
 
 # Layer 3 — The library <!-- id:JEnxb06S -->
 
-The library is a folder of pairs: `<name>.json` (the schema, in dag-json) and `<name>.md` (its human explanation). Four families live side by side, distinguished by prefix: <!-- id:aoVPGRff -->
+The library is a folder of pairs: `<name>.schema.json` (the schema, in dag-json) and `<name>.md` (its human explanation). Three families live side by side, distinguished by prefix: <!-- id:aoVPGRff -->
 
 <!-- id:QKRHc2jO -->
 | prefix <!-- col:PpnISgiK --> | family <!-- col:u7IW2VGz --> | examples <!-- col:UvNmWoqE --> <!-- id:rMJt-Vv8 --> |
 | --- | --- | --- |
-| `onyx-` | the meta-schema, its seven variants, and one canonical primitive per kind | `onyx-schema`, `onyx-map-schema`, `onyx-string` <!-- id:bPX-_f4P --> |
-| `hypermedia-` | the Hypermedia Network's real blobs and the full block model | `hypermedia-change`, `hypermedia-block-table`, `hypermedia-document` <!-- id:f30AmSqt --> |
+| `hypermedia-` | the type language — the meta-schema, its variants, one canonical primitive per kind — and the Hypermedia Network's real blobs and full block model | `hypermedia-schema`, `hypermedia-anyof`, `hypermedia-string`, `hypermedia-change`, `hypermedia-block-table` <!-- id:bPX-_f4P --> |
 | `seed-` | the Seed API's read models and its RPC catalog | `seed-resource`, `seed-search-results`, `seed-rpc-query` <!-- id:uMrZ9ndC --> |
 | `example-` | teaching schemas covering every feature, plus live instances | `example-person`, `example-folder`, `example-bob` <!-- id:uU6GnKnu --> |
 
-Inside a schema, every reference is an `hm://` URL under the Onyx account: `hm://z6MkmZUb…/string`, `hm://z6MkmZUb…/hypermedia-metadata`. Primitives and meta-schema drop their `onyx-` prefix in public; everything else keeps its prefix. A reference is therefore always a real, published, clickable document — never a dead placeholder. <!-- id:HVN-l5c6 -->
+Inside a schema, every reference is an `hm://` URL under the Onyx account, and the path is the file's name: `hm://z6MkmZUb…/hypermedia-string`, `hm://z6MkmZUb…/hypermedia-metadata`, `hm://z6MkmZUb…/example-person`. A reference is therefore always a real, published, clickable document — never a dead placeholder. <!-- id:HVN-l5c6 -->
 
 # Layer 4 — Publishing <!-- id:tf74B4h5 -->
 

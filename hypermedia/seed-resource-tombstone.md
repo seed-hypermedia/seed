@@ -1,7 +1,7 @@
 ---
 name: "Resource: tombstone"
 summary: A resource that was deleted (a tombstone ref). A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
-schemaDefinition: ipfs://bafyreiaf4kbzk72wgd5y4y2hwaoczcgubmbdfjtgx5gc4jdqos2awjjmpi
+schemaDefinition: ipfs://bafyreicv7wdfrw54eoizimp5iirylk3ltvkkv5ee2rp3jc3jpnzmp5fp5i
 ---
 This document describes the **seed-resource-tombstone** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:J9aXyASx -->
 

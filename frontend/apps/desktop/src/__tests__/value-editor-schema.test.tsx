@@ -8,12 +8,15 @@ import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 
 const ARTICLE_SCHEMA: OnyxSchema = {
-  type: 'hm://hyper.media/map',
+  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
   required: ['title', 'status'],
   properties: {
-    title: {type: 'hm://hyper.media/string', minLength: 1},
-    status: {type: 'hm://hyper.media/string', enum: ['draft', 'published']},
-    count: {type: 'hm://hyper.media/integer'},
+    title: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string', minLength: 1},
+    status: {
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string',
+      enum: ['draft', 'published'],
+    },
+    count: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-integer'},
   },
 }
 
@@ -93,7 +96,7 @@ describe('schema-aware value editor rendering', () => {
     // Onyx attributes the "unexpected key" warning to the containing map's path,
     // so nest the closed map under a field to get a rendered row to badge.
     const schema: OnyxSchema = {
-      type: 'hm://hyper.media/map',
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
       values: {},
       properties: {article: ARTICLE_SCHEMA},
     }
@@ -105,9 +108,11 @@ describe('schema-aware value editor rendering', () => {
 
   it('an enum containing "" renders safely (labels are JSON-quoted, so Radix never sees value="")', () => {
     const schema: OnyxSchema = {
-      type: 'hm://hyper.media/map',
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
       values: {},
-      properties: {status: {type: 'hm://hyper.media/string', enum: ['', 'draft']}},
+      properties: {
+        status: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string', enum: ['', 'draft']},
+      },
     }
     renderEditor({status: 'draft'}, schema)
     const combo = container.querySelector('[role="combobox"]')
@@ -117,7 +122,7 @@ describe('schema-aware value editor rendering', () => {
 
   it('mixed-type literal unions render number members as a dropdown too', () => {
     const schema: OnyxSchema = {
-      type: 'hm://hyper.media/map',
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
       values: {},
       properties: {level: {enum: ['low', 1, 2, true]}},
     }
@@ -133,9 +138,14 @@ describe('schema-aware value editor rendering', () => {
 
   it('an enum with duplicate members falls back to free text', () => {
     const schema: OnyxSchema = {
-      type: 'hm://hyper.media/map',
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
       values: {},
-      properties: {status: {type: 'hm://hyper.media/string', enum: ['draft', 'draft']}},
+      properties: {
+        status: {
+          type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string',
+          enum: ['draft', 'draft'],
+        },
+      },
     }
     renderEditor({status: 'draft'}, schema)
     expect(container.querySelector('[role="combobox"]')).toBeNull()

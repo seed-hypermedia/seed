@@ -1,7 +1,7 @@
 ---
 name: "RPC: Query"
 summary: "Runs a document query (the same shape a Query block embeds). One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field typ"
-schemaDefinition: ipfs://bafyreig6r2kbyvkkmjjlrgis72dwh43sqaw2k6xfprixxjd4rme6pi7n4i
+schemaDefinition: ipfs://bafyreibumhnugp4yb23fpxpac5o7soczhgyj7r66nnjus2c7kimket3ygu
 ---
 Runs a document query (the same shape a Query block embeds). One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:ikOICZ5G -->
 
@@ -12,10 +12,10 @@ This document describes the **seed-rpc-query** type — a Seed API read-model sc
 A **closed struct** with these fields: <!-- id:BqgxY2nD -->
   - `key` _(required)_ — `string` enum: `Query` <!-- id:LqFcY9h4 -->
   - `input` _(required)_ — [hypermedia-query](./hypermedia-query.md) <!-- id:3CteGWBj -->
-  - `output` _(required)_ — one of [seed-query-result](./seed-query-result.md) | [null](./onyx-null.md) <!-- id:e3b637gr -->
+  - `output` _(required)_ — one of [seed-query-result](./seed-query-result.md) | [null](./hypermedia-null.md) <!-- id:e3b637gr -->
 
 # Depends on <!-- id:6QyI0lnv -->
 
 - [hypermedia-query](./hypermedia-query.md) <!-- id:vBboMmrJ -->
-- [null](./onyx-null.md) <!-- id:BVB9w3KD -->
+- [null](./hypermedia-null.md) <!-- id:BVB9w3KD -->
 - [seed-query-result](./seed-query-result.md) <!-- id:_MQGXI7B -->

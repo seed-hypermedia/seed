@@ -74,9 +74,9 @@ export type ExampleBlob = {
 export type ExampleCharacterDoc = HMDocument & {
   metadata?: HMMetadata & {
     /** Birth date (ISO 8601 `YYYY-MM-DD`) — rendered as a date picker. */
-    born: OnyxDate
+    born: HMDate
     /** Death date, if any. */
-    died?: OnyxDate
+    died?: HMDate
     /** Narrative role. */
     role: 'hero' | 'villain' | 'ally' | 'neutral'
     /** The place this character calls home — a page conforming to the Place type. */
@@ -160,9 +160,9 @@ export type ExampleEntry = ExampleFolder | ExampleFile
 export type ExampleEventDoc = HMDocument & {
   metadata?: HMMetadata & {
     /** When it happened (or began). */
-    date: OnyxDate
+    date: HMDate
     /** When it ended, for a span. */
-    ends?: OnyxDate
+    ends?: HMDate
     /** Where it happened. */
     location?: HMHmUrl
     /** The central character. */
@@ -181,9 +181,9 @@ export type ExampleEventDoc = HMDocument & {
 export type ExampleFactionDoc = HMDocument & {
   metadata?: HMMetadata & {
     /** Founding date. */
-    founded: OnyxDate
+    founded: HMDate
     /** Dissolution date, if any. */
-    dissolved?: OnyxDate
+    dissolved?: HMDate
     /** Where the faction is based. */
     seat?: HMHmUrl
     /** Who leads it. */
@@ -287,7 +287,7 @@ export type ExamplePlaceDoc = HMDocument & {
   metadata?: HMMetadata & {
     kind: 'city' | 'town' | 'village' | 'fortress' | 'ruin' | 'wilderness' | 'realm'
     /** Founding date. */
-    founded?: OnyxDate
+    founded?: HMDate
     /** The larger place this one lies within. */
     region?: HMHmUrl
     /** The faction that holds this place. */
@@ -379,7 +379,7 @@ export type ExampleWorldDoc = HMDocument & {
   metadata?: HMMetadata & {
     genre: 'fantasy' | 'science-fiction' | 'historical' | 'contemporary' | 'mythic'
     /** The in-world date the chronicle begins. */
-    epoch?: OnyxDate
+    epoch?: HMDate
     tagline?: string
   }
 }
@@ -402,6 +402,18 @@ export type HMAnnotation = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-any-blob
  */
 export type HMAnyBlob = HMChange<HMBlock> | HMRef | HMProfile | HMComment | HMCapability | HMContact
+
+/**
+ * Union schema
+ * The variant for a union — a value matching any one of several alternatives (anyOf).
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-anyof
+ */
+export type HMAnyof = {
+  anyOf: HMSchema[]
+  description?: string
+  params?: {[key: string]: HMSchema}
+  name?: string
+}
 
 /**
  * Hypermedia Blob
@@ -808,6 +820,20 @@ export type HMContactSubscribe = {
 }
 
 /**
+ * Date
+ * A calendar date as an ISO 8601 string, `YYYY-MM-DD` (e.g. `2026-08-26`). A refinement of string — the value is still plain text on the wire — with `format: date
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-date
+ */
+export type HMDate = string
+
+/**
+ * Date-time
+ * An instant as an RFC 3339 / ISO 8601 string, `YYYY-MM-DDTHH:MM:SS[.sss]Z` or with a numeric offset (e.g. `2026-08-26T14:30:00Z`). A refinement of string with `f
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-date-time
+ */
+export type HMDateTime = string
+
+/**
  * Document
  * The base Hypermedia document — resolved metadata (including the schema-binding fields `schema`, `childrenSchema`, `schemaDefinition`) plus the content block tre
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-document
@@ -832,6 +858,26 @@ export type HMEmbedView = 'Content' | 'Card' | 'Comments' | 'Link'
 export type HMHmUrl = string
 
 /**
+ * Reference schema
+ * The variant for a reference: a bare include, or an extension when it carries refinements.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-include-schema
+ */
+export type HMIncludeSchema = {
+  ref: string
+  /** Fields the extension adds to (or overrides in) the base struct, as properties. */
+  properties?: {[key: string]: HMProperty}
+  values?: HMSchema
+  items?: HMSchema
+  enum?: unknown[]
+  /** For a reference-valued string (`format: hm-url` or `format: ipfs`): the schema the referenced document or object is expected to conform to — an `hm://` schema-document URL or `ipfs://<cid>`. Advisory: an editor pre-seeds and validates the target against it; a validator does not dereference the reference. */
+  target?: string
+  description?: string
+  params?: {[key: string]: HMSchema}
+  args?: {[key: string]: HMSchema}
+  name?: string
+}
+
+/**
  * IPFS link
  * A reference to a content-addressed file on IPFS, held as an `ipfs://<cid>` string. `format: ipfs` tells an editor to render it as a file reference — a pill you
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-ipfs
@@ -846,6 +892,52 @@ export type HMIpfs = string
 export type HMKeyValue = {
   key?: string[]
   value?: HMValue
+}
+
+/**
+ * Link schema
+ * The variant for a link (CID), optionally naming the expected target type.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-link-schema
+ */
+export type HMLinkSchema = {
+  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-link'
+  ref?: string
+  description?: string
+  params?: {[key: string]: HMSchema}
+  name?: string
+}
+
+/**
+ * List schema
+ * The variant for a list value; items types the elements.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-list-schema
+ */
+export type HMListSchema = {
+  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-list'
+  items?: HMSchema
+  minItems?: number
+  maxItems?: number
+  description?: string
+  params?: {[key: string]: HMSchema}
+  name?: string
+}
+
+/**
+ * Map schema
+ * The variant for a map — arbitrary keys whose values all match one schema (values). Known fields belong to a struct schema.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map-schema
+ */
+export type HMMapSchema = {
+  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map'
+  /** Legacy: fields written as name → schema by maps published before struct existed. New schemas with named fields are structs. */
+  properties?: {[key: string]: HMSchema}
+  /** Legacy: the required field names of a map published before struct existed. */
+  required?: string[]
+  /** The schema every value of the map must match. */
+  values?: HMSchema
+  description?: string
+  params?: {[key: string]: HMSchema}
+  name?: string
 }
 
 /**
@@ -977,6 +1069,20 @@ export type HMProfile = HMBlob & {
 }
 
 /**
+ * Property
+ * One field of a struct — its value schema, whether a value must include it, and a description of what it is for.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-property
+ */
+export type HMProperty = {
+  /** The schema the field's value must match. */
+  value: HMSchema
+  /** A value of the struct must include this field. Absent means optional. */
+  required?: boolean
+  /** What the field is for, for people and for the editors that show it. */
+  description?: string
+}
+
+/**
  * Query
  * A live document query: which spaces/paths to include, how to sort, and an optional result limit. Embedded in a Query block's attributes; also the input of the Q
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-query
@@ -1066,11 +1172,74 @@ export type HMRef = HMBlob & {
 export type HMRole = 'WRITER' | 'AGENT'
 
 /**
+ * Scalar schema
+ * The variant for a scalar value (null, boolean, integer, float, string, bytes), optionally restricted by enum.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-scalar-schema
+ */
+export type HMScalarSchema = {
+  type:
+    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-null'
+    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-boolean'
+    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-integer'
+    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-float'
+    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string'
+    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-bytes'
+  enum?: unknown[]
+  minLength?: number
+  maxLength?: number
+  pattern?: string
+  /** A semantic hint for editors/renderers — the value is still a plain string. Known: `hm-url` (a Hypermedia document reference), `hm-profile` (an account reference), `ipfs` (an ipfs://<cid> reference to a file or DAG-CBOR object), `date` (an ISO 8601 `YYYY-MM-DD` calendar date), `date-time` (an RFC 3339 instant). */
+  format?: string
+  /** For a reference-valued string (`format: hm-url` or `format: ipfs`): the schema the referenced document or object is expected to conform to — an `hm://` schema-document URL or `ipfs://<cid>`. Advisory: an editor pre-seeds and validates the target against it; a validator does not dereference the reference. */
+  target?: string
+  minimum?: number
+  maximum?: number
+  description?: string
+  params?: {[key: string]: HMSchema}
+  name?: string
+}
+
+/**
+ * Onyx schema
+ * The meta-schema: a discriminated union of the shapes a schema can take. It is a valid instance of itself.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-schema
+ */
+export type HMSchema =
+  | HMStructSchema
+  | HMMapSchema
+  | HMListSchema
+  | HMScalarSchema
+  | HMLinkSchema
+  | HMIncludeSchema
+  | HMAnyof
+  | HMVarSchema
+
+/**
  * Signature
  * A cryptographic signature over the blob — raw CBOR bytes.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-signature
  */
 export type HMSignature = OnyxBytes
+
+/**
+ * Struct schema
+ * The variant for a struct — known fields via properties and required, optionally open to extra keys via values.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct-schema
+ */
+export type HMStructSchema = {
+  /** Always the struct core type. */
+  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct'
+  /** The fields by name: each a property with its value schema, whether it is required, and a description. */
+  properties?: {[key: string]: HMProperty}
+  /** Opens the struct: keys other than the named fields are allowed and their values must match this schema. */
+  values?: HMSchema
+  /** What the struct is for, when it is written inline; a published schema is described by its page. */
+  description?: string
+  /** Type parameters of a generic struct, each with its default schema. */
+  params?: {[key: string]: HMSchema}
+  /** Legacy: a name some published schemas still carry. New schemas are named by their page. */
+  name?: string
+}
 
 /**
  * Timestamp
@@ -1087,191 +1256,22 @@ export type HMTimestamp = number
 export type HMValue = string | number | boolean | null
 
 /**
+ * Variable schema
+ * A type-variable reference: matches whatever a generic's parameter is bound to. Written { "var": "<name>" }.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-var-schema
+ */
+export type HMVarSchema = {
+  var: string
+  description?: string
+  name?: string
+}
+
+/**
  * Visibility
  * 'Resource visibility: "" (empty) for public, "Private" for private.'
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-visibility
  */
 export type HMVisibility = '' | 'Private'
-
-/**
- * Date
- * A calendar date as an ISO 8601 string, `YYYY-MM-DD` (e.g. `2026-08-26`). A refinement of string — the value is still plain text on the wire — with `format: date
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date
- */
-export type OnyxDate = string
-
-/**
- * Date-time
- * An instant as an RFC 3339 / ISO 8601 string, `YYYY-MM-DDTHH:MM:SS[.sss]Z` or with a numeric offset (e.g. `2026-08-26T14:30:00Z`). A refinement of string with `f
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date-time
- */
-export type OnyxDateTime = string
-
-/**
- * Reference schema
- * The variant for a reference: a bare include, or an extension when it carries refinements.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/include-schema
- */
-export type OnyxIncludeSchema = {
-  ref: string
-  /** Fields the extension adds to (or overrides in) the base struct, as properties. */
-  properties?: {[key: string]: OnyxProperty}
-  values?: OnyxSchema
-  items?: OnyxSchema
-  enum?: unknown[]
-  /** For a reference-valued string (`format: hm-url` or `format: ipfs`): the schema the referenced document or object is expected to conform to — an `hm://` schema-document URL or `ipfs://<cid>`. Advisory: an editor pre-seeds and validates the target against it; a validator does not dereference the reference. */
-  target?: string
-  description?: string
-  params?: {[key: string]: OnyxSchema}
-  args?: {[key: string]: OnyxSchema}
-  name?: string
-}
-
-/**
- * Link schema
- * The variant for a link (CID), optionally naming the expected target type.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/link-schema
- */
-export type OnyxLinkSchema = {
-  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/link'
-  ref?: string
-  description?: string
-  params?: {[key: string]: OnyxSchema}
-  name?: string
-}
-
-/**
- * List schema
- * The variant for a list value; items types the elements.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list-schema
- */
-export type OnyxListSchema = {
-  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list'
-  items?: OnyxSchema
-  minItems?: number
-  maxItems?: number
-  description?: string
-  params?: {[key: string]: OnyxSchema}
-  name?: string
-}
-
-/**
- * Map schema
- * The variant for a map — arbitrary keys whose values all match one schema (values). Known fields belong to a struct schema.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map-schema
- */
-export type OnyxMapSchema = {
-  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map'
-  /** Legacy: fields written as name → schema by maps published before struct existed. New schemas with named fields are structs. */
-  properties?: {[key: string]: OnyxSchema}
-  /** Legacy: the required field names of a map published before struct existed. */
-  required?: string[]
-  /** The schema every value of the map must match. */
-  values?: OnyxSchema
-  description?: string
-  params?: {[key: string]: OnyxSchema}
-  name?: string
-}
-
-/**
- * Property
- * One field of a struct — its value schema, whether a value must include it, and a description of what it is for.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/property
- */
-export type OnyxProperty = {
-  /** The schema the field's value must match. */
-  value: OnyxSchema
-  /** A value of the struct must include this field. Absent means optional. */
-  required?: boolean
-  /** What the field is for, for people and for the editors that show it. */
-  description?: string
-}
-
-/**
- * Scalar schema
- * The variant for a scalar value (null, boolean, integer, float, string, bytes), optionally restricted by enum.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/scalar-schema
- */
-export type OnyxScalarSchema = {
-  type:
-    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null'
-    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean'
-    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer'
-    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float'
-    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string'
-    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/bytes'
-  enum?: unknown[]
-  minLength?: number
-  maxLength?: number
-  pattern?: string
-  /** A semantic hint for editors/renderers — the value is still a plain string. Known: `hm-url` (a Hypermedia document reference), `hm-profile` (an account reference), `ipfs` (an ipfs://<cid> reference to a file or DAG-CBOR object), `date` (an ISO 8601 `YYYY-MM-DD` calendar date), `date-time` (an RFC 3339 instant). */
-  format?: string
-  /** For a reference-valued string (`format: hm-url` or `format: ipfs`): the schema the referenced document or object is expected to conform to — an `hm://` schema-document URL or `ipfs://<cid>`. Advisory: an editor pre-seeds and validates the target against it; a validator does not dereference the reference. */
-  target?: string
-  minimum?: number
-  maximum?: number
-  description?: string
-  params?: {[key: string]: OnyxSchema}
-  name?: string
-}
-
-/**
- * Onyx schema
- * The meta-schema: a discriminated union of the shapes a schema can take. It is a valid instance of itself.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema
- */
-export type OnyxSchema =
-  | OnyxStructSchema
-  | OnyxMapSchema
-  | OnyxListSchema
-  | OnyxScalarSchema
-  | OnyxLinkSchema
-  | OnyxIncludeSchema
-  | OnyxUnionSchema
-  | OnyxVarSchema
-
-/**
- * Struct schema
- * The variant for a struct — known fields via properties and required, optionally open to extra keys via values.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct-schema
- */
-export type OnyxStructSchema = {
-  /** Always the struct core type. */
-  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct'
-  /** The fields by name: each a property with its value schema, whether it is required, and a description. */
-  properties?: {[key: string]: OnyxProperty}
-  /** Opens the struct: keys other than the named fields are allowed and their values must match this schema. */
-  values?: OnyxSchema
-  /** What the struct is for, when it is written inline; a published schema is described by its page. */
-  description?: string
-  /** Type parameters of a generic struct, each with its default schema. */
-  params?: {[key: string]: OnyxSchema}
-  /** Legacy: a name some published schemas still carry. New schemas are named by their page. */
-  name?: string
-}
-
-/**
- * Union schema
- * The variant for a union — a value matching any one of several alternatives (anyOf).
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/union-schema
- */
-export type OnyxUnionSchema = {
-  anyOf: OnyxSchema[]
-  description?: string
-  params?: {[key: string]: OnyxSchema}
-  name?: string
-}
-
-/**
- * Variable schema
- * A type-variable reference: matches whatever a generic's parameter is bound to. Written { "var": "<name>" }.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/var-schema
- */
-export type OnyxVarSchema = {
-  var: string
-  description?: string
-  name?: string
-}
 
 /**
  * Account result

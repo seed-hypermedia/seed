@@ -22,9 +22,9 @@ import {OnyxRpcConsole, RpcCallPanel, rpcMethodForSlug} from './onyx-rpc-console
 import {useOnyxSchemaRegistry} from './onyx-schema-registry-cid'
 import {schemaDefinitionCid} from './schema-document'
 
-/** The URL of a library page inside a space that mirrors the library (`onyx-` stripped, like the Onyx site). */
+/** The URL of a library page inside a space that mirrors the library. */
 export function libraryPageUrl(space: string, slug: string): string {
-  return `hm://${space}/${slug.startsWith('onyx-') ? slug.slice(5) : slug}`
+  return `hm://${space}/${slug}`
 }
 
 /** Under a bundled API schema, the live call panel (the union page is the whole console). */

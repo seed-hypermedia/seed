@@ -17,6 +17,7 @@ import {Textarea} from '../components/textarea'
 import {Tooltip} from '../tooltip'
 import {cn} from '../utils'
 import {
+  KINDS,
   MAP_URL,
   ONYX_SCHEMAS,
   type OnyxSchema,
@@ -63,12 +64,12 @@ function propKind(ps: any): string {
   const refName = typeof ps?.ref === 'string' ? refToName(ps.ref) : null
   if (ps?.format === 'hm-url' || refName === 'hypermedia-hm-url') return 'hm-url'
   if (ps?.format === 'ipfs' || refName === 'hypermedia-ipfs') return 'ipfs'
-  if (ps?.format === 'date' || refName === 'onyx-date') return 'date'
-  if (ps?.format === 'date-time' || refName === 'onyx-date-time') return 'date-time'
-  if (refName === 'onyx-any') return 'any'
+  if (ps?.format === 'date' || refName === 'hypermedia-date') return 'date'
+  if (ps?.format === 'date-time' || refName === 'hypermedia-date-time') return 'date-time'
+  if (refName === 'hypermedia-any') return 'any'
   if (ps?.anyOf || ps?.args || ps?.enum) return CUSTOM_KIND
   if (ps?.type) return kindOf(ps.type)
-  if (refName?.startsWith('onyx-')) return refName.slice(5)
+  if (refName && KINDS.includes(refName.replace(/^hypermedia-/, ''))) return refName.replace(/^hypermedia-/, '')
   if (refName) return CUSTOM_KIND
   return 'string'
 }
@@ -130,8 +131,8 @@ function kindSchema(kind: string): OnyxSchema {
   if (kind === 'ipfs') return {type: kindUrl('string'), format: 'ipfs'}
   // The built-in date types are includes of the library schemas, which carry
   // the format (→ a date picker) and the pattern (→ validation).
-  if (kind === 'date') return {ref: nameToUrl('onyx-date')!}
-  if (kind === 'date-time') return {ref: nameToUrl('onyx-date-time')!}
+  if (kind === 'date') return {ref: nameToUrl('hypermedia-date')!}
+  if (kind === 'date-time') return {ref: nameToUrl('hypermedia-date-time')!}
   if (kind === 'list') return {type: kindUrl('list'), items: {ref: ANY_URL}}
   if (kind === 'struct') return {type: STRUCT_URL, properties: {}}
   if (kind === 'map') return {type: MAP_URL, values: {ref: ANY_URL}}
@@ -139,7 +140,7 @@ function kindSchema(kind: string): OnyxSchema {
 }
 
 /** The `any` schema: what a type parameter defaults to when nothing narrower is given. */
-const ANY_URL = nameToUrl('onyx-any')!
+const ANY_URL = nameToUrl('hypermedia-any')!
 /** The signed-blob envelope every Hypermedia blob extends. */
 const SIGNED_BLOB_URL = nameToUrl('hypermedia-blob')!
 /** True when the schema extends the signed-blob envelope. */
@@ -192,7 +193,7 @@ function RawSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSchema: (s: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schema])
   const warnings = useMemo(() => {
-    const meta = ONYX_SCHEMAS['onyx-schema']
+    const meta = ONYX_SCHEMAS['hypermedia-schema']
     return meta ? validate(meta, schema).slice(0, 5) : []
   }, [schema])
   return (

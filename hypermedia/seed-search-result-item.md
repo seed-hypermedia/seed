@@ -1,7 +1,7 @@
 ---
 name: Search result item
 summary: "One hit of a network search: the matched id with display info (title, icon, breadcrumb parent names) and what kind of entity matched. A derived read model compu"
-schemaDefinition: ipfs://bafyreif55at75ebjrrpn7lsypihtobzsbgi2oyh7btl4rkxd6f7yn4ut24
+schemaDefinition: ipfs://bafyreiblkw6hk54f4a7y2nal44kmgy6bzyjwnttgimlms6v7ih7bp2lwgq
 ---
 One hit of a network search: the matched id with display info (title, icon, breadcrumb parent names) and what kind of entity matched. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:qXiY7SqP -->
 
@@ -11,17 +11,17 @@ This document describes the **seed-search-result-item** type — a Seed API read
 
 A **closed struct** with these fields: <!-- id:funk1VF2 -->
   - `id` _(required)_ — [seed-id](./seed-id.md) <!-- id:u3BNAqJ- -->
-  - `commentId` — [string](./onyx-string.md) <!-- id:zE7xXAp- -->
+  - `commentId` — [string](./hypermedia-string.md) <!-- id:zE7xXAp- -->
   - `metadata` — [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:fu8241-R -->
-  - `title` _(required)_ — [string](./onyx-string.md) <!-- id:aUnRcaQs -->
-  - `icon` _(required)_ — [string](./onyx-string.md) <!-- id:nXDyjj9x -->
-  - `parentNames` _(required)_ — list of [string](./onyx-string.md) <!-- id:5J6naQQF -->
-  - `versionTime` — [string](./onyx-string.md) <!-- id:eRekKhdW -->
-  - `searchQuery` _(required)_ — [string](./onyx-string.md) <!-- id:RrP0uj-3 -->
+  - `title` _(required)_ — [string](./hypermedia-string.md) <!-- id:aUnRcaQs -->
+  - `icon` _(required)_ — [string](./hypermedia-string.md) <!-- id:nXDyjj9x -->
+  - `parentNames` _(required)_ — list of [string](./hypermedia-string.md) <!-- id:5J6naQQF -->
+  - `versionTime` — [string](./hypermedia-string.md) <!-- id:eRekKhdW -->
+  - `searchQuery` _(required)_ — [string](./hypermedia-string.md) <!-- id:RrP0uj-3 -->
   - `type` _(required)_ — `string` enum: `document` `contact` `comment` <!-- id:ow59ehEv -->
 
 # Depends on <!-- id:ikD0x8fX -->
 
 - [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:e03fcW5T -->
-- [string](./onyx-string.md) <!-- id:u5Z_32fj -->
+- [string](./hypermedia-string.md) <!-- id:u5Z_32fj -->
 - [seed-id](./seed-id.md) <!-- id:FD_zY--5 -->

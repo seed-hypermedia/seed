@@ -1,7 +1,7 @@
 ---
 name: "RPC: Search"
 summary: "Searches the network for documents, contacts, and comments. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field type"
-schemaDefinition: ipfs://bafyreiebe3xgvjikibm7l3bacl27jsjuc2q5j2mytni5ujmwoop4ouuase
+schemaDefinition: ipfs://bafyreihjctx2amz2dqeekzemxhwi6ck4xezsny3dsyw6wlwv7pmcwpga3i
 ---
 Searches the network for documents, contacts, and comments. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:6M7UDKGx -->
 
@@ -16,7 +16,7 @@ A **closed struct** with these fields: <!-- id:xZHVDSnU -->
 
 # Depends on <!-- id:OUtj28Fz -->
 
-- [boolean](./onyx-boolean.md) <!-- id:XSL1ytom -->
-- [integer](./onyx-integer.md) <!-- id:T4EMUh_q -->
-- [string](./onyx-string.md) <!-- id:pea6QrJ4 -->
+- [boolean](./hypermedia-boolean.md) <!-- id:XSL1ytom -->
+- [integer](./hypermedia-integer.md) <!-- id:T4EMUh_q -->
+- [string](./hypermedia-string.md) <!-- id:pea6QrJ4 -->
 - [seed-search-results](./seed-search-results.md) <!-- id:oDACMPrv -->
