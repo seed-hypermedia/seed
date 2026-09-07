@@ -1,7 +1,7 @@
 ---
 name: Breadcrumb
 summary: One ancestor entry of a document's path, resolved to a display name. A derived read model computed by the Seed daemon/API for clients — not a signed network blo
-schemaDefinition: ipfs://bafyreiatqf7szlkribfh7l7aw5em3tahrlqvc27mgqim5emlsyrenpad7q
+schemaDefinition: ipfs://bafyreigck5o3unc6tfuwavha2lci4vfjebu5maalckupnyx2vkoywdt5ty
 ---
 One ancestor entry of a document's path, resolved to a display name. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:Hx0g4ljG -->
 
@@ -10,11 +10,11 @@ This document describes the **seed-breadcrumb** type — a Seed API read-model s
 # Shape <!-- id:7Ey_ElAb -->
 
 A **closed struct** with these fields: <!-- id:GaJkyvmU -->
-  - `name` _(required)_ — [string](./onyx-string.md) <!-- id:KeXz3K4U -->
-  - `path` _(required)_ — [string](./onyx-string.md) <!-- id:JM-WnnRQ -->
-  - `isMissing` — [boolean](./onyx-boolean.md) <!-- id:O1QZ1BQ3 -->
+  - `name` _(required)_ — [string](./hypermedia-string.md) <!-- id:KeXz3K4U -->
+  - `path` _(required)_ — [string](./hypermedia-string.md) <!-- id:JM-WnnRQ -->
+  - `isMissing` — [boolean](./hypermedia-boolean.md) <!-- id:O1QZ1BQ3 -->
 
 # Depends on <!-- id:60zxuRgg -->
 
-- [boolean](./onyx-boolean.md) <!-- id:rTTj3a7l -->
-- [string](./onyx-string.md) <!-- id:vSJ_3OOj -->
+- [boolean](./hypermedia-boolean.md) <!-- id:rTTj3a7l -->
+- [string](./hypermedia-string.md) <!-- id:vSJ_3OOj -->

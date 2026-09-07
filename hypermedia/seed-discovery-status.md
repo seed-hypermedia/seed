@@ -1,7 +1,7 @@
 ---
 name: Discovery status
 summary: "The state of a background discovery task for a resource: pending, found (with the resolved version), or failed (with the error). A derived read model computed b"
-schemaDefinition: ipfs://bafyreicumny7hsy5pj237krtj3jhaopf3me4sutsrxca77gltgbjzc5suy
+schemaDefinition: ipfs://bafyreiftkmhsqzoc6cllvo7uqejc4rjeecte4x7756z6oyalrvm54b233i
 ---
 The state of a background discovery task for a resource: pending, found (with the resolved version), or failed (with the error). A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:qgX0_Pnd -->
 
@@ -11,9 +11,9 @@ This document describes the **seed-discovery-status** type — a Seed API read-m
 
 A **closed struct** with these fields: <!-- id:30yArQuX -->
   - `state` _(required)_ — `string` enum: `pending` `found` `failed` <!-- id:9LZFnDbh -->
-  - `version` — [string](./onyx-string.md) <!-- id:8vEiaWJC -->
-  - `error` — [string](./onyx-string.md) <!-- id:7izs2ZlP -->
+  - `version` — [string](./hypermedia-string.md) <!-- id:8vEiaWJC -->
+  - `error` — [string](./hypermedia-string.md) <!-- id:7izs2ZlP -->
 
 # Depends on <!-- id:2Ac_QMa3 -->
 
-- [string](./onyx-string.md) <!-- id:mvuguHT_ -->
+- [string](./hypermedia-string.md) <!-- id:mvuguHT_ -->

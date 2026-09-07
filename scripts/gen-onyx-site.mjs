@@ -18,7 +18,7 @@ import {join} from 'node:path'
 const FORCE = process.argv.includes('--force')
 const BASE = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
 const AUTHORITY = [
-  ['onyx-', 'hyper.media'],
+  ['hypermedia-', 'hyper.media'],
   ['hypermedia-', 'seed.hyper.media'],
   ['seed-', 'seed.hyper.media'],
   ['example-', 'example.com'],
@@ -31,15 +31,19 @@ const schemas = {}
 for (const f of files) schemas[f.replace(/\.schema\.json$/, '')] = JSON.parse(readFileSync(join(SRC, f), 'utf8'))
 
 const ONYX = BASE.replace('hm://', '')
-// The published-doc public name: strip `onyx-` from primitives/meta; keep the rest.
-const publicName = (basename) => (basename.startsWith('onyx-') ? basename.slice(5) : basename)
-const KIND_URL = new RegExp(`^hm://(?:hyper\\.media|${ONYX})/([a-z]+)$`)
-const kindOf = (t) => (typeof t === 'string' ? KIND_URL.exec(t)?.[1] ?? t : t)
+// The published-doc name is the file's basename.
+const publicName = (basename) => basename
+const KINDS = ['null', 'boolean', 'integer', 'float', 'string', 'bytes', 'list', 'map', 'struct', 'link']
+const KIND_URL = new RegExp(`^hm://(?:hyper\\.media|${ONYX})/(?:hypermedia-)?([a-z]+)$`)
+const kindOf = (t) => {
+  const k = typeof t === 'string' ? KIND_URL.exec(t)?.[1] : undefined
+  return k && KINDS.includes(k) ? k : t
+}
 function refToName(ref) {
   const m = /^hm:\/\/([^/]+)\/(.+)$/.exec(ref)
   if (!m) return ref.replace(/\.schema\.json$/, '')
   const [, auth, name] = m
-  if (auth === ONYX) return schemas[name] ? name : schemas[`onyx-${name}`] ? `onyx-${name}` : name
+  if (auth === ONYX) return schemas[name] ? name : schemas[`hypermedia-${name}`] ? `hypermedia-${name}` : name
   const prefix = AUTHORITY.find(([, a]) => a === auth)?.[0]
   return prefix ? `${prefix}${name}` : name
 }
@@ -58,12 +62,12 @@ function collectRefs(node, acc = new Set()) {
 const dependencies = (name) => [...collectRefs(schemas[name])].filter((n) => n !== name && schemas[n]).sort()
 
 const isInstance = (s) => !!(s && s.$type && 'value' in s)
-const isPrimitive = (name) =>
-  name.startsWith('onyx-') &&
-  ['null', 'boolean', 'integer', 'float', 'string', 'bytes', 'list', 'map', 'struct', 'link', 'any'].includes(
-    name.replace(/^onyx-/, ''),
-  )
-const isMeta = (name) => name === 'onyx-schema' || (name.startsWith('onyx-') && name.endsWith('-schema'))
+const isPrimitive = (name) => [...KINDS, 'any'].map((k) => `hypermedia-${k}`).includes(name)
+const META_VARIANTS = ['hypermedia-anyof', 'hypermedia-property']
+const isMeta = (name) =>
+  name === 'hypermedia-schema' ||
+  META_VARIANTS.includes(name) ||
+  (name.startsWith('hypermedia-') && name.endsWith('-schema'))
 
 /** A one-line description of a schema node, with hm:// links for references. */
 function summarize(node) {
@@ -111,7 +115,7 @@ function refinements(node) {
 
 function category(name, s) {
   if (isInstance(s)) return 'instance'
-  if (name === 'onyx-schema') return 'the meta-schema'
+  if (name === 'hypermedia-schema') return 'the meta-schema'
   if (isMeta(name)) return 'a meta-schema variant'
   if (isPrimitive(name)) return 'a primitive'
   if (name.startsWith('hypermedia-')) return 'a Hypermedia Network blob schema'
@@ -139,7 +143,11 @@ function fieldLines(node, indent = '') {
   const out = []
   for (const f of structFields(node)) {
     const v = f.schema
-    out.push(`${indent}- \`${f.name}\`${f.required ? ' *(required)*' : ''} — ${summarize(v)}${f.description ? ` — ${f.description}` : ''}`)
+    out.push(
+      `${indent}- \`${f.name}\`${f.required ? ' *(required)*' : ''} — ${summarize(v)}${
+        f.description ? ` — ${f.description}` : ''
+      }`,
+    )
     if (v && typeof v === 'object' && v.properties && !v.anyOf) {
       const head = v.ref && !v.type ? `${indent}  - *adds to ${summarize({ref: v.ref})}:*` : null
       if (head) out.push(head)

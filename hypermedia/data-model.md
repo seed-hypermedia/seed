@@ -36,8 +36,8 @@ The seam is JavaScript/JSON, which cannot tell `3.0` from `3`. The reference val
 ## `map` vs `struct` — one kind of data, two types <!-- id:MQy2plVQ -->
 
 At the **data-model** level there is only `map`: DAG-CBOR has no separate object or struct kind. Onyx gives that one kind two types, because the two ways of using a map are different things: <!-- id:N8qkl2B3 -->
-  - [`struct`](./onyx-struct.md) — the keys are known field names, each with its own schema (`properties`, `required`); closed unless `values` opens it to extra keys <!-- id:ubG-u-aL -->
-  - [`map`](./onyx-map.md) — the keys are data; every value matches one schema (`values`) <!-- id:dFwJHUze -->
+  - [`struct`](./hypermedia-struct.md) — the keys are known field names, each with its own schema (`properties`, `required`); closed unless `values` opens it to extra keys <!-- id:ubG-u-aL -->
+  - [`map`](./hypermedia-map.md) — the keys are data; every value matches one schema (`values`) <!-- id:dFwJHUze -->
 
 Both validate the same bytes. The type tells a form which fields to show, a validator which keys are stray, and a generated type whether to emit named members or an index signature. See [the schema language](./schema-language.md). <!-- id:Ig-D69Z- -->
 
@@ -47,19 +47,19 @@ A `link` is a CID: a hash that names another block by its content. Links are wha
 
 Onyx uses this same machinery on itself: schemas link to other schemas, so the type definitions form their own DAG, addressed and resolved exactly like the data they describe. <!-- id:0a8cB8Tw -->
 
-## The primitive schemas — `onyx-<kind>` <!-- id:QPx8_TmX -->
+## The primitive schemas — `hypermedia-<kind>` <!-- id:QPx8_TmX -->
 
 A kind like `string` is a _name in the vocabulary_; `{"type":"string"}` is the _schema_ for a string value. Onyx ships that schema as a canonical, named block — one per kind: <!-- id:bmWAAKox -->
 
 <!-- id:IRoeKmq3 -->
 | primitive <!-- col:Khg0aF44 --> | is exactly <!-- col:y6M-JfyQ --> | typed by <!-- col:AADEz9yl --> <!-- id:5Ox6LZWF --> |
 | --- | --- | --- |
-| `onyx-null`, `onyx-boolean`, `onyx-integer`, `onyx-float`, `onyx-string`, `onyx-bytes` | `{ "type": "<kind>" }` | `onyx-scalar-schema` <!-- id:idSfV3A2 --> |
-| `onyx-link` | `{ "type": "link" }` | `onyx-link-schema` <!-- id:VcOv81bN --> |
-| `onyx-struct`, `onyx-map`, `onyx-list` | `{ "type": "<kind>" }` | `onyx-struct-schema` / `onyx-map-schema` / `onyx-list-schema` <!-- id:zNbu4gjL --> |
+| `hypermedia-null`, `hypermedia-boolean`, `hypermedia-integer`, `hypermedia-float`, `hypermedia-string`, `hypermedia-bytes` | `{ "type": "<kind>" }` | `hypermedia-scalar-schema` <!-- id:idSfV3A2 --> |
+| `hypermedia-link` | `{ "type": "link" }` | `hypermedia-link-schema` <!-- id:VcOv81bN --> |
+| `hypermedia-struct`, `hypermedia-map`, `hypermedia-list` | `{ "type": "<kind>" }` | `hypermedia-struct-schema` / `hypermedia-map-schema` / `hypermedia-list-schema` <!-- id:zNbu4gjL --> |
 
 These are the **standard library**. Two layers, not to be confused: <!-- id:zEmQScRC -->
-  - `onyx-scalar-schema` (a meta-schema _variant_) describes the _shape_ `{type:<scalar>, enum?}` — it is the **type of** `onyx-string`. <!-- id:FBr8EANM -->
-  - `onyx-string` (a _primitive_) is `{"type":"string"}` — an _instance_ of that shape, and the block you actually reference. <!-- id:3j_Fqm8i -->
+  - `hypermedia-scalar-schema` (a meta-schema _variant_) describes the _shape_ `{type:<scalar>, enum?}` — it is the **type of** `hypermedia-string`. <!-- id:FBr8EANM -->
+  - `hypermedia-string` (a _primitive_) is `{"type":"string"}` — an _instance_ of that shape, and the block you actually reference. <!-- id:3j_Fqm8i -->
 
-Instead of inlining `{"type":"string"}` in every schema, reference the primitive: `{ "ref": "onyx-string" }`. On IPFS that `ref` becomes the CID of the `onyx-string` block, so **a field's type is itself a content-addressed link** — the same mechanism as any other reference ([references](./references.md)). The example schemas do exactly this; open `example-person` and every field is a `ref` to a primitive or another schema. <!-- id:TvpKD4MG -->
+Instead of inlining `{"type":"string"}` in every schema, reference the primitive: `{ "ref": "hypermedia-string" }`. On IPFS that `ref` becomes the CID of the `hypermedia-string` block, so **a field's type is itself a content-addressed link** — the same mechanism as any other reference ([references](./references.md)). The example schemas do exactly this; open `example-person` and every field is a `ref` to a primitive or another schema. <!-- id:TvpKD4MG -->

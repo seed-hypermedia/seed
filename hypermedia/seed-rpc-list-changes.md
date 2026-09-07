@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListChanges"
 summary: "Lists a document's change history. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output`"
-schemaDefinition: ipfs://bafyreices3qx4d4irp4rgsl7bkah5zxmwswsalj3w5xzsopg3c3wgtvfn4
+schemaDefinition: ipfs://bafyreic2ibw2setxc5ro7ycpap352bs6n4ck3sxkkimm6ew7n6xxzkxhnq
 ---
 Lists a document's change history. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:ihAmEwiL -->
 
@@ -16,6 +16,6 @@ A **closed struct** with these fields: <!-- id:CpilCY5t -->
 
 # Depends on <!-- id:xbUuATMI -->
 
-- [string](./onyx-string.md) <!-- id:CR9fgC3y -->
+- [string](./hypermedia-string.md) <!-- id:CR9fgC3y -->
 - [seed-id](./seed-id.md) <!-- id:5kkwJiCD -->
 - [seed-raw-document-change](./seed-raw-document-change.md) <!-- id:3-1Dl14U -->

@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListEvents"
 summary: "Pages through the activity feed, with author/type/resource filters. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` fi"
-schemaDefinition: ipfs://bafyreib4u5uvrh466oqzehngdp634cldipwxqtlkwmqprfdfwtrn5xazgq
+schemaDefinition: ipfs://bafyreigvgm5cpfckakguvbwyyizowuwu3xwppyq5bd2ksujaj335fj7uqi
 ---
 Pages through the activity feed, with author/type/resource filters. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:8NB6bWqQ -->
 
@@ -16,6 +16,6 @@ A **closed struct** with these fields: <!-- id:1xYbf7OV -->
 
 # Depends on <!-- id:y34ksrW0 -->
 
-- [boolean](./onyx-boolean.md) <!-- id:SyPfcrg3 -->
-- [string](./onyx-string.md) <!-- id:VrLbVG_X -->
+- [boolean](./hypermedia-boolean.md) <!-- id:SyPfcrg3 -->
+- [string](./hypermedia-string.md) <!-- id:VrLbVG_X -->
 - [seed-activity-event](./seed-activity-event.md) <!-- id:K7mTe_LT -->
