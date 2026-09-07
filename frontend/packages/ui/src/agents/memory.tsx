@@ -972,6 +972,8 @@ function MemoryEntryRow({
           className="flex min-w-0 flex-1 items-center gap-1.5 py-0.5 text-left max-sm:min-h-10"
           onClick={onSelect}
         >
+          {/* Chevron-width gutter so file icons line up with sibling folder icons. */}
+          <span className="size-3 flex-none" aria-hidden />
           <FileText className="text-muted-foreground size-3.5 flex-none" />
           <span className="truncate font-mono text-xs">{name}</span>
         </button>
