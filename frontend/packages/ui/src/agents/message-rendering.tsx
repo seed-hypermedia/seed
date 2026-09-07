@@ -5,7 +5,8 @@ import {
   groupThinkingParts,
   isPendingToolPart,
   thinkingGroupCompletedAt,
-  toolStepDurationMs,
+  toolDeliberationMs,
+  toolRunDurationMs,
   type ChatBubbleMessage,
   type ChatMessagePart,
   type ChatToolPart,
@@ -444,17 +445,26 @@ function ThinkingGroup({
     <div className="my-1.5 mr-6" data-thinking-group={active ? 'active' : 'done'}>
       {visibleParts.length ? (
         <div>
-          {visibleParts.map((part) => (
-            <ToolCallItem
-              key={part.id}
-              item={part}
-              liveActivity={liveActivity}
-              serverUrl={serverUrl}
-              accountUid={accountUid}
-              agentId={agentId}
-              sessionId={sessionId}
-            />
-          ))}
+          {visibleParts.map((part, index) => {
+            // Opened, the burst tells where the time went: a divider before each batch of calls
+            // carries the deliberation that led to it, and every row carries only its own run.
+            const deliberationMs = expanded ? toolDeliberationMs(part, parts[parts.indexOf(part) - 1]) : undefined
+            return (
+              <Fragment key={part.id}>
+                {deliberationMs !== undefined && deliberationMs >= 1000 ? (
+                  <DeliberationDivider durationMs={deliberationMs} first={index === 0} />
+                ) : null}
+                <ToolCallItem
+                  item={part}
+                  liveActivity={liveActivity}
+                  serverUrl={serverUrl}
+                  accountUid={accountUid}
+                  agentId={agentId}
+                  sessionId={sessionId}
+                />
+              </Fragment>
+            )
+          })}
         </div>
       ) : null}
       <button
@@ -469,6 +479,23 @@ function ThinkingGroup({
         <span className="opacity-70">· {countLabel}</span>
         {active ? <Chevron className="ml-auto size-3 shrink-0" /> : null}
       </button>
+    </div>
+  )
+}
+
+/** The model's deliberation before a batch of calls, as a thin line between the rows. */
+function DeliberationDivider({durationMs, first}: {durationMs: number; first: boolean}) {
+  return (
+    <div
+      className={cn(
+        'text-muted-foreground/80 flex items-center gap-2 px-1 text-[10px] select-none',
+        first ? 'mb-1' : 'my-1',
+      )}
+      aria-label="Deliberation"
+    >
+      <span className="bg-border h-px flex-1" />
+      <span className="tabular-nums">thought for {formatStepDuration(durationMs)}</span>
+      <span className="bg-border h-px flex-1" />
     </div>
   )
 }
@@ -2385,10 +2412,10 @@ export function ToolCallLine({
   const summary = getToolSummary(item)
   const links = getToolLinks(item)
   const addressSummary = resolveToolRowSummary(item)
-  // The step's wall time, ticking on the server's clock while the call is out: from the moment
-  // the agent set out on it (its deliberation included) to the result.
-  const stepNow = useServerNow(serverUrl, isPending)
-  const stepDurationMs = toolStepDurationMs(item, stepNow)
+  // How long the tool itself ran, ticking on the server's clock while the call is out. The
+  // model's deliberation before the call is told separately, between batches (see ThinkingGroup).
+  const runNow = useServerNow(serverUrl, isPending)
+  const runDurationMs = toolRunDurationMs(item, runNow)
   const colorClass = item.isError
     ? 'border-destructive/30 bg-destructive/5'
     : isTimerWorkflow
@@ -2491,19 +2518,15 @@ export function ToolCallLine({
               </div>
             </>
           )}
-          {/* The step's time, then anything wrong with it, then the raw payload. */}
+          {/* The tool's own run time, then anything wrong with it, then the raw payload. */}
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
-            {stepDurationMs !== undefined ? (
+            {runDurationMs !== undefined ? (
               <span
                 className="text-muted-foreground text-[10px] tabular-nums"
-                aria-label={isPending ? 'Time so far' : 'Time taken'}
-                title={
-                  item.stepStartedAt !== undefined
-                    ? "From the previous step to this result, the model's deliberation included"
-                    : 'From the call to its result'
-                }
+                aria-label={isPending ? 'Running for' : 'Ran for'}
+                title="How long the tool ran"
               >
-                {formatStepDuration(stepDurationMs)}
+                {formatStepDuration(runDurationMs)}
               </span>
             ) : null}
             {isPending && isTimerWorkflow ? <ToolChip>Scheduled</ToolChip> : null}

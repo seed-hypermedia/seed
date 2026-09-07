@@ -250,19 +250,27 @@ export function thinkingGroupCompletedAt(parts: ChatToolPart[]): number | undefi
 }
 
 /**
- * How long a step took, from the moment the agent set out on it (`stepStartedAt`, falling back to
- * the call itself) to its result — or to `now` while it is still running. Undefined on a
- * transcript with no timing to go on.
+ * How long the tool itself ran: the executor's own stamp when it left one, else the span between
+ * the call and its result — or up to `now` while the call is still out. Undefined on a transcript
+ * with no timing to go on.
  */
-export function toolStepDurationMs(part: ChatToolPart, now?: number): number | undefined {
-  const startedAt = part.stepStartedAt ?? part.calledAt
-  if (startedAt === undefined) return undefined
-  const endedAt = isPendingToolPart(part)
-    ? now
-    : part.completedAt ??
-      (part.calledAt !== undefined && part.meta?.durationMs !== undefined
-        ? part.calledAt + part.meta.durationMs
-        : undefined)
-  if (endedAt === undefined) return undefined
-  return Math.max(0, endedAt - startedAt)
+export function toolRunDurationMs(part: ChatToolPart, now?: number): number | undefined {
+  if (isPendingToolPart(part)) {
+    return part.calledAt !== undefined && now !== undefined ? Math.max(0, now - part.calledAt) : undefined
+  }
+  if (part.meta?.durationMs !== undefined) return part.meta.durationMs
+  if (part.calledAt !== undefined && part.completedAt !== undefined)
+    return Math.max(0, part.completedAt - part.calledAt)
+  return undefined
+}
+
+/**
+ * How long the model deliberated before this call: from the end of the step before it to the call
+ * itself. Calls issued together share one start, so only the first of them owns the deliberation;
+ * its siblings report none.
+ */
+export function toolDeliberationMs(part: ChatToolPart, previous?: ChatToolPart): number | undefined {
+  if (part.stepStartedAt === undefined || part.calledAt === undefined) return undefined
+  if (previous && previous.stepStartedAt === part.stepStartedAt) return undefined
+  return Math.max(0, part.calledAt - part.stepStartedAt)
 }

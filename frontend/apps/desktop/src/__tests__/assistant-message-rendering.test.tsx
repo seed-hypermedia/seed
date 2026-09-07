@@ -930,12 +930,31 @@ describe('thinking group', () => {
     cleanupRendered(root, container)
   })
 
-  it('counts the deliberation before the first call, so the line never reads shorter than its rows', () => {
-    // The agent set out 22 seconds before it called; the call itself took 5.
-    const {container, root} = renderParts([{...search('one', 22_000), stepStartedAt: t0}])
-    expect(container.textContent).toContain('Thought for 27 seconds')
+  it('tells where the time went: deliberation as a divider before each batch, rows with their own run', () => {
+    // 22s of thinking, then two reads issued together (5s each); 60s more thinking, then one more.
+    const {container, root} = renderParts([
+      {...search('one', 22_000), stepStartedAt: t0},
+      {...search('two', 22_100), stepStartedAt: t0},
+      {...search('three', 87_100), stepStartedAt: t0 + 27_100},
+    ])
+    expect(container.textContent).toContain('Thought for 2 minutes')
     click(findThinkingToggle(container))
-    expect(container.querySelector('[aria-label="Time taken"]')?.textContent).toBe('27s')
+    const dividers = Array.from(container.querySelectorAll('[aria-label="Deliberation"]')).map((el) => el.textContent)
+    expect(dividers).toEqual(['thought for 22s', 'thought for 1m 0s'])
+    const runs = Array.from(container.querySelectorAll('[aria-label="Ran for"]')).map((el) => el.textContent)
+    expect(runs).toEqual(['5s', '5s', '5s'])
+    // The divider sits above the batch it led to.
+    const text = container.textContent!
+    expect(text.indexOf('thought for 22s')).toBeLessThan(text.indexOf('Found one.'))
+    expect(text.indexOf('Found two.')).toBeLessThan(text.indexOf('thought for 1m 0s'))
+    expect(text.indexOf('thought for 1m 0s')).toBeLessThan(text.indexOf('Found three.'))
+    cleanupRendered(root, container)
+  })
+
+  it('leaves out a divider for a pause too short to matter', () => {
+    const {container, root} = renderParts([{...search('one', 400), stepStartedAt: t0}])
+    click(findThinkingToggle(container))
+    expect(container.querySelector('[aria-label="Deliberation"]')).toBeNull()
     cleanupRendered(root, container)
   })
 
@@ -946,8 +965,8 @@ describe('thinking group', () => {
     expect(container.textContent).toContain('Thinking (2:00)')
     expect(container.textContent).not.toContain('Found one.')
     expect(container.querySelector('[data-thinking-group="active"]')).toBeTruthy()
-    // The pending row is the one on screen, its own step time ticking, and the line sits under it.
-    expect(container.querySelector('[aria-label="Time so far"]')?.textContent).toBe('1m 30s')
+    // The pending row is the one on screen, its own run time ticking, and the line sits under it.
+    expect(container.querySelector('[aria-label="Running for"]')?.textContent).toBe('1m 30s')
     expect(container.textContent!.indexOf('1m 30s')).toBeLessThan(container.textContent!.indexOf('Thinking ('))
 
     act(() => {
@@ -990,7 +1009,7 @@ describe('thinking group', () => {
   })
 })
 
-describe('tool step time', () => {
+describe('tool run time', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-07T10:00:00Z'))
@@ -1001,7 +1020,7 @@ describe('tool step time', () => {
 
   const t0 = Date.parse('2026-09-07T09:58:00Z')
 
-  it('shows the whole step on the row: the deliberation before the call plus the call itself', () => {
+  it("shows only the tool's own run on the row, from the executor's stamp when it left one", () => {
     const {container, root} = renderToolPart({
       type: 'tool',
       id: 'call-1',
@@ -1012,14 +1031,13 @@ describe('tool step time', () => {
       stepStartedAt: t0,
       calledAt: t0 + 50_000,
       completedAt: t0 + 65_000,
+      meta: {durationMs: 14_800},
     })
-    expect(container.querySelector('[aria-label="Time taken"]')?.textContent).toBe('1m 5s')
-    // The source chip that used to sit there is gone.
-    expect(container.textContent).not.toContain('search results')
+    expect(container.querySelector('[aria-label="Ran for"]')?.textContent).toBe('15s')
     cleanupRendered(root, container)
   })
 
-  it('falls back to the call itself when the log has no step start', () => {
+  it('falls back to the span between call and result', () => {
     const {container, root} = renderToolPart({
       type: 'tool',
       id: 'call-1',
@@ -1027,10 +1045,11 @@ describe('tool step time', () => {
       args: {query: 'seed'},
       result: 'Found 1.',
       rawOutput: {summary: 'Found 1.'},
-      calledAt: t0,
-      completedAt: t0 + 400,
+      stepStartedAt: t0,
+      calledAt: t0 + 20_000,
+      completedAt: t0 + 20_400,
     })
-    expect(container.querySelector('[aria-label="Time taken"]')?.textContent).toBe('0.4s')
+    expect(container.querySelector('[aria-label="Ran for"]')?.textContent).toBe('0.4s')
     cleanupRendered(root, container)
   })
 
@@ -1038,16 +1057,16 @@ describe('tool step time', () => {
     const live = renderParts([
       {type: 'tool', id: 'call-1', name: 'search', args: {query: 'seed'}, stepStartedAt: t0, calledAt: t0 + 30_000},
     ])
-    expect(live.container.querySelector('[aria-label="Time so far"]')?.textContent).toBe('2m 0s')
+    expect(live.container.querySelector('[aria-label="Running for"]')?.textContent).toBe('1m 30s')
     act(() => {
       vi.advanceTimersByTime(2_000)
     })
-    expect(live.container.querySelector('[aria-label="Time so far"]')?.textContent).toBe('2m 2s')
+    expect(live.container.querySelector('[aria-label="Running for"]')?.textContent).toBe('1m 32s')
     expect(live.container.textContent).not.toContain('Running')
     cleanupRendered(live.root, live.container)
 
     const untimed = renderToolPart({type: 'tool', id: 'call-2', name: 'search', args: {}, result: 'ok', rawOutput: {}})
-    expect(untimed.container.querySelector('[aria-label="Time taken"]')).toBeNull()
+    expect(untimed.container.querySelector('[aria-label="Ran for"]')).toBeNull()
     cleanupRendered(untimed.root, untimed.container)
   })
 })
