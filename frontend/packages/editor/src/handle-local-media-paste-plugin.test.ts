@@ -1,8 +1,5 @@
 import {describe, expect, it, vi} from 'vitest'
-import {
-  createNodePropsFromAttachmentResult,
-  handleLocalMediaPastePlugin,
-} from './handle-local-media-paste-plugin'
+import {createNodePropsFromAttachmentResult, handleLocalMediaPastePlugin} from './handle-local-media-paste-plugin'
 
 describe('local media paste helpers', () => {
   it('leaves rich HTML images to the editor parser without renderer fetch', () => {
