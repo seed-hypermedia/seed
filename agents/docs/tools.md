@@ -151,7 +151,7 @@ type ReadInput = {
 | `~/tools/<name>`    | one tool's full contract as markdown; `~/tools/` alone lists everything callable                                                                                                                          |
 | `~/triggers/<name>` | one trigger — source, prompt markdown, status, continuation, recent firings; `~/triggers/` lists all, with the write contract inline                                                                      |
 | `~/self`            | the agent's own record: definition (name, model, provider, reasoning level, system prompt), grants, signing-key names, triggers, memory summary, session count, and guidance on what it can change itself |
-| `hm://…`            | a hypermedia document or comment, markdown by default                                                                                                                                                     |
+| `hm://…`            | a hypermedia document or comment, markdown by default. `<doc>/:comments` is a document's whole discussion; `hm://<authorUid>/<tsid>` (or a bare `<authorUid>/<tsid>`) is one comment with its thread      |
 | `ipfs://<cid>`      | fetches through the configured `/ipfs/` gateway into memory (default path `ipfs/<cid>`) and returns it                                                                                                    |
 | `https://…`         | resolved as hypermedia first, then read as a web page                                                                                                                                                     |
 | `activity:`         | the activity feed via `ListEvents`, filtered by `options`                                                                                                                                                 |
@@ -190,6 +190,19 @@ truncated on a byte boundary.
 human-readable account/document labels, block `Embed` nodes inline the embedded markdown including block-fragment zooms.
 Block-level links must quote an exact `<!-- id:BLOCK_ID -->` marker copied from a read result — the shared assistant
 prompt states this, and re-reading after a write is required because block IDs may change.
+
+**Comments.** A comment id is `<authorUid>/<tsid>`; its canonical address is `hm://<authorUid>/<tsid>`, which the
+daemon's `Resource` request answers with a `comment` resource. The read result (`type: hypermedia_comment`) carries the
+comment, its `target` document, `replyParent`/`threadRoot`, the `discussion` address, a ready `replyWith` write call,
+and — loaded through `ListComments` on the target — the whole `thread` it belongs to (root plus every reply under that
+root, oldest first, capped at `MAX_THREAD_COMMENTS` keeping the root and the newest). `<doc>/:comments` (aliases
+`:comment`, `:discussions`) reads the whole discussion grouped into threads (`type: hypermedia_discussion`). Slightly
+wrong input is tolerated on purpose: a comment id glued onto a document (`hm://<docUid>/<author>/<tsid>`, the address an
+agent composes from a target uid and a `replyParent` field) is recognized by `commentIdInAddress()`, read at its
+canonical address, and the result says so in `recovered`; the literal address is only tried when nothing is there. The
+same thread loader feeds the trigger prompt's `<trigger_thread>` block (`triggerThreadContext`): a mention inside a
+reply arrives with the thread around it, because the request almost always refers to something earlier ("make this your
+profile pic" under an image another agent posted).
 
 **Address resolution.** Hypermedia reads go through the shared client resolver, not bespoke parsing:
 `resolveIdWithClient()` from `frontend/packages/client/src/resource-read.ts`, given a `domainResolver` backed by the

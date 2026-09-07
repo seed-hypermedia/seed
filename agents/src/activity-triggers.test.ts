@@ -277,6 +277,31 @@ describe('activity trigger matching', () => {
       'mention-bafymention--hm://z6Mktarget',
     )
     expect(triggers.activityEventKey({newBlob: {cid: 'undefined'}})).toBeNull()
+    expect(
+      triggers.activitySummary({
+        type: 'citation',
+        comment: {
+          id: 'z6Mkeric/z6JUmention',
+          targetAccount: 'z6Mkagent',
+          targetPath: '',
+          replyParent: 'z6Mkion/z6JUimage',
+          threadRoot: 'z6Mkeric/z6JUroot',
+        },
+        target: {id: {id: 'hm://z6Mkagent/:profile'}},
+      }),
+    ).toBe('Mention in a reply on hm://z6Mkagent')
+    expect(
+      triggers.activitySummary({
+        type: 'comment',
+        comment: {
+          id: 'z6Mkeric/z6JUtop',
+          targetAccount: 'z6Mkdoc',
+          targetPath: '/notes',
+          replyParent: '',
+          threadRoot: '',
+        },
+      }),
+    ).toBe('Comment on hm://z6Mkdoc/notes')
     expect(triggers.activitySummary({newBlob: {blobType: 'Comment', resource: 'hm://z6Mkdoc'}})).toBe(
       'Comment on hm://z6Mkdoc',
     )

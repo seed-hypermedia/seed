@@ -164,6 +164,18 @@ export function activitySummary(event: ActivityFeedEvent): string {
     return source ? `Mention of ${target} from ${source}` : `Mention of ${target}`
   }
   const type = stringField(event, 'type')
+  // Resolved feed events (the shape /api/ListEvents returns) carry the comment itself: say whether
+  // it is a reply and where, instead of the bare event type ("citation").
+  const comment = recordField(event, 'comment')
+  if (comment && (type === 'comment' || type === 'citation')) {
+    const isReply = !!(stringField(comment, 'replyParent') || stringField(comment, 'threadRoot'))
+    const label = type === 'citation' ? `Mention in a ${isReply ? 'reply' : 'comment'}` : isReply ? 'Reply' : 'Comment'
+    // The comment's own target, not the event target (for a citation that is the mentioned profile).
+    const account = stringField(comment, 'targetAccount')
+    const targetPath = stringField(comment, 'targetPath') || ''
+    const target = account ? `hm://${account}${targetPath ? `/${targetPath.replace(/^\/+/, '')}` : ''}` : null
+    return target ? `${label} on ${target}` : label
+  }
   if (type === 'run-completed') {
     const title = stringField(event, 'runTitle') || 'A run'
     const status = stringField(event, 'runStatus') || 'finished'

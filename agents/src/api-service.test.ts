@@ -6,7 +6,7 @@ import * as cbor from '@/cbor'
 import * as sqlite from '@/sqlite'
 import {ProviderOAuthManager} from '@/provider-oauth'
 import * as blobs from '@shm/shared/blobs'
-import {unpackHmId} from '@seed-hypermedia/client'
+import {createSeedClient, unpackHmId} from '@seed-hypermedia/client'
 import {serialize} from 'superjson'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
@@ -161,6 +161,222 @@ describe('api service', () => {
       const direct = await apisvc.readHypermedia({id: original})
       expect(direct.redirect).toBeUndefined()
       expect(direct.id).toBe(original)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  // Comment fixtures: real-shaped ids (48-char account uid, 14-char TSID) so the read verb's
+  // comment-id recognizer applies to them exactly as it does to production addresses.
+  const fakeUid = (seed: string) => 'z6Mk' + seed.repeat(44).slice(0, 44)
+  const fakeTsid = (seed: string) => 'z' + seed.repeat(13).slice(0, 13)
+  const DOC_UID = fakeUid('D')
+  const ERIC_UID = fakeUid('E')
+  const ION_UID = fakeUid('i')
+  const AGENT_UID = fakeUid('A')
+  const ROOT_ID = `${ERIC_UID}/${fakeTsid('1')}`
+  const IMAGE_ID = `${ION_UID}/${fakeTsid('2')}`
+  const MENTION_ID = `${ERIC_UID}/${fakeTsid('3')}`
+  const paragraph = (id: string, text: string) => ({block: {id, type: 'Paragraph', text}, children: []})
+  const commentFixture = (
+    id: string,
+    createTime: string,
+    content: unknown[],
+    reply?: {parent: string; root: string},
+  ) => ({
+    id,
+    version: `v-${id.slice(-4)}`,
+    author: id.split('/')[0]!,
+    targetAccount: DOC_UID,
+    targetPath: '',
+    targetVersion: 'docv1',
+    replyParent: reply?.parent ?? '',
+    replyParentVersion: reply ? 'pv' : '',
+    threadRoot: reply?.root ?? '',
+    threadRootVersion: reply ? 'rv' : '',
+    capability: '',
+    content,
+    createTime,
+    updateTime: createTime,
+    visibility: 'PUBLIC',
+  })
+  const threadComments = [
+    commentFixture(ROOT_ID, '2026-09-07T23:15:28.169Z', [paragraph('r1', 'hey @ion make a library-themed picture')]),
+    commentFixture(
+      IMAGE_ID,
+      '2026-09-07T23:17:50.012Z',
+      [
+        paragraph('i1', 'Here is a library-themed profile picture:'),
+        {
+          block: {id: 'i2', type: 'Image', text: 'An automaton librarian', link: 'ipfs://bafyimage'},
+          children: [],
+        },
+      ],
+      {parent: ROOT_ID, root: ROOT_ID},
+    ),
+    commentFixture(MENTION_ID, '2026-09-07T23:21:20.764Z', [paragraph('m1', '@agent make this your profile pic')], {
+      parent: IMAGE_ID,
+      root: ROOT_ID,
+    }),
+    // An unrelated top-level comment on the same document: never part of the thread above.
+    commentFixture(`${ION_UID}/${fakeTsid('9')}`, '2026-09-08T01:00:00.000Z', [paragraph('o1', 'Unrelated note')]),
+  ]
+  const commentAuthors = {
+    [ERIC_UID]: {id: unpackHmId(`hm://${ERIC_UID}`), metadata: {name: 'Eric'}},
+    [ION_UID]: {id: unpackHmId(`hm://${ION_UID}`), metadata: {name: 'Ion'}},
+  }
+  /** Serves Resource for exact comment addresses and ListComments for the document; everything else is not-found. */
+  const commentServerFetch = (requests: string[]) =>
+    mock(async (url: string | URL) => {
+      const href = decodeURIComponent(String(url))
+      requests.push(href)
+      if (href.includes('/api/Resource')) {
+        const comment = threadComments.find((entry) => href.includes(`hm://${entry.id}`))
+        if (comment && !href.includes(`hm://${DOC_UID}/`)) {
+          return Response.json(serialize({type: 'comment', id: unpackHmId(`hm://${comment.id}`), comment}))
+        }
+        return Response.json(serialize({type: 'not-found', id: unpackHmId(`hm://${DOC_UID}`)}))
+      }
+      if (href.includes('/api/ListComments')) {
+        return Response.json(serialize({comments: threadComments, authors: commentAuthors}))
+      }
+      throw new Error(`Unexpected fetch: ${href}`)
+    }) as unknown as typeof fetch
+
+  test('read tool recovers a comment id glued onto a document address and returns its thread', async () => {
+    // The importer agent, told to "make this your profile pic" in a reply, built
+    // hm://<document uid>/<author>/<tsid> from trigger fields, got not-found, and gave up — while the
+    // image sat one comment up the thread. The read verb now recognizes the comment id inside the
+    // bad address, reads the canonical hm://<author>/<tsid>, says what it corrected, and includes
+    // the whole thread so the agent sees the image without a second guess.
+    const originalFetch = globalThis.fetch
+    const requests: string[] = []
+    globalThis.fetch = commentServerFetch(requests)
+    try {
+      const result = await apisvc.readHypermedia({id: `hm://${DOC_UID}/${IMAGE_ID}`})
+      expect(result.type).toBe('hypermedia_comment')
+      expect(result.id).toBe(`hm://${IMAGE_ID}`)
+      expect(result.recovered).toMatchObject({from: `hm://${DOC_UID}/${IMAGE_ID}`, to: `hm://${IMAGE_ID}`})
+      expect(result.comment).toMatchObject({
+        id: IMAGE_ID,
+        author: ION_UID,
+        authorName: 'Ion',
+        target: `hm://${DOC_UID}`,
+        replyParent: ROOT_ID,
+        threadRoot: ROOT_ID,
+      })
+      expect(result.discussion).toBe(`hm://${DOC_UID}/:comments`)
+      expect(result.replyWith).toEqual({
+        address: `hm://${DOC_UID}`,
+        options: {action: 'comment', replyTo: IMAGE_ID},
+      })
+      const markdown = result.markdown as string
+      expect(markdown).toContain('bafyimage')
+      expect(markdown).toContain('Thread on hm://' + DOC_UID + ' (3 comments, oldest first)')
+      expect(markdown).toContain(`Comment id: \`${MENTION_ID}\` · replying to \`${IMAGE_ID}\``)
+      expect(markdown).toContain('← this comment')
+      expect(markdown).not.toContain('Unrelated note')
+      // The literal bad address was never fetched as a document.
+      expect(requests.filter((href) => href.includes('/api/Resource'))).toHaveLength(1)
+      expect(requests[0]).toContain(`hm://${IMAGE_ID}`)
+
+      // A bare comment id (what replyTo/replyParent fields hold) reads the same comment.
+      const bare = await apisvc.readHypermedia({id: MENTION_ID, format: 'json'})
+      expect(bare.type).toBe('hypermedia_comment')
+      expect(bare.recovered).toBeUndefined()
+      const thread = bare.thread as {comments: Array<{id: string}>; total: number}
+      expect(thread.total).toBe(3)
+      expect(thread.comments.map((entry) => entry.id)).toEqual([ROOT_ID, IMAGE_ID, MENTION_ID])
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  test('read tool lists a document discussion for :comments URLs', async () => {
+    const originalFetch = globalThis.fetch
+    const requests: string[] = []
+    globalThis.fetch = commentServerFetch(requests)
+    try {
+      const result = await apisvc.readHypermedia({id: `hm://${DOC_UID}/:comments`})
+      expect(requests).toHaveLength(1)
+      expect(requests[0]).toContain('/api/ListComments')
+      expect(requests[0]).not.toContain(':comments')
+      expect(result).toMatchObject({
+        type: 'hypermedia_discussion',
+        id: `hm://${DOC_UID}/:comments`,
+        target: `hm://${DOC_UID}`,
+        commentCount: 4,
+        threadCount: 2,
+      })
+      const markdown = result.markdown as string
+      expect(markdown).toContain('4 comments in 2 threads')
+      expect(markdown).toContain(`## Thread 1 (3 comments) · root \`${ROOT_ID}\``)
+      expect(markdown).toContain('## Thread 2 (1 comment)')
+      expect(markdown).toContain('Eric (`' + ERIC_UID + '`)')
+      expect(markdown.indexOf('library-themed picture')).toBeLessThan(markdown.indexOf('Unrelated note'))
+
+      const json = await apisvc.readHypermedia({id: `hm://${DOC_UID}/:discussions`, format: 'json'})
+      const threads = json.threads as Array<{root: string; comments: Array<{id: string}>}>
+      expect(threads.map((thread) => thread.root)).toEqual([ROOT_ID, `${ION_UID}/${fakeTsid('9')}`])
+      expect(threads[0]!.comments.map((entry) => entry.id)).toEqual([ROOT_ID, IMAGE_ID, MENTION_ID])
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  test('trigger prompt carries the whole thread behind a mention in a reply', async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = commentServerFetch([])
+    try {
+      const trigger = {
+        id: 'trigger-1',
+        agentId: 'agent-1',
+        name: 'Mentions',
+        enabled: true,
+        source: {type: 'user-mention', mentionedAccounts: [AGENT_UID]},
+        prompt: 'Respond to the mention, performing the action requested.',
+        createdAt: 0,
+        updatedAt: 0,
+      } as unknown as Parameters<typeof apisvc.triggerPromptMessage>[0]
+      const client = createSeedClient('https://hyper.media')
+      const mentionEvent = {
+        id: 'bafymention',
+        type: 'citation',
+        comment: threadComments[2],
+        feedEventId: `mention-bafymention--hm://${AGENT_UID}/:profile`,
+      }
+      const content = await apisvc.triggerPromptMessage(trigger, 'firing-1', mentionEvent, client)
+      const text = (content[0] as {text: string}).text
+      expect(text).toContain('\n<trigger_thread>\n')
+      expect(text).toContain('bafyimage')
+      expect(text).toContain(`Comment id: \`${MENTION_ID}\` · replying to \`${IMAGE_ID}\``)
+      expect(text).toContain('← the comment that fired this trigger')
+      expect(text).not.toContain('Unrelated note')
+      expect(text).toContain('read hm://<commentId>')
+
+      // A top-level comment is complete inside trigger_context: no thread block, no extra fetch.
+      const topLevel = await apisvc.triggerPromptMessage(
+        trigger,
+        'firing-2',
+        {...mentionEvent, comment: threadComments[0]},
+        client,
+      )
+      expect((topLevel[0] as {text: string}).text).not.toContain('\n<trigger_thread>\n')
+
+      // A failed thread lookup never blocks the trigger; the prompt says how to load it instead.
+      globalThis.fetch = mock(async () => {
+        throw new Error('daemon down')
+      }) as unknown as typeof fetch
+      const degraded = await apisvc.triggerPromptMessage(
+        trigger,
+        'firing-3',
+        mentionEvent,
+        createSeedClient('https://hyper.media'),
+      )
+      const degradedText = (degraded[0] as {text: string}).text
+      expect(degradedText).toContain('\n<trigger_thread>\n')
+      expect(degradedText).toContain('Thread context could not be loaded')
+      expect(degradedText).toContain(`hm://${DOC_UID}/:comments`)
     } finally {
       globalThis.fetch = originalFetch
     }

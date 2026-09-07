@@ -131,6 +131,8 @@ Every hm:// link in document content is resolved before publishing. Use \`option
 
 Use the target document as \`address\`, markdown as \`content\`, and \`options.action: "comment"\`. The address is the target by default; \`options.target\` can override it. Set \`options.replyTo\` to an existing comment ID or URL for a reply.
 
+A comment ID is \`<authorUid>/<tsid>\` — the same value found in \`replyParent\`, \`threadRoot\`, and activity \`comment.id\` fields. Before replying inside an existing thread, read the thread: \`read hm://<authorUid>/<tsid>\` returns a comment with the whole thread around it, and \`read hm://TARGET/:comments\` returns a document's entire discussion with every comment's ID. Reply to the specific comment you are answering (its ID as \`replyTo\`), not to the thread root, unless you are answering the root itself.
+
 \`\`\`json
 {"address":"hm://OWNER_UID/notes","content":"A useful comment.","options":{"action":"comment","signer":{"publicKey":"SIGNER_UID"}},"dryRun":true}
 \`\`\`

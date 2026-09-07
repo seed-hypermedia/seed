@@ -98,7 +98,8 @@ const readVerb = {
     '- `~/tools/<name>` — a tool contract: full description plus input/output schemas. `~/tools/` lists every tool you can call.',
     '- `~/triggers/<name>` — one of your triggers (its source, prompt, status, and recent firings). `~/triggers/` lists them all.',
     '- `~/self` — everything about you: your definition (model, system prompt, grants, signing keys), your triggers, and a memory summary.',
-    '- `hm://…` (or a Seed gateway/site URL) — a hypermedia document or comment, as markdown by default. Append `/:directory` to list the child documents under an account or document; `/:attributes` for metadata only; `/:profile` on an account for its profile.',
+    '- `hm://…` (or a Seed gateway/site URL) — a hypermedia document or comment, as markdown by default. Append `/:directory` to list the child documents under an account or document; `/:attributes` for metadata only; `/:profile` on an account for its profile; `/:comments` on a document for its whole discussion (every comment with its id, author, time, and what it replies to).',
+    '- A comment id is `<authorUid>/<tsid>` (the value in replyTo, replyParent, threadRoot and activity `comment.id` fields). Read a comment at `hm://<authorUid>/<tsid>` — a bare `<authorUid>/<tsid>` works too — and the result includes the whole thread it belongs to (oldest first, the requested comment marked) plus the exact write call that replies to it. Never prefix a comment id with the target document: `hm://<docUid>/<authorUid>/<tsid>` is not an address (it is corrected when recognizable, but do not rely on it).',
     '- `ipfs://<cid>` — fetch content by CID into memory and return it (binary files return metadata only).',
     '- `https://…` — read a public web page as markdown.',
     '- `activity:` — the recent activity feed; filter with options {authors, eventTypes, resource, pageSize, pageToken}.',
@@ -114,7 +115,7 @@ const readVerb = {
         type: 'string',
         minLength: 1,
         description:
-          'What to read: ~/memory/…, ~/tools/…, ~/triggers/…, ~/self, hm://…, ipfs://…, https://…, activity:, attachment:<id>, thread: or thread:<id>, run:<id>.',
+          'What to read: ~/memory/…, ~/tools/…, ~/triggers/…, ~/self, hm://… (documents, `<doc>/:comments` discussions, and `hm://<authorUid>/<tsid>` comments), ipfs://…, https://…, activity:, attachment:<id>, thread: or thread:<id>, run:<id>.',
       },
       format: {
         type: 'string',
