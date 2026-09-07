@@ -56,7 +56,11 @@ describe('ipfs object pills', () => {
   })
 
   it('a published schema blob is fetched and named', async () => {
-    const schema = {name: 'Vote', type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map', properties: {}}
+    const schema = {
+      name: 'Vote',
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
+      properties: {},
+    }
     const cid = CID.createV1(0x71, await sha256.digest(cbor.encode(schema))).toString()
     mount({schemaDefinition: `ipfs://${cid}`}, {[cid]: schema})
     await flush()

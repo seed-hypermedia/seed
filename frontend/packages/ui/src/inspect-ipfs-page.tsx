@@ -233,7 +233,7 @@ export function InspectIpfsPage({
   const isMetaSeed = seedSchemaCid === META_SCHEMA_CID
   const seedRegistry = useOnyxSchemaRegistry(seedSchemaCid && !isMetaSeed ? [seedSchemaCid] : [])
   const seedSchema = isMetaSeed
-    ? ONYX_SCHEMAS['onyx-schema']
+    ? ONYX_SCHEMAS['hypermedia-schema']
     : seedSchemaCid
       ? seedRegistry.byCid[seedSchemaCid]
       : undefined
@@ -304,7 +304,7 @@ export function InspectIpfsPage({
   }, [advisoryTarget, valueIsSchema])
   const schemaRegistry = useOnyxSchemaRegistry(attachedSchemaCid ? [attachedSchemaCid] : [])
   const schema = valueIsSchema
-    ? ONYX_SCHEMAS['onyx-schema']
+    ? ONYX_SCHEMAS['hypermedia-schema']
     : attachedSchemaCid
       ? schemaRegistry.byCid[attachedSchemaCid]
       : undefined
@@ -488,7 +488,7 @@ export function InspectIpfsPage({
               ) : valueIsSchema ? (
                 // The blob IS a schema: the struct form (name, fields, kinds, targets,
                 // signed-blob toggle) — "Edit raw" is the JSON escape hatch.
-                <SchemaAwareEditor schema={ONYX_SCHEMAS['onyx-schema']!} value={editJson} onValue={update} />
+                <SchemaAwareEditor schema={ONYX_SCHEMAS['hypermedia-schema']!} value={editJson} onValue={update} />
               ) : (
                 <ValueEditor value={editJson} onValue={update} rules={CBOR_VALUE_RULES} />
               )}

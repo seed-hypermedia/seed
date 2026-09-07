@@ -1,7 +1,7 @@
 ---
 name: "RPC: Comment"
 summary: "Fetches one comment by id or version CID. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `"
-schemaDefinition: ipfs://bafyreiej7gy4zu55pa5atc77kf6lgfbfy2ksj2ejb6zq3gfd5z5c627ihu
+schemaDefinition: ipfs://bafyreibr5u3mybnqwwem2whklbua6uscq5pomjesvghfagg6aioau6ptje
 ---
 Fetches one comment by id or version CID. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:iF3gr7CN -->
 
@@ -11,10 +11,10 @@ This document describes the **seed-rpc-comment** type — a Seed API read-model 
 
 A **closed struct** with these fields: <!-- id:gjgJsWAB -->
   - `key` _(required)_ — `string` enum: `Comment` <!-- id:sgUIu7Zp -->
-  - `input` _(required)_ — [string](./onyx-string.md) <!-- id:TEXCgfQs -->
+  - `input` _(required)_ — [string](./hypermedia-string.md) <!-- id:TEXCgfQs -->
   - `output` _(required)_ — [seed-comment](./seed-comment.md) <!-- id:9BhGxGzo -->
 
 # Depends on <!-- id:xwY-oZ3c -->
 
-- [string](./onyx-string.md) <!-- id:BEyrCqg4 -->
+- [string](./hypermedia-string.md) <!-- id:BEyrCqg4 -->
 - [seed-comment](./seed-comment.md) <!-- id:gF5PMV1e -->

@@ -8,21 +8,21 @@ summary: Every Onyx term in one place — kind, schema, meta-schema, variant, ge
 
 **Schema** — a value of kind `map` that constrains other values, written with the ten-key vocabulary (eight structural keys plus `name`/`description` metadata). Every schema is itself typed by the meta-schema, and is one of the meta-schema's seven variants. <!-- id:VEzPEsxm -->
 
-**Meta-schema** — `onyx-schema`: the schema that describes what a schema is. A **discriminated union** of seven variants; a valid instance of itself, and the system's axiom — the one block whose type is known out of band. <!-- id:8ezN9NKn -->
+**Meta-schema** — `hypermedia-schema`: the schema that describes what a schema is. A **discriminated union** of seven variants; a valid instance of itself, and the system's axiom — the one block whose type is known out of band. <!-- id:8ezN9NKn -->
 
 **Discriminated union** — a type that is "one of" a fixed set of variant shapes, told apart by a discriminant. In Onyx the discriminant is the `type` tag (plus "has `anyOf`" / "has `var`" / "bare `ref`"). Expressed with `anyOf`. ([the schema language](./schema-language.md)) <!-- id:h8At7AjF -->
 
-**Variant** — one of the seven member schemas of the meta-schema union: `onyx-map-schema`, `onyx-list-schema`, `onyx-scalar-schema`, `onyx-link-schema`, `onyx-include-schema`, `onyx-union-schema`, `onyx-var-schema`. Each is a closed map. <!-- id:wz8rwZiN -->
+**Variant** — one of the seven member schemas of the meta-schema union: `hypermedia-map-schema`, `hypermedia-list-schema`, `hypermedia-scalar-schema`, `hypermedia-link-schema`, `hypermedia-include-schema`, `hypermedia-anyof`, `hypermedia-var-schema`. Each is a closed map. <!-- id:wz8rwZiN -->
 
 **`anyOf`** — the union keyword: a list of schemas; a value is valid if it matches any of them. Onyx's one composite construct. <!-- id:gzOtVtdg -->
 
 **Generic** — a schema parameterized over a type. Declared with `params` (named type parameters, each with a default), used via `var` (a type-variable reference, `{ "var": "B" }`), and instantiated with `args` (`{ "ref": X, "args": { "B": … } }`). The parameter threads through references and defaults when unbound. Worked example: `Change<Block>` (`hypermedia-change`) instantiated as `example-myapp-change`. ([the schema language](./schema-language.md)) <!-- id:roR5fLFr -->
 
-**Primitive** — one of the standard-library schemas `onyx-<kind>.json`, each exactly `{ "type": <kind> }` (e.g. `onyx-string`, `onyx-boolean`). The canonical, content-addressed block for a kind; reference it (`{ "ref": "onyx-string" }`) instead of inlining a type. An _instance_ of the meta-schema — not to be confused with a **variant**, which is a _shape_ the meta-schema is a union of. ([the data model](./data-model.md)) <!-- id:VexhdhZC -->
+**Primitive** — one of the standard-library schemas `hypermedia-<kind>.schema.json`, each exactly `{ "type": <kind> }` (e.g. `hypermedia-string`, `hypermedia-boolean`). The canonical, content-addressed block for a kind; reference it (`{ "ref": "hypermedia-string" }`) instead of inlining a type. An _instance_ of the meta-schema — not to be confused with a **variant**, which is a _shape_ the meta-schema is a union of. ([the data model](./data-model.md)) <!-- id:VexhdhZC -->
 
 **Closed map** — a `map` schema with `properties` and no `values`: keys outside `properties` are rejected. The default for structs; what lets the meta-schema reject malformed schemas. Add `values` to make a map open. <!-- id:b0h1HebK -->
 
-**Self-description** — the property that the meta-schema is a valid instance of itself: `onyx-schema` matches its own `union` variant, whose `anyOf` items match its `include` variant, whose targets match the other variants. ([the schema language](./schema-language.md)) <!-- id:lRtXYs1R -->
+**Self-description** — the property that the meta-schema is a valid instance of itself: `hypermedia-schema` matches its own `union` variant, whose `anyOf` items match its `include` variant, whose targets match the other variants. ([the schema language](./schema-language.md)) <!-- id:lRtXYs1R -->
 
 **Include** — a bare reference `{ "ref": "hm://…" }` (no `type`, no refinements). Becomes exactly the referenced schema. ([references](./references.md)) <!-- id:Oj8fzm9C -->
 
@@ -40,9 +40,9 @@ summary: Every Onyx term in one place — kind, schema, meta-schema, variant, ge
 
 **Envelope** — the reserved-`/`-key JSON spelling of a link or bytes in dag-json. A spelling of a distinct kind, **not** a real map. ([encoding](./encoding.md)) <!-- id:ZkBHl9kD -->
 
-**`hm://` URL** — a **name reference**: how one schema points at another (`hm://hyper.media/string`). A name is independent of content, so — unlike a CID — names can form cycles, which is what makes recursion expressible. Local filenames are the dev alias (`onyx-string` ⇄ `hm://hyper.media/string`). <!-- id:_K0v1JJQ -->
+**`hm://` URL** — a **name reference**: how one schema points at another (`hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string`). A name is independent of content, so — unlike a CID — names can form cycles, which is what makes recursion expressible. Local filenames are the dev alias (`hypermedia-string` ⇄ `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string`). <!-- id:_K0v1JJQ -->
 
-**Authority** — a public key that owns and signs everything under its name. A domain like `hyper.media` resolves to one. Schemas reference each other across authorities: `hm://hyper.media/*` is the base type system (`onyx-*`), `hm://seed.hyper.media/*` the Hypermedia Network blob schemas (`hypermedia-*`, see [the Hypermedia chapter](./hypermedia.md)), and `hm://example.com/*` the examples. <!-- id:B-w01awU -->
+**Authority** — a public key that owns and signs everything under its name. A domain like `hyper.media` resolves to one. The library is published under one authority, the Onyx account (`hm://z6MkmZUb…/*`), and its families are told apart by name prefix: `hypermedia-*` for the type language and the Hypermedia Network's blob schemas (see [the Hypermedia chapter](./hypermedia.md)), `seed-*` for the Seed API's read models, and `example-*` for the examples. <!-- id:B-w01awU -->
 
 **Fixpoint problem** — the impossibility of baking a block's own CID into its own content (a hash preimage), which also means a _cycle_ of CIDs has no encoding order. The reason references are **names**, not hashes. ([references](./references.md)) <!-- id:IhPD5TJj -->
 

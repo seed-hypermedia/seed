@@ -1,7 +1,7 @@
 ---
 name: Faction
 summary: "A world-builder kit type: a page about a faction, order, house, or guild. Requires a `founded` date; links to its seat (a Place) and leader (a Character), and a"
-schemaDefinition: ipfs://bafyreigesg5s3adowuddoj4xbuexu6att2rkssmv5nidx7afc27eykydgi
+schemaDefinition: ipfs://bafyreihu6c7lq34q3qsy5kuc2wrzt3nrlbg57nfi2eqqjngpvtydbjylz4
 ---
 A world-builder kit type: a page about a faction, order, house, or guild. Requires a `founded` date; links to its seat (a Place) and leader (a Character), and a banner image. <!-- id:RvItBHZN -->
 
@@ -12,8 +12,8 @@ This document describes the **example-faction-doc** type — an example schema. 
 **Extends** [hypermedia-document](./hypermedia-document.md) with these added fields: <!-- id:-hXTuVju -->
   - `metadata` — [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:tGO7Z_Te -->
   - _adds to [hypermedia-metadata](./hypermedia-metadata.md):_ <!-- id:JFmr_1Iy -->
-  - `founded` _(required)_ — [date](./onyx-date.md) <!-- id:IKQ8ylg_ -->
-  - `dissolved` — [date](./onyx-date.md) <!-- id:goqd0e_j -->
+  - `founded` _(required)_ — [date](./hypermedia-date.md) <!-- id:IKQ8ylg_ -->
+  - `dissolved` — [date](./hypermedia-date.md) <!-- id:goqd0e_j -->
   - `seat` — [hypermedia-hm-url](./hypermedia-hm-url.md) (→ must conform to [example-place-doc](./example-place-doc.md)) <!-- id:ii5ONvHX -->
   - `leader` — [hypermedia-hm-url](./hypermedia-hm-url.md) (→ must conform to [example-character-doc](./example-character-doc.md)) <!-- id:4wLuR37p -->
   - `banner` — [hypermedia-ipfs](./hypermedia-ipfs.md) <!-- id:z9Hj7vQe -->
@@ -24,4 +24,4 @@ This document describes the **example-faction-doc** type — an example schema. 
 - [hypermedia-hm-url](./hypermedia-hm-url.md) <!-- id:-qmfs1ee -->
 - [hypermedia-ipfs](./hypermedia-ipfs.md) <!-- id:niUF-Oyt -->
 - [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:AisaIh3L -->
-- [date](./onyx-date.md) <!-- id:CiiSksy4 -->
+- [date](./hypermedia-date.md) <!-- id:CiiSksy4 -->

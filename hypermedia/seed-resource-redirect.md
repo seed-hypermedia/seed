@@ -1,7 +1,7 @@
 ---
 name: "Resource: redirect"
 summary: A resource that redirects to another id (optionally republishing its content in place). A derived read model computed by the Seed daemon/API for clients — not a
-schemaDefinition: ipfs://bafyreifjcgy4ntueyznodmthucj4powpiropd6r4lxwujyor7m62xkulme
+schemaDefinition: ipfs://bafyreigxfomvnc5rizchx4dacfnxhng2uxkn7qnjz2ewt4bpsfq75emx2u
 ---
 A resource that redirects to another id (optionally republishing its content in place). A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:nq0tvFEY -->
 
@@ -13,9 +13,9 @@ A **closed struct** with these fields: <!-- id:gXsjb7Rl -->
   - `type` _(required)_ — `string` enum: `redirect` <!-- id:74-eVXWJ -->
   - `id` _(required)_ — [seed-id](./seed-id.md) <!-- id:KDi6IPw0 -->
   - `redirectTarget` _(required)_ — [seed-id](./seed-id.md) <!-- id:Vwc2UeaH -->
-  - `republish` — [boolean](./onyx-boolean.md) <!-- id:D60uDSWr -->
+  - `republish` — [boolean](./hypermedia-boolean.md) <!-- id:D60uDSWr -->
 
 # Depends on <!-- id:dIJpaWek -->
 
-- [boolean](./onyx-boolean.md) <!-- id:GXI1oXzy -->
+- [boolean](./hypermedia-boolean.md) <!-- id:GXI1oXzy -->
 - [seed-id](./seed-id.md) <!-- id:ILFvu60V -->

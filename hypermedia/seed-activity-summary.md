@@ -1,7 +1,7 @@
 ---
 name: Activity summary
 summary: "Latest-activity digest carried on document listings: newest comment/change and unread state. A derived read model computed by the Seed daemon/API for clients — "
-schemaDefinition: ipfs://bafyreic7olfb2hgal63ogk4vgbraez7n5fuvjel6zuylp66lz4gc6qolfm
+schemaDefinition: ipfs://bafyreidzlhvt3l6mdt2dajepqq5s6apccljuftx6s4xycxxqa55libjuwy
 ---
 Latest-activity digest carried on document listings: newest comment/change and unread state. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:tbPPJsiv -->
 
@@ -11,14 +11,14 @@ This document describes the **seed-activity-summary** type — a Seed API read-m
 
 A **closed struct** with these fields: <!-- id:Vs4HGtDy -->
   - `latestCommentTime` — [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:1gqusC11 -->
-  - `latestCommentId` _(required)_ — [string](./onyx-string.md) <!-- id:41uUwCp8 -->
+  - `latestCommentId` _(required)_ — [string](./hypermedia-string.md) <!-- id:41uUwCp8 -->
   - `commentCount` _(required)_ — `integer` <!-- id:qpnT9nNY -->
   - `latestChangeTime` _(required)_ — [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:yf7D_UC5 -->
-  - `isUnread` _(required)_ — [boolean](./onyx-boolean.md) <!-- id:9uyBbD00 -->
+  - `isUnread` _(required)_ — [boolean](./hypermedia-boolean.md) <!-- id:9uyBbD00 -->
   - `childrenCount` — `integer` <!-- id:def8jVg8 -->
 
 # Depends on <!-- id:TszmmNHn -->
 
 - [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:ggrj6Ddw -->
-- [boolean](./onyx-boolean.md) <!-- id:oHJaYRhQ -->
-- [string](./onyx-string.md) <!-- id:qCF6yVV1 -->
+- [boolean](./hypermedia-boolean.md) <!-- id:oHJaYRhQ -->
+- [string](./hypermedia-string.md) <!-- id:qCF6yVV1 -->

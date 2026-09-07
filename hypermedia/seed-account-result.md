@@ -1,7 +1,7 @@
 ---
 name: Account result
 summary: "The result of resolving an account: its metadata payload, or an explicit not-found. A derived read model computed by the Seed daemon/API for clients — not a sig"
-schemaDefinition: ipfs://bafyreig2zf3crmj737ifmffxnv5rbfftwoydtb5uu26zooqgpi4shogoym
+schemaDefinition: ipfs://bafyreifvb6qmgcrcz5y3as55sqzzavbylkmku774vqojs3e5hmutjes3wq
 ---
 The result of resolving an account: its metadata payload, or an explicit not-found. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:cQGLYho_ -->
 
@@ -16,7 +16,7 @@ A **union** — a value matches one of these variants: <!-- id:HZf6WBQs -->
 # Depends on <!-- id:H_xarqfm -->
 
 - [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:ht4dyEW_ -->
-- [boolean](./onyx-boolean.md) <!-- id:dq0xPHDe -->
-- [null](./onyx-null.md) <!-- id:aTp6vL1V -->
-- [string](./onyx-string.md) <!-- id:BvamZwgP -->
+- [boolean](./hypermedia-boolean.md) <!-- id:dq0xPHDe -->
+- [null](./hypermedia-null.md) <!-- id:aTp6vL1V -->
+- [string](./hypermedia-string.md) <!-- id:BvamZwgP -->
 - [seed-id](./seed-id.md) <!-- id:-A7na0uO -->

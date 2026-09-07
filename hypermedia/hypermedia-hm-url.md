@@ -1,7 +1,7 @@
 ---
 name: HM link
 summary: "A reference to a Hypermedia document, held as an `hm://` URL string. `format: hm-url` tells an editor to render it as a searchable reference that displays the t"
-schemaDefinition: ipfs://bafyreiafkupvge7zvxw7tb5cchncqflp33qwsaib5qi3mxl3knerkwzowq
+schemaDefinition: ipfs://bafyreiccvt57gxtw6rlqxuq75pnsso4tfkftj47hi4yil6ijldn4yjtq5a
 ---
 A reference to a Hypermedia document, held as an `hm://` URL string. `format: hm-url` tells an editor to render it as a searchable reference that displays the target's title (a pill), not the raw URL. <!-- id:9OE_xwGa -->
 

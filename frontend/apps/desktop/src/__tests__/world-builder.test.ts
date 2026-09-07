@@ -58,10 +58,14 @@ describe('buildWorldPlan', () => {
     const character = byPath.get('notes/test-world/types/character')!
     const blob = plan.blobs.find((b) => b.cid === character.metadata.schemaDefinition!.replace('ipfs://', ''))!
     const schema = cbor.decode(blob.data) as any
-    expect(schema.properties.metadata.properties.home.target).toBe(`hm://${UID}/notes/test-world/types/place`)
-    expect(schema.properties.metadata.properties.faction.target).toBe(`hm://${UID}/notes/test-world/types/faction`)
+    expect(schema.properties.metadata.value.properties.home.value.target).toBe(
+      `hm://${UID}/notes/test-world/types/place`,
+    )
+    expect(schema.properties.metadata.value.properties.faction.value.target).toBe(
+      `hm://${UID}/notes/test-world/types/faction`,
+    )
     // …while an object target stays on the library type it was defined against.
-    expect(schema.properties.metadata.properties.stats.target).toBe(nameToUrl('example-stats'))
+    expect(schema.properties.metadata.value.properties.stats.value.target).toBe(nameToUrl('example-stats'))
 
     // Starters cross-reference each other and carry ISO dates.
     const wanderer = byPath.get('notes/test-world/characters/the-wanderer')!
@@ -99,8 +103,8 @@ describe('buildWorldPlan', () => {
     const character = plan.docs.find((d) => d.path.join('/') === 'small/types/character')!
     const blob = plan.blobs.find((b) => b.cid === character.metadata.schemaDefinition!.replace('ipfs://', ''))!
     const schema = cbor.decode(blob.data) as any
-    expect(schema.properties.metadata.properties.faction.target).toBe(nameToUrl('example-faction-doc'))
-    expect(schema.properties.metadata.properties.home.target).toBe(`hm://${UID}/small/types/place`)
+    expect(schema.properties.metadata.value.properties.faction.value.target).toBe(nameToUrl('example-faction-doc'))
+    expect(schema.properties.metadata.value.properties.home.value.target).toBe(`hm://${UID}/small/types/place`)
   })
 
   it('retargetSchema only rewrites target keys', () => {

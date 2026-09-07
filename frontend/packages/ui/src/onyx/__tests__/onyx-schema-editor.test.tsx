@@ -79,7 +79,13 @@ describe('OnyxSchemaEditor (struct form)', () => {
   })
 
   it('required is derived from the per-field checkbox, not authored as an array', () => {
-    act(() => root.render(<Harness initial={{type: 'hm://hyper.media/map', properties: {}}} />))
+    act(() =>
+      root.render(
+        <Harness
+          initial={{type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map', properties: {}}}
+        />,
+      ),
+    )
     click(findButton('Add field'))
     // toggle the required checkbox for the new field
     const checkbox = container.querySelector('[role="checkbox"]') as HTMLElement
@@ -97,9 +103,14 @@ describe('OnyxSchemaEditor (struct form)', () => {
       root.render(
         <Harness
           initial={{
-            type: 'hm://hyper.media/map',
+            type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
             name: 'T',
-            properties: {a: {value: {type: 'hm://hyper.media/string'}, required: true}},
+            properties: {
+              a: {
+                value: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string'},
+                required: true,
+              },
+            },
           }}
         />,
       ),
@@ -111,7 +122,7 @@ describe('OnyxSchemaEditor (struct form)', () => {
 })
 
 describe('OnyxSchemaEditor (generics and JSON mode)', () => {
-  const MAP = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map'
+  const MAP = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map'
   const BLOCK = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block'
 
   it('shows a generic schema’s type parameters and offers them as field kinds', () => {
@@ -136,7 +147,7 @@ describe('OnyxSchemaEditor (generics and JSON mode)', () => {
       root.render(<Harness initial={emptyStructSchema()} />)
     })
     click(findButton('Make generic'))
-    expect(latest.params).toEqual({T: {ref: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any'}})
+    expect(latest.params).toEqual({T: {ref: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-any'}})
     expect(isOnyxSchema(latest)).toBe(true)
     click(findButton('Add field'))
     // Point the new field at the parameter, then drop the parameter.
@@ -146,7 +157,9 @@ describe('OnyxSchemaEditor (generics and JSON mode)', () => {
     const remove = container.querySelector('button[aria-label="Remove type parameter T"]')!
     click(remove)
     expect(latest.params).toBeUndefined()
-    expect(fieldSchema(latest, 'field')).toEqual({ref: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any'})
+    expect(fieldSchema(latest, 'field')).toEqual({
+      ref: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-any',
+    })
     expect(isOnyxSchema(latest)).toBe(true)
   })
 
@@ -169,7 +182,9 @@ describe('OnyxSchemaEditor (generics and JSON mode)', () => {
   it('a list root edits its item type', () => {
     act(() => {
       root.render(
-        <Harness initial={{type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list', items: {ref: BLOCK}}} />,
+        <Harness
+          initial={{type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-list', items: {ref: BLOCK}}}
+        />,
       )
     })
     expect(container.querySelector('[data-testid="schema-list-items"] input')).toBeTruthy()

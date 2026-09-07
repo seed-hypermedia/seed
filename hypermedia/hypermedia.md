@@ -55,7 +55,7 @@ Document content is made of **blocks**. We want two things that pull in opposite
 <!-- id:nNN-eoL8 -->
 - The fifteen **concrete blocks** — `hypermedia-block-paragraph`, `hypermedia-block-heading`, `hypermedia-block-code`, `hypermedia-block-math`, `hypermedia-block-image`, `hypermedia-block-video`, `hypermedia-block-file`, `hypermedia-block-button`, `hypermedia-block-embed`, `hypermedia-block-web-embed`, `hypermedia-block-nostr`, `hypermedia-block-table`, `hypermedia-block-table-row`, `hypermedia-block-table-column`, `hypermedia-block-query` — each **extends** `hypermedia-block-base`, closed, with a `type` enum and typed attributes. <!-- id:85wzIKeC -->
 - `hypermedia-block-core` — the **core union** we define (the fifteen). Strict: rejects anything else. <!-- id:Tp6vmRo8 -->
-- `hypermedia-block` — the **open** block: `id` + `type` + arbitrary fields (via `onyx-any`). The forward-compatible wire type — a block type this client has _no schema for_ (future or third-party) is still a valid Block, so a document is never rejected over it. This is _not_ "your custom block type" (that's just extension + union, below); it's the open fallback for the _unknown_. <!-- id:idnijeex -->
+- `hypermedia-block` — the **open** block: `id` + `type` + arbitrary fields (via `hypermedia-any`). The forward-compatible wire type — a block type this client has _no schema for_ (future or third-party) is still a valid Block, so a document is never rejected over it. This is _not_ "your custom block type" (that's just extension + union, below); it's the open fallback for the _unknown_. <!-- id:idnijeex -->
 
 ### Adding a block type <!-- id:YUxiFSMb -->
 
@@ -63,8 +63,8 @@ To add a block type, do exactly what the core blocks do — **extend `hypermedia
 
 ```json <!-- id:TQDZHz8Q -->
 // example-app-block: the core, PLUS this app's custom Poll block
-{ "anyOf": [ { "ref": "hm://seed.hyper.media/block-core" },
-             { "ref": "hm://example.com/poll-block" } ] }
+{ "anyOf": [ { "ref": "hm://z6MkmZUb…/hypermedia-block-core" },
+             { "ref": "hm://z6MkmZUb…/example-poll-block" } ] }
 ```
 
 See `example-poll-block` (a custom block extending the same base) and `example-app-block`. That union is **strict for its app** — it accepts core blocks and Polls but rejects a block type it doesn't know — while the wire's `hypermedia-block` stays open. <!-- id:uKNf26fA -->

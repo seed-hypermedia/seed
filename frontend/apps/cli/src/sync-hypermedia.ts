@@ -9,7 +9,7 @@
  * This is `seed-cli space import / export / dev` (utils/space-sync.ts) with the
  * folder's own layout on top (see `layout` below): one flat directory holding
  * the developer docs, the Onyx schema library and the agents docs, where
- * `onyx-<x>.md` publishes at /<x> and everything else at its file name.
+ * every page publishes at its file name.
  *
  * Schema files are handled by the generic import: a type file becomes the
  * document's `schemaDefinition` blob, a `{$type, value}` file makes the
@@ -47,22 +47,10 @@ const LOCK_PATH = resolve(SCHEMAS_DIR, 'schemas.lock.json')
 /** The space the library is published under. */
 const SITE = 'z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
 
-/** Public doc name for a schema file basename: strip `onyx-` from primitives/meta. */
-function publicName(basename: string): string {
-  return basename.startsWith('onyx-') ? basename.slice(5) : basename
-}
-
-/** Inverse of publicName against the files on disk. */
-function basenameForPublicName(name: string): string {
-  if (existsSync(resolve(SCHEMAS_DIR, `onyx-${name}.schema.json`))) return `onyx-${name}`
-  return name
-}
-
 /**
  * How documents of the space map onto hypermedia/: one flat directory.
  *   index.md      → the home document
  *   README.md     → not published (it describes the folder on GitHub)
- *   onyx-<x>.md   → /<x>   (primitives and meta-schemas keep their public names)
  *   <x>.md        → /<x>
  * A schema file sits beside its document as <basename>.schema.json.
  */
@@ -70,17 +58,16 @@ export const layout: SpaceLayout = {
   pathForFile(file) {
     if (file === 'index.md') return ''
     if (file === 'README.md') return null
-    if (file.includes('/')) return '/' + file.replace(/\.md$/, '')
-    return '/' + publicName(file.replace(/\.md$/, ''))
+    return '/' + file.replace(/\.md$/, '')
   },
   fileForPath(path) {
     if (path === '') return 'index.md'
-    return `${basenameForPublicName(path.replace(/^\//, ''))}.md`
+    return `${path.replace(/^\//, '')}.md`
   },
   schemaFileFor: (mdFile) => mdFile.replace(/\.md$/, '.schema.json'),
   fileForLinkPath(path) {
     if (path === '') return 'index.md'
-    return `${basenameForPublicName(path.replace(/^\//, ''))}.md`
+    return `${path.replace(/^\//, '')}.md`
   },
 }
 
@@ -98,7 +85,7 @@ async function loadSchemaBlobs(): Promise<Array<{data: Uint8Array; cid: string}>
     const basename = file.replace(/\.schema\.json$/, '')
     const obj = JSON.parse(readFileSync(resolve(SCHEMAS_DIR, file), 'utf8'))
     const {data, cid} = await encodeSchemaBlob(obj)
-    const lockUrl = `hm://${SITE}/${publicName(basename)}`
+    const lockUrl = `hm://${SITE}/${basename}`
     const expected = lock.schemas[lockUrl]
     if (!expected) {
       console.error(`  ! ${file}: no lockfile entry for ${lockUrl}`)

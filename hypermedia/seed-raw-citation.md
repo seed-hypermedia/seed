@@ -1,7 +1,7 @@
 ---
 name: Raw citation
 summary: A citation in raw indexed form, before client-side resolution into a seed-citation. A derived read model computed by the Seed daemon/API for clients — not a sig
-schemaDefinition: ipfs://bafyreiedkngr2dos2eqnkssgxojbkv4i4sm2y7vas2bfu4ykyvhdhskf2a
+schemaDefinition: ipfs://bafyreidtrezri3tslycxlkoe7qbm5laqvklxvwiqq75ctnhssa6oikmmyq
 ---
 A citation in raw indexed form, before client-side resolution into a seed-citation. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:ax5Fn9Xm -->
 
@@ -10,21 +10,21 @@ This document describes the **seed-raw-citation** type — a Seed API read-model
 # Shape <!-- id:Qooxep7h -->
 
 A **closed struct** with these fields: <!-- id:VSMoMOwV -->
-  - `source` _(required)_ — [string](./onyx-string.md) <!-- id:xbMuwlRc -->
-  - `sourceType` — [string](./onyx-string.md) <!-- id:QCGc8Mib -->
-  - `sourceContext` — [string](./onyx-string.md) <!-- id:EB2X99HS -->
+  - `source` _(required)_ — [string](./hypermedia-string.md) <!-- id:xbMuwlRc -->
+  - `sourceType` — [string](./hypermedia-string.md) <!-- id:QCGc8Mib -->
+  - `sourceContext` — [string](./hypermedia-string.md) <!-- id:EB2X99HS -->
   - `sourceBlob` — map { 3 fields } <!-- id:HWqmQC6t -->
-  - `sourceDocument` — [string](./onyx-string.md) <!-- id:tGPuH7j_ -->
-  - `target` — [string](./onyx-string.md) <!-- id:mcQ_zF31 -->
-  - `targetVersion` — [string](./onyx-string.md) <!-- id:9r6v5-Jt -->
-  - `targetFragment` — [string](./onyx-string.md) <!-- id:ETitOUBu -->
-  - `isExactVersion` — [boolean](./onyx-boolean.md) <!-- id:JjU7xHVn -->
-  - `targetBlockRevision` — [string](./onyx-string.md) <!-- id:5F30tb_v -->
-  - `mentionType` — [string](./onyx-string.md) <!-- id:wQ9hjuTI -->
-  - `isExact` — [boolean](./onyx-boolean.md) <!-- id:PmdMfCaq -->
+  - `sourceDocument` — [string](./hypermedia-string.md) <!-- id:tGPuH7j_ -->
+  - `target` — [string](./hypermedia-string.md) <!-- id:mcQ_zF31 -->
+  - `targetVersion` — [string](./hypermedia-string.md) <!-- id:9r6v5-Jt -->
+  - `targetFragment` — [string](./hypermedia-string.md) <!-- id:ETitOUBu -->
+  - `isExactVersion` — [boolean](./hypermedia-boolean.md) <!-- id:JjU7xHVn -->
+  - `targetBlockRevision` — [string](./hypermedia-string.md) <!-- id:5F30tb_v -->
+  - `mentionType` — [string](./hypermedia-string.md) <!-- id:wQ9hjuTI -->
+  - `isExact` — [boolean](./hypermedia-boolean.md) <!-- id:PmdMfCaq -->
 
 # Depends on <!-- id:dPIrJcel -->
 
 - [hypermedia-timestamp](./hypermedia-timestamp.md) <!-- id:hBJ55G_b -->
-- [boolean](./onyx-boolean.md) <!-- id:lRrCLPEF -->
-- [string](./onyx-string.md) <!-- id:Z4_aA0VM -->
+- [boolean](./hypermedia-boolean.md) <!-- id:lRrCLPEF -->
+- [string](./hypermedia-string.md) <!-- id:Z4_aA0VM -->

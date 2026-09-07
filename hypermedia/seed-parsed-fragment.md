@@ -1,7 +1,7 @@
 ---
 name: Parsed fragment
 summary: A parsed URL fragment addressing a block (and optionally a range inside it). A derived read model computed by the Seed daemon/API for clients — not a signed net
-schemaDefinition: ipfs://bafyreialuj2qgut7mmixjmw7upchmvtyt4huexmfdqgzg2wikcpjwqamti
+schemaDefinition: ipfs://bafyreieuihzuz2ixgpublwbxjwz6y3v55zq4ie4uacknrauyku57zz76g4
 ---
 A parsed URL fragment addressing a block (and optionally a range inside it). A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:z7-8RBgX -->
 
@@ -10,9 +10,9 @@ This document describes the **seed-parsed-fragment** type — a Seed API read-mo
 # Shape <!-- id:syZag7R2 -->
 
 **Extends** [seed-block-range](./seed-block-range.md) with these added fields: <!-- id:yEQ1-H8j -->
-  - `blockId` _(required)_ — [string](./onyx-string.md) <!-- id:HheegK47 -->
+  - `blockId` _(required)_ — [string](./hypermedia-string.md) <!-- id:HheegK47 -->
 
 # Depends on <!-- id:iQNSAaXE -->
 
-- [string](./onyx-string.md) <!-- id:TnlsTizM -->
+- [string](./hypermedia-string.md) <!-- id:TnlsTizM -->
 - [seed-block-range](./seed-block-range.md) <!-- id:Szbd6UUI -->

@@ -6,7 +6,7 @@
 // engine as validate.mjs (so the tour's editor and the reference validator can
 // never disagree), and shows the resulting dag-json.
 //
-// Pointed at a normal schema it edits DATA; pointed at onyx-schema (the
+// Pointed at a normal schema it edits DATA; pointed at hypermedia-schema (the
 // meta-schema) it edits A SCHEMA. One engine, every editor.
 (function () {
   "use strict";
@@ -222,7 +222,7 @@
 
   // ---- the recursive form builder -----------------------------------------
   // buildNode(schema, value, onChange, env, depth) -> { el, getValue }
-  // Recursive schemas (the meta-schema, onyx-any) are infinitely deep, so we
+  // Recursive schemas (the meta-schema, hypermedia-any) are infinitely deep, so we
   // expand lazily: optional fields build only when included, and a depth cap
   // falls back to a raw-json box — the form never tries to draw an infinite tree.
   const MAX_DEPTH = 14;
@@ -313,7 +313,7 @@
       return { el: inp, getValue: get };
     }
 
-    // no kind / onyx-any leaf → raw JSON
+    // no kind / hypermedia-any leaf → raw JSON
     return jsonFallback(value, onChange, "any");
   }
 
@@ -496,7 +496,7 @@
     const slug = host.getAttribute("data-schema");
     const schema = SCHEMAS[slug + ".json"];
     if (!schema) { host.textContent = "no schema " + slug; return; }
-    const isMeta = slug === "onyx-schema";
+    const isMeta = slug === "hypermedia-schema";
     const seedVal = host.hasAttribute("data-seed") ? JSON.parse(host.getAttribute("data-seed")) : seed(schema);
 
     const grid = el("div", "on-grid");

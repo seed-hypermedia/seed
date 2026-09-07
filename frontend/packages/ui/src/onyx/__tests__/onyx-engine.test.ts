@@ -4,10 +4,10 @@ import {dependencies, dependents, isInstance, ONYX_SCHEMAS, schemaCid, validate}
 // dag-json constructors for test data (mirror schemas/validate.mjs)
 const cid = (s: string) => ({'/': s})
 const bytes = (b: string) => ({'/': {bytes: b}})
-const K = (k: string) => `hm://hyper.media/${k}`
+const K = (k: string) => `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-${k}`
 const S = (name: string) => ONYX_SCHEMAS[name]
 
-const meta = S('onyx-schema')
+const meta = S('hypermedia-schema')
 
 describe('Onyx engine — parity with the reference validator (schemas/validate.mjs)', () => {
   it('1. self-description: the meta-schema is a valid instance of itself', () => {
@@ -143,14 +143,14 @@ describe('Onyx engine — parity with the reference validator (schemas/validate.
   })
 
   it('6. dependency graph: deps/dependents resolve and the manifest has CIDs', () => {
-    // onyx-schema (the meta) depends on its variant schemas
-    const deps = dependencies('onyx-schema')
-    expect(deps).toContain('onyx-map-schema')
-    expect(deps).toContain('onyx-var-schema')
+    // hypermedia-schema (the meta) depends on its variant schemas
+    const deps = dependencies('hypermedia-schema')
+    expect(deps).toContain('hypermedia-map-schema')
+    expect(deps).toContain('hypermedia-var-schema')
     // the map-schema variant is depended-on by the meta union
-    expect(dependents('onyx-map-schema')).toContain('onyx-schema')
+    expect(dependents('hypermedia-map-schema')).toContain('hypermedia-schema')
     // published CIDs exist
-    expect(schemaCid('onyx-schema')).toMatch(/^bafy/)
-    expect(schemaCid('hm://hyper.media/map-schema')).toMatch(/^bafy/)
+    expect(schemaCid('hypermedia-schema')).toMatch(/^bafy/)
+    expect(schemaCid('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map-schema')).toMatch(/^bafy/)
   })
 })

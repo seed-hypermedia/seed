@@ -25,18 +25,18 @@ const renderPage = (slug: string) => {
 
 describe('OnyxSchemaPage renders every schema shape without crashing', () => {
   it('the meta-schema (discriminated union)', () => {
-    renderPage('onyx-schema')
+    renderPage('hypermedia-schema')
     expect(container.textContent).toContain('Onyx schema')
     expect(container.textContent).toContain('meta-schema')
   })
 
   it('a primitive (self-grounding axiom)', () => {
-    renderPage('onyx-string')
+    renderPage('hypermedia-string')
     expect(container.textContent).toContain('Core Type')
   })
 
   it('a meta variant', () => {
-    renderPage('onyx-map-schema')
+    renderPage('hypermedia-map-schema')
     expect(container.textContent?.toLowerCase()).toContain('variant')
   })
 

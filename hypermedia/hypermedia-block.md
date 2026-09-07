@@ -1,7 +1,7 @@
 ---
 name: Block
 summary: "The open block: the common fields (id, type, text, link, annotations, attributes) plus arbitrary extra fields of any type, requiring only id and type. This is t"
-schemaDefinition: ipfs://bafyreig2fse5ewtj6mjmkb3e77kq63dhirnwg4u4plzd64rkzjcl5svxii
+schemaDefinition: ipfs://bafyreihupvqykrmeljysm6hh2hpw66plny6bac4gpgjigdx7z5tkvgbnsm
 ---
 The open block: the common fields (id, type, text, link, annotations, attributes) plus arbitrary extra fields of any type, requiring only id and type. This is the forward-compatible wire type Change ops and comment bodies reference — a block type this client has no schema for (a future or third-party type) is still a valid Block, so a document is never rejected over an unrecognized block. Every concrete block is a subtype; the strict recognized set is hypermedia-block-core. To ADD a block type, extend hypermedia-block-base and union it with the core (see example-poll-block / example-app-block). <!-- id:oDU4AtVK -->
 
@@ -10,16 +10,16 @@ This document describes the **hypermedia-block** type — a Hypermedia Network b
 # Shape <!-- id:QiFjidUz -->
 
 A map with these fields: <!-- id:fsTkb0Vo -->
-  - `id` _(required)_ — [string](./onyx-string.md) <!-- id:JojT7-nZ -->
-  - `revision` — [string](./onyx-string.md) <!-- id:lffsHj-T -->
-  - `type` _(required)_ — [string](./onyx-string.md) <!-- id:cLTKblZl -->
-  - `text` — [string](./onyx-string.md) <!-- id:Vp36I-vY -->
-  - `link` — [string](./onyx-string.md) <!-- id:C8thhIEg -->
+  - `id` _(required)_ — [string](./hypermedia-string.md) <!-- id:JojT7-nZ -->
+  - `revision` — [string](./hypermedia-string.md) <!-- id:lffsHj-T -->
+  - `type` _(required)_ — [string](./hypermedia-string.md) <!-- id:cLTKblZl -->
+  - `text` — [string](./hypermedia-string.md) <!-- id:Vp36I-vY -->
+  - `link` — [string](./hypermedia-string.md) <!-- id:C8thhIEg -->
   - `annotations` — list of [hypermedia-annotation](./hypermedia-annotation.md) <!-- id:9JbkXwGl -->
   - `attributes` — map { 0 fields } <!-- id:wLVIaOrw -->
 
 # Depends on <!-- id:EltAo080 -->
 
 - [hypermedia-annotation](./hypermedia-annotation.md) <!-- id:g8o6nDyl -->
-- [any](./onyx-any.md) <!-- id:ehYTDbOa -->
-- [string](./onyx-string.md) <!-- id:xj1lJl3u -->
+- [any](./hypermedia-any.md) <!-- id:ehYTDbOa -->
+- [string](./hypermedia-string.md) <!-- id:xj1lJl3u -->
