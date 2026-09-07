@@ -491,7 +491,13 @@ function AgentDetailPage({
     <PanelContainer className="flex flex-col overflow-hidden">
       <div className={isTriggerDetail ? 'border-border flex-none border-b' : 'contents'}>
         <Container
-          className={isTriggerDetail ? 'max-w-4xl gap-4 pt-4 pb-4' : 'min-h-0 max-w-4xl flex-1 gap-4 pt-4 pb-0'}
+          className={
+            isTriggerDetail
+              ? 'max-w-4xl gap-4 pt-4 pb-4'
+              : // The memory browser is a two-pane file explorer: reading width limits do not apply,
+                // so it takes the whole window.
+                `min-h-0 flex-1 gap-4 pt-4 pb-0 ${tab === 'memory' ? '' : 'max-w-4xl'}`
+          }
         >
           {agent.isLoading ? (
             <div className="flex flex-1 items-center justify-center py-12">

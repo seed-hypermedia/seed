@@ -33,6 +33,8 @@ import {
   UploadCloud,
 } from 'lucide-react'
 import {useEffect, useMemo, useRef, useState} from 'react'
+import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
+import {useMedia} from '@shm/ui/use-media'
 
 /** Files above this size skip the inline preview fetch — pulling hundreds of MB stalls the UI. */
 const MAX_MEMORY_PREVIEW_BYTES = 32 * 1024 * 1024
@@ -63,6 +65,10 @@ export function AgentMemoryTab({
   /** Reports the opened file back to the host so the route (and its copyable URL) can follow. */
   onOpenPathChange?: (path: string) => void
 }) {
+  // Phones keep the tree stacked above the file; anything wider gets side-by-side panes whose
+  // divider drags, with the split remembered per browser (PanelGroup autoSaveId → localStorage).
+  const media = useMedia()
+  const stacked = media.xs
   /** Directories currently expanded in the tree; everything starts collapsed. */
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => new Set())
   // The tree loads one directory level per query — the root plus each expanded directory — so a
@@ -305,6 +311,214 @@ export function AgentMemoryTab({
   const dirty = draftText !== null && draftText !== (file.data?.content ?? '')
   const selectedIpfsUrl = selectedPath ? ipfsUrls[selectedPath] : undefined
 
+  const treePane = (
+    <div
+      className={`flex h-full min-h-0 w-full flex-col overflow-y-auto p-2 ${
+        dropTarget === '' ? 'ring-primary/50 ring-2 ring-inset' : ''
+      }`}
+      onDragOver={(event) => {
+        if (readOnly || !hasDraggedFiles(event)) return
+        event.preventDefault()
+        // Dir rows stop propagation while hovered, so reaching here means the root is targeted.
+        setDropTarget('')
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+        setDropTarget(null)
+      }}
+      onDrop={(event) => {
+        if (readOnly || !hasDraggedFiles(event)) return
+        event.preventDefault()
+        setDropTarget(null)
+        void handleDroppedItems(event.dataTransfer)
+      }}
+    >
+      {!rootQuery || rootQuery.isLoading ? (
+        <div className="flex items-center justify-center p-4">
+          <Spinner />
+        </div>
+      ) : rootQuery.isError ? (
+        <MemoryLoadNotice
+          error={rootQuery.error}
+          failed="Couldn’t load memory"
+          onRetry={() => void rootQuery.refetch()}
+          retryPending={rootQuery.isFetching}
+          className="m-2"
+        />
+      ) : entries.length === 0 ? (
+        <SizableText size="sm" color="muted" className="p-2">
+          No memory yet. The agent stores files here as it works, and you can add files for it to find — or drop files
+          here.
+        </SizableText>
+      ) : (
+        visibleEntries.map((entry) => (
+          <MemoryEntryRow
+            key={entry.path}
+            entry={entry}
+            loadingChildren={entry.type === 'dir' && expandedDirs.has(entry.path) && loadingDirs.has(entry.path)}
+            selected={entry.type === 'file' && entry.path === selectedPath}
+            confirmingDelete={confirmDeletePath === entry.path}
+            expanded={entry.type === 'dir' && expandedDirs.has(entry.path)}
+            onToggle={entry.type === 'dir' ? () => toggleDir(entry.path) : undefined}
+            onSelect={() => (entry.type === 'file' ? selectFile(entry.path) : undefined)}
+            onRequestDelete={readOnly ? undefined : () => setConfirmDeletePath(entry.path)}
+            onCancelDelete={() => setConfirmDeletePath(null)}
+            onConfirmDelete={() => void handleDelete(entry.path)}
+            deleting={deleteFile.isLoading && confirmDeletePath === entry.path}
+            dropTargeted={entry.type === 'dir' && dropTarget === entry.path}
+            onDirDragOver={
+              !readOnly && entry.type === 'dir'
+                ? (event) => {
+                    if (!hasDraggedFiles(event)) return
+                    event.preventDefault()
+                    event.stopPropagation()
+                    setDropTarget(entry.path)
+                  }
+                : undefined
+            }
+            onDirDrop={
+              !readOnly && entry.type === 'dir'
+                ? (event) => {
+                    if (!hasDraggedFiles(event)) return
+                    event.preventDefault()
+                    event.stopPropagation()
+                    setDropTarget(null)
+                    void handleDroppedItems(event.dataTransfer, entry.path)
+                  }
+                : undefined
+            }
+          />
+        ))
+      )}
+    </div>
+  )
+
+  const filePane = (
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      {selectedPath === null ? (
+        <div className="flex flex-1 items-center justify-center p-6">
+          <SizableText size="sm" color="muted">
+            Select a file to view and edit it.
+          </SizableText>
+        </div>
+      ) : selectedTooLarge && selectedEntry ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6">
+          <FileText className="text-muted-foreground size-8" />
+          <SizableText size="sm" weight="bold" className="max-w-full truncate font-mono">
+            {selectedPath}
+          </SizableText>
+          <SizableText size="sm" color="muted">
+            {formatBytes(selectedEntry.size)}
+            {selectedEntry.mimeType ? ` · ${selectedEntry.mimeType}` : ''} — too large to preview here.
+          </SizableText>
+          {!readOnly ? (
+            <Button variant="outline" size="sm" onClick={() => setConfirmDeletePath(selectedPath)} className="mt-2">
+              <Trash2 className="mr-1 size-3.5" /> Delete
+            </Button>
+          ) : null}
+        </div>
+      ) : file.isLoading ? (
+        <div className="flex flex-1 items-center justify-center p-6">
+          <Spinner />
+        </div>
+      ) : file.isError ? (
+        <div className="flex flex-1 items-start justify-center p-4">
+          <MemoryLoadNotice
+            error={file.error}
+            failed="Couldn’t read this file"
+            onRetry={() => void file.refetch()}
+            retryPending={file.isFetching}
+            className="w-full max-w-md"
+          />
+        </div>
+      ) : file.data ? (
+        <>
+          <div className="border-border flex items-center gap-2 border-b px-3 py-2">
+            <FileText className="text-muted-foreground size-4 flex-none" />
+            <SizableText size="sm" weight="bold" className="min-w-0 flex-1 truncate font-mono">
+              {selectedPath}
+            </SizableText>
+            <SizableText size="xs" color="muted" className="flex-none">
+              {formatBytes(dirty ? new TextEncoder().encode(draftText ?? '').byteLength : file.data.size)}
+              {file.data.mimeType ? ` · ${file.data.mimeType}` : ''}
+              {file.data.updatedAt ? ` · ${formattedDateMedium(new Date(file.data.updatedAt))}` : ''}
+            </SizableText>
+            {!readOnly && file.data.encoding === 'utf8' && dirty ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex-none"
+                  onClick={() => setDraftText(null)}
+                  disabled={writeFile.isLoading}
+                >
+                  <RotateCcw className="mr-1 size-3.5" /> Revert
+                </Button>
+                <Button
+                  size="sm"
+                  className="flex-none"
+                  onClick={() => void handleSave()}
+                  disabled={writeFile.isLoading}
+                >
+                  <Save className="mr-1 size-3.5" /> {writeFile.isLoading ? 'Saving…' : 'Save'}
+                </Button>
+              </>
+            ) : null}
+            <OptionsDropdown
+              align="end"
+              menuItems={[
+                {
+                  key: 'download',
+                  icon: <Download className="size-4" />,
+                  label: 'Download',
+                  onClick: () => file.data && saveFileToDisk(file.data),
+                },
+                {
+                  key: 'publish-ipfs',
+                  icon: <UploadCloud className="size-4" />,
+                  label: uploadToIpfs.isLoading ? 'Publishing…' : 'Publish to IPFS',
+                  disabled: readOnly || uploadToIpfs.isLoading,
+                  onClick: () => void handlePublishToIpfs(),
+                },
+              ]}
+            />
+          </div>
+          {selectedIpfsUrl ? (
+            <div className="border-border bg-muted/40 flex items-center gap-2 border-b px-3 py-1.5">
+              <SizableText size="xs" color="muted" className="flex-none">
+                IPFS:
+              </SizableText>
+              <SizableText size="xs" className="min-w-0 flex-1 truncate font-mono">
+                {selectedIpfsUrl}
+              </SizableText>
+              <Button
+                variant="ghost"
+                size="iconSm"
+                className="flex-none"
+                aria-label="Copy IPFS URL"
+                onClick={() => void copyText(selectedIpfsUrl).then(() => toast.success('IPFS URL copied'))}
+              >
+                <Copy className="size-3.5" />
+              </Button>
+            </div>
+          ) : null}
+          {file.data.encoding === 'utf8' ? (
+            <textarea
+              aria-label={`Memory file ${selectedPath}`}
+              className="focus:ring-primary/25 min-h-0 flex-1 resize-none bg-transparent p-3 font-mono text-sm outline-none focus:ring-2"
+              value={draftText ?? file.data.content ?? ''}
+              onChange={(event) => setDraftText(event.currentTarget.value)}
+              readOnly={readOnly}
+              spellCheck={false}
+            />
+          ) : (
+            <BinaryFilePreview file={file.data} onDownload={() => file.data && saveFileToDisk(file.data)} />
+          )}
+        </>
+      ) : null}
+    </div>
+  )
+
   return (
     <section className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
       <div className="flex flex-wrap items-start justify-between gap-2 sm:flex-nowrap sm:items-center">
@@ -436,211 +650,26 @@ export function AgentMemoryTab({
         </form>
       ) : null}
 
-      <div className="border-border bg-card flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border sm:flex-row">
-        <div
-          className={`border-border flex max-h-56 w-full flex-none flex-col overflow-y-auto border-b p-2 sm:max-h-none sm:w-64 sm:border-r sm:border-b-0 ${
-            dropTarget === '' ? 'ring-primary/50 ring-2 ring-inset' : ''
-          }`}
-          onDragOver={(event) => {
-            if (readOnly || !hasDraggedFiles(event)) return
-            event.preventDefault()
-            // Dir rows stop propagation while hovered, so reaching here means the root is targeted.
-            setDropTarget('')
-          }}
-          onDragLeave={(event) => {
-            if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
-            setDropTarget(null)
-          }}
-          onDrop={(event) => {
-            if (readOnly || !hasDraggedFiles(event)) return
-            event.preventDefault()
-            setDropTarget(null)
-            void handleDroppedItems(event.dataTransfer)
-          }}
+      {stacked ? (
+        <div className="border-border bg-card flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border">
+          <div className="border-border max-h-56 flex-none border-b">{treePane}</div>
+          {filePane}
+        </div>
+      ) : (
+        <PanelGroup
+          direction="horizontal"
+          autoSaveId="agent-memory-panes"
+          className="border-border bg-card min-h-0 flex-1 overflow-hidden rounded-xl border"
         >
-          {!rootQuery || rootQuery.isLoading ? (
-            <div className="flex items-center justify-center p-4">
-              <Spinner />
-            </div>
-          ) : rootQuery.isError ? (
-            <MemoryLoadNotice
-              error={rootQuery.error}
-              failed="Couldn’t load memory"
-              onRetry={() => void rootQuery.refetch()}
-              retryPending={rootQuery.isFetching}
-              className="m-2"
-            />
-          ) : entries.length === 0 ? (
-            <SizableText size="sm" color="muted" className="p-2">
-              No memory yet. The agent stores files here as it works, and you can add files for it to find — or drop
-              files here.
-            </SizableText>
-          ) : (
-            visibleEntries.map((entry) => (
-              <MemoryEntryRow
-                key={entry.path}
-                entry={entry}
-                loadingChildren={entry.type === 'dir' && expandedDirs.has(entry.path) && loadingDirs.has(entry.path)}
-                selected={entry.type === 'file' && entry.path === selectedPath}
-                confirmingDelete={confirmDeletePath === entry.path}
-                expanded={entry.type === 'dir' && expandedDirs.has(entry.path)}
-                onToggle={entry.type === 'dir' ? () => toggleDir(entry.path) : undefined}
-                onSelect={() => (entry.type === 'file' ? selectFile(entry.path) : undefined)}
-                onRequestDelete={readOnly ? undefined : () => setConfirmDeletePath(entry.path)}
-                onCancelDelete={() => setConfirmDeletePath(null)}
-                onConfirmDelete={() => void handleDelete(entry.path)}
-                deleting={deleteFile.isLoading && confirmDeletePath === entry.path}
-                dropTargeted={entry.type === 'dir' && dropTarget === entry.path}
-                onDirDragOver={
-                  !readOnly && entry.type === 'dir'
-                    ? (event) => {
-                        if (!hasDraggedFiles(event)) return
-                        event.preventDefault()
-                        event.stopPropagation()
-                        setDropTarget(entry.path)
-                      }
-                    : undefined
-                }
-                onDirDrop={
-                  !readOnly && entry.type === 'dir'
-                    ? (event) => {
-                        if (!hasDraggedFiles(event)) return
-                        event.preventDefault()
-                        event.stopPropagation()
-                        setDropTarget(null)
-                        void handleDroppedItems(event.dataTransfer, entry.path)
-                      }
-                    : undefined
-                }
-              />
-            ))
-          )}
-        </div>
-
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          {selectedPath === null ? (
-            <div className="flex flex-1 items-center justify-center p-6">
-              <SizableText size="sm" color="muted">
-                Select a file to view and edit it.
-              </SizableText>
-            </div>
-          ) : selectedTooLarge && selectedEntry ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6">
-              <FileText className="text-muted-foreground size-8" />
-              <SizableText size="sm" weight="bold" className="max-w-full truncate font-mono">
-                {selectedPath}
-              </SizableText>
-              <SizableText size="sm" color="muted">
-                {formatBytes(selectedEntry.size)}
-                {selectedEntry.mimeType ? ` · ${selectedEntry.mimeType}` : ''} — too large to preview here.
-              </SizableText>
-              {!readOnly ? (
-                <Button variant="outline" size="sm" onClick={() => setConfirmDeletePath(selectedPath)} className="mt-2">
-                  <Trash2 className="mr-1 size-3.5" /> Delete
-                </Button>
-              ) : null}
-            </div>
-          ) : file.isLoading ? (
-            <div className="flex flex-1 items-center justify-center p-6">
-              <Spinner />
-            </div>
-          ) : file.isError ? (
-            <div className="flex flex-1 items-start justify-center p-4">
-              <MemoryLoadNotice
-                error={file.error}
-                failed="Couldn’t read this file"
-                onRetry={() => void file.refetch()}
-                retryPending={file.isFetching}
-                className="w-full max-w-md"
-              />
-            </div>
-          ) : file.data ? (
-            <>
-              <div className="border-border flex items-center gap-2 border-b px-3 py-2">
-                <FileText className="text-muted-foreground size-4 flex-none" />
-                <SizableText size="sm" weight="bold" className="min-w-0 flex-1 truncate font-mono">
-                  {selectedPath}
-                </SizableText>
-                <SizableText size="xs" color="muted" className="flex-none">
-                  {formatBytes(dirty ? new TextEncoder().encode(draftText ?? '').byteLength : file.data.size)}
-                  {file.data.mimeType ? ` · ${file.data.mimeType}` : ''}
-                  {file.data.updatedAt ? ` · ${formattedDateMedium(new Date(file.data.updatedAt))}` : ''}
-                </SizableText>
-                {!readOnly && file.data.encoding === 'utf8' && dirty ? (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="flex-none"
-                      onClick={() => setDraftText(null)}
-                      disabled={writeFile.isLoading}
-                    >
-                      <RotateCcw className="mr-1 size-3.5" /> Revert
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="flex-none"
-                      onClick={() => void handleSave()}
-                      disabled={writeFile.isLoading}
-                    >
-                      <Save className="mr-1 size-3.5" /> {writeFile.isLoading ? 'Saving…' : 'Save'}
-                    </Button>
-                  </>
-                ) : null}
-                <OptionsDropdown
-                  align="end"
-                  menuItems={[
-                    {
-                      key: 'download',
-                      icon: <Download className="size-4" />,
-                      label: 'Download',
-                      onClick: () => file.data && saveFileToDisk(file.data),
-                    },
-                    {
-                      key: 'publish-ipfs',
-                      icon: <UploadCloud className="size-4" />,
-                      label: uploadToIpfs.isLoading ? 'Publishing…' : 'Publish to IPFS',
-                      disabled: readOnly || uploadToIpfs.isLoading,
-                      onClick: () => void handlePublishToIpfs(),
-                    },
-                  ]}
-                />
-              </div>
-              {selectedIpfsUrl ? (
-                <div className="border-border bg-muted/40 flex items-center gap-2 border-b px-3 py-1.5">
-                  <SizableText size="xs" color="muted" className="flex-none">
-                    IPFS:
-                  </SizableText>
-                  <SizableText size="xs" className="min-w-0 flex-1 truncate font-mono">
-                    {selectedIpfsUrl}
-                  </SizableText>
-                  <Button
-                    variant="ghost"
-                    size="iconSm"
-                    className="flex-none"
-                    aria-label="Copy IPFS URL"
-                    onClick={() => void copyText(selectedIpfsUrl).then(() => toast.success('IPFS URL copied'))}
-                  >
-                    <Copy className="size-3.5" />
-                  </Button>
-                </div>
-              ) : null}
-              {file.data.encoding === 'utf8' ? (
-                <textarea
-                  aria-label={`Memory file ${selectedPath}`}
-                  className="focus:ring-primary/25 min-h-0 flex-1 resize-none bg-transparent p-3 font-mono text-sm outline-none focus:ring-2"
-                  value={draftText ?? file.data.content ?? ''}
-                  onChange={(event) => setDraftText(event.currentTarget.value)}
-                  readOnly={readOnly}
-                  spellCheck={false}
-                />
-              ) : (
-                <BinaryFilePreview file={file.data} onDownload={() => file.data && saveFileToDisk(file.data)} />
-              )}
-            </>
-          ) : null}
-        </div>
-      </div>
+          <Panel id="agent-memory-tree" order={1} defaultSize={25} minSize={12} maxSize={60}>
+            {treePane}
+          </Panel>
+          <PanelResizeHandle className="panel-resize-handle visible" />
+          <Panel id="agent-memory-file" order={2} minSize={40}>
+            {filePane}
+          </Panel>
+        </PanelGroup>
+      )}
     </section>
   )
 }
