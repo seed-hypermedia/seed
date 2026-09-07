@@ -76,6 +76,7 @@ vi.mock('@shm/shared/utils/entity-id-url', async () => {
 
 vi.mock('@shm/ui/agents/markdown', () => ({
   Markdown: ({children}: {children: React.ReactNode}) => React.createElement('div', null, children),
+  MarkdownAssetContext: React.createContext(null),
 }))
 
 vi.mock('@shm/shared/models/entity', () => ({

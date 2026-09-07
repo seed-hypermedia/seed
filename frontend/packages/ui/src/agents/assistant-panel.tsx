@@ -26,6 +26,7 @@ import {
   interleaveRunRecords,
   mergeConsecutiveToolMessageRows,
   buildAgentSessionUrl,
+  chatRowEndsInThinkingGroup,
   chatRowHasPendingToolCall,
   frozenRunIds,
   retryableErrorRowKey,
@@ -874,6 +875,11 @@ function AssistantSessionChat({
   )
   // Which runs the scroll already owns, so the pinned slot does not tell the same story twice.
   const frozenRuns = useMemo(() => frozenRunIds(rows), [rows])
+  // The newest row of a streaming session, with nothing streaming below it, is the one a trailing
+  // "Thinking" line speaks for — and while it does, the status bar below would only tick twice.
+  const lastRow = rows[rows.length - 1]
+  const liveTailRowKey = isStreaming && !live.text ? lastRow?.key : undefined
+  const thinkingLineShowing = !!lastRow && liveTailRowKey === lastRow.key && chatRowEndsInThinkingGroup(lastRow)
 
   const doSendMessage = useCallback(
     (message: AgentSessionDraftMessage | AgentSessionDraftMessage[]) => {
@@ -964,6 +970,7 @@ function AssistantSessionChat({
                     key={row.key}
                     message={row.message}
                     liveActivity={chatRowHasPendingToolCall(row) ? live.activity : undefined}
+                    isLiveTail={row.key === liveTailRowKey}
                     serverUrl={serverUrl}
                     accountUid={accountUid}
                     agentId={session.data?.session.agentId}
@@ -1011,8 +1018,11 @@ function AssistantSessionChat({
             {live.text ? (
               <AssistantMessageParts parts={[{type: 'text', text: live.text}]} isStreaming={isStreaming} />
             ) : null}
-            {isStreaming && !(live.activity?.phase === 'tool' && rows.some(chatRowHasPendingToolCall)) ? (
-              // Hidden while a pending tool row is showing its own live status, to avoid two spinners.
+            {isStreaming &&
+            !thinkingLineShowing &&
+            !(live.activity?.phase === 'tool' && rows.some(chatRowHasPendingToolCall)) ? (
+              // Hidden while a thinking line or a pending tool row is showing its own live
+              // status, to avoid two spinners.
               <AgentRunStatusBar startedAt={runStartedAt} activity={live.activity} usage={live.usage} />
             ) : null}
             {autoScroll.showScrollButton ? (

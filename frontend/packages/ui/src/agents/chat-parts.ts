@@ -190,3 +190,54 @@ export function buildLegacyChatMessageParts(input: {
 
   return parts
 }
+
+/** A tool part still waiting on its result. */
+export function isPendingToolPart(part: ChatToolPart): boolean {
+  return part.result === undefined && part.rawOutput === undefined
+}
+
+/**
+ * Whether a part belongs in the collapsible "Thinking" line: ordinary tool activity by the agent
+ * (or the runtime on its behalf). Status updates, continuation handoffs, and verbs the user ran
+ * themselves are things the reader is meant to see, so they stay out and split a group.
+ */
+export function isThinkingToolPart(part: ChatMessagePart): part is ChatToolPart {
+  return part.type === 'tool' && part.name !== 'status' && part.name !== 'continue_session' && part.actor !== 'user'
+}
+
+/** One render unit of an assistant message: a burst of thinking tool calls, or a single part. */
+export type ChatMessageRenderItem =
+  | {kind: 'thinking'; parts: ChatToolPart[]}
+  | {kind: 'part'; part: ChatMessagePart; index: number}
+
+/** Folds consecutive thinking tool parts into one group, keeping every other part on its own. */
+export function groupThinkingParts(parts: ChatMessagePart[]): ChatMessageRenderItem[] {
+  const items: ChatMessageRenderItem[] = []
+  parts.forEach((part, index) => {
+    if (isThinkingToolPart(part)) {
+      const previous = items[items.length - 1]
+      if (previous?.kind === 'thinking') previous.parts.push(part)
+      else items.push({kind: 'thinking', parts: [part]})
+      return
+    }
+    items.push({kind: 'part', part, index})
+  })
+  return items
+}
+
+/**
+ * When a settled burst of thinking ended: the latest result on the log, or a call's own duration
+ * stamp when the result event is missing. Undefined on transcripts with no timing at all.
+ */
+export function thinkingGroupCompletedAt(parts: ChatToolPart[]): number | undefined {
+  let latest: number | undefined
+  for (const part of parts) {
+    const completedAt =
+      part.completedAt ??
+      (part.calledAt !== undefined && part.meta?.durationMs !== undefined
+        ? part.calledAt + part.meta.durationMs
+        : undefined)
+    if (completedAt !== undefined && (latest === undefined || completedAt > latest)) latest = completedAt
+  }
+  return latest
+}

@@ -35,6 +35,7 @@ import {
   interleaveRunRecords,
   mergeConsecutiveToolMessageRows,
   buildAgentSessionUrl,
+  chatRowEndsInThinkingGroup,
   chatRowHasPendingToolCall,
   frozenRunIds,
   getSharedEventIdFromHash,
@@ -251,6 +252,12 @@ function AgentSessionPage({
   // pending state until the retried run actually starts streaming, which is what removes the row.
   const retryableRowKey = canChat ? retryableErrorRowKey(chatRows, !!isAgentBusy) : undefined
   const runStartedAt = useRunStartedAt(isAgentBusy)
+  // The newest row of a streaming session, with nothing streaming below it, is the one a trailing
+  // "Thinking" line speaks for — and while it does, the status bar below would only tick twice.
+  const lastChatRow = chatRows[chatRows.length - 1]
+  const liveTailRowKey = isAgentStreaming && !partialAssistantText ? lastChatRow?.key : undefined
+  const thinkingLineShowing =
+    !!lastChatRow && liveTailRowKey === lastChatRow.key && chatRowEndsInThinkingGroup(lastChatRow)
   // Sub-session affordances: the parent is loaded only for its title/route, and the child's own run
   // to tell "still being driven by the parent" from "finished, yours to continue". That run is a
   // child in the parent's tree, so it is reachable by id (SessionInfo.runId), not by ListRuns.
@@ -559,6 +566,7 @@ function AgentSessionPage({
                       agentId={agentId}
                       accountUid={selectedAccountId}
                       liveActivity={chatRowHasPendingToolCall(row) ? liveState.activity : undefined}
+                      isLiveTail={row.key === liveTailRowKey}
                       onRetry={row.key === retryableRowKey ? handleRetrySession : undefined}
                       retryPending={retrySession.isPending}
                       onOpenSession={(childSessionId, childAgentId) =>
@@ -568,8 +576,11 @@ function AgentSessionPage({
                   </div>
                 ))}
                 {partialAssistantText ? <PartialAssistantRow text={partialAssistantText} /> : null}
-                {isAgentBusy && !(liveState.activity?.phase === 'tool' && chatRows.some(chatRowHasPendingToolCall)) ? (
-                  // Hidden while a pending tool row is showing its own live status, to avoid two spinners.
+                {isAgentBusy &&
+                !thinkingLineShowing &&
+                !(liveState.activity?.phase === 'tool' && chatRows.some(chatRowHasPendingToolCall)) ? (
+                  // Hidden while a thinking line or a pending tool row is showing its own live
+                  // status, to avoid two spinners.
                   <AgentRunStatusBar startedAt={runStartedAt} activity={liveState.activity} usage={liveState.usage} />
                 ) : null}
                 {autoScroll.showScrollButton ? (
@@ -718,6 +729,7 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
   agentId,
   accountUid,
   liveActivity,
+  isLiveTail,
   onRetry,
   retryPending,
   onOpenSession,
@@ -727,6 +739,8 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
   agentId?: string
   accountUid?: string | null
   liveActivity?: AgentRunActivity
+  /** See ChatMessageBubble: the newest row of a session still streaming. */
+  isLiveTail?: boolean
   /** Set only on a trailing error row, which is the only place a retry is offered. */
   onRetry?: () => void
   retryPending?: boolean
@@ -742,6 +756,7 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
             <ChatMessageBubble
               message={row.message}
               liveActivity={liveActivity}
+              isLiveTail={isLiveTail}
               serverUrl={serverUrl}
               accountUid={accountUid}
               agentId={agentId}
@@ -760,6 +775,7 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
       <ChatMessageBubble
         message={row.message}
         liveActivity={liveActivity}
+        isLiveTail={isLiveTail}
         serverUrl={serverUrl}
         accountUid={accountUid}
         agentId={agentId}

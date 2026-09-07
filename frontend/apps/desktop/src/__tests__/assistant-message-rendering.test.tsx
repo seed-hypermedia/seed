@@ -2,7 +2,7 @@ import React from 'react'
 import {createRoot, Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import type {ChatMessagePart} from '@shm/ui/agents/chat-parts'
+import type {ChatMessagePart, ChatToolPart} from '@shm/ui/agents/chat-parts'
 
 /**
  * Rendering coverage for assistant/agent chat bubbles.
@@ -58,6 +58,7 @@ vi.mock('@shm/shared/utils/entity-id-url', async () => {
 
 vi.mock('@shm/ui/agents/markdown', () => ({
   Markdown: ({children}: {children: React.ReactNode}) => React.createElement('div', null, children),
+  MarkdownAssetContext: React.createContext(null),
 }))
 
 vi.mock('@shm/shared/models/entity', () => ({
@@ -86,21 +87,40 @@ vi.mock('@shm/ui/agents/models', () => ({
 
 import {AgentErrorRow, ChatMessageBubble} from '@shm/ui/agents/message-rendering'
 
-/** Renders one assistant bubble carrying the given tool part. */
-function renderToolPart(part: ChatMessagePart, serverUrl?: string, agentId?: string) {
+/** Renders one assistant bubble carrying the given parts. */
+function renderParts(
+  parts: ChatMessagePart[],
+  options: {serverUrl?: string; agentId?: string; isLiveTail?: boolean} = {},
+) {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
   act(() => {
     root.render(
       <ChatMessageBubble
-        message={{role: 'assistant', content: '', parts: [part]}}
-        serverUrl={serverUrl}
-        agentId={agentId}
+        message={{role: 'assistant', content: '', parts}}
+        serverUrl={options.serverUrl}
+        agentId={options.agentId}
+        isLiveTail={options.isLiveTail}
       />,
     )
   })
   return {container, root}
+}
+
+/** The "Thinking" / "Thought for" line that folds a burst of tool calls. */
+function findThinkingToggle(container: HTMLElement) {
+  return findButton(container, (element) => /^(Thinking|Thought for|Finished thinking)/.test(element.textContent ?? ''))
+}
+
+/**
+ * Renders one assistant bubble carrying the given tool part, opened: a settled tool call folds
+ * behind its "Thought" line, and these cases are about the row itself.
+ */
+function renderToolPart(part: ChatMessagePart, serverUrl?: string, agentId?: string) {
+  const rendered = renderParts([part], {serverUrl, agentId})
+  click(findThinkingToggle(rendered.container))
+  return rendered
 }
 
 /** Renders a bubble for an errored assistant message. */
@@ -867,6 +887,85 @@ describe('event info dialogs', () => {
     expect(document.body.textContent).toContain('Output')
     expect(document.body.textContent).not.toContain('Duration')
 
+    cleanupRendered(root, container)
+  })
+})
+
+describe('thinking group', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-07T10:00:00Z'))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const t0 = Date.parse('2026-09-07T09:58:00Z')
+  const search = (id: string, offsetMs: number, done = true): ChatToolPart => ({
+    type: 'tool',
+    id,
+    name: 'search',
+    args: {query: id},
+    calledAt: t0 + offsetMs,
+    ...(done ? {result: `Found ${id}.`, rawOutput: {summary: `Found ${id}.`}, completedAt: t0 + offsetMs + 5_000} : {}),
+  })
+
+  it('folds a settled burst behind "Thought for", and the line opens and closes it', () => {
+    const {container, root} = renderParts([search('one', 0), search('two', 60_000), search('three', 115_000)])
+
+    expect(container.textContent).toContain('Thought for 2 minutes')
+    expect(container.textContent).toContain('3 tool calls')
+    expect(container.textContent).not.toContain('Found one.')
+    expect(container.textContent).not.toContain('Found three.')
+
+    click(findThinkingToggle(container))
+    expect(container.textContent).toContain('Found one.')
+    expect(container.textContent).toContain('Found two.')
+    expect(container.textContent).toContain('Found three.')
+    expect(findThinkingToggle(container)?.getAttribute('aria-expanded')).toBe('true')
+
+    click(findThinkingToggle(container))
+    expect(container.textContent).not.toContain('Found one.')
+    expect(findThinkingToggle(container)?.getAttribute('aria-expanded')).toBe('false')
+    cleanupRendered(root, container)
+  })
+
+  it('ticks "Thinking" over only the most recent call while a call is pending', () => {
+    const {container, root} = renderParts([search('one', 0), search('two', 30_000, false)])
+
+    // Timed from the first call: two minutes ago at the mocked clock.
+    expect(container.textContent).toContain('Thinking (2:00)')
+    expect(container.textContent).not.toContain('Found one.')
+    expect(container.querySelector('[data-thinking-group="active"]')).toBeTruthy()
+    // The pending row is the one on screen; it says so itself.
+    expect(container.textContent).toContain('Running')
+
+    act(() => {
+      vi.advanceTimersByTime(3_000)
+    })
+    expect(container.textContent).toContain('Thinking (2:03)')
+
+    click(findThinkingToggle(container))
+    expect(container.textContent).toContain('Found one.')
+    cleanupRendered(root, container)
+  })
+
+  it('stays live at the tail of a streaming session even between calls', () => {
+    const {container, root} = renderParts([search('one', 0)], {isLiveTail: true})
+    expect(container.textContent).toContain('Thinking (')
+    expect(container.textContent).toContain('Found one.')
+    cleanupRendered(root, container)
+  })
+
+  it('keeps user-run verbs and status updates out of the fold', () => {
+    const {container, root} = renderParts([
+      search('one', 0),
+      {...search('mine', 10_000), actor: 'user'},
+      {type: 'tool', id: 'st', name: 'status', args: {description: 'Halfway there.'}, result: 'ok', rawOutput: {}},
+    ])
+    expect(container.textContent).toContain('Thought for')
+    expect(container.textContent).toContain('Found mine.')
+    expect(container.textContent).toContain('Halfway there.')
     cleanupRendered(root, container)
   })
 })

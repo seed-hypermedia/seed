@@ -2,10 +2,14 @@ import {type AgentRunActivity, type RunInfo, type SessionEventMeta} from './clie
 import {eventMetaRows, type EventTimes} from './event-meta'
 import {
   buildLegacyChatMessageParts,
+  groupThinkingParts,
+  isPendingToolPart,
+  thinkingGroupCompletedAt,
   type ChatBubbleMessage,
   type ChatMessagePart,
   type ChatToolPart,
 } from './chat-parts'
+import {formatElapsed, formatThinkingDuration} from './agent-run-status'
 import {getSeedTool, type SeedToolMetadata} from '@seed-hypermedia/agents-protocol'
 import {
   detailLinkTarget,
@@ -61,7 +65,7 @@ import {
   Workflow,
   Wrench,
 } from 'lucide-react'
-import React, {Fragment, Suspense, useMemo, useState} from 'react'
+import React, {Fragment, Suspense, useEffect, useMemo, useRef, useState} from 'react'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {Markdown} from './markdown'
@@ -78,6 +82,7 @@ import {
 export const ChatMessageBubble = React.memo(function ChatMessageBubble({
   message,
   liveActivity,
+  isLiveTail = false,
   serverUrl,
   accountUid,
   agentId,
@@ -85,6 +90,12 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({
   message: ChatBubbleMessage
   /** Live run activity, passed so a pending tool call row can show its in-flight progress. */
   liveActivity?: AgentRunActivity
+  /**
+   * This is the newest row of a session that is still streaming, with nothing streaming below it:
+   * a trailing burst of tool calls keeps ticking as "Thinking" even between calls, until the
+   * model's next message lands.
+   */
+  isLiveTail?: boolean
   /** Agent server URL, needed to resolve session attachment images for display. */
   serverUrl?: string
   /** Signing account for server-side record queries (delegate work views). */
@@ -139,6 +150,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({
           <AssistantMessageParts
             parts={getAssistantMessageParts(message)}
             liveActivity={liveActivity}
+            isLiveTail={isLiveTail}
             serverUrl={serverUrl}
             accountUid={accountUid}
             agentId={agentId}
@@ -294,6 +306,7 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
   parts,
   isStreaming = false,
   liveActivity,
+  isLiveTail = false,
   rawMarkdownButton,
   serverUrl,
   accountUid,
@@ -303,6 +316,8 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
   parts: ChatMessagePart[]
   isStreaming?: boolean
   liveActivity?: AgentRunActivity
+  /** See ChatMessageBubble: keeps a trailing thinking group live between tool calls. */
+  isLiveTail?: boolean
   rawMarkdownButton?: React.ReactNode
   /** Agent server the parts' tool calls ran on, for tools that link to server-side records. */
   serverUrl?: string
@@ -316,8 +331,24 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
   const rawButtonIndex = rawMarkdownButton
     ? parts.reduce((lastTextIndex, part, index) => (part.type === 'text' ? index : lastTextIndex), -1)
     : -1
+  const items = useMemo(() => groupThinkingParts(parts), [parts])
 
-  return parts.map((part, index) => {
+  return items.map((item, itemIndex) => {
+    if (item.kind === 'thinking') {
+      return (
+        <ThinkingGroup
+          key={`thinking:${item.parts[0]!.id}`}
+          parts={item.parts}
+          isLiveTail={isLiveTail && itemIndex === items.length - 1}
+          liveActivity={liveActivity}
+          serverUrl={serverUrl}
+          accountUid={accountUid}
+          agentId={agentId}
+          sessionId={sessionId}
+        />
+      )
+    }
+    const {part, index} = item
     if (part.type === 'tool' && part.name === 'continue_session') {
       // The conversation moved on from here: a transition card, not a tool row.
       return <ContinuationTransitionRow key={`${part.id}:${index}`} item={part} serverUrl={serverUrl} />
@@ -352,6 +383,100 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
     )
   })
 })
+
+/** Re-renders once a second while `active`, returning the current time. */
+function useNowTicker(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!active) return
+    setNow(Date.now())
+    const interval = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(interval)
+  }, [active])
+  return now
+}
+
+/**
+ * A burst of tool calls, told as one line of thinking.
+ *
+ * While the agent is still at it the line ticks — "Thinking (0:42)" — over the most recent call,
+ * which is the only one worth watching. Once the burst is over it settles into "Thought for 2
+ * minutes" and folds every call away. The line is the toggle in both states: click to open the
+ * whole burst, click again to fold it back. A reader who opened it mid-run keeps it open when
+ * the run ends; nobody else sees the calls again unless they ask.
+ */
+function ThinkingGroup({
+  parts,
+  isLiveTail,
+  liveActivity,
+  serverUrl,
+  accountUid,
+  agentId,
+  sessionId,
+}: {
+  parts: ChatToolPart[]
+  isLiveTail: boolean
+  liveActivity?: AgentRunActivity
+  serverUrl?: string
+  accountUid?: string | null
+  agentId?: string
+  sessionId?: string
+}) {
+  const [expanded, setExpanded] = useState(false)
+  // A call still waiting on its result keeps the line live; so does being the tail of a streaming
+  // session, which covers the gap between one result and the next call.
+  const active = isLiveTail || parts.some(isPendingToolPart)
+  // A part with no call stamp (a legacy transcript) is timed from when it appeared on screen.
+  const mountedAtRef = useRef(Date.now())
+  const startedAt = parts[0]?.calledAt ?? mountedAtRef.current
+  const now = useNowTicker(active)
+  const completedAt = active ? undefined : thinkingGroupCompletedAt(parts)
+  const durationMs = active
+    ? Math.max(0, now - startedAt)
+    : completedAt !== undefined
+      ? Math.max(0, completedAt - startedAt)
+      : undefined
+  const label = active
+    ? `Thinking (${formatElapsed(durationMs ?? 0)})`
+    : durationMs !== undefined
+      ? `Thought for ${formatThinkingDuration(durationMs)}`
+      : 'Finished thinking'
+  const countLabel = `${parts.length} tool call${parts.length === 1 ? '' : 's'}`
+  const visibleParts = expanded ? parts : active ? parts.slice(-1) : []
+  const Chevron = expanded ? ChevronDown : ChevronRight
+
+  return (
+    <div className="my-1.5 mr-6" data-thinking-group={active ? 'active' : 'done'}>
+      <button
+        type="button"
+        aria-expanded={expanded}
+        title={expanded ? 'Hide tool calls' : 'Show all tool calls'}
+        onClick={() => setExpanded((current) => !current)}
+        className="text-muted-foreground hover:text-foreground hover:bg-muted/60 flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left text-xs select-none"
+      >
+        {active ? <Loader2 className="size-3 shrink-0 animate-spin" /> : <Chevron className="size-3 shrink-0" />}
+        <span className="font-medium tabular-nums">{label}</span>
+        <span className="opacity-70">· {countLabel}</span>
+        {active ? <Chevron className="ml-auto size-3 shrink-0" /> : null}
+      </button>
+      {visibleParts.length ? (
+        <div>
+          {visibleParts.map((part) => (
+            <ToolCallItem
+              key={part.id}
+              item={part}
+              liveActivity={liveActivity}
+              serverUrl={serverUrl}
+              accountUid={accountUid}
+              agentId={agentId}
+              sessionId={sessionId}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 /**
  * A `status` call as the transcript shows it. The description is a status line the reader is

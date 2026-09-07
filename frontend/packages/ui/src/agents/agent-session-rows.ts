@@ -9,7 +9,7 @@ import {
 } from './client'
 import {type ChatBubbleMessage} from './chat-parts'
 import {isContinuationProjection, parseContinuationProjection, type ContinuationProjectionView} from './continuation'
-import {type ChatToolChild, type ChatToolPart} from './chat-parts'
+import {isThinkingToolPart, type ChatToolChild, type ChatToolPart} from './chat-parts'
 import {sessionEventActor} from '@seed-hypermedia/agents-protocol'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 
@@ -216,6 +216,18 @@ export function interleaveRunRecords(
     result.splice(index, 0, {key: `run-${run.id}`, kind: 'run-record', run, plan, createdAt: frozenAt})
   }
   return result
+}
+
+/**
+ * Whether a row ends in a burst of thinking tool calls — the row whose "Thinking" line speaks for
+ * the live run while it is the newest thing on the transcript, so the surfaces below it can stand
+ * down their own status bar rather than tick twice.
+ */
+export function chatRowEndsInThinkingGroup(row: AgentSessionChatRow): boolean {
+  if (row.kind !== 'message') return false
+  const parts = row.message.parts
+  const last = parts?.[parts.length - 1]
+  return !!last && isThinkingToolPart(last)
 }
 
 /** A message row that is nothing but tool parts, and so can fuse with a neighboring one. */

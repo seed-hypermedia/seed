@@ -77,6 +77,22 @@ export function formatElapsed(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
+/** Formats a settled thinking span in words ("12 seconds", "3 minutes", "1 hour 5 minutes"). */
+export function formatThinkingDuration(ms: number): string {
+  const seconds = Math.round(ms / 1000)
+  if (seconds < 1) return 'less than a second'
+  if (seconds < 60) return plural(seconds, 'second')
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return plural(minutes, 'minute')
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  return rest ? `${plural(hours, 'hour')} ${plural(rest, 'minute')}` : plural(hours, 'hour')
+}
+
+function plural(count: number, unit: string): string {
+  return `${count} ${unit}${count === 1 ? '' : 's'}`
+}
+
 /** Formats a token count compactly (e.g. 1234 → "1.2k"). */
 export function formatTokenCount(count: number): string {
   if (count >= 10_000) return `${Math.round(count / 1000)}k`
