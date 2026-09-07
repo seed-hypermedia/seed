@@ -390,6 +390,9 @@ current_document_resources AS (
       ON dg.resource = resources.id
     WHERE f.type IN ('title', 'document')
     AND resources.genesis_blob = COALESCE(f.genesis_blob, f.blob_id)
+    -- A genesis can back multiple document paths. Keep only generations that
+    -- actually contain the change which produced this FTS row.
+    AND rb64_and_count(dg.changes, rb64_create(f.blob_id)) > 0
     AND dg.generation = (
       SELECT MAX(dg2.generation)
       FROM document_generations dg2

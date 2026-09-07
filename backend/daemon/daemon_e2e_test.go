@@ -4322,6 +4322,39 @@ func TestSearchEntitiesFilters(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	t.Run("DistinctDocumentIDs", func(t *testing.T) {
+		tests := []struct {
+			name        string
+			query       string
+			includeBody bool
+			wantType    string
+		}{
+			{name: "title", query: "Why Honda", wantType: "title"},
+			{name: "body", query: "Honda reliability", includeBody: true, wantType: "document"},
+		}
+
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+					Query:       test.query,
+					IncludeBody: test.includeBody,
+					SearchType:  entities.SearchType_SEARCH_KEYWORD,
+				})
+				require.NoError(t, err)
+
+				wantID := "hm://" + aliceAccount + "/cars/honda"
+				for _, entity := range res.Entities {
+					if entity.Type == test.wantType && strings.Contains(entity.Content, test.query) {
+						require.Equal(t, wantID, entity.DocId)
+						require.Contains(t, entity.Id, wantID)
+						return
+					}
+				}
+				require.Failf(t, "missing search result", "no %s result contained %q", test.wantType, test.query)
+			})
+		}
+	})
+
 	t.Run("IriFilterSubtree", func(t *testing.T) {
 		// Search with iri_filter scoped to /cars/* — must only return honda and toyota.
 		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
