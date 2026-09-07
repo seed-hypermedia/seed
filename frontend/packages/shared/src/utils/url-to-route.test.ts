@@ -118,6 +118,17 @@ describe('hypermediaUrlToRoute', () => {
     })
   })
 
+  test('converts a raw ipfs:// URL into the local IPFS inspector route', () => {
+    expect(hypermediaUrlToRoute('ipfs://bafyabc')).toEqual({
+      key: 'inspect-ipfs',
+      ipfsPath: 'bafyabc',
+    })
+    expect(hypermediaUrlToRoute('ipfs://bafyabc/cover.png')).toEqual({
+      key: 'inspect-ipfs',
+      ipfsPath: 'bafyabc/cover.png',
+    })
+  })
+
   test('converts an inspect URL into an inspect route', () => {
     expect(hypermediaUrlToRoute('hm://inspect/uid1')).toEqual({
       key: 'inspect',

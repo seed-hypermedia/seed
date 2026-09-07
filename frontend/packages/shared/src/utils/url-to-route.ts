@@ -30,6 +30,8 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
   const agentsRoute = agentsRouteFromAbsoluteUrl(url)
   if (agentsRoute) return agentsRoute
   const inspectIpfsMatch =
+    // A raw ipfs:// URL opens the local IPFS inspector rather than bouncing out to a gateway.
+    url.match(/^ipfs:\/\/([^?#]+)(?:[?#].*)?$/) ||
     url.match(/^hm:\/\/inspect\/ipfs\/([^?#]+)(?:[?#].*)?$/) ||
     url.match(/^((?:https?:\/\/[^/]+)?\/hm)\/inspect\/ipfs\/([^?#]+)(?:[?#].*)?$/) ||
     url.match(/^((?:https?:\/\/[^/]+)?)\/inspect\/ipfs\/([^?#]+)(?:[?#].*)?$/)
