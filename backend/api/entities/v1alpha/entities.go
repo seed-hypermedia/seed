@@ -371,6 +371,14 @@ effective_comment_resources AS (
   )
   WHERE rn = 1
 ),
+document_resource_candidates AS (
+  SELECT DISTINCT f.rowid, refs.resource
+  FROM fts_data f
+  CROSS JOIN structural_blobs refs INDEXED BY structural_blobs_by_genesis_blob
+  WHERE f.type IN ('title', 'document')
+  AND refs.genesis_blob = COALESCE(f.genesis_blob, f.blob_id)
+  AND refs.type = 'Ref'
+),
 current_document_resources AS (
   SELECT rowid, resource, metadata, heads, is_deleted
   FROM (
@@ -385,11 +393,10 @@ current_document_resources AS (
         ORDER BY dg.last_alive_ref_time DESC, resources.id DESC
       ) AS rn
     FROM fts_data f
-    CROSS JOIN resources INDEXED BY resources_by_genesis_blob
-    JOIN document_generations dg
-      ON dg.resource = resources.id
+    JOIN document_resource_candidates candidates ON candidates.rowid = f.rowid
+    JOIN resources ON resources.id = candidates.resource
+    JOIN document_generations dg ON dg.resource = resources.id
     WHERE f.type IN ('title', 'document')
-    AND resources.genesis_blob = COALESCE(f.genesis_blob, f.blob_id)
     -- A genesis can back multiple document paths. Keep only generations that
     -- actually contain the change which produced this FTS row.
     AND rb64_and_count(dg.changes, rb64_create(f.blob_id)) > 0
