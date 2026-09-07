@@ -4398,7 +4398,7 @@ func TestSearchEntitiesFilters(t *testing.T) {
 		require.NoError(t, err)
 		kp, err := alice.Storage.KeyStore().GetKey(ctx, "main")
 		require.NoError(t, err)
-		lateRef, err := blob.NewRef(kp, original.GenerationInfo.Generation, oldGenesis, kp.Principal(), path, oldHeads, time.Now(), blob.VisibilityPublic)
+		lateRef, err := blob.NewRef(kp, original.GenerationInfo.Generation, oldGenesis, kp.Principal(), path, oldHeads, time.Now().Round(blob.ClockPrecision), blob.VisibilityPublic)
 		require.NoError(t, err)
 		_, err = alice.RPC.Daemon.StoreBlobs(ctx, &daemon.StoreBlobsRequest{
 			Blobs: []*daemon.Blob{{Cid: lateRef.CID.String(), Data: lateRef.Data}},
