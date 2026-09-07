@@ -293,7 +293,7 @@ describe('CLI Full Integration Tests', () => {
         // Verify by reading back (default output is markdown with frontmatter).
         const getResult = await runCli(['document', 'get', writeAccountHmId], {server: ctx.webServerUrl})
         expect(getResult.exitCode).toBe(0)
-        expect(getResult.stdout).toContain(`name: "${newTitle}"`)
+        expect(getResult.stdout).toContain(`name: ${newTitle}`)
       },
       TEST_TIMEOUT,
     )
@@ -1221,7 +1221,7 @@ describe('CLI Full Integration Tests', () => {
           })
           expect(result.exitCode).toBe(0)
           // Should output markdown preview (no key needed for dry-run)
-          expect(result.stdout).toContain('name: "Dry Run Test"')
+          expect(result.stdout).toContain('name: Dry Run Test')
         } finally {
           rmSync(tmpDir, {recursive: true, force: true})
         }
