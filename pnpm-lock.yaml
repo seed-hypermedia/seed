@@ -247,6 +247,8 @@ importers:
         specifier: 4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jsdom@24.1.3)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(vite@6.4.3(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3))
 
+  agents/protocol: {}
+
   frontend/apps/cli:
     dependencies:
       '@exodus/slip10':
@@ -359,8 +361,8 @@ importers:
         specifier: 2.0.5
         version: 2.0.5(@types/react-dom@18.2.21)(@types/react@18.2.64)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@seed-hypermedia/agents-protocol':
-        specifier: file:../../../agents/protocol
-        version: file:agents/protocol
+        specifier: workspace:*
+        version: link:../../../agents/protocol
       '@seed-hypermedia/client':
         specifier: workspace:*
         version: link:../../packages/client
@@ -1843,8 +1845,8 @@ importers:
         specifier: ^1.1.12
         version: 1.1.13(@types/react-dom@18.2.21)(@types/react@18.2.64)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@seed-hypermedia/agents-protocol':
-        specifier: file:../../../agents/protocol
-        version: file:agents/protocol
+        specifier: workspace:*
+        version: link:../../../agents/protocol
       '@seed-hypermedia/client':
         specifier: workspace:*
         version: link:../client
@@ -5576,9 +5578,6 @@ packages:
 
   '@scure/bip39@1.2.1':
     resolution: {integrity: sha512-Z3/Fsz1yr904dduJD0NpiyRHhRYHdcnyh73FZWiV+/qhWi83wNJ3NWolYqCEN+ZWsUz2TWwajJggcRE9r1zUYg==}
-
-  '@seed-hypermedia/agents-protocol@file:agents/protocol':
-    resolution: {directory: agents/protocol, type: directory}
 
   '@sentry-internal/browser-utils@10.49.0':
     resolution: {integrity: sha512-n0QRx0Ysx6mPfIydTkz7VP0FmwM+/EqMZiRqdsU3aTYsngE9GmEDV0OL1bAy6a8N/C1xf9vntkuAtj6N/8Z51w==}
@@ -13365,10 +13364,6 @@ packages:
     resolution: {integrity: sha512-HehCEsotFqbPW9sJ8WVYB6UbmIMv7kUUORIF2Nncq4VQvBfNBLibW9YZR5dlYCSUhwcD628pRllm7n+E+YTzJw==}
     engines: {node: '>= 14'}
 
-  socks@2.8.7:
-    resolution: {integrity: sha512-HLpt+uLy/pxB+bum/9DzAgiKS8CX1EvbWxI4zlmgGCExImLdiad2iCwXT5Z4c9c3Eq8rP2318mPW2c+QbtjK8A==}
-    engines: {node: '>= 10.0.0', npm: '>= 3.0.0'}
-
   socks@2.8.9:
     resolution: {integrity: sha512-LJhUYUvItdQ0LkJTmPeaEObWXAqFyfmP85x0tch/ez9cahmhlBBLbIqDFnvBnUJGagb0JbIQrkBs1wJ+yRYpEw==}
     engines: {node: '>= 10.0.0', npm: '>= 3.0.0'}
@@ -19727,8 +19722,6 @@ snapshots:
     dependencies:
       '@noble/hashes': 1.3.1
       '@scure/base': 1.1.1
-
-  '@seed-hypermedia/agents-protocol@file:agents/protocol': {}
 
   '@sentry-internal/browser-utils@10.49.0':
     dependencies:
@@ -29936,14 +29929,9 @@ snapshots:
     dependencies:
       agent-base: 7.1.4
       debug: 4.4.1
-      socks: 2.8.7
+      socks: 2.8.9
     transitivePeerDependencies:
       - supports-color
-
-  socks@2.8.7:
-    dependencies:
-      ip-address: 10.3.1
-      smart-buffer: 4.2.0
 
   socks@2.8.9:
     dependencies:

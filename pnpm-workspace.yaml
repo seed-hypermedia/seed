@@ -5,6 +5,7 @@ packages:
   - '!frontend/apps/mobile'
   - 'frontend/packages/*'
   - 'frontend/scripts'
+  - 'agents/protocol'
   - 'docs'
   - 'tests'
 

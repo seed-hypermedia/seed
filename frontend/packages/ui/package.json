@@ -54,7 +54,7 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-switch": "^1.2.5",
     "@radix-ui/react-tabs": "^1.1.12",
-    "@seed-hypermedia/agents-protocol": "file:../../../agents/protocol",
+    "@seed-hypermedia/agents-protocol": "workspace:*",
     "@seed-hypermedia/client": "workspace:*",
     "@shm/shared": "workspace:*",
     "@tailwindcss/typography": "^0.5.15",

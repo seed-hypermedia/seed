@@ -16,7 +16,10 @@ vi.mock('@shm/ui/agents/navigation', async () => {
 })
 
 vi.mock('@shm/ui/agents/platform', () => ({
-  getAgentsPlatform: () => ({useGatewayUrl: () => useGatewayUrlMock()}),
+  getAgentsPlatform: () => ({
+    useGatewayUrl: () => useGatewayUrlMock(),
+    useNavigate: () => vi.fn(),
+  }),
   setAgentsPlatform: vi.fn(),
 }))
 

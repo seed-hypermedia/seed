@@ -37,6 +37,7 @@ export interface QueryBlockTableProps {
   onColumnVisibilityChange?: (visibility: Record<string, boolean>) => void
   columnSizing?: Record<string, number>
   onColumnSizingChange?: (sizing: Record<string, number>) => void
+  onColumnSizingCommit?: (sizing: Record<string, number>) => void
   tableConfig?: HMQueryTableConfig
   onTableConfigChange?: (config: HMQueryTableConfig) => void
   isDiscovering?: boolean
@@ -54,9 +55,15 @@ export function QueryBlockTable({
   onColumnVisibilityChange,
   columnSizing,
   onColumnSizingChange,
+  onColumnSizingCommit,
 }: QueryBlockTableProps) {
   const [visibleCount, setVisibleCount] = useState(() => Math.min(items.length, INITIAL_ROWS))
   const sentinelRef = useRef<HTMLDivElement>(null)
+  const columnSizingRef = useRef(columnSizing ?? {})
+
+  useEffect(() => {
+    columnSizingRef.current = columnSizing ?? {}
+  }, [columnSizing])
 
   useEffect(() => {
     setVisibleCount(Math.min(items.length, INITIAL_ROWS))
@@ -158,9 +165,11 @@ export function QueryBlockTable({
       onColumnVisibilityChange?.(next)
     },
     onColumnSizingChange: (updater) => {
-      const next = typeof updater === 'function' ? updater(columnSizing ?? {}) : updater
+      const next = typeof updater === 'function' ? updater(columnSizingRef.current) : updater
+      columnSizingRef.current = next
       onColumnSizingChange?.(next)
     },
+    columnResizeMode: 'onChange',
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   })
@@ -175,7 +184,7 @@ export function QueryBlockTable({
 
   return (
     <div className="border-border max-w-full overflow-x-auto overscroll-x-contain rounded-b-md border-x border-b">
-      <Table style={{width: '100%', minWidth: table.getTotalSize()}}>
+      <Table className="table-fixed" style={{width: '100%', minWidth: table.getTotalSize()}}>
         <TableHeader>
           {table.getHeaderGroups().map((group) => (
             <TableRow key={group.id}>
@@ -213,6 +222,16 @@ export function QueryBlockTable({
                   ) : (
                     flexRender(header.column.columnDef.header, header.getContext())
                   )}
+                  <button
+                    type="button"
+                    aria-label={`Resize ${header.column.id} column`}
+                    className="absolute top-0 right-0 z-30 h-full w-2 cursor-col-resize touch-none"
+                    onMouseDown={header.getResizeHandler()}
+                    onTouchStart={header.getResizeHandler()}
+                    onDoubleClick={() => header.column.resetSize()}
+                    onMouseUp={() => onColumnSizingCommit?.(columnSizingRef.current)}
+                    onTouchEnd={() => onColumnSizingCommit?.(columnSizingRef.current)}
+                  />
                 </TableHead>
               ))}
             </TableRow>
@@ -230,7 +249,9 @@ export function QueryBlockTable({
                     className={cn('overflow-hidden', cell.column.id === 'title' && 'bg-background sticky left-0 z-10')}
                     style={{width: cell.column.getSize()}}
                   >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    <div className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </div>
                   </TableCell>
                 ))}
               </TableRow>

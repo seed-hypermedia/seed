@@ -172,6 +172,39 @@ describe('QueryBlockContent table view', () => {
     expect(table?.style.minWidth).toMatch(/px$/)
   })
 
+  it('renders a resize handle for every visible column, including the first column', () => {
+    act(() => {
+      root.render(<QueryBlockContent items={makeItems(1)} style="Table" accountsMetadata={{}} />)
+    })
+
+    const headings = container.querySelectorAll('th')
+    const resizeHandles = container.querySelectorAll('button[aria-label^="Resize "]')
+    expect(resizeHandles).toHaveLength(headings.length)
+    expect(resizeHandles[0]?.getAttribute('aria-label')).toBe('Resize title column')
+  })
+
+  it('uses fixed column widths and truncates long values', () => {
+    const items = makeItems(1)
+    items[0].metadata.status = 'A status value that is much wider than its column'
+
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={items}
+          style="Table"
+          accountsMetadata={{}}
+          tableConfig={{columns: [{id: 'metadata:status', visible: true, width: 100}]}}
+        />,
+      )
+    })
+
+    expect(container.querySelector('table')?.className).toContain('table-fixed')
+    const statusValue = Array.from(container.querySelectorAll('tbody span')).find(
+      (span) => span.textContent?.startsWith('A status value'),
+    )
+    expect(statusValue?.className).toContain('truncate')
+  })
+
   it('renders discovered custom attributes in the default column order', () => {
     const items = makeItems(1)
     items[0].metadata.status = 'Ready'

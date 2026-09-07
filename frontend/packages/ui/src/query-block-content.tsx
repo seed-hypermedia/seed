@@ -264,6 +264,7 @@ export function QueryBlockContent({
           onColumnVisibilityChange={setColumnVisibility}
           columnSizing={columnSizing}
           onColumnSizingChange={setColumnSizing}
+          onColumnSizingCommit={(nextSizing) => persistTableConfig({columnSizing: nextSizing})}
         />
       ) : style === 'Card' ? (
         <QueryBlockCards
