@@ -22,7 +22,7 @@ describe('target references', () => {
   })
 
   it('extension inherits leaf refinements and can add a target', () => {
-    const {schema} = resolveSchema({ref: nameToUrl('onyx-date')!, enum: ['2026-01-01'], target: 'hm://x'})
+    const {schema} = resolveSchema({ref: nameToUrl('hypermedia-date')!, enum: ['2026-01-01'], target: 'hm://x'})
     expect(schema.format).toBe('date')
     expect(schema.pattern).toMatch(/^\^/)
     expect(schema.enum).toEqual(['2026-01-01'])
@@ -49,8 +49,8 @@ describe('target references', () => {
 })
 
 describe('date types', () => {
-  const date = ONYX_SCHEMAS['onyx-date']!
-  const dateTime = ONYX_SCHEMAS['onyx-date-time']!
+  const date = ONYX_SCHEMAS['hypermedia-date']!
+  const dateTime = ONYX_SCHEMAS['hypermedia-date-time']!
 
   it('accepts ISO calendar dates and rejects other shapes with a format message', () => {
     expect(validate(date, '2026-08-26')).toEqual([])

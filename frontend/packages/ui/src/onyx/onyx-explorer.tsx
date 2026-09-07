@@ -44,10 +44,14 @@ const KINDS = [
   'link',
   'any',
 ] as const
-const isPrimitive = (name: string) => KINDS.includes(name.replace(/^onyx-/, '') as any) && name.startsWith('onyx-')
-const primitiveKind = (name: string) => name.replace(/^onyx-/, '')
-const isMetaVariant = (name: string) => name.startsWith('onyx-') && name.endsWith('-schema') && name !== 'onyx-schema'
-const kindPrimitive = (kind: string) => (ONYX_SCHEMAS[`onyx-${kind}`] ? `onyx-${kind}` : null)
+const isPrimitive = (name: string) =>
+  KINDS.includes(name.replace(/^hypermedia-/, '') as any) && name.startsWith('hypermedia-')
+const primitiveKind = (name: string) => name.replace(/^hypermedia-/, '')
+const META_VARIANTS = ['hypermedia-anyof', 'hypermedia-property']
+const isMetaVariant = (name: string) =>
+  META_VARIANTS.includes(name) ||
+  (name.startsWith('hypermedia-') && name.endsWith('-schema') && name !== 'hypermedia-schema')
+const kindPrimitive = (kind: string) => (ONYX_SCHEMAS[`hypermedia-${kind}`] ? `hypermedia-${kind}` : null)
 
 // --- small pieces ----------------------------------------------------------
 
@@ -421,7 +425,7 @@ export function OnyxSchemaPage({
 
   const url = nameToUrl(slug)
   const cid = schemaCid(slug)
-  const isMeta = slug === 'onyx-schema'
+  const isMeta = slug === 'hypermedia-schema'
   const instance = isInstance(schema)
 
   // Instance page: validate the value against its declared $type.
@@ -469,7 +473,7 @@ export function OnyxSchemaPage({
   } else if (isUnion) {
     lead = (
       <p className="text-sm" data-testid="schema-union-lead">
-        <Chip label="Union" onClick={() => nav('onyx-union-schema')} />{' '}
+        <Chip label="Union" onClick={() => nav('hypermedia-anyof')} />{' '}
         <span className="text-muted-foreground">
           · {isMeta ? `${schema.anyOf.length} variants, tagged on type` : `one of ${schema.anyOf.length} alternatives`}
         </span>
@@ -535,7 +539,7 @@ export function OnyxSchemaPage({
       </p>
     )
   } else if ((kindOf(schema.type) === 'struct' || kindOf(schema.type) === 'map') && schema.properties) {
-    const base = kindOf(schema.type) === 'struct' ? 'onyx-struct' : 'onyx-map'
+    const base = kindOf(schema.type) === 'struct' ? 'hypermedia-struct' : 'hypermedia-map'
     lead = (
       <ExtendsLine slug={base} onClick={() => nav(base)}>
         <span className="text-muted-foreground">
@@ -548,7 +552,7 @@ export function OnyxSchemaPage({
   } else {
     {
       const k = kindOf(schema.type) || 'any'
-      lead = <ExtendsLine slug={`onyx-${k}`} onClick={() => nav(`onyx-${k}`)} />
+      lead = <ExtendsLine slug={`hypermedia-${k}`} onClick={() => nav(`hypermedia-${k}`)} />
     }
     if ((kindOf(schema.type) === 'map' || kindOf(schema.type) === 'struct') && schema.values)
       main = (
@@ -586,7 +590,7 @@ export function OnyxSchemaPage({
       {isMetaVariant(slug) && (
         <Callout>
           A <strong>variant</strong> of the{' '}
-          <button className="text-primary cursor-pointer underline" onClick={() => nav('onyx-schema')}>
+          <button className="text-primary cursor-pointer underline" onClick={() => nav('hypermedia-schema')}>
             meta-schema union
           </button>{' '}
           — one of the shapes a schema is allowed to take.
@@ -693,7 +697,7 @@ export function OnyxSchemaView({
           )}
         </ExtendsLine>
       ) : kind ? (
-        <ExtendsLine slug={`onyx-${kind}`} onClick={() => nav(`onyx-${kind}`)} />
+        <ExtendsLine slug={`hypermedia-${kind}`} onClick={() => nav(`hypermedia-${kind}`)} />
       ) : null}
       {schema.params && (
         <p className="text-sm" data-testid="schema-params">
@@ -714,7 +718,7 @@ export function OnyxSchemaView({
         // phrasing SchemaRef uses for nested unions) wraps into an unreadable clutter here.
         <div className="flex flex-col gap-1.5" data-testid="schema-union-variants">
           <p className="text-sm">
-            <Chip label="Union" onClick={() => nav('onyx-union-schema')} />{' '}
+            <Chip label="Union" onClick={() => nav('hypermedia-anyof')} />{' '}
             <span className="text-muted-foreground">
               · one of {schema.anyOf.length} variant{schema.anyOf.length === 1 ? '' : 's'}:
             </span>

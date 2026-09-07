@@ -22,20 +22,20 @@ import { fileURLToPath } from "node:url";
 const DIR = dirname(fileURLToPath(import.meta.url));
 
 // References are hm:// URLs pointing at each schema's published document under
-// the onyx account: hm://<onyx>/<public name>. The public name strips `onyx-`
-// from primitives/meta and keeps hypermedia-/example-. Legacy dev authorities
-// still resolve for back-compat.
+// the onyx account: hm://<onyx>/<name>, where the name is the file's basename
+// (hypermedia-string, hypermedia-schema, example-person, …). Legacy forms —
+// the dev authorities (hyper.media / seed.hyper.media / example.com) and the
+// bare primitive names published before the `hypermedia-` rename — still
+// resolve for back-compat.
 const ONYX = "z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb";
-const AUTHORITY = [["onyx-", "hyper.media"], ["hypermedia-", "seed.hyper.media"], ["example-", "example.com"]];
+const AUTHORITY = [["hypermedia-", "hyper.media"], ["hypermedia-", "seed.hyper.media"], ["example-", "example.com"]];
 const urlToFile = (ref) => {
   const m = /^hm:\/\/([^/]+)\/(.+)$/.exec(ref);
   if (!m) return ref.endsWith(".json") ? ref : `${ref}.schema.json`;
   const [, auth, name] = m;
   if (auth === ONYX) {
-    // Public name -> filename: hypermedia-*/example-* are basenames; primitive/
-    // meta names had `onyx-` stripped, so restore it when that file exists.
     if (existsSync(resolve(DIR, `${name}.schema.json`))) return `${name}.schema.json`;
-    return `onyx-${name}.schema.json`;
+    return `hypermedia-${name}.schema.json`;
   }
   const prefix = AUTHORITY.find(([, a]) => a === auth)?.[0];
   return prefix ? `${prefix}${name}.schema.json` : `${name}.schema.json`;
@@ -70,10 +70,15 @@ function typeOf(d) {
   return typeof d; // string, boolean
 }
 
-// A `type` value is a kind URL (hm://hyper.media/<kind>); read the kind locally
-// off the URL — no fetch needed, so the discriminant stays local.
-const KIND_URL = new RegExp(`^hm://(?:hyper\\.media|${ONYX})/([a-z]+)$`);
-const kindOf = (t) => KIND_URL.exec(t)?.[1] ?? t;
+// A `type` value is a kind URL (hm://<onyx>/hypermedia-<kind>); read the kind
+// locally off the URL — no fetch needed, so the discriminant stays local. The
+// legacy forms (hm://hyper.media/<kind>, hm://<onyx>/<kind>) still read.
+const KINDS = ["null", "boolean", "integer", "float", "string", "bytes", "list", "map", "struct", "link"];
+const KIND_URL = new RegExp(`^hm://(?:hyper\\.media|${ONYX})/(?:hypermedia-)?([a-z]+)$`);
+const kindOf = (t) => {
+  const k = KIND_URL.exec(t)?.[1];
+  return k && KINDS.includes(k) ? k : t;
+};
 
 function typeMatches(type, d) {
   switch (type) {
@@ -278,7 +283,7 @@ if (schemaArg && dataArg) {
 }
 
 let failed = 0;
-const meta = load("onyx-schema.schema.json");
+const meta = load("hypermedia-schema.schema.json");
 
 // dag-json constructors for test data
 const cid = (s) => ({ "/": s });
@@ -288,7 +293,7 @@ const bytes = (b) => ({ "/": { bytes: b } });
 // 1. Self-description — the meta-schema is a valid instance of itself.
 // =====================================================================
 section("Self-description");
-failed += report("onyx-schema.schema.json describes itself", validate(meta, meta));
+failed += report("hypermedia-schema.schema.json describes itself", validate(meta, meta));
 
 // =====================================================================
 // 2. Every schema block in the directory is a valid Onyx schema.
@@ -305,12 +310,12 @@ for (const f of jsonFiles) {
 // 3. The discriminated union REJECTS malformed schemas.
 // =====================================================================
 section("The meta-schema rejects malformed schemas");
-const K = (k) => `hm://hyper.media/${k}`;
+const K = (k) => `hm://${ONYX}/hypermedia-${k}`;
 failed += reportReject("scalar carrying `items`", validate(meta, { type: K("string"), items: { type: K("integer") } }));
 failed += reportReject("scalar carrying `properties`", validate(meta, { type: K("string"), properties: {} }));
 failed += reportReject("map schema with an unknown keyword", validate(meta, { type: K("map"), bogus: 1 }));
 failed += reportReject("struct schema with an unknown keyword", validate(meta, { type: K("struct"), bogus: 1 }));
-const U = (k) => `hm://${ONYX}/${k}`;
+const U = (k) => `hm://${ONYX}/hypermedia-${k}`;
 failed += report("a struct with fields is a valid schema", validate(meta, { type: U("struct"), properties: { a: { value: { type: U("string") }, required: true, description: "an a" } } }));
 failed += reportReject("a struct field must be a property ({value, …}), not a bare schema", validate(meta, { type: U("struct"), properties: { a: { type: U("string") } } }));
 failed += report("a map of values is a valid schema", validate(meta, { type: U("map"), values: { type: U("integer") } }));
@@ -597,7 +602,7 @@ const CASES = [
     ],
   },
   {
-    schema: "onyx-any.schema.json",
+    schema: "hypermedia-any.schema.json",
     valid: [null, true, 42, 3.14, "x", [1, "two", { a: [true] }], { k: { nested: [1, 2] } }, cid("bafy"), bytes("QQ")],
     invalid: [],
   },
@@ -614,7 +619,7 @@ for (const c of CASES) {
 // 4b. Value constraints — string length/pattern, numeric bounds, list size.
 // =====================================================================
 section("Value constraints");
-const S = (k, extra) => ({ type: `hm://hyper.media/${k}`, ...extra });
+const S = (k, extra) => ({ type: `hm://${ONYX}/hypermedia-${k}`, ...extra });
 
 // string minLength / maxLength (counted in code points)
 const strLen = S("string", { minLength: 3, maxLength: 5 });
@@ -632,14 +637,14 @@ failed += report("invalid regex is ignored (no throw, no error)", validate(S("st
 
 // `format: date` — the built-in Date type is a string refinement whose pattern
 // checks the ISO 8601 calendar-date shape (YYYY-MM-DD) without parsing.
-const dateT = load("onyx-date.schema.json");
+const dateT = load("hypermedia-date.schema.json");
 failed += report("date: ISO calendar date", validate(dateT, "2026-08-26"));
 failed += report("date: leap day shape", validate(dateT, "2024-02-29"));
 failed += reportReject("date: month 13", validate(dateT, "2026-13-01"));
 failed += reportReject("date: slashes", validate(dateT, "26/08/2026"));
 failed += reportReject("date: date-time is not a date", validate(dateT, "2026-08-26T10:00:00Z"));
 failed += reportReject("date: not a string", validate(dateT, 20260826));
-const dateTimeT = load("onyx-date-time.schema.json");
+const dateTimeT = load("hypermedia-date-time.schema.json");
 failed += report("date-time: RFC 3339 zulu", validate(dateTimeT, "2026-08-26T14:30:00Z"));
 failed += report("date-time: offset + fraction", validate(dateTimeT, "2026-08-26T14:30:00.250+02:00"));
 failed += reportReject("date-time: bare date", validate(dateTimeT, "2026-08-26"));
@@ -647,11 +652,11 @@ failed += reportReject("date-time: bare date", validate(dateTimeT, "2026-08-26")
 // `target` — a reference-valued string may name the schema its target should
 // conform to. Allowed on the scalar and include variants (advisory; never
 // dereferenced), rejected elsewhere because the variants are closed maps.
-failed += report("target on a scalar reference", validate(meta, { type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", format: "ipfs", target: "hm://acme/stats" }));
-failed += report("target on an include reference", validate(meta, { ref: "hm://seed.hyper.media/hm-url", target: "hm://acme/place" }));
+failed += report("target on a scalar reference", validate(meta, { type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string", format: "ipfs", target: "hm://acme/stats" }));
+failed += report("target on an include reference", validate(meta, { ref: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-hm-url", target: "hm://acme/place" }));
 failed += reportReject("target on a map schema", validate(meta, { type: K("map"), properties: {}, target: "hm://acme/x" }));
 failed += reportReject("target on a list schema", validate(meta, { type: K("list"), target: "hm://acme/x" }));
-failed += report("target does not affect the value", validate({ type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", format: "ipfs", target: "hm://acme/stats" }, "ipfs://bafyfoo"));
+failed += report("target does not affect the value", validate({ type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string", format: "ipfs", target: "hm://acme/stats" }, "ipfs://bafyfoo"));
 
 // integer minimum / maximum
 const intRange = S("integer", { minimum: 0, maximum: 100 });
@@ -666,7 +671,7 @@ failed += report("float within bounds", validate(floatRange, 0.5));
 failed += reportReject("float below minimum", validate(floatRange, -0.5));
 
 // list minItems / maxItems
-const listSize = S("list", { minItems: 1, maxItems: 3, items: { ref: "hm://hyper.media/string" } });
+const listSize = S("list", { minItems: 1, maxItems: 3, items: { ref: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string" } });
 failed += report("list within size bounds", validate(listSize, ["a", "b"]));
 failed += reportReject("list too short", validate(listSize, []));
 failed += reportReject("list too long", validate(listSize, ["a", "b", "c", "d"]));

@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListCommentVersions"
 summary: "Lists the edit history (all versions) of a comment. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what y"
-schemaDefinition: ipfs://bafyreigbwsrnrz5z3yuq7y3ca2lo32kdlgwgk7aoiv3w55itnli6e5ft2y
+schemaDefinition: ipfs://bafyreifznb3vij2bnznkd43kwsrpsfumykz73yzdvyvpr353lg57tdyx74
 ---
 Lists the edit history (all versions) of a comment. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:jtYHnqzi -->
 
@@ -16,5 +16,5 @@ A **closed struct** with these fields: <!-- id:SGcsRaoX -->
 
 # Depends on <!-- id:WmdsrswR -->
 
-- [string](./onyx-string.md) <!-- id:NRiz7Dmr -->
+- [string](./hypermedia-string.md) <!-- id:NRiz7Dmr -->
 - [seed-comment](./seed-comment.md) <!-- id:-J30-WLH -->

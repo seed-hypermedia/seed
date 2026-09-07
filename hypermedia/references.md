@@ -39,7 +39,7 @@ In this repo, references are **file names** because humans edit files. When sche
 
 ## The beautifully meta part — and its fixpoint <!-- id:NqDWNSWI -->
 
-Here is the twist that makes Onyx fold in on itself. The meta-schema refers back to itself — now through its variants. `onyx-schema` is `{ anyOf: [ …refs to the variants… ] }`, and each variant (e.g. `onyx-map-schema`) contains `{ "ref": "onyx-schema" }`. So `onyx-schema` → variant → `onyx-schema` is a **cycle**, and after the transform some `ref` in that cycle must become the CID _of a block whose bytes are still being determined_. <!-- id:21u8uWpR -->
+Here is the twist that makes Onyx fold in on itself. The meta-schema refers back to itself — now through its variants. `hypermedia-schema` is `{ anyOf: [ …refs to the variants… ] }`, and each variant (e.g. `hypermedia-map-schema`) contains `{ "ref": "hypermedia-schema" }`. So `hypermedia-schema` → variant → `hypermedia-schema` is a **cycle**, and after the transform some `ref` in that cycle must become the CID _of a block whose bytes are still being determined_. <!-- id:21u8uWpR -->
 
 But a CID is the hash of the block's bytes — and those bytes now have to contain that same CID. **You cannot compute it.** Finding content whose hash appears inside that very content is finding a hash preimage; it is computationally infeasible by design. A block genuinely cannot embed its own CID, and a reference cycle cannot be content-addressed in any order — no block in the cycle can be encoded first. <!-- id:HnmaGrbq -->
 
@@ -50,7 +50,7 @@ This is not a quirk of the meta-schema. **Any self-referential schema hits it.**
 A CID is derived from content, so a cycle of CIDs has no encoding order. A **name** is not — it is a stable identifier independent of the content it points to. So references cannot be CIDs; they must be **names**. Onyx uses `hm://` URLs: <!-- id:VLYzJQfm -->
 
 ``` <!-- id:RTAR4FMH -->
-hm://hyper.media/string        the string kind, owned by the hyper.media authority
+hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string        the string kind, owned by the Onyx account
 hm://example.com/folder        the example folder schema
 hm://example.com/file          the example file schema
 ```
@@ -67,9 +67,9 @@ This is the same split as **IPFS vs IPNS**, or a hash vs a domain name: <!-- id:
 | cycles | impossible | fine <!-- id:mcDC4EuJ --> |
 | use for | pinning an exact version | recursive / owned / evolving types <!-- id:X58GiMnr --> |
 
-An **authority** is a public key. A domain like `hyper.media` resolves to one, and that key signs everything published under it, so `hm://hyper.media/string` is a verifiable, owned name. Schemas reference each other across authorities freely — `example-person` (`hm://example.com/…`) references `hm://hyper.media/string` — and you can still pin any name to an exact CID when you want an immutable snapshot. Names for recursion and identity; CIDs for immutability. <!-- id:nsuDvsJA -->
+An **authority** is a public key. A domain like `hyper.media` resolves to one, and that key signs everything published under it, so `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string` is a verifiable, owned name. Schemas reference each other across authorities freely — `example-person` (`hm://example.com/…`) references `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string` — and you can still pin any name to an exact CID when you want an immutable snapshot. Names for recursion and identity; CIDs for immutability. <!-- id:nsuDvsJA -->
 
-In the repo, local filenames are the dev alias for these URLs (`onyx-string` ⇄ `hm://hyper.media/string`, `example-file` ⇄ `hm://example.com/file`). Unlike the old "filename → CID at publish" story, the _name persists into deployment_ — that is what keeps the loop clickable and the recursion expressible. <!-- id:Mk1UgX6F -->
+In the repo, local filenames are the dev alias for these URLs (`hypermedia-string` ⇄ `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string`, `example-file` ⇄ `hm://example.com/file`). Unlike the old "filename → CID at publish" story, the _name persists into deployment_ — that is what keeps the loop clickable and the recursion expressible. <!-- id:Mk1UgX6F -->
 
 ### Why the meta-schema is special anyway <!-- id:9gbAh4Ot -->
 

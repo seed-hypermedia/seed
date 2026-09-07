@@ -9,7 +9,7 @@ const S = (n: string) => ONYX_SCHEMAS[n]
 describe('isOnyxSchema', () => {
   it('true for a real Onyx schema, false for data and for v1-dialect shapes', () => {
     expect(isOnyxSchema(S('example-person'))).toBe(true)
-    expect(isOnyxSchema(S('onyx-string'))).toBe(true)
+    expect(isOnyxSchema(S('hypermedia-string'))).toBe(true)
     expect(isOnyxSchema({name: 'Alice', age: 30})).toBe(false) // plain data
     expect(isOnyxSchema({type: 'object', properties: {}})).toBe(false) // v1 JSON-Schema dialect
     expect(isOnyxSchema(null)).toBe(false)
@@ -50,15 +50,15 @@ describe('onyxSubschema', () => {
 
 describe('suggestedFieldType', () => {
   it('maps Onyx kinds to add-form field types', () => {
-    expect(suggestedFieldType(S('onyx-string'))).toBe('text')
-    expect(suggestedFieldType(S('onyx-integer'))).toBe('number')
-    expect(suggestedFieldType(S('onyx-float'))).toBe('number')
-    expect(suggestedFieldType(S('onyx-boolean'))).toBe('toggle')
-    expect(suggestedFieldType(S('onyx-map'))).toBe('object')
-    expect(suggestedFieldType(S('onyx-list'))).toBe('list')
-    expect(suggestedFieldType(S('onyx-null'))).toBe('null')
-    expect(suggestedFieldType(S('onyx-link'))).toBe('link')
-    expect(suggestedFieldType(S('onyx-bytes'))).toBe('bytes')
+    expect(suggestedFieldType(S('hypermedia-string'))).toBe('text')
+    expect(suggestedFieldType(S('hypermedia-integer'))).toBe('number')
+    expect(suggestedFieldType(S('hypermedia-float'))).toBe('number')
+    expect(suggestedFieldType(S('hypermedia-boolean'))).toBe('toggle')
+    expect(suggestedFieldType(S('hypermedia-map'))).toBe('object')
+    expect(suggestedFieldType(S('hypermedia-list'))).toBe('list')
+    expect(suggestedFieldType(S('hypermedia-null'))).toBe('null')
+    expect(suggestedFieldType(S('hypermedia-link'))).toBe('link')
+    expect(suggestedFieldType(S('hypermedia-bytes'))).toBe('bytes')
   })
 })
 
@@ -82,7 +82,7 @@ describe('documentMetadataSchema (document-schema extension)', () => {
   })
 
   it('folds in schema-keyed extra properties', () => {
-    const merged = documentMetadataSchema(S('example-geo'), {'ipfs://cidkey': S('onyx-string')})
+    const merged = documentMetadataSchema(S('example-geo'), {'ipfs://cidkey': S('hypermedia-string')})
     expect(merged.properties).toHaveProperty('ipfs://cidkey')
   })
 })
@@ -93,6 +93,6 @@ describe('literalEnumOptions', () => {
     expect(opts?.map((o) => o.value)).toEqual(['draft', 'published', 'archived'])
   })
   it('null when there is no enum', () => {
-    expect(literalEnumOptions(S('onyx-string'))).toBeNull()
+    expect(literalEnumOptions(S('hypermedia-string'))).toBeNull()
   })
 })

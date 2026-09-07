@@ -1,7 +1,7 @@
 ---
 name: Table column block
 summary: "One column of a Table block: childless, identified by its block id (cells reference it via their columnId attribute), ordered by sibling position."
-schemaDefinition: ipfs://bafyreie4cvxs24c26asxw7zmp2t2cgetjhhed3ywv722sppwhepzuuapju
+schemaDefinition: ipfs://bafyreifurtpd66niususbu2psjsnqkcvzb3573cwmruxj7htuuvz5rn2zm
 ---
 This document describes the **hypermedia-block-table-column** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:c4wVHkyt -->
 
@@ -15,5 +15,5 @@ This document describes the **hypermedia-block-table-column** type — a Hyperme
 
 - [hypermedia-block-base](./hypermedia-block-base.md) <!-- id:54ILX_5f -->
 - [hypermedia-children-type](./hypermedia-children-type.md) <!-- id:Unn54V5j -->
-- [boolean](./onyx-boolean.md) <!-- id:jnBF15oW -->
-- [float](./onyx-float.md) <!-- id:SWXNYg6f -->
+- [boolean](./hypermedia-boolean.md) <!-- id:jnBF15oW -->
+- [float](./hypermedia-float.md) <!-- id:SWXNYg6f -->
