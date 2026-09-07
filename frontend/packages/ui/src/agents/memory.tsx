@@ -143,6 +143,7 @@ export function AgentMemoryTab({
 
   const totals = rootQuery?.data?.totals
   const memoryInfoDialog = useAppDialog(MemoryInfoDialog)
+  const entryInfoDialog = useAppDialog(MemoryEntryInfoDialog)
 
   // Scroll offsets live in refs (a scroll is not a render) and are written with the rest of the
   // state: on every selection/expansion change, shortly after each scroll, and on unmount.
@@ -439,6 +440,9 @@ export function AgentMemoryTab({
             onRequestDelete={readOnly ? undefined : () => setConfirmDeletePath(entry.path)}
             onCancelDelete={() => setConfirmDeletePath(null)}
             onConfirmDelete={() => void handleDelete(entry.path)}
+            onShowInfo={() =>
+              entryInfoDialog.open({entry, level: entry.type === 'dir' ? loadedLevels.get(entry.path) : undefined})
+            }
             deleting={deleteFile.isLoading && confirmDeletePath === entry.path}
             dropTargeted={entry.type === 'dir' && dropTarget === entry.path}
             onDirDragOver={
@@ -603,6 +607,7 @@ export function AgentMemoryTab({
     <section className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
       <div className="flex flex-wrap items-center justify-end gap-2">
         {memoryInfoDialog.content}
+        {entryInfoDialog.content}
         {!readOnly ? (
           <>
             <input
@@ -908,6 +913,7 @@ function MemoryEntryRow({
   onRequestDelete,
   onCancelDelete,
   onConfirmDelete,
+  onShowInfo,
   dropTargeted,
   onDirDragOver,
   onDirDrop,
@@ -926,6 +932,8 @@ function MemoryEntryRow({
   onRequestDelete?: () => void
   onCancelDelete: () => void
   onConfirmDelete: () => void
+  /** Opens the file/folder info dialog for this entry. */
+  onShowInfo: () => void
   /** True while dragged files hover this directory row. */
   dropTargeted?: boolean
   onDirDragOver?: (event: React.DragEvent<HTMLDivElement>) => void
@@ -963,7 +971,6 @@ function MemoryEntryRow({
         >
           <FileText className="text-muted-foreground size-3.5 flex-none" />
           <span className="truncate font-mono text-xs">{name}</span>
-          <span className="text-muted-foreground/70 ml-auto flex-none pr-1 text-[10px]">{formatBytes(entry.size)}</span>
         </button>
       )}
       {confirmingDelete ? (
@@ -975,16 +982,76 @@ function MemoryEntryRow({
             Cancel
           </Button>
         </span>
-      ) : onRequestDelete ? (
-        <Button
-          variant="ghost"
+      ) : (
+        <OptionsDropdown
           size="iconSm"
-          aria-label={`Delete ${entry.path}`}
-          className="flex-none opacity-0 group-hover:opacity-100"
-          onClick={onRequestDelete}
-        >
-          <Trash2 className="size-3.5" />
-        </Button>
+          align="end"
+          ariaLabel={`Options for ${entry.path}`}
+          className="flex-none opacity-0 group-hover:opacity-100 focus-within:opacity-100"
+          triggerClassName="border-transparent bg-transparent shadow-none"
+          menuItems={[
+            {
+              key: 'info',
+              label: entry.type === 'dir' ? 'Folder info' : 'File info',
+              icon: <Info className="size-4" />,
+              onClick: onShowInfo,
+            },
+            onRequestDelete
+              ? {
+                  key: 'delete',
+                  label: 'Delete',
+                  icon: <Trash2 className="size-4" />,
+                  variant: 'destructive' as const,
+                  onClick: onRequestDelete,
+                }
+              : null,
+          ]}
+        />
+      )}
+    </div>
+  )
+}
+
+/** File/folder info for one tree entry: what the row's size label and tooltip used to carry, and more. */
+function MemoryEntryInfoDialog({
+  input,
+}: {
+  input: {entry: AgentMemoryEntry; level?: {entries: AgentMemoryEntry[]; totalBytes: number}}
+  onClose: () => void
+}) {
+  const {entry, level} = input
+  const isDir = entry.type === 'dir'
+  const name = entry.path.split('/').at(-1) || entry.path
+  const rows: [string, string][] = [
+    ['Name', name],
+    ['Path', `~/memory/${entry.path}`],
+    ['Type', isDir ? 'Folder' : entry.mimeType || 'File'],
+  ]
+  if (isDir) {
+    const count = level ? level.entries.length : entry.entryCount
+    if (count !== undefined) rows.push(['Items', `${count} item${count === 1 ? '' : 's'}`])
+    if (level) rows.push(['Size of files inside', formatBytes(level.totalBytes)])
+  } else {
+    rows.push(['Size', formatBytes(entry.size)])
+  }
+  if (entry.updatedAt) rows.push(['Modified', formattedDateMedium(new Date(entry.updatedAt))])
+  return (
+    <div className="flex min-w-0 flex-col gap-4">
+      <div>
+        <DialogTitle>{isDir ? 'Folder info' : 'File info'}</DialogTitle>
+      </div>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
+        {rows.map(([label, value]) => (
+          <div key={label} className="contents">
+            <dt className="text-muted-foreground whitespace-nowrap">{label}</dt>
+            <dd className="min-w-0 font-mono text-xs break-all">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {isDir && !level ? (
+        <SizableText size="xs" color="muted">
+          Expand the folder to see the size of the files inside.
+        </SizableText>
       ) : null}
     </div>
   )
