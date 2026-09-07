@@ -119,17 +119,28 @@ function InlineImage({src, alt, detail}: {src: string; alt?: string; detail: str
   )
 }
 
-/** Turns fetched bytes into an object URL for the lifetime of the element. */
+/**
+ * Turns fetched bytes into an object URL for the lifetime of the element.
+ *
+ * The URL is created and revoked by the same effect. Creating it in render and revoking in a
+ * cleanup looked equivalent, but StrictMode's mount → cleanup → mount pass revoked the URL the
+ * <img> was still loading from: the image flashed in when the load won the race and was broken
+ * when it did not. (The memory tab's preview had the same bug.)
+ */
 function useObjectUrl(data: Uint8Array | undefined, mimeType: string | undefined): string | null {
-  const objectUrl = React.useMemo(() => {
-    if (!data || !data.byteLength) return null
-    return URL.createObjectURL(new Blob([new Uint8Array(data)], mimeType ? {type: mimeType} : undefined))
-  }, [data, mimeType])
+  const [objectUrl, setObjectUrl] = React.useState<string | null>(null)
   React.useEffect(() => {
-    return () => {
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    if (!data || !data.byteLength) {
+      setObjectUrl(null)
+      return
     }
-  }, [objectUrl])
+    const url = URL.createObjectURL(new Blob([new Uint8Array(data)], mimeType ? {type: mimeType} : undefined))
+    setObjectUrl(url)
+    return () => {
+      setObjectUrl((current) => (current === url ? null : current))
+      URL.revokeObjectURL(url)
+    }
+  }, [data, mimeType])
   return objectUrl
 }
 

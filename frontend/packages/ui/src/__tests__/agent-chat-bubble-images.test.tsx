@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import React from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
@@ -100,6 +101,54 @@ describe('ChatMessageBubble with a memory image', () => {
       accountUid: 'owner-account',
       action: {_: 'ReadAgentMemoryFile', agentId: 'agent-1', path: 'ads/one.png'},
     })
+  })
+
+  it('keeps the object URL alive under StrictMode, which mounts, cleans up, and mounts again', async () => {
+    // The image flashed in and then broke: the URL was created in render and revoked in a cleanup,
+    // so StrictMode's double pass revoked the very URL the <img> was loading from.
+    let counter = 0
+    const revoked = new Set<string>()
+    Object.assign(URL, {
+      createObjectURL: () => `blob:memory-image-${++counter}`,
+      revokeObjectURL: (url: string) => revoked.add(url),
+    })
+    const file = {
+      path: 'ads/one.png',
+      size: PNG.byteLength,
+      updatedAt: 1,
+      mimeType: 'image/png',
+      encoding: 'binary',
+      data: PNG,
+    }
+    sendAgentAction.mockResolvedValue({_: 'ReadAgentMemoryFileResponse', file})
+    // The bytes are already cached when the bubble mounts — a row remounting in a transcript that
+    // showed this image before — so the URL is created during the very mount StrictMode replays.
+    const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
+    queryClient.setQueryData(
+      ['agents', 'memory', 'https://agents.example', 'owner-account', 'agent-1', 'file', 'ads/one.png'],
+      file,
+    )
+    act(() => {
+      root.render(
+        <React.StrictMode>
+          <QueryClientProvider client={queryClient}>
+            <ChatMessageBubble
+              message={{role: 'assistant', content: '![The ad](~/memory/ads/one.png)', sessionId: 'sess-1'}}
+              serverUrl="https://agents.example"
+              accountUid="owner-account"
+              agentId="agent-1"
+            />
+          </QueryClientProvider>
+        </React.StrictMode>,
+      )
+    })
+    await waitFor(() => !!container.querySelector('img')?.getAttribute('src')?.startsWith('blob:'))
+    const src = container.querySelector('img')!.getAttribute('src')!
+    expect(revoked.has(src)).toBe(false)
+    // Unmounting is what finally releases it.
+    act(() => root.unmount())
+    expect(revoked.has(src)).toBe(true)
+    root = createRoot(container)
   })
 
   it('never issues a request for a plain web image, and routes ipfs:// through the gateway', async () => {
