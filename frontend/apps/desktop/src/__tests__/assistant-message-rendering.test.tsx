@@ -912,7 +912,6 @@ describe('thinking group', () => {
     const {container, root} = renderParts([search('one', 0), search('two', 60_000), search('three', 115_000)])
 
     expect(container.textContent).toContain('Thought for 2 minutes')
-    expect(container.textContent).toContain('3 tool calls')
     expect(container.textContent).not.toContain('Found one.')
     expect(container.textContent).not.toContain('Found three.')
 

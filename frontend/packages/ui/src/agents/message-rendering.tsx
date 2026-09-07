@@ -434,7 +434,6 @@ function ThinkingGroup({
     : durationMs !== undefined
       ? `Thought for ${formatThinkingDuration(durationMs)}`
       : 'Finished thinking'
-  const countLabel = `${parts.length} tool call${parts.length === 1 ? '' : 's'}`
   const visibleParts = expanded ? parts : active ? parts.slice(-1) : []
   // The burst opens above the line, so an open group points up at it.
   const Chevron = expanded ? ChevronUp : ChevronRight
@@ -472,12 +471,11 @@ function ThinkingGroup({
         aria-expanded={expanded}
         title={expanded ? 'Hide tool calls' : 'Show all tool calls'}
         onClick={() => setExpanded((current) => !current)}
-        className="text-muted-foreground hover:text-foreground hover:bg-muted/60 flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left text-xs select-none"
+        className="text-muted-foreground hover:text-foreground hover:bg-muted/60 my-2 flex w-full items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs select-none"
       >
-        {active ? <Loader2 className="size-3 shrink-0 animate-spin" /> : <Chevron className="size-3 shrink-0" />}
+        {active ? <Loader2 className="size-3 shrink-0 animate-spin" /> : null}
         <span className="font-medium tabular-nums">{label}</span>
-        <span className="opacity-70">· {countLabel}</span>
-        {active ? <Chevron className="ml-auto size-3 shrink-0" /> : null}
+        <Chevron className="size-3 shrink-0" />
       </button>
     </div>
   )
