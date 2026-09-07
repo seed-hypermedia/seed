@@ -1,7 +1,7 @@
 ---
 name: Place
 summary: "A world-builder kit type: a page about a place. Its metadata requires a `kind`, may carry a `founded` date, nests inside a `region` (another Place), and links t"
-schemaDefinition: ipfs://bafyreiaadex7m3gcj7nr7o2hh2was7jixfcc75ddsgfffgkgufesvjgrba
+schemaDefinition: ipfs://bafyreihhzeumdx5qbmihpkby3zmxpjfkx25i35lf7l7jo3ps26q73ohodu
 ---
 A world-builder kit type: a page about a place. Its metadata requires a `kind`, may carry a `founded` date, nests inside a `region` (another Place), and links to a coordinates object (an `ipfs://` object conforming to Geo point). <!-- id:7NTBcQkU -->
 
@@ -12,8 +12,8 @@ This document describes the **example-place-doc** type — an example schema. It
 **Extends** [hypermedia-document](./hypermedia-document.md) with these added fields: <!-- id:Ow0yN6aL -->
   - `metadata` — [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:NohtRnDF -->
   - _adds to [hypermedia-metadata](./hypermedia-metadata.md):_ <!-- id:ih-LZGxF -->
-  - `kind` _(required)_ — [string](./onyx-string.md) (one of `city`, `town`, `village`, `fortress`, `ruin`, `wilderness`, `realm`) <!-- id:hAd13nXH -->
-  - `founded` — [date](./onyx-date.md) <!-- id:8wxCKl6h -->
+  - `kind` _(required)_ — [string](./hypermedia-string.md) (one of `city`, `town`, `village`, `fortress`, `ruin`, `wilderness`, `realm`) <!-- id:hAd13nXH -->
+  - `founded` — [date](./hypermedia-date.md) <!-- id:8wxCKl6h -->
   - `region` — [hypermedia-hm-url](./hypermedia-hm-url.md) (→ must conform to [example-place-doc](./example-place-doc.md)) <!-- id:ATWV_Ckx -->
   - `ruler` — [hypermedia-hm-url](./hypermedia-hm-url.md) (→ must conform to [example-faction-doc](./example-faction-doc.md)) <!-- id:-eI6xxf1 -->
   - `coordinates` — [hypermedia-ipfs](./hypermedia-ipfs.md) (→ must conform to [example-geo](./example-geo.md)) <!-- id:nC4HPPfr -->
@@ -25,5 +25,5 @@ This document describes the **example-place-doc** type — an example schema. It
 - [hypermedia-hm-url](./hypermedia-hm-url.md) <!-- id:RAGKg-_U -->
 - [hypermedia-ipfs](./hypermedia-ipfs.md) <!-- id:AWDpWFLU -->
 - [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:VB7bQUjL -->
-- [date](./onyx-date.md) <!-- id:-lpQetBo -->
-- [string](./onyx-string.md) <!-- id:4eJ_Aidm -->
+- [date](./hypermedia-date.md) <!-- id:-lpQetBo -->
+- [string](./hypermedia-string.md) <!-- id:4eJ_Aidm -->

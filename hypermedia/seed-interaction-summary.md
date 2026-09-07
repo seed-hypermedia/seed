@@ -1,7 +1,7 @@
 ---
 name: Interaction summary
 summary: Aggregate interaction counts for a document — citations, comments, changes, child documents, distinct authors — plus per-block citation/comment counts. A derive
-schemaDefinition: ipfs://bafyreibksbl3lg55tj2qynwf32l5rzyx6iz524qlmaushlhy2gjojbfgzy
+schemaDefinition: ipfs://bafyreiejomhbjx2mciyxreye3q6i62akcfuijgxz7wuupbxdupcjmgasxi
 ---
 Aggregate interaction counts for a document — citations, comments, changes, child documents, distinct authors — plus per-block citation/comment counts. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:PWw560Ku -->
 
@@ -14,9 +14,9 @@ A **closed struct** with these fields: <!-- id:ErHfF34X -->
   - `comments` _(required)_ — `integer` <!-- id:-x9xLFCo -->
   - `changes` _(required)_ — `integer` <!-- id:Mi6241x6 -->
   - `children` _(required)_ — `integer` <!-- id:trlRp_lK -->
-  - `authorUids` — list of [string](./onyx-string.md) <!-- id:tQurr8ya -->
+  - `authorUids` — list of [string](./hypermedia-string.md) <!-- id:tQurr8ya -->
   - `blocks` _(required)_ — map ⟨ \* : map { 2 fields } ⟩ <!-- id:-FgTqWtB -->
 
 # Depends on <!-- id:a54ycyYA -->
 
-- [string](./onyx-string.md) <!-- id:dBRMpu1a -->
+- [string](./hypermedia-string.md) <!-- id:dBRMpu1a -->

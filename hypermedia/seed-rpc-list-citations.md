@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListCitations"
 summary: "Lists raw citations of a target resource. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `"
-schemaDefinition: ipfs://bafyreif4xuovxoo5rpwbnpmv7q2lqr3uojvy4gismqesdzyjrvpn47xrze
+schemaDefinition: ipfs://bafyreidheicn4pdafi54wg32jxm3hmcnzchauul5ldmljibsd5nfjxcxzm
 ---
 Lists raw citations of a target resource. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:EWDwlcgM -->
 

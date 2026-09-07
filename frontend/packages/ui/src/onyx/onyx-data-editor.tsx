@@ -29,7 +29,7 @@ import {
   validate,
 } from './onyx-engine'
 
-// Recursive schemas (the meta-schema, onyx-any) are infinitely deep, so the form
+// Recursive schemas (the meta-schema, hypermedia-any) are infinitely deep, so the form
 // expands lazily — optional fields build only when included — and this cap falls
 // back to a raw dag-json box rather than trying to draw an infinite tree.
 const MAX_DEPTH = 14
@@ -157,7 +157,7 @@ function Node({schema: schema0, value, onChange, env, reg, depth}: NodeProps) {
   if (kind === 'string' || kind === 'integer' || kind === 'float')
     return <ScalarNode kind={kind} value={value} onChange={onChange} />
 
-  // no kind / onyx-any leaf → raw dag-json
+  // no kind / hypermedia-any leaf → raw dag-json
   return <JsonFallback value={value} onChange={onChange} note="any" />
 }
 

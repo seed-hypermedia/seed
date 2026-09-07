@@ -56,9 +56,9 @@ const kindOf = (t) => (typeof t === "string" ? KIND_URL.exec(t)?.[1] ?? t : t);
 const KINDS = ["null", "boolean", "integer", "float", "string", "bytes", "list", "map", "link"];
 
 // The meta-schema is a discriminated union; its variants are the anyOf refs.
-const META_ROOT = loadJson("onyx-schema.schema.json");
+const META_ROOT = loadJson("hypermedia-schema.schema.json");
 const VARIANT_FILES = (META_ROOT.anyOf || []).map((r) => urlToFile(r.ref)).filter(Boolean);
-const META_FILES = ["onyx-schema.schema.json", ...VARIANT_FILES];
+const META_FILES = ["hypermedia-schema.schema.json", ...VARIANT_FILES];
 const isVariant = (f) => VARIANT_FILES.includes(f);
 
 // The primitive standard library: onyx-<kind>.json, each just { "type": <kind> }.
@@ -74,7 +74,7 @@ const isInstance = (f) => INSTANCE_FILES.includes(f);
 const isHypermedia = (f) => f.startsWith("hypermedia-");
 const BLOCK_EXTRA = new Set(["hypermedia-children-type.schema.json", "hypermedia-button-alignment.schema.json", "hypermedia-embed-view.schema.json", "hypermedia-annotation.schema.json"]);
 const isHypermediaBlock = (f) => f.startsWith("hypermedia-block") || BLOCK_EXTRA.has(f);
-// onyx-* types beyond the meta-schema and the nine kind primitives (e.g. onyx-any).
+// onyx-* types beyond the meta-schema and the nine kind primitives (e.g. hypermedia-any).
 const isOnyxLibrary = (f) => f.startsWith("onyx-") && !META_FILES.includes(f) && !isPrimitive(f);
 const primitiveKind = (f) => {
   const s = loadJson(f);
@@ -94,7 +94,7 @@ const metaTitle = (slug) => {
 };
 
 // Wire each kind to its canonical primitive schema (onyx-<kind>), so a kind
-// badge like `string` links to onyx-string. This is what the user browses to.
+// badge like `string` links to hypermedia-string. This is what the user browses to.
 const KIND_SCHEMA = {};
 for (const k of KINDS) if (SCHEMA_FILES.includes(`onyx-${k}.json`)) KIND_SCHEMA[k] = `onyx-${k}`;
 
@@ -342,7 +342,7 @@ const GRAPH = buildGraph();
 
 function graphSvg() {
   // Keep the home DAG to the Onyx meta + examples: primitives (every schema
-  // refs onyx-string), instances, and the ~29 hypermedia blobs are excluded
+  // refs hypermedia-string), instances, and the ~29 hypermedia blobs are excluded
   // here — their relationships show on each schema's Dependencies/Dependents.
   const nodes = GRAPH.nodes.filter((n) => !isPrimitive(n + ".json") && !isInstance(n + ".json") && !isHypermedia(n + ".json") && !isOnyxLibrary(n + ".json"));
   const edges = GRAPH.edges.filter((e) => nodes.includes(e.from) && nodes.includes(e.to));
@@ -392,7 +392,7 @@ function graphSvg() {
   const nodeSvg = nodes
     .map((n) => {
       const p = pos[n];
-      const meta = n === "onyx-schema" ? " meta" : "";
+      const meta = n === "hypermedia-schema" ? " meta" : "";
       return `<a href="/schema/${n}"><rect class="node${meta}" x="${p.cx - nW / 2}" y="${p.cy - nH / 2}" width="${nW}" height="${nH}" rx="9"/><text class="node-label" x="${p.cx}" y="${p.cy}">${n}</text></a>`;
     })
     .join("");
@@ -473,7 +473,7 @@ function schemaPage(name) {
   if (!SCHEMA_FILES.includes(file)) return null;
   const schema = loadJson(file);
   if (isInstanceDoc(schema)) return instancePage(name, file, schema);
-  const isMeta = name === "onyx-schema";
+  const isMeta = name === "hypermedia-schema";
 
   const isUnion = Array.isArray(schema.anyOf);
   const govKinds = schema.properties?.type?.enum || null; // kinds this variant governs
@@ -506,9 +506,9 @@ function schemaPage(name) {
             ? kinds.map((u) => kindTag(kindOf(u))).join(" ")
             : isPrimitive(file)
             ? kindTag(primitiveKind(file))
-            : b === "onyx-include-schema"
+            : b === "hypermedia-include-schema"
             ? `<span class="muted">a bare</span> <code>ref</code>`
-            : b === "onyx-union-schema"
+            : b === "hypermedia-anyof"
             ? `<span class="muted">nested</span> <code>anyOf</code>`
             : "";
           return `<a class="variant-card" href="/schema/${b}"><div class="vc-name">${b}.json</div><div class="vc-kinds">${tag}</div></a>`;
@@ -565,7 +565,7 @@ function schemaPage(name) {
   const metaNote = isMeta
     ? `<div class="callout">This is the <strong>meta-schema</strong> — the discriminated union that describes what every Onyx schema is, <em>including itself</em>. It validates against its own <code>union</code> variant, whose <code>anyOf</code> items validate against its <code>include</code> variant. The loop closes. See <a href="/doc/references">the fixpoint discussion</a>.</div>`
     : isVariant(file)
-    ? `<div class="callout variant-note">A <strong>variant</strong> of the <a href="/schema/onyx-schema">meta-schema union</a> — one of the shapes a schema is allowed to take.</div>`
+    ? `<div class="callout variant-note">A <strong>variant</strong> of the <a href="/schema/hypermedia-schema">meta-schema union</a> — one of the shapes a schema is allowed to take.</div>`
     : "";
 
   const genericNote = schema.params
@@ -620,7 +620,7 @@ function sidebar(active) {
   const schemaLink = (f) => {
     const s = base(f);
     const on = active.section === "schema" && active.slug === s ? " on" : "";
-    const tag = s === "onyx-schema" ? ` <span class="tag">union</span>` : "";
+    const tag = s === "hypermedia-schema" ? ` <span class="tag">union</span>` : "";
     const indent = isVariant(f) ? " sub" : "";
     const tip = metaTitle(s);
     return `<a class="nav-item${on}${indent}" href="/schema/${s}"${tip ? ` title="${tip}"` : ""}><code>${f}</code>${tag}</a>`;
@@ -667,7 +667,7 @@ function docPage(slug) {
   const next = idx < TOUR.length - 1 ? TOUR[idx + 1] : null;
   const nav = `<div class="pager">
     ${prev ? `<a class="pg prev" href="/doc/${prev.slug}"><span>← previous</span>${esc(prev.title)}</a>` : `<a class="pg prev" href="/"><span>← back</span>Overview</a>`}
-    ${next ? `<a class="pg next" href="/doc/${next.slug}"><span>next →</span>${esc(next.title)}</a>` : `<a class="pg next" href="/schema/onyx-schema"><span>explore →</span>The meta-schema</a>`}
+    ${next ? `<a class="pg next" href="/doc/${next.slug}"><span>next →</span>${esc(next.title)}</a>` : `<a class="pg next" href="/schema/hypermedia-schema"><span>explore →</span>The meta-schema</a>`}
   </div>`;
   return { title: d.title, body: `<article class="doc">${html}</article>${nav}` };
 }
@@ -697,13 +697,13 @@ function homePage() {
       <h1>Onyx</h1>
       <p class="tag-line">A self-describing type system for content-addressed data.</p>
       <div class="badges">
-        <span class="badge ${VALIDATION.ok ? "good" : "bad"}">${VALIDATION.ok ? "✓ onyx-schema.json validates itself" : "✗ validation failed"}</span>
+        <span class="badge ${VALIDATION.ok ? "good" : "bad"}">${VALIDATION.ok ? "✓ hypermedia-schema.json validates itself" : "✗ validation failed"}</span>
         <span class="badge">${SCHEMA_FILES.length} schemas</span>
         <span class="badge">${KINDS.length} kinds</span>
       </div>
       <a class="cta" href="/doc/${TOUR[0].slug}">Start the tour →</a>
     </header>`;
-  const graph = `<section class="graph-wrap"><h2>The schema DAG</h2><p class="muted">Each schema is a block; arrows are <code>ref</code>s (<code>hm://</code> names). Click a node. The meta-schema <code>onyx-schema</code> and its six variants form a <strong>cycle</strong> — the type system referring to itself. <code>example-document</code>, <code>example-comment</code>, and <code>example-folder</code>↔<code>example-file</code> recurse too.</p><div class="graph-scroll">${graphSvg()}</div></section>`;
+  const graph = `<section class="graph-wrap"><h2>The schema DAG</h2><p class="muted">Each schema is a block; arrows are <code>ref</code>s (<code>hm://</code> names). Click a node. The meta-schema <code>hypermedia-schema</code> and its six variants form a <strong>cycle</strong> — the type system referring to itself. <code>example-document</code>, <code>example-comment</code>, and <code>example-folder</code>↔<code>example-file</code> recurse too.</p><div class="graph-scroll">${graphSvg()}</div></section>`;
   const proof = `<section class="proof"><h2>Live proof <span class="muted">· ${okCount} checks pass</span></h2><p class="muted">Output of <code>node validate.mjs</code>, run when this server started — grouped by section:</p><ul class="checks">${checks}</ul>${failDetail}</section>`;
   const primCells = PRIMITIVE_FILES.map((f) => {
     const k = primitiveKind(f);

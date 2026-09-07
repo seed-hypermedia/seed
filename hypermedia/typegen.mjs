@@ -22,7 +22,7 @@
 //   name/descr.  -> JSDoc
 //
 // Instances ({$type, value} files) are data, not types: skipped.
-// Primitive schemas (onyx-string, onyx-map, ...) inline to TS primitives.
+// Primitive schemas (hypermedia-string, hypermedia-map, ...) inline to TS primitives.
 
 import {readFileSync, writeFileSync, readdirSync} from 'node:fs'
 import {dirname, resolve} from 'node:path'
@@ -48,7 +48,7 @@ const isInstance = (s) => s && typeof s === 'object' && typeof s.$type === 'stri
 // ── Names ────────────────────────────────────────────────────────────────────
 
 const KINDS = ['null', 'boolean', 'integer', 'float', 'string', 'bytes', 'list', 'map', 'struct', 'link', 'any']
-const PRIMITIVES = new Set(KINDS.map((k) => `onyx-${k}`))
+const PRIMITIVES = new Set(KINDS.map((k) => `hypermedia-${k}`))
 
 /** basename -> exported TS type name (hypermedia-block-image -> HMBlockImage). */
 function tsName(basename) {
@@ -56,7 +56,6 @@ function tsName(basename) {
     ['hypermedia-', 'HM'],
     ['seed-', 'Seed'],
     ['example-', 'Example'],
-    ['onyx-', 'Onyx'],
   ]
   for (const [p, out] of prefixes) {
     if (basename.startsWith(p)) {
@@ -80,7 +79,7 @@ function urlToBasename(url) {
   const [, auth, name] = m
   if (auth !== ONYX && auth !== 'hyper.media') return null
   if (schemas[name]) return name
-  if (schemas[`onyx-${name}`]) return `onyx-${name}`
+  if (schemas[`hypermedia-${name}`]) return `hypermedia-${name}`
   return name
 }
 
@@ -103,7 +102,7 @@ const KIND_TS = {
 function kindOf(typeUrl) {
   const basename = urlToBasename(typeUrl)
   if (basename === null) return null
-  const bare = basename.replace(/^onyx-/, '')
+  const bare = basename.replace(/^hypermedia-/, '')
   return KINDS.includes(bare) ? bare : null
 }
 
@@ -142,8 +141,8 @@ function emit(node, env, pad = '') {
   if (node.ref) {
     const basename = urlToBasename(node.ref)
     if (!basename) return 'unknown'
-    if (PRIMITIVES.has(basename) || (KINDS.includes(basename.replace(/^onyx-/, '')) && !schemas[basename])) {
-      const bare = basename.replace(/^onyx-/, '')
+    if (PRIMITIVES.has(basename) || (KINDS.includes(basename.replace(/^hypermedia-/, '')) && !schemas[basename])) {
+      const bare = basename.replace(/^hypermedia-/, '')
       if (KINDS.includes(bare)) {
         const base = KIND_TS[bare]
         // Extension of a primitive (rare) still needs the added properties.
@@ -276,7 +275,7 @@ function emitSchema(basename) {
   if (page.name) docLines.push(page.name)
   if (page.summary) docLines.push(page.summary)
   if (schema.description) docLines.push(schema.description)
-  docLines.push(`Schema: hm://${ONYX}/${basename.startsWith('onyx-') ? basename.slice(5) : basename}`)
+  docLines.push(`Schema: hm://${ONYX}/${basename}`)
   const doc = `/**\n * ${docLines.join('\n * ').replace(/\*\//g, '*\\/')}\n */`
   return `${doc}\nexport type ${name}${generics} = ${emit(schema, env, '')}\n`
 }

@@ -1,7 +1,7 @@
 ---
 name: Hypermedia Blob
 summary: "The signed base envelope every Hypermedia CBOR blob extends: a `type` tag (the discriminator the network dispatches on), the signer's public key, an Ed25519 sig"
-schemaDefinition: ipfs://bafyreiglvkhvlof4tb7xxc4xlnoevnkmndeqmx6fs5vjnjovyb7bvu6ibm
+schemaDefinition: ipfs://bafyreihjqz3sr7rfxrp3swqzdsimlbivziy5aspqoykmcg53t6h4wcxfwu
 ---
 The signed base envelope every Hypermedia CBOR blob extends: a `type` tag (the discriminator the network dispatches on), the signer's public key, an Ed25519 signature over the canonical CBOR with the signature zeroed, and a unix-millisecond timestamp. Change, Ref, Profile, Comment, Capability and Contact all extend it — and so can your own types: extend this schema, pin a `type` tag, and the app signs values with your account. <!-- id:9OHHE4tm -->
 
