@@ -121,7 +121,7 @@ describe('CLI Full Integration Tests', () => {
 
         // Default output is markdown with frontmatter and block IDs
         expect(result.stdout).toMatch(/^---/)
-        expect(result.stdout).toContain('name: "Hierarchy Test"')
+        expect(result.stdout).toContain('name: Hierarchy Test')
 
         // Validate the markdown content matches the fixture document
         expect(result.stdout).toContain('Text before first heading')
