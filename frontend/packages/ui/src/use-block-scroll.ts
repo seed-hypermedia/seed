@@ -115,14 +115,19 @@ export function useBlockScroll(blockRef: string | null | undefined, options: Blo
       timeoutId = setTimeout(retry, retryDelay)
     }
 
-    // Wait for next frame to allow scroll containers to be created
-    let rafId = requestAnimationFrame(() => {
-      timeoutId = setTimeout(retry, 0)
+    // The SSR placeholder remains for two frames while editor node views mount.
+    // Wait for that handoff before treating the target's position as final.
+    let secondRafId = 0
+    const rafId = requestAnimationFrame(() => {
+      secondRafId = requestAnimationFrame(() => {
+        timeoutId = setTimeout(retry, 0)
+      })
     })
 
     let timeoutId: ReturnType<typeof setTimeout>
     return () => {
       cancelAnimationFrame(rafId)
+      if (secondRafId) cancelAnimationFrame(secondRafId)
       clearTimeout(timeoutId)
     }
   }, [blockRef, behavior, block])
