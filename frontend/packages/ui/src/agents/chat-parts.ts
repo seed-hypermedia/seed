@@ -48,8 +48,9 @@ export type ChatToolPart = {
   child?: ChatToolChild
   /**
    * When the agent set out on this step: the stamp of the event just before the call on the log
-   * (the previous result, or the message that started the turn). The step's time is measured
-   * from here, so it counts the model's deliberation as well as the tool's own run.
+   * (the previous result, or the message that started the turn). Calls issued together in one
+   * model response share the start of the first of them. The step's time is measured from here,
+   * so it counts the model's deliberation as well as the tool's own run.
    */
   stepStartedAt?: number
   /** Durable timestamp of the call event — when the tool was invoked. */

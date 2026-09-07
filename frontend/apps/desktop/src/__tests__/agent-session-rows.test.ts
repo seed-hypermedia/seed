@@ -245,6 +245,24 @@ describe('buildAgentSessionChatRows step timing', () => {
     ])
   })
 
+  it('gives calls issued together the same start, so siblings do not read as milliseconds', () => {
+    const rows = buildAgentSessionChatRows(
+      [
+        event(1, {type: 'message', role: 'user', content: 'go'}),
+        event(2, {type: 'tool_call', id: 'call-1', name: 'read', input: {}}),
+        event(3, {type: 'tool_call', id: 'call-2', name: 'read', input: {}}),
+        event(4, {type: 'tool_result', toolCallId: 'call-1', name: 'read', output: {}}),
+        event(5, {type: 'tool_result', toolCallId: 'call-2', name: 'read', output: {}}),
+        event(6, {type: 'tool_call', id: 'call-3', name: 'read', input: {}}),
+      ],
+      CONTEXT,
+    )
+    const parts = rows.flatMap((row) => (row.kind === 'message' ? row.message.parts ?? [] : []))
+    expect(parts.map((part) => (part.type === 'tool' ? part.stepStartedAt : undefined))).toEqual([
+      1_700_000_000_001, 1_700_000_000_001, 1_700_000_000_005,
+    ])
+  })
+
   it('leaves the first event of a transcript with no step start', () => {
     const rows = buildAgentSessionChatRows(
       [event(1, {type: 'tool_call', id: 'call-1', name: 'search', input: {}})],

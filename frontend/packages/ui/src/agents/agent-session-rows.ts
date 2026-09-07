@@ -456,12 +456,21 @@ export function buildAgentSessionChatRows(
   const rows: AgentSessionChatRow[] = []
   const toolRowsById = new Map<string, Extract<AgentSessionChatRow, {kind: 'message'}>>()
   let triggerCardAttached = false
-  // The stamp of the event before the one in hand: where the step that produced a tool call began.
+  // Where the step that produced a tool call began: the stamp of the event before it — except that
+  // calls the model issued together (one response, several tools: their call events land a few
+  // milliseconds apart with no result between) all began where the first of them did. Otherwise
+  // the deliberation lands on the first call alone and its siblings read as a few milliseconds.
   let previousEventAt: number | undefined
+  let previousEventType: string | undefined
+  let previousStepStartedAt: number | undefined
 
   for (const event of events) {
-    const stepStartedAt = previousEventAt
+    const eventType = (event.event as {type?: string}).type
+    const stepStartedAt =
+      eventType === 'tool_call' && previousEventType === 'tool_call' ? previousStepStartedAt : previousEventAt
     previousEventAt = event.createdAt
+    previousEventType = eventType
+    previousStepStartedAt = stepStartedAt
     const payload = event.event as {
       type?: string
       role?: string
