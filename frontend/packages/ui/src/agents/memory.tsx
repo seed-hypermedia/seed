@@ -831,17 +831,20 @@ function MemoryInfoDialog({
  * audio, and a download-first card for every other binary type.
  */
 function BinaryFilePreview({file, onDownload}: {file: AgentMemoryFile; onDownload: () => void}) {
-  const objectUrl = useMemo(() => {
-    if (!file.data || !file.data.byteLength) return null
-    const blob = new Blob([new Uint8Array(file.data)], file.mimeType ? {type: file.mimeType} : undefined)
-    return URL.createObjectURL(blob)
-  }, [file])
-
+  // The object URL is created and revoked by the same effect. Creating it during render and
+  // revoking in a cleanup looked equivalent, but StrictMode's mount → cleanup → mount pass revoked
+  // the URL the <img> was still loading from, so the first image after mount never appeared.
+  const [objectUrl, setObjectUrl] = useState<string | null>(null)
   useEffect(() => {
-    return () => {
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    if (!file.data || !file.data.byteLength) {
+      setObjectUrl(null)
+      return
     }
-  }, [objectUrl])
+    const blob = new Blob([new Uint8Array(file.data)], file.mimeType ? {type: file.mimeType} : undefined)
+    const url = URL.createObjectURL(blob)
+    setObjectUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [file])
 
   const kind = file.mimeType?.split('/')[0]
   if (objectUrl && kind === 'image') {
