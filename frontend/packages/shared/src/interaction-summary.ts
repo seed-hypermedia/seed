@@ -1,7 +1,7 @@
 import {HMCitation, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {deduplicateCitations} from './citation-deduplication'
 import {ListDocumentChangesResponse} from './client/.generated/documents/v3alpha/documents_pb'
-import {ListCitationsResponse} from './client/.generated/documents/v3alpha/resources_pb'
+import {InteractionSummary, ListCitationsResponse} from './client/.generated/documents/v3alpha/resources_pb'
 import {hmId, unpackHmId} from './utils'
 import {parseFragment} from './utils/entity-id-url'
 
@@ -19,6 +19,31 @@ export type InteractionSummaryPayload = {
       comments: number
     }
   >
+}
+
+/** Builds the client payload from the daemon's bounded aggregate response. */
+export function calculateInteractionSummaryFromAggregate(
+  aggregate: InteractionSummary,
+  changes: ListDocumentChangesResponse['changes'],
+  childrenCount: number = 0,
+): InteractionSummaryPayload {
+  const blocks: InteractionSummaryPayload['blocks'] = {}
+  for (const counts of aggregate.blocks) {
+    const blockId = parseFragment(counts.targetFragment)?.blockId
+    if (!blockId) continue
+    const block = (blocks[blockId] ??= {citations: 0, comments: 0})
+    block.citations += counts.citationCount
+    block.comments += counts.commentCount
+  }
+
+  return {
+    citations: aggregate.citationCount,
+    comments: aggregate.commentCount,
+    changes: changes.length,
+    children: childrenCount,
+    authorUids: aggregate.authorUids,
+    blocks,
+  }
 }
 
 /**

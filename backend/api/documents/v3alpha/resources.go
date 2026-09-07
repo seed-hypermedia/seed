@@ -221,6 +221,80 @@ func (srv *Server) ListCitations(ctx context.Context, in *documents.ListCitation
 	return resp, nil
 }
 
+// GetInteractionSummary returns aggregate citation data without materialising
+// the target's citation rows. The query is driven by resource_links_by_target
+// and groups in SQLite, so response size is proportional to distinct fragments
+// and authors rather than citation fan-out.
+func (srv *Server) GetInteractionSummary(ctx context.Context, in *documents.GetInteractionSummaryRequest) (*documents.InteractionSummary, error) {
+	if in.Iri == "" {
+		return nil, status.Error(codes.InvalidArgument, "must specify an IRI")
+	}
+
+	targetURL, err := url.Parse(in.Iri)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid target IRI: %v", err)
+	}
+	if targetURL.Scheme != "hm" {
+		return nil, status.Errorf(codes.InvalidArgument, "unsupported IRI scheme %q", targetURL.Scheme)
+	}
+	targetAccount, err := core.DecodePrincipal(targetURL.Host)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid target account: %v", err)
+	}
+	publicOnly, err := srv.isPublicOnlyFor(ctx, targetAccount, targetURL.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	out := &documents.InteractionSummary{}
+	err = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		lookup := blob.NewLookupCache(conn)
+		var target int64
+		if err := sqlitex.Exec(conn, qResourceLookupID(), func(stmt *sqlite.Stmt) error {
+			target = stmt.ColumnInt64(0)
+			return nil
+		}, in.Iri); err != nil {
+			return err
+		}
+		if target == 0 {
+			return status.Errorf(codes.NotFound, "resource '%s' is not found", in.Iri)
+		}
+
+		return sqlitex.Exec(conn, qInteractionSummary(), func(stmt *sqlite.Stmt) error {
+			rowType := stmt.ColumnInt(0)
+			if rowType == 1 {
+				principal, err := lookup.PublicKey(stmt.ColumnInt64(4))
+				if err != nil {
+					return err
+				}
+				out.AuthorUids = append(out.AuthorUids, principal.String())
+				return nil
+			}
+
+			citationCount := stmt.ColumnInt64(2)
+			commentCount := stmt.ColumnInt64(3)
+			fragment := stmt.ColumnText(1)
+			if fragment == "" {
+				out.CitationCount += int32(citationCount) //nolint:gosec
+				out.CommentCount += int32(commentCount)   //nolint:gosec
+				return nil
+			}
+			out.Blocks = append(out.Blocks, &documents.InteractionSummaryBlock{
+				TargetFragment: fragment,
+				CitationCount:  int32(citationCount), //nolint:gosec
+				CommentCount:   int32(commentCount),  //nolint:gosec
+			})
+			return nil
+		}, target, publicOnly)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	slices.Sort(out.AuthorUids)
+	return out, nil
+}
+
 // PushResourcesToPeer implements the corresponding gRPC method.
 func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest, stream grpc.ServerStreamingServer[p2p.AnnounceBlobsProgress]) error {
 	ctx := stream.Context()
@@ -670,6 +744,94 @@ SELECT
 // on every recursion level. A resource whose latest generation redirects elsewhere has
 // a row in the CTE, so the seed's NOT IN check preserves the old "target is not itself
 // redirected" behavior, including for resources with no generations at all.
+var qInteractionSummary = dqb.Q(func() string {
+	return `
+WITH mentions AS MATERIALIZED (
+  SELECT
+    'Ref' AS source_type,
+    CAST(current_source.id AS TEXT) AS source_id,
+    COALESCE(rl.extra_attrs->>'f', '') AS target_fragment,
+    change.author AS author
+  FROM resource_links rl INDEXED BY resource_links_by_target
+  JOIN structural_blobs change ON change.id = rl.source AND change.type = 'Change'
+  JOIN resources current_source
+    ON current_source.genesis_blob = COALESCE(change.genesis_blob, change.id)
+  JOIN document_generations source_generation ON source_generation.resource = current_source.id
+  LEFT JOIN public_blobs published_change ON published_change.id = change.id
+  WHERE rl.target = :target
+    AND (:publicOnly = 0 OR published_change.id IS NOT NULL)
+    -- A move leaves a redirect at the old resource. Select only the canonical
+    -- resource for this genesis, avoiding ListCitations' per-change expansion
+    -- through every Ref in the generation.
+    AND NOT EXISTS (
+      SELECT 1
+      FROM document_attributes redirect
+      JOIN document_attribute_keys redirect_key
+        ON redirect_key.id = redirect.key AND redirect_key.key = '$db.redirect'
+      WHERE redirect.resource = current_source.id AND redirect.value IS NOT NULL
+    )
+    AND source_generation.generation = (
+      SELECT MAX(latest.generation)
+      FROM document_generations latest
+      WHERE latest.resource = current_source.id
+    )
+    AND source_generation.is_deleted = 0
+
+  UNION ALL
+
+  SELECT
+    'Comment' AS source_type,
+    comment.extra_attrs->>'tsid' AS source_id,
+    COALESCE(rl.extra_attrs->>'f', '') AS target_fragment,
+    comment.author AS author
+  FROM resource_links rl INDEXED BY resource_links_by_target
+  JOIN structural_blobs comment ON comment.id = rl.source AND comment.type = 'Comment'
+  LEFT JOIN public_blobs published_comment ON published_comment.id = comment.id
+  WHERE rl.target = :target
+    AND (:publicOnly = 0 OR published_comment.id IS NOT NULL)
+    -- ListCitations removes every revision of a comment when a returned
+    -- revision marks that stable comment ID deleted. Do the same before
+    -- grouping, otherwise an older live revision survives the tombstone.
+    AND NOT EXISTS (
+      SELECT 1
+      FROM resource_links deleted_link INDEXED BY resource_links_by_target
+      JOIN structural_blobs deleted_comment
+        ON deleted_comment.id = deleted_link.source
+        AND deleted_comment.type = 'Comment'
+        AND deleted_comment.extra_attrs->>'tsid' = comment.extra_attrs->>'tsid'
+        AND deleted_comment.extra_attrs->>'deleted' = '1'
+      LEFT JOIN public_blobs published_deleted ON published_deleted.id = deleted_comment.id
+      WHERE deleted_link.target = :target
+        AND (:publicOnly = 0 OR published_deleted.id IS NOT NULL)
+    )
+), fragment_counts AS (
+  SELECT
+    target_fragment,
+    COUNT(DISTINCT CASE WHEN source_type = 'Ref' THEN source_id END) AS citation_count,
+    COUNT(DISTINCT CASE WHEN source_type = 'Comment' THEN source_id END) AS comment_count
+  FROM mentions
+  GROUP BY target_fragment
+), totals AS (
+  SELECT
+    '' AS target_fragment,
+    COUNT(DISTINCT CASE WHEN source_type = 'Ref' THEN source_id END) AS citation_count,
+    COUNT(DISTINCT CASE WHEN source_type = 'Comment' THEN source_id END) AS comment_count
+  FROM mentions
+)
+SELECT 0 AS row_type, target_fragment, citation_count, comment_count, 0 AS author
+FROM totals
+UNION ALL
+SELECT 0, target_fragment, citation_count, comment_count, 0
+FROM fragment_counts
+WHERE target_fragment != ''
+UNION ALL
+SELECT 1, '', 0, 0, author
+FROM mentions
+GROUP BY author
+ORDER BY row_type, target_fragment, author
+`
+})
+
 const qListCitationsTpl = `
 WITH RECURSIVE
 redirected AS MATERIALIZED (

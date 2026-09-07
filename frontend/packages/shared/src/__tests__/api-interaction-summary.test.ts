@@ -9,11 +9,11 @@ function makeGrpcClient({
   getDocument = vi.fn().mockResolvedValue({version: 'v1'}),
   getDocumentInfo = vi.fn().mockResolvedValue({activitySummary: {childrenCount: 0}}),
   listDocumentChanges = vi.fn().mockResolvedValue({changes: []}),
-  listCitations = vi.fn().mockResolvedValue({citations: []}),
+  getInteractionSummary = vi.fn().mockResolvedValue({citationCount: 0, commentCount: 0, blocks: [], authorUids: []}),
 } = {}) {
   return {
     documents: {getDocument, getDocumentInfo, listDocumentChanges},
-    resources: {listCitations},
+    resources: {getInteractionSummary},
   } as any
 }
 
@@ -29,24 +29,26 @@ const emptySummary = {
 }
 
 describe('InteractionSummary.getData', () => {
-  it('uses the daemon citation count instead of the bounded citation page size', async () => {
+  it('uses the daemon aggregate counts', async () => {
     const grpcClient = makeGrpcClient({
-      getDocumentInfo: vi.fn().mockResolvedValue({activitySummary: {childrenCount: 0, citationCount: 4321}}),
-      listCitations: vi.fn().mockResolvedValue({
-        citations: [
-          {
-            source: 'hm://z6MkCiter/source',
-            sourceType: 'Ref',
-            targetVersion: '',
-            targetFragment: '',
-            isExactVersion: false,
-          },
+      getInteractionSummary: vi.fn().mockResolvedValue({
+        citationCount: 4321,
+        commentCount: 7,
+        authorUids: ['z6MkAuthor'],
+        blocks: [
+          {targetFragment: 'block-a', citationCount: 2, commentCount: 1},
+          {targetFragment: 'block-a[4:8]', citationCount: 1, commentCount: 2},
         ],
       }),
     })
 
     const result = await InteractionSummary.getData(grpcClient, {id: targetDocId}, dummyQueryDaemon)
-    expect(result.citations).toBe(4321)
+    expect(result).toMatchObject({
+      citations: 4321,
+      comments: 7,
+      authorUids: ['z6MkAuthor'],
+      blocks: {'block-a': {citations: 3, comments: 3}},
+    })
   })
 
   it('returns empty summary when document is marked as deleted', async () => {
@@ -82,9 +84,9 @@ describe('InteractionSummary.getData', () => {
     await expect(InteractionSummary.getData(grpcClient, {id: targetDocId}, dummyQueryDaemon)).rejects.toThrow()
   })
 
-  it('returns empty summary when listCitations fails with deleted doc', async () => {
+  it('returns empty summary when getInteractionSummary fails with deleted doc', async () => {
     const grpcClient = makeGrpcClient({
-      listCitations: vi
+      getInteractionSummary: vi
         .fn()
         .mockRejectedValue(
           new ConnectError("document 'hm://z6Mk.../test-doc' is marked as deleted", Code.FailedPrecondition),

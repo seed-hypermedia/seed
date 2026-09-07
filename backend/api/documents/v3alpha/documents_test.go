@@ -1359,11 +1359,24 @@ func TestDocumentInfoCitationCount(t *testing.T) {
 	require.Equal(t, int32(2), got.ActivitySummary.CitationCount)
 	require.Equal(t, target.Version, got.Version)
 
+	summary, err := alice.GetInteractionSummary(ctx, &documents.GetInteractionSummaryRequest{Iri: targetIRI})
+	require.NoError(t, err)
+	require.Equal(t, int32(2), summary.CitationCount)
+	require.Zero(t, summary.CommentCount)
+	require.Equal(t, []string{account}, summary.AuthorUids)
+	require.Equal(t, []*documents.InteractionSummaryBlock{{
+		TargetFragment: "b1",
+		CitationCount:  1,
+	}}, summary.Blocks)
+
 	// The target account owner may read private citations on a public-only node.
 	ownerCtx := blob.WithAuthenticatedCaller(ctx, alice.me.Account.Principal())
 	got, err = alice.GetDocumentInfo(ownerCtx, &documents.GetDocumentInfoRequest{Account: account, Path: "/target"})
 	require.NoError(t, err)
 	require.Equal(t, int32(3), got.ActivitySummary.CitationCount)
+	summary, err = alice.GetInteractionSummary(ownerCtx, &documents.GetInteractionSummaryRequest{Iri: targetIRI})
+	require.NoError(t, err)
+	require.Equal(t, int32(3), summary.CitationCount)
 
 	// Moving a citing document must preserve its identity rather than counting
 	// both the historical and current paths.
