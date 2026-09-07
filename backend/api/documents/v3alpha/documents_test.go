@@ -1426,6 +1426,56 @@ func TestDocumentInfoCitationCount(t *testing.T) {
 	require.Equal(t, int32(1), got.ActivitySummary.CitationCount)
 }
 
+func TestInteractionSummaryFollowsMovedTarget(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+	account := alice.me.Account.PublicKey.String()
+
+	target, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/old-target", "", "main").
+		SetMetadata("name", "Target").
+		Build())
+	require.NoError(t, err)
+	oldIRI := "hm://" + account + "/old-target"
+
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/source",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "link"}}},
+			{Op: &documents.DocumentChange_ReplaceBlock{ReplaceBlock: &documents.Block{Id: "link", Type: "paragraph", Text: "Link", Link: oldIRI}}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = alice.CreateRef(ctx, &documents.CreateRefRequest{
+		Account: account,
+		Path:    "/new-target",
+		Target: &documents.RefTarget{Target: &documents.RefTarget_Version_{Version: &documents.RefTarget_Version{
+			Genesis: target.Genesis,
+			Version: target.Version,
+		}}},
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+	_, err = alice.CreateRef(ctx, &documents.CreateRefRequest{
+		Account: account,
+		Path:    "/old-target",
+		Target: &documents.RefTarget{Target: &documents.RefTarget_Redirect_{Redirect: &documents.RefTarget_Redirect{
+			Account: account,
+			Path:    "/new-target",
+		}}},
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+
+	summary, err := alice.GetInteractionSummary(ctx, &documents.GetInteractionSummaryRequest{Iri: "hm://" + account + "/new-target"})
+	require.NoError(t, err)
+	require.Equal(t, int32(1), summary.CitationCount, "citations of a pre-move target path remain visible")
+}
+
 func TestListDirectoryDerivesFallbackCoverImage(t *testing.T) {
 	t.Parallel()
 

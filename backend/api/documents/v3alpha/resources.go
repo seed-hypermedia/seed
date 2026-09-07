@@ -257,7 +257,13 @@ func (srv *Server) GetInteractionSummary(ctx context.Context, in *documents.GetI
 			return err
 		}
 		if target == 0 {
-			return status.Errorf(codes.NotFound, "resource '%s' is not found", in.Iri)
+			commentExists, err := citationCommentExists(conn, in.Iri)
+			if err != nil {
+				return err
+			}
+			if !commentExists {
+				return status.Errorf(codes.NotFound, "resource '%s' is not found", in.Iri)
+			}
 		}
 
 		return sqlitex.Exec(conn, qInteractionSummary(), func(stmt *sqlite.Stmt) error {
@@ -746,14 +752,34 @@ SELECT
 // redirected" behavior, including for resources with no generations at all.
 var qInteractionSummary = dqb.Q(func() string {
 	return `
-WITH comment_tsids AS MATERIALIZED (
-  SELECT DISTINCT candidate.extra_attrs->>'tsid' AS tsid
-  FROM resource_links candidate_link INDEXED BY resource_links_by_target
+WITH RECURSIVE
+redirected AS MATERIALIZED (
+  SELECT da.resource, da.value AS redirect_iri
+  FROM document_attributes da
+  JOIN document_attribute_keys dak ON dak.id = da.key AND dak.key = '$db.redirect'
+  WHERE da.kind = 's' AND da.value IS NOT NULL
+),
+redirect_ancestors(resource, iri, depth) AS (
+  SELECT r.id, r.iri, 0
+  FROM resources r
+  WHERE r.id = :target
+    AND r.id NOT IN (SELECT resource FROM redirected)
+  UNION ALL
+  SELECT rd.resource, r.iri, ra.depth + 1
+  FROM redirect_ancestors ra
+  JOIN redirected rd ON rd.redirect_iri = ra.iri
+  JOIN resources r ON r.id = rd.resource
+  WHERE r.iri != ra.iri AND ra.depth < 16
+),
+comment_tsids AS MATERIALIZED (
+  SELECT DISTINCT candidate.author AS author, candidate.extra_attrs->>'tsid' AS tsid
+  FROM redirect_ancestors target
+  JOIN resource_links candidate_link INDEXED BY resource_links_by_target
+    ON candidate_link.target = target.resource
   JOIN structural_blobs candidate
     ON candidate.id = candidate_link.source AND candidate.type = 'Comment'
   LEFT JOIN public_blobs published_candidate ON published_candidate.id = candidate.id
-  WHERE candidate_link.target = :target
-    AND (:publicOnly = 0 OR published_candidate.id IS NOT NULL)
+  WHERE (:publicOnly = 0 OR published_candidate.id IS NOT NULL)
 ),
 current_comments AS MATERIALIZED (
   SELECT
@@ -762,12 +788,14 @@ current_comments AS MATERIALIZED (
     comment.extra_attrs->>'deleted' AS deleted,
     comment.author,
     ROW_NUMBER() OVER (
-      PARTITION BY comment.extra_attrs->>'tsid'
+      PARTITION BY comment.author, comment.extra_attrs->>'tsid'
       ORDER BY comment.ts DESC, comment.id DESC
     ) AS revision
   FROM comment_tsids
   JOIN structural_blobs comment
-    ON comment.extra_attrs->>'tsid' = comment_tsids.tsid AND comment.type = 'Comment'
+    ON comment.author = comment_tsids.author
+   AND comment.extra_attrs->>'tsid' = comment_tsids.tsid
+   AND comment.type = 'Comment'
   LEFT JOIN public_blobs published_comment ON published_comment.id = comment.id
   WHERE (:publicOnly = 0 OR published_comment.id IS NOT NULL)
 ),
@@ -779,16 +807,17 @@ mentions AS MATERIALIZED (
     (SELECT current_ref.author
      FROM structural_blobs current_ref
      WHERE current_ref.resource = current_source.id AND current_ref.type = 'Ref'
+       AND (:publicOnly = 0 OR EXISTS (SELECT 1 FROM public_blobs WHERE id = current_ref.id))
      ORDER BY current_ref.ts DESC, current_ref.id DESC
      LIMIT 1) AS author
-  FROM resource_links rl INDEXED BY resource_links_by_target
+  FROM redirect_ancestors target
+  JOIN resource_links rl INDEXED BY resource_links_by_target ON rl.target = target.resource
   JOIN structural_blobs change ON change.id = rl.source AND change.type = 'Change'
   JOIN resources current_source
     ON current_source.genesis_blob = COALESCE(change.genesis_blob, change.id)
   JOIN document_generations source_generation ON source_generation.resource = current_source.id
   LEFT JOIN public_blobs published_change ON published_change.id = change.id
-  WHERE rl.target = :target
-    AND (:publicOnly = 0 OR published_change.id IS NOT NULL)
+  WHERE (:publicOnly = 0 OR published_change.id IS NOT NULL)
     -- A move leaves a redirect at the old resource. Select only the canonical
     -- resource for this genesis, avoiding ListCitations' per-change expansion
     -- through every Ref in the generation.
@@ -810,11 +839,12 @@ mentions AS MATERIALIZED (
 
   SELECT
     'Comment' AS source_type,
-    comment.tsid AS source_id,
+    CAST(comment.author AS TEXT) || ':' || comment.tsid AS source_id,
     COALESCE(rl.extra_attrs->>'f', '') AS target_fragment,
     comment.author AS author
   FROM current_comments comment
-  JOIN resource_links rl ON rl.source = comment.id AND rl.target = :target
+  JOIN resource_links rl ON rl.source = comment.id
+  JOIN redirect_ancestors target ON target.resource = rl.target
   -- Only the newest visible revision participates. This suppresses deleted
   -- comments and edits that remove their link to the target.
   WHERE comment.revision = 1 AND comment.deleted IS NULL

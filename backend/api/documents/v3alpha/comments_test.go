@@ -1135,6 +1135,10 @@ func TestCommentCitations(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, citations.Citations, "comment resources must exist even when they have no citations")
 
+	summary, err := alice.GetInteractionSummary(ctx, &pb.GetInteractionSummaryRequest{Iri: "hm://" + target.Id})
+	require.NoError(t, err)
+	require.Zero(t, summary.CommentCount, "uncited comment resources have an empty summary")
+
 	stableMention, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
 		SigningKeyName: "main",
 		TargetAccount:  alice.me.Account.PublicKey.String(),
@@ -1160,7 +1164,7 @@ func TestCommentCitations(t *testing.T) {
 		require.Equal(t, target.Version, citation.TargetVersion)
 	}
 
-	summary, err := alice.GetInteractionSummary(ctx, &pb.GetInteractionSummaryRequest{Iri: "hm://" + target.Id})
+	summary, err = alice.GetInteractionSummary(ctx, &pb.GetInteractionSummaryRequest{Iri: "hm://" + target.Id})
 	require.NoError(t, err)
 	require.Equal(t, int32(1), summary.CommentCount)
 	require.Equal(t, []string{alice.me.Account.PublicKey.String()}, summary.AuthorUids)
