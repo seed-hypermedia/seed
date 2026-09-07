@@ -4698,7 +4698,11 @@ describe('api service', () => {
                             options: {
                               action: 'profile.update',
                               signer: {profileName: 'Writer Bot'},
-                              input: {name: 'Writer Bot Renamed', description: 'Publishes Seed content'},
+                              input: {
+                                name: 'Writer Bot Renamed',
+                                description: 'Publishes Seed content',
+                                icon: 'ipfs://bafkreiwriterboticon',
+                              },
                             },
                           }),
                         },
@@ -4969,6 +4973,14 @@ describe('api service', () => {
       expect(cbor.decode<Record<string, unknown>>(draft?.metadata_cbor ?? new Uint8Array()).summary).toBe(
         'Draft summary',
       )
+      // profile.update keeps the stored identity snapshot (label + avatar) in step with the published profile.
+      const identityRow = db
+        .query<{metadata_cbor: Uint8Array}, [string]>(`SELECT metadata_cbor FROM secrets WHERE name = ?`)
+        .get(identity.identity.name)
+      expect(cbor.decode<Record<string, unknown>>(identityRow?.metadata_cbor ?? new Uint8Array())).toMatchObject({
+        label: 'Writer Bot Renamed',
+        icon: 'ipfs://bafkreiwriterboticon',
+      })
     } finally {
       globalThis.fetch = originalFetch
       db.close()

@@ -12770,8 +12770,10 @@ async function writeProfileUpdate(
   if (row?.metadata_cbor) {
     const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
     if (metadata.kind === 'hm-account-key') {
+      // Keep the stored snapshot in step with the profile just published, including the avatar,
+      // so identity listings do not fall back to a placeholder after the agent sets its own icon.
       context.db.run(`UPDATE secrets SET metadata_cbor = ?, updated_at = ? WHERE account_id = ? AND name = ?`, [
-        cbor.encode({...metadata, label: name, accountId: signer.publicKey}),
+        cbor.encode({...metadata, label: name, accountId: signer.publicKey, ...(avatar ? {icon: avatar} : {})}),
         now,
         context.accountId,
         signer.secretName,
