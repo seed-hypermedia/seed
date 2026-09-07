@@ -330,6 +330,28 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 		return err
 	}
 
+	// SaveBlob above ensures the target resource, so it's in the map from here on.
+	resourceID, ok := ictx.resources[iri]
+	if !ok {
+		panic("BUG: missing resource for comment target")
+	}
+
+	// Settle this comment's live version and the affected documents' activity.
+	//
+	// Deliberately ahead of the document-generation bookkeeping below, and
+	// independent of it: that bookkeeping gives up when the comment's target
+	// changes aren't indexed yet (it can't tell which generation to credit), and
+	// nothing ever comes back to it, which is why it under-counts. These two
+	// tables are keyed by resource, so they don't need a generation and can be
+	// settled the moment the blob lands.
+	if err := updateCommentLive(ictx.conn, eb.TSID()); err != nil {
+		return err
+	}
+
+	if err := updateResourceCommentStats(ictx.conn, resourceID); err != nil {
+		return err
+	}
+
 	spaceID := v.Space().String()
 
 	// Update space comment stats.
@@ -354,11 +376,6 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 			}
 
 			changeIDs[i] = cm.ID
-		}
-
-		resourceID, ok := ictx.resources[iri]
-		if !ok {
-			panic("BUG: missing resource for comment target")
 		}
 
 		// commentCountDelta computes how this blob changes the count of distinct,

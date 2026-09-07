@@ -105,6 +105,52 @@ func (srv *Server) RegisterServer(rpc grpc.ServiceRegistrar) {
 	activity.RegisterSubscriptionsServer(rpc, srv)
 }
 
+// buildMainEventsQuery assembles the feed's main blob-events query. filtersStr
+// is the caller's already-rendered filter prefix (each term ending in " AND ",
+// possibly empty); orderByObserved selects the observed-time cursor column
+// instead of the claimed-time one.
+//
+// No DISTINCT: every join here is many-to-one on a primary key (blobs.id is
+// structural_blobs' own primary key, and public_keys.id and resources.id are
+// the other two), so one structural_blobs row can only ever produce one output
+// row. The DISTINCT that used to be here removed nothing — verified on a
+// production database, 37912 rows either way — while costing a temp b-tree
+// over every row that survived the WHERE: ~100ms of the query's 175ms.
+//
+// The remaining cost was the ORDER BY. Neither cursor column had an index that
+// could serve the ordering, so SQLite materialized all ~40k surviving rows,
+// each carrying the whole extra_attrs JSONB, and then discarded all but the
+// page. structural_blobs_by_ts (schema.sql) fixes that for the claimed-time
+// order; the observed-time order sorts by structural_blobs.id, which is the
+// table's own primary key. Both now terminate at the LIMIT.
+//
+// It's a function rather than inline SQL so TestFeedQueriesUseIndexedOrdering
+// can assert the plan of the exact statement this runs.
+func buildMainEventsQuery(filtersStr string, orderByObserved bool) string {
+	var (
+		selectStr            = "SELECT " + storage.BlobsID + ", " + storage.StructuralBlobsType + ", " + storage.PublicKeysPrincipal + ", " + storage.ResourcesIRI + ", " + storage.StructuralBlobsTs + ", " + storage.BlobsInsertTime + ", " + storage.BlobsMultihash + ", " + storage.BlobsCodec + ", " + "structural_blobs.extra_attrs->>'tsid' AS tsid" + ", " + "structural_blobs.extra_attrs" + ", " + storage.StructuralBlobsGenesisBlob
+		tableStr             = "FROM " + storage.T_StructuralBlobs
+		joinIDStr            = "JOIN " + storage.Blobs.String() + " ON " + storage.BlobsID.String() + "=" + storage.StructuralBlobsID.String()
+		joinpkStr            = "JOIN " + storage.PublicKeys.String() + " ON " + storage.StructuralBlobsAuthor.String() + "=" + storage.PublicKeysID.String()
+		leftjoinResourcesStr = "LEFT JOIN " + storage.Resources.String() + " ON " + storage.StructuralBlobsResource.String() + "=" + storage.ResourcesID.String()
+
+		mainCursorColumn = storage.StructuralBlobsTs.String()
+	)
+	if orderByObserved {
+		mainCursorColumn = storage.StructuralBlobsID.String()
+	}
+	pageTokenStr := mainCursorColumn + " <= :idx AND " + storage.StructuralBlobsType.String() + " != 'Change' AND " + storage.BlobsSize.String() + ">0 ORDER BY " + mainCursorColumn + " desc limit :page_size"
+
+	return strings.TrimSpace(fmt.Sprintf(`
+		%s
+		%s
+		%s
+		%s
+		%s
+		WHERE %s %s;
+	`, selectStr, tableStr, joinIDStr, joinpkStr, leftjoinResourcesStr, filtersStr, pageTokenStr))
+}
+
 // ListEvents list all the events seen locally.
 func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsRequest) (*activity.ListEventsResponse, error) {
 	var cursorValue int64 = math.MaxInt64
@@ -247,33 +293,13 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		filtersStr += " AND "
 		mainEventsArgs = append(mainEventsArgs, string(irisJSON))
 	}
-	var (
-		selectStr            = "SELECT distinct " + storage.BlobsID + ", " + storage.StructuralBlobsType + ", " + storage.PublicKeysPrincipal + ", " + storage.ResourcesIRI + ", " + storage.StructuralBlobsTs + ", " + storage.BlobsInsertTime + ", " + storage.BlobsMultihash + ", " + storage.BlobsCodec + ", " + "structural_blobs.extra_attrs->>'tsid' AS tsid" + ", " + "structural_blobs.extra_attrs" + ", " + storage.StructuralBlobsGenesisBlob
-		tableStr             = "FROM " + storage.T_StructuralBlobs
-		joinIDStr            = "JOIN " + storage.Blobs.String() + " ON " + storage.BlobsID.String() + "=" + storage.StructuralBlobsID.String()
-		joinpkStr            = "JOIN " + storage.PublicKeys.String() + " ON " + storage.StructuralBlobsAuthor.String() + "=" + storage.PublicKeysID.String()
-		leftjoinResourcesStr = "LEFT JOIN " + storage.Resources.String() + " ON " + storage.StructuralBlobsResource.String() + "=" + storage.ResourcesID.String()
-
-		mainCursorColumn = storage.StructuralBlobsTs.String()
-	)
-	if orderByObserved {
-		mainCursorColumn = storage.StructuralBlobsID.String()
-	}
-	pageTokenStr := mainCursorColumn + " <= :idx AND " + storage.StructuralBlobsType.String() + " != 'Change' AND " + storage.BlobsSize.String() + ">0 ORDER BY " + mainCursorColumn + " desc limit :page_size"
 	if req.PageSize <= 0 {
 		req.PageSize = 30
 	}
 	// Append the page-token binds after :iris_json (which, when present, appears first in the SQL)
 	// and after PageSize has been defaulted, so :idx and :page_size bind to the correct values.
 	mainEventsArgs = append(mainEventsArgs, cursorValue, req.PageSize)
-	var getEventsStr = strings.TrimSpace(fmt.Sprintf(`
-		%s
-		%s
-		%s
-		%s
-		%s
-		WHERE %s %s;
-	`, selectStr, tableStr, joinIDStr, joinpkStr, leftjoinResourcesStr, filtersStr, pageTokenStr))
+	var getEventsStr = buildMainEventsQuery(filtersStr, orderByObserved)
 	var refIDs, resources, genesisBlobIDs []string
 	// Count rows returned by the main DB fetch (pre-filter). Used to decide whether to
 	// emit a next-page token even if the deleted/dedup filters shorten the visible page.

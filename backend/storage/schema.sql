@@ -107,6 +107,15 @@ CREATE INDEX structural_blobs_by_genesis_blob ON structural_blobs (genesis_blob)
 CREATE INDEX structural_blobs_by_author ON structural_blobs (author);
 CREATE INDEX structural_blobs_by_type ON structural_blobs (type, ts, resource, author);
 
+-- Feed ordering index. The activity feed sorts by claimed time (`ts DESC`) with a
+-- LIMIT, and no other index can serve that: structural_blobs_by_type leads with
+-- `type`, so a `type != 'Change'` filter can't range-scan it, and the planner had
+-- to materialize every surviving row into a temp b-tree before applying the LIMIT.
+-- Measured on a 6.2 GB production database: the main ListEvents query went from
+-- 175ms to 0.05ms, and listMentionsCore (which this index also lets drive from
+-- structural_blobs instead of scanning all of resource_links) from 250ms to 0.06ms.
+CREATE INDEX structural_blobs_by_ts ON structural_blobs (ts, id);
+
 -- Index for tsid.
 CREATE INDEX structural_blobs_by_tsid ON structural_blobs (extra_attrs->>'tsid', author) WHERE extra_attrs->>'tsid' IS NOT NULL;
 
@@ -233,6 +242,58 @@ CREATE TABLE document_attributes (
 ) WITHOUT ROWID;
 
 CREATE INDEX document_attributes_by_key ON document_attributes (key, kind, value);
+
+-- The live version of each comment thread-scoped ID.
+--
+-- A comment can be edited or deleted, and each version is a separate blob sharing
+-- one TSID. The live version is the highest (ts, id) among them, and it counts only
+-- if it isn't a tombstone -- deleted comments have no row here at all.
+--
+-- Deriving this at query time is what it replaces: the listing queries used to run a
+-- ROW_NUMBER() window over every comment blob in the requested scope on every
+-- request, which was 37ms of a 60ms ListDirectory call on a 6.2 GB production
+-- database. Which blob wins a TSID is a fact about the data, not about the request,
+-- so it's settled once, when the blob is indexed (see updateCommentLive).
+CREATE TABLE comment_live (
+    tsid TEXT PRIMARY KEY,
+    -- The winning blob. Also the value listings report as `last_comment`.
+    blob_id INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+    -- The resource the winning blob targets. Comments record the document path as
+    -- it was when they were written, so this is not necessarily where the document
+    -- lives now -- resource_comment_stats resolves that.
+    resource INTEGER REFERENCES resources (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+    ts INTEGER NOT NULL
+) WITHOUT ROWID;
+
+CREATE INDEX comment_live_by_resource ON comment_live (resource, ts);
+CREATE INDEX comment_live_by_blob ON comment_live (blob_id);
+
+-- Redirect-aware comment activity per resource: what the document listings read.
+--
+-- A document that moved leaves its comments attached to the old path's resource, so
+-- a resource's comments are those of its whole redirect-ancestor chain, not just its
+-- own. Listings JOIN this table by resource and are done; the chain walk happens
+-- here, at index time, in updateResourceCommentStats.
+--
+-- This is deliberately keyed by resource rather than by (resource, generation) like
+-- document_generations.comment_count. That column only ever counted comments against
+-- generations satisfying containsAllChanges, and skipped comments whose target
+-- changes hadn't been indexed yet; measured on a 6.2 GB production database it was
+-- too low for 1141 of the 1489 resources that have comments, 5062 counted against
+-- 11964 real ones. Comment activity belongs to the resource.
+CREATE TABLE resource_comment_stats (
+    resource INTEGER PRIMARY KEY REFERENCES resources (id) ON UPDATE CASCADE ON DELETE CASCADE,
+    comment_count INTEGER NOT NULL,
+    -- Blob id of the most recent credited comment, i.e. the one whose ts equals
+    -- last_comment_time.
+    last_comment INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE,
+    last_comment_time INTEGER NOT NULL
+-- WITHOUT ROWID so the primary key is a real index over `resource`, which is also
+-- the foreign key every read of this table seeks by.
+) WITHOUT ROWID;
+
+-- Index to fullfill the rule of having an index on all foreign keys.
+CREATE INDEX resource_comment_stats_by_last_comment ON resource_comment_stats (last_comment) WHERE last_comment IS NOT NULL;
 
 -- Stores content-addressable links between blobs.
 -- Links are typed (rel) and directed.
