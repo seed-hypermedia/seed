@@ -184,6 +184,51 @@ describe('runs queue', () => {
     expect(order).toEqual(['start:first', 'end:first', 'start:second', 'end:second'])
   })
 
+  test("dispatch is fair-share by account: a second tenant is not stuck behind the first one's backlog", async () => {
+    const db = createDb()
+    const now = Date.now()
+    db.run(`INSERT INTO accounts (id, created_at, updated_at) VALUES (?, ?, ?)`, ['acct-2', now, now])
+    db.run(
+      `INSERT INTO agents (id, account_id, definition_cbor, state_dir, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ['agent-2', 'acct-2', new Uint8Array([160]), '/tmp/none', 'idle', now, now],
+    )
+    const started: string[] = []
+    const gates = new Map<string, () => void>()
+    const queue = new runs.RunQueue(db, {
+      executors: {
+        agent: async (run) => {
+          started.push(run.id)
+          await new Promise<void>((resolve) => gates.set(run.id, resolve))
+          return {type: 'succeeded', output: null}
+        },
+      },
+      maxConcurrentModelRuns: 2,
+      pollIntervalMs: 5,
+    })
+    track(db, queue)
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 30))
+    // Tenant 1 queues a backlog first; tenant 2's single run arrives after all of it.
+    queue.enqueue(agentSpec({id: 'a1', dispatch: false}))
+    queue.enqueue(agentSpec({id: 'a2', dispatch: false}))
+    queue.enqueue(agentSpec({id: 'a3', dispatch: false}))
+    queue.enqueue(agentSpec({id: 'b1', accountId: 'acct-2', agentId: 'agent-2'}))
+    await settle()
+    // First slot: nobody holds anything, so the oldest run goes (FIFO among equals). Second slot:
+    // tenant 1 now holds one, tenant 2 none — so b1 goes, not a2, even though a2 is older.
+    expect(started).toEqual(['a1', 'b1'])
+    // a1 done: tenant 1 holds nothing, tenant 2 holds one → a2.
+    gates.get('a1')!()
+    await settle()
+    expect(started).toEqual(['a1', 'b1', 'a2'])
+    gates.get('b1')!()
+    await settle()
+    expect(started).toEqual(['a1', 'b1', 'a2', 'a3'])
+    gates.get('a2')!()
+    gates.get('a3')!()
+    await queue.awaitIdle()
+  })
+
   test('sweepAtBoot requeues claimed/running rows', () => {
     const db = createDb()
     const queue = new runs.RunQueue(db, {executors: {}})

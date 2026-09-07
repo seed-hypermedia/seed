@@ -771,6 +771,14 @@ export class RunQueue {
     }
   }
 
+  /**
+   * Claims the next dispatchable run. Ordering is fair-share by account first: the account holding
+   * the fewest slots of this kind right now goes first, so one tenant's fan-out (a scheduled agent
+   * spawning a tree of scouts) cannot hold every slot while another tenant's single run waits out
+   * the whole tree in FIFO order — which is exactly what a 2-slot cap did in production. Among
+   * equally loaded accounts the interactive queue (a person waiting on a reply) beats background
+   * work, then oldest first. A single account sees the same order as before.
+   */
   #claimNext(kinds: RunKind[]): RunRecord | null {
     if (kinds.length === 0) return null
     const now = Date.now()
@@ -788,7 +796,12 @@ export class RunQueue {
                    AND r2.status IN ('claimed', 'running')
                )
              )
-           ORDER BY CASE r.queue WHEN 'interactive' THEN 0 ELSE 1 END, r.created_at, r.id
+           ORDER BY
+             (SELECT COUNT(*) FROM runs held WHERE held.account_id = r.account_id AND held.kind = r.kind
+                AND held.status IN ('claimed', 'running')),
+             CASE r.queue WHEN 'interactive' THEN 0 ELSE 1 END,
+             r.created_at,
+             r.id
            LIMIT 1
          )
          RETURNING ${RUN_COLUMNS}`,
