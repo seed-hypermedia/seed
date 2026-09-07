@@ -149,11 +149,7 @@ import {
 import {DocumentMetadataView} from './document-metadata-view'
 import {DocumentTools} from './document-tools'
 import {DocumentTopBar} from './document-top-bar'
-import {
-  createDocumentVersionsPanelRoute,
-  DocumentVersionsPanel,
-  isDocumentVersionsPanelRoute,
-} from './document-versions-panel'
+import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-versions-panel'
 import {ExplorePage} from './explore-page'
 import {Feed, type DraftVersionEntry} from './feed'
 import {FeedFilters} from './feed-filters'
@@ -379,18 +375,6 @@ function CitationFragmentPopover({
 function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
   const {panel, width, ...params} = route as any
   return params as DocumentPanelRoute
-}
-
-/** Returns the right-panel destination for a collection-aware document menu item. */
-export function getCollectionMenuPanelRoute(key: string, docId: UnpackedHypermediaId): DocumentPanelRoute | null {
-  if (key === 'versions') return createDocumentVersionsPanelRoute(docId)
-  if (key === 'options') return {key: 'options'}
-  if (key === 'metadata') return {key: 'metadata', id: docId}
-  if (key === 'directory') return {key: 'directory', id: docId}
-  if (key === 'collaborators') return {key: 'collaborators', id: docId}
-  if (key === 'activity') return {key: 'activity', id: docId}
-  if (key === 'comments') return {key: 'comments', id: docId}
-  return null
 }
 
 /** Removes redundant document destinations and orders the remaining menu actions by intent. */
@@ -2574,21 +2558,6 @@ function DocumentBody({
     if (documentOptionsMenuItem) unorderedItems.push(documentOptionsMenuItem)
     if (convertToCollectionMenuItem) unorderedItems.push(convertToCollectionMenuItem)
     if (convertToDocumentMenuItem) unorderedItems.push(convertToDocumentMenuItem)
-    if (isCollection) {
-      unorderedItems = unorderedItems.map((item) => {
-        const panel = getCollectionMenuPanelRoute(item.key, docId)
-        if (!panel) return item
-        return {
-          ...item,
-          onClick: () =>
-            navigate({
-              key: 'document',
-              id: {...docId, blockRef: null, blockRange: null},
-              panel,
-            }),
-        }
-      })
-    }
     // Drop share/copy-link entries while the doc is an unpublished draft —
     // its URL won't resolve for anyone else, so any "share" action is a footgun.
     if (isUnpublishedDraft) {
@@ -2605,9 +2574,6 @@ function DocumentBody({
     convertToCollectionMenuItem,
     convertToDocumentMenuItem,
     isUnpublishedDraft,
-    isCollection,
-    docId,
-    navigate,
   ])
 
   const hasOptions = allMenuItems.length > 0
@@ -2794,7 +2760,7 @@ function DocumentBody({
 
       {/* DocumentTools - scrolls with the page; the border separates document
           identity above from document body below. Hidden when showActivity is false. */}
-      {showActivity && !isCollection && (
+      {showActivity && (
         <div className="px-5 py-1">
           <DocumentTools
             id={docId}
@@ -2817,7 +2783,7 @@ function DocumentBody({
             collabsCount={peopleCount}
             metadataCount={countCustomMetadataFields(metadata)}
             layoutProps={
-              isMobile
+              isMobile || isCollection
                 ? undefined
                 : {
                     wrapperProps,
@@ -2852,10 +2818,15 @@ function DocumentBody({
       )}
 
       {/* Main content based on activeView */}
-      <div className={cn('flex-1', !isCollection && activeView !== 'content' && 'pb-60', isMobile && 'px-4')}>
-        {isCollection ? (
-          <DocumentCollection docId={docId} queryBlock={collectionQueryBlock} canEdit={canEditCurrentRoute} />
-        ) : (
+      <div className={cn('flex-1', activeView !== 'content' && 'pb-60', isMobile && 'px-4')}>
+        <DocumentViewContent
+          activeView={activeView}
+          collection={
+            isCollection ? (
+              <DocumentCollection docId={docId} queryBlock={collectionQueryBlock} canEdit={canEditCurrentRoute} />
+            ) : undefined
+          }
+        >
           <MainContent
             docId={docId}
             resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
@@ -2895,7 +2866,7 @@ function DocumentBody({
             fileUpload={fileUpload}
             draftVersionEntry={draftVersionEntry}
           />
-        )}
+        </DocumentViewContent>
         {citationFragmentClick ? (
           <CitationFragmentPopover
             click={citationFragmentClick}
@@ -3392,6 +3363,27 @@ function DocumentMetadataPage({
       openFile={openFile}
       onCreateBlob={onCreateBlob}
     />
+  )
+}
+
+/**
+ * Selects the main document view while retaining collection search and filter state
+ * across view switches. Hidden collections stay out of keyboard and screen-reader navigation.
+ */
+export function DocumentViewContent({
+  activeView,
+  collection,
+  children,
+}: {
+  activeView: ActiveView
+  collection?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <>
+      {collection ? <div hidden={activeView !== 'content'}>{collection}</div> : null}
+      {!collection || activeView !== 'content' ? children : null}
+    </>
   )
 }
 

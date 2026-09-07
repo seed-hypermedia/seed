@@ -18,7 +18,6 @@ import {
   getDocumentSyncIsPlaceholderData,
   getOldVersionEditBlockedToastOptions,
   getCitationsTargetId,
-  getCollectionMenuPanelRoute,
   orderDocumentMenuItems,
   BACK_TO_TOP_SCROLL_OFFSET,
 } from '../resource-page-common'
@@ -26,29 +25,6 @@ import {
 describe('back to top visibility', () => {
   it('uses a 200px visibility threshold', () => {
     expect(BACK_TO_TOP_SCROLL_OFFSET).toBe(200)
-  })
-})
-
-describe('getCollectionMenuPanelRoute', () => {
-  const docId = hmId('alice', {path: ['projects']})
-
-  it.each(['metadata', 'directory', 'collaborators', 'activity', 'comments'] as const)(
-    'maps the %s menu item to the matching right panel',
-    (key) => {
-      expect(getCollectionMenuPanelRoute(key, docId)).toMatchObject({key, id: docId})
-    },
-  )
-
-  it('maps versions to the versions activity panel', () => {
-    expect(getCollectionMenuPanelRoute('versions', docId)).toMatchObject({
-      key: 'activity',
-      id: docId,
-      filterEventType: ['Ref'],
-    })
-  })
-
-  it('leaves menu actions without panel support unchanged', () => {
-    expect(getCollectionMenuPanelRoute('export', docId)).toBeNull()
   })
 })
 

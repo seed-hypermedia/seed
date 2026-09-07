@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import {hmId} from '@shm/shared'
-import {act} from 'react-dom/test-utils'
+import {act, Simulate} from 'react-dom/test-utils'
 import {createContext, useContext, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {createRoot, type Root} from 'react-dom/client'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {PageWrapper} from '../resource-page-common'
+import {DocumentViewContent, PageWrapper} from '../resource-page-common'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 vi.mock('../use-media', () => ({useMedia: () => ({xs: false})}))
@@ -169,5 +169,57 @@ describe('PageWrapper edit navigation pane portal', () => {
     })
 
     expect(container.querySelector('[data-testid="edit-nav-pane-target"]')?.textContent).toContain('edit nav context')
+  })
+})
+
+describe('DocumentViewContent', () => {
+  function CollectionTable() {
+    const [search, setSearch] = useState('')
+    return <input aria-label="Search documents" value={search} onChange={(event) => setSearch(event.target.value)} />
+  }
+
+  it.each(['comments', 'metadata', 'collaborators', 'activity', 'directory'] as const)(
+    'shows %s instead of the collection and restores the same table on return',
+    (activeView) => {
+      const renderView = (view: typeof activeView | 'content') => {
+        act(() => {
+          root.render(
+            <DocumentViewContent activeView={view} collection={<CollectionTable />}>
+              <div data-testid="main-view">{view}</div>
+            </DocumentViewContent>,
+          )
+        })
+      }
+      renderView('content')
+      const table = container.querySelector('input')!
+      act(() => {
+        table.value = 'Alpha'
+        Simulate.change(table)
+      })
+      expect(table.value).toBe('Alpha')
+      expect(table.closest('[hidden]')).toBeNull()
+      expect(container.querySelector('[data-testid="main-view"]')).toBeNull()
+
+      renderView(activeView)
+      expect(table.closest('[hidden]')).not.toBeNull()
+      expect(container.querySelector('[data-testid="main-view"]')?.textContent).toBe(activeView)
+
+      renderView('content')
+      expect(container.querySelector('input')).toBe(table)
+      expect(table.value).toBe('Alpha')
+      expect(table.closest('[hidden]')).toBeNull()
+      expect(container.querySelector('[data-testid="main-view"]')).toBeNull()
+    },
+  )
+
+  it('renders ordinary document content without a collection', () => {
+    act(() => {
+      root.render(
+        <DocumentViewContent activeView="content">
+          <p>Document content</p>
+        </DocumentViewContent>,
+      )
+    })
+    expect(container.textContent).toBe('Document content')
   })
 })
