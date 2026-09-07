@@ -189,7 +189,7 @@ export function AgentMemoryTab({
   useLayoutEffect(() => {
     if (treeScrollRestoredRef.current || !rootQuery?.data || loadingDirs.size) return
     treeScrollRestoredRef.current = true
-    if (treeScrollRef.current) treeScrollRef.current.scrollTop = scrollTopsRef.current.tree
+    return restoreScrollTop(treeScrollRef.current, scrollTopsRef.current.tree)
   }, [rootQuery?.data, loadingDirs])
   // Same for the file: once its text is in the textarea. Only the remembered file gets the offset;
   // a different selection starts at the top.
@@ -197,7 +197,7 @@ export function AgentMemoryTab({
   useLayoutEffect(() => {
     if (fileScrollRestoredRef.current || !file.data || selectedPath !== restored?.selectedPath) return
     fileScrollRestoredRef.current = true
-    if (fileScrollRef.current) fileScrollRef.current.scrollTop = scrollTopsRef.current.file
+    return restoreScrollTop(fileScrollRef.current, scrollTopsRef.current.file)
   }, [file.data, selectedPath, restored?.selectedPath])
   const visibleEntries = entries.filter((entry) => isPathVisible(entry.path, expandedDirs))
 
@@ -1055,6 +1055,27 @@ function MemoryEntryInfoDialog({
       ) : null}
     </div>
   )
+}
+
+/**
+ * Puts a scroll container back at a remembered offset once its box has settled.
+ *
+ * The panes sit in a resizable panel group that applies its saved sizes in a re-render after the
+ * first commit, and the file text is often served from cache on that very first render. Setting
+ * the offset right then measures against a pane of the wrong width (different wrapping, so the
+ * same pixels mean a different line) or no height at all (clamped to 0). Two frames later the
+ * layout is final; the second pass re-asserts the offset in case the first was clamped.
+ * Returns a cleanup that cancels the pending frames.
+ */
+function restoreScrollTop(element: HTMLElement | null, top: number): () => void {
+  if (!element) return () => {}
+  let frame = requestAnimationFrame(() => {
+    element.scrollTop = top
+    frame = requestAnimationFrame(() => {
+      if (element.scrollTop !== top) element.scrollTop = top
+    })
+  })
+  return () => cancelAnimationFrame(frame)
 }
 
 /** Directory path holding `path`: '' for root-level entries. */
