@@ -1,4 +1,4 @@
-import {HelpCircle, X} from 'lucide-react'
+import {HelpCircle, Plus, X} from 'lucide-react'
 import {useEffect, useMemo, useState} from 'react'
 import {Button} from './button'
 import {Badge} from './components/badge'
@@ -119,7 +119,7 @@ function StepHeader({title, description}: {title: string; description: string}) 
       <SizableText size="2xl" weight="bold" asChild>
         <h2>{title}</h2>
       </SizableText>
-      <SizableText size="sm" className="text-muted-foreground">
+      <SizableText size="md" className="text-muted-foreground">
         {description}
       </SizableText>
     </div>
@@ -162,10 +162,41 @@ function useFilePreviewUrl(file: File | null) {
   return url
 }
 
+// Empty state content for image inputs.
+function ImagePlusEmpty({hint}: {hint?: string}) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2">
+      <div className="flex size-8 items-center justify-center rounded-md bg-emerald-100 dark:bg-emerald-900">
+        <Plus className="size-4 text-emerald-700 dark:text-emerald-300" />
+      </div>
+      {hint ? (
+        <SizableText size="xs" className="text-muted-foreground text-center">
+          {hint}
+        </SizableText>
+      ) : null}
+    </div>
+  )
+}
+
 function IdentityStep({state, update}: StepProps) {
   const coverUrl = useFilePreviewUrl(state.cover)
   const logoUrl = useFilePreviewUrl(state.logo)
   const faviconUrl = useFilePreviewUrl(state.favicon)
+  const COVER_DROP_HEIGHT = 76
+  const COVER_FILLED_HEIGHT = COVER_DROP_HEIGHT + 45
+  const renderCoverInput = (height: number) => (
+    <ImageForm
+      id="space-cover"
+      height={height}
+      url={coverUrl}
+      uploadOnChange={false}
+      emptyContent={<ImagePlusEmpty hint="1600 × 400px" />}
+      onImageUpload={(file) => {
+        if (file instanceof File) update({cover: file})
+      }}
+      onRemove={() => update({cover: null})}
+    />
+  )
   return (
     <>
       <StepHeader
@@ -174,28 +205,32 @@ function IdentityStep({state, update}: StepProps) {
       />
       <div className="flex flex-col gap-1">
         <Label>Home cover image</Label>
-        <ImageForm
-          id="space-cover"
-          height={120}
-          url={coverUrl}
-          uploadOnChange={false}
-          suggestedSize="1600 × 400px"
-          onImageUpload={(file) => {
-            if (file instanceof File) update({cover: file})
-          }}
-          onRemove={() => update({cover: null})}
-        />
+        {coverUrl ? (
+          renderCoverInput(COVER_FILLED_HEIGHT)
+        ) : (
+          <div className="bg-muted/40 rounded-lg border px-5 py-2">
+            <div className="bg-background flex flex-col overflow-hidden rounded-md border">
+              <div aria-hidden className="border-border flex items-center justify-between border-b px-3 py-1.5">
+                <div className="flex items-center gap-1.5">
+                  <div className="bg-muted-foreground/25 size-2 rounded-full" />
+                  <div className="bg-muted-foreground/25 h-1.5 w-6 rounded-full" />
+                </div>
+                <div className="bg-muted-foreground/25 size-3 rounded-full" />
+              </div>
+              {renderCoverInput(COVER_DROP_HEIGHT)}
+            </div>
+          </div>
+        )}
       </div>
       <div className="flex flex-col gap-1">
         <Label>Space logo</Label>
         <ImageForm
           id="space-logo"
-          height={100}
+          height={84}
           width={320}
           url={logoUrl}
           uploadOnChange={false}
-          emptyLabel="Add Logo"
-          suggestedSize="100px height JPG or PNG"
+          emptyContent={<ImagePlusEmpty hint="100px height JPG or PNG." />}
           onImageUpload={(file) => {
             if (file instanceof File) update({logo: file})
           }}
@@ -206,17 +241,19 @@ function IdentityStep({state, update}: StepProps) {
         <Label>Favicon</Label>
         <ImageForm
           id="space-favicon"
-          height={100}
-          width={100}
+          height={84}
+          width={84}
           url={faviconUrl}
           uploadOnChange={false}
-          emptyLabel="Add Favicon"
-          suggestedSize="512 × 512px JPG or PNG"
+          emptyContent={<ImagePlusEmpty />}
           onImageUpload={(file) => {
             if (file instanceof File) update({favicon: file})
           }}
           onRemove={() => update({favicon: null})}
         />
+        <SizableText size="xs" className="text-muted-foreground">
+          512 × 512px height JPG or PNG.
+        </SizableText>
       </div>
     </>
   )

@@ -1,5 +1,5 @@
 import {X} from 'lucide-react'
-import {ChangeEvent} from 'react'
+import {ChangeEvent, ReactNode} from 'react'
 import {Button} from './button'
 import {SizableText} from './text'
 
@@ -13,6 +13,7 @@ export interface ImageFormProps {
   uploadOnChange?: boolean
   height?: number
   width?: number
+  emptyContent?: ReactNode
   /**
    * Optional async function that uploads a File and resolves to its URL.
    * When omitted and `uploadOnChange` is true, the upload step is skipped.
@@ -41,6 +42,7 @@ export function ImageForm({
   height,
   width,
   fileUpload,
+  emptyContent,
   ...props
 }: ImageFormProps) {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -113,9 +115,10 @@ export function ImageForm({
             top: 0,
             bottom: 0,
             zIndex: 20,
+            cursor: 'pointer',
           }}
         />
-        {emptyLabel && !url ? (
+        {emptyLabel && !url && !emptyContent ? (
           <div className="bg-muted pointer-events-none absolute z-50 h-full items-center justify-center gap-2 opacity-100">
             <SizableText size="xs" className="text-muted-foreground text-center">
               {emptyLabel}
@@ -124,13 +127,17 @@ export function ImageForm({
         ) : null}
 
         {image || (
-          <div className="bg-muted border-border pointer-events-none absolute z-50 flex h-full w-full flex-col items-center justify-center gap-0 rounded-md border opacity-100">
-            <SizableText size="xs" weight="bold" className="text-muted-foreground text-center">
-              {url ? 'Update Cover' : emptyLabel || 'Add Cover'}
-            </SizableText>
-            <SizableText size="xs" className="text-muted-foreground text-center">
-              {suggestedSize}
-            </SizableText>
+          <div className="bg-muted border-border group-hover:border-muted-foreground/50 group-focus-within:border-muted-foreground/50 group-hover:bg-muted/70 pointer-events-none absolute z-50 flex h-full w-full flex-col items-center justify-center gap-0 rounded-md border border-dashed opacity-100 transition-colors">
+            {emptyContent ?? (
+              <>
+                <SizableText size="xs" weight="bold" className="text-muted-foreground text-center">
+                  {url ? 'Update Cover' : emptyLabel || 'Add Cover'}
+                </SizableText>
+                <SizableText size="xs" className="text-muted-foreground text-center">
+                  {suggestedSize}
+                </SizableText>
+              </>
+            )}
           </div>
         )}
       </div>
