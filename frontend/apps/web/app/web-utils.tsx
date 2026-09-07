@@ -1,3 +1,4 @@
+import {useAssistantAutoOpen, useAssistantPanel} from '@/assistant-panel-state'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client'
 import type {HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
@@ -9,6 +10,7 @@ import {
   useUniversalAppContext,
   useUniversalClient,
 } from '@shm/shared'
+import {buildCollectionDraftSeed} from '@shm/shared/collection'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useIsSiteOwner} from '@shm/shared/models/capabilities'
 import {createDefaultCollectionQueryBlock} from '@shm/shared/models/document-machine'
@@ -16,6 +18,8 @@ import {useAccount, useResource} from '@shm/shared/models/entity'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
 import {hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
+import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
+import {parseSpaceAgentIds} from '@shm/ui/agents/space-agents'
 import {ButtonLink} from '@shm/ui/button'
 import {
   DropdownMenu,
@@ -32,7 +36,6 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {Add} from '@shm/ui/icons'
 import {JoinButton} from '@shm/ui/join-button'
 import {MobilePanelSheet} from '@shm/ui/mobile-panel-sheet'
-import {useAssistantAutoOpen, useAssistantPanel} from '@/assistant-panel-state'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {createEmailSubscribersMenuItem} from '@shm/ui/site-email-subscribers'
 import {toast} from '@shm/ui/toast'
@@ -40,14 +43,13 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
-import {parseSpaceAgentIds} from '@shm/ui/agents/space-agents'
 import {
   Bell,
   Bot,
   ExternalLink,
   FilePlus2,
-  Grid3X3,
   Globe,
+  Grid3X3,
   History,
   Import as ImportIcon,
   Layers,
@@ -63,7 +65,6 @@ import {nanoid} from 'nanoid'
 import {ReactNode, useCallback, useMemo, useRef, useState} from 'react'
 import {LogoutDialog, useCreateAccount, useLocalKeyPair} from './auth'
 import {createWebDocumentDraft, createWebDocumentDraftFromMarkdownFile} from './document-edit/web-create-draft'
-import {buildCollectionDraftSeed} from '@shm/shared/collection'
 import {getVaultAccountSettingsUrl} from './vault-links'
 import {useCreateSpaceDialog, useHasExistingSpace} from './web-create-space-dialog'
 import {useWebNotificationInbox, useWebNotificationReadState} from './web-notifications'
@@ -345,6 +346,8 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   // First arrival: a signed-in reader of a space that publishes agents finds the panel already
   // open, once, on a viewport wide enough to show it beside the page. Closing it is remembered.
   useAssistantAutoOpen(!!keyPair && hasSiteAgents && siteAgents.publishesAgents && !isMobile)
+  // Hide join button if inside a pending space draft.
+  const isPendingSpace = isPendingSpaceUid(siteUid)
 
   // Show the join button if not joined the site
   if (!keyPair) {
@@ -352,14 +355,14 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
       <>
         <div className="flex items-center gap-2">
           <PlaceholderAvatar onClick={() => createAccount({source: 'login'})} />
-          <JoinButton onClick={() => createAccount({source: 'join'})} />
+          {isPendingSpace ? null : <JoinButton onClick={() => createAccount({source: 'join'})} />}
         </div>
         {createAccountContent}
       </>
     )
   }
 
-  const joinButton = !isJoined ? <JoinButton onClick={() => joinSite()} /> : null
+  const joinButton = !isJoined && !isPendingSpace ? <JoinButton onClick={() => joinSite()} /> : null
 
   // Show the avatar and bell when logged in.
   const avatarIcon = (
