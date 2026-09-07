@@ -19,7 +19,6 @@ import {
 } from '@shm/editor/blocknote/core/extensions/Markdown/MarkdownToBlocks'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
 import {useUniversalClient} from '@shm/shared'
-import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -213,13 +212,6 @@ export function useImporting(parentId: UnpackedHypermediaId) {
     mutationFn: (url: string) => client.webImporting.checkWebUrl.mutate(url),
   })
 
-  // Private documents require a site URL and must be at the home doc level
-  const siteHomeResource = useResource(hmId(parentId.uid), {subscribed: true})
-  const siteUrl =
-    siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document?.metadata?.siteUrl : undefined
-  const isHomeDoc = !parentId.path?.length
-  const canCreatePrivateDoc = Boolean(siteUrl) && isHomeDoc
-
   const importDialog = useImportConfirmDialog()
 
   function startImport(
@@ -236,7 +228,6 @@ export function useImporting(parentId: UnpackedHypermediaId) {
             documents: docs,
             documentCount: docs.length,
             docMap: result.docMap,
-            canCreatePrivateDoc,
             onSuccess: handleConfirm,
           })
         } else {
@@ -329,7 +320,6 @@ export function useImporting(parentId: UnpackedHypermediaId) {
             documents: docs,
             documentCount: docs.length,
             docMap: result.docMap,
-            canCreatePrivateDoc,
             onSuccess: handleConfirm,
           })
         } else {

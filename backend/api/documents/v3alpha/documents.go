@@ -1053,12 +1053,13 @@ func (srv *Server) PrepareChange(ctx context.Context, in *documents.PrepareChang
 
 // documentChangeParams holds the common parameters for PrepareChange.
 type documentChangeParams struct {
-	Account     string
-	Path        string
-	BaseVersion string
-	Changes     []*documents.DocumentChange
-	Capability  string
-	Visibility  documents.ResourceVisibility
+	Account                     string
+	Path                        string
+	BaseVersion                 string
+	Changes                     []*documents.DocumentChange
+	Capability                  string
+	Visibility                  documents.ResourceVisibility
+	allowPrivateCreationForTest bool
 }
 
 // handleDocumentChangeRequest validates input, loads or creates the document, and applies the requested changes.
@@ -1110,6 +1111,10 @@ func (srv *Server) handleDocumentChangeRequest(ctx context.Context, in documentC
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	if in.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE && doc.Visibility() != blob.VisibilityPrivate && !in.allowPrivateCreationForTest {
+		return nil, status.Error(codes.FailedPrecondition, "private document creation is disabled")
 	}
 
 	if in.BaseVersion == "" {

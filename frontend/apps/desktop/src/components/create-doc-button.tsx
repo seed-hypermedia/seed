@@ -13,7 +13,7 @@ import {
 } from '@shm/ui/components/dropdown-menu'
 import {Add} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
-import {FilePlus2, Grid3X3, Import, Lock} from 'lucide-react'
+import {FilePlus2, Grid3X3, Import} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {ReactNode, useCallback, useMemo} from 'react'
 import {useImportDialog, useImporting} from './import-doc-button'
@@ -74,14 +74,6 @@ export function useCreateDocumentMenuItem({
           onClick: () => {
             const seed = buildDocumentCollectionDraftSeed(nanoid(8))
             void createDraft({initialMetadata: seed.metadata, initialContent: seed.content})
-          },
-        },
-        {
-          key: 'new-private-document',
-          label: 'Private',
-          icon: <Lock className="size-4" />,
-          onClick: () => {
-            void createDraft({visibility: 'PRIVATE'})
           },
         },
         {

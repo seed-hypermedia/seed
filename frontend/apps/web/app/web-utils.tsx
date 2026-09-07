@@ -54,7 +54,6 @@ import {
   Import as ImportIcon,
   Layers,
   LayoutList,
-  Lock,
   LogOut,
   Plus,
   Search,
@@ -222,12 +221,6 @@ export function useWebCreateDocumentMenuItem({
           label: 'Collection',
           icon: <Grid3X3 className="size-4" />,
           onClick: () => createDraft('PUBLIC', true),
-        },
-        {
-          key: 'new-private-document',
-          label: 'Private',
-          icon: <Lock className="size-4" />,
-          onClick: () => createDraft('PRIVATE'),
         },
         {
           key: 'import',

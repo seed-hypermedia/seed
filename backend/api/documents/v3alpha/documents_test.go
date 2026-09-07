@@ -2426,12 +2426,13 @@ func (srv testServer) PublishDocumentChangeForTest(ctx context.Context, in *apit
 	}
 
 	doc, err := srv.handleDocumentChangeRequest(ctx, documentChangeParams{
-		Account:     in.Account,
-		Path:        in.Path,
-		BaseVersion: in.BaseVersion,
-		Changes:     in.Changes,
-		Capability:  in.Capability,
-		Visibility:  in.Visibility,
+		Account:                     in.Account,
+		Path:                        in.Path,
+		BaseVersion:                 in.BaseVersion,
+		Changes:                     in.Changes,
+		Capability:                  in.Capability,
+		Visibility:                  in.Visibility,
+		allowPrivateCreationForTest: true,
 	})
 	if err != nil {
 		return nil, err

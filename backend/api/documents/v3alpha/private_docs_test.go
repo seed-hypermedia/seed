@@ -87,6 +87,25 @@ func TestPrivateDocSecurity_PublicOnlyRequiresRootCapabilityForPrivateRead(t *te
 	require.Equal(t, privateDoc.Version, got.Version)
 }
 
+func TestPrivateDocumentCreationIsDisabled(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	alice := newTestDocsAPI(t, "alice")
+
+	_, err := alice.PrepareChange(ctx, &documents.PrepareChangeRequest{
+		Account:    alice.me.Account.PublicKey.String(),
+		Path:       "/secret",
+		Visibility: documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE,
+		Changes: []*documents.DocumentChange{{
+			Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Secret"},
+			},
+		}},
+	})
+	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+	require.ErrorContains(t, err, "private document creation is disabled")
+}
+
 // VULN-1: GetResource with snapshot (TSID) path bypasses PublicOnly check.
 // When GetResource receives a path that looks like a TSID, it enters the
 // snapshot code path (getSnapshotResource) which returns comments/contacts

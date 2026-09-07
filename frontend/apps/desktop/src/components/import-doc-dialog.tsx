@@ -1,10 +1,7 @@
 import {HMResourceVisibility} from '@seed-hypermedia/client/hm-types'
 import {Button} from '@shm/ui/button'
-import {SizableText, Text} from '@shm/ui/text'
-import {Tooltip} from '@shm/ui/tooltip'
+import {Text} from '@shm/ui/text'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {Globe, Info, Lock} from 'lucide-react'
-import {useState} from 'react'
 
 export type ImportedDocument = {
   markdownContent?: string
@@ -26,7 +23,6 @@ function ImportConfirmDialog({
     documents: ImportedDocument[]
     documentCount: number
     docMap: Map<string, {name: string; path: string}>
-    canCreatePrivateDoc: boolean
     onSuccess: (
       documents: ImportedDocument[],
       docMap: Map<string, {name: string; path: string}>,
@@ -34,8 +30,7 @@ function ImportConfirmDialog({
     ) => Promise<void>
   }
 }) {
-  const {documents, documentCount, docMap, canCreatePrivateDoc, onSuccess} = input
-  const [visibility, setVisibility] = useState<HMResourceVisibility>('PUBLIC')
+  const {documents, documentCount, docMap, onSuccess} = input
 
   return (
     <div className="flex flex-col gap-4 rounded-md p-4">
@@ -45,43 +40,6 @@ function ImportConfirmDialog({
       <Text className="text-muted-foreground text-sm">
         <Text>Do you want to continue with the import?</Text>
       </Text>
-      <div className="flex flex-col gap-2">
-        <SizableText size="sm" weight="bold">
-          Visibility
-        </SizableText>
-        <div className="flex gap-2">
-          <Button
-            variant={visibility === 'PUBLIC' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setVisibility('PUBLIC')}
-          >
-            <Globe className="size-3.5" />
-            Public
-          </Button>
-          {canCreatePrivateDoc ? (
-            <Button
-              variant={visibility === 'PRIVATE' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setVisibility('PRIVATE')}
-            >
-              <Lock className="size-3.5" />
-              Private
-            </Button>
-          ) : (
-            <Tooltip
-              content="To import private documents, you need to configure a web domain and import into the home document."
-              side="bottom"
-              asChild
-            >
-              <Button variant="outline" size="sm" className="cursor-default opacity-50">
-                <Lock className="size-3.5" />
-                Private
-                <Info className="text-muted-foreground size-3" />
-              </Button>
-            </Tooltip>
-          )}
-        </div>
-      </div>
       <div className="flex flex-col gap-3 p-4">
         <div className="flex justify-end gap-3">
           <Button
@@ -95,7 +53,7 @@ function ImportConfirmDialog({
           <Button
             variant="default"
             onClick={() => {
-              onSuccess(documents, docMap, visibility)
+              onSuccess(documents, docMap, 'PUBLIC')
               onClose()
             }}
           >
