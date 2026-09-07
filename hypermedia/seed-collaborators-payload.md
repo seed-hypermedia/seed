@@ -1,7 +1,7 @@
 ---
 name: Collaborators payload
 summary: "A document's collaboration picture: the publisher, inherited and directly granted capabilities, effective members, and their metadata. A derived read model comp"
-schemaDefinition: ipfs://bafyreigztkvybvfh6343zajtwked2fqwcvwpwrxeznxtkltntnfrxs2fom
+schemaDefinition: ipfs://bafyreif2lu7ehnq7y46hrkp2ads332yqa5ckiq4jtqzm3kxtsefdzs4lpa
 ---
 A document's collaboration picture: the publisher, inherited and directly granted capabilities, effective members, and their metadata. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:qppfw6ji -->
 
@@ -10,7 +10,7 @@ This document describes the **seed-collaborators-payload** type — a Seed API r
 # Shape <!-- id:0pHZWhFV -->
 
 A **closed struct** with these fields: <!-- id:aPWcE-eZ -->
-  - `publisherUid` _(required)_ — [string](./onyx-string.md) <!-- id:dNxcOhZ0 -->
+  - `publisherUid` _(required)_ — [string](./hypermedia-string.md) <!-- id:dNxcOhZ0 -->
   - `parentCapabilities` _(required)_ — list of [seed-capability](./seed-capability.md) <!-- id:1Qe1cDdo -->
   - `grantedCapabilities` _(required)_ — list of [seed-capability](./seed-capability.md) <!-- id:F1LujJDo -->
   - `grantedMembers` _(required)_ — list of [seed-site-member](./seed-site-member.md) <!-- id:MgzEcRK6 -->
@@ -19,7 +19,7 @@ A **closed struct** with these fields: <!-- id:aPWcE-eZ -->
 
 # Depends on <!-- id:EuNEDEuM -->
 
-- [string](./onyx-string.md) <!-- id:wh5e0WNl -->
+- [string](./hypermedia-string.md) <!-- id:wh5e0WNl -->
 - [seed-accounts-metadata](./seed-accounts-metadata.md) <!-- id:VDls_Pgs -->
 - [seed-capability](./seed-capability.md) <!-- id:DNmDsWAi -->
 - [seed-site-member](./seed-site-member.md) <!-- id:0RjtWQQY -->

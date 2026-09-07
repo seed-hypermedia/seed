@@ -22,8 +22,8 @@ describe('hypermedia-metadata semantic field formats', () => {
     expect(fieldFormat('schemaDefinition')).toBe('ipfs')
   })
   it('the format-typed reference schemas are valid Onyx schemas', () => {
-    expect(validate(ONYX_SCHEMAS['onyx-schema'], ONYX_SCHEMAS['hypermedia-hm-url'])).toEqual([])
-    expect(validate(ONYX_SCHEMAS['onyx-schema'], ONYX_SCHEMAS['hypermedia-ipfs'])).toEqual([])
+    expect(validate(ONYX_SCHEMAS['hypermedia-schema'], ONYX_SCHEMAS['hypermedia-hm-url'])).toEqual([])
+    expect(validate(ONYX_SCHEMAS['hypermedia-schema'], ONYX_SCHEMAS['hypermedia-ipfs'])).toEqual([])
   })
 })
 
@@ -45,7 +45,10 @@ describe('classifyRef', () => {
     expect(classifyRef(`${ONYX}/hypermedia-document`)).toEqual({kind: 'hm-bundled', name: 'hypermedia-document'})
   })
   it('a primitive kind URL resolves to its bundled schema', () => {
-    expect(classifyRef('hm://hyper.media/string')).toEqual({kind: 'hm-bundled', name: 'onyx-string'})
+    expect(classifyRef('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string')).toEqual({
+      kind: 'hm-bundled',
+      name: 'hypermedia-string',
+    })
   })
   it('an unknown hm:// document URL needs a fetch (hm-doc)', () => {
     expect(classifyRef('hm://someaccount/people/bob')).toEqual({kind: 'hm-doc', url: 'hm://someaccount/people/bob'})

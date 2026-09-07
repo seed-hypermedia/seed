@@ -19,7 +19,6 @@ they work on GitHub and become `hm://` links when published. Start at
 | file | published at |
 | --- | --- |
 | `index.md` | the home document |
-| `onyx-<x>.md` (+ `onyx-<x>.schema.json`) | `/<x>` — primitives and meta-schemas keep their public names |
 | `<x>.md` (+ optional `<x>.schema.json`) | `/<x>` |
 | `README.md` | not published |
 | `images/` | assets referenced by pages; uploaded as blobs when published |

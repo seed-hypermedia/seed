@@ -11,7 +11,7 @@ export const NEW_BLOB_PATH = 'new'
 /** The inspector path that opens a draft seeded by a schema blob. */
 export const newInstancePath = (schemaBlobCid: string) => `${NEW_BLOB_PATH}/${schemaBlobCid}`
 /** The Onyx meta-schema's published CID — "New Schema" is a new instance of it. */
-export const META_SCHEMA_CID = schemaCid('onyx-schema')!
+export const META_SCHEMA_CID = schemaCid('hypermedia-schema')!
 
 export const newBlobRoute = (): NavRoute => createInspectIpfsNavRoute(NEW_BLOB_PATH)
 export const newInstanceRoute = (schemaBlobCid: string): NavRoute =>

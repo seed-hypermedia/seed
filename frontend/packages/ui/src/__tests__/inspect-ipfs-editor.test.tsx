@@ -179,7 +179,11 @@ describe('InspectIpfsPage as the blob editor', () => {
   })
 
   it('field context: edits the referenced object and, on confirm, publishes a direct metadata change', async () => {
-    const schema = {name: 'Stats', type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map', properties: {}}
+    const schema = {
+      name: 'Stats',
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
+      properties: {},
+    }
     const cid = CID.createV1(0x71, await sha256.digest(cbor.encode(schema))).toString()
     const docUrl = 'hm://z6MkOwner/world/types/character'
     const {client, published} = mount(cid, {[cid]: schema}, {editField: {docUrl, field: 'schemaDefinition'}})

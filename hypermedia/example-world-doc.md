@@ -1,7 +1,7 @@
 ---
 name: World
 summary: "A world-builder kit type: the root page of a fictional world. Its children are the type definitions and the folders of characters, places, factions, and events;"
-schemaDefinition: ipfs://bafyreifezveo23zunxxr3x6jp7fvngt366rkuizn6zhusgccbihciajvsy
+schemaDefinition: ipfs://bafyreifbulntn4kcnljb6nqizc4i6jpswjf2fqvq2kvemsrwmlnvtjnu5e
 ---
 A world-builder kit type: the root page of a fictional world. Its children are the type definitions and the folders of characters, places, factions, and events; its metadata names the genre and the date the chronicle begins. <!-- id:tWJgX3A2 -->
 
@@ -12,13 +12,13 @@ This document describes the **example-world-doc** type — an example schema. It
 **Extends** [hypermedia-document](./hypermedia-document.md) with these added fields: <!-- id:qfyt9Gtj -->
   - `metadata` — [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:0iNrXaS0 -->
   - _adds to [hypermedia-metadata](./hypermedia-metadata.md):_ <!-- id:r0KTtnBZ -->
-  - `genre` _(required)_ — [string](./onyx-string.md) (one of `fantasy`, `science-fiction`, `historical`, `contemporary`, `mythic`) <!-- id:0ujhBQvU -->
-  - `epoch` — [date](./onyx-date.md) <!-- id:U_Ww1oVZ -->
-  - `tagline` — [string](./onyx-string.md) <!-- id:JSSPut80 -->
+  - `genre` _(required)_ — [string](./hypermedia-string.md) (one of `fantasy`, `science-fiction`, `historical`, `contemporary`, `mythic`) <!-- id:0ujhBQvU -->
+  - `epoch` — [date](./hypermedia-date.md) <!-- id:U_Ww1oVZ -->
+  - `tagline` — [string](./hypermedia-string.md) <!-- id:JSSPut80 -->
 
 # Depends on <!-- id:isqmdDcM -->
 
 - [hypermedia-document](./hypermedia-document.md) <!-- id:HZ4iDpUw -->
 - [hypermedia-metadata](./hypermedia-metadata.md) <!-- id:w3N25OWp -->
-- [date](./onyx-date.md) <!-- id:vd6ctMNl -->
-- [string](./onyx-string.md) <!-- id:3hGaivVk -->
+- [date](./hypermedia-date.md) <!-- id:vd6ctMNl -->
+- [string](./hypermedia-string.md) <!-- id:3hGaivVk -->

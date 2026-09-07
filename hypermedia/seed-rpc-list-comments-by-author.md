@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListCommentsByAuthor"
 summary: "Lists the comments an author has written. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `"
-schemaDefinition: ipfs://bafyreif2spqcoctg37bpfpyolrsx7xdelbcddswzin7wjmq6czfnpxe3la
+schemaDefinition: ipfs://bafyreiagkpcaxq64crebqb66cwdb2gzqb3fsdqkm4hb5mmhs3zoezckqa4
 ---
 Lists the comments an author has written. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:TNeyZeWT -->
 

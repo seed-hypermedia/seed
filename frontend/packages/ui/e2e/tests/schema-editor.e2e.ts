@@ -103,7 +103,7 @@ test.describe('schema editor', () => {
     const published = await page.evaluate(() => (window as any).__lastPublishedSchema)
     expect(published).toMatchObject({
       name: 'Widget',
-      properties: {width: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer'}},
+      properties: {width: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-integer'}},
       required: ['width'],
     })
   })
