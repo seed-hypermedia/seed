@@ -1,3 +1,4 @@
+import {usePushAfterAction} from '@/models/push-after-action'
 import {useSetSubscription} from '@/models/subscription'
 import {useSelectedAccountId} from '@/selected-account'
 import {createContact, updateContact} from '@seed-hypermedia/client'
@@ -98,6 +99,7 @@ export function useContactSubscribeIntent() {
 export function useJoinSiteIntent(siteUid: string, siteName?: string) {
   const {content, requireAccount} = useDesktopAccountIntent()
   const subscribeContact = useContactSubscribeIntent()
+  const pushAfterAction = usePushAfterAction()
   const setSubscription = useSetSubscription()
 
   const join = useCallback(() => {
@@ -106,6 +108,7 @@ export function useJoinSiteIntent(siteUid: string, siteName?: string) {
         if (accountUid === siteUid) return
         try {
           await subscribeContact({accountUid, subjectUid: siteUid, subscribe: 'site'})
+          pushAfterAction({id: hmId(accountUid), trigger: 'publish'})
           setSubscription.mutate({id: hmId(siteUid), subscribed: true, recursive: true})
           toast.success(`Joined ${siteName || 'space'}`)
         } catch (error) {
@@ -119,7 +122,7 @@ export function useJoinSiteIntent(siteUid: string, siteName?: string) {
         siteName,
       },
     )
-  }, [requireAccount, setSubscription, siteName, siteUid, subscribeContact])
+  }, [pushAfterAction, requireAccount, setSubscription, siteName, siteUid, subscribeContact])
 
   return {content, join, isPending: setSubscription.isPending}
 }
