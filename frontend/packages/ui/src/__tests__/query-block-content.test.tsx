@@ -187,6 +187,37 @@ describe('QueryBlockContent table view', () => {
     expect(resizeHandles[0]?.getAttribute('aria-label')).toBe('Resize title column')
   })
 
+  it('persists a resized column when the drag ends outside the resize handle', () => {
+    const onTableConfigChange = vi.fn()
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={makeItems(1)}
+          style="Table"
+          accountsMetadata={{}}
+          onTableConfigChange={onTableConfigChange}
+        />,
+      )
+    })
+
+    const resizeHandle = container.querySelector('button[aria-label="Resize title column"]')
+    act(() => {
+      resizeHandle?.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, clientX: 240, buttons: 1}))
+    })
+    act(() => {
+      document.dispatchEvent(new MouseEvent('mousemove', {bubbles: true, clientX: 300, buttons: 1}))
+    })
+    act(() => {
+      document.body.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, clientX: 300}))
+    })
+
+    expect(onTableConfigChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        columns: expect.arrayContaining([expect.objectContaining({id: 'title', width: 300})]),
+      }),
+    )
+  })
+
   it('uses fixed column widths and truncates long values', () => {
     const items = makeItems(1)
     items[0].metadata.status = 'A status value that is much wider than its column'

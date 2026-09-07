@@ -226,11 +226,19 @@ export function QueryBlockTable({
                     type="button"
                     aria-label={`Resize ${header.column.id} column`}
                     className="absolute top-0 right-0 z-30 h-full w-2 cursor-col-resize touch-none"
-                    onMouseDown={header.getResizeHandler()}
-                    onTouchStart={header.getResizeHandler()}
+                    onMouseDown={(event) => {
+                      header.getResizeHandler()(event)
+                      document.addEventListener('mouseup', () => onColumnSizingCommit?.(columnSizingRef.current), {
+                        once: true,
+                      })
+                    }}
+                    onTouchStart={(event) => {
+                      header.getResizeHandler()(event)
+                      document.addEventListener('touchend', () => onColumnSizingCommit?.(columnSizingRef.current), {
+                        once: true,
+                      })
+                    }}
                     onDoubleClick={() => header.column.resetSize()}
-                    onMouseUp={() => onColumnSizingCommit?.(columnSizingRef.current)}
-                    onTouchEnd={() => onColumnSizingCommit?.(columnSizingRef.current)}
                   />
                 </TableHead>
               ))}

@@ -8,7 +8,7 @@ import {getMetadataName, useRouteLink} from '@shm/shared'
 import {useInteractionSummaries} from '@shm/shared/models/interaction-summary'
 import {type SortingState} from '@tanstack/react-table'
 import {ArrowUpDown, ArrowUp, ArrowDown, FileText, Filter, MessageSquare, Search, Share2, X} from 'lucide-react'
-import {ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {ReactNode, useCallback, useEffect, useMemo, useReducer, useRef, useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
@@ -36,6 +36,48 @@ import {QueryBlockTable} from './query-block-table'
 const INITIAL_LIST_CHUNK_SIZE = 25
 const LIST_CHUNK_SIZE = 25
 const LIST_CHUNK_ROOT_MARGIN = '800px 0px'
+
+type QueryTableState = {
+  sorting: SortingState
+  columnOrder: string[]
+  columnVisibility: Record<string, boolean>
+  columnSizing: Record<string, number>
+}
+
+type QueryTableStateAction =
+  | {type: 'sync'; state: QueryTableState}
+  | {type: 'sorting'; sorting: SortingState}
+  | {type: 'columnOrder'; columnOrder: string[]}
+  | {type: 'columnVisibility'; columnVisibility: Record<string, boolean>}
+  | {type: 'columnSizing'; columnSizing: Record<string, number>}
+
+function queryTableStateReducer(state: QueryTableState, action: QueryTableStateAction): QueryTableState {
+  if (action.type === 'sync') return action.state
+  if (action.type === 'sorting') return {...state, sorting: action.sorting}
+  if (action.type === 'columnOrder') return {...state, columnOrder: action.columnOrder}
+  if (action.type === 'columnVisibility') return {...state, columnVisibility: action.columnVisibility}
+  return {...state, columnSizing: action.columnSizing}
+}
+
+function createQueryTableState(
+  descriptors: QueryTableColumn[],
+  tableConfig?: HMQueryTableConfig,
+  sorting: SortingState = [],
+): QueryTableState {
+  const columnOrder: string[] = []
+  const columnVisibility: Record<string, boolean> = {}
+  const columnSizing: Record<string, number> = {}
+  for (const column of tableConfig?.columns ?? []) {
+    columnOrder.push(column.id)
+    columnVisibility[column.id] = column.visible
+    if (column.width) columnSizing[column.id] = column.width
+  }
+  for (const descriptor of descriptors) {
+    if (!columnOrder.includes(descriptor.id)) columnOrder.push(descriptor.id)
+    if (!(descriptor.id in columnVisibility)) columnVisibility[descriptor.id] = descriptor.defaultVisible
+  }
+  return {sorting, columnOrder, columnVisibility, columnSizing}
+}
 
 export interface QueryBlockContentProps {
   items: HMDocumentInfo[]
@@ -100,32 +142,14 @@ export function QueryBlockContent({
 
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<QueryTableFilter[]>([])
-  const [sorting, setSorting] = useState<SortingState>([])
-  const [columnOrder, setColumnOrder] = useState<string[]>(descriptors.map((d) => d.id))
-  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(descriptors.map((d) => [d.id, d.defaultVisible])),
+  const [tableState, updateTableState] = useReducer(queryTableStateReducer, undefined, () =>
+    createQueryTableState(descriptors, tableConfig, tableSorting),
   )
-  const [columnSizing, setColumnSizing] = useState<Record<string, number>>({})
+  const {sorting, columnOrder, columnVisibility, columnSizing} = tableState
 
   const tableConfigKey = useMemo(() => JSON.stringify(tableConfig), [tableConfig])
   useEffect(() => {
-    const cfg = tableConfig
-    const nextOrder: string[] = []
-    const nextVisibility: Record<string, boolean> = {}
-    const nextSizing: Record<string, number> = {}
-    for (const col of cfg?.columns ?? []) {
-      nextOrder.push(col.id)
-      nextVisibility[col.id] = col.visible
-      if (col.width) nextSizing[col.id] = col.width
-    }
-    for (const descriptor of descriptors) {
-      if (!nextOrder.includes(descriptor.id)) nextOrder.push(descriptor.id)
-      if (!(descriptor.id in nextVisibility)) nextVisibility[descriptor.id] = descriptor.defaultVisible
-    }
-    setSorting(tableSorting ?? [])
-    setColumnOrder(nextOrder)
-    setColumnVisibility(nextVisibility)
-    setColumnSizing(nextSizing)
+    updateTableState({type: 'sync', state: createQueryTableState(descriptors, tableConfig, tableSorting)})
   }, [descriptors, tableConfigKey, tableSorting])
 
   const getTableConfig = useCallback(
@@ -157,7 +181,7 @@ export function QueryBlockContent({
 
   const setSortingAndPersist = useCallback(
     (next: SortingState) => {
-      setSorting(next)
+      updateTableState({type: 'sorting', sorting: next})
       onTableSortingChange?.(next)
     },
     [onTableSortingChange],
@@ -198,24 +222,20 @@ export function QueryBlockContent({
 
   const toggleColumnVisibility = useCallback(
     (id: string) => {
-      setColumnVisibility((current) => {
-        const next = {...current, [id]: !current[id]}
-        persistTableConfig({columnVisibility: next})
-        return next
-      })
+      const next = {...columnVisibility, [id]: !columnVisibility[id]}
+      updateTableState({type: 'columnVisibility', columnVisibility: next})
+      persistTableConfig({columnVisibility: next})
     },
-    [persistTableConfig],
+    [columnVisibility, persistTableConfig],
   )
 
   const moveColumn = useCallback(
     (id: string, offset: -1 | 1) => {
-      setColumnOrder((current) => {
-        const next = moveQueryTableColumn(current, id, offset)
-        persistTableConfig({columnOrder: next})
-        return next
-      })
+      const next = moveQueryTableColumn(columnOrder, id, offset)
+      updateTableState({type: 'columnOrder', columnOrder: next})
+      persistTableConfig({columnOrder: next})
     },
-    [persistTableConfig],
+    [columnOrder, persistTableConfig],
   )
 
   if (items.length === 0 && isDiscovering) {
@@ -261,11 +281,13 @@ export function QueryBlockContent({
           sorting={sorting}
           onSortingChange={setSortingAndPersist}
           columnOrder={columnOrder}
-          onColumnOrderChange={setColumnOrder}
+          onColumnOrderChange={(columnOrder) => updateTableState({type: 'columnOrder', columnOrder})}
           columnVisibility={columnVisibility}
-          onColumnVisibilityChange={setColumnVisibility}
+          onColumnVisibilityChange={(columnVisibility) =>
+            updateTableState({type: 'columnVisibility', columnVisibility})
+          }
           columnSizing={columnSizing}
-          onColumnSizingChange={setColumnSizing}
+          onColumnSizingChange={(columnSizing) => updateTableState({type: 'columnSizing', columnSizing})}
           onColumnSizingCommit={(nextSizing) => persistTableConfig({columnSizing: nextSizing})}
         />
       ) : style === 'Card' ? (
