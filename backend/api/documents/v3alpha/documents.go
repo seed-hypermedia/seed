@@ -2324,11 +2324,24 @@ const qDocumentsOuterColumns = `    (SELECT 1 FROM unread_resources WHERE iri = 
     -- multiple links or changes from one document still count once. Drive
     -- from the target index so work is proportional to this document's inbound
     -- links rather than to the whole resource_links table.
-    (SELECT count(DISTINCT coalesce(sb.genesis_blob, sb.id))
+    (SELECT count(DISTINCT current_source.id)
       FROM resource_links rl INDEXED BY resource_links_by_target
-      JOIN structural_blobs sb ON sb.id = rl.source
+      JOIN structural_blobs change ON change.id = rl.source AND change.type = 'Change'
+      JOIN structural_blobs source_ref
+        ON source_ref.genesis_blob = coalesce(change.genesis_blob, change.id)
+        AND source_ref.type = 'Ref'
+      JOIN resources current_source ON current_source.id = coalesce(
+        (SELECT redirected.id FROM resources redirected WHERE redirected.iri = source_ref.extra_attrs->>'redirect'),
+        source_ref.resource
+      )
+      JOIN document_generations source_generation ON source_generation.resource = current_source.id
       WHERE rl.target = (SELECT r.id FROM resources r WHERE r.iri = i.iri)
-        AND sb.type = 'Change'
+        AND source_generation.generation = (
+          SELECT max(latest.generation)
+          FROM document_generations latest
+          WHERE latest.resource = current_source.id
+        )
+        AND source_generation.is_deleted = 0
     ) AS citation_count`
 
 // wrapDocumentsQuery wraps a query built by [baseDocumentsQuery] into an outer

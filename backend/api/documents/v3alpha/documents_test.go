@@ -1344,6 +1344,53 @@ func TestDocumentInfoCitationCount(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int32(2), got.ActivitySummary.CitationCount)
 	require.Equal(t, target.Version, got.Version)
+
+	// Moving a citing document must preserve its identity rather than counting
+	// both the historical and current paths.
+	_, err = alice.CreateRef(ctx, &documents.CreateRefRequest{
+		Account: source.Account,
+		Path:    "/moved-source",
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Version_{
+				Version: &documents.RefTarget_Version{
+					Genesis: source.Genesis,
+					Version: source.Version,
+				},
+			},
+		},
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+	_, err = alice.CreateRef(ctx, &documents.CreateRefRequest{
+		Account:        source.Account,
+		Path:           source.Path,
+		SigningKeyName: "main",
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Redirect_{
+				Redirect: &documents.RefTarget_Redirect{Account: source.Account, Path: "/moved-source"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	got, err = alice.GetDocumentInfo(ctx, &documents.GetDocumentInfoRequest{Account: account, Path: "/target"})
+	require.NoError(t, err)
+	require.Equal(t, int32(2), got.ActivitySummary.CitationCount)
+
+	// A tombstoned source is no longer a visible citing document.
+	_, err = alice.CreateRef(ctx, &documents.CreateRefRequest{
+		Account:        account,
+		Path:           "/other-source",
+		SigningKeyName: "main",
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Tombstone_{Tombstone: &documents.RefTarget_Tombstone{}},
+		},
+	})
+	require.NoError(t, err)
+
+	got, err = alice.GetDocumentInfo(ctx, &documents.GetDocumentInfoRequest{Account: account, Path: "/target"})
+	require.NoError(t, err)
+	require.Equal(t, int32(1), got.ActivitySummary.CitationCount)
 }
 
 func TestListDirectoryDerivesFallbackCoverImage(t *testing.T) {
