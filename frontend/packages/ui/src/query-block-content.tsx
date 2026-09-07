@@ -4,7 +4,7 @@ import {
   HMQueryBlockItemSummary,
   HMQueryTableConfig,
 } from '@seed-hypermedia/client/hm-types'
-import {formattedDate, getMetadataName, useRouteLink} from '@shm/shared'
+import {getMetadataName, useRouteLink} from '@shm/shared'
 import {useInteractionSummaries} from '@shm/shared/models/interaction-summary'
 import {type SortingState} from '@tanstack/react-table'
 import {ArrowUpDown, ArrowUp, ArrowDown, FileText, Filter, MessageSquare, Search, Share2, X} from 'lucide-react'
@@ -14,6 +14,7 @@ import {Input} from './components/input'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {Switch} from './components/switch'
 import {SelectField} from './form-fields'
+import {DocumentCard} from './newspaper'
 import {Spinner} from './spinner'
 import {cn} from './utils'
 import {
@@ -70,6 +71,7 @@ export function QueryBlockContent({
   bannerContent,
   titleLinkOnly,
   navigateCards,
+  itemContributors,
   tableConfig,
   onTableConfigChange,
   tableSorting,
@@ -276,6 +278,7 @@ export function QueryBlockContent({
           prependItems={prependItems}
           navigateCards={navigateCards}
           titleLinkOnly={titleLinkOnly}
+          itemContributors={itemContributors}
         />
       ) : (
         <QueryBlockList items={sortedItems} prependItems={prependItems} context={context} />
@@ -702,6 +705,7 @@ function QueryBlockCards({
   prependItems,
   navigateCards,
   titleLinkOnly,
+  itemContributors,
 }: {
   items: HMDocumentInfo[]
   context: QueryTableValueContext
@@ -711,6 +715,7 @@ function QueryBlockCards({
   prependItems?: ReactNode[]
   navigateCards?: boolean
   titleLinkOnly?: boolean
+  itemContributors?: Record<string, string[]>
 }) {
   const firstItem = banner && !bannerContent ? items[0] : undefined
   const restItems = firstItem ? items.slice(1) : items
@@ -738,6 +743,7 @@ function QueryBlockCards({
             context={context}
             navigateCards={navigateCards}
             titleLinkOnly={titleLinkOnly}
+            contributorUids={itemContributors?.[firstItem.id.id]}
           />
         </div>
       )}
@@ -749,6 +755,7 @@ function QueryBlockCards({
             context={context}
             navigateCards={navigateCards}
             titleLinkOnly={titleLinkOnly}
+            contributorUids={itemContributors?.[item.id.id]}
           />
         ))}
       </div>
@@ -762,46 +769,30 @@ function QueryBlockCard({
   context,
   navigateCards,
   titleLinkOnly,
+  contributorUids,
 }: {
   item: HMDocumentInfo
   context: QueryTableValueContext
   navigateCards?: boolean
   titleLinkOnly?: boolean
+  contributorUids?: string[]
 }) {
-  const title = getMetadataName(item.metadata) || item.path.at(-1) || 'Untitled'
-  const updated = getQueryTableValue(item, 'updated', context)
-  const linkProps = useRouteLink({key: 'document', id: item.id})
-  const titleNode = titleLinkOnly ? (
-    <a {...linkProps} className="font-semibold hover:underline">
-      {title}
-    </a>
-  ) : (
-    <span className="font-semibold">{title}</span>
+  return (
+    <DocumentCard
+      docId={item.id}
+      entity={null}
+      metadata={item.metadata}
+      firstImageInContent={item.firstImageInContent}
+      visibility={item.visibility}
+      version={item.version}
+      interactionSummary={context.interactionSummaries?.[item.id.id]}
+      accountsMetadata={context.accountsMetadata}
+      contributorUids={contributorUids}
+      navigate={navigateCards}
+      titleLinkOnly={titleLinkOnly}
+      showSummary
+    />
   )
-  const body = (
-    <div className="border-border flex flex-col gap-3 rounded-lg border bg-white p-4 transition-shadow hover:shadow-sm dark:bg-black">
-      <div className="bg-muted text-muted-foreground flex h-9 w-9 items-center justify-center rounded-md">
-        <FileText className="size-5" />
-      </div>
-      <div className="flex flex-col gap-1">
-        {titleNode}
-        <span className="text-muted-foreground text-sm">{formattedDate(updated as any)}</span>
-      </div>
-      <div className="mt-auto flex justify-end">
-        <ItemCounts item={item} context={context} />
-      </div>
-    </div>
-  )
-
-  if (navigateCards && !titleLinkOnly) {
-    return (
-      <a {...linkProps} className="block no-underline">
-        {body}
-      </a>
-    )
-  }
-
-  return body
 }
 
 function QueryBlockItemTitle({

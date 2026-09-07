@@ -9,6 +9,10 @@ vi.mock('@shm/shared/models/interaction-summary', () => ({
   useInteractionSummaries: () => [{data: {citations: 2}}, {data: {citations: 8}}],
 }))
 
+vi.mock('@shm/shared/utils/navigation', () => ({
+  useNavigate: () => vi.fn(),
+}))
+
 import {QueryBlockContent} from '../query-block-content'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
@@ -295,6 +299,41 @@ describe('QueryBlockContent card view navigation', () => {
     renderCard({navigateCards: false, titleLinkOnly: false})
 
     expect(container.querySelectorAll('a')).toHaveLength(0)
+  })
+
+  it('renders an explicit cover image in card view', () => {
+    const items = makeItems(1)
+    items[0].metadata.cover = 'ipfs://cover-cid'
+
+    act(() => {
+      root.render(<QueryBlockContent items={items} style="Card" accountsMetadata={{}} />)
+    })
+
+    expect(container.querySelector('img')?.getAttribute('src')).toContain('/cover-cid')
+  })
+
+  it('uses the indexed first content image when the document has no cover or icon', () => {
+    const items = makeItems(1)
+    items[0].firstImageInContent = 'ipfs://content-image-cid'
+
+    act(() => {
+      root.render(<QueryBlockContent items={items} style="Card" accountsMetadata={{}} />)
+    })
+
+    expect(container.querySelector('img')?.getAttribute('src')).toContain('/content-image-cid')
+  })
+
+  it('does not use the indexed content image when the document has an icon', () => {
+    const items = makeItems(1)
+    items[0].metadata.icon = 'ipfs://icon-cid'
+    items[0].firstImageInContent = 'ipfs://content-image-cid'
+
+    act(() => {
+      root.render(<QueryBlockContent items={items} style="Card" accountsMetadata={{}} />)
+    })
+
+    expect(container.querySelector('img')?.getAttribute('src')).toContain('/icon-cid')
+    expect(container.querySelector('img')?.getAttribute('src')).not.toContain('/content-image-cid')
   })
 })
 
