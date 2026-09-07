@@ -6558,7 +6558,12 @@ export class Service {
         `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
       )
       .get(accountId, definition.modelProvider)
-    if (!providerRow) throw new APIError(400, 'Model provider not found')
+    if (!providerRow) {
+      throw new APIError(
+        400,
+        `Model provider "${definition.modelProvider}" is not configured; choose a provider for this agent`,
+      )
+    }
     const provider = cbor.decode<api.ModelProviderConfig>(providerRow.config_cbor)
     const spec = providerSpec(provider.type)
     const subscription = provider.authMode === 'subscription'
