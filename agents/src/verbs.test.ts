@@ -5,9 +5,10 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import {serialize} from 'superjson'
 import {unpackHmId} from '@seed-hypermedia/client'
+import {CID} from 'multiformats/cid'
 import * as apisvc from '@/api-service'
 import {executeCallVerb, executeReadVerb, executeWriteVerb, type AgentServicePiToolContext} from '@/api-service'
-import {encode as cborEncode} from '@/cbor'
+import {decode as cborDecode, encode as cborEncode} from '@/cbor'
 import {LAMBDA_RESULT_PREFIX} from '@/code-exec'
 import * as toolDocs from '@/tool-documents'
 import * as agentMemory from '@/agent-memory'
@@ -291,6 +292,66 @@ describe('write verb', () => {
     await expect(
       executeWriteVerb(context, {address: 'hm://z6MkDoc/notes', content: 'x', options: {action: 'explode'}}),
     ).rejects.toThrow('Unknown write action')
+  })
+
+  test('write ipfs:// publishes a large file in several requests under the gRPC message limit', async () => {
+    const context = makeContext()
+    const originalFetch = globalThis.fetch
+    cleanups.push(() => {
+      globalThis.fetch = originalFetch
+    })
+    // A 7 MiB image: bigger than the daemon's 4 MiB per-message cap, as the GPU-rendered
+    // avatars were, so a single PublishBlobs call would be refused outright.
+    // Distinct bytes throughout: the chunker deduplicates identical 256 KiB chunks, so a
+    // repetitive buffer would collapse to a single blob and prove nothing.
+    const big = new Uint8Array(7 * 1024 * 1024)
+    for (let i = 0, x = 1; i < big.length; i++) {
+      x = (x * 1103515245 + 12345) >>> 0
+      big[i] = x >>> 24
+    }
+    const publishBodies: Uint8Array[] = []
+    globalThis.fetch = mock(async (url: string | URL, init?: RequestInit) => {
+      const href = String(url)
+      if (href.startsWith('https://files.example/')) {
+        return new Response(big, {headers: {'content-type': 'image/png'}})
+      }
+      if (href.includes('/api/PublishBlobs')) {
+        const body = new Uint8Array(init?.body as ArrayBuffer)
+        publishBodies.push(body)
+        const {blobs} = cborDecode<{blobs: Array<{cid: string}>}>(body)
+        return Response.json(serialize({cids: blobs.map((blob) => blob.cid)}))
+      }
+      throw new Error(`Unexpected fetch: ${href}`)
+    }) as unknown as typeof fetch
+
+    await executeWriteVerb(context, {address: '~/memory/big.png', options: {fromUrl: 'https://files.example/big.png'}})
+    const result = await executeWriteVerb(context, {address: 'ipfs://', options: {fromPath: '~/memory/big.png'}})
+    expect(String(result.cid)).toMatch(/^baf/)
+    expect(String(result.summary)).toContain('~/memory/big.png')
+
+    expect(publishBodies.length).toBeGreaterThan(1)
+    const seenCids = new Set<string>()
+    for (const body of publishBodies) {
+      const {blobs} = cborDecode<{blobs: Array<{cid: string; data: Uint8Array}>}>(body)
+      const bytes = blobs.reduce((sum, blob) => sum + blob.data.byteLength, 0)
+      expect(bytes).toBeLessThanOrEqual(apisvc.PUBLISH_BLOBS_BATCH_BYTES)
+      for (const blob of blobs) seenCids.add(blob.cid)
+    }
+    // Every chunk arrived exactly once across the batches, the root included. The blockstore hands
+    // the root back under a raw-codec CID while the returned root is dag-pb; both name the same
+    // block, so match on the multihash.
+    const multihashHex = (cid: string) => Buffer.from(CID.parse(cid).multihash.bytes).toString('hex')
+    expect(Array.from(seenCids, multihashHex)).toContain(multihashHex(String(result.cid)))
+    expect(seenCids.size).toBe(
+      publishBodies.reduce((n, body) => n + cborDecode<{blobs: unknown[]}>(body).blobs.length, 0),
+    )
+  })
+
+  test('batchBlobsForPublish keeps order and never splits a single oversized blob', () => {
+    const blob = (n: number, size: number) => ({cid: `c${n}`, data: new Uint8Array(size)})
+    const batches = apisvc.batchBlobsForPublish([blob(1, 4), blob(2, 4), blob(3, 20), blob(4, 1), blob(5, 9)], 10)
+    expect(batches.map((batch) => batch.map((b) => b.cid))).toEqual([['c1', 'c2'], ['c3'], ['c4', 'c5']])
+    expect(apisvc.batchBlobsForPublish([], 10)).toEqual([])
   })
 
   test('write ipfs:// requires a source', async () => {

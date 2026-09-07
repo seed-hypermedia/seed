@@ -9088,9 +9088,43 @@ function parseIpfsCid(raw: unknown): string {
 }
 
 /** Chunks bytes as UnixFS and publishes every block through the typed Seed API. */
+/**
+ * Bytes of blob data per PublishBlobs request. The daemon receives the request as one gRPC
+ * message capped at the 4 MiB default, so a file bigger than that failed outright
+ * ("received message larger than max") when every chunk went in a single call. Headroom below
+ * the cap covers the CIDs and framing around the bytes.
+ */
+export const PUBLISH_BLOBS_BATCH_BYTES = 3 * 1024 * 1024
+
+/**
+ * Splits blobs into consecutive batches whose data stays under `maxBytes`, preserving order (the
+ * chunker emits leaves before the root). A single blob larger than the limit still travels alone
+ * rather than being dropped — the server, not this side, is the judge of what it accepts.
+ */
+export function batchBlobsForPublish<T extends {data: Uint8Array}>(
+  blobs: T[],
+  maxBytes: number = PUBLISH_BLOBS_BATCH_BYTES,
+): T[][] {
+  const batches: T[][] = []
+  let current: T[] = []
+  let currentBytes = 0
+  for (const blob of blobs) {
+    if (current.length && currentBytes + blob.data.byteLength > maxBytes) {
+      batches.push(current)
+      current = []
+      currentBytes = 0
+    }
+    current.push(blob)
+    currentBytes += blob.data.byteLength
+  }
+  if (current.length) batches.push(current)
+  return batches
+}
+
 async function publishBytesToIpfs(hmServerUrl: string, data: Uint8Array): Promise<{cid: string; url: string}> {
   const chunked = await fileToIpfsBlobs(data)
-  await createSeedClient(hmServerUrl).publish({blobs: chunked.blobs})
+  const client = createSeedClient(hmServerUrl)
+  for (const batch of batchBlobsForPublish(chunked.blobs)) await client.publish({blobs: batch})
   return {cid: chunked.cid, url: `ipfs://${chunked.cid}`}
 }
 
