@@ -416,10 +416,11 @@ function ThinkingGroup({
   // A call still waiting on its result keeps the line live; so does being the tail of a streaming
   // session, which covers the gap between one result and the next call.
   const active = isLiveTail || parts.some(isPendingToolPart)
-  // Timed on the server's clock, from the first call's stamp; a part with no stamp (a legacy
-  // transcript) is timed from when it appeared on screen.
+  // Timed on the server's clock from where the first step began — the event before its call, so
+  // the deliberation that led to it counts here exactly as it counts on the row. A part with no
+  // stamp at all (a legacy transcript) is timed from when it appeared on screen.
   const mountedAtRef = useRef(serverNow(serverUrl))
-  const startedAt = parts[0]?.calledAt ?? mountedAtRef.current
+  const startedAt = parts[0]?.stepStartedAt ?? parts[0]?.calledAt ?? mountedAtRef.current
   const now = useServerNow(serverUrl, active)
   const completedAt = active ? undefined : thinkingGroupCompletedAt(parts)
   const durationMs = active

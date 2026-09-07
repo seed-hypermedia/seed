@@ -930,6 +930,15 @@ describe('thinking group', () => {
     cleanupRendered(root, container)
   })
 
+  it('counts the deliberation before the first call, so the line never reads shorter than its rows', () => {
+    // The agent set out 22 seconds before it called; the call itself took 5.
+    const {container, root} = renderParts([{...search('one', 22_000), stepStartedAt: t0}])
+    expect(container.textContent).toContain('Thought for 27 seconds')
+    click(findThinkingToggle(container))
+    expect(container.querySelector('[aria-label="Time taken"]')?.textContent).toBe('27s')
+    cleanupRendered(root, container)
+  })
+
   it('ticks "Thinking" over only the most recent call while a call is pending', () => {
     const {container, root} = renderParts([search('one', 0), search('two', 30_000, false)])
 
