@@ -8,6 +8,7 @@ import {
 import {abbreviateUid, useRouteLink} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
 import type {NavRoute} from '@shm/shared/routes'
+import {useTx} from '@shm/shared/translation'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {X} from 'lucide-react'
 import {useMemo} from 'react'
@@ -16,6 +17,7 @@ import {Container} from './container'
 import {DocumentDate} from './document-date'
 import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
+import {HoverCard, HoverCardContent, HoverCardTrigger} from './hover-card'
 import {Home} from './icons'
 import {getContextualProfileRoute} from './inline-descriptor'
 import {Spinner} from './spinner'
@@ -85,6 +87,7 @@ export function DocumentHeader({
       return true
     })
   }, [authors])
+  const displayAuthorName = docMetadata?.displayAuthor?.trim() || null
 
   return (
     <Container
@@ -142,7 +145,14 @@ export function DocumentHeader({
           {siteUrl ? <SiteURLButton siteUrl={siteUrl} /> : null}
           <div className="flex flex-1 items-center justify-between gap-3">
             <div className="hidden flex-1 flex-wrap items-center gap-3 md:flex">
-              {displayAuthors.length ? (
+              {displayAuthorName ? (
+                <>
+                  <p className="text-sm font-bold">
+                    <DisplayAuthorByline name={displayAuthorName} authors={displayAuthors} siteUid={docId?.uid} />
+                  </p>
+                  <div className="bg-border h-6 w-px" />
+                </>
+              ) : displayAuthors.length ? (
                 <>
                   <p className="text-sm font-bold">
                     {displayAuthors.flatMap((a, index) => {
@@ -168,7 +178,11 @@ export function DocumentHeader({
               {updateTime ? <DocumentDate metadata={docMetadata || undefined} updateTime={updateTime} /> : null}
             </div>
             <div className="flex min-w-0 flex-1 items-center gap-2 md:hidden">
-              {displayAuthors.length ? (
+              {displayAuthorName ? (
+                <p className="min-w-0 truncate text-xs font-medium">
+                  <DisplayAuthorByline name={displayAuthorName} authors={displayAuthors} siteUid={docId?.uid} />
+                </p>
+              ) : displayAuthors.length ? (
                 <>
                   <div className="flex shrink-0 items-center -space-x-2">
                     {displayAuthors.slice(0, 3).map((author) => (
@@ -186,7 +200,7 @@ export function DocumentHeader({
                   </p>
                 </>
               ) : null}
-              {displayAuthors.length && updateTime ? (
+              {(displayAuthorName || displayAuthors.length) && updateTime ? (
                 <SizableText size="xs" className="shrink-0" aria-hidden="true">
                   ·
                 </SizableText>
@@ -199,6 +213,41 @@ export function DocumentHeader({
       </div>
       {documentTools}
     </Container>
+  )
+}
+
+/**
+ * Byline for a document whose `displayAuthor` metadata overrides the signing accounts.
+ * Shown in brand color like an overridden publish date; hovering reveals who actually signed it.
+ */
+function DisplayAuthorByline({name, authors, siteUid}: {name: string; authors: AuthorPayload[]; siteUid?: string}) {
+  const tx = useTx()
+  return (
+    <HoverCard>
+      <HoverCardTrigger>
+        <SizableText color="brand" className="cursor-default">
+          {name}
+        </SizableText>
+      </HoverCardTrigger>
+      <HoverCardContent>
+        <div className="flex flex-col items-center justify-center gap-2">
+          <SizableText size="sm" className="brand">
+            {tx('Author')}: {name}
+          </SizableText>
+          {authors.length ? (
+            <SizableText size="sm" color="muted">
+              {tx('Signed by')}:{' '}
+              {authors.map((author, index) => (
+                <span key={author.id.id}>
+                  {index > 0 ? ', ' : null}
+                  <AuthorLink id={author.id} siteUid={siteUid} />
+                </span>
+              ))}
+            </SizableText>
+          ) : null}
+        </div>
+      </HoverCardContent>
+    </HoverCard>
   )
 }
 

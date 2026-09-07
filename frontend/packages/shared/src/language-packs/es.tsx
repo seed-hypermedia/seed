@@ -29,6 +29,8 @@ const Translations = {
   Versions: 'Versiones',
   'Last Update': 'Última actualización',
   'Original Publish date': 'Fecha de publicación original',
+  Author: 'Autor',
+  'Signed by': 'Firmado por',
   replying_to: (args: {replyAuthor: ReactNode}) => <>Respondiendo a {args.replyAuthor}</>,
   comment_on: (args: {target: ReactNode}) => <>Comentar en {args.target}</>,
   replies_count: (args: {count: number}) => <>Respuestas ({args.count})</>,
