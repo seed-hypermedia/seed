@@ -559,14 +559,21 @@ export function SessionModelBadge({
 
   // Same switchable set as the agent header, seeded with the session's effective
   // pair and the agent default; entries are validated against live catalogs.
-  const providerNames = providers.data ? new Set(providers.data.map((provider) => provider.name)) : undefined
+  const providerTypes = providers.data
+    ? new Map(providers.data.map((provider) => [provider.name, provider.type]))
+    : undefined
   const samePair = (a: AgentModelRef, b: AgentModelRef) => a.provider === b.provider && a.model === b.model
   const options: AgentModelRef[] = [effective]
   for (const entry of [agentPair, ...(definition.enabledModels ?? [])]) {
     if (options.some((item) => samePair(item, entry))) continue
-    if (providerNames && !providerNames.has(entry.provider)) continue
+    if (providerTypes && !providerTypes.has(entry.provider)) continue
     const catalog = catalogs[entry.provider]
-    if (catalog?.length && !catalog.some((model) => model.id === entry.model)) continue
+    if (
+      providerTypes?.get(entry.provider) !== 'custom' &&
+      catalog?.length &&
+      !catalog.some((model) => model.id === entry.model)
+    )
+      continue
     options.push(entry)
   }
   const spansProviders = options.some((entry) => entry.provider !== effective.provider)
