@@ -487,6 +487,74 @@ function AgentDetailPage({
       ]
     : undefined
 
+  // Built only once the agent has loaded; the render below shows a spinner or notice before then.
+  const header = agent.data ? (
+    <AgentHeader
+      agent={agent.data.agent}
+      agentName={name}
+      onEditName={
+        canWrite
+          ? () =>
+              editNameDialog.open({
+                currentName: name,
+                accountStatus: agentAccountStatus,
+                onRename: handleRenameAgent,
+              })
+          : undefined
+      }
+      agentId={agentId}
+      serverUrl={serverUrl}
+      activeTab={tab}
+      sessionsCount={topLevelSessions.length}
+      triggersCount={triggers.data?.length}
+      // The session is only created when the first message is sent, so "New session"
+      // just puts the cursor in the composer that will do it.
+      onCreateSession={canChat ? () => startComposerRef.current?.focus({moveCursorToEnd: true}) : undefined}
+      creatingSession={createSession.isLoading}
+      onCreateTrigger={canWrite ? () => createTriggerDialog.open({serverUrl, selectedAccountId, agentId}) : undefined}
+      canCreateTrigger={!!selectedAccountId && canWrite}
+      menuItems={
+        isOwner
+          ? [
+              {
+                key: 'move-server',
+                label: 'Move to another server…',
+                icon: <ArrowRightLeft className="size-4" />,
+                disabled: !selectedAccountId,
+                onClick: () =>
+                  moveAgentDialog.open({
+                    sourceServerUrl: serverUrl,
+                    selectedAccountId,
+                    agentId,
+                    agentName: name,
+                    modelProvider: agent.data?.agent.definition.modelProvider ?? '',
+                    sessionsCount: topLevelSessions.length,
+                    onMoved: ({serverUrl: movedServerUrl, agentId: movedAgentId}) =>
+                      navigate({key: 'agent', agentId: movedAgentId, serverUrl: movedServerUrl}),
+                  }),
+              },
+              {
+                key: 'delete-agent',
+                label: 'Delete agent…',
+                icon: <Trash2 className="size-4" />,
+                variant: 'destructive' as const,
+                disabled: !selectedAccountId,
+                onClick: () =>
+                  deleteAgentDialog.open({
+                    serverUrl,
+                    selectedAccountId: selectedAccountId ?? null,
+                    agentId,
+                    agentName: name,
+                    onDeleted: () => navigate({key: 'agents'}),
+                  }),
+              },
+            ]
+          : undefined
+      }
+      breadcrumbItems={breadcrumbItems}
+    />
+  ) : null
+
   return (
     <PanelContainer className="flex flex-col overflow-hidden">
       <div className={isTriggerDetail ? 'border-border flex-none border-b' : 'contents'}>
@@ -515,72 +583,12 @@ function AgentDetailPage({
           ) : null}
           {agent.data ? (
             <>
-              <AgentHeader
-                agent={agent.data.agent}
-                agentName={name}
-                onEditName={
-                  canWrite
-                    ? () =>
-                        editNameDialog.open({
-                          currentName: name,
-                          accountStatus: agentAccountStatus,
-                          onRename: handleRenameAgent,
-                        })
-                    : undefined
-                }
-                agentId={agentId}
-                serverUrl={serverUrl}
-                activeTab={tab}
-                sessionsCount={topLevelSessions.length}
-                triggersCount={triggers.data?.length}
-                // The session is only created when the first message is sent, so "New session"
-                // just puts the cursor in the composer that will do it.
-                onCreateSession={canChat ? () => startComposerRef.current?.focus({moveCursorToEnd: true}) : undefined}
-                creatingSession={createSession.isLoading}
-                onCreateTrigger={
-                  canWrite ? () => createTriggerDialog.open({serverUrl, selectedAccountId, agentId}) : undefined
-                }
-                canCreateTrigger={!!selectedAccountId && canWrite}
-                menuItems={
-                  isOwner
-                    ? [
-                        {
-                          key: 'move-server',
-                          label: 'Move to another server…',
-                          icon: <ArrowRightLeft className="size-4" />,
-                          disabled: !selectedAccountId,
-                          onClick: () =>
-                            moveAgentDialog.open({
-                              sourceServerUrl: serverUrl,
-                              selectedAccountId,
-                              agentId,
-                              agentName: name,
-                              modelProvider: agent.data?.agent.definition.modelProvider ?? '',
-                              sessionsCount: topLevelSessions.length,
-                              onMoved: ({serverUrl: movedServerUrl, agentId: movedAgentId}) =>
-                                navigate({key: 'agent', agentId: movedAgentId, serverUrl: movedServerUrl}),
-                            }),
-                        },
-                        {
-                          key: 'delete-agent',
-                          label: 'Delete agent…',
-                          icon: <Trash2 className="size-4" />,
-                          variant: 'destructive' as const,
-                          disabled: !selectedAccountId,
-                          onClick: () =>
-                            deleteAgentDialog.open({
-                              serverUrl,
-                              selectedAccountId: selectedAccountId ?? null,
-                              agentId,
-                              agentName: name,
-                              onDeleted: () => navigate({key: 'agents'}),
-                            }),
-                        },
-                      ]
-                    : undefined
-                }
-                breadcrumbItems={breadcrumbItems}
-              />
+              {tab === 'memory' ? (
+                // The browser below spans the window; the header keeps the reading width of every other tab.
+                <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">{header}</div>
+              ) : (
+                header
+              )}
 
               {createTriggerDialog.content}
               {deleteAgentDialog.content}
