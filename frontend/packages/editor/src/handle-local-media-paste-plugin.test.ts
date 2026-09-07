@@ -34,6 +34,41 @@ describe('local media paste helpers', () => {
     vi.unstubAllGlobals()
   })
 
+  it('still claims direct clipboard images and inserts their uploaded node', async () => {
+    const file = new File(['image'], 'paste.png', {type: 'image/png'})
+    const handleFileAttachment = vi.fn().mockResolvedValue({url: 'ipfs://cid'})
+    const create = vi.fn((props: Record<string, any>) => ({type: 'image', props}))
+    const insert = vi.fn(() => 'transaction')
+    const dispatch = vi.fn()
+    const plugin = handleLocalMediaPastePlugin({handleFileAttachment})
+    const view = {
+      dom: {closest: vi.fn(() => null)},
+      dispatch,
+      state: {
+        schema: {nodes: {image: {create}}},
+        tr: {insert},
+        selection: {
+          $anchor: {
+            parent: {type: {name: 'paragraph'}, nodeSize: 3},
+            end: () => 1,
+          },
+        },
+      },
+    }
+    const event = {
+      clipboardData: {
+        getData: vi.fn(() => ''),
+        items: [{type: 'image/png', getAsFile: vi.fn(() => file)}],
+        files: [],
+      },
+    }
+
+    expect(plugin.props.handlePaste?.(view as never, event as never, undefined as never)).toBe(true)
+    await vi.waitFor(() => expect(dispatch).toHaveBeenCalledWith('transaction'))
+    expect(handleFileAttachment).toHaveBeenCalledWith(file)
+    expect(create).toHaveBeenCalledWith({name: 'paste.png', url: 'ipfs://cid', displaySrc: ''})
+  })
+
   it('maps desktop/web document upload results to IPFS node props', () => {
     const file = new File(['image'], 'paste.png', {type: 'image/png'})
 
