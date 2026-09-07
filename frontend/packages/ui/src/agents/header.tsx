@@ -526,8 +526,12 @@ export function SessionModelBadge({
   const agentPair: AgentModelRef | null = definition
     ? {provider: definition.modelProvider, model: definition.model}
     : null
-  const effective: AgentModelRef | null = modelOverride ?? agentPair
-  const effectiveReasoning = modelOverride ? modelOverride.reasoningLevel : definition?.reasoningLevel
+  // An override whose provider was deleted is ignored by the runtime (the turn runs on the agent's
+  // pair), so the badge shows the agent's pair too rather than a model that never runs.
+  const overrideRunnable =
+    !!modelOverride && (!providers.data || providers.data.some((provider) => provider.name === modelOverride.provider))
+  const effective: AgentModelRef | null = overrideRunnable ? modelOverride : agentPair
+  const effectiveReasoning = overrideRunnable ? modelOverride.reasoningLevel : definition?.reasoningLevel
 
   const catalogProviders = useMemo(
     () =>

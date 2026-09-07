@@ -2138,9 +2138,79 @@ export class Service {
     for (const secretName of Object.values(provider.secretRefs ?? {})) {
       if (stillReferenced.has(secretName)) continue
       this.#db.run(`DELETE FROM secrets WHERE account_id = ? AND name = ?`, [accountId, secretName])
-      this.#oauthBackends.delete(`${accountId} ${secretName}`)
+      this.#oauthBackends.delete(this.#oauthBackendKey(accountId, secretName))
     }
+    this.#scrubDeletedProviderReferences(accountId, name)
     return {_: 'DeleteModelProviderResponse', name}
+  }
+
+  /**
+   * A deleted provider must not linger anywhere a session or agent would still show it. Sessions
+   * pinned to it lose their override (they follow the agent again, which is what the runtime
+   * already did silently). Agents drop it from their quick-switch list, and an agent whose own
+   * pair pointed at it moves to its first surviving quick-switch entry — or keeps the dangling
+   * name, which the session UI turns into a "choose a model" gate, when nothing survives.
+   */
+  #scrubDeletedProviderReferences(accountId: string, providerName: string): void {
+    const sessionRows = this.#db
+      .query<{id: string; model_override_cbor: Uint8Array}, [string]>(
+        `SELECT id, model_override_cbor FROM sessions WHERE account_id = ? AND model_override_cbor IS NOT NULL`,
+      )
+      .all(accountId)
+    const now = Date.now()
+    const clearedSessions: string[] = []
+    for (const row of sessionRows) {
+      const override = cbor.decode<api.SessionModelOverride>(row.model_override_cbor)
+      if (override.provider !== providerName) continue
+      this.#db.run(`UPDATE sessions SET model_override_cbor = NULL, updated_at = ? WHERE account_id = ? AND id = ?`, [
+        now,
+        accountId,
+        row.id,
+      ])
+      clearedSessions.push(row.id)
+    }
+    const agentRows = this.#db
+      .query<{id: string; definition_cbor: Uint8Array}, [string]>(
+        `SELECT id, definition_cbor FROM agents WHERE account_id = ?`,
+      )
+      .all(accountId)
+    const changedAgents: string[] = []
+    for (const row of agentRows) {
+      const definition = cbor.decode<api.AgentDefinition>(row.definition_cbor)
+      const enabled = definition.enabledModels ?? []
+      const surviving = enabled.filter((entry) => entry.provider !== providerName)
+      const primaryGone = definition.modelProvider === providerName
+      if (!primaryGone && surviving.length === enabled.length) continue
+      const next: api.AgentDefinition = {...definition}
+      if (definition.enabledModels) next.enabledModels = surviving
+      if (primaryGone && surviving[0]) {
+        next.modelProvider = surviving[0].provider
+        next.model = surviving[0].model
+        const providerType = this.#db
+          .query<{type: string}, [string, string]>(`SELECT type FROM model_providers WHERE account_id = ? AND name = ?`)
+          .get(accountId, surviving[0].provider)?.type
+        const support = providerType ? modelReasoningSupport(providerType, next.model) : null
+        if (next.reasoningLevel && !support?.levels.includes(next.reasoningLevel)) delete next.reasoningLevel
+      }
+      this.#db.run(`UPDATE agents SET definition_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`, [
+        cbor.encode(next),
+        now,
+        accountId,
+        row.id,
+      ])
+      changedAgents.push(row.id)
+    }
+    for (const sessionId of clearedSessions) {
+      const session = this.#getSessionInfo(accountId, sessionId)
+      if (!session) continue
+      this.#emit({type: 'session-change', accountId, session})
+      this.#emit({type: 'account-change', accountId, reason: 'session-updated', agentId: session.agentId, sessionId})
+    }
+    for (const agentId of changedAgents) {
+      const agentInfo = this.#getAgentInfo(accountId, agentId)
+      if (agentInfo) this.#emit({type: 'agent-change', accountId, agent: agentInfo})
+      this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId})
+    }
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -2442,12 +2512,60 @@ export class Service {
    * (also clearing a stale `needsReauth` flag — a successful refresh proves the
    * credentials work again).
    */
-  async #subscriptionAuthBackend(
+  /**
+   * The one key every reader and evictor of `#oauthBackends` must use. A sign-in that rewrites the
+   * secret evicts through this too — a mismatched key here once left a stale, already-rejected
+   * token in memory across re-logins until the server restarted.
+   */
+  #oauthBackendKey(accountId: string, secretName: string): string {
+    return `${accountId}\u0000${secretName}`
+  }
+
+  /**
+   * Handles a provider rejecting a subscription access token mid-run ("Provided authentication
+   * token is expired."). Pi only refreshes on its own clock — a token the provider revoked early
+   * looks valid locally — so refresh it now through the shared backend. If the refresh token is
+   * rejected too, the sign-in is gone: flag the secret so provider listings say `needs-login` and
+   * drop the cached backend so a new sign-in is read fresh.
+   */
+  async #recoverSubscriptionAuth(
     accountId: string,
-    secretName: string,
-    piProviderId: string,
-  ): Promise<PersistedOAuthBackend> {
-    const key = `${accountId}\u0000${secretName}`
+    provider: api.ModelProviderConfig,
+    errorMessage: string,
+  ): Promise<'refreshed' | 'needs-login' | null> {
+    if (provider.authMode !== 'subscription' || !isProviderAuthRejection(errorMessage)) return null
+    const secretName = provider.secretRefs?.oauth
+    if (!secretName) return null
+    const key = this.#oauthBackendKey(accountId, secretName)
+    try {
+      const backend = this.#oauthBackends.get(key) ?? (await this.#subscriptionAuthBackend(accountId, secretName))
+      await backend.withLockAsync(async (current) => {
+        const data = JSON.parse(current ?? '{}') as Record<string, Record<string, unknown>>
+        const stored = data[SUBSCRIPTION_PI_PROVIDER_ID] as (Partial<OAuthCredentials> & {type?: string}) | undefined
+        if (typeof stored?.refresh !== 'string' || !stored.refresh) throw new Error('No refresh token stored')
+        const {type: _credType, ...credentials} = stored
+        const refreshed = await openaiCodexOAuthProvider.refreshToken(credentials as OAuthCredentials)
+        return {
+          result: undefined,
+          next: JSON.stringify({...data, [SUBSCRIPTION_PI_PROVIDER_ID]: {type: 'oauth', ...refreshed}}),
+        }
+      })
+      console.log('[agents] refreshed subscription sign-in after the provider rejected its token', {accountId})
+      return 'refreshed'
+    } catch (error) {
+      console.warn('[agents] subscription sign-in could not be refreshed; needs a new sign-in', {
+        accountId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      this.#oauthBackends.delete(key)
+      this.#markOAuthSecretNeedsReauth(accountId, secretName)
+      return 'needs-login'
+    }
+  }
+
+  async #subscriptionAuthBackend(accountId: string, secretName: string): Promise<PersistedOAuthBackend> {
+    const piProviderId = SUBSCRIPTION_PI_PROVIDER_ID
+    const key = this.#oauthBackendKey(accountId, secretName)
     const existing = this.#oauthBackends.get(key)
     if (existing) return existing
     const plaintext = await this.#getSecretPlaintext(accountId, secretName)
@@ -2493,7 +2611,7 @@ export class Service {
     if (!(value instanceof Uint8Array)) throw new APIError(400, 'Secret value is required')
     if (value.byteLength > MAX_SECRET_BYTES) throw new APIError(400, 'Secret value is too large')
     // A rewritten secret invalidates any cached OAuth credential backend built from it.
-    this.#oauthBackends.delete(`${accountId} ${name}`)
+    this.#oauthBackends.delete(this.#oauthBackendKey(accountId, name))
     const metadata = normalizeOptionalMetadata(rawMetadata)
     const ciphertext = encryptSecret(this.#db, value)
     const now = Date.now()
@@ -6510,7 +6628,12 @@ export class Service {
         `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
       )
       .get(accountId, definition.modelProvider)
-    if (!providerRow) throw new APIError(400, 'Model provider not found')
+    if (!providerRow) {
+      throw new APIError(
+        400,
+        `Model provider "${definition.modelProvider}" is not configured; choose a provider for this agent`,
+      )
+    }
     const provider = cbor.decode<api.ModelProviderConfig>(providerRow.config_cbor)
     const spec = providerSpec(provider.type)
     const subscription = provider.authMode === 'subscription'
@@ -6525,9 +6648,7 @@ export class Service {
       // Credentials live in AuthStorage (not a runtime api key): Pi re-resolves
       // them per request and auto-refreshes expired access tokens through the
       // shared persisted backend, so rotated tokens are saved for future runs.
-      authStorage = pi.AuthStorage.fromStorage(
-        await this.#subscriptionAuthBackend(accountId, oauthSecretName, providerName),
-      )
+      authStorage = pi.AuthStorage.fromStorage(await this.#subscriptionAuthBackend(accountId, oauthSecretName))
       registerAuth = {oauth: openaiCodexOAuthProvider}
       // Resolve (and if needed refresh) the access token up front: an expired or
       // revoked sign-in should fail the run with a clear re-auth message, not a
@@ -6535,10 +6656,7 @@ export class Service {
       const accessToken = await authStorage.getApiKey(providerName)
       if (!accessToken) {
         this.#markOAuthSecretNeedsReauth(accountId, oauthSecretName)
-        throw new APIError(
-          401,
-          'Your OpenAI subscription sign-in has expired or was revoked. Open model provider settings and sign in with ChatGPT again.',
-        )
+        throw new APIError(401, SUBSCRIPTION_REAUTH_MESSAGE)
       }
     } else {
       const apiKeySecretName = provider.secretRefs?.apiKey
@@ -7265,7 +7383,14 @@ export class Service {
       if (assistantEvent) return assistantEvent
       throw new SessionStoppedError()
     }
-    if (finalError) throw new APIError(502, finalError)
+    if (finalError) {
+      const recovery = await this.#recoverSubscriptionAuth(accountId, provider, finalError)
+      if (recovery === 'refreshed') {
+        throw new APIError(502, `${finalError} The sign-in has been refreshed — retry this turn.`)
+      }
+      if (recovery === 'needs-login') throw new APIError(401, SUBSCRIPTION_REAUTH_MESSAGE)
+      throw new APIError(502, finalError)
+    }
     if (!assistantEvent) throw new APIError(502, 'Pi response did not include assistant text')
     return assistantEvent
   }
@@ -10233,6 +10358,20 @@ function providerSpec(type: string): ProviderSpec {
  * `AuthStorage` uses to auto-refresh expired tokens.
  */
 const SUBSCRIPTION_PI_PROVIDER_ID = 'openai-codex'
+const SUBSCRIPTION_REAUTH_MESSAGE =
+  'Your OpenAI subscription sign-in has expired or was revoked. Open model provider settings and sign in with ChatGPT again.'
+
+/**
+ * True when a provider turned the request away for its credentials rather than its content: the
+ * bearer token is expired, revoked, or otherwise not accepted. Matched on the message because Pi
+ * surfaces provider failures as text ("Codex error: Provided authentication token is expired.").
+ */
+export function isProviderAuthRejection(message: string): boolean {
+  const text = message.toLowerCase()
+  if (/\btoken\b.*\b(expired|invalid|revoked)\b/.test(text)) return true
+  if (/\b(expired|invalid|revoked)\b.*\btoken\b/.test(text)) return true
+  return /\b401\b|unauthorized|invalid_token|authentication failed|not authenticated/.test(text)
+}
 const SUBSCRIPTION_CODEX_BASE_URL = 'https://chatgpt.com/backend-api'
 
 /** Stable per-account secret name for a provider type's OAuth credentials; re-login overwrites in place. */

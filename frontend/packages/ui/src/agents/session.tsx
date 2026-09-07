@@ -68,6 +68,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AgentHeader, AgentSubpageHeader, SessionModelBadge} from './header'
 import {RunRecordCard, SessionRunCard} from './run-card'
 import {AgentRichMessageComposer, SubSessionDrivenNotice, TERMINAL_RUN_STATUSES} from './rich-message-composer'
+import {SessionProviderGate, useMissingSessionProvider} from './session-provider-gate'
 import {getTriggerActivityRoute, summarizeTriggerSource, TriggerContextView} from './trigger-types'
 
 /**
@@ -246,6 +247,15 @@ function AgentSessionPage({
   // runs, or run session tools.
   const canChat = !!agent.data && agentAccessCanChat(agent.data.agent.accessRole)
   const canWrite = !!agent.data && agentAccessCanWrite(agent.data.agent.accessRole)
+  // A provider deleted out from under the agent blocks sending until a provider that exists is
+  // chosen; the run would only fail with "Model provider not found".
+  const sessionAgentId = session.data?.session.agentId ?? agentId
+  const missingProvider = useMissingSessionProvider({
+    serverUrl,
+    accountUid: selectedAccountId,
+    agentId: sessionAgentId,
+    definition: agent.data?.agent.definition,
+  })
   const isAgentStreaming = session.data?.session.status === 'streaming'
   const isAgentBusy = messageSession.isPending || isAgentStreaming
   const retrySession = useRetrySession(serverUrl, selectedAccountId)
@@ -630,6 +640,17 @@ function AgentSessionPage({
                         serverUrl,
                       })
                     }
+                  />
+                ) : missingProvider && sessionAgentId && agent.data ? (
+                  <SessionProviderGate
+                    serverUrl={serverUrl}
+                    accountUid={selectedAccountId}
+                    agentId={sessionAgentId}
+                    sessionId={sessionId}
+                    definition={agent.data.agent.definition}
+                    modelOverride={session.data?.session.modelOverride}
+                    missingProvider={missingProvider}
+                    canWrite={canWrite}
                   />
                 ) : undefined
               }
