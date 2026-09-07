@@ -59,6 +59,25 @@ describe('SiteFileBrowser', () => {
     expect(container.textContent).not.toContain('Untitled Document')
   })
 
+  it('hides move redirects while keeping republished documents', () => {
+    const moved = makeDoc(['old-guide'], 'Moved guide')
+    moved.redirectInfo = {type: 'redirect', target: 'site/new-guide'}
+    const republished = makeDoc(['shared-guide'], 'Shared guide')
+    republished.redirectInfo = {type: 'redirect', target: 'other/guide', republish: true}
+    useDirectoryWithDraftsMock.mockReturnValue({
+      directory: [moved, republished],
+      drafts: [],
+      isLoading: false,
+    })
+
+    act(() => {
+      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />)
+    })
+
+    expect(container.textContent).not.toContain('Moved guide')
+    expect(container.textContent).toContain('Shared guide')
+  })
+
   it('renders unpublished drafts in their parent directory', () => {
     useDirectoryWithDraftsMock.mockReturnValue({
       directory: [makeDoc(['guides'], 'Guides')],

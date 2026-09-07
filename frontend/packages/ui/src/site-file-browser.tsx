@@ -69,16 +69,18 @@ export function SiteFileBrowser({
         )
         .map((draft) => [draft.editId.id, draft]),
     )
-    const published = (directory ?? []).map((document) => {
-      const draft = draftEdits.get(document.id.id)
-      return draft
-        ? {
-            ...document,
-            metadata: {...document.metadata, ...draft.metadata},
-            isCollection: draft.isCollection ?? document.isCollection,
-          }
-        : document
-    })
+    const published = (directory ?? [])
+      .filter((document) => !document.redirectInfo || document.redirectInfo.republish)
+      .map((document) => {
+        const draft = draftEdits.get(document.id.id)
+        return draft
+          ? {
+              ...document,
+              metadata: {...document.metadata, ...draft.metadata},
+              isCollection: draft.isCollection ?? document.isCollection,
+            }
+          : document
+      })
     const unpublished = drafts.flatMap((draft) => {
       const {editId, locationId} = draft as HMListedDraftWithLocation
       if (!locationId || (editId && !isDraftPlaceholderPath(editId.path, draft.id))) return []
