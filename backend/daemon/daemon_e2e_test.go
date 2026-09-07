@@ -4322,6 +4322,105 @@ func TestSearchEntitiesFilters(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	t.Run("DistinctDocumentIDs", func(t *testing.T) {
+		tests := []struct {
+			name        string
+			query       string
+			includeBody bool
+			wantType    string
+		}{
+			{name: "title", query: "Why Honda", wantType: "title"},
+			{name: "body", query: "Honda reliability", includeBody: true, wantType: "document"},
+		}
+
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+					Query:       test.query,
+					IncludeBody: test.includeBody,
+					SearchType:  entities.SearchType_SEARCH_KEYWORD,
+				})
+				require.NoError(t, err)
+
+				wantID := "hm://" + aliceAccount + "/cars/honda"
+				for _, entity := range res.Entities {
+					if entity.Type == test.wantType && strings.Contains(entity.Content, test.query) {
+						require.Equal(t, wantID, entity.DocId)
+						require.Contains(t, entity.Id, wantID)
+						return
+					}
+				}
+				require.Failf(t, "missing search result", "no %s result contained %q", test.wantType, test.query)
+			})
+		}
+	})
+
+	t.Run("LateOldGenerationRef", func(t *testing.T) {
+		const path = "/cars/generation-search"
+		original, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
+			Account:        aliceAccount,
+			Path:           path,
+			SigningKeyName: "main",
+			Changes: []*documents.DocumentChange{
+				{Op: &documents.DocumentChange_SetMetadata_{
+					SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Obsolete generation title"},
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = alice.RPC.DocumentsV3.CreateRef(ctx, &documents.CreateRefRequest{
+			Account:        aliceAccount,
+			Path:           path,
+			SigningKeyName: "main",
+			Target: &documents.RefTarget{
+				Target: &documents.RefTarget_Tombstone_{},
+			},
+		})
+		require.NoError(t, err)
+
+		republished, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
+			Account:        aliceAccount,
+			Path:           path,
+			SigningKeyName: "main",
+			Changes: []*documents.DocumentChange{
+				{Op: &documents.DocumentChange_SetMetadata_{
+					SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Current generation quokka"},
+				}},
+			},
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, original.Genesis, republished.Genesis)
+
+		oldGenesis, err := cid.Decode(original.Genesis)
+		require.NoError(t, err)
+		oldHeads, err := blob.Version(original.Version).Parse()
+		require.NoError(t, err)
+		kp, err := alice.Storage.KeyStore().GetKey(ctx, "main")
+		require.NoError(t, err)
+		lateRef, err := blob.NewRef(kp, original.GenerationInfo.Generation, oldGenesis, kp.Principal(), path, oldHeads, time.Now().Round(blob.ClockPrecision), blob.VisibilityPublic)
+		require.NoError(t, err)
+		_, err = alice.RPC.Daemon.StoreBlobs(ctx, &daemon.StoreBlobsRequest{
+			Blobs: []*daemon.Blob{{Cid: lateRef.CID.String(), Data: lateRef.Data}},
+		})
+		require.NoError(t, err)
+
+		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:      "Current generation quokka",
+			SearchType: entities.SearchType_SEARCH_KEYWORD,
+		})
+		require.NoError(t, err)
+		wantID := "hm://" + aliceAccount + path
+		for _, entity := range res.Entities {
+			if entity.Type == "title" && strings.Contains(entity.Content, "Current generation quokka") {
+				require.Equal(t, wantID, entity.DocId)
+				require.Contains(t, entity.Id, wantID)
+				return
+			}
+		}
+		require.Fail(t, "missing current-generation search result")
+	})
+
 	t.Run("IriFilterSubtree", func(t *testing.T) {
 		// Search with iri_filter scoped to /cars/* — must only return honda and toyota.
 		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
