@@ -1,7 +1,7 @@
 ---
 name: "RPC: ResourceMetadata"
 summary: "Fetches only a resource's metadata payload. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass;"
-schemaDefinition: ipfs://bafyreibt5xwkwz354tndpwb2kntcmzcqnod3m3vtn4l7v3fcbyr2x235nu
+schemaDefinition: ipfs://bafyreier3ni7e5t2ho6kktw45gkcv34vwyrw7mf6btlq5ghbsp7vb7e53q
 ---
 Fetches only a resource's metadata payload. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:C2feHa74 -->
 
@@ -10,7 +10,7 @@ This document describes the **seed-rpc-resource-metadata** type — a Seed API r
 # Shape <!-- id:_ep6ugnk -->
 
 A **closed struct** with these fields: <!-- id:5AAU-kvD -->
-  - `key` _(required)_ — `string` enum: `ResourceMetadata` <!-- id:HerqY_zj -->
+  - `key` _(required)_ — `"ResourceMetadata"` <!-- id:HerqY_zj -->
   - `input` _(required)_ — [seed-id](./seed-id.md) <!-- id:1XN_xHq6 -->
   - `output` _(required)_ — [seed-metadata-payload](./seed-metadata-payload.md) <!-- id:EGkLBWqc -->
 

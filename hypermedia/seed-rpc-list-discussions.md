@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListDiscussions"
 summary: Lists threaded discussions on a document (optionally focused on one comment), plus citing discussions from other documents. One method of the Seed universal-cli
-schemaDefinition: ipfs://bafyreifg4ld3vptwcbwomku7ps724chesenru2c64kukxnl7uyfaaochaa
+schemaDefinition: ipfs://bafyreihnw365vggffte42wdv5berfvzvru7g7kjeydgahf7ayg65iaqs3e
 ---
 Lists threaded discussions on a document (optionally focused on one comment), plus citing discussions from other documents. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:unbh1D7h -->
 
@@ -10,7 +10,7 @@ This document describes the **seed-rpc-list-discussions** type — a Seed API re
 # Shape <!-- id:14v3gfqr -->
 
 A **closed struct** with these fields: <!-- id:uJXPLY-q -->
-  - `key` _(required)_ — `string` enum: `ListDiscussions` <!-- id:p6d04XQy -->
+  - `key` _(required)_ — `"ListDiscussions"` <!-- id:p6d04XQy -->
   - `input` _(required)_ — map { 2 fields } <!-- id:fybr3u6u -->
   - `output` _(required)_ — map { 3 fields } <!-- id:FTUq7QAy -->
 

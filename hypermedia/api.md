@@ -8,7 +8,7 @@ Seed apps talk to a daemon through a universal client with a single call shape: 
 
 # The catalog <!-- id:LJgSGvSR -->
 
-Each method is a `seed-rpc-<method>` schema: a closed map with three properties. `key` is a string restricted by `enum` to the one method name, so the schema is self-identifying. `input` references the schema of what you pass. `output` references the schema of what comes back — often a union with `null` for "not found". For example, [RPC: Query](./seed-rpc-query.md) pins `key = "Query"`, takes a [hypermedia-query](./hypermedia-query.md) — the same shape a Query block embeds in a document — and returns a [seed-query-result](./seed-query-result.md) or `null`. <!-- id:yWqxCdaY -->
+Each method is a `seed-rpc-<method>` schema: a closed map with three properties. `key` is a literal — the one method name — so the schema is self-identifying. `input` references the schema of what you pass. `output` references the schema of what comes back — often a union with `null` for "not found". For example, [RPC: Query](./seed-rpc-query.md) pins `key = "Query"`, takes a [hypermedia-query](./hypermedia-query.md) — the same shape a Query block embeds in a document — and returns a [seed-query-result](./seed-query-result.md) or `null`. <!-- id:yWqxCdaY -->
 
 [seed-rpc](./seed-rpc.md) is the union of every method. That one schema is the machine-readable table of contents for the API. A few of its variants: <!-- id:r2qlHKeD -->
 
@@ -43,4 +43,4 @@ None of that is hand-wired. The console reads the `seed-rpc` union at runtime, s
 
 # Adding a method <!-- id:bViEZFh5 -->
 
-Add a `seed-rpc-<method>.json` with its `key` enum, `input`, and `output`; add a companion `.md`; reference it from the `seed-rpc` union; run the publisher to update the lockfile and the generators to refresh the bundled registry and TypeScript types; sync. The method then appears in the console, in the tour, and as a typed call in the client — from one schema. The pipeline is described in [how Onyx works](./how-it-works.md). <!-- id:J_7p0r19 -->
+Add a `seed-rpc-<method>.schema.json` with its `key` literal, `input`, and `output`; add a companion `.md`; reference it from the `seed-rpc` union; run the publisher to update the lockfile and the generators to refresh the bundled registry and TypeScript types; sync. The method then appears in the console, in the tour, and as a typed call in the client — from one schema. The pipeline is described in [how Onyx works](./how-it-works.md). <!-- id:J_7p0r19 -->

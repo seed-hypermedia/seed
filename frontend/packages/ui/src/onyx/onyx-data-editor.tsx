@@ -20,8 +20,12 @@ import {cn} from '../utils'
 import {
   type OnyxRegistry,
   type OnyxSchema,
+  type LiteralMember,
   fieldSchema,
+  isLiteralSchema,
   kindOf,
+  literalMembers,
+  literalValue,
   loadFrom,
   refToName,
   resolveSchema,
@@ -48,8 +52,8 @@ export function seedValue(schema: OnyxSchema, registry: OnyxRegistry = {}): unkn
 
 function seed(schema0: OnyxSchema, env: Env, reg: OnyxRegistry): unknown {
   const {schema, env: e} = resolveSchema(schema0, env, reg)
+  if (isLiteralSchema(schema)) return schema.value
   if (schema.anyOf) return seed(schema.anyOf[0], e, reg)
-  if (schema.enum) return schema.enum[0]
   const kind = schema.type ? kindOf(schema.type) : null
   switch (kind) {
     case 'map':
@@ -94,15 +98,15 @@ function variantLabel(v: OnyxSchema, reg: OnyxRegistry): string {
   if (v.anyOf) return 'one of ' + v.anyOf.length
   if (v.ref && v.type === undefined) {
     const t = loadFrom(reg, v.ref)
-    const kinds = fieldSchema(t, 'type')?.enum
-    if (kinds) return kinds.map((u: string) => kindOf(u)).join(' · ')
+    const kinds = literalMembers(fieldSchema(t, 'type') ?? {}, reg)
+    if (kinds && kinds.length > 1) return kinds.map((m) => kindOf(String(m.value))).join(' · ')
     const b = refToName(v.ref)
     const structural = t ? Object.keys(t).filter((k) => k !== 'name' && k !== 'description') : []
     if (t && structural.length === 1 && structural[0] === 'type') return kindOf(t.type)
     return b + (v.args ? '⟨…⟩' : '')
   }
+  if (isLiteralSchema(v)) return JSON.stringify(literalValue(v))
   const k = v.type ? kindOf(v.type) : null
-  if (v.enum) return (k ? k + ' ' : '') + 'enum'
   return k || 'any'
 }
 
@@ -132,9 +136,11 @@ function Node({schema: schema0, value, onChange, env, reg, depth}: NodeProps) {
     )
   if (depth > MAX_DEPTH) return <JsonFallback value={value} onChange={onChange} note="deeply nested" />
 
+  const members = literalMembers(schema, reg)
+  if (members && members.length === 1) return <LiteralNode value={members[0]!.value} />
+  if (members) return <LiteralUnionNode members={members} value={value} onChange={onChange} />
   if (schema.anyOf)
     return <UnionNode schema={schema} value={value} onChange={onChange} env={e} reg={reg} depth={depth} />
-  if (schema.enum) return <EnumNode schema={schema} value={value} onChange={onChange} />
 
   const kind = schema.type ? kindOf(schema.type) : null
   if (kind === 'map' || kind === 'struct')
@@ -189,15 +195,24 @@ function UnionNode({schema, value, onChange, env, reg, depth}: NodeProps) {
   )
 }
 
-function EnumNode({schema, value, onChange}: Pick<NodeProps, 'schema' | 'value' | 'onChange'>) {
-  const options = schema.enum as unknown[]
+/** A literal schema accepts one value; show it, there is nothing to edit. */
+function LiteralNode({value}: {value: unknown}) {
+  return <code className="bg-muted rounded px-1.5 py-0.5 text-sm">{JSON.stringify(value)}</code>
+}
+
+/** A union of literals: a dropdown of its members (a description shows as the option's title). */
+function LiteralUnionNode({
+  members,
+  value,
+  onChange,
+}: {members: LiteralMember[]} & Pick<NodeProps, 'value' | 'onChange'>) {
   const cur = JSON.stringify(value)
-  const selected = options.some((o) => JSON.stringify(o) === cur) ? cur : JSON.stringify(options[0])
+  const selected = members.some((m) => JSON.stringify(m.value) === cur) ? cur : JSON.stringify(members[0]!.value)
   return (
     <select className={selectCls} value={selected} onChange={(ev) => onChange(JSON.parse(ev.target.value))}>
-      {options.map((v, i) => (
-        <option key={i} value={JSON.stringify(v)}>
-          {JSON.stringify(v)}
+      {members.map((m, i) => (
+        <option key={i} value={JSON.stringify(m.value)} title={m.description}>
+          {JSON.stringify(m.value)}
         </option>
       ))}
     </select>

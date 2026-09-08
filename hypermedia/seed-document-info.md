@@ -1,7 +1,7 @@
 ---
 name: Document info
 summary: "One document in a listing (query results, directories): identity, authorship, timestamps, breadcrumbs, and its activity summary — without the full content. A de"
-schemaDefinition: ipfs://bafyreifvah5dtdwaj4kk65mhgltnkftvpr6pryaaa5k4v5rirncbzwmsz4
+schemaDefinition: ipfs://bafyreibiqdqsd5g3d67ygp7m2k7iubslixqprajvvjnx7mtmuktpf37cle
 ---
 One document in a listing (query results, directories): identity, authorship, timestamps, breadcrumbs, and its activity summary — without the full content. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:OgH907y3 -->
 
@@ -10,7 +10,7 @@ This document describes the **seed-document-info** type — a Seed API read-mode
 # Shape <!-- id:lMYeC4DK -->
 
 A **closed struct** with these fields: <!-- id:JQCMU3uI -->
-  - `type` _(required)_ — `string` enum: `document` <!-- id:EkpuRfkl -->
+  - `type` _(required)_ — `"document"` <!-- id:EkpuRfkl -->
   - `id` _(required)_ — [seed-id](./seed-id.md) <!-- id:4VVfYH_e -->
   - `path` _(required)_ — list of [string](./hypermedia-string.md) <!-- id:A9ajQXb_ -->
   - `authors` _(required)_ — list of [string](./hypermedia-string.md) <!-- id:_uPzrha3 -->

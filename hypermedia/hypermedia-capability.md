@@ -1,14 +1,14 @@
 ---
 name: Capability
 summary: A delegation granting a role (WRITER or AGENT) from a space owner (the signer) to a delegate key, optionally scoped to a path.
-schemaDefinition: ipfs://bafyreifrisa35lsgpsvkifs437in322l2uktc722nukufkq5jarcnb27fy
+schemaDefinition: ipfs://bafyreif6tvkbyz45i6svnpqnsntlxf5ewwkit63fzpdsiuhrxas7gxhppi
 ---
 This document describes the **hypermedia-capability** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:EoJZUC30 -->
 
 # Shape <!-- id:Z4Q_8BDH -->
 
 **Extends** [hypermedia-blob](./hypermedia-blob.md) with these added fields: <!-- id:r1SXPido -->
-  - `type` — `string` enum: `Capability` <!-- id:SyOFox8W -->
+  - `type` — `"Capability"` <!-- id:SyOFox8W -->
   - `delegate` _(required)_ — [hypermedia-principal](./hypermedia-principal.md) <!-- id:kjRR_hac -->
   - `audience` — [hypermedia-principal](./hypermedia-principal.md) <!-- id:7U5hD2qS -->
   - `path` — [string](./hypermedia-string.md) <!-- id:1kkgb2vD -->

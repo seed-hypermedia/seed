@@ -46,8 +46,7 @@
     },
     "layout": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string",
-        "enum": [
+        "anyOf": [
           "Seed/Experimental/Newspaper",
           ""
         ]
@@ -75,8 +74,7 @@
     },
     "contentWidth": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string",
-        "enum": [
+        "anyOf": [
           "S",
           "M",
           "L"
@@ -94,8 +92,7 @@
         "properties": {
           "headerLayout": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string",
-              "enum": [
+              "anyOf": [
                 "Center",
                 ""
               ]

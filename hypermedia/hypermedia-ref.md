@@ -1,14 +1,14 @@
 ---
 name: Ref
 summary: A signed pointer (like a Git ref) claiming that a path in a space points at the current head Changes of a document.
-schemaDefinition: ipfs://bafyreieqpmhnclnqdofejbqfiflxkqlfskeolk4awkwbxbpwg63kxgxeby
+schemaDefinition: ipfs://bafyreid2dser3a6dxadtrkwl3xooi2jixsyszxdq7b46phcpxdnqjbujam
 ---
 This document describes the **hypermedia-ref** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:5X7JPVaE -->
 
 # Shape <!-- id:dpE2fWQB -->
 
 **Extends** [hypermedia-blob](./hypermedia-blob.md) with these added fields: <!-- id:6u-Qshey -->
-  - `type` — `string` enum: `Ref` <!-- id:4LKiQ2kT -->
+  - `type` — `"Ref"` <!-- id:4LKiQ2kT -->
   - `space` — [hypermedia-principal](./hypermedia-principal.md) <!-- id:idNr9FJM -->
   - `path` — [string](./hypermedia-string.md) <!-- id:8izgFQy0 -->
   - `genesisBlob` — [hypermedia-cid](./hypermedia-cid.md) <!-- id:cob0_GUo -->

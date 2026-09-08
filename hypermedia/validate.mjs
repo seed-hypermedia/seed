@@ -7,7 +7,9 @@
 // list, map, link. In human/dag-json form, a link is {"/":"<cid>"} and bytes
 // is {"/":{"bytes":"<base64>"}} -- both are distinct kinds, NOT maps.
 //
-// Schema vocabulary: type, properties, required, items, values, enum, ref, anyOf.
+// Schema vocabulary: type, properties, required, items, values, ref, anyOf, and
+// literals (a bare scalar, or {value, description}).
+//   - a literal                 -> the value must equal it; {anyOf: ["a","b"]} is a fixed set.
 //   - `anyOf`                   -> union: value must match one of the variants.
 //   - `ref` with no `type`      -> include: defer entirely to that schema file.
 //   - `type:"link"` with `ref`  -> typed link: target should match that schema
@@ -95,18 +97,30 @@ function typeMatches(type, d) {
   }
 }
 
-const REFINE = ["properties", "required", "values", "items", "enum"];
+const REFINE = ["properties", "required", "values", "items"];
+
+// A literal schema accepts exactly one value: a bare scalar (null, boolean,
+// integer, float, string) or, with a description, {value, description}.
+export const isLiteralSchema = (s) => {
+  if (s === undefined) return false;
+  if (s === null || typeof s !== "object") return true;
+  if (Array.isArray(s)) return false;
+  return "value" in s && !("type" in s || "ref" in s || "anyOf" in s || "var" in s || "params" in s);
+};
+export const literalValue = (s) => (s !== null && typeof s === "object" ? s.value : s);
+const literalNode = (s) => (s !== null && typeof s === "object" ? s : { value: s });
 
 // A struct writes its fields as `properties[name] = {value, required?, description?}`;
 // older blobs wrote `properties[name] = <schema>` with a `required` list. Both read.
-const isPropertyEntry = (v) =>
-  !!v && typeof v === "object" && "value" in v && !("type" in v || "ref" in v || "anyOf" in v || "var" in v);
+// (A literal schema is also spelled {value}, but a properties entry always wraps
+// its field's schema, so there `value` IS the field's schema.)
+const isPropertyEntry = (v) => !!v && typeof v === "object" && !Array.isArray(v) && "value" in v;
 export function structFields(schema) {
   if (!schema || !schema.properties || typeof schema.properties !== "object") return [];
   const legacyRequired = new Set(Array.isArray(schema.required) ? schema.required : []);
   return Object.entries(schema.properties).map(([name, entry]) =>
     isPropertyEntry(entry)
-      ? { name, schema: entry.value ?? {}, required: entry.required === true, description: entry.description }
+      ? { name, schema: entry.value === undefined ? {} : entry.value, required: entry.required === true, description: entry.description }
       : { name, schema: entry ?? {}, required: legacyRequired.has(name), description: entry?.description },
   );
 }
@@ -138,8 +152,6 @@ export function mergeExtend(parent, ext) {
   if (values) merged.values = values;
   const items = ext.items ?? parent.items;
   if (items) merged.items = items;
-  const en = ext.enum ?? parent.enum;
-  if (en) merged.enum = en;
   // Leaf refinements are inherited by a subtype (a `{ref: date, …}` stays a
   // date; `{ref: ipfs, target}` keeps its format and gains a target).
   for (const k of LEAF_KEYS) {
@@ -160,6 +172,7 @@ const LEAF_KEYS = ["format", "pattern", "minLength", "maxLength", "minimum", "ma
 //   ref (bare)  -> include                                {ref:X}
 // `env` binds type variables. Returns { schema, env } for the resolved node.
 export function resolveSchema(schema, env = {}) {
+  if (isLiteralSchema(schema)) return { schema: literalNode(schema), env };
   if (schema.params) {
     const penv = { ...env };
     for (const [p, def] of Object.entries(schema.params)) if (penv[p] === undefined) penv[p] = def;
@@ -198,6 +211,10 @@ export function validate(schema0, data, path = "$", env0 = {}) {
 
   if (schema.__unbound) return [`${path}: unbound type variable "${schema.__unbound}"`];
 
+  // literal: the value must equal it.
+  if (isLiteralSchema(schema))
+    return deepEqual(schema.value, data) ? [] : [`${path}: expected ${JSON.stringify(schema.value)}, got ${JSON.stringify(data)}`];
+
   // union: matches if it matches any variant.
   if (schema.anyOf) {
     const attempts = schema.anyOf.map((v) => validate(v, data, path, env));
@@ -208,9 +225,6 @@ export function validate(schema0, data, path = "$", env0 = {}) {
   }
 
   const errors = [];
-  if (schema.enum && !schema.enum.some((v) => deepEqual(v, data)))
-    errors.push(`${path}: ${JSON.stringify(data)} not in enum ${JSON.stringify(schema.enum)}`);
-
   const kind = schema.type ? kindOf(schema.type) : null;
   if (kind && !typeMatches(kind, data)) {
     errors.push(`${path}: expected ${kind}, got ${typeOf(data)}`);
@@ -324,6 +338,38 @@ failed += reportReject("node with neither type nor ref nor anyOf", validate(meta
 failed += reportReject("union with a non-schema arm", validate(meta, { anyOf: [{ nope: 1 }] }));
 failed += reportReject("bare kind name instead of a URL", validate(meta, { type: "string" }));
 
+// Literals: a bare scalar is a schema; so is {value, description}. Anything
+// else spelled with `value` is not, and a literal can only be a scalar.
+section("Literal schemas");
+failed += report("a bare string is a schema", validate(meta, "draft"));
+failed += report("a bare integer is a schema", validate(meta, 1));
+failed += report("a bare boolean is a schema", validate(meta, true));
+failed += report("null is a schema", validate(meta, null));
+failed += report("a described literal is a schema", validate(meta, { value: "draft", description: "Not yet published" }));
+failed += report("a union of literals is a schema", validate(meta, { anyOf: ["draft", { value: "published", description: "Live" }, 1, null] }));
+failed += reportReject("a float is not a literal", validate(meta, 1.5));
+failed += reportReject("a map is not a literal", validate(meta, { value: { a: 1 } }));
+failed += reportReject("a list is not a literal", validate(meta, { value: [1] }));
+failed += reportReject("a literal carrying a schema key", validate(meta, { value: "x", type: U("string") }));
+failed += reportReject("a literal with an unknown key", validate(meta, { value: "x", bogus: 1 }));
+failed += report("a struct field pinned to a literal", validate(meta, { type: U("struct"), properties: { type: { value: "Change", required: true } } }));
+failed += report("literal accepts its value", validate("draft", "draft"));
+failed += reportReject("literal rejects another value", validate("draft", "published"));
+failed += reportReject("literal rejects another kind", validate(1, "1"));
+failed += report("null literal accepts null", validate(null, null));
+failed += reportReject("null literal rejects a string", validate(null, "null"));
+failed += report("described literal accepts its value", validate({ value: 3, description: "three" }, 3));
+const status = { anyOf: ["draft", { value: "published", description: "Live" }, "archived"] };
+failed += report("union of literals accepts a member", validate(status, "published"));
+failed += reportReject("union of literals rejects a non-member", validate(status, "deleted"));
+const tagged = { type: U("struct"), properties: { type: { value: "Change", required: true }, n: { value: 1 } } };
+failed += report("a pinned tag field accepts the tag", validate(tagged, { type: "Change", n: 1 }));
+failed += reportReject("a pinned tag field rejects another tag", validate(tagged, { type: "Comment", n: 1 }));
+failed += reportReject("a pinned integer field rejects another integer", validate(tagged, { type: "Change", n: 2 }));
+const pinned = { ref: `hm://${ONYX}/hypermedia-block-base`, properties: { type: { value: "Poll", required: true } } };
+failed += report("an extension can pin a field to a literal", validate(pinned, { id: "b1", type: "Poll" }));
+failed += reportReject("…and then rejects the base's other tags", validate(pinned, { id: "b1", type: "Paragraph" }));
+
 // =====================================================================
 // 4. Data validation: each example accepts valid data and rejects invalid.
 // =====================================================================
@@ -343,7 +389,7 @@ const CASES = [
   {
     schema: "example-status.schema.json",
     valid: ["draft", "published", "archived"],
-    invalid: [["not in enum", "deleted"], ["wrong kind", 5], ["null", null]],
+    invalid: [["not a member", "deleted"], ["wrong kind", 5], ["null", null]],
   },
   {
     schema: "example-tags.schema.json",

@@ -1,14 +1,14 @@
 ---
 name: Contact
 summary: "A contact record: one account's named reference to another account (the subject), with subscription preferences."
-schemaDefinition: ipfs://bafyreihm7jel2oqwiwxogjn4ocwtfv27u3oddq3femu3a5xbdd4mqhrau4
+schemaDefinition: ipfs://bafyreicx6xgvze7qiexlqnl4xppitcrbkr6vpmuqak3zo6c5nxhfzpfmvm
 ---
 This document describes the **hypermedia-contact** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:LPwoGs-L -->
 
 # Shape <!-- id:ME2Gye2p -->
 
 **Extends** [hypermedia-blob](./hypermedia-blob.md) with these added fields: <!-- id:WjOZXUDV -->
-  - `type` — `string` enum: `Contact` <!-- id:NIqiWA2a -->
+  - `type` — `"Contact"` <!-- id:NIqiWA2a -->
   - `id` — [string](./hypermedia-string.md) <!-- id:3n_-393R -->
   - `account` — [hypermedia-principal](./hypermedia-principal.md) <!-- id:zI4HdIy8 -->
   - `subject` — [hypermedia-principal](./hypermedia-principal.md) <!-- id:bkt0fx8L -->

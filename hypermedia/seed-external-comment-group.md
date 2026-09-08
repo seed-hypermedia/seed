@@ -1,7 +1,7 @@
 ---
 name: External comment group
 summary: A comment thread from ANOTHER document that cites this one, with its target's metadata payload. A derived read model computed by the Seed daemon/API for clients
-schemaDefinition: ipfs://bafyreidcu3onv4plksebhvjbcp6hsn72z72qvmhesgi3w3oisckis5t27e
+schemaDefinition: ipfs://bafyreifx4r7mqs7bknwuilao4xobkozomnfgvyts43u2pslz5p4ruppdne
 ---
 A comment thread from ANOTHER document that cites this one, with its target's metadata payload. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:IQ1q6cc0 -->
 
@@ -14,7 +14,7 @@ A **closed struct** with these fields: <!-- id:cipbf9F9 -->
   - `moreCommentsCount` _(required)_ — `integer` <!-- id:-VwVHou7 -->
   - `id` _(required)_ — [string](./hypermedia-string.md) <!-- id:WG16mV8b -->
   - `target` _(required)_ — [seed-metadata-payload](./seed-metadata-payload.md) <!-- id:orsrQswM -->
-  - `type` _(required)_ — `string` enum: `externalCommentGroup` <!-- id:tH1zI9sl -->
+  - `type` _(required)_ — `"externalCommentGroup"` <!-- id:tH1zI9sl -->
 
 # Depends on <!-- id:GONsXZm0 -->
 

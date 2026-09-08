@@ -1,7 +1,7 @@
 ---
 name: "RPC: GetDomain"
 summary: "Checks a site domain's registration and health. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you p"
-schemaDefinition: ipfs://bafyreih56kmehkxs7lah6mg4hcsqcvbim3ch6s22jaa73cpeq2z6tzeo4q
+schemaDefinition: ipfs://bafyreihmccnnzthfvvjfyl4il5sgs2eado3bsu37kz3lo4chihdrnlskne
 ---
 Checks a site domain's registration and health. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:2l4-eCts -->
 
@@ -10,7 +10,7 @@ This document describes the **seed-rpc-get-domain** type — a Seed API read-mod
 # Shape <!-- id:jPvtB3gH -->
 
 A **closed struct** with these fields: <!-- id:SzX-JA_i -->
-  - `key` _(required)_ — `string` enum: `GetDomain` <!-- id:0e_hZB9E -->
+  - `key` _(required)_ — `"GetDomain"` <!-- id:0e_hZB9E -->
   - `input` _(required)_ — map { 2 fields } <!-- id:qnrvoO3P -->
   - `output` _(required)_ — [seed-domain-info](./seed-domain-info.md) <!-- id:2MN5naQ7 -->
 

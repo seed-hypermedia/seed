@@ -18,7 +18,7 @@ New to Onyx? These four pages explain the system from the top down before the re
 # In one minute <!-- id:sPmTq8Rq -->
 
 - Every value is one of **nine kinds**: `null`, `boolean`, `integer`, `float`, `string`, `bytes`, `list`, `map`, `link`. <!-- id:Zyqnpby8 -->
-- A **schema** is a `map` that constrains a value — `type`, `properties`, `required`, `items`, `values`, `enum`, `ref`, `anyOf`, generics (`params` / `var` / `args`), and value constraints (`minLength`, `pattern`, `minimum`, …). <!-- id:Jb3Yvg3p -->
+- A **schema** is a `map` that constrains a value — `type`, `properties`, `required`, `items`, `values`, `ref`, `anyOf`, generics (`params` / `var` / `args`), and value constraints (`minLength`, `pattern`, `minimum`, …) — or a bare **literal** (`"draft"`, `1`, `true`, `null`) that accepts exactly that value; a fixed set of choices is a union of literals. <!-- id:Jb3Yvg3p -->
 - Schemas reference each other by **`hm://` name**, not by content hash — that is what lets types recurse and form cycles. <!-- id:KVkmtla5 -->
 - Validation is **advisory** in the editors (warn, don't block) and **strict** in the reference validator. <!-- id:4a6RPK0p -->
 
@@ -36,11 +36,11 @@ Open **Onyx Schema Tour** from any document's options menu (or visit `/hm/onyx`)
 
 ## Create a schema <!-- id:pGXQjMrq -->
 
-Choose **New Schema** from the options menu. This opens the editor pointed at the meta-schema, so the form itself only offers choices a valid schema can make — pick a kind, add properties, mark them required, add enums or unions. Publishing mints a content-addressed schema blob you can reference by CID or name. <!-- id:ggmcQl7m -->
+Choose **New Schema** from the options menu. This opens the editor pointed at the meta-schema, so the form itself only offers choices a valid schema can make — pick a kind, add properties, mark them required, add literals or unions. Publishing mints a content-addressed schema blob you can reference by CID or name. <!-- id:ggmcQl7m -->
 
 ## Create typed data <!-- id:X0q30aDs -->
 
-Choose **New Blob** for a blank DAG-CBOR object, or **New Instance** (from a schema's page in the inspector) to start a value pre-seeded to match a schema. The editor is _schema-respecting_: it suggests the schema's fields, offers dropdowns for enums and union variants, renders `link` and `bytes` with the right controls, and flags anything that doesn't conform — without blocking you. <!-- id:o1oySfG7 -->
+Choose **New Blob** for a blank DAG-CBOR object, or **New Instance** (from a schema's page in the inspector) to start a value pre-seeded to match a schema. The editor is _schema-respecting_: it suggests the schema's fields, offers dropdowns for unions of literals and pickers for union variants, renders `link` and `bytes` with the right controls, and flags anything that doesn't conform — without blocking you. <!-- id:o1oySfG7 -->
 
 ## Type a document's metadata with a schema <!-- id:94quIzFe -->
 

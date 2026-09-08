@@ -1,7 +1,7 @@
 ---
 name: Table block
 summary: "A table container. Its children are TableColumn blocks (childless; their sibling order defines column display order) followed by TableRow blocks whose children "
-schemaDefinition: ipfs://bafyreibmnaptn75knnaq25r4u4n4o6bawyhfam7gdz6mo7rmtfqihxiguq
+schemaDefinition: ipfs://bafyreidkqr3l756zylklvqapktbdnlpkipdbrr5pen5hlyycnrfj2blqma
 ---
 A table container. Its children are TableColumn blocks (childless; their sibling order defines column display order) followed by TableRow blocks whose children are Paragraph cells carrying a columnId attribute — cell identity is (row, columnId), never grid position, which is what lets concurrent CRDT edits merge cleanly. <!-- id:62GngDOo -->
 
@@ -10,7 +10,7 @@ This document describes the **hypermedia-block-table** type — a Hypermedia Net
 # Shape <!-- id:axji3Nx3 -->
 
 **Extends** [hypermedia-block-base](./hypermedia-block-base.md) with these added fields: <!-- id:WAdLuZ1t -->
-  - `type` — `string` enum: `Table` <!-- id:OIXFENDr -->
+  - `type` — `"Table"` <!-- id:OIXFENDr -->
   - `attributes` — map { 2 fields } <!-- id:1Ug72bRZ -->
 
 # Depends on <!-- id:AgnaGp59 -->

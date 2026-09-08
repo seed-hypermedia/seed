@@ -18,7 +18,7 @@ Every blob embeds a base envelope, [Signed blob](./hypermedia-blob.md): <!-- id:
 | `sig` | `signature` (bytes) | signature over the blob <!-- id:lD2RIqxm --> |
 | `ts` | `timestamp` (integer) | Unix-millisecond time <!-- id:nFpKKNpd --> |
 
-Each concrete type **extends** it (Onyx extension — [the schema language](./schema-language.md)), inheriting those four fields and overriding `type` with a single-value enum: <!-- id:zUkl9LQZ -->
+Each concrete type **extends** it (Onyx extension — [the schema language](./schema-language.md)), inheriting those four fields and pinning `type` to a literal: <!-- id:zUkl9LQZ -->
   - `hypermedia-change` — an append-only document change, linked into a causal DAG by `deps`; carries a `change-body` of ops. <!-- id:XNtWFQFG -->
   - `hypermedia-ref` — a signed pointer from a space/path to the current head Changes. <!-- id:z0t8cH-b -->
   - `hypermedia-profile` — an account's name / avatar / description (or an alias). <!-- id:kuRmAvLb -->
@@ -53,7 +53,7 @@ Document content is made of **blocks**. We want two things that pull in opposite
 | codegen | the enumerable set | `hypermedia-block-core` <!-- id:L8JGoNbX --> |
 
 <!-- id:nNN-eoL8 -->
-- The fifteen **concrete blocks** — `hypermedia-block-paragraph`, `hypermedia-block-heading`, `hypermedia-block-code`, `hypermedia-block-math`, `hypermedia-block-image`, `hypermedia-block-video`, `hypermedia-block-file`, `hypermedia-block-button`, `hypermedia-block-embed`, `hypermedia-block-web-embed`, `hypermedia-block-nostr`, `hypermedia-block-table`, `hypermedia-block-table-row`, `hypermedia-block-table-column`, `hypermedia-block-query` — each **extends** `hypermedia-block-base`, closed, with a `type` enum and typed attributes. <!-- id:85wzIKeC -->
+- The fifteen **concrete blocks** — `hypermedia-block-paragraph`, `hypermedia-block-heading`, `hypermedia-block-code`, `hypermedia-block-math`, `hypermedia-block-image`, `hypermedia-block-video`, `hypermedia-block-file`, `hypermedia-block-button`, `hypermedia-block-embed`, `hypermedia-block-web-embed`, `hypermedia-block-nostr`, `hypermedia-block-table`, `hypermedia-block-table-row`, `hypermedia-block-table-column`, `hypermedia-block-query` — each **extends** `hypermedia-block-base`, closed, with a `type` literal and typed attributes. <!-- id:85wzIKeC -->
 - `hypermedia-block-core` — the **core union** we define (the fifteen). Strict: rejects anything else. <!-- id:Tp6vmRo8 -->
 - `hypermedia-block` — the **open** block: `id` + `type` + arbitrary fields (via `hypermedia-any`). The forward-compatible wire type — a block type this client has _no schema for_ (future or third-party) is still a valid Block, so a document is never rejected over it. This is _not_ "your custom block type" (that's just extension + union, below); it's the open fallback for the _unknown_. <!-- id:idnijeex -->
 

@@ -1,7 +1,7 @@
 ---
 name: "RPC: Comment"
 summary: "Fetches one comment by id or version CID. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `"
-schemaDefinition: ipfs://bafyreibr5u3mybnqwwem2whklbua6uscq5pomjesvghfagg6aioau6ptje
+schemaDefinition: ipfs://bafyreiae3wjzkbvn4mke2wdgqdzysy5gvoa2a7njntewuotnz4qhybam5y
 ---
 Fetches one comment by id or version CID. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:iF3gr7CN -->
 
@@ -10,7 +10,7 @@ This document describes the **seed-rpc-comment** type — a Seed API read-model 
 # Shape <!-- id:OHMUY0Pe -->
 
 A **closed struct** with these fields: <!-- id:gjgJsWAB -->
-  - `key` _(required)_ — `string` enum: `Comment` <!-- id:sgUIu7Zp -->
+  - `key` _(required)_ — `"Comment"` <!-- id:sgUIu7Zp -->
   - `input` _(required)_ — [string](./hypermedia-string.md) <!-- id:TEXCgfQs -->
   - `output` _(required)_ — [seed-comment](./seed-comment.md) <!-- id:9BhGxGzo -->
 

@@ -4,7 +4,7 @@ summary: The full Onyx vocabulary — closed maps, unions, generics, extension, 
 ---
 # The Onyx schema language <!-- id:yngrdImL -->
 
-An Onyx schema is a single value of kind `map`. It uses **thirteen core keys**, all optional, plus a handful of optional value constraints (below). That is the entire language. <!-- id:EXSoVP3S -->
+An Onyx schema is a value of kind `map` built from **twelve core keys**, all optional, plus a handful of optional value constraints (below) — or it is a **literal**: a bare `null`, boolean, integer, or string, which accepts exactly that value. That is the entire language. <!-- id:EXSoVP3S -->
 
 <!-- id:7guJrYQy -->
 | key <!-- col:PPQxsZds --> | applies to <!-- col:arAp45HF --> | meaning <!-- col:OMQjDwG3 --> <!-- id:lyC-RqMi --> |
@@ -14,7 +14,7 @@ An Onyx schema is a single value of kind `map`. It uses **thirteen core keys**, 
 | `required` | `map` | list of field names that must be present <!-- id:zo28a4vv --> |
 | `items` | `list` | schema every element must match <!-- id:GxgxLBO8 --> |
 | `values` | `map` | schema every _value_ must match (open map / record) <!-- id:lBxL68T_ --> |
-| `enum` | any | list of allowed literal values <!-- id:Jh3SOAp5 --> |
+| `value` | literal | the one value a literal schema accepts, when the literal needs a `description` (see below) <!-- id:Jh3SOAp5 --> |
 | `ref` | any | a reference to another schema — an `hm://` URL (see [references](./references.md)) <!-- id:8kpIEN7j --> |
 | `anyOf` | any | a **union**: the value must match one of the listed schemas <!-- id:Ww-tAztO --> |
 | `params` | any | declares type parameters (generics), each with a default <!-- id:LmVM4b91 --> |
@@ -26,6 +26,24 @@ An Onyx schema is a single value of kind `map`. It uses **thirteen core keys**, 
 `name` and `description` are **metadata** — they annotate the schema, not the data, so the validator ignores them when checking a value, and the schema explorer renders them as each schema's title and blurb. (A schema's `name` is unrelated to a field named `name` inside its `properties` — different levels.) <!-- id:GROkvj0R -->
 
 Both `type` and `ref` values are `hm://` URLs, so they are clickable and self-explanatory: `type` is `"hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map"`, not a bare `"map"`. **For readability these docs abbreviate `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map` as just `map`** — but the real value is always the URL. <!-- id:SZ-BjsVR -->
+
+## Literals <!-- id:Lit1eral -->
+
+A **literal** schema accepts exactly one value, and is written as that value: `"draft"`, `1`, `true`, `null`. A literal can be a string, an integer, a boolean, or null (the [value](./hypermedia-value.md) union) — never a float, a map, or a list. A union of literals is how a schema restricts a field to a fixed set of choices, and each choice can carry a description in the long form `{value, description}`: <!-- id:Lit2eral -->
+
+```json <!-- id:Lit3eral -->
+// a status field: one of three values, one of them explained
+"status": { "value": { "anyOf": [
+  "draft",
+  { "value": "published", "description": "Visible to everyone" },
+  "archived"
+] } }
+
+// a tag field pinned to one value — the whole schema is the literal
+"type": { "value": "Change", "required": true }
+```
+
+Every signed blob type pins its `type` this way, and every RPC method schema pins its `key`; in TypeScript they become literal types (`type: 'Change'`, `'draft' | 'published' | 'archived'`). <!-- id:Lit4eral -->
 
 A node with only `ref` (and no `type`) is an **include**: it becomes whatever the referenced schema says. Add refinement keys and it becomes an **extension** (below). A node with `type:"link"` _and_ `ref` is a **typed link**: a link whose target should match the referenced schema. <!-- id:wxGU9ndD -->
 
@@ -132,7 +150,7 @@ The parameter threads through references (each level passes it down with `args`)
 
 ## How Onyx describes itself <!-- id:zWshFjlg -->
 
-This is the crux, and with unions it is sharper than "a loose map with optional keys." `hypermedia-schema` is a **discriminated union of eight variants** — the eight shapes a schema can take: <!-- id:lI_lySSK -->
+This is the crux, and with unions it is sharper than "a loose map with optional keys." `hypermedia-schema` is a **discriminated union of nine variants** — the nine map shapes a schema can take — plus the four bare kinds a literal can be: <!-- id:lI_lySSK -->
 
 <!-- id:yZg8-sNO -->
 | variant <!-- col:kO3_qHrQ --> | matches <!-- col:rCN3fgm3 --> | discriminant <!-- col:zzQn7svL --> <!-- id:4VFkvrKJ --> |
@@ -140,11 +158,13 @@ This is the crux, and with unions it is sharper than "a loose map with optional 
 | `hypermedia-struct-schema` | `{type:"struct", properties?: {name: {value, required?, description?}}, values?}` | `type` = `struct` <!-- id:dS0FU-PD --> |
 | `hypermedia-map-schema` | `{type:"map", values?}` | `type` = `map` <!-- id:bCtL9MQx --> |
 | `hypermedia-list-schema` | `{type:"list", items?}` | `type` = `list` <!-- id:Y2gJAANc --> |
-| `hypermedia-scalar-schema` | `{type: null\|boolean\|integer\|float\|string\|bytes, enum?}` | `type` = a scalar kind <!-- id:wkuOsUIy --> |
+| `hypermedia-scalar-schema` | `{type: null\|boolean\|integer\|float\|string\|bytes, …constraints}` | `type` = a scalar kind <!-- id:wkuOsUIy --> |
 | `hypermedia-link-schema` | `{type:"link", ref?}` | `type` = `link` <!-- id:GXuPWZG4 --> |
 | `hypermedia-include-schema` | `{ref}` | no `type` <!-- id:sBVesN99 --> |
 | `hypermedia-anyof` | `{anyOf:[schema, …]}` | has `anyOf` <!-- id:uRuXGK92 --> |
 | `hypermedia-var-schema` | `{var}` | has `var` <!-- id:nw86Dhqn --> |
+| `hypermedia-literal-schema` | `{value, description?}` | has `value` <!-- id:Lit5eral --> |
+| [string](./hypermedia-string.md), [integer](./hypermedia-integer.md), [boolean](./hypermedia-boolean.md), [null](./hypermedia-null.md) | a bare value | is not a map <!-- id:Lit6eral --> |
 
 Each variant is a **closed** map, so a nonsense schema like `{type:"string", items:{…}}` matches _none_ of them — the stray `items` key is rejected by the closed `hypermedia-scalar-schema`, and the wrong `type` tag rules out the others. Run it: <!-- id:j-_t0aVk -->
 
@@ -155,14 +175,14 @@ node validate.mjs
 
 ### Why it still closes the loop — and deepens it <!-- id:cAg3Oszt -->
 
-`hypermedia-schema` is `{ "anyOf": [ …seven refs… ] }`. Validate it against itself: <!-- id:Gjr5KNDl -->
+`hypermedia-schema` is `{ "anyOf": [ …thirteen refs… ] }`. Validate it against itself: <!-- id:Gjr5KNDl -->
   1. It matches the **`hypermedia-anyof`** variant (it has an `anyOf` that is a list of schemas). <!-- id:deE1RQMk -->
   2. Each item in that `anyOf` is a bare `{ref: …}`, which matches the **`hypermedia-include-schema`** variant. <!-- id:yYBUIRiY -->
   3. Each variant file (e.g. `hypermedia-map-schema`) is itself a `{type:"struct", …}`, which matches the **`hypermedia-struct-schema`** variant. <!-- id:3RbdlEZc -->
 
 The meta-schema is a union whose variants _include a union variant_, and it validates as that variant. The fixed point holds one level richer than before. <!-- id:pUf5EFPl -->
 
-Note the standing of `type`. Nothing defines the string `"map"`; a variant just lists it in an `enum` of allowed kind-names. `string`, `link`, and `bytes` sit in those enums with no special treatment — the language names kinds, it does not define them. <!-- id:8YmU20RL -->
+Note the standing of `type`. Nothing defines the string `"map"`; a variant just pins `type` to the literal kind URL (`hypermedia-map-schema` says `type: {value: "hm://…/hypermedia-map"}`), and the scalar variant lists its six kinds as a union of literals. `string`, `link`, and `bytes` sit there with no special treatment — the language names kinds, it does not define them. <!-- id:8YmU20RL -->
 
 ## The proof is executable <!-- id:pnI1No8b -->
 

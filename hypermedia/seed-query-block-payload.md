@@ -1,7 +1,7 @@
 ---
 name: Query block payload
 summary: "Everything a rendered Query block needs: the results plus per-item interaction summaries and author metadata. A derived read model computed by the Seed daemon/A"
-schemaDefinition: ipfs://bafyreihdd55fn4f46bd43iim25vwnyiejqpu5neju57pqeqtgsmd3bqnvm
+schemaDefinition: ipfs://bafyreibf33fahp7kftzf5y5cum3xz4afxp5k2fwzpmxapbmj5zm3btsu5i
 ---
 Everything a rendered Query block needs: the results plus per-item interaction summaries and author metadata. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:VzSZH5xA -->
 
@@ -13,7 +13,7 @@ A **closed struct** with these fields: <!-- id:DyS_qKTz -->
   - `queryTargetName` _(required)_ — [string](./hypermedia-string.md) <!-- id:lpgzgCDx -->
   - `in` _(required)_ — [seed-id](./seed-id.md) <!-- id:PaNXccq8 -->
   - `results` _(required)_ — list of [seed-document-info](./seed-document-info.md) <!-- id:pqVQymXu -->
-  - `mode` — `string` enum: `Children` `AllDescendants` <!-- id:HKi67-Wj -->
+  - `mode` — one of `"Children"` | `"AllDescendants"` <!-- id:HKi67-Wj -->
   - `interactionSummaries` _(required)_ — map ⟨ \* : [seed-query-block-item-summary](./seed-query-block-item-summary.md) ⟩ <!-- id:EqpWvaWn -->
   - `accountsMetadata` _(required)_ — [seed-accounts-metadata](./seed-accounts-metadata.md) <!-- id:UpOdUnhj -->
 
