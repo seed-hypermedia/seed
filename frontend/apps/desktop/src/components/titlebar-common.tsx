@@ -499,7 +499,7 @@ function AssistantChatButton({
   if (!onToggleAssistant) return null
   const isActive = !!assistantOpen
   return (
-    <Tooltip content={isActive ? 'Close Chat' : 'Open Chat'} asChild>
+    <Tooltip content={isActive ? 'Close Agents' : 'Open Agents'} asChild>
       <Button
         className={cn(
           'window-no-drag h-8 w-8 rounded-full border p-0',
@@ -508,7 +508,7 @@ function AssistantChatButton({
             : 'border-transparent',
         )}
         aria-pressed={isActive}
-        aria-label="Chat"
+        aria-label="Agents"
         onClick={onToggleAssistant}
       >
         <MessageCircle className="size-4" />
