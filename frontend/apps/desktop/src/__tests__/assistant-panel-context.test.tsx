@@ -294,6 +294,26 @@ describe('assistant sidebar agent context', () => {
     expect(mockState.createAgentDialogMounts).toBeGreaterThan(0)
   })
 
+  it('with no agents, the body is a call to action that opens the create dialog in place', () => {
+    mockState.agentLists = [{data: []}, {data: []}]
+    mockState.sessionEntries = []
+    act(() => {
+      root.render(<AssistantPanel />)
+    })
+
+    expect(document.body.textContent).toContain('No agents yet')
+    clickText('Create an agent')
+    expect(mockState.createAgentDialogMounts).toBeGreaterThan(0)
+    expect(mockState.navigate).not.toHaveBeenCalled()
+
+    // The dialog completes: the sidebar switches to the new agent and opens a draft, as it does
+    // from the picker's New agent item.
+    act(() => {
+      mockState.createAgentDialogInput?.onCreated?.({serverUrl: REMOTE, agentId: 'researcher'})
+    })
+    expect(mockState.navigate).not.toHaveBeenCalled()
+  })
+
   it('footer new-chat drafts under the agent last used in the sidebar, not the first agent', () => {
     // The footer button opens the panel with the last session restored and a pending new-chat
     // request; the draft must inherit that session's agent (Researcher), not fall back to the

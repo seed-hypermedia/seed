@@ -18,6 +18,7 @@ import {useResponsiveItems} from './use-responsive-items'
 import {IS_DESKTOP} from '@shm/shared/constants'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {Activity, Lock} from 'lucide-react'
+import {AssistantPanelHeaderButton, AssistantPanelMenuItem} from './assistant-panel-toggle'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {DocNavigationItem, DocumentOutline, DocumentSmallListItem, useNodesOutline} from './navigation'
 import {HeaderSearch, MobileSearch} from './search'
@@ -136,7 +137,8 @@ export function SiteHeader({
         <Menu size={20} />
       </Button>
       {siteHomeId && !IS_DESKTOP ? (
-        <div className="hidden md:block">
+        <div className="hidden items-center gap-1 md:flex">
+          <AssistantPanelHeaderButton siteUid={siteHomeId.uid} />
           <HeaderSearch siteHomeId={siteHomeId} />
         </div>
       ) : null}
@@ -256,6 +258,9 @@ export function SiteHeader({
                       }}
                     />
                     <MobileFeedLink siteHomeId={siteHomeId} onClick={() => setIsMobileMenuOpen(false)} />
+                    {!IS_DESKTOP && (
+                      <AssistantPanelMenuItem siteUid={siteHomeId.uid} onClick={() => setIsMobileMenuOpen(false)} />
+                    )}
                   </div>
                 )}
                 {/* 

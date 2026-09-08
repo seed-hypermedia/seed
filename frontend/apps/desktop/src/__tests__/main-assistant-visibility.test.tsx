@@ -6,6 +6,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 const mockState = vi.hoisted(() => ({
   assistantPanelProps: null as null | Record<string, unknown>,
   footerProps: null as null | Record<string, unknown>,
+  titlebarProps: null as null | Record<string, unknown>,
   ipcSend: vi.fn(),
   serverUrls: ['http://localhost:3050'] as undefined | string[],
   /** Whether every agent list has resolved; 'pending' means we cannot yet say "no agents". */
@@ -207,10 +208,7 @@ vi.mock('../components/footer', async () => {
   return {
     default: (props: Record<string, unknown>) => {
       mockState.footerProps = props
-      return React.createElement('div', {
-        'data-has-assistant-toggle': String(Boolean(props.onToggleAssistant)),
-        'data-testid': 'footer',
-      })
+      return React.createElement('div', {'data-testid': 'footer'})
     },
   }
 })
@@ -235,7 +233,10 @@ vi.mock('../components/titlebar', async () => {
   const React = await import('react')
 
   return {
-    TitleBar: () => React.createElement('div', {'data-testid': 'titlebar'}),
+    TitleBar: (props: Record<string, unknown>) => {
+      mockState.titlebarProps = props
+      return React.createElement('div', {'data-testid': 'titlebar'})
+    },
   }
 })
 
@@ -319,6 +320,7 @@ describe('Main assistant visibility', () => {
     ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
     mockState.assistantPanelProps = null
     mockState.footerProps = null
+    mockState.titlebarProps = null
     mockState.ipcSend.mockReset()
     mockState.hasAgents = false
     mockState.agentsStatus = 'success'
@@ -341,8 +343,7 @@ describe('Main assistant visibility', () => {
 
     await flushEffects()
 
-    expect(mockState.footerProps?.onNewAssistantChat).toBeUndefined()
-    expect(mockState.footerProps?.onToggleAssistant).toBeUndefined()
+    expect(mockState.titlebarProps?.onToggleAssistant).toBeUndefined()
     expect(container.querySelector('[data-testid="assistant-panel"]')).toBeNull()
     expect(mockState.ipcSend).toHaveBeenCalledWith('windowAssistantState', {
       assistantOpen: false,
@@ -360,15 +361,17 @@ describe('Main assistant visibility', () => {
 
     await flushEffects()
 
-    expect(typeof mockState.footerProps?.onNewAssistantChat).toBe('function')
-    expect(typeof mockState.footerProps?.onToggleAssistant).toBe('function')
+    expect(typeof mockState.titlebarProps?.onToggleAssistant).toBe('function')
+    expect(mockState.titlebarProps?.assistantOpen).toBe(true)
+    expect(mockState.footerProps?.onToggleAssistant).toBeUndefined()
+    expect(mockState.footerProps?.onNewAssistantChat).toBeUndefined()
     expect(container.querySelector('[data-testid="assistant-panel"]')).not.toBeNull()
     expect(mockState.ipcSend).not.toHaveBeenCalled()
 
     cleanupRendered(root, container)
   })
 
-  it('opens the assistant panel and requests a new chat from the footer action', async () => {
+  it('opens the assistant panel from the title bar chat toggle, restoring the saved session', async () => {
     mockState.hasAgents = true
     mockState.agentsStatus = 'success'
     ;(window as any).initNavState = {
@@ -382,14 +385,18 @@ describe('Main assistant visibility', () => {
 
     expect(container.querySelector('[data-testid="assistant-panel"]')).toBeNull()
 
+    expect(mockState.titlebarProps?.assistantOpen).toBe(false)
+
     act(() => {
-      ;(mockState.footerProps?.onNewAssistantChat as undefined | (() => void))?.()
+      ;(mockState.titlebarProps?.onToggleAssistant as undefined | (() => void))?.()
     })
 
     await flushEffects()
 
     expect(container.querySelector('[data-testid="assistant-panel"]')).not.toBeNull()
-    expect(mockState.assistantPanelProps?.newChatRequest).toBe(1)
+    expect(mockState.titlebarProps?.assistantOpen).toBe(true)
+    expect(mockState.assistantPanelProps?.initialSessionId).toBe('session-1')
+    expect(mockState.assistantPanelProps?.newChatRequest).toBeUndefined()
     expect(mockState.ipcSend).toHaveBeenCalledWith('windowAssistantState', {
       assistantOpen: true,
       assistantSessionId: 'session-1',

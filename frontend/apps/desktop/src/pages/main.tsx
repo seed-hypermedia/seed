@@ -119,7 +119,6 @@ export default function Main({className}: {className?: string}) {
   const initNavState = (window as any).initNavState
   const [assistantOpen, setAssistantOpen] = useState(initNavState?.assistantOpen || false)
   const [assistantSessionId, setAssistantSessionId] = useState<string | null>(initNavState?.assistantSessionId || null)
-  const [assistantNewChatRequest, setAssistantNewChatRequest] = useState(0)
   // The assistant sidebar is a view over the Agents service, so its entry points depend on there
   // being an agent to talk to — not merely a server. The desktop always runs a local server, so
   // server availability is always true and would leave the controls visible with nothing to chat
@@ -143,23 +142,7 @@ export default function Main({className}: {className?: string}) {
       sendAssistantState(next, assistantSessionId)
       return next
     })
-    // A remounted panel counts new-chat requests from zero, so a counter left over from an earlier
-    // footer click would otherwise open the panel straight into a draft instead of restoring the
-    // last session.
-    setAssistantNewChatRequest(0)
   }, [assistantSessionId, sendAssistantState])
-
-  const handleNewAssistantChat = useCallback(() => {
-    if (!isAssistantAvailable) return
-
-    setAssistantOpen((prev: boolean) => {
-      if (!prev) {
-        sendAssistantState(true, assistantSessionId)
-      }
-      return true
-    })
-    setAssistantNewChatRequest((prev) => prev + 1)
-  }, [assistantSessionId, isAssistantAvailable, sendAssistantState])
 
   const handleSessionChange = useCallback(
     (sessionId: string | null) => {
@@ -194,7 +177,12 @@ export default function Main({className}: {className?: string}) {
   let titlebar: ReactElement | null = null
   let sidebar: ReactElement | null = null
   if (windowType === 'main') {
-    titlebar = <TitleBar />
+    titlebar = (
+      <TitleBar
+        assistantOpen={assistantOpen}
+        onToggleAssistant={isAssistantAvailable ? handleToggleAssistant : undefined}
+      />
+    )
     sidebar = <AppSidebar />
   } else if (windowType === 'settings') {
     titlebar = (
@@ -280,11 +268,7 @@ export default function Main({className}: {className?: string}) {
                 </Panel>
               </PanelContent>
 
-              <Footer
-                assistantOpen={assistantOpen}
-                onNewAssistantChat={isAssistantAvailable ? handleNewAssistantChat : undefined}
-                onToggleAssistant={isAssistantAvailable ? handleToggleAssistant : undefined}
-              />
+              <Footer />
 
               <AutoUpdater />
               <ConfirmConnectionDialog />
@@ -296,11 +280,7 @@ export default function Main({className}: {className?: string}) {
           <>
             <PanelResizeHandle className="panel-resize-handle" />
             <Panel id="assistant" order={2} minSize={15} maxSize={40} defaultSize={25} className="border-l">
-              <AssistantPanel
-                initialSessionId={assistantSessionId}
-                newChatRequest={assistantNewChatRequest}
-                onSessionChange={handleSessionChange}
-              />
+              <AssistantPanel initialSessionId={assistantSessionId} onSessionChange={handleSessionChange} />
             </Panel>
           </>
         )}

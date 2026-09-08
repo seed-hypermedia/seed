@@ -26,6 +26,7 @@ vi.mock('@/client-lazy', () => ({
   clientLazy: () => () => <div data-testid="panel-content">PANEL</div>,
 }))
 
+import {useAssistantPanelToggle} from '@shm/ui/assistant-panel-toggle'
 import {AssistantPanelProvider, useAssistantAutoOpen, useAssistantPanel} from '../assistant-panel-state'
 import {publishSiteContext} from '../site-context-bridge'
 import {WebAssistantHost} from '../web-assistant-host'
@@ -47,7 +48,11 @@ let mountCount = 0
 let controls: ReturnType<typeof useAssistantPanel> | null = null
 let autoOpenAvailable = false
 
+let headerToggle: ReturnType<typeof useAssistantPanelToggle> = null
+
 function Page() {
+  // Stands in for the site header's Agents button, which reads the toggle the host offers.
+  headerToggle = useAssistantPanelToggle()
   React.useEffect(() => {
     mountCount += 1
   }, [])
@@ -84,6 +89,7 @@ beforeEach(() => {
   mockState.keyPair = {id: 'reader'}
   mountCount = 0
   controls = null
+  headerToggle = null
   autoOpenAvailable = false
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -221,6 +227,26 @@ describe('web assistant panel', () => {
     })
     expect(container.querySelector('[data-testid="web-assistant-panel"]')).toBe(aside)
     expect(container.querySelector('[data-testid="panel-content"]')).not.toBeNull()
+  })
+
+  it('offers the site header a toggle for a signed-in reader, which opens and closes the panel', () => {
+    act(() => root.render(<App />))
+    expect(headerToggle?.isOpen).toBe(false)
+    expect(container.querySelector('[data-testid="web-assistant-panel"]')).toBeNull()
+
+    act(() => headerToggle!.toggle())
+    expect(headerToggle?.isOpen).toBe(true)
+    expect(container.querySelector('[data-testid="web-assistant-panel"]')).not.toBeNull()
+
+    act(() => headerToggle!.toggle())
+    expect(headerToggle?.isOpen).toBe(false)
+    expect(container.querySelector('[data-testid="web-assistant-panel"]')).toBeNull()
+  })
+
+  it('offers the site header no toggle to a signed-out visitor', () => {
+    mockState.keyPair = null
+    act(() => root.render(<App />))
+    expect(headerToggle).toBeNull()
   })
 
   it('never shows the panel to a signed-out visitor, even with a stored open preference', () => {

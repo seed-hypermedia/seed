@@ -1,4 +1,4 @@
-import {useAssistantAutoOpen, useAssistantPanel} from '@/assistant-panel-state'
+import {useAssistantAutoOpen} from '@/assistant-panel-state'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client'
 import type {HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
@@ -14,12 +14,12 @@ import {buildCollectionDraftSeed} from '@shm/shared/collection'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useIsSiteOwner} from '@shm/shared/models/capabilities'
 import {createDefaultCollectionQueryBlock} from '@shm/shared/models/document-machine'
-import {useAccount, useResource} from '@shm/shared/models/entity'
+import {useAccount} from '@shm/shared/models/entity'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
 import {hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
-import {parseSpaceAgentIds} from '@shm/ui/agents/space-agents'
+import {useSiteAgents} from '@shm/ui/assistant-panel-toggle'
 import {ButtonLink} from '@shm/ui/button'
 import {
   DropdownMenu,
@@ -45,7 +45,6 @@ import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
 import {
   Bell,
-  Bot,
   ExternalLink,
   FilePlus2,
   Globe,
@@ -279,24 +278,6 @@ function PlaceholderAvatar({onClick}: {onClick: () => void}) {
 /**
  * Site-header join button or avatar with notifications bell
  */
-/**
- * The agents server this space names for its readers, if any.
- *
- * Read straight from the home document rather than through `useSiteAdvertisedAgentServerUrl`: that
- * lives in the agents models, and importing them here would pull the whole agents chunk — editor
- * included — into the initial bundle, which the assistant panel and the /hm/agents pages go out of
- * their way to avoid. `useResource` is already here via `useAccount`, so this costs nothing.
- */
-function useSiteAgents(siteUid: string): {serverUrl: string | null; publishesAgents: boolean} {
-  const home = useResource(hmId(siteUid))
-  const metadata = home.data?.type === 'document' ? home.data.document?.metadata : undefined
-  const raw = metadata?.agentServerUrl
-  return {
-    serverUrl: typeof raw === 'string' && raw ? raw : null,
-    publishesAgents: parseSpaceAgentIds(metadata?.spaceAgents).length > 0,
-  }
-}
-
 export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const keyPair = useLocalKeyPair()
   const accountId = keyPair?.delegatedAccountUid ?? keyPair?.id
@@ -330,10 +311,8 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const media = useMedia()
   const isMobile = media.xs
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const assistantPanel = useAssistantPanel()
-  // A space that names no agents server has nothing for its readers to talk to, so the entry point
-  // is not offered while browsing it. It stays absent until the home document has loaded, so the
-  // item appears late rather than appearing and then vanishing.
+  // The panel's entry points live in the site header (see @shm/ui/assistant-panel-toggle); the
+  // space's own agents only matter here for the first-arrival auto-open.
   const siteAgents = useSiteAgents(siteUid)
   const hasSiteAgents = !!siteAgents.serverUrl
   // First arrival: a signed-in reader of a space that publishes agents finds the panel already
@@ -405,21 +384,6 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
         <UserCog className="size-5" />
         <span className="text-sm">Manage account</span>
       </button>
-      {hasSiteAgents ? (
-        <>
-          <div className="bg-border mx-4 h-px" />
-          <button
-            className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
-            onClick={() => {
-              setMobileMenuOpen(false)
-              assistantPanel.toggle()
-            }}
-          >
-            <Bot className="size-5" />
-            <span className="text-sm">{assistantPanel.isOpen ? 'Close Agents' : 'Agents'}</span>
-          </button>
-        </>
-      ) : null}
       <div className="bg-border mx-4 h-px" />
       {canCreateSpace ? (
         <button
@@ -518,15 +482,6 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                 <UserCog className="size-4" />
                 Manage account
               </DropdownMenuItem>
-              {hasSiteAgents ? (
-                <>
-                  <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
-                  <DropdownMenuItem onClick={assistantPanel.toggle}>
-                    <Bot className="size-4" />
-                    {assistantPanel.isOpen ? 'Close Agents' : 'Agents'}
-                  </DropdownMenuItem>
-                </>
-              ) : null}
               <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
               {canCreateSpace ? (
                 <DropdownMenuItem
