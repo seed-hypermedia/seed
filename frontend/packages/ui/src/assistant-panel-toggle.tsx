@@ -1,4 +1,5 @@
 import {hmId} from '@shm/shared'
+import {SEED_AGENT_SERVER_URL} from '@shm/shared/constants'
 import {useResource} from '@shm/shared/models/entity'
 import {MessageCircle} from 'lucide-react'
 import {createContext, useContext} from 'react'
@@ -43,13 +44,24 @@ export function useSiteAgents(siteUid: string): {serverUrl: string | null; publi
 }
 
 /**
+ * Whether a reader of this space has an agents server to talk to: the one the space names in its
+ * home document, or the deployment's own default server (`SEED_AGENT_SERVER_URL`). With a default
+ * server the panel is always on offer, showing the reader's own agents there even on a space that
+ * publishes none.
+ */
+export function useHasAgentServer(siteUid: string): boolean {
+  const siteAgents = useSiteAgents(siteUid)
+  return !!siteAgents.serverUrl || !!SEED_AGENT_SERVER_URL
+}
+
+/**
  * Site-header toggle for the agents panel, shown beside the search button. Renders nothing unless
- * a host offers the toggle and the space names an agents server for its readers.
+ * a host offers the toggle and there is an agents server for the reader to talk to.
  */
 export function AssistantPanelHeaderButton({siteUid}: {siteUid: string}) {
   const toggle = useAssistantPanelToggle()
-  const siteAgents = useSiteAgents(siteUid)
-  if (!toggle || !siteAgents.serverUrl) return null
+  const hasAgentServer = useHasAgentServer(siteUid)
+  if (!toggle || !hasAgentServer) return null
   return (
     <Tooltip content={toggle.isOpen ? 'Close Agents' : 'Open Agents'}>
       <Button

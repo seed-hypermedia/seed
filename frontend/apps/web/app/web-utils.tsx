@@ -19,7 +19,7 @@ import {isNotificationEventRead} from '@shm/shared/models/notification-read-logi
 import {hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
-import {useSiteAgents} from '@shm/ui/assistant-panel-toggle'
+import {useHasAgentServer, useSiteAgents} from '@shm/ui/assistant-panel-toggle'
 import {ButtonLink} from '@shm/ui/button'
 import {
   DropdownMenu,
@@ -313,11 +313,12 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const isMobile = media.xs
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const assistantPanel = useAssistantPanel()
-  // A space that names no agents server has nothing for its readers to talk to, so the entry point
-  // is not offered while browsing it. It stays absent until the home document has loaded, so the
-  // item appears late rather than appearing and then vanishing.
+  // The entry point is offered whenever the reader has an agents server to talk to: the one this
+  // space names, or the deployment's default. A space naming none, on a deployment with no default,
+  // has nothing to show, so nothing is offered while browsing it. Availability stays absent until
+  // the home document has loaded, so the item appears late rather than appearing and then vanishing.
   const siteAgents = useSiteAgents(siteUid)
-  const hasSiteAgents = !!siteAgents.serverUrl
+  const hasSiteAgents = useHasAgentServer(siteUid)
   // First arrival: a signed-in reader of a space that publishes agents finds the panel already
   // open, once, on a viewport wide enough to show it beside the page. Closing it is remembered.
   useAssistantAutoOpen(!!keyPair && hasSiteAgents && siteAgents.publishesAgents && !isMobile)

@@ -8,13 +8,23 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 /**
  * The account menu's way into the agents panel.
  *
- * A space names the agents server its readers connect to, in its home document. A space that names
- * none has nothing for a reader to talk to, so browsing it must not offer the entry point at all —
- * opening the panel there would only show an empty picker.
+ * A space names the agents server its readers connect to, in its home document, and a deployment
+ * may name a default server of its own (`SEED_AGENT_SERVER_URL`). With neither, a reader has
+ * nothing to talk to, so browsing the space must not offer the entry point at all — opening the
+ * panel there would only show an empty picker.
  */
 
 const mockState = vi.hoisted(() => ({
   homeMetadata: {} as Record<string, unknown>,
+  envServerUrl: undefined as string | undefined,
+}))
+
+// The deployment default is a module constant; a getter lets each test choose it.
+vi.mock('@shm/shared/constants', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  get SEED_AGENT_SERVER_URL() {
+    return mockState.envServerUrl
+  },
 }))
 
 // Partial mocks throughout: only the data this component reads is faked, so the rest of each
@@ -79,6 +89,7 @@ beforeEach(() => {
   // The sheet restores scroll position on unmount; jsdom implements neither of these.
   window.scrollTo = () => {}
   mockState.homeMetadata = {}
+  mockState.envServerUrl = undefined
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -106,5 +117,11 @@ describe('agents entry in the web account menu', () => {
   it('treats an empty server setting as none', () => {
     mockState.homeMetadata = {agentServerUrl: ''}
     expect(openMenu()).not.toContain('Agents')
+  })
+
+  it('offers agents on any space when the deployment names a default server', () => {
+    mockState.envServerUrl = 'http://localhost:3051'
+    mockState.homeMetadata = {name: 'A Space'}
+    expect(openMenu()).toContain('Agents')
   })
 })
