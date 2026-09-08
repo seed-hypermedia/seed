@@ -1,7 +1,7 @@
 ---
 name: "RPC: Resource"
 summary: "Fetches a resource (document, comment, redirect, …) by parsed id. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` fiel"
-schemaDefinition: ipfs://bafyreidkqlcckkdgwbh7363n7v2ljugxsnj3gu6jy7rfm35owgfkl6dggm
+schemaDefinition: ipfs://bafyreiewhm3rmzxqvwb7s6kdfti7bopf3hpamgnuz4sviumz2gzkpeveza
 ---
 Fetches a resource (document, comment, redirect, …) by parsed id. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:0FgdDO0r -->
 
@@ -10,7 +10,7 @@ This document describes the **seed-rpc-resource** type — a Seed API read-model
 # Shape <!-- id:wRYJGS_e -->
 
 A **closed struct** with these fields: <!-- id:utly96z5 -->
-  - `key` _(required)_ — `string` enum: `Resource` <!-- id:UToawi30 -->
+  - `key` _(required)_ — `"Resource"` <!-- id:UToawi30 -->
   - `input` _(required)_ — [seed-id](./seed-id.md) <!-- id:FVQ72Tj4 -->
   - `output` _(required)_ — [seed-resource](./seed-resource.md) <!-- id:-cmT97ah -->
 

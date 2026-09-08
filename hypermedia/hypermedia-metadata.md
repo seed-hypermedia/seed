@@ -1,7 +1,7 @@
 ---
 name: Document metadata
 summary: "Resolved document metadata (merged from Change ops): known keys plus arbitrary extras."
-schemaDefinition: ipfs://bafyreicqsfidxkypckqem7tikfxpocg5njaeawnxuffn7afod7vn4lf34u
+schemaDefinition: ipfs://bafyreid5teiocerp6kc5dfnzq4qwk4bjtqzl5uum37yhix3jzpupvy32uy
 ---
 This document describes the **hypermedia-metadata** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:LCMEm3AK -->
 
@@ -16,12 +16,12 @@ A map with these fields: <!-- id:L2SJyGsk -->
   - `schema` — [string](./hypermedia-string.md) <!-- id:ADiIVpjJ -->
   - `childrenSchema` — [string](./hypermedia-string.md) <!-- id:UONmILsQ -->
   - `schemaDefinition` — [string](./hypermedia-string.md) <!-- id:ZUbSthmD -->
-  - `layout` — `string` enum: `Seed/Experimental/Newspaper`\  <!-- id:I-9Xt4-i -->
+  - `layout` — `"Seed/Experimental/Newspaper"` <!-- id:I-9Xt4-i -->
   - `displayPublishTime` — [string](./hypermedia-string.md) <!-- id:t_InI3WT -->
   - `displayAuthor` — [string](./hypermedia-string.md) <!-- id:b3VkN4qc -->
   - `showOutline` — [boolean](./hypermedia-boolean.md) <!-- id:PGeCxMgg -->
   - `showActivity` — [boolean](./hypermedia-boolean.md) <!-- id:Rfm2qV8U -->
-  - `contentWidth` — `string` enum: `S` `M` `L` <!-- id:8si9AhAF -->
+  - `contentWidth` — one of `"S"` | `"M"` | `"L"` <!-- id:8si9AhAF -->
   - `childrenType` — [string](./hypermedia-string.md) <!-- id:-HIIWHMr -->
   - `theme` — map { 1 fields } <!-- id:Gz2wxX6C -->
 

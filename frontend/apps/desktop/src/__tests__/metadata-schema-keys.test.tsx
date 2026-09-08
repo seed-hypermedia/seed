@@ -23,17 +23,14 @@ const ARTICLE_SCHEMA: OnyxSchema = {
   required: ['headline', 'status'],
   properties: {
     headline: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string', minLength: 1},
-    status: {
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string',
-      enum: ['draft', 'published'],
-    },
+    status: {anyOf: ['draft', 'published']},
   },
 }
 
 // A schema that is a literal union at its root.
 const STATUS_SCHEMA: OnyxSchema = {
   name: 'Status',
-  enum: ['todo', 'doing', 'done'],
+  anyOf: ['todo', 'doing', 'done'],
 }
 
 const KNOWN_SCHEMAS: Record<string, OnyxSchema> = {

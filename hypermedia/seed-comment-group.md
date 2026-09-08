@@ -1,7 +1,7 @@
 ---
 name: Comment group
 summary: A thread of comments grouped for display, with a count of elided replies. A derived read model computed by the Seed daemon/API for clients — not a signed networ
-schemaDefinition: ipfs://bafyreigrcfp24vkvpes247ciazw36bch2ywh5dmrpt24cqprxni4mkcg2e
+schemaDefinition: ipfs://bafyreib3dmy6xtfyjbl7orjvnawjp2ty4mitr3inrjykafjjqin3zbvpaq
 ---
 A thread of comments grouped for display, with a count of elided replies. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:kfaho3GA -->
 
@@ -13,7 +13,7 @@ A **closed struct** with these fields: <!-- id:hQ_A0BRE -->
   - `comments` _(required)_ — list of [seed-comment](./seed-comment.md) <!-- id:6j0dIlAA -->
   - `moreCommentsCount` _(required)_ — `integer` <!-- id:YX7_v3Cs -->
   - `id` _(required)_ — [string](./hypermedia-string.md) <!-- id:LESTYzIE -->
-  - `type` _(required)_ — `string` enum: `commentGroup` <!-- id:8G00dDGM -->
+  - `type` _(required)_ — `"commentGroup"` <!-- id:8G00dDGM -->
 
 # Depends on <!-- id:zRpGsTRj -->
 

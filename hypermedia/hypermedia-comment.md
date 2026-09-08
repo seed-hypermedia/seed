@@ -1,14 +1,14 @@
 ---
 name: Comment
 summary: A comment on a document version, threaded via threadRoot and replyParent. Its body is a tree of comment blocks.
-schemaDefinition: ipfs://bafyreie6k46oznzm2zen4pjxlhlvme7pccmycgsnwgiw3qowczlszulqnq
+schemaDefinition: ipfs://bafyreihzr5rfxgrrsurvi5kv6wkizlncyltm4xqamh7443t5ts22vknnmq
 ---
 This document describes the **hypermedia-comment** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:fJpitbt3 -->
 
 # Shape <!-- id:N7i6Swe_ -->
 
 **Extends** [hypermedia-blob](./hypermedia-blob.md) with these added fields: <!-- id:AWi9pItM -->
-  - `type` — `string` enum: `Comment` <!-- id:gZNdkJAq -->
+  - `type` — `"Comment"` <!-- id:gZNdkJAq -->
   - `id` — [string](./hypermedia-string.md) <!-- id:0a38WCxb -->
   - `capability` — [hypermedia-cid](./hypermedia-cid.md) <!-- id:0BzGpgFt -->
   - `space` — [hypermedia-principal](./hypermedia-principal.md) <!-- id:d6ppVYNz -->

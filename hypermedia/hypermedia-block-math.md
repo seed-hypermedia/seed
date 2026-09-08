@@ -1,14 +1,14 @@
 ---
 name: Math block
 summary: A block of LaTeX/KaTeX math.
-schemaDefinition: ipfs://bafyreiah7r45un7nadavcoyt7pm2mydxcvefxinnsvupch62dbbnbxnm2m
+schemaDefinition: ipfs://bafyreicixtflpzx6jhgfpfd5swjg37rcaeay23p4frndinbrkmyivsixyi
 ---
 This document describes the **hypermedia-block-math** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:usrj-I7W -->
 
 # Shape <!-- id:aWWfkPD5 -->
 
 **Extends** [hypermedia-block-base](./hypermedia-block-base.md) with these added fields: <!-- id:SBltfmzC -->
-  - `type` — `string` enum: `Math` <!-- id:svQxxVDN -->
+  - `type` — `"Math"` <!-- id:svQxxVDN -->
   - `text` — [string](./hypermedia-string.md) <!-- id:Fn40dsDZ -->
   - `attributes` — map { 2 fields } <!-- id:9xuaTSwI -->
 

@@ -16,6 +16,8 @@ import {
   type OnyxRegistry,
   type OnyxSchema,
   fieldSchema,
+  isLiteralSchema,
+  literalValue,
   fieldsToProperties,
   resolveSchema,
   structFields,
@@ -32,11 +34,11 @@ export function isSignedBlobSchema(schema: OnyxSchema | undefined, reg: OnyxRegi
   return !!props && SIGNED_BLOB_ENVELOPE.every((k) => fieldSchema(resolved, k) !== undefined)
 }
 
-/** The single `type` tag a signed-blob schema pins (a one-value enum), if any. */
+/** The single `type` tag a signed-blob schema pins (a literal), if any. */
 export function signedBlobTypeTag(schema: OnyxSchema, reg: OnyxRegistry = {}): string | undefined {
   const {schema: resolved} = resolveSchema(schema, {}, reg)
   const t = fieldSchema(resolved, 'type')
-  const tag = t && Array.isArray(t.enum) && t.enum.length === 1 ? t.enum[0] : undefined
+  const tag = t !== undefined && isLiteralSchema(t) ? literalValue(t) : undefined
   return typeof tag === 'string' ? tag : undefined
 }
 
