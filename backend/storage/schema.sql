@@ -258,42 +258,46 @@ CREATE TABLE comment_live (
     tsid TEXT PRIMARY KEY,
     -- The winning blob. Also the value listings report as `last_comment`.
     blob_id INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
-    -- The resource the winning blob targets. Comments record the document path as
-    -- it was when they were written, so this is not necessarily where the document
-    -- lives now -- resource_comment_stats resolves that.
+    -- Genesis CID of the document this comment targets, resolved from the comment's
+    -- target version when it's indexed. This is the document's *identity*, so it
+    -- survives the document moving, and two documents that merely redirect at each
+    -- other never share it.
+    genesis TEXT NOT NULL,
+    -- The resource the comment targeted: its *location* when it was written. Used
+    -- only to attribute the comment to a space, never to a document.
     resource INTEGER REFERENCES resources (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
     ts INTEGER NOT NULL
 ) WITHOUT ROWID;
 
+CREATE INDEX comment_live_by_genesis ON comment_live (genesis, ts);
 CREATE INDEX comment_live_by_resource ON comment_live (resource, ts);
 CREATE INDEX comment_live_by_blob ON comment_live (blob_id);
 
--- Redirect-aware comment activity per resource: what the document listings read.
+-- Comment activity per document, keyed by genesis: what the listings read.
 --
--- A document that moved leaves its comments attached to the old path's resource, so
--- a resource's comments are those of its whole redirect-ancestor chain, not just its
--- own. Listings JOIN this table by resource and are done; the chain walk happens
--- here, at index time, in updateResourceCommentStats.
+-- Keyed by genesis and not by resource, because a comment belongs to a *document*,
+-- and a document's identity is its genesis, not the path it currently sits at.
+-- That makes a moved document keep its comments for free -- the genesis doesn't
+-- change when the path does -- and it stops a redirect between two unrelated
+-- documents from merging their counts. Measured on a 6.2 GB production database,
+-- 6 of 1766 redirect edges pointed at a different genesis, and one of them was
+-- crediting 293 comments from /tech-talks onto /tech.
 --
--- This is deliberately keyed by resource rather than by (resource, generation) like
--- document_generations.comment_count. That column only ever counted comments against
--- generations satisfying containsAllChanges, and skipped comments whose target
--- changes hadn't been indexed yet; measured on a 6.2 GB production database it was
--- too low for 1141 of the 1489 resources that have comments, 5062 counted against
--- 11964 real ones. Comment activity belongs to the resource.
-CREATE TABLE resource_comment_stats (
-    resource INTEGER PRIMARY KEY REFERENCES resources (id) ON UPDATE CASCADE ON DELETE CASCADE,
+-- It also replaces document_generations.comment_count, which counted only against
+-- generations satisfying containsAllChanges and skipped comments whose target
+-- changes weren't indexed yet: too low for 1141 of the 1489 resources that had
+-- comments, 5062 counted against 11964 real ones.
+CREATE TABLE document_comment_stats (
+    genesis TEXT PRIMARY KEY,
     comment_count INTEGER NOT NULL,
-    -- Blob id of the most recent credited comment, i.e. the one whose ts equals
+    -- Blob id of the most recent comment, i.e. the one whose ts equals
     -- last_comment_time.
     last_comment INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE,
     last_comment_time INTEGER NOT NULL
--- WITHOUT ROWID so the primary key is a real index over `resource`, which is also
--- the foreign key every read of this table seeks by.
 ) WITHOUT ROWID;
 
 -- Index to fullfill the rule of having an index on all foreign keys.
-CREATE INDEX resource_comment_stats_by_last_comment ON resource_comment_stats (last_comment) WHERE last_comment IS NOT NULL;
+CREATE INDEX document_comment_stats_by_last_comment ON document_comment_stats (last_comment) WHERE last_comment IS NOT NULL;
 
 -- Stores content-addressable links between blobs.
 -- Links are typed (rel) and directed.

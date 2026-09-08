@@ -22,13 +22,13 @@ var derivedTables = []string{
 	storage.T_StructuralBlobs,
 	storage.T_DocumentAttributes,
 	storage.T_DocumentAttributeKeys,
-	// Comment activity is derived from Comment blobs and the redirect chains, so
-	// it's rebuilt by the blob loop below. Both have an FK to resources with
-	// ON DELETE CASCADE, but reindex deletes in list order, so list them before
-	// resources rather than relying on the cascade (same reasoning as the RBSR
-	// tables at the end of this list).
+	// Comment activity is derived from Comment blobs, so it's rebuilt by the blob
+	// loop below. comment_live has an FK to resources with ON DELETE CASCADE, but
+	// reindex deletes in list order, so list it before resources rather than
+	// relying on the cascade (same reasoning as the RBSR tables at the end of
+	// this list).
 	storage.T_CommentLive,
-	storage.T_ResourceCommentStats,
+	storage.T_DocumentCommentStats,
 	storage.T_Resources,
 	storage.T_Spaces,
 	storage.T_DocumentGenerations,
@@ -234,15 +234,6 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 			return err
 		}
 		coverDur = time.Since(coverStart)
-
-		// Same reason as the pass above: the loop replays blobs in id order, not
-		// causal order, so a redirect can be indexed before the chain it extends
-		// and the incremental walk then only reaches part of it. Rebuilding from
-		// the final state settles every chain at once. Cheap — ~13ms on a 6.2 GB
-		// production database.
-		if err := rebuildResourceCommentStats(conn); err != nil {
-			return err
-		}
 
 		return dbSetReindexTime(conn, time.Now().UTC().String())
 	}); err != nil {

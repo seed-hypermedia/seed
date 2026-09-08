@@ -63,37 +63,41 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
-	// Materialize redirect-aware comment activity so the document listings can read
-	// it instead of deriving it per request. ListDirectory used to spend 53ms of a
-	// 60ms call re-deciding which blob is the live version of every comment in the
-	// listed scope, and GetAccount paid the same for its home document. Measured on
-	// a 6.2 GB production database: ListDirectory 60ms -> 0.9ms, getDocumentInfo
+	// Materialize comment activity so the document listings can read it instead of
+	// deriving it per request. ListDirectory used to spend 53ms of a 60ms call
+	// re-deciding which blob is the live version of every comment in the listed
+	// scope, and GetAccount paid the same for its home document. Measured on a
+	// 6.2 GB production database: ListDirectory 52ms -> 2.3ms, getDocumentInfo
 	// 3.0ms -> 0.11ms.
 	//
-	// Reindex rather than backfill: both tables are derived from Comment blobs and
-	// the redirect chains, and indexComment now maintains them, so replaying the
-	// blobs is both the simplest and the most trustworthy way to fill them. It also
-	// repairs document_generations.comment_count, which the same reindex recomputes.
+	// Keyed by genesis, so comment activity follows a document's identity rather
+	// than its current path. See the schema comments on document_comment_stats.
+	//
+	// Reindex rather than backfill: both tables are derived from Comment blobs, and
+	// indexComment maintains them, so replaying the blobs is both the simplest and
+	// the most trustworthy way to fill them.
 	{Version: "2026-09-07.100001", Run: func(_ *Store, conn *sqlite.Conn) error {
 		if err := sqlitex.ExecScript(conn, sqlfmt(`
 			CREATE TABLE IF NOT EXISTS comment_live (
 			    tsid TEXT PRIMARY KEY,
 			    blob_id INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+			    genesis TEXT NOT NULL,
 			    resource INTEGER REFERENCES resources (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
 			    ts INTEGER NOT NULL
 			) WITHOUT ROWID;
 
+			CREATE INDEX IF NOT EXISTS comment_live_by_genesis ON comment_live (genesis, ts);
 			CREATE INDEX IF NOT EXISTS comment_live_by_resource ON comment_live (resource, ts);
 			CREATE INDEX IF NOT EXISTS comment_live_by_blob ON comment_live (blob_id);
 
-			CREATE TABLE IF NOT EXISTS resource_comment_stats (
-			    resource INTEGER PRIMARY KEY REFERENCES resources (id) ON UPDATE CASCADE ON DELETE CASCADE,
+			CREATE TABLE IF NOT EXISTS document_comment_stats (
+			    genesis TEXT PRIMARY KEY,
 			    comment_count INTEGER NOT NULL,
 			    last_comment INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE,
 			    last_comment_time INTEGER NOT NULL
 			) WITHOUT ROWID;
 
-			CREATE INDEX IF NOT EXISTS resource_comment_stats_by_last_comment ON resource_comment_stats (last_comment) WHERE last_comment IS NOT NULL;
+			CREATE INDEX IF NOT EXISTS document_comment_stats_by_last_comment ON document_comment_stats (last_comment) WHERE last_comment IS NOT NULL;
 		`)); err != nil {
 			return err
 		}

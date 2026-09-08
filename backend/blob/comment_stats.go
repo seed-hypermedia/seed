@@ -6,11 +6,12 @@ import (
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
+
+	"github.com/ipfs/go-cid"
 )
 
-// Comment activity is maintained here, in two tables, instead of being derived
-// on every read (see the schema comments on comment_live and
-// resource_comment_stats).
+// Comment activity is maintained here, in two tables, instead of being derived on
+// every read (see the schema comments on comment_live and document_comment_stats).
 //
 // Two facts have to be settled to answer "how many comments does this document
 // have, and what's the latest one":
@@ -18,40 +19,42 @@ import (
 //  1. Which blob is the live version of each comment. Comments are edited and
 //     deleted by publishing further blobs that share a TSID, so the live version
 //     is the newest one, and it counts only if it isn't a tombstone. That's
-//     comment_live, and it's settled per TSID as blobs arrive.
+//     comment_live, settled per TSID as blobs arrive.
 //
-//  2. Which comments belong to a resource. A comment records the document path
-//     as it was when it was written, so after a document moves its comments stay
-//     attached to the old path's resource. A resource's comments are therefore
-//     those of its whole redirect-ancestor chain. That's resource_comment_stats.
+//  2. Which document a comment belongs to. That's the genesis of the document its
+//     target version belongs to -- an identity, not a location. A document keeps
+//     its genesis when it moves, so its comments follow it without anyone walking
+//     a redirect chain; and a redirect between two unrelated documents can't merge
+//     their comments, because their genesises differ.
 //
-// Both walks below are seeks from a single resource, never scans of the redirect
-// graph: document_attributes is keyed (resource, key) for the forward direction
-// and indexed (key, kind, value) for the backward one.
-
-// redirectKeyPredicate matches the internal attribute that records a document's
-// redirect target. Written by indexRef when a Ref carries a redirect.
-const redirectKeyPredicate = `dak.key = '$db.redirect'`
+// Both are recomputed from scratch rather than adjusted by deltas. That makes them
+// insensitive to arrival order, which matters because blobs sync out of order and a
+// reindex replays them in blob-id order rather than causal order.
 
 // updateCommentLive settles which blob is the live version of tsid, considering
 // every blob that shares it.
 //
-// Called after a Comment blob is saved, and correct regardless of arrival order:
-// it re-derives the winner from scratch rather than adjusting a counter, so a
-// tombstone arriving before the comment it deletes, or an edit arriving before
-// the version it supersedes, both land on the same answer as any other order.
-// That is the bug this replaces — document_generations.comment_count was
-// maintained by deltas and drifted low on real data.
-func updateCommentLive(conn *sqlite.Conn, tsid TSID) error {
+// Correct regardless of arrival order: it re-derives the winner from scratch, so a
+// tombstone arriving before the comment it deletes, or an edit arriving before the
+// version it supersedes, both land on the same answer as any other order.
+//
+// genesis is the target document's genesis, resolved by the caller. Every version
+// of one comment targets the same document, so it's the same for every blob sharing
+// the TSID, and it's safe to stamp the caller's value onto whichever blob wins.
+func updateCommentLive(conn *sqlite.Conn, tsid TSID, genesis string) error {
 	if tsid == "" {
 		return fmt.Errorf("BUG: updateCommentLive called with empty TSID")
+	}
+
+	if genesis == "" {
+		return fmt.Errorf("BUG: updateCommentLive called with empty genesis for tsid %s", tsid)
 	}
 
 	if err := sqlitex.Exec(conn, qDeleteCommentLive(), nil, string(tsid)); err != nil {
 		return fmt.Errorf("failed to clear live comment for tsid %s: %w", tsid, err)
 	}
 
-	if err := sqlitex.Exec(conn, qInsertCommentLive(), nil, string(tsid)); err != nil {
+	if err := sqlitex.Exec(conn, qInsertCommentLive(), nil, string(tsid), genesis); err != nil {
 		return fmt.Errorf("failed to record live comment for tsid %s: %w", tsid, err)
 	}
 
@@ -59,15 +62,19 @@ func updateCommentLive(conn *sqlite.Conn, tsid TSID) error {
 }
 
 var qDeleteCommentLive = dqb.Str(`
-	DELETE FROM comment_live WHERE tsid = :tsid;
+	DELETE FROM comment_live WHERE tsid = ?1;
 `)
 
 // The winner is the highest (ts, id) among the blobs sharing the TSID, and it's
 // inserted only when it's live: a tombstone winning the TSID leaves no row, which
 // is how deleted comments drop out of every count.
+//
+// Numbered parameters, not named: SQLite assigns named parameters their indices in
+// order of first appearance in the text, so ?1/?2 keeps the binding order tied to
+// the Go call rather than to where each name happens to sit in the query.
 var qInsertCommentLive = dqb.Str(`
-	INSERT INTO comment_live (tsid, blob_id, resource, ts)
-	SELECT tsid, id, resource, ts
+	INSERT INTO comment_live (tsid, blob_id, genesis, resource, ts)
+	SELECT tsid, id, ?2, resource, ts
 	FROM (
 		SELECT
 			sb.extra_attrs->>'tsid' AS tsid,
@@ -76,50 +83,75 @@ var qInsertCommentLive = dqb.Str(`
 			sb.ts AS ts,
 			sb.extra_attrs->>'deleted' AS deleted
 		FROM structural_blobs sb
-		WHERE sb.type = 'Comment'
-		AND sb.extra_attrs->>'tsid' = :tsid
+		WHERE sb.extra_attrs->>'tsid' IS NOT NULL
+		AND sb.extra_attrs->>'tsid' = ?1
+		AND sb.type = 'Comment'
 		ORDER BY sb.ts DESC, sb.id DESC
 		LIMIT 1
 	)
 	WHERE deleted IS NULL AND resource IS NOT NULL;
 `)
 
-// updateResourceCommentStats recomputes comment activity for resource and for
-// every resource it transitively redirects to.
+// updateDocumentCommentStats recomputes one document's comment activity.
 //
-// The redirect targets are included because they inherit the comments: when a
-// document moves from A to B, B's listing must show the comments written against
-// A. So a change at A — a new comment, or a new redirect — moves the numbers for
-// the whole forward chain, and each of those is then recomputed from its own
-// ancestor chain.
+// No walk of any kind: the document is the genesis, and comment_live is indexed by
+// it. This replaces a pair of recursive redirect walks that used to run here, and
+// that had to be reasoned about carefully because they could reach only part of a
+// chain when blobs were replayed out of order.
 //
-// Recomputing rather than adjusting is deliberate, and cheap: both directions are
-// index seeks bounded by the redirect depth limit, and the aggregate reads
-// comment_live by resource.
-func updateResourceCommentStats(conn *sqlite.Conn, resource int64) error {
-	if err := sqlitex.Exec(conn, qDeleteResourceCommentStats(), nil, resource); err != nil {
-		return fmt.Errorf("failed to clear comment stats for resource %d: %w", resource, err)
+// Being a full recompute per genesis, it's also self-correcting: the last comment
+// indexed for a document lands on the right answer no matter what order the rest
+// arrived in, so no end-of-reindex rebuild pass is needed.
+func updateDocumentCommentStats(conn *sqlite.Conn, genesis string) error {
+	if genesis == "" {
+		return fmt.Errorf("BUG: updateDocumentCommentStats called with empty genesis")
 	}
 
-	if err := sqlitex.Exec(conn, qInsertResourceCommentStats(), nil, resource); err != nil {
-		return fmt.Errorf("failed to recompute comment stats for resource %d: %w", resource, err)
+	if err := sqlitex.Exec(conn, qUpsertDocumentCommentStats(), nil, genesis); err != nil {
+		return fmt.Errorf("failed to recompute comment stats for genesis %s: %w", genesis, err)
+	}
+
+	if err := sqlitex.Exec(conn, qPruneDocumentCommentStats(), nil, genesis); err != nil {
+		return fmt.Errorf("failed to prune comment stats for genesis %s: %w", genesis, err)
 	}
 
 	return nil
 }
 
+var qUpsertDocumentCommentStats = dqb.Str(`
+	WITH live AS (
+		SELECT blob_id, ts FROM comment_live WHERE genesis = :genesis
+	)
+	INSERT INTO document_comment_stats (genesis, last_comment, last_comment_time, comment_count)
+	SELECT
+		:genesis,
+		(SELECT blob_id FROM live ORDER BY ts DESC, blob_id DESC LIMIT 1),
+		COALESCE((SELECT MAX(ts) FROM live), 0),
+		(SELECT COUNT(*) FROM live)
+	ON CONFLICT (genesis) DO UPDATE SET
+		last_comment = excluded.last_comment,
+		last_comment_time = excluded.last_comment_time,
+		comment_count = excluded.comment_count;
+`)
+
+// Deleting the last comment of a document leaves a zero row, which would report
+// the same as no row but keep the table growing. Drop it instead.
+var qPruneDocumentCommentStats = dqb.Str(`
+	DELETE FROM document_comment_stats WHERE genesis = :genesis AND comment_count = 0;
+`)
+
 // updateSpaceCommentStats recomputes one space's comment activity.
 //
-// A comment belongs to exactly one space -- the space of the document it targets
-// -- so this needs no redirect walk at all. That is what makes space totals
-// independent of how comments are credited across redirects.
+// Space totals are attributed by location, not identity: a comment counts for the
+// space of the path it was written against. So this reads comment_live by resource
+// while the document counts above read it by genesis, and the two are independent.
 //
-// It recomputes rather than adjusting a delta, for the same reason as
-// updateResourceCommentStats and with the same evidence: on a 6.2 GB production
-// database the delta-maintained totals had drifted to 5062 against 11964 real
-// live comments. The arithmetic was only half of it -- indexComment also gave up
-// entirely when a comment's target changes weren't indexed yet, and nothing ever
-// came back to repair the skipped update.
+// It recomputes rather than adjusting a delta, for the same reason as everything
+// else here and with the same evidence: on a 6.2 GB production database the
+// delta-maintained totals had drifted to 5062 against 11964 real live comments. The
+// arithmetic was only half of it -- indexComment also gave up entirely when a
+// comment's target changes weren't indexed yet, and nothing ever came back to
+// repair the skipped update.
 //
 // last_change_time is deliberately absent from the upsert: that column belongs to
 // touchSpaceStats (blob_ref.go) and has to survive this write.
@@ -135,21 +167,17 @@ func updateSpaceCommentStats(conn *sqlite.Conn, spaceID string) error {
 	return nil
 }
 
-// qSpaceLiveCommentsCTE selects the live comments of one space: its home document
-// plus everything below it. A range rather than a GLOB, so it seeks the
-// resources.iri index ('0' being the character after '/') -- the same trick the
-// document listings use.
-const qSpaceLiveCommentsCTE = `
-	live AS (
+// The scope is the space's own home document plus everything below it, expressed as
+// a range rather than a GLOB so it seeks the resources.iri index ('0' being the
+// character after '/') -- the same trick the document listings use.
+var qUpsertSpaceCommentStats = dqb.Str(`
+	WITH live AS (
 		SELECT l.blob_id, l.ts
 		FROM comment_live l
 		JOIN resources r ON r.id = l.resource
 		WHERE r.iri = 'hm://' || :space
 		OR (r.iri >= 'hm://' || :space || '/' AND r.iri < 'hm://' || :space || '0')
-	)`
-
-var qUpsertSpaceCommentStats = dqb.Str(`
-	WITH` + qSpaceLiveCommentsCTE + `
+	)
 	INSERT INTO spaces (id, last_comment, last_comment_time, comment_count)
 	SELECT
 		:space,
@@ -162,140 +190,48 @@ var qUpsertSpaceCommentStats = dqb.Str(`
 		comment_count = excluded.comment_count;
 `)
 
-// rebuildResourceCommentStats recomputes the whole table in one pass.
+// lookupResourceGenesis returns the genesis of the document currently at a
+// resource, or "" if it has no generation yet.
 //
-// The incremental path above keeps each resource current as blobs arrive, but it
-// can only be as right as the database is at the moment it runs, and a reindex
-// replays history in blob-id order rather than causal order. A redirect Ref can
-// be replayed before the redirect that precedes it in the chain, so the walk from
-// a resource reaches only part of its chain and stops there; nothing revisits it.
-// Measured on a 6.2 GB production database, that left 163 resources — all of them
-// pure redirect targets two or more hops down a chain — with no row at all.
-//
-// So the reindex doesn't rely on the incremental path: it rebuilds from the final
-// state, where every chain is complete. This mirrors deriveAllDocFields, which
-// does the same for the derived document fields and for the same reason.
-//
-// It runs the walk in the cheap direction. Seeding from the resources that
-// actually hold comments and pushing forward touches ~1.5k rows on that database
-// and takes ~13ms; seeding from every resource and walking backwards is the same
-// answer for 3.7s.
-//
-// Space totals need no equivalent pass, and adding one would be dead code.
-// updateSpaceCommentStats recomputes a whole space from comment_live rather than
-// walking anything, so the last comment indexed for a space lands on the right
-// answer no matter what order the rest arrived in. Verified rather than assumed:
-// a full reindex of that same production database leaves all 324 spaces correct
-// with no rebuild pass at all.
-func rebuildResourceCommentStats(conn *sqlite.Conn) error {
-	if err := sqlitex.Exec(conn, qClearResourceCommentStats(), nil); err != nil {
-		return fmt.Errorf("failed to clear comment stats: %w", err)
+// Used for comments that pin no target version: they mean "the document at this
+// path", so their identity is whatever genesis that path currently resolves to.
+func lookupResourceGenesis(conn *sqlite.Conn, resource int64) (out string, err error) {
+	rows, discard, check := sqlitex.Query(conn, qResourceGenesis(), resource).All()
+	defer discard(&err)
+	for row := range rows {
+		out = row.ColumnText(0)
+		break
 	}
 
-	if err := sqlitex.Exec(conn, qRebuildResourceCommentStats(), nil); err != nil {
-		return fmt.Errorf("failed to rebuild comment stats: %w", err)
-	}
-
-	// Space totals need the same treatment, and for a simpler reason than the
-	// per-resource ones: a space's row is written whenever any of its comments is
-	// indexed, so during a replay it settles on whatever subset had arrived by
-	// then. Only rows already in `spaces` are updated -- a space with no row has
-	// no comments to count, and inserting one here would invent a space that
-	// nothing else has registered.
-
-	return nil
+	return out, check()
 }
 
-var qClearResourceCommentStats = dqb.Str(`DELETE FROM resource_comment_stats;`)
-
-var qRebuildResourceCommentStats = dqb.Str(`
-	INSERT INTO resource_comment_stats (resource, comment_count, last_comment_time, last_comment)
-	WITH RECURSIVE spread(target, source, iri, depth) AS (
-		SELECT l.resource, l.resource, r.iri, 0
-		FROM (SELECT DISTINCT resource FROM comment_live) l
-		JOIN resources r ON r.id = l.resource
-
-		UNION ALL
-
-		SELECT r.id, s.source, r.iri, s.depth + 1
-		FROM spread s
-		JOIN resources r ON r.iri = (
-			SELECT da.value
-			FROM document_attributes da
-			JOIN document_attribute_keys dak ON dak.id = da.key AND ` + redirectKeyPredicate + `
-			WHERE da.resource = s.target AND da.kind = 's'
-		)
-		WHERE s.depth < 16 AND r.iri != s.iri
-	)
-	SELECT sp.target, COUNT(*), MAX(l.ts), l.blob_id
-	FROM (SELECT DISTINCT target, source FROM spread) sp
-	JOIN comment_live l ON l.resource = sp.source
-	GROUP BY sp.target;
+var qResourceGenesis = dqb.Str(`
+	SELECT dg.genesis
+	FROM document_generations dg
+	WHERE dg.resource = ?1
+	GROUP BY dg.resource
+	HAVING dg.generation = MAX(dg.generation);
 `)
 
-// qAffectedResourcesCTE walks forward from :resource along redirect edges,
-// yielding the resource itself plus everything it redirects to.
-//
-// The redirect target is fetched with a correlated subquery rather than a join,
-// which is what gets the seek: document_attributes is keyed (resource, key), and
-// only in this shape does the planner use that key. Written as a join, it drives
-// from document_attributes instead and range-scans every redirect attribute in the
-// database on each hop.
-//
-// The depth cap and the `r.iri != a.iri` guard match the ones the listing queries
-// used, and keep a redirect cycle from looping forever.
-const qAffectedResourcesCTE = `
-	affected(resource, iri, depth) AS (
-		SELECT r.id, r.iri, 0 FROM resources r WHERE r.id = :resource
+// lookupBlobCID returns the CID string of a blob id. Used to turn the genesis blob
+// id that changeMetadata carries into the form document_generations.genesis stores,
+// so the listings can join on it directly.
+func lookupBlobCID(conn *sqlite.Conn, id int64) (out string, err error) {
+	rows, discard, check := sqlitex.Query(conn, qLookupCID(), id).All()
+	defer discard(&err)
+	for row := range rows {
+		out = cid.NewCidV1(uint64(row.ColumnInt64(0)), row.ColumnBytes(1)).String() //nolint:gosec
+		break
+	}
 
-		UNION ALL
+	if err := check(); err != nil {
+		return "", err
+	}
 
-		SELECT r.id, r.iri, a.depth + 1
-		FROM affected a
-		JOIN resources r ON r.iri = (
-			SELECT da.value
-			FROM document_attributes da
-			JOIN document_attribute_keys dak ON dak.id = da.key AND ` + redirectKeyPredicate + `
-			WHERE da.resource = a.resource AND da.kind = 's'
-		)
-		WHERE a.depth < 16 AND r.iri != a.iri
-	)`
+	if out == "" {
+		return "", fmt.Errorf("no CID found for blob %d", id)
+	}
 
-var qDeleteResourceCommentStats = dqb.Str(`
-	WITH RECURSIVE` + qAffectedResourcesCTE + `
-	DELETE FROM resource_comment_stats WHERE resource IN (SELECT resource FROM affected);
-`)
-
-// The inner walk goes the other way: for each affected resource, collect every
-// resource that transitively redirects *into* it, because those hold the comments
-// it inherits. Many resources can redirect into one IRI, so this one has to be a
-// join, and the CROSS JOIN is what makes it a seek: it pins the walk as the driver
-// so document_attributes_by_key (key, kind, value) is probed on all three columns.
-// Left to itself the planner drives from document_attributes and only constrains
-// (key, kind), which scans every redirect attribute in the database per hop.
-//
-// DISTINCT before the join: two redirect paths can reach the same ancestor, and
-// counting it twice would inflate the total.
-//
-// last_comment rides along with MAX(ts) as a bare column, so it's the blob of the
-// row that won the MAX — the same thing the query this replaces returned.
-var qInsertResourceCommentStats = dqb.Str(`
-	WITH RECURSIVE` + qAffectedResourcesCTE + `,
-	ancestors(root, resource, iri, depth) AS (
-		SELECT a.resource, a.resource, a.iri, 0 FROM affected a
-
-		UNION ALL
-
-		SELECT n.root, r.id, r.iri, n.depth + 1
-		FROM ancestors n
-		CROSS JOIN document_attributes da ON da.kind = 's' AND da.value = n.iri
-		JOIN document_attribute_keys dak ON dak.id = da.key AND ` + redirectKeyPredicate + `
-		JOIN resources r ON r.id = da.resource
-		WHERE n.depth < 16 AND r.iri != n.iri
-	)
-	INSERT INTO resource_comment_stats (resource, comment_count, last_comment_time, last_comment)
-	SELECT n.root, COUNT(*), MAX(l.ts), l.blob_id
-	FROM (SELECT DISTINCT root, resource FROM ancestors) n
-	JOIN comment_live l ON l.resource = n.resource
-	GROUP BY n.root;
-`)
+	return out, nil
+}

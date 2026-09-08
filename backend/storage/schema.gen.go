@@ -98,6 +98,7 @@ const (
 const (
 	CommentLive         sqlitegen.Table  = "comment_live"
 	CommentLiveBlobID   sqlitegen.Column = "comment_live.blob_id"
+	CommentLiveGenesis  sqlitegen.Column = "comment_live.genesis"
 	CommentLiveResource sqlitegen.Column = "comment_live.resource"
 	CommentLiveTs       sqlitegen.Column = "comment_live.ts"
 	CommentLiveTsid     sqlitegen.Column = "comment_live.tsid"
@@ -107,6 +108,7 @@ const (
 const (
 	T_CommentLive         = "comment_live"
 	C_CommentLiveBlobID   = "comment_live.blob_id"
+	C_CommentLiveGenesis  = "comment_live.genesis"
 	C_CommentLiveResource = "comment_live.resource"
 	C_CommentLiveTs       = "comment_live.ts"
 	C_CommentLiveTsid     = "comment_live.tsid"
@@ -150,6 +152,24 @@ const (
 	C_DocumentAttributesResource  = "document_attributes.resource"
 	C_DocumentAttributesTimestamp = "document_attributes.timestamp"
 	C_DocumentAttributesValue     = "document_attributes.value"
+)
+
+// Table document_comment_stats.
+const (
+	DocumentCommentStats                sqlitegen.Table  = "document_comment_stats"
+	DocumentCommentStatsCommentCount    sqlitegen.Column = "document_comment_stats.comment_count"
+	DocumentCommentStatsGenesis         sqlitegen.Column = "document_comment_stats.genesis"
+	DocumentCommentStatsLastComment     sqlitegen.Column = "document_comment_stats.last_comment"
+	DocumentCommentStatsLastCommentTime sqlitegen.Column = "document_comment_stats.last_comment_time"
+)
+
+// Table document_comment_stats. Plain strings.
+const (
+	T_DocumentCommentStats                = "document_comment_stats"
+	C_DocumentCommentStatsCommentCount    = "document_comment_stats.comment_count"
+	C_DocumentCommentStatsGenesis         = "document_comment_stats.genesis"
+	C_DocumentCommentStatsLastComment     = "document_comment_stats.last_comment"
+	C_DocumentCommentStatsLastCommentTime = "document_comment_stats.last_comment_time"
 )
 
 // Table document_generations.
@@ -554,24 +574,6 @@ const (
 	C_RbsrScopeMaterialized = "rbsr_scope.materialized"
 )
 
-// Table resource_comment_stats.
-const (
-	ResourceCommentStats                sqlitegen.Table  = "resource_comment_stats"
-	ResourceCommentStatsCommentCount    sqlitegen.Column = "resource_comment_stats.comment_count"
-	ResourceCommentStatsLastComment     sqlitegen.Column = "resource_comment_stats.last_comment"
-	ResourceCommentStatsLastCommentTime sqlitegen.Column = "resource_comment_stats.last_comment_time"
-	ResourceCommentStatsResource        sqlitegen.Column = "resource_comment_stats.resource"
-)
-
-// Table resource_comment_stats. Plain strings.
-const (
-	T_ResourceCommentStats                = "resource_comment_stats"
-	C_ResourceCommentStatsCommentCount    = "resource_comment_stats.comment_count"
-	C_ResourceCommentStatsLastComment     = "resource_comment_stats.last_comment"
-	C_ResourceCommentStatsLastCommentTime = "resource_comment_stats.last_comment_time"
-	C_ResourceCommentStatsResource        = "resource_comment_stats.resource"
-)
-
 // Table resource_links.
 const (
 	ResourceLinks           sqlitegen.Table  = "resource_links"
@@ -767,6 +769,7 @@ var Schema = sqlitegen.Schema{
 		BlobsMultihash:                          {Table: Blobs, SQLType: "BLOB"},
 		BlobsSize:                               {Table: Blobs, SQLType: "INTEGER"},
 		CommentLiveBlobID:                       {Table: CommentLive, SQLType: "INTEGER"},
+		CommentLiveGenesis:                      {Table: CommentLive, SQLType: "TEXT"},
 		CommentLiveResource:                     {Table: CommentLive, SQLType: "INTEGER"},
 		CommentLiveTs:                           {Table: CommentLive, SQLType: "INTEGER"},
 		CommentLiveTsid:                         {Table: CommentLive, SQLType: "TEXT"},
@@ -780,6 +783,10 @@ var Schema = sqlitegen.Schema{
 		DocumentAttributesResource:              {Table: DocumentAttributes, SQLType: "INTEGER"},
 		DocumentAttributesTimestamp:             {Table: DocumentAttributes, SQLType: "INTEGER"},
 		DocumentAttributesValue:                 {Table: DocumentAttributes, SQLType: ""},
+		DocumentCommentStatsCommentCount:        {Table: DocumentCommentStats, SQLType: "INTEGER"},
+		DocumentCommentStatsGenesis:             {Table: DocumentCommentStats, SQLType: "TEXT"},
+		DocumentCommentStatsLastComment:         {Table: DocumentCommentStats, SQLType: "INTEGER"},
+		DocumentCommentStatsLastCommentTime:     {Table: DocumentCommentStats, SQLType: "INTEGER"},
 		DocumentGenerationsAuthors:              {Table: DocumentGenerations, SQLType: "JSON"},
 		DocumentGenerationsChangeCount:          {Table: DocumentGenerations, SQLType: "INTEGER"},
 		DocumentGenerationsChanges:              {Table: DocumentGenerations, SQLType: "BLOB"},
@@ -871,10 +878,6 @@ var Schema = sqlitegen.Schema{
 		RbsrScopeKind:                           {Table: RbsrScope, SQLType: "INTEGER"},
 		RbsrScopeLastAccess:                     {Table: RbsrScope, SQLType: "INTEGER"},
 		RbsrScopeMaterialized:                   {Table: RbsrScope, SQLType: "INTEGER"},
-		ResourceCommentStatsCommentCount:        {Table: ResourceCommentStats, SQLType: "INTEGER"},
-		ResourceCommentStatsLastComment:         {Table: ResourceCommentStats, SQLType: "INTEGER"},
-		ResourceCommentStatsLastCommentTime:     {Table: ResourceCommentStats, SQLType: "INTEGER"},
-		ResourceCommentStatsResource:            {Table: ResourceCommentStats, SQLType: "INTEGER"},
 		ResourceLinksExtraAttrs:                 {Table: ResourceLinks, SQLType: "JSONB"},
 		ResourceLinksID:                         {Table: ResourceLinks, SQLType: "INTEGER"},
 		ResourceLinksIsPinned:                   {Table: ResourceLinks, SQLType: "INTEGER"},

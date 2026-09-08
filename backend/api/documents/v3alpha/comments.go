@@ -287,80 +287,56 @@ func (srv *Server) commentDBMapper() sqlitex.MapperFunc[indexedComment] {
 	}
 }
 
-// redirectAncestorsCTE collects every resource whose latest generation transitively
-// redirects to :iri (plus :iri's own resource). Seeded from :iri so the recursion
-// only walks the redirect chain relevant to the requested document, not every
-// Comment in the database. The seed is included unconditionally — even when :iri's
-// own latest generation is itself a redirect — so that comments authored against a
-// moved-away path remain reachable when queried by that path (e.g. notification
-// links that record the historical path).
-const redirectAncestorsCTE = `
-	WITH RECURSIVE
-	latest_document_generations AS (
-		SELECT
-			dg.resource AS resource,
-			da.value AS redirect_iri
-		FROM document_generations dg
-		JOIN document_attributes da ON da.resource = dg.resource AND da.kind = 's'
-		JOIN document_attribute_keys dak ON dak.id = da.key AND dak.key = '$db.redirect'
+// targetGenesisCTE resolves :iri to the genesis of the document that currently
+// lives there -- its identity rather than its location.
+//
+// This replaces a recursive walk that collected every path transitively redirecting
+// to :iri. That walk had no way to tell a move from a redirect between two
+// unrelated documents, so it merged their comments: on a 6.2 GB production database
+// it credited 293 comments written against /tech-talks onto /tech, which has a
+// different genesis. Matching on genesis keeps a moved document's comments (the
+// genesis doesn't change when the path does) and drops the ones that never belonged.
+//
+// Querying by a path the document has moved away from still works, because that
+// path's own latest generation carries the same genesis.
+const targetGenesisCTE = `
+	WITH target_genesis AS (
+		SELECT dg.genesis AS genesis
+		FROM resources r
+		JOIN document_generations dg ON dg.resource = r.id
+		WHERE r.iri = :iri
 		GROUP BY dg.resource
 		HAVING dg.generation = MAX(dg.generation)
-	),
-	redirect_ancestors(resource, iri, depth) AS (
-		SELECT id, iri, 0
-		FROM resources
-		WHERE iri = :iri
-
-		UNION ALL
-
-		SELECT r.id, r.iri, ra.depth + 1
-		FROM redirect_ancestors ra
-		JOIN latest_document_generations dg ON dg.redirect_iri = ra.iri
-		JOIN resources r ON r.id = dg.resource
-		WHERE r.iri != ra.iri
-		AND ra.depth < 16
 	)
 `
 
-var qIterComments = dqb.Str(redirectAncestorsCTE + `
+// The live-version dedup that used to be a ROW_NUMBER() window here is already
+// settled in comment_live, so this just reads it.
+var qIterComments = dqb.Str(targetGenesisCTE + `
 	SELECT
 		sb.id,
-        b.codec,
+		b.codec,
 		b.multihash,
 		b.data,
 		sb.extra_attrs->>'tsid' AS tsid
-	FROM (
-		SELECT
-        	sb.*,
-         	ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC) rn
-        FROM structural_blobs sb
-		WHERE sb.type = 'Comment'
-		AND sb.resource IN (SELECT resource FROM redirect_ancestors)
-	) sb
-	JOIN blobs b ON b.id = sb.id
-	WHERE sb.rn = 1
-	AND sb.extra_attrs->>'deleted' IS NULL
+	FROM comment_live l
+	JOIN structural_blobs sb ON sb.id = l.blob_id
+	JOIN blobs b ON b.id = l.blob_id
+	WHERE l.genesis IN (SELECT genesis FROM target_genesis)
 	ORDER BY sb.ts
 `)
 
-var qIterCommentsPublicOnly = dqb.Str(redirectAncestorsCTE + `
+var qIterCommentsPublicOnly = dqb.Str(targetGenesisCTE + `
 	SELECT
 		sb.id,
-        b.codec,
+		b.codec,
 		b.multihash,
 		b.data,
 		sb.extra_attrs->>'tsid' AS tsid
-	FROM (
-		SELECT
-        	sb.*,
-         	ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC) rn
-        FROM structural_blobs sb
-		WHERE sb.type = 'Comment'
-		AND sb.resource IN (SELECT resource FROM redirect_ancestors)
-	) sb
-	JOIN blobs b ON b.id = sb.id
-	WHERE sb.rn = 1
-	AND sb.extra_attrs->>'deleted' IS NULL
+	FROM comment_live l
+	JOIN structural_blobs sb ON sb.id = l.blob_id
+	JOIN blobs b ON b.id = l.blob_id
+	WHERE l.genesis IN (SELECT genesis FROM target_genesis)
 	AND sb.extra_attrs->>'visibility' IS NOT 'Private'
 	ORDER BY sb.ts
 `)

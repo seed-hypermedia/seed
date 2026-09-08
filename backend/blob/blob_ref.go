@@ -498,15 +498,6 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 		return err
 	}
 
-	// A redirect moves comment activity: everything this document redirects to now
-	// inherits the comments written against this path. dg.save has just written the
-	// $db.redirect attribute the walk follows, so this has to come after it.
-	if v.Redirect != nil {
-		if err := updateResourceCommentStats(conn, resourceID); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 

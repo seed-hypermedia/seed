@@ -2054,9 +2054,12 @@ func baseDocumentsQuery() *dqb.SelectQuery {
 		// aggregation that re-derived every listed document's comment stats from the raw
 		// Comment blobs on every request — 53ms of a 60ms ListDirectory call on a 6.2 GB
 		// production database, and proportional to the comments in scope rather than to
-		// the page size. The maintained table gives byte-identical results, verified
-		// across every resource in that database.
-		LeftJoin(storage.T_ResourceCommentStats+" agg", "agg.resource = dg.resource").
+		// the page size.
+		//
+		// Joined on genesis, not resource: a comment belongs to a document, and a
+		// document's identity is its genesis. That's why a moved document keeps its
+		// comments without anyone walking a redirect chain here.
+		LeftJoin(storage.T_DocumentCommentStats+" agg", "agg.genesis = dg.genesis").
 		Where("r.id = dg.resource").
 		GroupBy("dg.resource").
 		Having("dg.generation = MAX(dg.generation)", "dg.is_deleted = 0").
