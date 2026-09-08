@@ -46,6 +46,11 @@ export function WebFeedPage({docId}: {docId: UnpackedHypermediaId}) {
     (id: UnpackedHypermediaId, origin?: DocumentCardActionOrigin) => destinationDialog.open({id, mode: 'move', origin}),
     [destinationDialog],
   )
+  const onRepublishDocument = useCallback(
+    (id: UnpackedHypermediaId, origin?: DocumentCardActionOrigin) =>
+      destinationDialog.open({id, mode: 'republish', origin}),
+    [destinationDialog],
+  )
   const canWriteDocument = useCallback(
     (id: UnpackedHypermediaId) =>
       !!signingAccountId && (id.uid === signingAccountId || (canEdit && id.uid === docId.uid)),
@@ -61,6 +66,7 @@ export function WebFeedPage({docId}: {docId: UnpackedHypermediaId}) {
           myAccountIds={signingAccountId ? [signingAccountId] : []}
           canWriteDocument={canWriteDocument}
           onMoveDocument={signingAccountId ? onMoveDocument : undefined}
+          onRepublishDocument={signingAccountId ? onRepublishDocument : undefined}
           onDeleteDocument={onDeleteDocument}
         >
           <FeedPage docId={docId} extraMenuItems={menuItems} rightActions={<WebHeaderActions siteUid={docId.uid} />} />

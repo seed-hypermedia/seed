@@ -50,6 +50,7 @@ const (
 	maxPageAllocBuffer             = 400  // Arbitrary limit to prevent allocating too much memory when client requested huge page size.
 	maxQueryDocumentsPageSize      = 1000
 	maxQueryDocumentSorts          = 16
+	maxRedirectHops                = 16
 	publicOnlyListVisibilityFilter = `dg.visibility IS NOT 'Private'`
 	indexedAttributeString         = "s"
 	indexedAttributeBool           = "b"
@@ -1076,6 +1077,39 @@ type documentChangeParams struct {
 	allowPrivateCreationForTest bool
 }
 
+// loadDocumentForChange loads the document that a change should build on, following redirect Refs.
+//
+// A path holding a redirect Ref (a republished or moved document) has no change DAG of its own, so
+// editing it is a takeover: the Change must build on the redirect target's DAG, and the fresh-
+// generation Version Ref the client publishes at this path supersedes the redirect. This resolves
+// the redirect chain (bounded, matching the reader-side limit) and loads the target, so the change
+// shares the target's genesis and heads — otherwise PrepareChange would mint a brand-new genesis
+// that disagrees with the client-signed Ref, and the publish would fail.
+func (srv *Server) loadDocumentForChange(ctx context.Context, ns core.Principal, path string, heads []cid.Cid) (*docmodel.Document, error) {
+	for hop := 0; hop < maxRedirectHops; hop++ {
+		info, err := srv.loadDocumentInfo(ctx, ns, path)
+		if err != nil {
+			if status.Code(err) == codes.NotFound {
+				break // No document at this path; load a fresh one below.
+			}
+			return nil, err
+		}
+
+		if info.RedirectInfo == nil {
+			break // Not a redirect; edit this document.
+		}
+
+		redirectNS, err := core.DecodePrincipal(info.RedirectInfo.Account)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid redirect target account %q: %v", info.RedirectInfo.Account, err)
+		}
+
+		ns, path = redirectNS, info.RedirectInfo.Path
+	}
+
+	return srv.loadDocument(ctx, ns, path, heads, true)
+}
+
 // handleDocumentChangeRequest validates input, loads or creates the document, and applies the requested changes.
 func (srv *Server) handleDocumentChangeRequest(ctx context.Context, in documentChangeParams) (*docmodel.Document, error) {
 	ns, err := core.DecodePrincipal(in.Account)
@@ -1114,7 +1148,7 @@ func (srv *Server) handleDocumentChangeRequest(ctx context.Context, in documentC
 		return nil, err
 	}
 
-	doc, err := srv.loadDocument(ctx, ns, in.Path, heads, true)
+	doc, err := srv.loadDocumentForChange(ctx, ns, in.Path, heads)
 	if err != nil {
 		if status.Code(err) != codes.FailedPrecondition {
 			return nil, err

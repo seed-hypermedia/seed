@@ -77,22 +77,30 @@ export function WebDocumentDestinationDialog({
   const writableDocuments = useWebWritableDestinations(input.id, signingAccountId, writableLocationId)
 
   async function onSubmit(submitInput: DocumentDestinationSubmitInput) {
-    if (submitInput.mode !== 'move') throw new Error('Republish is not available on web yet')
-    if (!canMove) throw new Error('You are not allowed to move this document')
-    if (submitInput.draft?.draftId) {
-      await moveWebDraft({
-        draftId: submitInput.draft.draftId,
+    if (submitInput.mode === 'move') {
+      if (!canMove) throw new Error('You are not allowed to move this document')
+      if (submitInput.draft?.draftId) {
+        await moveWebDraft({
+          draftId: submitInput.draft.draftId,
+          from: submitInput.from,
+          to: submitInput.to,
+          origin: submitInput.origin,
+        })
+        return
+      }
+      await moveWebDocuments(client, {
         from: submitInput.from,
         to: submitInput.to,
+        childDocuments,
         origin: submitInput.origin,
+        signingAccountId: submitInput.signingAccountId,
+        capabilityId,
       })
       return
     }
-    await moveWebDocuments(client, {
+    await republishWebDocument(client, {
       from: submitInput.from,
       to: submitInput.to,
-      childDocuments,
-      origin: submitInput.origin,
       signingAccountId: submitInput.signingAccountId,
       capabilityId,
     })
@@ -104,7 +112,7 @@ export function WebDocumentDestinationDialog({
       onClose={onClose || (() => {})}
       selectedAccountUid={signingAccountId}
       writableDocuments={writableDocuments}
-      enabledModes={['move']}
+      enabledModes={['move', 'republish']}
       onSubmit={onSubmit}
       onSuccess={({to}) => navigate({key: 'document', id: to})}
     />

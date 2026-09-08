@@ -3010,6 +3010,108 @@ func TestPrepareChangeAndSubmit(t *testing.T) {
 	require.Contains(t, got.Version, signedChange.CID.String(), "version must reference the submitted change")
 }
 
+func TestPrepareChangeTakesOverRedirect(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+	space := alice.me.Account.PublicKey.String()
+
+	// A canonical document with blocks [a, b].
+	target, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        space,
+		Path:           "/guide",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "a", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "a", Type: "paragraph", Text: "Block A"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b", Parent: "", LeftSibling: "a"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b", Type: "paragraph", Text: "Block B"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	targetGenesis, err := cid.Decode(target.Genesis)
+	require.NoError(t, err)
+
+	// Republish it at /mirror: a redirect Ref with republish=true.
+	_, err = alice.CreateRef(ctx, &documents.CreateRefRequest{
+		SigningKeyName: "main",
+		Account:        space,
+		Path:           "/mirror",
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Redirect_{
+				Redirect: &documents.RefTarget_Redirect{
+					Account:   space,
+					Path:      "/guide",
+					Republish: true,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Editing the republished path is a takeover: PrepareChange must build on the redirect
+	// target's DAG rather than minting a fresh genesis that disagrees with the client-signed Ref.
+	prepared, err := alice.PrepareChange(ctx, &documents.PrepareChangeRequest{
+		Account:     space,
+		Path:        "/mirror",
+		BaseVersion: target.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "c", Parent: "", LeftSibling: "b"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "c", Type: "paragraph", Text: "Block C"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	var unsigned blob.Change
+	require.NoError(t, cbornode.DecodeInto(prepared.UnsignedChange, &unsigned))
+	require.Equal(t, targetGenesis, unsigned.Genesis, "the change must build on the redirect target's genesis, not a fresh one")
+	require.NotEmpty(t, unsigned.Deps, "the change must depend on the target's heads")
+
+	// Sign the change and submit a fresh-generation Ref at the redirect path, superseding the redirect.
+	kp := alice.me.Account
+	signedChange, err := signPreparedChangeBlob(prepared.UnsignedChange, kp)
+	require.NoError(t, err)
+
+	redirectInfo, err := alice.GetDocumentInfo(ctx, &documents.GetDocumentInfoRequest{Account: space, Path: "/mirror"})
+	require.NoError(t, err)
+
+	ref, err := blob.NewRef(
+		kp,
+		redirectInfo.GenerationInfo.Generation+1,
+		targetGenesis,
+		kp.Principal(),
+		"/mirror",
+		[]cid.Cid{signedChange.CID},
+		time.Now().Round(blob.ClockPrecision),
+		blob.VisibilityPublic,
+	)
+	require.NoError(t, err)
+	require.NoError(t, alice.idx.PutMany(ctx, []blocks.Block{signedChange, ref}))
+
+	// The republished path now serves the edited document, no longer a redirect.
+	got, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: space,
+		Path:    "/mirror",
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Content, 3, "must have 3 blocks after takeover")
+	require.Equal(t, "Block C", got.Content[2].Block.Text, "the new block must be present")
+	require.Equal(t, targetGenesis.String(), got.Genesis, "the takeover keeps the target's genesis")
+}
+
 func TestPrepareChangeBlockReordering(t *testing.T) {
 	t.Parallel()
 
