@@ -5,6 +5,7 @@ import {MessageCircle} from 'lucide-react'
 import {createContext, useContext} from 'react'
 import {parseSpaceAgentIds} from './agents/space-agents'
 import {Button} from './button'
+import {SmallListItem} from './list-item'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
@@ -75,5 +76,27 @@ export function AssistantPanelHeaderButton({siteUid}: {siteUid: string}) {
         <MessageCircle className="size-4" />
       </Button>
     </Tooltip>
+  )
+}
+
+/**
+ * The same toggle as a row in the site header's mobile menu, where there is no room for the
+ * button. `onClick` runs after the toggle so the menu can close over the panel it just opened.
+ */
+export function AssistantPanelMenuItem({siteUid, onClick}: {siteUid: string; onClick?: () => void}) {
+  const toggle = useAssistantPanelToggle()
+  const hasAgentServer = useHasAgentServer(siteUid)
+  if (!toggle || !hasAgentServer) return null
+  return (
+    <SmallListItem
+      bold
+      active={toggle.isOpen}
+      title={toggle.isOpen ? 'Close Agents' : 'Agents'}
+      icon={<MessageCircle className="size-4" />}
+      onClick={() => {
+        toggle.toggle()
+        onClick?.()
+      }}
+    />
   )
 }

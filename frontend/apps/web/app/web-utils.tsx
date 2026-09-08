@@ -1,4 +1,4 @@
-import {useAssistantAutoOpen, useAssistantPanel} from '@/assistant-panel-state'
+import {useAssistantAutoOpen} from '@/assistant-panel-state'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client'
 import type {HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
@@ -19,7 +19,7 @@ import {isNotificationEventRead} from '@shm/shared/models/notification-read-logi
 import {hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
-import {useHasAgentServer, useSiteAgents} from '@shm/ui/assistant-panel-toggle'
+import {useSiteAgents} from '@shm/ui/assistant-panel-toggle'
 import {ButtonLink} from '@shm/ui/button'
 import {
   DropdownMenu,
@@ -45,7 +45,6 @@ import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
 import {
   Bell,
-  Bot,
   ExternalLink,
   FilePlus2,
   Globe,
@@ -312,13 +311,10 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const media = useMedia()
   const isMobile = media.xs
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const assistantPanel = useAssistantPanel()
-  // The entry point is offered whenever the reader has an agents server to talk to: the one this
-  // space names, or the deployment's default. A space naming none, on a deployment with no default,
-  // has nothing to show, so nothing is offered while browsing it. Availability stays absent until
-  // the home document has loaded, so the item appears late rather than appearing and then vanishing.
+  // The panel's entry points live in the site header (see @shm/ui/assistant-panel-toggle); the
+  // space's own agents only matter here for the first-arrival auto-open.
   const siteAgents = useSiteAgents(siteUid)
-  const hasSiteAgents = useHasAgentServer(siteUid)
+  const hasSiteAgents = !!siteAgents.serverUrl
   // First arrival: a signed-in reader of a space that publishes agents finds the panel already
   // open, once, on a viewport wide enough to show it beside the page. Closing it is remembered.
   useAssistantAutoOpen(!!keyPair && hasSiteAgents && siteAgents.publishesAgents && !isMobile)
@@ -388,21 +384,6 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
         <UserCog className="size-5" />
         <span className="text-sm">Manage account</span>
       </button>
-      {hasSiteAgents ? (
-        <>
-          <div className="bg-border mx-4 h-px" />
-          <button
-            className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
-            onClick={() => {
-              setMobileMenuOpen(false)
-              assistantPanel.toggle()
-            }}
-          >
-            <Bot className="size-5" />
-            <span className="text-sm">{assistantPanel.isOpen ? 'Close Agents' : 'Agents'}</span>
-          </button>
-        </>
-      ) : null}
       <div className="bg-border mx-4 h-px" />
       {canCreateSpace ? (
         <button
