@@ -282,6 +282,18 @@ export function AssistantPanel({
   const deleteSession = useDeleteAgentSession(activeSession?.serverUrl, accountUid)
   const deleteDialog = useAppDialog(DeleteSessionDialog, {isAlert: true})
   const createAgentDialog = useAppDialog(CreateAgentDialog)
+  // Creating from the sidebar stays in the sidebar: select the new agent's context and open a
+  // draft so the user can talk to it immediately.
+  const openCreateAgent = () =>
+    createAgentDialog.open({
+      serverUrls: serverUrls.data || [],
+      selectedAccountId: accountUid,
+      onCreated: ({serverUrl, agentId}) => {
+        setChosenAgent({serverUrl, agentId})
+        setIsDraft(true)
+        focusInput()
+      },
+    })
 
   return (
     <div className="flex h-full flex-col">
@@ -301,19 +313,7 @@ export function AssistantPanel({
           localServerUrl={localServerUrl.data ?? null}
           advertisedServerUrl={serverUrls.advertisedServerUrl}
           onSelect={(key) => setChosenAgent(key)}
-          onCreateAgent={() =>
-            createAgentDialog.open({
-              serverUrls: serverUrls.data || [],
-              selectedAccountId: accountUid,
-              // Creating from the sidebar stays in the sidebar: select the new agent's context and
-              // open a draft so the user can talk to it immediately.
-              onCreated: ({serverUrl, agentId}) => {
-                setChosenAgent({serverUrl, agentId})
-                setIsDraft(true)
-                focusInput()
-              },
-            })
-          }
+          onCreateAgent={openCreateAgent}
           onOpenAgentsPage={() => navigate({key: 'agents'})}
           onOpenAgentPage={
             activeAgent
@@ -450,8 +450,21 @@ export function AssistantPanel({
           ))}
         </div>
       ) : (
-        <div className="text-muted-foreground flex flex-1 items-center justify-center px-4 text-center text-xs">
-          No agents yet. Create one from the Agents menu above.
+        // Nothing to talk to yet — neither agents of the user's own on any server nor agents the
+        // space publishes. The sidebar's whole purpose is blocked, so say so prominently and open
+        // the create dialog right here; it walks through provider and model.
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
+          <div className="bg-muted text-muted-foreground flex size-12 items-center justify-center rounded-full">
+            <Bot className="size-6" />
+          </div>
+          <SizableText weight="bold">No agents yet</SizableText>
+          <SizableText size="sm" color="muted">
+            Create an agent to start chatting. You choose its model and give it a name and instructions.
+          </SizableText>
+          <Button className="mt-2" onClick={openCreateAgent}>
+            <Plus className="size-4" />
+            Create an agent
+          </Button>
         </div>
       )}
     </div>
