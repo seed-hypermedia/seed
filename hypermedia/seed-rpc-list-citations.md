@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListCitations"
 summary: "Lists raw citations of a target resource. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `"
-schemaDefinition: ipfs://bafyreidheicn4pdafi54wg32jxm3hmcnzchauul5ldmljibsd5nfjxcxzm
+schemaDefinition: ipfs://bafyreidgqn26anermyecpavq4dr7ko5xlsf7fxseovvwk4qxptegg6n4zu
 ---
 Lists raw citations of a target resource. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:EWDwlcgM -->
 
@@ -10,7 +10,7 @@ This document describes the **seed-rpc-list-citations** type — a Seed API read
 # Shape <!-- id:z2qy10O8 -->
 
 A **closed struct** with these fields: <!-- id:DCfHjHME -->
-  - `key` _(required)_ — `string` enum: `ListCitations` <!-- id:kLPa7FFC -->
+  - `key` _(required)_ — `"ListCitations"` <!-- id:kLPa7FFC -->
   - `input` _(required)_ — map { 1 fields } <!-- id:764R8Zt5 -->
   - `output` _(required)_ — map { 1 fields } <!-- id:q3KgSdY9 -->
 

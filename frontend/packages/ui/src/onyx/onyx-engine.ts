@@ -34,6 +34,7 @@ export const LIBRARY_CORE: ReadonlySet<string> = new Set(
     'property',
     'schema',
     'anyof',
+    'literal-schema',
     'struct-schema',
     'map-schema',
     'list-schema',
@@ -177,7 +178,55 @@ function typeMatches(type: string, d: any): boolean {
   }
 }
 
-const REFINE = ['properties', 'required', 'values', 'items', 'enum']
+const REFINE = ['properties', 'required', 'values', 'items']
+
+// --- literals ---------------------------------------------------------------
+//
+// A literal schema accepts exactly one value. It is written as the bare value —
+// `"draft"`, `1`, `true`, `null` — or, when it needs a description, as
+// `{value, description}`. A union of literals (`{anyOf: ["draft", "published"]}`)
+// is how a schema restricts a field to a fixed set of values.
+
+/** True for a literal schema: a bare scalar, or `{value, description?}` with no other schema keys. */
+export function isLiteralSchema(s: any): boolean {
+  if (s === undefined) return false
+  if (s === null || typeof s !== 'object') return true
+  if (Array.isArray(s)) return false
+  return 'value' in s && !('type' in s || 'ref' in s || 'anyOf' in s || 'var' in s || 'params' in s)
+}
+/** The scalars a literal can be. */
+export type OnyxLiteral = string | number | boolean | null
+/** A bare literal, typed as the schema it is. (`OnyxSchema` is the map shape
+ * for static typing; at runtime a bare scalar is a schema too.) */
+export const literalSchema = (v: OnyxLiteral): OnyxSchema => v as unknown as OnyxSchema
+/** The one value a literal schema accepts (either spelling). */
+export const literalValue = (s: any): unknown => (s !== null && typeof s === 'object' ? s.value : s)
+/** The long form of a literal node, so every resolved schema is an object. */
+const literalNode = (s: any): OnyxSchema => (s !== null && typeof s === 'object' ? s : {value: s})
+
+export type LiteralMember = {value: unknown; description?: string}
+/**
+ * The members of a literal schema (one) or a union whose every arm is a literal
+ * (each arm), in order — the options a form offers for the field. Null when the
+ * schema is anything else.
+ */
+export function literalMembers(schema: OnyxSchema, reg: OnyxRegistry = {}): LiteralMember[] | null {
+  const {schema: r} = resolveSchema(schema, {}, reg)
+  if (!r || r.__missing || r.__unbound) return null
+  const member = (node: OnyxSchema): LiteralMember => ({
+    value: node.value,
+    description: typeof node.description === 'string' ? node.description : undefined,
+  })
+  if (isLiteralSchema(r)) return [member(r)]
+  if (!Array.isArray(r.anyOf) || r.anyOf.length === 0) return null
+  const out: LiteralMember[] = []
+  for (const arm of r.anyOf) {
+    const {schema: a} = resolveSchema(arm, {}, reg)
+    if (!a || !isLiteralSchema(a)) return null
+    out.push(member(a))
+  }
+  return out
+}
 
 // --- struct fields ----------------------------------------------------------
 //
@@ -191,9 +240,12 @@ export type PropertyEntry = {value: OnyxSchema; required?: boolean; description?
 /** A struct field, whichever shape the schema wrote it in. */
 export type StructField = {name: string; schema: OnyxSchema; required: boolean; description?: string}
 
-/** True for a `properties` entry in the current shape ({value, …}); a schema node never has `value`. */
+/** True for a `properties` entry in the current shape ({value, …}). A literal
+ * schema is also spelled `{value}`, but a `properties` entry always wraps its
+ * field's schema, so in that position `value` is the field's schema — and a
+ * field whose schema is the literal `"x"` is simply `{value: "x"}`. */
 export function isPropertyEntry(v: any): v is PropertyEntry {
-  return !!v && typeof v === 'object' && 'value' in v && !('type' in v || 'ref' in v || 'anyOf' in v || 'var' in v)
+  return !!v && typeof v === 'object' && !Array.isArray(v) && 'value' in v
 }
 
 /** A struct's fields, in declaration order. */
@@ -204,7 +256,7 @@ export function structFields(schema: OnyxSchema | undefined): StructField[] {
     isPropertyEntry(entry)
       ? {
           name,
-          schema: entry.value ?? {},
+          schema: entry.value === undefined ? {} : entry.value,
           required: entry.required === true,
           description: typeof entry.description === 'string' ? entry.description : undefined,
         }
@@ -255,8 +307,6 @@ export function mergeExtend(parent: OnyxSchema, ext: OnyxSchema): OnyxSchema {
   if (values) merged.values = values
   const items = ext.items ?? parent.items
   if (items) merged.items = items
-  const en = ext.enum ?? parent.enum
-  if (en) merged.enum = en
   // Leaf refinements are inherited by a subtype (a `{ref: date, …}` stays a
   // date; `{ref: ipfs, target}` keeps its format and gains a target).
   for (const k of LEAF_KEYS) {
@@ -287,6 +337,7 @@ export type Resolved = {schema: OnyxSchema; env: Record<string, any>}
  * type variables. `reg` supplies additional (non-bundled) schemas.
  */
 export function resolveSchema(schema: OnyxSchema, env: Record<string, any> = {}, reg: OnyxRegistry = {}): Resolved {
+  if (isLiteralSchema(schema)) return {schema: literalNode(schema), env}
   if (schema.params) {
     const penv = {...env}
     for (const [p, def] of Object.entries(schema.params)) if (penv[p] === undefined) penv[p] = def
@@ -335,6 +386,11 @@ export function validate(
   if (schema.__unbound) return [`${path}: unbound type variable "${schema.__unbound}"`]
   if (schema.__missing) return [`${path}: unresolved reference "${schema.__missing}"`]
 
+  if (isLiteralSchema(schema))
+    return deepEqual(schema.value, data)
+      ? []
+      : [`${path}: expected ${JSON.stringify(schema.value)}, got ${JSON.stringify(data)}`]
+
   if (schema.anyOf) {
     const attempts = schema.anyOf.map((v: OnyxSchema) => validate(v, data, path, env, reg))
     if (attempts.some((e: string[]) => e.length === 0)) return []
@@ -346,9 +402,6 @@ export function validate(
   }
 
   const errors: string[] = []
-  if (schema.enum && !schema.enum.some((v: any) => deepEqual(v, data)))
-    errors.push(`${path}: ${JSON.stringify(data)} not in enum ${JSON.stringify(schema.enum)}`)
-
   const kind = schema.type ? kindOf(schema.type) : null
   if (kind && !typeMatches(kind, data)) {
     errors.push(`${path}: expected ${kind}, got ${typeOf(data)}`)
@@ -422,7 +475,9 @@ export function isOnyxSchema(value: unknown, reg: OnyxRegistry = {}): boolean {
  * (Struct, Map, String…), or the type it extends. Null when nothing names it.
  */
 export function schemaShape(schema: OnyxSchema | undefined): {label: string; slug: string} | null {
-  if (!schema || typeof schema !== 'object') return null
+  if (schema === undefined) return null
+  if (isLiteralSchema(schema)) return {label: 'Literal', slug: 'hypermedia-literal-schema'}
+  if (typeof schema !== 'object') return null
   if (Array.isArray(schema.anyOf)) return {label: 'Union', slug: 'hypermedia-anyof'}
   if (typeof schema.var === 'string') return {label: `⟨${schema.var}⟩`, slug: 'hypermedia-var-schema'}
   if (typeof schema.type === 'string') {
@@ -457,7 +512,7 @@ export function collectRefs(schema: any, acc = new Set<string>()): Set<string> {
     if (kind !== schema.type && ONYX_SCHEMAS[`hypermedia-${kind}`]) acc.add(`hypermedia-${kind}`)
   }
   for (const [k, v] of Object.entries(schema)) {
-    if (k === 'ref' || k === 'type' || k === 'enum') continue
+    if (k === 'ref' || k === 'type') continue
     if (v && typeof v === 'object') collectRefs(v, acc)
   }
   return acc

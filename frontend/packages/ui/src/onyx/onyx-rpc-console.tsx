@@ -13,7 +13,15 @@ import {Button} from '../button'
 import {Spinner} from '../spinner'
 import {cn} from '../utils'
 import {OnyxDataEditor, seedValue} from './onyx-data-editor'
-import {ONYX_SCHEMAS, type OnyxSchema, fieldSchema, refToName, validate} from './onyx-engine'
+import {
+  ONYX_SCHEMAS,
+  type OnyxSchema,
+  fieldSchema,
+  isLiteralSchema,
+  literalValue,
+  refToName,
+  validate,
+} from './onyx-engine'
 
 export type RpcMethod = {
   /** The schema basename, e.g. `seed-rpc-search`. */
@@ -34,7 +42,8 @@ export function rpcMethods(): RpcMethod[] {
     if (!variant.ref) continue
     const slug = refToName(variant.ref)
     const schema = ONYX_SCHEMAS[slug]
-    const key = fieldSchema(schema, 'key')?.enum?.[0]
+    const keyNode = fieldSchema(schema, 'key')
+    const key = keyNode !== undefined && isLiteralSchema(keyNode) ? literalValue(keyNode) : undefined
     const input = fieldSchema(schema, 'input')
     const output = fieldSchema(schema, 'output')
     if (typeof key !== 'string' || !input || !output) continue

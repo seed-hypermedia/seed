@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListDocumentCollaborators"
 summary: "Resolves a document's full collaboration picture. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you"
-schemaDefinition: ipfs://bafyreicupx465vptnruojff2snej27vqyudya3rt5zhw36xe74pmab63ri
+schemaDefinition: ipfs://bafyreibmxncmzillcbrfmjkbfs5z6rlx47siditlx3km42tlr6vmufvzei
 ---
 Resolves a document's full collaboration picture. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:SpxLa0Jx -->
 
@@ -10,7 +10,7 @@ This document describes the **seed-rpc-list-document-collaborators** type — a 
 # Shape <!-- id:QWP-bfOj -->
 
 A **closed struct** with these fields: <!-- id:EdUzp_Jx -->
-  - `key` _(required)_ — `string` enum: `ListDocumentCollaborators` <!-- id:p-hlomXS -->
+  - `key` _(required)_ — `"ListDocumentCollaborators"` <!-- id:p-hlomXS -->
   - `input` _(required)_ — map { 1 fields } <!-- id:L0_8TywV -->
   - `output` _(required)_ — [seed-collaborators-payload](./seed-collaborators-payload.md) <!-- id:YQbNwJ0I -->
 

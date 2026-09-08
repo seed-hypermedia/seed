@@ -30,7 +30,7 @@ describe('seedValue', () => {
     expect(seed).toMatchObject({lat: 0, lng: 0})
   })
 
-  it('synthesizes the first enum member for example-status', () => {
+  it('synthesizes the first literal member for example-status', () => {
     expect(seedValue(ONYX_SCHEMAS['example-status'])).toBe('draft')
   })
 })
@@ -47,7 +47,7 @@ describe('OnyxDataEditor', () => {
     expect(container.querySelectorAll('input').length).toBeGreaterThan(0)
   })
 
-  it('renders an enum <select> for example-status', () => {
+  it('renders a <select> of the literal members for example-status', () => {
     const schema = ONYX_SCHEMAS['example-status']
     act(() => {
       root.render(<OnyxDataEditor schema={schema} value={seedValue(schema)} onValue={() => {}} />)

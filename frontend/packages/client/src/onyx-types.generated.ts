@@ -868,7 +868,6 @@ export type HMIncludeSchema = {
   properties?: {[key: string]: HMProperty}
   values?: HMSchema
   items?: HMSchema
-  enum?: unknown[]
   /** For a reference-valued string (`format: hm-url` or `format: ipfs`): the schema the referenced document or object is expected to conform to — an `hm://` schema-document URL or `ipfs://<cid>`. Advisory: an editor pre-seeds and validates the target against it; a validator does not dereference the reference. */
   target?: string
   description?: string
@@ -920,6 +919,18 @@ export type HMListSchema = {
   description?: string
   params?: {[key: string]: HMSchema}
   name?: string
+}
+
+/**
+ * Literal schema
+ * The variant for a literal — a schema that accepts exactly one value, with a description of what that value means.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-literal-schema
+ */
+export type HMLiteralSchema = {
+  /** The one value this schema accepts: a string, integer, boolean, or null. */
+  value: HMValue
+  /** What this value means, for people and for the editors that offer it. */
+  description?: string
 }
 
 /**
@@ -1173,7 +1184,7 @@ export type HMRole = 'WRITER' | 'AGENT'
 
 /**
  * Scalar schema
- * The variant for a scalar value (null, boolean, integer, float, string, bytes), optionally restricted by enum.
+ * The variant for a scalar value (null, boolean, integer, float, string, bytes), optionally narrowed by value constraints. To pin a scalar to one value, use a literal.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-scalar-schema
  */
 export type HMScalarSchema = {
@@ -1184,7 +1195,6 @@ export type HMScalarSchema = {
     | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-float'
     | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string'
     | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-bytes'
-  enum?: unknown[]
   minLength?: number
   maxLength?: number
   pattern?: string
@@ -1213,6 +1223,11 @@ export type HMSchema =
   | HMIncludeSchema
   | HMAnyof
   | HMVarSchema
+  | HMLiteralSchema
+  | string
+  | number
+  | boolean
+  | null
 
 /**
  * Signature
@@ -1227,7 +1242,6 @@ export type HMSignature = OnyxBytes
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct-schema
  */
 export type HMStructSchema = {
-  /** Always the struct core type. */
   type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct'
   /** The fields by name: each a property with its value schema, whether it is required, and a description. */
   properties?: {[key: string]: HMProperty}

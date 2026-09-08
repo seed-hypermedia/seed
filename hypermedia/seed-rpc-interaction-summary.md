@@ -1,7 +1,7 @@
 ---
 name: "RPC: InteractionSummary"
 summary: "Aggregates interaction counts for a document, per block included. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` fiel"
-schemaDefinition: ipfs://bafyreicchzfcblhdxn7u3lccp2w4qnj65cilqzg5kovffoz45uv4bejoqi
+schemaDefinition: ipfs://bafyreibbjabanxzvdm6npizc4mvyzzsjlqxwactxulrssztx4ytkewe3ma
 ---
 Aggregates interaction counts for a document, per block included. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:o5tltrJQ -->
 
@@ -10,7 +10,7 @@ This document describes the **seed-rpc-interaction-summary** type — a Seed API
 # Shape <!-- id:_jdaQjrs -->
 
 A **closed struct** with these fields: <!-- id:C6ObWmqI -->
-  - `key` _(required)_ — `string` enum: `InteractionSummary` <!-- id:jeZVsYXW -->
+  - `key` _(required)_ — `"InteractionSummary"` <!-- id:jeZVsYXW -->
   - `input` _(required)_ — map { 1 fields } <!-- id:8lSMzs7Y -->
   - `output` _(required)_ — [seed-interaction-summary](./seed-interaction-summary.md) <!-- id:atPqOBD3 -->
 

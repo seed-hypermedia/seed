@@ -1,7 +1,7 @@
 ---
 name: Place
 summary: "A world-builder kit type: a page about a place. Its metadata requires a `kind`, may carry a `founded` date, nests inside a `region` (another Place), and links t"
-schemaDefinition: ipfs://bafyreihhzeumdx5qbmihpkby3zmxpjfkx25i35lf7l7jo3ps26q73ohodu
+schemaDefinition: ipfs://bafyreig734a4er3lg6ldtcgm7x3znizeyqeb3czsdacvfohf2rmvtqfvce
 ---
 A world-builder kit type: a page about a place. Its metadata requires a `kind`, may carry a `founded` date, nests inside a `region` (another Place), and links to a coordinates object (an `ipfs://` object conforming to Geo point). <!-- id:7NTBcQkU -->
 

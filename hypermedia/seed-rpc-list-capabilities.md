@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListCapabilities"
 summary: "Lists raw capabilities granted on a target. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass;"
-schemaDefinition: ipfs://bafyreicfk5ak6cfyuspkhnslg4cnl6tp2gnetctcl54bkd4jo2oxprr354
+schemaDefinition: ipfs://bafyreieoylw7amenhpwkiinmv6lcvlhkpjzdjkwufdd3nfukzwas4wpgka
 ---
 Lists raw capabilities granted on a target. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:L8_yo2Q9 -->
 
@@ -10,7 +10,7 @@ This document describes the **seed-rpc-list-capabilities** type — a Seed API r
 # Shape <!-- id:YK3vwxSB -->
 
 A **closed struct** with these fields: <!-- id:RQY-bLCd -->
-  - `key` _(required)_ — `string` enum: `ListCapabilities` <!-- id:6HrUMgDQ -->
+  - `key` _(required)_ — `"ListCapabilities"` <!-- id:6HrUMgDQ -->
   - `input` _(required)_ — map { 1 fields } <!-- id:2dxY9qtk -->
   - `output` _(required)_ — map { 1 fields } <!-- id:xLkK3UYa -->
 

@@ -1,14 +1,14 @@
 ---
 name: Table row block
 summary: One row of a Table block. Its children are Paragraph cell blocks, each carrying a columnId attribute referencing a TableColumn id.
-schemaDefinition: ipfs://bafyreibl37n35fzgkqx7sahb34utsbe4ixwvf2o4o5qi3au3y5tagp6cfa
+schemaDefinition: ipfs://bafyreicn3gyfzlbgaxsafnjdfi3wcce3u4jdvdh7n4g2p76ckefbymrcj4
 ---
 This document describes the **hypermedia-block-table-row** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:BjIgY6_L -->
 
 # Shape <!-- id:rU9d2YT4 -->
 
 **Extends** [hypermedia-block-base](./hypermedia-block-base.md) with these added fields: <!-- id:YSpWVasd -->
-  - `type` — `string` enum: `TableRow` <!-- id:35dzjlct -->
+  - `type` — `"TableRow"` <!-- id:35dzjlct -->
   - `attributes` — map { 3 fields } <!-- id:isb0u9Q- -->
 
 # Depends on <!-- id:bJfnmYvm -->
