@@ -70,12 +70,12 @@ on this box regardless of the cap; the box itself (4 vCPU, 7.7 GB) leaves ~2 cor
 2. **Measure at 6–8 runs**: main-thread CPU, in-container `/api/health` latency, `prep.*` percentiles. If the loop pins,
    the profile names the per-run cost to cut first (`prep.system_prompt` p95 1.2 s is the obvious suspect).
 3. **Structural fix — worker-isolated agent runs** (phases 3–5 of
-   [worker-isolated-execution.md](worker-isolated-execution.md)): the main thread keeps API, WebSocket, RunQueue and
+   [worker-isolated-execution](./agent-worker-isolated-execution.md)): the main thread keeps API, WebSocket, RunQueue and
    SQLite writes; each run executes in a worker over an effect bridge. Concurrency then scales with cores, and a hot run
    cannot stall anyone's chat. Phase 1 (workflow VM in a worker) is merged but off in prod
    (`SEED_AGENTS_WORKFLOW_WORKER` unset); turning it on is a free first step.
 4. **More cores** for the control plane, or split sandboxes onto an exec host
-   ([multi-server-architecture.md](multi-server-architecture.md) phase 2): with workers, the cap becomes "cores minus
+   ([multi-server-architecture](./agent-multi-server-architecture.md) phase 2): with workers, the cap becomes "cores minus
    sandboxes"; on a 4-vCPU box that is still only 2–3 workers.
 5. **Queue semantics**: children of an interactive root should inherit interactive priority; `run.dispatch_delay` should
    measure from the requeue; consider a per-account share cap so a scheduled agent can never take more than, say, half
