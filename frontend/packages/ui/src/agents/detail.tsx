@@ -213,6 +213,8 @@ function AgentDetailPage({
   const settingsSaveIdRef = useRef(0)
   const promptSaveIdRef = useRef(0)
   const loadedPromptKeyRef = useRef<string | null>(null)
+  /** Request-shaped key of the last prompt this page saved successfully; see the prompt autosave effect. */
+  const lastSavedPromptKeyRef = useRef<string | null>(null)
   const startComposerRef = useRef<AgentsRichEditorSubmitHandle | null>(null)
 
   // Showing the list is what closes the open session: back from a transcript, or Sessions clicked
@@ -435,18 +437,30 @@ function AgentDetailPage({
 
   const promptEditorDisabled = !selectedAccountId || serverHealth.isError || agent.isError || !canWrite
 
+  // Prompt autosave. Never schedules while a save is in flight: the mutation's optimistic cache
+  // write (and later the server's response) both change `agent.data`, and re-scheduling on those
+  // re-runs used to supersede the in-flight save so its completion was ignored, the dirty flag was
+  // never cleared, and the same prompt saved again every 800ms with "Saving…" shown forever.
+  // Once the save lands the effect re-runs (state leaves 'saving') and compares the latest editor
+  // blocks in request shape, so edits typed during the save get their own follow-up save.
   useEffect(() => {
-    if (!agent.data || !promptDirty || promptEditorDisabled) return
+    if (!agent.data || !promptDirty || promptEditorDisabled || promptSaveState === 'saving') return
     if (!hasPromptContent(systemPrompt)) {
       setPromptSaveState('error')
       return
     }
 
     const currentDefinition = agent.data.agent.definition
-    const nextPromptKey = agentPromptStableKey(systemPrompt)
-    if (nextPromptKey === agentPromptStableKey(currentDefinition.systemPrompt)) {
+    // Compare what would actually be sent: the request trims trailing empty blocks, and the editor
+    // keeps them, so the raw editor blocks never equal a saved prompt that ended with a blank line.
+    const nextPromptBlocks = promptBlocksForRequest(systemPrompt)
+    const nextPromptKey = agentPromptStableKey(nextPromptBlocks)
+    if (
+      nextPromptKey === agentPromptStableKey(currentDefinition.systemPrompt) ||
+      nextPromptKey === lastSavedPromptKeyRef.current
+    ) {
       setPromptDirty(false)
-      setPromptSaveState('idle')
+      if (promptSaveState === 'error') setPromptSaveState('idle')
       return
     }
 
@@ -457,27 +471,25 @@ function AgentDetailPage({
       void updateAgent
         .mutateAsync({
           agentId,
-          definition: {...currentDefinition, systemPrompt: promptBlocksForRequest(systemPrompt)},
+          definition: {...currentDefinition, systemPrompt: nextPromptBlocks},
         })
         .then((result) => {
-          if (promptSaveIdRef.current !== saveId) return
           if (result._ !== 'GetAgentResponse') throw new Error('Unexpected update response')
           loadedPromptKeyRef.current = agentPromptStableKey(result.agent.definition.systemPrompt)
-          setPromptDirty(false)
+          lastSavedPromptKeyRef.current = nextPromptKey
           setPromptSaveState('saved')
           setTimeout(() => {
             if (promptSaveIdRef.current === saveId) setPromptSaveState('idle')
           }, 1800)
         })
         .catch((error) => {
-          if (promptSaveIdRef.current !== saveId) return
           setPromptSaveState('error')
           const message = error instanceof Error ? error.message : 'Could not save prompt'
           if (message !== 'System prompt is required') toast.error(message)
         })
     }, 800)
     return () => clearTimeout(timer)
-  }, [agent.data, agentId, promptDirty, promptEditorDisabled, systemPrompt, updateAgent.mutateAsync])
+  }, [agent.data, agentId, promptDirty, promptEditorDisabled, promptSaveState, systemPrompt, updateAgent.mutateAsync])
 
   const selectedTriggerName = triggerId ? triggers.data?.find((trigger) => trigger.id === triggerId)?.name : undefined
   const isTriggerDetail = tab === 'triggers' && !!triggerId
@@ -873,8 +885,24 @@ function agentPromptToBlocks(prompt: AgentDefinition['systemPrompt']): HMBlockNo
   return markdownBlockNodesToHMBlockNodes(parseMarkdown(prompt || '').tree)
 }
 
+/**
+ * Identity of a prompt for change detection. Blocks go to the server and come back through CBOR,
+ * which re-sorts object keys, so the comparison must not depend on key order.
+ */
 function agentPromptStableKey(prompt: AgentDefinition['systemPrompt']): string {
-  return typeof prompt === 'string' ? prompt : JSON.stringify(prompt)
+  return typeof prompt === 'string' ? prompt : stableStringify(prompt)
+}
+
+function stableStringify(value: unknown): string {
+  return JSON.stringify(value, (_key, entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return entry
+    const record = entry as Record<string, unknown>
+    return Object.fromEntries(
+      Object.keys(record)
+        .sort()
+        .map((key) => [key, record[key]]),
+    )
+  })
 }
 
 function hasPromptContent(blocks: HMBlockNode[]): boolean {
