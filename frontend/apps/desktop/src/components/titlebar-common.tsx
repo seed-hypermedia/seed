@@ -69,6 +69,7 @@ import {
   Lock,
   LogIn,
   LogOut,
+  MessageCircle,
   PanelLeftClose,
   PanelRightClose,
   Plus,
@@ -487,11 +488,41 @@ export function AccountProfileButton() {
   )
 }
 
+/**
+ * Title bar toggle for the assistant chat panel. Opening it restores the most recently used
+ * agent/session (the panel resolves that itself). Styled like the bookmarks button while open.
+ */
+function AssistantChatButton({
+  assistantOpen,
+  onToggleAssistant,
+}: Pick<TitleBarProps, 'assistantOpen' | 'onToggleAssistant'>) {
+  if (!onToggleAssistant) return null
+  const isActive = !!assistantOpen
+  return (
+    <Tooltip content={isActive ? 'Close Chat' : 'Open Chat'} asChild>
+      <Button
+        className={cn(
+          'window-no-drag h-8 w-8 rounded-full border p-0',
+          isActive
+            ? 'border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
+            : 'border-transparent',
+        )}
+        aria-pressed={isActive}
+        aria-label="Chat"
+        onClick={onToggleAssistant}
+      >
+        <MessageCircle className="size-4" />
+      </Button>
+    </Tooltip>
+  )
+}
+
 export function PageActionButtons(props: TitleBarProps) {
   const route = useNavRoute()
   return (
     <TitlebarSection>
       {route.key == 'document' || route.key == 'feed' ? <DocumentTitlebarButtons route={route} /> : null}
+      <AssistantChatButton assistantOpen={props.assistantOpen} onToggleAssistant={props.onToggleAssistant} />
       <BookmarksPopover />
       <NotificationButton />
       <AccountProfileButton />

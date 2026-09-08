@@ -9,6 +9,10 @@ export interface TitleBarProps {
   clean?: boolean
   cleanTitle?: string
   height?: number
+  /** Whether the assistant chat panel is currently open. */
+  assistantOpen?: boolean
+  /** Toggles the assistant chat panel; omitted when no agent is available to chat with. */
+  onToggleAssistant?: () => void
 }
 
 export function TitleBar(props: TitleBarProps & HTMLAttributes<HTMLDivElement>) {
