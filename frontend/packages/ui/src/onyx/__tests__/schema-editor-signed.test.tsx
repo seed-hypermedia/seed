@@ -60,7 +60,7 @@ describe('schema root kind', () => {
     expect(schema.ref).toBe(nameToUrl('hypermedia-blob'))
     expect(schema.type).toBeUndefined()
     // Schemas carry no name, so the pinned tag starts as the editable default.
-    expect(fieldSchema(schema, 'type')!.enum).toEqual(['Custom'])
+    expect(fieldSchema(schema, 'type')).toBe('Custom')
     expect(requiredFieldNames(schema)).toContain('type')
     // The engine sees a real signed-blob schema with the tag.
     expect(isSignedBlobSchema(schema)).toBe(true)

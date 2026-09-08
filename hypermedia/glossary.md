@@ -6,15 +6,17 @@ summary: Every Onyx term in one place — kind, schema, meta-schema, variant, ge
 
 **Kind** — one of the nine value types in the data model: `null`, `boolean`, `integer`, `float`, `string`, `bytes`, `list`, `map`, `link`. A value is exactly one kind. ([the data model](./data-model.md)) <!-- id:bqWTniMt -->
 
-**Schema** — a value of kind `map` that constrains other values, written with the ten-key vocabulary (eight structural keys plus `name`/`description` metadata). Every schema is itself typed by the meta-schema, and is one of the meta-schema's seven variants. <!-- id:VEzPEsxm -->
+**Schema** — a value of kind `map` that constrains other values, written with the twelve-key vocabulary — or a bare literal (`"draft"`, `1`, `true`, `null`) that accepts exactly one value. Every schema is itself typed by the meta-schema, and is one of the meta-schema's variants. <!-- id:VEzPEsxm -->
 
-**Meta-schema** — `hypermedia-schema`: the schema that describes what a schema is. A **discriminated union** of seven variants; a valid instance of itself, and the system's axiom — the one block whose type is known out of band. <!-- id:8ezN9NKn -->
+**Meta-schema** — `hypermedia-schema`: the schema that describes what a schema is. A **discriminated union** of nine map variants and the four literal kinds; a valid instance of itself, and the system's axiom — the one block whose type is known out of band. <!-- id:8ezN9NKn -->
 
 **Discriminated union** — a type that is "one of" a fixed set of variant shapes, told apart by a discriminant. In Onyx the discriminant is the `type` tag (plus "has `anyOf`" / "has `var`" / "bare `ref`"). Expressed with `anyOf`. ([the schema language](./schema-language.md)) <!-- id:h8At7AjF -->
 
-**Variant** — one of the seven member schemas of the meta-schema union: `hypermedia-map-schema`, `hypermedia-list-schema`, `hypermedia-scalar-schema`, `hypermedia-link-schema`, `hypermedia-include-schema`, `hypermedia-anyof`, `hypermedia-var-schema`. Each is a closed map. <!-- id:wz8rwZiN -->
+**Variant** — one of the member schemas of the meta-schema union: `hypermedia-struct-schema`, `hypermedia-map-schema`, `hypermedia-list-schema`, `hypermedia-scalar-schema`, `hypermedia-link-schema`, `hypermedia-include-schema`, `hypermedia-anyof`, `hypermedia-var-schema`, `hypermedia-literal-schema` — each a closed map — plus the bare `string`, `integer`, `boolean` and `null` kinds, which are literals. <!-- id:wz8rwZiN -->
 
-**`anyOf`** — the union keyword: a list of schemas; a value is valid if it matches any of them. Onyx's one composite construct. <!-- id:gzOtVtdg -->
+**`anyOf`** — the union keyword: a list of schemas; a value is valid if it matches any of them. Onyx's one composite construct. A union whose arms are all literals is a fixed set of choices (`{anyOf: ["draft", "published"]}`), which the editors show as a dropdown. <!-- id:h2hqK0Zk -->
+
+**Literal** — a schema that accepts exactly one value, written as the value itself (`"Change"`, `1`, `true`, `null`) or as `{value, description}` when the value deserves an explanation. Only a string, integer, boolean, or null can be a literal. ([the schema language](./schema-language.md)) <!-- id:gzOtVtdg -->
 
 **Generic** — a schema parameterized over a type. Declared with `params` (named type parameters, each with a default), used via `var` (a type-variable reference, `{ "var": "B" }`), and instantiated with `args` (`{ "ref": X, "args": { "B": … } }`). The parameter threads through references and defaults when unbound. Worked example: `Change<Block>` (`hypermedia-change`) instantiated as `example-myapp-change`. ([the schema language](./schema-language.md)) <!-- id:roR5fLFr -->
 

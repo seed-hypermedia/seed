@@ -1,7 +1,7 @@
 ---
 name: "RPC: QueryBlock"
 summary: "Runs a Query block's query and returns everything its rendering needs. One method of the Seed universal-client API: `request(key, input) -> output`. The `input`"
-schemaDefinition: ipfs://bafyreiebusvf4yyzwth5ibyusgso5a5mstlavzuenajqbbixqjdxccexxy
+schemaDefinition: ipfs://bafyreiaiprsbv2pvhirsvqp4r2rdfkw7jb43actktewal2auyviuwxrcc4
 ---
 Runs a Query block's query and returns everything its rendering needs. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:9vWOoz-M -->
 
@@ -10,7 +10,7 @@ This document describes the **seed-rpc-query-block** type — a Seed API read-mo
 # Shape <!-- id:rSSzXiwR -->
 
 A **closed struct** with these fields: <!-- id:MNSUcwUS -->
-  - `key` _(required)_ — `string` enum: `QueryBlock` <!-- id:tvvO2-wp -->
+  - `key` _(required)_ — `"QueryBlock"` <!-- id:tvvO2-wp -->
   - `input` _(required)_ — map { 1 fields } <!-- id:tJWuR30d -->
   - `output` _(required)_ — one of [seed-query-block-payload](./seed-query-block-payload.md) | [null](./hypermedia-null.md) <!-- id:VSpP7fZ1 -->
 

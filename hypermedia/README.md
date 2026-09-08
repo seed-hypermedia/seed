@@ -68,7 +68,7 @@ them.
 
 `typegen.mjs` generates a TS type for every schema
 (`frontend/packages/client/src/onyx-types.generated.ts`): maps become object
-types, enums literal unions, `anyOf` unions, extension intersection, and
+types, literals literal types, `anyOf` unions, extension intersection, and
 `params`/`var`/`args` real TS generics (`Change<Block>`). Regenerate with
 `node hypermedia/typegen.mjs`; `--check` fails if it's out of date. This is Phase 2 of
 the integration plan — the schemas, not hand-written Zod, become the source of

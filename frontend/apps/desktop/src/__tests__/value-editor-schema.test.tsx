@@ -12,10 +12,7 @@ const ARTICLE_SCHEMA: OnyxSchema = {
   required: ['title', 'status'],
   properties: {
     title: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string', minLength: 1},
-    status: {
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string',
-      enum: ['draft', 'published'],
-    },
+    status: {anyOf: ['draft', 'published']},
     count: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-integer'},
   },
 }
@@ -69,7 +66,7 @@ describe('schema-aware value editor rendering', () => {
     expect(container.querySelector('.lucide-triangle-alert')).toBeNull()
   })
 
-  it('renders enum member values as a select and keeps non-members as text', () => {
+  it('renders literal member values as a select and keeps non-members as text', () => {
     renderEditor({title: 'Hello', status: 'draft'}, ARTICLE_SCHEMA)
     const combo = container.querySelector('[role="combobox"]')
     expect(combo).not.toBeNull()
@@ -106,12 +103,12 @@ describe('schema-aware value editor rendering', () => {
     expect(container.querySelector('.lucide-triangle-alert')).not.toBeNull()
   })
 
-  it('an enum containing "" renders safely (labels are JSON-quoted, so Radix never sees value="")', () => {
+  it('a union of literals containing "" renders safely (labels are JSON-quoted, so Radix never sees value="")', () => {
     const schema: OnyxSchema = {
       type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
       values: {},
       properties: {
-        status: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string', enum: ['', 'draft']},
+        status: {anyOf: ['', 'draft']},
       },
     }
     renderEditor({status: 'draft'}, schema)
@@ -124,7 +121,7 @@ describe('schema-aware value editor rendering', () => {
     const schema: OnyxSchema = {
       type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
       values: {},
-      properties: {level: {enum: ['low', 1, 2, true]}},
+      properties: {level: {anyOf: ['low', 1, 2, true]}},
     }
     renderEditor({level: 1}, schema)
     const combo = container.querySelector('[role="combobox"]')
@@ -136,15 +133,12 @@ describe('schema-aware value editor rendering', () => {
     expect(container.querySelector('.lucide-triangle-alert')).not.toBeNull()
   })
 
-  it('an enum with duplicate members falls back to free text', () => {
+  it('a union of literals with duplicate members falls back to free text', () => {
     const schema: OnyxSchema = {
       type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
       values: {},
       properties: {
-        status: {
-          type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string',
-          enum: ['draft', 'draft'],
-        },
+        status: {anyOf: ['draft', 'draft']},
       },
     }
     renderEditor({status: 'draft'}, schema)
@@ -170,7 +164,7 @@ describe('schema-aware value editor rendering', () => {
     expect(menu!.textContent).toContain('Remove')
   })
 
-  it('adding a suggested enum field creates it as a conforming enum member', () => {
+  it('adding a suggested literal-union field creates it as a conforming member', () => {
     // A stateful harness so the added field actually lands in the value and
     // re-renders as its inline dropdown.
     let current: Record<string, unknown> = {title: 'Hello'}
@@ -204,7 +198,7 @@ describe('schema-aware value editor rendering', () => {
     }) as HTMLButtonElement
     expect(statusChip).toBeTruthy()
     act(() => statusChip.click())
-    // save: the field is created as the enum head ('draft'), conforming
+    // save: the field is created as the first literal ('draft'), conforming
     const commit = Array.from(document.body.querySelectorAll('button')).find(
       (el) => el.textContent?.trim() === 'Add',
     ) as HTMLButtonElement

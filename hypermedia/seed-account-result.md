@@ -1,7 +1,7 @@
 ---
 name: Account result
 summary: "The result of resolving an account: its metadata payload, or an explicit not-found. A derived read model computed by the Seed daemon/API for clients — not a sig"
-schemaDefinition: ipfs://bafyreifvb6qmgcrcz5y3as55sqzzavbylkmku774vqojs3e5hmutjes3wq
+schemaDefinition: ipfs://bafyreia6xryu7mecuvotfehird4u6nmkn4omejfgryuf44pfuphydj47za
 ---
 The result of resolving an account: its metadata payload, or an explicit not-found. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:cQGLYho_ -->
 

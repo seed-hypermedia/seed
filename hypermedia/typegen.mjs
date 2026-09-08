@@ -14,7 +14,7 @@
 //   scalars      -> string / number / boolean / null / OnyxBytes; constraints -> JSDoc
 //   link         -> OnyxLink (the dag-json {'/': cid} form)
 //   any          -> unknown
-//   enum         -> literal union
+//   a literal    -> a literal type ("Change", 1, true, null)
 //   anyOf        -> union
 //   ref          -> the referenced schema's generated type name
 //   extension    -> Base & {added/overridden fields} (literal `type` narrows the base)
@@ -114,23 +114,22 @@ function literal(v) {
   return typeof v === 'string' ? JSON.stringify(v) : String(v)
 }
 
+/** A literal schema: a bare scalar, or {value, description?} with no other schema key. */
+const isLiteralSchema = (s) => {
+  if (s === undefined) return false
+  if (s === null || typeof s !== 'object') return true
+  if (Array.isArray(s)) return false
+  return 'value' in s && !('type' in s || 'ref' in s || 'anyOf' in s || 'var' in s || 'params' in s)
+}
+const literalValue = (s) => (s !== null && typeof s === 'object' ? s.value : s)
+
 /** Emit the TS type expression for one schema node. `env` maps in-scope type vars. */
 function emit(node, env, pad = '') {
-  if (node === null || node === undefined) return 'unknown'
-  if (typeof node === 'string') {
-    // A bare type URL used as a node (shorthand).
-    const k = kindOf(node)
-    if (k) return KIND_TS[k]
-    const basename = urlToBasename(node)
-    return basename && schemas[basename] ? tsName(basename) : 'unknown'
-  }
+  if (node === undefined) return 'unknown'
+  if (isLiteralSchema(node)) return literal(literalValue(node))
 
   if (node.var) {
     return env.has(node.var) ? node.var : 'unknown'
-  }
-
-  if (node.enum) {
-    return node.enum.map(literal).join(' | ')
   }
 
   if (node.anyOf) {
@@ -185,14 +184,19 @@ function emit(node, env, pad = '') {
 }
 
 /** A struct's fields: `properties[name] = {value, required?, description?}`, or the older
- * `properties[name] = <schema>` plus a `required` list. */
-const isPropertyEntry = (v) =>
-  !!v && typeof v === 'object' && 'value' in v && !('type' in v || 'ref' in v || 'anyOf' in v || 'var' in v)
+ * `properties[name] = <schema>` plus a `required` list. (In that position `value` is
+ * always the field's schema, even when that schema is itself a literal.) */
+const isPropertyEntry = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && 'value' in v
 function structFields(node) {
   const legacyRequired = new Set(node.required || [])
   return Object.entries(node.properties || {}).map(([name, entry]) =>
     isPropertyEntry(entry)
-      ? {name, schema: entry.value ?? {}, required: entry.required === true, description: entry.description}
+      ? {
+          name,
+          schema: entry.value === undefined ? {} : entry.value,
+          required: entry.required === true,
+          description: entry.description,
+        }
       : {name, schema: entry ?? {}, required: legacyRequired.has(name), description: entry?.description},
   )
 }

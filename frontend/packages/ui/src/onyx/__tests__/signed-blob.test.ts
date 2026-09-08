@@ -6,7 +6,7 @@ import * as ed from '@noble/ed25519'
 import {sha512} from '@noble/hashes/sha2.js'
 import * as cbor from '@shm/shared/cbor'
 import {describe, expect, it, vi} from 'vitest'
-import {ONYX_SCHEMAS, kindUrl, nameToUrl, requiredFieldNames, validate} from '../onyx-engine'
+import {ONYX_SCHEMAS, nameToUrl, requiredFieldNames, validate} from '../onyx-engine'
 import {
   isSignedBlobSchema,
   publishSignedBlob,
@@ -23,9 +23,9 @@ const VOTE = {
   ref: ENVELOPE,
   required: ['type', 'target', 'choice'],
   properties: {
-    type: {type: kindUrl('string'), enum: ['Vote']},
+    type: 'Vote',
     target: {ref: nameToUrl('hypermedia-hm-url')!},
-    choice: {type: kindUrl('string'), enum: ['yes', 'no']},
+    choice: {anyOf: ['yes', 'no']},
   },
 }
 

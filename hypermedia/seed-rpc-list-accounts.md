@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListAccounts"
 summary: "Lists all known accounts as metadata payloads. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pa"
-schemaDefinition: ipfs://bafyreigcivsmkguuyfztkmyeaogmzzvwmmgqi72ajwn2om56fny5uqgqum
+schemaDefinition: ipfs://bafyreihqbrdkjvo24yw7sj3htq5ghuqm2yg6gb25ljskpmkyrvdoqczgde
 ---
 Lists all known accounts as metadata payloads. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:5KM-97Ry -->
 
@@ -10,7 +10,7 @@ This document describes the **seed-rpc-list-accounts** type — a Seed API read-
 # Shape <!-- id:1w2fkBth -->
 
 A **closed struct** with these fields: <!-- id:HtDCnuN6 -->
-  - `key` _(required)_ — `string` enum: `ListAccounts` <!-- id:nrPBInN4 -->
+  - `key` _(required)_ — `"ListAccounts"` <!-- id:nrPBInN4 -->
   - `input` _(required)_ — one of map | [null](./hypermedia-null.md) <!-- id:rapKkCzO -->
   - `output` _(required)_ — map { 1 fields } <!-- id:0hkz1VKc -->
 

@@ -18,7 +18,7 @@ Onyx is a small schema language for IPLD data — the values DAG-CBOR can encode
 
 **Types are documents.** Every schema is also published as a normal Hypermedia document, owned by an account and reachable at an `hm://` URL. That gives types names, versions, human descriptions, and a place in the same browsable graph as everything else. A document declares what it is by pointing at one of these URLs. Because references are names rather than hashes, types can refer to each other in cycles — a folder that contains files that live in folders — which a pure hash graph cannot express. See [references & naming](./references.md). <!-- id:o9b8CRI8 -->
 
-**Types are minimal.** Nine kinds of value, seven shapes a schema can take, and one bar for every feature: the schema that defines what a schema is must remain a valid instance of itself. Onyx describes Onyx. That self-description is the design constraint, and it is what keeps the language from sprawling. See [the schema language](./schema-language.md) and [design rationale](./design.md). <!-- id:ejkukc5O -->
+**Types are minimal.** Nine kinds of value, nine shapes a schema can take, and one bar for every feature: the schema that defines what a schema is must remain a valid instance of itself. Onyx describes Onyx. That self-description is the design constraint, and it is what keeps the language from sprawling. See [the schema language](./schema-language.md) and [design rationale](./design.md). <!-- id:ejkukc5O -->
 
 # What it makes possible <!-- id:n8_sc-MO -->
 
@@ -33,7 +33,7 @@ Onyx is a small schema language for IPLD data — the values DAG-CBOR can encode
 
 **Readers** notice nothing, except that typed pages can render more richly — a person page can show a person, not a bag of keys. <!-- id:TAte4XSS -->
 
-**Authors** get guardrails: the attributes form knows which fields a document of this kind needs, offers the right controls for each (a dropdown for an enum, a searchable title pill for a document reference, a file picker for an IPFS reference), and points out what is out of spec — without ever refusing to save. <!-- id:mIlfg1bz -->
+**Authors** get guardrails: the attributes form knows which fields a document of this kind needs, offers the right controls for each (a dropdown for a fixed set of choices, a searchable title pill for a document reference, a file picker for an IPFS reference), and points out what is out of spec — without ever refusing to save. <!-- id:mIlfg1bz -->
 
 **Developers** get types in TypeScript, a browsable, linked reference for every schema, schema-driven forms for free, and a console for calling the API with validated inputs. <!-- id:U77YK0ax -->
 

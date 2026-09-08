@@ -1,7 +1,7 @@
 ---
 name: Query sort
 summary: One sort term for a Query block's results, optionally reversed.
-schemaDefinition: ipfs://bafyreigaatrl6ivrjyvrabhkpmic2m6wftarv7ibbxxwxowwfom5tsgr4q
+schemaDefinition: ipfs://bafyreibutzzg2az5scloy72cmhi3zodgei2kw7j5wbvsioxjabqbmy5wly
 ---
 This document describes the **hypermedia-query-sort** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:eaWXyOUU -->
 
@@ -9,7 +9,7 @@ This document describes the **hypermedia-query-sort** type — a Hypermedia Netw
 
 A **closed struct** with these fields: <!-- id:9JJXnFXo -->
   - `reverse` — [boolean](./hypermedia-boolean.md) <!-- id:d_agsTi8 -->
-  - `term` _(required)_ — `string` enum: `Path` `Title` `CreateTime` `UpdateTime` `DisplayTime` `ActivityTime` <!-- id:GeGLwkRQ -->
+  - `term` _(required)_ — one of `"Path"` | `"Title"` | `"CreateTime"` | `"UpdateTime"` | `"DisplayTime"` | `"ActivityTime"` <!-- id:GeGLwkRQ -->
 
 # Depends on <!-- id:qCmEO3j- -->
 

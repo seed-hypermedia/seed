@@ -8,7 +8,7 @@ import {act} from 'react-dom/test-utils'
 import {createRoot, type Root} from 'react-dom/client'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {TooltipProvider} from '../../tooltip'
-import {kindUrl, nameToUrl, schemaCid} from '../onyx-engine'
+import {nameToUrl, schemaCid} from '../onyx-engine'
 import {OnyxNavContext, OnyxSchemaByCid} from '../onyx-explorer'
 import {OnyxSchemaBrowserPage} from '../schema-browser'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
@@ -20,7 +20,7 @@ const CUSTOM = {
   ref: nameToUrl('hypermedia-blob'),
   required: ['type', 'target'],
   properties: {
-    type: {type: kindUrl('string'), enum: ['Vote']},
+    type: 'Vote',
     target: {ref: nameToUrl('hypermedia-hm-url'), target: 'hm://acme/proposal'},
   },
 }

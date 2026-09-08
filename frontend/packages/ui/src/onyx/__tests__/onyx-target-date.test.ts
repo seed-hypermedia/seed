@@ -7,7 +7,7 @@ import * as cbor from '@ipld/dag-cbor'
 import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
 import {describe, expect, it} from 'vitest'
-import {nameToUrl, ONYX_SCHEMAS, resolveSchema, validate} from '../onyx-engine'
+import {literalMembers, literalSchema, nameToUrl, ONYX_SCHEMAS, resolveSchema, validate} from '../onyx-engine'
 import {onyxSubschema} from '../onyx-schema-context'
 import {metadataSchemaOf} from '../onyx-schema-resolve'
 
@@ -21,12 +21,24 @@ describe('target references', () => {
     expect(schema.target).toBe('hm://acme/stats')
   })
 
-  it('extension inherits leaf refinements and can add a target', () => {
-    const {schema} = resolveSchema({ref: nameToUrl('hypermedia-date')!, enum: ['2026-01-01'], target: 'hm://x'})
+  it('an include of a refined primitive keeps its leaf refinements and can add a target', () => {
+    const {schema} = resolveSchema({ref: nameToUrl('hypermedia-date')!, target: 'hm://x'})
     expect(schema.format).toBe('date')
     expect(schema.pattern).toMatch(/^\^/)
-    expect(schema.enum).toEqual(['2026-01-01'])
     expect(schema.target).toBe('hm://x')
+  })
+
+  it('a literal is a schema: bare, or described', () => {
+    expect(validate(literalSchema('2026-01-01'), '2026-01-01')).toEqual([])
+    expect(validate(literalSchema('2026-01-01'), '2026-01-02')).toHaveLength(1)
+    expect(validate({value: 1, description: 'one'}, 1)).toEqual([])
+    expect(validate(literalSchema(null), null)).toEqual([])
+    expect(validate(literalSchema(null), 'null')).toHaveLength(1)
+    expect(literalMembers({anyOf: ['a', {value: 'b', description: 'bee'}]})).toEqual([
+      {value: 'a', description: undefined},
+      {value: 'b', description: 'bee'},
+    ])
+    expect(literalMembers({ref: nameToUrl('hypermedia-string')!})).toBeNull()
   })
 
   it('a character document exposes date, link and object fields with targets', () => {
@@ -38,7 +50,7 @@ describe('target references', () => {
     expect(at('stats')).toMatchObject({format: 'ipfs', target: STATS})
     expect(at('notes').format).toBe('ipfs')
     expect(at('notes').target).toBeUndefined()
-    expect(at('role').enum).toContain('hero')
+    expect(literalMembers(at('role'))?.map((m) => m.value)).toContain('hero')
   })
 
   it('a target does not change what values are valid', () => {

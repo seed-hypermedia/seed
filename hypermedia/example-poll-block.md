@@ -1,14 +1,14 @@
 ---
 name: "Example: Poll block (custom)"
 summary: "An example third-party block type: a poll with a question and options. It extends the shared block base, exactly like a core block."
-schemaDefinition: ipfs://bafyreicdp4smixbynnibxfux2hoqg3ovlkiv4t7xz6tdaaibetesj375yi
+schemaDefinition: ipfs://bafyreihfqshtce7n27cdwdoaxtih3fdx5popsja2odwhofk5bpzpgl536u
 ---
 This document describes the **example-poll-block** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:UMzXooSA -->
 
 # Shape <!-- id:aF0A6qUJ -->
 
 **Extends** [hypermedia-block-base](./hypermedia-block-base.md) with these added fields: <!-- id:AU7ub5dT -->
-  - `type` — `string` enum: `Poll` <!-- id:a5Im9O50 -->
+  - `type` — `"Poll"` <!-- id:a5Im9O50 -->
   - `question` _(required)_ — [string](./hypermedia-string.md) <!-- id:MVAEf3cE -->
   - `options` _(required)_ — list of [string](./hypermedia-string.md) <!-- id:pU77dcCF -->
   - `attributes` — map { 3 fields } <!-- id:jJ3NLW4y -->

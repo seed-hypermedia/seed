@@ -1,7 +1,7 @@
 ---
 name: Search result item
 summary: "One hit of a network search: the matched id with display info (title, icon, breadcrumb parent names) and what kind of entity matched. A derived read model compu"
-schemaDefinition: ipfs://bafyreiblkw6hk54f4a7y2nal44kmgy6bzyjwnttgimlms6v7ih7bp2lwgq
+schemaDefinition: ipfs://bafyreiad22j634l7iabwwuxcoufrsycsmstozk7t4vlthhjzq2xqq63lmu
 ---
 One hit of a network search: the matched id with display info (title, icon, breadcrumb parent names) and what kind of entity matched. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:qXiY7SqP -->
 
@@ -18,7 +18,7 @@ A **closed struct** with these fields: <!-- id:funk1VF2 -->
   - `parentNames` _(required)_ — list of [string](./hypermedia-string.md) <!-- id:5J6naQQF -->
   - `versionTime` — [string](./hypermedia-string.md) <!-- id:eRekKhdW -->
   - `searchQuery` _(required)_ — [string](./hypermedia-string.md) <!-- id:RrP0uj-3 -->
-  - `type` _(required)_ — `string` enum: `document` `contact` `comment` <!-- id:ow59ehEv -->
+  - `type` _(required)_ — one of `"document"` | `"contact"` | `"comment"` <!-- id:ow59ehEv -->
 
 # Depends on <!-- id:ikD0x8fX -->
 

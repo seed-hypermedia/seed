@@ -1,7 +1,7 @@
 ---
 name: Reference schema
 summary: "The variant for a reference: a bare include, or an extension when it carries refinements."
-schemaDefinition: ipfs://bafyreiex3pp7m34lgw6zga57xheofol7n3ro37qbmrjpd55xmdp7scrdlm
+schemaDefinition: ipfs://bafyreiect6gxh2iwy6vo623csjnw42mj6cfzz6pnpvtcweqgnoqpvbiiz4
 ---
 This document describes the **hypermedia-include-schema** type — a meta-schema variant. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:HXN4g1ct -->
 
@@ -13,7 +13,6 @@ A **closed struct** with these fields: <!-- id:tVGElzcp -->
   - `required` — list of `string` <!-- id:AZCwRyR0 -->
   - `values` — [schema](./hypermedia-schema.md) <!-- id:MVaaagll -->
   - `items` — [schema](./hypermedia-schema.md) <!-- id:lNTdBWuJ -->
-  - `enum` — list of any <!-- id:zwdZVco6 -->
   - `name` — `string` <!-- id:ZtRPGk76 -->
   - `description` — `string` <!-- id:SxgAQy9f -->
   - `params` — map ⟨ \* : [schema](./hypermedia-schema.md) ⟩ <!-- id:djqskOkg -->

@@ -1,6 +1,6 @@
 ---
 name: Examples
-summary: A catalog of every Onyx example schema — structs, enums, generics, unions, recursion, extension, and live instances.
+summary: A catalog of every Onyx example schema — structs, literals, generics, unions, recursion, extension, and live instances.
 ---
 # Onyx examples <!-- id:HKSIPG2Z -->
 
@@ -13,9 +13,9 @@ Every example here is a schema built _with_ Onyx, published under the `hm://exam
 - `example-person` — strings, an `integer`, a `boolean`, an [include](./references.md) of an address, and a list. <!-- id:nVLVzwuR -->
 - `example-blob` — a `bytes` payload with a mime string and size. <!-- id:C-1sn3aB -->
 
-## Enums <!-- id:eDkgeHDg -->
+## Literals <!-- id:eDkgeHDg -->
 
-- `example-status` — a `string` restricted to `draft | published | archived` (an `enum` refinement on the string primitive). <!-- id:25xmLnuT -->
+- `example-status` — a union of three literals, `draft | published | archived`; the schema is the choices themselves. <!-- id:25xmLnuT -->
 
 ## Generics — list & map ([schema language](./schema-language.md)) <!-- id:Litrltyz -->
 
@@ -46,7 +46,7 @@ Only possible because references are **names**, not content hashes: <!-- id:yZkC
 
 ## Composite <!-- id:5sNzM3wJ -->
 
-- `example-article` — the centerpiece, pulling it together: a `status` enum, an author `Link<Person>`, `tags` (`List<String>`), a `bytes` body, `wordCount`, a cover `Link<Blob>`, a list of comment links, and open `Map<String>` metadata. Deeply linked to `example-status`, `example-tags`, `example-person`, `example-blob`, `example-comment`, and `example-metadata`. <!-- id:iZHzPdc_ -->
+- `example-article` — the centerpiece, pulling it together: a `status` union of literals, an author `Link<Person>`, `tags` (`List<String>`), a `bytes` body, `wordCount`, a cover `Link<Blob>`, a list of comment links, and open `Map<String>` metadata. Deeply linked to `example-status`, `example-tags`, `example-person`, `example-blob`, `example-comment`, and `example-metadata`. <!-- id:iZHzPdc_ -->
 
 ## Instances — actual data <!-- id:xxv3d5ho -->
 

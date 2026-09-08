@@ -1,14 +1,14 @@
 ---
 name: SetAttributes op
 summary: Set attributes on a block, or document-level metadata when block is empty.
-schemaDefinition: ipfs://bafyreiboqfatq7plymkidn7kq7uhynz2l7u72qb222ns3vtc3yaepbs7ru
+schemaDefinition: ipfs://bafyreigbljfnux6swsh5fkc7lmp4ai6xps3q5naarvvgu4q4hh45hr33by
 ---
 This document describes the **hypermedia-op-set-attributes** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:pyCYTEeq -->
 
 # Shape <!-- id:LAfbycov -->
 
 A **closed struct** with these fields: <!-- id:t_VD1Nku -->
-  - `type` _(required)_ — `string` enum: `SetAttributes` <!-- id:8RrVMKzp -->
+  - `type` _(required)_ — `"SetAttributes"` <!-- id:8RrVMKzp -->
   - `block` — [string](./hypermedia-string.md) <!-- id:DNLUlw3V -->
   - `attrs` — list of [hypermedia-key-value](./hypermedia-key-value.md) <!-- id:fYFXgIHc -->
 

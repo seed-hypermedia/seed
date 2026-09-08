@@ -63,15 +63,27 @@ const dependencies = (name) => [...collectRefs(schemas[name])].filter((n) => n !
 
 const isInstance = (s) => !!(s && s.$type && 'value' in s)
 const isPrimitive = (name) => [...KINDS, 'any'].map((k) => `hypermedia-${k}`).includes(name)
-const META_VARIANTS = ['hypermedia-anyof', 'hypermedia-property']
+const META_VARIANTS = ['hypermedia-anyof', 'hypermedia-literal-schema', 'hypermedia-property']
 const isMeta = (name) =>
   name === 'hypermedia-schema' ||
   META_VARIANTS.includes(name) ||
   (name.startsWith('hypermedia-') && name.endsWith('-schema'))
 
+/** A literal schema: a bare scalar, or {value, description?} with no other schema key. */
+const isLiteralSchema = (s) => {
+  if (s === undefined) return false
+  if (s === null || typeof s !== 'object') return true
+  if (Array.isArray(s)) return false
+  return 'value' in s && !('type' in s || 'ref' in s || 'anyOf' in s || 'var' in s || 'params' in s)
+}
+const literalValue = (s) => (s !== null && typeof s === 'object' ? s.value : s)
+/** A literal, shown as its value; a kind URL shows as the kind. */
+const literalText = (v) => `\`${typeof v === 'string' ? JSON.stringify(kindOf(v)) : String(v)}\``
+
 /** A one-line description of a schema node, with hm:// links for references. */
 function summarize(node) {
-  if (!node) return 'any'
+  if (node === undefined) return 'any'
+  if (isLiteralSchema(node)) return literalText(literalValue(node))
   if (node.var !== undefined) return `type variable \`⟨${node.var}⟩\``
   if (node.anyOf) return 'one of ' + node.anyOf.map(summarize).join(' | ')
   if (node.ref && !node.type) {
@@ -94,15 +106,13 @@ function summarize(node) {
     if (node.values) return `map ⟨ * : ${summarize(node.values)} ⟩`
     return 'map'
   }
-  if (node.enum) return (k ? `\`${k}\` ` : '') + 'enum: ' + node.enum.map((v) => `\`${kindOf(v)}\``).join(' ')
   return (k ? `\`${k}\`` : 'any') + refinements(node)
 }
 
-/** Refinements on a leaf: enum choices, numeric bounds, a semantic format, and
- * the schema a reference is expected to point at (`target`). */
+/** Refinements on a leaf: numeric bounds, a semantic format, and the schema a
+ * reference is expected to point at (`target`). */
 function refinements(node) {
   const bits = []
-  if (node.enum) bits.push('one of ' + node.enum.map((v) => `\`${kindOf(v)}\``).join(', '))
   if (node.minimum !== undefined || node.maximum !== undefined)
     bits.push(`${node.minimum ?? '…'}–${node.maximum ?? '…'}`)
   if (node.format) bits.push(`format \`${node.format}\``)
@@ -128,14 +138,18 @@ function category(name, s) {
 /** One bullet per field; a field that is itself a refinement (a nested struct
  * or an extension adding properties — e.g. a typed document's `metadata`) lists
  * its own fields indented beneath it. */
-const isPropertyEntry = (v) =>
-  !!v && typeof v === 'object' && 'value' in v && !('type' in v || 'ref' in v || 'anyOf' in v || 'var' in v)
+const isPropertyEntry = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && 'value' in v
 /** A struct's fields: `properties[name] = {value, required?, description?}`, or the older shape. */
 function structFields(node) {
   const legacyRequired = new Set(node.required || [])
   return Object.entries(node.properties || {}).map(([name, entry]) =>
     isPropertyEntry(entry)
-      ? {name, schema: entry.value ?? {}, required: entry.required === true, description: entry.description}
+      ? {
+          name,
+          schema: entry.value === undefined ? {} : entry.value,
+          required: entry.required === true,
+          description: entry.description,
+        }
       : {name, schema: entry ?? {}, required: legacyRequired.has(name), description: entry?.description},
   )
 }
@@ -192,11 +206,10 @@ function shapeSection(name, s) {
     lines.push(`An **open map** — every value: ${summarize(s.values)}.`)
   } else if (kindOf(s.type) === 'list') {
     lines.push(`A **list** of ${summarize(s.items)}.`)
+  } else if (isLiteralSchema(s)) {
+    lines.push(`Exactly the value ${literalText(literalValue(s))}.`)
   } else if (s.type) {
-    lines.push(
-      `Kind: \`${kindOf(s.type)}\`.` +
-        (s.enum ? ' One of: ' + s.enum.map((v) => `\`${kindOf(v)}\``).join(', ') + '.' : ''),
-    )
+    lines.push(`Kind: \`${kindOf(s.type)}\`.`)
   }
   if (s.params)
     lines.push(
