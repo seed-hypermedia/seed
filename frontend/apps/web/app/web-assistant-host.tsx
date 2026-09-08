@@ -4,12 +4,13 @@ import {clientLazy} from '@/client-lazy'
 import {useSiteContextSnapshot} from '@/site-context-bridge'
 import {UniversalAppContext} from '@shm/shared'
 import {NavContextProvider} from '@shm/shared/utils/navigation'
+import {AssistantPanelToggleContext, type AssistantPanelToggle} from '@shm/ui/assistant-panel-toggle'
 import {Button} from '@shm/ui/button'
 import {Spinner} from '@shm/ui/spinner'
 import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
 import {ArrowLeft} from 'lucide-react'
-import React, {Suspense, useCallback, useEffect, useRef, useState} from 'react'
+import React, {Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 
 // The panel body pulls in the agents models and the rich editor. Like the /hm/agents pages and the
 // commenting editor, it is a separate client-only chunk that only loads once the panel opens, so
@@ -106,9 +107,18 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
   const showSidePanel = !!keyPair && panel.isOpen && !isMobile
   const showFullScreen = !!keyPair && panel.isOpen && isMobile
 
+  // The site header's Agents button. Offered only to a signed-in reader, for the same reason the
+  // panel itself is; the header additionally checks that the space names an agents server.
+  const headerToggle = useMemo<AssistantPanelToggle | null>(
+    () => (keyPair ? {isOpen: panel.isOpen, toggle: panel.toggle} : null),
+    [keyPair, panel.isOpen, panel.toggle],
+  )
+
   return (
     <div className={cn('flex w-full flex-row items-stretch', dragging && 'cursor-col-resize select-none')}>
-      <div className="min-w-0 flex-1">{children}</div>
+      <AssistantPanelToggleContext.Provider value={headerToggle}>
+        <div className="min-w-0 flex-1">{children}</div>
+      </AssistantPanelToggleContext.Provider>
       {showSidePanel ? (
         <>
           <div

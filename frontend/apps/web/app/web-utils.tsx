@@ -14,12 +14,12 @@ import {buildCollectionDraftSeed} from '@shm/shared/collection'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useIsSiteOwner} from '@shm/shared/models/capabilities'
 import {createDefaultCollectionQueryBlock} from '@shm/shared/models/document-machine'
-import {useAccount, useResource} from '@shm/shared/models/entity'
+import {useAccount} from '@shm/shared/models/entity'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
 import {hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
-import {parseSpaceAgentIds} from '@shm/ui/agents/space-agents'
+import {useSiteAgents} from '@shm/ui/assistant-panel-toggle'
 import {ButtonLink} from '@shm/ui/button'
 import {
   DropdownMenu,
@@ -279,24 +279,6 @@ function PlaceholderAvatar({onClick}: {onClick: () => void}) {
 /**
  * Site-header join button or avatar with notifications bell
  */
-/**
- * The agents server this space names for its readers, if any.
- *
- * Read straight from the home document rather than through `useSiteAdvertisedAgentServerUrl`: that
- * lives in the agents models, and importing them here would pull the whole agents chunk — editor
- * included — into the initial bundle, which the assistant panel and the /hm/agents pages go out of
- * their way to avoid. `useResource` is already here via `useAccount`, so this costs nothing.
- */
-function useSiteAgents(siteUid: string): {serverUrl: string | null; publishesAgents: boolean} {
-  const home = useResource(hmId(siteUid))
-  const metadata = home.data?.type === 'document' ? home.data.document?.metadata : undefined
-  const raw = metadata?.agentServerUrl
-  return {
-    serverUrl: typeof raw === 'string' && raw ? raw : null,
-    publishesAgents: parseSpaceAgentIds(metadata?.spaceAgents).length > 0,
-  }
-}
-
 export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const keyPair = useLocalKeyPair()
   const accountId = keyPair?.delegatedAccountUid ?? keyPair?.id
@@ -518,15 +500,6 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                 <UserCog className="size-4" />
                 Manage account
               </DropdownMenuItem>
-              {hasSiteAgents ? (
-                <>
-                  <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
-                  <DropdownMenuItem onClick={assistantPanel.toggle}>
-                    <Bot className="size-4" />
-                    {assistantPanel.isOpen ? 'Close Agents' : 'Agents'}
-                  </DropdownMenuItem>
-                </>
-              ) : null}
               <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
               {canCreateSpace ? (
                 <DropdownMenuItem
