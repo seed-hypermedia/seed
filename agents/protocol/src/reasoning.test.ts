@@ -8,6 +8,7 @@ describe('modelReasoningSupport', () => {
         levels: ['minimal', 'low', 'medium', 'high'],
         offBehavior: 'default',
         supportsEffortNone: false,
+        requiresResponsesApi: false,
       })
     }
   })
@@ -17,15 +18,28 @@ describe('modelReasoningSupport', () => {
       levels: ['low', 'medium', 'high'],
       offBehavior: 'off',
       supportsEffortNone: true,
+      requiresResponsesApi: true,
     })
   })
 
-  test('openai gpt-5.2 and newer: none + low..xhigh', () => {
-    for (const model of ['gpt-5.2', 'gpt-5.4', 'gpt-5.6-terra', 'gpt-6']) {
+  test('openai gpt-5.2 through 5.x: none + low..xhigh', () => {
+    for (const model of ['gpt-5.2', 'gpt-5.4', 'gpt-5.6-terra']) {
       expect(modelReasoningSupport('openai', model)).toEqual({
         levels: ['low', 'medium', 'high', 'xhigh'],
         offBehavior: 'off',
         supportsEffortNone: true,
+        requiresResponsesApi: true,
+      })
+    }
+  })
+
+  test('openai gpt-6 and newer: low..max, no none, reasoning cannot be disabled', () => {
+    for (const model of ['gpt-6', 'gpt-6-astra', 'gpt-6.1', 'gpt-7']) {
+      expect(modelReasoningSupport('openai', model)).toEqual({
+        levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+        offBehavior: 'default',
+        supportsEffortNone: false,
+        requiresResponsesApi: true,
       })
     }
   })
@@ -63,6 +77,7 @@ describe('modelReasoningSupport', () => {
 describe('isReasoningLevel', () => {
   test('accepts levels and rejects everything else', () => {
     expect(isReasoningLevel('xhigh')).toBe(true)
+    expect(isReasoningLevel('max')).toBe(true)
     expect(isReasoningLevel('none')).toBe(false)
     expect(isReasoningLevel('off')).toBe(false)
     expect(isReasoningLevel(3)).toBe(false)

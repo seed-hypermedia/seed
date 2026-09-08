@@ -7,6 +7,7 @@ import {
   isReasoningLevel,
   REASONING_LEVELS,
   type ReasoningLevel,
+  type ModelReasoningSupport,
   modelReasoningSupport,
   modelContextWindow,
   modelSupportsImageInput,
@@ -108,7 +109,7 @@ import {hmIdPathToEntityQueryPath, unpackHmId} from '@seed-hypermedia/client/hm-
 import * as pi from '@mariozechner/pi-coding-agent'
 import {providerErrorReason, recordPerf, recordPerfCount, startPerfSpan} from '@/perf'
 import {sessionPerfRollup, type SessionPerfRollup} from '@/session-perf'
-import {getModels} from '@mariozechner/pi-ai'
+import {getModels, type ThinkingLevel} from '@mariozechner/pi-ai'
 import type {OAuthCredentials} from '@mariozechner/pi-ai/oauth'
 import {openaiCodexOAuthProvider} from '@mariozechner/pi-ai/oauth'
 import {OAUTH_PROVIDER_TYPES, PersistedOAuthBackend, ProviderOAuthManager} from './provider-oauth'
@@ -5164,8 +5165,9 @@ export class Service {
       settingsManager: pi.SettingsManager.inMemory({compaction: {enabled: false}, retry: {enabled: false}}),
     })
     try {
+      const reasoningSupport = modelReasoningSupport(provider.type, definition.model)
       piSession.agent.onPayload = (payload) => {
-        let next = restoreReasoningEffort(payload, definition)
+        let next = applyReasoningEffort(payload, definition, reasoningSupport)
         if (provider.modelDefaults) next = mergePiPayloadDefaults(next, provider.modelDefaults)
         return next
       }
@@ -6623,7 +6625,7 @@ export class Service {
     const modelChoicePrompt = otherModels.length
       ? `\n\nYou are running on ${activeModel}. Your user has also enabled these models for you: ${otherModels.join(
           ', ',
-        )}. When you delegate, pass \`model\` so each child runs on the model its task deserves: route simple, mechanical, or high-volume subtasks (extraction, reformatting, short summaries, routine lookups) to a cheaper/faster model, and route work that needs deep reasoning, difficult code, or careful judgment to the strongest enabled model — even when that is not the model you are running on. Judge tiers by model family and name. Whenever you pass \`model\`, also pass \`reasoningLevel\` (off, minimal, low, medium, high, xhigh) — off for mechanical work, higher for hard problems. Omit both when the child should simply inherit its agent's configured model and reasoning level.`
+        )}. When you delegate, pass \`model\` so each child runs on the model its task deserves: route simple, mechanical, or high-volume subtasks (extraction, reformatting, short summaries, routine lookups) to a cheaper/faster model, and route work that needs deep reasoning, difficult code, or careful judgment to the strongest enabled model — even when that is not the model you are running on. Judge tiers by model family and name. Whenever you pass \`model\`, also pass \`reasoningLevel\` (${DELEGATE_REASONING_LEVELS}) — off for mechanical work, higher for hard problems. Omit both when the child should simply inherit its agent's configured model and reasoning level.`
       : ''
     const conversationMembersPrompt = await this.#conversationMembersPrompt(accountId, agentId)
     const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${modelChoicePrompt}${userActionsPrompt}${continuationPrompt}${conversationMembersPrompt}${spaceIndex}`
@@ -6813,7 +6815,9 @@ export class Service {
       cwd,
       agentDir: path.join(this.#dataDir, 'pi'),
       model,
-      thinkingLevel: definition.reasoningLevel ?? 'off',
+      // Pi's level type predates `max`; its runtime passes an unknown effort through to the
+      // Responses API, and `applyReasoningEffort` reasserts the validated level on every payload.
+      thinkingLevel: (definition.reasoningLevel ?? 'off') as ThinkingLevel | 'off',
       authStorage,
       modelRegistry,
       resourceLoader,
@@ -6894,6 +6898,10 @@ export class Service {
     let awaitingFirstOutput = false
     // TTFT of the in-flight turn, held until message_end folds it into that turn's timing meta.
     let lastTtftMs: number | undefined
+    // The reasoning effort the most recent provider request carried, so a rejection of that exact
+    // value can teach `learnReasoningEffortSupport` what the model accepts instead.
+    let lastSentEffort: string | undefined
+    const reasoningSupport = modelReasoningSupport(provider.type, definition.model)
     // Bounded metric suffix (providers × configured models), same shape the error counters use.
     const providerModelTag = `${model.provider}.${definition.model ?? 'default'}`
     piSession.agent.onPayload = (payload) => {
@@ -6924,8 +6932,9 @@ export class Service {
       }
       lastRequestSentAt = Date.now()
       awaitingFirstOutput = true
-      let next = restoreReasoningEffort(payload, definition)
+      let next = applyReasoningEffort(payload, definition, reasoningSupport)
       if (mergeModelDefaults) next = mergePiPayloadDefaults(next, mergeModelDefaults)
+      lastSentEffort = payloadReasoningEffort(next)
       return next
     }
     const endReplaySpan = startPerfSpan('prep.replay')
@@ -7239,6 +7248,14 @@ export class Service {
             recordPerfCount(
               `provider.error.${model.provider}.${definition.model ?? 'default'}.${providerErrorReason(finalError)}`,
             )
+            const learned = learnReasoningEffortSupport(definition.model, finalError, lastSentEffort)
+            if (learned) {
+              logRun('learned reasoning efforts the model accepts; the next request will use them', {
+                model: definition.model,
+                rejected: lastSentEffort,
+                supported: learned,
+              })
+            }
           }
           logRunError('assistant turn reported error', {stopReason: assistantMessage.stopReason, error: finalError})
           return
@@ -10648,16 +10665,15 @@ function piModelForDefinition(
   }
   const support = modelReasoningSupport(type, definition.model)
   // Pi only sends reasoning parameters for models flagged `reasoning`. The flag
-  // goes on when a level is selected, and also when the model needs an explicit
-  // "no reasoning" value (Pi's openai-responses path sends `effort: 'none'` for
-  // reasoning-flagged models with no level, which such models require before
-  // they accept function tools).
-  const reasoning = Boolean(support && (definition.reasoningLevel || support.supportsEffortNone))
-  // OpenAI's newest chat models (gpt-5.1+) reject function tools on
-  // /v1/chat/completions unless reasoning is explicitly disabled, and reject
-  // tools entirely once a reasoning effort is set there. The Responses API is
-  // OpenAI's supported path for tools + reasoning, so reasoning-flagged OpenAI
-  // models ride it while everything else keeps the plain completions path.
+  // goes on when a level is selected, and also for models that reason by default
+  // server-side (gpt-5.1+): those reject function tools on /v1/chat/completions
+  // unless reasoning is explicitly configured, and reject tools entirely once a
+  // reasoning effort is set there. The Responses API is OpenAI's supported path
+  // for tools + reasoning, so reasoning-flagged OpenAI models ride it while
+  // everything else keeps the plain completions path. What the request then says
+  // about effort — the level, `none`, or nothing — is decided per payload by
+  // `applyReasoningEffort`.
+  const reasoning = Boolean(support && (definition.reasoningLevel || support.requiresResponsesApi))
   const api = type === 'openai' && reasoning ? 'openai-responses' : providerSpec(type).api
   return {
     id: definition.model,
@@ -11494,7 +11510,12 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
       'Your memory lives in ~/memory/ and your tools in ~/tools/ — read and write them freely.',
       ...(definition.enabledModels?.length
         ? [
-            'Delegate children can run on any enabled model: pass `model` ("provider/model") together with `reasoningLevel` (off|minimal|low|medium|high|xhigh) to delegate — cheaper models with reasoning off for simple subtasks, stronger ones thinking harder for hard reasoning. Omit both to inherit your model and level.',
+            `Delegate children can run on any enabled model: pass \`model\` ("provider/model") together with \`reasoningLevel\` (${[
+              'off',
+              ...REASONING_LEVELS,
+            ].join(
+              '|',
+            )}) to delegate — cheaper models with reasoning off for simple subtasks, stronger ones thinking harder for hard reasoning. Omit both to inherit your model and level.`,
           ]
         : []),
       'Create, edit, enable, or disable automations with write ~/triggers/<name>; they take effect immediately. A trigger can start a thread for you, or — with continuation {kind: "tool"} or {kind: "script"} — run one of your ~/tools/ or a workflow script with no model at all, waking you only if it fails (onFailure: "thread").',
@@ -14724,12 +14745,113 @@ function mergePiPayloadDefaults(payload: unknown, defaults: Record<string, unkno
 }
 
 /**
- * Reasserts the agent's validated reasoning level on an OpenAI Responses
- * payload. Pi clamps levels for models its bundled catalog does not know
- * (e.g. it downgrades xhigh to high for gpt-5.6+), but the definition's level
- * was validated against the live per-model matrix and is authoritative.
+ * Effort values in ascending order: OpenAI's explicit "no reasoning" value below the
+ * user-selectable levels. Used only to pick the nearest accepted value when a provider rejects
+ * the one we sent.
+ */
+const EFFORT_ORDER: string[] = ['none', ...REASONING_LEVELS]
+
+/**
+ * Efforts a provider has told us a model accepts, learned from its own rejection of a request
+ * (OpenAI: "Unsupported value: 'none' is not supported with the 'gpt-6-astra' model. Supported
+ * values are: 'low', 'medium', 'high', 'xhigh', and 'max'."). Keyed by model id and consulted by
+ * `applyReasoningEffort` before every request, so a model the matrix in reasoning.ts does not
+ * know yet costs one failed turn and then runs, instead of failing until someone ships a release.
+ * Process-local on purpose: a safety net, not a catalog.
+ */
+const learnedEffortSupport = new Map<string, string[]>()
+
+const UNSUPPORTED_EFFORT_PATTERN =
+  /Unsupported value: '([^']+)' is not supported with the '([^']+)' model\. Supported values are: ([^.]+)/
+
+/**
+ * Reads the accepted efforts out of a provider error, when the error is about the effort this
+ * run just sent to this model. Records and returns them; null when the error is something else.
  * Exported for tests.
  */
+export function learnReasoningEffortSupport(
+  model: string,
+  errorMessage: string,
+  sentEffort: string | undefined,
+): string[] | null {
+  if (!sentEffort) return null
+  const match = errorMessage.match(UNSUPPORTED_EFFORT_PATTERN)
+  if (!match) return null
+  if (match[1] !== sentEffort || match[2] !== model) return null
+  const supported = [...(match[3] ?? '').matchAll(/'([^']+)'/g)]
+    .map((entry) => entry[1])
+    .filter((value): value is string => typeof value === 'string')
+  if (supported.length === 0) return null
+  learnedEffortSupport.set(model, supported)
+  return supported
+}
+
+/** Test hook: forgets everything learned from provider rejections. */
+export function resetLearnedReasoningEffortSupport(): void {
+  learnedEffortSupport.clear()
+}
+
+/**
+ * The accepted effort closest to a rejected one: the next stronger accepted value, else the next
+ * weaker. A rejected `none` becomes undefined — the model cannot stop reasoning, so the provider's
+ * default applies rather than a level nobody chose.
+ */
+function nearestAcceptedEffort(effort: string, accepted: string[]): string | undefined {
+  if (effort === 'none') return undefined
+  const rank = EFFORT_ORDER.indexOf(effort)
+  if (rank === -1) return undefined
+  return (
+    EFFORT_ORDER.slice(rank + 1).find((candidate) => accepted.includes(candidate)) ??
+    EFFORT_ORDER.slice(0, rank)
+      .reverse()
+      .find((candidate) => accepted.includes(candidate))
+  )
+}
+
+/** The `reasoning.effort` an outgoing provider payload carries, if any. */
+export function payloadReasoningEffort(payload: unknown): string | undefined {
+  if (!isRecord(payload) || !isRecord(payload.reasoning)) return undefined
+  return typeof payload.reasoning.effort === 'string' ? payload.reasoning.effort : undefined
+}
+
+/**
+ * Sets the reasoning effort of an OpenAI Responses payload to what this run should send. Pi's
+ * choice is only a starting point: it clamps levels for models its bundled catalog does not know
+ * (downgrading xhigh to high for gpt-5.6+, say) and writes `effort: 'none'` for every
+ * reasoning-flagged model that has no level — which models that cannot stop reasoning (gpt-6+)
+ * reject outright. The definition's level was validated against the live per-model matrix and is
+ * authoritative; without a level the request says `none` where the model accepts it and otherwise
+ * omits the effort so the provider's default applies. Whatever the matrix believes, an effort the
+ * provider has already rejected for this model (`learnReasoningEffortSupport`) is replaced by the
+ * nearest accepted one.
+ *
+ * Payloads without a `reasoning` object (the completions path, other providers) pass through
+ * untouched. Exported for tests.
+ */
+export function applyReasoningEffort(
+  payload: unknown,
+  definition: Pick<api.AgentDefinition, 'model' | 'reasoningLevel'>,
+  support: ModelReasoningSupport | null,
+): unknown {
+  if (!isRecord(payload) || !isRecord(payload.reasoning)) return payload
+  let effort: string | undefined = definition.reasoningLevel ?? (support?.supportsEffortNone ? 'none' : undefined)
+  const accepted = learnedEffortSupport.get(definition.model)
+  if (effort && accepted && !accepted.includes(effort)) effort = nearestAcceptedEffort(effort, accepted)
+  const reasoning: Record<string, unknown> = {...payload.reasoning}
+  if (effort) reasoning.effort = effort
+  else delete reasoning.effort
+  const next: Record<string, unknown> = {...payload, reasoning}
+  if (effort !== 'none') {
+    // Reasoning will happen: ask for summaries and the encrypted reasoning items Pi replays on the
+    // next request, exactly as it does for an explicit level. Without them a tool call's follow-up
+    // request is rejected for lacking the reasoning item that preceded the call.
+    if (reasoning.summary === undefined) reasoning.summary = 'auto'
+    const include = Array.isArray(next.include) ? next.include : []
+    if (!include.includes('reasoning.encrypted_content')) next.include = [...include, 'reasoning.encrypted_content']
+  }
+  return next
+}
+
 /**
  * The reasoning level a run on `definition` really uses, for stamping on its events. A chosen
  * level wins. Otherwise the run sends no level, which means `off` — except for models that cannot
@@ -14742,15 +14864,6 @@ export function effectiveReasoningLevel(
   if (definition.reasoningLevel) return definition.reasoningLevel
   const support = modelReasoningSupport(providerType, definition.model)
   return support?.offBehavior === 'default' ? 'default' : 'off'
-}
-
-export function restoreReasoningEffort(payload: unknown, definition: api.AgentDefinition): unknown {
-  if (!definition.reasoningLevel) return payload
-  if (!isRecord(payload) || !isRecord(payload.reasoning) || typeof payload.reasoning.effort !== 'string') {
-    return payload
-  }
-  if (payload.reasoning.effort === definition.reasoningLevel) return payload
-  return {...payload, reasoning: {...payload.reasoning, effort: definition.reasoningLevel}}
 }
 
 function emptyPiUsage(): {

@@ -12,7 +12,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import {z} from 'zod'
-import {sessionEventActor, type AgentDefinition} from '@seed-hypermedia/agents-protocol'
+import {modelReasoningSupport, sessionEventActor, type AgentDefinition} from '@seed-hypermedia/agents-protocol'
 import {startTestMcpServer} from '@/mcp-test-server'
 
 /**
@@ -7273,23 +7273,122 @@ describe('api service', () => {
     }
   })
 
-  test('restoreReasoningEffort reasserts the validated level on clamped payloads', () => {
-    const definition = {
-      name: 'a',
-      systemPrompt: 'ok',
-      modelProvider: 'openai',
-      model: 'gpt-5.6-terra',
-      reasoningLevel: 'xhigh',
-    } as never
+  test('applyReasoningEffort reasserts the validated level on clamped payloads', () => {
+    const definition = {model: 'gpt-5.6-terra', reasoningLevel: 'xhigh'} as const
+    const support = modelReasoningSupport('openai', definition.model)
     expect(
-      apisvc.restoreReasoningEffort({model: 'gpt-5.6-terra', reasoning: {effort: 'high', summary: 'auto'}}, definition),
-    ).toEqual({model: 'gpt-5.6-terra', reasoning: {effort: 'xhigh', summary: 'auto'}})
+      apisvc.applyReasoningEffort(
+        {
+          model: 'gpt-5.6-terra',
+          reasoning: {effort: 'high', summary: 'auto'},
+          include: ['reasoning.encrypted_content'],
+        },
+        definition,
+        support,
+      ),
+    ).toEqual({
+      model: 'gpt-5.6-terra',
+      reasoning: {effort: 'xhigh', summary: 'auto'},
+      include: ['reasoning.encrypted_content'],
+    })
     // Payloads without a reasoning object (level off, non-OpenAI providers) pass through untouched.
     const plain = {model: 'gpt-5.6-terra'}
-    expect(apisvc.restoreReasoningEffort(plain, {...(definition as object), reasoningLevel: undefined} as never)).toBe(
-      plain,
-    )
-    expect(apisvc.restoreReasoningEffort(plain, definition)).toBe(plain)
+    expect(apisvc.applyReasoningEffort(plain, {model: 'gpt-5.6-terra'}, support)).toBe(plain)
+    expect(apisvc.applyReasoningEffort(plain, definition, support)).toBe(plain)
+  })
+
+  test('applyReasoningEffort without a level: none where accepted, provider default elsewhere', () => {
+    // gpt-5.1+ accept `none`, and Pi already wrote it: nothing to change.
+    expect(
+      apisvc.applyReasoningEffort(
+        {model: 'gpt-5.6-terra', reasoning: {effort: 'none'}},
+        {model: 'gpt-5.6-terra'},
+        modelReasoningSupport('openai', 'gpt-5.6-terra'),
+      ),
+    ).toEqual({model: 'gpt-5.6-terra', reasoning: {effort: 'none'}})
+    // gpt-6 rejects `none` and cannot stop reasoning: drop the effort so the provider default
+    // applies, and keep the reasoning items flowing back like any reasoning turn.
+    expect(
+      apisvc.applyReasoningEffort(
+        {model: 'gpt-6-astra', reasoning: {effort: 'none'}},
+        {model: 'gpt-6-astra'},
+        modelReasoningSupport('openai', 'gpt-6-astra'),
+      ),
+    ).toEqual({
+      model: 'gpt-6-astra',
+      reasoning: {summary: 'auto'},
+      include: ['reasoning.encrypted_content'],
+    })
+    // A chosen gpt-6 level, including the new `max`, is sent as-is.
+    expect(
+      apisvc.applyReasoningEffort(
+        {model: 'gpt-6-astra', reasoning: {effort: 'high', summary: 'auto'}, include: ['reasoning.encrypted_content']},
+        {model: 'gpt-6-astra', reasoningLevel: 'max'},
+        modelReasoningSupport('openai', 'gpt-6-astra'),
+      ),
+    ).toEqual({
+      model: 'gpt-6-astra',
+      reasoning: {effort: 'max', summary: 'auto'},
+      include: ['reasoning.encrypted_content'],
+    })
+  })
+
+  test('a provider rejection teaches applyReasoningEffort what a model accepts', () => {
+    apisvc.resetLearnedReasoningEffortSupport()
+    try {
+      const rejection =
+        "400 Unsupported value: 'none' is not supported with the 'gpt-7-nova' model. Supported values are: 'low', 'medium', 'high', 'xhigh', and 'max'."
+      // Only a rejection of the effort this run sent, for this model, counts.
+      expect(apisvc.learnReasoningEffortSupport('gpt-7-nova', rejection, undefined)).toBeNull()
+      expect(apisvc.learnReasoningEffortSupport('gpt-7-nova', rejection, 'low')).toBeNull()
+      expect(apisvc.learnReasoningEffortSupport('gpt-6-astra', rejection, 'none')).toBeNull()
+      expect(apisvc.learnReasoningEffortSupport('gpt-7-nova', '500 upstream exploded', 'none')).toBeNull()
+      expect(apisvc.learnReasoningEffortSupport('gpt-7-nova', rejection, 'none')).toEqual([
+        'low',
+        'medium',
+        'high',
+        'xhigh',
+        'max',
+      ])
+      // Pretend the matrix still believes gpt-7-nova takes `none` (as it did for gpt-6 before
+      // 2026-09-08): the learned list wins and the effort is dropped for the provider default.
+      const staleSupport = modelReasoningSupport('openai', 'gpt-5.6-terra')
+      expect(
+        apisvc.applyReasoningEffort(
+          {model: 'gpt-7-nova', reasoning: {effort: 'none'}},
+          {model: 'gpt-7-nova'},
+          staleSupport,
+        ),
+      ).toEqual({model: 'gpt-7-nova', reasoning: {summary: 'auto'}, include: ['reasoning.encrypted_content']})
+      // A rejected level moves to the nearest accepted one: up first, then down.
+      expect(
+        apisvc.learnReasoningEffortSupport(
+          'gpt-7-nova',
+          "Unsupported value: 'minimal' is not supported with the 'gpt-7-nova' model. Supported values are: 'medium' and 'high'.",
+          'minimal',
+        ),
+      ).toEqual(['medium', 'high'])
+      expect(
+        apisvc.payloadReasoningEffort(
+          apisvc.applyReasoningEffort(
+            {model: 'gpt-7-nova', reasoning: {effort: 'minimal', summary: 'auto'}},
+            {model: 'gpt-7-nova', reasoningLevel: 'minimal'},
+            staleSupport,
+          ),
+        ),
+      ).toBe('medium')
+      expect(
+        apisvc.payloadReasoningEffort(
+          apisvc.applyReasoningEffort(
+            {model: 'gpt-7-nova', reasoning: {effort: 'xhigh', summary: 'auto'}},
+            {model: 'gpt-7-nova', reasoningLevel: 'xhigh'},
+            staleSupport,
+          ),
+        ),
+      ).toBe('high')
+    } finally {
+      apisvc.resetLearnedReasoningEffortSupport()
+    }
   })
 
   test('effectiveReasoningLevel stamps the level a run really used', () => {
@@ -7302,6 +7401,7 @@ describe('api service', () => {
     // Unset on a model that cannot stop reasoning means the provider's own default applied.
     expect(apisvc.effectiveReasoningLevel('openai', {model: 'gpt-5-mini'})).toBe('default')
     expect(apisvc.effectiveReasoningLevel('openai', {model: 'o3'})).toBe('default')
+    expect(apisvc.effectiveReasoningLevel('openai', {model: 'gpt-6-astra'})).toBe('default')
     expect(apisvc.effectiveReasoningLevel('google', {model: 'gemini-2.5-pro'})).toBe('default')
   })
 
@@ -9155,8 +9255,8 @@ describe('normalizeSubSessionSpec', () => {
       /reasoningLevel requires `model`/,
     )
     expect(() =>
-      apisvc.normalizeSubSessionSpec({brief: 'Summarize.', model: 'openai/gpt-5-mini', reasoningLevel: 'max'}),
-    ).toThrow(/must be one of: off, minimal, low, medium, high, xhigh/)
+      apisvc.normalizeSubSessionSpec({brief: 'Summarize.', model: 'openai/gpt-5-mini', reasoningLevel: 'ultra'}),
+    ).toThrow(/must be one of: off, minimal, low, medium, high, xhigh, max/)
     // Omitting both inherits the agent's model and level; `off` is an explicit choice of no reasoning.
     const inherited = apisvc.normalizeDelegateModelChoice({})
     expect(inherited).toEqual({})

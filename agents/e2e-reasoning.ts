@@ -1,5 +1,5 @@
 // Manual e2e: drives the real Service against the real OpenAI API to prove the
-// gpt-5.6-terra + tools fix and reasoning levels. Run: bun e2e-reasoning.ts <api-key>
+// gpt-5.6-terra + tools fix, the gpt-6 no-`none` path, and reasoning levels. Run: bun e2e-reasoning.ts <api-key>
 // Kept as a manual script (not a bun test) because it spends real tokens.
 import {Database} from 'bun:sqlite'
 import * as fs from 'node:fs'
@@ -56,6 +56,8 @@ try {
   await runScenario('gpt-5.6-terra', 'low') // reasoning + tools via Responses API
   await runScenario('gpt-5-mini') // unchanged completions path
   await runScenario('gpt-5-mini', 'minimal') // 5.0-family level via Responses API
+  await runScenario('gpt-6-astra') // rejects effort 'none' (2026-09-08): Responses API, provider-default effort
+  await runScenario('gpt-6-astra', 'max') // the 6.0-family top level
   console.log('ALL SCENARIOS PASSED')
 } finally {
   fs.rmSync(dataDir, {recursive: true, force: true})
