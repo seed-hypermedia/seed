@@ -3599,6 +3599,9 @@ func TestActivityFeedFilterAuthorsUsesLatestAliasState(t *testing.T) {
 }
 
 func TestPrivateDocumentAccessControl(t *testing.T) {
+	// Private document creation is disabled for users (0f897c776); this test exercises
+	// what happens to private documents that exist, so it opts back in.
+	documentsimpl.EnablePrivateDocumentCreationForTests()
 	t.Parallel()
 	ctx := t.Context()
 
@@ -3790,6 +3793,9 @@ func TestPrivateDocumentAccessControl(t *testing.T) {
 }
 
 func TestPrivateDocumentUpdatePreservesVisibility(t *testing.T) {
+	// Private document creation is disabled for users (0f897c776); this test exercises
+	// what happens to private documents that exist, so it opts back in.
+	documentsimpl.EnablePrivateDocumentCreationForTests()
 	t.Parallel()
 
 	ctx := t.Context()
@@ -3888,6 +3894,9 @@ func TestPrivateDocumentUpdatePreservesVisibility(t *testing.T) {
 }
 
 func TestPrivateDocumentExplicitPublicUpdateBecomesPublic(t *testing.T) {
+	// Private document creation is disabled for users (0f897c776); this test exercises
+	// what happens to private documents that exist, so it opts back in.
+	documentsimpl.EnablePrivateDocumentCreationForTests()
 	t.Parallel()
 
 	ctx := t.Context()
@@ -3968,6 +3977,9 @@ func TestPrivateDocumentExplicitPublicUpdateBecomesPublic(t *testing.T) {
 }
 
 func TestPrivateDocumentsSync(t *testing.T) {
+	// Private document creation is disabled for users (0f897c776); this test exercises
+	// what happens to private documents that exist, so it opts back in.
+	documentsimpl.EnablePrivateDocumentCreationForTests()
 	t.Parallel()
 
 	ctx := t.Context()
@@ -5533,6 +5545,9 @@ func TestMovedDocumentCommentsFollowRedirects(t *testing.T) {
 }
 
 func TestPublicOnlyGetPrivateDocument(t *testing.T) {
+	// Private document creation is disabled for users (0f897c776); this test exercises
+	// what happens to private documents that exist, so it opts back in.
+	documentsimpl.EnablePrivateDocumentCreationForTests()
 	t.Parallel()
 
 	ctx := context.Background()
@@ -5645,6 +5660,9 @@ func TestPublicOnlyGetPrivateDocument(t *testing.T) {
 }
 
 func TestPublicOnlyAuthenticatedPrivateBlobBlockstoreMethods(t *testing.T) {
+	// Private document creation is disabled for users (0f897c776); this test exercises
+	// what happens to private documents that exist, so it opts back in.
+	documentsimpl.EnablePrivateDocumentCreationForTests()
 	t.Parallel()
 
 	ctx := context.Background()

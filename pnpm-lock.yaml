@@ -42,6 +42,7 @@ overrides:
   tar: 7.5.21
   fast-xml-parser@^4: 5.7.2
   fast-xml-parser@^5: 5.7.2
+  toml: 4.3.0
   fast-xml-builder: 1.1.7
   fast-uri: 3.1.6
   minimatch@^3: 3.1.4
@@ -13842,8 +13843,9 @@ packages:
     resolution: {integrity: sha512-dRXchy+C0IgK8WPC6xvCHFRIWYUbqqdEIKPaKo/AcTUNzwLTK6AH7RjdLWsEZcAN/TBdtfUw3PYEgPr5VPr6ww==}
     engines: {node: '>=14.16'}
 
-  toml@3.0.0:
-    resolution: {integrity: sha512-y/mWCZinnvxjTKYhJ+pYxwD0mRLVvOtdS2Awbgxln6iEnt4rk0yBxeSBHkGJcPucRiG0e55mwWp+g/05rsrd6w==}
+  toml@4.3.0:
+    resolution: {integrity: sha512-lVb8X9BsPVuH0M4BKeS91tXAmJvCjQ5UIyAbQFaxkKGyUFK2RPkhwaFSQH8vbpl1d23eu/IBH+dwVMHWaq9A5A==}
+    engines: {node: '>=20'}
 
   tough-cookie@4.1.4:
     resolution: {integrity: sha512-Loo5UUvLD9ScZ6jh8beX1T6sO1w2/MpCRpEP7V280GKMVUQ0Jzar2U3UJPsrdbziLEMMhu3Ujnq//rhiFuIeag==}
@@ -29410,7 +29412,7 @@ snapshots:
       estree-util-is-identifier-name: 1.1.0
       estree-util-value-to-estree: 3.3.3
       js-yaml: 5.2.2
-      toml: 3.0.0
+      toml: 4.3.0
 
   remark-mdx@2.3.0:
     dependencies:
@@ -30420,7 +30422,7 @@ snapshots:
       '@tokenizer/token': 0.3.0
       ieee754: 1.2.1
 
-  toml@3.0.0: {}
+  toml@4.3.0: {}
 
   tough-cookie@4.1.4:
     dependencies:

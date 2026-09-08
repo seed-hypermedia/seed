@@ -26,6 +26,7 @@ import (
 	"seed/backend/util/sqlite/sqlitex"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/invopop/validation"
@@ -1051,6 +1052,18 @@ func (srv *Server) PrepareChange(ctx context.Context, in *documents.PrepareChang
 	}, nil
 }
 
+// privateCreationEnabledForTests re-enables private document creation process-wide. Only tests
+// set it (via EnablePrivateDocumentCreationForTests): production keeps refusing new private
+// documents, while the private-document access-control and sync tests can still create the
+// private documents they exercise.
+var privateCreationEnabledForTests atomic.Bool
+
+// EnablePrivateDocumentCreationForTests lifts the private document creation gate for the rest of
+// the process. It exists for end-to-end tests in other packages; never call it from production code.
+func EnablePrivateDocumentCreationForTests() {
+	privateCreationEnabledForTests.Store(true)
+}
+
 // documentChangeParams holds the common parameters for PrepareChange.
 type documentChangeParams struct {
 	Account                     string
@@ -1113,7 +1126,7 @@ func (srv *Server) handleDocumentChangeRequest(ctx context.Context, in documentC
 		}
 	}
 
-	if in.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE && doc.Visibility() != blob.VisibilityPrivate && !in.allowPrivateCreationForTest {
+	if in.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE && doc.Visibility() != blob.VisibilityPrivate && !in.allowPrivateCreationForTest && !privateCreationEnabledForTests.Load() {
 		return nil, status.Error(codes.FailedPrecondition, "private document creation is disabled")
 	}
 

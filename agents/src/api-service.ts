@@ -11997,7 +11997,7 @@ export async function executeWriteVerb(
       file.encoding === 'binary' ? file.data ?? new Uint8Array() : new TextEncoder().encode(file.content ?? '')
     const {cid, url} = await publishBytesToIpfs(context.hmServerUrl, bytes)
     return {
-      summary: `Uploaded ${file.path} to IPFS as ${url}.`,
+      summary: `Uploaded ~/memory/${file.path} to IPFS as ${url}.`,
       path: file.path,
       cid,
       url,
