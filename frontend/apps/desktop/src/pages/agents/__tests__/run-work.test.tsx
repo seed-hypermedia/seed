@@ -179,6 +179,7 @@ describe('journaled tool rows', () => {
     const parent = makeRun({id: 'root-1', status: 'running', kind: 'workflow', agentId: 'agent-1'} as never)
     render(
       <RunWorkHierarchy
+        serverUrl="http://localhost:3050"
         run={parent}
         childRuns={[]}
         journal={[
@@ -243,10 +244,11 @@ describe('integrated step rows', () => {
     title: 'Notion researcher',
   } as never)
 
-  it('the step with an attached child IS the link into its sub-session — no duplicate row below', () => {
+  it('the step with an attached child IS the link into its run page — no duplicate row below', () => {
     const onOpenSession = vi.fn()
     render(
       <RunWorkHierarchy
+        serverUrl="http://localhost:3050"
         run={parent}
         childRuns={[child]}
         plan={plan}
@@ -262,7 +264,11 @@ describe('integrated step rows', () => {
     )
     expect(stepRow).toBeTruthy()
     click(stepRow)
-    expect(onOpenSession).toHaveBeenCalledWith('child-session-1', undefined)
+    expect(mockState.pushNavigate).toHaveBeenCalledWith({
+      key: 'agent-run',
+      runId: 'child-1',
+      serverUrl: 'http://localhost:3050',
+    })
     // The child does not ALSO render as a separate loose row beneath the list.
     expect(container.textContent?.match(/Notion researcher/g) ?? []).toHaveLength(0)
     // The pending step renders as a plain, non-interactive row.
@@ -292,6 +298,7 @@ describe('integrated step rows', () => {
     const onOpenSession = vi.fn()
     render(
       <RunWorkHierarchy
+        serverUrl="http://localhost:3050"
         run={parent}
         childRuns={[stamped]}
         plan={renamedPlan}
@@ -307,7 +314,11 @@ describe('integrated step rows', () => {
     )
     expect(stepRow).toBeTruthy()
     click(stepRow)
-    expect(onOpenSession).toHaveBeenCalledWith('child-session-1', undefined)
+    expect(mockState.pushNavigate).toHaveBeenCalledWith({
+      key: 'agent-run',
+      runId: 'child-1',
+      serverUrl: 'http://localhost:3050',
+    })
     expect(container.textContent?.match(/Notion researcher/g) ?? []).toHaveLength(0)
   })
 
@@ -315,6 +326,7 @@ describe('integrated step rows', () => {
     const onOpenSession = vi.fn()
     render(
       <RunWorkHierarchy
+        serverUrl="http://localhost:3050"
         run={parent}
         childRuns={[child]}
         plan={plan}
@@ -328,7 +340,11 @@ describe('integrated step rows', () => {
       (button) => button.textContent?.includes('Research Notion'),
     )
     click(stepRow)
-    expect(onOpenSession).toHaveBeenCalledWith('child-session-1', undefined)
+    expect(mockState.pushNavigate).toHaveBeenCalledWith({
+      key: 'agent-run',
+      runId: 'child-1',
+      serverUrl: 'http://localhost:3050',
+    })
   })
 
   it('a batch step becomes a plain header and its children render as uniform peers', () => {
@@ -360,6 +376,7 @@ describe('integrated step rows', () => {
     const onCancelRun = vi.fn()
     render(
       <RunWorkHierarchy
+        serverUrl="http://localhost:3050"
         run={parent}
         childRuns={[notion, coda]}
         plan={batchPlan}
@@ -378,7 +395,7 @@ describe('integrated step rows', () => {
     )
     expect(stepButton).toBeUndefined()
 
-    // Both children are there, each its own click target into its own session.
+    // Both children are there, each its own click target into its own run page.
     const notionRow = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent === 'Notion researcher',
     )
@@ -392,9 +409,17 @@ describe('integrated step rows', () => {
     expect(notionRow!.parentElement!.className).toBe(codaRow!.parentElement!.className)
 
     click(notionRow)
-    expect(onOpenSession).toHaveBeenCalledWith('session-notion', undefined)
+    expect(mockState.pushNavigate).toHaveBeenCalledWith({
+      key: 'agent-run',
+      runId: 'child-notion',
+      serverUrl: 'http://localhost:3050',
+    })
     click(codaRow)
-    expect(onOpenSession).toHaveBeenCalledWith('session-coda', undefined)
+    expect(mockState.pushNavigate).toHaveBeenCalledWith({
+      key: 'agent-run',
+      runId: 'child-coda',
+      serverUrl: 'http://localhost:3050',
+    })
 
     // And each carries its own cancel.
     click(container.querySelector('button[aria-label="Cancel Notion researcher"]'))
@@ -415,6 +440,7 @@ describe('integrated step rows', () => {
     }
     render(
       <RunWorkHierarchy
+        serverUrl="http://localhost:3050"
         run={parent}
         childRuns={[]}
         plan={mixedPlan}
@@ -432,6 +458,7 @@ describe('integrated step rows', () => {
     const onOpenSession = vi.fn()
     render(
       <RunWorkHierarchy
+        serverUrl="http://localhost:3050"
         run={parent}
         childRuns={[child]}
         plan={plan}
@@ -446,7 +473,11 @@ describe('integrated step rows', () => {
     )
     expect(stepRow).toBeTruthy()
     click(stepRow)
-    expect(onOpenSession).toHaveBeenCalledWith('child-session-1', undefined)
+    expect(mockState.pushNavigate).toHaveBeenCalledWith({
+      key: 'agent-run',
+      runId: 'child-1',
+      serverUrl: 'http://localhost:3050',
+    })
     // No peer row below it — the step is the only place the child appears.
     expect(container.textContent?.match(/Notion researcher/g) ?? []).toHaveLength(0)
   })
@@ -455,6 +486,7 @@ describe('integrated step rows', () => {
     const onCancelRun = vi.fn()
     render(
       <RunWorkHierarchy
+        serverUrl="http://localhost:3050"
         run={parent}
         childRuns={[child]}
         plan={plan}
@@ -570,7 +602,7 @@ describe('delegate expanded view', () => {
     })
   })
 
-  it('opens a step’s sub-session by navigating, with no synthetic event to preventDefault', () => {
+  it('opens a step’s run page by navigating, with no synthetic event to preventDefault', () => {
     mockState.run = makeRun({
       id: 'wf-run-2',
       status: 'running',
@@ -599,8 +631,8 @@ describe('delegate expanded view', () => {
     click(container.querySelector('button[title="Show tool details"]'))
     click(Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('Research Notion')))
     expect(mockState.pushNavigate).toHaveBeenCalledWith({
-      key: 'agent-session',
-      sessionId: 'child-session-2',
+      key: 'agent-run',
+      runId: 'child-2',
       serverUrl: 'http://localhost:3050',
     })
   })

@@ -21,12 +21,13 @@ const mockState = vi.hoisted(() => ({
   journal: [] as {runId: string; seq: number; entry: Record<string, unknown>; createdAt: number}[],
   cancel: vi.fn(),
   signal: vi.fn(),
+  navigate: vi.fn(),
 }))
 
 // The card renders the chat's own tool rows, which reach for navigation and the app context —
 // neither exists in this environment, and neither is what these tests are about.
 vi.mock('@shm/ui/agents/navigation', () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => mockState.navigate,
   useClickNavigate: () => vi.fn(),
   useOpenUrl: () => vi.fn(),
   resolveHypermediaRoute: () => null,
@@ -91,6 +92,7 @@ beforeEach(() => {
   mockState.journal = []
   mockState.cancel = vi.fn()
   mockState.signal = vi.fn()
+  mockState.navigate = vi.fn()
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -306,8 +308,7 @@ describe('SessionRunCard (pinned)', () => {
         error: {code: 'provider-error', message: longError},
       }),
     ]
-    const opened: string[] = []
-    render(<SessionRunCard {...baseProps} onOpenSession={(sessionId) => opened.push(sessionId)} />)
+    render(<SessionRunCard {...baseProps} />)
     expect(container.textContent).toContain('Analyze BIB File')
     // The error is present but yields space (truncated), never flex-none — and it is its own
     // click target for interrogation, so it must not pretend to be plain text.
@@ -317,20 +318,24 @@ describe('SessionRunCard (pinned)', () => {
     expect(errorSpan?.getAttribute('role')).toBe('button')
     expect(errorSpan?.className).toContain('truncate')
     expect(errorSpan?.className).not.toContain('flex-none')
-    // Clicking the error opens the full message (code + complete text), NOT the child session:
+    // Clicking the error opens the full message (code + complete text), NOT the child's run page:
     // the chip swallows the click so interrogating a failure never navigates away from the card.
     click(errorSpan)
-    expect(opened).toEqual([])
+    expect(mockState.navigate).not.toHaveBeenCalled()
     const popover = Array.from(document.querySelectorAll('pre')).find((pre) => pre.textContent === longError)
     expect(popover).toBeTruthy()
     expect(document.body.textContent).toContain('provider-error')
-    // The row is still clickable and opens the child session.
+    // The row is still clickable and opens the child's run page.
     const row = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent?.includes('Analyze BIB File'),
     )
     expect(row).toBeTruthy()
     click(row)
-    expect(opened).toContain('session-child-1')
+    expect(mockState.navigate).toHaveBeenCalledWith({
+      key: 'agent-run',
+      runId: 'child-1',
+      serverUrl: 'http://localhost:3050',
+    })
   })
 
   it('the error inspector shows the failing tool call with its arguments', () => {
