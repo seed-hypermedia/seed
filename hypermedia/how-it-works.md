@@ -26,7 +26,7 @@ Everything Onyx types is an IPLD value: one of nine kinds — `null`, `boolean`,
 
 # Layer 2 — Schemas and the meta-schema <!-- id:oOZsaLa6 -->
 
-A schema is a `map` value that constrains other values. It takes one of seven shapes: a `map` schema (a struct, or an open map via `values`), a `list` schema, a `scalar` schema (with optional `enum` and value constraints), a `link` schema (a typed CID), an `include` (a bare `ref`), a `union` (`anyOf`), or a `var` (a type variable for generics). The meta-schema — the schema of schemas — is the discriminated union of those seven, and it validates as an instance of itself. That loop is checked on every run of the reference validator. See [the schema language](./schema-language.md). <!-- id:wjogEwsM -->
+A schema is a `map` value that constrains other values. It takes one of nine shapes: a `struct` schema (named fields), a `map` schema (an open map via `values`), a `list` schema, a `scalar` schema (with value constraints), a `link` schema (a typed CID), an `include` (a bare `ref`), a `union` (`anyOf`), a `var` (a type variable for generics), or a `literal` (`{value, description}`) — and a bare string, integer, boolean, or null is a literal too, accepting exactly that value. The meta-schema — the schema of schemas — is the discriminated union of those shapes, and it validates as an instance of itself. That loop is checked on every run of the reference validator. See [the schema language](./schema-language.md). <!-- id:wjogEwsM -->
 
 # Layer 3 — The library <!-- id:JEnxb06S -->
 
@@ -69,7 +69,7 @@ The third form is what makes types extensible by anyone: a schema published unde
 There is one validation engine. The dependency-free reference validator proves the meta-schema describes itself, validates every schema in the library against it, checks positive and negative data cases for the examples, and confirms the union rejects malformed schemas. That same engine is ported line-for-line into the app, so nothing the app shows can disagree with the reference oracle. On top of it sit: <!-- id:7XvEeHE4 -->
   - the **schema tour and explorer** — every schema rendered as a page with fields, variants, inherited versus added properties, generic parameters, URL and CID, dependencies and dependents, and a live editor; <!-- id:JFNU8FGg -->
   - the **schema editor** — a form driven by the meta-schema, so it can only produce valid schemas; <!-- id:QdeIRLDj -->
-  - the **value editor** — a schema-respecting form for building conforming data: dropdowns for enums and union variants, the right controls for `link` and `bytes`, title pills for document references, file pickers for IPFS references; <!-- id:SKTxHaI7 -->
+  - the **value editor** — a schema-respecting form for building conforming data: dropdowns for unions of literals and pickers for union variants, the right controls for `link` and `bytes`, title pills for document references, file pickers for IPFS references; <!-- id:SKTxHaI7 -->
   - the **document integration** — required attributes as fixed rows, red non-blocking validation, and the header actions on a schema-definition document; <!-- id:tvgeEE11 -->
   - the **inspector** — recognizes the signed blob types, detects when a blob _is_ a schema, and validates a blob against its attached schema. <!-- id:Ig_ARwrI -->
 
@@ -77,11 +77,11 @@ These live behind Developer Mode in the Seed app (on by default on the web) and 
 
 # Layer 7 — Generated code <!-- id:jpRr0H4N -->
 
-`typegen.mjs` walks the library and emits one TypeScript type per schema: maps become object types, `enum` becomes a literal union, `anyOf` a union, extension an intersection, open maps an index signature, and `params` / `var` / `args` real generics — so `Change<Block>` in the schema is `Change<Block>` in TypeScript. Self-referential schemas like a recursive JSON value come out as legal recursive types. A `--check` mode fails when the generated file is stale. The schemas, not hand-written type declarations, are the source of truth for the app's data types. <!-- id:e53sOros -->
+`typegen.mjs` walks the library and emits one TypeScript type per schema: maps become object types, a literal a literal type, `anyOf` a union, extension an intersection, open maps an index signature, and `params` / `var` / `args` real generics — so `Change<Block>` in the schema is `Change<Block>` in TypeScript. Self-referential schemas like a recursive JSON value come out as legal recursive types. A `--check` mode fails when the generated file is stale. The schemas, not hand-written type declarations, are the source of truth for the app's data types. <!-- id:e53sOros -->
 
 # Layer 8 — The typed API <!-- id:tHk1te8z -->
 
-The last layer turns the machinery on the API itself. Every read method of the Seed universal client — `request(key, input) → output` — is a `seed-rpc-*` schema that pins its method key as a single-value enum and types `input` and `output` by reference to the read-model schemas. `seed-rpc` is the union of all of them. The in-app API console reads that union to build its method picker, uses the value editor for inputs, and validates both directions advisorily. Adding a method to the catalog is adding a schema. See [the typed API](./api.md). <!-- id:ygRqUJXw -->
+The last layer turns the machinery on the API itself. Every read method of the Seed universal client — `request(key, input) → output` — is a `seed-rpc-*` schema that pins its method key to a literal and types `input` and `output` by reference to the read-model schemas. `seed-rpc` is the union of all of them. The in-app API console reads that union to build its method picker, uses the value editor for inputs, and validates both directions advisorily. Adding a method to the catalog is adding a schema. See [the typed API](./api.md). <!-- id:ygRqUJXw -->
 
 # The invariants <!-- id:4g92-jwm -->
 

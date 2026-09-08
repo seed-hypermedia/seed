@@ -1,14 +1,14 @@
 ---
 name: Change
 summary: An append-only change to a document, linked into a causal DAG via deps. Carries the operations that mutate document content and metadata.
-schemaDefinition: ipfs://bafyreihscxgnttrbjbfzl42awi2dakia6yn2y5uzeg7srd7zy27z6hfgb4
+schemaDefinition: ipfs://bafyreiablai7y35hblqbku66waqn2pzupzaj2v4e43u5kfynsqsdqnwv7q
 ---
 This document describes the **hypermedia-change** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:v0dbkIbB -->
 
 # Shape <!-- id:NQM1VhDF -->
 
 **Extends** [hypermedia-blob](./hypermedia-blob.md) with these added fields: <!-- id:WtuABanO -->
-  - `type` — `string` enum: `Change` <!-- id:vuVh1zRN -->
+  - `type` — `"Change"` <!-- id:vuVh1zRN -->
   - `genesis` — [hypermedia-cid](./hypermedia-cid.md) <!-- id:OjyRoI0Z -->
   - `deps` — list of [hypermedia-cid](./hypermedia-cid.md) <!-- id:14sUK5dG -->
   - `depth` — [integer](./hypermedia-integer.md) <!-- id:WymiRSox -->

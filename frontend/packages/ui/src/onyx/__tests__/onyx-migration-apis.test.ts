@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {ONYX_SCHEMAS, isOnyxSchema, kindOf, requiredFieldNames, validate} from '../onyx-engine'
 import {documentMetadataSchema} from '../onyx-metadata-schema-keys'
 import {onyxSubschema, parseOnyxError} from '../onyx-schema-context'
-import {literalEnumOptions, suggestedFieldType} from '../onyx-value-editor-schema'
+import {literalOptions, suggestedFieldType} from '../onyx-value-editor-schema'
 
 const S = (n: string) => ONYX_SCHEMAS[n]
 
@@ -87,12 +87,12 @@ describe('documentMetadataSchema (document-schema extension)', () => {
   })
 })
 
-describe('literalEnumOptions', () => {
-  it('returns dropdown options for a scalar enum', () => {
-    const opts = literalEnumOptions(S('example-status')) // enum: draft/published/archived
+describe('literalOptions', () => {
+  it('returns dropdown options for a union of literals', () => {
+    const opts = literalOptions(S('example-status')) // anyOf: draft/published/archived
     expect(opts?.map((o) => o.value)).toEqual(['draft', 'published', 'archived'])
   })
-  it('null when there is no enum', () => {
-    expect(literalEnumOptions(S('hypermedia-string'))).toBeNull()
+  it('null when the schema is not a union of literals', () => {
+    expect(literalOptions(S('hypermedia-string'))).toBeNull()
   })
 })

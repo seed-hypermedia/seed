@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListEvents"
 summary: "Pages through the activity feed, with author/type/resource filters. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` fi"
-schemaDefinition: ipfs://bafyreigvgm5cpfckakguvbwyyizowuwu3xwppyq5bd2ksujaj335fj7uqi
+schemaDefinition: ipfs://bafyreibtwjaypuxmgjod6nptlk5gh34tk7ampsr6i7grz53p73acz7556y
 ---
 Pages through the activity feed, with author/type/resource filters. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:8NB6bWqQ -->
 
@@ -10,7 +10,7 @@ This document describes the **seed-rpc-list-events** type — a Seed API read-mo
 # Shape <!-- id:kghUGbcO -->
 
 A **closed struct** with these fields: <!-- id:1xYbf7OV -->
-  - `key` _(required)_ — `string` enum: `ListEvents` <!-- id:FW4audj7 -->
+  - `key` _(required)_ — `"ListEvents"` <!-- id:FW4audj7 -->
   - `input` _(required)_ — map { 8 fields } <!-- id:OLNbt9vw -->
   - `output` _(required)_ — map { 2 fields } <!-- id:MV2CZkha -->
 

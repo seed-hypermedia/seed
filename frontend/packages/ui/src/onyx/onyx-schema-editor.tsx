@@ -22,6 +22,9 @@ import {
   ONYX_SCHEMAS,
   type OnyxSchema,
   STRUCT_URL,
+  isLiteralSchema,
+  literalSchema,
+  literalValue,
   type StructField,
   fieldSchema,
   fieldsToProperties,
@@ -67,7 +70,7 @@ function propKind(ps: any): string {
   if (ps?.format === 'date' || refName === 'hypermedia-date') return 'date'
   if (ps?.format === 'date-time' || refName === 'hypermedia-date-time') return 'date-time'
   if (refName === 'hypermedia-any') return 'any'
-  if (ps?.anyOf || ps?.args || ps?.enum) return CUSTOM_KIND
+  if (isLiteralSchema(ps) || ps?.anyOf || ps?.args) return CUSTOM_KIND
   if (ps?.type) return kindOf(ps.type)
   if (refName && KINDS.includes(refName.replace(/^hypermedia-/, ''))) return refName.replace(/^hypermedia-/, '')
   if (refName) return CUSTOM_KIND
@@ -76,15 +79,15 @@ function propKind(ps: any): string {
 
 /** What to call a custom field's type: its ref's name, or its shape. */
 function customLabel(ps: any): string {
+  if (isLiteralSchema(ps)) return JSON.stringify(literalValue(ps))
   if (typeof ps?.ref === 'string') return refToName(ps.ref)
   if (ps?.anyOf) return `one of ${ps.anyOf.length}`
-  if (ps?.enum) return 'enum'
   return 'custom'
 }
 
 /** Whether the struct form can show (and safely rewrite) this schema. */
 export function structFormFits(schema: OnyxSchema): boolean {
-  if (schema.enum || schema.args) return false
+  if (isLiteralSchema(schema) || schema.args) return false
   if (Array.isArray(schema.anyOf)) return true
   if (schema.type) return ['struct', 'map', 'list'].includes(kindOf(schema.type))
   return typeof schema.ref === 'string'
@@ -148,7 +151,8 @@ export const isSignedBlobType = (schema: OnyxSchema) => !schema.type && schema.r
 /** The pinned `type` tag of a signed-blob schema ('' when none). */
 const signedTypeTag = (schema: OnyxSchema): string => {
   const t = fieldSchema(schema, 'type')
-  return t && Array.isArray(t.enum) && typeof t.enum[0] === 'string' ? t.enum[0] : ''
+  const tag = t !== undefined && isLiteralSchema(t) ? literalValue(t) : undefined
+  return typeof tag === 'string' ? tag : ''
 }
 
 /** Kinds whose value references something else, and so may carry a `target` type. */
@@ -170,7 +174,7 @@ export function withRootKind(schema: OnyxSchema, kind: SchemaRootKind): OnyxSche
   const {type: _t, ref: _r, required: _legacy, ...rest} = schema
   if (kind === 'signed') {
     const tag = signedTypeTag(schema) || 'Custom'
-    const withTag = [{name: 'type', schema: {type: kindUrl('string'), enum: [tag]}, required: true}, ...fields]
+    const withTag = [{name: 'type', schema: literalSchema(tag), required: true}, ...fields]
     return {...rest, ref: SIGNED_BLOB_URL, properties: fieldsToProperties(withTag)}
   }
   if (kind === 'struct') return {...rest, type: STRUCT_URL, properties: fieldsToProperties(fields)}
@@ -445,10 +449,7 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
       })),
     )
   const setTypeTag = (tag: string) => {
-    commit(
-      {...properties, type: {type: kindUrl('string'), enum: [tag.trim() || 'Custom']}},
-      new Set(Array.from(required).concat('type')),
-    )
+    commit({...properties, type: tag.trim() || 'Custom'}, new Set(Array.from(required).concat('type')))
   }
   const renameField = (oldName: string, newName: string) => {
     if (newName === oldName || newName in properties) return

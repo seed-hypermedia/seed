@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListCommentsByAuthor"
 summary: "Lists the comments an author has written. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `"
-schemaDefinition: ipfs://bafyreiagkpcaxq64crebqb66cwdb2gzqb3fsdqkm4hb5mmhs3zoezckqa4
+schemaDefinition: ipfs://bafyreiewlk7gdiso3oihc4wm7rglz4yh7psr5y4kmqaa7a6qmrmzlx7qie
 ---
 Lists the comments an author has written. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:TNeyZeWT -->
 
@@ -10,7 +10,7 @@ This document describes the **seed-rpc-list-comments-by-author** type — a Seed
 # Shape <!-- id:SmqiIOrD -->
 
 A **closed struct** with these fields: <!-- id:LP2wLk4H -->
-  - `key` _(required)_ — `string` enum: `ListCommentsByAuthor` <!-- id:6ScncCpi -->
+  - `key` _(required)_ — `"ListCommentsByAuthor"` <!-- id:6ScncCpi -->
   - `input` _(required)_ — map { 1 fields } <!-- id:NyEpluIW -->
   - `output` _(required)_ — [seed-comment-list](./seed-comment-list.md) <!-- id:r5kRTsmu -->
 

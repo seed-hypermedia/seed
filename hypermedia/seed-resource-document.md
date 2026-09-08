@@ -1,14 +1,14 @@
 ---
 name: "Resource: document"
 summary: A resolved resource that is a document. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
-schemaDefinition: ipfs://bafyreie7dg2opbd6v4o6bcqudyxj5fv235qn2iljbsr7wua45gssrwyuna
+schemaDefinition: ipfs://bafyreiekh5angllbt5jr5h3za55zy3nyxflagpaz3tonyhh2gdnb6didzu
 ---
 This document describes the **seed-resource-document** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:osbL_VzO -->
 
 # Shape <!-- id:lpqlXCiW -->
 
 A **closed struct** with these fields: <!-- id:4vWhQD8X -->
-  - `type` _(required)_ — `string` enum: `document` <!-- id:-ZUj4U6x -->
+  - `type` _(required)_ — `"document"` <!-- id:-ZUj4U6x -->
   - `id` _(required)_ — [seed-id](./seed-id.md) <!-- id:lPijxTTm -->
   - `document` _(required)_ — [seed-document](./seed-document.md) <!-- id:HFUZ5Hqy -->
 

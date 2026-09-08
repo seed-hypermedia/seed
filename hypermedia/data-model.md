@@ -59,7 +59,7 @@ A kind like `string` is a _name in the vocabulary_; `{"type":"string"}` is the _
 | `hypermedia-struct`, `hypermedia-map`, `hypermedia-list` | `{ "type": "<kind>" }` | `hypermedia-struct-schema` / `hypermedia-map-schema` / `hypermedia-list-schema` <!-- id:zNbu4gjL --> |
 
 These are the **standard library**. Two layers, not to be confused: <!-- id:zEmQScRC -->
-  - `hypermedia-scalar-schema` (a meta-schema _variant_) describes the _shape_ `{type:<scalar>, enum?}` — it is the **type of** `hypermedia-string`. <!-- id:FBr8EANM -->
+  - `hypermedia-scalar-schema` (a meta-schema _variant_) describes the _shape_ `{type:<scalar>, …constraints}` — it is the **type of** `hypermedia-string`. <!-- id:FBr8EANM -->
   - `hypermedia-string` (a _primitive_) is `{"type":"string"}` — an _instance_ of that shape, and the block you actually reference. <!-- id:3j_Fqm8i -->
 
 Instead of inlining `{"type":"string"}` in every schema, reference the primitive: `{ "ref": "hypermedia-string" }`. On IPFS that `ref` becomes the CID of the `hypermedia-string` block, so **a field's type is itself a content-addressed link** — the same mechanism as any other reference ([references](./references.md)). The example schemas do exactly this; open `example-person` and every field is a `ref` to a primitive or another schema. <!-- id:TvpKD4MG -->
