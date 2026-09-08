@@ -47,8 +47,8 @@ import {DateValueField, type DateFieldMode} from './onyx/date-field'
 const DAG_CBOR_CODE = 0x71
 import {LinkedObjectDialog} from './onyx/linked-object-dialog'
 import {
-  EnumValueSelect,
-  literalEnumOptions,
+  LiteralValueSelect,
+  literalOptions as literalOptionsOf,
   SchemaFieldChips,
   SchemaWarningBadge,
   suggestedFieldType,
@@ -1142,7 +1142,7 @@ export function ValueEditor({
   const resolvedSchema = subschema && subschema !== 'unresolved' ? subschema : undefined
   // A scalar that is a member of the schema's literal union renders as a
   // dropdown of the options (mixed types supported).
-  const allLiteralOptions = resolvedSchema ? literalEnumOptions(resolvedSchema) : null
+  const allLiteralOptions = resolvedSchema ? literalOptionsOf(resolvedSchema) : null
   const literalOptions =
     allLiteralOptions && allLiteralOptions.some((option) => option.value === value) ? allLiteralOptions : undefined
   if (typeof value === 'boolean') {
@@ -1241,7 +1241,7 @@ function ScalarLeafEditor({
   }, [value])
   if (literalOptions && !editingCustom && !focused) {
     return (
-      <EnumValueSelect
+      <LiteralValueSelect
         value={value}
         options={literalOptions}
         onValue={onValue}
@@ -1365,7 +1365,7 @@ function StringLeafEditor({
   }
   if (literalOptions && !editingText) {
     return (
-      <EnumValueSelect
+      <LiteralValueSelect
         value={value}
         options={literalOptions}
         onValue={onValue}

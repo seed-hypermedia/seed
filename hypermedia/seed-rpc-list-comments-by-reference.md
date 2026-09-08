@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListCommentsByReference"
 summary: "Lists comments that reference a specific block (the target id carries the blockRef). One method of the Seed universal-client API: `request(key, input) -> output"
-schemaDefinition: ipfs://bafyreiaki3icn37zsuitvuorfuaei42sm7to2zhekwcwe6tjxdusal5vfi
+schemaDefinition: ipfs://bafyreiaiahj6o3ojn224x7ptwyzfnrkzms2njxf3el6we7vveufwegy56e
 ---
 Lists comments that reference a specific block (the target id carries the blockRef). One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:Zqcrf57v -->
 
@@ -10,7 +10,7 @@ This document describes the **seed-rpc-list-comments-by-reference** type — a S
 # Shape <!-- id:i2iLp9HU -->
 
 A **closed struct** with these fields: <!-- id:w_aoeIfy -->
-  - `key` _(required)_ — `string` enum: `ListCommentsByReference` <!-- id:CE40T36c -->
+  - `key` _(required)_ — `"ListCommentsByReference"` <!-- id:CE40T36c -->
   - `input` _(required)_ — map { 1 fields } <!-- id:3dWih2WE -->
   - `output` _(required)_ — [seed-comment-list](./seed-comment-list.md) <!-- id:kDDoWxNB -->
 

@@ -27,6 +27,8 @@ import {
   schemaCid,
   structFields,
   validate,
+  isLiteralSchema,
+  literalValue,
 } from './onyx-engine'
 
 // --- classification --------------------------------------------------------
@@ -140,7 +142,16 @@ function Chip({label, onClick, variant = 'ref'}: {label: string; onClick?: () =>
 /** Compact, clickable rendering of a schema reference node (the tour's `summarize`). */
 function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React.ReactElement {
   const open = useRefClick(nav)
-  if (!node) return <span className="text-muted-foreground">any</span>
+  if (node === undefined) return <span className="text-muted-foreground">any</span>
+  if (isLiteralSchema(node)) {
+    const v = literalValue(node)
+    return (
+      <span>
+        <code className="bg-muted rounded px-1 text-xs">{typeof v === 'string' ? kindOf(v) : JSON.stringify(v)}</code>
+        {typeof node?.description === 'string' && <span className="text-muted-foreground"> — {node.description}</span>}
+      </span>
+    )
+  }
   const target =
     typeof node.target === 'string' ? (
       <>
@@ -230,23 +241,6 @@ function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React
         </span>
       )
     return <KindBadge kind="map" nav={nav} />
-  }
-  if (node.enum) {
-    return (
-      <span>
-        {k && (
-          <>
-            <KindBadge kind={k} nav={nav} />{' '}
-          </>
-        )}
-        <span className="text-muted-foreground">enum: </span>
-        {node.enum.map((v: any, i: number) => (
-          <code key={i} className="bg-muted mr-1 rounded px-1 text-xs">
-            {kindOf(String(v))}
-          </code>
-        ))}
-      </span>
-    )
   }
   if (k)
     return (

@@ -1,14 +1,14 @@
 ---
 name: Button block
 summary: A labelled button linking somewhere.
-schemaDefinition: ipfs://bafyreiht63varykazr5dwowatjbp5su4xvqxjznttmkdpu7egi5biadvya
+schemaDefinition: ipfs://bafyreiadkalqxmfr6jni5crbfews4qh33pzclvwnoqnxqvt3w7mop33dve
 ---
 This document describes the **hypermedia-block-button** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:4MIlhf71 -->
 
 # Shape <!-- id:xGD5dY-c -->
 
 **Extends** [hypermedia-block-base](./hypermedia-block-base.md) with these added fields: <!-- id:CY2yoTm1 -->
-  - `type` — `string` enum: `Button` <!-- id:6Nvnbcfu -->
+  - `type` — `"Button"` <!-- id:6Nvnbcfu -->
   - `text` — [string](./hypermedia-string.md) <!-- id:1F063pXv -->
   - `link` _(required)_ — [string](./hypermedia-string.md) <!-- id:EESTSjCi -->
   - `attributes` — map { 4 fields } <!-- id:UxIYwOeL -->

@@ -4,12 +4,7 @@
       "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct",
       "properties": {
         "type": {
-          "value": {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string",
-            "enum": [
-              "account"
-            ]
-          },
+          "value": "account",
           "required": true
         },
         "id": {
@@ -42,12 +37,7 @@
       "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct",
       "properties": {
         "type": {
-          "value": {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string",
-            "enum": [
-              "account-not-found"
-            ]
-          },
+          "value": "account-not-found",
           "required": true
         },
         "uid": {

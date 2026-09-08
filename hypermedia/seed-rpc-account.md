@@ -1,7 +1,7 @@
 ---
 name: "RPC: Account"
 summary: "Resolves an account by uid. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types "
-schemaDefinition: ipfs://bafyreifisubtajwnl7thtpqvqezncifwu6s7jibjoxyvbeb4m5adt64wqy
+schemaDefinition: ipfs://bafyreib6o2exhxs46n7ge33ocxtzmqorrk2orxak7ucv3jcsa273k5t2ny
 ---
 Resolves an account by uid. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:6J7TokxK -->
 
@@ -10,7 +10,7 @@ This document describes the **seed-rpc-account** type — a Seed API read-model 
 # Shape <!-- id:59ehBck9 -->
 
 A **closed struct** with these fields: <!-- id:GaSmj_z8 -->
-  - `key` _(required)_ — `string` enum: `Account` <!-- id:XtkZdN5R -->
+  - `key` _(required)_ — `"Account"` <!-- id:XtkZdN5R -->
   - `input` _(required)_ — [string](./hypermedia-string.md) <!-- id:Hts3kMP5 -->
   - `output` _(required)_ — [seed-account-result](./seed-account-result.md) <!-- id:mi5qviZs -->
 

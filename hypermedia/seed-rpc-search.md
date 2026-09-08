@@ -1,7 +1,7 @@
 ---
 name: "RPC: Search"
 summary: "Searches the network for documents, contacts, and comments. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field type"
-schemaDefinition: ipfs://bafyreihjctx2amz2dqeekzemxhwi6ck4xezsny3dsyw6wlwv7pmcwpga3i
+schemaDefinition: ipfs://bafyreie6aoannxvsucc5wgc4zljrpik24wp7x7wqhjlliimiuceazzbkyi
 ---
 Searches the network for documents, contacts, and comments. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:6M7UDKGx -->
 
@@ -10,7 +10,7 @@ This document describes the **seed-rpc-search** type — a Seed API read-model s
 # Shape <!-- id:rNtJKIpN -->
 
 A **closed struct** with these fields: <!-- id:xZHVDSnU -->
-  - `key` _(required)_ — `string` enum: `Search` <!-- id:jyBd_Pa7 -->
+  - `key` _(required)_ — `"Search"` <!-- id:jyBd_Pa7 -->
   - `input` _(required)_ — map { 11 fields } <!-- id:ngg4oBL5 -->
   - `output` _(required)_ — [seed-search-results](./seed-search-results.md) <!-- id:OlDlHyNJ -->
 

@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListDomains"
 summary: "Lists all site domains the daemon knows about. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pa"
-schemaDefinition: ipfs://bafyreiakztlvwon5shf6vyss5nz6hkwjs7bs22w6dpzkj2ifqrsz7463ee
+schemaDefinition: ipfs://bafyreid54fc72vx5hx43ytvyychzh4o5zb6ifz2j23p5gtac6uiu5zhcwm
 ---
 Lists all site domains the daemon knows about. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:EU590VBL -->
 
@@ -10,7 +10,7 @@ This document describes the **seed-rpc-list-domains** type — a Seed API read-m
 # Shape <!-- id:FQW6uXz3 -->
 
 A **closed struct** with these fields: <!-- id:9151imY0 -->
-  - `key` _(required)_ — `string` enum: `ListDomains` <!-- id:N6se43YX -->
+  - `key` _(required)_ — `"ListDomains"` <!-- id:N6se43YX -->
   - `input` _(required)_ — map <!-- id:bKAFDwFF -->
   - `output` _(required)_ — map { 1 fields } <!-- id:VFyNONl3 -->
 
