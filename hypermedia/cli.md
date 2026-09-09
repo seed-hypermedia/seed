@@ -17,6 +17,7 @@ Writes every document of the space into the directory as lossless markdown. Use 
 ```sh <!-- id:_kBk-bfv -->
 seed-cli space import hm://<uid> --dir ./hypermedia --dry-run
 seed-cli space import self --dir ./hypermedia
+seed-cli space import self --dir ./hypermedia --check   # publish nothing while a file would violate its schema
 ```
 
 Publishes the directory into the space, updating existing documents block by block. `self` means the signing key's own space. The signing key comes from the vault or keyring, or from the environment, which is how CI signs: `SEED_CLI_KEYFILE` holds the contents of an unencrypted `.hmkey.json` exported from the app, or `SEED_CLI_MNEMONIC` holds a BIP-39 phrase. <!-- id:zcB4OI7D -->
