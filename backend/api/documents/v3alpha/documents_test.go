@@ -3112,6 +3112,354 @@ func TestPrepareChangeTakesOverRedirect(t *testing.T) {
 	require.Equal(t, targetGenesis.String(), got.Genesis, "the takeover keeps the target's genesis")
 }
 
+// publishRedirectTestDoc publishes a one-block document, so the redirect tests below read as tests
+// about redirects rather than about block plumbing.
+func publishRedirectTestDoc(ctx context.Context, t *testing.T, srv testServer, signingKey, space, path, text string) *documents.Document {
+	t.Helper()
+
+	doc, err := srv.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: signingKey,
+		Account:        space,
+		Path:           path,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "a", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "a", Type: "paragraph", Text: text},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	return doc
+}
+
+// createRedirectRef points path at a target with a redirect Ref. isRepublish picks the kind: a
+// republish keeps the path alive, a move writes a tombstone.
+func createRedirectRef(ctx context.Context, t *testing.T, srv testServer, signingKey, space, path, targetSpace, targetPath string, isRepublish bool) {
+	t.Helper()
+
+	_, err := srv.CreateRef(ctx, &documents.CreateRefRequest{
+		SigningKeyName: signingKey,
+		Account:        space,
+		Path:           path,
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Redirect_{
+				Redirect: &documents.RefTarget_Redirect{
+					Account:   targetSpace,
+					Path:      targetPath,
+					Republish: isRepublish,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+}
+
+// appendBlockChange builds the change every test below applies: one more paragraph at the end.
+func appendBlockChange(id, text, leftSibling string) []*documents.DocumentChange {
+	return []*documents.DocumentChange{
+		{Op: &documents.DocumentChange_MoveBlock_{
+			MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: id, Parent: "", LeftSibling: leftSibling},
+		}},
+		{Op: &documents.DocumentChange_ReplaceBlock{
+			ReplaceBlock: &documents.Block{Id: id, Type: "paragraph", Text: text},
+		}},
+	}
+}
+
+// A server-signed publish at a republished path has to write its Ref to that path. The document is
+// loaded from the redirect target, but Document.Ref reads the space and the path from the document's
+// own IRI, so a document carrying the target's identity appends a head to the target instead of
+// taking over the redirect.
+func TestPublishDocumentChangeTakesOverRedirectAtItsOwnPath(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	alice := newTestDocsAPI(t, "alice")
+	space := alice.me.Account.PublicKey.String()
+
+	target := publishRedirectTestDoc(ctx, t, alice, "main", space, "/guide", "Block A")
+	createRedirectRef(ctx, t, alice, "main", space, "/mirror", space, "/guide", true)
+
+	edited, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        space,
+		Path:           "/mirror",
+		BaseVersion:    target.Version,
+		Changes:        appendBlockChange("b", "Block B", "a"),
+	})
+	require.NoError(t, err)
+	require.Equal(t, "/mirror", edited.Path, "the Ref must land on the redirect path, not on its target")
+	require.Equal(t, target.Genesis, edited.Genesis, "the takeover keeps the target's genesis")
+
+	got, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: space, Path: "/mirror"})
+	require.NoError(t, err)
+	require.Len(t, got.Content, 2, "the republished path must serve the edited document")
+
+	// crossLinkRefMaybe writes only to the Ref's own resource row, so the source keeps its heads.
+	source, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: space, Path: "/guide"})
+	require.NoError(t, err)
+	require.Equal(t, target.Version, source.Version, "the redirect target must not gain a new head")
+	require.Len(t, source.Content, 1, "the redirect target's content must not change")
+}
+
+// A move redirect is a tombstone Ref, which the listing queries filter out entirely. Editing a moved
+// path must take over just like a republish does.
+func TestPrepareChangeTakesOverMoveRedirect(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	alice := newTestDocsAPI(t, "alice")
+	space := alice.me.Account.PublicKey.String()
+
+	target := publishRedirectTestDoc(ctx, t, alice, "main", space, "/new-home", "Moved here")
+	targetGenesis, err := cid.Decode(target.Genesis)
+	require.NoError(t, err)
+
+	publishRedirectTestDoc(ctx, t, alice, "main", space, "/old-home", "Was here")
+	createRedirectRef(ctx, t, alice, "main", space, "/old-home", space, "/new-home", false)
+
+	// The move really is a tombstone: the query behind GetDocumentInfo cannot see it.
+	_, err = alice.GetDocumentInfo(ctx, &documents.GetDocumentInfoRequest{Account: space, Path: "/old-home"})
+	require.Error(t, err, "a moved path must be invisible to the listing queries")
+
+	prepared, err := alice.PrepareChange(ctx, &documents.PrepareChangeRequest{
+		Account:     space,
+		Path:        "/old-home",
+		BaseVersion: target.Version,
+		Changes:     appendBlockChange("b", "Block B", "a"),
+	})
+	require.NoError(t, err)
+
+	var unsigned blob.Change
+	require.NoError(t, cbornode.DecodeInto(prepared.UnsignedChange, &unsigned))
+	require.Equal(t, targetGenesis, unsigned.Genesis, "the change must build on the move target's genesis")
+	require.NotEmpty(t, unsigned.Deps, "the change must depend on the move target's heads")
+}
+
+func TestPrepareChangeRedirectChainLimits(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	t.Run("follows a two-hop chain", func(t *testing.T) {
+		t.Parallel()
+
+		alice := newTestDocsAPI(t, "alice")
+		space := alice.me.Account.PublicKey.String()
+
+		target := publishRedirectTestDoc(ctx, t, alice, "main", space, "/c", "Block A")
+		targetGenesis, err := cid.Decode(target.Genesis)
+		require.NoError(t, err)
+
+		createRedirectRef(ctx, t, alice, "main", space, "/b", space, "/c", true)
+		createRedirectRef(ctx, t, alice, "main", space, "/a", space, "/b", true)
+
+		prepared, err := alice.PrepareChange(ctx, &documents.PrepareChangeRequest{
+			Account:     space,
+			Path:        "/a",
+			BaseVersion: target.Version,
+			Changes:     appendBlockChange("b", "Block B", "a"),
+		})
+		require.NoError(t, err)
+
+		var unsigned blob.Change
+		require.NoError(t, cbornode.DecodeInto(prepared.UnsignedChange, &unsigned))
+		require.Equal(t, targetGenesis, unsigned.Genesis, "the chain must resolve to the document at its end")
+	})
+
+	t.Run("refuses a cycle instead of minting an empty document", func(t *testing.T) {
+		t.Parallel()
+
+		alice := newTestDocsAPI(t, "alice")
+		space := alice.me.Account.PublicKey.String()
+
+		publishRedirectTestDoc(ctx, t, alice, "main", space, "/a", "Block A")
+		publishRedirectTestDoc(ctx, t, alice, "main", space, "/b", "Block B")
+		createRedirectRef(ctx, t, alice, "main", space, "/a", space, "/b", true)
+		createRedirectRef(ctx, t, alice, "main", space, "/b", space, "/a", true)
+
+		_, err := alice.PrepareChange(ctx, &documents.PrepareChangeRequest{
+			Account: space,
+			Path:    "/a",
+			Changes: appendBlockChange("c", "Block C", "a"),
+		})
+		require.Error(t, err, "a cycle must be an error, not a silent empty document")
+		require.Equal(t, codes.FailedPrecondition, status.Code(err))
+		require.Contains(t, status.Convert(err).Message(), "cycle")
+	})
+
+	t.Run("refuses a chain longer than the reader limit", func(t *testing.T) {
+		t.Parallel()
+
+		alice := newTestDocsAPI(t, "alice")
+		space := alice.me.Account.PublicKey.String()
+
+		// One hop more than a reader can follow, so the daemon must not accept a takeover that
+		// every client would then fail to resolve.
+		const hops = maxRedirectHops + 1
+		end := fmt.Sprintf("/h%d", hops)
+		target := publishRedirectTestDoc(ctx, t, alice, "main", space, end, "The end")
+
+		for i := hops - 1; i >= 0; i-- {
+			createRedirectRef(ctx, t, alice, "main", space, fmt.Sprintf("/h%d", i), space, fmt.Sprintf("/h%d", i+1), true)
+		}
+
+		_, err := alice.PrepareChange(ctx, &documents.PrepareChangeRequest{
+			Account:     space,
+			Path:        "/h0",
+			BaseVersion: target.Version,
+			Changes:     appendBlockChange("b", "Block B", "a"),
+		})
+		require.Error(t, err, "an over-long chain must be an error, not a silent empty document")
+		require.Equal(t, codes.FailedPrecondition, status.Code(err))
+		require.Contains(t, status.Convert(err).Message(), "longer than")
+	})
+}
+
+// A redirect is not an authorisation. Following one on the write path replays a private document on
+// a public-only node, where every read RPC denies it, and that leaked two things to an
+// unauthenticated caller: the target's existence, because "base_version is required" is only
+// reported when a document really is there; and its genesis and heads, to anyone who already knew
+// the version to ask with. The write path must refuse at the read instead, so neither depends on
+// what else the request happens to carry.
+func TestPrepareChangeRefusesPrivateRedirectTargetOnPublicOnlyNode(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{PublicOnly: true})
+	space := alice.me.Account.PublicKey.String()
+
+	_, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        space,
+		Path:           "/private",
+		Visibility:     documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE,
+		Changes:        appendBlockChange("a", "Secret", ""),
+	})
+	require.NoError(t, err)
+
+	// The redirect Ref is written straight to the index, the way one would arrive from a peer.
+	// CreateRef reads its target, and on a public-only node that read already refuses.
+	privateState, err := alice.idx.ResolveLatest(ctx, blob.IRI("hm://"+space+"/private"))
+	require.NoError(t, err)
+	require.Equal(t, blob.VisibilityPrivate, privateState.Visibility)
+
+	privateDoc, err := alice.loadDocument(ctx, alice.me.Account.Principal(), "/private", nil, false)
+	require.NoError(t, err)
+	hydrated, err := privateDoc.Hydrate(ctx)
+	require.NoError(t, err)
+	genesis, err := cid.Decode(hydrated.Genesis)
+	require.NoError(t, err)
+
+	redirect, err := blob.NewRefRedirect(
+		alice.me.Account,
+		time.Now().UnixMilli(),
+		genesis,
+		alice.me.Account.Principal(),
+		"/bait",
+		blob.RedirectTarget{Space: alice.me.Account.Principal(), Path: "/private", Republish: true},
+		time.Now().Round(blob.ClockPrecision),
+	)
+	require.NoError(t, err)
+	require.NoError(t, alice.idx.Put(ctx, redirect))
+
+	// Knowing nothing: the refusal must not come from a downstream validation, which would still
+	// report that something is there.
+	_, err = alice.PrepareChange(ctx, &documents.PrepareChangeRequest{
+		Account: space,
+		Path:    "/bait",
+		Changes: appendBlockChange("b", "Block B", "a"),
+	})
+	require.Error(t, err, "a redirect must not read a private document on a public-only node")
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
+
+	// Knowing the version: this is the request that used to come back with the private document's
+	// genesis and heads in the prepared change.
+	_, err = alice.PrepareChange(ctx, &documents.PrepareChangeRequest{
+		Account:     space,
+		Path:        "/bait",
+		BaseVersion: hydrated.Version,
+		Changes:     appendBlockChange("b", "Block B", "a"),
+	})
+	require.Error(t, err)
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+// The case from #1074: bob republishes alice's document into his own space and then edits it. The
+// generation the clients pick comes from the wall clock, not from the redirect Ref, so the takeover
+// has to win on that value too, and a second edit has to keep working afterwards.
+func TestPrepareChangeTakesOverCrossSpaceRepublish(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	alice := newTestDocsAPI(t, "alice")
+	bob := coretest.NewTester("bob")
+	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
+
+	aliceSpace := alice.me.Account.PublicKey.String()
+	bobSpace := bob.Account.PublicKey.String()
+
+	target := publishRedirectTestDoc(ctx, t, alice, "main", aliceSpace, "/guide", "Alice's guide")
+	targetGenesis, err := cid.Decode(target.Genesis)
+	require.NoError(t, err)
+
+	createRedirectRef(ctx, t, alice, "bob", bobSpace, "/mirror", aliceSpace, "/guide", true)
+
+	prepared, err := alice.PrepareChange(ctx, &documents.PrepareChangeRequest{
+		Account:     bobSpace,
+		Path:        "/mirror",
+		BaseVersion: target.Version,
+		Changes:     appendBlockChange("b", "Bob's addition", "a"),
+	})
+	require.NoError(t, err)
+
+	var unsigned blob.Change
+	require.NoError(t, cbornode.DecodeInto(prepared.UnsignedChange, &unsigned))
+	require.Equal(t, targetGenesis, unsigned.Genesis, "the change must build on alice's genesis")
+
+	signed, err := signPreparedChangeBlob(prepared.UnsignedChange, bob.Account)
+	require.NoError(t, err)
+
+	// The generation a real client picks: a wall-clock value, not redirectRef.Generation + 1.
+	ref, err := blob.NewRef(
+		bob.Account,
+		time.Now().UnixMilli(),
+		targetGenesis,
+		bob.Account.Principal(),
+		"/mirror",
+		[]cid.Cid{signed.CID},
+		time.Now().Round(blob.ClockPrecision),
+		blob.VisibilityPublic,
+	)
+	require.NoError(t, err)
+	require.NoError(t, alice.idx.PutMany(ctx, []blocks.Block{signed, ref}))
+
+	got, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: bobSpace, Path: "/mirror"})
+	require.NoError(t, err)
+	require.Len(t, got.Content, 2, "bob's copy must serve the edited document, no longer a redirect")
+
+	// The redirect attribute is gone from the newest generation, so a second edit stays on the DAG.
+	prepared2, err := alice.PrepareChange(ctx, &documents.PrepareChangeRequest{
+		Account:     bobSpace,
+		Path:        "/mirror",
+		BaseVersion: got.Version,
+		Changes:     appendBlockChange("c", "And more", "b"),
+	})
+	require.NoError(t, err)
+
+	var unsigned2 blob.Change
+	require.NoError(t, cbornode.DecodeInto(prepared2.UnsignedChange, &unsigned2))
+	require.Equal(t, targetGenesis, unsigned2.Genesis, "the second edit must stay on the same DAG")
+
+	source, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: aliceSpace, Path: "/guide"})
+	require.NoError(t, err)
+	require.Equal(t, target.Version, source.Version, "alice's original must not change")
+	require.Len(t, source.Content, 1, "alice's original must not change")
+}
+
 func TestPrepareChangeBlockReordering(t *testing.T) {
 	t.Parallel()
 
