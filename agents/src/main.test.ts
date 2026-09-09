@@ -3,7 +3,7 @@ import {describe, expect, test} from 'bun:test'
 import * as apisvc from '@/api-service'
 import type * as api from '@/api'
 import * as cbor from '@/cbor'
-import {createAPIRoutes} from '@/main'
+import {createAPIRoutes, wsShouldDeliver, type WSData} from '@/main'
 import * as sqlite from '@/sqlite'
 import * as blobs from '@shm/shared/blobs'
 import * as fs from 'node:fs'
@@ -538,3 +538,41 @@ function getGetHandler(routes: Bun.Serve.Routes<undefined, string>, route: strin
 async function bytes(res: Response): Promise<Uint8Array> {
   return new Uint8Array(await res.arrayBuffer())
 }
+
+describe('websocket delivery scope', () => {
+  const socket = (subscriptions: string[], accountId = 'acct', publicKeys: Array<[string, string]> = []): WSData => ({
+    connectedAt: 0,
+    subscriptions: new Set(subscriptions),
+    publicSubscriptions: new Map(publicKeys),
+    accountId,
+  })
+
+  test('transcript frames reach only the socket subscribed to that session; the shell socket gets the hints', () => {
+    // Every open window and signed-in tab holds this one, for the unread indicator.
+    const shell = socket(['account/acct'])
+    expect(wsShouldDeliver(shell, 'acct', 'sessions/s1', 'direct')).toBe(false)
+    expect(wsShouldDeliver(shell, 'acct', 'agents/a1', 'direct')).toBe(false)
+    expect(wsShouldDeliver(shell, 'acct', 'account/acct', 'account')).toBe(true)
+    // An account-scoped event (a hint, a run change) still fans out to the shell.
+    expect(wsShouldDeliver(shell, 'acct', 'runs/r1', 'account')).toBe(true)
+
+    const transcript = socket(['sessions/s1'])
+    expect(wsShouldDeliver(transcript, 'acct', 'sessions/s1', 'direct')).toBe(true)
+    expect(wsShouldDeliver(transcript, 'acct', 'sessions/s2', 'direct')).toBe(false)
+    expect(wsShouldDeliver(transcript, 'acct', 'account/acct', 'account')).toBe(false)
+
+    // A socket holding both keys (the session page) receives both.
+    const page = socket(['account/acct', 'sessions/s1'])
+    expect(wsShouldDeliver(page, 'acct', 'sessions/s1', 'direct')).toBe(true)
+    expect(wsShouldDeliver(page, 'acct', 'account/acct', 'account')).toBe(true)
+  })
+
+  test('a public reader receives the owner’s frames for the key it was granted, and nothing else', () => {
+    const reader = socket(['account/reader'], 'reader', [['sessions/s1', 'owner']])
+    expect(wsShouldDeliver(reader, 'owner', 'sessions/s1', 'direct')).toBe(true)
+    expect(wsShouldDeliver(reader, 'owner', 'sessions/s2', 'direct')).toBe(false)
+    expect(wsShouldDeliver(reader, 'owner', 'account/owner', 'account')).toBe(false)
+    // Its own account-wide subscription never admits another account's frames.
+    expect(wsShouldDeliver(reader, 'owner', 'runs/r1', 'account')).toBe(false)
+  })
+})
