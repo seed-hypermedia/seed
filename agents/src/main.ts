@@ -529,7 +529,7 @@ async function main(): Promise<void> {
     // stuck session can't block shutdown).
     await withTimeout(svc.drainTriggerSessions(), 5_000, 'drain trigger sessions').catch(() => {})
     svc.stopRunQueue()
-    db.close()
+    sqlite.closeDatabase(db)
     process.exit(0)
   }
 

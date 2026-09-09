@@ -37,7 +37,7 @@ function makeContext(overrides: Partial<AgentServicePiToolContext> = {}): AgentS
     ['test-agent', 'test-account', new Uint8Array([160]), 'x', 'ready', now, now],
   )
   cleanups.push(() => {
-    db.close()
+    sqlite.closeDatabase(db)
     fs.rmSync(dataDir, {recursive: true, force: true})
   })
   const fakeExec: CodeExecutor = {

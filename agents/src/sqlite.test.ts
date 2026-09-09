@@ -34,7 +34,7 @@ describe('sqlite', () => {
       expect(tableExists(db, 'run_event_waits')).toBe(true)
       expect(columnExists(db, 'agent_triggers', 'continuation_cbor')).toBe(true)
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
     }
   })
 
@@ -48,7 +48,7 @@ describe('sqlite', () => {
         desired: sqlite.desiredVersion,
       })
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
     }
   })
 
@@ -119,7 +119,7 @@ describe('sqlite', () => {
       expect(columnExists(db, 'agent_triggers', 'continuation_cbor')).toBe(true)
       expect(getConfigValue(db, sqlite.SCHEMA_MIGRATION_VERSION_KEY)).toBe(String(sqlite.desiredVersion))
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
     }
   })
 
@@ -148,7 +148,7 @@ describe('sqlite', () => {
       // Tables a divergent branch added are left alone.
       expect(tableExists(db, 'from_another_branch')).toBe(true)
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
     }
   })
 
@@ -175,7 +175,7 @@ describe('sqlite', () => {
       expect(columnExists(db, 'trigger_firings', 'run_id')).toBe(true)
       expect(tableExists(db, 'webhook_trigger_credentials')).toBe(true)
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
     }
   })
 
@@ -228,7 +228,7 @@ describe('sqlite', () => {
           desired: sqlite.desiredVersion,
         })
       } finally {
-        db.close()
+        sqlite.closeDatabase(db)
       }
     }
   })

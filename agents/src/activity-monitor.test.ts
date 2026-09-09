@@ -35,7 +35,7 @@ describe('activity monitor', () => {
       expect(processed).toHaveLength(1)
       expect(JSON.stringify(processed[0])).toContain('new')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -70,7 +70,7 @@ describe('activity monitor', () => {
       expect(processed[0]?.accountId).toBe(account)
       expect(JSON.stringify(processed[0]?.event)).toContain('new')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -102,7 +102,7 @@ describe('activity monitor', () => {
       await monitor.pollOnce()
       expect(requestCount).toBe(0)
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -148,7 +148,7 @@ describe('activity monitor', () => {
       expect(dump).toContain('recent')
       expect(dump).toContain('ancient')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -189,7 +189,7 @@ describe('activity monitor', () => {
         .get()
       expect(cbor.decode<{seenKeys: string[]}>(watermark!.cursor_cbor).seenKeys).toEqual(['blob-bafyexisting'])
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })

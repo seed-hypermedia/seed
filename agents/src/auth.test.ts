@@ -16,7 +16,7 @@ describe('auth', () => {
       expect(verified.accountId).toBe(blobs.principalToString(account.principal))
       expect(verified.signerId).toBe(verified.accountId)
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
     }
   })
 
@@ -35,7 +35,7 @@ describe('auth', () => {
       })
       expect((await auth.verifyEnvelope(db, envelope)).signerId).toBe(delegateId)
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
     }
   })
 
@@ -58,7 +58,7 @@ describe('auth', () => {
       }
       await expect(auth.verifyEnvelope(db, signedByAccount)).rejects.toThrow('Invalid signature')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
     }
   })
 
@@ -85,7 +85,7 @@ describe('auth', () => {
       )
       await expect(auth.verifyEnvelope(db, {...envelope, action: {} as never})).rejects.toThrow('Invalid action')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
     }
   })
 
@@ -119,7 +119,7 @@ describe('auth', () => {
         })
         expect((await auth.verifyEnvelope(db, bare)).accountId).toBe(verified.accountId)
       } finally {
-        db.close()
+        sqlite.closeDatabase(db)
       }
     })
 
@@ -151,7 +151,7 @@ describe('auth', () => {
         await auth.verifyEnvelope(db, again, {fetchCapability})
         expect(requested).toHaveLength(1)
       } finally {
-        db.close()
+        sqlite.closeDatabase(db)
       }
     })
 
@@ -183,7 +183,7 @@ describe('auth', () => {
           ),
         ).toBe(false)
       } finally {
-        db.close()
+        sqlite.closeDatabase(db)
       }
     })
 
@@ -202,7 +202,7 @@ describe('auth', () => {
         })
         await expect(auth.verifyEnvelope(db, envelope)).rejects.toThrow('do not match the envelope capability CID')
       } finally {
-        db.close()
+        sqlite.closeDatabase(db)
       }
     })
 
@@ -226,7 +226,7 @@ describe('auth', () => {
           ),
         ).toBe(false)
       } finally {
-        db.close()
+        sqlite.closeDatabase(db)
       }
     })
 
@@ -245,7 +245,7 @@ describe('auth', () => {
           'Capability delegate does not match envelope signer',
         )
       } finally {
-        db.close()
+        sqlite.closeDatabase(db)
       }
     })
 
@@ -260,7 +260,7 @@ describe('auth', () => {
         const spliced = {...envelope, capability: capability.cid.toString(), capabilityBlob: capability.data}
         await expect(auth.verifyEnvelope(db, spliced)).rejects.toThrow('Invalid signature')
       } finally {
-        db.close()
+        sqlite.closeDatabase(db)
       }
     })
 
@@ -276,7 +276,7 @@ describe('auth', () => {
         })
         await expect(auth.verifyEnvelope(db, envelope)).rejects.toThrow('Invalid capability CID')
       } finally {
-        db.close()
+        sqlite.closeDatabase(db)
       }
     })
   })
@@ -302,7 +302,7 @@ describe('auth', () => {
         })
         expect((await auth.verifyEnvelope(db, envelope)).accountId).toBe(registered.accountId)
       } finally {
-        db.close()
+        sqlite.closeDatabase(db)
       }
     })
 
@@ -315,7 +315,7 @@ describe('auth', () => {
         const registered = auth.registerDelegatedSigner(db, capability.data, device.principal)
         expect(auth.isAuthorizedSigner(db, registered.accountId, registered.signerId)).toBe(true)
       } finally {
-        db.close()
+        sqlite.closeDatabase(db)
       }
     })
 
@@ -337,7 +337,7 @@ describe('auth', () => {
           ),
         ).toBe(false)
       } finally {
-        db.close()
+        sqlite.closeDatabase(db)
       }
     })
 
@@ -362,7 +362,7 @@ describe('auth', () => {
           'Invalid capability bytes',
         )
       } finally {
-        db.close()
+        sqlite.closeDatabase(db)
       }
     })
 
@@ -381,7 +381,7 @@ describe('auth', () => {
           'Capability delegates to its own issuer',
         )
       } finally {
-        db.close()
+        sqlite.closeDatabase(db)
       }
     })
   })
