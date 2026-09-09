@@ -41,7 +41,7 @@ import {isOptimisticUserEcho} from './agent-session-rows'
 import {moveAgentToServer, type MoveAgentOptions} from './move-agent'
 import {getAgentsPlatform} from './platform'
 import {parseSpaceAgentIds} from './space-agents'
-import {getToolReferencedUrls} from '@seed-hypermedia/agents-protocol'
+import {getToolReferencedUrls, type AgentActivity} from '@seed-hypermedia/agents-protocol'
 import * as cbor from '@shm/shared/cbor'
 import {getQueryClient, invalidateQueries} from '@shm/shared/models/query-client'
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
@@ -108,6 +108,23 @@ function applyAgentToCaches(serverUrl: string, accountUid: string, agent: AgentI
   )
 }
 
+/** Writes an agent's fresh activity rollup into the cached agent list and detail. */
+export function applyAgentActivityToCaches(
+  serverUrl: string,
+  accountUid: string,
+  agentId: string,
+  activity: AgentActivity,
+): void {
+  const client = getQueryClient()
+  client.setQueriesData({queryKey: ['agents', 'list', serverUrl, accountUid]}, (old: any) =>
+    Array.isArray(old) ? old.map((entry: AgentInfo) => (entry.id === agentId ? {...entry, activity} : entry)) : old,
+  )
+  client.setQueriesData({queryKey: ['agents', 'detail', serverUrl, accountUid, agentId]}, (old: any) => {
+    if (!old || old._ !== 'GetAgentResponse' || !old.agent) return old
+    return {...old, agent: {...old.agent, activity}}
+  })
+}
+
 /**
  * Writes a fresh session snapshot into every cache that renders it: the session page, the
  * cross-server sidebar list (upserting a session the cache has not seen yet), and the owning
@@ -155,9 +172,12 @@ function applySessionToCaches(serverUrl: string, accountUid: string, session: Se
 export function invalidateForAccountChange(
   serverUrl: string,
   accountUid: string,
-  value: {reason?: string; agentId?: string; sessionId?: string},
+  value: {reason?: string; agentId?: string; sessionId?: string; activity?: AgentActivity},
 ): void {
   const {reason, agentId, sessionId} = value
+  // The hint carries the agent's fresh activity rollup: write it into the cached agent rows so
+  // unread indicators move without refetching any list.
+  if (agentId && value.activity) applyAgentActivityToCaches(serverUrl, accountUid, agentId, value.activity)
   switch (reason) {
     case 'agent-memory-changed':
       invalidateQueries(agentId ? ['agents', 'memory', serverUrl, accountUid, agentId] : ['agents', 'memory'])

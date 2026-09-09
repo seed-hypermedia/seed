@@ -24,7 +24,10 @@ vi.mock('@/auth', () => ({useLocalKeyPair: () => mockState.keyPair}))
 // The panel body is the lazy agents chunk; the host's job is where and whether it renders.
 vi.mock('@/client-lazy', () => ({
   clientLazy: () => () => <div data-testid="panel-content">PANEL</div>,
+  ClientOnly: ({children}: {children: React.ReactNode}) => <>{children}</>,
 }))
+// The header's activity tracker is the agents chunk too; the host's job is only to mount it.
+vi.mock('../web-assistant-activity', () => ({default: () => null}))
 
 import {useAssistantPanelToggle} from '@shm/ui/assistant-panel-toggle'
 import {AssistantPanelProvider, useAssistantAutoOpen, useAssistantPanel} from '../assistant-panel-state'

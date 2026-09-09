@@ -45,6 +45,27 @@ describe('invalidateForAccountChange', () => {
     })
   })
 
+  test('an activity rollup on the hint lands in the cached agent rows without a refetch', async () => {
+    const client = webQueryClient()
+    const agent = {id: agentId, definition: {name: 'Researcher'}, status: 'idle'}
+    const other = {id: 'agent-2', definition: {name: 'Other'}, status: 'idle'}
+    const listFetch = vi.fn(async () => [agent, other])
+    await client.fetchQuery({queryKey: ['agents', 'list', serverUrl, accountUid], queryFn: listFetch})
+    const detailFetch = vi.fn(async () => ({_: 'GetAgentResponse', agent, sessions: []}))
+    await client.fetchQuery({queryKey: ['agents', 'detail', serverUrl, accountUid, agentId], queryFn: detailFetch})
+
+    const activity = {at: 5, kind: 'agent', messageAt: 5, messageFrom: 'agent', sessionId: 's1', busy: false} as const
+    invalidateForAccountChange(serverUrl, accountUid, {reason: 'session-event', agentId, sessionId: 's1', activity})
+
+    expect(client.getQueryData(['agents', 'list', serverUrl, accountUid])).toEqual([{...agent, activity}, other])
+    expect(client.getQueryData(['agents', 'detail', serverUrl, accountUid, agentId])).toMatchObject({
+      agent: {...agent, activity},
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(listFetch).toHaveBeenCalledTimes(1)
+    expect(detailFetch).toHaveBeenCalledTimes(1)
+  })
+
   test('per-event churn still only refetches active queries', async () => {
     const client = webQueryClient()
     const detail = await seedInactiveQuery(client, ['agents', 'detail', serverUrl, accountUid, agentId])

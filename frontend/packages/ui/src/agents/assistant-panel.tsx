@@ -40,6 +40,16 @@ import {
   type AssistantAgentKey,
   type AssistantAgentOption,
 } from './assistant-selection'
+import {
+  agentRowActivity,
+  latestSessionEventAt,
+  markAgentSessionRead,
+  summarizeAgentActivity,
+  useAgentActivityReadState,
+  useMarkAgentSessionRead,
+  type AgentRowActivity,
+} from './activity'
+import {AgentActivityMark, type AgentActivityTone} from './activity-dot'
 import {CreateAgentDialog} from './dialogs'
 import {useSelectedAccountId} from './account'
 import {useNavigate} from './navigation'
@@ -270,6 +280,47 @@ export function AssistantPanel({
   }, [newChatRequest, startDraft])
 
   const activeAgent = selection.agent
+  // Which agents still have an unseen latest message on this device, so the pickers can point at
+  // them: the title-bar dot only goes out once every one of these has been looked at.
+  const readState = useAgentActivityReadState()
+  const rowActivities = useMemo(() => {
+    const rows: Record<string, AgentRowActivity> = {}
+    for (const option of agents) {
+      const row = agentRowActivity(
+        option.agent.activity,
+        option.serverUrl,
+        option.agent.definition.name,
+        readState.data,
+      )
+      if (row) rows[`${option.serverUrl}${option.agent.id}`] = row
+    }
+    return rows
+  }, [agents, readState.data])
+  const activeRow = activeAgent ? rowActivities[`${activeAgent.serverUrl}${activeAgent.agent.id}`] : undefined
+  const activeUnreadTone = activeRow?.unread ? (activeRow.tone as 'agent' | 'user') : undefined
+  const activeUnreadSession = activeUnreadTone
+    ? {sessionId: activeAgent!.agent.activity!.sessionId, tone: activeUnreadTone}
+    : null
+
+  // Opening the panel with something unread lands on it: the newest unread chat across agents,
+  // marked read on arrival. Decided once per mount, as soon as the lists have settled, so a
+  // message that lands later never yanks the user out of what they are doing. A panel opened to
+  // start a new chat keeps that intent instead.
+  const jumpedToUnreadRef = useRef(false)
+  useEffect(() => {
+    if (jumpedToUnreadRef.current || !agentsSettled || !readState.data) return
+    jumpedToUnreadRef.current = true
+    if (newChatRequest) return
+    const indicator = summarizeAgentActivity(agents, readState.data)
+    if (!indicator?.unread) return
+    const picked = agents.find(
+      (option) => option.serverUrl === indicator.serverUrl && option.agent.id === indicator.agentId,
+    )
+    if (!picked?.agent.activity) return
+    setChosenAgent({serverUrl: indicator.serverUrl, agentId: indicator.agentId})
+    selectSession({serverUrl: indicator.serverUrl, sessionId: indicator.sessionId})
+    markAgentSessionRead(indicator.serverUrl, indicator.sessionId, picked.agent.activity.messageAt)
+  }, [agentsSettled, readState.data, agents, newChatRequest, setChosenAgent, selectSession])
   const activeSession = selection.session
   const sessionEntry = activeSession
     ? sessions.entries.find(
@@ -297,22 +348,30 @@ export function AssistantPanel({
 
   return (
     <div className="flex h-full flex-col">
-      {/* Account-wide live updates per server: session changes (titles, statuses) reach the
-          sidebar the moment they happen, instead of waiting on the 5s background poll. */}
-      {accountUid
-        ? (serverUrls.data || []).map((serverUrl) => (
-            <AgentAccountLiveUpdates key={serverUrl} serverUrl={serverUrl} accountUid={accountUid} />
-          ))
-        : null}
+      {/* Account-wide live updates are mounted by the shell (desktop title bar, web assistant host)
+          so they also run while this panel is closed, feeding the unread indicator. */}
       {deleteDialog.content}
       {createAgentDialog.content}
       <div className="border-border window-drag flex h-10 items-center justify-between gap-1 border-b px-2 py-2">
         <AssistantAgentPicker
           agents={agents}
           activeAgent={activeAgent}
+          rowActivities={rowActivities}
           localServerUrl={localServerUrl.data ?? null}
           advertisedServerUrl={serverUrls.advertisedServerUrl}
-          onSelect={(key) => setChosenAgent(key)}
+          onSelect={(key) => {
+            setChosenAgent(key)
+            // Picking an agent that has something unread lands on that chat, read: the whole point
+            // of the dot was to get here, and leaving it lit on the way in would be a nag.
+            const picked = agents.find(
+              (option) => option.serverUrl === key.serverUrl && option.agent.id === key.agentId,
+            )
+            const activity = picked?.agent.activity
+            if (activity && rowActivities[`${key.serverUrl}${key.agentId}`]?.unread) {
+              selectSession({serverUrl: key.serverUrl, sessionId: activity.sessionId})
+              markAgentSessionRead(key.serverUrl, activity.sessionId, activity.messageAt)
+            }
+          }}
           onCreateAgent={openCreateAgent}
           onOpenAgentsPage={() => navigate({key: 'agents'})}
           onOpenAgentPage={
@@ -345,6 +404,7 @@ export function AssistantPanel({
           selected={activeSession}
           selectedTitle={sessionTitle}
           isDraft={!activeSession}
+          unreadSession={activeUnreadSession}
           onSelect={selectSession}
         />
         {activeSession ? (
@@ -480,19 +540,10 @@ export function AssistantPanel({
  * and jumping to the full Agents page — live here so the sidebar is self-sufficient: on a fresh
  * install with zero agents, this dropdown is where you fix that.
  */
-/**
- * Renders nothing; holds one account-wide WebSocket subscription open for a server so every
- * session change (agent-set titles, status flips) invalidates the sidebar queries immediately.
- * A component rather than a hook because the server list is dynamic and hooks cannot loop.
- */
-function AgentAccountLiveUpdates({serverUrl, accountUid}: {serverUrl: string; accountUid: string}) {
-  useAgentWebSocketSubscription(serverUrl, accountUid, `account/${accountUid}`)
-  return null
-}
-
 function AssistantAgentPicker({
   agents,
   activeAgent,
+  rowActivities,
   localServerUrl,
   advertisedServerUrl,
   onSelect,
@@ -502,6 +553,8 @@ function AssistantAgentPicker({
 }: {
   agents: AssistantAgentOption[]
   activeAgent: AssistantAgentOption | null
+  /** Each agent's own indicator (unread, or working), keyed `${serverUrl}${agentId}`. */
+  rowActivities: Record<string, AgentRowActivity>
   localServerUrl: string | null
   /** Server the site on screen advertises; its group is labeled so the user knows why it is here. */
   advertisedServerUrl?: string | null
@@ -512,6 +565,9 @@ function AssistantAgentPicker({
   onOpenAgentPage?: () => void
 }) {
   const [open, setOpen] = useState(false)
+  // The closed trigger carries what the rows would show: anything unread first, else a working agent.
+  const triggerTone =
+    Object.values(rowActivities).find((row) => row.unread)?.tone ?? Object.values(rowActivities)[0]?.tone ?? null
 
   const groups = useMemo(() => {
     const byServer = new Map<string, AssistantAgentOption[]>()
@@ -533,7 +589,16 @@ function AssistantAgentPicker({
             type="button"
             className="no-window-drag hover:bg-muted flex max-w-full min-w-0 items-center gap-2 rounded px-1.5 py-1"
           >
-            <Bot className="text-muted-foreground size-4 shrink-0" />
+            <span className="relative inline-flex shrink-0">
+              <Bot className="text-muted-foreground size-4 shrink-0" />
+              {triggerTone ? (
+                <AgentActivityMark
+                  tone={triggerTone}
+                  className="absolute -top-1 -right-1"
+                  label={triggerTone === 'busy' ? 'An agent is working' : 'Unread messages'}
+                />
+              ) : null}
+            </span>
             <SizableText size="sm" className="min-w-0 truncate font-medium">
               {activeAgent?.agent.definition.name || 'Agents'}
             </SizableText>
@@ -559,6 +624,7 @@ function AssistantAgentPicker({
                 {group.options.map((option) => {
                   const isActive =
                     option.serverUrl === activeAgent?.serverUrl && option.agent.id === activeAgent.agent.id
+                  const row = rowActivities[`${option.serverUrl}${option.agent.id}`]
                   return (
                     <button
                       key={`${option.serverUrl}${option.agent.id}`}
@@ -571,9 +637,14 @@ function AssistantAgentPicker({
                         setOpen(false)
                       }}
                     >
-                      <span className="w-full truncate text-xs font-medium">{option.agent.definition.name}</span>
+                      <span className="flex w-full items-center gap-1.5">
+                        <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                          {option.agent.definition.name}
+                        </span>
+                        <AgentActivityMark tone={row?.tone} label={row?.label} />
+                      </span>
                       <span className="text-muted-foreground w-full truncate text-[10px]">
-                        {option.agent.definition.model}
+                        {row?.short ?? option.agent.definition.model}
                       </span>
                     </button>
                   )
@@ -630,6 +701,7 @@ function AssistantSessionPicker({
   selected,
   selectedTitle,
   isDraft,
+  unreadSession,
   onSelect,
 }: {
   entries: AgentSessionListEntry[]
@@ -638,9 +710,13 @@ function AssistantSessionPicker({
   selected: AssistantSessionRef | null
   selectedTitle?: string
   isDraft: boolean
+  /** The active agent's session holding its unseen latest message, if any. */
+  unreadSession?: {sessionId: string; tone: AgentActivityTone} | null
   onSelect: (ref: AssistantSessionRef) => void
 }) {
   const [open, setOpen] = useState(false)
+  // Unread somewhere other than what is on screen: the trigger points at the list.
+  const unreadElsewhere = unreadSession && unreadSession.sessionId !== selected?.sessionId ? unreadSession : null
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -652,6 +728,7 @@ function AssistantSessionPicker({
           <span className="min-w-0 flex-1 truncate text-left">
             {isDraft ? 'New chat' : selectedTitle || 'Untitled session'}
           </span>
+          {unreadElsewhere ? <AgentActivityMark tone={unreadElsewhere.tone} label="Unread chat" /> : null}
           <ChevronDown className="size-3 shrink-0" />
         </button>
       </PopoverTrigger>
@@ -677,7 +754,14 @@ function AssistantSessionPicker({
                 >
                   <SessionStatusDot status={entry.session.status} className="size-2" />
                   <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-xs">{entry.session.title || 'Untitled session'}</span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="min-w-0 flex-1 truncate text-xs">
+                        {entry.session.title || 'Untitled session'}
+                      </span>
+                      {unreadSession?.sessionId === entry.session.id ? (
+                        <AgentActivityMark tone={unreadSession.tone} label="Unread" />
+                      ) : null}
+                    </span>
                     {entry.session.description ? (
                       <span className="text-muted-foreground line-clamp-3 text-xs">{entry.session.description}</span>
                     ) : null}
@@ -827,6 +911,8 @@ function AssistantSessionChat({
     session.data ? `sessions/${sessionId}` : undefined,
     lastSeq ?? 0,
   )
+  // This transcript is on screen: whatever it shows is read on this device.
+  useMarkAgentSessionRead(serverUrl, sessionId, latestSessionEventAt(session.data?.events))
   const messageSession = useMessageAgentSession(serverUrl, accountUid)
   const stopSession = useStopAgentSession(serverUrl, accountUid)
   const retrySession = useRetrySession(serverUrl, accountUid)

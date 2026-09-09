@@ -73,6 +73,14 @@ vi.mock('@shm/ui/hm-icon', () => ({
 }))
 
 // models/agents creates the tRPC client at import time, which needs the electronTRPC preload global.
+// The transcript view marks itself read through react-query; nothing here provides a client.
+vi.mock('@shm/ui/agents/activity', () => ({
+  useMarkAgentSessionRead: () => {},
+  latestSessionEventAt: () => undefined,
+  useAgentActivityReadState: () => ({data: undefined}),
+  agentRowActivity: () => null,
+  markAgentSessionRead: () => {},
+}))
 vi.mock('@shm/ui/agents/models', () => ({
   useSessionAttachmentDataUrls: () => ({}),
   // The delegate row resolves its live child through these; inert here — no child ever resolves.

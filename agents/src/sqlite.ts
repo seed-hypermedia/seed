@@ -13,6 +13,13 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Latest transcript activity rolled up per agent (see AgentActivity in the protocol): written on
+  // every appended session event, read with the agent so unread indicators never list sessions.
+  `ALTER TABLE agents ADD COLUMN activity_at INTEGER;
+  ALTER TABLE agents ADD COLUMN activity_kind TEXT;
+  ALTER TABLE agents ADD COLUMN message_at INTEGER;
+  ALTER TABLE agents ADD COLUMN message_from TEXT;
+  ALTER TABLE agents ADD COLUMN activity_session_id TEXT;`,
   // #getSessionTriggerContext filters trigger_firings by (account_id, session_id) with ORDER BY
   // created_at, but the only usable index was the (account_id, …) autoindex prefix — so each call
   // scanned every firing for the account and temp-b-tree-sorted (~9ms on prod). It runs once per

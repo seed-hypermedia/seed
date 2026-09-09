@@ -16,6 +16,7 @@ import {
   seedToolRegistry,
   seedVerbRegistry,
   toolContractMarkdown,
+  sessionEventActivityKind,
   toolSummaryLine,
   writeGuideRegistry,
   type JsonSchema,
@@ -278,7 +279,15 @@ export type ServiceEvent =
       usage?: api.AgentRunUsage
       activity?: api.AgentRunActivity
     }
-  | {type: 'account-change'; accountId: string; reason: string; agentId?: string; sessionId?: string}
+  | {
+      type: 'account-change'
+      accountId: string
+      reason: string
+      agentId?: string
+      sessionId?: string
+      /** Fresh activity rollup of `agentId`, on session-event and session-updated hints. */
+      activity?: api.AgentActivity
+    }
   | {type: 'run-change'; accountId: string; run: api.RunInfo}
   | {type: 'run-append'; accountId: string; rootRunId: string; entry: api.RunJournalEntryInfo}
   | {
@@ -1437,6 +1446,7 @@ export class Service {
     const rows = this.#db
       .query<AgentRow, [string, string, string]>(
         `SELECT a.id, a.account_id, a.definition_cbor, a.state_dir, a.status, a.public_read, a.public_chat, a.created_at, a.updated_at,
+                ${agentActivityColumns('a')},
                 CASE WHEN a.account_id = ? THEN 'owner' ELSE c.role END AS access_role
          FROM agents a
          LEFT JOIN agent_collaborators c ON c.agent_id = a.id AND c.account_id = ? AND c.status = 'accepted'
@@ -2707,7 +2717,8 @@ export class Service {
   #getAgent(accountId: string, agentId: string, viewerAccountId = accountId): api.GetAgentResponse {
     const agent = this.#db
       .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
+        `SELECT agents.id, agents.account_id, agents.definition_cbor, agents.state_dir, agents.status, agents.public_read, agents.public_chat, agents.created_at, agents.updated_at,
+                ${agentActivityColumns('agents')}
          FROM agents WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, agentId)
@@ -7726,11 +7737,57 @@ export class Service {
       now,
     ])
     const info = {id, sessionId, seq, event, createdAt: now}
+    this.#recordAgentActivity(agentId, sessionId, event, now)
     // Content stream: every event reaches the open session view immediately.
     this.#emit({type: 'session-event', accountId, agentId, event: info})
     // List-reorder signal: coalesced so a burst of events collapses to ~one ListSessions refetch.
     this.#signalSessionListChange(accountId, agentId, sessionId)
     return info
+  }
+
+  /**
+   * Rolls an appended event up onto the agent (see AgentActivity): every event moves the session's
+   * `updated_at` and the agent's latest-activity columns; only a message — never tool activity —
+   * moves the message columns that unread indicators read.
+   */
+  #recordAgentActivity(agentId: string, sessionId: string, event: api.SessionEventPayload, now: number): void {
+    const parent = this.#db
+      .query<{parent_session_id: string | null}, [string]>(`SELECT parent_session_id FROM sessions WHERE id = ?`)
+      .get(sessionId)
+    // A delegated child's transcript is the agent's internal work: it keeps the agent busy but its
+    // messages are nothing a person is waiting to read — the parent gets the result as a tool
+    // result. Only top-level conversations move the message columns.
+    const kind = parent?.parent_session_id ? 'tool' : sessionEventActivityKind(event)
+    this.#db.run(`UPDATE sessions SET updated_at = ? WHERE id = ?`, [now, sessionId])
+    if (kind === 'tool') {
+      this.#db.run(`UPDATE agents SET activity_at = ?, activity_kind = 'tool' WHERE id = ?`, [now, agentId])
+      return
+    }
+    this.#db.run(
+      `UPDATE agents SET activity_at = ?, activity_kind = ?, message_at = ?, message_from = ?, activity_session_id = ?
+       WHERE id = ?`,
+      [now, kind, now, kind, sessionId, agentId],
+    )
+  }
+
+  /**
+   * The agent's current activity rollup, for live hints. Looked up by id: the agent may be a
+   * collaborator's. The coalesced list signal calls this from a trailing timer, which can outlive
+   * the database (tests close it; a shutdown may too) — a hint without a rollup beats a crash.
+   */
+  #agentActivity(agentId: string): api.AgentActivity | undefined {
+    try {
+      const row = this.#db
+        .query<AgentRow, [string]>(
+          `SELECT agents.id, agents.account_id, agents.definition_cbor, agents.state_dir, agents.status, agents.created_at, agents.updated_at,
+                  ${agentActivityColumns('agents')}
+           FROM agents WHERE id = ?`,
+        )
+        .get(agentId)
+      return row ? agentRowActivity(row) : undefined
+    } catch {
+      return undefined
+    }
   }
 
   /**
@@ -7745,7 +7802,14 @@ export class Service {
     const last = this.#sessionListSignalAt.get(key) ?? 0
     if (now - last >= SESSION_LIST_SIGNAL_WINDOW_MS) {
       this.#sessionListSignalAt.set(key, now)
-      this.#emit({type: 'account-change', accountId, reason: 'session-event', agentId, sessionId})
+      this.#emit({
+        type: 'account-change',
+        accountId,
+        reason: 'session-event',
+        agentId,
+        sessionId,
+        activity: this.#agentActivity(agentId),
+      })
       return
     }
     if (this.#sessionListSignalTimer.has(key)) return
@@ -7753,7 +7817,14 @@ export class Service {
       () => {
         this.#sessionListSignalTimer.delete(key)
         this.#sessionListSignalAt.set(key, Date.now())
-        this.#emit({type: 'account-change', accountId, reason: 'session-event', agentId, sessionId})
+        this.#emit({
+          type: 'account-change',
+          accountId,
+          reason: 'session-event',
+          agentId,
+          sessionId,
+          activity: this.#agentActivity(agentId),
+        })
       },
       SESSION_LIST_SIGNAL_WINDOW_MS - (now - last),
     )
@@ -7762,6 +7833,11 @@ export class Service {
   }
 
   #updateSessionStatus(accountId: string, sessionId: string, status: api.SessionInfo['status'], now: number): void {
+    const previous = this.#db
+      .query<{status: api.SessionInfo['status']}, [string, string]>(
+        `SELECT status FROM sessions WHERE account_id = ? AND id = ?`,
+      )
+      .get(accountId, sessionId)?.status
     this.#db.run(`UPDATE sessions SET status = ?, updated_at = ? WHERE account_id = ? AND id = ?`, [
       status,
       now,
@@ -7769,7 +7845,21 @@ export class Service {
       sessionId,
     ])
     const session = this.#getSessionInfo(accountId, sessionId)
-    if (session) this.#emit({type: 'session-change', accountId, session})
+    if (!session) return
+    this.#emit({type: 'session-change', accountId, session})
+    // A run starting or settling is what flips the agent's `busy` flag; account subscribers hold
+    // no session subscription, so the change reaches them as an activity hint. Only on a real
+    // transition: the run bookkeeping re-derives the status more often than it changes.
+    if (previous !== undefined && previous !== status) {
+      this.#emit({
+        type: 'account-change',
+        accountId,
+        reason: 'session-updated',
+        agentId: session.agentId,
+        sessionId,
+        activity: this.#agentActivity(session.agentId),
+      })
+    }
   }
 
   #emit(event: ServiceEvent): void {
@@ -8107,7 +8197,8 @@ export class Service {
   #getAgentInfo(accountId: string, agentId: string): api.AgentInfo | null {
     const agent = this.#db
       .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
+        `SELECT agents.id, agents.account_id, agents.definition_cbor, agents.state_dir, agents.status, agents.public_read, agents.public_chat, agents.created_at, agents.updated_at,
+                ${agentActivityColumns('agents')}
          FROM agents WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, agentId)
@@ -9017,6 +9108,13 @@ type AgentRow = {
   created_at: number
   updated_at: number
   access_role?: api.AgentAccessRole
+  activity_at?: number | null
+  activity_kind?: api.AgentActivityKind | null
+  message_at?: number | null
+  message_from?: api.AgentActivity['messageFrom'] | null
+  activity_session_id?: string | null
+  /** 1 while any of the agent's runs is live; only selected where the activity rollup is read. */
+  busy?: number | null
 }
 
 type AgentTriggerRow = {
@@ -9430,6 +9528,7 @@ function publicReadOf(access: {ownerAccountId: string; viaPublic: boolean}): {pu
 }
 
 function agentRowToInfo(row: AgentRow, accessRole: api.AgentAccessRole = 'owner'): api.AgentInfo {
+  const activity = agentRowActivity(row)
   return {
     id: row.id,
     account: row.account_id,
@@ -9441,7 +9540,40 @@ function agentRowToInfo(row: AgentRow, accessRole: api.AgentAccessRole = 'owner'
     accessRole,
     publicRead: row.public_read === 1,
     publicChat: row.public_chat === 1,
+    ...(activity ? {activity} : {}),
   }
+}
+
+/**
+ * The agent's activity rollup from its row, or undefined until a message has landed. A tool event
+ * before any message leaves `message_at` unset, and a rollup without a message is not worth
+ * announcing: nothing could be unread yet.
+ */
+function agentRowActivity(row: AgentRow): api.AgentActivity | undefined {
+  if (
+    typeof row.activity_at !== 'number' ||
+    typeof row.message_at !== 'number' ||
+    !row.activity_kind ||
+    !row.message_from ||
+    !row.activity_session_id
+  ) {
+    return undefined
+  }
+  return {
+    at: row.activity_at,
+    kind: row.activity_kind,
+    messageAt: row.message_at,
+    messageFrom: row.message_from,
+    sessionId: row.activity_session_id,
+    busy: row.busy === 1,
+  }
+}
+
+/** Selects the activity columns plus a live-run flag for the agent row aliased `alias`. */
+function agentActivityColumns(alias: string): string {
+  return `${alias}.activity_at, ${alias}.activity_kind, ${alias}.message_at, ${alias}.message_from, ${alias}.activity_session_id,
+          (EXISTS (SELECT 1 FROM runs live_run WHERE live_run.agent_id = ${alias}.id
+                   AND live_run.status IN ('queued', 'claimed', 'running', 'waiting'))) AS busy`
 }
 
 /** How far back a run-completed chain is followed before it is called a loop. */
