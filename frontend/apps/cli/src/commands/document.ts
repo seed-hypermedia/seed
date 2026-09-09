@@ -34,7 +34,7 @@ import {documentToMarkdown} from '../markdown'
 import {keyOptions, resolveSigningKey} from '../utils/keys'
 import {resolveIdWithClient} from '../utils/resolve-id'
 import {createSignerFromKey} from '../utils/signer'
-import {META_SCHEMA, encodeBlob, loadEffectiveSchema, metadataSchemaOf, readJsonFile, violations} from '../utils/onyx'
+import {META_SCHEMA, encodeBlob, loadEffectiveSchema, metadataViolations, readJsonFile, violations} from '../utils/onyx'
 import {resolveDocumentState} from '../utils/depth'
 import {parseMarkdown, flattenToOperations, type BlockNode} from '../utils/markdown'
 import {parseBlocksJson, hmBlockNodesToOperations} from '../utils/blocks-json'
@@ -1052,8 +1052,7 @@ export function registerDocumentCommands(program: Command) {
         if (options.content) {
           errors = violations(effective.schema, {metadata, content: document.content ?? []}, effective.registry)
         } else {
-          const metadataSchema = metadataSchemaOf(effective.schema, effective.registry)
-          errors = metadataSchema ? violations(metadataSchema, metadata, effective.registry) : []
+          errors = metadataViolations(effective.schema, metadata, effective.registry)
         }
         const report = {id, schema: effective.ref, via: effective.via, violations: errors}
         if (structured) console.log(formatOutput(report, getOutputFormat(globalOpts), isPretty(globalOpts)))

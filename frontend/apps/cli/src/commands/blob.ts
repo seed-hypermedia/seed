@@ -31,7 +31,7 @@ import {
 } from '../utils/onyx'
 import * as cbor from '@seed-hypermedia/client/cbor'
 
-const fail = (message: string): never => {
+const fail: (message: string) => never = (message) => {
   printError(message)
   process.exit(1)
 }
@@ -54,11 +54,7 @@ export function registerBlobCommands(program: Command) {
         const value = await fetchBlobValue(getClient(globalOpts), cid.replace(/^ipfs:\/\//, ''))
         if (value === undefined) fail(`No blob at ${cid}`)
         console.log(
-          formatOutput(
-            value,
-            getOutputFormat(globalOpts) === 'md' ? 'json' : getOutputFormat(globalOpts),
-            isPretty(globalOpts),
-          ),
+          formatOutput(value, getOutputFormat(globalOpts), isPretty(globalOpts)),
         )
       } catch (error) {
         fail((error as Error).message)

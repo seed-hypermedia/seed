@@ -531,7 +531,8 @@ describe('Agent', () => {
   describe('1. Understand the document model', () => {
     it('write a document, then read it back as markdown with its metadata', () =>
       passed('write a document, then read it back as markdown with its metadata'))
-    it.todo('read hm://<doc> names the schema the document conforms to and its required fields')
+    it('read hm://<doc> names the schema the document conforms to and its required fields', () =>
+      passed('read hm://<doc> names the schema the document conforms to and its required fields'))
   })
   describe('2. Give a document custom metadata', () => {
     it('write with options.metadata sets custom keys and the schema field', () =>
@@ -542,20 +543,27 @@ describe('Agent', () => {
       passed('write childrenSchema on a folder; a child written under it carries no schema of its own'))
   })
   describe('4. See whether a document respects its schema', () => {
-    it.todo('a write to a typed document returns schema violations as warnings beside the published id')
-    it.todo('a read of a typed document says which required fields are missing')
+    it('a write to a typed document returns schema violations as warnings beside the published id', () =>
+      passed('a write to a typed document returns schema violations as warnings beside the published id'))
+    it('a read of a typed document says which required fields are missing', () =>
+      passed('a read of a typed document says which required fields are missing'))
   })
   describe('5. Define a custom schema as a document', () => {
-    it.todo('write ipfs:// with JSON content and options.schema = the meta-schema publishes a schema blob')
-    it.todo('write hm://…/types/person with options.metadata.schemaDefinition binds the blob to the page')
+    it('write ipfs:// with JSON content and options.schema = the meta-schema publishes a schema blob', () =>
+      passed('write ipfs:// with JSON content and options.schema = the meta-schema publishes a schema blob'))
+    it('write hm://…/types/person with options.metadata.schemaDefinition binds the blob to the page', () =>
+      passed('write hm://…/types/person with options.metadata.schemaDefinition binds the blob to the page'))
   })
   describe('6. Create a blob that follows a custom schema exactly', () => {
-    it.todo('write ipfs:// with JSON content and options.schema = hm://…/types/person publishes a validated object')
+    it('write ipfs:// with JSON content and options.schema = hm://…/types/person publishes a validated object', () =>
+      passed('write ipfs:// with JSON content and options.schema = hm://…/types/person publishes a validated object'))
   })
   describe('7. Extend the signed blob envelope into a new signed type', () => {
-    it.todo('write ipfs:// with a schema that refs hypermedia-blob publishes the signed type’s schema blob')
+    it('write ipfs:// with a schema that refs hypermedia-blob publishes the signed type’s schema blob', () =>
+      passed('write ipfs:// with a schema that refs hypermedia-blob publishes the signed type’s schema blob'))
   })
   describe('8. Create an instance of the signed type and sign it', () => {
-    it.todo('write ipfs:// with options.schema = hm://…/types/vote and options.sign = true publishes a signed blob')
+    it('write ipfs:// with options.schema = hm://…/types/vote and options.sign = true publishes a signed blob', () =>
+      passed('write ipfs:// with options.schema = hm://…/types/vote and options.sign = true publishes a signed blob'))
   })
 })

@@ -4,17 +4,9 @@
 // schemaKeyCid (blob-schema-edit.ts). We synthesize an OPEN Onyx map: the
 // schema-keyed keys are validated against their (inlined) schemas; every other
 // key is accepted (`values: {}` — the empty schema imposes no constraint).
+import {documentMetadataSchema} from '@seed-hypermedia/client/onyx-resolve'
 import {parseCidString} from '../dag-json'
-import {
-  fieldsToProperties,
-  ONYX_SCHEMAS,
-  resolveSchema,
-  STRUCT_URL,
-  structFields,
-  type OnyxRegistry,
-  type OnyxSchema,
-  type StructField,
-} from './onyx-engine'
+import {fieldsToProperties, STRUCT_URL, type OnyxSchema} from './onyx-engine'
 
 const DAG_CBOR_CODE = 0x71
 
@@ -58,23 +50,8 @@ export function buildSchemaKeyRoot(keys: string[], byCid: Record<string, OnyxSch
 }
 
 /**
- * The effective schema for a document's metadata: the base document-metadata
- * schema (`hypermedia-metadata` — name/summary/icon/…) EXTENDED by the document's
- * own type schema (its `schemaDefinition`). Standard fields are inherited; the
- * document type's fields are added (required ones surface as prepopulated chips).
- * Kept OPEN (`values: {}`) so the schemaDefinition field itself and arbitrary
- * extra keys are still allowed. `extraProps` folds in any schema-keyed fields.
+ * The effective schema for a document's metadata — base document metadata extended by the
+ * document's type, kept open. Lives in the client package so the CLI and agents check
+ * documents exactly as this editor does.
  */
-export function documentMetadataSchema(
-  docTypeSchema: OnyxSchema,
-  extraProps: Record<string, OnyxSchema> = {},
-  registry: OnyxRegistry = {},
-): OnyxSchema {
-  const base = resolveSchema(ONYX_SCHEMAS['hypermedia-metadata']).schema
-  const doc = resolveSchema(docTypeSchema, {}, registry).schema
-  const byName = new Map<string, StructField>()
-  for (const f of structFields(base)) byName.set(f.name, f)
-  for (const f of structFields(doc)) byName.set(f.name, f)
-  for (const [name, schema] of Object.entries(extraProps)) byName.set(name, {name, schema, required: false})
-  return {type: STRUCT_URL, properties: fieldsToProperties(Array.from(byName.values())), values: {}}
-}
+export {documentMetadataSchema}

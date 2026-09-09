@@ -13,7 +13,7 @@ import {getClient, getOutputFormat, isPretty} from '../index'
 import {formatOutput, printError, printSuccess} from '../output'
 import {META_SCHEMA, encodeBlob, loadSchema, violations} from '../utils/onyx'
 
-const fail = (message: string): never => {
+const fail: (message: string) => never = (message) => {
   printError(message)
   process.exit(1)
 }
@@ -31,11 +31,10 @@ export function registerSchemaCommands(program: Command) {
         const loaded = await loadSchema(getClient(globalOpts), ref)
         const value = options.resolve ? resolveSchema(loaded.schema, {}, loaded.registry).schema : loaded.schema
         const cid = loaded.cid ?? (await encodeBlob(loaded.schema)).cid
-        const out = getOutputFormat(globalOpts)
         console.log(
           formatOutput(
             {cid: `ipfs://${cid}`, source: loaded.source, schema: value},
-            out === 'md' ? 'json' : out,
+            getOutputFormat(globalOpts),
             isPretty(globalOpts),
           ),
         )
