@@ -105,6 +105,24 @@ import type {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {hmIdPathToEntityQueryPath, unpackHmId} from '@seed-hypermedia/client/hm-types'
+import * as clientCbor from '@seed-hypermedia/client/cbor'
+import {findSeedIndexerCollision, ipldToDagJson} from '@seed-hypermedia/client/dag-json'
+import {validate as validateOnyx} from '@seed-hypermedia/client/onyx-engine'
+import {
+  blobSchemaRef,
+  checkDocumentSchema,
+  checkSchemaDefinition,
+  isPlainMap,
+  loadSchemaRef,
+  withoutSchemaLink,
+} from '@seed-hypermedia/client/onyx-resolve'
+import {
+  encodeDagCbor,
+  hasSignedEnvelope,
+  signBlob,
+  signedBlobTypeTag,
+  verifySignedBlob,
+} from '@seed-hypermedia/client/onyx-signed-blob'
 import * as pi from '@mariozechner/pi-coding-agent'
 import {providerErrorReason, recordPerf, recordPerfCount, startPerfSpan} from '@/perf'
 import {sessionPerfRollup, type SessionPerfRollup} from '@/session-perf'
@@ -9122,6 +9140,74 @@ export function batchBlobsForPublish<T extends {data: Uint8Array}>(
   return batches
 }
 
+const DAG_CBOR_CODEC = 0x71
+
+/** Whether a CID names a DAG-CBOR object (a schema, a typed or signed blob) rather than a file. */
+function isDagCborCid(cid: string): boolean {
+  try {
+    return CID.parse(cid).code === DAG_CBOR_CODEC
+  } catch {
+    return false
+  }
+}
+
+/**
+ * A DAG-CBOR object by CID, decoded as dag-json — with its signature check when it carries the
+ * signed-blob envelope (who signed, when, whether the signature verifies) and how it fares
+ * against its schema (the one it links to, or `options.schema`). The mirror of writeIpfsObject.
+ */
+async function readIpfsObject(
+  context: AgentServicePiToolContext,
+  cid: string,
+  options: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const client = createSeedClient(context.hmServerUrl, {fetch: fetchWithReadDeadline})
+  const got = await client.request('GetCID', {cid}).catch((error) => {
+    throw new APIError(404, `No object at ipfs://${cid}: ${error instanceof Error ? error.message : String(error)}`)
+  })
+  const value = (got as {value?: unknown} | undefined)?.value
+  if (value === undefined) throw new APIError(404, `No object at ipfs://${cid}`)
+  const signature = hasSignedEnvelope(value) ? await verifySignedBlob(value) : null
+  const schemaRef =
+    typeof options.schema === 'string' && options.schema.trim() ? options.schema.trim() : blobSchemaRef(value)
+  let schema: {ref: string; violations?: string[]; error?: string} | null = null
+  if (schemaRef) {
+    try {
+      const loaded = await loadSchemaRef(client, schemaRef)
+      schema = {ref: schemaRef, violations: validateOnyx(loaded.schema, withoutSchemaLink(value), '$', {}, loaded.registry)}
+    } catch (error) {
+      schema = {ref: schemaRef, error: (error as Error).message}
+    }
+  }
+  const parts = [`Object ipfs://${cid}`]
+  if (signature) {
+    parts.push(
+      signature.ok
+        ? `signed by ${signature.signer}${signature.ts ? ` at ${new Date(signature.ts).toISOString()}` : ''}`
+        : `INVALID signature (${signature.reason ?? 'unknown'})${signature.signer ? `, claimed signer ${signature.signer}` : ''}`,
+    )
+  } else parts.push('unsigned')
+  if (schema) {
+    parts.push(
+      schema.error
+        ? `schema ${schema.ref} could not be checked: ${schema.error}`
+        : schema.violations?.length
+          ? `violates ${schema.ref} (${schema.violations.length})`
+          : `conforms to ${schema.ref}`,
+    )
+  } else parts.push('no schema')
+  return {
+    summary: `${parts.join('; ')}.`,
+    type: 'ipfs_object',
+    cid,
+    url: `ipfs://${cid}`,
+    value,
+    signature,
+    schema,
+    ok: (signature ? signature.ok : true) && (schema ? !schema.error && !schema.violations?.length : true),
+  }
+}
+
 async function publishBytesToIpfs(hmServerUrl: string, data: Uint8Array): Promise<{cid: string; url: string}> {
   const chunked = await fileToIpfsBlobs(data)
   const client = createSeedClient(hmServerUrl)
@@ -11722,6 +11808,7 @@ export async function executeReadVerb(
 
   if (address.startsWith('ipfs://')) {
     const cid = parseIpfsCid(address)
+    if (isDagCborCid(cid)) return readIpfsObject(context, cid, options)
     const gatewayUrl = `${context.ipfsServerUrl.replace(/\/$/, '')}/ipfs/${cid}`
     const targetPath = typeof options.path === 'string' && options.path.trim() ? options.path : `ipfs/${cid}`
     const result = await withMemoryErrorsAsync(() =>
@@ -11850,6 +11937,152 @@ const HM_WRITE_ACTION_OPTION_KEYS: Record<string, readonly string[]> = {
 }
 const HM_WRITE_OPTIONS_HINT = 'Extra command fields belong in options.input, never as loose option keys.'
 
+/** Options of a `write ipfs://` that publishes an object given as content (see writeIpfsObject). */
+const IPFS_OBJECT_OPTION_KEYS = ['schema', 'sign', 'type', 'link', 'force', 'signer'] as const
+const IPFS_WRITE_OPTION_KEYS = ['fromPath', 'fromAttachment', ...IPFS_OBJECT_OPTION_KEYS] as const
+
+/**
+ * Publishes a JSON object as a content-addressed DAG-CBOR blob — the typed-blob half of the
+ * protocol, the same thing the CLI's `blob create` and `blob sign` do. The content is dag-json
+ * (`{"/": "<cid>"}` is a link, `{"/": {"bytes": "…"}}` is bytes). With `options.schema` the
+ * object is validated against that schema (a library name such as `hypermedia-schema`, an
+ * `ipfs://<cid>`, or a type document's `hm://` URL) and linked to it through a `schema` key; a
+ * violation refuses the publish unless `options.force`. With `options.sign: true` the object's
+ * fields are wrapped in the Hypermedia signed-blob envelope (type, signer, ts, sig) and signed by
+ * one of the agent's identities, so a schema that extends `hypermedia-blob` gets a real instance.
+ */
+async function writeIpfsObject(
+  context: AgentServicePiToolContext,
+  content: string,
+  options: Record<string, unknown>,
+  dryRun: boolean,
+): Promise<Record<string, unknown>> {
+  let value: unknown
+  try {
+    value = JSON.parse(content)
+  } catch (error) {
+    throw new APIError(400, `write ipfs:// content must be a JSON object (dag-json): ${(error as Error).message}`)
+  }
+  if (options.schema !== undefined && typeof options.schema !== 'string') {
+    throw new APIError(
+      400,
+      'write ipfs:// options.schema must be a schema reference: a library name (hypermedia-schema), ipfs://<cid>, or a type document hm:// URL',
+    )
+  }
+  for (const key of ['sign', 'link', 'force'] as const) {
+    if (options[key] !== undefined && typeof options[key] !== 'boolean') {
+      throw new APIError(400, `write ipfs:// options.${key} must be a boolean`)
+    }
+  }
+  const client = createSeedClient(context.hmServerUrl)
+  const schemaRef = typeof options.schema === 'string' && options.schema.trim() ? options.schema.trim() : blobSchemaRef(value)
+  const loaded = schemaRef
+    ? await loadSchemaRef(client, schemaRef).catch((error) => {
+        throw new APIError(400, `Could not load schema ${schemaRef}: ${(error as Error).message}`)
+      })
+    : null
+  const force = options.force === true
+  const violationsOf = (candidate: unknown): string[] =>
+    loaded ? validateOnyx(loaded.schema, withoutSchemaLink(candidate), '$', {}, loaded.registry) : []
+  const refuse = (violations: string[]): never => {
+    throw new APIError(
+      400,
+      `The object does not conform to ${schemaRef} (${violations.length} violation${
+        violations.length === 1 ? '' : 's'
+      }): ${violations.join('; ')}. Fix the object, or pass options.force: true to publish it anyway.`,
+    )
+  }
+  const warningsOf = (violations: string[]) =>
+    violations.length ? {warnings: violations.map((v) => `does not conform to ${schemaRef}: ${v}`)} : {}
+
+  if (options.sign === true) {
+    if (!isPlainMap(value)) {
+      throw new APIError(400, 'A signed blob must be a JSON object: its own fields; the envelope is added at signing')
+    }
+    for (const key of ['signer', 'sig', 'ts']) {
+      if (key in value) throw new APIError(400, `The object already has "${key}": the signed envelope is filled at signing, leave it out`)
+    }
+    if (options.type !== undefined && typeof options.type !== 'string') {
+      throw new APIError(400, 'write ipfs:// options.type must be a string (the signed blob type tag)')
+    }
+    const pinned = loaded ? signedBlobTypeTag(loaded.schema, loaded.registry) : undefined
+    const requested = typeof options.type === 'string' && options.type ? options.type : undefined
+    if (requested && pinned && requested !== pinned) {
+      throw new APIError(400, `options.type ${requested} disagrees with the schema, which pins type "${pinned}"`)
+    }
+    const typeTag = requested ?? pinned ?? (typeof value.type === 'string' ? value.type : undefined)
+    const {type: _ownType, ...fields} = value
+    const body = typeTag ? fields : value
+    const signer = await resolveWriteSigner(
+      context,
+      isRecord(options.signer) ? (options.signer as {profileName?: string; publicKey?: string}) : undefined,
+    )
+    const signed = await signBlob(signer.signer, body, {typeTag})
+    const signedValue = ipldToDagJson(clientCbor.decode(signed.data)) as Record<string, unknown>
+    const violations = violationsOf(signedValue)
+    if (violations.length && !force) refuse(violations)
+    const collision = findSeedIndexerCollision(signed.data)
+    if (collision) {
+      throw new APIError(
+        400,
+        `This blob can't be published: its "type" collides with the built-in Seed "${collision}" blob type but does not match its shape. Use a different type tag.`,
+      )
+    }
+    const base = {
+      type: 'ipfs_object_write_result',
+      cid: signed.cid,
+      url: `ipfs://${signed.cid}`,
+      signer: {profileName: signer.profileName, publicKey: signer.publicKey},
+      ts: signed.ts,
+      ...(typeTag ? {blobType: typeTag} : {}),
+      ...(schemaRef ? {schema: schemaRef} : {}),
+      ...warningsOf(violations),
+    }
+    const what = `ipfs://${signed.cid}${typeTag ? ` (type ${typeTag})` : ''}`
+    if (dryRun) {
+      return {
+        summary: `Would sign as ${signer.profileName} and publish ${what}; nothing was published.`,
+        ...base,
+        value: signedValue,
+        dryRun: true,
+      }
+    }
+    await client.publish({blobs: [{cid: signed.cid, data: signed.data}]})
+    return {
+      summary: `Signed as ${signer.profileName} and published ${what}${
+        violations.length ? ` with ${violations.length} schema warning${violations.length === 1 ? '' : 's'}` : ''
+      }.`,
+      ...base,
+    }
+  }
+
+  if (options.type !== undefined) {
+    throw new APIError(400, 'options.type applies to signed blobs (options.sign: true); an unsigned object carries the fields you give it')
+  }
+  let published: unknown = value
+  if (loaded?.cid && options.link !== false && isPlainMap(value) && !('schema' in value)) {
+    published = {...value, schema: {'/': loaded.cid}}
+  }
+  const violations = violationsOf(published)
+  if (violations.length && !force) refuse(violations)
+  const {cid, data} = await encodeDagCbor(published)
+  const base = {
+    type: 'ipfs_object_write_result',
+    cid,
+    url: `ipfs://${cid}`,
+    ...(schemaRef ? {schema: schemaRef} : {}),
+    ...warningsOf(violations),
+  }
+  if (dryRun) return {summary: `Would publish ipfs://${cid}; nothing was published.`, ...base, value: published, dryRun: true}
+  await client.publish({blobs: [{cid, data}]})
+  return {
+    summary: `Published object ipfs://${cid}${
+      schemaRef ? (violations.length ? ` with ${violations.length} schema warning(s) against ${schemaRef}` : ` (conforms to ${schemaRef})`) : ''
+    }.`,
+    ...base,
+  }
+}
+
 export async function executeWriteVerb(
   context: AgentServicePiToolContext,
   raw: unknown,
@@ -11865,8 +12098,11 @@ export async function executeWriteVerb(
     throw new APIError(400, 'write dryRun must be a boolean')
   }
   const dryRun = input.dryRun === true
-  if (dryRun && !address.startsWith('hm://')) {
-    throw new APIError(400, 'dryRun applies only to hm:// writes — it validates a publish without publishing')
+  if (dryRun && !address.startsWith('hm://') && !address.startsWith('ipfs:')) {
+    throw new APIError(
+      400,
+      'dryRun applies only to hm:// writes and ipfs:// object writes — it validates a publish without publishing',
+    )
   }
 
   if (address.startsWith('~/triggers/')) {
@@ -11963,13 +12199,27 @@ export async function executeWriteVerb(
   }
 
   if (address.startsWith('ipfs:')) {
-    assertKnownWriteOptions('ipfs://', options, ['fromPath', 'fromAttachment'])
+    assertKnownWriteOptions('ipfs://', options, IPFS_WRITE_OPTION_KEYS)
     if (!context.publishEnabled) {
       throw new APIError(
         403,
         'Publishing is not enabled for this agent. The owner can grant "Publish Seed content" in its tool settings.',
       )
     }
+    // A JSON object in `content` is the typed-blob half of the protocol: a schema, an object that
+    // follows one, or a signed blob. Files (memory paths, attachments) keep the UnixFS pipeline.
+    if (content !== undefined) {
+      if (options.fromPath !== undefined || options.fromAttachment !== undefined) {
+        throw new APIError(400, 'write ipfs:// takes either content (a JSON object) or a file source, not both')
+      }
+      return writeIpfsObject(context, content, options, dryRun)
+    }
+    for (const key of IPFS_OBJECT_OPTION_KEYS) {
+      if (options[key] !== undefined) {
+        throw new APIError(400, `write ipfs:// options.${key} applies to objects given as content, not to files`)
+      }
+    }
+    if (dryRun) throw new APIError(400, 'dryRun applies to ipfs:// objects given as content, not to file publishing')
     if (typeof options.fromAttachment === 'string' && options.fromAttachment) {
       const fromAttachment = options.fromAttachment
       const {info, data} = withAttachmentErrors(() =>
@@ -13072,11 +13322,13 @@ async function writeDocumentCreate(
   // Checked before the dry-run return so a dry run surfaces authorization failures instead of
   // reporting a success that publish would silently lose.
   const capability = await requireWriteCapability(client, account, signer.publicKey)
+  const typed = await documentSchemaReport(client, `hm://${account}${path}`, metadata)
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
       id: `hm://${account}${path}`,
       metadata,
       blockCount: parsed.blocks.length,
+      ...typed,
       dryRun: true,
     })
   const genesisBlock = await createGenesisChange(signer.signer)
@@ -13105,7 +13357,39 @@ async function writeDocumentCreate(
     id: `hm://${account}${path}`,
     version: changeBlock.cid.toString(),
     cids: published.cids,
+    ...typed,
   })
+}
+
+/**
+ * How a document fares against its effective schema (its own `schema`, else the parent's
+ * `childrenSchema`) and whether a `schemaDefinition` it carries is a valid Onyx schema — reported
+ * beside the published id as `schema` and `warnings`, never as a refusal: conformance is advisory
+ * (typed-documents.md), and a person may well build the type and its documents together.
+ */
+async function documentSchemaReport(
+  client: ReturnType<typeof createSeedClient>,
+  id: string,
+  metadata: HMMetadata,
+): Promise<Record<string, unknown>> {
+  const unpacked = unpackHmId(id)
+  if (!unpacked) return {}
+  const out: Record<string, unknown> = {}
+  const warnings: string[] = []
+  const check = await checkDocumentSchema(client, unpacked, metadata as Record<string, unknown>).catch(() => null)
+  if (check && check.via !== 'none') {
+    out.schema = check
+    if (check.error) warnings.push(`schema ${check.schema} could not be checked: ${check.error}`)
+    for (const violation of check.violations) warnings.push(`does not conform to ${check.schema}: ${violation}`)
+  }
+  const definition = (metadata as Record<string, unknown>).schemaDefinition
+  if (typeof definition === 'string' && definition) {
+    for (const violation of await checkSchemaDefinition(client, definition)) {
+      warnings.push(`schemaDefinition ${definition} is not a valid Onyx schema: ${violation}`)
+    }
+  }
+  if (warnings.length) out.warnings = warnings
+  return out
 }
 
 /**
@@ -13188,11 +13472,13 @@ async function writeDocumentUpdate(
   const replacedRedirect = base.redirect
     ? {target: packHmId(base.redirect.target), republish: base.redirect.republish}
     : undefined
+  const typed = await documentSchemaReport(client, packHmId(id), {...resource.document.metadata, ...metadata})
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
       id: packHmId(id),
       ...(parsed ? {blockCount: parsed.blocks.length} : {metadataOnly: true}),
       ...(replacedRedirect ? {replacedRedirect} : {}),
+      ...typed,
       dryRun: true,
     })
   const state = base.state
@@ -13226,6 +13512,7 @@ async function writeDocumentUpdate(
     version: changeBlock.cid.toString(),
     cids: published.cids,
     ...(replacedRedirect ? {replacedRedirect} : {}),
+    ...typed,
   })
 }
 
@@ -14916,6 +15203,15 @@ export async function readHypermedia(input: unknown): Promise<Record<string, unk
     result.title = resource.document.metadata?.name
     result.version = resource.document.version
     result.metadata = resource.document.metadata
+    // A typed document says so: the schema it conforms to (its own `schema`, else the parent's
+    // `childrenSchema`), the metadata fields the type requires, the ones it lacks, and every
+    // violation — advisory, exactly what the app's editor and the CLI's `document validate` show.
+    const typed = await checkDocumentSchema(
+      client,
+      followed.targetId,
+      resource.document.metadata as Record<string, unknown> | undefined,
+    ).catch(() => null)
+    if (typed && typed.via !== 'none') result.schema = typed
     if (attributesOnly) {
       // The :attributes view is exactly the metadata — never the document content.
       result.view = 'attributes'

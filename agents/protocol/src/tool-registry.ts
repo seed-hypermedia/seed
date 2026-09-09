@@ -98,9 +98,9 @@ const readVerb = {
     '- `~/tools/<name>` — a tool contract: full description plus input/output schemas. `~/tools/` lists every tool you can call.',
     '- `~/triggers/<name>` — one of your triggers (its source, prompt, status, and recent firings). `~/triggers/` lists them all.',
     '- `~/self` — everything about you: your definition (model, system prompt, grants, signing keys), your triggers, and a memory summary.',
-    '- `hm://…` (or a Seed gateway/site URL) — a hypermedia document or comment, as markdown by default. Append `/:directory` to list the child documents under an account or document; `/:attributes` for metadata only; `/:profile` on an account for its profile; `/:comments` on a document for its whole discussion (every comment with its id, author, time, and what it replies to).',
+    '- `hm://…` (or a Seed gateway/site URL) — a hypermedia document or comment, as markdown by default. Append `/:directory` to list the child documents under an account or document; `/:attributes` for metadata only; `/:profile` on an account for its profile; `/:comments` on a document for its whole discussion (every comment with its id, author, time, and what it replies to). A typed document (metadata `schema`, or a parent with `childrenSchema`) also returns `schema`: the type it conforms to, `via` (own or inherited), the `required` metadata fields, the `missing` ones, and `violations`.',
     '- A comment id is `<authorUid>/<tsid>` (the value in replyTo, replyParent, threadRoot and activity `comment.id` fields). Read a comment at `hm://<authorUid>/<tsid>` — a bare `<authorUid>/<tsid>` works too — and the result includes the whole thread it belongs to (oldest first, the requested comment marked) plus the exact write call that replies to it. Never prefix a comment id with the target document: `hm://<docUid>/<authorUid>/<tsid>` is not an address (it is corrected when recognizable, but do not rely on it).',
-    '- `ipfs://<cid>` — fetch content by CID into memory and return it (binary files return metadata only).',
+    '- `ipfs://<cid>` — a file: fetched by CID into memory and returned (binary files return metadata only). A DAG-CBOR object (a schema, a typed blob, a signed blob) is decoded instead: `value` as JSON, `signature` (who signed, when, whether it verifies; null when unsigned), and `schema` (violations against the schema it links to, or options {schema}).',
     '- `https://…` — read a public web page as markdown.',
     '- `activity:` — the recent activity feed; filter with options {authors, eventTypes, resource, pageSize, pageToken}.',
     '- `attachment:<id>` — a file attached to this conversation (images are shown to you when the model supports it).',
@@ -125,7 +125,7 @@ const readVerb = {
       options: {
         type: 'object',
         description:
-          'Source-specific options: activity filters {authors, eventTypes, resource, pageSize, pageToken}; thread listing {query, limit}; thread transcript {fromSeq, toSeq, limit}; ipfs {path} to choose the memory destination.',
+          'Source-specific options: activity filters {authors, eventTypes, resource, pageSize, pageToken}; thread listing {query, limit}; thread transcript {fromSeq, toSeq, limit}; ipfs files {path} to choose the memory destination; ipfs objects {schema} to check against a schema reference.',
       },
     },
     required: ['address'],
@@ -158,7 +158,7 @@ const writeVerb = {
     '- `~/memory/<path>` — files: replace content, delete, download a URL, or save an attachment. Details: `~/tools/write/memory`.',
     '- `~/tools/<name>` — authored callable tools: create, replace, or delete. Details: `~/tools/write/tools`.',
     '- `~/triggers/<name>` — automations: create, edit, enable, disable, or delete. Details: `~/tools/write/triggers`.',
-    '- `ipfs://` — publish a memory file or attachment. Details: `~/tools/write/ipfs`.',
+    '- `ipfs://` — publish a memory file or attachment, or a JSON object given as `content` (a schema, an object that follows one, a signed blob). Details: `~/tools/write/ipfs`.',
     '- `hm://<account>/<path>` — signed Seed resources. Features are grouped below; read the exact guide before an unfamiliar operation:',
     '  - `~/tools/write/documents` — create, replace, rename, move, redirect, fork, or delete documents; metadata and memory-file publishing.',
     '  - `~/tools/write/comments` — comment, reply, edit, or delete comments.',
@@ -180,7 +180,7 @@ const writeVerb = {
       },
       content: {
         type: 'string',
-        description: 'The content to write. Markdown for hm:// documents; raw text for memory files.',
+        description: 'The content to write. Markdown for hm:// documents; raw text for memory files; a JSON object for ipfs:// objects.',
       },
       options: {
         type: 'object',
@@ -189,7 +189,7 @@ const writeVerb = {
       },
       dryRun: {
         type: 'boolean',
-        description: 'For hm:// writes: validate and echo what would be published without publishing anything.',
+        description: 'For hm:// writes and ipfs:// objects: validate and echo what would be published without publishing anything.',
       },
     },
     required: ['address'],
