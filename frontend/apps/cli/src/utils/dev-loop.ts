@@ -359,6 +359,13 @@ export async function runDevLoop(opts: DevLoopOptions) {
       printWarning(`poll failed: ${(err as Error).message}`)
       continue
     }
+    // A site that answers with nothing is an outage, not a deletion: the app's API may be
+    // talking to a daemon that does not hold this site (a restart, another daemon on the
+    // port). Dropping every file on that answer would erase the directory; wait instead.
+    if (next.size === 0 && versions.size > 0) {
+      printWarning(`${stamp()}  the site answered with no documents; keeping the files until it is back`)
+      continue
+    }
     const written: string[] = []
     for (const [path, version] of next) {
       if (versions.get(path) === version) continue
