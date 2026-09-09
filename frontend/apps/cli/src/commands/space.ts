@@ -63,6 +63,7 @@ export function registerSpaceCommands(program: Command) {
     .requiredOption('-d, --dir <path>', 'Source directory')
     .option('-k, --key <name>', 'Signing key name or account ID')
     .option('--dry-run', 'Report what would change without publishing')
+    .option('--check', 'Validate every document against its schema first; publish nothing on a violation')
     .action(async (id: string, options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
       try {
@@ -81,6 +82,7 @@ export function registerSpaceCommands(program: Command) {
           account,
           dir,
           dryRun: !!options.dryRun,
+          check: !!options.check,
           log: globalOpts.quiet ? undefined : printInfo,
         })
         if (!globalOpts.quiet) {
