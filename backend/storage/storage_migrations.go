@@ -63,6 +63,63 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Materialize comment activity so the document listings can read it instead of
+	// deriving it per request. ListDirectory used to spend 53ms of a 60ms call
+	// re-deciding which blob is the live version of every comment in the listed
+	// scope, and GetAccount paid the same for its home document. Measured on a
+	// 6.2 GB production database: ListDirectory 52ms -> 2.3ms, getDocumentInfo
+	// 3.0ms -> 0.11ms.
+	//
+	// Keyed by genesis, so comment activity follows a document's identity rather
+	// than its current path. See the schema comments on document_comment_stats.
+	//
+	// Reindex rather than backfill: both tables are derived from Comment blobs, and
+	// indexComment maintains them, so replaying the blobs is both the simplest and
+	// the most trustworthy way to fill them.
+	{Version: "2026-09-07.100001", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			CREATE TABLE IF NOT EXISTS comment_live (
+			    tsid TEXT PRIMARY KEY,
+			    blob_id INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+			    genesis TEXT NOT NULL,
+			    resource INTEGER REFERENCES resources (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+			    ts INTEGER NOT NULL
+			) WITHOUT ROWID;
+
+			CREATE INDEX IF NOT EXISTS comment_live_by_genesis ON comment_live (genesis, ts);
+			CREATE INDEX IF NOT EXISTS comment_live_by_resource ON comment_live (resource, ts);
+			CREATE INDEX IF NOT EXISTS comment_live_by_blob ON comment_live (blob_id);
+
+			CREATE TABLE IF NOT EXISTS document_comment_stats (
+			    genesis TEXT PRIMARY KEY,
+			    comment_count INTEGER NOT NULL,
+			    last_comment INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE,
+			    last_comment_time INTEGER NOT NULL
+			) WITHOUT ROWID;
+
+			CREATE INDEX IF NOT EXISTS document_comment_stats_by_last_comment ON document_comment_stats (last_comment) WHERE last_comment IS NOT NULL;
+		`)); err != nil {
+			return err
+		}
+
+		return scheduleReindex(conn)
+	}},
+
+	// Feed ordering index. Both activity-feed queries sort by claimed time with a
+	// LIMIT, and nothing could serve that ordering: structural_blobs_by_type leads
+	// with `type`, so the feed's `type != 'Change'` filter can't range-scan it. The
+	// planner materialized every surviving row — 40k of them, carrying the whole
+	// extra_attrs JSONB — into a temp b-tree and then threw away all but 30.
+	// Measured on a 6.2 GB production database: main feed query 175ms -> 0.05ms,
+	// listMentionsCore 250ms -> 0.06ms (the index also flips its driving table from
+	// a full resource_links scan to structural_blobs). No reindex needed: an index
+	// is derived from rows that are already correct.
+	{Version: "2026-09-07.100000", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			CREATE INDEX IF NOT EXISTS structural_blobs_by_ts ON structural_blobs (ts, id);
+		`))
+	}},
+
 	// Stale-mark every maintained RBSR scope so it re-materializes lazily on
 	// its next serve: earlier builds could leave permanent holes in rbsr_item
 	// (Capability/Contact blobs missing from the advertised set — the oracle's

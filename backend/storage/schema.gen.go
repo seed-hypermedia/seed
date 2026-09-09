@@ -94,6 +94,26 @@ const (
 	C_BlobsSize       = "blobs.size"
 )
 
+// Table comment_live.
+const (
+	CommentLive         sqlitegen.Table  = "comment_live"
+	CommentLiveBlobID   sqlitegen.Column = "comment_live.blob_id"
+	CommentLiveGenesis  sqlitegen.Column = "comment_live.genesis"
+	CommentLiveResource sqlitegen.Column = "comment_live.resource"
+	CommentLiveTs       sqlitegen.Column = "comment_live.ts"
+	CommentLiveTsid     sqlitegen.Column = "comment_live.tsid"
+)
+
+// Table comment_live. Plain strings.
+const (
+	T_CommentLive         = "comment_live"
+	C_CommentLiveBlobID   = "comment_live.blob_id"
+	C_CommentLiveGenesis  = "comment_live.genesis"
+	C_CommentLiveResource = "comment_live.resource"
+	C_CommentLiveTs       = "comment_live.ts"
+	C_CommentLiveTsid     = "comment_live.tsid"
+)
+
 // Table document_attribute_keys.
 const (
 	DocumentAttributeKeys          sqlitegen.Table  = "document_attribute_keys"
@@ -132,6 +152,24 @@ const (
 	C_DocumentAttributesResource  = "document_attributes.resource"
 	C_DocumentAttributesTimestamp = "document_attributes.timestamp"
 	C_DocumentAttributesValue     = "document_attributes.value"
+)
+
+// Table document_comment_stats.
+const (
+	DocumentCommentStats                sqlitegen.Table  = "document_comment_stats"
+	DocumentCommentStatsCommentCount    sqlitegen.Column = "document_comment_stats.comment_count"
+	DocumentCommentStatsGenesis         sqlitegen.Column = "document_comment_stats.genesis"
+	DocumentCommentStatsLastComment     sqlitegen.Column = "document_comment_stats.last_comment"
+	DocumentCommentStatsLastCommentTime sqlitegen.Column = "document_comment_stats.last_comment_time"
+)
+
+// Table document_comment_stats. Plain strings.
+const (
+	T_DocumentCommentStats                = "document_comment_stats"
+	C_DocumentCommentStatsCommentCount    = "document_comment_stats.comment_count"
+	C_DocumentCommentStatsGenesis         = "document_comment_stats.genesis"
+	C_DocumentCommentStatsLastComment     = "document_comment_stats.last_comment"
+	C_DocumentCommentStatsLastCommentTime = "document_comment_stats.last_comment_time"
 )
 
 // Table document_generations.
@@ -730,6 +768,11 @@ var Schema = sqlitegen.Schema{
 		BlobsInsertTime:                         {Table: Blobs, SQLType: "INTEGER"},
 		BlobsMultihash:                          {Table: Blobs, SQLType: "BLOB"},
 		BlobsSize:                               {Table: Blobs, SQLType: "INTEGER"},
+		CommentLiveBlobID:                       {Table: CommentLive, SQLType: "INTEGER"},
+		CommentLiveGenesis:                      {Table: CommentLive, SQLType: "TEXT"},
+		CommentLiveResource:                     {Table: CommentLive, SQLType: "INTEGER"},
+		CommentLiveTs:                           {Table: CommentLive, SQLType: "INTEGER"},
+		CommentLiveTsid:                         {Table: CommentLive, SQLType: "TEXT"},
 		DocumentAttributeKeysID:                 {Table: DocumentAttributeKeys, SQLType: "INTEGER"},
 		DocumentAttributeKeysKey:                {Table: DocumentAttributeKeys, SQLType: "TEXT"},
 		DocumentAttributeKeysSearchKey:          {Table: DocumentAttributeKeys, SQLType: "TEXT"},
@@ -740,6 +783,10 @@ var Schema = sqlitegen.Schema{
 		DocumentAttributesResource:              {Table: DocumentAttributes, SQLType: "INTEGER"},
 		DocumentAttributesTimestamp:             {Table: DocumentAttributes, SQLType: "INTEGER"},
 		DocumentAttributesValue:                 {Table: DocumentAttributes, SQLType: ""},
+		DocumentCommentStatsCommentCount:        {Table: DocumentCommentStats, SQLType: "INTEGER"},
+		DocumentCommentStatsGenesis:             {Table: DocumentCommentStats, SQLType: "TEXT"},
+		DocumentCommentStatsLastComment:         {Table: DocumentCommentStats, SQLType: "INTEGER"},
+		DocumentCommentStatsLastCommentTime:     {Table: DocumentCommentStats, SQLType: "INTEGER"},
 		DocumentGenerationsAuthors:              {Table: DocumentGenerations, SQLType: "JSON"},
 		DocumentGenerationsChangeCount:          {Table: DocumentGenerations, SQLType: "INTEGER"},
 		DocumentGenerationsChanges:              {Table: DocumentGenerations, SQLType: "BLOB"},

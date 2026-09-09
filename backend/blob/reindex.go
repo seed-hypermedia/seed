@@ -22,6 +22,13 @@ var derivedTables = []string{
 	storage.T_StructuralBlobs,
 	storage.T_DocumentAttributes,
 	storage.T_DocumentAttributeKeys,
+	// Comment activity is derived from Comment blobs, so it's rebuilt by the blob
+	// loop below. comment_live has an FK to resources with ON DELETE CASCADE, but
+	// reindex deletes in list order, so list it before resources rather than
+	// relying on the cascade (same reasoning as the RBSR tables at the end of
+	// this list).
+	storage.T_CommentLive,
+	storage.T_DocumentCommentStats,
 	storage.T_Resources,
 	storage.T_Spaces,
 	storage.T_DocumentGenerations,

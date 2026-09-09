@@ -7,7 +7,6 @@ import (
 	"seed/backend/core"
 	"seed/backend/ipfs"
 	"seed/backend/util/dqb"
-	"seed/backend/util/maybe"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"time"
@@ -330,37 +329,105 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 		return err
 	}
 
+	// SaveBlob above ensures the target resource, so it's in the map from here on.
+	resourceID, ok := ictx.resources[iri]
+	if !ok {
+		panic("BUG: missing resource for comment target")
+	}
+
 	spaceID := v.Space().String()
 
-	// Update space comment stats.
-	{
-		changeIDs := make([]int64, len(v.Version))
-		for i, v := range v.Version {
-			changeID, ok := ictx.blobs[v]
-			if !ok {
-				return fmt.Errorf("BUG: missing change for version %v when indexing comment target", v)
-			}
+	// Resolve the document this comment belongs to.
+	//
+	// The document is identified by the genesis of its changes, which is what makes
+	// comment activity survive a move: the path can change, the genesis can't.
+	//
+	// That needs the target's changes indexed, and when they aren't there are two
+	// different situations, which is why this doesn't simply give up on both:
+	//
+	//   - We have the change but haven't indexed it yet. That's routine -- blobs
+	//     sync out of order, and a reindex replays them in blob-id order. Stash the
+	//     comment so it retries when the change is indexed (see reindexStashedBlobs).
+	//     Skipping instead loses the comment permanently: on a 6.2 GB production
+	//     database, reindexing without this attributed only 6602 of 12659 comments,
+	//     even though every one of their targets was present by the end.
+	//
+	//   - We don't have the change at all (BlobsSize < 0 means we know the hash and
+	//     nothing else). Stashing on a blob that may never arrive would hide the
+	//     comment indefinitely, so index it and leave it out of the counts, which
+	//     is what the old code did for both cases.
+	var (
+		changeIDs      = make([]int64, len(v.Version))
+		genesisBlobID  int64
+		pendingChanges []cid.Cid
+	)
+	for i, ver := range v.Version {
+		changeID, ok := ictx.blobs[ver]
+		if !ok {
+			return fmt.Errorf("BUG: missing change for version %v when indexing comment target", ver)
+		}
 
-			var cm changeMetadata
-			if err := cm.load(ictx.conn, changeID.BlobsID); err != nil {
-				return err
-			}
+		var cm changeMetadata
+		if err := cm.load(ictx.conn, changeID.BlobsID); err != nil {
+			return err
+		}
 
-			// If some of the comment target changes are not indexed yet, we skip updating any stats,
-			// because we don't know what document generation to update.
-			// We'll get to that later, if we ever receive a Ref that would incorporate those changes.
-			if cm.ID == 0 {
+		if cm.ID == 0 {
+			if changeID.BlobsSize < 0 {
 				return nil
 			}
-
-			changeIDs[i] = cm.ID
+			pendingChanges = append(pendingChanges, ver)
+			continue
 		}
 
-		resourceID, ok := ictx.resources[iri]
-		if !ok {
-			panic("BUG: missing resource for comment target")
-		}
+		changeIDs[i] = cm.ID
+		genesisBlobID = cm.Genesis()
+	}
 
+	if pendingChanges != nil {
+		return stashError{
+			Reason: stashReasonFailedPrecondition,
+			Metadata: stashMetadata{
+				MissingBlobs: pendingChanges,
+			},
+		}
+	}
+
+	// A comment that pins no target version means "the document at this path", so
+	// its identity is whatever genesis that path currently resolves to.
+	var genesis string
+	if genesisBlobID != 0 {
+		genesis, err = lookupBlobCID(ictx.conn, genesisBlobID)
+	} else {
+		genesis, err = lookupResourceGenesis(ictx.conn, resourceID)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to resolve target genesis for comment %s: %w", c, err)
+	}
+
+	// No generation at that path yet, so there is no document to attribute this to.
+	// The same repair applies as for unindexed target changes above.
+	if genesis == "" {
+		return nil
+	}
+
+	// Settle this comment's live version, its document's activity, and the space
+	// total. None of these need a document generation, so they're settled the
+	// moment the blob lands rather than waiting for a Ref.
+	if err := updateCommentLive(ictx.conn, eb.TSID(), genesis); err != nil {
+		return err
+	}
+
+	if err := updateDocumentCommentStats(ictx.conn, genesis); err != nil {
+		return err
+	}
+
+	if err := updateSpaceCommentStats(ictx.conn, spaceID); err != nil {
+		return err
+	}
+
+	// Update document generation comment stats.
+	{
 		// commentCountDelta computes how this blob changes the count of distinct,
 		// non-deleted comment TSIDs for the target. Edits with the same TSID don't
 		// change the count; tombstones decrement only when a previously-live version
@@ -396,27 +463,6 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 			if err := dg.save(ictx.conn); err != nil {
 				return err
 			}
-		}
-
-		var sm spaceCommentStats
-		if err := sm.load(ictx.conn, spaceID); err != nil {
-			return err
-		}
-
-		if !isTombstone {
-			if commentTime := v.Ts.UnixMilli(); commentTime > sm.LastCommentTime {
-				sm.LastCommentTime = commentTime
-				sm.LastComment = id
-			}
-		}
-
-		sm.CommentCount += delta
-		if sm.CommentCount < 0 {
-			sm.CommentCount = 0
-		}
-
-		if err := sm.save(ictx.conn); err != nil {
-			return err
 		}
 
 		if ictx.mustTrackUnreads {
@@ -476,64 +522,4 @@ var qCommentTSIDPriorVersions = dqb.Str(`
 	WHERE type = 'Comment'
 	  AND extra_attrs->>'tsid' = ?1
 	  AND id != ?2;
-`)
-
-type spaceCommentStats struct {
-	shouldUpdate bool
-
-	ID              string
-	LastComment     int64
-	LastCommentTime int64
-	CommentCount    int64
-}
-
-func (sm *spaceCommentStats) load(conn *sqlite.Conn, spaceID string) (err error) {
-	sm.ID = spaceID
-
-	rows, discard, check := sqlitex.Query(conn, qLoadSpaceCommentStats(), spaceID).All()
-	defer discard(&err)
-	for row := range rows {
-		sm.shouldUpdate = true
-		row.Scan(&sm.LastComment, &sm.LastCommentTime, &sm.CommentCount)
-		break
-	}
-	if err := check(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-var qLoadSpaceCommentStats = dqb.Str(`
-	SELECT
-		last_comment,
-		last_comment_time,
-		comment_count
-	FROM spaces
-	WHERE id = :id;
-`)
-
-func (sm *spaceCommentStats) save(conn *sqlite.Conn) error {
-	var q string
-	if sm.shouldUpdate {
-		q = qUpdateSpaceCommentStats()
-	} else {
-		q = qInsertSpaceCommentStats()
-	}
-
-	return sqlitex.Exec(conn, q, nil, sm.ID, maybe.Any(sm.LastComment), sm.LastCommentTime, sm.CommentCount)
-}
-
-var qInsertSpaceCommentStats = dqb.Str(`
-	INSERT INTO spaces (id, last_comment, last_comment_time, comment_count)
-	VALUES (?1, ?2, ?3, ?4);
-`)
-
-var qUpdateSpaceCommentStats = dqb.Str(`
-	UPDATE spaces
-	SET
-		last_comment = ?2,
-		last_comment_time = ?3,
-		comment_count = ?4
-	WHERE id = ?1;
 `)

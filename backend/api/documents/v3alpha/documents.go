@@ -14,6 +14,7 @@ import (
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/hmnet"
+	"seed/backend/storage"
 	"seed/backend/util/apiutil"
 	"seed/backend/util/attrkey"
 	"seed/backend/util/cclock"
@@ -189,7 +190,7 @@ func (srv *Server) QueryDocuments(ctx context.Context, in *documents.QueryDocume
 	}
 
 	args := colx.Slice[any]{}
-	qb := baseListDocumentsQuery(commentAggAll)
+	qb := baseDocumentsQuery()
 	qb.Where("r.iri GLOB 'hm://*'")
 	whereFilters, havingFilter := splitDocumentLocationFilters(in.GetFilter())
 	for _, locationFilter := range whereFilters {
@@ -1193,13 +1194,7 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 			return nil, err
 		}
 
-		qb := baseListDocumentsQuery(commentAggSubtree)
-
-		// The comment aggregation is scoped to the same subtree as the row filter below.
-		// It's a LEFT JOIN, so it precedes the WHERE clause and binds first. The scope
-		// appears twice inside it (targets, then credits), so it binds twice.
-		args.Append(baseIRI, baseIRI+"/", baseIRI+"0")
-		args.Append(baseIRI, baseIRI+"/", baseIRI+"0")
+		qb := baseDocumentsQuery()
 
 		if publicOnly, err := srv.isPublicOnlyFor(ctx, ns, in.DirectoryPath); err != nil {
 			return nil, err
@@ -1429,24 +1424,23 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 // using a single query.
 //
 // ListAccounts used to call [getDocumentInfo] once per account. That is a full
-// single-document query — recursive redirect walk, comment aggregation and the
-// children_count subquery — re-run N times on one connection. Measured against a real
+// single-document query — at the time, a recursive redirect walk and a comment
+// aggregation as well as the children_count subquery — re-run N times on one
+// connection. Measured against a real
 // database it cost 513ms for 321 accounts (mean 1.6ms, p95 4.5ms, slowest 8.8ms) on top
 // of a 10ms main query, and it grows linearly with the account count: ~1.6s at 1000
 // accounts and ~4.8s at 3000, which is where the desktop app starts reporting the call
 // as hung.
 //
-// Home documents are exactly the root document of each space, which is the scope
-// [commentAggRoots] already covers, so the listing aggregation can serve them directly.
-// It takes no bound parameters, so the only bindings here are the IRIs and the page
-// size. This also makes the home document info consistent with what ListRootDocuments
-// reports for the same documents, since both now derive it the same way.
+// One query over the whole set fixes that, and it also makes the home document info
+// consistent with what ListRootDocuments reports for the same documents, since both
+// derive it the same way.
 func getRootDocumentInfos(conn *sqlite.Conn, lookup *blob.LookupCache, iris []blob.IRI) (out map[blob.IRI]*documents.DocumentInfo, err error) {
 	if len(iris) == 0 {
 		return nil, nil
 	}
 
-	qb := baseListDocumentsQuery(commentAggRoots)
+	qb := baseDocumentsQuery()
 	qb.Where("r.iri IN (" + strings.TrimSuffix(strings.Repeat("?,", len(iris)), ",") + ")")
 
 	args := make([]any, 0, len(iris)+1)
@@ -1844,9 +1838,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 		args  colx.Slice[any]
 	)
 	{
-		// The comment aggregation is scoped to root documents, matching the row filter
-		// below. The scope takes no parameters, so binding order is unaffected.
-		qb := baseListDocumentsQuery(commentAggRoots).OrderBy("activity_time DESC")
+		qb := baseDocumentsQuery().OrderBy("activity_time DESC")
 
 		qb.Where("r.iri GLOB 'hm://*'")
 		qb.Where("r.iri NOT GLOB 'hm://*/*'")
@@ -1928,11 +1920,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		args  colx.Slice[any]
 	)
 	{
-		// Resolve the account scope up front: the comment aggregation is scoped to the
-		// same resources the row filter selects, and being a LEFT JOIN it binds first.
-		// The scope appears twice inside it (targets, then credits), so it binds twice.
 		var (
-			commentAgg = commentAggAll
 			accountIRI blob.IRI
 			publicOnly bool
 		)
@@ -1951,13 +1939,9 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 			if err != nil {
 				return nil, err
 			}
-
-			commentAgg = commentAggSubtree
-			args.Append(accountIRI, accountIRI+"/", accountIRI+"0")
-			args.Append(accountIRI, accountIRI+"/", accountIRI+"0")
 		}
 
-		qb := baseListDocumentsQuery(commentAgg).OrderBy("activity_time DESC")
+		qb := baseDocumentsQuery().OrderBy("activity_time DESC")
 
 		if in.Account == "" {
 			qb.Where("r.iri GLOB 'hm://*'")
@@ -2019,10 +2003,9 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 }
 
 func getDocumentInfo(conn *sqlite.Conn, lookup *blob.LookupCache, iri blob.IRI) (info *documents.DocumentInfo, err error) {
-	q := wrapDocumentsQuery(baseSingleDocumentQuery().Where("r.iri = ?"), "")
-	// The IRI is bound twice: as the comment aggregation seed, and as the row filter.
+	q := wrapDocumentsQuery(baseDocumentsQuery().Where("r.iri = ?"), "")
 	// 0 is the page size parameter.
-	rows, discard, check := sqlitex.Query(conn, q, iri, iri, 0).All()
+	rows, discard, check := sqlitex.Query(conn, q, iri, 0).All()
 	defer discard(&err)
 
 	for row := range rows {
@@ -2037,232 +2020,7 @@ func getDocumentInfo(conn *sqlite.Conn, lookup *blob.LookupCache, iri blob.IRI) 
 	return nil, status.Errorf(codes.NotFound, "document with IRI %s is not found", iri)
 }
 
-// qSingleDocCommentAgg is the single-document counterpart of qListDocsCommentAggScoped.
-// Instead of aggregating comment activity for every document, it walks the redirect
-// chain backwards from one IRI (bound as the subquery's parameter, same as the outer
-// r.iri filter), exactly like ListComments' redirectAncestorsCTE, and only touches
-// that document's comments. Point lookups like GetDocumentInfo (which gets called in
-// loops by BatchGetDocumentInfo and for accounts' home documents) must use this
-// instead of paying for the global aggregation.
-const qSingleDocCommentAgg = `(
-	WITH RECURSIVE
-	redirect_ancestors(resource, iri, depth) AS (
-		SELECT r.id, r.iri, 0 FROM resources r WHERE r.iri = ?
-
-		UNION ALL
-
-		SELECT dg.resource, res.iri, ra.depth + 1
-		FROM redirect_ancestors ra
-		JOIN document_attributes da ON da.kind = 's' AND da.value = ra.iri
-		JOIN document_attribute_keys dak ON dak.id = da.key AND dak.key = '$db.redirect'
-		JOIN document_generations dg ON dg.resource = da.resource
-		JOIN resources res ON res.id = dg.resource
-		WHERE dg.generation = (SELECT MAX(g.generation) FROM document_generations g WHERE g.resource = dg.resource)
-		AND res.iri != ra.iri
-		AND ra.depth < 16
-	),
-	deduped AS (
-		SELECT
-			sb.id AS id,
-			sb.ts AS ts,
-			ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC, sb.id DESC) AS rn,
-			sb.extra_attrs->>'deleted' AS deleted
-		FROM structural_blobs sb
-		WHERE sb.type = 'Comment'
-		AND sb.resource IN (SELECT resource FROM redirect_ancestors)
-	),
-	live AS (
-		SELECT id, ts FROM deduped WHERE rn = 1 AND deleted IS NULL
-	),
-	totals AS (
-		SELECT COUNT(*) AS comment_count FROM live
-	),
-	latest AS (
-		SELECT MAX(ts) AS last_comment_time, id AS last_comment FROM live
-	)
-	SELECT
-		(SELECT resource FROM redirect_ancestors WHERE depth = 0) AS resource,
-		t.comment_count,
-		l.last_comment_time,
-		l.last_comment
-	FROM totals t, latest l
-) agg`
-
-// Prebuilt comment aggregations, one per listing scope. Each scope predicate must select
-// exactly the resources its listing can return, expressed over the `tr` alias of
-// `resources`, and must bind the same values as the outer query's `r.iri` filter (see the
-// binding order note on [baseListDocumentsQuery]).
-//
-// A parameterised scope appears *twice* in the generated SQL, so its callers must bind its
-// arguments twice — see [qListDocsCommentAggScoped].
-//
-// These are built once rather than per request: the scopes are fixed, and assembling a
-// couple of kilobytes of SQL on every call would be pure waste on a hot path.
-var (
-	// commentAggSubtree covers one document and everything below it. The subtree is
-	// expressed as an explicit range rather than GLOB because a parameterized GLOB
-	// inside an OR never seeks the resources.iri index (the prefix optimization doesn't
-	// apply to it there), while the equivalent range becomes a MULTI-INDEX OR of two
-	// seeks. Callers bind (iri, iri+"/", iri+"0") — '0' is '/'+1, so the range is
-	// exactly the iri+"/*" prefix, same trick as children_count below.
-	commentAggSubtree = qListDocsCommentAggScoped(`tr.iri = ? OR (tr.iri >= ? AND tr.iri < ?)`)
-
-	// commentAggRoots covers the root document of every space.
-	commentAggRoots = qListDocsCommentAggScoped(`tr.iri GLOB 'hm://*' AND tr.iri NOT GLOB 'hm://*/*'`)
-
-	// commentAggAll covers every document in the database. It's the widest scope, and it's
-	// also the hottest: the desktop app lists documents with no account filter on load.
-	commentAggAll = qListDocsCommentAggScoped(`tr.iri GLOB 'hm://*'`)
-)
-
-// qListDocsCommentAggScoped computes each listed document's comment activity (count,
-// latest comment) directly from the indexed Comment blobs, deduplicating edits by TSID
-// and dropping deleted comments, and credits every comment both to the resource it
-// targets and to all transitive redirect targets of that resource.
-//
-// It exists because comment blobs record the document path as it was when the comment was
-// written: after a document moves, its comments stay attached to the old path's resource,
-// and the incrementally-maintained document_generations.comment_count of the new path's
-// resource knows nothing about them. Deriving the stats from the blobs at query time keeps
-// listings consistent with what ListComments actually returns for the document (which
-// walks the same redirect relation backwards via redirectAncestorsCTE), no matter in which
-// order the blobs arrived.
-//
-// It is scoped because the original unscoped form derived its stats from *every* Comment
-// blob in the database. Such a subquery can't be flattened (CTEs + aggregates) and the
-// outer r.iri filter can't be pushed into it, so SQLite materialized a whole-database
-// aggregate before emitting a single row — on every request. That cost is linear in total
-// comment count and independent of the directory being listed, which is what saturated the
-// production gateway's CPU. Seeding from `targets` instead keeps the work proportional to
-// the listing: the comment scan seeks structural_blobs_by_resource rather than scanning
-// structural_blobs_by_type, and this applies to listings the same trick
-// [qSingleDocCommentAgg] already applies to point lookups.
-//
-// Semantics are preserved exactly, and the subtle part is the TSID dedup. A comment edit
-// can land on a *different* resource than the original once a document has moved, so
-// restricting the ROW_NUMBER() partitions to in-scope blobs could let an edit win a
-// partition it loses globally, and inflate a count. So the scope picks candidate *TSIDs*
-// (cand_tsids), and the window then runs over every blob carrying one of them — including
-// blobs outside the scope. Winner-per-TSID is therefore identical to the unscoped query;
-// losers outside the scope simply credit nothing. Comment blobs always carry a TSID
-// (blob_comment.go sets it unconditionally), so the partition key is never NULL.
-//
-// `deduped` fetches those blobs by JOINing cand_tsids rather than with an IN subquery:
-// an equality join term proves the partial structural_blobs_by_tsid index's IS NOT NULL
-// predicate, so each candidate TSID is a seek, whereas `tsid IN (SELECT …)` cannot prove
-// it and degraded to scanning every Comment blob in the database via
-// structural_blobs_by_type on each call.
-//
-// The scope must be written in terms of the `tr` alias of `resources` (e.g.
-// `tr.iri GLOB 'hm://*'`), because it is applied in two places, and callers with a
-// parameterised scope must therefore bind its arguments TWICE: once for `targets`, then
-// once for `credits`, in that order. The duplication is deliberate. `credits` already
-// joins `resources tr`, and testing membership there via `tr.id IN (SELECT id FROM
-// targets)` was quadratic: `chains` is a recursive CTE consumed as a co-routine, so SQLite
-// re-evaluated the IN list per row instead of materializing it once (~2k chain rows × ~7k
-// target rows ≈ 15M scans ≈ 2.5s on a real database, and MATERIALIZED hints on `targets`,
-// `redirected` or `chains` did not fix THAT problem). Applying the predicate directly to
-// `tr.iri` makes it a filter on a row already in hand: same rows, ~0.07s instead of ~2.5s.
-//
-// The parenthetical above used to read "did not help", full stop. It is scoped to the
-// IN-list pathology, and reading it more broadly steered the 2026-08-11 outage response
-// away from the actual fix: `redirected` is also referenced from the recursive term of
-// `chains`, where it was re-derived once per visited row at ~5.5s per listing call. It now
-// carries a MATERIALIZED hint for that separate reason (see the comment on it below). That
-// win was invisible when the note was written, because the 2.5s IN-list scan dominated.
-func qListDocsCommentAggScoped(scope string) string {
-	return `(
-	WITH RECURSIVE
-	targets AS (
-		SELECT id FROM resources tr WHERE (` + scope + `)
-	),
-	redirected AS MATERIALIZED (
-		-- MATERIALIZED is load-bearing. This CTE is referenced from the recursive
-		-- term of ` + "`chains`" + ` below, and without the hint SQLite re-derives it for
-		-- every row the recursion visits, paying the correlated MAX(generation)
-		-- subquery each time: ~2.2k rows x ~2.5ms = 5.5s of CPU per listing call,
-		-- which saturated production on 2026-08-11. Materialized it's ~40ms.
-		SELECT
-			dg.resource AS resource,
-			da.value AS redirect_iri
-		FROM document_generations dg
-		JOIN document_attributes da ON da.resource = dg.resource AND da.kind = 's'
-		JOIN document_attribute_keys dak ON dak.id = da.key AND dak.key = '$db.redirect'
-		WHERE da.value IS NOT NULL
-		AND dg.generation = (SELECT MAX(g.generation) FROM document_generations g WHERE g.resource = dg.resource)
-	),
-	chains(source, target_iri, depth) AS (
-		SELECT rd.resource, rd.redirect_iri, 0 FROM redirected rd
-		UNION ALL
-		SELECT c.source, rd.redirect_iri, c.depth + 1
-		FROM chains c
-		JOIN resources tr ON tr.iri = c.target_iri
-		JOIN redirected rd ON rd.resource = tr.id
-		WHERE c.depth < 16 AND rd.redirect_iri != c.target_iri
-	),
-	credits AS (
-		SELECT DISTINCT c.source, tr.id AS target
-		FROM chains c
-		JOIN resources tr ON tr.iri = c.target_iri
-		WHERE tr.id != c.source
-		AND (` + scope + `)
-	),
-	sources AS (
-		SELECT id FROM targets
-		UNION
-		SELECT source FROM credits
-	),
-	cand_tsids AS (
-		SELECT DISTINCT sb.extra_attrs->>'tsid' AS tsid
-		FROM structural_blobs sb
-		WHERE sb.type = 'Comment'
-		AND sb.resource IN (SELECT id FROM sources)
-	),
-	deduped AS (
-		SELECT
-			sb.resource AS resource,
-			sb.id AS id,
-			sb.ts AS ts,
-			ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC, sb.id DESC) AS rn,
-			sb.extra_attrs->>'deleted' AS deleted
-		FROM cand_tsids ct
-		JOIN structural_blobs sb ON sb.extra_attrs->>'tsid' = ct.tsid
-		WHERE sb.type = 'Comment'
-	),
-	live AS (
-		SELECT resource, id, ts FROM deduped WHERE rn = 1 AND deleted IS NULL
-	),
-	credited AS (
-		SELECT l.resource AS resource, l.id, l.ts FROM live l
-		WHERE l.resource IN (SELECT id FROM targets)
-		UNION ALL
-		SELECT cr.target, l.id, l.ts FROM live l JOIN credits cr ON cr.source = l.resource
-	),
-	totals AS (
-		SELECT resource, COUNT(*) AS comment_count FROM credited GROUP BY resource
-	),
-	latest AS (
-		SELECT resource, MAX(ts) AS last_comment_time, id AS last_comment FROM credited GROUP BY resource
-	)
-	SELECT t.resource AS resource, t.comment_count, l.last_comment_time, l.last_comment
-	FROM totals t
-	JOIN latest l ON l.resource = t.resource
-) agg`
-}
-
-// baseListDocumentsQuery builds a listing query using one of the prebuilt scoped comment
-// aggregations above. Callers must bind the scope's parameters (if any) *before* any other
-// parameter, because the aggregation is a LEFT JOIN and so precedes the WHERE clause in the
-// generated SQL.
-func baseListDocumentsQuery(commentAgg string) *dqb.SelectQuery {
-	return baseDocumentsQuery(commentAgg)
-}
-
-func baseSingleDocumentQuery() *dqb.SelectQuery {
-	return baseDocumentsQuery(qSingleDocCommentAgg)
-}
-
-func baseDocumentsQuery(commentAggJoin string) *dqb.SelectQuery {
+func baseDocumentsQuery() *dqb.SelectQuery {
 	// Page size must be the last binding parameter.
 	return dqb.
 		Select(
@@ -2291,7 +2049,17 @@ func baseDocumentsQuery(commentAggJoin string) *dqb.SelectQuery {
 		From(
 			"resources r CROSS JOIN document_generations dg",
 		).
-		LeftJoin(commentAggJoin, "agg.resource = dg.resource").
+		// Comment activity is maintained by the indexer (backend/blob/comment_stats.go),
+		// so this is a seek on the joined table's primary key. It used to be an inline
+		// aggregation that re-derived every listed document's comment stats from the raw
+		// Comment blobs on every request — 53ms of a 60ms ListDirectory call on a 6.2 GB
+		// production database, and proportional to the comments in scope rather than to
+		// the page size.
+		//
+		// Joined on genesis, not resource: a comment belongs to a document, and a
+		// document's identity is its genesis. That's why a moved document keeps its
+		// comments without anyone walking a redirect chain here.
+		LeftJoin(storage.T_DocumentCommentStats+" agg", "agg.genesis = dg.genesis").
 		Where("r.id = dg.resource").
 		GroupBy("dg.resource").
 		Having("dg.generation = MAX(dg.generation)", "dg.is_deleted = 0").
