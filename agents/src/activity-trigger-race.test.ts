@@ -123,7 +123,7 @@ describe('comment/citation mention race (real monitor + HTTP + service)', () => 
   afterEach(async () => {
     globalThis.fetch = originalFetch
     await hmServer.stop(true)
-    db.close()
+    sqlite.closeDatabase(db)
     fs.rmSync(dataDir, {recursive: true, force: true})
   })
 

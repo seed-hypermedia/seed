@@ -20,6 +20,7 @@ import {
 } from '@seed-hypermedia/agents-protocol'
 import {validateJsonSchemaShape} from '@/json-schema'
 import {mcpToolDocumentName} from '@/mcp'
+import {stmt} from '@/statements'
 
 /**
  * The lambda ABI — what an authored tool's source must look like, and how a call reaches it.
@@ -125,19 +126,18 @@ export function ensureBuiltinToolDocuments(db: Database, accountId: string, agen
     if (!tool.runtimes.includes('agent-service')) continue
     const doc = builtinDocument(tool)
     const {cid, data} = encodeToolDocument(doc)
-    const existing = db
-      .query<{cid: string}, [string, string, string]>(
-        `SELECT cid FROM tool_documents WHERE account_id = ? AND agent_id = ? AND name = ?`,
-      )
-      .get(accountId, agentId, doc.name)
+    const existing = stmt<{cid: string}, [string, string, string]>(
+      db,
+      `SELECT cid FROM tool_documents WHERE account_id = ? AND agent_id = ? AND name = ?`,
+    ).get(accountId, agentId, doc.name)
     if (existing?.cid === cid) continue
-    db.run(
+    stmt(
+      db,
       `INSERT INTO tool_documents (account_id, agent_id, name, kind, cid, doc_cbor, enabled, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
        ON CONFLICT(account_id, agent_id, name) DO UPDATE SET
          kind = excluded.kind, cid = excluded.cid, doc_cbor = excluded.doc_cbor, updated_at = excluded.updated_at`,
-      [accountId, agentId, doc.name, doc.kind, cid, data, now, now],
-    )
+    ).run([accountId, agentId, doc.name, doc.kind, cid, data, now, now])
   }
 }
 
@@ -173,11 +173,10 @@ function mcpToolDocument(serverName: string, tool: McpToolInfo): ToolDocument {
 
 /** The cached tool list of every MCP server on an account, keyed by server name. */
 export function listMcpServerTools(db: Database, accountId: string): Map<string, McpToolInfo[]> {
-  const rows = db
-    .query<{name: string; tools_cbor: Uint8Array | null}, [string]>(
-      `SELECT name, tools_cbor FROM mcp_servers WHERE account_id = ?`,
-    )
-    .all(accountId)
+  const rows = stmt<{name: string; tools_cbor: Uint8Array | null}, [string]>(
+    db,
+    `SELECT name, tools_cbor FROM mcp_servers WHERE account_id = ?`,
+  ).all(accountId)
   const byServer = new Map<string, McpToolInfo[]>()
   for (const row of rows) {
     let tools: McpToolInfo[] = []
@@ -234,11 +233,10 @@ export function syncMcpToolDocuments(
     }
   }
 
-  const existing = db
-    .query<{name: string; kind: string; cid: string}, [string, string]>(
-      `SELECT name, kind, cid FROM tool_documents WHERE account_id = ? AND agent_id = ?`,
-    )
-    .all(accountId, agentId)
+  const existing = stmt<{name: string; kind: string; cid: string}, [string, string]>(
+    db,
+    `SELECT name, kind, cid FROM tool_documents WHERE account_id = ? AND agent_id = ?`,
+  ).all(accountId, agentId)
   const existingByName = new Map(existing.map((row) => [row.name, row]))
 
   let changed = false
@@ -251,18 +249,18 @@ export function syncMcpToolDocuments(
     }
     const {cid, data} = encodeToolDocument(doc)
     if (current?.cid === cid) continue
-    db.run(
+    stmt(
+      db,
       `INSERT INTO tool_documents (account_id, agent_id, name, kind, cid, doc_cbor, enabled, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
        ON CONFLICT(account_id, agent_id, name) DO UPDATE SET
          kind = excluded.kind, cid = excluded.cid, doc_cbor = excluded.doc_cbor, updated_at = excluded.updated_at`,
-      [accountId, agentId, name, doc.kind, cid, data, now, now],
-    )
+    ).run([accountId, agentId, name, doc.kind, cid, data, now, now])
     changed = true
   }
   for (const row of existing) {
     if (row.kind !== 'mcp' || desired.has(row.name)) continue
-    db.run(`DELETE FROM tool_documents WHERE account_id = ? AND agent_id = ? AND name = ?`, [
+    stmt(db, `DELETE FROM tool_documents WHERE account_id = ? AND agent_id = ? AND name = ?`).run([
       accountId,
       agentId,
       row.name,
@@ -289,14 +287,14 @@ function rowToRecord(row: {
 }
 
 export function listToolDocuments(db: Database, accountId: string, agentId: string): ToolDocumentRow[] {
-  return db
-    .query<
-      {doc_cbor: Uint8Array; cid: string; enabled: number; created_at: number; updated_at: number},
-      [string, string]
-    >(
-      `SELECT doc_cbor, cid, enabled, created_at, updated_at FROM tool_documents
+  return stmt<
+    {doc_cbor: Uint8Array; cid: string; enabled: number; created_at: number; updated_at: number},
+    [string, string]
+  >(
+    db,
+    `SELECT doc_cbor, cid, enabled, created_at, updated_at FROM tool_documents
        WHERE account_id = ? AND agent_id = ? ORDER BY name ASC`,
-    )
+  )
     .all(accountId, agentId)
     .map(rowToRecord)
 }
@@ -307,15 +305,14 @@ export function getToolDocument(
   agentId: string,
   name: string,
 ): ToolDocumentRow | undefined {
-  const row = db
-    .query<
-      {doc_cbor: Uint8Array; cid: string; enabled: number; created_at: number; updated_at: number},
-      [string, string, string]
-    >(
-      `SELECT doc_cbor, cid, enabled, created_at, updated_at FROM tool_documents
+  const row = stmt<
+    {doc_cbor: Uint8Array; cid: string; enabled: number; created_at: number; updated_at: number},
+    [string, string, string]
+  >(
+    db,
+    `SELECT doc_cbor, cid, enabled, created_at, updated_at FROM tool_documents
        WHERE account_id = ? AND agent_id = ? AND name = ?`,
-    )
-    .get(accountId, agentId, name)
+  ).get(accountId, agentId, name)
   return row ? rowToRecord(row) : undefined
 }
 
@@ -386,13 +383,13 @@ export function saveLambdaToolDocument(
   }
   const {cid, data} = encodeToolDocument(doc)
   const now = Date.now()
-  db.run(
+  stmt(
+    db,
     `INSERT INTO tool_documents (account_id, agent_id, name, kind, cid, doc_cbor, enabled, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
      ON CONFLICT(account_id, agent_id, name) DO UPDATE SET
        kind = excluded.kind, cid = excluded.cid, doc_cbor = excluded.doc_cbor, updated_at = excluded.updated_at`,
-    [accountId, agentId, name, doc.kind, cid, data, now, now],
-  )
+  ).run([accountId, agentId, name, doc.kind, cid, data, now, now])
   return getToolDocument(db, accountId, agentId, name)!
 }
 
@@ -409,7 +406,11 @@ export function deleteToolDocument(db: Database, accountId: string, agentId: str
       `"${name}" comes from the ${existing.doc.server} MCP server; disable that server for this agent instead`,
     )
   }
-  db.run(`DELETE FROM tool_documents WHERE account_id = ? AND agent_id = ? AND name = ?`, [accountId, agentId, name])
+  stmt(db, `DELETE FROM tool_documents WHERE account_id = ? AND agent_id = ? AND name = ?`).run([
+    accountId,
+    agentId,
+    name,
+  ])
   return true
 }
 

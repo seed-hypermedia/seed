@@ -1,4 +1,5 @@
 import {Database} from 'bun:sqlite'
+import {closeDatabase} from './sqlite'
 import {afterEach, describe, expect, test} from 'bun:test'
 import * as sqlite from './sqlite.ts'
 import * as runs from './runs.ts'
@@ -62,7 +63,7 @@ afterEach(() => {
 function track(db: Database, queue: runs.RunQueue): void {
   cleanups.push(() => {
     queue.stop()
-    db.close()
+    closeDatabase(db)
   })
 }
 

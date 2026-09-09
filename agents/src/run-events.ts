@@ -15,6 +15,7 @@
 import type {Database} from 'bun:sqlite'
 import * as cbor from '@/cbor'
 import * as activityTriggers from '@/activity-triggers'
+import {stmt} from '@/statements'
 
 /**
  * What a parked run is listening for. Every field is optional and every present field must match,
@@ -74,40 +75,40 @@ export function putRunEventWait(
   db: Database,
   wait: {runId: string; waitId: string; accountId: string; match: RunEventMatch; timeoutAt?: number},
 ): void {
-  db.run(
+  stmt(
+    db,
     `INSERT INTO run_event_waits (run_id, wait_id, account_id, match_cbor, timeout_at, created_at)
      VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT(run_id, wait_id) DO UPDATE SET
        match_cbor = excluded.match_cbor, timeout_at = excluded.timeout_at`,
-    [wait.runId, wait.waitId, wait.accountId, cbor.encode(wait.match), wait.timeoutAt ?? null, Date.now()],
-  )
+  ).run([wait.runId, wait.waitId, wait.accountId, cbor.encode(wait.match), wait.timeoutAt ?? null, Date.now()])
 }
 
 /** Every wait an account currently has open, oldest first. */
 export function listAccountEventWaits(db: Database, accountId: string): RunEventWaitRow[] {
-  return db
-    .query<Row, [string]>(
-      `SELECT run_id, wait_id, account_id, match_cbor, timeout_at, created_at
+  return stmt<Row, [string]>(
+    db,
+    `SELECT run_id, wait_id, account_id, match_cbor, timeout_at, created_at
        FROM run_event_waits WHERE account_id = ? ORDER BY created_at ASC`,
-    )
+  )
     .all(accountId)
     .map(rowToWait)
 }
 
 /** The waits one run has open (normally one; a script may await several at once). */
 export function listRunEventWaits(db: Database, runId: string): RunEventWaitRow[] {
-  return db
-    .query<Row, [string]>(
-      `SELECT run_id, wait_id, account_id, match_cbor, timeout_at, created_at
+  return stmt<Row, [string]>(
+    db,
+    `SELECT run_id, wait_id, account_id, match_cbor, timeout_at, created_at
        FROM run_event_waits WHERE run_id = ? ORDER BY created_at ASC`,
-    )
+  )
     .all(runId)
     .map(rowToWait)
 }
 
 /** Drops every wait a run holds — on delivery, timeout, cancellation, or the run simply ending. */
 export function clearRunEventWaits(db: Database, runId: string): void {
-  db.run(`DELETE FROM run_event_waits WHERE run_id = ?`, [runId])
+  stmt(db, `DELETE FROM run_event_waits WHERE run_id = ?`).run([runId])
 }
 
 /** True when an explicit signal satisfies this wait. */

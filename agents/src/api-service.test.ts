@@ -488,7 +488,7 @@ describe('api service', () => {
       })
       expect(agentPromptText(list.agents[0]?.definition.systemPrompt)).toBe('You are helpful.')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -614,7 +614,7 @@ describe('api service', () => {
         ),
       ).rejects.toThrow('Agent not found')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -788,7 +788,7 @@ describe('api service', () => {
     } finally {
       globalThis.fetch = originalFetch
       svc.stopRunQueue()
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -916,7 +916,7 @@ describe('api service', () => {
         svc.message(await apisvc.createSignedEnvelope(collaborator, {action: {_: 'GetAgent', agentId}})),
       ).rejects.toThrow('Agent not found')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -1019,7 +1019,7 @@ describe('api service', () => {
       expect(regranted).toMatchObject({_: 'GetAgentResponse'})
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -1190,7 +1190,7 @@ describe('api service', () => {
       releaseFirstResponse()
       globalThis.fetch = originalFetch
       svc.stopRunQueue()
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -1290,7 +1290,7 @@ describe('api service', () => {
       )
       expect(remove).toMatchObject({_: 'DeleteAgentMemoryFileResponse', path: 'notes', deleted: true})
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -1398,7 +1398,7 @@ describe('api service', () => {
       expect(loaded.systemPromptMarkdown).not.toContain('media/pic.png')
     } finally {
       globalThis.fetch = realFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -1492,7 +1492,7 @@ describe('api service', () => {
       )
       expect(aborted).toMatchObject({_: 'AbortFileUploadResponse'})
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -1552,7 +1552,7 @@ describe('api service', () => {
       if (readBack._ !== 'ReadSessionAttachmentResponse') throw new Error('unexpected response')
       expect(new TextDecoder().decode(readBack.data)).toBe('chunked attachment payload')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -1587,7 +1587,7 @@ describe('api service', () => {
       expect(unavailable.available).toBe(false)
       expect(unavailable.reason).toBe('disabled')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -1635,7 +1635,7 @@ describe('api service', () => {
       expect(trigger?.source).toEqual({type: 'user-mention', mentionedAccounts: ['z6MkAgentAccountUid']})
       expect(agentPromptText(trigger?.prompt)).toBe('Respond to the mention, performing the action requested.')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -1662,7 +1662,7 @@ describe('api service', () => {
       if (listed._ !== 'ListAgentTriggersResponse') throw new Error('unexpected response')
       expect(listed.triggers).toHaveLength(0)
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -1683,7 +1683,7 @@ describe('api service', () => {
         ),
       ).rejects.toThrow('Agent name is required')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -1710,7 +1710,7 @@ describe('api service', () => {
         ),
       ).rejects.toThrow('Tool name is too large')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -1765,7 +1765,7 @@ describe('api service', () => {
         ),
       ).rejects.toThrow('Too many enabled models')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -1825,7 +1825,7 @@ describe('api service', () => {
       if (cleared._ !== 'UpdateSessionResponse') throw new Error('unexpected response')
       expect(cleared.session.modelOverride).toBeUndefined()
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -1868,7 +1868,7 @@ describe('api service', () => {
       ])
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -1909,7 +1909,7 @@ describe('api service', () => {
       ])
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -1939,7 +1939,7 @@ describe('api service', () => {
       expect(models.models).toEqual([{id: 'llama3.2', name: 'llama3.2'}])
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -2002,7 +2002,7 @@ describe('api service', () => {
       expect(listed.providers).toHaveLength(1)
       expect(listed.providers[0]).toMatchObject({name: 'ChatGPT', authMode: 'subscription', authStatus: 'ok'})
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -2049,7 +2049,7 @@ describe('api service', () => {
       expect(models.models.map((model) => model.id)).not.toContain('gpt-5.1')
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -2133,7 +2133,7 @@ describe('api service', () => {
       expect(bearers).toEqual([`Bearer ${fakeCodexToken('access-1')}`, `Bearer ${fakeCodexToken('access-2')}`])
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -2227,7 +2227,7 @@ describe('api service', () => {
       expect(await providerStatus()).toBe('needs-login')
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -2267,7 +2267,7 @@ describe('api service', () => {
         ),
       ).rejects.toThrow('does not support subscription sign-in')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -2285,7 +2285,7 @@ describe('api service', () => {
         ),
       ).rejects.toThrow('not enabled on this server')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -2324,7 +2324,7 @@ describe('api service', () => {
       if (healthy._ !== 'ListModelProvidersResponse') throw new Error('unexpected response')
       expect(healthy.providers[0]?.authStatus).toBe('ok')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -2366,7 +2366,7 @@ describe('api service', () => {
       )
       expect(secretExists()).toBe(false)
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -2458,7 +2458,7 @@ describe('api service', () => {
       if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
       expect(session.session.modelOverride).toBeUndefined()
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -2490,7 +2490,7 @@ describe('api service', () => {
       expect(models.models).toEqual([{id: 'local-model', name: 'local-model'}])
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -2529,7 +2529,7 @@ describe('api service', () => {
       expect(models.models).toEqual([{id: 'gpt-4.1', name: 'gpt-4.1'}])
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -2569,7 +2569,7 @@ describe('api service', () => {
       expect(row?.ciphertext).toBeInstanceOf(Uint8Array)
       expect(new TextDecoder().decode(row?.ciphertext ?? new Uint8Array())).not.toContain('super-secret')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -2631,7 +2631,7 @@ describe('api service', () => {
       expect(deleted).toEqual({_: 'DeleteSigningIdentityResponse', name: created.identity.name})
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -2699,7 +2699,7 @@ describe('api service', () => {
       expect(db.query<{count: number}, []>(`SELECT count(*) AS count FROM secrets`).get()?.count).toBe(1)
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -2781,7 +2781,7 @@ describe('api service', () => {
       expect(unlabeledResult.identity.accountId).toBe(blobs.principalToString(unlabeled.principal))
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -2829,7 +2829,7 @@ describe('api service', () => {
       expect(fetched.agent.definition.signingKey).toBeUndefined()
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -2903,7 +2903,7 @@ describe('api service', () => {
         ),
       ).rejects.toThrow('Signing key not found')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -2954,7 +2954,7 @@ describe('api service', () => {
       expect(JSON.stringify(list)).not.toContain('mnemonic words')
       expect(JSON.stringify(list)).not.toContain('other-site-key')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -3034,7 +3034,7 @@ describe('api service', () => {
       expect(new Set(pagedIds).size).toBe(pagedIds.length)
       expect(pagedIds.sort()).toEqual([first, second, third].sort())
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -3083,7 +3083,7 @@ describe('api service', () => {
       expect(seen).toHaveLength(5)
       expect(new Set(seen).size).toBe(5)
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -3197,7 +3197,7 @@ describe('api service', () => {
         ),
       ).rejects.toThrow('Agent not found')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -3307,7 +3307,7 @@ describe('api service', () => {
         ),
       ).rejects.toThrow('Session not found')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -3414,7 +3414,7 @@ describe('api service', () => {
       expect(fullOutput.stdout.length).toBe(200_000)
       expect(fullOutput.changedFiles).toHaveLength(5_000)
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -3486,7 +3486,7 @@ describe('api service', () => {
       expect(session.systemPromptMarkdown).not.toContain('[Embed:')
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -3643,7 +3643,7 @@ describe('api service', () => {
       if (empty._ !== 'ListAgentTriggersResponse') throw new Error('unexpected response')
       expect(empty.triggers).toEqual([])
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -3808,7 +3808,7 @@ describe('api service', () => {
       ).toBe(false)
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -3948,7 +3948,7 @@ describe('api service', () => {
       })
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -3989,7 +3989,7 @@ describe('api service', () => {
         ),
       ).rejects.toThrow('Client request ID payload mismatch')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -4096,7 +4096,7 @@ describe('api service', () => {
       expect(events.some((event) => event.type === 'session-partial' && event.textDelta === 'Hello human')).toBe(true)
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -4209,7 +4209,7 @@ describe('api service', () => {
       expect(userEvent.blocks).toEqual(messageBlocks)
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -4305,7 +4305,7 @@ describe('api service', () => {
       ).rejects.toThrow('Message content is required')
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -4376,7 +4376,7 @@ describe('api service', () => {
       expect(assistantEvent?.clientMessageId).toBeUndefined()
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -4477,7 +4477,7 @@ describe('api service', () => {
       expect(session.session.title).toBe('Manual Name')
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -4798,7 +4798,7 @@ describe('api service', () => {
       expect((session.events[2]?.event as {meta?: {reasoningLevel?: string}}).meta?.reasoningLevel).toBe('off')
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -4929,7 +4929,7 @@ describe('api service', () => {
       expect(toolEvents.map((event) => `${event.type}:${event.name}`)).toEqual(['tool_call:call', 'tool_result:call'])
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -5319,7 +5319,7 @@ describe('api service', () => {
       })
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -5457,7 +5457,7 @@ describe('api service', () => {
       expect(writeResult?.error).toContain('parent path /parent does not exist')
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -5665,7 +5665,7 @@ describe('api service', () => {
       expect(results[1]?.output?.id).toBe(`hm://${signerPublicKey}/weekly-report`)
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -5885,7 +5885,7 @@ describe('api service', () => {
       expect(publishedTexts.some((text) => text.includes('Dry-run body.'))).toBe(false)
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -6146,7 +6146,7 @@ describe('api service', () => {
       expect(tombstone.generation).toBeGreaterThan(1000)
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -6368,7 +6368,7 @@ describe('api service', () => {
       expect(sourceRef.redirect?.republish).toBeUndefined()
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -6483,7 +6483,7 @@ describe('api service', () => {
       expect(attempts).toBeGreaterThan(1)
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   }, 30_000)
@@ -6660,7 +6660,7 @@ describe('api service', () => {
       expect(delivered.at(-1)?.input?.notes).toBe('SQLite began in 2000.')
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   }, 30_000)
@@ -6795,7 +6795,7 @@ describe('api service', () => {
       expect(notes[0]?.actor).toBe('system')
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   }, 30_000)
@@ -6999,7 +6999,7 @@ describe('api service', () => {
       }
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -7164,7 +7164,7 @@ describe('api service', () => {
       expect(topOnly.sessions[0]?.childSessionCount).toBe(2)
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -7206,7 +7206,7 @@ describe('api service', () => {
       expect(sub.key).toBe(`sessions/${createdSession.sessionId}`)
       expect(sub.replay?._).toBe('GetSessionResponse')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -7244,7 +7244,7 @@ describe('api service', () => {
       if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
       expect(session.session.status).toBe('idle')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -7315,7 +7315,7 @@ describe('api service', () => {
       ])
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -7353,7 +7353,7 @@ describe('api service', () => {
       if (list._ !== 'ListAgentsResponse') throw new Error('unexpected response')
       expect(list.agents[0]?.definition.reasoningLevel).toBe('xhigh')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -7388,7 +7388,7 @@ describe('api service', () => {
       // Unknown enum values are rejected before the model check.
       await expect(createAgent('gpt-5.6-terra', 'maximum')).rejects.toThrow('Reasoning level is invalid')
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -7741,7 +7741,7 @@ describe('api service', () => {
     } finally {
       globalThis.fetch = originalFetch
       svc?.stopRunQueue()
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -7896,7 +7896,7 @@ describe('api service', () => {
     } finally {
       globalThis.fetch = originalFetch
       svc?.stopRunQueue()
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -8051,7 +8051,7 @@ describe('api service', () => {
     } finally {
       globalThis.fetch = originalFetch
       svc?.stopRunQueue()
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -8198,7 +8198,7 @@ describe('api service', () => {
     } finally {
       globalThis.fetch = originalFetch
       svc?.stopRunQueue()
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -8370,7 +8370,7 @@ describe('api service', () => {
     } finally {
       globalThis.fetch = originalFetch
       svc?.stopRunQueue()
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -8623,7 +8623,7 @@ describe('api service', () => {
     } finally {
       globalThis.fetch = originalFetch
       svc?.stopRunQueue()
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -8755,7 +8755,7 @@ describe('api service', () => {
     } finally {
       globalThis.fetch = originalFetch
       svc?.stopRunQueue()
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -8940,7 +8940,7 @@ describe('api service', () => {
     } finally {
       globalThis.fetch = originalFetch
       svc?.stopRunQueue()
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -9043,7 +9043,7 @@ describe('api service', () => {
     } finally {
       globalThis.fetch = originalFetch
       svc?.stopRunQueue()
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -9149,7 +9149,7 @@ describe('api service', () => {
     } finally {
       globalThis.fetch = originalFetch
       svc2?.stopRunQueue()
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -9531,7 +9531,7 @@ describe('resolveDelegateModelRef', () => {
       })
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -9623,7 +9623,7 @@ describe('delegate model inside script children', () => {
       })
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -9690,7 +9690,7 @@ describe('obligations: what a run owes before it may end', () => {
       calls: () => calls,
       close: () => {
         svc.stopRunQueue()
-        db.close()
+        sqlite.closeDatabase(db)
         cleanup()
       },
     }
@@ -10227,7 +10227,7 @@ describe('obligations: what a run owes before it may end', () => {
     } finally {
       globalThis.fetch = originalFetch
       svc?.stopRunQueue()
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   }, 30_000)
@@ -10311,7 +10311,7 @@ describe('obligations that resolve themselves', () => {
       allBodies: () => bodies,
       close: () => {
         svc.stopRunQueue()
-        db.close()
+        sqlite.closeDatabase(db)
         cleanup()
       },
     }
@@ -10783,7 +10783,7 @@ describe('session plan settling', () => {
       ])
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -10962,7 +10962,7 @@ describe('symmetric log: user tool calls', () => {
       ).rejects.toThrow('verb must be read, write, or call')
     } finally {
       globalThis.fetch = originalFetch
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })

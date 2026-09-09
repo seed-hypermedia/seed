@@ -81,7 +81,7 @@ describe('ListAgentTools', () => {
       ).rejects.toThrow('Agent not found')
     } finally {
       fs.rmSync(dataDir, {recursive: true, force: true})
-      db.close()
+      sqlite.closeDatabase(db)
     }
   })
 
@@ -227,7 +227,7 @@ describe('ListAgentTools', () => {
       ).rejects.toThrow('Agent not found')
     } finally {
       fs.rmSync(dataDir, {recursive: true, force: true})
-      db.close()
+      sqlite.closeDatabase(db)
     }
   })
 })

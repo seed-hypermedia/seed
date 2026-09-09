@@ -83,7 +83,7 @@ async function createHarness(): Promise<Harness> {
   } as Harness
   cleanups.push(() => {
     service.stopRunQueue()
-    db.close()
+    sqlite.closeDatabase(db)
     fs.rmSync(dataDir, {recursive: true, force: true})
   })
   return harness
