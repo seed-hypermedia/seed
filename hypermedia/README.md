@@ -136,13 +136,24 @@ The full design + phased implementation notes live in
 
 ## In the Seed app
 
-The type system is ported into the app (`frontend/packages/ui/src/onyx/`) so
-schema-authoring, browsing, and validation never disagree with the reference
-validator:
+The type system is ported into TypeScript in `@seed-hypermedia/client`
+(`frontend/packages/client/src/onyx-*.ts`), shared by the app, the CLI and the
+agents service, so schema-authoring, browsing, validation and signing never
+disagree with the reference validator or with each other:
 
 - **Engine** (`onyx-engine.ts`) — a TS port of [`validate.mjs`](./validate.mjs);
   bundles every schema + the CID manifest; resolves a CID or `hm://` URL to a
   schema with no fetch when it's bundled.
+- **Resolver** (`onyx-resolve.ts`) — a reference (bundled URL, CID, or a type
+  document's URL) to its schema, over the network when needed, with every
+  nested reference fetched into a registry; and a document's effective schema.
+- **Signed blobs** (`onyx-signed-blob.ts`) — the envelope, the signing rule
+  (canonical CBOR with `sig` zeroed), publishing.
+- **CLI** (`frontend/apps/cli`) — `schema get|validate`, `blob get|validate|create|sign|verify`,
+  `document validate`, `document create|update --metadata|--schema|--children-schema|--schema-definition`,
+  `space import --check`; see [user stories](./user-stories.md).
+
+In the app (`frontend/packages/ui/src/onyx/`):
 - **Resolution** (`onyx-schema-resolve.tsx`) — `useResolvedSchema` (CID /
   bundled URL / fetched document URL) and `useEffectiveDocSchema` (own `schema`
   else parent `childrenSchema`).

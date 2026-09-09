@@ -15,65 +15,12 @@ import {useMemo} from 'react'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, unpackHmId} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
-import {parseCidString} from '../dag-json'
-import {
-  ONYX_SCHEMAS,
-  type OnyxRegistry,
-  type OnyxSchema,
-  fieldSchema,
-  refToName,
-  resolveSchema,
-  schemaCid,
-} from './onyx-engine'
+import {ONYX_SCHEMAS, type OnyxSchema, schemaCid} from './onyx-engine'
 import {useOnyxSchemaRegistry} from './onyx-schema-registry-cid'
 import {schemaDefinitionCid} from './schema-document'
 
-const DAG_CBOR_CODE = 0x71
-
-/** The bare DAG-CBOR CID of an `ipfs://<cid>` (or bare-CID) string, else null. */
-export function bareCid(ref: string): string | null {
-  const cid = ref.replace(/^ipfs:\/\//i, '').split('/')[0] ?? ''
-  return parseCidString(cid)?.code === DAG_CBOR_CODE ? cid : null
-}
-
-export type RefKind =
-  | {kind: 'none'}
-  | {kind: 'cid'; cid: string}
-  | {kind: 'hm-bundled'; name: string}
-  | {kind: 'hm-doc'; url: string}
-
-/** Classify a schema reference without fetching anything. Accepts an `hm://`
- * URL, an ipfs CID, OR a gateway/web URL (`https://host/hm/uid/path`) — the last
- * is normalized to its `hm://` form so a pasted or search-picked web link
- * resolves the same as the canonical URL. */
-export function classifyRef(ref: string | null | undefined): RefKind {
-  let s = typeof ref === 'string' ? ref.trim() : ''
-  if (!s) return {kind: 'none'}
-  if (!s.startsWith('hm://')) {
-    // ipfs:// or a bare CID → a direct blob reference.
-    const cid = bareCid(s)
-    if (cid) return {kind: 'cid', cid}
-    // Otherwise try to read it as a hypermedia id (handles gateway/web URLs).
-    const id = unpackHmId(s)
-    if (!id) return {kind: 'none'}
-    s = `hm://${id.uid}${id.path?.length ? `/${id.path.join('/')}` : ''}`
-  }
-  const name = refToName(s)
-  return ONYX_SCHEMAS[name] ? {kind: 'hm-bundled', name} : {kind: 'hm-doc', url: s}
-}
-
-/**
- * The metadata sub-schema of a (resolved) conformance schema. Document-shaped
- * schemas (extending the base document) carry it under `properties.metadata`;
- * a flat map schema IS the metadata schema. Returns undefined for no schema.
- */
-export function metadataSchemaOf(schema: OnyxSchema | undefined, reg: OnyxRegistry = {}): OnyxSchema | undefined {
-  if (!schema) return undefined
-  const resolved = resolveSchema(schema, {}, reg).schema
-  const metaProp = fieldSchema(resolved, 'metadata')
-  if (metaProp) return resolveSchema(metaProp, {}, reg).schema
-  return resolved
-}
+export {bareCid, classifyRef, metadataSchemaOf, type RefKind} from '@seed-hypermedia/client/onyx-resolve'
+import {classifyRef, metadataSchemaOf} from '@seed-hypermedia/client/onyx-resolve'
 
 /**
  * Resolve a single schema reference to its Onyx schema. Async only for the

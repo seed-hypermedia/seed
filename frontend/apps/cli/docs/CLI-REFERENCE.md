@@ -80,8 +80,7 @@ Fetch content by Hypermedia ID. Supports documents, comments, and entities.
 **Options:**
 
 - `-m, --metadata`: Fetch metadata only
-- `--md`: Output as markdown
-- `--frontmatter`: Include YAML frontmatter (with --md)
+- `--md`: Output as markdown (the metadata as YAML frontmatter, block ids in trailing comments)
 - `-r, --resolve`: Resolve embeds, mentions, and queries (with --md)
 - `-q, --quiet`: Output minimal info
 
@@ -103,12 +102,18 @@ Create a new document from markdown or HMBlockNodes JSON.
 - `--body-file <file>`: Read markdown from file
 - `--blocks <json>`: HMBlockNodes JSON (inline)
 - `--blocks-file <file>`: Read HMBlockNodes JSON from file
+- `--metadata <json>`: Any metadata attributes as a JSON object, custom keys included; merged over the file's frontmatter and the flags. Every frontmatter key of a markdown file is kept as an attribute.
+- `--schema <ref>`: The schema this document conforms to (a type document `hm://` URL or `ipfs://<cid>`)
+- `--children-schema <ref>`: The schema this document's direct children conform to
+- `--schema-definition <file>`: Publish this dag-json schema file as a blob and bind it as the document's `schemaDefinition` (the document becomes a type others reference by URL)
 - `-k, --key <name>`: Signing key name or account ID
 
 **Example:**
 
 ```bash
 npx -y @seed-hypermedia/cli document create z6Mk... --title "My Document" --body "Hello world" --key main
+npx -y @seed-hypermedia/cli document create -f person.md -p types/person --schema-definition person.schema.json --key main
+npx -y @seed-hypermedia/cli document create -f bob.md -p people/bob --metadata '{"surname":"Smith","born":"1990-01-02"}' --key main
 ```
 
 #### `document update <id>` - Update a document
@@ -122,7 +127,17 @@ Update document content and metadata (smart diff — only changed blocks are sub
 - `--summary <summary>`: Set document summary
 - `--parent <blockId>`: Parent block for new content
 - `--delete-blocks <ids>`: Comma-separated block IDs to delete
+- `--metadata <json>`, `--schema <ref>`, `--children-schema <ref>`, `--schema-definition <file>`: as for `document create`
 - `-k, --key <name>`: Signing key name or account ID
+
+#### `document validate <id>` - Check a document against its schema
+
+Resolves the document's effective schema — its own `schema`, else the `childrenSchema` of its parent — fetches every type it references, and lists each violation of the metadata. Exit code 1 when there are any; a document with no schema is reported as such and exits 0.
+
+**Options:**
+
+- `--content`: Validate the whole document (`{metadata, content}`), not only the metadata
+- `--json`: Report `{id, schema, via, violations}`
 
 #### `document delete <id>` - Delete a document
 
@@ -173,6 +188,48 @@ Get citation, comment, change, and child counts for a document.
 #### `document cid <cid>` - Fetch raw IPFS block by CID
 
 Retrieve and decode a raw IPFS block by its Content Identifier.
+
+### Schema Operations
+
+Onyx schemas as things of their own. A schema reference is a `.json` file (dag-json), an `ipfs://<cid>`, a library name such as `hypermedia-document`, or a type document's `hm://` URL, whose `schemaDefinition` is followed.
+
+#### `schema get <ref>` - Print a schema
+
+Prints the schema as dag-json with its CID. `--resolve` prints the resolved shape: references followed, extensions merged.
+
+#### `schema validate <ref>` - Check a schema against the meta-schema
+
+Exit code 1 when the schema is not a valid Onyx schema; prints each violation.
+
+### Blob Operations
+
+Content-addressed DAG-CBOR objects: the low-level half of the protocol. Values are dag-json (`{"/": "<cid>"}` for a link, `{"/": {"bytes": "<base64>"}}` for bytes).
+
+#### `blob get <cid>` - Read a blob as dag-json
+
+#### `blob validate -f <file>` - Check a value against a schema
+
+- `-s, --schema <ref>`: The schema (default: the value's own `schema` link)
+
+A `schema` link on the value is set aside before checking, the way the app does.
+
+#### `blob create -f <file>` - Publish a conforming object
+
+Validates the value, refuses on a violation unless `--force`, publishes the DAG-CBOR blob and prints `ipfs://<cid>`. When a schema is given, the published blob links to the schema's blob as `schema` (`--no-link` to skip). `--dry-run` prints the blob and its CID without publishing; `-q` prints only the URL.
+
+#### `blob sign -f <file>` - Sign a value as a Hypermedia signed blob and publish it
+
+Adds the `hypermedia-blob` envelope to the file's fields — `type` (the schema's pinned tag, or `--type`), `signer` (the key's principal), `ts` (now, or `--ts <ms>`), `sig` — signs the canonical DAG-CBOR with `sig` zeroed, validates the signed blob against the schema when one is given, publishes, and prints `ipfs://<cid>`.
+
+- `-s, --schema <ref>`: A signed-blob schema (one that extends `hypermedia-blob`)
+- `-t, --type <tag>`: The `type` tag, when the schema does not pin one or there is no schema
+- `-k, --key <name>`: Signing key name or account ID
+- `--force`: Publish even when the signed blob violates the schema
+- `--dry-run`: Print the signed blob (dag-json) and its CID without publishing
+
+#### `blob verify <cid>` - Check a blob's signature and schema
+
+Verifies the signature when the blob carries the envelope (who signed, when), and validates against `--schema <ref>` or the blob's own `schema` link. Exit code 1 when either fails; `--json` reports both.
 
 ### Account Management
 
