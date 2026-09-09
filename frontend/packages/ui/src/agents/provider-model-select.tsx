@@ -48,7 +48,7 @@ export function ProviderModelSelect({
   const [query, setQuery] = useState('')
   const providers = useModelProviders(serverUrl, accountUid, agentId)
 
-  const trimmedQuery = query.trim().toLowerCase()
+  const trimmedQuery = query.trim()
   const valueProvider = providers.data?.find((provider) => provider.name === value.provider)
   const triggerLabel = value.model || 'Select a model'
 
@@ -161,7 +161,7 @@ function ProviderModelSection({
   accountUid: string | null | undefined
   agentId?: string
   provider: ModelProviderInfo
-  /** Lower-cased trimmed search text; empty shows the curated list. */
+  /** Trimmed search text; empty shows the curated list. */
   query: string
   value: AgentModelRef
   enabledModels?: AgentModelRef[]
@@ -171,19 +171,26 @@ function ProviderModelSection({
   const models = useProviderModels(serverUrl, accountUid, provider.name, agentId)
   const [showAll, setShowAll] = useState(false)
   const curated = useMemo(() => curateProviderModels(models.data, provider.type), [models.data, provider.type])
+  const normalizedQuery = query.toLowerCase()
+  const manualModel =
+    provider.type === 'custom' && query && !models.isLoading && !curated.all.some((model) => model.id === query)
+      ? query
+      : null
 
   const visibleModels = useMemo(() => {
-    if (query) {
+    if (normalizedQuery) {
       return curated.all.filter(
-        (model) => model.id.toLowerCase().includes(query) || model.name.toLowerCase().includes(query),
+        (model) =>
+          model.id.toLowerCase().includes(normalizedQuery) || model.name.toLowerCase().includes(normalizedQuery),
       )
     }
     return showAll ? curated.all : curated.recommended
-  }, [curated, query, showAll])
+  }, [curated, normalizedQuery, showAll])
 
-  // While searching, a provider with no matches drops out entirely instead of
-  // showing an empty header.
-  if (query && !visibleModels.length) return null
+  // While searching, a provider with no matches drops out entirely. Custom
+  // providers remain available so an exact, case-sensitive model ID can be
+  // selected even when discovery cannot return it.
+  if (query && !visibleModels.length && !manualModel) return null
 
   return (
     <div className="pb-1">
@@ -251,6 +258,16 @@ function ProviderModelSection({
           )
         })
       )}
+      {manualModel ? (
+        <button
+          type="button"
+          className="hover:bg-muted flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm"
+          onClick={() => onSelect({provider: provider.name, model: manualModel})}
+        >
+          <Plus className="size-4 shrink-0" />
+          <span className="min-w-0 truncate">Use “{manualModel}”</span>
+        </button>
+      ) : null}
       {!query && curated.hasMore && !models.isLoading && !models.isError ? (
         <button
           type="button"

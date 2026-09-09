@@ -923,12 +923,16 @@ export function CreateAgentDialog({
     // auto-selected), so only a settled list may override the current selection.
     if (providers.isFetching) return
     const firstProvider = providers.data?.[0]?.name || ''
-    if (!providers.data?.some((provider) => provider.name === providerName)) setProviderName(firstProvider)
+    if (!providers.data?.some((provider) => provider.name === providerName)) {
+      setProviderName(firstProvider)
+      setModel('')
+    }
   }, [providerName, providers.data, providers.isFetching])
 
   useEffect(() => {
     const defaultModel = pickDefaultProviderModel(providerModels.data, selectedProviderType)?.id || ''
-    if (!providerModels.data?.some((providerModel) => providerModel.id === model)) setModel(defaultModel)
+    const modelIsDiscovered = providerModels.data?.some((providerModel) => providerModel.id === model)
+    if (!model || (selectedProviderType !== 'custom' && !modelIsDiscovered)) setModel(defaultModel)
   }, [model, providerModels.data, selectedProviderType])
 
   async function handleCreateAgent() {
@@ -1071,7 +1075,10 @@ export function CreateAgentDialog({
               addProviderDialog.open({
                 serverUrl: selectedServerUrl,
                 selectedAccountId: input.selectedAccountId,
-                onSaved: setProviderName,
+                onSaved: (nextProviderName) => {
+                  setProviderName(nextProviderName)
+                  setModel('')
+                },
               })
             }
           />
