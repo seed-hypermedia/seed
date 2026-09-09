@@ -1173,6 +1173,20 @@ export type SessionInfo = {
    * readable (and writable — writing here branches), but the foreground conversation moved on.
    */
   continuedTo?: SessionContinuationLink
+  /**
+   * The session's latest message from a person, a trigger, or the agent — tool activity excluded,
+   * like {@link AgentActivity}. Lets a session list show which chats hold something unread. Absent
+   * until the first message, and never set on delegated child sessions.
+   */
+  activity?: SessionActivity
+}
+
+/** Per-session counterpart of {@link AgentActivity}: only the message half. */
+export type SessionActivity = {
+  /** Time of the latest message. Tool activity excluded. */
+  messageAt: number
+  /** Who sent it. Triggers and the runtime count as `user`. */
+  messageFrom: 'user' | 'agent'
 }
 
 /** Why an agent carried a conversation into a fresh session. */

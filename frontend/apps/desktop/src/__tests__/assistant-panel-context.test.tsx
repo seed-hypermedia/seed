@@ -44,6 +44,8 @@ vi.mock('@shm/ui/agents/activity', async (importOriginal) => ({
   },
 }))
 vi.mock('@shm/ui/agents/models', () => ({
+  // The create-agent dialog checks the server before offering models; here it is never reached.
+  useAgentServerHealth: () => ({data: undefined, isLoading: false}),
   LOCAL_AGENT_SERVER_LABEL: 'Local Agents',
   isLocalAgentServer: (serverUrl: string, localServerUrl?: string | null) =>
     !!localServerUrl && serverUrl === localServerUrl,
@@ -193,7 +195,17 @@ beforeEach(() => {
     {data: [{id: 'researcher', definition: {name: 'Researcher', model: 'gpt-5'}}]},
   ]
   mockState.sessionEntries = [
-    {serverUrl: REMOTE, session: {id: 's-r1', agentId: 'researcher', title: 'Web research', updatedAt: 400}},
+    {
+      serverUrl: REMOTE,
+      session: {
+        id: 's-r1',
+        agentId: 'researcher',
+        title: 'Web research',
+        updatedAt: 400,
+        status: 'idle',
+        activity: {messageAt: 100, messageFrom: 'agent'},
+      },
+    },
     {serverUrl: LOCAL, session: {id: 's-a1', agentId: 'assistant', title: 'Doc questions', updatedAt: 300}},
   ]
 })
@@ -259,6 +271,36 @@ describe('assistant sidebar agent context', () => {
     expect(document.body.textContent).toContain('Web research')
     expect(hasActiveSession()).toBe(true)
     expect(mockState.marked).toEqual([{serverUrl: REMOTE, sessionId: 's-r1', seenAt: 100}])
+  })
+
+  it('the session list marks each chat that holds something unread, from the session’s own last message', () => {
+    // The device has seen nothing since the baseline; both agents' chats carry a later reply.
+    mockState.sessionEntries = [
+      ...mockState.sessionEntries,
+      {
+        serverUrl: REMOTE,
+        session: {
+          id: 's-r2',
+          agentId: 'researcher',
+          title: 'Older thread',
+          updatedAt: 350,
+          status: 'streaming',
+          activity: {messageAt: 30, messageFrom: 'user'},
+        },
+      },
+    ]
+    act(() => {
+      root.render(<AssistantPanel initialSessionId={`${REMOTE} | s-r1`} />)
+    })
+    // On screen: s-r1. Open the chat list: s-r1 is the unread reply, s-r2 was read before the
+    // baseline but the agent is working in it now.
+    clickText('Web research')
+    const marks = Array.from(document.body.querySelectorAll('[data-testid="agent-activity-mark"]')).map((el) =>
+      el.getAttribute('data-tone'),
+    )
+    expect(marks).toContain('agent')
+    expect(marks).toContain('busy')
+    expect(document.body.textContent).toContain('Working')
   })
 
   it('opens straight onto the unread chat when there is one, marked read on arrival', () => {

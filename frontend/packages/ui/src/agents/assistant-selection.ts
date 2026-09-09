@@ -125,10 +125,12 @@ export function resolveAssistantSelection(input: AssistantSelectionInput): Assis
   // moment later would flash the UI, and worse, the replacement would be written back as the
   // remembered selection. A refusal from the server settles it the other way.
   const chosenPending = !!input.chosenAgent && !chosen && !agentsSettled
+  // Undetermined whichever way the agent was chosen: a chosen agent says nothing about a stored
+  // session whose own agent is not yet known (session lists still loading, its fetch pending). The
+  // panel lands on a just-selected chat exactly this way — agent chosen, session named, lists not
+  // yet in — and dropping it here sent the user to a draft instead.
   const storedUndetermined =
-    !!input.storedSession &&
-    !input.storedSessionUnavailable &&
-    (chosenPending || (!input.chosenAgent && (!storedAgentId || !agentsSettled)))
+    !!input.storedSession && !input.storedSessionUnavailable && (chosenPending || !storedAgentId || !agentsSettled)
 
   if (input.storedSession && (storedBelongsToAgent || storedUndetermined)) {
     return {agent, agentSessions, session: input.storedSession}

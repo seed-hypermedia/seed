@@ -4563,6 +4563,15 @@ describe('api service', () => {
       const activity = listed.agents.find((agent) => agent.id === agentId)?.activity
       expect(activity).toMatchObject({kind: 'agent', messageFrom: 'agent', sessionId, busy: false})
       expect(activity!.messageAt).toBe(activity!.at)
+      // The session carries its own last message too, for session lists.
+      const listedSessions = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListSessions', agentId}}),
+      )
+      if (listedSessions._ !== 'ListSessionsResponse') throw new Error('unexpected response')
+      expect(listedSessions.sessions.find((s) => s.id === sessionId)?.activity).toEqual({
+        messageAt: activity!.messageAt,
+        messageFrom: 'agent',
+      })
       // GetAgent reads the same columns.
       const detail = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'GetAgent', agentId}}))
       expect(detail).toMatchObject({_: 'GetAgentResponse', agent: {activity: {kind: 'agent', sessionId}}})

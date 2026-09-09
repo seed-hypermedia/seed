@@ -229,6 +229,10 @@ permanently wedge a session in `streaming` — the boot sweep requeues interrupt
 Deleting a session detaches rather than cascades: its runs keep their history with `session_id` nulled, and child
 sessions promote to top level (`parent_session_id` nulled).
 
+Latest message (`message_at`, `message_from`): the per-session half of the agent rollup above, written on every appended
+message from a person, a trigger or the agent in a top-level session; tool activity and child sessions never move it.
+Exposed as `SessionInfo.activity`, so a session list can mark which chats hold something unread.
+
 ### `runs`
 
 Every execution — an interactive turn, a trigger firing, an agent-started session, a delegated model child, a script

@@ -4,6 +4,7 @@ import {
   agentActivityReadKey,
   agentRowActivity,
   isAgentActivityUnread,
+  sessionRowActivity,
   latestSessionEventAt,
   summarizeAgentActivity,
   type AgentActivityReadState,
@@ -108,6 +109,29 @@ describe('agent activity indicator', () => {
     const idle = {...unreadBusy, busy: false}
     expect(agentRowActivity(idle, server, 'Researcher', read(80))).toBeNull()
     expect(agentRowActivity(undefined, server, 'Researcher', read(80))).toBeNull()
+  })
+
+  test('a session row shows its own unread state, then the agent working in it, then nothing', () => {
+    const base = {id: 's', account: 'z6MkOwner', agentId: 'a', createdAt: 0, updatedAt: 90} as const
+    const replied = {...base, status: 'idle' as const, activity: {messageAt: 80, messageFrom: 'agent' as const}}
+    expect(sessionRowActivity(replied, server, read(10))).toMatchObject({
+      tone: 'agent',
+      unread: true,
+      short: 'New reply',
+    })
+    expect(sessionRowActivity(replied, server, read(80))).toBeNull()
+    expect(sessionRowActivity(replied, server, read(10, {[agentActivityReadKey(server, 's')]: 80}))).toBeNull()
+    // Unread beats working; once read, a streaming session shows the agent at work, naming the
+    // tool when the agent's rollup points at this very session.
+    const working = {...replied, status: 'streaming' as const}
+    expect(sessionRowActivity(working, server, read(10))).toMatchObject({tone: 'agent', unread: true})
+    expect(sessionRowActivity(working, server, read(80))).toMatchObject({tone: 'busy', short: 'Working'})
+    const rollup = {at: 95, kind: 'tool', messageAt: 80, messageFrom: 'agent', sessionId: 's', busy: true} as const
+    expect(sessionRowActivity(working, server, read(80), rollup)).toMatchObject({tone: 'busy', short: 'Running a tool'})
+    // No message yet and idle: the plain status dot.
+    expect(sessionRowActivity({...base, status: 'idle'}, server, read(10))).toBeNull()
+    // Before the first-run baseline nothing is unread, but a working agent still shows.
+    expect(sessionRowActivity(working, server, undefined)).toMatchObject({tone: 'busy'})
   })
 
   test('the newest event time of a transcript is what a view marks as read', () => {

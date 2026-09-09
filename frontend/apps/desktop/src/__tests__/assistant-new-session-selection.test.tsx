@@ -71,8 +71,12 @@ describe('sidebar new-chat selection after CreateSession', () => {
     queryClient.clear()
   })
 
-  it('without the seed, a stale list cannot place the new session, so it is not shown (the bug this guards)', () => {
+  it('without the seed, a stale list cannot name the new session’s agent, so the resolver holds it until its fetch does', () => {
     queryClient.setQueryData(listKey, [{serverUrl: SERVER, session: session('s-old', 100)}])
+    // Undetermined, not dropped: dropping here sent the panel to a draft while the lists loaded.
+    expect(resolveFromCaches('s-new').session).toEqual({serverUrl: SERVER, sessionId: 's-new'})
+    // Once its own fetch names another agent, it no longer belongs in this context.
+    queryClient.setQueryData(sessionKey('s-new'), {session: {...session('s-new', 200), agentId: 'someone-else'}})
     expect(resolveFromCaches('s-new').session).toBeNull()
   })
 

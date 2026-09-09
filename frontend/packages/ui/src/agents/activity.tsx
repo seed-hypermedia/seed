@@ -1,4 +1,4 @@
-import type {AgentActivity, AgentInfo} from '@seed-hypermedia/agents-protocol'
+import type {AgentActivity, AgentInfo, SessionInfo} from '@seed-hypermedia/agents-protocol'
 import {getQueryClient} from '@shm/shared/models/query-client'
 import {useQuery} from '@tanstack/react-query'
 import {useEffect, useMemo} from 'react'
@@ -154,6 +154,43 @@ export function summarizeAgentActivity(
     sessionId: pick.activity.sessionId,
     label: pick.activity.kind === 'tool' ? `${agentName} is running a tool` : `${agentName} is working`,
   }
+}
+
+/**
+ * One session's own indicator, as a session list shows it: its unread tone when its latest message
+ * is unseen on this device, amber while the agent is streaming in it, otherwise nothing (the plain
+ * status dot). `agentActivity` — the agent's rollup — names the tool when the busy session is the
+ * one it points at.
+ */
+export function sessionRowActivity(
+  session: SessionInfo,
+  serverUrl: string,
+  read: AgentActivityReadState | undefined,
+  agentActivity?: AgentActivity,
+): AgentRowActivity | null {
+  const message = session.activity
+  if (message && read && read.allBefore !== undefined) {
+    const seen = Math.max(read.allBefore, read.sessions[agentActivityReadKey(serverUrl, session.id)] ?? 0)
+    if (message.messageAt > seen) {
+      const tone = message.messageFrom === 'agent' ? 'agent' : 'user'
+      return {
+        tone,
+        unread: true,
+        label: tone === 'agent' ? 'Unread reply' : 'Unread message',
+        short: tone === 'agent' ? 'New reply' : 'New message',
+      }
+    }
+  }
+  if (session.status === 'streaming') {
+    const tool = agentActivity?.sessionId === session.id && agentActivity.kind === 'tool' && agentActivity.busy
+    return {
+      tone: 'busy',
+      unread: false,
+      label: tool ? 'Running a tool' : 'Working',
+      short: tool ? 'Running a tool' : 'Working',
+    }
+  }
+  return null
 }
 
 /** The device's read marks, loaded once from the platform setting. */

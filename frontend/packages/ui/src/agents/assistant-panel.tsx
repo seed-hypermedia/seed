@@ -42,13 +42,15 @@ import {
 import {
   agentRowActivity,
   latestSessionEventAt,
+  sessionRowActivity,
   markAgentSessionRead,
   summarizeAgentActivity,
   useAgentActivityReadState,
   useMarkAgentSessionRead,
+  type AgentActivityReadState,
   type AgentRowActivity,
 } from './activity'
-import {AgentActivityMark, type AgentActivityTone} from './activity-dot'
+import {AgentActivityMark} from './activity-dot'
 import {CreateAgentDialog} from './dialogs'
 import {useSelectedAccountId} from './account'
 import {useNavigate} from './navigation'
@@ -100,6 +102,7 @@ import {
   type AssistantSessionRef,
 } from './assistant-session-ref'
 import {AgentServerError, type AgentInfo} from './client'
+import type {AgentActivity} from '@seed-hypermedia/agents-protocol'
 import {describeAgentError, errorMessage} from './errors'
 import {useAssistantWindowContextLines} from './assistant-window-context'
 import {AgentRichMessageComposer, SubSessionDrivenNotice, TERMINAL_RUN_STATUSES} from './rich-message-composer'
@@ -295,11 +298,6 @@ export function AssistantPanel({
     }
     return rows
   }, [agents, readState.data])
-  const activeRow = activeAgent ? rowActivities[`${activeAgent.serverUrl}${activeAgent.agent.id}`] : undefined
-  const activeUnreadTone = activeRow?.unread ? (activeRow.tone as 'agent' | 'user') : undefined
-  const activeUnreadSession = activeUnreadTone
-    ? {sessionId: activeAgent!.agent.activity!.sessionId, tone: activeUnreadTone}
-    : null
 
   // Opening the panel with something unread lands on it: the newest unread chat across agents,
   // marked read on arrival. Decided once per mount, as soon as the lists have settled, so a
@@ -307,7 +305,7 @@ export function AssistantPanel({
   // start a new chat keeps that intent instead.
   const jumpedToUnreadRef = useRef(false)
   useEffect(() => {
-    if (jumpedToUnreadRef.current || !agentsSettled || !readState.data) return
+    if (jumpedToUnreadRef.current || !agentsSettled || sessions.isLoading || !readState.data) return
     jumpedToUnreadRef.current = true
     if (newChatRequest) return
     const indicator = summarizeAgentActivity(agents, readState.data)
@@ -319,7 +317,7 @@ export function AssistantPanel({
     setChosenAgent({serverUrl: indicator.serverUrl, agentId: indicator.agentId})
     selectSession({serverUrl: indicator.serverUrl, sessionId: indicator.sessionId})
     markAgentSessionRead(indicator.serverUrl, indicator.sessionId, picked.agent.activity.messageAt)
-  }, [agentsSettled, readState.data, agents, newChatRequest, setChosenAgent, selectSession])
+  }, [agentsSettled, sessions.isLoading, readState.data, agents, newChatRequest, setChosenAgent, selectSession])
   const activeSession = selection.session
   const sessionEntry = activeSession
     ? sessions.entries.find(
@@ -403,7 +401,8 @@ export function AssistantPanel({
           selected={activeSession}
           selectedTitle={sessionTitle}
           isDraft={!activeSession}
-          unreadSession={activeUnreadSession}
+          readState={readState.data}
+          agentActivity={activeAgent?.agent.activity}
           onSelect={selectSession}
         />
         {activeSession ? (
@@ -702,7 +701,8 @@ function AssistantSessionPicker({
   selected,
   selectedTitle,
   isDraft,
-  unreadSession,
+  readState,
+  agentActivity,
   onSelect,
 }: {
   entries: AgentSessionListEntry[]
@@ -711,13 +711,28 @@ function AssistantSessionPicker({
   selected: AssistantSessionRef | null
   selectedTitle?: string
   isDraft: boolean
-  /** The active agent's session holding its unseen latest message, if any. */
-  unreadSession?: {sessionId: string; tone: AgentActivityTone} | null
+  /** This device's read marks, for each row's unread state. */
+  readState?: AgentActivityReadState
+  /** The active agent's rollup, which names the tool a busy session is running. */
+  agentActivity?: AgentActivity
   onSelect: (ref: AssistantSessionRef) => void
 }) {
   const [open, setOpen] = useState(false)
-  // Unread somewhere other than what is on screen: the trigger points at the list.
-  const unreadElsewhere = unreadSession && unreadSession.sessionId !== selected?.sessionId ? unreadSession : null
+  // Each row's own indicator — unread, or the agent working in it — and, for the closed trigger,
+  // the most pressing one among the chats not on screen.
+  const rows = useMemo(() => {
+    const byId: Record<string, AgentRowActivity> = {}
+    for (const entry of entries) {
+      const row = sessionRowActivity(entry.session, entry.serverUrl, readState, agentActivity)
+      if (row) byId[entry.session.id] = row
+    }
+    return byId
+  }, [entries, readState, agentActivity])
+  const elsewhere = entries
+    .filter((entry) => entry.session.id !== selected?.sessionId)
+    .map((entry) => rows[entry.session.id])
+    .filter((row): row is AgentRowActivity => !!row)
+  const triggerRow = elsewhere.find((row) => row.unread) ?? elsewhere[0] ?? null
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -729,7 +744,7 @@ function AssistantSessionPicker({
           <span className="min-w-0 flex-1 truncate text-left">
             {isDraft ? 'New chat' : selectedTitle || 'Untitled session'}
           </span>
-          {unreadElsewhere ? <AgentActivityMark tone={unreadElsewhere.tone} label="Unread chat" /> : null}
+          {triggerRow ? <AgentActivityMark tone={triggerRow.tone} label={triggerRow.label} /> : null}
           <ChevronDown className="size-3 shrink-0" />
         </button>
       </PopoverTrigger>
@@ -753,14 +768,24 @@ function AssistantSessionPicker({
                     setOpen(false)
                   }}
                 >
-                  <SessionStatusDot status={entry.session.status} className="size-2" />
+                  {rows[entry.session.id] ? (
+                    <AgentActivityMark
+                      tone={rows[entry.session.id]!.tone}
+                      label={rows[entry.session.id]!.label}
+                      className="size-2"
+                    />
+                  ) : (
+                    <SessionStatusDot status={entry.session.status} className="size-2" />
+                  )}
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="flex items-center gap-1.5">
                       <span className="min-w-0 flex-1 truncate text-xs">
                         {entry.session.title || 'Untitled session'}
                       </span>
-                      {unreadSession?.sessionId === entry.session.id ? (
-                        <AgentActivityMark tone={unreadSession.tone} label="Unread" />
+                      {rows[entry.session.id] ? (
+                        <span className="text-muted-foreground shrink-0 text-[10px]">
+                          {rows[entry.session.id]!.short}
+                        </span>
                       ) : null}
                     </span>
                     {entry.session.description ? (
