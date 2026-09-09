@@ -21,9 +21,10 @@ minimumReleaseAge: 1440
 # toolchain by appdmg and does not process user-controlled images in Seed.
 auditConfig:
   ignoreGhsas:
-    # extract-zip has no patched release (advisory lists none). It reaches the
-    # tree only through lighthouse's bundled puppeteer, a dev-only perf tool
-    # that never extracts user-controlled archives in Seed.
+    # extract-zip has no patched release. The dependency is patched locally
+    # with the upstream fix to reject a symlink at an archive entry's leaf path.
+    # It is only used by the desktop packaging toolchain with trusted archives.
+    - GHSA-7pqw-9j4j-h8q3
     - GHSA-jmr9-qjv8-65gv
   ignoreCves:
     # Remix 2 is coupled to React Router 6, which has no patched release.
