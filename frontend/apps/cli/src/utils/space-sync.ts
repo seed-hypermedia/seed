@@ -21,7 +21,7 @@
  * truth, whatever the frontmatter says). A `{$type, value}` file is an
  * instance, not a type: its document conforms to `$type` (`metadata.schema`).
  */
-import {effectiveSchemaRef, loadSchema, metadataSchemaOf, violations} from './onyx'
+import {effectiveSchemaRef, loadSchema, metadataViolations} from './onyx'
 import {existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
 import {dirname, join, normalize, relative, resolve} from 'node:path'
 import {
@@ -490,6 +490,11 @@ export async function checkSchemas(
   const all = listMarkdownFiles(opts.dir)
   const targets = files ?? all
   const metadataOf = new Map<string, Record<string, unknown>>()
+  const fileOfPath = new Map<string, string>()
+  for (const file of all) {
+    const p = layout.pathForFile(file)
+    if (p !== null) fileOfPath.set(p, file)
+  }
   for (const file of all) {
     let prep = prepared.get(file)
     if (!prep) prepared.set(file, (prep = prepareFile(opts, layout, file)))
@@ -505,7 +510,7 @@ export async function checkSchemas(
     let via: 'own' | 'inherited' = 'own'
     if (!ref && path) {
       const parentPath = path.replace(/\/[^/]+$/, '')
-      const parentFile = layout.fileForPath(parentPath)
+      const parentFile = fileOfPath.get(parentPath)
       const parentMeta = parentFile ? metadataOf.get(parentFile) : undefined
       if (parentMeta && typeof parentMeta.childrenSchema === 'string') {
         ref = parentMeta.childrenSchema
@@ -522,8 +527,7 @@ export async function checkSchemas(
     if (!ref) continue
     try {
       const loaded = await loadSchema(opts.client, ref)
-      const metadataSchema = metadataSchemaOf(loaded.schema, loaded.registry)
-      const errors = metadataSchema ? violations(metadataSchema, metadata, loaded.registry) : []
+      const errors = metadataViolations(loaded.schema, metadata, loaded.registry)
       if (errors.length) out.push({file, path, schema: ref, via, errors})
     } catch (error) {
       out.push({file, path, schema: ref, via, errors: [(error as Error).message]})

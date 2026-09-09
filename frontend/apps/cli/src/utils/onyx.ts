@@ -3,9 +3,7 @@
  * signed-blob signatures. Thin over the client package's engine, resolver and signing rule, so
  * the CLI never disagrees with the app.
  */
-import * as ed25519 from '@noble/ed25519'
 import type {SeedClient} from '@seed-hypermedia/client'
-import * as cbor from '@seed-hypermedia/client/cbor'
 import {dagJsonToIpld, ipldToDagJson} from '@seed-hypermedia/client/dag-json'
 import {
   type OnyxRegistry,
@@ -19,20 +17,29 @@ import {
 import {
   type ResolvedSchemaRef,
   bareCid,
+  blobSchemaRef,
+  documentMetadataSchema,
   effectiveSchemaRef,
   hydrateSchemaRegistry,
+  isPlainMap,
   metadataSchemaOf,
   resolveSchemaRef,
+  withoutSchemaLink,
 } from '@seed-hypermedia/client/onyx-resolve'
-import {SIGNED_BLOB_ENVELOPE, signedBlobMessage} from '@seed-hypermedia/client/onyx-signed-blob'
+import {
+  type SignatureCheck,
+  encodeDagCbor,
+  hasSignedEnvelope,
+  principalToPublicKey,
+  verifySignedBlob,
+} from '@seed-hypermedia/client/onyx-signed-blob'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {existsSync, readFileSync} from 'node:fs'
 import {resolve as resolvePath} from 'node:path'
-import {base58btc} from 'multiformats/bases/base58'
-import {CID} from 'multiformats/cid'
-import {sha256} from 'multiformats/hashes/sha2'
 
-export {bareCid, effectiveSchemaRef, metadataSchemaOf}
+export {bareCid, blobSchemaRef, effectiveSchemaRef, isPlainMap, metadataSchemaOf, withoutSchemaLink}
+export {hasSignedEnvelope, principalToPublicKey, verifySignedBlob}
+export type {SignatureCheck}
 
 /** The meta-schema: what every schema must validate against. */
 export const META_SCHEMA: OnyxSchema = ONYX_SCHEMAS['hypermedia-schema']!
@@ -59,11 +66,7 @@ export function readJsonFile(file: string): unknown {
 }
 
 /** Canonical DAG-CBOR bytes of a dag-json value and their CID (v1, sha2-256). */
-export async function encodeBlob(value: unknown): Promise<{data: Uint8Array; cid: string}> {
-  const data = new Uint8Array(cbor.encode(dagJsonToIpld(value)))
-  const digest = await sha256.digest(data)
-  return {data, cid: CID.createV1(cbor.code, digest).toString()}
-}
+export const encodeBlob = encodeDagCbor
 
 /**
  * A schema by reference: a `.json` file on disk (dag-json), an `ipfs://<cid>`, a bundled library
@@ -72,7 +75,7 @@ export async function encodeBlob(value: unknown): Promise<{data: Uint8Array; cid
  * returned registry.
  */
 export async function loadSchema(client: SeedClient, ref: string): Promise<LoadedSchema> {
-  let schema: OnyxSchema | undefined
+  let schema: OnyxSchema
   let cid: string | undefined
   let source = ref
   if (/\.json$/i.test(ref) && existsSync(resolvePath(ref))) {
@@ -82,7 +85,7 @@ export async function loadSchema(client: SeedClient, ref: string): Promise<Loade
     cid = (await encodeBlob(schema)).cid
     source = `file ${ref}`
   } else if (ONYX_SCHEMAS[ref]) {
-    schema = ONYX_SCHEMAS[ref]
+    schema = ONYX_SCHEMAS[ref]!
     source = `library ${ref}`
   } else {
     const resolved: ResolvedSchemaRef = await resolveSchemaRef(client, ref)
@@ -107,73 +110,13 @@ export function violations(schema: OnyxSchema, value: unknown, registry: OnyxReg
   return validate(schema, value, '$', {}, registry)
 }
 
-/** The `schema` link a blob carries (`{"/": <cid>}` or a URL string), if any. */
-export function blobSchemaRef(value: unknown): string | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
-  const link = (value as Record<string, unknown>).schema
-  if (typeof link === 'string') return link
-  if (link && typeof link === 'object' && typeof (link as Record<string, unknown>)['/'] === 'string') {
-    return `ipfs://${(link as Record<string, string>)['/']}`
-  }
-  return null
-}
-
 /**
- * The value without its `schema` link. A published object links to its type through a `schema`
- * key that the type itself does not declare, so the link is set aside before validating — the
- * same rule the app's blob editor follows.
+ * The violations of a document's metadata against its type — checked as the app does: the base
+ * document metadata extended by the type's fields, open to extra keys, so the binding keys
+ * (`schema`, `childrenSchema`, `schemaDefinition`) and standard fields never count as strays.
  */
-export function withoutSchemaLink(value: unknown): unknown {
-  if (!isPlainMap(value) || blobSchemaRef(value) === null) return value
-  const {schema: _link, ...rest} = value
-  return rest
-}
-
-/** Whether a dag-json value is a plain map (the only shape that can carry a schema link). */
-export const isPlainMap = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === 'object' && !Array.isArray(value) && !('/' in (value as object))
-
-/** True when a value carries the signed-blob envelope fields. */
-export function hasSignedEnvelope(value: unknown): value is Record<string, unknown> {
-  return isPlainMap(value) && SIGNED_BLOB_ENVELOPE.every((k) => k in value)
-}
-
-/** The Ed25519 public key inside a principal (multicodec 0xed 0x01 + 32 bytes). */
-export function principalToPublicKey(principal: Uint8Array): Uint8Array {
-  if (principal.length !== 34 || principal[0] !== 0xed || principal[1] !== 0x01) {
-    throw new Error(
-      `Unsupported principal: expected an Ed25519 multicodec key (34 bytes), got ${principal.length} bytes`,
-    )
-  }
-  return principal.slice(2)
-}
-
-export type SignatureCheck = {ok: boolean; signer: string; ts?: number; reason?: string}
-
-/**
- * Verify a signed blob given in dag-json form: the signature must cover the canonical DAG-CBOR of
- * the blob with `sig` zeroed — the daemon's own rule.
- */
-export async function verifySignedBlob(value: Record<string, unknown>): Promise<SignatureCheck> {
-  const ipld = dagJsonToIpld(value) as Record<string, unknown>
-  const signer = ipld.signer
-  const sig = ipld.sig
-  if (!(signer instanceof Uint8Array)) return {ok: false, signer: '', reason: 'signer is not bytes'}
-  const signerId = base58btc.encode(signer)
-  if (!(sig instanceof Uint8Array)) return {ok: false, signer: signerId, reason: 'sig is not bytes'}
-  let publicKey: Uint8Array
-  try {
-    publicKey = principalToPublicKey(signer)
-  } catch (error) {
-    return {ok: false, signer: signerId, reason: (error as Error).message}
-  }
-  const ts = typeof ipld.ts === 'number' ? ipld.ts : undefined
-  try {
-    const ok = await ed25519.verifyAsync(sig, signedBlobMessage(ipld), publicKey)
-    return ok ? {ok, signer: signerId, ts} : {ok, signer: signerId, ts, reason: 'signature does not verify'}
-  } catch (error) {
-    return {ok: false, signer: signerId, ts, reason: (error as Error).message}
-  }
+export function metadataViolations(schema: OnyxSchema, metadata: unknown, registry: OnyxRegistry = {}): string[] {
+  return validate(documentMetadataSchema(metadataSchemaOf(schema, registry), {}, registry), metadata, '$', {}, registry)
 }
 
 /** A decoded blob (as the API returns it, dag-json) fetched by CID. */

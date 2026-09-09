@@ -71,21 +71,50 @@ A trigger's \`continuation\` decides what a firing does. The default starts a th
 Replace the trigger document to edit it, write with \`enabled: false\` to disable it, or use \`options: {delete: true}\` to remove it. Trigger writes do not use \`dryRun\` or a signer.`,
   },
   ipfs: {
-    summary: 'Publish a private memory file or conversation attachment to IPFS.',
+    summary: 'Publish a file to IPFS, or a JSON object: a schema, an object that follows one, or a signed blob.',
     markdown: `# Publishing to IPFS
 
 Write to \`ipfs://\` with exactly one source:
 
 - Memory file: \`options: {fromPath: "~/memory/path/to/file"}\`.
 - Current-session attachment: \`options: {fromAttachment: "ATTACHMENT_ID"}\`.
+- A JSON object in \`content\` — see "Objects" below.
 
 \`\`\`json
 {"address":"ipfs://","options":{"fromPath":"~/memory/site-assets/icon.png"}}
 \`\`\`
 
-The result includes the CID and \`ipfs://\` URL. Publishing is public, requires the agent's publish grant, and does not support \`dryRun\` or a signer.
+The result includes the CID and \`ipfs://\` URL. Publishing is public and requires the agent's publish grant. File publishing has no \`dryRun\` and no signer.
 
-The gateway serves the blob only once public Hypermedia content references it (a document image, a comment, a profile icon); an \`ipfs://\` URL on its own does not display anywhere yet. To show your user a file from memory in this chat, do not publish it — reference its memory path in markdown instead: \`![caption](~/memory/path/to/image.png)\`.`,
+The gateway serves a file only once public Hypermedia content references it (a document image, a comment, a profile icon); an \`ipfs://\` URL on its own does not display anywhere yet. To show your user a file from memory in this chat, do not publish it — reference its memory path in markdown instead: \`![caption](~/memory/path/to/image.png)\`.
+
+## Objects
+
+A JSON object in \`content\` publishes as one content-addressed DAG-CBOR blob (dag-json: \`{"/": "<cid>"}\` is a link, \`{"/": {"bytes": "…"}}\` is bytes). Read it back with \`read ipfs://<cid>\`, which returns the decoded \`value\`, its \`signature\` and its \`schema\` check.
+
+- \`options.schema\` — the schema the object must follow: a library name (\`hypermedia-schema\` is the meta-schema every schema must satisfy; \`hypermedia-document\`, \`hypermedia-blob\`, …), an \`ipfs://<cid>\` of a schema blob, or the \`hm://\` URL of a type document (a document whose metadata \`schemaDefinition\` points at its schema blob). The object is validated and, when it conforms, published with a \`schema\` link to the schema's CID (\`options.link: false\` omits the link). A violation refuses the publish and lists what is wrong; \`options.force: true\` publishes anyway and returns the violations as \`warnings\`.
+- \`options.sign: true\` — a signed blob: the object's own fields are wrapped in the Hypermedia signed-blob envelope (\`type\`, \`signer\`, \`ts\`, \`sig\`) and signed by one of the agent's identities (\`options.signer\` chooses one as for hm:// writes). \`type\` comes from the schema when it pins one (a signed type extends \`hypermedia-blob\` and fixes \`type\` to a literal), else from \`options.type\`. Leave \`signer\`, \`ts\` and \`sig\` out of the content. The result carries the CID, \`signer\`, \`ts\` and \`blobType\`.
+- \`dryRun: true\` validates and returns the CID and the exact value that would publish, without publishing.
+
+Define a type: publish its schema as an object that follows \`hypermedia-schema\`, then bind it to a page with a document write whose \`options.metadata.schemaDefinition\` is the schema's \`ipfs://<cid>\`. The page's \`hm://\` URL is the type's name from then on.
+
+\`\`\`json
+{"address":"ipfs://","content":"{\\"type\\":\\"hm://ONYX_UID/hypermedia-struct\\",\\"properties\\":{\\"name\\":{\\"value\\":{\\"type\\":\\"hm://ONYX_UID/hypermedia-string\\"},\\"required\\":true}}}","options":{"schema":"hypermedia-schema"}}
+\`\`\`
+
+Publish an instance of a type, validated against it:
+
+\`\`\`json
+{"address":"ipfs://","content":"{\\"name\\":\\"Bob Smith\\"}","options":{"schema":"hm://ACCOUNT_UID/types/person"}}
+\`\`\`
+
+Sign an instance of a signed type (a schema that extends \`hypermedia-blob\`):
+
+\`\`\`json
+{"address":"ipfs://","content":"{\\"target\\":\\"hm://ACCOUNT_UID/notes\\",\\"choice\\":\\"yes\\"}","options":{"schema":"hm://ACCOUNT_UID/types/vote","sign":true}}
+\`\`\`
+
+The Onyx library — every kind, the meta-schema, and the built-in types — is readable at \`hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb\` (ONYX_UID above); \`read hm://ONYX_UID/hypermedia-schema\` explains how schemas are written.`,
   },
   documents: {
     summary: 'Create, update, move, redirect, fork, delete, and publish Seed documents.',
@@ -118,6 +147,20 @@ Use \`options.action: "update"\` at the existing document address. Supplying \`c
 - Fork: the address is the destination; use \`options: {action: "fork", fromUrl: "hm://SOURCE_UID/path"}\`.
 - Delete: the address is the document; use \`options: {action: "delete"}\`.
 - Publish a memory markdown file: use \`options: {fromPath: "~/memory/file.md", signer: {...}}\`; frontmatter supplies metadata and the destination path may be derived when writing to account home.
+
+## Typed documents
+
+Any metadata key is allowed: \`options.metadata\` is merged into the document's metadata as given (\`{surname: "Smith"}\` becomes a \`surname\` attribute). Three keys bind documents to Onyx schemas:
+
+- \`schema\` — the type this document conforms to: the \`hm://\` URL of a type document (or an \`ipfs://\` schema CID).
+- \`childrenSchema\` — the type every direct child of this document conforms to, unless a child sets its own \`schema\`.
+- \`schemaDefinition\` — this document defines a type: the \`ipfs://<cid>\` of a schema blob (publish it first with \`write ipfs://\` and \`options.schema: "hypermedia-schema"\`; see \`~/tools/write/ipfs\`).
+
+Conformance is advisory: a document that violates its type still publishes, and the result says so beside the id — \`schema\` ({schema, via, required, missing, violations}) and \`warnings\`, one line per violation (a \`schemaDefinition\` that is not a valid schema warns too). A \`dryRun\` reports the same, so check before publishing. A \`read\` of a typed document returns the same \`schema\` block.
+
+\`\`\`json
+{"address":"hm://ACCOUNT_UID/people/bob","content":"Bob is a person.","options":{"name":"Bob","metadata":{"surname":"Smith","born":"1990-01-01","schema":"hm://ACCOUNT_UID/types/person"}},"dryRun":true}
+\`\`\`
 
 Every hm:// link in document content is resolved before publishing. Use \`options.skipLinkCheck: true\` only when a linked resource is about to be created. Read the resulting document before citing block-level links because publishing can change block IDs.`,
   },
