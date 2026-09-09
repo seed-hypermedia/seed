@@ -56,7 +56,11 @@ type AgentWSEvent =
     }
   | {_: 'change'; key: `sessions/${string}`; value: SessionInfo}
   | {_: 'change'; key: `agents/${string}`; value: AgentInfo}
-  | {_: 'change'; key: `account/${string}`; value: {reason: string; agentId?: string; sessionId?: string; activity?: AgentActivity}}
+  | {
+      _: 'change'
+      key: `account/${string}`
+      value: {reason: string; agentId?: string; sessionId?: string; activity?: AgentActivity}
+    }
   | {_: 'change'; key: `runs/${string}`; value: RunInfo}
   | {_: 'append'; key: `runs/${string}`; runId: string; seq: number; entry: Record<string, unknown>; createdAt: number}
   | {
@@ -75,14 +79,14 @@ type AgentWSEvent =
 
 Account-wide notifications. The Agents list page uses this to refresh when agents/sessions/events change.
 
-Two reasons carry the agent's fresh **activity rollup** (`AgentActivity`: latest event time and kind, latest
-message time and sender, that message's session, and whether any run is live):
+Two reasons carry the agent's fresh **activity rollup** (`AgentActivity`: latest event time and kind, latest message
+time and sender, that message's session, and whether any run is live):
 
 - `session-event` — coalesced to about one per session per 1.5 s while a transcript grows.
 - `session-updated` — on a real session status transition, which is what flips `busy`.
 
-Clients write the rollup straight into their cached agent rows (list and detail), so an always-visible unread
-indicator costs no `ListAgents` or `ListSessions` refetch. A client that ignores the field behaves as before.
+Clients write the rollup straight into their cached agent rows (list and detail), so an always-visible unread indicator
+costs no `ListAgents` or `ListSessions` refetch. A client that ignores the field behaves as before.
 
 ### `agents/<agentId>`
 
