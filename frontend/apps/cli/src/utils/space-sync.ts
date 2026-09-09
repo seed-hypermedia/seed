@@ -21,6 +21,7 @@
  * truth, whatever the frontmatter says). A `{$type, value}` file is an
  * instance, not a type: its document conforms to `$type` (`metadata.schema`).
  */
+import {effectiveSchemaRef, loadSchema, metadataSchemaOf, violations} from './onyx'
 import {existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
 import {dirname, join, normalize, relative, resolve} from 'node:path'
 import {
@@ -466,7 +467,69 @@ export type ImportOptions = {
   metadataFor?: (file: string, metadata: HMMetadata) => HMMetadata
   /** Restrict to these files (relative to dir). */
   only?: string[]
+  /** Validate every document against its effective schema first; refuse to publish on a violation. */
+  check?: boolean
   log?: (line: string) => void
+}
+
+export type SchemaViolation = {file: string; path: string; schema: string; via: 'own' | 'inherited'; errors: string[]}
+
+/**
+ * Every document in `files` that would violate its effective schema once published: its own
+ * `schema`, else the `childrenSchema` of its parent — the parent file in the directory when
+ * there is one, else the parent document on the site. A schema that cannot be resolved is
+ * reported as a violation too: a typed document whose type is unreachable is not known to
+ * conform. Advisory by nature (see typed-documents.md); `--check` turns it into a gate.
+ */
+export async function checkSchemas(
+  opts: ImportOptions,
+  files?: string[],
+  prepared: Map<string, ReturnType<typeof prepareFile>> = new Map(),
+): Promise<SchemaViolation[]> {
+  const layout = opts.layout || defaultLayout
+  const all = listMarkdownFiles(opts.dir)
+  const targets = files ?? all
+  const metadataOf = new Map<string, Record<string, unknown>>()
+  for (const file of all) {
+    let prep = prepared.get(file)
+    if (!prep) prepared.set(file, (prep = prepareFile(opts, layout, file)))
+    const schema = await readSchemaFile(opts.dir, file, layout)
+    metadataOf.set(file, applySchemaMetadata(prep.metadata, schema) as Record<string, unknown>)
+  }
+  const out: SchemaViolation[] = []
+  for (const file of targets) {
+    const path = layout.pathForFile(file)
+    if (path === null) continue
+    const metadata = metadataOf.get(file) ?? {}
+    let ref: string | null = typeof metadata.schema === 'string' ? metadata.schema : null
+    let via: 'own' | 'inherited' = 'own'
+    if (!ref && path) {
+      const parentPath = path.replace(/\/[^/]+$/, '')
+      const parentFile = layout.fileForPath(parentPath)
+      const parentMeta = parentFile ? metadataOf.get(parentFile) : undefined
+      if (parentMeta && typeof parentMeta.childrenSchema === 'string') {
+        ref = parentMeta.childrenSchema
+        via = 'inherited'
+      } else {
+        const id = hmId(opts.account, {path: path.replace(/^\//, '').split('/')})
+        const effective = await effectiveSchemaRef(opts.client, id, metadata).catch(() => null)
+        if (effective?.ref && effective.source !== 'none') {
+          ref = effective.ref
+          via = effective.source
+        }
+      }
+    }
+    if (!ref) continue
+    try {
+      const loaded = await loadSchema(opts.client, ref)
+      const metadataSchema = metadataSchemaOf(loaded.schema, loaded.registry)
+      const errors = metadataSchema ? violations(metadataSchema, metadata, loaded.registry) : []
+      if (errors.length) out.push({file, path, schema: ref, via, errors})
+    } catch (error) {
+      out.push({file, path, schema: ref, via, errors: [(error as Error).message]})
+    }
+  }
+  return out
 }
 
 export type ImportResult = {
@@ -673,6 +736,19 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     throw new Error(
       `${broken.length} broken link${broken.length === 1 ? '' : 's'} in ${opts.dir}:\n${lines.join('\n')}`,
     )
+  }
+  // With --check, nothing is published while a document would violate its schema either.
+  if (opts.check) {
+    const bad = await checkSchemas(opts, files, prepared)
+    if (bad.length) {
+      const lines = bad.flatMap((v) => [`  ${v.file} (${v.schema}, ${v.via}):`, ...v.errors.map((e) => `    ✗ ${e}`)])
+      throw new Error(
+        `${bad.length} document${bad.length === 1 ? '' : 's'} in ${opts.dir} would violate a schema:\n${lines.join(
+          '\n',
+        )}`,
+      )
+    }
+    log(`schema check passed for ${(files ?? listMarkdownFiles(opts.dir)).length} files`)
   }
 
   const processFile = async (file: string) => {

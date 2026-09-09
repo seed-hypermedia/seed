@@ -1,7 +1,7 @@
 import {readFileSync, writeFileSync, readdirSync} from 'node:fs'
 import {join} from 'node:path'
 const SRC = 'hypermedia'
-const OUT = 'frontend/packages/ui/src/onyx/onyx-schemas.generated.ts'
+const OUT = 'frontend/packages/client/src/onyx-schemas.generated.ts'
 const files = readdirSync(SRC).filter((f) => f.endsWith('.schema.json'))
 const schemas = {}
 for (const f of files.sort()) {
