@@ -33,7 +33,14 @@ import {
 import {useOpenUrl} from './navigation'
 import {useOpenAgentSession} from './open-session-context'
 import {MarkdownAssetContext, type MarkdownAssetScope} from './markdown'
-import {useFullAgentSessionEvent, useRun, useRunTree, useSessionAttachmentDataUrls, useSessionRuns} from './models'
+import {
+  useAgentServerHealth,
+  useFullAgentSessionEvent,
+  useRun,
+  useRunTree,
+  useSessionAttachmentDataUrls,
+  useSessionRuns,
+} from './models'
 import {Notice} from '@shm/ui/notice'
 import {descendantsOf, isTerminalRun, RunTimerProgress, RunWorkHierarchy, useRunTreeView} from './run-work'
 import {useAccount} from '@shm/shared/models/entity'
@@ -988,6 +995,50 @@ function TruncatedPayloadNotice({
   )
 }
 
+/**
+ * Which machines a tool call touched, for the inspector. A timed-out publish reads the same as a
+ * timed-out read unless the dialog says where the request went: the agent server that ran the tool,
+ * and the Seed HM server that server publishes to and reads from (per its health endpoint). Every
+ * `read`/`write` hits that HM server — a write may only target it — so the row is named for what
+ * the operator has to go look at, not for the tool.
+ */
+function ToolCallServersSection({args}: {args: ChatToolPart['args'] | undefined}) {
+  const {serverUrl} = React.useContext(ToolRowContext)
+  const health = useAgentServerHealth(serverUrl)
+  const requested =
+    args && typeof args === 'object'
+      ? typeof (args as {server?: unknown}).server === 'string'
+        ? String((args as {server: string}).server)
+        : (args as {dev?: unknown}).dev === true
+          ? 'dev'
+          : undefined
+      : undefined
+  const rows: {label: string; value: string}[] = [
+    {label: 'Agent server', value: serverUrl || 'Unknown'},
+    {
+      label: 'Hypermedia server',
+      value: health.data?.hmServerUrl || (health.isError ? 'Unreachable' : health.isLoading ? 'Loading…' : 'Unknown'),
+    },
+  ]
+  if (health.data?.ipfsServerUrl) rows.push({label: 'IPFS gateway', value: health.data.ipfsServerUrl})
+  if (requested) rows.push({label: 'Requested server', value: requested})
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="text-muted-foreground text-[10px] font-medium tracking-[0.18em] uppercase">Servers</div>
+      <div className="bg-muted grid gap-x-4 gap-y-1 rounded-md p-2 sm:grid-cols-2">
+        {rows.map((row) => (
+          <div key={row.label} className="flex min-w-0 items-baseline justify-between gap-2 text-xs">
+            <span className="text-muted-foreground shrink-0">{row.label}</span>
+            <span className="min-w-0 text-right font-medium break-all" title={row.value}>
+              {row.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function ToolCallDebugDialog({
   item,
   open,
@@ -1015,6 +1066,7 @@ function ToolCallDebugDialog({
               item.calledAt || item.completedAt ? {startedAt: item.calledAt, completedAt: item.completedAt} : undefined
             }
           />
+          <ToolCallServersSection args={args} />
           {typeof args?.script === 'string' && args.script ? (
             <div className="min-h-0 space-y-1">
               <div className="text-muted-foreground text-[10px] font-medium tracking-[0.18em] uppercase">Script</div>
