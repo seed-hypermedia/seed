@@ -53,6 +53,74 @@ func TestIndexIgnoresNonScalarDocumentAttributes(t *testing.T) {
 	require.Equal(t, 1, indexed, "only the scalar name attribute must be indexed")
 }
 
+// A block gets exactly one fts row per change, no matter how many times the
+// change moves it, and a move never records stale content for a block the same
+// change replaces. Before this, each move entry re-read and re-inserted the
+// block's content, which made a full reindex quadratic in the number of moves.
+func TestIndexChangeIndexesEachBlockOncePerChange(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+	db := storage.MakeTestDB(t)
+	idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+	require.NoError(t, err)
+
+	clock := cclock.New()
+	first, err := NewChange(alice, cid.Undef, nil, 0, ChangeBody{
+		Ops: []OpMap{
+			NewOpMoveBlocks("", []string{"b1", "b2"}, nil),
+			NewOpReplaceBlock(Block{ID_Good: "b1", Type: "paragraph", Text: "hello"}),
+			NewOpReplaceBlock(Block{ID_Good: "b2", Type: "paragraph", Text: "world"}),
+		},
+	}, clock.MustNow())
+	require.NoError(t, err)
+
+	// b1 is dragged around 500 times and then rewritten; b2 is only moved.
+	moved := make([]string, 0, 501)
+	for range 500 {
+		moved = append(moved, "b1")
+	}
+	moved = append(moved, "b2")
+	second, err := NewChange(alice, first.CID, []cid.Cid{first.CID}, 1, ChangeBody{
+		Ops: []OpMap{
+			NewOpMoveBlocks("", moved, nil),
+			NewOpReplaceBlock(Block{ID_Good: "b1", Type: "paragraph", Text: "changed"}),
+		},
+	}, clock.MustNow())
+	require.NoError(t, err)
+
+	ref, err := NewRef(alice, 0, first.CID, alice.Principal(), "/moves", []cid.Cid{second.CID}, clock.MustNow(), VisibilityPublic)
+	require.NoError(t, err)
+	require.NoError(t, idx.PutMany(t.Context(), []blocks.Block{first, second, ref}))
+
+	const q = `
+		SELECT json_group_object(fi.block_id, fts.raw_content)
+		FROM fts_index fi
+		JOIN fts ON fts.rowid = fi.rowid
+		JOIN blobs b ON b.id = fi.blob_id
+		WHERE b.multihash = ? AND fi.type = 'document'
+	`
+	for _, tt := range []struct {
+		name   string
+		change Encoded[*Change]
+		want   map[string]string
+	}{
+		{"first", first, map[string]string{"b1": "hello", "b2": "world"}},
+		{"second", second, map[string]string{"b1": "changed", "b2": "world"}},
+	} {
+		rows, err := sqlitex.QueryOnePool[int](t.Context(), db, `
+			SELECT COUNT() FROM fts_index fi JOIN blobs b ON b.id = fi.blob_id
+			WHERE b.multihash = ? AND fi.type = 'document'
+		`, []byte(tt.change.CID.Hash()))
+		require.NoError(t, err)
+		require.Equal(t, len(tt.want), rows, "%s change: one fts row per block", tt.name)
+
+		raw, err := sqlitex.QueryOnePool[string](t.Context(), db, q, []byte(tt.change.CID.Hash()))
+		require.NoError(t, err)
+		var got map[string]string
+		require.NoError(t, json.Unmarshal([]byte(raw), &got))
+		require.Equal(t, tt.want, got, "%s change: indexed content", tt.name)
+	}
+}
+
 func TestIterChangesDoesNotLoadResolvedAttributes(t *testing.T) {
 	alice := coretest.NewTester("alice").Account
 	db := storage.MakeTestDB(t)

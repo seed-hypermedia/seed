@@ -401,6 +401,22 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 
 	extra := changeIndexedAttrs{Actor: uint64(author.ActorID())}
 	opIndex := -1
+
+	// Each block gets at most one fts row per change.
+	//
+	// The CRDT emits one MoveBlocks entry per recorded move, so a block dragged
+	// around during an editing session can appear thousands of times in a single
+	// change. Indexing every entry used to look up the block's previous content
+	// (a scan over every fts row the block already had) and insert yet another
+	// copy, which made the reindex quadratic in the number of moves. Moves are
+	// therefore only collected here and resolved after the loop, and only for
+	// blocks that the change doesn't also replace or delete: those ops write the
+	// block's final content for this version themselves, so a move row would be
+	// a stale duplicate at the same version.
+	ftsWritten := map[string]struct{}{}
+	movedSeen := map[string]struct{}{}
+	var movedBlocks []string
+
 	for op, err := range v.Ops() {
 		opIndex++
 		if err != nil {
@@ -500,28 +516,47 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 			if err := dbFTSInsertOrReplace(ictx.conn, blk.Text, "document", id, blk.ID(), sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
 				return fmt.Errorf("failed to insert record in fts table: %w", err)
 			}
+			ftsWritten[blk.ID()] = struct{}{}
 		case OpMoveBlocks:
 			for _, blk := range op.Blocks {
-				content, _, err := dbFTSGetRawContent(ictx.conn, id, blk, sb.GenesisBlob.Hash().String())
-				if err != nil {
-					return fmt.Errorf("failed to get raw content for block %s: %w", blk, err)
-				}
-				if content == "" {
+				if _, seen := movedSeen[blk]; seen {
 					continue
-				} else if err := dbFTSInsertOrReplace(ictx.conn, content, "document", id, blk, sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
-					return fmt.Errorf("failed to insert record in fts table: %w", err)
 				}
-
+				movedSeen[blk] = struct{}{}
+				movedBlocks = append(movedBlocks, blk)
 			}
 
 		case OpDeleteBlocks:
 			for _, blk := range op.Blocks {
+				if _, done := ftsWritten[blk]; done {
+					continue
+				}
 				if err := dbFTSInsertOrReplace(ictx.conn, "", "document", id, blk, sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
 					return fmt.Errorf("failed to insert record in fts table: %w", err)
 				}
+				ftsWritten[blk] = struct{}{}
 			}
 
 		}
+	}
+
+	// Blocks that were only moved keep their latest indexed content, re-recorded
+	// under this change's version so search can point at it.
+	for _, blk := range movedBlocks {
+		if _, done := ftsWritten[blk]; done {
+			continue
+		}
+		content, _, err := dbFTSGetRawContent(ictx.conn, id, blk, sb.GenesisBlob.Hash().String())
+		if err != nil {
+			return fmt.Errorf("failed to get raw content for block %s: %w", blk, err)
+		}
+		if content == "" {
+			continue
+		}
+		if err := dbFTSInsertOrReplace(ictx.conn, content, "document", id, blk, sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
+			return fmt.Errorf("failed to insert record in fts table: %w", err)
+		}
+		ftsWritten[blk] = struct{}{}
 	}
 
 	if extra.Title != "" || len(extra.Metadata) > 0 || len(extra.Attributes) > 0 {
