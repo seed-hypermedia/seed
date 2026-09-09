@@ -66,15 +66,22 @@ function rawCapToHMCapability(raw: HMRawCapability): HMCapability | null {
 /**
  * Query options for fetching a resource (document, comment, etc.)
  */
-export function queryResource(client: UniversalClient, id: UnpackedHypermediaId | null | undefined) {
+export function queryResource(
+  client: UniversalClient,
+  id: UnpackedHypermediaId | null | undefined,
+  {followRedirects = true}: {followRedirects?: boolean} = {},
+) {
   const version = id?.version || undefined
   const latest = id?.latest || false
   return {
-    queryKey: [queryKeys.ENTITY, id?.id, version, latest] as const,
+    queryKey: followRedirects
+      ? ([queryKeys.ENTITY, id?.id, version, latest] as const)
+      : ([queryKeys.ENTITY, id?.id, version, latest, 'raw'] as const),
     queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMResource | null> => {
       if (!id) return null
       try {
         let res = await client.request('Resource', id, {signal})
+        if (!followRedirects) return HMResourceSchema.parse(res)
         let republishSourceId: UnpackedHypermediaId | null = null
         // Follow redirects automatically so consumers never see {type: 'redirect'}.
         // Republish refs are special: they should render the target content while

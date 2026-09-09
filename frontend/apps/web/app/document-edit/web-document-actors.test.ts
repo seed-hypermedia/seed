@@ -22,6 +22,7 @@ import {_resetWebDocDraftDBForTesting, getWebDocDraft, listWebDocDraftsForDoc, p
 const enqueueWebDocumentCardCleanupMock = vi.hoisted(() => vi.fn(async () => ({enqueued: true})))
 
 vi.mock('./web-document-card-cleanup', () => ({
+  releaseWebDocumentCardCleanup: vi.fn(async () => {}),
   enqueueWebDocumentCardCleanup: enqueueWebDocumentCardCleanupMock,
 }))
 
@@ -171,6 +172,31 @@ describe('writeWebDraft', () => {
   afterEach(async () => {
     _resetWebDocDraftDBForTesting()
     await dropDB()
+  })
+
+  it('round-trips the published rebase baseline and local touches without overwriting metadata', async () => {
+    const deps = makeDeps({})
+    const baseline = [paragraph('published', 'Original published content')]
+    const input = {
+      draftId: 'rebase-draft',
+      metadata: {name: 'Local title'},
+      deps: ['headA', 'headB'],
+      navigation: undefined,
+      locationUid: OWNER,
+      locationPath: [],
+      editUid: OWNER,
+      editPath: [],
+      signingAccountId: OWNER,
+      mineTouchedIds: ['published'],
+      baseBlocks: baseline,
+    }
+    await writeWebDraft(deps, input)
+    const saved = await getWebDocDraft('rebase-draft')
+    expect(saved).toMatchObject({baseBlocks: baseline, mineTouchedIds: ['published'], deps: ['headA', 'headB']})
+
+    await writeWebDraft(deps, {...input, metadata: {}, baseBlocks: [], mineTouchedIds: []})
+    const updated = await getWebDocDraft('rebase-draft')
+    expect(updated).toMatchObject({baseBlocks: [], mineTouchedIds: [], metadata: {name: 'Local title'}})
   })
 
   it('keeps a new placeholder document classified as an unpublished draft after later saves', async () => {
@@ -559,6 +585,12 @@ describe('publishWebDocument', () => {
     expect(enqueueWebDocumentCardCleanupMock).toHaveBeenCalledWith(
       {
         operation: 'add',
+        childDraftId: draftId,
+        awaitingPrimary: {
+          documentId: `hm://${OWNER}/parent/hello-web`,
+          expectedType: 'document',
+          expectedVersion: expect.any(String),
+        },
         parentDocumentId: `hm://${OWNER}/parent`,
         targetDocumentId: `hm://${OWNER}/parent/hello-web`,
         signingAccountUid: OWNER,
@@ -677,6 +709,7 @@ describe('publishWebDocument', () => {
 
     const finalResourceCall = deps.requestMock.mock.calls.filter((c: any) => c[0] === 'Resource').at(-1)!
     expect(finalResourceCall[1].path).toEqual(['secret-generated-path'])
+    expect(enqueueWebDocumentCardCleanupMock).not.toHaveBeenCalled()
   })
 
   it('first-publish home document bootstraps a genesis Change and Ref, and bases the change on it', async () => {

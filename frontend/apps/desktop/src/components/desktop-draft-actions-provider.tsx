@@ -82,6 +82,7 @@ export function DesktopDraftActionsProvider({
         const draft = await client.drafts.get.query(draftId)
         if (!draft) throw new Error(`Draft ${draftId} not found`)
         await client.drafts.write.mutate({
+          ...draft,
           id: draft.id,
           locationUid: draft.locationUid,
           locationPath: draft.locationPath,

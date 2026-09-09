@@ -19,6 +19,7 @@ import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import fs from 'fs/promises'
 import {nanoid} from 'nanoid'
 import {join} from 'path'
+import {isDeepStrictEqual} from 'node:util'
 import z from 'zod'
 import {appInvalidateQueries} from './app-invalidation'
 import {userDataPath} from './app-paths'
@@ -454,6 +455,7 @@ async function readDraftContent(draftId: string, indexEntry: HMListedDraft): Pro
 
       return {
         content: editorBlocks,
+        maintenanceRevision: 0,
         deps: indexEntry.deps || [],
         navigation: indexEntry.navigation,
       }
@@ -473,10 +475,151 @@ async function readDraftContent(draftId: string, indexEntry: HMListedDraft): Pro
   }
 }
 
+// A single queue also protects the shared index from overlapping mutations.
+let draftMutation: Promise<unknown> = Promise.resolve()
+function serializeDraftMutation<T>(operation: () => Promise<T>): Promise<T> {
+  const result = draftMutation.then(operation)
+  draftMutation = result.catch(() => undefined)
+  return result
+}
+
+const DraftWriteSchema = z.object({
+  id: z.string(),
+  locationUid: z.string().optional(),
+  locationPath: z.string().array().optional(),
+  editUid: z.string().optional(),
+  editPath: z.string().array().optional(),
+  metadata: HMDocumentMetadataSchema,
+  content: z.any(),
+  signingAccount: z.string().optional(),
+  deps: z.array(z.string().min(1)).default([]),
+  navigation: z.array(HMNavigationItemSchema).optional(),
+  visibility: HMResourceVisibilitySchema,
+  cursorPosition: z.number().optional(),
+  removedChildDocumentIds: z.array(z.string()).optional(),
+  mineTouchedIds: z.array(z.string()).optional(),
+  baseBlocks: z.array(z.any()).optional(),
+  publishPath: z.array(z.string()).optional(),
+  maintenancePreviousDeps: z.array(z.array(z.string())).optional(),
+  maintenanceRevision: z.number().int().nonnegative().default(0),
+})
+
+async function getDraft(draftId: string): Promise<HMDraft | null> {
+  const entry = draftIndex?.find((draft) => draft.id === draftId)
+  if (!entry) return null
+  const content = await readDraftContent(draftId, entry)
+  return content ? {...entry, ...content, id: draftId} : null
+}
+
+/** Replace a draft only while its complete persisted snapshot still matches. */
+export function compareAndSwapDraft(expected: HMDraft, replacement: HMDraft): Promise<boolean> {
+  return serializeDraftMutation(async () => {
+    if (expected.id !== replacement.id) throw new Error('Draft identity cannot change during maintenance')
+    const current = await getDraft(expected.id)
+    if (!isDeepStrictEqual(current, expected)) return false
+    await writeDraft(
+      {
+        ...replacement,
+        maintenancePreviousDeps: [
+          ...(current?.maintenancePreviousDeps ?? []),
+          ...(isDeepStrictEqual(expected.deps, replacement.deps) ? [] : [expected.deps]),
+        ],
+      },
+      true,
+    )
+    return true
+  })
+}
+
+async function writeDraft(input: z.infer<typeof DraftWriteSchema>, maintenance = false) {
+  if (!draftIndex) {
+    throw Error('[DRAFT]: Draft Index not initialized')
+  }
+
+  const draftId = input.id || nanoid(10)
+  const current = await getDraft(draftId)
+  const maintenancePreviousDeps = maintenance ? input.maintenancePreviousDeps : current?.maintenancePreviousDeps
+  if (
+    !maintenance &&
+    ((input.maintenanceRevision ?? 0) !== (current?.maintenanceRevision ?? 0) ||
+      maintenancePreviousDeps?.some((deps) => isDeepStrictEqual([...deps].sort(), [...input.deps].sort())))
+  ) {
+    // Keep the rejected editor snapshot recoverable without restoring its obsolete baseline.
+    await fs.mkdir(draftBackupsDir, {recursive: true})
+    await fs.writeFile(
+      join(draftBackupsDir, `${draftId}-${Date.now()}-rejected-baseline-${nanoid(6)}.json`),
+      JSON.stringify(input, null, 2),
+    )
+    await pruneDraftBackups(draftId)
+    throw new Error('[DRAFT]: Draft baseline changed during reference maintenance; reload or rebase before saving')
+  }
+  const previousDraftFile = await resolveDraftFile(draftId)
+  await snapshotDraftFile(draftId, 'overwrite')
+
+  // Build the index entry with deps and navigation included
+  const newDraft = {
+    id: draftId,
+    locationUid: input.locationUid,
+    locationPath: input.locationPath,
+    editUid: input.editUid,
+    editPath: input.editPath,
+    metadata: input.metadata,
+    lastUpdateTime: Date.now(),
+    visibility: input.visibility,
+    deps: input.deps,
+    navigation: input.navigation,
+    isCollection:
+      deriveDocumentType(
+        input.content,
+        hmId(input.editUid ?? input.locationUid ?? '', {path: input.editPath ?? input.locationPath ?? []}),
+      ) === 'collection',
+  } as HMListedDraft
+
+  draftIndex = [...draftIndex.filter((d) => d.id !== draftId), newDraft]
+  await saveDraftIndex()
+
+  // Save content as JSON (preserves all block types losslessly).
+  // Markdown write path will be enabled once all block types can roundtrip.
+  const draftPath = join(draftsDir, `${draftId}.json`)
+  const draft: HMDraftContent = {
+    content: input.content,
+    // @ts-expect-error
+    signingAccount: input.signingAccount,
+    deps: input.deps,
+    navigation: input.navigation,
+    cursorPosition: input.cursorPosition,
+    removedChildDocumentIds: input.removedChildDocumentIds,
+    mineTouchedIds: input.mineTouchedIds,
+    baseBlocks: input.baseBlocks,
+    publishPath: input.publishPath,
+    maintenancePreviousDeps,
+    maintenanceRevision: maintenance ? (current?.maintenanceRevision ?? 0) + 1 : input.maintenanceRevision ?? 0,
+  }
+
+  HMDraftContentSchema.parse(draft)
+  try {
+    await fs.writeFile(draftPath, JSON.stringify(draft, null, 2))
+    if (previousDraftFile && previousDraftFile.path !== draftPath) {
+      await fs.rm(previousDraftFile.path, {force: true})
+    }
+    draftFileMap.set(draftId, `${draftId}.json`)
+    appInvalidateQueries([queryKeys.DRAFTS_LIST])
+    appInvalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
+    if (input.locationUid) appInvalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, input.locationUid])
+    if (input.editUid && input.editUid !== input.locationUid) {
+      appInvalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, input.editUid])
+    }
+    appInvalidateQueries([queryKeys.DRAFT, draftId])
+    return {id: draftId}
+  } catch (err) {
+    throw Error(`[DRAFT]: Error writing draft: ${JSON.stringify(err, null)}`)
+  }
+}
+
 export const draftsApi = t.router({
   list: t.procedure.query(async (): Promise<HMListedDraft[]> => {
     // Check for new CLI-created drafts on every list call
-    await discoverNewDrafts()
+    await serializeDraftMutation(discoverNewDrafts)
 
     return (
       draftIndex?.map((d) => ({
@@ -490,7 +633,7 @@ export const draftsApi = t.router({
     if (!input) return []
 
     // Check for new CLI-created drafts
-    await discoverNewDrafts()
+    await serializeDraftMutation(discoverNewDrafts)
 
     return (
       draftIndex
@@ -515,134 +658,34 @@ export const draftsApi = t.router({
       )
       return found || null
     }),
-  get: t.procedure.input(z.string().optional()).query(async ({input: draftId}) => {
-    if (!draftId) return null
-
-    try {
-      const draftIndexEntry = draftIndex?.find((d) => d.id === draftId)
-      if (!draftIndexEntry) return null
-
-      const draftContent = await readDraftContent(draftId, draftIndexEntry)
-      if (!draftContent) return null
-
-      const draft: HMDraft = {
-        ...draftIndexEntry,
-        ...draftContent,
-        id: draftId,
-      }
-      return draft
-    } catch (e) {
-      console.error(`Failed to get draft ${draftId}`, e)
-      return null
-    }
-  }),
-  write: t.procedure
-    .input(
-      z.object({
-        id: z.string(),
-        locationUid: z.string().optional(),
-        locationPath: z.string().array().optional(),
-        editUid: z.string().optional(),
-        editPath: z.string().array().optional(),
-        metadata: HMDocumentMetadataSchema,
-        content: z.any(),
-        signingAccount: z.string().optional(),
-        deps: z.array(z.string().min(1)).default([]),
-        navigation: z.array(HMNavigationItemSchema).optional(),
-        visibility: HMResourceVisibilitySchema,
-        cursorPosition: z.number().optional(),
-        mineTouchedIds: z.array(z.string()).optional(),
-        baseBlocks: z.array(z.any()).optional(),
-        publishPath: z.array(z.string()).optional(),
-      }),
-    )
-    .mutation(async ({input}) => {
-      if (!draftIndex) {
-        throw Error('[DRAFT]: Draft Index not initialized')
-      }
-
-      const draftId = input.id || nanoid(10)
-      const previousDraftFile = await resolveDraftFile(draftId)
-      await snapshotDraftFile(draftId, 'overwrite')
-
-      // Build the index entry with deps and navigation included
-      const newDraft = {
-        id: draftId,
-        locationUid: input.locationUid,
-        locationPath: input.locationPath,
-        editUid: input.editUid,
-        editPath: input.editPath,
-        metadata: input.metadata,
-        lastUpdateTime: Date.now(),
-        visibility: input.visibility,
-        deps: input.deps,
-        navigation: input.navigation,
-        isCollection:
-          deriveDocumentType(
-            input.content,
-            hmId(input.editUid ?? input.locationUid ?? '', {path: input.editPath ?? input.locationPath ?? []}),
-          ) === 'collection',
-      } as HMListedDraft
-
-      draftIndex = [...draftIndex.filter((d) => d.id !== draftId), newDraft]
+  get: t.procedure
+    .input(z.string().optional())
+    .query(({input}) => serializeDraftMutation(async () => (input ? getDraft(input) : null))),
+  write: t.procedure.input(DraftWriteSchema).mutation(({input}) => serializeDraftMutation(() => writeDraft(input))),
+  delete: t.procedure.input(z.string()).mutation(({input}) =>
+    serializeDraftMutation(async () => {
+      await snapshotDraftFile(input, 'delete')
+      draftIndex = draftIndex?.filter((d) => d.id !== input)
       await saveDraftIndex()
 
-      // Save content as JSON (preserves all block types losslessly).
-      // Markdown write path will be enabled once all block types can roundtrip.
-      const draftPath = join(draftsDir, `${draftId}.json`)
-      const draft: HMDraftContent = {
-        content: input.content,
-        // @ts-expect-error
-        signingAccount: input.signingAccount,
-        deps: input.deps,
-        navigation: input.navigation,
-        cursorPosition: input.cursorPosition,
-        mineTouchedIds: input.mineTouchedIds,
-        baseBlocks: input.baseBlocks,
-        publishPath: input.publishPath,
+      // Remove the file from disk using the file map
+      const filename = draftFileMap.get(input)
+      if (filename) {
+        try {
+          await fs.unlink(join(draftsDir, filename))
+        } catch {}
+        draftFileMap.delete(input)
       }
 
-      HMDraftContentSchema.parse(draft)
-      try {
-        await fs.writeFile(draftPath, JSON.stringify(draft, null, 2))
-        if (previousDraftFile && previousDraftFile.path !== draftPath) {
-          await fs.rm(previousDraftFile.path, {force: true})
-        }
-        draftFileMap.set(draftId, `${draftId}.json`)
-        appInvalidateQueries([queryKeys.DRAFTS_LIST])
-        appInvalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
-        if (input.locationUid) appInvalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, input.locationUid])
-        if (input.editUid && input.editUid !== input.locationUid) {
-          appInvalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, input.editUid])
-        }
-        appInvalidateQueries([queryKeys.DRAFT, draftId])
-        return {id: draftId}
-      } catch (err) {
-        throw Error(`[DRAFT]: Error writing draft: ${JSON.stringify(err, null)}`)
+      // Also try removing legacy patterns
+      for (const ext of ['.md', '.json']) {
+        try {
+          await fs.unlink(join(draftsDir, `${input}${ext}`))
+        } catch {}
       }
+
+      appInvalidateQueries(['trpc.drafts.list'])
+      appInvalidateQueries(['trpc.drafts.listAccount'])
     }),
-  delete: t.procedure.input(z.string()).mutation(async ({input}) => {
-    await snapshotDraftFile(input, 'delete')
-    draftIndex = draftIndex?.filter((d) => d.id !== input)
-    await saveDraftIndex()
-
-    // Remove the file from disk using the file map
-    const filename = draftFileMap.get(input)
-    if (filename) {
-      try {
-        await fs.unlink(join(draftsDir, filename))
-      } catch {}
-      draftFileMap.delete(input)
-    }
-
-    // Also try removing legacy patterns
-    for (const ext of ['.md', '.json']) {
-      try {
-        await fs.unlink(join(draftsDir, `${input}${ext}`))
-      } catch {}
-    }
-
-    appInvalidateQueries(['trpc.drafts.list'])
-    appInvalidateQueries(['trpc.drafts.listAccount'])
-  }),
+  ),
 })

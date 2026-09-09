@@ -17,6 +17,7 @@ import React, {Suspense, useEffect, useState} from 'react'
 import ReactDOM from 'react-dom/client'
 import {ErrorBoundary} from 'react-error-boundary'
 import {AppErrorContent, RootAppError} from './components/app-error'
+import {DesktopDocumentMaintenance} from './components/document-maintenance'
 import {DebugDialogs} from './components/debug-dialogs'
 import type {GoDaemonState} from './daemon'
 import {grpcClient} from './grpc-client'
@@ -288,7 +289,9 @@ function MainApp({}: {}) {
 
   const mainContent = (
     <>
-      <Main />
+      <DesktopDocumentMaintenance>
+        <Main />
+      </DesktopDocumentMaintenance>
       {!IS_PROD_DESKTOP && false && <DebugDialogs />}
     </>
   )

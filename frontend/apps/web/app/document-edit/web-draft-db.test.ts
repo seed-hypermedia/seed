@@ -5,6 +5,7 @@ import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {
   _resetWebDocDraftDBForTesting,
   cleanupOldWebDocDrafts,
+  compareAndSwapWebDocDraft,
   deleteWebDocDraft,
   getLatestWebDocDraftForDoc,
   getWebDocDraft,
@@ -53,6 +54,62 @@ describe('web-draft-db', () => {
   afterEach(async () => {
     _resetWebDocDraftDBForTesting()
     await dropDB()
+  })
+
+  it('atomically replaces an unchanged draft and retains a recovery snapshot', async () => {
+    await putWebDocDraft(makeDraft())
+    const before = (await getWebDocDraft('draft-1'))!
+    expect(await compareAndSwapWebDocDraft(before, {...before, deps: ['corrected-head']})).toBe(true)
+    expect((await getWebDocDraft('draft-1'))?.deps).toEqual(['corrected-head'])
+    expect((await listWebDocDraftSnapshots('draft-1'))[0]?.draft).toEqual(before)
+  })
+
+  it('does not overwrite an intervening edit even when timestamps are equal', async () => {
+    await putWebDocDraft(makeDraft({updatedAt: 10}))
+    const before = (await getWebDocDraft('draft-1'))!
+    await putWebDocDraft({...before, metadata: {name: 'Unsaved work'}, updatedAt: 10})
+    expect(await compareAndSwapWebDocDraft(before, {...before, deps: ['corrected-head']})).toBe(false)
+    expect((await getWebDocDraft('draft-1'))?.metadata).toEqual({name: 'Unsaved work'})
+  })
+
+  it('does not recreate a discarded draft during reconciliation', async () => {
+    await putWebDocDraft(makeDraft())
+    const before = (await getWebDocDraft('draft-1'))!
+    await deleteWebDocDraft('draft-1')
+    expect(await compareAndSwapWebDocDraft(before, {...before, deps: ['corrected-head']})).toBe(false)
+    expect(await getWebDocDraft('draft-1')).toBeNull()
+  })
+
+  it('allows only one reconciliation to replace the same saved draft', async () => {
+    await putWebDocDraft(makeDraft())
+    const before = (await getWebDocDraft('draft-1'))!
+    const results = await Promise.all([
+      compareAndSwapWebDocDraft(before, {...before, deps: ['head-a']}),
+      compareAndSwapWebDocDraft(before, {...before, deps: ['head-b']}),
+    ])
+    expect(results.filter(Boolean)).toHaveLength(1)
+  })
+
+  it('rejects a stale autosave after maintenance without losing its recovery copy', async () => {
+    await putWebDocDraft(makeDraft())
+    const before = (await getWebDocDraft('draft-1'))!
+    await compareAndSwapWebDocDraft(before, {...before, deps: ['corrected-head']})
+    await expect(putWebDocDraft({...before, metadata: {name: 'Late edit'}})).rejects.toThrow('baseline changed')
+    expect((await getWebDocDraft('draft-1'))?.deps).toEqual(['corrected-head'])
+    expect((await listWebDocDraftSnapshots('draft-1')).some((s) => s.draft.metadata.name === 'Late edit')).toBe(true)
+    await putWebDocDraft({...before, deps: ['user-rebased-head'], maintenanceRevision: 1})
+    expect((await getWebDocDraft('draft-1'))?.deps).toEqual(['user-rebased-head'])
+  })
+
+  it('rejects stale content when maintenance changes the draft without changing its published heads', async () => {
+    await putWebDocDraft(makeDraft())
+    const before = (await getWebDocDraft('draft-1'))!
+    await compareAndSwapWebDocDraft(before, {...before, metadata: {name: 'Corrected'}})
+    await expect(putWebDocDraft({...before, metadata: {name: 'Stale editor'}})).rejects.toThrow('baseline')
+    expect(await getWebDocDraft('draft-1')).toMatchObject({metadata: {name: 'Corrected'}, maintenanceRevision: 1})
+    expect(
+      (await listWebDocDraftSnapshots('draft-1')).some((snapshot) => snapshot.draft.metadata.name === 'Stale editor'),
+    ).toBe(true)
   })
 
   it('round-trips a draft', async () => {

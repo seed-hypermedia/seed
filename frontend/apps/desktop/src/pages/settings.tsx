@@ -49,6 +49,7 @@ import {TabsContent, TabsTrigger} from '@shm/ui/components/tabs'
 import {Textarea} from '@shm/ui/components/textarea'
 import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {DocumentMaintenanceTrigger} from '@shm/ui/document-maintenance'
 import {Field} from '@shm/ui/form-fields'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Copy, ExternalLink} from '@shm/ui/icons'
@@ -296,6 +297,13 @@ function GeneralSettings() {
               </RadioGroup>
             ) : null
           }
+        />
+      </SettingsCard>
+      <SettingsCard label="DOCUMENT MAINTENANCE">
+        <SettingsRow
+          label="Review document operations on this device."
+          description="Check pending work and resolve operations that need attention."
+          right={<DocumentMaintenanceTrigger alwaysVisible />}
         />
       </SettingsCard>
       <SettingsCard label="HISTORY">

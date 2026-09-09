@@ -17,7 +17,7 @@ export type {
   SignDocumentChangeInput,
 } from './change'
 export {createSeedClient} from './client'
-export type {PublishDocumentInput, SeedClient, SeedClientOptions} from './client'
+export type {PublishDocumentResult, PublishDocumentInput, SeedClient, SeedClientOptions} from './client'
 export {commentRecordIdFromBlob, createComment, deleteComment, updateComment} from './comment'
 export type {
   CommentAttachmentBlob,

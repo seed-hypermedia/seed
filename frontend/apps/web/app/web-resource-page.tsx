@@ -48,6 +48,7 @@ import {isPendingSpaceUid, isSpaceHomeDraftId} from './document-edit/web-create-
 import {createWebDocumentMachine} from './document-edit/web-document-actors'
 import {
   loadWebCleanupDraft,
+  reportWebDocumentCardCleanupConflict,
   startWebDocumentCardCleanupCoordinator,
   subscribeWebDraftExternallyModified,
 } from './document-edit/web-document-card-cleanup'
@@ -84,12 +85,37 @@ function WebDraftExternalModificationListener() {
   const actorRef = useDocumentMachineRef()
 
   useEffect(() => {
+    const subscription = actorRef.on('maintenanceConflict', (event) => {
+      Promise.resolve(reportWebDocumentCardCleanupConflict(event.jobId, event.error)).catch((error) => {
+        console.error('Failed to record document maintenance conflict', error)
+      })
+    })
+    return () => subscription.unsubscribe()
+  }, [actorRef])
+
+  useEffect(() => {
     return subscribeWebDraftExternallyModified(async (event) => {
       const context = selectContext(actorRef.getSnapshot())
       if (event.source !== 'document-card-cleanup' || event.draftId !== context.draftId) return
       const draft = await loadWebCleanupDraft(event.draftId)
+      if (
+        event.publishedDocument &&
+        (!draft || [...draft.deps].sort().join('.') !== event.publishedDocument.version.split('.').sort().join('.'))
+      )
+        return
+
+      if (event.maintenanceRevision !== undefined && draft?.maintenanceRevision !== event.maintenanceRevision) return
       actorRef.send({
         type: 'draft.externallyModified',
+        jobId: event.jobId,
+        cardBlockId: event.cardBlockId,
+        childDraftId: event.childDraftId,
+        targetBlockId: event.targetBlockId,
+        operation: event.operation === 'delete-child' ? undefined : event.operation,
+        sourceDocumentId: event.sourceDocumentId,
+        targetDocumentId: event.targetDocumentId,
+        previousContent: event.previousContent,
+        publishedDocument: event.publishedDocument,
         draftId: event.draftId,
         source: event.source,
         deletedDocumentId: event.deletedDocumentId || event.sourceDocumentId,
@@ -98,6 +124,10 @@ function WebDraftExternalModificationListener() {
         cursorPosition: draft?.cursorPosition ?? null,
         metadata: draft?.metadata ?? null,
         deps: draft?.deps ?? null,
+        baseBlocks: draft?.baseBlocks ?? null,
+        maintenanceRevision: draft?.maintenanceRevision ?? 0,
+        removedChildDocumentIds: draft?.removedChildDocumentIds ?? null,
+        mineTouchedIds: draft?.mineTouchedIds ?? null,
       })
     })
   }, [actorRef])
@@ -298,7 +328,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     if (!!signingAccountId && !canEdit && capabilitiesLoading) return undefined
     if (draftQueryEnabled && !draftQuery.isSuccess && !draftQuery.isError) return undefined
     if (!effectiveCanEdit) return false
-    if (draftQuery.isLoading) return undefined
+    if (draftQuery.isLoading || draftQuery.isFetching) return undefined
     const d = draftData
     if (!d || isDraftStale) return false
     return {id: d.draftId, metadata: d.metadata as HMExistingDraft['metadata']}
@@ -312,6 +342,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     draftQuery.isError,
     effectiveCanEdit,
     draftQuery.isLoading,
+    draftQuery.isFetching,
     draftData,
     isDraftStale,
   ])
@@ -470,7 +501,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const siteUid = docId.uid
   const currentResource = useResource(useLocalDraftShell ? undefined : docId)
   const currentDocument = currentResource.data?.type === 'document' ? currentResource.data.document : undefined
-  const canCreateChildDocs = canCreateChildDocuments(currentDocument?.visibility, draftData?.visibility)
+  const canCreateChildDocs =
+    !!currentDocument?.version && canCreateChildDocuments(currentDocument?.visibility, draftData?.visibility)
   const {menuItem: newMenuItem, content: newMenuContent} = useWebCreateDocumentMenuItem({
     locationId: docId,
     signingAccountId: signingAccountId ?? undefined,
@@ -695,6 +727,10 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                           existingDraftCursorPosition={existingDraftCursorPosition}
                           existingDraftPublishPath={existingDraftPublishPath}
                           existingDraftDeps={draftData?.deps}
+                          existingDraftBaseBlocks={draftData?.baseBlocks ?? undefined}
+                          existingDraftMaintenanceRevision={draftData?.maintenanceRevision}
+                          existingDraftRemovedChildDocumentIds={draftData?.removedChildDocumentIds}
+                          existingDraftMineTouchedIds={draftData?.mineTouchedIds}
                           draftVersionOnDiscardConfirm={webToolbarCallbacks.onDiscardConfirm}
                           editingFloatingActions={editingFloatingActions}
                           fileUpload={fileUpload}

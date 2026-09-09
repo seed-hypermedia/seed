@@ -223,10 +223,11 @@ export function extractRefs(children: HMBlockNode[], skipCards?: boolean): RefDe
   return refs
 }
 
+/** Extracts direct document references from block links and inline link/embed annotations. */
 export function extractAllContentRefs(children: HMBlockNode[]): RefDefinition[] {
   let refs: RefDefinition[] = []
   function walk(block: HMBlockNode) {
-    if (block.block?.type === 'Embed' && block.block.link) {
+    if (block.block && 'link' in block.block && block.block.link) {
       const refId = unpackHmId(block.block.link)
       if (refId)
         refs.push({

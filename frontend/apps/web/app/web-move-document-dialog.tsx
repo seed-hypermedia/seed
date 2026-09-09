@@ -1,3 +1,5 @@
+import {canUseDocumentDestination} from '@shm/shared/utils/document-actions'
+import {toast} from '@shm/ui/toast'
 import {createRedirectRef, createVersionRef, followToDocument, packHmId, type SeedClient} from '@seed-hypermedia/client'
 import type {HMDocumentInfo, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, useUniversalClient} from '@shm/shared'
@@ -24,7 +26,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useQuery} from '@tanstack/react-query'
 import {useMemo} from 'react'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {enqueueWebDocumentCardCleanup} from './document-edit/web-document-card-cleanup'
+import {enqueueWebDocumentCardCleanup, releaseWebDocumentCardCleanup} from './document-edit/web-document-card-cleanup'
 import {
   getLatestWebDocDraftForDoc,
   getWebDocDraft,
@@ -90,6 +92,7 @@ export function WebDocumentDestinationDialog({
       from: submitInput.from,
       to: submitInput.to,
       childDocuments,
+      origin: submitInput.origin,
       signingAccountId: submitInput.signingAccountId,
       capabilityId,
     })
@@ -142,11 +145,17 @@ export async function moveWebDocuments(
     from: UnpackedHypermediaId
     to: UnpackedHypermediaId
     childDocuments?: HMDocumentInfo[]
+    origin?: DocumentCardActionOrigin
     signingAccountId: string
     capabilityId?: string
   },
 ): Promise<PlannedMove[]> {
   if (!client.getSigner) throw new Error('Signing not available')
+  if (input.to.path?.length) {
+    const parent = await client.request('Resource', hmId(input.to.uid, {path: input.to.path.slice(0, -1)}))
+    if (parent.type !== 'document' || !parent.document.version || parent.document.visibility === 'PRIVATE')
+      throw new Error('Destination parent must be published and public')
+  }
   const signer = client.getSigner(input.signingAccountId) as HMSigner
   const fromPath = input.from.path || []
   const toPath = input.to.path || []
@@ -157,6 +166,50 @@ export async function moveWebDocuments(
       to: hmId(input.to.uid, {path: [...toPath, ...doc.path.slice(fromPath.length)]}),
     }))
   const moves = [{from: input.from, to: input.to}, ...childMoves]
+  // Check every destination before publishing any part of a recursive move.
+  await Promise.all(
+    moves.map(async (move) => {
+      const destination = await client.request('Resource', hmId(move.to.uid, {path: move.to.path}))
+      if (!canUseDocumentDestination(destination, move.from))
+        throw new Error(`A document already exists at ${move.to.id}, or its availability could not be verified.`)
+    }),
+  )
+  const sourceSnapshot = await client.request('Resource', input.from)
+  const primaryGenesis =
+    sourceSnapshot.type === 'document'
+      ? sourceSnapshot.document.genesis || sourceSnapshot.document.generationInfo?.genesis
+      : undefined
+  const pendingJobs: string[] = []
+  const cleanupInputs = getMoveCleanupInputs(input.from, input.to, input.signingAccountId, input.capabilityId)
+  if (input.origin)
+    cleanupInputs.push({
+      operation: 'remove',
+      sourceDocumentId: input.from.id,
+      parentDocumentId: input.origin.parentDocumentId.id,
+      targetBlockId: input.origin.embedBlockId,
+      signingAccountUid: input.signingAccountId,
+      capabilityId: input.capabilityId,
+    } as any)
+  for (const cleanupInput of cleanupInputs) {
+    try {
+      const queued = await enqueueWebDocumentCardCleanup(
+        {
+          ...cleanupInput,
+          awaitingPrimary: {
+            documentId: input.from.id,
+            expectedType: 'redirect',
+            targetDocumentId: input.to.id,
+            expectedGenesis: primaryGenesis,
+          },
+        },
+        {client},
+      )
+      if (queued.jobId) pendingJobs.push(queued.jobId)
+    } catch (error) {
+      console.error('Could not persist move maintenance intent', error)
+      toast.error('Move maintenance could not be saved; parent links will need manual review.')
+    }
+  }
 
   for (const move of moves) {
     // Follows redirects so a redirected source can be moved. The destination keeps the source's
@@ -218,11 +271,12 @@ export async function moveWebDocuments(
     )
   }
 
-  await retargetWebDraftAfterPublishedMove(input.from, input.to)
+  await retargetWebDraftAfterPublishedMove(input.from, input.to).catch((error) => {
+    console.error('Document moved, but its draft location needs review', error)
+    toast.error('Document moved. Its local draft location needs manual review.')
+  })
 
-  for (const cleanupInput of getMoveCleanupInputs(input.from, input.to, input.signingAccountId, input.capabilityId)) {
-    enqueuePostMoveCleanup(cleanupInput, client)
-  }
+  for (const jobId of pendingJobs) await releaseWebDocumentCardCleanup(jobId).catch(console.error)
   invalidateMoveQueries(moves)
   return moves
 }
@@ -238,12 +292,43 @@ export async function republishWebDocument(
   },
 ): Promise<{from: UnpackedHypermediaId; to: UnpackedHypermediaId}> {
   if (!client.getSigner) throw new Error('Signing not available')
+  if (input.to.path?.length) {
+    const parent = await client.request('Resource', hmId(input.to.uid, {path: input.to.path.slice(0, -1)}))
+    if (parent.type !== 'document' || !parent.document.version || parent.document.visibility === 'PRIVATE')
+      throw new Error('Destination parent must be published and public')
+  }
   const signer = client.getSigner(input.signingAccountId) as HMSigner
   // Follows redirects so an already-republished doc can be republished elsewhere too. A fresh
   // generation (the same choice the daemon's CreateRef makes) puts the redirect in its own
   // generation row, so any later publish at the destination path supersedes it cleanly.
   const {document: doc} = await followToDocument(client as unknown as SeedClient, input.from)
   if (!doc.generationInfo) throw new Error('No generation info for document')
+  let pendingJobId: string | undefined
+  const parent = getParentId(input.to)
+  if (parent) {
+    try {
+      const queued = await enqueueWebDocumentCardCleanup(
+        {
+          operation: 'add',
+          parentDocumentId: parent.id,
+          targetDocumentId: input.to.id,
+          signingAccountUid: input.signingAccountId,
+          capabilityId: input.capabilityId,
+          awaitingPrimary: {
+            documentId: input.to.id,
+            expectedType: 'redirect',
+            targetDocumentId: input.from.id,
+            expectedGenesis: doc.genesis || doc.generationInfo?.genesis,
+          },
+        },
+        {client},
+      )
+      pendingJobId = queued.jobId
+    } catch (error) {
+      console.error('Could not persist republish maintenance intent', error)
+      toast.error('Republish maintenance could not be saved; parent links will need manual review.')
+    }
+  }
   await client.publish(
     await createRedirectRef(
       {
@@ -260,19 +345,7 @@ export async function republishWebDocument(
     ),
   )
 
-  const parent = getParentId(input.to)
-  if (parent) {
-    enqueuePostMoveCleanup(
-      {
-        operation: 'add',
-        parentDocumentId: parent.id,
-        targetDocumentId: input.to.id,
-        signingAccountUid: input.signingAccountId,
-        capabilityId: input.capabilityId,
-      },
-      client,
-    )
-  }
+  if (pendingJobId) await releaseWebDocumentCardCleanup(pendingJobId).catch(console.error)
   invalidateMoveQueries([{from: input.from, to: input.to}])
   return {from: input.from, to: input.to}
 }
@@ -405,15 +478,6 @@ function getMoveCleanupInputs(
     signingAccountUid,
     capabilityId,
   }))
-}
-
-function enqueuePostMoveCleanup(
-  input: Parameters<typeof enqueueWebDocumentCardCleanup>[0],
-  client: Pick<UniversalClient, 'request'> & {publishDocument?: UniversalClient['publishDocument']},
-) {
-  void enqueueWebDocumentCardCleanup(input, {client}).catch((error) => {
-    console.warn('Document moved, but post-move card cleanup failed to enqueue', error)
-  })
 }
 
 function invalidateMoveQueries(moves: PlannedMove[]) {

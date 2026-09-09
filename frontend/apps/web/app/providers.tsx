@@ -9,6 +9,7 @@ import {defaultRoute} from '@shm/shared/routes'
 import {isHttpUrl, NavAction, NavContextProvider, NavState, navStateReducer} from '@shm/shared/utils/navigation'
 import {AssistantPanelProvider} from './assistant-panel-state'
 import {SiteContextPublisher} from './site-context-bridge'
+import {WebDocumentMaintenance} from './document-maintenance'
 import {WebAssistantHost} from './web-assistant-host'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import type {StateStream} from '@shm/shared/utils/stream'
@@ -121,7 +122,9 @@ export const Providers = (props: {children: any}) => {
               outlive the per-page WebSiteProvider, or every route change would remount the panel.
               The page contexts the panel needs reach it through the site-context bridge. */}
           <AssistantPanelProvider>
-            <WebAssistantHost>{props.children}</WebAssistantHost>
+            <WebAssistantHost>
+              <WebDocumentMaintenance>{props.children}</WebDocumentMaintenance>
+            </WebAssistantHost>
           </AssistantPanelProvider>
         </ReadOnlyViewerProvider>
       </QueryClientProvider>

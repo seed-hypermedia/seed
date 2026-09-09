@@ -2,6 +2,16 @@ import {describe, expect, it, vi} from 'vitest'
 import {publishDesktopDocument} from '../publish-document'
 
 describe('publishDesktopDocument', () => {
+  it('returns the signed publication identity without requiring an indexed reload', async () => {
+    const result = {version: 'signed-v1', genesis: 'genesis-v1', generation: 42}
+    await expect(
+      publishDesktopDocument(
+        {publishDocument: vi.fn(async () => result), getSigner: vi.fn()},
+        {signerAccountUid: 'alice', account: 'alice', path: '/child', changes: []},
+      ),
+    ).resolves.toEqual(result)
+  })
+
   it('uses the seed client PrepareDocumentChange path for existing home documents', async () => {
     const publishDocument = vi.fn().mockResolvedValue(undefined)
     const getSigner = vi.fn()

@@ -1,3 +1,4 @@
+import type {UniversalClient} from '@shm/shared/universal-client'
 import type {
   HMBlockNode,
   HMMetadata,
@@ -38,6 +39,7 @@ export type CreateWebDocumentDraftResult = {
  */
 export async function createWebDocumentDraft({
   locationId,
+  client,
   signingAccountId,
   visibility = 'PUBLIC',
   content,
@@ -49,6 +51,7 @@ export async function createWebDocumentDraft({
   capabilityCid,
 }: {
   locationId: UnpackedHypermediaId
+  client: Pick<UniversalClient, 'request'>
   signingAccountId: string
   visibility?: HMResourceVisibility
   content?: HMBlockNode[]
@@ -61,6 +64,11 @@ export async function createWebDocumentDraft({
 }): Promise<CreateWebDocumentDraftResult> {
   const draftId = generateDraftId()
   const isPrivate = visibility === 'PRIVATE'
+  if (!isPrivate) {
+    const parent = await client.request('Resource', hmId(locationId.uid, {path: locationId.path}))
+    if (parent.type !== 'document' || !parent.document.version || parent.document.visibility === 'PRIVATE')
+      throw new Error('Publish the parent document before creating children')
+  }
   const shouldPersist = persist || isPrivate
 
   let locationPath: string[]
@@ -154,12 +162,14 @@ function markdownToHMBlockNodes(markdown: string): HMBlockNode[] {
 export async function createWebDocumentDraftFromMarkdownFile({
   file,
   locationId,
+  client,
   signingAccountId,
   navigate,
   capabilityCid,
 }: {
   file: File
   locationId: UnpackedHypermediaId
+  client: Pick<UniversalClient, 'request'>
   signingAccountId: string
   capabilityCid?: string
   navigate: (route: WebDocumentDraftRoute) => void
@@ -169,6 +179,7 @@ export async function createWebDocumentDraftFromMarkdownFile({
 
   return createWebDocumentDraft({
     locationId,
+    client,
     signingAccountId,
     capabilityCid,
     metadata,

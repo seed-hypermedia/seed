@@ -7,6 +7,42 @@ describe('resolveHypermediaUrl', () => {
     vi.unstubAllGlobals()
   })
 
+  it('distinguishes ordinary successful web responses from failed resolution in strict mode', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('', {status: 200}))
+      .mockResolvedValueOnce(new Response('', {status: 500}))
+    await expect(
+      resolveHypermediaUrl('https://ordinary.example/article', {requireSuccessfulResponse: true}),
+    ).resolves.toBeNull()
+    await expect(
+      resolveHypermediaUrl('https://offline.example/article', {requireSuccessfulResponse: true}),
+    ).rejects.toThrow('500')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+  it('rejects malformed Hypermedia identity headers in strict mode', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('', {status: 200, headers: {'x-hypermedia-id': 'not-an-hm-id'}}),
+    )
+    await expect(
+      resolveHypermediaUrl('https://site.example/article', {requireSuccessfulResponse: true}),
+    ).rejects.toThrow('identity')
+  })
+  it('rejects incomplete Hypermedia metadata and network failures in strict mode', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('', {status: 200, headers: {'x-hypermedia-version': 'version-without-id'}}))
+      .mockRejectedValueOnce(new Error('Network unavailable'))
+    await expect(
+      resolveHypermediaUrl('https://site.example/article', {requireSuccessfulResponse: true}),
+    ).rejects.toThrow('identity')
+    await expect(
+      resolveHypermediaUrl('https://offline.example/article', {requireSuccessfulResponse: true}),
+    ).rejects.toThrow('Network unavailable')
+  })
+  it('retains non-strict null behavior for an unsuccessful response', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', {status: 500}))
+    await expect(resolveHypermediaUrl('https://offline.example/article')).resolves.toBeNull()
+  })
   it('resolves custom-domain profile URLs from the domain resolver without fetching', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
     const result = await resolveHypermediaUrl(

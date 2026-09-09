@@ -82,6 +82,9 @@ export function deserializeQueryString<T>(queryString: string, schema: z.ZodType
   return schema.parse(result)
 }
 
+/** Identifiers of the signed publication, available before the document index catches up. */
+export type PublishDocumentResult = {version: string; genesis: string; generation: number}
+
 export type PublishDocumentInput = {
   account: string
   changes: HMPrepareDocumentChangeInput['changes']
@@ -142,7 +145,7 @@ export type SeedClient = {
   ): Promise<Extract<HMRequest, {key: K}>['output']>
   publish(input: PublishBlobsRequest['input']): Promise<PublishBlobsRequest['output']>
   publishBlobs(input: PublishBlobsRequest['input']): Promise<PublishBlobsRequest['output']>
-  publishDocument(input: PublishDocumentInput, signer: AnySigner): Promise<void>
+  publishDocument(input: PublishDocumentInput, signer: AnySigner): Promise<PublishDocumentResult>
   baseUrl: string
 }
 
@@ -254,7 +257,7 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
     return request<PublishBlobsRequest>('PublishBlobs', input)
   }
 
-  async function publishDocument(input: PublishDocumentInput, signer: AnySigner): Promise<void> {
+  async function publishDocument(input: PublishDocumentInput, signer: AnySigner): Promise<PublishDocumentResult> {
     // Brand-new home documents need their deterministic genesis change created and
     // signed client-side — the server's PrepareChange cannot bootstrap it (it has no
     // signing key, and requires the genesis to already exist).
@@ -293,7 +296,7 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
             ...ref.blobs,
           ],
         })
-        return
+        return {version: contentChange.cid.toString(), genesis: genesisChange.cid.toString(), generation}
       }
 
       // The first publish carries content blocks (moveBlock/replaceBlock/...), which
@@ -336,7 +339,7 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
       HMRequest,
       {key: 'PrepareDocumentChange'}
     >['output']
-    const {publishInput} = await signDocumentChange(
+    const {publishInput, changeCid, genesis, generation} = await signDocumentChange(
       {
         account: input.account,
         path: input.path,
@@ -349,6 +352,7 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
       signer,
     )
     await publish(publishInput)
+    return {version: changeCid.toString(), genesis, generation}
   }
 
   return {

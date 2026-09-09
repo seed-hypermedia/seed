@@ -14,6 +14,17 @@ function makeBlock(block: any, children?: HMBlockNode[]): HMBlockNode {
 }
 
 describe('extractAllContentRefs', () => {
+  it.each(['Link', 'Button'])('extracts nested %s block references', (type) => {
+    const blocks = [
+      makeBlock({type: 'Paragraph', id: 'parent', text: ''}, [
+        makeBlock({type, id: 'reference', link: 'hm://account/child', text: 'Child', attributes: {}}),
+      ]),
+    ]
+    expect(extractAllContentRefs(blocks)).toMatchObject([
+      {blockId: 'reference', link: 'hm://account/child', refId: {uid: 'account', path: ['child']}},
+    ])
+  })
+
   it('returns empty for empty content', () => {
     expect(extractAllContentRefs([])).toEqual([])
   })

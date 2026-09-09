@@ -138,3 +138,5 @@ describe('DeleteDocumentDialog', () => {
     expect(events).toEqual(['confirm', 'close', 'success'])
   })
 })
+
+vi.mock('../document-deletion-references', () => ({DocumentDeletionReferences: () => null}))

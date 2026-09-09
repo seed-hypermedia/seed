@@ -13,7 +13,8 @@ const createVersionRefMock = vi.hoisted(() =>
 const createRedirectRefMock = vi.hoisted(() =>
   vi.fn(async () => ({blobs: [{cid: 'redirect-ref', data: new Uint8Array([2])}]})),
 )
-const enqueueCleanupMock = vi.hoisted(() => vi.fn(async () => ({enqueued: true})))
+const enqueueCleanupMock = vi.hoisted(() => vi.fn(async () => ({enqueued: true, jobId: 'pending-job'})))
+const releaseCleanupMock = vi.hoisted(() => vi.fn(async () => {}))
 const sharedDestinationDialogMock = vi.hoisted(() => vi.fn(() => <div data-testid="shared-destination-dialog" />))
 
 vi.mock('@seed-hypermedia/client', async () => {
@@ -26,6 +27,7 @@ vi.mock('@seed-hypermedia/client', async () => {
 })
 
 vi.mock('./document-edit/web-document-card-cleanup', () => ({
+  releaseWebDocumentCardCleanup: releaseCleanupMock,
   enqueueWebDocumentCardCleanup: enqueueCleanupMock,
 }))
 
@@ -140,6 +142,41 @@ describe('WebDocumentDestinationDialog', () => {
 })
 
 describe('moveWebDocuments', () => {
+  it('does not release held parent maintenance when the primary move fails', async () => {
+    releaseCleanupMock.mockClear()
+    const publish = vi.fn(async () => {
+      throw new Error('primary publish failed')
+    })
+    const request = vi.fn(async (_key: string, id: UnpackedHypermediaId) =>
+      id.path?.join('/') === 'parent/child'
+        ? {type: 'not-found', id}
+        : {
+            type: 'document',
+            document: {version: 'v1', genesis: 'g1', generationInfo: {genesis: 'g1', generation: 1n}},
+          },
+    )
+    await expect(
+      moveWebDocuments({request, publish, getSigner: vi.fn(() => ({}))} as any, {
+        from: makeId('site', ['child']),
+        to: makeId('site', ['parent', 'child']),
+        signingAccountId: 'site',
+      }),
+    ).rejects.toThrow('primary publish failed')
+    expect(releaseCleanupMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unpublished destination before publishing any refs', async () => {
+    const publish = vi.fn()
+    await expect(
+      moveWebDocuments({request: vi.fn(async () => ({type: 'not-found'})), publish, getSigner: vi.fn()} as any, {
+        from: makeId('site', ['child']),
+        to: makeId('site', ['unpublished', 'child']),
+        signingAccountId: 'site',
+      }),
+    ).rejects.toThrow('Destination parent must be published')
+    expect(publish).not.toHaveBeenCalled()
+  })
+
   it('publishes version and redirect refs and enqueues parent card rewrite', async () => {
     const from = makeId('site', ['old-parent', 'doc'])
     const to = makeId('site', ['old-parent', 'renamed'])
@@ -148,13 +185,17 @@ describe('moveWebDocuments', () => {
       getPublicKey: async () => new Uint8Array([1]),
       sign: async () => new Uint8Array([2]),
     }))
-    const request = vi.fn(async () => ({
-      type: 'document',
-      document: {
-        version: 'doc-version',
-        generationInfo: {genesis: 'genesis-cid', generation: 5n},
-      },
-    }))
+    const request = vi.fn(async (_key: string, id: UnpackedHypermediaId) =>
+      id.id === to.id
+        ? {type: 'not-found', id}
+        : {
+            type: 'document',
+            document: {
+              version: 'doc-version',
+              generationInfo: {genesis: 'genesis-cid', generation: 5n},
+            },
+          },
+    )
 
     await moveWebDocuments({request, publish, getSigner} as any, {
       from,
@@ -187,10 +228,17 @@ describe('moveWebDocuments', () => {
       },
       expect.anything(),
     )
+    expect(enqueueCleanupMock.mock.invocationCallOrder.at(-1)!).toBeLessThan(publish.mock.invocationCallOrder[0]!)
     expect(publish).toHaveBeenCalledTimes(2)
     expect(enqueueCleanupMock).toHaveBeenCalledWith(
       {
         operation: 'rewrite',
+        awaitingPrimary: {
+          documentId: from.id,
+          expectedType: 'redirect',
+          targetDocumentId: to.id,
+          expectedGenesis: 'genesis-cid',
+        },
         parentDocumentId: 'hm://site/old-parent',
         sourceDocumentId: from.id,
         targetDocumentId: to.id,
@@ -209,13 +257,17 @@ describe('moveWebDocuments', () => {
       getPublicKey: async () => new Uint8Array([1]),
       sign: async () => new Uint8Array([2]),
     }))
-    const request = vi.fn(async () => ({
-      type: 'document',
-      document: {
-        version: 'doc-version',
-        generationInfo: {genesis: 'genesis-cid', generation: 5n},
-      },
-    }))
+    const request = vi.fn(async (_key: string, id: UnpackedHypermediaId) =>
+      id.id === to.id
+        ? {type: 'not-found', id}
+        : {
+            type: 'document',
+            document: {
+              version: 'doc-version',
+              generationInfo: {genesis: 'genesis-cid', generation: 5n},
+            },
+          },
+    )
     enqueueCleanupMock.mockRejectedValueOnce(new Error('cleanup failed'))
 
     await expect(
@@ -243,6 +295,7 @@ describe('moveWebDocuments', () => {
     }))
     // The source republishes the original; following it reaches the original document.
     const request = vi.fn(async (_key: string, id: UnpackedHypermediaId) => {
+      if (id.id === to.id) return {type: 'not-found', id}
       if (id.uid === 'site' && (id.path || []).join('/') === 'mirror') {
         return {type: 'redirect', id, redirectTarget: original, republish: true}
       }
@@ -303,6 +356,7 @@ describe('moveWebDocuments', () => {
     }))
     // A move redirect (republish: false) — the source is a pointer, not content.
     const request = vi.fn(async (_key: string, id: UnpackedHypermediaId) => {
+      if (id.id === to.id) return {type: 'not-found', id}
       if (id.uid === 'site' && (id.path || []).join('/') === 'old') {
         return {type: 'redirect', id, redirectTarget: movedTarget, republish: false}
       }
@@ -312,6 +366,77 @@ describe('moveWebDocuments', () => {
     await expect(
       moveWebDocuments({request, publish, getSigner} as any, {from, to, signingAccountId: 'site'}),
     ).rejects.toThrow('already moved')
+    expect(publish).not.toHaveBeenCalled()
+  })
+})
+
+describe('move destination safety', () => {
+  it('moves back over its own redirect, replacing it before redirecting the source', async () => {
+    createVersionRefMock.mockClear()
+    createRedirectRefMock.mockClear()
+    const from = makeId('site', ['new'])
+    const to = makeId('site', ['old'])
+    const request = vi.fn(async (_key: string, id: UnpackedHypermediaId) =>
+      id.id === to.id
+        ? {type: 'redirect', id, redirectTarget: from, republish: false}
+        : {type: 'document', id, document: {version: 'v', generationInfo: {genesis: 'g', generation: 1n}}},
+    )
+    const publish = vi.fn(async () => ({}))
+    await moveWebDocuments({request, publish, getSigner: () => ({})} as any, {from, to, signingAccountId: 'site'})
+    expect(createVersionRefMock).toHaveBeenCalledWith(
+      expect.objectContaining({path: '/old', version: 'v', generation: expect.any(Number)}),
+      expect.anything(),
+    )
+    expect(createRedirectRefMock).toHaveBeenCalledWith(
+      expect.objectContaining({path: '/new', targetPath: '/old'}),
+      expect.anything(),
+    )
+    expect(publish.mock.calls.map((call: any) => call[0].blobs[0].cid)).toEqual(['version-ref', 'redirect-ref'])
+  })
+
+  it.each(['document', 'unrelated-redirect', 'republish', 'error'])(
+    'rejects %s destinations without publishing or queueing maintenance',
+    async (kind) => {
+      enqueueCleanupMock.mockClear()
+      const from = makeId('site', ['new'])
+      const to = makeId('site', ['old'])
+      const request = vi.fn(async (_key: string, id: UnpackedHypermediaId) => {
+        if (id.id === to.id) {
+          if (kind === 'unrelated-redirect' || kind === 'republish')
+            return {
+              type: 'redirect',
+              id,
+              redirectTarget: kind === 'republish' ? from : makeId('site', ['other']),
+              republish: kind === 'republish',
+            }
+          return {type: kind, id}
+        }
+        return {type: 'document', id, document: {version: 'v'}}
+      })
+      const publish = vi.fn()
+      await expect(
+        moveWebDocuments({request, publish, getSigner: () => ({})} as any, {from, to, signingAccountId: 'site'}),
+      ).rejects.toThrow('already exists')
+      expect(publish).not.toHaveBeenCalled()
+      expect(enqueueCleanupMock).not.toHaveBeenCalled()
+    },
+  )
+
+  it('preflights child collisions before publishing the parent', async () => {
+    const from = makeId('site', ['new'])
+    const to = makeId('site', ['old'])
+    const publish = vi.fn()
+    const request = vi.fn(async (_key: string, id: UnpackedHypermediaId) =>
+      id.id === to.id ? {type: 'not-found', id} : {type: 'document', id, document: {version: 'v'}},
+    )
+    await expect(
+      moveWebDocuments({request, publish, getSigner: () => ({})} as any, {
+        from,
+        to,
+        childDocuments: [{path: ['new', 'child']}] as any,
+        signingAccountId: 'site',
+      }),
+    ).rejects.toThrow('already exists')
     expect(publish).not.toHaveBeenCalled()
   })
 })
@@ -328,6 +453,7 @@ describe('republishWebDocument', () => {
     const request = vi.fn(async () => ({
       type: 'document',
       document: {
+        version: 'source-version',
         generationInfo: {genesis: 'genesis-cid', generation: 8n},
       },
     }))
@@ -358,6 +484,12 @@ describe('republishWebDocument', () => {
     expect(enqueueCleanupMock).toHaveBeenCalledWith(
       {
         operation: 'add',
+        awaitingPrimary: {
+          documentId: to.id,
+          expectedType: 'redirect',
+          targetDocumentId: from.id,
+          expectedGenesis: 'genesis-cid',
+        },
         parentDocumentId: 'hm://site/parent',
         targetDocumentId: to.id,
         signingAccountUid: 'site',

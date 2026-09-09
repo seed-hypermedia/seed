@@ -45,7 +45,7 @@ export function UnreferencedDocuments({
   const drafts = useDraftsForAccountSafe(docId.uid)
 
   const {unreferencedDocs, unreferencedDrafts} = useMemo(() => {
-    const sourceContent = draftContent && draftContent.length > 0 ? toHMBlockNodes(draftContent) : content
+    const sourceContent = draftContent !== undefined ? toHMBlockNodes(draftContent) : content
 
     if (hasQueryBlockTargetingSelf(sourceContent, docId.uid, docId.path)) {
       return {unreferencedDocs: [], unreferencedDrafts: []}

@@ -12,7 +12,6 @@ import {
   validatePublishPath,
 } from '@/utils/publish-utils'
 import {useNavigate} from '@/utils/useNavigate'
-import {useBroadcastWindowEvent} from '@/utils/window-events'
 import {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -37,12 +36,7 @@ import {usePopoverState} from '@shm/ui/use-popover-state'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {useDraft} from '../models/accounts'
-import {
-  addLinkToParentDraft,
-  publishLinkToParentDocument,
-  usePublishResource,
-  usePushResource,
-} from '../models/documents'
+import {usePublishResource, usePushResource} from '../models/documents'
 
 export default function PublishDraftButton() {
   const route = useNavRoute()
@@ -71,7 +65,6 @@ export default function PublishDraftButton() {
   )
 
   const signingAccount = useSelectedAccount()
-  const broadcastWindowEvent = useBroadcastWindowEvent()
   const signingAccountId = signingAccount?.id.uid
 
   // Inline first-publish detection: drafts created via `useCreateInlineDraft`
@@ -264,6 +257,14 @@ export default function PublishDraftButton() {
         throw new Error('Draft not loaded')
       }
 
+      if (editId && draft.data.removedChildDocumentIds?.length) {
+        // The unified editor owns the confirmation machine. Never bypass its
+        // destructive publish review from the legacy draft-route toolbar.
+        navigate({key: 'document', id: editId})
+        toast.error('Review the child document deletions in the document editor before publishing.')
+        return
+      }
+
       // Step 1: Publish the child document
       const res = await publish.mutateAsync({
         draft: draft.data,
@@ -279,51 +280,6 @@ export default function PublishDraftButton() {
         path: resultPath,
         latest: true,
       })
-
-      // Step 2: Handle parent auto-link BEFORE anything else
-      let parentResultDoc: HMDocument | null = null
-      const shouldAddLinkToParent = parentPublishInfo?.willAddLink
-
-      if (shouldAddLinkToParent && accountId) {
-        try {
-          const navigateToParent = () => {
-            navigate({
-              key: 'document',
-              id: hmId(parentPublishInfo.parentId.uid, {
-                path: parentPublishInfo.parentId.path,
-                latest: true,
-              }),
-            })
-          }
-
-          if (parentPublishInfo.hasDraft && parentPublishInfo.draftId) {
-            // Add to draft - no push needed for parent
-            await addLinkToParentDraft(parentPublishInfo.draftId, childResultId)
-            // Show success toast for draft update
-            toast.success(<ParentUpdateToast message="Link added to parent draft" onViewParent={navigateToParent} />)
-            // Tell every window holding this draft open that its on-disk
-            // content has changed under it (the parent's editor in another
-            // window keeps stale ProseMirror state).
-            broadcastWindowEvent({
-              type: 'draft_externally_modified',
-              draftId: parentPublishInfo.draftId,
-            })
-          } else if (parentPublishInfo.parentDocument) {
-            // Publish to parent document
-            parentResultDoc = await publishLinkToParentDocument(
-              parentPublishInfo.parentId,
-              parentPublishInfo.parentDocument,
-              childResultId,
-              accountId,
-            )
-            // Show success toast for parent publish
-            toast.success(<ParentUpdateToast message="Parent document updated" onViewParent={navigateToParent} />)
-          }
-        } catch (error) {
-          console.error('Failed to add link to parent:', error)
-          toast.error('Published document, but failed to add link to parent')
-        }
-      }
 
       // Step 3: Delete the draft
       if (resultDocId && draftId) {
@@ -354,23 +310,6 @@ export default function PublishDraftButton() {
 
         // Push child document
         const childPushPromise = pushResource(childResultId, undefined, setPushStatus)
-
-        // Push parent document if we published changes to it
-        if (parentResultDoc) {
-          const parentResultId = hmId(parentResultDoc.account, {
-            path: entityQueryPathToHmIdPath(parentResultDoc.path),
-            version: parentResultDoc.version,
-          })
-          pushResource(parentResultId).catch((err) => {
-            console.error('Failed to push parent document:', err)
-            reportError(err, {
-              feature: 'publish-draft',
-              operation: 'push-parent',
-              parentResourceId: parentResultId.id,
-              childResourceId: childResultId.id,
-            })
-          })
-        }
 
         toast.promise(childPushPromise, {
           loading: <PublishedToast pushStatus={pushStatus} status="loading" />,

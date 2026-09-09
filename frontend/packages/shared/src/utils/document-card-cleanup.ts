@@ -52,6 +52,7 @@ export type DocumentCardMoveCleanupOperation =
 export type DocumentCardCleanupOperationInput =
   | {
       operation: 'remove'
+      targetBlockId?: string
       sourceDocumentId?: string
       deletedDocumentId?: string
     }
@@ -147,24 +148,84 @@ function isMatchingDeletedDocumentEmbed(
   options: DocumentCardCleanupOptions = {},
 ) {
   const block = node.block
-  if (block?.type !== 'Embed') return false
+  if (block?.type !== 'Embed' || block.attributes?.view !== 'Card') return false
   if (options.targetBlockId && block.id !== options.targetBlockId) return false
   if (!block.link) return false
   return hmDocumentKey(block.link) === deletedDocumentKey
 }
 
-function isEmbedLinkToDocument(node: HMBlockNode, documentKey: string) {
-  const block = node.block
-  if (block?.type !== 'Embed') return false
-  if (!block.link) return false
-  return hmDocumentKey(block.link) === documentKey
+function directBlockLinks(block: HMBlockNode['block']): string[] {
+  return [
+    ...('link' in block && block.link ? [block.link] : []),
+    ...('annotations' in block ? block.annotations || [] : []).flatMap((annotation) =>
+      (annotation.type === 'Link' || annotation.type === 'Embed') && annotation.link ? [annotation.link] : [],
+    ),
+  ]
+}
+
+function blockLinksToDocument(block: HMBlockNode['block'], documentKey: string) {
+  return directBlockLinks(block).some((link) => hmDocumentKey(link) === documentKey)
 }
 
 function documentContainsLinkToDocument(nodes: HMBlockNode[], documentKey: string): boolean {
   return nodes.some(
     (node) =>
-      isEmbedLinkToDocument(node, documentKey) || documentContainsLinkToDocument(node.children || [], documentKey),
+      blockLinksToDocument(node.block, documentKey) || documentContainsLinkToDocument(node.children || [], documentKey),
   )
+}
+
+/** Returns direct children that had a direct reference before an edit and have none afterward.
+ * A surviving self-query covers the children. Removed query scopes are resolved by the publication inspector.
+ * Callers must exclude system-maintenance edits.
+ */
+export function getDirectChildrenLosingReferences(
+  parent: Pick<UnpackedHypermediaId, 'uid' | 'path'>,
+  before: HMBlockNode[],
+  after: HMBlockNode[],
+): UnpackedHypermediaId[] {
+  if (hasSelfQueryBlock(after, documentIdForPath(parent.uid, parent.path || []))) return []
+  const parentPath = parent.path || []
+  function collect(nodes: HMBlockNode[], references: Map<string, UnpackedHypermediaId>) {
+    for (const node of nodes) {
+      for (const link of directBlockLinks(node.block)) {
+        const id = unpackHmId(link)
+        const path = id?.path || []
+        if (
+          id?.uid !== parent.uid ||
+          path.length !== parentPath.length + 1 ||
+          !parentPath.every((segment, index) => path[index] === segment)
+        )
+          continue
+        const documentId = documentIdForPath(id.uid, path)
+        references.set(documentId, unpackHmId(documentId)!)
+      }
+      collect(node.children || [], references)
+    }
+  }
+  const previous = new Map<string, UnpackedHypermediaId>()
+  const current = new Map<string, UnpackedHypermediaId>()
+  collect(before, previous)
+  collect(after, current)
+  return Array.from(previous).flatMap(([id, target]) => (current.has(id) ? [] : [target]))
+}
+
+function rewriteBlockLinks(block: HMBlockNode['block'], sourceKey: string, target: string): HMBlockNode['block'] {
+  return {
+    ...block,
+    revision: undefined,
+    ...('link' in block && block.link && hmDocumentKey(block.link) === sourceKey ? {link: target} : {}),
+    ...('annotations' in block
+      ? {
+          annotations: block.annotations?.map((annotation) =>
+            (annotation.type === 'Link' || annotation.type === 'Embed') &&
+            annotation.link &&
+            hmDocumentKey(annotation.link) === sourceKey
+              ? {...annotation, link: target}
+              : annotation,
+          ),
+        }
+      : {}),
+  } as HMBlockNode['block']
 }
 
 function queryIncludeTargetsParent(include: any, parentUid: string, parentPath: string[]) {
@@ -176,7 +237,8 @@ function queryIncludeTargetsParent(include: any, parentUid: string, parentPath: 
   return includePath.join('/') === parentPath.join('/')
 }
 
-function hasSelfQueryBlock(nodes: HMBlockNode[], parentDocumentId: string) {
+/** Whether content contains a query covering this parent's children, independent of display limits. */
+export function hasSelfQueryBlock(nodes: HMBlockNode[], parentDocumentId: string) {
   const parent = unpackHmId(parentDocumentId)
   if (!parent?.uid) return false
   const parentUid = parent.uid
@@ -199,10 +261,10 @@ function hasSelfQueryBlock(nodes: HMBlockNode[], parentDocumentId: string) {
   return walk(nodes)
 }
 
-function collectMatchingEmbeds(nodes: HMBlockNode[], documentKey: string): HMBlockNode[] {
+function collectMatchingReferences(nodes: HMBlockNode[], documentKey: string): HMBlockNode[] {
   return nodes.flatMap((node) => [
-    ...(isEmbedLinkToDocument(node, documentKey) ? [node] : []),
-    ...collectMatchingEmbeds(node.children || [], documentKey),
+    ...(blockLinksToDocument(node.block, documentKey) ? [node] : []),
+    ...collectMatchingReferences(node.children || [], documentKey),
   ])
 }
 
@@ -270,7 +332,7 @@ function appendCleanupForSiblings(
   })
 }
 
-/** Plans pure document changes that remove document embeds pointing at a deleted document. */
+/** Plans pure document changes that remove Card embeds pointing at a deleted document. */
 export function planDeletedDocumentCardEmbedCleanup(
   document: Pick<HMDocument, 'content'>,
   deletedDocumentId: string,
@@ -346,7 +408,7 @@ export function planDocumentCardAppend(
   }
 }
 
-/** Plans pure document changes that rewrite existing embed links from one document id to another. */
+/** Plans pure document changes that rewrite existing direct references from one document id to another. */
 export function planDocumentCardRewrite(
   document: Pick<HMDocument, 'content'>,
   fromDocumentId: string,
@@ -359,9 +421,8 @@ export function planDocumentCardRewrite(
   }
 
   const content = document.content || []
-  if (documentContainsLinkToDocument(content, toDocumentKey)) return {changes: [], rewrittenBlockIds: []}
 
-  const matchingEmbeds = collectMatchingEmbeds(content, fromDocumentKey)
+  const matchingEmbeds = collectMatchingReferences(content, fromDocumentKey)
   if (!matchingEmbeds.length) return {changes: [], rewrittenBlockIds: []}
 
   return {
@@ -369,10 +430,7 @@ export function planDocumentCardRewrite(
       return new DocumentChange({
         op: {
           case: 'replaceBlock',
-          value: Block.fromJson({
-            ...(node.block as any),
-            link: toDocumentId,
-          }),
+          value: Block.fromJson({...rewriteBlockLinks(node.block, fromDocumentKey, toDocumentId), revision: ''} as any),
         },
       })
     }),
@@ -393,7 +451,10 @@ export function applyDocumentCardCleanupToBlockNodes(
     const changedBlockIds: string[] = []
     const removeMatching = (nodes: HMBlockNode[]): HMBlockNode[] => {
       return nodes.flatMap((node) => {
-        if (isEmbedLinkToDocument(node, sourceDocumentKey)) {
+        if (
+          isMatchingDeletedDocumentEmbed(node, sourceDocumentKey) &&
+          (!input.targetBlockId || node.block.id === input.targetBlockId)
+        ) {
           if (node.block.id) changedBlockIds.push(node.block.id)
           return removeMatching(node.children || [])
         }
@@ -432,20 +493,16 @@ export function applyDocumentCardCleanupToBlockNodes(
   if (!sourceDocumentKey || !targetDocumentKey || sourceDocumentKey === targetDocumentKey) {
     return {content, changedBlockIds: []}
   }
-  if (documentContainsLinkToDocument(content, targetDocumentKey)) return {content, changedBlockIds: []}
 
   const changedBlockIds: string[] = []
   const rewrite = (nodes: HMBlockNode[]): HMBlockNode[] => {
     return nodes.map((node) => {
       const children = rewrite(node.children || [])
-      if (isEmbedLinkToDocument(node, sourceDocumentKey)) {
+      if (blockLinksToDocument(node.block, sourceDocumentKey)) {
         if (node.block.id) changedBlockIds.push(node.block.id)
         return {
           ...node,
-          block: {
-            ...(node.block as any),
-            link: input.targetDocumentId,
-          },
+          block: rewriteBlockLinks(node.block, sourceDocumentKey, input.targetDocumentId),
           children,
         }
       }
@@ -520,4 +577,67 @@ export function appendDraftCardToEditorBlocks(
     ],
     addedBlockIds: [newBlockId],
   }
+}
+
+/** Proof captured before a primary operation, used to recover its follow-up without speculative parent writes. */
+export type DocumentCleanupPrimaryProof = {
+  documentId: string
+  expectedVersion?: string
+  expectedGenesis?: string
+  expectedType: 'document' | 'redirect' | 'tombstone'
+  targetDocumentId?: string
+}
+
+/** Verifies an interrupted primary operation; incomplete or changed evidence requires manual review. */
+export async function verifyDocumentCleanupPrimary(
+  client: Pick<import('../universal-client').UniversalClient, 'request'>,
+  proof: DocumentCleanupPrimaryProof,
+): Promise<void> {
+  const id = unpackHmId(proof.documentId)
+  if (!id) throw new Error('Primary operation needs review: invalid document ID')
+  const resource = await client.request('Resource', {...id, version: null, latest: true})
+  if (resource.type !== proof.expectedType) throw new Error('Primary operation needs review: outcome not confirmed')
+  if (resource.type === 'document') {
+    if (!proof.expectedVersion && !proof.expectedGenesis)
+      throw new Error('Primary operation needs review: publication identity is unavailable')
+    if (proof.expectedVersion && resource.document.version !== proof.expectedVersion)
+      throw new Error('Primary operation needs review: publication version changed')
+    if (proof.expectedGenesis && resource.document.genesis !== proof.expectedGenesis)
+      throw new Error('Primary operation needs review: document identity changed')
+  }
+  if (resource.type === 'redirect') {
+    if (!proof.targetDocumentId || resource.redirectTarget.id !== proof.targetDocumentId)
+      throw new Error('Primary operation needs review: redirect destination changed')
+    if (!proof.expectedGenesis)
+      throw new Error('Primary operation needs review: original document identity is unavailable')
+    const target = unpackHmId(proof.targetDocumentId)!
+    const targetResource = await client.request('Resource', {...target, version: null, latest: true})
+    if (targetResource.type !== 'document')
+      throw new Error('Primary operation needs review: captured destination moved or is unavailable')
+    if (targetResource.document.genesis !== proof.expectedGenesis)
+      throw new Error('Primary operation needs review: moved document identity changed')
+  }
+}
+
+/** Captures authored direct-child removals plus unresolved web destinations for asynchronous publish-time resolution. */
+export function getRemovedChildReferenceTargets(
+  parent: Pick<UnpackedHypermediaId, 'uid' | 'path'>,
+  before: HMBlockNode[],
+  after: HMBlockNode[],
+): string[] {
+  if (hasSelfQueryBlock(after, documentIdForPath(parent.uid, parent.path || []))) return []
+  const remaining = new Set(getDocumentReferenceLinks(after))
+  return Array.from(
+    new Set([
+      ...getDirectChildrenLosingReferences(parent, before, after).map((id) => id.id),
+      ...getDocumentReferenceLinks(before).filter(
+        (link) => /^https?:\/\//.test(link) && !unpackHmId(link) && !remaining.has(link),
+      ),
+    ]),
+  )
+}
+
+/** Lists authored reference destinations recursively, excluding query results. */
+export function getDocumentReferenceLinks(nodes: HMBlockNode[]): string[] {
+  return nodes.flatMap((node) => [...directBlockLinks(node.block), ...getDocumentReferenceLinks(node.children || [])])
 }

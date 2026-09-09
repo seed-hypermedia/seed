@@ -90,7 +90,9 @@ describe('createWebUniversalClient publishDocument', () => {
       blobs: [{cid: 'bafy-genesis-ref', data: new Uint8Array([2])}],
     })
     mockedSignDocumentChange.mockResolvedValueOnce({
-      changeCid: {} as any,
+      changeCid: {toString: () => 'signed-change'} as any,
+      genesis: 'signed-genesis',
+      generation: 1,
       publishInput: {blobs: [{cid: 'bafy-content', data: new Uint8Array([3])}]},
     })
 
@@ -144,7 +146,9 @@ describe('createWebUniversalClient publishDocument', () => {
     const mockedSignDocumentChange = vi.mocked(signDocumentChange)
 
     mockedSignDocumentChange.mockResolvedValueOnce({
-      changeCid: {} as any,
+      changeCid: {toString: () => 'signed-change'} as any,
+      genesis: 'signed-genesis',
+      generation: 1,
       publishInput: {blobs: [{cid: 'bafy-subdoc', data: new Uint8Array([7])}]},
     })
 

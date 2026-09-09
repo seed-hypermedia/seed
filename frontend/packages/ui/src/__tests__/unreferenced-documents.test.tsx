@@ -135,6 +135,29 @@ describe('UnreferencedDocuments', () => {
     }
   })
 
+  it('shows children when the draft removes all published references', () => {
+    rendered = renderNode(
+      <UnreferencedDocuments
+        docId={makeId('uid1')}
+        content={[makeBlock({type: 'Embed', id: 'card', link: 'hm://uid1/child', attributes: {view: 'Card'}})]}
+        draftContent={[]}
+        directory={[makeDocInfo('uid1', ['child'], 'Child without a reference')]}
+      />,
+    )
+    expect(rendered.container.textContent).toContain('Child without a reference')
+  })
+
+  it('does not report a child referenced by a normal link block as unreferenced', () => {
+    rendered = renderNode(
+      <UnreferencedDocuments
+        docId={makeId('uid1')}
+        content={[makeBlock({type: 'Link', id: 'link', link: 'hm://uid1/child', text: 'Child'})]}
+        directory={[makeDocInfo('uid1', ['child'], 'Linked Child')]}
+      />,
+    )
+    expect(rendered.container.querySelector('[data-testid="document-list-item"]')).toBeNull()
+  })
+
   it('renders unreferenced documents immediately without a section label or collapse control', () => {
     rendered = renderNode(
       <UnreferencedDocuments

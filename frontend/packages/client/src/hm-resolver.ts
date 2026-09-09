@@ -21,6 +21,8 @@ export type DomainIdChangedCallback = (domain: string, oldUid: string, newUid: s
 
 export type ResolveOptions = {
   domainResolver?: DomainResolverFn
+  /** Distinguish failed HTTP/malformed metadata from a verified ordinary web page. */
+  requireSuccessfulResponse?: boolean
 }
 
 /**
@@ -114,8 +116,25 @@ export async function resolveHypermediaUrl(url: string, opts?: ResolveOptions): 
     }
     throw error
   }
+  if (opts?.requireSuccessfulResponse && response.status !== 200) {
+    throw new Error(`Hypermedia URL resolution failed with HTTP ${response.status}`)
+  }
   if (response.status === 200) {
     const rawId = response.headers.get('x-hypermedia-id')
+    if (
+      opts?.requireSuccessfulResponse &&
+      !rawId &&
+      [
+        'x-hypermedia-id',
+        'x-hypermedia-version',
+        'x-hypermedia-title',
+        'x-hypermedia-target',
+        'x-hypermedia-authors',
+        'x-hypermedia-type',
+      ].some((header) => response.headers.has(header))
+    ) {
+      throw new Error('Missing Hypermedia identity response header')
+    }
     const id = rawId ? decodeURIComponent(rawId) : null
     const version = response.headers.get('x-hypermedia-version')
     const encodedTitle = response.headers.get('x-hypermedia-title')
@@ -143,6 +162,7 @@ export async function resolveHypermediaUrl(url: string, opts?: ResolveOptions): 
         // ignore parse errors
       }
       if (!hmId) {
+        if (opts?.requireSuccessfulResponse) throw new Error('Invalid Hypermedia identity response header')
         return null
       }
       return {

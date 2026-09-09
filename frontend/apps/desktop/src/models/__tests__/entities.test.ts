@@ -64,6 +64,7 @@ describe('enqueueDeletedDocumentParentCardCleanup', () => {
     expect(cleanupEnqueueMock).toHaveBeenCalledTimes(1)
     expect(cleanupEnqueueMock).toHaveBeenCalledWith({
       deletedDocumentId: selectedId.id,
+      awaitingPrimary: {documentId: selectedId.id, expectedType: 'tombstone'},
       signingAccountUid: 'alice',
       capabilityId: 'cap-1',
     })

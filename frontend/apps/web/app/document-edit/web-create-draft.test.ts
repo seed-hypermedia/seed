@@ -7,6 +7,10 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {createWebDocumentDraft, createWebDocumentDraftFromMarkdownFile} from './web-create-draft'
 import {_resetWebDocDraftDBForTesting, getWebDocDraft} from './web-draft-db'
 
+const publishedParentClient = {
+  request: vi.fn(async () => ({type: 'document', document: {version: 'parent-v1', visibility: 'PUBLIC'}})),
+} as any
+
 const DB_NAME = 'web-doc-drafts-01'
 
 function dropDB(): Promise<void> {
@@ -32,6 +36,16 @@ function makeDocId(uid: string, path: string[] = []): UnpackedHypermediaId {
 }
 
 describe('createWebDocumentDraft', () => {
+  it('rejects direct programmatic creation under an unpublished parent', async () => {
+    await expect(
+      createWebDocumentDraft({
+        locationId: makeDocId('site', ['unpublished']),
+        signingAccountId: 'site',
+        client: {request: async () => ({type: 'not-found'})} as any,
+      }),
+    ).rejects.toThrow('Publish the parent document')
+  })
+
   beforeEach(async () => {
     _resetWebDocDraftDBForTesting()
     await dropDB()
@@ -45,6 +59,7 @@ describe('createWebDocumentDraft', () => {
   it('creates a public child draft at a placeholder path and navigates to it', async () => {
     const navigate = vi.fn()
     const {routeId} = await createWebDocumentDraft({
+      client: publishedParentClient,
       locationId: makeDocId('site', ['parent']),
       signingAccountId: 'author',
       visibility: 'PUBLIC',
@@ -73,6 +88,7 @@ describe('createWebDocumentDraft', () => {
   it('creates a private draft at an opaque random path', async () => {
     const navigate = vi.fn()
     const {routeId} = await createWebDocumentDraft({
+      client: publishedParentClient,
       locationId: makeDocId('site', ['parent']),
       signingAccountId: 'author',
       visibility: 'PRIVATE',
@@ -95,6 +111,7 @@ describe('createWebDocumentDraft', () => {
 
   it('removes leading dashes from generated private draft paths', async () => {
     const {routeId} = await createWebDocumentDraft({
+      client: publishedParentClient,
       locationId: makeDocId('site', ['parent']),
       signingAccountId: 'author',
       visibility: 'PRIVATE',
@@ -108,6 +125,7 @@ describe('createWebDocumentDraft', () => {
   it('can navigate to a public child draft route without persisting an empty draft', async () => {
     const navigate = vi.fn()
     const {routeId, draftId} = await createWebDocumentDraft({
+      client: publishedParentClient,
       locationId: makeDocId('site', ['parent']),
       signingAccountId: 'author',
       visibility: 'PUBLIC',
@@ -126,6 +144,7 @@ describe('createWebDocumentDraft', () => {
   it('persists private draft routes even when lazy navigation is requested', async () => {
     const navigate = vi.fn()
     const {routeId, draftId} = await createWebDocumentDraft({
+      client: publishedParentClient,
       locationId: makeDocId('site', ['parent']),
       signingAccountId: 'author',
       visibility: 'PRIVATE',
@@ -149,6 +168,7 @@ describe('createWebDocumentDraft', () => {
   it('stores imported content and metadata when provided', async () => {
     const navigate = vi.fn()
     const {routeId} = await createWebDocumentDraft({
+      client: publishedParentClient,
       locationId: makeDocId('site', []),
       signingAccountId: 'author',
       metadata: {name: 'Imported Title'},
@@ -166,6 +186,7 @@ describe('createWebDocumentDraft', () => {
   it('imports a Markdown file into a named draft', async () => {
     const navigate = vi.fn()
     const {routeId} = await createWebDocumentDraftFromMarkdownFile({
+      client: publishedParentClient,
       file: new File(['# Imported Title\n\nHello import'], 'fallback.md', {type: 'text/markdown'}),
       locationId: makeDocId('site', []),
       signingAccountId: 'author',
@@ -180,6 +201,7 @@ describe('createWebDocumentDraft', () => {
 
   it('preserves Markdown frontmatter metadata on import', async () => {
     const {routeId} = await createWebDocumentDraftFromMarkdownFile({
+      client: publishedParentClient,
       file: new File(['---\ntitle: Frontmatter Title\nsummary: Imported summary\n---\n\nBody text'], 'fallback.md', {
         type: 'text/markdown',
       }),

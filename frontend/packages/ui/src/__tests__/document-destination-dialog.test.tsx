@@ -110,7 +110,11 @@ function renderDialog(props: {
           selectedAccountUid="site"
           writableDocuments={
             props.writableDocuments || [
-              {id: siteId, title: 'Docs', document: {metadata: {name: 'Docs', icon: 'site-icon'}} as any},
+              {
+                id: siteId,
+                title: 'Docs',
+                document: {version: 'v1', metadata: {name: 'Docs', icon: 'site-icon'}} as any,
+              },
             ]
           }
           onSubmit={onSubmit}
@@ -162,8 +166,8 @@ describe('DocumentDestinationDialog', () => {
     renderDialog({
       input: {id: sourceId, mode: 'move'},
       writableDocuments: [
-        {id: siteId, title: 'Docs', document: {metadata: {name: 'Docs'}} as any},
-        {id: otherSiteId, title: 'Other Site', document: {metadata: {name: 'Other Site'}} as any},
+        {id: siteId, title: 'Docs', document: {version: 'v1', metadata: {name: 'Docs'}} as any},
+        {id: otherSiteId, title: 'Other Site', document: {version: 'v1', metadata: {name: 'Other Site'}} as any},
       ],
     })
 
@@ -183,8 +187,8 @@ describe('DocumentDestinationDialog', () => {
     renderDialog({
       input: {id: sourceId, mode: 'republish'},
       writableDocuments: [
-        {id: siteId, title: 'Docs', document: {metadata: {name: 'Docs'}} as any},
-        {id: otherSiteId, title: 'Other Site', document: {metadata: {name: 'Other Site'}} as any},
+        {id: siteId, title: 'Docs', document: {version: 'v1', metadata: {name: 'Docs'}} as any},
+        {id: otherSiteId, title: 'Other Site', document: {version: 'v1', metadata: {name: 'Other Site'}} as any},
       ],
     })
     await clearToWritableRoots()

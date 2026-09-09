@@ -9,7 +9,7 @@ type PublishDesktopDocumentDeps = {
 export async function publishDesktopDocument(
   deps: PublishDesktopDocumentDeps,
   input: PublishDocumentInput,
-): Promise<void> {
+): Promise<import('@seed-hypermedia/client').PublishDocumentResult | void> {
   const {signerAccountUid, ...publishInput} = input
-  await deps.publishDocument(publishInput, deps.getSigner(signerAccountUid))
+  return deps.publishDocument(publishInput, deps.getSigner(signerAccountUid))
 }

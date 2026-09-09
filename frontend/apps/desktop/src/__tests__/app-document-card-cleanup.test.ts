@@ -1,6 +1,13 @@
+import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+
+const {resolveHypermediaUrlMock} = vi.hoisted(() => ({resolveHypermediaUrlMock: vi.fn()}))
+vi.mock('@seed-hypermedia/client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@seed-hypermedia/client')>()),
+  resolveHypermediaUrl: resolveHypermediaUrlMock,
+}))
 
 const storeData: Record<string, any> = {}
 
@@ -17,6 +24,7 @@ const appInvalidateQueriesMock = vi.fn()
 const findDraftByEditMock = vi.fn()
 const getDraftMock = vi.fn()
 const writeDraftMock = vi.fn(async (_input: any) => ({id: 'draft-parent'}))
+const compareAndSwapDraftMock = vi.fn(async (_expected: any, _replacement: any) => true)
 const dispatchAllWindowsAppEventMock = vi.fn()
 
 vi.mock('../app-store.mts', () => ({
@@ -37,6 +45,7 @@ vi.mock('../app-grpc', () => ({
 vi.mock('../app-client', () => ({
   getSigner: vi.fn((accountUid: string) => ({accountUid})),
   seedClient: {
+    request: vi.fn(async () => ({type: 'document'})),
     publishDocument: publishDocumentMock,
   },
 }))
@@ -50,6 +59,7 @@ vi.mock('../app-windows', () => ({
 }))
 
 vi.mock('../app-drafts', () => ({
+  compareAndSwapDraft: compareAndSwapDraftMock,
   draftsApi: {
     createCaller: vi.fn(() => ({
       findByEdit: findDraftByEditMock,
@@ -87,408 +97,286 @@ function makeParentDocument(content: any[] = []) {
   }
 }
 
-describe('document card cleanup actor', () => {
+const source = 'hm://alice/parent/child'
+const parent = 'hm://alice/parent'
+const card = (link = source): HMBlockNode => ({
+  block: {id: 'card', type: 'Embed', link, attributes: {view: 'Card'}},
+  children: [],
+})
+const text = (value: string): HMBlockNode => ({
+  block: {id: 'text', type: 'Paragraph', text: value, attributes: {}},
+  children: [],
+})
+
+describe('desktop published parent reconciliation', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    vi.useFakeTimers()
+    vi.setSystemTime(1000)
     for (const key of Object.keys(storeData)) delete storeData[key]
-    getDocumentMock.mockResolvedValue(makeParentDocument())
-    publishDocumentMock.mockResolvedValue(undefined)
+    getDocumentMock.mockReset().mockResolvedValue(makeParentDocument())
+    publishDocumentMock.mockReset().mockResolvedValue(undefined)
     findDraftByEditMock.mockResolvedValue(null)
     getDraftMock.mockResolvedValue(null)
-    writeDraftMock.mockResolvedValue({id: 'draft-parent'})
+    compareAndSwapDraftMock.mockResolvedValue(true)
   })
+  afterEach(() => vi.useRealTimers())
 
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  it('models the coordinator and cleanup job as XState machines', async () => {
-    const {documentCardCleanupCoordinatorMachine, documentCardCleanupJobMachine} = await import(
-      '../app-document-card-cleanup-machine'
-    )
-
-    expect(documentCardCleanupCoordinatorMachine.id).toBe('documentCardCleanupCoordinator')
-    expect(documentCardCleanupJobMachine.id).toBe('documentCardCleanupJob')
-  })
-
-  it('enqueues one idle cleanup job for the deleted document parent and dedupes repeats', async () => {
-    const {documentCardCleanupApi, getDocumentCardCleanupSnapshotForTest} = await loadCleanupModule()
-    const caller = documentCardCleanupApi.createCaller({})
-    const deletedDocumentId = hmId('alice', {path: ['parent', 'child']}).id
-
-    await caller.enqueue({deletedDocumentId, signingAccountUid: 'alice', capabilityId: 'cap-1'})
-    await caller.enqueue({deletedDocumentId, signingAccountUid: 'alice', capabilityId: 'cap-1'})
-
-    const snapshot = getDocumentCardCleanupSnapshotForTest()
-    expect(snapshot.coordinatorState).toBe('idle')
-    expect(snapshot.jobs).toHaveLength(1)
-    expect(snapshot.jobs[0]).toMatchObject({
-      deletedDocumentId,
-      parentDocumentId: hmId('alice', {path: ['parent']}).id,
-      signingAccountUid: 'alice',
-      capabilityId: 'cap-1',
-      state: 'idle',
-      attempts: 0,
-      maxRetries: 3,
-    })
-  })
-
-  it('does not enqueue cleanup for a root document because it has no parent card', async () => {
-    const {documentCardCleanupApi, getDocumentCardCleanupSnapshotForTest} = await loadCleanupModule()
-    const caller = documentCardCleanupApi.createCaller({})
-
-    const result = await caller.enqueue({deletedDocumentId: hmId('alice').id, signingAccountUid: 'alice'})
-
-    expect(result.enqueued).toBe(false)
-    expect(result.reason).toBe('no-parent')
-    expect(getDocumentCardCleanupSnapshotForTest().jobs).toEqual([])
-  })
-
-  it('hydrates existing cleanup jobs from the legacy persisted store shape', async () => {
-    const deletedDocumentId = hmId('alice', {path: ['parent', 'child']}).id
+  it('persists dismissal across restart and clears only dismissed history', async () => {
     storeData['DocumentCardCleanupState-v001'] = {
-      coordinatorState: 'idle',
       jobs: [
         {
-          id: `${deletedDocumentId}|hm://alice/parent|alice`,
-          deletedDocumentId,
-          parentDocumentId: hmId('alice', {path: ['parent']}).id,
+          id: 'history-job',
+          sourceDocumentId: source,
+          parentDocumentId: parent,
           signingAccountUid: 'alice',
-          state: 'idle',
-          attempts: 0,
+          state: 'failedNeedsAttention',
+          attempts: 4,
           maxRetries: 3,
-          createdAt: 1_000,
-          updatedAt: 1_000,
+          createdAt: 1,
+          updatedAt: 1,
+          lastError: 'offline',
         },
       ],
     }
-
-    const {getDocumentCardCleanupSnapshotForTest} = await loadCleanupModule()
-
-    expect(getDocumentCardCleanupSnapshotForTest().jobs).toHaveLength(1)
-    expect(getDocumentCardCleanupSnapshotForTest().jobs[0]).toMatchObject({
-      deletedDocumentId,
-      parentDocumentId: hmId('alice', {path: ['parent']}).id,
-      state: 'idle',
+    const mod = await loadCleanupModule()
+    const api = mod.documentCardCleanupApi.createCaller({})
+    await api.dismiss({jobId: 'history-job'})
+    expect(storeData['DocumentCardCleanupState-v001'].jobs[0]).toMatchObject({
+      state: 'dismissed',
+      dismissedAt: 1000,
+      lastError: 'offline',
+      attempts: 4,
     })
+    vi.resetModules()
+    const restored = (await loadCleanupModule()).documentCardCleanupApi.createCaller({})
+    expect((await restored.getSnapshot()).jobs[0]?.state).toBe('dismissed')
+    await restored.enqueue({
+      deletedDocumentId: 'hm://alice/parent/other',
+      signingAccountUid: 'alice',
+      awaitingPrimary: {documentId: 'hm://alice/parent/other', expectedType: 'tombstone'},
+    })
+    await restored.clearDismissed()
+    expect((await restored.getSnapshot()).jobs.map((job: any) => job.state)).toEqual(['awaitingPrimary'])
+    expect(storeData['DocumentCardCleanupState-v001'].jobs).toHaveLength(1)
   })
 
-  it('runs one cleanup at a time and publishes child-preserving link embed removal changes', async () => {
-    const {documentCardCleanupApi, getDocumentCardCleanupSnapshotForTest, runNextDocumentCardCleanupForTest} =
-      await loadCleanupModule()
-    const caller = documentCardCleanupApi.createCaller({})
-    const firstDeletedId = hmId('alice', {path: ['parent', 'child']}).id
-    const secondDeletedId = hmId('alice', {path: ['parent', 'other']}).id
+  it('deduplicates pending parent jobs and skips home cleanup', async () => {
+    const mod = await loadCleanupModule()
+    const api = mod.documentCardCleanupApi.createCaller({})
+    expect((await api.enqueue({deletedDocumentId: 'hm://alice', signingAccountUid: 'alice'})).enqueued).toBe(false)
+    await api.enqueue({deletedDocumentId: source, signingAccountUid: 'alice'})
+    await api.enqueue({deletedDocumentId: source, signingAccountUid: 'alice'})
+    expect(mod.getDocumentCardCleanupSnapshotForTest().jobs).toHaveLength(1)
+  })
 
-    getDocumentMock.mockResolvedValue(
-      makeParentDocument([
-        {block: {id: 'intro', type: 'Paragraph', text: 'Intro', attributes: {}}, children: []},
-        {
-          block: {id: 'card', type: 'Embed', link: `${firstDeletedId}#target-block`, attributes: {view: 'Link'}},
-          children: [{block: {id: 'nested', type: 'Paragraph', text: 'Nested', attributes: {}}, children: []}],
-        },
-        {block: {id: 'tail', type: 'Paragraph', text: 'Tail', attributes: {}}, children: []},
-      ]),
-    )
-
-    await caller.enqueue({deletedDocumentId: firstDeletedId, signingAccountUid: 'alice'})
-    await caller.enqueue({deletedDocumentId: secondDeletedId, signingAccountUid: 'alice'})
-
-    await runNextDocumentCardCleanupForTest({now: () => 1_000})
-
-    expect(publishDocumentMock).toHaveBeenCalledTimes(1)
+  it('publishes reference-only changes and reads back the actual parent before completing', async () => {
+    const mod = await loadCleanupModule()
+    const api = mod.documentCardCleanupApi.createCaller({})
+    getDocumentMock
+      .mockResolvedValueOnce(makeParentDocument([card(), text('published')]))
+      .mockResolvedValue({...makeParentDocument([text('published')]), version: 'new'})
+    await api.enqueue({deletedDocumentId: source, signingAccountUid: 'alice'})
+    await mod.runNextDocumentCardCleanupForTest()
+    expect(publishDocumentMock).toHaveBeenCalledOnce()
     expect((publishDocumentMock.mock.calls[0] as any[])[0]).toMatchObject({
-      account: 'alice',
-      path: '/parent',
       baseVersion: 'parent-version',
-      genesis: 'parent-genesis',
-      generation: BigInt(11),
+      changes: [expect.objectContaining({op: expect.objectContaining({case: 'deleteBlock'})})],
     })
-    const changes = (publishDocumentMock.mock.calls[0] as any[])[0].changes
-    expect(changes.map((change: any) => change.op.case)).toEqual(['moveBlock', 'deleteBlock'])
-    expect(changes[0]!.op.value).toMatchObject({blockId: 'nested', parent: '', leftSibling: 'intro'})
-    expect(changes[1]!.op.value).toBe('card')
-    expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ENTITY, hmId('alice', {path: ['parent']}).id])
-    expect(appInvalidateQueriesMock).toHaveBeenCalledWith([
-      queryKeys.RESOLVED_ENTITY,
-      hmId('alice', {path: ['parent']}).id,
-    ])
-
-    const snapshot = getDocumentCardCleanupSnapshotForTest()
-    expect(snapshot.jobs.find((job) => job.deletedDocumentId === firstDeletedId)?.state).toBe('done')
-    expect(snapshot.jobs.find((job) => job.deletedDocumentId === secondDeletedId)?.state).toBe('idle')
+    expect(getDocumentMock).toHaveBeenCalledTimes(2)
+    expect(mod.getDocumentCardCleanupSnapshotForTest().jobs[0]).toMatchObject({state: 'done', publishedVersion: 'new'})
   })
 
-  it('removes matching embeds from a parent draft and preserves their children', async () => {
-    const {documentCardCleanupApi, getDocumentCardCleanupSnapshotForTest, runNextDocumentCardCleanupForTest} =
-      await loadCleanupModule()
-    const caller = documentCardCleanupApi.createCaller({})
-    const deletedDocumentId = hmId('alice', {path: ['parent', 'child']}).id
-
-    getDocumentMock.mockResolvedValue(
-      makeParentDocument([
-        {
-          block: {id: 'published-matching-embed', type: 'Embed', link: deletedDocumentId, attributes: {view: 'Card'}},
-          children: [],
-        },
-      ]),
-    )
-    findDraftByEditMock.mockResolvedValue({id: 'draft-parent'})
-    getDraftMock.mockResolvedValue({
+  it('publishes first then CAS-rebases a draft without publishing its user text', async () => {
+    const {hmBlocksToEditorContent} = await import('@seed-hypermedia/client/hmblock-to-editorblock')
+    const mod = await loadCleanupModule()
+    const api = mod.documentCardCleanupApi.createCaller({})
+    const base = [card(), text('published')]
+    const draft = {
       id: 'draft-parent',
-      editUid: 'alice',
-      editPath: ['parent'],
-      metadata: {name: 'Parent draft'},
       deps: ['parent-version'],
-      visibility: 'PUBLIC',
-      content: [
-        {
-          id: 'before',
-          type: 'paragraph',
-          props: {},
-          content: [{type: 'text', text: 'Before', styles: {}}],
-          children: [],
-        },
-        {
-          id: 'draft-link',
-          type: 'embed',
-          props: {url: `${deletedDocumentId}#target-block`, view: 'Link'},
-          content: [],
-          children: [
-            {
-              id: 'draft-child',
-              type: 'paragraph',
-              props: {},
-              content: [{type: 'text', text: 'Child', styles: {}}],
-              children: [],
-            },
-          ],
-        },
-        {
-          id: 'draft-comments',
-          type: 'embed',
-          props: {url: deletedDocumentId, view: 'Comments'},
-          content: [],
-          children: [],
-        },
-        {id: 'after', type: 'paragraph', props: {}, content: [{type: 'text', text: 'After', styles: {}}], children: []},
-      ],
-    })
-
-    await caller.enqueue({deletedDocumentId, signingAccountUid: 'alice'})
-    await runNextDocumentCardCleanupForTest({now: () => 1_000})
-
-    expect(publishDocumentMock).not.toHaveBeenCalled()
-    expect(writeDraftMock).toHaveBeenCalledTimes(1)
-    const draftWriteInput = writeDraftMock.mock.calls[0]?.[0] as any
-    expect(draftWriteInput).toMatchObject({
-      id: 'draft-parent',
-      editUid: 'alice',
-      editPath: ['parent'],
-      metadata: {name: 'Parent draft'},
-      deps: ['parent-version'],
-      visibility: 'PUBLIC',
-    })
-    expect(draftWriteInput.content.map((block: any) => block.id)).toEqual(['before', 'draft-child', 'after'])
-    expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.DRAFT, 'draft-parent'])
-    expect(dispatchAllWindowsAppEventMock).toHaveBeenCalledWith({
-      type: 'draft_externally_modified',
-      draftId: 'draft-parent',
-      source: 'document-card-cleanup',
-      deletedDocumentId,
-      removedBlockIds: ['draft-link', 'draft-comments'],
-      autoReload: true,
-    })
-    expect(getDocumentMock).not.toHaveBeenCalled()
-    expect(getDocumentCardCleanupSnapshotForTest().jobs[0]).toMatchObject({
-      state: 'done',
-      isDraft: true,
-      parentDraftId: 'draft-parent',
-    })
-  })
-
-  it('marks a cleanup as skippedTerminal when the parent has no matching document card', async () => {
-    const {documentCardCleanupApi, getDocumentCardCleanupSnapshotForTest, runNextDocumentCardCleanupForTest} =
-      await loadCleanupModule()
-    const caller = documentCardCleanupApi.createCaller({})
-    const deletedDocumentId = hmId('alice', {path: ['parent', 'child']}).id
-
-    getDocumentMock.mockResolvedValue(
-      makeParentDocument([{block: {id: 'not-card', type: 'Paragraph', text: 'x', attributes: {}}, children: []}]),
-    )
-
-    await caller.enqueue({deletedDocumentId, signingAccountUid: 'alice'})
-    await runNextDocumentCardCleanupForTest({now: () => 1_000})
-
-    expect(publishDocumentMock).not.toHaveBeenCalled()
-    expect(getDocumentCardCleanupSnapshotForTest().jobs[0]?.state).toBe('skippedTerminal')
-  })
-
-  it('appends a moved or republished document card to a parent draft', async () => {
-    const {documentCardCleanupApi, getDocumentCardCleanupSnapshotForTest, runNextDocumentCardCleanupForTest} =
-      await loadCleanupModule()
-    const caller = documentCardCleanupApi.createCaller({})
-    const parentDocumentId = hmId('alice', {path: ['new-parent']}).id
-    const targetDocumentId = hmId('alice', {path: ['new-parent', 'child']}).id
-
-    findDraftByEditMock.mockResolvedValue({id: 'draft-parent'})
-    getDraftMock.mockResolvedValue({
-      id: 'draft-parent',
-      editUid: 'alice',
-      editPath: ['new-parent'],
-      metadata: {name: 'New parent'},
-      deps: ['parent-version'],
-      visibility: 'PUBLIC',
-      content: [
-        {
-          id: 'before',
-          type: 'paragraph',
-          props: {},
-          content: [{type: 'text', text: 'Before', styles: {}}],
-          children: [],
-        },
-      ],
-    })
-
-    await caller.enqueue({
-      operation: 'add',
-      parentDocumentId,
-      targetDocumentId,
-      signingAccountUid: 'alice',
-    } as any)
-    await runNextDocumentCardCleanupForTest({now: () => 1_000})
-
-    expect(writeDraftMock).toHaveBeenCalledTimes(1)
-    const draftWriteInput = writeDraftMock.mock.calls[0]?.[0] as any
-    expect(draftWriteInput.content).toHaveLength(2)
-    expect(draftWriteInput.content.at(-1)).toMatchObject({
-      type: 'embed',
-      props: {url: targetDocumentId, view: 'Card'},
-    })
-    expect(publishDocumentMock).not.toHaveBeenCalled()
-    expect(getDocumentCardCleanupSnapshotForTest().jobs[0]).toMatchObject({
-      operation: 'add',
-      state: 'done',
-      parentDocumentId,
-      targetDocumentId,
-    })
-  })
-
-  it('rewrites an existing card link in place for a same-parent move', async () => {
-    const {documentCardCleanupApi, getDocumentCardCleanupSnapshotForTest, runNextDocumentCardCleanupForTest} =
-      await loadCleanupModule()
-    const caller = documentCardCleanupApi.createCaller({})
-    const parentDocumentId = hmId('alice', {path: ['parent']}).id
-    const sourceDocumentId = hmId('alice', {path: ['parent', 'old']}).id
-    const targetDocumentId = hmId('alice', {path: ['parent', 'new']}).id
-
-    getDocumentMock.mockResolvedValue(
-      makeParentDocument([
-        {
-          block: {id: 'card', type: 'Embed', link: sourceDocumentId, attributes: {view: 'Card'}},
-          children: [{block: {id: 'nested', type: 'Paragraph', text: 'Nested', attributes: {}}, children: []}],
-        },
-      ]),
-    )
-
-    await caller.enqueue({
-      operation: 'rewrite',
-      parentDocumentId,
-      sourceDocumentId,
-      targetDocumentId,
-      signingAccountUid: 'alice',
-    } as any)
-    await runNextDocumentCardCleanupForTest({now: () => 1_000})
-
-    expect(publishDocumentMock).toHaveBeenCalledTimes(1)
-    const changes = (publishDocumentMock.mock.calls[0] as any[])[0].changes
-    expect(changes.map((change: any) => change.op.case)).toEqual(['replaceBlock'])
-    expect(changes[0]!.op.value.id).toBe('card')
-    expect(changes[0]!.op.value.link).toBe(targetDocumentId)
-    expect(getDocumentCardCleanupSnapshotForTest().jobs[0]).toMatchObject({
-      operation: 'rewrite',
-      state: 'done',
-      parentDocumentId,
-      sourceDocumentId,
-      targetDocumentId,
-    })
-  })
-
-  it('retries retryable publish failures three times before failing needs attention', async () => {
-    const {documentCardCleanupApi, getDocumentCardCleanupSnapshotForTest, runNextDocumentCardCleanupForTest} =
-      await loadCleanupModule()
-    const caller = documentCardCleanupApi.createCaller({})
-    const deletedDocumentId = hmId('alice', {path: ['parent', 'child']}).id
-    let now = 1_000
-
-    getDocumentMock.mockResolvedValue(
-      makeParentDocument([
-        {block: {id: 'card', type: 'Embed', link: deletedDocumentId, attributes: {view: 'Card'}}, children: []},
-      ]),
-    )
-    publishDocumentMock.mockRejectedValue(new Error('temporary publish failure'))
-
-    await caller.enqueue({deletedDocumentId, signingAccountUid: 'alice'})
-
-    for (let run = 0; run < 4; run++) {
-      await runNextDocumentCardCleanupForTest({now: () => now})
-      const job = getDocumentCardCleanupSnapshotForTest().jobs[0]
-      if (run < 3) {
-        expect(job?.state).toBe('retryScheduled')
-        expect(job?.attempts).toBe(run + 1)
-        now = job?.nextRunAt || now
-      }
+      baseBlocks: base,
+      metadata: {name: 'Unpublished title'},
+      content: hmBlocksToEditorContent([card(), text('local')]),
     }
-
-    const finalJob = getDocumentCardCleanupSnapshotForTest().jobs[0]
-    expect(finalJob?.state).toBe('failedNeedsAttention')
-    expect(finalJob?.attempts).toBe(4)
-    expect(publishDocumentMock).toHaveBeenCalledTimes(4)
+    findDraftByEditMock.mockResolvedValue({id: draft.id})
+    getDraftMock.mockResolvedValue(draft)
+    getDocumentMock
+      .mockResolvedValueOnce(makeParentDocument(base))
+      .mockResolvedValue({...makeParentDocument([text('published')]), version: 'new.head'})
+    await api.enqueue({deletedDocumentId: source, signingAccountUid: 'alice'})
+    await mod.runNextDocumentCardCleanupForTest()
+    expect(mod.getDocumentCardCleanupSnapshotForTest().jobs[0]?.lastError).toBeUndefined()
+    expect(compareAndSwapDraftMock).toHaveBeenCalledOnce()
+    const replacement = compareAndSwapDraftMock.mock.calls[0]![1]
+    expect(replacement.deps).toEqual(['new', 'head'])
+    expect(replacement.baseBlocks).toEqual([text('published')])
+    expect(replacement.metadata).toEqual(draft.metadata)
+    expect(replacement.content[0].content[0].text).toBe('local')
+    expect(dispatchAllWindowsAppEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        draftId: draft.id,
+        previousContent: expect.any(Array),
+        publishedDocument: expect.objectContaining({version: 'new.head'}),
+        autoReload: false,
+      }),
+    )
+    expect(writeDraftMock).not.toHaveBeenCalled()
   })
 
-  it('blocks later queued cleanups while an earlier cleanup is waiting to retry', async () => {
-    const {documentCardCleanupApi, getDocumentCardCleanupSnapshotForTest, runNextDocumentCardCleanupForTest} =
-      await loadCleanupModule()
-    const caller = documentCardCleanupApi.createCaller({})
-    const firstDeletedId = hmId('alice', {path: ['parent', 'child']}).id
-    const secondDeletedId = hmId('alice', {path: ['parent', 'other']}).id
-    let now = 1_000
+  it('retains publication checkpoint on CAS failure and does not publish again on retry', async () => {
+    const {hmBlocksToEditorContent} = await import('@seed-hypermedia/client/hmblock-to-editorblock')
+    const mod = await loadCleanupModule()
+    const api = mod.documentCardCleanupApi.createCaller({})
+    findDraftByEditMock.mockResolvedValue({id: 'draft-parent'})
+    getDraftMock.mockResolvedValue({
+      id: 'draft-parent',
+      deps: ['parent-version'],
+      baseBlocks: [card()],
+      content: hmBlocksToEditorContent([card()]),
+    })
+    getDocumentMock
+      .mockResolvedValueOnce(makeParentDocument([card()]))
+      .mockResolvedValue({...makeParentDocument(), version: 'new'})
+    compareAndSwapDraftMock.mockResolvedValueOnce(false).mockResolvedValue(true)
+    await api.enqueue({deletedDocumentId: source, signingAccountUid: 'alice'})
+    await mod.runNextDocumentCardCleanupForTest()
+    expect(mod.getDocumentCardCleanupSnapshotForTest().jobs[0]).toMatchObject({
+      state: 'retryScheduled',
+      publishedVersion: 'new',
+    })
+    await mod.runNextDocumentCardCleanupForTest({now: () => 2000})
+    expect(publishDocumentMock).toHaveBeenCalledOnce()
+    expect(mod.getDocumentCardCleanupSnapshotForTest().jobs[0]?.state).toBe('done')
+  })
 
+  it('never mutates a draft when parent publication fails', async () => {
+    const mod = await loadCleanupModule()
+    const api = mod.documentCardCleanupApi.createCaller({})
+    getDocumentMock.mockResolvedValue(makeParentDocument([card()]))
+    publishDocumentMock.mockRejectedValue(new Error('offline'))
+    await api.enqueue({deletedDocumentId: source, signingAccountUid: 'alice'})
+    await mod.runNextDocumentCardCleanupForTest()
+    expect(compareAndSwapDraftMock).not.toHaveBeenCalled()
+    expect(mod.getDocumentCardCleanupSnapshotForTest().jobs[0]?.state).toBe('retryScheduled')
+  })
+
+  it('holds maintenance until the primary operation explicitly succeeds', async () => {
+    const mod = await loadCleanupModule()
+    const api = mod.documentCardCleanupApi.createCaller({})
+    const intent = await api.enqueue({
+      deletedDocumentId: source,
+      signingAccountUid: 'alice',
+      awaitingPrimary: {documentId: source, expectedType: 'tombstone'},
+    })
+    await mod.runNextDocumentCardCleanupForTest()
+    expect(getDocumentMock).not.toHaveBeenCalled()
+    await api.release({jobId: intent.jobId!})
+    await mod.runNextDocumentCardCleanupForTest()
+    expect(getDocumentMock).toHaveBeenCalled()
+  })
+  it('suppresses an added card when a custom-domain parent link resolves to that child', async () => {
+    resolveHypermediaUrlMock.mockResolvedValue({hmId: hmId('alice', {path: ['parent', 'child']})})
+    const mod = await loadCleanupModule()
+    const api = mod.documentCardCleanupApi.createCaller({})
     getDocumentMock.mockResolvedValue(
       makeParentDocument([
-        {block: {id: 'card', type: 'Embed', link: firstDeletedId, attributes: {view: 'Card'}}, children: []},
-        {block: {id: 'other-card', type: 'Embed', link: secondDeletedId, attributes: {view: 'Card'}}, children: []},
+        {block: {id: 'link', type: 'Button', link: 'https://alice.example/parent/child', attributes: {}}, children: []},
       ]),
     )
-    publishDocumentMock.mockRejectedValueOnce(new Error('temporary publish failure'))
+    await api.enqueue({
+      operation: 'add',
+      targetDocumentId: source,
+      parentDocumentId: parent,
+      signingAccountUid: 'alice',
+    })
+    await mod.runNextDocumentCardCleanupForTest()
+    expect(publishDocumentMock).not.toHaveBeenCalled()
+    expect(mod.getDocumentCardCleanupSnapshotForTest().jobs[0]?.state).toBe('done')
+  })
 
-    await caller.enqueue({deletedDocumentId: firstDeletedId, signingAccountUid: 'alice'})
-    await caller.enqueue({deletedDocumentId: secondDeletedId, signingAccountUid: 'alice'})
+  it('does not acknowledge a held intent or publish when durable storage fails', async () => {
+    const mod = await loadCleanupModule()
+    const api = mod.documentCardCleanupApi.createCaller({})
+    appStoreMock.set.mockImplementationOnce(() => {
+      throw new Error('disk full')
+    })
+    await expect(
+      api.enqueue({
+        deletedDocumentId: source,
+        signingAccountUid: 'alice',
+        awaitingPrimary: {documentId: source, expectedType: 'tombstone'},
+      }),
+    ).rejects.toThrow('disk full')
+    await mod.runNextDocumentCardCleanupForTest()
+    expect(publishDocumentMock).not.toHaveBeenCalled()
+    expect((await api.getSnapshot()).storageError).toBe('disk full')
+  })
+  it('corrects a draft-only card even when no new parent publication is needed', async () => {
+    const {hmBlocksToEditorContent} = await import('@seed-hypermedia/client/hmblock-to-editorblock')
+    const mod = await loadCleanupModule()
+    const api = mod.documentCardCleanupApi.createCaller({})
+    findDraftByEditMock.mockResolvedValue({id: 'draft-parent'})
+    getDraftMock.mockResolvedValue({
+      id: 'draft-parent',
+      deps: ['parent-version'],
+      baseBlocks: [],
+      content: hmBlocksToEditorContent([card()]),
+    })
+    getDocumentMock.mockResolvedValue(makeParentDocument())
+    await api.enqueue({deletedDocumentId: source, signingAccountUid: 'alice'})
+    await mod.runNextDocumentCardCleanupForTest()
+    expect(publishDocumentMock).not.toHaveBeenCalled()
+    expect(compareAndSwapDraftMock.mock.calls[0]?.[1].content).toEqual([])
+  })
 
-    await runNextDocumentCardCleanupForTest({now: () => now})
-
-    let snapshot = getDocumentCardCleanupSnapshotForTest()
-    const retryingJob = snapshot.jobs.find((job) => job.deletedDocumentId === firstDeletedId)
-    expect(retryingJob?.state).toBe('retryScheduled')
-    expect(snapshot.jobs.find((job) => job.deletedDocumentId === secondDeletedId)?.state).toBe('idle')
-
-    await runNextDocumentCardCleanupForTest({now: () => now + 1})
-
-    snapshot = getDocumentCardCleanupSnapshotForTest()
-    expect(snapshot.jobs.find((job) => job.deletedDocumentId === firstDeletedId)?.state).toBe('retryScheduled')
-    expect(snapshot.jobs.find((job) => job.deletedDocumentId === secondDeletedId)?.state).toBe('idle')
-    expect(publishDocumentMock).toHaveBeenCalledTimes(1)
-
-    now = retryingJob?.nextRunAt || now
-    publishDocumentMock.mockResolvedValue(undefined)
-
-    await runNextDocumentCardCleanupForTest({now: () => now})
-    await runNextDocumentCardCleanupForTest({now: () => now})
-
-    snapshot = getDocumentCardCleanupSnapshotForTest()
-    expect(snapshot.jobs.find((job) => job.deletedDocumentId === firstDeletedId)?.state).toBe('done')
-    expect(snapshot.jobs.find((job) => job.deletedDocumentId === secondDeletedId)?.state).toBe('done')
-    expect(publishDocumentMock).toHaveBeenCalledTimes(3)
+  it('publishes a temporary child card at a stable published anchor and retains its local ID', async () => {
+    const {hmBlocksToEditorContent} = await import('@seed-hypermedia/client/hmblock-to-editorblock')
+    const mod = await loadCleanupModule()
+    const api = mod.documentCardCleanupApi.createCaller({})
+    const before = text('before')
+    const after = {...text('after'), block: {...text('after').block, id: 'after'}} as HMBlockNode
+    const base = [before, after]
+    const resolved = {...card(), block: {...card().block, id: 'temporary-card'}} as HMBlockNode
+    const draftContent = hmBlocksToEditorContent(base)
+    draftContent.splice(1, 0, {
+      id: 'temporary-card',
+      type: 'embed',
+      props: {draftId: 'child-draft', url: '', view: 'Card'},
+      content: [],
+      children: [],
+    } as any)
+    findDraftByEditMock.mockResolvedValue({id: 'draft-parent'})
+    getDraftMock.mockResolvedValue({
+      id: 'draft-parent',
+      deps: ['parent-version'],
+      baseBlocks: base,
+      content: draftContent,
+    })
+    let published = false
+    getDocumentMock.mockImplementation(async () =>
+      published ? {...makeParentDocument([before, resolved, after]), version: 'new'} : makeParentDocument(base),
+    )
+    publishDocumentMock.mockImplementation(async () => {
+      published = true
+    })
+    await api.enqueue({
+      operation: 'add',
+      targetDocumentId: source,
+      parentDocumentId: parent,
+      signingAccountUid: 'alice',
+      childDraftId: 'child-draft',
+    })
+    await mod.runNextDocumentCardCleanupForTest()
+    const changes = (publishDocumentMock.mock.calls[0] as any[])[0].changes
+    const move = changes.find((change: any) => change.op.case === 'moveBlock')
+    expect(move.op.value).toMatchObject({blockId: 'temporary-card', parent: '', leftSibling: 'text'})
+    expect(compareAndSwapDraftMock.mock.calls[0]?.[1].content.map((block: any) => block.id)).toEqual([
+      'text',
+      'temporary-card',
+      'after',
+    ])
+    expect(compareAndSwapDraftMock.mock.calls[0]?.[1].content[1].props.url).toBe(source)
   })
 })

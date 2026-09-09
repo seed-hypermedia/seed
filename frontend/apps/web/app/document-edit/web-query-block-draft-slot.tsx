@@ -1,3 +1,5 @@
+import {toast} from '@shm/ui/toast'
+import {useUniversalClient} from '@shm/shared/routing'
 import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -25,6 +27,7 @@ import {
  */
 export function WebQueryBlockDraftSlot({targetId, children}: QueryBlockDraftSlotProps) {
   const navigate = useNavigate()
+  const client = useUniversalClient()
   const userKeyPair = useLocalKeyPair()
   const signingAccountId = userKeyPair?.delegatedAccountUid ?? null
   const moveDraftDialog = useWebDocumentDestinationDialog({
@@ -56,23 +59,26 @@ export function WebQueryBlockDraftSlot({targetId, children}: QueryBlockDraftSlot
   }, [childDraftsQuery.data, lastCreatedDraftId])
 
   const onCreateDraft = useMemo(() => {
-    if (!targetId || !canEdit || isPrivate || !signingAccountId) return undefined
+    if (!targetId || !doc?.version || !canEdit || isPrivate || !signingAccountId) return undefined
     return () => {
       void createWebDocumentDraft({
+        client,
         locationId: targetId,
         signingAccountId,
         visibility: 'PUBLIC',
-      }).then(({draftId}) => {
-        console.log('[web-create-doc] queryBlock onCreateDraft', {
-          targetId: targetId.id,
-          draftId,
-        })
-        setLastCreatedDraftId?.(draftId)
-        invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, targetId.uid])
-        invalidateQueries([queryKeys.DRAFTS_LIST])
       })
+        .then(({draftId}) => {
+          console.log('[web-create-doc] queryBlock onCreateDraft', {
+            targetId: targetId.id,
+            draftId,
+          })
+          setLastCreatedDraftId?.(draftId)
+          invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, targetId.uid])
+          invalidateQueries([queryKeys.DRAFTS_LIST])
+        })
+        .catch((error) => toast.error(error instanceof Error ? error.message : 'Could not create document'))
     }
-  }, [targetId, canEdit, isPrivate, signingAccountId, setLastCreatedDraftId])
+  }, [client, doc?.version, targetId, canEdit, isPrivate, signingAccountId, setLastCreatedDraftId])
 
   const onOpenDraft = useCallback(
     (draftId: string) => {

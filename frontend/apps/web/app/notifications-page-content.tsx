@@ -1,3 +1,4 @@
+import {DocumentMaintenanceBanner} from '@shm/ui/document-maintenance'
 import {useLocalKeyPair} from '@/auth'
 import {
   useWebAccountUid,
@@ -23,21 +24,27 @@ export function WebNotificationsPage() {
 
   if (!keyPair || !accountUid) {
     return (
-      <NotificationPageEmptyState
-        title="Notifications"
-        titleSize="2xl"
-        description="Sign in to view your notifications."
-      />
+      <>
+        <DocumentMaintenanceBanner />
+        <NotificationPageEmptyState
+          title="Notifications"
+          titleSize="2xl"
+          description="Sign in to view your notifications."
+        />
+      </>
     )
   }
 
   if (!keyPair.notifyServerUrl) {
     return (
-      <NotificationPageEmptyState
-        title="Notifications unavailable"
-        titleSize="2xl"
-        description="Log out and log back in again to use notifications."
-      />
+      <>
+        <DocumentMaintenanceBanner />
+        <NotificationPageEmptyState
+          title="Notifications unavailable"
+          titleSize="2xl"
+          description="Log out and log back in again to use notifications."
+        />
+      </>
     )
   }
 

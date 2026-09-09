@@ -1,14 +1,12 @@
 import React from 'react'
+import {DocumentDeletionReferences} from './document-deletion-references'
 import {Button} from './button'
 import {Text} from './text'
 import {toast} from './toast'
 import {cn} from './utils'
 
-export type DeleteDocumentDialogItem = {
-  key: string
-  title: string
-  path?: string[] | null
-}
+import {DeletionDocumentList, type DeleteDocumentDialogItem} from './deletion-document-list'
+export {DeletionDocumentList, type DeleteDocumentDialogItem} from './deletion-document-list'
 
 export type DeleteDocumentDialogProps = {
   document: DeleteDocumentDialogItem
@@ -33,12 +31,9 @@ export function DeleteDocumentDialog({
   className,
 }: DeleteDocumentDialogProps) {
   const [isDeleting, setIsDeleting] = React.useState(false)
-  const [showChildDocuments, setShowChildDocuments] = React.useState(false)
-  const childDocumentListId = React.useId()
   const deletedDocumentCount = childDocuments.length + 1
   const documentLabel = deletedDocumentCount === 1 ? 'document' : 'documents'
   const hasChildren = childDocuments.length > 0
-  const childDocumentLabel = childDocuments.length === 1 ? 'document' : 'documents'
 
   async function handleConfirm() {
     if (!canDelete) {
@@ -91,39 +86,15 @@ export function DeleteDocumentDialog({
       </div>
 
       {hasChildren ? (
-        <div
-          className="border-destructive/20 bg-destructive/[0.03] overflow-hidden rounded-lg border"
-          data-testid="delete-document-child-section"
-        >
-          <div className="flex items-center justify-between gap-4 px-4 py-3">
-            <Text className="text-base font-semibold">
-              {childDocuments.length} {childDocumentLabel} will also be deleted
-            </Text>
-            <button
-              type="button"
-              aria-controls={showChildDocuments ? childDocumentListId : undefined}
-              aria-expanded={showChildDocuments}
-              className="text-primary hover:text-primary/80 focus-visible:ring-ring/50 rounded-sm text-sm font-medium transition-colors outline-none focus-visible:ring-[3px]"
-              onClick={() => setShowChildDocuments((visible) => !visible)}
-            >
-              {showChildDocuments ? 'Hide' : 'Show'}
-            </button>
-          </div>
-          {showChildDocuments ? (
-            <div
-              id={childDocumentListId}
-              className="border-border max-h-56 overflow-y-auto border-t px-4 py-3"
-              data-testid="delete-document-child-list"
-            >
-              <div className="flex flex-col divide-y">
-                {childDocuments.map((item) => (
-                  <DeletionListItem key={item.key} item={item} />
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </div>
+        <DeletionDocumentList
+          documents={childDocuments}
+          label={`${childDocuments.length} ${
+            childDocuments.length === 1 ? 'document' : 'documents'
+          } will also be deleted`}
+        />
       ) : null}
+
+      <DocumentDeletionReferences documentIds={[document.key, ...childDocuments.map((child) => child.key)]} />
 
       <div className="flex shrink-0 justify-end gap-3" data-testid="delete-document-footer">
         <Button onClick={onClose} variant="outline" disabled={isDeleting}>
@@ -133,15 +104,6 @@ export function DeleteDocumentDialog({
           Delete document
         </Button>
       </div>
-    </div>
-  )
-}
-
-function DeletionListItem({item}: {item: DeleteDocumentDialogItem}) {
-  return (
-    <div className="flex min-w-0 flex-col gap-1 py-3" data-testid="delete-document-child-item">
-      <Text className="truncate text-sm font-medium">{item.title}</Text>
-      <Text className="text-muted-foreground truncate text-xs">{item.path?.join('/') || 'Unknown path'}</Text>
     </div>
   )
 }

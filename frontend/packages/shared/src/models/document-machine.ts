@@ -1,3 +1,4 @@
+import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {EditorBlock, EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
 import {
   entityQueryPathToHmIdPath,
@@ -11,8 +12,67 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {nanoid} from 'nanoid'
-import {assign, emit, fromPromise, raise, setup, spawnChild, StateFrom} from 'xstate'
+import {assign, emit, enqueueActions, fromPromise, raise, setup, spawnChild, StateFrom} from 'xstate'
 import {collectChildDraftIds} from '../utils/child-draft-refs'
+import {
+  getDirectChildrenLosingReferences,
+  getRemovedChildReferenceTargets,
+  hasSelfQueryBlock,
+} from '../utils/document-card-cleanup'
+import {
+  reconcileChildRemovalIntent,
+  type ConfirmChildDeletionInput,
+  type ConfirmedChildDeletion,
+} from '../utils/confirmed-child-deletion'
+import {createBlocksMap, isBlocksEqual} from '../utils/document-changes'
+import {rebaseDocumentReferenceDraft} from '../utils/document-reference-rebase'
+
+/** Reconciles a maintenance notification with unsaved editor content, never silently replacing conflicting edits. */
+export function reconcileLiveDocumentMaintenance(
+  context: DocumentMachineContext,
+  event: Extract<DocumentMachineEvent, {type: 'draft.externallyModified'}>,
+  liveContent: HMBlockNode[] | null,
+): Partial<DocumentMachineContext> {
+  if (event.source !== 'document-card-cleanup' || event.draftId !== context.draftId || !event.content) return {}
+  if (event.maintenanceRevision !== undefined && event.maintenanceRevision <= (context.maintenanceRevision ?? 0))
+    return {}
+  if (
+    liveContent &&
+    event.maintenanceRevision !== undefined &&
+    event.maintenanceRevision > (context.maintenanceRevision ?? 0) + 1
+  ) {
+    throw new Error('Live edits missed intermediate maintenance snapshots; review the saved draft before reloading')
+  }
+  const mine = liveContent ?? event.content
+  const previous = event.previousContent
+  if (liveContent && !previous && JSON.stringify(mine) !== JSON.stringify(event.content)) {
+    throw new Error('Cannot reconcile live edits without the previous draft snapshot')
+  }
+  const result =
+    previous && liveContent
+      ? rebaseDocumentReferenceDraft(event, previous, mine, event.content)
+      : {content: event.content, mineTouchedIds: event.mineTouchedIds ?? context.mineTouchedIds}
+  const baseline = event.publishedDocument?.content ?? event.baseBlocks ?? context.baseBlocks
+  return {
+    maintenanceRevision: event.maintenanceRevision ?? context.maintenanceRevision,
+    draftContent: result.content,
+    removedChildDocumentIds: reconcileChildRemovalIntent(
+      event,
+      Array.from(new Set([...context.removedChildDocumentIds, ...(event.removedChildDocumentIds ?? [])])),
+    ),
+    metadata: context.metadata,
+    deps: event.deps ?? context.deps,
+    baseBlocks: baseline,
+    mineTouchedIds: Array.from(
+      new Set([...context.mineTouchedIds, ...(event.mineTouchedIds ?? []), ...result.mineTouchedIds]),
+    ),
+    document: event.publishedDocument ?? context.document,
+    publishedVersion: event.publishedDocument?.version ?? context.publishedVersion,
+    editorBaseline: baseline ? hmBlocksToEditorContent(baseline, {childrenType: 'Group'}) : context.editorBaseline,
+    hasChangedWhileSaving:
+      context.hasChangedWhileSaving || JSON.stringify(result.content) !== JSON.stringify(event.content),
+  }
+}
 
 const DOCUMENT_EMBED_CLEANUP_LOG_PREFIX = '[Document embed cleanup]'
 
@@ -204,6 +264,7 @@ export type DocumentMachineInput = {
   locationUid?: string
   locationPath?: string[]
   deps?: string[]
+  maintenanceRevision?: number
   signingAccountId?: string
   publishAccountUid?: string
 }
@@ -217,6 +278,24 @@ export type PendingRebase =
   | {kind: 'auto'; author: string | null}
   | {kind: 'conflict'; conflictedBlockIds: string[]; author: string | null}
 
+// Desktop draft snapshots use editor blocks; reference analysis consumes published block nodes.
+function getChildDeletionContent(context: DocumentMachineContext): HMBlockNode[] {
+  const content = context.draftContent ?? context.baseBlocks ?? context.document?.content ?? []
+  return content.length && !('block' in content[0]!)
+    ? editorBlocksToHMBlockNodes(content as unknown as EditorBlock[])
+    : content
+}
+
+function getChildDeletionCandidates(context: DocumentMachineContext) {
+  const before = [
+    ...(context.baseBlocks ?? context.document?.content ?? []),
+    ...context.removedChildDocumentIds.map(
+      (link) => ({block: {id: link, type: 'Embed', link, attributes: {view: 'Card'}}, children: []}) as HMBlockNode,
+    ),
+  ]
+  return getDirectChildrenLosingReferences(context.documentId, before, getChildDeletionContent(context))
+}
+
 /** Full context managed by the machine. */
 export type DocumentMachineContext = {
   documentId: UnpackedHypermediaId
@@ -226,6 +305,12 @@ export type DocumentMachineContext = {
   document: HMDocument | null
   metadata: HMDraft['metadata']
   deps: string[]
+  /** Scope awaiting explicit consent; never reused after leaving publishing. */
+  confirmedChildDeletions: ConfirmedChildDeletion[]
+  /** Authored removals retained until publish/discard; system reconciliation never adds intent. */
+  removedChildDocumentIds: string[]
+  /** Failure while safely inspecting the proposed destructive scope. */
+  childDeletionError: string | null
   publishedVersion: string | null
   isLatestVersion: boolean
   navigation: HMNavigationItem[] | undefined
@@ -257,6 +342,8 @@ export type DocumentMachineContext = {
   baseBlocks: HMBlockNode[] | null
   /** Block IDs touched by the local user since edit start (from ProseMirror tr listener). */
   mineTouchedIds: string[]
+  /** Last observed local maintenance epoch for optimistic autosave writes. */
+  maintenanceRevision: number
   /** Full remote document stashed on remoteUpdate while editing. Classification runs outside the machine. */
   pendingRemoteDocument: HMDocument | null
   /** Classification of pending remote update: auto-mergeable or conflict. */
@@ -359,8 +446,11 @@ export type DocumentMachineEvent =
        */
       pathOverride?: string[]
     }
+  | {type: 'publish.confirmChildDeletion'}
+  | {type: 'publish.cancelChildDeletion'}
   | {type: 'document.remoteUpdate'; document: HMDocument}
   | {type: 'edit.discard'}
+  | {type: 'childReferences.removed'; documentIds: string[]}
   | {type: 'childDraftRefs.changed'; draftIds: string[]}
   | {type: 'capability.changed'; canEdit: boolean}
   | {type: 'account.changed'; signingAccountId?: string; publishAccountUid?: string}
@@ -373,7 +463,9 @@ export type DocumentMachineEvent =
       cursorPosition: number | null
       metadata?: HMMetadata | null
       deps?: string[] | null
+      maintenanceRevision?: number
       /** Block IDs the user previously touched in this draft (persisted across reloads). */
+      removedChildDocumentIds?: string[] | null
       mineTouchedIds?: string[] | null
       /** Three-way merge base captured when the draft was first started or last rebased. */
       baseBlocks?: HMBlockNode[] | null
@@ -382,6 +474,15 @@ export type DocumentMachineEvent =
     }
   | {
       type: 'draft.externallyModified'
+      cardBlockId?: string
+      childDraftId?: string
+      targetBlockId?: string
+      jobId?: string
+      operation?: 'add' | 'remove' | 'rewrite'
+      sourceDocumentId?: string
+      targetDocumentId?: string
+      previousContent?: HMBlockNode[]
+      publishedDocument?: HMDocument
       draftId: string
       source?: 'document-card-cleanup'
       deletedDocumentId?: string
@@ -390,6 +491,8 @@ export type DocumentMachineEvent =
       cursorPosition?: number | null
       metadata?: HMMetadata | null
       deps?: string[] | null
+      maintenanceRevision?: number
+      removedChildDocumentIds?: string[] | null
       mineTouchedIds?: string[] | null
       baseBlocks?: HMBlockNode[] | null
       publishPath?: string[] | null
@@ -414,12 +517,15 @@ export type WriteDraftInput = {
   draftId: string | null
   metadata: HMDraft['metadata']
   deps: string[]
+  maintenanceRevision?: number
   navigation: HMNavigationItem[] | undefined
   locationUid: string
   locationPath: string[]
   editUid: string
   editPath: string[]
   signingAccountId: string | null
+  /** Explicit authored child-reference removals retained across reloads. */
+  removedChildDocumentIds?: string[]
   /** Block IDs the user has locally touched since edit-start (or last rebase). */
   mineTouchedIds: string[]
   /** Three-way merge base captured at edit-start (or updated by `rebase.apply`). */
@@ -451,6 +557,8 @@ export type PublishInput = {
    * inline first-publish slug rename.
    */
   pathOverride?: string[]
+  /** Exact child-subtree scope approved before publishing this parent. */
+  confirmedChildDeletions?: ConfirmedChildDeletion[]
   /** Child drafts removed from this parent draft and confirmed by publishing. */
   deletedChildDraftIds: string[]
 }
@@ -568,6 +676,7 @@ export const documentMachine = setup({
     emitted: {} as
       | {type: 'scrolling'}
       | {type: 'oldVersionEditBlocked'}
+      | {type: 'maintenanceConflict'; jobId: string; error: string}
       | {type: 'renamed'; oldId: string; newId: string},
   },
   actions: {
@@ -729,7 +838,9 @@ export const documentMachine = setup({
       metadata: {},
       navigation: undefined,
       baseBlocks: null,
+      removedChildDocumentIds: [],
       mineTouchedIds: [],
+      maintenanceRevision: 0,
       pendingRemoteDocument: null,
       pendingRebase: null,
       pendingPathOverride: null,
@@ -747,6 +858,7 @@ export const documentMachine = setup({
       hasChangedWhileSaving: false,
       pendingEditCursorPosition: null,
       baseBlocks: null,
+      removedChildDocumentIds: [],
       mineTouchedIds: [],
       pendingRemoteDocument: null,
       pendingRebase: null,
@@ -775,7 +887,7 @@ export const documentMachine = setup({
         // Preserve restored base blocks from a reloaded draft. We only snapshot
         // fresh from the published document when starting a brand-new draft
         // session (baseBlocks === null and not yet hydrated by draft.resolved).
-        if (context.baseBlocks && context.baseBlocks.length) {
+        if (context.baseBlocks !== null) {
           // console.log('[Rebase machine] snapshotBaseBlocks: preserving restored', {
           //   count: context.baseBlocks.length,
           // })
@@ -844,13 +956,24 @@ export const documentMachine = setup({
       },
       deps: ({context, event}) => {
         if (event.type !== 'rebase.apply') return context.deps
-        return event.newDocument.version ? [event.newDocument.version] : context.deps
+        return event.newDocument.version ? event.newDocument.version.split('.') : context.deps
       },
       baseBlocks: ({context, event}) => {
         if (event.type !== 'rebase.apply') return context.baseBlocks
-        return event.mergedBlocks
+        return event.newDocument.content
       },
-      mineTouchedIds: [],
+      mineTouchedIds: ({context, event}) => {
+        if (event.type !== 'rebase.apply') return context.mineTouchedIds
+        const published = createBlocksMap(event.newDocument.content, '')
+        const merged = createBlocksMap(event.mergedBlocks, '')
+        const previouslyTouched = new Set(context.mineTouchedIds)
+        return Array.from(new Set([...Object.keys(published), ...Object.keys(merged)])).filter((id) => {
+          const before = published[id]
+          const after = merged[id]
+          if (!before || !after || !isBlocksEqual(before.block, after.block)) return true
+          return previouslyTouched.has(id) && (before.parent !== after.parent || before.left !== after.left)
+        })
+      },
       pendingRemoteDocument: null,
       pendingRebase: null,
     }),
@@ -983,6 +1106,12 @@ export const documentMachine = setup({
         if (event.type === 'draft.resolved' && event.deps && event.deps.length) return event.deps
         return context.deps
       },
+      removedChildDocumentIds: ({event, context}) =>
+        event.type === 'draft.resolved'
+          ? event.removedChildDocumentIds ?? context.removedChildDocumentIds
+          : context.removedChildDocumentIds,
+      maintenanceRevision: ({event, context}) =>
+        event.type === 'draft.resolved' ? event.maintenanceRevision ?? 0 : context.maintenanceRevision,
       mineTouchedIds: ({event, context}) => {
         if (event.type === 'draft.resolved' && event.mineTouchedIds && event.mineTouchedIds.length) {
           return event.mineTouchedIds
@@ -990,7 +1119,7 @@ export const documentMachine = setup({
         return context.mineTouchedIds
       },
       baseBlocks: ({event, context}) => {
-        if (event.type === 'draft.resolved' && event.baseBlocks && event.baseBlocks.length) {
+        if (event.type === 'draft.resolved' && event.baseBlocks) {
           return event.baseBlocks
         }
         return context.baseBlocks
@@ -1069,95 +1198,9 @@ export const documentMachine = setup({
         return context.editorBaseline
       },
     }),
-    applyExternalDraftState: assign({
-      draftContent: ({context, event}) => {
-        if (
-          event.type === 'draft.externallyModified' &&
-          event.source === 'document-card-cleanup' &&
-          event.draftId === context.draftId &&
-          event.content
-        ) {
-          return event.content
-        }
-        return context.draftContent
-      },
-      draftCursorPosition: ({context, event}) => {
-        if (
-          event.type === 'draft.externallyModified' &&
-          event.source === 'document-card-cleanup' &&
-          event.draftId === context.draftId &&
-          event.cursorPosition !== undefined
-        ) {
-          return event.cursorPosition
-        }
-        return context.draftCursorPosition
-      },
-      metadata: ({context, event}) => {
-        if (
-          event.type === 'draft.externallyModified' &&
-          event.source === 'document-card-cleanup' &&
-          event.draftId === context.draftId &&
-          event.metadata
-        ) {
-          return event.metadata
-        }
-        return context.metadata
-      },
-      deps: ({context, event}) => {
-        if (
-          event.type === 'draft.externallyModified' &&
-          event.source === 'document-card-cleanup' &&
-          event.draftId === context.draftId &&
-          event.deps
-        ) {
-          return event.deps
-        }
-        return context.deps
-      },
-      mineTouchedIds: ({context, event}) => {
-        if (
-          event.type === 'draft.externallyModified' &&
-          event.source === 'document-card-cleanup' &&
-          event.draftId === context.draftId &&
-          event.mineTouchedIds
-        ) {
-          return event.mineTouchedIds
-        }
-        return context.mineTouchedIds
-      },
-      baseBlocks: ({context, event}) => {
-        if (
-          event.type === 'draft.externallyModified' &&
-          event.source === 'document-card-cleanup' &&
-          event.draftId === context.draftId &&
-          event.baseBlocks
-        ) {
-          return event.baseBlocks
-        }
-        return context.baseBlocks
-      },
-      publishPath: ({context, event}) => {
-        if (
-          event.type === 'draft.externallyModified' &&
-          event.source === 'document-card-cleanup' &&
-          event.draftId === context.draftId &&
-          event.publishPath
-        ) {
-          return event.publishPath
-        }
-        return context.publishPath
-      },
-      hasChangedWhileSaving: ({context, event}) => {
-        if (
-          event.type === 'draft.externallyModified' &&
-          event.source === 'document-card-cleanup' &&
-          event.draftId === context.draftId
-        ) {
-          return false
-        }
-        return context.hasChangedWhileSaving
-      },
-    }),
+    applyExternalDraftState: assign(({context, event}) =>
+      event.type === 'draft.externallyModified' ? reconcileLiveDocumentMaintenance(context, event, null) : {},
+    ),
     logDraftResolved: ({context, event}) => {
       if (event.type !== 'draft.resolved') return
       documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft.resolved`, {
@@ -1209,6 +1252,7 @@ export const documentMachine = setup({
         draftId: context.draftId,
         draftCreated: context.draftCreated,
         hasChangedWhileSaving: context.hasChangedWhileSaving,
+        removedChildDocumentIds: context.removedChildDocumentIds,
         mineTouchedIds: context.mineTouchedIds,
         baseBlockCount: getTopLevelBlockCount(context.baseBlocks),
       })
@@ -1279,6 +1323,9 @@ export const documentMachine = setup({
     writeDraft: fromPromise<WriteDraftOutput, WriteDraftInput>(async () => {
       throw new Error('writeDraft actor must be provided via .provide()')
     }),
+    inspectChildDeletions: fromPromise<ConfirmedChildDeletion[], ConfirmChildDeletionInput>(async () => {
+      throw new Error('Child deletion inspection is unavailable; publication was not performed')
+    }),
     publishDocument: fromPromise<HMDocument, PublishInput>(async () => {
       throw new Error('publishDocument actor must be provided via .provide()')
     }),
@@ -1311,6 +1358,12 @@ export const documentMachine = setup({
     'editor.baselineUpdate': {
       actions: ['setEditorBaselineFromSnapshot'],
     },
+    'childReferences.removed': {
+      actions: assign({
+        removedChildDocumentIds: ({context, event}) =>
+          Array.from(new Set([...context.removedChildDocumentIds, ...event.documentIds])),
+      }),
+    },
     'childDraftRefs.changed': {
       actions: ['updateChildDraftRefs'],
     },
@@ -1331,6 +1384,10 @@ export const documentMachine = setup({
     document: null,
     metadata: {},
     deps: input.deps ?? [],
+    maintenanceRevision: input.maintenanceRevision ?? 0,
+    confirmedChildDeletions: [],
+    removedChildDocumentIds: [],
+    childDeletionError: null,
     publishedVersion: null,
     isLatestVersion: input.isLatest ?? true,
     routeVersion: input.routeVersion ?? input.documentId.version ?? null,
@@ -1371,6 +1428,11 @@ export const documentMachine = setup({
   states: {
     loading: {
       on: {
+        'document.remoteUpdate': {
+          // A refetch can finish before the draft query. Keep the newest parent
+          // instead of dropping it after useDocumentSync has recorded its version.
+          actions: ['setDocumentData', 'markDocumentReady'],
+        },
         'document.loaded': {
           // Don't transition yet — wait for draft resolution too.
           actions: ['setDocumentData', 'markDocumentReady'],
@@ -1488,8 +1550,12 @@ export const documentMachine = setup({
       entry: [
         'logEnterEditing',
         {type: 'setEditorEditable'},
-        {type: 'applyInitialContentToEditor'},
-        {type: 'placeCursorFromPendingOrDraft'},
+        enqueueActions(({event, enqueue}) => {
+          // Canceling review resumes the live editor, rather than initializing a new editing session.
+          if (event.type === 'publish.cancelChildDeletion') return
+          enqueue('applyInitialContentToEditor')
+          enqueue('placeCursorFromPendingOrDraft')
+        }),
       ],
       exit: [
         () => {
@@ -1723,12 +1789,14 @@ export const documentMachine = setup({
                   draftId: context.draftId,
                   metadata: context.metadata,
                   deps: context.deps,
+                  maintenanceRevision: context.maintenanceRevision,
                   navigation: context.navigation,
                   locationUid: context.locationUid,
                   locationPath: context.locationPath,
                   editUid: context.editUid,
                   editPath: context.editPath,
                   signingAccountId: context.signingAccountId,
+                  removedChildDocumentIds: context.removedChildDocumentIds,
                   mineTouchedIds: context.mineTouchedIds,
                   // Fall back to the published document body so an
                   // attributes-only edit (no content editor mounted) preserves
@@ -1848,12 +1916,14 @@ export const documentMachine = setup({
                   draftId: context.draftId,
                   metadata: context.metadata,
                   deps: context.deps,
+                  maintenanceRevision: context.maintenanceRevision,
                   navigation: context.navigation,
                   locationUid: context.locationUid,
                   locationPath: context.locationPath,
                   editUid: context.editUid,
                   editPath: context.editPath,
                   signingAccountId: context.signingAccountId,
+                  removedChildDocumentIds: context.removedChildDocumentIds,
                   mineTouchedIds: context.mineTouchedIds,
                   // Fall back to the published document body so an
                   // attributes-only edit (no content editor mounted) preserves
@@ -1902,20 +1972,23 @@ export const documentMachine = setup({
                     ],
                   },
                 ],
-                onError: {
-                  target: 'idle',
-                  actions: [
-                    ({event}: {event: any}) => {
-                      documentEmbedCleanupError(
-                        `${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft save failed`,
-                        {
-                          error: event.error,
-                        },
-                      )
-                    },
-                    raise({type: '_save.completed'}),
-                  ],
-                },
+                onError: [
+                  {target: 'saving', guard: 'didChangeWhileSaving', reenter: true},
+                  {
+                    target: 'idle',
+                    actions: [
+                      ({event}: {event: any}) => {
+                        documentEmbedCleanupError(
+                          `${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft save failed`,
+                          {
+                            error: event.error,
+                          },
+                        )
+                      },
+                      raise({type: '_save.completed'}),
+                    ],
+                  },
+                ],
               },
             },
           },
@@ -2020,9 +2093,84 @@ export const documentMachine = setup({
     },
 
     publishing: {
-      initial: 'inProgress',
-      entry: ['clearPendingPublish'],
+      initial: 'checkingChildDeletion',
+      entry: ['clearPendingPublish', assign({confirmedChildDeletions: [], childDeletionError: null})],
+      exit: assign({confirmedChildDeletions: [], childDeletionError: null}),
       states: {
+        checkingChildDeletion: {
+          always: [
+            {
+              guard: ({context}) =>
+                !!context.publishedVersion &&
+                !hasSelfQueryBlock(getChildDeletionContent(context), context.documentId.id) &&
+                (hasSelfQueryBlock(context.baseBlocks ?? context.document?.content ?? [], context.documentId.id) ||
+                  getChildDeletionCandidates(context).length > 0 ||
+                  context.removedChildDocumentIds.some((target) => /^https?:\/\//.test(target)) ||
+                  getRemovedChildReferenceTargets(
+                    context.documentId,
+                    context.baseBlocks ?? context.document?.content ?? [],
+                    getChildDeletionContent(context),
+                  ).length > 0),
+              target: 'inspectingChildDeletion',
+            },
+            {target: 'inProgress'},
+          ],
+        },
+        inspectingChildDeletion: {
+          invoke: {
+            src: 'inspectChildDeletions',
+            input: ({context}) => ({
+              parentId: context.documentId,
+              childIds: getChildDeletionCandidates(context),
+              removedSelfQuery:
+                hasSelfQueryBlock(context.baseBlocks ?? context.document?.content ?? [], context.documentId.id) &&
+                !hasSelfQueryBlock(getChildDeletionContent(context), context.documentId.id),
+              removedReferenceTargets: Array.from(
+                new Set([
+                  ...context.removedChildDocumentIds,
+                  ...getRemovedChildReferenceTargets(
+                    context.documentId,
+                    context.baseBlocks ?? context.document?.content ?? [],
+                    getChildDeletionContent(context),
+                  ),
+                ]),
+              ),
+              content: getChildDeletionContent(context),
+            }),
+            onDone: [
+              {
+                guard: ({event}) => event.output.length > 0,
+                target: 'confirmingChildDeletion',
+                actions: assign({confirmedChildDeletions: ({event}) => event.output}),
+              },
+              {target: 'inProgress'},
+            ],
+            onError: {
+              target: 'childDeletionFailed',
+              actions: assign({
+                childDeletionError: ({event}) =>
+                  event.error instanceof Error ? event.error.message : String(event.error),
+              }),
+            },
+          },
+        },
+        confirmingChildDeletion: {
+          on: {
+            'publish.confirmChildDeletion': {target: 'inProgress'},
+            'publish.cancelChildDeletion': {
+              target: '#DocumentLifecycle.editing.draft.idle',
+              actions: ['clearPathOverride'],
+            },
+          },
+        },
+        childDeletionFailed: {
+          on: {
+            'publish.cancelChildDeletion': {
+              target: '#DocumentLifecycle.editing.draft.idle',
+              actions: ['clearPathOverride'],
+            },
+          },
+        },
         inProgress: {
           invoke: {
             id: 'publishDocument',
@@ -2036,6 +2184,7 @@ export const documentMachine = setup({
               publishAccountUid: context.publishAccountUid,
               pathOverride: context.pendingPathOverride ?? undefined,
               deletedChildDraftIds: context.pendingDeletedChildDraftIds,
+              confirmedChildDeletions: context.confirmedChildDeletions,
             }),
             onDone: {
               target: 'cleaningUp',

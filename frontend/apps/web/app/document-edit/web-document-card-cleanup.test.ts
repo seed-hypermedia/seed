@@ -57,9 +57,78 @@ describe('web document card cleanup', () => {
     mod.resetWebDocumentCardCleanupForTest()
     _resetWebDocDraftDBForTesting()
     vi.useRealTimers()
+    vi.unstubAllGlobals()
   })
 
-  it('removes matching cards from an existing parent web draft before publishing', async () => {
+  it.each([true, false])('recovers interrupted durable jobs or legacy snapshot jobs (%s)', async (durable) => {
+    vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout', 'Date']})
+    const job = {
+      id: 'recover',
+      deletedDocumentId: 'hm://alice/parent/child',
+      parentDocumentId: 'hm://alice/parent',
+      signingAccountUid: 'alice',
+      state: 'publishing',
+      attempts: 1,
+      maxRetries: 3,
+      createdAt: 1000,
+      updatedAt: 1000,
+    }
+    const storage = new Map<string, string>()
+    storage.set(
+      'WebDocumentCardCleanupMachineSnapshot-v001',
+      JSON.stringify({status: 'active', value: 'running', context: {jobs: [job], activeJobId: job.id}, children: {}}),
+    )
+    if (durable)
+      storage.set('WebDocumentCardCleanupState-v001', JSON.stringify({coordinatorState: 'running', jobs: [job]}))
+    const setItem = vi.fn((key: string, value: string) => storage.set(key, value))
+    vi.stubGlobal('localStorage', {getItem: (key: string) => storage.get(key), setItem})
+    const mod = await import('./web-document-card-cleanup')
+    mod.startWebDocumentCardCleanupCoordinator({client: {request: vi.fn(async () => ({type: 'not-found'}))}} as any)
+    await mod.runNextWebDocumentCardCleanupForTest()
+    expect(mod.getWebDocumentCardCleanupSnapshot().jobs[0]?.state).toBe('skippedTerminal')
+    expect(setItem.mock.calls.every(([key]) => key !== 'WebDocumentCardCleanupMachineSnapshot-v001')).toBe(true)
+  })
+
+  it('acknowledges enqueue before parent execution and exposes retry and dismiss', async () => {
+    vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout', 'Date']})
+    const mod = await import('./web-document-card-cleanup')
+    const client = {
+      request: vi.fn(async () => {
+        throw new Error('offline')
+      }),
+    }
+    const result = await mod.enqueueWebDocumentCardCleanup(
+      {deletedDocumentId: 'hm://alice/parent/child', signingAccountUid: 'alice'},
+      {client} as any,
+    )
+    expect(result.enqueued).toBe(true)
+    expect(mod.getWebDocumentCardCleanupSnapshot().jobs[0]?.state).not.toBe('retryScheduled')
+    await mod.runNextWebDocumentCardCleanupForTest()
+    expect(mod.getWebDocumentCardCleanupSnapshot().jobs[0]?.state).toBe('retryScheduled')
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const nextRunAt = mod.getWebDocumentCardCleanupSnapshot().jobs[0]!.nextRunAt!
+      await mod.runNextWebDocumentCardCleanupForTest({now: () => nextRunAt})
+    }
+    expect(mod.getWebDocumentCardCleanupSnapshot().jobs[0]?.state).toBe('failedNeedsAttention')
+    await mod.retryWebDocumentCardCleanup(result.jobId!)
+    expect(mod.getWebDocumentCardCleanupSnapshot().jobs[0]).toMatchObject({attempts: 0})
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const nextRunAt = mod.getWebDocumentCardCleanupSnapshot().jobs[0]!.nextRunAt || Date.now()
+      await mod.runNextWebDocumentCardCleanupForTest({now: () => nextRunAt})
+    }
+    await mod.dismissWebDocumentCardCleanup(result.jobId!)
+    expect(mod.getWebDocumentCardCleanupSnapshot().jobs).toHaveLength(1)
+    expect(mod.getWebDocumentCardCleanupSnapshot().jobs[0]).toMatchObject({
+      state: 'dismissed',
+      dismissedAt: Date.now(),
+      lastError: 'offline',
+      attempts: 4,
+    })
+    await mod.clearDismissedWebDocumentCardCleanup()
+    expect(mod.getWebDocumentCardCleanupSnapshot().jobs).toEqual([])
+  })
+  it('publishes the parent baseline then rebases its web draft', async () => {
     const parentId = makeId('alice', ['parent'])
     const deletedId = makeId('alice', ['parent', 'child'])
     await putWebDocDraft({
@@ -69,6 +138,7 @@ describe('web document card cleanup', () => {
       content: [paragraph('before'), embed('card', deletedId.id, [paragraph('nested')]), paragraph('after')],
       metadata: {name: 'Parent'},
       deps: ['parent-version'],
+      baseBlocks: [paragraph('before'), embed('card', deletedId.id, [paragraph('nested')]), paragraph('after')],
       navigation: null,
       locationUid: null,
       locationPath: null,
@@ -77,8 +147,20 @@ describe('web document card cleanup', () => {
       cursorPosition: 5,
     })
 
+    const base = makeDocument(parentId, [
+      paragraph('before'),
+      embed('card', deletedId.id, [paragraph('nested')]),
+      paragraph('after'),
+    ])
+    const published = {
+      ...makeDocument(parentId, [paragraph('before'), paragraph('nested'), paragraph('after')]),
+      version: 'new-version',
+    }
     const client = {
-      request: vi.fn(),
+      request: vi
+        .fn()
+        .mockResolvedValueOnce({type: 'document', document: base})
+        .mockResolvedValue({type: 'document', document: published}),
       publishDocument: vi.fn(),
     }
     const mod = await import('./web-document-card-cleanup')
@@ -88,14 +170,16 @@ describe('web document card cleanup', () => {
     } as any)
     await mod.runNextWebDocumentCardCleanupForTest({now: () => 1_000})
 
+    expect(mod.getWebDocumentCardCleanupSnapshot().jobs[0]?.lastError).toBeUndefined()
     const draft = await getWebDocDraft('parent-draft')
     expect(draft?.content.map((node) => node.block.id)).toEqual(['before', 'nested', 'after'])
-    expect(client.request).not.toHaveBeenCalled()
-    expect(client.publishDocument).not.toHaveBeenCalled()
+    expect(client.request).toHaveBeenCalledTimes(2)
+    expect(client.publishDocument).toHaveBeenCalledOnce()
+    expect(draft?.deps).toEqual(['new-version'])
+    expect(draft?.baseBlocks).toEqual(published.content)
     expect(mod.getWebDocumentCardCleanupSnapshotForTest().jobs[0]).toMatchObject({
       state: 'done',
-      isDraft: true,
-      parentDraftId: 'parent-draft',
+      publishedVersion: 'new-version',
     })
   })
 
@@ -111,7 +195,15 @@ describe('web document card cleanup', () => {
           paragraph('after'),
         ]),
       })),
-      publishDocument: vi.fn(async () => undefined),
+      publishDocument: vi.fn(async () => {
+        client.request.mockResolvedValue({
+          type: 'document',
+          document: {
+            ...makeDocument(parentId, [paragraph('before'), paragraph('nested'), paragraph('after')]),
+            version: 'new-version',
+          },
+        })
+      }),
     }
     const mod = await import('./web-document-card-cleanup')
 
@@ -135,7 +227,64 @@ describe('web document card cleanup', () => {
     expect(mod.getWebDocumentCardCleanupSnapshotForTest().jobs[0]?.state).toBe('done')
   })
 
-  it('updates the cached published parent content after cleanup publishes', async () => {
+  it('refreshes inactive parent and draft queries before returning from a child', async () => {
+    const queryClient = new QueryClient({defaultOptions: {queries: {refetchOnMount: false, staleTime: Infinity}}})
+    const {registerQueryClient} = await import('@shm/shared/models/query-client')
+    registerQueryClient(queryClient)
+    const parentId = makeId('alice', ['inactive-parent'])
+    const childId = makeId('alice', ['inactive-parent', 'child'])
+    const base = makeDocument(parentId, [paragraph('text')])
+    const published = {...base, version: 'new-version', content: [...base.content!, embed('card', childId.id)]}
+    await putWebDocDraft({
+      draftId: 'inactive-parent-draft',
+      docId: parentId.id,
+      signingAccountId: 'alice',
+      content: base.content!,
+      metadata: {},
+      deps: [base.version],
+      baseBlocks: base.content,
+      navigation: null,
+      locationUid: null,
+      locationPath: null,
+      editUid: 'alice',
+      editPath: ['inactive-parent'],
+      cursorPosition: null,
+    })
+    let current = base
+    const entityKey = [queryKeys.ENTITY, parentId.id, undefined, false]
+    const draftKey = ['web-doc-draft', parentId.id, 'alice', null]
+    await queryClient.fetchQuery({queryKey: entityKey, queryFn: async () => current})
+    await queryClient.fetchQuery({queryKey: draftKey, queryFn: () => getWebDocDraft('inactive-parent-draft')})
+    const mod = await import('./web-document-card-cleanup')
+    await mod.enqueueWebDocumentCardCleanup(
+      {
+        operation: 'add',
+        parentDocumentId: parentId.id,
+        targetDocumentId: childId.id,
+        signingAccountUid: 'alice',
+      },
+      {
+        client: {
+          request: vi.fn(async () => ({type: 'document', document: current})),
+          publishDocument: vi.fn(async () => {
+            current = published
+          }),
+        },
+      } as any,
+    )
+    await mod.runNextWebDocumentCardCleanupForTest()
+    expect(mod.getWebDocumentCardCleanupSnapshot().jobs[0]?.state).toBe('done')
+    await vi.waitFor(() => {
+      expect(queryClient.getQueryData(entityKey)).toEqual(published)
+      const restoredDraft = queryClient.getQueryData<any>(draftKey)
+      expect(restoredDraft?.deps).toEqual(['new-version'])
+      expect(restoredDraft?.baseBlocks).toEqual(published.content)
+      expect(restoredDraft?.content).toEqual(published.content)
+    })
+    queryClient.clear()
+  })
+
+  it('invalidates published cache instead of inventing an unverified version', async () => {
     const queryClient = new QueryClient()
     const {registerQueryClient} = await import('@shm/shared/models/query-client')
     registerQueryClient(queryClient)
@@ -167,6 +316,8 @@ describe('web document card cleanup', () => {
     await mod.runNextWebDocumentCardCleanupForTest({now: () => 1_000})
 
     const cached = queryClient.getQueryData<any>([queryKeys.ENTITY, parentId.id, undefined, false])
-    expect(cached.document.content.map((node: HMBlockNode) => node.block.id)).toEqual(['before', 'nested', 'after'])
+    expect(cached.document).toEqual(parentDocument)
+    expect(queryClient.getQueryState([queryKeys.ENTITY, parentId.id, undefined, false])?.isInvalidated).toBe(true)
+    expect(mod.getWebDocumentCardCleanupSnapshot().jobs[0]?.state).toBe('retryScheduled')
   })
 })
