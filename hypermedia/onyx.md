@@ -14,6 +14,7 @@ New to Onyx? These four pages explain the system from the top down before the re
   - [Typed documents](./typed-documents.md) — how a document declares what it is with `schema`, `childrenSchema`, and `schemaDefinition`, and what the editor does about it. <!-- id:ejnPERZF -->
   - [The World Builder](./world-builder.md) — a worked demo: scaffold an ontology of types that reference each other, with date pickers, title pills, and linked objects in every page. <!-- id:JKC7fUPx -->
   - [The typed API](./api.md) — every read method of the Seed API as a published schema, and the console generated from them. <!-- id:gnB4WgGS -->
+  - [User stories](./user-stories.md) — what a person should be able to do with all of this through the app, the CLI, and an agent, step by step, and where each surface stands. <!-- id:xzhJgjsb -->
 
 # In one minute <!-- id:sPmTq8Rq -->
 
