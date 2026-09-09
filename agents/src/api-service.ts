@@ -288,6 +288,8 @@ export type ServiceEvent =
       sessionId?: string
       /** Fresh activity rollup of `agentId`, on session-event and session-updated hints. */
       activity?: api.AgentActivity
+      /** Fresh snapshot of `sessionId`, on the same hints. */
+      session?: api.SessionInfo
     }
   | {type: 'run-change'; accountId: string; run: api.RunInfo}
   | {type: 'run-append'; accountId: string; rootRunId: string; entry: api.RunJournalEntryInfo}
@@ -7720,6 +7722,18 @@ export class Service {
   }
 
   /**
+   * The session's current snapshot, for live hints. Like {@link #agentActivity}, reachable from
+   * the trailing signal timer after the database has closed — then the hint goes without it.
+   */
+  #sessionSnapshot(accountId: string, sessionId: string): api.SessionInfo | undefined {
+    try {
+      return this.#getSessionInfo(accountId, sessionId) ?? undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  /**
    * The agent's current activity rollup, for live hints. Looked up by id: the agent may be a
    * collaborator's. The coalesced list signal calls this from a trailing timer, which can outlive
    * the database (tests close it; a shutdown may too) — a hint without a rollup beats a crash.
@@ -7757,6 +7771,7 @@ export class Service {
         agentId,
         sessionId,
         activity: this.#agentActivity(agentId),
+        session: this.#sessionSnapshot(accountId, sessionId),
       })
       return
     }
@@ -7772,6 +7787,7 @@ export class Service {
           agentId,
           sessionId,
           activity: this.#agentActivity(agentId),
+          session: this.#sessionSnapshot(accountId, sessionId),
         })
       },
       SESSION_LIST_SIGNAL_WINDOW_MS - (now - last),
@@ -7805,6 +7821,7 @@ export class Service {
         agentId: session.agentId,
         sessionId,
         activity: this.#agentActivity(session.agentId),
+        session,
       })
     }
   }

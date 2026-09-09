@@ -162,7 +162,11 @@ function applySessionToCaches(serverUrl: string, accountUid: string, session: Se
 }
 
 /** Cache key of one agent's paginated top-level session list ({@link useAgentSessions}). */
-function agentSessionsKey(serverUrl: string | undefined, accountUid: string | null | undefined, agentId: string | undefined) {
+function agentSessionsKey(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  agentId: string | undefined,
+) {
   return ['agents', 'sessions', serverUrl, accountUid, 'agent', agentId] as const
 }
 
@@ -203,12 +207,15 @@ function patchSessionPages(old: any, fn: (sessions: SessionInfo[]) => SessionInf
 export function invalidateForAccountChange(
   serverUrl: string,
   accountUid: string,
-  value: {reason?: string; agentId?: string; sessionId?: string; activity?: AgentActivity},
+  value: {reason?: string; agentId?: string; sessionId?: string; activity?: AgentActivity; session?: SessionInfo},
 ): void {
   const {reason, agentId, sessionId} = value
   // The hint carries the agent's fresh activity rollup: write it into the cached agent rows so
   // unread indicators move without refetching any list.
   if (agentId && value.activity) applyAgentActivityToCaches(serverUrl, accountUid, agentId, value.activity)
+  // And the session's fresh snapshot: written into every list and detail that shows it, which is
+  // what the ListSessions refetch below used to be for.
+  if (value.session) applySessionToCaches(serverUrl, accountUid, value.session)
   switch (reason) {
     case 'agent-memory-changed':
       invalidateQueries(agentId ? ['agents', 'memory', serverUrl, accountUid, agentId] : ['agents', 'memory'])
@@ -268,15 +275,25 @@ export function invalidateForAccountChange(
     case 'user-title-wins':
     case 'session-event':
     case 'children':
-    case 'budget-pause':
-      invalidateQueries(['agents', 'sessions', serverUrl, accountUid])
+    case 'budget-pause': {
+      // A snapshot on the hint has already been written into the lists; only a hint without one
+      // (an older server, or an emit that has no session to hand) still refetches the list.
+      if (!value.session) invalidateQueries(['agents', 'sessions', serverUrl, accountUid])
+      // The transcript and the agent page are marked stale so a remount refetches, but the mounted
+      // copies are left alone: an open transcript streams its own events over `sessions/<id>`, and
+      // an open agent page gets session snapshots over `agents/<id>`. Refetching them here was a
+      // GetSession of the whole transcript plus a GetAgent of every session, per hint, per viewer.
+      // Only a transcript event says nothing new about them; the other reasons may (a title, a
+      // child count, a parked run), so those keep refetching what is on screen.
+      const onScreen = reason === 'session-event' ? {refetchType: 'none' as const} : undefined
       if (sessionId) {
-        invalidateQueries(['agents', 'session', serverUrl, accountUid, sessionId])
+        invalidateQueries(['agents', 'session', serverUrl, accountUid, sessionId], onScreen)
         invalidateQueries(['agents', 'child-sessions', serverUrl, accountUid])
       }
-      if (agentId) invalidateQueries(['agents', 'detail', serverUrl, accountUid, agentId])
+      if (agentId) invalidateQueries(['agents', 'detail', serverUrl, accountUid, agentId], onScreen)
       if (reason === 'children' || reason === 'budget-pause') invalidateQueries(['agents', 'runs'])
       return
+    }
     default:
       // Unknown reason — likely a newer server. Refresh everything rather than miss it.
       invalidateQueries(['agents'])
@@ -3233,7 +3250,9 @@ export function useAgentWebSocketSubscription(
           return {...old, events: [...events, event.event]}
         },
       )
-      invalidateQueries(['agents', 'detail'])
+      // No agent-detail invalidation here: GetAgent returns the agent with every one of its
+      // sessions (two lookups per row on the server), and nothing in a transcript event changes
+      // the agent. The account hints refresh agent detail for the reasons that do.
     } else if (event._ === 'appendPartial') {
       // Run-keyed partials (workflow progress) are handled by the run-tree hook, not here.
       if (!event.key.startsWith('sessions/')) return

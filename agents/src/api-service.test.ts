@@ -4572,10 +4572,13 @@ describe('api service', () => {
       // the settled reply.
       const hints = events.flatMap((event) =>
         event.type === 'account-change' && event.activity && event.agentId === agentId
-          ? [{reason: event.reason, ...event.activity}]
+          ? [{reason: event.reason, ...event.activity, snapshot: event.session}]
           : [],
       )
       expect(hints[0]).toMatchObject({reason: 'session-event', kind: 'user', messageFrom: 'user', sessionId})
+      // Every hint also carries the session itself, so a client can reorder its lists in place.
+      for (const hint of hints) expect(hint.snapshot).toMatchObject({id: sessionId, agentId})
+      expect(hints.at(-1)!.snapshot!.status).toBe('idle')
       expect(hints.some((hint) => hint.reason === 'session-updated' && hint.busy)).toBe(true)
       expect(hints.at(-1)).toMatchObject({reason: 'session-updated', kind: 'agent', messageFrom: 'agent', busy: false})
       // Tool activity moved the rollup's latest-event kind while the message columns stayed on
