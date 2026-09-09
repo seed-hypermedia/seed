@@ -3,7 +3,6 @@ import {
   addOptimisticSessionToCaches,
   describeAgentServer,
   removeOptimisticSessionFromLists,
-  useAgentDetail,
   useAgentLists,
   useAgentServerUrls,
   useAgentSession,
@@ -100,7 +99,7 @@ import {
   encodeAssistantSessionRef,
   type AssistantSessionRef,
 } from './assistant-session-ref'
-import {AgentServerError} from './client'
+import {AgentServerError, type AgentInfo} from './client'
 import {describeAgentError, errorMessage} from './errors'
 import {useAssistantWindowContextLines} from './assistant-window-context'
 import {AgentRichMessageComposer, SubSessionDrivenNotice, TERMINAL_RUN_STATUSES} from './rich-message-composer'
@@ -473,6 +472,8 @@ export function AssistantPanel({
           key={`${activeSession.serverUrl}${activeSession.sessionId}`}
           sessionRef={activeSession}
           accountUid={accountUid}
+          agentHint={activeAgent?.agent}
+          agentsSettled={agentsSettled}
           composerRef={composerRef}
           onOpenSession={(sessionId) => selectSession({serverUrl: activeSession.serverUrl, sessionId})}
         />
@@ -889,11 +890,19 @@ function AssistantDraftChat({
 function AssistantSessionChat({
   sessionRef,
   accountUid,
+  agentHint,
+  agentsSettled,
   composerRef,
   onOpenSession,
 }: {
   sessionRef: AssistantSessionRef
   accountUid: string | null | undefined
+  /**
+   * The panel's active agent, from the agent lists it already holds. Trusted for this session
+   * only once the session names it as its agent; until then the palette waits.
+   */
+  agentHint?: AgentInfo
+  agentsSettled: boolean
   composerRef: React.MutableRefObject<AgentsRichEditorSubmitHandle | null>
   /** Switches the panel to another session of this server (a continuation's successor or predecessor). */
   onOpenSession?: (sessionId: string) => void
@@ -916,8 +925,11 @@ function AssistantSessionChat({
   const messageSession = useMessageAgentSession(serverUrl, accountUid)
   const stopSession = useStopAgentSession(serverUrl, accountUid)
   const retrySession = useRetrySession(serverUrl, accountUid)
-  // The agent definition, for the composer's user tool palette — same source as the full page.
-  const agentDetail = useAgentDetail(serverUrl, accountUid, session.data?.session.agentId)
+  // The agent definition, for the composer's user tool palette and the access role. Read from the
+  // agent lists the panel holds rather than GetAgent: that call returns the agent with every one
+  // of its sessions, and this view has no use for those.
+  const agent = agentHint && agentHint.id === session.data?.session.agentId ? agentHint : undefined
+  const agentLoading = !agent && !agentsSettled
   const windowContextLines = useAssistantWindowContextLines()
   const windowContextLinesRef = useRef(windowContextLines)
   windowContextLinesRef.current = windowContextLines
@@ -926,8 +938,8 @@ function AssistantSessionChat({
 
   // Chatters (public chat) may send; only owners/writers may control runs, switch the model, or
   // run session tools.
-  const readOnly = !agentAccessCanChat(agentDetail.data?.agent.accessRole)
-  const canWrite = !!agentDetail.data && agentAccessCanWrite(agentDetail.data.agent.accessRole)
+  const readOnly = !agentAccessCanChat(agent?.accessRole)
+  const canWrite = !!agent && agentAccessCanWrite(agent.accessRole)
   const status = session.data?.session.status
   const isStreaming = status === 'streaming'
   const isBusy = messageSession.isPending || isStreaming
@@ -1198,8 +1210,8 @@ function AssistantSessionChat({
           serverUrl={serverUrl}
           accountId={accountUid ?? null}
           sessionId={sessionId}
-          agentTools={agentDetail.data?.agent.definition.tools}
-          agentToolsLoading={agentDetail.isLoading}
+          agentTools={agent?.definition.tools}
+          agentToolsLoading={agentLoading}
           focusOnMount={false}
           canInvokeTools={canWrite}
           composerHandleRef={composerRef}
@@ -1212,7 +1224,7 @@ function AssistantSessionChat({
           <div className="flex flex-none items-center justify-end gap-2 px-3 pb-2">
             <ContextUsageMeter tokens={contextTokens} contextWindow={session.data.contextWindow} size={16} />
             <SessionModelBadge
-              agent={agentDetail.data?.agent}
+              agent={agent}
               agentId={session.data.session.agentId}
               serverUrl={serverUrl}
               sessionId={sessionId}
