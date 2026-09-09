@@ -15,6 +15,7 @@ The folder is also an example of a workflow: the markdown is the source of truth
 
 [Onyx](./onyx.md) is the self-describing type system for content-addressed data that Hypermedia documents are built from. Every schema in the library is a page here, with its formal definition attached, and the reference chapters explain the system from the top down: <!-- id:lsYfVMeq -->
   - [Why Onyx](./why.md), [How Onyx works](./how-it-works.md), [Typed documents](./typed-documents.md), [The World Builder](./world-builder.md), [The typed API](./api.md) <!-- id:u75glGr1 -->
+  - [User stories](./user-stories.md) — what a person should be able to do with schemas through the app, the CLI, and an agent: the steps, and where each surface stands. <!-- id:pSOZzOrZ -->
   - [The data model](./data-model.md), [The schema language](./schema-language.md), [References & naming](./references.md), [Encoding](./encoding.md), [Examples](./examples.md), [Onyx on the Hypermedia Network](./hypermedia.md), [Design rationale](./design.md), [Glossary](./glossary.md) <!-- id:CEaJilu0 -->
   - [Hypermedia Permissions System](./permissions-system.md) — a design investigation into permissions and privacy for Hypermedia content. <!-- id:SIUblIDE -->
 
