@@ -22,6 +22,7 @@ import {
   isLocalAgentServer,
   useAgentCollaborators,
   useAgentDetail,
+  useAgentSessions,
   useAgentList,
   useAgentAccountsSync,
   useAgentServerHealth,
@@ -170,12 +171,14 @@ function AgentDetailPage({
   const serverUrl = routeServerUrl || serverUrlQuery.data || getDefaultAgentServerUrl() || ''
   const serverHealth = useAgentServerHealth(serverUrl)
   const agent = useAgentDetail(serverUrl, selectedAccountId, agentId)
-  // GetAgent returns every session including sub-sessions; the tab renders children nested under
-  // their parent's disclosure, so the flat list must hold top-level rows only or they show twice.
+  // Top-level sessions only, a page at a time; children nest under their parent's disclosure.
+  const sessionPages = useAgentSessions(serverUrl, selectedAccountId, agentId)
   const topLevelSessions = useMemo(
-    () => (agent.data?.sessions ?? []).filter((session) => !session.parentSessionId),
-    [agent.data?.sessions],
+    () => sessionPages.data?.pages.flatMap((page) => page.sessions) ?? [],
+    [sessionPages.data],
   )
+  // The header count comes from the agent, not from however many pages happen to be loaded.
+  const sessionCount = agent.data?.sessionCount ?? topLevelSessions.length
   const triggers = useAgentTriggers(serverUrl, selectedAccountId, agentId)
   const createSession = useCreateAgentSession(serverUrl, selectedAccountId)
   const messageSession = useMessageAgentSession(serverUrl, selectedAccountId)
@@ -518,7 +521,7 @@ function AgentDetailPage({
       agentId={agentId}
       serverUrl={serverUrl}
       activeTab={tab}
-      sessionsCount={topLevelSessions.length}
+      sessionsCount={sessionCount}
       triggersCount={triggers.data?.length}
       // The session is only created when the first message is sent, so "New session"
       // just puts the cursor in the composer that will do it.
@@ -541,7 +544,7 @@ function AgentDetailPage({
                     agentId,
                     agentName: name,
                     modelProvider: agent.data?.agent.definition.modelProvider ?? '',
-                    sessionsCount: topLevelSessions.length,
+                    sessionsCount: sessionCount,
                     onMoved: ({serverUrl: movedServerUrl, agentId: movedAgentId}) =>
                       navigate({key: 'agent', agentId: movedAgentId, serverUrl: movedServerUrl}),
                   }),
@@ -613,7 +616,9 @@ function AgentDetailPage({
               {tab === 'sessions' ? (
                 <section className="flex min-h-0 flex-1 flex-col">
                   <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
-                    {!topLevelSessions.length ? <SizableText color="muted">No sessions yet.</SizableText> : null}
+                    {!topLevelSessions.length && !sessionPages.isLoading ? (
+                      <SizableText color="muted">No sessions yet.</SizableText>
+                    ) : null}
                     {topLevelSessions.map((session) => (
                       <SessionListItem
                         key={session.id}
@@ -642,6 +647,16 @@ function AgentDetailPage({
                         }
                       />
                     ))}
+                    {sessionPages.hasNextPage ? (
+                      <Button
+                        className="w-full"
+                        variant="outline"
+                        disabled={sessionPages.isFetchingNextPage}
+                        onClick={() => void sessionPages.fetchNextPage()}
+                      >
+                        {sessionPages.isFetchingNextPage ? 'Loading…' : 'Load more'}
+                      </Button>
+                    ) : null}
                   </div>
                   {canChat ? (
                     // No sessionId: this is a draft composer — the first send creates the session

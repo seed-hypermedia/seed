@@ -32,6 +32,7 @@ import {
   type RunStatus,
   type SessionAttachmentInfo,
   type SessionInfo,
+  type SessionListCursor,
   type SessionModelOverride,
   type SigningIdentity,
   type SigningIdentityIcon,
@@ -55,7 +56,7 @@ import {useNavRouteOrNull} from '@shm/shared/utils/navigation'
 // otherwise platform-neutral and is consumed by the mobile app.
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {useMutation, useQueries, useQuery} from '@tanstack/react-query'
+import {useInfiniteQuery, useMutation, useQueries, useQuery} from '@tanstack/react-query'
 import {useContext, useEffect, useMemo, useRef, useState} from 'react'
 
 const AGENT_SERVER_URL_KEY = 'agent-server-url'
@@ -150,14 +151,44 @@ function applySessionToCaches(serverUrl: string, accountUid: string, session: Se
     }
     return old.map((entry: AgentSessionListEntry) => (entry.session.id === session.id ? {...entry, session} : entry))
   })
-  client.setQueriesData({queryKey: ['agents', 'detail', serverUrl, accountUid]}, (old: any) => {
-    if (!old || old._ !== 'GetAgentResponse' || !Array.isArray(old.sessions)) return old
-    if (!old.sessions.some((existing: SessionInfo) => existing.id === session.id)) return old
+  client.setQueriesData({queryKey: agentSessionsKey(serverUrl, accountUid, session.agentId)}, (old: any) =>
+    patchSessionPages(old, (sessions) => {
+      if (sessions.some((existing) => existing.id === session.id)) {
+        return sessions.map((existing) => (existing.id === session.id ? session : existing))
+      }
+      return sessions
+    }),
+  )
+}
+
+/** Cache key of one agent's paginated top-level session list ({@link useAgentSessions}). */
+function agentSessionsKey(serverUrl: string | undefined, accountUid: string | null | undefined, agentId: string | undefined) {
+  return ['agents', 'sessions', serverUrl, accountUid, 'agent', agentId] as const
+}
+
+/** One page of {@link useAgentSessions}; the sidebar's per-agent copy ({@link useSpaceAgents}) shares the shape. */
+type AgentSessionsPage = {sessions: SessionInfo[]; nextCursor?: SessionListCursor}
+
+/** Sessions per page of a per-agent list. The server clamps larger asks. */
+const AGENT_SESSIONS_PAGE_SIZE = 50
+
+/**
+ * Applies `fn` to the session rows of a cached per-agent list, whichever shape it is: the paginated
+ * detail list (`{pages: [{sessions}]}`) or the sidebar's single page (`{sessions}`). Anything else
+ * (the flat cross-server sidebar list, an unrelated query under the same prefix) is left alone.
+ */
+function patchSessionPages(old: any, fn: (sessions: SessionInfo[]) => SessionInfo[]): any {
+  if (!old || typeof old !== 'object') return old
+  if (Array.isArray(old.pages)) {
     return {
       ...old,
-      sessions: old.sessions.map((existing: SessionInfo) => (existing.id === session.id ? session : existing)),
+      pages: old.pages.map((page: any) =>
+        page && Array.isArray(page.sessions) ? {...page, sessions: fn(page.sessions)} : page,
+      ),
     }
-  })
+  }
+  if (Array.isArray(old.sessions)) return {...old, sessions: fn(old.sessions)}
+  return old
 }
 
 /**
@@ -526,12 +557,12 @@ export type SpaceAgentOption = {serverUrl: string; agent: AgentInfo}
  * belongs. The queries share their cache key with {@link useAgentDetail}, so opening one of these
  * agents in the full view renders from what the panel already loaded.
  *
- * The same `GetAgent` answer carries every session of the agent, and that is the only way a reader
- * gets to see them: the account-wide `ListSessions` the sidebar otherwise relies on covers agents
- * the account owns or collaborates on, never public ones — so a visitor's own chats with a space's
- * agent, let alone everybody else's, would stay hidden behind "no chats yet". They are returned
- * here as list entries (top level only; children nest under their parent's disclosure) for the
- * sidebar to merge into its session list.
+ * Each agent's sessions are fetched alongside with `ListSessions {agentId}` (first page, newest
+ * first), because that is the only way a reader gets to see them: the account-wide `ListSessions`
+ * the sidebar otherwise relies on covers agents the account owns or collaborates on, never public
+ * ones — so a visitor's own chats with a space's agent, let alone everybody else's, would stay
+ * hidden behind "no chats yet". They are returned here as list entries (top level only; children
+ * nest under their parent's disclosure) for the sidebar to merge into its session list.
  *
  * `isLoading` covers the space's home document as well as the agent fetches: until the home has
  * loaded there is no way to know whether the space publishes anything, and callers that settle
@@ -572,16 +603,39 @@ export function useSpaceAgents(accountUid: string | null | undefined): {
         .filter((agent): agent is AgentInfo => !!agent)
         .map((agent) => ({serverUrl, agent}))
     : []
+  // The sidebar shows the newest page only; the agent page pages through the rest. Fetched in
+  // parallel with the agents (one round trip, not two), keyed by the published id; an agent that
+  // failed to load contributes no rows. The cache key extends the agent's paginated-list key so
+  // the same invalidations and optimistic patches reach it, without colliding with the infinite
+  // query the agent page owns.
+  const sessionQueries = useQueries({
+    queries: (serverUrl && accountUid ? agentIds : []).map((agentId) => ({
+      queryKey: [...agentSessionsKey(serverUrl!, accountUid, agentId), 'sidebar'],
+      queryFn: async (): Promise<AgentSessionsPage> => {
+        const res = await sendAgentAction({
+          serverUrl: serverUrl!,
+          accountUid: accountUid!,
+          action: {_: 'ListSessions', agentId, includeChildren: false, limit: AGENT_SESSIONS_PAGE_SIZE},
+        })
+        if (res._ !== 'ListSessionsResponse') throw new Error('Unexpected ListSessions response')
+        return {sessions: res.sessions.filter((session) => !session.parentSessionId), nextCursor: res.nextCursor}
+      },
+      retry: false,
+      useErrorBoundary: false,
+    })),
+  })
+  const sessionsByAgent = new Map(agentIds.map((agentId, index) => [agentId, sessionQueries[index]?.data?.sessions]))
   const sessions: AgentSessionListEntry[] = serverUrl
-    ? responses.flatMap((response) =>
-        response
-          ? response.sessions
-              .filter((session) => !session.parentSessionId)
-              .map((session): AgentSessionListEntry => ({serverUrl, session, agent: response.agent}))
-          : [],
+    ? agents.flatMap(({agent}) =>
+        (sessionsByAgent.get(agent.id) ?? []).map((session): AgentSessionListEntry => ({serverUrl, session, agent})),
       )
     : []
-  return {agents, sessions, isLoading: isHomeLoading || queries.some((query) => query.isLoading)}
+  return {
+    agents,
+    sessions,
+    isLoading:
+      isHomeLoading || queries.some((query) => query.isLoading) || sessionQueries.some((query) => query.isLoading),
+  }
 }
 
 /** Account uid of the site a route is looking at, when the route is about a document. */
@@ -1783,7 +1837,7 @@ export async function prefetchAgentDetail(
   return res
 }
 
-/** Loads one agent and its sessions from the configured server. */
+/** Loads one agent from the configured server. Its sessions: {@link useAgentSessions}. */
 export function useAgentDetail(
   serverUrl: string | undefined,
   accountUid: string | null | undefined,
@@ -1800,9 +1854,53 @@ export function useAgentDetail(
     enabled: !!serverUrl && !!accountUid && !!agentId,
     retry: false,
     useErrorBoundary: false,
-    // The sessions tab is a membership list. Any invalidation that landed while the page was away
-    // (a session the runtime created, a WebSocket gap) must be honored when it comes back, even on
-    // the web client, whose defaults never refetch on mount.
+    // Any invalidation that landed while the page was away (a WebSocket gap) must be honored when
+    // it comes back, even on the web client, whose defaults never refetch on mount.
+    refetchOnMount: true,
+  })
+}
+
+/**
+ * One agent's top-level sessions, newest first, a page at a time (`fetchNextPage` for more).
+ *
+ * `GetAgent` used to carry every session of the agent. Agents accumulate hundreds, every open
+ * client refetched them all on every session event, and the per-row work on the server's single
+ * thread was most of its CPU. Children are not listed here: rows nest them under their parent's
+ * disclosure ({@link useChildSessions}). The cache key sits under the account-wide sessions prefix,
+ * so the WebSocket invalidations and optimistic patches that keep the sidebar current reach this
+ * list too.
+ */
+export function useAgentSessions(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  agentId: string | undefined,
+) {
+  return useInfiniteQuery({
+    queryKey: agentSessionsKey(serverUrl, accountUid, agentId),
+    queryFn: async ({pageParam}: {pageParam?: SessionListCursor}): Promise<AgentSessionsPage> => {
+      if (!serverUrl || !accountUid || !agentId) return {sessions: []}
+      const res = await sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: {
+          _: 'ListSessions',
+          agentId,
+          includeChildren: false,
+          limit: AGENT_SESSIONS_PAGE_SIZE,
+          ...(pageParam ? {cursor: pageParam} : {}),
+        },
+      })
+      if (res._ !== 'ListSessionsResponse') throw new Error('Unexpected ListSessions response')
+      // Filter defensively so a server that ignores includeChildren (older build) never shows a
+      // child twice.
+      return {sessions: res.sessions.filter((session) => !session.parentSessionId), nextCursor: res.nextCursor}
+    },
+    getNextPageParam: (last) => last.nextCursor,
+    enabled: !!serverUrl && !!accountUid && !!agentId,
+    retry: false,
+    useErrorBoundary: false,
+    // A membership list: a session the runtime created while the page was away must show when it
+    // comes back, even on the web client, whose defaults never refetch on mount.
     refetchOnMount: true,
   })
 }
@@ -3290,13 +3388,11 @@ export function removeOptimisticSessionFromLists(serverUrl: string, accountUid: 
     if (!Array.isArray(old)) return old
     return old.filter((entry: AgentSessionListEntry) => entry.session.id !== sessionId)
   })
-  // A space agent's sessions reach the sidebar through its cached GetAgent answer (see
-  // useSpaceAgents), so that copy of the list must forget the session too.
-  getQueryClient().setQueriesData({queryKey: ['agents', 'detail', serverUrl, accountUid]}, (old: any) => {
-    if (!old || old._ !== 'GetAgentResponse' || !Array.isArray(old.sessions)) return old
-    if (!old.sessions.some((session: SessionInfo) => session.id === sessionId)) return old
-    return {...old, sessions: old.sessions.filter((session: SessionInfo) => session.id !== sessionId)}
-  })
+  // The per-agent lists (the agent page's paginated one, and a space agent's sidebar copy, see
+  // useSpaceAgents) live under the same prefix in their own shapes; they must forget it too.
+  getQueryClient().setQueriesData({queryKey: ['agents', 'sessions', serverUrl, accountUid]}, (old: any) =>
+    patchSessionPages(old, (sessions) => sessions.filter((session) => session.id !== sessionId)),
+  )
 }
 
 /**
@@ -3455,26 +3551,16 @@ export function useUpdateAgentSession(serverUrl: string | undefined, accountUid:
           },
         },
         {
+          // The flat cross-server sidebar list and, under the same prefix, the per-agent lists.
           queryKey: ['agents', 'sessions', serverUrl, accountUid],
           update: (old: any) =>
             Array.isArray(old)
               ? old.map((entry: AgentSessionListEntry) =>
                   entry.session.id === sessionId ? {...entry, session: patchSession(entry.session)} : entry,
                 )
-              : old,
-        },
-        {
-          queryKey: ['agents', 'detail', serverUrl, accountUid],
-          update: (old: any) => {
-            if (!old || old._ !== 'GetAgentResponse' || !Array.isArray(old.sessions)) return old
-            if (!old.sessions.some((session: SessionInfo) => session.id === sessionId)) return old
-            return {
-              ...old,
-              sessions: old.sessions.map((session: SessionInfo) =>
-                session.id === sessionId ? patchSession(session) : session,
-              ),
-            }
-          },
+              : patchSessionPages(old, (sessions) =>
+                  sessions.map((session) => (session.id === sessionId ? patchSession(session) : session)),
+                ),
         },
       ])
     },

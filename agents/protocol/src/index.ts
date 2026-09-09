@@ -481,7 +481,11 @@ export type SetSecret = {
   metadata?: Record<string, unknown>
 }
 
-/** Loads one agent plus its session list. */
+/**
+ * Loads one agent. Its sessions are NOT included: list them with `ListSessions {agentId}`, which
+ * is paginated. (An agent accumulates hundreds of sessions, and carrying every one on every
+ * agent read — refetched on each session event by every open client — saturated the server.)
+ */
 export type GetAgent = {
   _: 'GetAgent'
   agentId: string
@@ -1933,7 +1937,11 @@ export type SetSecretResponse = {
 export type GetAgentResponse = {
   _: 'GetAgentResponse'
   agent: AgentInfo
-  sessions: SessionInfo[]
+  /**
+   * Number of top-level sessions (children nest under their parents and are not counted). The
+   * sessions themselves come from `ListSessions {agentId, includeChildren: false}`.
+   */
+  sessionCount: number
 }
 
 /** Successful response for `ListAgentTriggers`. */

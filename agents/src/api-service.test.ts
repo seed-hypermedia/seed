@@ -549,7 +549,7 @@ describe('api service', () => {
       expect(read).toMatchObject({
         _: 'GetAgentResponse',
         agent: {id: agentId, accessRole: 'reader', publicRead: true},
-        sessions: [{id: session.sessionId}],
+        sessionCount: 1,
       })
       const sessions = await svc.message(
         await apisvc.createSignedEnvelope(stranger, {action: {_: 'ListSessions', agentId}}),
@@ -3255,8 +3255,13 @@ describe('api service', () => {
       )
       expect(agent._).toBe('GetAgentResponse')
       if (agent._ !== 'GetAgentResponse') throw new Error('unexpected response')
-      expect(agent.sessions).toHaveLength(1)
-      expect(agent.sessions[0]?.title).toBe('Renamed chat')
+      expect(agent.sessionCount).toBe(1)
+      const agentSessions = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListSessions', agentId: createdAgent.agentId}}),
+      )
+      if (agentSessions._ !== 'ListSessionsResponse') throw new Error('unexpected response')
+      expect(agentSessions.sessions).toHaveLength(1)
+      expect(agentSessions.sessions[0]?.title).toBe('Renamed chat')
 
       const session = await svc.message(
         await apisvc.createSignedEnvelope(account, {
@@ -3291,7 +3296,11 @@ describe('api service', () => {
       )
       expect(agentAfterDelete._).toBe('GetAgentResponse')
       if (agentAfterDelete._ !== 'GetAgentResponse') throw new Error('unexpected response')
-      expect(agentAfterDelete.sessions).toHaveLength(0)
+      expect(agentAfterDelete.sessionCount).toBe(0)
+      const sessionsAfterDelete = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListSessions', agentId: createdAgent.agentId}}),
+      )
+      expect(sessionsAfterDelete).toMatchObject({_: 'ListSessionsResponse', sessions: []})
       await expect(
         svc.message(
           await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
@@ -3908,7 +3917,12 @@ describe('api service', () => {
       )
       expect(loadedAgent._).toBe('GetAgentResponse')
       if (loadedAgent._ !== 'GetAgentResponse') throw new Error('unexpected response')
-      expect(loadedAgent.sessions[0]?.startedByTrigger?.triggerId).toBe(createdTrigger.trigger.id)
+      expect(loadedAgent.sessionCount).toBe(1)
+      const listedSessions = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListSessions', agentId: createdAgent.agentId}}),
+      )
+      if (listedSessions._ !== 'ListSessionsResponse') throw new Error('unexpected response')
+      expect(listedSessions.sessions[0]?.startedByTrigger?.triggerId).toBe(createdTrigger.trigger.id)
 
       const loadedSession = await svc.message(
         await apisvc.createSignedEnvelope(account, {

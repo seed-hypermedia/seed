@@ -283,7 +283,7 @@ function handleAction(action: Record<string, any>, account: string): Record<stri
       return {
         _: 'GetAgentResponse',
         agent: agentFor(account),
-        sessions: [...sessions.values()].map((session) => session.info).sort((a, b) => b.updatedAt - a.updatedAt),
+        sessionCount: [...sessions.values()].filter((session) => !session.info.parentSessionId).length,
       }
 
     case 'ListModelProviders':

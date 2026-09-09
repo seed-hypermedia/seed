@@ -21,6 +21,8 @@ export type AgentCollaboratorInfo = AgentsProtocol.AgentCollaboratorInfo
 export type AgentInviteInfo = AgentsProtocol.AgentInviteInfo
 /** Public metadata returned for a session. */
 export type SessionInfo = AgentsProtocol.SessionInfo
+/** Opaque continuation for paging `ListSessions`; pass a response's `nextCursor` back verbatim. */
+export type SessionListCursor = AgentsProtocol.SessionListCursor
 /** Per-session model configuration overriding the agent definition's model. */
 export type SessionModelOverride = AgentsProtocol.SessionModelOverride
 
