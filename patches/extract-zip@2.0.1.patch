@@ -1,0 +1,16 @@
+diff --git a/index.js b/index.js
+index 23384ea16bb848616886f356d8d69f94325535bf..5cbeef80e41b701e03b35a283b38e245a980dd51 100644
+--- a/index.js
++++ b/index.js
+@@ -129,6 +129,11 @@ class Extractor {
+       debug('creating symlink', link, dest)
+       await fs.symlink(link, dest)
+     } else {
++      const existing = await fs.lstat(dest).catch(() => null)
++      if (existing && existing.isSymbolicLink()) {
++        throw new Error(`Out of bound path "${dest}" found while processing file ${entry.fileName}`)
++      }
++
+       await pipeline(readStream, createWriteStream(dest, { mode: procMode }))
+     }
+   }

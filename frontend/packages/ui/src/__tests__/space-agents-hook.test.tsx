@@ -16,7 +16,7 @@ const mockState = vi.hoisted(() => ({
   route: null as null | Record<string, unknown>,
   originHomeId: undefined as undefined | {uid: string},
   homeMetadata: {} as Record<string, unknown>,
-  requests: [] as {serverUrl: string; accountUid: string; agentId: string}[],
+  requests: [] as {serverUrl: string; accountUid: string; agentId: string; action: string}[],
   missingAgentIds: new Set<string>(),
   sessionsByAgent: {} as Record<string, Array<Record<string, unknown>>>,
   homeLoading: false,
@@ -40,14 +40,23 @@ vi.mock('../agents/client', async (importOriginal) => ({
   }: {
     serverUrl: string
     accountUid: string
-    action: {_: string; agentId: string}
+    action: {_: string; agentId: string; includeChildren?: boolean}
   }) => {
-    mockState.requests.push({serverUrl, accountUid, agentId: action.agentId})
+    mockState.requests.push({serverUrl, accountUid, agentId: action.agentId, action: action._})
     if (mockState.missingAgentIds.has(action.agentId)) throw new Error('Agent not found')
+    if (action._ === 'ListSessions') {
+      // Like the server: a top-level listing excludes children.
+      const all = mockState.sessionsByAgent[action.agentId] ?? []
+      return {
+        _: 'ListSessionsResponse',
+        sessions: action.includeChildren === false ? all.filter((session) => !session.parentSessionId) : all,
+        agents: [],
+      }
+    }
     return {
       _: 'GetAgentResponse',
       agent: {id: action.agentId, definition: {name: `Agent ${action.agentId}`}},
-      sessions: mockState.sessionsByAgent[action.agentId] ?? [],
+      sessionCount: (mockState.sessionsByAgent[action.agentId] ?? []).length,
     }
   },
 }))
@@ -118,8 +127,9 @@ describe('useSpaceAgents', () => {
       spaceAgents: {second: 1, first: 0},
     }
     await render()
-    expect(mockState.requests.map((request) => request.agentId).sort()).toEqual(['first', 'second'])
-    expect(mockState.requests[0]!.serverUrl).toBe('https://agents.space.example')
+    const agentRequests = mockState.requests.filter((request) => request.action === 'GetAgent')
+    expect(agentRequests.map((request) => request.agentId).sort()).toEqual(['first', 'second'])
+    expect(agentRequests[0]!.serverUrl).toBe('https://agents.space.example')
     expect(latest!.agents.map((option) => option.agent.id)).toEqual(['first', 'second'])
     expect(latest!.agents[0]!.serverUrl).toBe('https://agents.space.example')
   })

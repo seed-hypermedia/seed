@@ -857,6 +857,7 @@ export class Service {
   // recomputation (an indexed query, two CBOR decodes, a JSON parse and a blocks→markdown render
   // per session) saturates the single event loop. Both derive from rows that change rarely, so a
   // short TTL cache collapses the repeated work while bounding staleness to a couple of seconds.
+  // Absent rows are cached too (see #forgetSessionDerived for the writes that evict them).
   readonly #triggerContextCache = new Map<string, {at: number; value: api.AgentSessionTriggerContext | null}>()
   readonly #continuationLinksCache = new Map<string, {at: number; value: SessionContinuationLinks}>()
   // The `session-event` account-change is a "the session list may have reordered" signal that clients
@@ -2710,19 +2711,20 @@ export class Service {
     ).get(accountId, agentId)
     if (!agent) throw new APIError(404, 'Agent not found')
 
-    const sessions = stmt<SessionRow, [string, string]>(
-      this.#db,
-      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
-                (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
-                created_at, updated_at
-         FROM sessions WHERE account_id = ? AND agent_id = ? ORDER BY updated_at DESC`,
-    ).all(accountId, agentId)
+    // Sessions are listed separately (paginated `ListSessions {agentId}`): this response used to
+    // carry every session with its per-row derived context, and clients refetch it on every
+    // session event — at hundreds of sessions per agent that was most of the server's CPU.
+    const sessionCount =
+      stmt<{n: number}, [string, string]>(
+        this.#db,
+        `SELECT COUNT(*) AS n FROM sessions WHERE account_id = ? AND agent_id = ? AND parent_session_id IS NULL`,
+      ).get(accountId, agentId)?.n ?? 0
 
     const access = this.#requireAgentAccess(viewerAccountId, agentId, 'reader')
     return {
       _: 'GetAgentResponse',
       agent: agentRowToInfo(agent, access.role),
-      sessions: this.#sessionRowsToInfo(accountId, sessions),
+      sessionCount,
     }
   }
 
@@ -4115,6 +4117,8 @@ export class Service {
         cbor.encode(manifest),
         now,
       ])
+      this.#forgetSessionDerived(accountId, sessionId)
+      this.#forgetSessionDerived(accountId, successorSessionId)
       // The successor's opening: lineage + handoff + excerpts as one system-authored message, then
       // the user's own message, verbatim, so the model answers the user and not the runtime.
       this.#appendSessionEvent(
@@ -8241,17 +8245,28 @@ export class Service {
    * came back and branched again); the newest is the one advertised as "where this went".
    */
   #sessionContinuationLinks(accountId: string, sessionId: string): SessionContinuationLinks {
-    const key = `${accountId} ${sessionId}`
+    const key = sessionDerivedCacheKey(accountId, sessionId)
     const hit = this.#continuationLinksCache.get(key)
     if (hit && Date.now() - hit.at < SESSION_DERIVED_CACHE_TTL_MS) return hit.value
     const value = sessionContinuationLinksOf(this.#db, accountId, sessionId)
-    // Cache only once an edge exists; a session with no continuation is left uncached so a new
-    // continuation surfaces on the next read rather than after the TTL (no invalidation needed).
-    if (value.continuedFrom || value.continuedTo) {
-      if (this.#continuationLinksCache.size > SESSION_DERIVED_CACHE_MAX) this.#continuationLinksCache.clear()
-      this.#continuationLinksCache.set(key, {at: Date.now(), value})
-    }
+    // Negative results are cached too: most sessions have no continuation, and leaving them
+    // uncached meant two queries per session per listing. A new edge calls
+    // #forgetSessionDerived for both endpoints, so it shows on the very next read.
+    if (this.#continuationLinksCache.size > SESSION_DERIVED_CACHE_MAX) this.#continuationLinksCache.clear()
+    this.#continuationLinksCache.set(key, {at: Date.now(), value})
     return value
+  }
+
+  /**
+   * Drops one session's cached derived rows (trigger context, continuation links). Called where a
+   * firing is attached to a session or a continuation edge is written, so a cached "nothing here"
+   * never outlives the write.
+   */
+  #forgetSessionDerived(accountId: string, sessionId: string | null | undefined): void {
+    if (!sessionId) return
+    const key = sessionDerivedCacheKey(accountId, sessionId)
+    this.#triggerContextCache.delete(key)
+    this.#continuationLinksCache.delete(key)
   }
 
   /**
@@ -8273,18 +8288,16 @@ export class Service {
   }
 
   #getSessionTriggerContext(accountId: string, sessionId: string): api.AgentSessionTriggerContext | null {
-    const key = `${accountId} ${sessionId}`
+    const key = sessionDerivedCacheKey(accountId, sessionId)
     const hit = this.#triggerContextCache.get(key)
     if (hit && Date.now() - hit.at < SESSION_DERIVED_CACHE_TTL_MS) return hit.value
     const value = this.#computeSessionTriggerContext(accountId, sessionId)
-    // Cache only a present firing (the expensive path: CBOR decodes, a JSON parse and a
-    // blocks→markdown render). A session with no firing is left uncached, so the moment a trigger
-    // fires for it the next read recomputes instead of serving a stale null — no invalidation
-    // needed, and the no-firing read is just one indexed lookup.
-    if (value) {
-      if (this.#triggerContextCache.size > SESSION_DERIVED_CACHE_MAX) this.#triggerContextCache.clear()
-      this.#triggerContextCache.set(key, {at: Date.now(), value})
-    }
+    // A missing firing is cached like a present one. "Just one indexed lookup" per uncached
+    // session became ~500 statement compilations per listing once agents had hundreds of
+    // sessions, nearly all of them trigger-less. The writes that attach a firing to a session call
+    // #forgetSessionDerived, so a cached null never hides a fresh firing.
+    if (this.#triggerContextCache.size > SESSION_DERIVED_CACHE_MAX) this.#triggerContextCache.clear()
+    this.#triggerContextCache.set(key, {at: Date.now(), value})
     return value
   }
 
@@ -8445,6 +8458,7 @@ export class Service {
         trigger.account,
         firingId,
       ])
+      this.#forgetSessionDerived(trigger.account, session.sessionId)
       stmt(
         this.#db,
         `UPDATE agent_triggers SET last_fired_at = ?, last_error = NULL WHERE account_id = ? AND id = ?`,
@@ -8532,6 +8546,7 @@ export class Service {
             trigger.account,
             firingId,
           ])
+          this.#forgetSessionDerived(trigger.account, session.sessionId)
         }
         // Disable a 'once' schedule at fire time (session created), not after the run, so a slow run
         // can't let the same occurrence fire twice.
@@ -8662,6 +8677,7 @@ export class Service {
             accountId,
             firingId,
           ])
+          this.#forgetSessionDerived(accountId, session.sessionId)
         }
         stmt(
           this.#db,
@@ -8791,6 +8807,7 @@ export class Service {
       run.accountId,
       run.triggerFiringId,
     ])
+    this.#forgetSessionDerived(run.accountId, session.sessionId)
     this.#dispatchTriggerSession(run.accountId, trigger, run.triggerFiringId, session.sessionId, activity, {
       kind: continuation.kind,
       ...(continuation.kind === 'tool' ? {tool: continuation.tool} : {}),
@@ -8925,6 +8942,7 @@ export class Service {
             run.accountId,
             firingId,
           ])
+          this.#forgetSessionDerived(run.accountId, session.sessionId)
         }
         stmt(
           this.#db,
@@ -9598,6 +9616,15 @@ type SessionContinuationLinks = Pick<api.SessionInfo, 'continuedFrom' | 'continu
  * latest successor it was continued into. A predecessor may have several successors (someone
  * came back and branched again); the newest is the one advertised as "where this went".
  */
+/**
+ * Key of the per-session derived-row caches (trigger context, continuation links). One helper so
+ * the eviction in #forgetSessionDerived can never drift from the lookups — a separator mismatch
+ * there silently leaves stale entries behind.
+ */
+function sessionDerivedCacheKey(accountId: string, sessionId: string): string {
+  return `${accountId}\0${sessionId}`
+}
+
 function sessionContinuationLinksOf(db: Database, accountId: string, sessionId: string): SessionContinuationLinks {
   type EdgeRow = {id: string; other_id: string; other_title: string | null; reason: string; created_at: number}
   const from = stmt<EdgeRow, [string, string]>(

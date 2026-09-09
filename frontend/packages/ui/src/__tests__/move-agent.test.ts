@@ -50,7 +50,7 @@ function makeFakeSend(options?: {failAction?: string; failServerUrl?: string}): 
             updatedAt: 1,
             accessRole: 'owner',
           },
-          sessions: [],
+          sessionCount: 0,
         } as any
       case 'ListAgentMemory':
         return {

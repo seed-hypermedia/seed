@@ -9,7 +9,12 @@
 
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack'
 import type {SessionInfo} from '@shm/ui/agents/client'
-import {useAgentDetail, useAgentWebSocketSubscription, useCreateAgentSession} from '@shm/ui/agents/models'
+import {
+  useAgentDetail,
+  useAgentSessions,
+  useAgentWebSocketSubscription,
+  useCreateAgentSession,
+} from '@shm/ui/agents/models'
 import React from 'react'
 import {RefreshControl, ScrollView, StyleSheet, View} from 'react-native'
 import type {RootStackParamList} from '../../navigation/types'
@@ -30,6 +35,8 @@ export function AgentScreen({navigation, route}: Props) {
   const accountUid = useAgentsAccount()
 
   const detail = useAgentDetail(serverUrl, accountUid, agentId)
+  // Top-level sessions, newest first, a page at a time (GetAgent no longer carries them).
+  const sessionPages = useAgentSessions(serverUrl, accountUid, agentId)
   const createSession = useCreateAgentSession(serverUrl, accountUid)
 
   // Live agent-scoped updates: a session created or renamed elsewhere, or a status change as a run
@@ -37,7 +44,10 @@ export function AgentScreen({navigation, route}: Props) {
   useAgentWebSocketSubscription(serverUrl, accountUid, `agents/${agentId}`)
 
   const agent = detail.data?.agent
-  const sessions = detail.data?.sessions ?? []
+  const sessions = React.useMemo(
+    () => sessionPages.data?.pages.flatMap((page) => page.sessions) ?? [],
+    [sessionPages.data],
+  )
 
   const startSession = () => {
     createSession.mutate(
@@ -69,8 +79,11 @@ export function AgentScreen({navigation, route}: Props) {
       contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl
-          refreshing={detail.isFetching && !detail.isLoading}
-          onRefresh={() => void detail.refetch()}
+          refreshing={(detail.isFetching && !detail.isLoading) || (sessionPages.isFetching && !sessionPages.isLoading)}
+          onRefresh={() => {
+            void detail.refetch()
+            void sessionPages.refetch()
+          }}
           tintColor={theme.mutedForeground}
         />
       }
@@ -109,12 +122,17 @@ export function AgentScreen({navigation, route}: Props) {
         }
       >
         {createSession.error ? <ErrorNote>{errorText(createSession.error)}</ErrorNote> : null}
+        {sessionPages.error ? <ErrorNote>{errorText(sessionPages.error)}</ErrorNote> : null}
         {sessions.length === 0 ? (
-          <Card>
-            <Label size="sm" tone="muted">
-              No conversations yet. Start one to talk to this agent.
-            </Label>
-          </Card>
+          sessionPages.isLoading ? (
+            <StatePanel loading />
+          ) : (
+            <Card>
+              <Label size="sm" tone="muted">
+                No conversations yet. Start one to talk to this agent.
+              </Label>
+            </Card>
+          )
         ) : (
           sessions.map((session) => (
             <SessionRow
@@ -131,6 +149,17 @@ export function AgentScreen({navigation, route}: Props) {
             />
           ))
         )}
+        {sessionPages.hasNextPage ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            onPress={() => void sessionPages.fetchNextPage()}
+            busy={sessionPages.isFetchingNextPage}
+            testID="load-more-sessions-button"
+          >
+            Load more
+          </Button>
+        ) : null}
       </Section>
     </ScrollView>
   )
