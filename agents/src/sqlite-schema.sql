@@ -125,7 +125,11 @@ CREATE TABLE sessions (
     model_override_cbor BLOB,
     description TEXT,
     created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
+    updated_at INTEGER NOT NULL,
+    -- Latest message from a person, a trigger or the agent (see SessionActivity in the protocol).
+    -- Tool activity never moves these; delegated child sessions never set them.
+    message_at INTEGER,
+    message_from TEXT
 ) WITHOUT ROWID;
 
 CREATE INDEX sessions_by_agent ON sessions (agent_id, updated_at DESC);

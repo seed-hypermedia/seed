@@ -14,6 +14,10 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Per-session latest message (see SessionActivity in the protocol), so a session list can show
+  // which chats hold something unread without the agent-level rollup.
+  `ALTER TABLE sessions ADD COLUMN message_at INTEGER;
+  ALTER TABLE sessions ADD COLUMN message_from TEXT;`,
   // Latest transcript activity rolled up per agent (see AgentActivity in the protocol): written on
   // every appended session event, read with the agent so unread indicators never list sessions.
   `ALTER TABLE agents ADD COLUMN activity_at INTEGER;

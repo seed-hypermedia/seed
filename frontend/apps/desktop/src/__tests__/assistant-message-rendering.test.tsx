@@ -82,6 +82,8 @@ vi.mock('@shm/ui/agents/activity', () => ({
   markAgentSessionRead: () => {},
 }))
 vi.mock('@shm/ui/agents/models', () => ({
+  // The create-agent dialog checks the server before offering models; here it is never reached.
+  useAgentServerHealth: () => ({data: undefined, isLoading: false}),
   useSessionAttachmentDataUrls: () => ({}),
   // The delegate row resolves its live child through these; inert here — no child ever resolves.
   useSessionRuns: () => ({data: undefined}),

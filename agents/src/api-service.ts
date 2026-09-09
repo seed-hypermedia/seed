@@ -2789,7 +2789,7 @@ export class Service {
 
     const rows = stmt<SessionRow, (string | number)[]>(
       this.#db,
-      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
+      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description, message_at, message_from,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE ${conditions.join(' AND ')} ORDER BY updated_at DESC, id DESC LIMIT ?`,
@@ -4020,7 +4020,7 @@ export class Service {
     }
     const session = stmt<SessionRow, [string, string]>(
       this.#db,
-      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
+      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description, message_at, message_from,
                 0 AS child_count, created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
     ).get(accountId, sessionId)
@@ -4588,7 +4588,7 @@ export class Service {
     const messages = normalizeMessageContent(rawContent)
     const session = stmt<SessionRow, [string, string]>(
       this.#db,
-      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
+      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description, message_at, message_from,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
@@ -7751,11 +7751,17 @@ export class Service {
     // messages are nothing a person is waiting to read — the parent gets the result as a tool
     // result. Only top-level conversations move the message columns.
     const kind = parent?.parent_session_id ? 'tool' : sessionEventActivityKind(event)
-    stmt(this.#db, `UPDATE sessions SET updated_at = ? WHERE id = ?`).run([now, sessionId])
     if (kind === 'tool') {
+      stmt(this.#db, `UPDATE sessions SET updated_at = ? WHERE id = ?`).run([now, sessionId])
       stmt(this.#db, `UPDATE agents SET activity_at = ?, activity_kind = 'tool' WHERE id = ?`).run([now, agentId])
       return
     }
+    stmt(this.#db, `UPDATE sessions SET updated_at = ?, message_at = ?, message_from = ? WHERE id = ?`).run([
+      now,
+      now,
+      kind,
+      sessionId,
+    ])
     stmt(
       this.#db,
       `UPDATE agents SET activity_at = ?, activity_kind = ?, message_at = ?, message_from = ?, activity_session_id = ?
@@ -7926,7 +7932,7 @@ export class Service {
     }
     const session = stmt<SessionRow, [string, string]>(
       this.#db,
-      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
+      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description, message_at, message_from,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
@@ -8215,7 +8221,7 @@ export class Service {
   #getSessionInfo(accountId: string, sessionId: string): api.SessionInfo | null {
     const session = stmt<SessionRow, [string, string]>(
       this.#db,
-      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
+      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description, message_at, message_from,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
@@ -9145,6 +9151,8 @@ type SessionRow = {
   child_count: number
   created_at: number
   updated_at: number
+  message_at?: number | null
+  message_from?: api.SessionActivity['messageFrom'] | null
 }
 
 type SessionEventRow = {
@@ -9672,6 +9680,9 @@ function sessionRowToInfo(
     ...(row.child_count > 0 ? {childSessionCount: row.child_count} : {}),
     ...(continuation.continuedFrom ? {continuedFrom: continuation.continuedFrom} : {}),
     ...(continuation.continuedTo ? {continuedTo: continuation.continuedTo} : {}),
+    ...(typeof row.message_at === 'number' && row.message_from
+      ? {activity: {messageAt: row.message_at, messageFrom: row.message_from}}
+      : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(triggerContext
