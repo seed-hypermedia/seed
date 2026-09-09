@@ -1,26 +1,28 @@
+import * as Ariakit from '@ariakit/react'
+import {DocumentSort, QueryDocumentsRequest} from '@shm/shared/client/grpc-types'
 import type {
-  ExplorePresentation,
-  ExploreSortRule,
   ExplorePredicate,
+  ExplorePresentation,
   ExploreQueryNode,
+  ExploreSortRule,
   HMExploreContext,
   HMExploreResult,
   HMExploreResultType,
   ParsedExploreQuery,
 } from '@shm/shared/explore'
 import {
-  exploreQueryChips,
+  clearExploreConditions,
   compileExploreQuery,
   cycleExploreSort,
-  clearExploreConditions,
+  exploreQueryChips,
   removeExploreQueryChip,
   serializeExploreQuery,
-  toggleExplorePredicate,
   toggleExploreColumn,
+  toggleExplorePredicate,
 } from '@shm/shared/explore'
-import {DocumentSort, QueryDocumentsRequest} from '@shm/shared/client/grpc-types'
 import {
   exploreDocumentKey,
+  exploreStreamSelection,
   useExploreAccounts,
   useExploreAttributeNames,
   useExploreAttributeValues,
@@ -32,14 +34,15 @@ import {
   Check,
   ChevronDown,
   FileText,
+  Globe,
   Loader2,
   MessageSquare,
   Pilcrow,
   Search,
+  User,
   X,
 } from 'lucide-react'
 import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
-import * as Ariakit from '@ariakit/react'
 import {Button} from './button'
 import {Input} from './components/input'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
@@ -265,6 +268,8 @@ const tabs: Array<{id: ResultTab; label: string}> = [
   {id: 'document', label: 'Documents'},
   {id: 'block', label: 'Text blocks'},
   {id: 'comment', label: 'Conversations'},
+  {id: 'space', label: 'Spaces'},
+  {id: 'contact', label: 'People'},
 ]
 
 /** Shared Explore search/results surface used by desktop and web wrappers. */
@@ -299,6 +304,8 @@ export function ExplorePage(props: ExplorePageProps) {
   const attributeNames = useExploreAttributeNames(props.accountUid || '', true)
   const attributeValues = useExploreAttributeValues(activeValueField, activeValueKind, '', true)
   const visibleResults = props.results.filter((result) => activeTab === 'all' || result.type === activeTab)
+  const streams = exploreStreamSelection(props.parsed, props.context)
+  const willSearch = streams.text || streams.documents
   const documentOnly = activeTab !== 'all' && activeTab !== 'document'
   const updateQuery = (next: string) => {
     if (debounceRef.current !== null) {
@@ -335,7 +342,12 @@ export function ExplorePage(props: ExplorePageProps) {
     const nextRules = sortRules.filter((rule) => rule.key !== key)
     updatePresentation({...props.parsed.presentation, sort: nextRules.length ? nextRules : undefined})
   }
-  const tableMode = props.parsed.presentation.view === 'table' && activeTab !== 'block' && activeTab !== 'comment'
+  // Contacts carry none of the table's columns, so People stays a list.
+  const tableMode =
+    props.parsed.presentation.view === 'table' &&
+    activeTab !== 'block' &&
+    activeTab !== 'comment' &&
+    activeTab !== 'contact'
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-5 py-6 lg:px-8">
@@ -420,7 +432,7 @@ export function ExplorePage(props: ExplorePageProps) {
                 <ExploreFilterMenu
                   options={
                     kind === 'type'
-                      ? ['type:document', 'type:block', 'type:comment']
+                      ? ['type:document', 'type:block', 'type:comment', 'type:space', 'type:contact']
                       : kind === 'in'
                         ? accounts.data?.map((account) => `in:${account.value}`) ?? []
                         : attributeNames.data?.map((name) => `has:${name}`) ?? []
@@ -543,12 +555,25 @@ export function ExplorePage(props: ExplorePageProps) {
         !props.isRefetching &&
         !props.error &&
         !visibleResults.length ? (
-          <ExploreState icon={<Search />} title="No results" detail="Try a broader search or remove a filter." />
+          willSearch ? (
+            <ExploreState icon={<Search />} title="No results" detail="Try a broader search or remove a filter." />
+          ) : (
+            <ExploreState
+              icon={<Search />}
+              title={props.query.trim() ? 'Add a search term' : 'Start exploring'}
+              detail={
+                props.query.trim()
+                  ? 'Type filters narrow results, but they do not search on their own. Add a word to search for.'
+                  : 'Search documents, conversations, text blocks, spaces and people.'
+              }
+            />
+          )
         ) : null}
         {visibleResults.length && tableMode ? (
           <ExploreTable
             results={visibleResults.filter(
-              (result): result is Extract<HMExploreResult, {type: 'document'}> => result.type === 'document',
+              (result): result is Extract<HMExploreResult, {type: 'document' | 'space'}> =>
+                result.type === 'document' || result.type === 'space',
             )}
             columns={selectedColumns}
             sortRules={sortRules}
@@ -1081,7 +1106,7 @@ function ExploreAutocomplete({
   )
 }
 
-function tableCellValue(result: Extract<HMExploreResult, {type: 'document'}>, column: string) {
+function tableCellValue(result: Extract<HMExploreResult, {type: 'document' | 'space'}>, column: string) {
   const document = result.document
   if (column === 'title') return document?.metadata?.name || result.matchText || 'Untitled'
   if (column === 'space') return result.id.uid
@@ -1103,7 +1128,7 @@ function ExploreTable({
   onSort,
   onOpen,
 }: {
-  results: Extract<HMExploreResult, {type: 'document'}>[]
+  results: Extract<HMExploreResult, {type: 'document' | 'space'}>[]
   columns: string[]
   sortRules: ExploreSortRule[]
   onSort: (key: string) => void
@@ -1165,6 +1190,18 @@ function ExploreTable({
   )
 }
 
+/**
+ * Row heading for a result. Documents and spaces use their own name. The rest fall back to the
+ * last breadcrumb, then to a label naming the kind, so a row is never blank.
+ */
+function exploreResultTitle(result: HMExploreResult) {
+  if (result.type === 'document' || result.type === 'space') {
+    return result.document?.metadata?.name || result.matchText || packHmId(result.id)
+  }
+  if (result.type === 'contact') return result.matchText || result.breadcrumb?.at(-1) || packHmId(result.id)
+  return result.breadcrumb?.at(-1) || (result.type === 'comment' ? 'Conversation' : 'Text block')
+}
+
 function ExploreResultRow({
   result,
   terms,
@@ -1176,11 +1213,17 @@ function ExploreResultRow({
   blocks?: Extract<HMExploreResult, {type: 'block'}>[]
   onOpen: (result: HMExploreResult) => void
 }) {
-  const title =
+  const title = exploreResultTitle(result)
+  const Icon =
     result.type === 'document'
-      ? result.document?.metadata?.name || result.matchText || packHmId(result.id)
-      : result.breadcrumb?.at(-1) || (result.type === 'comment' ? 'Conversation' : 'Text block')
-  const Icon = result.type === 'document' ? FileText : result.type === 'block' ? Pilcrow : MessageSquare
+      ? FileText
+      : result.type === 'block'
+        ? Pilcrow
+        : result.type === 'space'
+          ? Globe
+          : result.type === 'contact'
+            ? User
+            : MessageSquare
   return (
     <article className="hover:bg-muted/20 border-b p-4 last:border-b-0">
       <button type="button" className="flex w-full gap-3 text-left" onClick={() => onOpen(result)}>

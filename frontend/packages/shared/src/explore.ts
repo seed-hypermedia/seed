@@ -19,7 +19,7 @@ import {packHmId} from './utils/entity-id-url'
 /** Context that defines where Explore should search. */
 export type HMExploreContext = {type: 'site'; id: UnpackedHypermediaId} | {type: 'node'}
 /** Supported result type filters in the Explore query string. */
-export type HMExploreResultType = 'document' | 'block' | 'comment'
+export type HMExploreResultType = 'document' | 'block' | 'comment' | 'space' | 'contact'
 /** A matched field surfaced by an Explore result. */
 export type HMExploreMatchedField = {
   kind: 'title' | 'body' | 'comment' | 'attribute' | 'path'
@@ -56,8 +56,40 @@ export type HMExploreResultComment = {
   breadcrumb?: string[]
   versionTime?: string
 }
+/**
+ * A space-level Explore result. A space is addressed by its root document, so this carries the same
+ * shape as a document result and is distinguished only by having no path.
+ */
+export type HMExploreResultSpace = {
+  type: 'space'
+  id: UnpackedHypermediaId
+  document?: HMDocumentInfo
+  matchText?: string
+  matchedFields?: HMExploreMatchedField[]
+  breadcrumb?: string[]
+  versionTime?: string
+}
+/** A contact Explore result, addressed by the account it describes. */
+export type HMExploreResultContact = {
+  type: 'contact'
+  id: UnpackedHypermediaId
+  matchText?: string
+  matchedFields?: HMExploreMatchedField[]
+  breadcrumb?: string[]
+  versionTime?: string
+}
 /** Any result that can be rendered by Explore. */
-export type HMExploreResult = HMExploreResultDocument | HMExploreResultBlock | HMExploreResultComment
+export type HMExploreResult =
+  | HMExploreResultDocument
+  | HMExploreResultBlock
+  | HMExploreResultComment
+  | HMExploreResultSpace
+  | HMExploreResultContact
+
+/** Whether a Hypermedia ID addresses a space rather than a document inside one. */
+export function isExploreSpaceId(id: UnpackedHypermediaId) {
+  return !id.path?.length
+}
 /** Scalar values accepted by document attribute comparisons. */
 export type ExploreScalar = string | number | boolean
 /** Attribute predicates in the Explore query AST. */
@@ -103,7 +135,7 @@ export type ParsedExploreQuery = {
 type ComparisonOperator = '=' | '!=' | '<' | '<=' | '>' | '>='
 type ValuedAttributePredicate = Extract<ExploreAttributePredicate, {value: ExploreScalar}>
 type Token = {kind: 'word' | 'quoted' | 'operator' | 'lparen' | 'rparen'; value: string; start: number; end: number}
-const resultTypes = new Set<HMExploreResultType>(['document', 'block', 'comment'])
+const resultTypes = new Set<HMExploreResultType>(['document', 'block', 'comment', 'space', 'contact'])
 const comparisonOperators = new Set(['=', '!=', '<', '<=', '>', '>='])
 
 function diagnostic(
@@ -779,7 +811,14 @@ export function clearExploreConditions(ast: ExploreQueryNode | null): ExploreQue
 }
 /** Converts the existing SearchResultItem shape into a typed Explore result. */
 export function searchResultItemToExploreResult(item: SearchResultItem): HMExploreResult | null {
-  if (item.type === 'contact') return null
+  if (item.type === 'contact')
+    return {
+      type: 'contact',
+      id: item.id,
+      matchText: item.title,
+      breadcrumb: item.parentNames,
+      versionTime: item.versionTime,
+    }
   if (item.type === 'comment' && item.commentId)
     return {
       type: 'comment',
@@ -799,7 +838,7 @@ export function searchResultItemToExploreResult(item: SearchResultItem): HMExplo
     }
   if (item.type === 'document')
     return {
-      type: 'document',
+      type: isExploreSpaceId(item.id) ? 'space' : 'document',
       id: item.id,
       matchText: item.title,
       breadcrumb: item.parentNames,
@@ -807,13 +846,16 @@ export function searchResultItemToExploreResult(item: SearchResultItem): HMExplo
     }
   return null
 }
-/** Converts a document info row into an Explore document result. */
+/**
+ * Converts a document info row into an Explore result.
+ * Path-less rows surface as spaces.
+ */
 export function documentInfoToExploreResultDocument(
   document: HMDocumentInfo,
   matchedFields?: HMExploreMatchedField[],
-): HMExploreResultDocument {
+): HMExploreResultDocument | HMExploreResultSpace {
   return {
-    type: 'document',
+    type: isExploreSpaceId(document.id) ? 'space' : 'document',
     id: document.id,
     document,
     matchedFields,

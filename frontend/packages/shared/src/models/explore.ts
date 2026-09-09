@@ -1,10 +1,10 @@
-import {useInfiniteQuery, useQuery} from '@tanstack/react-query'
 import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
+import {useInfiniteQuery, useQuery} from '@tanstack/react-query'
 import {
   ContentTypeFilter,
   DocumentAttributeKind,
-  EntityKindFilter,
   DocumentSort,
+  EntityKindFilter,
   ListAccountsRequest,
   ListDocumentAttributeNamesRequest,
   ListDocumentAttributeValuesRequest,
@@ -14,17 +14,17 @@ import {
   compileExploreQuery,
   documentInfoToExploreResultDocument,
   searchResultItemToExploreResult,
+  type ExploreQueryNode,
   type HMExploreContext,
   type HMExploreMatchedField,
   type HMExploreResult,
   type HMExploreResultType,
-  type ExploreQueryNode,
   type ParsedExploreQuery,
 } from '../explore'
-import type {SearchResultItem} from './search'
-import {queryKeys} from './query-keys'
 import {useUniversalClient} from '../routing'
-import {prepareHMDocumentInfo} from './entity'
+import {prepareHMDocumentInfo, useSelectedAccountId} from './entity'
+import {queryKeys} from './query-keys'
+import type {SearchResultItem} from './search'
 
 /** A page returned by the document stream. */
 export type ExploreDocumentPage = {
@@ -45,6 +45,8 @@ export type ExploreAssembly = {
   documents: HMExploreResult[]
   blocks: HMExploreResult[]
   comments: HMExploreResult[]
+  spaces: HMExploreResult[]
+  contacts: HMExploreResult[]
   counts: Record<HMExploreResultType | 'all', number>
   textTerms: string[]
   diagnostics: ParsedExploreQuery['diagnostics']
@@ -139,6 +141,8 @@ function resultKey(result: HMExploreResult) {
   if (result.type === 'block') {
     return `block:${exploreDocumentKey(result.id)}:${result.id.blockRef ?? ''}:${result.id.blockRange ?? ''}`
   }
+  if (result.type === 'space') return `space:${exploreDocumentKey(result.id)}`
+  if (result.type === 'contact') return `contact:${result.id.uid}`
   return `document:${exploreDocumentKey(result.id)}`
 }
 
@@ -250,7 +254,7 @@ export function assembleExploreResults(input: {
   for (const result of Array.from(textResults.values())) {
     const key = resultKey(result)
     const document = documentResults.get(key)
-    if (document && result.type === 'document') {
+    if (document && (result.type === 'document' || result.type === 'space')) {
       combined.set(key, {
         ...document,
         matchText: result.matchText,
@@ -269,6 +273,8 @@ export function assembleExploreResults(input: {
   const documents = results.filter((result) => result.type === 'document')
   const blocks = results.filter((result) => result.type === 'block')
   const comments = results.filter((result) => result.type === 'comment')
+  const spaces = results.filter((result) => result.type === 'space')
+  const contacts = results.filter((result) => result.type === 'contact')
   const blocksByDocument: ExploreAssembly['blocksByDocument'] = {}
   for (const block of blocks) {
     if (block.type !== 'block') continue
@@ -280,7 +286,16 @@ export function assembleExploreResults(input: {
     documents,
     blocks,
     comments,
-    counts: {all: results.length, document: documents.length, block: blocks.length, comment: comments.length},
+    spaces,
+    contacts,
+    counts: {
+      all: results.length,
+      document: documents.length,
+      block: blocks.length,
+      comment: comments.length,
+      space: spaces.length,
+      contact: contacts.length,
+    },
     textTerms: compilation.textTerms.map((term) => (term.phrase ? `"${term.value}"` : term.value)),
     diagnostics: input.parsed.diagnostics.concat(compilation.diagnostics),
     intersectionTruncated: input.intersectionTruncated ?? false,
@@ -296,20 +311,27 @@ function textPageFromResponse(response: {entities: SearchResultItem[]; nextPageT
 function contentTypeFilters(types: HMExploreResultType[]) {
   if (types.length === 1 && types[0] === 'comment') return [ContentTypeFilter.CONTENT_TYPE_COMMENT]
   if (types.length === 1 && types[0] === 'block') return [ContentTypeFilter.CONTENT_TYPE_DOCUMENT]
+  if (types.length === 1 && types[0] === 'contact') return [ContentTypeFilter.CONTENT_TYPE_CONTACT]
+  // Spaces match on the title of their root document, so narrowing to spaces narrows to titles.
+  if (types.length === 1 && types[0] === 'space') return [ContentTypeFilter.CONTENT_TYPE_TITLE]
   return [
     ContentTypeFilter.CONTENT_TYPE_TITLE,
     ContentTypeFilter.CONTENT_TYPE_DOCUMENT,
     ContentTypeFilter.CONTENT_TYPE_COMMENT,
+    ContentTypeFilter.CONTENT_TYPE_CONTACT,
   ]
 }
 
 function entityKindFilters(types: HMExploreResultType[]) {
   if (types.length === 1 && types[0] === 'comment') return [EntityKindFilter.ENTITY_KIND_COMMENT]
   if (types.length === 1 && types[0] === 'block') return [EntityKindFilter.ENTITY_KIND_DOCUMENT]
+  if (types.length === 1 && types[0] === 'contact') return [EntityKindFilter.ENTITY_KIND_CONTACT]
+  if (types.length === 1 && types[0] === 'space') return [EntityKindFilter.ENTITY_KIND_SPACE]
   return [
     EntityKindFilter.ENTITY_KIND_SPACE,
     EntityKindFilter.ENTITY_KIND_DOCUMENT,
     EntityKindFilter.ENTITY_KIND_COMMENT,
+    EntityKindFilter.ENTITY_KIND_CONTACT,
   ]
 }
 
@@ -320,6 +342,7 @@ export function useExploreResults(
   options: {enabled?: boolean; pageSize?: number} = {},
 ) {
   const client = useUniversalClient()
+  const perspectiveAccountUid = useSelectedAccountId()
   const compilation = compileExploreQuery(parsed, context)
   const enabled = options.enabled ?? true
   const pageSize = options.pageSize ?? 50
@@ -362,7 +385,14 @@ export function useExploreResults(
   })
 
   const textQuery = useInfiniteQuery({
-    queryKey: [queryKeys.ENTITY, 'explore-text', parsed.ast, context, compilation.requestedTypes],
+    queryKey: [
+      queryKeys.ENTITY,
+      'explore-text',
+      parsed.ast,
+      context,
+      compilation.requestedTypes,
+      perspectiveAccountUid || null,
+    ],
     enabled: shouldFetchText,
     queryFn: async ({pageParam = '', signal}: {pageParam?: string; signal?: AbortSignal}) => {
       const response = await client.request(
@@ -371,6 +401,7 @@ export function useExploreResults(
           query: compilation.textTerms.map((term) => (term.phrase ? `"${term.value}"` : term.value)).join(' '),
           includeBody: true,
           contextSize: 96,
+          perspectiveAccountUid: perspectiveAccountUid || undefined,
           pageSize,
           pageToken: pageParam,
           iriFilter: searchIriFilter(context, parsed),

@@ -243,7 +243,7 @@ describe('Explore chips', () => {
 })
 
 describe('search result mapping', () => {
-  test('maps document, block, comment, and excludes contacts', () => {
+  test('maps document, block, comment, space, and contact hits', () => {
     expect(searchResultItemToExploreResult(searchItem({type: 'document'}))).toMatchObject({
       type: 'document',
       matchText: 'Roadmap match',
@@ -257,7 +257,15 @@ describe('search result mapping', () => {
       type: 'comment',
       commentId: 'comment-1',
     })
-    expect(searchResultItemToExploreResult(searchItem({type: 'contact'}))).toBe(null)
+    expect(searchResultItemToExploreResult(searchItem({type: 'contact'}))).toMatchObject({
+      type: 'contact',
+      matchText: 'Roadmap match',
+    })
+    // A space is addressed by its root document, so a path-less document hit is the space itself.
+    expect(searchResultItemToExploreResult(searchItem({id: hmId('alice'), type: 'document'}))).toMatchObject({
+      type: 'space',
+      id: {uid: 'alice'},
+    })
   })
 
   test('maps document info to a document result', () => {
@@ -274,6 +282,74 @@ describe('search result mapping', () => {
       breadcrumb: ['Home'],
       versionTime: '2026-01-01T00:00:00.000Z',
     })
+  })
+
+  test('maps a path-less document info row to a space result', () => {
+    const space = {
+      type: 'document',
+      id: hmId('alice'),
+      path: [],
+      metadata: {name: 'Alice'},
+      updateTime: '2026-01-01T00:00:00.000Z',
+    } as unknown as HMDocumentInfo
+    expect(documentInfoToExploreResultDocument(space)).toMatchObject({type: 'space', id: {uid: 'alice'}})
+  })
+
+  test('counts spaces and contacts as their own facets', () => {
+    const result = assembleExploreResults({
+      parsed: parseExploreQuery('alice'),
+      context: {type: 'node'},
+      textPages: [
+        {
+          entities: [
+            searchItem({id: hmId('alice'), title: 'Alice'}),
+            searchItem({id: hmId('alice', {path: ['roadmap']}), title: 'Roadmap'}),
+            searchItem({id: hmId('bob'), title: 'Bob', type: 'contact'}),
+          ],
+          nextPageToken: '',
+        },
+      ],
+    })
+    expect(result.counts).toMatchObject({all: 3, space: 1, document: 1, contact: 1})
+    expect(result.spaces[0]).toMatchObject({type: 'space', id: {uid: 'alice'}})
+    expect(result.contacts[0]).toMatchObject({type: 'contact', id: {uid: 'bob'}})
+  })
+
+  test('keeps a space and a contact for the same account apart', () => {
+    // Both are addressed by the bare account uid, so they would collide if result keys were not
+    // namespaced by kind.
+    const result = assembleExploreResults({
+      parsed: parseExploreQuery('alice'),
+      context: {type: 'node'},
+      textPages: [
+        {
+          entities: [
+            searchItem({id: hmId('alice'), title: 'Alice space'}),
+            searchItem({id: hmId('alice'), title: 'Alice contact', type: 'contact'}),
+          ],
+          nextPageToken: '',
+        },
+      ],
+    })
+    expect(result.counts).toMatchObject({all: 2, space: 1, contact: 1})
+  })
+
+  test('narrows to a single facet with a type predicate', () => {
+    const result = assembleExploreResults({
+      parsed: parseExploreQuery('alice type:space'),
+      context: {type: 'node'},
+      textPages: [
+        {
+          entities: [
+            searchItem({id: hmId('alice'), title: 'Alice'}),
+            searchItem({id: hmId('alice', {path: ['roadmap']}), title: 'Roadmap'}),
+            searchItem({id: hmId('bob'), title: 'Bob', type: 'contact'}),
+          ],
+          nextPageToken: '',
+        },
+      ],
+    })
+    expect(result.counts).toMatchObject({all: 1, space: 1, document: 0, contact: 0})
   })
 
   test('intersects text hits with document results and deduplicates documents', () => {
