@@ -59,7 +59,7 @@ type AgentWSEvent =
   | {
       _: 'change'
       key: `account/${string}`
-      value: {reason: string; agentId?: string; sessionId?: string; activity?: AgentActivity}
+      value: {reason: string; agentId?: string; sessionId?: string; activity?: AgentActivity; session?: SessionInfo}
     }
   | {_: 'change'; key: `runs/${string}`; value: RunInfo}
   | {_: 'append'; key: `runs/${string}`; runId: string; seq: number; entry: Record<string, unknown>; createdAt: number}
@@ -85,8 +85,10 @@ time and sender, that message's session, and whether any run is live):
 - `session-event` — coalesced to about one per session per 1.5 s while a transcript grows.
 - `session-updated` — on a real session status transition, which is what flips `busy`.
 
-Clients write the rollup straight into their cached agent rows (list and detail), so an always-visible unread indicator
-costs no `ListAgents` or `ListSessions` refetch. A client that ignores the field behaves as before.
+Both also carry the session's fresh `SessionInfo` (`session`). Clients write the rollup into their cached agent rows and
+the snapshot into their cached session lists, so neither an always-visible unread indicator nor an open sidebar costs a
+`ListAgents`, `ListSessions`, `GetSession` or `GetAgent` refetch: the open transcript already streams on its own
+`sessions/<id>` subscription. A client that ignores the fields behaves as before.
 
 ### `agents/<agentId>`
 

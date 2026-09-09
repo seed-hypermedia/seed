@@ -1,4 +1,4 @@
-import {QueryClient} from '@tanstack/react-query'
+import {QueryClient, QueryObserver} from '@tanstack/react-query'
 import {registerQueryClient} from '@shm/shared/models/query-client'
 import {afterEach, describe, expect, test, vi} from 'vitest'
 import {invalidateForAccountChange} from '../agents/models'
@@ -64,6 +64,57 @@ describe('invalidateForAccountChange', () => {
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(listFetch).toHaveBeenCalledTimes(1)
     expect(detailFetch).toHaveBeenCalledTimes(1)
+  })
+
+  test('a hint with a session snapshot reorders the lists in place and refetches nothing on screen', async () => {
+    const client = webQueryClient()
+    const older = {id: 's-old', account: accountUid, agentId, status: 'idle' as const, createdAt: 100, updatedAt: 100}
+    const session = {id: 's1', account: accountUid, agentId, status: 'idle' as const, createdAt: 200, updatedAt: 200}
+    const listFetch = vi.fn(async () => [
+      {serverUrl, session},
+      {serverUrl, session: older},
+    ])
+    const transcriptFetch = vi.fn(async () => ({_: 'GetSessionResponse', session, events: []}))
+    const detailFetch = vi.fn(async () => ({_: 'GetAgentResponse', agent: {id: agentId}, sessions: [session]}))
+    // On screen: an observer on each, the way a mounted sidebar, transcript and agent page hold them.
+    const observed = [
+      new QueryObserver(client, {queryKey: ['agents', 'sessions', serverUrl, accountUid], queryFn: listFetch}),
+      new QueryObserver(client, {
+        queryKey: ['agents', 'session', serverUrl, accountUid, 's1'],
+        queryFn: transcriptFetch,
+      }),
+      new QueryObserver(client, {queryKey: ['agents', 'detail', serverUrl, accountUid, agentId], queryFn: detailFetch}),
+    ]
+    const unsubscribe = observed.map((observer) => observer.subscribe(() => {}))
+    await vi.waitFor(() => {
+      expect(listFetch).toHaveBeenCalledTimes(1)
+      expect(transcriptFetch).toHaveBeenCalledTimes(1)
+      expect(detailFetch).toHaveBeenCalledTimes(1)
+    })
+
+    const fresh = {...session, status: 'streaming' as const, updatedAt: 300}
+    invalidateForAccountChange(serverUrl, accountUid, {
+      reason: 'session-event',
+      agentId,
+      sessionId: 's1',
+      session: fresh,
+    })
+
+    // Written straight into every cache that shows the session.
+    expect(client.getQueryData(['agents', 'sessions', serverUrl, accountUid])).toEqual([
+      {serverUrl, session: fresh},
+      {serverUrl, session: older},
+    ])
+    expect(client.getQueryData(['agents', 'session', serverUrl, accountUid, 's1'])).toMatchObject({session: fresh})
+    expect(client.getQueryData(['agents', 'detail', serverUrl, accountUid, agentId])).toMatchObject({sessions: [fresh]})
+    // And none of the mounted copies went back to the server — this was three refetches per hint.
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(listFetch).toHaveBeenCalledTimes(1)
+    expect(transcriptFetch).toHaveBeenCalledTimes(1)
+    expect(detailFetch).toHaveBeenCalledTimes(1)
+    // Still marked stale, so a remount would refetch.
+    expect(client.getQueryState(['agents', 'session', serverUrl, accountUid, 's1'])?.isInvalidated).toBe(true)
+    for (const stop of unsubscribe) stop()
   })
 
   test('per-event churn still only refetches active queries', async () => {

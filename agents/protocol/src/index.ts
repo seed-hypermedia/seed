@@ -1624,6 +1624,11 @@ export type AgentWSEvent =
          * a client keeps its unread indicator current without refetching any list.
          */
         activity?: AgentActivity
+        /**
+         * Fresh snapshot of `sessionId`, on the same hints: its `updatedAt` and status moved, and a
+         * client that writes the snapshot into its session lists needs no ListSessions refetch.
+         */
+        session?: SessionInfo
       }
     }
   | {_: 'change'; key: `runs/${string}`; value: RunInfo}
