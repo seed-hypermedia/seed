@@ -1,8 +1,8 @@
 ---
 name: "User stories: typed documents and blobs"
-summary: What a person should be able to do with schemas through the Seed app, the CLI, and an agent — the precise steps for each story, and where each surface stands today.
+summary: What a person should be able to do with schemas through the Seed app, the CLI, and an agent — the precise steps to do and test each story on every surface.
 ---
-These are the things a person should be able to do with the type system, stated as stories. Each story says what the person wants, then the exact steps on each of the three surfaces: the **Seed app** (desktop and web), the **CLI** (`seed-cli`, run from source with `bun run src/index.ts` in `frontend/apps/cli`, or `npx -y @seed-hypermedia/cli`), and an **agent** (the `read` and `write` tools of [Seed Agents](./agents.md)). Every story ends with where each surface stands: **works**, **partial**, or **missing** — and the missing pieces are collected into the backlog at the end. The model underneath is explained in [typed documents](./typed-documents.md); the vocabulary in [the schema language](./schema-language.md). <!-- id:0uMy7lU9 -->
+These are the things a person should be able to do with the type system, stated as stories. Each story says what the person wants, then the exact steps on each of the three surfaces: the **Seed app** (desktop and web), the **CLI** (`seed-cli`, run from source with `bun run src/index.ts` in `frontend/apps/cli`, or `npx -y @seed-hypermedia/cli`), and an **agent** (the `read` and `write` tools of [Seed Agents](./agents.md)). Each set of steps is also the test for that surface: follow it and check the stated result. Every story ends with where each surface stands (all now **works**), and a closing section says which steps are automated and which are guided manual tests. The model underneath is explained in [typed documents](./typed-documents.md); the vocabulary in [the schema language](./schema-language.md). <!-- id:0uMy7lU9 -->
 
 # Before you start <!-- id:aNQZP66c -->
 
@@ -11,6 +11,8 @@ These are the things a person should be able to do with the type system, stated 
 **The CLI.** Point it at the node you are working with and sign with a key it holds: `--server http://localhost:58004` for the desktop dev app's API, `--server https://hyper.media` (the default) for the public gateway, and `--key <name>` for the signing key (`key list` shows them). `--dev` selects the development keyring. The command reference is [CLI](./cli.md). <!-- id:l0yc6wyb -->
 
 **An agent.** An agent reads hypermedia with `read <address>` and publishes with `write <address>`; publishing needs the **publish** grant on the agent. The contracts are in [tools](./agent-tools.md). <!-- id:jCZEzRiL -->
+
+**Running the automated tests.** The CLI and agent steps of every story run against a real daemon and the built web app: from `tests/`, `SKIP_BUILD=true pnpm exec vitest --run user-stories` (drop `SKIP_BUILD` for the first run, which builds the web app). The two automated app stories run against a packaged desktop app: from `frontend/apps/desktop`, `pnpm package:e2e` once, then `pnpm e2e:stories`. The desktop suite uses its own account, appdata (`Seed-e2e`) and ports (58100–58106), so it never touches a dev or installed app.
 
 **Names used below.** `<acct>` is an account id such as `z6Mk…`; `<onyx>` is the account that publishes this library, `z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb`, so `hm://<onyx>/hypermedia-document` is the base document type. <!-- id:oztmKE3p -->
 
@@ -27,13 +29,13 @@ These are the things a person should be able to do with the type system, stated 
   1. `document get --md hm://<acct>/<path>` prints the document as markdown: the metadata as YAML frontmatter, the blocks with their ids in trailing comments. <!-- id:ZTyY0oGQ -->
   2. `document get --json hm://<acct>/<path>` prints the document as the API returns it; `document get -m` prints the metadata only. <!-- id:2YhQdcMj -->
   3. `document get --md hm://<onyx>/hypermedia-document` reads the type page like any other; `schema get hypermedia-document` prints the schema it defines, and `schema get --resolve` the same with every reference followed and extensions merged. `blob get <cid>` reads any blob back as dag-json. <!-- id:pZdlc6-t -->
-  4. `document validate hm://<acct>/<path>` names the schema a document conforms to and how it got it (its own `schema`, or inherited from the parent's `childrenSchema`), or says it has none.
+  4. `document validate hm://<acct>/<path>` names the schema a document conforms to and how it got it (its own `schema`, or inherited from the parent's `childrenSchema`), or says it has none. <!-- id:EGiX5lnq -->
 
 **Through an agent** <!-- id:rHb3ns_h -->
   1. `read hm://<acct>/<path>` returns the document as markdown with frontmatter — the same picture the CLI gives. <!-- id:qjfRlvIg -->
-  2. `read hm://<onyx>/hypermedia-document` reads the type page; `read ipfs://<cid>` fetches a blob into memory. <!-- id:Ez-m69u7 -->
+  2. `read hm://<onyx>/hypermedia-document` reads the type page; `read ipfs://<cid>` fetches a file into memory, and `read ipfs://<cid>` of a DAG-CBOR object decodes it (its value, signature check, and schema check). A typed document read also returns a `schema` block: the type, how it was bound, and any missing required fields. <!-- id:Ez-m69u7 -->
 
-**Status.** App: works. CLI: works. Agent: works for reading; the agent has no notion of a document's schema yet. <!-- id:HcS5eyFR -->
+**Status.** App: works. CLI: works. Agent: works. <!-- id:HcS5eyFR -->
 
 # 2. Give a document custom metadata <!-- id:jnJM95xh -->
 
@@ -47,7 +49,7 @@ These are the things a person should be able to do with the type system, stated 
 **With the CLI** <!-- id:RhZhfOGp -->
   1. `space export hm://<acct> ./site` writes every document to a markdown file whose frontmatter carries every metadata key; add `surname: Smith` (and `schema: hm://<acct>/types/person`) to the file and run `space import hm://<acct> ./site --key <name>`. Only the changed document publishes. <!-- id:IvCAUrCj -->
   2. `document create -f page.md` keeps every frontmatter key: `surname: Smith` in the file is `surname` on the document. <!-- id:pNoTGuIK -->
-  3. `document update hm://<acct>/<path> --metadata '{"surname":"Smith"}'` sets any attribute from the command line; `--schema hm://<acct>/types/person` types the document. Both work on `create` too, and a flag wins over the file.
+  3. `document update hm://<acct>/<path> --metadata '{"surname":"Smith"}'` sets any attribute from the command line; `--schema hm://<acct>/types/person` types the document. Both work on `create` too, and a flag wins over the file. <!-- id:DZ8eFUBI -->
 
 **Through an agent** <!-- id:Oo3bqROi -->
   1. `write hm://<acct>/<path>` with `options: {action: "update", metadata: {surname: "Smith", schema: "hm://<acct>/types/person"}}`. `options.metadata` is merged into the document's metadata and accepts custom keys; `dryRun: true` echoes what would publish. <!-- id:nCAjOm-h -->
@@ -69,7 +71,7 @@ These are the things a person should be able to do with the type system, stated 
 **Through an agent** <!-- id:wlrYixCC -->
   1. `write hm://<acct>/people` with `options: {action: "update", metadata: {childrenSchema: "hm://<acct>/types/person"}}`. <!-- id:ZUGHwsZT -->
 
-**Status.** App: works. CLI: works. Agent: works for setting the field; when the agent then creates a child it gets no hint of the required fields (story 4). <!-- id:FLDR8JJZ -->
+**Status.** App: works. CLI: works. Agent: works. <!-- id:FLDR8JJZ -->
 
 # 4. See whether a document respects its schema <!-- id:yGb63zYD -->
 
@@ -83,12 +85,12 @@ These are the things a person should be able to do with the type system, stated 
 
 **With the CLI** <!-- id:RzEbdruT -->
   1. `document validate hm://<acct>/<path>` resolves the document's effective schema (its `schema`, else the parent's `childrenSchema`), fetches every type it references, and checks the metadata: each violation on its own line (`$.born: does not match pattern for format "date"`), exit code 1 when there are any. `--content` checks the whole document, `--json` reports `{schema, via, violations}`. <!-- id:yLJ2_4AB -->
-  2. `space import self -d ./site --check` runs the same check over every file — a file's parent in the folder supplies the inherited type, the site's parent document when the folder has none — and publishes nothing while any file would violate its schema.
+  2. `space import self -d ./site --check` runs the same check over every file — a file's parent in the folder supplies the inherited type, the site's parent document when the folder has none — and publishes nothing while any file would violate its schema. <!-- id:e4MxYB4W -->
 
 **Through an agent** <!-- id:XFxKCawf -->
-  1. Nothing yet. The intended shape: a `write` to a typed document returns the violations as `warnings` beside the published id (still advisory), and a `read` of a typed document says which schema it conforms to and which required fields are missing. <!-- id:U9EmE1SJ -->
+  1. `read hm://<acct>/<path>` of a typed document returns a `schema` block — `{schema, via, required, missing, violations}` — naming the type, whether it was its own `schema` or inherited, and what is out of spec. A `write` to a typed document returns the violations as `warnings` beside the published id, and publishes anyway (advisory); `dryRun: true` returns the same warnings without publishing. <!-- id:U9EmE1SJ -->
 
-**Status.** App: works. CLI: works. Agent: missing. <!-- id:zukntbIZ -->
+**Status.** App: works. CLI: works. Agent: works. <!-- id:zukntbIZ -->
 
 # 5. Define a custom schema as a document <!-- id:J1U8mODk -->
 
@@ -107,9 +109,9 @@ These are the things a person should be able to do with the type system, stated 
   3. `document create -f person.md -p types/person --schema-definition person.schema.json` publishes the page and the schema blob together, in one command, and binds them; `document update … --schema-definition` rebinds an existing page. <!-- id:gQHfxmM2 -->
 
 **Through an agent** <!-- id:t6nL0N72 -->
-  1. Nothing yet. An agent can write the page, but cannot publish a DAG-CBOR blob or bind one: `write ipfs://` publishes files (UnixFS), not objects, and `options.metadata.schemaDefinition` only helps once a blob exists. <!-- id:sC-PJ9DS -->
+  1. `write ipfs://` with the schema as JSON `content` and `options: {schema: "hypermedia-schema"}` validates it against the meta-schema and publishes the schema blob, returning its CID. Then `write hm://<acct>/types/person` with `options: {name: "Person", metadata: {schemaDefinition: "ipfs://<cid>"}}` binds the blob to a type page. A `schemaDefinition` that is not a valid schema comes back as a `warning`. <!-- id:sC-PJ9DS -->
 
-**Status.** App: works. CLI: works. Agent: missing. <!-- id:aqx-CCxc -->
+**Status.** App: works. CLI: works. Agent: works. <!-- id:aqx-CCxc -->
 
 # 6. Create a blob that follows a custom schema exactly <!-- id:CEIhdkHd -->
 
@@ -122,14 +124,14 @@ These are the things a person should be able to do with the type system, stated 
   4. Any blob can be opened by CID and checked: the inspector shows **Attach Schema…** to pick the type to validate against. <!-- id:aNeo_tnz -->
 
 **With the CLI** <!-- id:WmADcfzx -->
-  1. `blob validate -f bob.json --schema hm://<acct>/types/person` checks a dag-json value against the type; the schema can also be a file, an `ipfs://` CID, or a library name.
-  2. `blob create -f bob.json --schema hm://<acct>/types/person` validates, refuses on a violation unless `--force`, publishes the DAG-CBOR blob with a `schema` link to the type's blob, and prints `ipfs://<cid>` (`-q` prints only the URL; `--dry-run` shows the blob and its CID without publishing).
-  3. `blob get <cid>` reads it back as dag-json; `blob verify <cid>` checks it against the linked schema.
+  1. `blob validate -f bob.json --schema hm://<acct>/types/person` checks a dag-json value against the type; the schema can also be a file, an `ipfs://` CID, or a library name. <!-- id:Qt7DAgmz -->
+  2. `blob create -f bob.json --schema hm://<acct>/types/person` validates, refuses on a violation unless `--force`, publishes the DAG-CBOR blob with a `schema` link to the type's blob, and prints `ipfs://<cid>` (`-q` prints only the URL; `--dry-run` shows the blob and its CID without publishing). <!-- id:pJlKco1A -->
+  3. `blob get <cid>` reads it back as dag-json; `blob verify <cid>` checks it against the linked schema. <!-- id:55ppIvSG -->
 
 **Through an agent** <!-- id:NsYtZVP5 -->
-  1. Nothing yet. The intended shape: `write ipfs://` with `content` as JSON and `options: {schema: "hm://<acct>/types/person"}` publishes a validated object and returns its CID. <!-- id:ZUDskmfL -->
+  1. `write ipfs://` with the object as JSON `content` and `options: {schema: "hm://<acct>/types/person"}` validates it against the type, refuses on a violation (unless `options.force`), publishes the DAG-CBOR blob with a `schema` link, and returns its CID. `read ipfs://<cid>` reads it back with its schema check. <!-- id:ZUDskmfL -->
 
-**Status.** App: works. CLI: works. Agent: missing. <!-- id:PfFtaN9e -->
+**Status.** App: works. CLI: works. Agent: works. <!-- id:PfFtaN9e -->
 
 # 7. Extend the signed blob envelope into a new signed type <!-- id:6Vb6S0VT -->
 
@@ -144,9 +146,9 @@ These are the things a person should be able to do with the type system, stated 
   1. A schema whose root is `{"ref": "hm://<onyx>/hypermedia-blob", "properties": {"type": {"value": "Vote", "required": true}, …}}`, published as a type page with `document create --schema-definition vote.schema.json` or beside its page with `space import`, as in story 5. <!-- id:SsUIQT9- -->
 
 **Through an agent** <!-- id:2OweK2rk -->
-  1. Nothing yet (same gap as story 5). <!-- id:21O_MRe- -->
+  1. Same as story 5, with a schema whose root is `{"ref": "hm://<onyx>/hypermedia-blob", "properties": {"type": {"value": "Vote", "required": true}, …}}`: `write ipfs://` with `options: {schema: "hypermedia-schema"}` publishes the signed type's schema blob, then a `write hm://…/types/vote` with `metadata.schemaDefinition` binds it. <!-- id:21O_MRe- -->
 
-**Status.** App: works. CLI: works. Agent: missing. <!-- id:wJjSs4ZM -->
+**Status.** App: works. CLI: works. Agent: works. <!-- id:wJjSs4ZM -->
 
 # 8. Create an instance of the signed type and sign it <!-- id:O6AYVjZw -->
 
@@ -158,19 +160,16 @@ These are the things a person should be able to do with the type system, stated 
   3. Press **Sign & publish**. The blob is encoded as canonical CBOR with `sig` zeroed, signed by the account's key, and published with the signature in place — the daemon's own rule. **Inspect the signed blob** opens it: `signer` is the account, `sig` is the signature, and the type chip names Vote. <!-- id:PCbauCtD -->
 
 **With the CLI** <!-- id:1r5ox2Ps -->
-  1. `blob sign -f vote.json --schema hm://<acct>/types/vote --key <name>` takes the type's own fields, adds the envelope — `type` from the schema's pinned tag, `signer` = the key's principal, `ts` = now, `sig` — signs the canonical DAG-CBOR with `sig` zeroed (the daemon's own rule, shared with the app), validates the whole signed blob against the type, publishes, and prints `ipfs://<cid>`. `--dry-run` shows the signed blob without publishing; `--type <tag>` signs an arbitrary blob with the envelope when there is no schema.
-  2. `blob verify <cid>` checks the signature (who signed, when) and the schema, and exits 1 when either fails; `--json` reports both.
+  1. `blob sign -f vote.json --schema hm://<acct>/types/vote --key <name>` takes the type's own fields, adds the envelope — `type` from the schema's pinned tag, `signer` = the key's principal, `ts` = now, `sig` — signs the canonical DAG-CBOR with `sig` zeroed (the daemon's own rule, shared with the app), validates the whole signed blob against the type, publishes, and prints `ipfs://<cid>`. `--dry-run` shows the signed blob without publishing; `--type <tag>` signs an arbitrary blob with the envelope when there is no schema. <!-- id:KTpAo7M7 -->
+  2. `blob verify <cid>` checks the signature (who signed, when) and the schema, and exits 1 when either fails; `--json` reports both. <!-- id:J9vu1et6 -->
 
 **Through an agent** <!-- id:guAYQDxx -->
-  1. Nothing yet. The intended shape: `write ipfs://` with `options: {schema: "hm://<acct>/types/vote", sign: true}` (and `options.signer` to pick the identity) — the agent already selects signing identities for hypermedia writes, so the same choice applies. <!-- id:EoL9rIyL -->
+  1. `write ipfs://` with the fields as JSON `content` and `options: {schema: "hm://<acct>/types/vote", sign: true}` wraps the fields in the signed-blob envelope, signs with the agent's identity (`options.signer` picks one when several are enabled), validates, and publishes. `read ipfs://<cid>` returns the decoded value, `signature` (signer, time, valid or not), and schema check. <!-- id:EoL9rIyL -->
 
-**Status.** App: works. CLI: works. Agent: missing. <!-- id:G3ib1FbL -->
+**Status.** App: works. CLI: works. Agent: works. <!-- id:G3ib1FbL -->
 
-# Backlog <!-- id:dZwbHVf8 -->
+# Where each surface stands <!-- id:dZwbHVf8 -->
 
-What the stories leave missing, in the order to build it: <!-- id:YzHMO1GS -->
-  1. **Agent: schema-aware reads and writes** — `read` reports a typed document's schema and missing fields; `write` returns violations as warnings (story 4).
-  2. **Agent: `write ipfs://` for objects** — JSON content with `options.schema`, and `options.sign` for signed types (stories 5–8).
+All three surfaces now cover all eight stories. The resolver, validator and signing rule that make it possible live in `@seed-hypermedia/client` (`onyx-engine`, `onyx-resolve`, `onyx-signed-blob`), shared by the app, the CLI, and the agents service, so the three never disagree about what a schema means. <!-- id:YzHMO1GS -->
 
-The CLI column is complete: every step above runs in `tests/user-stories.integration.test.ts`, against a real daemon and the web app. The resolver, validator and signing rule that make it possible live in `@seed-hypermedia/client` (`onyx-engine`, `onyx-resolve`, `onyx-signed-blob`), shared by the app, the CLI, and — next — the agents service.
-
+The CLI and agent columns are fully automated: every CLI and agent step above runs in `tests/user-stories.integration.test.ts`, against a real daemon and the web app (the agent steps through `agents/scripts/user-stories.ts`, the same `read`/`write` verbs a person invokes from the agent UI). The app column automates stories 1 and 2 in `frontend/apps/desktop/tests/user-stories/`; the rest of the app column is guided manual testing below, because an isolated test daemon cannot browse the public library and the schema/blob editors are covered by the desktop unit tests. <!-- id:P7-KXoKT -->
