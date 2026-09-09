@@ -71,6 +71,31 @@ const write = (rel: string, content: string) => {
   return file
 }
 
+/**
+ * The Person type, published as a page with a co-located schema file (story 5's step). Stories
+ * 4 and 6 need it too; the import is idempotent, so each caller may run it.
+ */
+async function publishPersonType(): Promise<Run> {
+  const dir = path.join(workDir, 'site')
+  write('site/types.md', '---\nname: Types\n---\nThe types of this space.\n')
+  write('site/types/person.md', '---\nname: Person\n---\nA person: a name and an optional birth date.\n')
+  write(
+    'site/types/person.schema.json',
+    JSON.stringify(
+      {
+        type: KIND('struct'),
+        properties: {
+          name: {value: {type: KIND('string')}, required: true, description: 'Full name'},
+          born: {value: {type: KIND('string'), format: 'date', pattern: '^\\d{4}-\\d{2}-\\d{2}$'}},
+        },
+      },
+      null,
+      2,
+    ) + '\n',
+  )
+  return cli(['space', 'import', 'self', '-d', dir])
+}
+
 beforeAll(async () => {
   env = await setupTestEnv({skipBuild: process.env.SKIP_BUILD === 'true'})
   author = generateTestAccount()
@@ -111,7 +136,14 @@ describe('CLI · 1. Understand the document model', () => {
     TIMEOUT,
   )
 
-  it.todo('document schema <id> — the effective schema a document conforms to, resolved and printed')
+  it(
+    'document validate --json names the schema a document conforms to, or says it has none',
+    async () => {
+      const report = await cliJson(['document', 'validate', url('notes')])
+      expect(report.schema).toBeNull()
+    },
+    TIMEOUT,
+  )
 })
 
 describe('CLI · 2. Give a document custom metadata', () => {
@@ -134,8 +166,35 @@ describe('CLI · 2. Give a document custom metadata', () => {
     TIMEOUT,
   )
 
-  it.todo(`document update <id> --metadata '{"surname":"Smith"}' sets a custom key`)
-  it.todo('document create -f page.md keeps custom frontmatter keys instead of dropping them')
+  it(
+    'document update --metadata sets custom keys',
+    async () => {
+      const updated = await cli([
+        'document',
+        'update',
+        url('notes'),
+        '--metadata',
+        '{"surname":"Jones","nickname":"Smitty"}',
+      ])
+      expect(updated.exitCode, updated.stderr).toBe(0)
+      const doc = await cliJson(['document', 'get', url('notes')])
+      expect(doc.metadata.surname).toBe('Jones')
+      expect(doc.metadata.nickname).toBe('Smitty')
+    },
+    TIMEOUT,
+  )
+  it(
+    'document create -f page.md keeps custom frontmatter keys',
+    async () => {
+      const page = write('page.md', '---\nname: Page\ncolor: teal\nweight: 3\n---\nA page with attributes.\n')
+      const created = await cli(['document', 'create', '-f', page, '-p', 'page'])
+      expect(created.exitCode, created.stderr).toBe(0)
+      const doc = await cliJson(['document', 'get', url('page')])
+      expect(doc.metadata.color).toBe('teal')
+      expect(doc.metadata.weight).toBe(3)
+    },
+    TIMEOUT,
+  )
 })
 
 describe('CLI · 3. Give the direct children of a document a type', () => {
@@ -164,12 +223,68 @@ describe('CLI · 3. Give the direct children of a document a type', () => {
     TIMEOUT,
   )
 
-  it.todo(`document update <folder> --metadata '{"childrenSchema":"hm://…/types/person"}'`)
+  it(
+    'document update --children-schema types a folder',
+    async () => {
+      const created = await cli([
+        'document',
+        'create',
+        '-f',
+        write('team.md', '---\nname: Team\n---\nThe team.\n'),
+        '-p',
+        'team',
+      ])
+      expect(created.exitCode, created.stderr).toBe(0)
+      const updated = await cli(['document', 'update', url('team'), '--children-schema', url('types/person')])
+      expect(updated.exitCode, updated.stderr).toBe(0)
+      const doc = await cliJson(['document', 'get', url('team')])
+      expect(doc.metadata.childrenSchema).toBe(url('types/person'))
+    },
+    TIMEOUT,
+  )
 })
 
 describe('CLI · 4. See whether a document respects its schema', () => {
-  it.todo('document validate <id> resolves the effective schema and prints each violation (exit 1 when any)')
-  it.todo('space import --check validates every file against its schema before publishing')
+  it(
+    'document validate passes a page that conforms to its inherited type',
+    async () => {
+      const published = await publishPersonType()
+      expect(published.exitCode, published.stderr).toBe(0)
+      const ok = await cli(['document', 'update', url('people/bob'), '--metadata', '{"born":"1990-01-02"}'])
+      expect(ok.exitCode, ok.stderr).toBe(0)
+      const result = await cli(['document', 'validate', url('people/bob')])
+      expect(result.exitCode, result.stderr + result.stdout).toBe(0)
+      const report = await cliJson(['document', 'validate', url('people/bob')])
+      expect(report.via).toBe('inherited')
+      expect(report.violations).toEqual([])
+    },
+    TIMEOUT,
+  )
+
+  it(
+    'document validate lists violations and exits 1',
+    async () => {
+      const bad = await cli(['document', 'update', url('people/bob'), '--metadata', '{"born":"yesterday"}'])
+      expect(bad.exitCode, bad.stderr).toBe(0)
+      const result = await cli(['document', 'validate', url('people/bob')])
+      expect(result.exitCode).toBe(1)
+      expect(result.stdout + result.stderr).toMatch(/born/)
+    },
+    TIMEOUT,
+  )
+  it(
+    'space import --check refuses to publish a file that violates its schema',
+    async () => {
+      const dir = path.join(workDir, 'site')
+      write('site/people/carol.md', '---\nname: Carol\nborn: not-a-date\n---\nCarol.\n')
+      const refused = await cli(['space', 'import', 'self', '-d', dir, '--check'])
+      expect(refused.exitCode).toBe(1)
+      expect(refused.stdout + refused.stderr).toContain('would violate a schema')
+      const missing = await cli(['document', 'get', url('people/carol')])
+      expect(missing.exitCode).not.toBe(0)
+    },
+    TIMEOUT,
+  )
 })
 
 describe('CLI · 5. Define a custom schema as a document', () => {
@@ -212,14 +327,94 @@ describe('CLI · 5. Define a custom schema as a document', () => {
     TIMEOUT,
   )
 
-  it.todo('document create --schema-definition person.schema.json publishes a type page in one command')
-  it.todo('schema validate person.schema.json checks a schema file against the meta-schema')
+  it(
+    'document create --schema-definition publishes a type page in one command',
+    async () => {
+      const schemaFile = write(
+        'place.schema.json',
+        JSON.stringify({type: KIND('struct'), properties: {name: {value: {type: KIND('string')}, required: true}}}) +
+          '\n',
+      )
+      const page = write('place.md', '---\nname: Place\n---\nA place has a name.\n')
+      const created = await cli([
+        'document',
+        'create',
+        '-f',
+        page,
+        '-p',
+        'types/place',
+        '--schema-definition',
+        schemaFile,
+      ])
+      expect(created.exitCode, created.stderr).toBe(0)
+      const doc = await cliJson(['document', 'get', url('types/place')])
+      expect(doc.metadata.schemaDefinition).toMatch(/^ipfs:\/\/bafy/)
+    },
+    TIMEOUT,
+  )
+  it(
+    'schema validate checks a schema against the meta-schema',
+    async () => {
+      const good = await cli(['schema', 'validate', path.join(workDir, 'place.schema.json')])
+      expect(good.exitCode, good.stderr).toBe(0)
+      const badFile = write(
+        'bad.schema.json',
+        JSON.stringify({type: KIND('string'), items: {type: KIND('integer')}}) + '\n',
+      )
+      const bad = await cli(['schema', 'validate', badFile])
+      expect(bad.exitCode).toBe(1)
+      const remote = await cli(['schema', 'validate', url('types/person')])
+      expect(remote.exitCode, remote.stderr).toBe(0)
+    },
+    TIMEOUT,
+  )
 })
 
 describe('CLI · 6. Create a blob that follows a custom schema exactly', () => {
-  it.todo('blob validate --schema hm://…/types/person -f bob.json prints violations')
-  it.todo(
-    'blob create --schema hm://…/types/person -f bob.json publishes a conforming DAG-CBOR object with a schema link',
+  it(
+    'blob validate reports violations against a type document',
+    async () => {
+      const bad = write('bad-person.json', JSON.stringify({name: 42}) + '\n')
+      const result = await cli(['blob', 'validate', '-f', bad, '--schema', url('types/person')])
+      expect(result.exitCode).toBe(1)
+      expect(result.stdout + result.stderr).toMatch(/name/)
+      const good = write('good-person.json', JSON.stringify({name: 'Bob', born: '1990-01-02'}) + '\n')
+      const ok = await cli(['blob', 'validate', '-f', good, '--schema', url('types/person')])
+      expect(ok.exitCode, ok.stderr).toBe(0)
+    },
+    TIMEOUT,
+  )
+  it(
+    'blob create publishes a conforming object with a schema link; blob get and verify read it back',
+    async () => {
+      const refused = await cli([
+        'blob',
+        'create',
+        '-f',
+        path.join(workDir, 'bad-person.json'),
+        '--schema',
+        url('types/person'),
+      ])
+      expect(refused.exitCode).toBe(1)
+      const created = await cli([
+        'blob',
+        'create',
+        '-f',
+        path.join(workDir, 'good-person.json'),
+        '--schema',
+        url('types/person'),
+        '-q',
+      ])
+      expect(created.exitCode, created.stderr).toBe(0)
+      const cid = created.stdout.trim().replace('ipfs://', '')
+      expect(cid).toMatch(/^bafy/)
+      const got = await cliJson(['blob', 'get', cid])
+      expect(got.name).toBe('Bob')
+      expect(got.schema['/']).toMatch(/^bafy/)
+      const verified = await cli(['blob', 'verify', cid])
+      expect(verified.exitCode, verified.stderr).toBe(0)
+    },
+    TIMEOUT,
   )
 })
 
@@ -256,10 +451,49 @@ describe('CLI · 7. Extend the signed blob envelope into a new signed type', () 
 })
 
 describe('CLI · 8. Create an instance of the signed type and sign it', () => {
-  it.todo(
-    'blob sign --schema hm://…/types/vote -f vote.json --key <name> fills signer/ts, signs canonical CBOR with sig zeroed, publishes',
+  it(
+    'blob sign publishes a signed instance of the Vote type',
+    async () => {
+      const vote = write('vote.json', JSON.stringify({target: url('notes'), choice: 'yes'}) + '\n')
+      const dry = await cliJson(['blob', 'sign', '-f', vote, '--schema', url('types/vote'), '--dry-run'])
+      expect(dry.value.type).toBe('Vote')
+      expect(dry.value.signer['/'].bytes).toBeTruthy()
+      expect(dry.signer).toBe(author.accountId)
+      const signed = await cli(['blob', 'sign', '-f', vote, '--schema', url('types/vote'), '-q'])
+      expect(signed.exitCode, signed.stderr).toBe(0)
+      const cid = signed.stdout.trim().replace('ipfs://', '')
+      const got = await cliJson(['blob', 'get', cid])
+      expect(got.type).toBe('Vote')
+      expect(got.choice).toBe('yes')
+      expect(typeof got.ts).toBe('number')
+    },
+    TIMEOUT,
   )
-  it.todo('blob verify <cid> checks the signature and the schema')
+  it(
+    'blob sign refuses fields the type rejects; blob verify checks signature and schema',
+    async () => {
+      const bad = write('bad-vote.json', JSON.stringify({target: url('notes'), choice: 'maybe'}) + '\n')
+      const refused = await cli(['blob', 'sign', '-f', bad, '--schema', url('types/vote')])
+      expect(refused.exitCode).toBe(1)
+      expect(refused.stdout + refused.stderr).toMatch(/choice/)
+      const signed = await cli([
+        'blob',
+        'sign',
+        '-f',
+        path.join(workDir, 'vote.json'),
+        '--schema',
+        url('types/vote'),
+        '-q',
+      ])
+      const cid = signed.stdout.trim().replace('ipfs://', '')
+      const verified = await cliJson(['blob', 'verify', cid, '--schema', url('types/vote')])
+      expect(verified.signature.ok).toBe(true)
+      expect(verified.signature.signer).toBe(author.accountId)
+      expect(verified.schema.violations).toEqual([])
+      expect(verified.ok).toBe(true)
+    },
+    TIMEOUT,
+  )
 })
 
 // ── An agent ─────────────────────────────────────────────────────────────────
