@@ -75,7 +75,10 @@ describe('invalidateForAccountChange', () => {
       {serverUrl, session: older},
     ])
     const transcriptFetch = vi.fn(async () => ({_: 'GetSessionResponse', session, events: []}))
-    const detailFetch = vi.fn(async () => ({_: 'GetAgentResponse', agent: {id: agentId}, sessions: [session]}))
+    const detailFetch = vi.fn(async () => ({_: 'GetAgentResponse', agent: {id: agentId}, sessionCount: 2}))
+    // The agent page's paginated session list, as the infinite query stores it.
+    const pagesKey = ['agents', 'sessions', serverUrl, accountUid, 'agent', agentId]
+    client.setQueryData(pagesKey, {pages: [{sessions: [session, older]}], pageParams: [undefined]})
     // On screen: an observer on each, the way a mounted sidebar, transcript and agent page hold them.
     const observed = [
       new QueryObserver(client, {queryKey: ['agents', 'sessions', serverUrl, accountUid], queryFn: listFetch}),
@@ -106,7 +109,7 @@ describe('invalidateForAccountChange', () => {
       {serverUrl, session: older},
     ])
     expect(client.getQueryData(['agents', 'session', serverUrl, accountUid, 's1'])).toMatchObject({session: fresh})
-    expect(client.getQueryData(['agents', 'detail', serverUrl, accountUid, agentId])).toMatchObject({sessions: [fresh]})
+    expect(client.getQueryData(pagesKey)).toMatchObject({pages: [{sessions: [fresh, older]}]})
     // And none of the mounted copies went back to the server — this was three refetches per hint.
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(listFetch).toHaveBeenCalledTimes(1)

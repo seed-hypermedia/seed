@@ -439,7 +439,7 @@ function AgentSessionPage({
             agentId={agentId}
             serverUrl={serverUrl}
             activeTab="sessions"
-            sessionsCount={agent.data?.sessions.length}
+            sessionsCount={agent.data?.sessionCount}
             triggersCount={triggers.data?.length}
             breadcrumbItems={[
               ...(agentId

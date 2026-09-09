@@ -21,6 +21,7 @@ const REQUIRED_HOOKS = [
   'useAgentList',
   'useAgentLists',
   'useAgentDetail',
+  'useAgentSessions',
   'useCreateAgent',
   'useHasAnyAgent',
   // Providers

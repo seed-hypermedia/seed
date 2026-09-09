@@ -301,7 +301,8 @@ Returns `{agentId}`.
 
 #### `GetAgent`
 
-Returns metadata and session list for one agent.
+Returns metadata for one agent plus `sessionCount` (top-level sessions). The sessions themselves
+are paginated: list them with `ListSessions {agentId, includeChildren: false, cursor}`.
 
 ```ts
 type GetAgent = {
