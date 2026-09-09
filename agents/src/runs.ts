@@ -11,6 +11,7 @@
 import type {Database} from 'bun:sqlite'
 import * as cbor from '@/cbor'
 import {recordPerf, recordPerfCount} from '@/perf'
+import {stmt} from '@/statements'
 
 export type RunKind = 'agent' | 'workflow'
 export type RunOrigin = 'user' | 'trigger' | 'agent' | 'workflow' | 'system'
@@ -269,30 +270,31 @@ export function rowToRun(row: RunRow): RunRecord {
 }
 
 export function getRun(db: Database, accountId: string, runId: string): RunRecord | null {
-  const row = db
-    .query<RunRow, [string, string]>(`SELECT ${RUN_COLUMNS} FROM runs WHERE account_id = ? AND id = ?`)
-    .get(accountId, runId)
+  const row = stmt<RunRow, [string, string]>(db, `SELECT ${RUN_COLUMNS} FROM runs WHERE account_id = ? AND id = ?`).get(
+    accountId,
+    runId,
+  )
   return row ? rowToRun(row) : null
 }
 
 /** All runs in a root's tree, oldest first. */
 export function listRunTree(db: Database, accountId: string, rootRunId: string): RunRecord[] {
-  return db
-    .query<RunRow, [string, string]>(
-      `SELECT ${RUN_COLUMNS} FROM runs WHERE account_id = ? AND root_run_id = ? ORDER BY created_at ASC, id ASC`,
-    )
+  return stmt<RunRow, [string, string]>(
+    db,
+    `SELECT ${RUN_COLUMNS} FROM runs WHERE account_id = ? AND root_run_id = ? ORDER BY created_at ASC, id ASC`,
+  )
     .all(accountId, rootRunId)
     .map(rowToRun)
 }
 
 /** Root runs referencing a session, newest first. */
 export function listSessionRootRuns(db: Database, accountId: string, sessionId: string, limit: number): RunRecord[] {
-  return db
-    .query<RunRow, [string, string, number]>(
-      `SELECT ${RUN_COLUMNS} FROM runs
+  return stmt<RunRow, [string, string, number]>(
+    db,
+    `SELECT ${RUN_COLUMNS} FROM runs
        WHERE account_id = ? AND session_id = ? AND id = root_run_id
        ORDER BY created_at DESC LIMIT ?`,
-    )
+  )
     .all(accountId, sessionId, limit)
     .map(rowToRun)
 }
@@ -304,23 +306,21 @@ export function listSessionRootRuns(db: Database, accountId: string, sessionId: 
  */
 export function sessionHasLiveRun(db: Database, sessionId: string): boolean {
   return (
-    db
-      .query<{id: string}, [string]>(
-        `SELECT id FROM runs WHERE session_id = ? AND kind = 'agent'
+    stmt<{id: string}, [string]>(
+      db,
+      `SELECT id FROM runs WHERE session_id = ? AND kind = 'agent'
          AND status IN ('queued','claimed','running') LIMIT 1`,
-      )
-      .get(sessionId) !== null
+    ).get(sessionId) !== null
   )
 }
 
 /** Pending child tool-call ids across every waiting run of a session (still-running spawns). */
 export function pendingWaitToolCallIds(db: Database, sessionId: string): Set<string> {
   const pending = new Set<string>()
-  const rows = db
-    .query<{wait_cbor: Uint8Array | null}, [string]>(
-      `SELECT wait_cbor FROM runs WHERE session_id = ? AND status = 'waiting'`,
-    )
-    .all(sessionId)
+  const rows = stmt<{wait_cbor: Uint8Array | null}, [string]>(
+    db,
+    `SELECT wait_cbor FROM runs WHERE session_id = ? AND status = 'waiting'`,
+  ).all(sessionId)
   for (const row of rows) {
     if (!row.wait_cbor) continue
     const wait = cbor.decode<RunWait>(row.wait_cbor)
@@ -331,32 +331,31 @@ export function pendingWaitToolCallIds(db: Database, sessionId: string): Set<str
 
 /** Non-terminal runs referencing a session (stop/cancel targets). */
 export function listLiveSessionRuns(db: Database, accountId: string, sessionId: string): RunRecord[] {
-  return db
-    .query<RunRow, [string, string]>(
-      `SELECT ${RUN_COLUMNS} FROM runs WHERE account_id = ? AND session_id = ?
+  return stmt<RunRow, [string, string]>(
+    db,
+    `SELECT ${RUN_COLUMNS} FROM runs WHERE account_id = ? AND session_id = ?
        AND status IN ('queued', 'claimed', 'running', 'waiting') ORDER BY created_at ASC`,
-    )
+  )
     .all(accountId, sessionId)
     .map(rowToRun)
 }
 
 /** Runs of one agent, newest first. */
 export function listAgentRuns(db: Database, accountId: string, agentId: string, limit: number): RunRecord[] {
-  return db
-    .query<RunRow, [string, string, number]>(
-      `SELECT ${RUN_COLUMNS} FROM runs WHERE account_id = ? AND agent_id = ? ORDER BY created_at DESC LIMIT ?`,
-    )
+  return stmt<RunRow, [string, string, number]>(
+    db,
+    `SELECT ${RUN_COLUMNS} FROM runs WHERE account_id = ? AND agent_id = ? ORDER BY created_at DESC LIMIT ?`,
+  )
     .all(accountId, agentId, limit)
     .map(rowToRun)
 }
 
 /** Latest run referencing the session (for deriving the legacy status mirror). */
 export function latestSessionRun(db: Database, sessionId: string): RunRecord | null {
-  const row = db
-    .query<RunRow, [string]>(
-      `SELECT ${RUN_COLUMNS} FROM runs WHERE session_id = ? ORDER BY created_at DESC, id DESC LIMIT 1`,
-    )
-    .get(sessionId)
+  const row = stmt<RunRow, [string]>(
+    db,
+    `SELECT ${RUN_COLUMNS} FROM runs WHERE session_id = ? ORDER BY created_at DESC, id DESC LIMIT 1`,
+  ).get(sessionId)
   return row ? rowToRun(row) : null
 }
 
@@ -415,12 +414,11 @@ export class RunQueue {
    */
   sweepAtBoot(): number {
     const now = Date.now()
-    const swept = this.#db
-      .query<{id: string}, [number]>(
-        `UPDATE runs SET status = 'queued', lease_owner = NULL, lease_expires_at = NULL, updated_at = ?
+    const swept = stmt<{id: string}, [number]>(
+      this.#db,
+      `UPDATE runs SET status = 'queued', lease_owner = NULL, lease_expires_at = NULL, updated_at = ?
          WHERE status IN ('claimed', 'running') RETURNING id`,
-      )
-      .all(now)
+    ).all(now)
     if (swept.length > 0) {
       console.info('[agents/runs] boot sweep requeued interrupted runs', {count: swept.length})
     }
@@ -437,45 +435,46 @@ export class RunQueue {
     let rootRunId = id
     let depth = 0
     if (spec.parentRunId) {
-      const parent = this.#db
-        .query<{root_run_id: string; depth: number}, [string]>(`SELECT root_run_id, depth FROM runs WHERE id = ?`)
-        .get(spec.parentRunId)
+      const parent = stmt<{root_run_id: string; depth: number}, [string]>(
+        this.#db,
+        `SELECT root_run_id, depth FROM runs WHERE id = ?`,
+      ).get(spec.parentRunId)
       if (!parent) throw new Error(`Parent run not found: ${spec.parentRunId}`)
       rootRunId = parent.root_run_id
       depth = parent.depth + 1
     }
-    this.#db.run(
+    stmt(
+      this.#db,
       `INSERT INTO runs (id, account_id, root_run_id, parent_run_id, parent_tool_call_id, continued_from_run_id,
          depth, kind, agent_id, session_id, trigger_firing_id, origin, title, model, source_cid, source_text,
          input_cbor, status, attempt, max_attempts, not_before, queue, budget_cbor, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (id) DO NOTHING`,
-      [
-        id,
-        spec.accountId,
-        rootRunId,
-        spec.parentRunId ?? null,
-        spec.parentToolCallId ?? null,
-        spec.continuedFromRunId ?? null,
-        depth,
-        spec.kind,
-        spec.agentId ?? null,
-        spec.sessionId ?? null,
-        spec.triggerFiringId ?? null,
-        spec.origin,
-        title,
-        spec.model ?? null,
-        spec.sourceCid ?? null,
-        spec.sourceText ?? null,
-        cbor.encode(spec.input ?? {}),
-        spec.maxAttempts ?? 1,
-        spec.notBefore ?? null,
-        spec.queue,
-        spec.budget ? cbor.encode(spec.budget) : null,
-        now,
-        now,
-      ],
-    )
+    ).run([
+      id,
+      spec.accountId,
+      rootRunId,
+      spec.parentRunId ?? null,
+      spec.parentToolCallId ?? null,
+      spec.continuedFromRunId ?? null,
+      depth,
+      spec.kind,
+      spec.agentId ?? null,
+      spec.sessionId ?? null,
+      spec.triggerFiringId ?? null,
+      spec.origin,
+      title,
+      spec.model ?? null,
+      spec.sourceCid ?? null,
+      spec.sourceText ?? null,
+      cbor.encode(spec.input ?? {}),
+      spec.maxAttempts ?? 1,
+      spec.notBefore ?? null,
+      spec.queue,
+      spec.budget ? cbor.encode(spec.budget) : null,
+      now,
+      now,
+    ])
     const run = this.#getRunAnyAccount(id)
     if (!run) throw new Error(`Run insert failed: ${id}`)
     this.#onRunChanged?.(run)
@@ -500,12 +499,11 @@ export class RunQueue {
   /** Moves a waiting run back to queued (child resolution / timer wake). */
   requeueWaiting(runId: string, opts: {notBefore?: number} = {}): RunRecord | null {
     const now = Date.now()
-    const row = this.#db
-      .query<RunRow, [number | null, number, string]>(
-        `UPDATE runs SET status = 'queued', wait_cbor = NULL, not_before = ?, updated_at = ?
+    const row = stmt<RunRow, [number | null, number, string]>(
+      this.#db,
+      `UPDATE runs SET status = 'queued', wait_cbor = NULL, not_before = ?, updated_at = ?
          WHERE id = ? AND status = 'waiting' RETURNING ${RUN_COLUMNS}`,
-      )
-      .get(opts.notBefore ?? null, now, runId)
+    ).get(opts.notBefore ?? null, now, runId)
     if (!row) return null
     this.#clearEventWaits(runId)
     const run = rowToRun(row)
@@ -526,7 +524,7 @@ export class RunQueue {
     if (!current || current.status !== 'waiting' || current.wait?.reason !== 'budget-pause') return null
     if (current.budget) {
       const {maxWallMs: _dropped, ...rest} = current.budget
-      this.#db.run(`UPDATE runs SET budget_cbor = ?, updated_at = ? WHERE id = ?`, [
+      stmt(this.#db, `UPDATE runs SET budget_cbor = ?, updated_at = ? WHERE id = ?`).run([
         cbor.encode(rest),
         Date.now(),
         runId,
@@ -550,11 +548,10 @@ export class RunQueue {
       this.requeueWaiting(parentRunId)
       return 'requeued'
     }
-    const row = this.#db
-      .query<RunRow, [Uint8Array, number, string]>(
-        `UPDATE runs SET wait_cbor = ?, updated_at = ? WHERE id = ? AND status = 'waiting' RETURNING ${RUN_COLUMNS}`,
-      )
-      .get(cbor.encode({reason: 'children', toolCallIds: remaining} satisfies RunWait), Date.now(), parentRunId)
+    const row = stmt<RunRow, [Uint8Array, number, string]>(
+      this.#db,
+      `UPDATE runs SET wait_cbor = ?, updated_at = ? WHERE id = ? AND status = 'waiting' RETURNING ${RUN_COLUMNS}`,
+    ).get(cbor.encode({reason: 'children', toolCallIds: remaining} satisfies RunWait), Date.now(), parentRunId)
     if (row) this.#onRunChanged?.(rowToRun(row))
     return 'updated'
   }
@@ -567,9 +564,9 @@ export class RunQueue {
     const root = getRun(this.#db, accountId, runId)
     if (!root) return []
     const now = Date.now()
-    const rows = this.#db
-      .query<RunRow, [number, string, string]>(
-        `WITH RECURSIVE tree(id) AS (
+    const rows = stmt<RunRow, [number, string, string]>(
+      this.#db,
+      `WITH RECURSIVE tree(id) AS (
            SELECT id FROM runs WHERE id = ?2
            UNION ALL
            SELECT r.id FROM runs r JOIN tree t ON r.parent_run_id = t.id
@@ -577,8 +574,7 @@ export class RunQueue {
          UPDATE runs SET status = 'canceled', wait_cbor = NULL, finished_at = ?1, updated_at = ?1
          WHERE id IN (SELECT id FROM tree) AND account_id = ?3
            AND status IN ('queued', 'waiting') RETURNING ${RUN_COLUMNS}`,
-      )
-      .all(now, runId, accountId)
+    ).all(now, runId, accountId)
     const canceled = rows.map(rowToRun)
     for (const run of canceled) {
       this.#clearEventWaits(run.id)
@@ -586,16 +582,16 @@ export class RunQueue {
       this.#onRunFinalized?.(run)
     }
     // Claimed/running members finalize as canceled through their own executor teardown.
-    const live = this.#db
-      .query<RunRow, [string, string]>(
-        `WITH RECURSIVE tree(id) AS (
+    const live = stmt<RunRow, [string, string]>(
+      this.#db,
+      `WITH RECURSIVE tree(id) AS (
            SELECT id FROM runs WHERE id = ?1
            UNION ALL
            SELECT r.id FROM runs r JOIN tree t ON r.parent_run_id = t.id
          )
          SELECT ${RUN_COLUMNS} FROM runs WHERE id IN (SELECT id FROM tree) AND account_id = ?2
            AND status IN ('claimed', 'running')`,
-      )
+    )
       .all(runId, accountId)
       .map(rowToRun)
     for (const run of live) this.#abortRun?.(run)
@@ -605,13 +601,12 @@ export class RunQueue {
   /** Cancels queued/waiting runs referencing a session (StopSession companion to the live abort). */
   cancelQueuedForSession(accountId: string, sessionId: string): RunRecord[] {
     const now = Date.now()
-    const rows = this.#db
-      .query<RunRow, [number, string, string]>(
-        `UPDATE runs SET status = 'canceled', wait_cbor = NULL, finished_at = ?1, updated_at = ?1
+    const rows = stmt<RunRow, [number, string, string]>(
+      this.#db,
+      `UPDATE runs SET status = 'canceled', wait_cbor = NULL, finished_at = ?1, updated_at = ?1
          WHERE account_id = ?2 AND session_id = ?3 AND status IN ('queued', 'waiting')
          RETURNING ${RUN_COLUMNS}`,
-      )
-      .all(now, accountId, sessionId)
+    ).all(now, accountId, sessionId)
     const canceled = rows.map(rowToRun)
     for (const run of canceled) {
       this.#clearEventWaits(run.id)
@@ -660,16 +655,19 @@ export class RunQueue {
 
   /** Persists the in-flight usage snapshot for a run (cheap single-row update; no event emitted). */
   updateUsage(runId: string, usage: RunUsage): void {
-    this.#db.run(`UPDATE runs SET usage_cbor = ?, updated_at = ? WHERE id = ?`, [cbor.encode(usage), Date.now(), runId])
+    stmt(this.#db, `UPDATE runs SET usage_cbor = ?, updated_at = ? WHERE id = ?`).run([
+      cbor.encode(usage),
+      Date.now(),
+      runId,
+    ])
   }
 
   /** Persists the plan/step snapshot for a run and notifies subscribers. */
   updatePlan(runId: string, plan: RunPlanState): RunRecord | null {
-    const row = this.#db
-      .query<RunRow, [Uint8Array, number, string]>(
-        `UPDATE runs SET plan_cbor = ?, updated_at = ? WHERE id = ? RETURNING ${RUN_COLUMNS}`,
-      )
-      .get(cbor.encode(plan), Date.now(), runId)
+    const row = stmt<RunRow, [Uint8Array, number, string]>(
+      this.#db,
+      `UPDATE runs SET plan_cbor = ?, updated_at = ? WHERE id = ? RETURNING ${RUN_COLUMNS}`,
+    ).get(cbor.encode(plan), Date.now(), runId)
     if (!row) return null
     const run = rowToRun(row)
     this.#onRunChanged?.(run)
@@ -677,18 +675,17 @@ export class RunQueue {
   }
 
   #getRunAnyAccount(runId: string): RunRecord | null {
-    const row = this.#db.query<RunRow, [string]>(`SELECT ${RUN_COLUMNS} FROM runs WHERE id = ?`).get(runId)
+    const row = stmt<RunRow, [string]>(this.#db, `SELECT ${RUN_COLUMNS} FROM runs WHERE id = ?`).get(runId)
     return row ? rowToRun(row) : null
   }
 
   #hasDispatchableWork(): boolean {
     const now = Date.now()
     return (
-      this.#db
-        .query<{id: string}, [number]>(
-          `SELECT id FROM runs WHERE status = 'queued' AND (not_before IS NULL OR not_before <= ?) LIMIT 1`,
-        )
-        .get(now) !== null
+      stmt<{id: string}, [number]>(
+        this.#db,
+        `SELECT id FROM runs WHERE status = 'queued' AND (not_before IS NULL OR not_before <= ?) LIMIT 1`,
+      ).get(now) !== null
     )
   }
 
@@ -702,22 +699,20 @@ export class RunQueue {
    */
   #hasPendingRetry(): boolean {
     return (
-      this.#db
-        .query<{id: string}, [number]>(
-          `SELECT id FROM runs WHERE status = 'queued' AND not_before IS NOT NULL AND not_before > ? LIMIT 1`,
-        )
-        .get(Date.now()) !== null
+      stmt<{id: string}, [number]>(
+        this.#db,
+        `SELECT id FROM runs WHERE status = 'queued' AND not_before IS NOT NULL AND not_before > ? LIMIT 1`,
+      ).get(Date.now()) !== null
     )
   }
 
   #hasFutureWork(): boolean {
     return (
-      this.#db
-        .query<{id: string}, []>(
-          `SELECT id FROM runs WHERE status = 'queued'
+      stmt<{id: string}, []>(
+        this.#db,
+        `SELECT id FROM runs WHERE status = 'queued'
              OR (status = 'waiting' AND not_before IS NOT NULL) LIMIT 1`,
-        )
-        .get() !== null
+      ).get() !== null
     )
   }
 
@@ -783,9 +778,9 @@ export class RunQueue {
     if (kinds.length === 0) return null
     const now = Date.now()
     const kindList = kinds.map((kind) => `'${kind}'`).join(', ')
-    const row = this.#db
-      .query<RunRow, [string, number, number, number]>(
-        `UPDATE runs SET status = 'claimed', lease_owner = ?1, lease_expires_at = ?2, attempt = attempt + 1, updated_at = ?3
+    const row = stmt<RunRow, [string, number, number, number]>(
+      this.#db,
+      `UPDATE runs SET status = 'claimed', lease_owner = ?1, lease_expires_at = ?2, attempt = attempt + 1, updated_at = ?3
          WHERE id = (
            SELECT r.id FROM runs r
            WHERE r.status = 'queued' AND (r.not_before IS NULL OR r.not_before <= ?4)
@@ -805,8 +800,7 @@ export class RunQueue {
            LIMIT 1
          )
          RETURNING ${RUN_COLUMNS}`,
-      )
-      .get(this.#instanceId, now + LEASE_MS, now, now)
+    ).get(this.#instanceId, now + LEASE_MS, now, now)
     return row ? rowToRun(row) : null
   }
 
@@ -817,12 +811,11 @@ export class RunQueue {
    */
   #wakeDueTimers(): void {
     const now = Date.now()
-    const rows = this.#db
-      .query<RunRow, [number, number]>(
-        `UPDATE runs SET status = 'queued', wait_cbor = NULL, not_before = NULL, updated_at = ?1
+    const rows = stmt<RunRow, [number, number]>(
+      this.#db,
+      `UPDATE runs SET status = 'queued', wait_cbor = NULL, not_before = NULL, updated_at = ?1
          WHERE status = 'waiting' AND not_before IS NOT NULL AND not_before <= ?2 RETURNING ${RUN_COLUMNS}`,
-      )
-      .all(now, now)
+    ).all(now, now)
     for (const row of rows) {
       this.#clearEventWaits(row.id)
       this.#onRunChanged?.(rowToRun(row))
@@ -831,16 +824,16 @@ export class RunQueue {
 
   /** Forgets what a run was listening for; safe to call for runs that were never listening. */
   #clearEventWaits(runId: string): void {
-    this.#db.run(`DELETE FROM run_event_waits WHERE run_id = ?`, [runId])
+    stmt(this.#db, `DELETE FROM run_event_waits WHERE run_id = ?`).run([runId])
   }
 
   #claimSpecific(runId: string): RunRecord | null {
     const now = Date.now()
     // Same-session exclusion mirrors #claimNext: the interactive path must not start a second
     // executor on a session another live run owns (guard TOCTOU upstream is not sufficient).
-    const row = this.#db
-      .query<RunRow, [string, number, number, string]>(
-        `UPDATE runs SET status = 'claimed', lease_owner = ?1, lease_expires_at = ?2, attempt = attempt + 1, updated_at = ?3
+    const row = stmt<RunRow, [string, number, number, string]>(
+      this.#db,
+      `UPDATE runs SET status = 'claimed', lease_owner = ?1, lease_expires_at = ?2, attempt = attempt + 1, updated_at = ?3
          WHERE id = ?4 AND status = 'queued'
            AND NOT (
              kind = 'agent' AND session_id IS NOT NULL AND EXISTS (
@@ -849,8 +842,7 @@ export class RunQueue {
              )
            )
          RETURNING ${RUN_COLUMNS}`,
-      )
-      .get(this.#instanceId, now + LEASE_MS, now, runId)
+    ).get(this.#instanceId, now + LEASE_MS, now, runId)
     return row ? rowToRun(row) : null
   }
 
@@ -859,12 +851,11 @@ export class RunQueue {
     // How long the run sat dispatchable before an executor picked it up — queue lag, not work.
     // `not_before` (backoff, timers) marks when it became eligible; otherwise enqueue time does.
     recordPerf('run.dispatch_delay', now - Math.max(claimed.notBefore ?? 0, claimed.createdAt))
-    const startedRow = this.#db
-      .query<RunRow, [number, number | null, number, string]>(
-        `UPDATE runs SET status = 'running', started_at = COALESCE(?2, ?1), updated_at = ?3 WHERE id = ?4
+    const startedRow = stmt<RunRow, [number, number | null, number, string]>(
+      this.#db,
+      `UPDATE runs SET status = 'running', started_at = COALESCE(?2, ?1), updated_at = ?3 WHERE id = ?4
          RETURNING ${RUN_COLUMNS}`,
-      )
-      .get(now, claimed.startedAt ?? null, now, claimed.id)
+    ).get(now, claimed.startedAt ?? null, now, claimed.id)
     const run = startedRow ? rowToRun(startedRow) : claimed
     this.#onRunChanged?.(run)
     const executor = this.#executors[run.kind]
@@ -900,45 +891,40 @@ export class RunQueue {
     }
     let row: RunRow | null = null
     if (outcome.type === 'parked') {
-      row = this.#db
-        .query<RunRow, [Uint8Array, number | null, number, string]>(
-          `UPDATE runs SET status = 'waiting', wait_cbor = ?1, lease_owner = NULL, lease_expires_at = NULL,
+      row = stmt<RunRow, [Uint8Array, number | null, number, string]>(
+        this.#db,
+        `UPDATE runs SET status = 'waiting', wait_cbor = ?1, lease_owner = NULL, lease_expires_at = NULL,
              not_before = ?2, updated_at = ?3 WHERE id = ?4 RETURNING ${RUN_COLUMNS}`,
-        )
-        .get(cbor.encode(outcome.wait), parkWakeAt(outcome.wait), now, run.id)
+      ).get(cbor.encode(outcome.wait), parkWakeAt(outcome.wait), now, run.id)
     } else if (outcome.type === 'succeeded') {
-      row = this.#db
-        .query<RunRow, [Uint8Array, number, string]>(
-          `UPDATE runs SET status = 'succeeded', output_cbor = ?1, error_cbor = NULL, wait_cbor = NULL,
+      row = stmt<RunRow, [Uint8Array, number, string]>(
+        this.#db,
+        `UPDATE runs SET status = 'succeeded', output_cbor = ?1, error_cbor = NULL, wait_cbor = NULL,
              finished_at = ?2, updated_at = ?2 WHERE id = ?3 RETURNING ${RUN_COLUMNS}`,
-        )
-        .get(cbor.encode(outcome.output ?? null), now, run.id)
+      ).get(cbor.encode(outcome.output ?? null), now, run.id)
     } else if (outcome.type === 'canceled') {
-      row = this.#db
-        .query<RunRow, [Uint8Array | null, number, string]>(
-          `UPDATE runs SET status = 'canceled', output_cbor = ?1, wait_cbor = NULL,
+      row = stmt<RunRow, [Uint8Array | null, number, string]>(
+        this.#db,
+        `UPDATE runs SET status = 'canceled', output_cbor = ?1, wait_cbor = NULL,
              finished_at = ?2, updated_at = ?2 WHERE id = ?3 RETURNING ${RUN_COLUMNS}`,
-        )
-        .get(outcome.output === undefined ? null : cbor.encode(outcome.output), now, run.id)
+      ).get(outcome.output === undefined ? null : cbor.encode(outcome.output), now, run.id)
     } else {
       const retryable = outcome.error.retryable === true && current.attempt < current.maxAttempts
       if (retryable) {
         recordPerfCount(`run.retry.${outcome.error.code}`)
         const backoff = Math.min(this.#retryBaseMs * 2 ** (current.attempt - 1), RETRY_CAP_MS)
         const jitter = Math.floor(Math.random() * Math.min(1_000, this.#retryBaseMs))
-        row = this.#db
-          .query<RunRow, [Uint8Array, number, number, string]>(
-            `UPDATE runs SET status = 'queued', error_cbor = ?1, lease_owner = NULL, lease_expires_at = NULL,
+        row = stmt<RunRow, [Uint8Array, number, number, string]>(
+          this.#db,
+          `UPDATE runs SET status = 'queued', error_cbor = ?1, lease_owner = NULL, lease_expires_at = NULL,
                not_before = ?2, updated_at = ?3 WHERE id = ?4 RETURNING ${RUN_COLUMNS}`,
-          )
-          .get(cbor.encode(outcome.error), now + backoff + jitter, now, run.id)
+        ).get(cbor.encode(outcome.error), now + backoff + jitter, now, run.id)
       } else {
-        row = this.#db
-          .query<RunRow, [Uint8Array, number, string]>(
-            `UPDATE runs SET status = 'failed', error_cbor = ?1, wait_cbor = NULL,
+        row = stmt<RunRow, [Uint8Array, number, string]>(
+          this.#db,
+          `UPDATE runs SET status = 'failed', error_cbor = ?1, wait_cbor = NULL,
                finished_at = ?2, updated_at = ?2 WHERE id = ?3 RETURNING ${RUN_COLUMNS}`,
-          )
-          .get(cbor.encode(outcome.error), now, run.id)
+        ).get(cbor.encode(outcome.error), now, run.id)
       }
     }
     if (!row) return

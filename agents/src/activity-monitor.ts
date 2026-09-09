@@ -6,6 +6,7 @@ import {log} from '@/log'
 import {PollLoop} from '@/poll-loop'
 import {createSeedClient, type SeedClient} from '@seed-hypermedia/client'
 import type {Database} from 'bun:sqlite'
+import {stmt} from '@/statements'
 
 /** Options for the background HM activity monitor. */
 export type ActivityMonitorOptions = {
@@ -223,18 +224,19 @@ export class ActivityMonitor {
   }
 
   #enabledActivityTriggerRows(): EnabledTriggerRow[] {
-    return this.#db
-      .query<EnabledTriggerRow, []>(`SELECT account_id, created_at, source_cbor FROM agent_triggers WHERE enabled = 1`)
+    return stmt<EnabledTriggerRow, []>(
+      this.#db,
+      `SELECT account_id, created_at, source_cbor FROM agent_triggers WHERE enabled = 1`,
+    )
       .all()
       .filter((row) => cbor.decode<api.AgentTriggerSource>(row.source_cbor).type !== 'schedule')
   }
 
   #getWatermark(accountId: string): Watermark | null {
-    const row = this.#db
-      .query<{cursor_cbor: Uint8Array; last_success_at: number | null}, [string, string]>(
-        `SELECT cursor_cbor, last_success_at FROM activity_watermarks WHERE account_id = ? AND server_url = ?`,
-      )
-      .get(accountId, this.#options.hmServerUrl)
+    const row = stmt<{cursor_cbor: Uint8Array; last_success_at: number | null}, [string, string]>(
+      this.#db,
+      `SELECT cursor_cbor, last_success_at FROM activity_watermarks WHERE account_id = ? AND server_url = ?`,
+    ).get(accountId, this.#options.hmServerUrl)
     if (!row) return null
     const decoded = cbor.decode<Watermark>(row.cursor_cbor)
     return Array.isArray(decoded.seenKeys)
@@ -246,7 +248,8 @@ export class ActivityMonitor {
   }
 
   #setWatermark(accountId: string, watermark: Watermark, lastPollAt: number, lastSuccessAt: number): void {
-    this.#db.run(
+    stmt(
+      this.#db,
       `INSERT INTO activity_watermarks (account_id, server_url, cursor_cbor, last_poll_at, last_success_at, last_error)
        VALUES (?, ?, ?, ?, ?, NULL)
        ON CONFLICT(account_id, server_url) DO UPDATE SET
@@ -254,19 +257,18 @@ export class ActivityMonitor {
          last_poll_at = excluded.last_poll_at,
          last_success_at = excluded.last_success_at,
          last_error = NULL`,
-      [accountId, this.#options.hmServerUrl, cbor.encode(watermark), lastPollAt, lastSuccessAt],
-    )
+    ).run([accountId, this.#options.hmServerUrl, cbor.encode(watermark), lastPollAt, lastSuccessAt])
   }
 
   #recordWatermarkError(accountId: string, lastPollAt: number, error: string): void {
-    this.#db.run(
+    stmt(
+      this.#db,
       `INSERT INTO activity_watermarks (account_id, server_url, cursor_cbor, last_poll_at, last_error)
        VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(account_id, server_url) DO UPDATE SET
          last_poll_at = excluded.last_poll_at,
          last_error = excluded.last_error`,
-      [accountId, this.#options.hmServerUrl, cbor.encode({seenKeys: []} satisfies Watermark), lastPollAt, error],
-    )
+    ).run([accountId, this.#options.hmServerUrl, cbor.encode({seenKeys: []} satisfies Watermark), lastPollAt, error])
   }
 }
 

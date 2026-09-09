@@ -51,7 +51,7 @@ async function createHarness(): Promise<Harness> {
   if (created._ !== 'CreateAgentResponse') throw new Error('unexpected response')
   cleanups.push(() => {
     service.stopRunQueue()
-    db.close()
+    sqlite.closeDatabase(db)
     fs.rmSync(dataDir, {recursive: true, force: true})
   })
   return {

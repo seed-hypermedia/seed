@@ -2,6 +2,7 @@ import type {Database} from 'bun:sqlite'
 import type * as api from '@/api'
 import * as blobs from '@shm/shared/blobs'
 import * as cbor from '@/cbor'
+import {stmt} from '@/statements'
 
 // Bounds both clock skew and time spent queued behind a busy server: a request that waits out
 // the window fails auth even though the client signed it moments before sending. Five minutes
@@ -107,11 +108,10 @@ async function resolveCapabilityBytes(
 
 /** Returns whether a non-account signer has an AGENT authorization for the account. */
 export function isAuthorizedSigner(db: Database, accountId: string, signerId: string): boolean {
-  const row = db
-    .query<{role: string}, [string, string]>(
-      `SELECT role FROM account_authorizations WHERE account_id = ? AND signer = ? LIMIT 1`,
-    )
-    .get(accountId, signerId)
+  const row = stmt<{role: string}, [string, string]>(
+    db,
+    `SELECT role FROM account_authorizations WHERE account_id = ? AND signer = ? LIMIT 1`,
+  ).get(accountId, signerId)
   return row?.role === 'AGENT' || row?.role === 'OWNER'
 }
 
@@ -195,20 +195,20 @@ export function setLocalAuthorization(
   input: {accountId: string; signerId: string; role: Role; capability?: string; capabilityCid?: string; now?: number},
 ): void {
   const now = input.now ?? Date.now()
-  db.run(
+  stmt(
+    db,
     `INSERT INTO accounts (id, created_at, updated_at) VALUES (?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET updated_at = excluded.updated_at`,
-    [input.accountId, now, now],
-  )
-  db.run(
+  ).run([input.accountId, now, now])
+  stmt(
+    db,
     `INSERT INTO account_authorizations (account_id, signer, role, capability, capability_cid, created_at)
      VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT(account_id, signer) DO UPDATE SET
        role = excluded.role,
        capability = excluded.capability,
        capability_cid = excluded.capability_cid`,
-    [input.accountId, input.signerId, input.role, input.capability ?? null, input.capabilityCid ?? null, now],
-  )
+  ).run([input.accountId, input.signerId, input.role, input.capability ?? null, input.capabilityCid ?? null, now])
 }
 
 function verifySignature(envelope: api.SignedActionEnvelope): boolean {

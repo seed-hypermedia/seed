@@ -19,7 +19,7 @@ function makeDb(): Database {
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     ['agent', 'acct', new Uint8Array([160]), 'x', 'ready', now, now],
   )
-  cleanups.push(() => db.close())
+  cleanups.push(() => sqlite.closeDatabase(db))
   return db
 }
 

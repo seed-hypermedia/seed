@@ -119,6 +119,7 @@ import {z} from 'zod'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as nodeCrypto from 'node:crypto'
+import {stmt} from '@/statements'
 
 const MAX_NAME_BYTES = 256
 /** How long a resolved system prompt (which may embed fetched remote docs) is served from cache. */
@@ -949,15 +950,14 @@ export class Service {
    * finished gets the resolution replayed now, so no run stays `waiting` forever.
    */
   #reconcileWaitingRunsAtBoot(): void {
-    const waiting = this.#db
-      .query<{id: string; account_id: string}, []>(
-        `SELECT id, account_id FROM runs WHERE status = 'waiting' AND not_before IS NULL`,
-      )
-      .all()
+    const waiting = stmt<{id: string; account_id: string}, []>(
+      this.#db,
+      `SELECT id, account_id FROM runs WHERE status = 'waiting' AND not_before IS NULL`,
+    ).all()
     for (const row of waiting) {
       const run = runs.getRun(this.#db, row.account_id, row.id)
       if (!run || run.wait?.reason !== 'children') continue
-      const children = this.#db.query<{id: string}, [string]>(`SELECT id FROM runs WHERE parent_run_id = ?`).all(run.id)
+      const children = stmt<{id: string}, [string]>(this.#db, `SELECT id FROM runs WHERE parent_run_id = ?`).all(run.id)
       for (const childRow of children) {
         const child = runs.getRun(this.#db, run.accountId, childRow.id)
         if (!child || !runs.TERMINAL_RUN_STATUSES.includes(child.status)) continue
@@ -1267,9 +1267,9 @@ export class Service {
     const fromAgent = (agentId: string, level: AgentAccessLevel = 'reader') =>
       this.#requireAgentAccess(actorAccountId, agentId, level).ownerAccountId
     const fromSession = (sessionId: string, level: AgentAccessLevel = 'reader') => {
-      const row = this.#db
-        .query<{agent_id: string}, [string]>(`SELECT agent_id FROM sessions WHERE id = ?`)
-        .get(sessionId)
+      const row = stmt<{agent_id: string}, [string]>(this.#db, `SELECT agent_id FROM sessions WHERE id = ?`).get(
+        sessionId,
+      )
       if (!row) throw new APIError(404, 'Session not found')
       try {
         return fromAgent(row.agent_id, level)
@@ -1279,9 +1279,9 @@ export class Service {
       }
     }
     const fromTrigger = (triggerId: string, level: AgentAccessLevel = 'reader') => {
-      const row = this.#db
-        .query<{agent_id: string}, [string]>(`SELECT agent_id FROM agent_triggers WHERE id = ?`)
-        .get(triggerId)
+      const row = stmt<{agent_id: string}, [string]>(this.#db, `SELECT agent_id FROM agent_triggers WHERE id = ?`).get(
+        triggerId,
+      )
       if (!row) throw new APIError(404, 'Agent trigger not found')
       try {
         return fromAgent(row.agent_id, level)
@@ -1291,9 +1291,9 @@ export class Service {
       }
     }
     const fromRun = (runId: string, level: AgentAccessLevel = 'reader') => {
-      const row = this.#db
-        .query<{agent_id: string | null}, [string]>(`SELECT agent_id FROM runs WHERE id = ?`)
-        .get(runId)
+      const row = stmt<{agent_id: string | null}, [string]>(this.#db, `SELECT agent_id FROM runs WHERE id = ?`).get(
+        runId,
+      )
       if (!row?.agent_id) throw new APIError(404, 'Run not found')
       try {
         return fromAgent(row.agent_id, level)
@@ -1393,23 +1393,22 @@ export class Service {
     agentId: string,
     required: AgentAccessLevel | 'owner',
   ): {ownerAccountId: string; role: api.AgentAccessRole; viaPublic: boolean} {
-    const row = this.#db
-      .query<
-        {
-          owner_account_id: string
-          public_read: number
-          public_chat: number
-          role: string | null
-          status: string | null
-        },
-        [string, string]
-      >(
-        `SELECT a.account_id AS owner_account_id, a.public_read, a.public_chat, c.role, c.status
+    const row = stmt<
+      {
+        owner_account_id: string
+        public_read: number
+        public_chat: number
+        role: string | null
+        status: string | null
+      },
+      [string, string]
+    >(
+      this.#db,
+      `SELECT a.account_id AS owner_account_id, a.public_read, a.public_chat, c.role, c.status
          FROM agents a
          LEFT JOIN agent_collaborators c ON c.agent_id = a.id AND c.account_id = ?
          WHERE a.id = ?`,
-      )
-      .get(actorAccountId, agentId)
+    ).get(actorAccountId, agentId)
     if (!row) throw new APIError(404, 'Agent not found')
     let role: api.AgentAccessRole
     let viaPublic = false
@@ -1443,17 +1442,16 @@ export class Service {
   }
 
   #listAgents(accountId: string): api.ListAgentsResponse {
-    const rows = this.#db
-      .query<AgentRow, [string, string, string]>(
-        `SELECT a.id, a.account_id, a.definition_cbor, a.state_dir, a.status, a.public_read, a.public_chat, a.created_at, a.updated_at,
+    const rows = stmt<AgentRow, [string, string, string]>(
+      this.#db,
+      `SELECT a.id, a.account_id, a.definition_cbor, a.state_dir, a.status, a.public_read, a.public_chat, a.created_at, a.updated_at,
                 ${agentActivityColumns('a')},
                 CASE WHEN a.account_id = ? THEN 'owner' ELSE c.role END AS access_role
          FROM agents a
          LEFT JOIN agent_collaborators c ON c.agent_id = a.id AND c.account_id = ? AND c.status = 'accepted'
          WHERE a.account_id = ? OR c.account_id IS NOT NULL
          ORDER BY a.updated_at DESC`,
-      )
-      .all(accountId, accountId, accountId)
+    ).all(accountId, accountId, accountId)
 
     return {
       _: 'ListAgentsResponse',
@@ -1462,25 +1460,24 @@ export class Service {
   }
 
   #listAgentInvites(accountId: string): api.ListAgentInvitesResponse {
-    const rows = this.#db
-      .query<
-        {
-          agent_id: string
-          owner_account_id: string
-          definition_cbor: Uint8Array
-          role: api.AgentCollaboratorRole
-          created_at: number
-          updated_at: number
-        },
-        [string]
-      >(
-        `SELECT c.agent_id, a.account_id AS owner_account_id, a.definition_cbor, c.role, c.created_at, c.updated_at
+    const rows = stmt<
+      {
+        agent_id: string
+        owner_account_id: string
+        definition_cbor: Uint8Array
+        role: api.AgentCollaboratorRole
+        created_at: number
+        updated_at: number
+      },
+      [string]
+    >(
+      this.#db,
+      `SELECT c.agent_id, a.account_id AS owner_account_id, a.definition_cbor, c.role, c.created_at, c.updated_at
          FROM agent_collaborators c
          JOIN agents a ON a.id = c.agent_id
          WHERE c.account_id = ? AND c.status = 'pending'
          ORDER BY c.updated_at DESC`,
-      )
-      .all(accountId)
+    ).all(accountId)
     return {
       _: 'ListAgentInvitesResponse',
       invites: rows.map((row) => ({
@@ -1496,27 +1493,25 @@ export class Service {
 
   #listAgentCollaborators(accountId: string, agentId: string): api.ListAgentCollaboratorsResponse {
     const access = this.#requireAgentAccess(accountId, agentId, 'reader')
-    const owner = this.#db
-      .query<{created_at: number; updated_at: number; public_read: number; public_chat: number}, [string]>(
-        `SELECT created_at, updated_at, public_read, public_chat FROM agents WHERE id = ?`,
-      )
-      .get(agentId)
+    const owner = stmt<{created_at: number; updated_at: number; public_read: number; public_chat: number}, [string]>(
+      this.#db,
+      `SELECT created_at, updated_at, public_read, public_chat FROM agents WHERE id = ?`,
+    ).get(agentId)
     if (!owner) throw new APIError(404, 'Agent not found')
-    const rows = this.#db
-      .query<
-        {
-          account_id: string
-          role: api.AgentCollaboratorRole
-          status: 'accepted' | 'pending'
-          created_at: number
-          updated_at: number
-        },
-        [string]
-      >(
-        `SELECT account_id, role, status, created_at, updated_at
+    const rows = stmt<
+      {
+        account_id: string
+        role: api.AgentCollaboratorRole
+        status: 'accepted' | 'pending'
+        created_at: number
+        updated_at: number
+      },
+      [string]
+    >(
+      this.#db,
+      `SELECT account_id, role, status, created_at, updated_at
          FROM agent_collaborators WHERE agent_id = ? ORDER BY status, updated_at DESC`,
-      )
-      .all(agentId)
+    ).all(agentId)
     return {
       _: 'ListAgentCollaboratorsResponse',
       agentId,
@@ -1547,12 +1542,12 @@ export class Service {
     if (typeof publicRead !== 'boolean') throw new APIError(400, 'publicRead must be a boolean')
     this.#requireAgentAccess(accountId, agentId, 'owner')
     // Public chat only exists on top of public read, so closing the agent closes chat with it.
-    this.#db.run(
+    stmt(
+      this.#db,
       publicRead
         ? `UPDATE agents SET public_read = 1, updated_at = ? WHERE id = ?`
         : `UPDATE agents SET public_read = 0, public_chat = 0, updated_at = ? WHERE id = ?`,
-      [Date.now(), agentId],
-    )
+    ).run([Date.now(), agentId])
     return {_: 'SetAgentPublicReadResponse', agent: this.#emitPublicAccessChange(accountId, agentId)}
   }
 
@@ -1560,12 +1555,12 @@ export class Service {
     if (typeof publicChat !== 'boolean') throw new APIError(400, 'publicChat must be a boolean')
     this.#requireAgentAccess(accountId, agentId, 'owner')
     if (publicChat) {
-      const row = this.#db
-        .query<{public_read: number}, [string]>(`SELECT public_read FROM agents WHERE id = ?`)
-        .get(agentId)
+      const row = stmt<{public_read: number}, [string]>(this.#db, `SELECT public_read FROM agents WHERE id = ?`).get(
+        agentId,
+      )
       if (row?.public_read !== 1) throw new APIError(400, 'Enable public access before enabling public chat')
     }
-    this.#db.run(`UPDATE agents SET public_chat = ?, updated_at = ? WHERE id = ?`, [
+    stmt(this.#db, `UPDATE agents SET public_chat = ?, updated_at = ? WHERE id = ?`).run([
       publicChat ? 1 : 0,
       Date.now(),
       agentId,
@@ -1594,21 +1589,22 @@ export class Service {
     if (collaboratorAccountId === accountId) throw new APIError(400, 'The agent owner is already a member')
     const now = Date.now()
     this.#ensureAccount(collaboratorAccountId, now)
-    this.#db.run(
+    stmt(
+      this.#db,
       `INSERT INTO agent_collaborators (agent_id, account_id, role, status, created_at, updated_at)
        VALUES (?, ?, ?, 'pending', ?, ?)
        ON CONFLICT(agent_id, account_id) DO UPDATE SET
          role = excluded.role,
          status = CASE WHEN agent_collaborators.status = 'accepted' THEN 'accepted' ELSE 'pending' END,
          updated_at = excluded.updated_at`,
-      [agentId, collaboratorAccountId, role, now, now],
-    )
-    const row = this.#db
-      .query<
-        {role: api.AgentCollaboratorRole; status: 'accepted' | 'pending'; created_at: number; updated_at: number},
-        [string, string]
-      >(`SELECT role, status, created_at, updated_at FROM agent_collaborators WHERE agent_id = ? AND account_id = ?`)
-      .get(agentId, collaboratorAccountId)
+    ).run([agentId, collaboratorAccountId, role, now, now])
+    const row = stmt<
+      {role: api.AgentCollaboratorRole; status: 'accepted' | 'pending'; created_at: number; updated_at: number},
+      [string, string]
+    >(
+      this.#db,
+      `SELECT role, status, created_at, updated_at FROM agent_collaborators WHERE agent_id = ? AND account_id = ?`,
+    ).get(agentId, collaboratorAccountId)
     if (!row) throw new APIError(500, 'Collaborator was not saved')
     this.#collaboratorAudience.delete(agentId)
     this.#onEvent?.({type: 'account-change', accountId, reason: 'agent-collaborators-changed', agentId})
@@ -1637,7 +1633,7 @@ export class Service {
   ): api.RemoveAgentCollaboratorResponse {
     this.#requireAgentAccess(accountId, agentId, 'owner')
     const collaboratorAccountId = normalizeAccountId(rawCollaboratorAccountId)
-    const removed = this.#db.run(`DELETE FROM agent_collaborators WHERE agent_id = ? AND account_id = ?`, [
+    const removed = stmt(this.#db, `DELETE FROM agent_collaborators WHERE agent_id = ? AND account_id = ?`).run([
       agentId,
       collaboratorAccountId,
     ])
@@ -1655,19 +1651,18 @@ export class Service {
 
   #acceptAgentInvite(accountId: string, agentId: string): api.AcceptAgentInviteResponse {
     const now = Date.now()
-    const row = this.#db
-      .query<{owner_account_id: string; role: api.AgentCollaboratorRole}, [string, string]>(
-        `SELECT a.account_id AS owner_account_id, c.role
+    const row = stmt<{owner_account_id: string; role: api.AgentCollaboratorRole}, [string, string]>(
+      this.#db,
+      `SELECT a.account_id AS owner_account_id, c.role
          FROM agent_collaborators c JOIN agents a ON a.id = c.agent_id
          WHERE c.agent_id = ? AND c.account_id = ? AND c.status = 'pending'`,
-      )
-      .get(agentId, accountId)
+    ).get(agentId, accountId)
     if (!row) throw new APIError(404, 'Agent invitation not found')
-    this.#db.run(
+    stmt(
+      this.#db,
       `UPDATE agent_collaborators SET status = 'accepted', accepted_at = ?, updated_at = ?
        WHERE agent_id = ? AND account_id = ? AND status = 'pending'`,
-      [now, now, agentId, accountId],
-    )
+    ).run([now, now, agentId, accountId])
     this.#collaboratorAudience.delete(agentId)
     this.#onEvent?.({
       type: 'account-change',
@@ -1682,15 +1677,14 @@ export class Service {
   }
 
   #declineAgentInvite(accountId: string, agentId: string): api.DeclineAgentInviteResponse {
-    const row = this.#db
-      .query<{owner_account_id: string}, [string, string]>(
-        `SELECT a.account_id AS owner_account_id
+    const row = stmt<{owner_account_id: string}, [string, string]>(
+      this.#db,
+      `SELECT a.account_id AS owner_account_id
          FROM agent_collaborators c JOIN agents a ON a.id = c.agent_id
          WHERE c.agent_id = ? AND c.account_id = ? AND c.status = 'pending'`,
-      )
-      .get(agentId, accountId)
+    ).get(agentId, accountId)
     if (!row) throw new APIError(404, 'Agent invitation not found')
-    this.#db.run(`DELETE FROM agent_collaborators WHERE agent_id = ? AND account_id = ?`, [agentId, accountId])
+    stmt(this.#db, `DELETE FROM agent_collaborators WHERE agent_id = ? AND account_id = ?`).run([agentId, accountId])
     this.#collaboratorAudience.delete(agentId)
     this.#onEvent?.({
       type: 'account-change',
@@ -1714,11 +1708,10 @@ export class Service {
 
   #createAgentOnce(accountId: string, rawDefinition: api.AgentDefinition): api.CreateAgentResponse {
     const definition = normalizeDefinition(rawDefinition)
-    const provider = this.#db
-      .query<{name: string; type: string}, [string, string]>(
-        `SELECT name, type FROM model_providers WHERE account_id = ? AND name = ?`,
-      )
-      .get(accountId, definition.modelProvider)
+    const provider = stmt<{name: string; type: string}, [string, string]>(
+      this.#db,
+      `SELECT name, type FROM model_providers WHERE account_id = ? AND name = ?`,
+    ).get(accountId, definition.modelProvider)
     if (!provider) throw new APIError(400, 'Model provider not found')
     validateReasoningLevel(provider.type, definition)
     this.#validateSigningKeys(accountId, definition)
@@ -1727,16 +1720,16 @@ export class Service {
     const agentId = crypto.randomUUID()
     const stateDir = path.join(this.#dataDir, 'agents', agentId)
 
-    this.#db.run(
+    stmt(
+      this.#db,
       `INSERT INTO accounts (id, created_at, updated_at) VALUES (?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET updated_at = excluded.updated_at`,
-      [accountId, now, now],
-    )
-    this.#db.run(
+    ).run([accountId, now, now])
+    stmt(
+      this.#db,
       `INSERT INTO agents (id, account_id, definition_cbor, state_dir, status, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [agentId, accountId, cbor.encode(definition), stateDir, 'idle', now, now],
-    )
+    ).run([agentId, accountId, cbor.encode(definition), stateDir, 'idle', now, now])
     fs.mkdirSync(stateDir, {recursive: true})
     this.#createDefaultMentionTrigger(accountId, agentId, definition)
     this.#syncAgentMcpTools(accountId, agentId, definition)
@@ -1773,11 +1766,10 @@ export class Service {
 
   /** Resolves the HM account uid behind a signing-key secret name, or null if it is not an account key. */
   #signingIdentityAccountId(accountId: string, signingKey: string): string | null {
-    const row = this.#db
-      .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
-        `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
-      )
-      .get(accountId, signingKey)
+    const row = stmt<{metadata_cbor: Uint8Array | null}, [string, string]>(
+      this.#db,
+      `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+    ).get(accountId, signingKey)
     if (!row?.metadata_cbor) return null
     const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
     if (metadata.kind !== 'hm-account-key') return null
@@ -1785,14 +1777,13 @@ export class Service {
   }
 
   #listModelProviders(accountId: string): api.ListModelProvidersResponse {
-    const rows = this.#db
-      .query<
-        {id: string; name: string; type: string; config_cbor: Uint8Array; created_at: number; updated_at: number},
-        [string]
-      >(
-        `SELECT id, name, type, config_cbor, created_at, updated_at FROM model_providers WHERE account_id = ? ORDER BY updated_at DESC`,
-      )
-      .all(accountId)
+    const rows = stmt<
+      {id: string; name: string; type: string; config_cbor: Uint8Array; created_at: number; updated_at: number},
+      [string]
+    >(
+      this.#db,
+      `SELECT id, name, type, config_cbor, created_at, updated_at FROM model_providers WHERE account_id = ? ORDER BY updated_at DESC`,
+    ).all(accountId)
     return {
       _: 'ListModelProvidersResponse',
       providers: rows.map((row) => {
@@ -1812,11 +1803,10 @@ export class Service {
 
   async #listProviderModels(accountId: string, rawProviderName: string): Promise<api.ListProviderModelsResponse> {
     const providerName = normalizeBoundedString(rawProviderName, 'Model provider', MAX_NAME_BYTES)
-    const row = this.#db
-      .query<{config_cbor: Uint8Array}, [string, string]>(
-        `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
-      )
-      .get(accountId, providerName)
+    const row = stmt<{config_cbor: Uint8Array}, [string, string]>(
+      this.#db,
+      `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
+    ).get(accountId, providerName)
     if (!row) throw new APIError(404, 'Model provider not found')
 
     const provider = cbor.decode<api.ModelProviderConfig>(row.config_cbor)
@@ -1845,14 +1835,13 @@ export class Service {
       const {signingKeys, signingKey} = agent.definition
       grantedNames = new Set(signingKeys ?? (signingKey ? [signingKey] : []))
     }
-    const rows = this.#db
-      .query<
-        {id: string; name: string; metadata_cbor: Uint8Array | null; created_at: number; updated_at: number},
-        [string]
-      >(
-        `SELECT id, name, metadata_cbor, created_at, updated_at FROM secrets WHERE account_id = ? ORDER BY created_at DESC`,
-      )
-      .all(accountId)
+    const rows = stmt<
+      {id: string; name: string; metadata_cbor: Uint8Array | null; created_at: number; updated_at: number},
+      [string]
+    >(
+      this.#db,
+      `SELECT id, name, metadata_cbor, created_at, updated_at FROM secrets WHERE account_id = ? ORDER BY created_at DESC`,
+    ).all(accountId)
 
     return {
       _: 'ListSigningIdentitiesResponse',
@@ -1915,11 +1904,11 @@ export class Service {
 
         return () => {
           this.#ensureAccount(accountId, now)
-          this.#db.run(
+          stmt(
+            this.#db,
             `INSERT INTO secrets (id, account_id, name, ciphertext, metadata_cbor, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [id, accountId, name, ciphertext, cbor.encode(metadata), now, now],
-          )
+          ).run([id, accountId, name, ciphertext, cbor.encode(metadata), now, now])
 
           return {
             _: 'CreateSigningIdentityResponse',
@@ -1985,17 +1974,18 @@ export class Service {
         const id = crypto.randomUUID()
 
         return () => {
-          const existing = this.#db
-            .query<{id: string}, [string, string]>(`SELECT id FROM secrets WHERE account_id = ? AND name = ?`)
-            .get(accountId, name)
+          const existing = stmt<{id: string}, [string, string]>(
+            this.#db,
+            `SELECT id FROM secrets WHERE account_id = ? AND name = ?`,
+          ).get(accountId, name)
           if (existing) throw new APIError(409, `This account key is already on the server (${identityAccountId})`)
 
           this.#ensureAccount(accountId, now)
-          this.#db.run(
+          stmt(
+            this.#db,
             `INSERT INTO secrets (id, account_id, name, ciphertext, metadata_cbor, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [id, accountId, name, ciphertext, cbor.encode(metadata), now, now],
-          )
+          ).run([id, accountId, name, ciphertext, cbor.encode(metadata), now, now])
 
           return {
             _: 'ImportSigningIdentityResponse',
@@ -2022,12 +2012,13 @@ export class Service {
   ): Promise<api.UpdateSigningIdentityResponse> {
     const name = normalizeBoundedString(rawName, 'Signing key', MAX_NAME_BYTES)
     const label = normalizeBoundedString(rawLabel, 'Signing identity label', MAX_NAME_BYTES)
-    const row = this.#db
-      .query<
-        {id: string; ciphertext: Uint8Array; metadata_cbor: Uint8Array | null; created_at: number},
-        [string, string]
-      >(`SELECT id, ciphertext, metadata_cbor, created_at FROM secrets WHERE account_id = ? AND name = ?`)
-      .get(accountId, name)
+    const row = stmt<
+      {id: string; ciphertext: Uint8Array; metadata_cbor: Uint8Array | null; created_at: number},
+      [string, string]
+    >(this.#db, `SELECT id, ciphertext, metadata_cbor, created_at FROM secrets WHERE account_id = ? AND name = ?`).get(
+      accountId,
+      name,
+    )
     if (!row?.metadata_cbor) throw new APIError(404, 'Signing identity not found')
     const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
     if (metadata.kind !== 'hm-account-key') throw new APIError(404, 'Signing identity not found')
@@ -2056,7 +2047,7 @@ export class Service {
       ...(iconUrl ? {icon: iconUrl} : {}),
     }
     const now = Date.now()
-    this.#db.run(`UPDATE secrets SET metadata_cbor = ?, updated_at = ? WHERE account_id = ? AND name = ?`, [
+    stmt(this.#db, `UPDATE secrets SET metadata_cbor = ?, updated_at = ? WHERE account_id = ? AND name = ?`).run([
       cbor.encode(nextMetadata),
       now,
       accountId,
@@ -2079,24 +2070,22 @@ export class Service {
 
   #deleteSigningIdentity(accountId: string, rawName: string): api.DeleteSigningIdentityResponse {
     const name = normalizeBoundedString(rawName, 'Signing key', MAX_NAME_BYTES)
-    const row = this.#db
-      .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
-        `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
-      )
-      .get(accountId, name)
+    const row = stmt<{metadata_cbor: Uint8Array | null}, [string, string]>(
+      this.#db,
+      `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+    ).get(accountId, name)
     if (!row?.metadata_cbor) throw new APIError(404, 'Signing identity not found')
     const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
     if (metadata.kind !== 'hm-account-key') throw new APIError(404, 'Signing identity not found')
     // Scrub the name from every agent granted this key: agent updates re-send the full grant set,
     // so a dangling reference would make every future grant fail validation.
-    const agents = this.#db
-      .query<{id: string; definition_cbor: Uint8Array}, [string]>(
-        `SELECT id, definition_cbor FROM agents WHERE account_id = ?`,
-      )
-      .all(accountId)
+    const agents = stmt<{id: string; definition_cbor: Uint8Array}, [string]>(
+      this.#db,
+      `SELECT id, definition_cbor FROM agents WHERE account_id = ?`,
+    ).all(accountId)
     const ungranted: string[] = []
     const transaction = this.#db.transaction(() => {
-      this.#db.run(`DELETE FROM secrets WHERE account_id = ? AND name = ?`, [accountId, name])
+      stmt(this.#db, `DELETE FROM secrets WHERE account_id = ? AND name = ?`).run([accountId, name])
       const now = Date.now()
       for (const agent of agents) {
         const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
@@ -2110,7 +2099,7 @@ export class Service {
           delete definition.signingKeys
           delete definition.signingKey
         }
-        this.#db.run(`UPDATE agents SET definition_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`, [
+        stmt(this.#db, `UPDATE agents SET definition_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`).run([
           cbor.encode(definition),
           now,
           accountId,
@@ -2136,24 +2125,23 @@ export class Service {
     const name = normalizeBoundedString(rawName, 'Provider name', MAX_NAME_BYTES)
     const provider = normalizeProvider(rawProvider)
     const now = Date.now()
-    const existing = this.#db
-      .query<{id: string; created_at: number}, [string, string]>(
-        `SELECT id, created_at FROM model_providers WHERE account_id = ? AND name = ?`,
-      )
-      .get(accountId, name)
+    const existing = stmt<{id: string; created_at: number}, [string, string]>(
+      this.#db,
+      `SELECT id, created_at FROM model_providers WHERE account_id = ? AND name = ?`,
+    ).get(accountId, name)
     const id = existing?.id ?? crypto.randomUUID()
     const createdAt = existing?.created_at ?? now
 
     this.#ensureAccount(accountId, now)
-    this.#db.run(
+    stmt(
+      this.#db,
       `INSERT INTO model_providers (id, account_id, name, type, config_cbor, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(account_id, name) DO UPDATE SET
          type = excluded.type,
          config_cbor = excluded.config_cbor,
          updated_at = excluded.updated_at`,
-      [id, accountId, name, provider.type, cbor.encode(provider), createdAt, now],
-    )
+    ).run([id, accountId, name, provider.type, cbor.encode(provider), createdAt, now])
 
     return {
       _: 'SetModelProviderResponse',
@@ -2171,21 +2159,21 @@ export class Service {
 
   #deleteModelProvider(accountId: string, rawName: string): api.DeleteModelProviderResponse {
     const name = normalizeBoundedString(rawName, 'Provider name', MAX_NAME_BYTES)
-    const row = this.#db
-      .query<{config_cbor: Uint8Array}, [string, string]>(
-        `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
-      )
-      .get(accountId, name)
+    const row = stmt<{config_cbor: Uint8Array}, [string, string]>(
+      this.#db,
+      `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
+    ).get(accountId, name)
     if (!row) throw new APIError(404, 'Model provider not found')
 
     const provider = cbor.decode<api.ModelProviderConfig>(row.config_cbor)
-    this.#db.run(`DELETE FROM model_providers WHERE account_id = ? AND name = ?`, [accountId, name])
+    stmt(this.#db, `DELETE FROM model_providers WHERE account_id = ? AND name = ?`).run([accountId, name])
     // Remove the provider's secrets (API key or OAuth credentials) unless another
     // provider still references them — subscription providers share one OAuth
     // secret per provider type.
-    const remaining = this.#db
-      .query<{config_cbor: Uint8Array}, [string]>(`SELECT config_cbor FROM model_providers WHERE account_id = ?`)
-      .all(accountId)
+    const remaining = stmt<{config_cbor: Uint8Array}, [string]>(
+      this.#db,
+      `SELECT config_cbor FROM model_providers WHERE account_id = ?`,
+    ).all(accountId)
     const stillReferenced = new Set(
       remaining.flatMap((other) =>
         Object.values(cbor.decode<api.ModelProviderConfig>(other.config_cbor).secretRefs ?? {}),
@@ -2193,7 +2181,7 @@ export class Service {
     )
     for (const secretName of Object.values(provider.secretRefs ?? {})) {
       if (stillReferenced.has(secretName)) continue
-      this.#db.run(`DELETE FROM secrets WHERE account_id = ? AND name = ?`, [accountId, secretName])
+      stmt(this.#db, `DELETE FROM secrets WHERE account_id = ? AND name = ?`).run([accountId, secretName])
       this.#oauthBackends.delete(this.#oauthBackendKey(accountId, secretName))
     }
     this.#scrubDeletedProviderReferences(accountId, name)
@@ -2208,28 +2196,25 @@ export class Service {
    * name, which the session UI turns into a "choose a model" gate, when nothing survives.
    */
   #scrubDeletedProviderReferences(accountId: string, providerName: string): void {
-    const sessionRows = this.#db
-      .query<{id: string; model_override_cbor: Uint8Array}, [string]>(
-        `SELECT id, model_override_cbor FROM sessions WHERE account_id = ? AND model_override_cbor IS NOT NULL`,
-      )
-      .all(accountId)
+    const sessionRows = stmt<{id: string; model_override_cbor: Uint8Array}, [string]>(
+      this.#db,
+      `SELECT id, model_override_cbor FROM sessions WHERE account_id = ? AND model_override_cbor IS NOT NULL`,
+    ).all(accountId)
     const now = Date.now()
     const clearedSessions: string[] = []
     for (const row of sessionRows) {
       const override = cbor.decode<api.SessionModelOverride>(row.model_override_cbor)
       if (override.provider !== providerName) continue
-      this.#db.run(`UPDATE sessions SET model_override_cbor = NULL, updated_at = ? WHERE account_id = ? AND id = ?`, [
-        now,
-        accountId,
-        row.id,
-      ])
+      stmt(
+        this.#db,
+        `UPDATE sessions SET model_override_cbor = NULL, updated_at = ? WHERE account_id = ? AND id = ?`,
+      ).run([now, accountId, row.id])
       clearedSessions.push(row.id)
     }
-    const agentRows = this.#db
-      .query<{id: string; definition_cbor: Uint8Array}, [string]>(
-        `SELECT id, definition_cbor FROM agents WHERE account_id = ?`,
-      )
-      .all(accountId)
+    const agentRows = stmt<{id: string; definition_cbor: Uint8Array}, [string]>(
+      this.#db,
+      `SELECT id, definition_cbor FROM agents WHERE account_id = ?`,
+    ).all(accountId)
     const changedAgents: string[] = []
     for (const row of agentRows) {
       const definition = cbor.decode<api.AgentDefinition>(row.definition_cbor)
@@ -2242,13 +2227,14 @@ export class Service {
       if (primaryGone && surviving[0]) {
         next.modelProvider = surviving[0].provider
         next.model = surviving[0].model
-        const providerType = this.#db
-          .query<{type: string}, [string, string]>(`SELECT type FROM model_providers WHERE account_id = ? AND name = ?`)
-          .get(accountId, surviving[0].provider)?.type
+        const providerType = stmt<{type: string}, [string, string]>(
+          this.#db,
+          `SELECT type FROM model_providers WHERE account_id = ? AND name = ?`,
+        ).get(accountId, surviving[0].provider)?.type
         const support = providerType ? modelReasoningSupport(providerType, next.model) : null
         if (next.reasoningLevel && !support?.levels.includes(next.reasoningLevel)) delete next.reasoningLevel
       }
-      this.#db.run(`UPDATE agents SET definition_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`, [
+      stmt(this.#db, `UPDATE agents SET definition_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`).run([
         cbor.encode(next),
         now,
         accountId,
@@ -2274,23 +2260,21 @@ export class Service {
   // ---------------------------------------------------------------------------------------------
 
   #listMcpServers(accountId: string): api.ListMcpServersResponse {
-    const rows = this.#db
-      .query<McpServerRow, [string]>(
-        `SELECT id, name, config_cbor, tools_cbor, status_cbor, created_at, updated_at
+    const rows = stmt<McpServerRow, [string]>(
+      this.#db,
+      `SELECT id, name, config_cbor, tools_cbor, status_cbor, created_at, updated_at
          FROM mcp_servers WHERE account_id = ? ORDER BY name ASC`,
-      )
-      .all(accountId)
+    ).all(accountId)
     return {_: 'ListMcpServersResponse', servers: rows.map(mcpServerRowToRedacted)}
   }
 
   #getMcpServerRow(accountId: string, name: string): McpServerRow | undefined {
     return (
-      this.#db
-        .query<McpServerRow, [string, string]>(
-          `SELECT id, name, config_cbor, tools_cbor, status_cbor, created_at, updated_at
+      stmt<McpServerRow, [string, string]>(
+        this.#db,
+        `SELECT id, name, config_cbor, tools_cbor, status_cbor, created_at, updated_at
            FROM mcp_servers WHERE account_id = ? AND name = ?`,
-        )
-        .get(accountId, name) ?? undefined
+      ).get(accountId, name) ?? undefined
     )
   }
 
@@ -2310,14 +2294,14 @@ export class Service {
     this.#ensureAccount(accountId, now)
     const existing = this.#getMcpServerRow(accountId, name)
     const id = existing?.id ?? crypto.randomUUID()
-    this.#db.run(
+    stmt(
+      this.#db,
       `INSERT INTO mcp_servers (id, account_id, name, config_cbor, tools_cbor, status_cbor, created_at, updated_at)
        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?)
        ON CONFLICT(account_id, name) DO UPDATE SET
          config_cbor = excluded.config_cbor,
          updated_at = excluded.updated_at`,
-      [id, accountId, name, cbor.encode(config), existing?.created_at ?? now, now],
-    )
+    ).run([id, accountId, name, cbor.encode(config), existing?.created_at ?? now, now])
     return {_: 'SetMcpServerResponse', server: await this.#discoverMcpServer(accountId, name)}
   }
 
@@ -2367,14 +2351,14 @@ export class Service {
     if (tools !== undefined) {
       const encoded = cbor.encode(tools)
       toolsChanged = !row.tools_cbor || Buffer.compare(Buffer.from(row.tools_cbor), Buffer.from(encoded)) !== 0
-      this.#db.run(`UPDATE mcp_servers SET tools_cbor = ?, status_cbor = ?, updated_at = ? WHERE id = ?`, [
+      stmt(this.#db, `UPDATE mcp_servers SET tools_cbor = ?, status_cbor = ?, updated_at = ? WHERE id = ?`).run([
         encoded,
         cbor.encode(status),
         now,
         row.id,
       ])
     } else {
-      this.#db.run(`UPDATE mcp_servers SET status_cbor = ?, updated_at = ? WHERE id = ?`, [
+      stmt(this.#db, `UPDATE mcp_servers SET status_cbor = ?, updated_at = ? WHERE id = ?`).run([
         cbor.encode(status),
         now,
         row.id,
@@ -2392,25 +2376,24 @@ export class Service {
     const row = this.#getMcpServerRow(accountId, name)
     if (!row) throw new APIError(404, 'MCP server not found')
     const config = cbor.decode<api.McpServerConfig>(row.config_cbor)
-    this.#db.run(`DELETE FROM mcp_servers WHERE id = ?`, [row.id])
+    stmt(this.#db, `DELETE FROM mcp_servers WHERE id = ?`).run([row.id])
     // Header secrets created for this server (the `mcp-<name>-…` convention) go with it.
     for (const secretName of Object.values(config.secretRefs ?? {})) {
       if (typeof secretName === 'string' && secretName.startsWith(`mcp-${name}-`)) {
-        this.#db.run(`DELETE FROM secrets WHERE account_id = ? AND name = ?`, [accountId, secretName])
+        stmt(this.#db, `DELETE FROM secrets WHERE account_id = ? AND name = ?`).run([accountId, secretName])
       }
     }
     // Agents that enabled it lose the grant and its projected tools, so no run ever names a server
     // that no longer exists.
-    const agents = this.#db
-      .query<{id: string; definition_cbor: Uint8Array}, [string]>(
-        `SELECT id, definition_cbor FROM agents WHERE account_id = ?`,
-      )
-      .all(accountId)
+    const agents = stmt<{id: string; definition_cbor: Uint8Array}, [string]>(
+      this.#db,
+      `SELECT id, definition_cbor FROM agents WHERE account_id = ?`,
+    ).all(accountId)
     for (const agent of agents) {
       const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
       if (!definition.mcpServers?.includes(name)) continue
       definition.mcpServers = definition.mcpServers.filter((server) => server !== name)
-      this.#db.run(`UPDATE agents SET definition_cbor = ?, updated_at = ? WHERE id = ?`, [
+      stmt(this.#db, `UPDATE agents SET definition_cbor = ?, updated_at = ? WHERE id = ?`).run([
         cbor.encode(definition),
         Date.now(),
         agent.id,
@@ -2529,11 +2512,10 @@ export class Service {
     if (provider.authMode !== 'subscription') return {}
     const secretName = provider.secretRefs?.oauth
     if (!secretName) return {authMode: 'subscription', authStatus: 'needs-login'}
-    const row = this.#db
-      .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
-        `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
-      )
-      .get(accountId, secretName)
+    const row = stmt<{metadata_cbor: Uint8Array | null}, [string, string]>(
+      this.#db,
+      `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+    ).get(accountId, secretName)
     if (!row) return {authMode: 'subscription', authStatus: 'needs-login'}
     const metadata = row.metadata_cbor ? cbor.decode<Record<string, unknown>>(row.metadata_cbor) : {}
     return {authMode: 'subscription', authStatus: metadata.needsReauth ? 'needs-login' : 'ok'}
@@ -2545,15 +2527,14 @@ export class Service {
    * `needs-login` until a new sign-in overwrites the secret.
    */
   #markOAuthSecretNeedsReauth(accountId: string, secretName: string): void {
-    const row = this.#db
-      .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
-        `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
-      )
-      .get(accountId, secretName)
+    const row = stmt<{metadata_cbor: Uint8Array | null}, [string, string]>(
+      this.#db,
+      `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+    ).get(accountId, secretName)
     if (!row) return
     const metadata = row.metadata_cbor ? cbor.decode<Record<string, unknown>>(row.metadata_cbor) : {}
     if (metadata.needsReauth) return
-    this.#db.run(`UPDATE secrets SET metadata_cbor = ?, updated_at = ? WHERE account_id = ? AND name = ?`, [
+    stmt(this.#db, `UPDATE secrets SET metadata_cbor = ?, updated_at = ? WHERE account_id = ? AND name = ?`).run([
       cbor.encode({...metadata, needsReauth: true}),
       Date.now(),
       accountId,
@@ -2639,18 +2620,17 @@ export class Service {
         if (!stored) return
         const {type: _credType, ...rest} = stored
         const ciphertext = encryptSecret(this.#db, new TextEncoder().encode(JSON.stringify(rest)))
-        const row = this.#db
-          .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
-            `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
-          )
-          .get(accountId, secretName)
+        const row = stmt<{metadata_cbor: Uint8Array | null}, [string, string]>(
+          this.#db,
+          `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+        ).get(accountId, secretName)
         if (!row) return // secret was deleted mid-session; nothing to persist into
         const metadata = row.metadata_cbor ? cbor.decode<Record<string, unknown>>(row.metadata_cbor) : {}
         delete metadata.needsReauth
-        this.#db.run(
+        stmt(
+          this.#db,
           `UPDATE secrets SET ciphertext = ?, metadata_cbor = ?, updated_at = ? WHERE account_id = ? AND name = ?`,
-          [ciphertext, cbor.encode(metadata), Date.now(), accountId, secretName],
-        )
+        ).run([ciphertext, cbor.encode(metadata), Date.now(), accountId, secretName])
       },
     )
     this.#oauthBackends.set(key, backend)
@@ -2671,24 +2651,23 @@ export class Service {
     const metadata = normalizeOptionalMetadata(rawMetadata)
     const ciphertext = encryptSecret(this.#db, value)
     const now = Date.now()
-    const existing = this.#db
-      .query<{id: string; created_at: number}, [string, string]>(
-        `SELECT id, created_at FROM secrets WHERE account_id = ? AND name = ?`,
-      )
-      .get(accountId, name)
+    const existing = stmt<{id: string; created_at: number}, [string, string]>(
+      this.#db,
+      `SELECT id, created_at FROM secrets WHERE account_id = ? AND name = ?`,
+    ).get(accountId, name)
     const id = existing?.id ?? crypto.randomUUID()
     const createdAt = existing?.created_at ?? now
 
     this.#ensureAccount(accountId, now)
-    this.#db.run(
+    stmt(
+      this.#db,
       `INSERT INTO secrets (id, account_id, name, ciphertext, metadata_cbor, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(account_id, name) DO UPDATE SET
          ciphertext = excluded.ciphertext,
          metadata_cbor = excluded.metadata_cbor,
          updated_at = excluded.updated_at`,
-      [id, accountId, name, ciphertext, metadata ? cbor.encode(metadata) : null, createdAt, now],
-    )
+    ).run([id, accountId, name, ciphertext, metadata ? cbor.encode(metadata) : null, createdAt, now])
 
     return {
       _: 'SetSecretResponse',
@@ -2697,11 +2676,10 @@ export class Service {
   }
 
   #signingKeyExists(accountId: string, name: string): boolean {
-    const row = this.#db
-      .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
-        `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
-      )
-      .get(accountId, name)
+    const row = stmt<{metadata_cbor: Uint8Array | null}, [string, string]>(
+      this.#db,
+      `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+    ).get(accountId, name)
     if (!row?.metadata_cbor) return false
     const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
     return metadata.kind === 'hm-account-key'
@@ -2715,23 +2693,21 @@ export class Service {
   }
 
   #getAgent(accountId: string, agentId: string, viewerAccountId = accountId): api.GetAgentResponse {
-    const agent = this.#db
-      .query<AgentRow, [string, string]>(
-        `SELECT agents.id, agents.account_id, agents.definition_cbor, agents.state_dir, agents.status, agents.public_read, agents.public_chat, agents.created_at, agents.updated_at,
+    const agent = stmt<AgentRow, [string, string]>(
+      this.#db,
+      `SELECT agents.id, agents.account_id, agents.definition_cbor, agents.state_dir, agents.status, agents.public_read, agents.public_chat, agents.created_at, agents.updated_at,
                 ${agentActivityColumns('agents')}
          FROM agents WHERE account_id = ? AND id = ?`,
-      )
-      .get(accountId, agentId)
+    ).get(accountId, agentId)
     if (!agent) throw new APIError(404, 'Agent not found')
 
-    const sessions = this.#db
-      .query<SessionRow, [string, string]>(
-        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
+    const sessions = stmt<SessionRow, [string, string]>(
+      this.#db,
+      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE account_id = ? AND agent_id = ? ORDER BY updated_at DESC`,
-      )
-      .all(accountId, agentId)
+    ).all(accountId, agentId)
 
     const access = this.#requireAgentAccess(viewerAccountId, agentId, 'reader')
     return {
@@ -2800,14 +2776,13 @@ export class Service {
     // Over-fetch by one so we can report whether another page exists without a second COUNT query.
     params.push(pageSize + 1)
 
-    const rows = this.#db
-      .query<SessionRow, (string | number)[]>(
-        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
+    const rows = stmt<SessionRow, (string | number)[]>(
+      this.#db,
+      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE ${conditions.join(' AND ')} ORDER BY updated_at DESC, id DESC LIMIT ?`,
-      )
-      .all(...params)
+    ).all(...params)
 
     const hasMore = rows.length > pageSize
     const page = hasMore ? rows.slice(0, pageSize) : rows
@@ -2837,11 +2812,10 @@ export class Service {
     viewerAccountId = accountId,
   ): api.GetAgentResponse {
     const definition = normalizeDefinition(rawDefinition)
-    const existing = this.#db
-      .query<{id: string; definition_cbor: Uint8Array}, [string, string]>(
-        `SELECT id, definition_cbor FROM agents WHERE account_id = ? AND id = ?`,
-      )
-      .get(accountId, agentId)
+    const existing = stmt<{id: string; definition_cbor: Uint8Array}, [string, string]>(
+      this.#db,
+      `SELECT id, definition_cbor FROM agents WHERE account_id = ? AND id = ?`,
+    ).get(accountId, agentId)
     if (!existing) throw new APIError(404, 'Agent not found')
     const prior = cbor.decode<api.AgentDefinition>(existing.definition_cbor)
     if (viewerAccountId !== accountId) {
@@ -2853,11 +2827,10 @@ export class Service {
         throw new APIError(403, 'Only the agent owner can change signing accounts')
       }
     }
-    const provider = this.#db
-      .query<{name: string; type: string}, [string, string]>(
-        `SELECT name, type FROM model_providers WHERE account_id = ? AND name = ?`,
-      )
-      .get(accountId, definition.modelProvider)
+    const provider = stmt<{name: string; type: string}, [string, string]>(
+      this.#db,
+      `SELECT name, type FROM model_providers WHERE account_id = ? AND name = ?`,
+    ).get(accountId, definition.modelProvider)
     if (!provider) throw new APIError(400, 'Model provider not found')
     validateReasoningLevel(provider.type, definition)
     // A grant set carried over from the stored definition may reference keys that were deleted
@@ -2877,7 +2850,7 @@ export class Service {
     this.#validateSigningKeys(accountId, definition)
 
     const now = Date.now()
-    this.#db.run(`UPDATE agents SET definition_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`, [
+    stmt(this.#db, `UPDATE agents SET definition_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`).run([
       cbor.encode(definition),
       now,
       accountId,
@@ -2913,11 +2886,10 @@ export class Service {
 
   /** Re-projects an MCP server's tools onto every agent of the account that enables it. */
   #syncMcpServerAcrossAgents(accountId: string, serverName: string): void {
-    const agents = this.#db
-      .query<{id: string; definition_cbor: Uint8Array}, [string]>(
-        `SELECT id, definition_cbor FROM agents WHERE account_id = ?`,
-      )
-      .all(accountId)
+    const agents = stmt<{id: string; definition_cbor: Uint8Array}, [string]>(
+      this.#db,
+      `SELECT id, definition_cbor FROM agents WHERE account_id = ?`,
+    ).all(accountId)
     for (const agent of agents) {
       const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
       if (!definition.mcpServers?.includes(serverName)) continue
@@ -2932,59 +2904,59 @@ export class Service {
     const existing = this.#getAgentInfo(accountId, agentId)
     if (!existing) throw new APIError(404, 'Agent not found')
 
-    const collaboratorAccountIds = this.#db
-      .query<{account_id: string}, [string]>(
-        `SELECT account_id FROM agent_collaborators WHERE agent_id = ? AND status = 'accepted'`,
-      )
+    const collaboratorAccountIds = stmt<{account_id: string}, [string]>(
+      this.#db,
+      `SELECT account_id FROM agent_collaborators WHERE agent_id = ? AND status = 'accepted'`,
+    )
       .all(agentId)
       .map((row) => row.account_id)
-    const sessions = this.#db
-      .query<{id: string}, [string, string]>(`SELECT id FROM sessions WHERE account_id = ? AND agent_id = ?`)
-      .all(accountId, agentId)
+    const sessions = stmt<{id: string}, [string, string]>(
+      this.#db,
+      `SELECT id FROM sessions WHERE account_id = ? AND agent_id = ?`,
+    ).all(accountId, agentId)
     const sessionIds = sessions.map((session) => session.id)
     // Cancel live work first so no executor streams into rows the transaction is about to delete.
-    const liveRuns = this.#db
-      .query<{id: string}, [string, string]>(
-        `SELECT id FROM runs WHERE account_id = ? AND agent_id = ?
+    const liveRuns = stmt<{id: string}, [string, string]>(
+      this.#db,
+      `SELECT id FROM runs WHERE account_id = ? AND agent_id = ?
          AND status IN ('queued', 'claimed', 'running', 'waiting')`,
-      )
-      .all(accountId, agentId)
+    ).all(accountId, agentId)
     for (const liveRun of liveRuns) this.#runQueue.cancelTree(accountId, liveRun.id)
     const transaction = this.#db.transaction(() => {
       for (const sessionId of sessionIds) {
-        this.#db.run(`DELETE FROM session_events WHERE session_id = ?`, [sessionId])
+        stmt(this.#db, `DELETE FROM session_events WHERE session_id = ?`).run([sessionId])
       }
       // Run history survives agent deletion detached; FK columns must be cleared before the
       // referenced rows go (runs.agent_id/session_id/trigger_firing_id are enforced FKs).
-      this.#db.run(
+      stmt(
+        this.#db,
         `UPDATE runs SET trigger_firing_id = NULL WHERE trigger_firing_id IN (
            SELECT id FROM trigger_firings WHERE account_id = ? AND agent_id = ?)`,
-        [accountId, agentId],
-      )
-      this.#db.run(
+      ).run([accountId, agentId])
+      stmt(
+        this.#db,
         `UPDATE runs SET session_id = NULL WHERE session_id IN (
            SELECT id FROM sessions WHERE account_id = ? AND agent_id = ?)`,
-        [accountId, agentId],
-      )
-      this.#db.run(`UPDATE runs SET agent_id = NULL WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
+      ).run([accountId, agentId])
+      stmt(this.#db, `UPDATE runs SET agent_id = NULL WHERE account_id = ? AND agent_id = ?`).run([accountId, agentId])
       // Sub-sessions of OTHER agents may hang off this agent's sessions: promote them to top level.
-      this.#db.run(
+      stmt(
+        this.#db,
         `UPDATE sessions SET parent_session_id = NULL WHERE parent_session_id IN (
            SELECT id FROM sessions WHERE account_id = ? AND agent_id = ?)`,
-        [accountId, agentId],
-      )
-      this.#db.run(`DELETE FROM trigger_firings WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
-      this.#db.run(`DELETE FROM sessions WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
-      this.#db.run(
+      ).run([accountId, agentId])
+      stmt(this.#db, `DELETE FROM trigger_firings WHERE account_id = ? AND agent_id = ?`).run([accountId, agentId])
+      stmt(this.#db, `DELETE FROM sessions WHERE account_id = ? AND agent_id = ?`).run([accountId, agentId])
+      stmt(
+        this.#db,
         `DELETE FROM webhook_trigger_credentials WHERE trigger_id IN (
            SELECT id FROM agent_triggers WHERE account_id = ? AND agent_id = ?)`,
-        [accountId, agentId],
-      )
-      this.#db.run(`DELETE FROM agent_triggers WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
-      this.#db.run(`DELETE FROM agent_drafts WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
-      this.#db.run(`DELETE FROM tool_documents WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
-      this.#db.run(`DELETE FROM agent_collaborators WHERE agent_id = ?`, [agentId])
-      this.#db.run(`DELETE FROM agents WHERE account_id = ? AND id = ?`, [accountId, agentId])
+      ).run([accountId, agentId])
+      stmt(this.#db, `DELETE FROM agent_triggers WHERE account_id = ? AND agent_id = ?`).run([accountId, agentId])
+      stmt(this.#db, `DELETE FROM agent_drafts WHERE account_id = ? AND agent_id = ?`).run([accountId, agentId])
+      stmt(this.#db, `DELETE FROM tool_documents WHERE account_id = ? AND agent_id = ?`).run([accountId, agentId])
+      stmt(this.#db, `DELETE FROM agent_collaborators WHERE agent_id = ?`).run([agentId])
+      stmt(this.#db, `DELETE FROM agents WHERE account_id = ? AND id = ?`).run([accountId, agentId])
     })
     transaction()
 
@@ -3108,12 +3080,10 @@ export class Service {
 
         let row = toolDocs.saveLambdaToolDocument(this.#db, accountId, agentId, normalizedTool)
         if (previous && normalizedTool.name !== normalizedPreviousName) {
-          this.#db.run(`UPDATE tool_documents SET created_at = ? WHERE account_id = ? AND agent_id = ? AND name = ?`, [
-            previous.createdAt,
-            accountId,
-            agentId,
-            normalizedTool.name,
-          ])
+          stmt(
+            this.#db,
+            `UPDATE tool_documents SET created_at = ? WHERE account_id = ? AND agent_id = ? AND name = ?`,
+          ).run([previous.createdAt, accountId, agentId, normalizedTool.name])
           toolDocs.deleteToolDocument(this.#db, accountId, agentId, normalizedPreviousName!)
           row = toolDocs.getToolDocument(this.#db, accountId, agentId, normalizedTool.name)!
         }
@@ -3234,15 +3204,14 @@ export class Service {
 
   #listAgentTriggers(accountId: string, agentId: string): api.ListAgentTriggersResponse {
     this.#requireAgent(accountId, agentId)
-    const rows = this.#db
-      .query<AgentTriggerRow, [string, string]>(
-        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor, created_at, updated_at,
+    const rows = stmt<AgentTriggerRow, [string, string]>(
+      this.#db,
+      `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor, created_at, updated_at,
                 last_checked_at, last_fired_at, last_error
          FROM agent_triggers
          WHERE account_id = ? AND agent_id = ?
          ORDER BY updated_at DESC`,
-      )
-      .all(accountId, agentId)
+    ).all(accountId, agentId)
     return {_: 'ListAgentTriggersResponse', triggers: rows.map(agentTriggerRowToInfo)}
   }
 
@@ -3255,35 +3224,33 @@ export class Service {
     if (trigger.source.type === 'webhook' && this.#canEditAgent(actorAccountId, trigger.agentId)) {
       webhookSecret = this.#webhookTriggerSecret(triggerId)
     }
-    const sessions = this.#db
-      .query<SessionRow, [string, string]>(
-        `SELECT sessions.id, sessions.account_id, sessions.agent_id, sessions.title, sessions.status,
+    const sessions = stmt<SessionRow, [string, string]>(
+      this.#db,
+      `SELECT sessions.id, sessions.account_id, sessions.agent_id, sessions.title, sessions.status,
                 sessions.created_at, sessions.updated_at
          FROM trigger_firings
          JOIN sessions ON sessions.id = trigger_firings.session_id
          WHERE trigger_firings.account_id = ? AND trigger_firings.trigger_id = ?
          ORDER BY trigger_firings.created_at DESC`,
-      )
-      .all(accountId, triggerId)
-    const firings = this.#db
-      .query<
-        {
-          id: string
-          status: string
-          error: string | null
-          created_at: number
-          activity_key: string
-          activity_cbor: Uint8Array
-          session_id: string | null
-          run_id: string | null
-        },
-        [string, string]
-      >(
-        `SELECT id, status, error, created_at, activity_key, activity_cbor, session_id, run_id
+    ).all(accountId, triggerId)
+    const firings = stmt<
+      {
+        id: string
+        status: string
+        error: string | null
+        created_at: number
+        activity_key: string
+        activity_cbor: Uint8Array
+        session_id: string | null
+        run_id: string | null
+      },
+      [string, string]
+    >(
+      this.#db,
+      `SELECT id, status, error, created_at, activity_key, activity_cbor, session_id, run_id
          FROM trigger_firings WHERE account_id = ? AND trigger_id = ?
          ORDER BY created_at DESC LIMIT 25`,
-      )
-      .all(accountId, triggerId)
+    ).all(accountId, triggerId)
     return {
       _: 'GetAgentTriggerResponse',
       trigger,
@@ -3345,29 +3312,29 @@ export class Service {
     const webhookCiphertext = webhookSecret
       ? encryptSecret(this.#db, new TextEncoder().encode(webhookSecret))
       : undefined
-    this.#db.run(
+    stmt(
+      this.#db,
       `INSERT INTO agent_triggers (id, account_id, agent_id, name, enabled, source_cbor, prompt,
          continuation_cbor, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        accountId,
-        agentId,
-        trigger.name,
-        trigger.enabled ? 1 : 0,
-        cbor.encode(trigger.source),
-        serializePromptBlocksForStorage(trigger.prompt),
-        trigger.continuation ? cbor.encode(trigger.continuation) : null,
-        now,
-        now,
-      ],
-    )
+    ).run([
+      id,
+      accountId,
+      agentId,
+      trigger.name,
+      trigger.enabled ? 1 : 0,
+      cbor.encode(trigger.source),
+      serializePromptBlocksForStorage(trigger.prompt),
+      trigger.continuation ? cbor.encode(trigger.continuation) : null,
+      now,
+      now,
+    ])
     if (webhookSecret) {
-      this.#db.run(
+      stmt(
+        this.#db,
         `INSERT INTO webhook_trigger_credentials (trigger_id, secret_hash, secret_ciphertext, created_at)
          VALUES (?, ?, ?, ?)`,
-        [id, nodeCrypto.createHash('sha256').update(webhookSecret).digest(), webhookCiphertext ?? null, now],
-      )
+      ).run([id, nodeCrypto.createHash('sha256').update(webhookSecret).digest(), webhookCiphertext ?? null, now])
     }
     const info = this.#getAgentTriggerInfo(accountId, id)
     if (!info) throw new APIError(500, 'Agent trigger was not created')
@@ -3393,22 +3360,22 @@ export class Service {
     }
     const next: api.AgentTriggerInfo = {...existing, ...patch, updatedAt: Date.now()}
     if (patch.continuation) assertTriggerContinuationCallable(this.#db, accountId, existing.agentId, next.continuation)
-    this.#db.run(
+    stmt(
+      this.#db,
       `UPDATE agent_triggers
        SET name = ?, enabled = ?, source_cbor = ?, prompt = ?, continuation_cbor = ?, updated_at = ?,
            last_error = NULL
        WHERE account_id = ? AND id = ?`,
-      [
-        next.name,
-        next.enabled ? 1 : 0,
-        cbor.encode(next.source),
-        serializePromptBlocksForStorage(next.prompt),
-        next.continuation ? cbor.encode(next.continuation) : null,
-        next.updatedAt,
-        accountId,
-        triggerId,
-      ],
-    )
+    ).run([
+      next.name,
+      next.enabled ? 1 : 0,
+      cbor.encode(next.source),
+      serializePromptBlocksForStorage(next.prompt),
+      next.continuation ? cbor.encode(next.continuation) : null,
+      next.updatedAt,
+      accountId,
+      triggerId,
+    ])
     const trigger = this.#getAgentTriggerInfo(accountId, triggerId)
     if (!trigger) throw new APIError(404, 'Agent trigger not found')
     invalidateSpaceIndex(accountId)
@@ -3451,9 +3418,10 @@ export class Service {
       plan?: runs.RunPlanState
     } = {},
   ): api.CreateSessionResponse {
-    const agent = this.#db
-      .query<{id: string}, [string, string]>(`SELECT id FROM agents WHERE account_id = ? AND id = ?`)
-      .get(accountId, agentId)
+    const agent = stmt<{id: string}, [string, string]>(
+      this.#db,
+      `SELECT id FROM agents WHERE account_id = ? AND id = ?`,
+    ).get(accountId, agentId)
     if (!agent) throw new APIError(404, 'Agent not found')
 
     const now = Date.now()
@@ -3466,25 +3434,25 @@ export class Service {
     const normalizedTitle =
       rawTitle === undefined ? null : normalizeBoundedString(rawTitle, 'Session title', MAX_NAME_BYTES)
     const title = normalizedTitle && isPlaceholderSessionTitle(normalizedTitle) ? null : normalizedTitle
-    this.#db.run(
+    stmt(
+      this.#db,
       `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, parent_session_id, run_id, model_override_cbor, description, plan_cbor, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        sessionId,
-        accountId,
-        agentId,
-        title,
-        opts.titleSource ?? 'system',
-        'idle',
-        opts.parentSessionId ?? null,
-        opts.runId ?? null,
-        opts.modelOverride ? cbor.encode(opts.modelOverride) : null,
-        opts.description ?? null,
-        opts.plan ? cbor.encode(opts.plan) : null,
-        now,
-        now,
-      ],
-    )
+    ).run([
+      sessionId,
+      accountId,
+      agentId,
+      title,
+      opts.titleSource ?? 'system',
+      'idle',
+      opts.parentSessionId ?? null,
+      opts.runId ?? null,
+      opts.modelOverride ? cbor.encode(opts.modelOverride) : null,
+      opts.description ?? null,
+      opts.plan ? cbor.encode(opts.plan) : null,
+      now,
+      now,
+    ])
     const sessionInfo = this.#getSessionInfo(accountId, sessionId)
     if (sessionInfo) {
       this.#emit({type: 'session-change', accountId, session: sessionInfo})
@@ -3507,19 +3475,16 @@ export class Service {
     const now = Date.now()
     if (rawTitle !== undefined) {
       const title = normalizeBoundedString(rawTitle, 'Session title', MAX_NAME_BYTES)
-      this.#db.run(
+      stmt(
+        this.#db,
         `UPDATE sessions SET title = ?, title_source = 'user', updated_at = ? WHERE account_id = ? AND id = ?`,
-        [title, now, accountId, sessionId],
-      )
+      ).run([title, now, accountId, sessionId])
     }
     if (rawModelOverride !== undefined) {
       const override = this.#normalizeSessionModelOverride(accountId, rawModelOverride)
-      this.#db.run(`UPDATE sessions SET model_override_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`, [
-        override ? cbor.encode(override) : null,
-        now,
-        accountId,
-        sessionId,
-      ])
+      stmt(this.#db, `UPDATE sessions SET model_override_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`).run(
+        [override ? cbor.encode(override) : null, now, accountId, sessionId],
+      )
     }
     const session = this.#getSessionInfo(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
@@ -3543,9 +3508,10 @@ export class Service {
     }
     const provider = normalizeBoundedString(raw.provider, 'Model provider', MAX_NAME_BYTES)
     const model = normalizeBoundedString(raw.model, 'Model', MAX_MODEL_BYTES)
-    const providerRow = this.#db
-      .query<{type: string}, [string, string]>(`SELECT type FROM model_providers WHERE account_id = ? AND name = ?`)
-      .get(accountId, provider)
+    const providerRow = stmt<{type: string}, [string, string]>(
+      this.#db,
+      `SELECT type FROM model_providers WHERE account_id = ? AND name = ?`,
+    ).get(accountId, provider)
     if (!providerRow) throw new APIError(400, 'Model provider not found')
     const override: api.SessionModelOverride = {provider, model}
     if (raw.reasoningLevel !== undefined) {
@@ -3571,9 +3537,10 @@ export class Service {
   ): api.AgentDefinition {
     const override = session.modelOverride
     if (!override) return definition
-    const providerRow = this.#db
-      .query<{name: string}, [string, string]>(`SELECT name FROM model_providers WHERE account_id = ? AND name = ?`)
-      .get(accountId, override.provider)
+    const providerRow = stmt<{name: string}, [string, string]>(
+      this.#db,
+      `SELECT name FROM model_providers WHERE account_id = ? AND name = ?`,
+    ).get(accountId, override.provider)
     if (!providerRow) return definition
     return applySessionModelOverride(definition, override)
   }
@@ -3588,15 +3555,15 @@ export class Service {
       this.#runQueue.cancelTree(accountId, liveRun.id)
     }
     const transaction = this.#db.transaction(() => {
-      this.#db.run(`UPDATE trigger_firings SET session_id = NULL WHERE account_id = ? AND session_id = ?`, [
+      stmt(this.#db, `UPDATE trigger_firings SET session_id = NULL WHERE account_id = ? AND session_id = ?`).run([
         accountId,
         sessionId,
       ])
-      this.#db.run(`DELETE FROM session_events WHERE session_id = ?`, [sessionId])
+      stmt(this.#db, `DELETE FROM session_events WHERE session_id = ?`).run([sessionId])
       // Run history survives session deletion detached; children promote to top level.
-      this.#db.run(`UPDATE runs SET session_id = NULL WHERE session_id = ?`, [sessionId])
-      this.#db.run(`UPDATE sessions SET parent_session_id = NULL WHERE parent_session_id = ?`, [sessionId])
-      this.#db.run(`DELETE FROM sessions WHERE account_id = ? AND id = ?`, [accountId, sessionId])
+      stmt(this.#db, `UPDATE runs SET session_id = NULL WHERE session_id = ?`).run([sessionId])
+      stmt(this.#db, `UPDATE sessions SET parent_session_id = NULL WHERE parent_session_id = ?`).run([sessionId])
+      stmt(this.#db, `DELETE FROM sessions WHERE account_id = ? AND id = ?`).run([accountId, sessionId])
     })
     transaction()
     // Attachments are session-private: they die with the session. Cleanup failure (e.g. the agent
@@ -3610,9 +3577,10 @@ export class Service {
 
   /** Resolves a session owned by the account to its agent's state dir, for attachment actions. */
   #sessionStateDir(accountId: string, sessionId: string): {agentId: string; stateDir: string} {
-    const session = this.#db
-      .query<{agent_id: string}, [string, string]>(`SELECT agent_id FROM sessions WHERE account_id = ? AND id = ?`)
-      .get(accountId, sessionId)
+    const session = stmt<{agent_id: string}, [string, string]>(
+      this.#db,
+      `SELECT agent_id FROM sessions WHERE account_id = ? AND id = ?`,
+    ).get(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
     return {agentId: session.agent_id, stateDir: this.#agentMemoryStateDir(accountId, session.agent_id)}
   }
@@ -3776,12 +3744,10 @@ export class Service {
     const previous = this.#storedSessionPlan(accountId, sessionId)
     const carried = this.#carryResolvedBy(previous, plan)
     const stamped = this.#stampPlanSettledAt(previous, this.#preserveCompletedPlanOwner(previous, carried))
-    const changes = this.#db.run(`UPDATE sessions SET plan_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`, [
-      cbor.encode(stamped),
-      Date.now(),
-      accountId,
-      sessionId,
-    ]).changes
+    const changes = stmt(
+      this.#db,
+      `UPDATE sessions SET plan_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`,
+    ).run([cbor.encode(stamped), Date.now(), accountId, sessionId]).changes
     // A completed checklist is transcript history, not merely the session's latest mutable state.
     // Copy it onto the run that owned it so a later turn can publish a new plan without erasing the
     // old turn's finished plan card from the scroll.
@@ -3805,11 +3771,10 @@ export class Service {
    * last assistant message. Undefined until a turn has completed.
    */
   #lastPromptTokens(sessionId: string): number | undefined {
-    const rows = this.#db
-      .query<{event_cbor: Uint8Array}, [string]>(
-        `SELECT event_cbor FROM session_events WHERE session_id = ? ORDER BY seq DESC LIMIT 60`,
-      )
-      .all(sessionId)
+    const rows = stmt<{event_cbor: Uint8Array}, [string]>(
+      this.#db,
+      `SELECT event_cbor FROM session_events WHERE session_id = ? ORDER BY seq DESC LIMIT 60`,
+    ).all(sessionId)
     for (const row of rows) {
       const payload = cbor.decode<{type?: string; role?: string; meta?: api.SessionEventMeta}>(row.event_cbor)
       if (payload.type !== 'message' || payload.role !== 'assistant') continue
@@ -3821,11 +3786,10 @@ export class Service {
   }
 
   #storedSessionPlan(accountId: string, sessionId: string): runs.RunPlanState | undefined {
-    const row = this.#db
-      .query<{plan_cbor: Uint8Array | null}, [string, string]>(
-        `SELECT plan_cbor FROM sessions WHERE account_id = ? AND id = ?`,
-      )
-      .get(accountId, sessionId)
+    const row = stmt<{plan_cbor: Uint8Array | null}, [string, string]>(
+      this.#db,
+      `SELECT plan_cbor FROM sessions WHERE account_id = ? AND id = ?`,
+    ).get(accountId, sessionId)
     return row?.plan_cbor ? cbor.decode<runs.RunPlanState>(row.plan_cbor) : undefined
   }
 
@@ -3844,10 +3808,10 @@ export class Service {
       const owner = runs.getRun(this.#db, accountId, plan.ownerRunId)
       if (owner?.sessionId === sessionId && !owner.plan) this.#runQueue.updatePlan(owner.id, plan)
     }
-    const changes = this.#db.run(
+    const changes = stmt(
+      this.#db,
       `UPDATE sessions SET plan_cbor = NULL, updated_at = ? WHERE account_id = ? AND id = ?`,
-      [Date.now(), accountId, sessionId],
-    ).changes
+    ).run([Date.now(), accountId, sessionId]).changes
     if (changes === 0) return
     const session = this.#getSessionInfo(accountId, sessionId)
     if (!session) return
@@ -3936,19 +3900,19 @@ export class Service {
     const now = Date.now()
     let titleChanges = 0
     if (title !== undefined) {
-      titleChanges = this.#db.run(
+      titleChanges = stmt(
+        this.#db,
         `UPDATE sessions
             SET title = ?, title_source = 'agent', updated_at = ?
           WHERE account_id = ? AND id = ? AND title_source <> 'user'`,
-        [title, now, accountId, sessionId],
-      ).changes
+      ).run([title, now, accountId, sessionId]).changes
     }
     let descriptionChanges = 0
     if (description !== undefined) {
-      descriptionChanges = this.#db.run(
+      descriptionChanges = stmt(
+        this.#db,
         `UPDATE sessions SET description = ?, updated_at = ? WHERE account_id = ? AND id = ?`,
-        [description, now, accountId, sessionId],
-      ).changes
+      ).run([description, now, accountId, sessionId]).changes
     }
     const session = this.#getSessionInfo(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
@@ -3987,11 +3951,10 @@ export class Service {
     toolCallId: string,
     raw: unknown,
   ): Record<string, unknown> {
-    const replayed = this.#db
-      .query<{id: string; successor_session_id: string}, [string, string]>(
-        `SELECT id, successor_session_id FROM session_continuations WHERE predecessor_session_id = ? AND tool_call_id = ?`,
-      )
-      .get(sessionId, toolCallId)
+    const replayed = stmt<{id: string; successor_session_id: string}, [string, string]>(
+      this.#db,
+      `SELECT id, successor_session_id FROM session_continuations WHERE predecessor_session_id = ? AND tool_call_id = ?`,
+    ).get(sessionId, toolCallId)
     if (replayed) {
       const successor = this.#getSessionInfo(accountId, replayed.successor_session_id)
       const outcome: SessionContinuationOutcome = {
@@ -4016,30 +3979,28 @@ export class Service {
         'A delegated child does not continue into a new session: finish the task and report back to the parent instead.',
       )
     }
-    const session = this.#db
-      .query<SessionRow, [string, string]>(
-        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
+    const session = stmt<SessionRow, [string, string]>(
+      this.#db,
+      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
                 0 AS child_count, created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
-      )
-      .get(accountId, sessionId)
+    ).get(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
     const successorsSoFar =
-      this.#db
-        .query<{n: number}, [string]>(
-          `SELECT COUNT(*) AS n FROM session_continuations WHERE predecessor_session_id = ?`,
-        )
-        .get(sessionId)?.n ?? 0
+      stmt<{n: number}, [string]>(
+        this.#db,
+        `SELECT COUNT(*) AS n FROM session_continuations WHERE predecessor_session_id = ?`,
+      ).get(sessionId)?.n ?? 0
     if (successorsSoFar >= MAX_SESSION_CONTINUATIONS_PER_SESSION) {
       throw new APIError(
         400,
         `This session has already been continued ${MAX_SESSION_CONTINUATIONS_PER_SESSION} times; answer here instead.`,
       )
     }
-    const events = this.#db
-      .query<SessionEventRow, [string]>(
-        `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
-      )
+    const events = stmt<SessionEventRow, [string]>(
+      this.#db,
+      `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
+    )
       .all(sessionId)
       .map(sessionEventRowToInfo)
     const initiating = findContinuationInitiatingEvent(events)
@@ -4099,24 +4060,24 @@ export class Service {
         projectionBytes: Buffer.byteLength(projection.content),
         compiler: CONTINUATION_PROJECTION_COMPILER,
       }
-      this.#db.run(
+      stmt(
+        this.#db,
         `INSERT INTO session_continuations (id, account_id, agent_id, predecessor_session_id, successor_session_id,
            origin_session_id, tool_call_id, initiating_event_id, reason, manifest_cbor, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          continuationId,
-          accountId,
-          agentId,
-          sessionId,
-          successorSessionId,
-          originSessionId,
-          toolCallId,
-          initiating.id,
-          input.reason,
-          cbor.encode(manifest),
-          now,
-        ],
-      )
+      ).run([
+        continuationId,
+        accountId,
+        agentId,
+        sessionId,
+        successorSessionId,
+        originSessionId,
+        toolCallId,
+        initiating.id,
+        input.reason,
+        cbor.encode(manifest),
+        now,
+      ])
       // The successor's opening: lineage + handoff + excerpts as one system-authored message, then
       // the user's own message, verbatim, so the model answers the user and not the runtime.
       this.#appendSessionEvent(
@@ -4211,11 +4172,10 @@ export class Service {
   #continuationOriginOf(accountId: string, sessionId: string): string {
     let current = sessionId
     for (let hops = 0; hops < 10_000; hops += 1) {
-      const row = this.#db
-        .query<{origin_session_id: string}, [string, string]>(
-          `SELECT origin_session_id FROM session_continuations WHERE account_id = ? AND successor_session_id = ?`,
-        )
-        .get(accountId, current)
+      const row = stmt<{origin_session_id: string}, [string, string]>(
+        this.#db,
+        `SELECT origin_session_id FROM session_continuations WHERE account_id = ? AND successor_session_id = ?`,
+      ).get(accountId, current)
       if (!row) return current
       // Origins are stored on every edge, so one hop reaches it; the loop is only for a stored
       // origin that is itself a successor (never written, but never trusted either).
@@ -4245,9 +4205,10 @@ export class Service {
       // Only this agent's own threads are citable. Agents do not read each other's state — they
       // communicate over public interfaces (documents, comments) until a deliberate inter-agent
       // contract exists.
-      const owned = this.#db
-        .query<{n: number}, [string, string]>(`SELECT COUNT(*) AS n FROM sessions WHERE id = ? AND agent_id = ?`)
-        .get(id, agentId)
+      const owned = stmt<{n: number}, [string, string]>(
+        this.#db,
+        `SELECT COUNT(*) AS n FROM sessions WHERE id = ? AND agent_id = ?`,
+      ).get(id, agentId)
       if (!owned?.n) {
         throw new APIError(
           400,
@@ -4255,9 +4216,10 @@ export class Service {
         )
       }
       const max =
-        this.#db
-          .query<{max: number | null}, [string]>(`SELECT MAX(seq) AS max FROM session_events WHERE session_id = ?`)
-          .get(id)?.max ?? 0
+        stmt<{max: number | null}, [string]>(
+          this.#db,
+          `SELECT MAX(seq) AS max FROM session_events WHERE session_id = ?`,
+        ).get(id)?.max ?? 0
       maxSeqOf.set(id, max)
       return max
     }
@@ -4314,9 +4276,9 @@ export class Service {
       )
     }
     const spawned =
-      this.#db
-        .query<{n: number}, [string]>(`SELECT COUNT(*) AS n FROM sessions WHERE parent_session_id = ?`)
-        .get(parentSessionId)?.n ?? 0
+      stmt<{n: number}, [string]>(this.#db, `SELECT COUNT(*) AS n FROM sessions WHERE parent_session_id = ?`).get(
+        parentSessionId,
+      )?.n ?? 0
     if (spawned >= MAX_SESSION_SPAWNS_PER_SESSION) {
       throw new APIError(
         400,
@@ -4381,9 +4343,9 @@ export class Service {
   /** Number of parent links above a session in the spawn chain (durable replacement for the old in-memory map). */
   #sessionChainDepth(sessionId: string): number {
     return (
-      this.#db
-        .query<{depth: number}, [string]>(
-          `WITH RECURSIVE chain(id, d) AS (
+      stmt<{depth: number}, [string]>(
+        this.#db,
+        `WITH RECURSIVE chain(id, d) AS (
              SELECT parent_session_id, 1 FROM sessions WHERE id = ?1 AND parent_session_id IS NOT NULL
              UNION ALL
              SELECT s.parent_session_id, c.d + 1
@@ -4391,8 +4353,7 @@ export class Service {
              WHERE s.parent_session_id IS NOT NULL AND c.d < 32
            )
            SELECT COALESCE(MAX(d), 0) AS depth FROM chain`,
-        )
-        .get(sessionId)?.depth ?? 0
+      ).get(sessionId)?.depth ?? 0
     )
   }
 
@@ -4417,12 +4378,11 @@ export class Service {
     if (runs.sessionHasLiveRun(this.#db, sessionId)) {
       throw new APIError(409, 'The agent is working in this thread right now; wait for its turn to finish')
     }
-    const agent = this.#db
-      .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
+    const agent = stmt<AgentRow, [string, string]>(
+      this.#db,
+      `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
-      )
-      .get(accountId, session.agentId)
+    ).get(accountId, session.agentId)
     if (!agent) throw new APIError(404, 'Agent not found')
     const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
     const codeExecAvailable = (await this.#codeExec.availability()).available
@@ -4543,11 +4503,10 @@ export class Service {
     // collaborators may legitimately generate the same client-local id.
     const idempotencyAccountId = origin?.accountId ?? accountId
     if (normalizedId !== undefined && requestCBOR !== undefined) {
-      const existing = this.#db
-        .query<{request_cbor: Uint8Array; response_cbor: Uint8Array}, [string, string, string]>(
-          `SELECT request_cbor, response_cbor FROM action_idempotency WHERE account_id = ? AND action = ? AND client_request_id = ?`,
-        )
-        .get(idempotencyAccountId, 'MessageSession', normalizedId)
+      const existing = stmt<{request_cbor: Uint8Array; response_cbor: Uint8Array}, [string, string, string]>(
+        this.#db,
+        `SELECT request_cbor, response_cbor FROM action_idempotency WHERE account_id = ? AND action = ? AND client_request_id = ?`,
+      ).get(idempotencyAccountId, 'MessageSession', normalizedId)
       if (existing) {
         if (!bytesEqual(existing.request_cbor, requestCBOR))
           throw new APIError(409, 'Client message ID payload mismatch')
@@ -4557,11 +4516,11 @@ export class Service {
 
     const response = await this.#messageSessionOnce(accountId, sessionId, content, origin ? {userOrigin: origin} : {})
     if (normalizedId !== undefined && requestCBOR !== undefined) {
-      this.#db.run(
+      stmt(
+        this.#db,
         `INSERT INTO action_idempotency (account_id, action, client_request_id, request_cbor, response_cbor, created_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [idempotencyAccountId, 'MessageSession', normalizedId, requestCBOR, cbor.encode(response), Date.now()],
-      )
+      ).run([idempotencyAccountId, 'MessageSession', normalizedId, requestCBOR, cbor.encode(response), Date.now()])
     }
     return response
   }
@@ -4586,25 +4545,23 @@ export class Service {
     } = {},
   ): Promise<api.MessageSessionResponse> {
     const messages = normalizeMessageContent(rawContent)
-    const session = this.#db
-      .query<SessionRow, [string, string]>(
-        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
+    const session = stmt<SessionRow, [string, string]>(
+      this.#db,
+      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
-      )
-      .get(accountId, sessionId)
+    ).get(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
     if (this.#liveUserVerbs.has(sessionId)) {
       throw new APIError(409, 'A user tool action is still running in this thread; wait for it to finish')
     }
 
-    const agent = this.#db
-      .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
+    const agent = stmt<AgentRow, [string, string]>(
+      this.#db,
+      `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
-      )
-      .get(accountId, session.agent_id)
+    ).get(accountId, session.agent_id)
     if (!agent) throw new APIError(404, 'Agent not found')
     const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
 
@@ -4738,12 +4695,11 @@ export class Service {
       return {type: 'failed', error: {code: 'config-error', message: 'Agent run is missing session or agent'}}
     }
     const sessionId = run.sessionId
-    const agent = this.#db
-      .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
+    const agent = stmt<AgentRow, [string, string]>(
+      this.#db,
+      `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
-      )
-      .get(run.accountId, run.agentId)
+    ).get(run.accountId, run.agentId)
     if (!agent) return {type: 'failed', error: {code: 'config-error', message: 'Agent not found', httpStatus: 404}}
     const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
     definition.systemPrompt = normalizeSystemPromptBlocks(definition.systemPrompt)
@@ -4934,11 +4890,10 @@ export class Service {
    * nothing, so a plain conversation is never touched by any of this.
    */
   #unfinishedPlanSteps(accountId: string, sessionId: string): string[] {
-    const row = this.#db
-      .query<{plan_cbor: Uint8Array | null}, [string, string]>(
-        `SELECT plan_cbor FROM sessions WHERE account_id = ? AND id = ?`,
-      )
-      .get(accountId, sessionId)
+    const row = stmt<{plan_cbor: Uint8Array | null}, [string, string]>(
+      this.#db,
+      `SELECT plan_cbor FROM sessions WHERE account_id = ? AND id = ?`,
+    ).get(accountId, sessionId)
     if (!row?.plan_cbor) return []
     const plan = cbor.decode<api.RunPlan>(row.plan_cbor)
     return (plan.steps ?? [])
@@ -4950,11 +4905,10 @@ export class Service {
   #hasLiveChildRuns(runId: string): boolean {
     const placeholders = runs.TERMINAL_RUN_STATUSES.map(() => '?').join(', ')
     return (
-      this.#db
-        .query<{id: string}, string[]>(
-          `SELECT id FROM runs WHERE parent_run_id = ? AND status NOT IN (${placeholders}) LIMIT 1`,
-        )
-        .get(runId, ...runs.TERMINAL_RUN_STATUSES) !== null
+      stmt<{id: string}, string[]>(
+        this.#db,
+        `SELECT id FROM runs WHERE parent_run_id = ? AND status NOT IN (${placeholders}) LIMIT 1`,
+      ).get(runId, ...runs.TERMINAL_RUN_STATUSES) !== null
     )
   }
 
@@ -5034,11 +4988,10 @@ export class Service {
     // Every run-change while a turn streams re-enters here; a provider that keeps failing must not
     // be re-asked on each one. The cap is per process — a restart gets a fresh chance.
     if ((this.#titleAttempts.get(sessionId) ?? 0) >= MAX_TITLE_GENERATION_ATTEMPTS) return
-    const row = this.#db
-      .query<{title_source: string}, [string, string]>(
-        `SELECT title_source FROM sessions WHERE account_id = ? AND id = ?`,
-      )
-      .get(accountId, sessionId)
+    const row = stmt<{title_source: string}, [string, string]>(
+      this.#db,
+      `SELECT title_source FROM sessions WHERE account_id = ? AND id = ?`,
+    ).get(accountId, sessionId)
     // Only the SOURCE decides: a 'system' title is whatever a client or the runtime provisionally
     // stored (a placeholder, a truncated prompt), and the agent has not named this session yet.
     // Once the model or the user names it, the source says so and naming never runs again.
@@ -5061,23 +5014,23 @@ export class Service {
 
   /** Builds a conversation digest, asks the agent's own model for a title, and applies it guarded. */
   async #nameSessionWithModel(accountId: string, sessionId: string): Promise<void> {
-    const session = this.#db
-      .query<{agent_id: string}, [string, string]>(`SELECT agent_id FROM sessions WHERE account_id = ? AND id = ?`)
-      .get(accountId, sessionId)
+    const session = stmt<{agent_id: string}, [string, string]>(
+      this.#db,
+      `SELECT agent_id FROM sessions WHERE account_id = ? AND id = ?`,
+    ).get(accountId, sessionId)
     if (!session) return
-    const agent = this.#db
-      .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
+    const agent = stmt<AgentRow, [string, string]>(
+      this.#db,
+      `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
-      )
-      .get(accountId, session.agent_id)
+    ).get(accountId, session.agent_id)
     if (!agent) return
     const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
-    const events = this.#db
-      .query<SessionEventRow, [string]>(
-        `SELECT id, session_id, seq, event_cbor, created_at FROM session_events
+    const events = stmt<SessionEventRow, [string]>(
+      this.#db,
+      `SELECT id, session_id, seq, event_cbor, created_at FROM session_events
          WHERE session_id = ? ORDER BY seq ASC LIMIT 12`,
-      )
+    )
       .all(sessionId)
       .map(sessionEventRowToInfo)
     const lines: string[] = []
@@ -5119,17 +5072,17 @@ export class Service {
     // set meanwhile through the status verb on a resumed turn. The source flips to 'agent' so this
     // is the last time naming runs for the session. The description only fills an empty slot: a
     // description the agent wrote itself is always the better one.
-    this.#db.run(
+    stmt(
+      this.#db,
       `UPDATE sessions SET title = ?, title_source = 'agent', updated_at = ? WHERE account_id = ? AND id = ?
          AND title_source = 'system'`,
-      [title, Date.now(), accountId, sessionId],
-    )
+    ).run([title, Date.now(), accountId, sessionId])
     if (description) {
-      this.#db.run(
+      stmt(
+        this.#db,
         `UPDATE sessions SET description = ?, updated_at = ? WHERE account_id = ? AND id = ?
            AND (description IS NULL OR description = '')`,
-        [description, Date.now(), accountId, sessionId],
-      )
+      ).run([description, Date.now(), accountId, sessionId])
     }
     const info = this.#getSessionInfo(accountId, sessionId)
     if (info?.title === title) {
@@ -5273,19 +5226,18 @@ export class Service {
       this.#syncSessionStatusFromRuns(run.accountId, run.sessionId)
     }
     if (run.triggerFiringId && run.status === 'failed' && run.error) {
-      const firing = this.#db
-        .query<{trigger_id: string; run_id: string | null; activity_cbor: Uint8Array}, [string, string]>(
-          `SELECT trigger_id, run_id, activity_cbor FROM trigger_firings WHERE account_id = ? AND id = ?`,
-        )
-        .get(run.accountId, run.triggerFiringId)
-      this.#db.run(`UPDATE trigger_firings SET status = ?, error = ? WHERE account_id = ? AND id = ?`, [
+      const firing = stmt<{trigger_id: string; run_id: string | null; activity_cbor: Uint8Array}, [string, string]>(
+        this.#db,
+        `SELECT trigger_id, run_id, activity_cbor FROM trigger_firings WHERE account_id = ? AND id = ?`,
+      ).get(run.accountId, run.triggerFiringId)
+      stmt(this.#db, `UPDATE trigger_firings SET status = ?, error = ? WHERE account_id = ? AND id = ?`).run([
         'error',
         run.error.message,
         run.accountId,
         run.triggerFiringId,
       ])
       if (firing) {
-        this.#db.run(`UPDATE agent_triggers SET last_error = ? WHERE account_id = ? AND id = ?`, [
+        stmt(this.#db, `UPDATE agent_triggers SET last_error = ? WHERE account_id = ? AND id = ?`).run([
           run.error.message,
           run.accountId,
           firing.trigger_id,
@@ -5297,10 +5249,10 @@ export class Service {
     }
     if (run.triggerFiringId && run.status === 'succeeded') {
       // A thread firing stays 'created' (the session is its record); a headless one is done now.
-      this.#db.run(
+      stmt(
+        this.#db,
         `UPDATE trigger_firings SET status = ?, error = NULL WHERE account_id = ? AND id = ? AND run_id = ?`,
-        ['succeeded', run.accountId, run.triggerFiringId, run.id],
-      )
+      ).run(['succeeded', run.accountId, run.triggerFiringId, run.id])
     }
   }
 
@@ -5328,11 +5280,10 @@ export class Service {
     parentRun: runs.RunRecord,
     sessionId: string,
   ): {id?: string; label: string} | undefined {
-    const row = this.#db
-      .query<{plan_cbor: Uint8Array | null}, [string, string]>(
-        `SELECT plan_cbor FROM sessions WHERE account_id = ? AND id = ?`,
-      )
-      .get(accountId, sessionId)
+    const row = stmt<{plan_cbor: Uint8Array | null}, [string, string]>(
+      this.#db,
+      `SELECT plan_cbor FROM sessions WHERE account_id = ? AND id = ?`,
+    ).get(accountId, sessionId)
     const sessionPlan = row?.plan_cbor ? cbor.decode<api.RunPlan>(row.plan_cbor) : undefined
     const plan = sessionPlan ?? runs.getRun(this.#db, accountId, parentRun.id)?.plan
     const running = (plan?.steps ?? []).filter((step) => step.status === 'running')
@@ -5345,11 +5296,10 @@ export class Service {
     if (!run.sessionId) return
     if (run.status !== 'succeeded' && run.status !== 'failed') return
     if (runs.sessionHasLiveRun(this.#db, run.sessionId)) return
-    const row = this.#db
-      .query<{plan_cbor: Uint8Array | null}, [string, string]>(
-        `SELECT plan_cbor FROM sessions WHERE account_id = ? AND id = ?`,
-      )
-      .get(run.accountId, run.sessionId)
+    const row = stmt<{plan_cbor: Uint8Array | null}, [string, string]>(
+      this.#db,
+      `SELECT plan_cbor FROM sessions WHERE account_id = ? AND id = ?`,
+    ).get(run.accountId, run.sessionId)
     if (!row?.plan_cbor) return
     const plan = cbor.decode<api.RunPlan>(row.plan_cbor)
     const settled: 'done' | 'failed' = run.status === 'succeeded' ? 'done' : 'failed'
@@ -5364,9 +5314,10 @@ export class Service {
    * `idle`. Old clients keep working; liveness truth lives in the runs table.
    */
   #syncSessionStatusFromRuns(accountId: string, sessionId: string): void {
-    const session = this.#db
-      .query<{status: string}, [string, string]>(`SELECT status FROM sessions WHERE account_id = ? AND id = ?`)
-      .get(accountId, sessionId)
+    const session = stmt<{status: string}, [string, string]>(
+      this.#db,
+      `SELECT status FROM sessions WHERE account_id = ? AND id = ?`,
+    ).get(accountId, sessionId)
     if (!session) return
     let derived: api.SessionInfo['status'] = 'idle'
     if (runs.sessionHasLiveRun(this.#db, sessionId)) {
@@ -5385,10 +5336,10 @@ export class Service {
    * call so the request is well-formed and the model decides whether to re-issue the tool.
    */
   #synthesizeInterruptedToolResults(accountId: string, agentId: string, sessionId: string): void {
-    const events = this.#db
-      .query<SessionEventRow, [string]>(
-        `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
-      )
+    const events = stmt<SessionEventRow, [string]>(
+      this.#db,
+      `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
+    )
       .all(sessionId)
       .map(sessionEventRowToInfo)
     const unmatched = new Map<string, string>()
@@ -5445,10 +5396,10 @@ export class Service {
     if (records.length === 0) return []
     const placeholders = records.map(() => '?').join(', ')
     const counts = new Map(
-      this.#db
-        .query<{parent_run_id: string; n: number}, string[]>(
-          `SELECT parent_run_id, COUNT(*) AS n FROM runs WHERE parent_run_id IN (${placeholders}) GROUP BY parent_run_id`,
-        )
+      stmt<{parent_run_id: string; n: number}, string[]>(
+        this.#db,
+        `SELECT parent_run_id, COUNT(*) AS n FROM runs WHERE parent_run_id IN (${placeholders}) GROUP BY parent_run_id`,
+      )
         .all(...records.map((record) => record.id))
         .map((row) => [row.parent_run_id, row.n]),
     )
@@ -5540,10 +5491,10 @@ export class Service {
       if (!current || current.status !== 'waiting' || current.wait?.reason !== 'event') return false
       // The run's own journal says which call this wait belongs to, so the delivery files itself
       // under the exact ctx.waitForEvent the script is awaiting.
-      const registration = this.#db
-        .query<{entry_cbor: Uint8Array}, [string]>(
-          `SELECT entry_cbor FROM run_journal WHERE run_id = ? ORDER BY seq ASC`,
-        )
+      const registration = stmt<{entry_cbor: Uint8Array}, [string]>(
+        this.#db,
+        `SELECT entry_cbor FROM run_journal WHERE run_id = ? ORDER BY seq ASC`,
+      )
         .all(run.id)
         .map((row) => cbor.decode<WorkflowJournalEntry>(row.entry_cbor))
         .find((entry) => entry.kind === 'wait' && entry.waitId === waitId) as
@@ -5551,7 +5502,7 @@ export class Service {
         | undefined
       if (!registration) return false
       const seq =
-        (this.#db.query<{n: number}, [string]>(`SELECT COUNT(*) AS n FROM run_journal WHERE run_id = ?`).get(run.id)
+        (stmt<{n: number}, [string]>(this.#db, `SELECT COUNT(*) AS n FROM run_journal WHERE run_id = ?`).get(run.id)
           ?.n ?? 0) + 1
       const entry: WorkflowJournalEntry = {
         kind: 'event',
@@ -5560,17 +5511,17 @@ export class Service {
         waitId,
         delivery,
       }
-      this.#db.run(`INSERT INTO run_journal (run_id, seq, entry_cbor, created_at) VALUES (?, ?, ?, ?)`, [
+      stmt(this.#db, `INSERT INTO run_journal (run_id, seq, entry_cbor, created_at) VALUES (?, ?, ?, ?)`).run([
         run.id,
         seq,
         cbor.encode(entry),
         now,
       ])
-      this.#db.run(
+      stmt(
+        this.#db,
         `UPDATE runs SET status = 'queued', wait_cbor = NULL, not_before = NULL, updated_at = ? WHERE id = ?`,
-        [now, run.id],
-      )
-      this.#db.run(`DELETE FROM run_event_waits WHERE run_id = ?`, [run.id])
+      ).run([now, run.id])
+      stmt(this.#db, `DELETE FROM run_event_waits WHERE run_id = ?`).run([run.id])
       appended = {seq, entry}
       return true
     })
@@ -5623,10 +5574,10 @@ export class Service {
     const normalized = normalizeBoundedString(runId, 'Run ID', MAX_NAME_BYTES)
     const run = runs.getRun(this.#db, accountId, normalized)
     if (!run) throw new APIError(404, 'Run not found')
-    const entries = this.#db
-      .query<{seq: number; entry_cbor: Uint8Array; created_at: number}, [string, number]>(
-        `SELECT seq, entry_cbor, created_at FROM run_journal WHERE run_id = ? AND seq > ? ORDER BY seq ASC`,
-      )
+    const entries = stmt<{seq: number; entry_cbor: Uint8Array; created_at: number}, [string, number]>(
+      this.#db,
+      `SELECT seq, entry_cbor, created_at FROM run_journal WHERE run_id = ? AND seq > ? ORDER BY seq ASC`,
+    )
       .all(normalized, afterSeq ?? 0)
       .map((row) => ({
         runId: normalized,
@@ -5656,7 +5607,7 @@ export class Service {
       throw new APIError(400, `Sub-session depth limit reached (${MAX_SESSION_SPAWN_DEPTH}); finish the work here.`)
     }
     const childCount =
-      this.#db.query<{n: number}, [string]>(`SELECT COUNT(*) AS n FROM runs WHERE parent_run_id = ?`).get(parentRun.id)
+      stmt<{n: number}, [string]>(this.#db, `SELECT COUNT(*) AS n FROM runs WHERE parent_run_id = ?`).get(parentRun.id)
         ?.n ?? 0
     if (childCount >= MAX_SESSION_SPAWNS_PER_SESSION) {
       throw new APIError(
@@ -5780,9 +5731,10 @@ export class Service {
     const own = readFrom(run.input, run.parentRunId, false)
     if (own) return own
     if (!run.sessionId) return {inherited: false}
-    const row = this.#db
-      .query<{run_id: string | null}, [string, string]>(`SELECT run_id FROM sessions WHERE account_id = ? AND id = ?`)
-      .get(run.accountId, run.sessionId)
+    const row = stmt<{run_id: string | null}, [string, string]>(
+      this.#db,
+      `SELECT run_id FROM sessions WHERE account_id = ? AND id = ?`,
+    ).get(run.accountId, run.sessionId)
     const spawningRunId = row?.run_id
     if (!spawningRunId || spawningRunId === run.id) return {inherited: false}
     const spawning = runs.getRun(this.#db, run.accountId, spawningRunId)
@@ -5864,19 +5816,19 @@ export class Service {
    * the durable rows, no content. Null when the session does not exist — the caller 404s.
    */
   sessionPerf(sessionId: string): SessionPerfRollup | null {
-    const session = this.#db.query<{id: string}, [string]>(`SELECT id FROM sessions WHERE id = ?`).get(sessionId)
+    const session = stmt<{id: string}, [string]>(this.#db, `SELECT id FROM sessions WHERE id = ?`).get(sessionId)
     if (!session) return null
-    const runRows = this.#db
-      .query<
-        {id: string; status: string; created_at: number; started_at: number | null; finished_at: number | null},
-        [string]
-      >(`SELECT id, status, created_at, started_at, finished_at FROM runs WHERE session_id = ? ORDER BY created_at ASC`)
-      .all(sessionId)
-    const eventRows = this.#db
-      .query<SessionEventRow, [string]>(
-        `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
-      )
-      .all(sessionId)
+    const runRows = stmt<
+      {id: string; status: string; created_at: number; started_at: number | null; finished_at: number | null},
+      [string]
+    >(
+      this.#db,
+      `SELECT id, status, created_at, started_at, finished_at FROM runs WHERE session_id = ? ORDER BY created_at ASC`,
+    ).all(sessionId)
+    const eventRows = stmt<SessionEventRow, [string]>(
+      this.#db,
+      `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
+    ).all(sessionId)
     return sessionPerfRollup(
       sessionId,
       runRows.map((row) => ({
@@ -5891,10 +5843,10 @@ export class Service {
   }
 
   #sessionHasToolResult(sessionId: string, toolCallId: string): boolean {
-    const rows = this.#db
-      .query<SessionEventRow, [string]>(
-        `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
-      )
+    const rows = stmt<SessionEventRow, [string]>(
+      this.#db,
+      `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
+    )
       .all(sessionId)
       .map(sessionEventRowToInfo)
     return rows.some((row) => {
@@ -6018,9 +5970,9 @@ export class Service {
     const currentPlan = runs.getRun(this.#db, workflowRun.accountId, workflowRun.id)?.plan ?? workflowRun.plan
     const stepId = stepLabel ? currentPlan?.steps.find((step) => step.label === stepLabel)?.id : undefined
     const childCount =
-      this.#db
-        .query<{n: number}, [string]>(`SELECT COUNT(*) AS n FROM runs WHERE parent_run_id = ?`)
-        .get(workflowRun.id)?.n ?? 0
+      stmt<{n: number}, [string]>(this.#db, `SELECT COUNT(*) AS n FROM runs WHERE parent_run_id = ?`).get(
+        workflowRun.id,
+      )?.n ?? 0
     if (childCount >= MAX_SESSION_SPAWNS_PER_SESSION) {
       throw new APIError(400, `This workflow already spawned ${MAX_SESSION_SPAWNS_PER_SESSION} sub-sessions`)
     }
@@ -6096,12 +6048,11 @@ export class Service {
     if (!run.agentId) {
       return {type: 'failed', error: {code: 'config-error', message: 'Workflow run is missing its agent'}}
     }
-    const agent = this.#db
-      .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
+    const agent = stmt<AgentRow, [string, string]>(
+      this.#db,
+      `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
-      )
-      .get(run.accountId, run.agentId)
+    ).get(run.accountId, run.agentId)
     if (!agent) return {type: 'failed', error: {code: 'config-error', message: 'Agent not found'}}
     const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
     const codeExecAvailable = (await this.#codeExec.availability()).available
@@ -6187,12 +6138,13 @@ export class Service {
 
     // Journal adapter with caps, backed by run_journal and streamed to runs/<root> subscribers.
     let journalCount =
-      this.#db.query<{n: number}, [string]>(`SELECT COUNT(*) AS n FROM run_journal WHERE run_id = ?`).get(run.id)?.n ??
+      stmt<{n: number}, [string]>(this.#db, `SELECT COUNT(*) AS n FROM run_journal WHERE run_id = ?`).get(run.id)?.n ??
       0
     let journalBytes =
-      this.#db
-        .query<{b: number | null}, [string]>(`SELECT SUM(LENGTH(entry_cbor)) AS b FROM run_journal WHERE run_id = ?`)
-        .get(run.id)?.b ?? 0
+      stmt<{b: number | null}, [string]>(
+        this.#db,
+        `SELECT SUM(LENGTH(entry_cbor)) AS b FROM run_journal WHERE run_id = ?`,
+      ).get(run.id)?.b ?? 0
     let toolCallCounter = 0
 
     let outcome: Awaited<ReturnType<typeof runWorkflowVM>>
@@ -6203,10 +6155,10 @@ export class Service {
         source: run.sourceText,
         journal: {
           load: () =>
-            this.#db
-              .query<{entry_cbor: Uint8Array}, [string]>(
-                `SELECT entry_cbor FROM run_journal WHERE run_id = ? ORDER BY seq ASC`,
-              )
+            stmt<{entry_cbor: Uint8Array}, [string]>(
+              this.#db,
+              `SELECT entry_cbor FROM run_journal WHERE run_id = ? ORDER BY seq ASC`,
+            )
               .all(run.id)
               .map((row) => cbor.decode<WorkflowJournalEntry>(row.entry_cbor)),
           append: (entry) => {
@@ -6221,7 +6173,7 @@ export class Service {
             journalBytes += encoded.byteLength
             const seq = journalCount
             const createdAt = Date.now()
-            this.#db.run(`INSERT INTO run_journal (run_id, seq, entry_cbor, created_at) VALUES (?, ?, ?, ?)`, [
+            stmt(this.#db, `INSERT INTO run_journal (run_id, seq, entry_cbor, created_at) VALUES (?, ?, ?, ?)`).run([
               run.id,
               seq,
               encoded,
@@ -6511,12 +6463,11 @@ export class Service {
 
   /** Model-facing roster for a shared agent, with stable IDs even when profile lookup fails. */
   async #conversationMembersPrompt(accountId: string, agentId: string): Promise<string> {
-    const collaborators = this.#db
-      .query<{account_id: string; role: api.AgentCollaboratorRole}, [string]>(
-        `SELECT account_id, role FROM agent_collaborators
+    const collaborators = stmt<{account_id: string; role: api.AgentCollaboratorRole}, [string]>(
+      this.#db,
+      `SELECT account_id, role FROM agent_collaborators
          WHERE agent_id = ? AND status = 'accepted' ORDER BY created_at ASC`,
-      )
-      .all(agentId)
+    ).all(agentId)
     if (collaborators.length === 0) return ''
 
     const client = createSeedClient(this.#hmServerUrl)
@@ -6642,11 +6593,10 @@ export class Service {
     const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${modelChoicePrompt}${userActionsPrompt}${continuationPrompt}${conversationMembersPrompt}${spaceIndex}`
     if (!signingKeys.length) return basePrompt
     const identities = signingKeys.flatMap((name) => {
-      const row = this.#db
-        .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
-          `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
-        )
-        .get(accountId, name)
+      const row = stmt<{metadata_cbor: Uint8Array | null}, [string, string]>(
+        this.#db,
+        `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+      ).get(accountId, name)
       if (!row?.metadata_cbor) return []
       const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
       if (metadata.kind !== 'hm-account-key') return []
@@ -6685,11 +6635,10 @@ export class Service {
     modelRegistry: pi.ModelRegistry
     model: NonNullable<ReturnType<pi.ModelRegistry['find']>>
   }> {
-    const providerRow = this.#db
-      .query<{config_cbor: Uint8Array}, [string, string]>(
-        `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
-      )
-      .get(accountId, definition.modelProvider)
+    const providerRow = stmt<{config_cbor: Uint8Array}, [string, string]>(
+      this.#db,
+      `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
+    ).get(accountId, definition.modelProvider)
     if (!providerRow) {
       throw new APIError(
         400,
@@ -6963,10 +6912,10 @@ export class Service {
     // copies; this is provider guidance, not another transcript event.
     const wanted = new Set(queuedUserEventIds)
     const concurrentMessages = queuedUserEventIds.length
-      ? this.#db
-          .query<SessionEventRow, [string]>(
-            `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
-          )
+      ? stmt<SessionEventRow, [string]>(
+          this.#db,
+          `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
+        )
           .all(sessionId)
           .filter((row) => wanted.has(row.id))
           .map((row) => {
@@ -7478,10 +7427,10 @@ export class Service {
   }
 
   #piMessages(sessionId: string): unknown[] {
-    const events = this.#db
-      .query<SessionEventRow, [string, number]>(
-        `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? AND seq > ? ORDER BY seq ASC`,
-      )
+    const events = stmt<SessionEventRow, [string, number]>(
+      this.#db,
+      `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? AND seq > ? ORDER BY seq ASC`,
+    )
       .all(sessionId, 0)
       .map(sessionEventRowToInfo)
 
@@ -7706,11 +7655,10 @@ export class Service {
   }
 
   async #getSecretPlaintext(accountId: string, name: string): Promise<Uint8Array> {
-    const row = this.#db
-      .query<{ciphertext: Uint8Array}, [string, string]>(
-        `SELECT ciphertext FROM secrets WHERE account_id = ? AND name = ?`,
-      )
-      .get(accountId, name)
+    const row = stmt<{ciphertext: Uint8Array}, [string, string]>(
+      this.#db,
+      `SELECT ciphertext FROM secrets WHERE account_id = ? AND name = ?`,
+    ).get(accountId, name)
     if (!row) throw new APIError(400, 'Required secret is not configured')
     return decryptSecret(this.#db, row.ciphertext)
   }
@@ -7723,19 +7671,15 @@ export class Service {
     now: number,
   ): api.SessionEvent {
     const seq =
-      this.#db
-        .query<{seq: number}, [string]>(
-          `SELECT COALESCE(MAX(seq), 0) + 1 as seq FROM session_events WHERE session_id = ?`,
-        )
-        .get(sessionId)?.seq ?? 1
+      stmt<{seq: number}, [string]>(
+        this.#db,
+        `SELECT COALESCE(MAX(seq), 0) + 1 as seq FROM session_events WHERE session_id = ?`,
+      ).get(sessionId)?.seq ?? 1
     const id = crypto.randomUUID()
-    this.#db.run(`INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`, [
-      id,
-      sessionId,
-      seq,
-      cbor.encode(event),
-      now,
-    ])
+    stmt(
+      this.#db,
+      `INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`,
+    ).run([id, sessionId, seq, cbor.encode(event), now])
     const info = {id, sessionId, seq, event, createdAt: now}
     this.#recordAgentActivity(agentId, sessionId, event, now)
     // Content stream: every event reaches the open session view immediately.
@@ -7751,23 +7695,24 @@ export class Service {
    * moves the message columns that unread indicators read.
    */
   #recordAgentActivity(agentId: string, sessionId: string, event: api.SessionEventPayload, now: number): void {
-    const parent = this.#db
-      .query<{parent_session_id: string | null}, [string]>(`SELECT parent_session_id FROM sessions WHERE id = ?`)
-      .get(sessionId)
+    const parent = stmt<{parent_session_id: string | null}, [string]>(
+      this.#db,
+      `SELECT parent_session_id FROM sessions WHERE id = ?`,
+    ).get(sessionId)
     // A delegated child's transcript is the agent's internal work: it keeps the agent busy but its
     // messages are nothing a person is waiting to read — the parent gets the result as a tool
     // result. Only top-level conversations move the message columns.
     const kind = parent?.parent_session_id ? 'tool' : sessionEventActivityKind(event)
-    this.#db.run(`UPDATE sessions SET updated_at = ? WHERE id = ?`, [now, sessionId])
+    stmt(this.#db, `UPDATE sessions SET updated_at = ? WHERE id = ?`).run([now, sessionId])
     if (kind === 'tool') {
-      this.#db.run(`UPDATE agents SET activity_at = ?, activity_kind = 'tool' WHERE id = ?`, [now, agentId])
+      stmt(this.#db, `UPDATE agents SET activity_at = ?, activity_kind = 'tool' WHERE id = ?`).run([now, agentId])
       return
     }
-    this.#db.run(
+    stmt(
+      this.#db,
       `UPDATE agents SET activity_at = ?, activity_kind = ?, message_at = ?, message_from = ?, activity_session_id = ?
        WHERE id = ?`,
-      [now, kind, now, kind, sessionId, agentId],
-    )
+    ).run([now, kind, now, kind, sessionId, agentId])
   }
 
   /**
@@ -7777,13 +7722,12 @@ export class Service {
    */
   #agentActivity(agentId: string): api.AgentActivity | undefined {
     try {
-      const row = this.#db
-        .query<AgentRow, [string]>(
-          `SELECT agents.id, agents.account_id, agents.definition_cbor, agents.state_dir, agents.status, agents.created_at, agents.updated_at,
+      const row = stmt<AgentRow, [string]>(
+        this.#db,
+        `SELECT agents.id, agents.account_id, agents.definition_cbor, agents.state_dir, agents.status, agents.created_at, agents.updated_at,
                   ${agentActivityColumns('agents')}
            FROM agents WHERE id = ?`,
-        )
-        .get(agentId)
+      ).get(agentId)
       return row ? agentRowActivity(row) : undefined
     } catch {
       return undefined
@@ -7833,12 +7777,11 @@ export class Service {
   }
 
   #updateSessionStatus(accountId: string, sessionId: string, status: api.SessionInfo['status'], now: number): void {
-    const previous = this.#db
-      .query<{status: api.SessionInfo['status']}, [string, string]>(
-        `SELECT status FROM sessions WHERE account_id = ? AND id = ?`,
-      )
-      .get(accountId, sessionId)?.status
-    this.#db.run(`UPDATE sessions SET status = ?, updated_at = ? WHERE account_id = ? AND id = ?`, [
+    const previous = stmt<{status: api.SessionInfo['status']}, [string, string]>(
+      this.#db,
+      `SELECT status FROM sessions WHERE account_id = ? AND id = ?`,
+    ).get(accountId, sessionId)?.status
+    stmt(this.#db, `UPDATE sessions SET status = ?, updated_at = ? WHERE account_id = ? AND id = ?`).run([
       status,
       now,
       accountId,
@@ -7878,20 +7821,18 @@ export class Service {
               : event.type === 'run-change'
                 ? event.run.agentId
                 : event.type === 'run-append' || event.type === 'run-partial'
-                  ? this.#db
-                      .query<{agent_id: string | null}, [string]>(
-                        `SELECT agent_id FROM runs WHERE root_run_id = ? LIMIT 1`,
-                      )
-                      .get(event.rootRunId)?.agent_id
+                  ? stmt<{agent_id: string | null}, [string]>(
+                      this.#db,
+                      `SELECT agent_id FROM runs WHERE root_run_id = ? LIMIT 1`,
+                    ).get(event.rootRunId)?.agent_id
                   : undefined
     if (!agentId) return
     let collaborators = this.#collaboratorAudience.get(agentId)
     if (!collaborators) {
-      collaborators = this.#db
-        .query<{account_id: string; role: api.AgentCollaboratorRole}, [string]>(
-          `SELECT account_id, role FROM agent_collaborators WHERE agent_id = ? AND status = 'accepted'`,
-        )
-        .all(agentId)
+      collaborators = stmt<{account_id: string; role: api.AgentCollaboratorRole}, [string]>(
+        this.#db,
+        `SELECT account_id, role FROM agent_collaborators WHERE agent_id = ? AND status = 'accepted'`,
+      ).all(agentId)
       this.#collaboratorAudience.set(agentId, collaborators)
     }
     for (const collaborator of collaborators) {
@@ -7920,42 +7861,39 @@ export class Service {
     if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) {
       throw new APIError(400, 'limit must be a positive integer')
     }
-    const session = this.#db
-      .query<SessionRow, [string, string]>(
-        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
+    const session = stmt<SessionRow, [string, string]>(
+      this.#db,
+      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
-      )
-      .get(accountId, sessionId)
+    ).get(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
 
     // Selected newest-first when a limit applies so the response is the transcript TAIL (the part
     // a session view renders first); re-sorted ascending below either way.
     type WireEventRow = SessionEventRow & {byte_length: number}
-    const eventRows = this.#db
-      .query<WireEventRow, (string | number)[]>(
-        `SELECT id, session_id, seq, event_cbor, created_at, LENGTH(event_cbor) AS byte_length
+    const eventRows = stmt<WireEventRow, (string | number)[]>(
+      this.#db,
+      `SELECT id, session_id, seq, event_cbor, created_at, LENGTH(event_cbor) AS byte_length
          FROM session_events WHERE session_id = ? AND seq > ?${beforeSeq !== undefined ? ' AND seq < ?' : ''}
          ORDER BY seq ${limit !== undefined ? 'DESC LIMIT ?' : 'ASC'}`,
-      )
-      .all(
-        sessionId,
-        afterSeq ?? 0,
-        ...(beforeSeq !== undefined ? [beforeSeq] : []),
-        ...(limit !== undefined ? [limit] : []),
-      )
+    ).all(
+      sessionId,
+      afterSeq ?? 0,
+      ...(beforeSeq !== undefined ? [beforeSeq] : []),
+      ...(limit !== undefined ? [limit] : []),
+    )
     if (limit !== undefined) eventRows.reverse()
     const hasMoreBefore =
       limit !== undefined && eventRows.length === limit && (eventRows[0]?.seq ?? 0) > (afterSeq ?? 0) + 1
     const events = eventRows.map((row) => truncateSessionEventForWire(sessionEventRowToInfo(row), row.byte_length))
 
-    const agent = this.#db
-      .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
+    const agent = stmt<AgentRow, [string, string]>(
+      this.#db,
+      `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
-      )
-      .get(accountId, session.agent_id)
+    ).get(accountId, session.agent_id)
     if (!agent) throw new APIError(404, 'Agent not found')
     const definition = normalizeDefinition(cbor.decode<api.AgentDefinition>(agent.definition_cbor))
     const triggerContext = this.#getSessionTriggerContext(accountId, sessionId)
@@ -7976,15 +7914,15 @@ export class Service {
 
   #getSessionEvent(accountId: string, sessionId: string, seq: number): api.GetSessionEventResponse {
     if (!Number.isInteger(seq) || seq < 1) throw new APIError(400, 'seq must be a positive integer')
-    const session = this.#db
-      .query<{id: string}, [string, string]>(`SELECT id FROM sessions WHERE account_id = ? AND id = ?`)
-      .get(accountId, sessionId)
+    const session = stmt<{id: string}, [string, string]>(
+      this.#db,
+      `SELECT id FROM sessions WHERE account_id = ? AND id = ?`,
+    ).get(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
-    const row = this.#db
-      .query<SessionEventRow, [string, number]>(
-        `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? AND seq = ?`,
-      )
-      .get(sessionId, seq)
+    const row = stmt<SessionEventRow, [string, number]>(
+      this.#db,
+      `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? AND seq = ?`,
+    ).get(sessionId, seq)
     if (!row) throw new APIError(404, 'Session event not found')
     return {_: 'GetSessionEventResponse', event: sessionEventRowToInfo(row)}
   }
@@ -8004,11 +7942,10 @@ export class Service {
     const key = normalizedId === undefined ? undefined : JSON.stringify([accountId, action, normalizedId])
 
     if (normalizedId !== undefined && requestCBOR !== undefined && key !== undefined) {
-      const existing = this.#db
-        .query<{request_cbor: Uint8Array; response_cbor: Uint8Array}, [string, string, string]>(
-          `SELECT request_cbor, response_cbor FROM action_idempotency WHERE account_id = ? AND action = ? AND client_request_id = ?`,
-        )
-        .get(accountId, action, normalizedId)
+      const existing = stmt<{request_cbor: Uint8Array; response_cbor: Uint8Array}, [string, string, string]>(
+        this.#db,
+        `SELECT request_cbor, response_cbor FROM action_idempotency WHERE account_id = ? AND action = ? AND client_request_id = ?`,
+      ).get(accountId, action, normalizedId)
       if (existing) {
         if (!bytesEqual(existing.request_cbor, requestCBOR))
           throw new APIError(409, 'Client request ID payload mismatch')
@@ -8027,11 +7964,10 @@ export class Service {
       this.#db.run('BEGIN IMMEDIATE')
       try {
         if (normalizedId !== undefined && requestCBOR !== undefined) {
-          const existing = this.#db
-            .query<{request_cbor: Uint8Array; response_cbor: Uint8Array}, [string, string, string]>(
-              `SELECT request_cbor, response_cbor FROM action_idempotency WHERE account_id = ? AND action = ? AND client_request_id = ?`,
-            )
-            .get(accountId, action, normalizedId)
+          const existing = stmt<{request_cbor: Uint8Array; response_cbor: Uint8Array}, [string, string, string]>(
+            this.#db,
+            `SELECT request_cbor, response_cbor FROM action_idempotency WHERE account_id = ? AND action = ? AND client_request_id = ?`,
+          ).get(accountId, action, normalizedId)
           if (existing) {
             if (!bytesEqual(existing.request_cbor, requestCBOR))
               throw new APIError(409, 'Client request ID payload mismatch')
@@ -8042,11 +7978,11 @@ export class Service {
 
         const response = commit()
         if (normalizedId !== undefined && requestCBOR !== undefined) {
-          this.#db.run(
+          stmt(
+            this.#db,
             `INSERT INTO action_idempotency (account_id, action, client_request_id, request_cbor, response_cbor, created_at)
              VALUES (?, ?, ?, ?, ?, ?)`,
-            [accountId, action, normalizedId, requestCBOR, cbor.encode(response), Date.now()],
-          )
+          ).run([accountId, action, normalizedId, requestCBOR, cbor.encode(response), Date.now()])
         }
         this.#db.run('COMMIT')
         return response
@@ -8087,11 +8023,10 @@ export class Service {
     this.#db.run('BEGIN IMMEDIATE')
     try {
       if (normalizedId !== undefined && requestCBOR !== undefined) {
-        const existing = this.#db
-          .query<{request_cbor: Uint8Array; response_cbor: Uint8Array}, [string, string, string]>(
-            `SELECT request_cbor, response_cbor FROM action_idempotency WHERE account_id = ? AND action = ? AND client_request_id = ?`,
-          )
-          .get(accountId, action, normalizedId)
+        const existing = stmt<{request_cbor: Uint8Array; response_cbor: Uint8Array}, [string, string, string]>(
+          this.#db,
+          `SELECT request_cbor, response_cbor FROM action_idempotency WHERE account_id = ? AND action = ? AND client_request_id = ?`,
+        ).get(accountId, action, normalizedId)
         if (existing) {
           if (!bytesEqual(existing.request_cbor, requestCBOR))
             throw new APIError(409, 'Client request ID payload mismatch')
@@ -8111,22 +8046,22 @@ export class Service {
 
       const response = await create()
       if (normalizedId !== undefined && requestCBOR !== undefined) {
-        this.#db.run(
+        stmt(
+          this.#db,
           `INSERT INTO action_idempotency (account_id, action, client_request_id, request_cbor, response_cbor, created_at)
            VALUES (?, ?, ?, ?, ?, ?)`,
-          [
-            accountId,
-            action,
-            normalizedId,
-            requestCBOR,
-            cbor.encode(
-              response._ === 'CreateAgentTriggerResponse' && response.webhookSecret
-                ? {encryptedIdempotencyResponse: encryptSecret(this.#db, cbor.encode(response))}
-                : response,
-            ),
-            Date.now(),
-          ],
-        )
+        ).run([
+          accountId,
+          action,
+          normalizedId,
+          requestCBOR,
+          cbor.encode(
+            response._ === 'CreateAgentTriggerResponse' && response.webhookSecret
+              ? {encryptedIdempotencyResponse: encryptSecret(this.#db, cbor.encode(response))}
+              : response,
+          ),
+          Date.now(),
+        ])
       }
       this.#db.run('COMMIT')
       return response
@@ -8195,36 +8130,33 @@ export class Service {
   }
 
   #getAgentInfo(accountId: string, agentId: string): api.AgentInfo | null {
-    const agent = this.#db
-      .query<AgentRow, [string, string]>(
-        `SELECT agents.id, agents.account_id, agents.definition_cbor, agents.state_dir, agents.status, agents.public_read, agents.public_chat, agents.created_at, agents.updated_at,
+    const agent = stmt<AgentRow, [string, string]>(
+      this.#db,
+      `SELECT agents.id, agents.account_id, agents.definition_cbor, agents.state_dir, agents.status, agents.public_read, agents.public_chat, agents.created_at, agents.updated_at,
                 ${agentActivityColumns('agents')}
          FROM agents WHERE account_id = ? AND id = ?`,
-      )
-      .get(accountId, agentId)
+    ).get(accountId, agentId)
     return agent ? agentRowToInfo(agent) : null
   }
 
   #getAgentTriggerInfo(accountId: string, triggerId: string): api.AgentTriggerInfo | null {
-    const trigger = this.#db
-      .query<AgentTriggerRow, [string, string]>(
-        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor, created_at, updated_at,
+    const trigger = stmt<AgentTriggerRow, [string, string]>(
+      this.#db,
+      `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor, created_at, updated_at,
                 last_checked_at, last_fired_at, last_error
          FROM agent_triggers WHERE account_id = ? AND id = ?`,
-      )
-      .get(accountId, triggerId)
+    ).get(accountId, triggerId)
     return trigger ? agentTriggerRowToInfo(trigger) : null
   }
 
   #getSessionInfo(accountId: string, sessionId: string): api.SessionInfo | null {
-    const session = this.#db
-      .query<SessionRow, [string, string]>(
-        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
+    const session = stmt<SessionRow, [string, string]>(
+      this.#db,
+      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
-      )
-      .get(accountId, sessionId)
+    ).get(accountId, sessionId)
     return session
       ? sessionRowToInfo(
           session,
@@ -8271,11 +8203,10 @@ export class Service {
    */
   #sessionContextWindow(accountId: string, definition: api.AgentDefinition, session: api.SessionInfo): number {
     const effective = this.#definitionForSession(accountId, definition, session)
-    const providerRow = this.#db
-      .query<{config_cbor: Uint8Array}, [string, string]>(
-        `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
-      )
-      .get(accountId, effective.modelProvider)
+    const providerRow = stmt<{config_cbor: Uint8Array}, [string, string]>(
+      this.#db,
+      `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
+    ).get(accountId, effective.modelProvider)
     if (!providerRow) return modelContextWindow('', effective.model)
     const provider = cbor.decode<api.ModelProviderConfig>(providerRow.config_cbor)
     const subscription = provider.authMode === 'subscription'
@@ -8299,17 +8230,16 @@ export class Service {
   }
 
   #computeSessionTriggerContext(accountId: string, sessionId: string): api.AgentSessionTriggerContext | null {
-    const row = this.#db
-      .query<SessionTriggerRow, [string, string]>(
-        `SELECT f.id AS firing_id, f.trigger_id, f.activity_key, f.activity_cbor, f.status, f.error,
+    const row = stmt<SessionTriggerRow, [string, string]>(
+      this.#db,
+      `SELECT f.id AS firing_id, f.trigger_id, f.activity_key, f.activity_cbor, f.status, f.error,
                 f.created_at AS fired_at, t.name AS trigger_name, t.source_cbor, t.prompt
          FROM trigger_firings f
          JOIN agent_triggers t ON t.id = f.trigger_id
          WHERE f.account_id = ? AND f.session_id = ?
          ORDER BY f.created_at ASC
          LIMIT 1`,
-      )
-      .get(accountId, sessionId)
+    ).get(accountId, sessionId)
     if (!row) return null
     const activity = cbor.decode<activityTriggers.ActivityFeedEvent>(row.activity_cbor)
     return {
@@ -8329,18 +8259,18 @@ export class Service {
   }
 
   #requireAgent(accountId: string, agentId: string): void {
-    const agent = this.#db
-      .query<{id: string}, [string, string]>(`SELECT id FROM agents WHERE account_id = ? AND id = ?`)
-      .get(accountId, agentId)
+    const agent = stmt<{id: string}, [string, string]>(
+      this.#db,
+      `SELECT id FROM agents WHERE account_id = ? AND id = ?`,
+    ).get(accountId, agentId)
     if (!agent) throw new APIError(404, 'Agent not found')
   }
 
   #agentDefinition(accountId: string, agentId: string): api.AgentDefinition {
-    const row = this.#db
-      .query<{definition_cbor: Uint8Array}, [string, string]>(
-        `SELECT definition_cbor FROM agents WHERE account_id = ? AND id = ?`,
-      )
-      .get(accountId, agentId)
+    const row = stmt<{definition_cbor: Uint8Array}, [string, string]>(
+      this.#db,
+      `SELECT definition_cbor FROM agents WHERE account_id = ? AND id = ?`,
+    ).get(accountId, agentId)
     if (!row) throw new APIError(404, 'Agent not found')
     return cbor.decode<api.AgentDefinition>(row.definition_cbor)
   }
@@ -8369,16 +8299,15 @@ export class Service {
 
   /** Authenticates and durably delivers one inbound webhook to its enabled trigger. */
   fireWebhookTrigger(triggerId: string, secret: string, deliveryKey: string, body: Uint8Array): WebhookDeliveryResult {
-    const credential = this.#db
-      .query<AgentTriggerRow & {secret_hash: Uint8Array}, [string]>(
-        `SELECT t.id, t.account_id, t.agent_id, t.name, t.enabled, t.source_cbor, t.prompt,
+    const credential = stmt<AgentTriggerRow & {secret_hash: Uint8Array}, [string]>(
+      this.#db,
+      `SELECT t.id, t.account_id, t.agent_id, t.name, t.enabled, t.source_cbor, t.prompt,
                 t.continuation_cbor, t.created_at, t.updated_at, t.last_checked_at, t.last_fired_at,
                 t.last_error, c.secret_hash
          FROM webhook_trigger_credentials c
          JOIN agent_triggers t ON t.id = c.trigger_id
          WHERE c.trigger_id = ?`,
-      )
-      .get(triggerId)
+    ).get(triggerId)
     const suppliedHash = nodeCrypto.createHash('sha256').update(secret).digest()
     const storedHash = credential?.secret_hash ?? new Uint8Array(32)
     const authenticated = nodeCrypto.timingSafeEqual(suppliedHash, storedHash)
@@ -8406,11 +8335,10 @@ export class Service {
     }
     const pendingDispatch: {value?: {firingId: string; sessionId: string}} = {}
     const accept = this.#db.transaction((): WebhookDeliveryResult => {
-      const existing = this.#db
-        .query<{body_digest: Uint8Array | null; session_id: string | null}, [string, string]>(
-          `SELECT body_digest, session_id FROM trigger_firings WHERE trigger_id = ? AND activity_key = ?`,
-        )
-        .get(trigger.id, activityKey)
+      const existing = stmt<{body_digest: Uint8Array | null; session_id: string | null}, [string, string]>(
+        this.#db,
+        `SELECT body_digest, session_id FROM trigger_firings WHERE trigger_id = ? AND activity_key = ?`,
+      ).get(trigger.id, activityKey)
       if (existing) {
         if (!existing.body_digest || !nodeCrypto.timingSafeEqual(existing.body_digest, bodyDigest)) {
           throw new APIError(409, 'Idempotency key was already used with a different body')
@@ -8420,33 +8348,32 @@ export class Service {
 
       const firingId = crypto.randomUUID()
       const now = Date.now()
-      this.#db.run(
+      stmt(
+        this.#db,
         `INSERT INTO trigger_firings
            (id, account_id, agent_id, trigger_id, activity_key, activity_cbor, body_digest, status, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          firingId,
-          trigger.account,
-          trigger.agentId,
-          trigger.id,
-          activityKey,
-          cbor.encode(activity),
-          bodyDigest,
-          'created',
-          now,
-        ],
-      )
+      ).run([
+        firingId,
+        trigger.account,
+        trigger.agentId,
+        trigger.id,
+        activityKey,
+        cbor.encode(activity),
+        bodyDigest,
+        'created',
+        now,
+      ])
       if (trigger.continuation?.kind === 'wake') {
         this.#wakeFromTrigger(trigger.account, trigger, firingId, activity)
         return {duplicate: false}
       }
       const continuationRunId = this.#startTriggerContinuationRun(trigger.account, trigger, firingId, activity)
       if (continuationRunId) {
-        this.#db.run(`UPDATE agent_triggers SET last_fired_at = ?, last_error = NULL WHERE account_id = ? AND id = ?`, [
-          now,
-          trigger.account,
-          trigger.id,
-        ])
+        stmt(
+          this.#db,
+          `UPDATE agent_triggers SET last_fired_at = ?, last_error = NULL WHERE account_id = ? AND id = ?`,
+        ).run([now, trigger.account, trigger.id])
         return {duplicate: false, runId: continuationRunId}
       }
       const session = this.#createSessionOnce(
@@ -8454,16 +8381,15 @@ export class Service {
         trigger.agentId,
         `${trigger.name} — ${activityTriggers.activitySummary(activity)}`,
       )
-      this.#db.run(`UPDATE trigger_firings SET session_id = ? WHERE account_id = ? AND id = ?`, [
+      stmt(this.#db, `UPDATE trigger_firings SET session_id = ? WHERE account_id = ? AND id = ?`).run([
         session.sessionId,
         trigger.account,
         firingId,
       ])
-      this.#db.run(`UPDATE agent_triggers SET last_fired_at = ?, last_error = NULL WHERE account_id = ? AND id = ?`, [
-        now,
-        trigger.account,
-        trigger.id,
-      ])
+      stmt(
+        this.#db,
+        `UPDATE agent_triggers SET last_fired_at = ?, last_error = NULL WHERE account_id = ? AND id = ?`,
+      ).run([now, trigger.account, trigger.id])
       pendingDispatch.value = {firingId, sessionId: session.sessionId}
       return {duplicate: false, sessionId: session.sessionId}
     })()
@@ -8481,15 +8407,14 @@ export class Service {
 
   /** Evaluates due schedule triggers and creates matching sessions. */
   async processScheduledTriggers(now = Date.now()): Promise<TriggerProcessingResult> {
-    const rows = this.#db
-      .query<AgentTriggerRow, []>(
-        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor, created_at, updated_at,
+    const rows = stmt<AgentTriggerRow, []>(
+      this.#db,
+      `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor, created_at, updated_at,
                 last_checked_at, last_fired_at, last_error
          FROM agent_triggers
          WHERE enabled = 1
          ORDER BY created_at ASC`,
-      )
-      .all()
+    ).all()
     let checked = 0
     let matched = 0
     let fired = 0
@@ -8499,7 +8424,7 @@ export class Service {
       const trigger = agentTriggerRowToInfo(row)
       if (trigger.source.type !== 'schedule') continue
       checked += 1
-      this.#db.run(`UPDATE agent_triggers SET last_checked_at = ? WHERE account_id = ? AND id = ?`, [
+      stmt(this.#db, `UPDATE agent_triggers SET last_checked_at = ? WHERE account_id = ? AND id = ?`).run([
         now,
         trigger.account,
         trigger.id,
@@ -8508,21 +8433,21 @@ export class Service {
       if (!occurrence) continue
       matched += 1
       const firingId = crypto.randomUUID()
-      const inserted = this.#db.run(
+      const inserted = stmt(
+        this.#db,
         `INSERT OR IGNORE INTO trigger_firings
            (id, account_id, agent_id, trigger_id, activity_key, activity_cbor, status, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          firingId,
-          trigger.account,
-          trigger.agentId,
-          trigger.id,
-          occurrence.activityKey,
-          cbor.encode(occurrence.activity),
-          'created',
-          now,
-        ],
-      )
+      ).run([
+        firingId,
+        trigger.account,
+        trigger.agentId,
+        trigger.id,
+        occurrence.activityKey,
+        cbor.encode(occurrence.activity),
+        'created',
+        now,
+      ])
       if (inserted.changes === 0) {
         skipped += 1
         continue
@@ -8543,7 +8468,7 @@ export class Service {
           ? null
           : this.#createSessionOnce(trigger.account, trigger.agentId, `${trigger.name} — ${occurrence.summary}`)
         if (session) {
-          this.#db.run(`UPDATE trigger_firings SET session_id = ? WHERE account_id = ? AND id = ?`, [
+          stmt(this.#db, `UPDATE trigger_firings SET session_id = ? WHERE account_id = ? AND id = ?`).run([
             session.sessionId,
             trigger.account,
             firingId,
@@ -8551,8 +8476,10 @@ export class Service {
         }
         // Disable a 'once' schedule at fire time (session created), not after the run, so a slow run
         // can't let the same occurrence fire twice.
-        this.#db.run(
+        stmt(
+          this.#db,
           `UPDATE agent_triggers SET last_fired_at = ?, last_error = NULL, enabled = CASE WHEN ? THEN 0 ELSE enabled END WHERE account_id = ? AND id = ?`,
+        ).run(
           // The caller's clock, not Date.now(): mixing the injected timestamp with the wall clock
           // makes a firing in the same millisecond as trigger creation eligible to re-match.
           [
@@ -8570,13 +8497,13 @@ export class Service {
       } catch (error) {
         errors += 1
         const message = error instanceof Error ? error.message : 'Trigger firing failed'
-        this.#db.run(`UPDATE trigger_firings SET status = ?, error = ? WHERE account_id = ? AND id = ?`, [
+        stmt(this.#db, `UPDATE trigger_firings SET status = ?, error = ? WHERE account_id = ? AND id = ?`).run([
           'error',
           message,
           trigger.account,
           firingId,
         ])
-        this.#db.run(`UPDATE agent_triggers SET last_error = ? WHERE account_id = ? AND id = ?`, [
+        stmt(this.#db, `UPDATE agent_triggers SET last_error = ? WHERE account_id = ? AND id = ?`).run([
           message,
           trigger.account,
           trigger.id,
@@ -8605,15 +8532,14 @@ export class Service {
     // Deduplicate firings on the comment's origin CID so the comment event and its citation twin (the
     // two feed events HM emits for one @mention) collapse to a single firing. See activityFiringKey.
     const firingKey = activityTriggers.activityFiringKey(event) ?? activityKey
-    const rows = this.#db
-      .query<AgentTriggerRow, [string]>(
-        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor, created_at, updated_at,
+    const rows = stmt<AgentTriggerRow, [string]>(
+      this.#db,
+      `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor, created_at, updated_at,
                 last_checked_at, last_fired_at, last_error
          FROM agent_triggers
          WHERE account_id = ? AND enabled = 1
          ORDER BY created_at ASC`,
-      )
-      .all(accountId)
+    ).all(accountId)
     const now = Date.now()
     let checked = 0
     let matched = 0
@@ -8624,7 +8550,7 @@ export class Service {
       const trigger = agentTriggerRowToInfo(row)
       if (trigger.source.type === 'schedule' || trigger.source.type === 'webhook') continue
       checked += 1
-      this.#db.run(`UPDATE agent_triggers SET last_checked_at = ? WHERE account_id = ? AND id = ?`, [
+      stmt(this.#db, `UPDATE agent_triggers SET last_checked_at = ? WHERE account_id = ? AND id = ?`).run([
         now,
         accountId,
         trigger.id,
@@ -8641,12 +8567,12 @@ export class Service {
       if (!matches) continue
       matched += 1
       const firingId = crypto.randomUUID()
-      const inserted = this.#db.run(
+      const inserted = stmt(
+        this.#db,
         `INSERT OR IGNORE INTO trigger_firings
            (id, account_id, agent_id, trigger_id, activity_key, activity_cbor, status, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [firingId, accountId, trigger.agentId, trigger.id, firingKey, cbor.encode(event), 'created', now],
-      )
+      ).run([firingId, accountId, trigger.agentId, trigger.id, firingKey, cbor.encode(event), 'created', now])
       if (inserted.changes === 0) {
         console.log('[Agents Trigger] Skipping duplicate trigger firing', {
           accountId,
@@ -8672,17 +8598,16 @@ export class Service {
               `${trigger.name} — ${activityTriggers.activitySummary(event)}`,
             )
         if (session) {
-          this.#db.run(`UPDATE trigger_firings SET session_id = ? WHERE account_id = ? AND id = ?`, [
+          stmt(this.#db, `UPDATE trigger_firings SET session_id = ? WHERE account_id = ? AND id = ?`).run([
             session.sessionId,
             accountId,
             firingId,
           ])
         }
-        this.#db.run(`UPDATE agent_triggers SET last_fired_at = ?, last_error = NULL WHERE account_id = ? AND id = ?`, [
-          Date.now(),
-          accountId,
-          trigger.id,
-        ])
+        stmt(
+          this.#db,
+          `UPDATE agent_triggers SET last_fired_at = ?, last_error = NULL WHERE account_id = ? AND id = ?`,
+        ).run([Date.now(), accountId, trigger.id])
         fired += 1
         console.log('[Agents Trigger] Fired trigger', {
           accountId,
@@ -8696,13 +8621,13 @@ export class Service {
       } catch (error) {
         errors += 1
         const message = error instanceof Error ? error.message : 'Trigger firing failed'
-        this.#db.run(`UPDATE trigger_firings SET status = ?, error = ? WHERE account_id = ? AND id = ?`, [
+        stmt(this.#db, `UPDATE trigger_firings SET status = ?, error = ? WHERE account_id = ? AND id = ?`).run([
           'error',
           message,
           accountId,
           firingId,
         ])
-        this.#db.run(`UPDATE agent_triggers SET last_error = ? WHERE account_id = ? AND id = ?`, [
+        stmt(this.#db, `UPDATE agent_triggers SET last_error = ? WHERE account_id = ? AND id = ?`).run([
           message,
           accountId,
           trigger.id,
@@ -8771,7 +8696,7 @@ export class Service {
       queue: 'background',
       maxAttempts: 1,
     })
-    this.#db.run(`UPDATE trigger_firings SET run_id = ?, status = ? WHERE account_id = ? AND id = ?`, [
+    stmt(this.#db, `UPDATE trigger_firings SET run_id = ?, status = ? WHERE account_id = ? AND id = ?`).run([
       runId,
       'running',
       accountId,
@@ -8801,7 +8726,7 @@ export class Service {
       trigger.agentId,
       `${trigger.name} — automation failed: ${activityTriggers.activitySummary(activity)}`,
     )
-    this.#db.run(`UPDATE trigger_firings SET session_id = ?, status = ? WHERE account_id = ? AND id = ?`, [
+    stmt(this.#db, `UPDATE trigger_firings SET session_id = ?, status = ? WHERE account_id = ? AND id = ?`).run([
       session.sessionId,
       'escalated',
       run.accountId,
@@ -8837,16 +8762,15 @@ export class Service {
       const run = runs.getRun(this.#db, accountId, wait.runId)
       if (!run) continue
       if (!this.#deliverRunEvent(run, wait.waitId, delivery)) continue
-      this.#db.run(`UPDATE trigger_firings SET status = ?, session_id = NULL WHERE account_id = ? AND id = ?`, [
+      stmt(this.#db, `UPDATE trigger_firings SET status = ?, session_id = NULL WHERE account_id = ? AND id = ?`).run([
         'delivered',
         accountId,
         firingId,
       ])
-      this.#db.run(`UPDATE agent_triggers SET last_fired_at = ?, last_error = NULL WHERE account_id = ? AND id = ?`, [
-        Date.now(),
-        accountId,
-        trigger.id,
-      ])
+      stmt(
+        this.#db,
+        `UPDATE agent_triggers SET last_fired_at = ?, last_error = NULL WHERE account_id = ? AND id = ?`,
+      ).run([Date.now(), accountId, trigger.id])
       console.info('[Agents Trigger] Trigger woke a parked run', {
         accountId,
         triggerId: trigger.id,
@@ -8857,7 +8781,7 @@ export class Service {
     }
     // Nobody was listening. The firing row records that honestly rather than being deleted, so the
     // history shows the trigger fired and found no one — which is what a user needs to debug it.
-    this.#db.run(`UPDATE trigger_firings SET status = ? WHERE account_id = ? AND id = ?`, [
+    stmt(this.#db, `UPDATE trigger_firings SET status = ? WHERE account_id = ? AND id = ?`).run([
       'no-listener',
       accountId,
       firingId,
@@ -8880,13 +8804,12 @@ export class Service {
    */
   #fireRunCompletedTriggers(run: runs.RunRecord): void {
     if (!runs.TERMINAL_RUN_STATUSES.includes(run.status)) return
-    const rows = this.#db
-      .query<AgentTriggerRow, [string]>(
-        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor, created_at, updated_at,
+    const rows = stmt<AgentTriggerRow, [string]>(
+      this.#db,
+      `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor, created_at, updated_at,
                 last_checked_at, last_fired_at, last_error
          FROM agent_triggers WHERE account_id = ? AND enabled = 1 ORDER BY created_at ASC`,
-      )
-      .all(run.accountId)
+    ).all(run.accountId)
     const event: activityTriggers.ActivityFeedEvent = {
       type: 'run-completed',
       runId: run.id,
@@ -8908,21 +8831,21 @@ export class Service {
         continue
       }
       const firingId = crypto.randomUUID()
-      const inserted = this.#db.run(
+      const inserted = stmt(
+        this.#db,
         `INSERT OR IGNORE INTO trigger_firings
            (id, account_id, agent_id, trigger_id, activity_key, activity_cbor, status, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          firingId,
-          run.accountId,
-          trigger.agentId,
-          trigger.id,
-          `run:${run.id}`,
-          cbor.encode(event),
-          'created',
-          Date.now(),
-        ],
-      )
+      ).run([
+        firingId,
+        run.accountId,
+        trigger.agentId,
+        trigger.id,
+        `run:${run.id}`,
+        cbor.encode(event),
+        'created',
+        Date.now(),
+      ])
       if (inserted.changes === 0) continue
       try {
         if (trigger.continuation?.kind === 'wake') {
@@ -8938,27 +8861,26 @@ export class Service {
               `${trigger.name} — ${activityTriggers.activitySummary(event)}`,
             )
         if (session) {
-          this.#db.run(`UPDATE trigger_firings SET session_id = ? WHERE account_id = ? AND id = ?`, [
+          stmt(this.#db, `UPDATE trigger_firings SET session_id = ? WHERE account_id = ? AND id = ?`).run([
             session.sessionId,
             run.accountId,
             firingId,
           ])
         }
-        this.#db.run(`UPDATE agent_triggers SET last_fired_at = ?, last_error = NULL WHERE account_id = ? AND id = ?`, [
-          Date.now(),
-          run.accountId,
-          trigger.id,
-        ])
+        stmt(
+          this.#db,
+          `UPDATE agent_triggers SET last_fired_at = ?, last_error = NULL WHERE account_id = ? AND id = ?`,
+        ).run([Date.now(), run.accountId, trigger.id])
         if (session) this.#dispatchTriggerSession(run.accountId, trigger, firingId, session.sessionId, event)
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Trigger firing failed'
-        this.#db.run(`UPDATE trigger_firings SET status = ?, error = ? WHERE account_id = ? AND id = ?`, [
+        stmt(this.#db, `UPDATE trigger_firings SET status = ?, error = ? WHERE account_id = ? AND id = ?`).run([
           'error',
           message,
           run.accountId,
           firingId,
         ])
-        this.#db.run(`UPDATE agent_triggers SET last_error = ? WHERE account_id = ? AND id = ?`, [
+        stmt(this.#db, `UPDATE agent_triggers SET last_error = ? WHERE account_id = ? AND id = ?`).run([
           message,
           run.accountId,
           trigger.id,
@@ -8978,11 +8900,10 @@ export class Service {
   #triggerAlreadyInChain(run: runs.RunRecord, triggerId: string): boolean {
     let current: runs.RunRecord | null = run
     for (let hop = 0; hop < TRIGGER_CHAIN_MAX_HOPS && current?.triggerFiringId; hop += 1) {
-      const firing = this.#db
-        .query<{trigger_id: string; activity_cbor: Uint8Array}, [string]>(
-          `SELECT trigger_id, activity_cbor FROM trigger_firings WHERE id = ?`,
-        )
-        .get(current.triggerFiringId)
+      const firing = stmt<{trigger_id: string; activity_cbor: Uint8Array}, [string]>(
+        this.#db,
+        `SELECT trigger_id, activity_cbor FROM trigger_firings WHERE id = ?`,
+      ).get(current.triggerFiringId)
       if (!firing) return false
       if (firing.trigger_id === triggerId) return true
       // A run-completed firing names the run that caused it, which is how the walk continues.
@@ -9047,13 +8968,13 @@ export class Service {
         })
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Trigger session run failed'
-        this.#db.run(`UPDATE trigger_firings SET status = ?, error = ? WHERE account_id = ? AND id = ?`, [
+        stmt(this.#db, `UPDATE trigger_firings SET status = ?, error = ? WHERE account_id = ? AND id = ?`).run([
           'error',
           message,
           accountId,
           firingId,
         ])
-        this.#db.run(`UPDATE agent_triggers SET last_error = ? WHERE account_id = ? AND id = ?`, [
+        stmt(this.#db, `UPDATE agent_triggers SET last_error = ? WHERE account_id = ? AND id = ?`).run([
           message,
           accountId,
           trigger.id,
@@ -9086,11 +9007,11 @@ export class Service {
   }
 
   #ensureAccount(accountId: string, now: number): void {
-    this.#db.run(
+    stmt(
+      this.#db,
       `INSERT INTO accounts (id, created_at, updated_at) VALUES (?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET updated_at = excluded.updated_at`,
-      [accountId, now, now],
-    )
+    ).run([accountId, now, now])
   }
 }
 
@@ -9420,11 +9341,10 @@ export function buildSpaceIndex(input: SpaceIndexInput): string {
     memorySummaryCache.set(input.stateDir, {line: memoryLine, walkedAt: Date.now(), holdMs})
   }
 
-  const triggers = input.db
-    .query<{name: string; enabled: number}, [string, string]>(
-      `SELECT name, enabled FROM agent_triggers WHERE account_id = ? AND agent_id = ? ORDER BY name LIMIT 16`,
-    )
-    .all(input.accountId, input.agentId)
+  const triggers = stmt<{name: string; enabled: number}, [string, string]>(
+    input.db,
+    `SELECT name, enabled FROM agent_triggers WHERE account_id = ? AND agent_id = ? ORDER BY name LIMIT 16`,
+  ).all(input.accountId, input.agentId)
   const activeTriggers = triggers.filter((row) => row.enabled)
 
   const parts = [
@@ -9621,21 +9541,19 @@ type SessionContinuationLinks = Pick<api.SessionInfo, 'continuedFrom' | 'continu
  */
 function sessionContinuationLinksOf(db: Database, accountId: string, sessionId: string): SessionContinuationLinks {
   type EdgeRow = {id: string; other_id: string; other_title: string | null; reason: string; created_at: number}
-  const from = db
-    .query<EdgeRow, [string, string]>(
-      `SELECT c.id, c.predecessor_session_id AS other_id, p.title AS other_title, c.reason, c.created_at
+  const from = stmt<EdgeRow, [string, string]>(
+    db,
+    `SELECT c.id, c.predecessor_session_id AS other_id, p.title AS other_title, c.reason, c.created_at
          FROM session_continuations c LEFT JOIN sessions p ON p.id = c.predecessor_session_id
         WHERE c.account_id = ? AND c.successor_session_id = ?`,
-    )
-    .get(accountId, sessionId)
-  const to = db
-    .query<EdgeRow, [string, string]>(
-      `SELECT c.id, c.successor_session_id AS other_id, s.title AS other_title, c.reason, c.created_at
+  ).get(accountId, sessionId)
+  const to = stmt<EdgeRow, [string, string]>(
+    db,
+    `SELECT c.id, c.successor_session_id AS other_id, s.title AS other_title, c.reason, c.created_at
          FROM session_continuations c LEFT JOIN sessions s ON s.id = c.successor_session_id
         WHERE c.account_id = ? AND c.predecessor_session_id = ?
         ORDER BY c.created_at DESC LIMIT 1`,
-    )
-    .get(accountId, sessionId)
+  ).get(accountId, sessionId)
   const link = (row: EdgeRow): api.SessionContinuationLink => ({
     continuationId: row.id,
     sessionId: row.other_id,
@@ -11192,28 +11110,30 @@ function readThreadAddress(
 ): Record<string, unknown> {
   // Only this agent's own threads are readable — the same reach a continuation may cite. Agents
   // do not read each other's state; they communicate over public interfaces.
-  const session = context.db
-    .query<{id: string; title: string | null; description: string | null; agent_id: string}, [string, string]>(
-      `SELECT id, title, description, agent_id FROM sessions WHERE id = ? AND agent_id = ?`,
-    )
-    .get(sessionId, context.agentId)
+  const session = stmt<
+    {id: string; title: string | null; description: string | null; agent_id: string},
+    [string, string]
+  >(context.db, `SELECT id, title, description, agent_id FROM sessions WHERE id = ? AND agent_id = ?`).get(
+    sessionId,
+    context.agentId,
+  )
   if (!session) throw new APIError(404, `No thread ${sessionId}`)
   const fromSeq = Number.isInteger(options.fromSeq) ? Number(options.fromSeq) : undefined
   const toSeq = Number.isInteger(options.toSeq) ? Number(options.toSeq) : undefined
   const limit = Math.max(1, Math.min(1_000, Number.isInteger(options.limit) ? Number(options.limit) : 200))
   const rows =
     fromSeq !== undefined || toSeq !== undefined
-      ? context.db
-          .query<SessionEventRow, [string, number, number, number]>(
-            `SELECT id, session_id, seq, event_cbor, created_at FROM session_events
+      ? stmt<SessionEventRow, [string, number, number, number]>(
+          context.db,
+          `SELECT id, session_id, seq, event_cbor, created_at FROM session_events
              WHERE session_id = ? AND seq >= ? AND seq <= ? ORDER BY seq ASC LIMIT ?`,
-          )
+        )
           .all(sessionId, fromSeq ?? 1, toSeq ?? Number.MAX_SAFE_INTEGER, limit)
           .map(sessionEventRowToInfo)
-      : context.db
-          .query<SessionEventRow, [string, number]>(
-            `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq DESC LIMIT ?`,
-          )
+      : stmt<SessionEventRow, [string, number]>(
+          context.db,
+          `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq DESC LIMIT ?`,
+        )
           .all(sessionId, limit)
           .reverse()
           .map(sessionEventRowToInfo)
@@ -11265,14 +11185,14 @@ const AGENT_TRIGGER_INFO_COLUMNS = `id, account_id, agent_id, name, enabled, sou
 function deleteAgentTriggerRows(db: Database, accountId: string, triggerId: string): void {
   const transaction = db.transaction(() => {
     // Run history survives trigger deletion detached from its firing rows.
-    db.run(
+    stmt(
+      db,
       `UPDATE runs SET trigger_firing_id = NULL WHERE trigger_firing_id IN (
          SELECT id FROM trigger_firings WHERE account_id = ? AND trigger_id = ?)`,
-      [accountId, triggerId],
-    )
-    db.run(`DELETE FROM trigger_firings WHERE account_id = ? AND trigger_id = ?`, [accountId, triggerId])
-    db.run(`DELETE FROM webhook_trigger_credentials WHERE trigger_id = ?`, [triggerId])
-    db.run(`DELETE FROM agent_triggers WHERE account_id = ? AND id = ?`, [accountId, triggerId])
+    ).run([accountId, triggerId])
+    stmt(db, `DELETE FROM trigger_firings WHERE account_id = ? AND trigger_id = ?`).run([accountId, triggerId])
+    stmt(db, `DELETE FROM webhook_trigger_credentials WHERE trigger_id = ?`).run([triggerId])
+    stmt(db, `DELETE FROM agent_triggers WHERE account_id = ? AND id = ?`).run([accountId, triggerId])
   })
   transaction()
 }
@@ -11283,18 +11203,16 @@ function deleteAgentTriggerRows(db: Database, accountId: string, triggerId: stri
  * matches as ambiguous rather than picking one silently.
  */
 function triggerRowsByAddressName(db: Database, accountId: string, agentId: string, name: string): AgentTriggerRow[] {
-  const byName = db
-    .query<AgentTriggerRow, [string, string, string]>(
-      `SELECT ${AGENT_TRIGGER_INFO_COLUMNS} FROM agent_triggers
+  const byName = stmt<AgentTriggerRow, [string, string, string]>(
+    db,
+    `SELECT ${AGENT_TRIGGER_INFO_COLUMNS} FROM agent_triggers
        WHERE account_id = ? AND agent_id = ? AND name = ? ORDER BY updated_at DESC`,
-    )
-    .all(accountId, agentId, name)
+  ).all(accountId, agentId, name)
   if (byName.length > 0) return byName
-  const byId = db
-    .query<AgentTriggerRow, [string, string, string]>(
-      `SELECT ${AGENT_TRIGGER_INFO_COLUMNS} FROM agent_triggers WHERE account_id = ? AND agent_id = ? AND id = ?`,
-    )
-    .get(accountId, agentId, name)
+  const byId = stmt<AgentTriggerRow, [string, string, string]>(
+    db,
+    `SELECT ${AGENT_TRIGGER_INFO_COLUMNS} FROM agent_triggers WHERE account_id = ? AND agent_id = ? AND id = ?`,
+  ).get(accountId, agentId, name)
   return byId ? [byId] : []
 }
 
@@ -11341,12 +11259,11 @@ function triggerListingEntry(row: AgentTriggerRow): Record<string, unknown> {
 }
 
 function agentTriggerRows(db: Database, accountId: string, agentId: string): AgentTriggerRow[] {
-  return db
-    .query<AgentTriggerRow, [string, string]>(
-      `SELECT ${AGENT_TRIGGER_INFO_COLUMNS} FROM agent_triggers
+  return stmt<AgentTriggerRow, [string, string]>(
+    db,
+    `SELECT ${AGENT_TRIGGER_INFO_COLUMNS} FROM agent_triggers
        WHERE account_id = ? AND agent_id = ? ORDER BY updated_at DESC`,
-    )
-    .all(accountId, agentId)
+  ).all(accountId, agentId)
 }
 
 /** Lists this agent's triggers for `read ~/triggers/`. */
@@ -11390,22 +11307,21 @@ async function readTriggerAddress(context: AgentServicePiToolContext, name: stri
   const source = cbor.decode<api.AgentTriggerSource>(row.source_cbor)
   const continuation = row.continuation_cbor ? cbor.decode<api.TriggerContinuation>(row.continuation_cbor) : undefined
   const webhookSecret = source.type === 'webhook' ? readWebhookTriggerSecret(context.db, row.id) : undefined
-  const firings = context.db
-    .query<
-      {
-        id: string
-        session_id: string | null
-        run_id: string | null
-        status: string
-        error: string | null
-        created_at: number
-      },
-      [string, string]
-    >(
-      `SELECT id, session_id, run_id, status, error, created_at FROM trigger_firings
+  const firings = stmt<
+    {
+      id: string
+      session_id: string | null
+      run_id: string | null
+      status: string
+      error: string | null
+      created_at: number
+    },
+    [string, string]
+  >(
+    context.db,
+    `SELECT id, session_id, run_id, status, error, created_at FROM trigger_firings
        WHERE account_id = ? AND trigger_id = ? ORDER BY created_at DESC LIMIT 5`,
-    )
-    .all(context.accountId, row.id)
+  ).all(context.accountId, row.id)
   return {
     summary: `Trigger "${row.name}" is ${row.enabled ? 'active' : 'disabled'}: ${triggerSourceSummaryLine(
       source,
@@ -11509,53 +11425,53 @@ async function writeTriggerAddress(
   let webhookSecret: string | undefined
   if (row) {
     id = row.id
-    context.db.run(
+    stmt(
+      context.db,
       `UPDATE agent_triggers
        SET name = ?, enabled = ?, source_cbor = ?, prompt = ?, continuation_cbor = ?,
            updated_at = ?, last_error = NULL
        WHERE account_id = ? AND id = ?`,
-      [
-        trigger.name,
-        trigger.enabled ? 1 : 0,
-        cbor.encode(trigger.source),
-        serializePromptBlocksForStorage(trigger.prompt),
-        trigger.continuation ? cbor.encode(trigger.continuation) : null,
-        now,
-        context.accountId,
-        id,
-      ],
-    )
+    ).run([
+      trigger.name,
+      trigger.enabled ? 1 : 0,
+      cbor.encode(trigger.source),
+      serializePromptBlocksForStorage(trigger.prompt),
+      trigger.continuation ? cbor.encode(trigger.continuation) : null,
+      now,
+      context.accountId,
+      id,
+    ])
   } else {
     id = crypto.randomUUID()
-    context.db.run(
+    stmt(
+      context.db,
       `INSERT INTO agent_triggers (id, account_id, agent_id, name, enabled, source_cbor, prompt,
          continuation_cbor, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        context.accountId,
-        context.agentId,
-        trigger.name,
-        trigger.enabled ? 1 : 0,
-        cbor.encode(trigger.source),
-        serializePromptBlocksForStorage(trigger.prompt),
-        trigger.continuation ? cbor.encode(trigger.continuation) : null,
-        now,
-        now,
-      ],
-    )
+    ).run([
+      id,
+      context.accountId,
+      context.agentId,
+      trigger.name,
+      trigger.enabled ? 1 : 0,
+      cbor.encode(trigger.source),
+      serializePromptBlocksForStorage(trigger.prompt),
+      trigger.continuation ? cbor.encode(trigger.continuation) : null,
+      now,
+      now,
+    ])
     if (trigger.source.type === 'webhook') {
       webhookSecret = nodeCrypto.randomBytes(32).toString('base64url')
-      context.db.run(
+      stmt(
+        context.db,
         `INSERT INTO webhook_trigger_credentials (trigger_id, secret_hash, secret_ciphertext, created_at)
          VALUES (?, ?, ?, ?)`,
-        [
-          id,
-          nodeCrypto.createHash('sha256').update(webhookSecret).digest(),
-          encryptSecret(context.db, new TextEncoder().encode(webhookSecret)),
-          now,
-        ],
-      )
+      ).run([
+        id,
+        nodeCrypto.createHash('sha256').update(webhookSecret).digest(),
+        encryptSecret(context.db, new TextEncoder().encode(webhookSecret)),
+        now,
+      ])
     }
   }
   context.onTriggersChange?.()
@@ -11589,11 +11505,10 @@ async function writeTriggerAddress(
 /** Reads `~/self`: everything the agent is allowed to know about its own configuration. */
 function readSelfAddress(context: AgentServicePiToolContext): Record<string, unknown> {
   const definition = context.definition
-  const provider = context.db
-    .query<{id: string; name: string; type: string}, [string, string]>(
-      `SELECT id, name, type FROM model_providers WHERE account_id = ? AND id = ?`,
-    )
-    .get(context.accountId, definition.modelProvider)
+  const provider = stmt<{id: string; name: string; type: string}, [string, string]>(
+    context.db,
+    `SELECT id, name, type FROM model_providers WHERE account_id = ? AND id = ?`,
+  ).get(context.accountId, definition.modelProvider)
   let systemPrompt = ''
   try {
     systemPrompt =
@@ -11613,9 +11528,10 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
     }
   } catch {}
   const sessionCount =
-    context.db
-      .query<{n: number}, [string, string]>(`SELECT COUNT(*) AS n FROM sessions WHERE account_id = ? AND agent_id = ?`)
-      .get(context.accountId, context.agentId)?.n ?? 0
+    stmt<{n: number}, [string, string]>(
+      context.db,
+      `SELECT COUNT(*) AS n FROM sessions WHERE account_id = ? AND agent_id = ?`,
+    ).get(context.accountId, context.agentId)?.n ?? 0
   const signingKeys = definition.signingKeys ?? (definition.signingKey ? [definition.signingKey] : [])
   return {
     summary: `You are "${definition.name}" (${definition.model}) with ${triggerRows.length} trigger${
@@ -11680,10 +11596,10 @@ function threadsListing(context: AgentServicePiToolContext, options: Record<stri
     updated_at: number
   }
   const agentNames = new Map(
-    context.db
-      .query<{id: string; definition_cbor: Uint8Array}, [string]>(
-        `SELECT id, definition_cbor FROM agents WHERE account_id = ?`,
-      )
+    stmt<{id: string; definition_cbor: Uint8Array}, [string]>(
+      context.db,
+      `SELECT id, definition_cbor FROM agents WHERE account_id = ?`,
+    )
       .all(context.accountId)
       .map((row) => {
         try {
@@ -11702,12 +11618,11 @@ function threadsListing(context: AgentServicePiToolContext, options: Record<stri
       params.push(...ids)
     }
     params.push(ids ? ids.length : limit)
-    return context.db
-      .query<ThreadRow, (string | number)[]>(
-        `SELECT id, agent_id, title, description, status, parent_session_id, created_at, updated_at
+    return stmt<ThreadRow, (string | number)[]>(
+      context.db,
+      `SELECT id, agent_id, title, description, status, parent_session_id, created_at, updated_at
          FROM sessions WHERE ${conditions.join(' AND ')} ORDER BY updated_at DESC LIMIT ?`,
-      )
-      .all(...params)
+    ).all(...params)
   }
   const entry = (row: ThreadRow, snippet?: string): Record<string, unknown> => ({
     thread: `thread:${row.id}`,
@@ -11732,23 +11647,22 @@ function threadsListing(context: AgentServicePiToolContext, options: Record<stri
   }
 
   // Title matches: scan the most recent 400 sessions in JS (no LIKE-escaping pitfalls).
-  const titleMatches = context.db
-    .query<ThreadRow, (string | number)[]>(
-      `SELECT id, agent_id, title, description, status, parent_session_id, created_at, updated_at
+  const titleMatches = stmt<ThreadRow, (string | number)[]>(
+    context.db,
+    `SELECT id, agent_id, title, description, status, parent_session_id, created_at, updated_at
        FROM sessions WHERE account_id = ?${agentId ? ' AND agent_id = ?' : ''} ORDER BY updated_at DESC LIMIT 400`,
-    )
+  )
     .all(...(agentId ? [context.accountId, agentId] : [context.accountId]))
     .filter((row) => `${row.title ?? ''}\n${row.description ?? ''}`.toLowerCase().includes(query))
   // Content matches: a bounded scan over the most recent message events, one snippet per thread.
   const snippets = new Map<string, string>()
-  const eventRows = context.db
-    .query<{session_id: string; event_cbor: Uint8Array}, (string | number)[]>(
-      `SELECT e.session_id, e.event_cbor FROM session_events e
+  const eventRows = stmt<{session_id: string; event_cbor: Uint8Array}, (string | number)[]>(
+    context.db,
+    `SELECT e.session_id, e.event_cbor FROM session_events e
        JOIN sessions s ON s.id = e.session_id
        WHERE s.account_id = ?${agentId ? ' AND s.agent_id = ?' : ''}
        ORDER BY e.created_at DESC LIMIT 4000`,
-    )
-    .all(...(agentId ? [context.accountId, agentId] : [context.accountId]))
+  ).all(...(agentId ? [context.accountId, agentId] : [context.accountId]))
   for (const eventRow of eventRows) {
     if (snippets.has(eventRow.session_id)) continue
     let event: {type?: string; content?: unknown}
@@ -11781,11 +11695,10 @@ function threadsListing(context: AgentServicePiToolContext, options: Record<stri
  * or compaction — the transcript is the pin.
  */
 export function expandedCallablesFromEvents(db: Database, sessionId: string): string[] {
-  const rows = db
-    .query<SessionEventRow, [string]>(
-      `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
-    )
-    .all(sessionId)
+  const rows = stmt<SessionEventRow, [string]>(
+    db,
+    `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
+  ).all(sessionId)
   const expanded = new Set<string>()
   for (const row of rows) {
     const event = sessionEventRowToInfo(row).event as {
@@ -12903,11 +12816,10 @@ async function resolveWriteSigner(
 
   const selected = matches[0]
   if (!selected) throw new APIError(400, 'Signing identity not found')
-  const row = context.db
-    .query<{ciphertext: Uint8Array}, [string, string]>(
-      `SELECT ciphertext FROM secrets WHERE account_id = ? AND name = ?`,
-    )
-    .get(context.accountId, selected.secretName)
+  const row = stmt<{ciphertext: Uint8Array}, [string, string]>(
+    context.db,
+    `SELECT ciphertext FROM secrets WHERE account_id = ? AND name = ?`,
+  ).get(context.accountId, selected.secretName)
   if (!row) throw new APIError(400, 'Signing identity secret not found')
   const keyPair = blobs.nobleKeyPairFromSeed(decryptSecret(context.db, row.ciphertext))
   return {
@@ -12928,11 +12840,10 @@ async function listWriteSigningIdentities(
   const deduped = Array.from(new Set(allowedSecretNames))
   const identities = []
   for (const secretName of deduped) {
-    const row = db
-      .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
-        `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
-      )
-      .get(accountId, secretName)
+    const row = stmt<{metadata_cbor: Uint8Array | null}, [string, string]>(
+      db,
+      `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+    ).get(accountId, secretName)
     if (!row?.metadata_cbor) continue
     const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
     if (metadata.kind !== 'hm-account-key') continue
@@ -12957,17 +12868,16 @@ async function writeProfileUpdate(
   const profile = await blobs.createProfile(signer.keyPair, {name, description, avatar}, Date.now())
   const published = await client.publish({blobs: [{cid: profile.cid.toString(), data: profile.data}]})
   const now = Date.now()
-  const row = context.db
-    .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
-      `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
-    )
-    .get(context.accountId, signer.secretName)
+  const row = stmt<{metadata_cbor: Uint8Array | null}, [string, string]>(
+    context.db,
+    `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+  ).get(context.accountId, signer.secretName)
   if (row?.metadata_cbor) {
     const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
     if (metadata.kind === 'hm-account-key') {
       // Keep the stored snapshot in step with the profile just published, including the avatar,
       // so identity listings do not fall back to a placeholder after the agent sets its own icon.
-      context.db.run(`UPDATE secrets SET metadata_cbor = ?, updated_at = ? WHERE account_id = ? AND name = ?`, [
+      stmt(context.db, `UPDATE secrets SET metadata_cbor = ?, updated_at = ? WHERE account_id = ? AND name = ?`).run([
         cbor.encode({...metadata, label: name, accountId: signer.publicKey, ...(avatar ? {icon: avatar} : {})}),
         now,
         context.accountId,
@@ -13706,27 +13616,27 @@ function writeDraftCreate(
   const draftId = crypto.randomUUID()
   if (request.dryRun) return writeToolResult(request.command, undefined, {draftId, name, metadata, dryRun: true})
   const now = Date.now()
-  context.db.run(
+  stmt(
+    context.db,
     `INSERT INTO agent_drafts (id, account_id, agent_id, signer_secret_name, title, content_format, content_cbor, metadata_cbor, edit_target, location_target, path_name, visibility, status, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      draftId,
-      context.accountId,
-      context.agentId,
-      null,
-      name,
-      'json',
-      cbor.encode(parsed.blocks),
-      cbor.encode(metadata),
-      nullableString(request.input.edit),
-      nullableString(request.input.location),
-      nullableString(request.input.path),
-      nullableString(request.input.visibility),
-      'idle',
-      now,
-      now,
-    ],
-  )
+  ).run([
+    draftId,
+    context.accountId,
+    context.agentId,
+    null,
+    name,
+    'json',
+    cbor.encode(parsed.blocks),
+    cbor.encode(metadata),
+    nullableString(request.input.edit),
+    nullableString(request.input.location),
+    nullableString(request.input.path),
+    nullableString(request.input.visibility),
+    'idle',
+    now,
+    now,
+  ])
   return writeToolResult(request.command, undefined, {draftId, name, metadata})
 }
 
@@ -13750,22 +13660,22 @@ function writeDraftUpdate(
     existing.title ||
     'Untitled'
   if (request.dryRun) return writeToolResult(request.command, undefined, {draftId, name, metadata, dryRun: true})
-  context.db.run(
+  stmt(
+    context.db,
     `UPDATE agent_drafts SET title = ?, content_cbor = ?, metadata_cbor = ?, edit_target = COALESCE(?, edit_target), location_target = COALESCE(?, location_target), path_name = COALESCE(?, path_name), visibility = COALESCE(?, visibility), updated_at = ? WHERE account_id = ? AND agent_id = ? AND id = ?`,
-    [
-      name,
-      cbor.encode(blocks),
-      cbor.encode(metadata),
-      undefinedToNull(request.input.edit) ?? null,
-      undefinedToNull(request.input.location) ?? null,
-      undefinedToNull(request.input.path) ?? null,
-      undefinedToNull(request.input.visibility) ?? null,
-      Date.now(),
-      context.accountId,
-      context.agentId,
-      draftId,
-    ],
-  )
+  ).run([
+    name,
+    cbor.encode(blocks),
+    cbor.encode(metadata),
+    undefinedToNull(request.input.edit) ?? null,
+    undefinedToNull(request.input.location) ?? null,
+    undefinedToNull(request.input.path) ?? null,
+    undefinedToNull(request.input.visibility) ?? null,
+    Date.now(),
+    context.accountId,
+    context.agentId,
+    draftId,
+  ])
   return writeToolResult(request.command, undefined, {draftId, name, metadata})
 }
 
@@ -13797,21 +13707,20 @@ function writeDraftList(
   request: ReturnType<typeof normalizeWriteToolRequest>,
 ): Record<string, unknown> {
   const limit = Math.min(normalizeOptionalNumber(request.input.limit, 'Draft list limit') ?? 50, 100)
-  const rows = context.db
-    .query<
-      {
-        id: string
-        title: string | null
-        status: string
-        edit_target: string | null
-        location_target: string | null
-        updated_at: number
-      },
-      [string, string, number]
-    >(
-      `SELECT id, title, status, edit_target, location_target, updated_at FROM agent_drafts WHERE account_id = ? AND agent_id = ? AND status <> 'deleted' ORDER BY updated_at DESC LIMIT ?`,
-    )
-    .all(context.accountId, context.agentId, limit)
+  const rows = stmt<
+    {
+      id: string
+      title: string | null
+      status: string
+      edit_target: string | null
+      location_target: string | null
+      updated_at: number
+    },
+    [string, string, number]
+  >(
+    context.db,
+    `SELECT id, title, status, edit_target, location_target, updated_at FROM agent_drafts WHERE account_id = ? AND agent_id = ? AND status <> 'deleted' ORDER BY updated_at DESC LIMIT ?`,
+  ).all(context.accountId, context.agentId, limit)
   return writeToolResult(request.command, undefined, {
     drafts: rows.map(({title, ...row}) => ({...row, name: title})),
   })
@@ -13824,10 +13733,10 @@ function writeDraftDelete(
   const draftId = normalizeBoundedString(request.input.draft ?? request.input.draftId, 'Draft ID', MAX_NAME_BYTES)
   getDraftRow(context, draftId)
   if (request.dryRun) return writeToolResult(request.command, undefined, {draftId, dryRun: true})
-  context.db.run(
+  stmt(
+    context.db,
     `UPDATE agent_drafts SET status = ?, updated_at = ? WHERE account_id = ? AND agent_id = ? AND id = ?`,
-    ['deleted', Date.now(), context.accountId, context.agentId, draftId],
-  )
+  ).run(['deleted', Date.now(), context.accountId, context.agentId, draftId])
   return writeToolResult(request.command, undefined, {draftId, status: 'deleted'})
 }
 
@@ -13860,19 +13769,19 @@ async function writeDraftPublish(
   const result = row.edit_target
     ? await writeDocumentUpdate(client, signer, publishRequest)
     : await writeDocumentCreate(client, signer, publishRequest)
-  context.db.run(
+  stmt(
+    context.db,
     `UPDATE agent_drafts SET status = ?, published_at = ?, published_id = ?, published_version = ?, updated_at = ? WHERE account_id = ? AND agent_id = ? AND id = ?`,
-    [
-      'published',
-      Date.now(),
-      typeof result.id === 'string' ? result.id : null,
-      typeof result.version === 'string' ? result.version : null,
-      Date.now(),
-      context.accountId,
-      context.agentId,
-      draftId,
-    ],
-  )
+  ).run([
+    'published',
+    Date.now(),
+    typeof result.id === 'string' ? result.id : null,
+    typeof result.version === 'string' ? result.version : null,
+    Date.now(),
+    context.accountId,
+    context.agentId,
+    draftId,
+  ])
   return {...result, command: request.command, draftId}
 }
 
@@ -14493,24 +14402,23 @@ function titleFromMemoryPath(memoryPath: string): string {
 }
 
 function getDraftRow(context: WriteToolContext, draftId: string) {
-  const row = context.db
-    .query<
-      {
-        id: string
-        title: string | null
-        content_cbor: Uint8Array
-        metadata_cbor: Uint8Array | null
-        edit_target: string | null
-        location_target: string | null
-        path_name: string | null
-        visibility: string | null
-        status: string
-      },
-      [string, string, string]
-    >(
-      `SELECT id, title, content_cbor, metadata_cbor, edit_target, location_target, path_name, visibility, status FROM agent_drafts WHERE account_id = ? AND agent_id = ? AND id = ?`,
-    )
-    .get(context.accountId, context.agentId, draftId)
+  const row = stmt<
+    {
+      id: string
+      title: string | null
+      content_cbor: Uint8Array
+      metadata_cbor: Uint8Array | null
+      edit_target: string | null
+      location_target: string | null
+      path_name: string | null
+      visibility: string | null
+      status: string
+    },
+    [string, string, string]
+  >(
+    context.db,
+    `SELECT id, title, content_cbor, metadata_cbor, edit_target, location_target, path_name, visibility, status FROM agent_drafts WHERE account_id = ? AND agent_id = ? AND id = ?`,
+  ).get(context.accountId, context.agentId, draftId)
   if (!row || row.status === 'deleted') throw new APIError(404, 'Draft not found')
   return row
 }
@@ -15722,11 +15630,10 @@ function encryptSecret(db: Database, plaintext: Uint8Array): Uint8Array {
 
 /** The plaintext webhook secret for a trigger, or undefined when none was kept. */
 function readWebhookTriggerSecret(db: Database, triggerId: string): string | undefined {
-  const row = db
-    .query<{secret_ciphertext: Uint8Array | null}, [string]>(
-      `SELECT secret_ciphertext FROM webhook_trigger_credentials WHERE trigger_id = ?`,
-    )
-    .get(triggerId)
+  const row = stmt<{secret_ciphertext: Uint8Array | null}, [string]>(
+    db,
+    `SELECT secret_ciphertext FROM webhook_trigger_credentials WHERE trigger_id = ?`,
+  ).get(triggerId)
   if (!row?.secret_ciphertext) return undefined
   return new TextDecoder().decode(decryptSecret(db, row.secret_ciphertext))
 }
@@ -15748,13 +15655,14 @@ function decryptSecret(db: Database, ciphertext: Uint8Array): Uint8Array {
 }
 
 function getOrCreateSecretEncryptionKey(db: Database): Uint8Array {
-  const row = db
-    .query<{value: Uint8Array | ArrayBuffer}, [string]>(`SELECT value FROM server_config WHERE key = ?`)
-    .get(SECRET_KEY_CONFIG_KEY)
+  const row = stmt<{value: Uint8Array | ArrayBuffer}, [string]>(
+    db,
+    `SELECT value FROM server_config WHERE key = ?`,
+  ).get(SECRET_KEY_CONFIG_KEY)
   if (row) return row.value instanceof Uint8Array ? row.value : new Uint8Array(row.value)
 
   const key = crypto.getRandomValues(new Uint8Array(32))
-  db.run(`INSERT INTO server_config (key, value) VALUES (?, ?)`, [SECRET_KEY_CONFIG_KEY, key])
+  stmt(db, `INSERT INTO server_config (key, value) VALUES (?, ?)`).run([SECRET_KEY_CONFIG_KEY, key])
   return key
 }
 

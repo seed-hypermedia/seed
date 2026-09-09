@@ -2,6 +2,7 @@ import {Database} from 'bun:sqlite'
 import schemaSQL from './sqlite-schema.sql' with {type: 'text'}
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import {finalizeStatements, stmt} from '@/statements'
 
 /** Legacy schema key used before migration-version tracking. */
 export const LEGACY_SCHEMA_VERSION_KEY = 'schema_version'
@@ -323,6 +324,12 @@ export function open(dbPath: string): OpenResult {
   return result
 }
 
+/** Releases the prepared statements cached for `db` (see statements.ts), then closes it. */
+export function closeDatabase(db: Database): void {
+  finalizeStatements(db)
+  db.close()
+}
+
 /** Initializes or validates an already-open database. */
 export function openWithDatabase(db: Database): OpenResult {
   db.run('PRAGMA journal_mode = WAL')
@@ -383,8 +390,7 @@ export function openWithDatabase(db: Database): OpenResult {
  */
 export function ensureBaselineTables(db: Database): string[] {
   const existing = new Set(
-    db
-      .query<{name: string}, []>(`SELECT name FROM sqlite_schema WHERE type IN ('table', 'index')`)
+    stmt<{name: string}, []>(db, `SELECT name FROM sqlite_schema WHERE type IN ('table', 'index')`)
       .all()
       .map((row) => row.name),
   )
@@ -496,7 +502,7 @@ export function stripSQLComments(sql: string): string {
 }
 
 function isEmptyDatabase(db: Database): boolean {
-  return db.query<{count: number}, []>('SELECT count(*) as count FROM sqlite_schema').get()?.count === 0
+  return stmt<{count: number}, []>(db, 'SELECT count(*) as count FROM sqlite_schema').get()?.count === 0
 }
 
 function initializeEmptyDatabase(db: Database): void {
@@ -512,13 +518,14 @@ function initializeEmptyDatabase(db: Database): void {
 }
 
 function hasServerConfigTable(db: Database): boolean {
-  return db.query(`SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'server_config' LIMIT 1`).get() !== null
+  return stmt(db, `SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'server_config' LIMIT 1`).get() !== null
 }
 
 function getServerConfigValue(db: Database, key: string): string | null {
-  const row = db
-    .query<{value: string | Uint8Array | ArrayBuffer}, [string]>(`SELECT value FROM server_config WHERE key = ?`)
-    .get(key)
+  const row = stmt<{value: string | Uint8Array | ArrayBuffer}, [string]>(
+    db,
+    `SELECT value FROM server_config WHERE key = ?`,
+  ).get(key)
   if (!row) return null
   if (typeof row.value === 'string') return row.value
   const bytes = row.value instanceof Uint8Array ? row.value : new Uint8Array(row.value)
@@ -526,11 +533,11 @@ function getServerConfigValue(db: Database, key: string): string | null {
 }
 
 function setServerConfigValue(db: Database, key: string, value: string): void {
-  db.run(
+  stmt(
+    db,
     `INSERT INTO server_config (key, value) VALUES (?, ?)
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-    [key, value],
-  )
+  ).run([key, value])
 }
 
 function parseSchemaMigrationVersion(value: string): number | null {

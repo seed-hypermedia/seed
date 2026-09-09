@@ -32,7 +32,7 @@ describe('main routes', () => {
         expect(decoded).toEqual({_: 'ListAgentsResponse', agents: []})
       }
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -69,7 +69,7 @@ describe('main routes', () => {
       )
       expect(invalidSig.status).toBe(401)
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -99,7 +99,7 @@ describe('main routes', () => {
         message: 'Action timestamp is outside allowed window',
       })
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -136,7 +136,7 @@ describe('main routes', () => {
       const searchOnlyBody = await (await searchOnly()).json()
       expect(searchOnlyBody.webTools).toEqual({search: true, readBrowser: false})
     } finally {
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -363,7 +363,7 @@ describe('main routes', () => {
       ).toBe(0)
     } finally {
       svc.stopRunQueue()
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -445,7 +445,7 @@ describe('webhook tool continuation', () => {
       expect(fetched.firings[0]!.sessionId).toBeUndefined()
     } finally {
       svc.stopRunQueue()
-      db.close()
+      sqlite.closeDatabase(db)
       cleanup()
     }
   })
@@ -506,7 +506,7 @@ describe('trigger creation under concurrent requests', () => {
       ])
     } finally {
       svc.stopRunQueue()
-      db.close()
+      sqlite.closeDatabase(db)
       fs.rmSync(dataDir, {recursive: true, force: true})
     }
   })
