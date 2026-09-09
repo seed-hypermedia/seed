@@ -1,4 +1,11 @@
 import type * as AgentsProtocol from '@seed-hypermedia/agents-protocol'
+import {
+  AGENTS_PROTOCOL_HEADER,
+  AGENTS_PROTOCOL_VERSION,
+  IMPLICIT_PROTOCOL_VERSION,
+  MIN_SERVER_PROTOCOL,
+  declaredProtocolVersion,
+} from '@seed-hypermedia/agents-protocol'
 import * as blobs from '@shm/shared/blobs'
 import * as cbor from '@shm/shared/cbor'
 import {getAgentsPlatform} from './platform'
@@ -209,6 +216,9 @@ export async function signAgentAction(input: {accountUid: string; action: AgentA
           ...(delegation.capabilityBlob ? {capabilityBlob: delegation.capabilityBlob} : {}),
         }
       : {}),
+    // Signed with the rest: the server answers in this protocol's shape, or refuses if it no
+    // longer serves it (see `agents/protocol/PROTOCOL.md`).
+    protocol: AGENTS_PROTOCOL_VERSION,
     action: {...omitUndefined(input.action), ts: Date.now()},
   } as unknown as blobs.Blob)
 }
@@ -236,11 +246,52 @@ function omitUndefined<T>(value: T): T {
  */
 export class AgentServerError extends Error {
   readonly status: number
-  constructor(message: string, status: number) {
+  /** The server's machine-readable cause, when it sent one. */
+  readonly code?: AgentsProtocol.ErrorResponse['code']
+  constructor(message: string, status: number, code?: AgentsProtocol.ErrorResponse['code']) {
     super(message)
     this.name = 'AgentServerError'
     this.status = status
+    if (code) this.code = code
   }
+}
+
+/**
+ * The client and server speak protocol versions that cannot be reconciled: either the server has
+ * retired this app's version (`client_too_old`, the server said so) or the server is older than
+ * this app still supports (`server_too_old`, judged from the server's advertised version).
+ *
+ * Either way the fix is an update, of the app or of the server, and the message says which. Call
+ * sites treat it like any refusal: the content is not shown, the reason is.
+ */
+export class AgentProtocolError extends AgentServerError {
+  readonly mismatch: 'client_too_old' | 'server_too_old'
+  constructor(mismatch: AgentProtocolError['mismatch'], message: string, status: number) {
+    super(message, status, mismatch === 'client_too_old' ? 'protocol_too_old' : undefined)
+    this.name = 'AgentProtocolError'
+    this.mismatch = mismatch
+  }
+}
+
+/**
+ * The protocol version a server advertised on a response, read from its header. Servers from
+ * before protocol 2 send no header, which counts as protocol 1.
+ */
+export function serverProtocolOf(headers: Headers): number {
+  const raw = headers.get(AGENTS_PROTOCOL_HEADER)
+  if (raw === null) return IMPLICIT_PROTOCOL_VERSION
+  return declaredProtocolVersion(Number(raw))
+}
+
+/** Throws when a server's advertised protocol is older than this build still accepts. */
+export function assertServerProtocolSupported(headers: Headers): void {
+  const serverProtocol = serverProtocolOf(headers)
+  if (serverProtocol >= MIN_SERVER_PROTOCOL) return
+  throw new AgentProtocolError(
+    'server_too_old',
+    `This agents server speaks protocol ${serverProtocol}, but this app needs protocol ${MIN_SERVER_PROTOCOL} or newer. Update the server to continue.`,
+    0,
+  )
 }
 
 export async function sendAgentAction(input: {
@@ -258,10 +309,17 @@ export async function sendAgentAction(input: {
   })
   const decoded = cbor.decode<AgentsResponse>(new Uint8Array(await res.arrayBuffer()))
   if (!res.ok || decoded._ === 'Error') {
+    if (decoded._ === 'Error' && decoded.code === 'protocol_too_old') {
+      throw new AgentProtocolError('client_too_old', decoded.message, res.status)
+    }
     throw new AgentServerError(
       decoded._ === 'Error' ? decoded.message : `Agent server request failed: HTTP ${res.status}`,
       res.status,
+      decoded._ === 'Error' ? decoded.code : undefined,
     )
   }
+  // Checked after the server's own verdict: a too-old server that still managed to refuse the
+  // request has said something more specific than "too old".
+  assertServerProtocolSupported(res.headers)
   return decoded
 }

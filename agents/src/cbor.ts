@@ -1,4 +1,5 @@
 import * as sharedCBOR from '@shm/shared/cbor'
+import {AGENTS_PROTOCOL_HEADER, AGENTS_PROTOCOL_VERSION} from '@seed-hypermedia/agents-protocol'
 
 /** Encodes a value as canonical DAG-CBOR bytes. */
 export function encode<T = unknown>(value: T): Uint8Array {
@@ -18,6 +19,10 @@ export function response(value: unknown, init?: ResponseInit): Response {
       'Access-Control-Allow-Headers': 'Content-Type, Accept',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Origin': '*',
+      // Browsers hide response headers from cross-origin scripts unless exposed; the client reads
+      // this one to tell a server it is too new for (see `agents/protocol/PROTOCOL.md`).
+      'Access-Control-Expose-Headers': AGENTS_PROTOCOL_HEADER,
+      [AGENTS_PROTOCOL_HEADER]: String(AGENTS_PROTOCOL_VERSION),
       'Content-Type': 'application/cbor',
       ...(init?.headers ?? {}),
     },

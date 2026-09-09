@@ -1,4 +1,5 @@
 import type * as api from '@/api'
+import {AGENTS_PROTOCOL_HEADER, AGENTS_PROTOCOL_VERSION, MIN_CLIENT_PROTOCOL} from '@seed-hypermedia/agents-protocol'
 import {ActivityMonitor} from '@/activity-monitor'
 import * as apisvc from '@/api-service'
 import {getBuildInfo} from '@/build-info'
@@ -52,7 +53,10 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
       return cbor.response(await svc.message(envelope))
     } catch (error) {
       if (error instanceof apisvc.APIError) {
-        return cbor.response({_: 'Error', message: error.message} satisfies api.ErrorResponse, {status: error.status})
+        return cbor.response(
+          {_: 'Error', message: error.message, ...(error.code ? {code: error.code} : {})} satisfies api.ErrorResponse,
+          {status: error.status},
+        )
       }
       // A thrown non-API error must still come back as a CORS-bearing CBOR error: Bun's bare 500
       // carries no Access-Control-Allow-Origin, which browsers report only as "Failed to fetch".
@@ -115,6 +119,8 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
         status: 'ok',
         uptime: process.uptime(),
         version: buildInfo.version,
+        protocol: AGENTS_PROTOCOL_VERSION,
+        minClientProtocol: MIN_CLIENT_PROTOCOL,
         hmServerUrl: svc.hmServerUrl,
         ipfsServerUrl: svc.ipfsServerUrl,
         webTools: svc.webToolCapabilities(),
@@ -129,7 +135,11 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
       {headers: corsHeaders()},
     )
   }
-  const version = () => Response.json(buildInfo, {headers: corsHeaders()})
+  const version = () =>
+    Response.json(
+      {...buildInfo, protocol: AGENTS_PROTOCOL_VERSION, minClientProtocol: MIN_CLIENT_PROTOCOL},
+      {headers: corsHeaders()},
+    )
   // Aggregate latency stats (metric names and millisecond percentiles only — no ids, no content),
   // so "is this server slow, and where" is one curl away. Same exposure class as /api/health.
   const perf = () => Response.json(perfSnapshot(), {headers: corsHeaders()})
@@ -272,6 +282,8 @@ function corsHeaders(): HeadersInit {
     'Access-Control-Allow-Headers': 'Content-Type, Accept',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Origin': '*',
+    'Access-Control-Expose-Headers': AGENTS_PROTOCOL_HEADER,
+    [AGENTS_PROTOCOL_HEADER]: String(AGENTS_PROTOCOL_VERSION),
   }
 }
 

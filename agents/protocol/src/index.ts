@@ -2,8 +2,10 @@ export * from './tool-registry'
 import type {JsonSchema} from './tool-registry'
 export * from './reasoning'
 export * from './model-capabilities'
+export * from './version'
 
 import type {ReasoningLevel} from './reasoning'
+import type {ProtocolErrorCode} from './version'
 
 /** Shared options for Seed assistant/agent system prompt construction. */
 export type SeedAssistantPromptOptions = {
@@ -151,6 +153,12 @@ export type SignedActionEnvelope = {
    * (or need not) fetch it from the network. Must hash to {@link capability}.
    */
   capabilityBlob?: Uint8Array
+  /**
+   * The protocol version the client speaks ({@link AGENTS_PROTOCOL_VERSION} at build time). Signed
+   * with the rest of the envelope. Absent from clients built before protocol 2, which servers read
+   * as protocol 1; see `agents/protocol/PROTOCOL.md`.
+   */
+  protocol?: number
   action: AgentAction
 }
 
@@ -1961,6 +1969,12 @@ export type GetAgentResponse = {
    * sessions themselves come from `ListSessions {agentId, includeChildren: false}`.
    */
   sessionCount: number
+  /**
+   * @deprecated Protocol 1 answered every session of the agent here. Servers still fill it (newest
+   * page only) for clients that declare no protocol; protocol 2 clients never receive it. Removed
+   * when `MIN_CLIENT_PROTOCOL` reaches 2.
+   */
+  sessions?: SessionInfo[]
 }
 
 /** Successful response for `ListAgentTriggers`. */
@@ -2329,6 +2343,8 @@ export type StopSessionResponse = {
 export type ErrorResponse = {
   _: 'Error'
   message: string
+  /** Machine-readable cause for errors a client is expected to act on, e.g. `protocol_too_old`. */
+  code?: ProtocolErrorCode
 }
 
 /** Response values for the Agents API. */
