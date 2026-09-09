@@ -14,7 +14,7 @@ import * as fs from 'node:fs'
 import * as filepath from 'node:path'
 
 /** Data attached to each WebSocket connection. */
-type WSData = {
+export type WSData = {
   connectedAt: number
   subscriptions: Set<string>
   /**
@@ -216,41 +216,55 @@ function summarizeWSEvent(event: api.AgentWSEvent): Record<string, unknown> {
   return {type: event._}
 }
 
+/**
+ * How far a published event travels: only to sockets subscribed to its exact key (`direct`), or
+ * also to the account-wide `account/<id>` subscription (`account`).
+ *
+ * Transcript frames — appends, streaming partials, session snapshots — are `direct`. The
+ * account-wide subscription is held by every open desktop window and signed-in web tab (it feeds
+ * the unread indicator), so fanning every session's streaming text to all of them was most of the
+ * socket traffic, and none of those clients used it: the sidebar and lists take what they need
+ * from the account hints, which carry the session snapshot and the agent's activity rollup.
+ */
+export type WSDeliveryScope = 'direct' | 'account'
+
+/** Whether one socket should receive an event addressed to `key` from `sourceAccountId`. */
+export function wsShouldDeliver(data: WSData, sourceAccountId: string, key: string, scope: WSDeliveryScope): boolean {
+  // Not this socket's account: only the owner's events for a publicly-read key pass through.
+  if (data.accountId !== sourceAccountId) return data.publicSubscriptions.get(key) === sourceAccountId
+  if (data.subscriptions.has(key)) return true
+  return scope === 'account' && !!data.accountId && data.subscriptions.has(`account/${data.accountId}`)
+}
+
 function sendIfSubscribed(
   ws: ServerWebSocket<WSData>,
   sourceAccountId: string,
   key: string,
   event: api.AgentWSEvent,
+  scope: WSDeliveryScope = 'account',
 ): void {
-  if (ws.data.accountId !== sourceAccountId) {
-    // Not this socket's account: only the owner's events for a publicly-read key pass through, and
-    // an agent snapshot is downgraded so a public reader never sees the owner's access role — it
-    // gets the role public access grants, which the snapshot's own flags determine.
-    if (ws.data.publicSubscriptions.get(key) !== sourceAccountId) return
-    if (event._ === 'change' && event.key.startsWith('agents/')) {
-      const agent = event.value as api.AgentInfo
-      const value = {...agent, accessRole: agent.publicChat ? 'chatter' : 'reader'} satisfies api.AgentInfo
-      sendWS(ws, {...event, value} as api.AgentWSEvent)
-      return
+  if (!wsShouldDeliver(ws.data, sourceAccountId, key, scope)) {
+    if (event._ === 'appendPartial' && ws.data.accountId === sourceAccountId) {
+      log.debug('[agents/ws] skip partial; no subscription', {
+        key,
+        accountId: ws.data.accountId,
+        subscriptions: Array.from(ws.data.subscriptions),
+      })
     }
-    sendWS(ws, event)
     return
   }
-  const direct = ws.data.subscriptions.has(key)
-  const accountKey = ws.data.accountId ? `account/${ws.data.accountId}` : undefined
-  const accountWide = accountKey ? ws.data.subscriptions.has(accountKey) : false
-  if (direct || accountWide) {
-    if (event._ === 'appendPartial') {
-      log.debug('[agents/ws] send partial', {...summarizeWSEvent(event), direct, accountWide})
-    }
-    sendWS(ws, event)
-  } else if (event._ === 'appendPartial') {
-    log.debug('[agents/ws] skip partial; no subscription', {
-      key,
-      accountId: ws.data.accountId,
-      subscriptions: Array.from(ws.data.subscriptions),
-    })
+  if (ws.data.accountId !== sourceAccountId && event._ === 'change' && event.key.startsWith('agents/')) {
+    // A public reader never sees the owner's access role — it gets the role public access grants,
+    // which the snapshot's own flags determine.
+    const agent = event.value as api.AgentInfo
+    const value = {...agent, accessRole: agent.publicChat ? 'chatter' : 'reader'} satisfies api.AgentInfo
+    sendWS(ws, {...event, value} as api.AgentWSEvent)
+    return
   }
+  if (event._ === 'appendPartial') {
+    log.debug('[agents/ws] send partial', {...summarizeWSEvent(event), direct: ws.data.subscriptions.has(key)})
+  }
+  sendWS(ws, event)
 }
 
 function corsHeaders(): HeadersInit {
@@ -331,29 +345,42 @@ async function main(): Promise<void> {
     for (const ws of clients) {
       if (event.type === 'session-event') {
         const wireEvent = wireSessionEvent ?? event.event
-        sendIfSubscribed(ws, event.accountId, `sessions/${wireEvent.sessionId}`, {
-          _: 'append',
-          key: `sessions/${wireEvent.sessionId}`,
-          event: wireEvent,
-        })
+        sendIfSubscribed(
+          ws,
+          event.accountId,
+          `sessions/${wireEvent.sessionId}`,
+          {_: 'append', key: `sessions/${wireEvent.sessionId}`, event: wireEvent},
+          'direct',
+        )
       } else if (event.type === 'session-partial') {
-        sendIfSubscribed(ws, event.accountId, `sessions/${event.sessionId}`, {
-          _: 'appendPartial',
-          key: `sessions/${event.sessionId}`,
-          partialId: event.partialId,
-          patch: {textDelta: event.textDelta, done: event.done, usage: event.usage, activity: event.activity},
-        })
+        sendIfSubscribed(
+          ws,
+          event.accountId,
+          `sessions/${event.sessionId}`,
+          {
+            _: 'appendPartial',
+            key: `sessions/${event.sessionId}`,
+            partialId: event.partialId,
+            patch: {textDelta: event.textDelta, done: event.done, usage: event.usage, activity: event.activity},
+          },
+          'direct',
+        )
       } else if (event.type === 'session-change') {
-        sendIfSubscribed(ws, event.accountId, `sessions/${event.session.id}`, {
-          _: 'change',
-          key: `sessions/${event.session.id}`,
-          value: event.session,
-        })
-        sendIfSubscribed(ws, event.accountId, `agents/${event.session.agentId}`, {
-          _: 'change',
-          key: `sessions/${event.session.id}`,
-          value: event.session,
-        })
+        // The open transcript and the agent page; the sidebar gets the same snapshot on its hint.
+        sendIfSubscribed(
+          ws,
+          event.accountId,
+          `sessions/${event.session.id}`,
+          {_: 'change', key: `sessions/${event.session.id}`, value: event.session},
+          'direct',
+        )
+        sendIfSubscribed(
+          ws,
+          event.accountId,
+          `agents/${event.session.agentId}`,
+          {_: 'change', key: `sessions/${event.session.id}`, value: event.session},
+          'direct',
+        )
       } else if (event.type === 'agent-change') {
         sendIfSubscribed(ws, event.accountId, `agents/${event.agent.id}`, {
           _: 'change',

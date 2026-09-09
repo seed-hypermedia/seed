@@ -77,7 +77,10 @@ type AgentWSEvent =
 
 ### `account/<accountId>`
 
-Account-wide notifications. The Agents list page uses this to refresh when agents/sessions/events change.
+Account-wide notifications. Every open desktop window and signed-in web tab holds one (it feeds the unread indicator),
+so it carries only the small `account/<id>` change hints and run changes — never transcript frames. Session appends,
+streaming partials and session snapshots go to direct `sessions/<id>` (and `agents/<id>`) subscribers only; the sidebar
+and lists take the session snapshot and the agent's activity rollup from the hints.
 
 Two reasons carry the agent's fresh **activity rollup** (`AgentActivity`: latest event time and kind, latest message
 time and sender, that message's session, and whether any run is live):

@@ -2248,7 +2248,14 @@ export class Service {
       const session = this.#getSessionInfo(accountId, sessionId)
       if (!session) continue
       this.#emit({type: 'session-change', accountId, session})
-      this.#emit({type: 'account-change', accountId, reason: 'session-updated', agentId: session.agentId, sessionId})
+      this.#emit({
+        type: 'account-change',
+        accountId,
+        reason: 'session-updated',
+        agentId: session.agentId,
+        sessionId,
+        session,
+      })
     }
     for (const agentId of changedAgents) {
       const agentInfo = this.#getAgentInfo(accountId, agentId)
@@ -3491,7 +3498,14 @@ export class Service {
     const session = this.#getSessionInfo(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
     this.#emit({type: 'session-change', accountId, session})
-    this.#emit({type: 'account-change', accountId, reason: 'session-updated', agentId: session.agentId, sessionId})
+    this.#emit({
+      type: 'account-change',
+      accountId,
+      reason: 'session-updated',
+      agentId: session.agentId,
+      sessionId,
+      session,
+    })
     return {_: 'UpdateSessionResponse', session}
   }
 
@@ -3761,7 +3775,14 @@ export class Service {
     if (!session) throw new APIError(404, 'Session not found')
     if (changes > 0) {
       this.#emit({type: 'session-change', accountId, session})
-      this.#emit({type: 'account-change', accountId, reason: 'session-updated', agentId: session.agentId, sessionId})
+      this.#emit({
+        type: 'account-change',
+        accountId,
+        reason: 'session-updated',
+        agentId: session.agentId,
+        sessionId,
+        session,
+      })
     }
     return session
   }
@@ -3818,7 +3839,14 @@ export class Service {
     const session = this.#getSessionInfo(accountId, sessionId)
     if (!session) return
     this.#emit({type: 'session-change', accountId, session})
-    this.#emit({type: 'account-change', accountId, reason: 'session-updated', agentId: session.agentId, sessionId})
+    this.#emit({
+      type: 'account-change',
+      accountId,
+      reason: 'session-updated',
+      agentId: session.agentId,
+      sessionId,
+      session,
+    })
   }
 
   /**
@@ -3920,7 +3948,14 @@ export class Service {
     if (!session) throw new APIError(404, 'Session not found')
     if (titleChanges > 0 || descriptionChanges > 0) {
       this.#emit({type: 'session-change', accountId, session})
-      this.#emit({type: 'account-change', accountId, reason: 'session-updated', agentId: session.agentId, sessionId})
+      this.#emit({
+        type: 'account-change',
+        accountId,
+        reason: 'session-updated',
+        agentId: session.agentId,
+        sessionId,
+        session,
+      })
     }
     if (title !== undefined && titleChanges === 0) {
       console.info('[agents/runtime] ignored agent session title update', {
@@ -5091,7 +5126,14 @@ export class Service {
       this.#titleAttempts.delete(sessionId)
       console.info('[agents/runtime] session titled by model', {sessionId, title})
       this.#emit({type: 'session-change', accountId, session: info})
-      this.#emit({type: 'account-change', accountId, reason: 'session-updated', agentId: session.agent_id, sessionId})
+      this.#emit({
+        type: 'account-change',
+        accountId,
+        reason: 'session-updated',
+        agentId: session.agent_id,
+        sessionId,
+        session: info,
+      })
     }
   }
 
