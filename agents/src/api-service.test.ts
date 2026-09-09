@@ -4468,6 +4468,112 @@ describe('api service', () => {
     }
   })
 
+  test('rolls transcript activity up onto the agent, tool activity excluded from the message columns', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const events: apisvc.ServiceEvent[] = []
+      const svc = new apisvc.Service(db, dataDir, {onEvent: (event) => events.push(event)})
+      const sessionId = await seedAgentSession(svc, account, 'prompt', {tools: ['read']})
+      const listedBefore = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'ListAgents'}}))
+      if (listedBefore._ !== 'ListAgentsResponse') throw new Error('unexpected response')
+      const agentId = listedBefore.agents[0]!.id
+      // Nothing has been said yet: no rollup, so nothing can read as unread.
+      expect(listedBefore.agents[0]!.activity).toBeUndefined()
+
+      let openAICallCount = 0
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = url instanceof Request ? url.url : String(url)
+        if (href.includes('/api/GetDomain')) return Response.json(serialize({registeredAccountUid: null}))
+        if (href.includes('/api/Resource')) {
+          return Response.json(
+            serialize({
+              type: 'document',
+              id: unpackHmId('hm://z6Mkdoc/docs/example'),
+              document: {
+                content: [{block: {id: 'block-1', type: 'Paragraph', text: 'Example'}, children: []}],
+                version: 'v1',
+                account: 'z6Mkdoc',
+                authors: [],
+                path: '/docs/example',
+                createTime: '',
+                updateTime: '',
+                metadata: {name: 'Example'},
+                genesis: 'genesis',
+                visibility: 'PUBLIC',
+              },
+            }),
+          )
+        }
+        openAICallCount += 1
+        if (openAICallCount === 1) {
+          return openAIStreamResponse([
+            {
+              id: 'chat-1',
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: 'call-1',
+                        type: 'function',
+                        function: {name: 'read', arguments: JSON.stringify({address: 'hm://z6Mkdoc/docs/example'})},
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+            {id: 'chat-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {id: 'chat-2', choices: [{delta: {content: 'I read it.'}}]},
+          {id: 'chat-2', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'MessageSession', sessionId, content: [{type: 'text', text: 'Read it'}]},
+        }),
+      )
+      expect(openAICallCount).toBe(2)
+
+      // The transcript ended on the agent's reply, so that is what the rollup says — and the run
+      // has settled, so the agent is no longer busy.
+      const listed = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'ListAgents'}}))
+      if (listed._ !== 'ListAgentsResponse') throw new Error('unexpected response')
+      const activity = listed.agents.find((agent) => agent.id === agentId)?.activity
+      expect(activity).toMatchObject({kind: 'agent', messageFrom: 'agent', sessionId, busy: false})
+      expect(activity!.messageAt).toBe(activity!.at)
+      // GetAgent reads the same columns.
+      const detail = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'GetAgent', agentId}}))
+      expect(detail).toMatchObject({_: 'GetAgentResponse', agent: {activity: {kind: 'agent', sessionId}}})
+
+      // The live hints carried the rollup at every step: the user's message first (the agent had
+      // not answered; the run may not even exist yet), then a busy agent on the status flip, then
+      // the settled reply.
+      const hints = events.flatMap((event) =>
+        event.type === 'account-change' && event.activity && event.agentId === agentId
+          ? [{reason: event.reason, ...event.activity}]
+          : [],
+      )
+      expect(hints[0]).toMatchObject({reason: 'session-event', kind: 'user', messageFrom: 'user', sessionId})
+      expect(hints.some((hint) => hint.reason === 'session-updated' && hint.busy)).toBe(true)
+      expect(hints.at(-1)).toMatchObject({reason: 'session-updated', kind: 'agent', messageFrom: 'agent', busy: false})
+      // Tool activity moved the rollup's latest-event kind while the message columns stayed on
+      // the user's message: no event-sequence gap read as a new message.
+      const toolHint = hints.find((hint) => hint.kind === 'tool')
+      if (toolHint) expect(toolHint.messageFrom).toBe('user')
+    } finally {
+      globalThis.fetch = originalFetch
+      cleanup()
+    }
+  })
+
   test('runs read tool calls and persists tool events', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch

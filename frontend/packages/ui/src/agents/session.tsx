@@ -9,6 +9,7 @@ import {
   sessionContextTokens,
   useFollowContinuation,
 } from './continuation'
+import {latestSessionEventAt, useMarkAgentSessionRead} from './activity'
 import {useChatAutoScroll} from './chat-autoscroll'
 import {describeAgentError} from './errors'
 import {AgentErrorRow, AssistantMessageParts, ChatMessageBubble} from './message-rendering'
@@ -192,6 +193,8 @@ function AgentSessionPage({
     className: 'w-[min(44rem,calc(100vw-2rem))] max-h-[85vh]',
   })
   const lastSeq = session.data?.events.filter((event) => event.seq !== Number.MAX_SAFE_INTEGER).at(-1)?.seq
+  // This transcript is on screen: whatever it shows is read on this device.
+  useMarkAgentSessionRead(serverUrl, sessionId, latestSessionEventAt(session.data?.events))
   // The subscription waits for the initial GetSession: subscribing with no afterSeq makes the
   // server replay the whole transcript over the socket on top of the fetch.
   const liveState = useAgentWebSocketSubscription(

@@ -228,6 +228,7 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
                   status={agent.status}
                   serverUrl={serverUrl}
                   accessRole={agent.accessRole}
+                  activity={agent.activity}
                 />
               ))}
             </div>
@@ -274,6 +275,7 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
                 status={agent.status}
                 serverUrl={agent.serverUrl}
                 accessRole={agent.accessRole}
+                activity={agent.activity}
               />
             ))}
           </div>

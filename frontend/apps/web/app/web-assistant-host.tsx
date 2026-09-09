@@ -1,16 +1,17 @@
 import {useAssistantPanel} from '@/assistant-panel-state'
 import {useLocalKeyPair} from '@/auth'
-import {clientLazy} from '@/client-lazy'
+import {clientLazy, ClientOnly} from '@/client-lazy'
 import {useSiteContextSnapshot} from '@/site-context-bridge'
 import {UniversalAppContext} from '@shm/shared'
 import {NavContextProvider} from '@shm/shared/utils/navigation'
+import type {AgentActivityIndicator} from '@shm/ui/agents/activity-dot'
 import {AssistantPanelToggleContext, type AssistantPanelToggle} from '@shm/ui/assistant-panel-toggle'
 import {Button} from '@shm/ui/button'
 import {Spinner} from '@shm/ui/spinner'
 import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
 import {ArrowLeft} from 'lucide-react'
-import React, {Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import React, {lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 
 // The panel body pulls in the agents models and the rich editor. Like the /hm/agents pages and the
 // commenting editor, it is a separate client-only chunk that only loads once the panel opens, so
@@ -18,6 +19,11 @@ import React, {Suspense, useCallback, useEffect, useMemo, useRef, useState} from
 const WebAssistantPanelContent = clientLazy<{showClose?: boolean}>(async () => ({
   default: (await import('./web-assistant-panel-content')).default,
 }))
+
+// The unread indicator needs the agents models (lists, sockets, read marks) — the same chunk the
+// panel body lives in. Loaded for a signed-in reader whether or not the panel is open, so the
+// header dot works with the panel closed; nothing of it enters the initial bundle.
+const WebAssistantActivity = lazy(() => import('./web-assistant-activity'))
 
 const WIDTH_STORAGE_KEY = 'seed.assistant.width'
 const DEFAULT_WIDTH_PX = 380
@@ -109,13 +115,23 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
 
   // The site header's Agents button. Offered only to a signed-in reader, for the same reason the
   // panel itself is; the header additionally checks that the space names an agents server.
+  const [activity, setActivity] = useState<AgentActivityIndicator | null>(null)
   const headerToggle = useMemo<AssistantPanelToggle | null>(
-    () => (keyPair ? {isOpen: panel.isOpen, toggle: panel.toggle} : null),
-    [keyPair, panel.isOpen, panel.toggle],
+    () => (keyPair ? {isOpen: panel.isOpen, toggle: panel.toggle, activity} : null),
+    [keyPair, panel.isOpen, panel.toggle, activity],
   )
 
   return (
     <div className={cn('flex w-full flex-row items-stretch', dragging && 'cursor-col-resize select-none')}>
+      {keyPair ? (
+        <ClientOnly>
+          <SiteContextScope>
+            <Suspense fallback={null}>
+              <WebAssistantActivity onChange={setActivity} />
+            </Suspense>
+          </SiteContextScope>
+        </ClientOnly>
+      ) : null}
       <AssistantPanelToggleContext.Provider value={headerToggle}>
         <div className="min-w-0 flex-1">{children}</div>
       </AssistantPanelToggleContext.Provider>
@@ -181,6 +197,21 @@ function FullScreenPanel({onBack}: {onBack: () => void}) {
         <PanelBody />
       </div>
     </div>
+  )
+}
+
+/**
+ * The current page's contexts, re-provided above the outlet for what lives there. The activity
+ * tracker needs them to see the server the space in view advertises; before any page has
+ * published it runs without, on the configured servers alone.
+ */
+function SiteContextScope({children}: {children: React.ReactNode}) {
+  const site = useSiteContextSnapshot()
+  if (!site) return <>{children}</>
+  return (
+    <UniversalAppContext.Provider value={site.universal}>
+      <NavContextProvider value={site.navigation}>{children}</NavContextProvider>
+    </UniversalAppContext.Provider>
   )
 }
 

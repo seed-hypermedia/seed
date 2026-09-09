@@ -3,6 +3,7 @@ import {SEED_AGENT_SERVER_URL} from '@shm/shared/constants'
 import {useResource} from '@shm/shared/models/entity'
 import {MessageCircle} from 'lucide-react'
 import {createContext, useContext} from 'react'
+import {AgentActivityDot, type AgentActivityIndicator} from './agents/activity-dot'
 import {parseSpaceAgentIds} from './agents/space-agents'
 import {Button} from './button'
 import {SmallListItem} from './list-item'
@@ -13,6 +14,8 @@ import {cn} from './utils'
 export type AssistantPanelToggle = {
   isOpen: boolean
   toggle: () => void
+  /** Recent activity to show on the entry points, when the host tracks it. */
+  activity?: AgentActivityIndicator | null
 }
 
 /**
@@ -64,16 +67,20 @@ export function AssistantPanelHeaderButton({siteUid}: {siteUid: string}) {
   const hasAgentServer = useHasAgentServer(siteUid)
   if (!toggle || !hasAgentServer) return null
   return (
-    <Tooltip content={toggle.isOpen ? 'Close Agents' : 'Open Agents'}>
+    <Tooltip content={toggle.activity?.label ?? (toggle.isOpen ? 'Close Agents' : 'Open Agents')}>
       <Button
         variant="ghost"
         size="icon"
         aria-label="Agents"
         aria-pressed={toggle.isOpen}
-        className={cn('h-8 rounded-full border-1 border-transparent p-0', toggle.isOpen && 'dark:bg-muted bg-black/5')}
+        className={cn(
+          'relative h-8 rounded-full border-1 border-transparent p-0',
+          toggle.isOpen && 'dark:bg-muted bg-black/5',
+        )}
         onClick={toggle.toggle}
       >
         <MessageCircle className="size-4" />
+        <AgentActivityDot indicator={toggle.activity} />
       </Button>
     </Tooltip>
   )
@@ -92,7 +99,12 @@ export function AssistantPanelMenuItem({siteUid, onClick}: {siteUid: string; onC
       bold
       active={toggle.isOpen}
       title={toggle.isOpen ? 'Close Agents' : 'Agents'}
-      icon={<MessageCircle className="size-4" />}
+      icon={
+        <span className="relative inline-flex">
+          <MessageCircle className="size-4" />
+          <AgentActivityDot indicator={toggle.activity} className="-top-1 -right-1" />
+        </span>
+      }
       onClick={() => {
         toggle.toggle()
         onClick?.()

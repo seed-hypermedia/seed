@@ -97,6 +97,27 @@ describe('agents panel entry points in the site header', () => {
     expect(container.textContent).not.toContain('Agents')
   })
 
+  it('shows the activity dot on both entry points, colored by tone, with the label for screen readers', () => {
+    mockState.envServerUrl = 'http://localhost:3051'
+    render({
+      isOpen: false,
+      toggle: vi.fn(),
+      activity: {
+        tone: 'agent',
+        unread: true,
+        serverUrl: 'http://localhost:3051',
+        agentId: 'a',
+        agentName: 'Researcher',
+        sessionId: 's',
+        label: 'Researcher replied',
+      },
+    })
+    const dots = container.querySelectorAll('[data-testid="agent-activity-dot"]')
+    expect(dots).toHaveLength(2)
+    expect(dots[0]!.getAttribute('data-tone')).toBe('agent')
+    expect(container.textContent).toContain('Researcher replied')
+  })
+
   it('toggles the panel, reflects its open state, and lets the mobile menu close itself', () => {
     mockState.envServerUrl = 'http://localhost:3051'
     const toggle = vi.fn()

@@ -387,7 +387,7 @@ async function main(): Promise<void> {
         sendIfSubscribed(ws, event.accountId, `account/${event.accountId}`, {
           _: 'change',
           key: `account/${event.accountId}`,
-          value: {reason: event.reason, agentId: event.agentId, sessionId: event.sessionId},
+          value: {reason: event.reason, agentId: event.agentId, sessionId: event.sessionId, activity: event.activity},
         })
         // Agent-scoped account changes also reach the open agent page. This covers memory writes
         // (which have no agent-change event), collaborator changes, and an owner deleting an agent
@@ -396,7 +396,7 @@ async function main(): Promise<void> {
           sendIfSubscribed(ws, event.accountId, `agents/${event.agentId}`, {
             _: 'change',
             key: `account/${event.accountId}`,
-            value: {reason: event.reason, agentId: event.agentId, sessionId: event.sessionId},
+            value: {reason: event.reason, agentId: event.agentId, sessionId: event.sessionId, activity: event.activity},
           })
         }
       }

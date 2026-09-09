@@ -17,7 +17,9 @@ const REMOTE = 'https://agentic.seed.hyper.media'
 
 const mockState = vi.hoisted(() => ({
   serverUrls: [] as string[],
-  agentLists: [] as Array<{data: Array<{id: string; definition: {name: string; model: string}}>}>,
+  agentLists: [] as Array<{data: Array<{id: string; definition: {name: string; model: string}; activity?: unknown}>}>,
+  readState: undefined as undefined | {allBefore?: number; sessions: Record<string, number>},
+  marked: [] as Array<{serverUrl: string; sessionId: string; seenAt: number}>,
   sessionEntries: [] as Array<{serverUrl: string; session: Record<string, unknown>}>,
   spaceAgents: {
     agents: [] as Array<{serverUrl: string; agent: {id: string; definition: {name: string; model: string}}}>,
@@ -30,6 +32,17 @@ const mockState = vi.hoisted(() => ({
   createAgentDialogInput: null as null | {onCreated?: (created: {serverUrl: string; agentId: string}) => void},
 }))
 
+// The unread logic runs for real against a faked read state; the react-query-backed pieces (the
+// transcript's own mark, the stored state) are stubbed since nothing here provides a client.
+vi.mock('@shm/ui/agents/activity', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useMarkAgentSessionRead: () => {},
+  latestSessionEventAt: () => undefined,
+  useAgentActivityReadState: () => ({data: mockState.readState}),
+  markAgentSessionRead: (serverUrl: string, sessionId: string, seenAt: number) => {
+    mockState.marked.push({serverUrl, sessionId, seenAt})
+  },
+}))
 vi.mock('@shm/ui/agents/models', () => ({
   LOCAL_AGENT_SERVER_LABEL: 'Local Agents',
   isLocalAgentServer: (serverUrl: string, localServerUrl?: string | null) =>
@@ -171,6 +184,8 @@ beforeEach(() => {
   mockState.createAgentDialogMounts = 0
   mockState.createAgentDialogInput = null
   mockState.serverUrls = [LOCAL, REMOTE]
+  mockState.readState = {allBefore: 50, sessions: {}}
+  mockState.marked = []
   mockState.spaceAgents = {agents: [], sessions: [], isLoading: false}
   mockState.agentListsSettled = true
   mockState.agentLists = [
@@ -211,6 +226,75 @@ describe('assistant sidebar agent context', () => {
     })
     expect(document.body.textContent).toContain('Doc questions')
     expect(hasActiveSession()).toBe(true)
+  })
+
+  it('points at the agent and chat with an unread reply, and picking that agent opens the chat read', () => {
+    act(() => {
+      root.render(<AssistantPanel />)
+    })
+    expect(document.body.querySelector('[data-testid="agent-activity-mark"]')).toBeNull()
+    // A reply lands while the panel is open: nothing yanks the user, the pickers point at it.
+    mockState.agentLists[1] = {
+      data: [
+        {
+          id: 'researcher',
+          definition: {name: 'Researcher', model: 'gpt-5'},
+          activity: {at: 100, kind: 'agent', messageAt: 100, messageFrom: 'agent', sessionId: 's-r1', busy: false},
+        },
+      ],
+    }
+    act(() => {
+      root.render(<AssistantPanel />)
+    })
+    expect(document.body.textContent).toContain('Send a message to start chatting with Assistant')
+    // The closed picker already shows that something is unread somewhere.
+    expect(document.body.querySelector('[data-testid="agent-activity-mark"]')).not.toBeNull()
+
+    clickText('Assistant')
+    // The researcher's row names it, in place of the model line.
+    expect(document.body.textContent).toContain('New reply')
+
+    clickText('Researcher')
+    // Not a draft: the unread chat itself, and it is marked read as of that message.
+    expect(document.body.textContent).toContain('Web research')
+    expect(hasActiveSession()).toBe(true)
+    expect(mockState.marked).toEqual([{serverUrl: REMOTE, sessionId: 's-r1', seenAt: 100}])
+  })
+
+  it('opens straight onto the unread chat when there is one, marked read on arrival', () => {
+    mockState.agentLists[1] = {
+      data: [
+        {
+          id: 'researcher',
+          definition: {name: 'Researcher', model: 'gpt-5'},
+          activity: {at: 100, kind: 'user', messageAt: 100, messageFrom: 'user', sessionId: 's-r1', busy: false},
+        },
+      ],
+    }
+    act(() => {
+      root.render(<AssistantPanel />)
+    })
+    // Not the default agent's draft: the researcher's unread chat, already read.
+    expect(document.body.textContent).toContain('Web research')
+    expect(hasActiveSession()).toBe(true)
+    expect(mockState.marked).toEqual([{serverUrl: REMOTE, sessionId: 's-r1', seenAt: 100}])
+  })
+
+  it('a panel opened to start a new chat keeps that intent even with something unread', () => {
+    mockState.agentLists[1] = {
+      data: [
+        {
+          id: 'researcher',
+          definition: {name: 'Researcher', model: 'gpt-5'},
+          activity: {at: 100, kind: 'agent', messageAt: 100, messageFrom: 'agent', sessionId: 's-r1', busy: false},
+        },
+      ],
+    }
+    act(() => {
+      root.render(<AssistantPanel newChatRequest={1} />)
+    })
+    expect(hasActiveSession()).toBe(false)
+    expect(mockState.marked).toEqual([])
   })
 
   it('switches agent context from the top dropdown, grouped by server', () => {

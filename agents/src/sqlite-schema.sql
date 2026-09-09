@@ -61,7 +61,14 @@ CREATE TABLE agents (
     public_read INTEGER NOT NULL DEFAULT 0,
     public_chat INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
+    updated_at INTEGER NOT NULL,
+    -- Latest transcript activity across the agent's sessions (see AgentActivity in the protocol).
+    -- Written on every appended session event; NULL until the first one.
+    activity_at INTEGER,
+    activity_kind TEXT,
+    message_at INTEGER,
+    message_from TEXT,
+    activity_session_id TEXT
 ) WITHOUT ROWID;
 
 CREATE INDEX agents_by_account ON agents (account_id, updated_at DESC);

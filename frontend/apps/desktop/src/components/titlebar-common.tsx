@@ -1,10 +1,14 @@
 import {domainResolver} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {DEFAULT_AGENT_SERVER_URL} from '@/agents-defaults'
+import {useSelectedAccountId as useSelectedAgentsAccountId} from '@shm/ui/agents/account'
+import {AgentActivityLiveUpdates, useAgentActivityIndicator} from '@shm/ui/agents/activity'
+import {AgentActivityDot} from '@shm/ui/agents/activity-dot'
 import {
   agentRouteServerUrl,
   isLocalAgentServer,
   LOCAL_AGENT_SERVER_LABEL,
+  useAgentServerUrls,
   useAgentSession,
   useLocalAgentServerUrl,
 } from '@shm/ui/agents/models'
@@ -496,13 +500,19 @@ function AssistantChatButton({
   assistantOpen,
   onToggleAssistant,
 }: Pick<TitleBarProps, 'assistantOpen' | 'onToggleAssistant'>) {
+  // The unread indicator: the agents lists, kept live by one account socket per server mounted
+  // here (the title bar outlives the panel), against this device's read marks.
+  const agentsAccountUid = useSelectedAgentsAccountId()
+  const agentServerUrls = useAgentServerUrls()
+  const activity = useAgentActivityIndicator(agentServerUrls.data, agentsAccountUid)
   if (!onToggleAssistant) return null
   const isActive = !!assistantOpen
+  const tooltip = activity?.label ?? (isActive ? 'Close Agents' : 'Open Agents')
   return (
-    <Tooltip content={isActive ? 'Close Agents' : 'Open Agents'} asChild>
+    <Tooltip content={tooltip} asChild>
       <Button
         className={cn(
-          'window-no-drag h-8 w-8 rounded-full border p-0',
+          'window-no-drag relative h-8 w-8 rounded-full border p-0',
           isActive
             ? 'border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
             : 'border-transparent',
@@ -512,6 +522,8 @@ function AssistantChatButton({
         onClick={onToggleAssistant}
       >
         <MessageCircle className="size-4" />
+        <AgentActivityDot indicator={activity} />
+        <AgentActivityLiveUpdates serverUrls={agentServerUrls.data} accountUid={agentsAccountUid} />
       </Button>
     </Tooltip>
   )

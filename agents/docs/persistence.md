@@ -127,6 +127,13 @@ Current agent statuses:
 
 Most runtime work currently operates at the session level; agent status is not yet a rich run-state machine.
 
+Activity rollup (`activity_at`, `activity_kind`, `message_at`, `message_from`, `activity_session_id`): the latest
+transcript activity across the agent's sessions, written on every appended session event. Tool calls, spawns and results
+— and every event of a delegated child session — move only `activity_at`/`activity_kind`; a message from a person, a
+trigger or the agent in a top-level session also moves the `message_*` columns and `activity_session_id`. Exposed as
+`AgentInfo.activity` together with a `busy` flag derived from live runs, so unread indicators read the agents list and
+never enumerate sessions. NULL until the first event.
+
 ### `agent_collaborators`
 
 Stores pending invitations and accepted agent-level access grants, keyed by `(agent_id, account_id)`. The `account_id`

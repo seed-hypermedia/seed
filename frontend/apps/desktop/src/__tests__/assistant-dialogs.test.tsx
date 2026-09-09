@@ -12,6 +12,14 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
  * identical prop types. This mounts the dialog in the root its call site actually uses.
  */
 
+// The transcript view marks itself read through react-query; nothing here provides a client.
+vi.mock('@shm/ui/agents/activity', () => ({
+  useMarkAgentSessionRead: () => {},
+  latestSessionEventAt: () => undefined,
+  useAgentActivityReadState: () => ({data: undefined}),
+  agentRowActivity: () => null,
+  markAgentSessionRead: () => {},
+}))
 vi.mock('@shm/ui/agents/models', () => ({
   LOCAL_AGENT_SERVER_LABEL: 'Local Agents',
   isLocalAgentServer: () => false,

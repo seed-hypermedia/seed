@@ -1059,6 +1059,43 @@ export type AgentInviteInfo = {
   updatedAt: number
 }
 
+/** What kind of transcript event an agent's latest activity was. */
+export type AgentActivityKind = 'user' | 'agent' | 'tool'
+
+/**
+ * The latest transcript activity across an agent's sessions, rolled up onto the agent so a client
+ * can show an unread indicator without enumerating sessions. Tool activity is tracked (it moves
+ * `at` and `kind`) but never counts as a message: `messageAt` and `messageFrom` only move for a
+ * message from a person, a trigger, or the agent. Absent until the agent's first message.
+ */
+export type AgentActivity = {
+  /** Time of the latest transcript event of any kind, tool activity included. */
+  at: number
+  /** What that latest event was. */
+  kind: AgentActivityKind
+  /** Time of the latest message from a person, a trigger, or the agent. Tool activity excluded. */
+  messageAt: number
+  /** Who sent that message. Triggers and the runtime count as `user`: something asked, the agent has yet to answer. */
+  messageFrom: 'user' | 'agent'
+  /** Session holding that message. */
+  sessionId: string
+  /** True while any of the agent's runs is live, whether or not a message has landed yet. */
+  busy: boolean
+}
+
+/**
+ * Classifies a transcript event for {@link AgentActivity}: tool calls, spawns, results and
+ * tool-role messages are `tool`; a message from the agent (or an error) is `agent`; any other
+ * message — a person, a trigger, the runtime — is `user`.
+ */
+export function sessionEventActivityKind(payload: SessionEventPayload): AgentActivityKind {
+  const value = payload as {type?: unknown; role?: unknown}
+  if (value.type === 'tool_call' || value.type === 'tool_spawn' || value.type === 'tool_result') return 'tool'
+  if (value.type === 'message' && value.role === 'tool') return 'tool'
+  if (value.type === 'error') return 'agent'
+  return sessionEventActor(payload) === 'agent' ? 'agent' : 'user'
+}
+
 /** Public metadata returned for an agent. */
 export type AgentInfo = {
   id: string
@@ -1068,6 +1105,8 @@ export type AgentInfo = {
   status: 'idle' | 'running' | 'stopped' | 'error'
   createdAt: number
   updatedAt: number
+  /** Latest transcript activity across the agent's sessions, for unread indicators. */
+  activity?: AgentActivity
   /** Permissions of the signed account that requested this value. */
   accessRole?: AgentAccessRole
   /** True when any signed account can read this agent by id (see `SetAgentPublicRead`). */
@@ -1573,7 +1612,20 @@ export type AgentWSEvent =
     }
   | {_: 'change'; key: `sessions/${string}`; value: SessionInfo}
   | {_: 'change'; key: `agents/${string}`; value: AgentInfo}
-  | {_: 'change'; key: `account/${string}`; value: {reason: string; agentId?: string; sessionId?: string}}
+  | {
+      _: 'change'
+      key: `account/${string}`
+      value: {
+        reason: string
+        agentId?: string
+        sessionId?: string
+        /**
+         * Fresh activity rollup of `agentId`, sent with session-event and session-updated hints so
+         * a client keeps its unread indicator current without refetching any list.
+         */
+        activity?: AgentActivity
+      }
+    }
   | {_: 'change'; key: `runs/${string}`; value: RunInfo}
   | {_: 'append'; key: `runs/${string}`; runId: string; seq: number; entry: Record<string, unknown>; createdAt: number}
   | {
