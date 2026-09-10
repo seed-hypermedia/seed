@@ -811,6 +811,27 @@ export function registerDocumentCommands(program: Command) {
         const key = await resolveSigningKey(_options.key, keyOptions(globalOpts))
         const signer = createSignerFromKey(key)
 
+        // Resolve both authorizations before publishing either side of the move. The daemon can
+        // accept a Ref blob before asynchronously rejecting it, so publishing first can otherwise
+        // leave a destination behind and let the CLI report success even though the source did not
+        // move.
+        const sourcePath = hmIdPathToEntityQueryPath(source.path)
+        const destPath = hmIdPathToEntityQueryPath(dest.path)
+        const sourceCapability = await resolveCapability(client, source.uid, key.accountId, sourcePath)
+        if (source.uid !== key.accountId && !sourceCapability) {
+          throw new Error(
+            `No WRITER or AGENT capability found for key ${key.accountId} on source account ${source.uid}. ` +
+              `Use "account capabilities hm://${source.uid}" to check available capabilities.`,
+          )
+        }
+        const destCapability = await resolveCapability(client, dest.uid, key.accountId, destPath)
+        if (dest.uid !== key.accountId && !destCapability) {
+          throw new Error(
+            `No WRITER or AGENT capability found for key ${key.accountId} on destination account ${dest.uid}. ` +
+              `Use "account capabilities hm://${dest.uid}" to check available capabilities.`,
+          )
+        }
+
         // A move acts on whatever lives at the source and keeps it that kind of thing at the
         // destination. Following redirects tells us which: a republish moves as a republish; a
         // plain document moves as a fork of its history; a path that has itself already moved is a
@@ -840,12 +861,13 @@ export function registerDocumentCommands(program: Command) {
           const destRepublishInput = await createRedirectRef(
             {
               space: dest.uid,
-              path: hmIdPathToEntityQueryPath(dest.path),
+              path: destPath,
               genesis,
               generation: Date.now(),
               targetSpace: original.uid,
               targetPath: hmIdPathToEntityQueryPath(original.path),
               republish: true,
+              capability: destCapability,
             },
             signer,
           )
@@ -856,10 +878,11 @@ export function registerDocumentCommands(program: Command) {
           const versionRefInput = await createVersionRef(
             {
               space: dest.uid,
-              path: hmIdPathToEntityQueryPath(dest.path),
+              path: destPath,
               genesis,
               version: followed.document.version,
               generation: Date.now(),
+              capability: destCapability,
             },
             signer,
           )
@@ -870,11 +893,12 @@ export function registerDocumentCommands(program: Command) {
         const redirectRefInput = await createRedirectRef(
           {
             space: source.uid,
-            path: hmIdPathToEntityQueryPath(source.path),
+            path: sourcePath,
             genesis,
             generation: Date.now(),
             targetSpace: dest.uid,
-            targetPath: hmIdPathToEntityQueryPath(dest.path),
+            targetPath: destPath,
+            capability: sourceCapability,
           },
           signer,
         )
