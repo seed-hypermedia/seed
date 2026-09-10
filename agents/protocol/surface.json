@@ -80,6 +80,8 @@
         "_": "\"CreateSession\"",
         "agentId": "string",
         "clientRequestId?": "string",
+        "modelOverride?": "SessionModelOverride",
+        "thoroughness?": "Thoroughness",
         "title?": "string"
       }
     },

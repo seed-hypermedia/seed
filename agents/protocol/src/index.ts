@@ -776,6 +776,13 @@ export type CreateSession = {
   _: 'CreateSession'
   agentId: string
   title?: string
+  /**
+   * Model configuration the session starts with, so a choice made in a draft composer (before
+   * the session exists) is in place for its first run. Same meaning as `UpdateSession`.
+   */
+  modelOverride?: SessionModelOverride
+  /** Delegation budget the session starts with; absent means the agent's own thoroughness. */
+  thoroughness?: Thoroughness
   clientRequestId?: string
 }
 

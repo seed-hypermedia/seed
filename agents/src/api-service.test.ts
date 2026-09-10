@@ -11766,13 +11766,33 @@ describe('delegation budget', () => {
       if (agent._ !== 'GetAgentResponse') throw new Error('unexpected response')
       expect(agent.agent.definition.thoroughness).toBe('deep')
 
+      // A draft composer sends its choices with CreateSession, validated like an edit would be.
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'CreateSession', agentId: createdAgent.agentId, thoroughness: 'bogus' as unknown as 'quick'},
+          }),
+        ),
+      ).rejects.toThrow('Thoroughness must be quick, normal, or deep')
       const createdSession = await svc.message(
         await apisvc.createSignedEnvelope(account, {
-          action: {_: 'CreateSession', agentId: createdAgent.agentId, title: 'Chat'},
+          action: {
+            _: 'CreateSession',
+            agentId: createdAgent.agentId,
+            title: 'Chat',
+            thoroughness: 'normal',
+            modelOverride: {provider: 'openai', model: 'gpt'},
+          },
         }),
       )
       if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
       const sessionId = createdSession.sessionId
+      const created = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId}}),
+      )
+      if (created._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(created.session.thoroughness).toBe('normal')
+      expect(created.session.modelOverride).toEqual({provider: 'openai', model: 'gpt'})
       const quick = await svc.message(
         await apisvc.createSignedEnvelope(account, {action: {_: 'UpdateSession', sessionId, thoroughness: 'quick'}}),
       )

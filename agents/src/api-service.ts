@@ -1249,6 +1249,8 @@ export class Service {
           envelope.action.agentId,
           envelope.action.title,
           envelope.action.clientRequestId,
+          envelope.action.modelOverride,
+          envelope.action.thoroughness,
         )
       case 'ListSessions':
         return this.#listSessions(
@@ -3496,9 +3498,26 @@ export class Service {
     agentId: string,
     rawTitle?: string,
     clientRequestId?: string,
+    rawModelOverride?: api.SessionModelOverride,
+    rawThoroughness?: Thoroughness,
   ): Promise<api.CreateSessionResponse> {
-    return this.#withIdempotency(accountId, 'CreateSession', clientRequestId, {agentId, title: rawTitle}, () =>
-      this.#createSessionOnce(accountId, agentId, rawTitle),
+    return this.#withIdempotency(
+      accountId,
+      'CreateSession',
+      clientRequestId,
+      {agentId, title: rawTitle, modelOverride: rawModelOverride, thoroughness: rawThoroughness},
+      () => {
+        // Validated like UpdateSession, so a draft composer's choice cannot store what an edit
+        // would refuse.
+        const modelOverride =
+          rawModelOverride === undefined
+            ? undefined
+            : this.#normalizeSessionModelOverride(accountId, rawModelOverride) ?? undefined
+        if (rawThoroughness !== undefined && !isThoroughness(rawThoroughness)) {
+          throw new APIError(400, 'Thoroughness must be quick, normal, or deep')
+        }
+        return this.#createSessionOnce(accountId, agentId, rawTitle, {modelOverride, thoroughness: rawThoroughness})
+      },
     )
   }
 
@@ -3511,6 +3530,8 @@ export class Service {
       runId?: string
       titleSource?: 'system' | 'agent'
       modelOverride?: api.SessionModelOverride
+      /** Delegation budget override the session starts with. */
+      thoroughness?: Thoroughness
       /** Agent-authored description, set at creation by a continuation's predecessor. */
       description?: string
       /** A checklist carried across a continuation edge, already re-stamped for the new session. */
@@ -3535,8 +3556,8 @@ export class Service {
     const title = normalizedTitle && isPlaceholderSessionTitle(normalizedTitle) ? null : normalizedTitle
     stmt(
       this.#db,
-      `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, parent_session_id, run_id, model_override_cbor, description, plan_cbor, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, parent_session_id, run_id, model_override_cbor, thoroughness, description, plan_cbor, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run([
       sessionId,
       accountId,
@@ -3547,6 +3568,7 @@ export class Service {
       opts.parentSessionId ?? null,
       opts.runId ?? null,
       opts.modelOverride ? cbor.encode(opts.modelOverride) : null,
+      opts.thoroughness ?? null,
       opts.description ?? null,
       opts.plan ? cbor.encode(opts.plan) : null,
       now,

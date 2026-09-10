@@ -102,7 +102,7 @@ import {
   type AssistantSessionRef,
 } from './assistant-session-ref'
 import {AgentProtocolError, AgentServerError, type AgentInfo} from './client'
-import type {AgentActivity} from '@seed-hypermedia/agents-protocol'
+import type {AgentActivity, SessionModelOverride, Thoroughness} from '@seed-hypermedia/agents-protocol'
 import {describeAgentError, errorMessage} from './errors'
 import {useAssistantWindowContextLines} from './assistant-window-context'
 import {
@@ -113,7 +113,7 @@ import {
 } from './rich-message-composer'
 import type {AgentsRichEditorSubmitHandle} from './platform'
 import {RunRecordCard, SessionRunCard} from './run-card'
-import {DelayedSpinner, SessionModelBadge} from './header'
+import {DelayedSpinner, SessionModelBadge, type SessionModelPatch} from './header'
 import {SessionStatusDot, SessionSummaryBanner, SubSessionsDisclosure} from './session-children'
 
 /**
@@ -487,7 +487,7 @@ export function AssistantPanel({
         <AssistantDraftChat
           key={`${activeAgent.serverUrl}${activeAgent.agent.id}`}
           serverUrl={activeAgent.serverUrl}
-          agentId={activeAgent.agent.id}
+          agent={activeAgent.agent}
           agentName={activeAgent.agent.definition.name}
           accountUid={accountUid}
           readOnly={!agentAccessCanChat(activeAgent.agent.accessRole)}
@@ -834,7 +834,7 @@ function AssistantSessionPicker({
  */
 function AssistantDraftChat({
   serverUrl,
-  agentId,
+  agent,
   agentName,
   accountUid,
   composerRef,
@@ -843,7 +843,7 @@ function AssistantDraftChat({
   canInvokeTools,
 }: {
   serverUrl: string
-  agentId: string
+  agent: AgentInfo
   agentName: string
   accountUid: string | null | undefined
   readOnly: boolean
@@ -852,8 +852,16 @@ function AssistantDraftChat({
   composerRef: React.MutableRefObject<AgentsRichEditorSubmitHandle | null>
   onSessionCreated: (ref: AssistantSessionRef) => void
 }) {
+  const agentId = agent.id
   const createSession = useCreateAgentSessionOnServer(accountUid)
   const messageSession = useMessageAgentSession(serverUrl, accountUid)
+  // The model and thoroughness the session will start with: the same badge as a live session,
+  // held locally until the first send creates the session (there is nothing to save them to yet).
+  const [modelChoice, setModelChoice] = useState<{modelOverride?: SessionModelOverride; thoroughness?: Thoroughness}>(
+    {},
+  )
+  const modelChoiceRef = useRef(modelChoice)
+  modelChoiceRef.current = modelChoice
   const windowContextLines = useAssistantWindowContextLines()
   const windowContextLinesRef = useRef(windowContextLines)
   windowContextLinesRef.current = windowContextLines
@@ -868,7 +876,7 @@ function AssistantDraftChat({
     try {
       // No title at creation: the agent names the session (status verb, with the server's fallback
       // namer behind it). 'New chat' is only the optimistic row's display label below.
-      const result = await createSession.mutateAsync({serverUrl, agentId})
+      const result = await createSession.mutateAsync({serverUrl, agentId, ...modelChoiceRef.current})
       if (result._ !== 'CreateSessionResponse') throw new Error('Unexpected CreateSession response')
       // Seed the caches before selecting: the selection resolver can only keep the new session if
       // it can attribute it to this agent, and the list refetch has not landed yet.
@@ -881,6 +889,7 @@ function AssistantDraftChat({
         status: 'idle',
         createdAt: now,
         updatedAt: now,
+        ...modelChoiceRef.current,
       })
       // Send the stamped drafts, so the durable echo replaces the optimistic row by identity.
       const messages = addOptimisticSessionMessage(serverUrl, accountUid, result.sessionId, [
@@ -914,6 +923,26 @@ function AssistantDraftChat({
         onSend={(message) => void handleSend(message)}
         onStop={() => {}}
       />
+      {/* The same per-session model switcher a live session shows, so the first turn already runs
+          on the chosen model and budget rather than the user fixing it after the fact. */}
+      <div className="flex flex-none items-center justify-end gap-2 px-3 pb-2">
+        <SessionModelBadge
+          agent={agent}
+          agentId={agentId}
+          serverUrl={serverUrl}
+          modelOverride={modelChoice.modelOverride}
+          thoroughness={modelChoice.thoroughness}
+          canWrite={canInvokeTools}
+          draft={{
+            onChange: (patch: SessionModelPatch) =>
+              setModelChoice((current) => ({
+                ...current,
+                ...(patch.modelOverride !== undefined ? {modelOverride: patch.modelOverride ?? undefined} : {}),
+                ...(patch.thoroughness !== undefined ? {thoroughness: patch.thoroughness ?? undefined} : {}),
+              })),
+          }}
+        />
+      </div>
     </div>
   )
 }

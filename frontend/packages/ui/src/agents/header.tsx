@@ -494,6 +494,12 @@ export function AgentHeader({
   )
 }
 
+/** A change to a session's model configuration: each field absent leaves it alone, null clears it. */
+export type SessionModelPatch = {
+  modelOverride?: SessionModelOverride | null
+  thoroughness?: Thoroughness | null
+}
+
 /**
  * Session-header model tag: shows the model this session actually runs — its
  * override when set, otherwise the agent's model — and lets writers pick a
@@ -509,18 +515,27 @@ export function SessionModelBadge({
   modelOverride,
   thoroughness,
   canWrite,
+  draft,
 }: {
   agent: AgentHeaderInfo | undefined
   agentId: string | undefined
   serverUrl: string
-  sessionId: string
+  /** The session edits are saved to; absent for a draft (see `draft`). */
+  sessionId?: string
   modelOverride: SessionModelOverride | undefined
   /** The session's delegation-budget override; absent means the agent's own applies. */
   thoroughness?: Thoroughness
   canWrite: boolean
+  /**
+   * Draft mode, for a composer whose session does not exist yet: choices are handed to `onChange`
+   * instead of being saved to a session, and the caller passes them back as `modelOverride` /
+   * `thoroughness` and sends them along with `CreateSession` on the first message.
+   */
+  draft?: {onChange: (patch: SessionModelPatch) => void}
 }) {
   const accountUid = useSelectedAccountId()
   const updateSession = useUpdateAgentSession(serverUrl, accountUid)
+  const saving = !draft && updateSession.isLoading
   const providers = useModelProviders(serverUrl, accountUid, canWrite ? agentId : undefined)
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
@@ -596,14 +611,23 @@ export function SessionModelBadge({
     ? modelReasoningSupport(effectiveProviderType, effective.model)
     : null
 
-  function commitOverride(override: SessionModelOverride | null) {
+  function commit(patch: SessionModelPatch, failure: string, onSettled?: () => void) {
+    if (draft || !sessionId) {
+      draft?.onChange(patch)
+      onSettled?.()
+      return
+    }
     updateSession.mutate(
-      {sessionId, modelOverride: override},
+      {sessionId, ...patch},
       {
-        onSettled: () => setPendingLevel(null),
-        onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not set the session model'),
+        onSettled,
+        onError: (error) => toast.error(error instanceof Error ? error.message : failure),
       },
     )
+  }
+
+  function commitOverride(override: SessionModelOverride | null) {
+    commit({modelOverride: override}, 'Could not set the session model', () => setPendingLevel(null))
   }
 
   function handleSelect(entry: AgentModelRef) {
@@ -642,7 +666,7 @@ export function SessionModelBadge({
       <PopoverTrigger
         type="button"
         aria-label="Set the model for this session"
-        disabled={updateSession.isLoading}
+        disabled={saving}
         className="bg-secondary text-secondary-foreground hover:bg-secondary/80 flex flex-none items-center gap-1 rounded-md border border-transparent px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-50"
       >
         <span className="max-w-40 truncate">{effective.model}</span>
@@ -689,16 +713,8 @@ export function SessionModelBadge({
             compact
             value={thoroughness}
             inheritedValue={definition.thoroughness ?? 'normal'}
-            disabled={!canWrite || updateSession.isLoading}
-            onChange={(next) =>
-              updateSession.mutate(
-                {sessionId, thoroughness: next ?? null},
-                {
-                  onError: (error) =>
-                    toast.error(error instanceof Error ? error.message : 'Could not set the session thoroughness'),
-                },
-              )
-            }
+            disabled={!canWrite || saving}
+            onChange={(next) => commit({thoroughness: next ?? null}, 'Could not set the session thoroughness')}
           />
         </div>
         <div className="border-border mt-1 border-t p-1">

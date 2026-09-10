@@ -3510,12 +3510,33 @@ export function useCreateAgentSession(serverUrl: string | undefined, accountUid:
 /** Creates a session on the server associated with a listed agent. */
 export function useCreateAgentSessionOnServer(accountUid: string | null | undefined) {
   return useMutation({
-    mutationFn: async ({serverUrl, agentId, title}: {serverUrl: string; agentId: string; title?: string}) => {
+    mutationFn: async ({
+      serverUrl,
+      agentId,
+      title,
+      modelOverride,
+      thoroughness,
+    }: {
+      serverUrl: string
+      agentId: string
+      title?: string
+      /** Model the session starts pinned to (a draft composer's choice); absent follows the agent. */
+      modelOverride?: SessionModelOverride
+      /** Delegation budget the session starts with; absent follows the agent. */
+      thoroughness?: Thoroughness
+    }) => {
       if (!accountUid) throw new Error('Select an account first')
       return sendAgentAction({
         serverUrl,
         accountUid,
-        action: {_: 'CreateSession', agentId, ...(title ? {title} : {}), clientRequestId: crypto.randomUUID()},
+        action: {
+          _: 'CreateSession',
+          agentId,
+          ...(title ? {title} : {}),
+          ...(modelOverride ? {modelOverride} : {}),
+          ...(thoroughness ? {thoroughness} : {}),
+          clientRequestId: crypto.randomUUID(),
+        },
       })
     },
     onSuccess(_result, {serverUrl}) {
