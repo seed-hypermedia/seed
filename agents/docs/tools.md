@@ -481,10 +481,10 @@ every call is refused and costs a turn. Every non-leaf turn's prompt states its 
 start, and whether its children could delegate further — a parent whose children will be leaves is told to give them
 self-contained briefs (`delegationPrompt()`). A resolved child's `tool_result` also carries
 `delegation: {depth, maxDepth, childCouldDelegate, parentChildrenRemaining, parentMaxChildren}` — the parent's count is
-the live one, since its system prompt was built when the run started — and `~/self` shows the agent's preset and
-limits. Using the last slot is answered by `childrenExhaustedMessage()`, which says to finish alone now and how to pack
-the next long list (several items per brief, or one script child whose children draw on their own budget). The remaining
-fixed limit is 3 `return_result` retries (`MAX_RETURN_RESULT_RETRIES`).
+the live one, since its system prompt was built when the run started — and `~/self` shows the agent's preset and limits.
+Using the last slot is answered by `childrenExhaustedMessage()`, which says to finish alone now and how to pack the next
+long list (several items per brief, or one script child whose children draw on their own budget). The remaining fixed
+limit is 3 `return_result` retries (`MAX_RETURN_RESULT_RETRIES`).
 
 ## `plan`
 
