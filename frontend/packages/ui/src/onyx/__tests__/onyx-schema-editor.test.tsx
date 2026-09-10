@@ -82,7 +82,7 @@ describe('OnyxSchemaEditor (struct form)', () => {
     act(() =>
       root.render(
         <Harness
-          initial={{type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map', properties: {}}}
+          initial={{type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct', properties: {}}}
         />,
       ),
     )
@@ -103,7 +103,7 @@ describe('OnyxSchemaEditor (struct form)', () => {
       root.render(
         <Harness
           initial={{
-            type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
+            type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct',
             name: 'T',
             properties: {
               a: {
@@ -123,12 +123,13 @@ describe('OnyxSchemaEditor (struct form)', () => {
 
 describe('OnyxSchemaEditor (generics and JSON mode)', () => {
   const MAP = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map'
+  const STRUCT = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct'
   const BLOCK = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block'
 
   it('shows a generic schema’s type parameters and offers them as field kinds', () => {
     act(() => {
       root.render(
-        <Harness initial={{type: MAP, params: {Block: {ref: BLOCK}}, properties: {body: {value: {var: 'Block'}}}}} />,
+        <Harness initial={{type: STRUCT, params: {Block: {ref: BLOCK}}, properties: {body: {value: {var: 'Block'}}}}} />,
       )
     })
     const params = container.querySelector('[data-testid="schema-params"]')!
@@ -165,7 +166,7 @@ describe('OnyxSchemaEditor (generics and JSON mode)', () => {
 
   it('a union edits its options in the form: each option a type, add and remove', () => {
     act(() => {
-      root.render(<Harness initial={{anyOf: [{ref: BLOCK}, {type: MAP, properties: {}}]}} />)
+      root.render(<Harness initial={{anyOf: [{ref: BLOCK}, {type: STRUCT, properties: {}}]}} />)
     })
     expect(container.querySelector('[data-testid="schema-json-editor"]')).toBeNull()
     const rootType = container.querySelector('input[aria-label="Root type"]') as HTMLInputElement
@@ -213,7 +214,7 @@ describe('OnyxSchemaEditor (generics and JSON mode)', () => {
   it('a struct with open extra values edits as fields; unchecking closes it', () => {
     const VALUE = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-value'
     act(() => {
-      root.render(<Harness initial={{type: MAP, properties: {type: {value: {ref: MAP}}}, values: {ref: VALUE}}} />)
+      root.render(<Harness initial={{type: STRUCT, properties: {type: {value: {ref: MAP}}}, values: {ref: VALUE}}} />)
     })
     expect(container.querySelector('[data-testid="schema-json-editor"]')).toBeNull()
     const values = container.querySelector('[data-testid="schema-values"]')!

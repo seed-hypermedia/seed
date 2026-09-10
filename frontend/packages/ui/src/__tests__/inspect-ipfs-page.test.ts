@@ -19,7 +19,7 @@ beforeAll(async () => {
 describe('inspectorBlobActions', () => {
   test('an Onyx schema blob offers Edit + New Instance and reads as a schema', () => {
     const value = {
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct',
       properties: {},
       name: 'Thing',
     } // a valid Onyx schema (kinds are pinned to the onyx account's published URLs)

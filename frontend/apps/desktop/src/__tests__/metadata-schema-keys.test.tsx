@@ -19,7 +19,7 @@ const LITERAL_KEY = `ipfs://${LITERAL_CID}`
 
 const ARTICLE_SCHEMA: OnyxSchema = {
   name: 'Article',
-  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
+  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct',
   required: ['headline', 'status'],
   properties: {
     headline: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string', minLength: 1},
