@@ -1,0 +1,1628 @@
+{
+  "format": 1,
+  "protocol": 2,
+  "minClientProtocol": 1,
+  "envelope": {
+    "fields": {
+      "account": "Uint8Array<ArrayBufferLike>",
+      "action": "AgentAction",
+      "capability?": "string",
+      "capabilityBlob?": "Uint8Array<ArrayBufferLike>",
+      "protocol?": "number",
+      "sig": "Uint8Array<ArrayBufferLike>",
+      "signer": "Uint8Array<ArrayBufferLike>",
+      "type": "\"AgentsAction\""
+    }
+  },
+  "actions": {
+    "AbortFileUpload": {
+      "fields": {
+        "_": "\"AbortFileUpload\"",
+        "uploadId": "string"
+      }
+    },
+    "AcceptAgentInvite": {
+      "fields": {
+        "_": "\"AcceptAgentInvite\"",
+        "agentId": "string"
+      }
+    },
+    "AppendFileUploadChunk": {
+      "fields": {
+        "_": "\"AppendFileUploadChunk\"",
+        "content": "Uint8Array<ArrayBufferLike>",
+        "offset": "number",
+        "uploadId": "string"
+      }
+    },
+    "BeginFileUpload": {
+      "fields": {
+        "_": "\"BeginFileUpload\"",
+        "size": "number",
+        "target": "FileUploadTarget"
+      }
+    },
+    "CancelProviderOAuth": {
+      "fields": {
+        "_": "\"CancelProviderOAuth\"",
+        "loginId": "string"
+      }
+    },
+    "CancelRun": {
+      "fields": {
+        "_": "\"CancelRun\"",
+        "runId": "string"
+      }
+    },
+    "CommitFileUpload": {
+      "fields": {
+        "_": "\"CommitFileUpload\"",
+        "uploadId": "string"
+      }
+    },
+    "CreateAgent": {
+      "fields": {
+        "_": "\"CreateAgent\"",
+        "clientRequestId?": "string",
+        "definition": "AgentDefinition"
+      }
+    },
+    "CreateAgentTrigger": {
+      "fields": {
+        "_": "\"CreateAgentTrigger\"",
+        "agentId": "string",
+        "clientRequestId?": "string",
+        "trigger": "AgentTriggerInput"
+      }
+    },
+    "CreateSession": {
+      "fields": {
+        "_": "\"CreateSession\"",
+        "agentId": "string",
+        "clientRequestId?": "string",
+        "title?": "string"
+      }
+    },
+    "CreateSigningIdentity": {
+      "fields": {
+        "_": "\"CreateSigningIdentity\"",
+        "clientRequestId?": "string",
+        "label?": "string"
+      }
+    },
+    "DeclineAgentInvite": {
+      "fields": {
+        "_": "\"DeclineAgentInvite\"",
+        "agentId": "string"
+      }
+    },
+    "DeleteAgent": {
+      "fields": {
+        "_": "\"DeleteAgent\"",
+        "agentId": "string"
+      }
+    },
+    "DeleteAgentMemoryFile": {
+      "fields": {
+        "_": "\"DeleteAgentMemoryFile\"",
+        "agentId": "string",
+        "path": "string"
+      }
+    },
+    "DeleteAgentTool": {
+      "fields": {
+        "_": "\"DeleteAgentTool\"",
+        "agentId": "string",
+        "name": "string"
+      }
+    },
+    "DeleteAgentTrigger": {
+      "fields": {
+        "_": "\"DeleteAgentTrigger\"",
+        "triggerId": "string"
+      }
+    },
+    "DeleteMcpServer": {
+      "fields": {
+        "_": "\"DeleteMcpServer\"",
+        "name": "string"
+      }
+    },
+    "DeleteModelProvider": {
+      "fields": {
+        "_": "\"DeleteModelProvider\"",
+        "name": "string"
+      }
+    },
+    "DeleteSession": {
+      "fields": {
+        "_": "\"DeleteSession\"",
+        "sessionId": "string"
+      }
+    },
+    "DeleteSigningIdentity": {
+      "fields": {
+        "_": "\"DeleteSigningIdentity\"",
+        "name": "string"
+      }
+    },
+    "DownloadAgentMemoryFile": {
+      "fields": {
+        "_": "\"DownloadAgentMemoryFile\"",
+        "agentId": "string",
+        "path?": "string",
+        "url": "string"
+      }
+    },
+    "GetAgent": {
+      "fields": {
+        "_": "\"GetAgent\"",
+        "agentId": "string"
+      }
+    },
+    "GetAgentTrigger": {
+      "fields": {
+        "_": "\"GetAgentTrigger\"",
+        "triggerId": "string"
+      }
+    },
+    "GetProviderOAuthStatus": {
+      "fields": {
+        "_": "\"GetProviderOAuthStatus\"",
+        "loginId": "string"
+      }
+    },
+    "GetRun": {
+      "fields": {
+        "_": "\"GetRun\"",
+        "runId": "string"
+      }
+    },
+    "GetRunJournal": {
+      "fields": {
+        "_": "\"GetRunJournal\"",
+        "afterSeq?": "number",
+        "runId": "string"
+      }
+    },
+    "GetSession": {
+      "fields": {
+        "_": "\"GetSession\"",
+        "afterSeq?": "number",
+        "beforeSeq?": "number",
+        "limit?": "number",
+        "sessionId": "string"
+      }
+    },
+    "GetSessionEvent": {
+      "fields": {
+        "_": "\"GetSessionEvent\"",
+        "seq": "number",
+        "sessionId": "string"
+      }
+    },
+    "ImportSigningIdentity": {
+      "fields": {
+        "_": "\"ImportSigningIdentity\"",
+        "clientRequestId?": "string",
+        "label?": "string",
+        "seed": "Uint8Array<ArrayBufferLike>"
+      }
+    },
+    "InviteAgentCollaborator": {
+      "fields": {
+        "_": "\"InviteAgentCollaborator\"",
+        "accountId": "string",
+        "agentId": "string",
+        "role": "AgentCollaboratorRole"
+      }
+    },
+    "InvokeSessionTool": {
+      "fields": {
+        "_": "\"InvokeSessionTool\"",
+        "input": "unknown",
+        "sessionId": "string",
+        "verb": "\"call\" | \"read\" | \"write\""
+      }
+    },
+    "ListAgentCollaborators": {
+      "fields": {
+        "_": "\"ListAgentCollaborators\"",
+        "agentId": "string"
+      }
+    },
+    "ListAgentInvites": {
+      "fields": {
+        "_": "\"ListAgentInvites\""
+      }
+    },
+    "ListAgentMemory": {
+      "fields": {
+        "_": "\"ListAgentMemory\"",
+        "agentId": "string"
+      }
+    },
+    "ListAgentMemoryDir": {
+      "fields": {
+        "_": "\"ListAgentMemoryDir\"",
+        "agentId": "string",
+        "path?": "string"
+      }
+    },
+    "ListAgentTools": {
+      "fields": {
+        "_": "\"ListAgentTools\"",
+        "agentId": "string"
+      }
+    },
+    "ListAgentTriggers": {
+      "fields": {
+        "_": "\"ListAgentTriggers\"",
+        "agentId": "string"
+      }
+    },
+    "ListAgents": {
+      "fields": {
+        "_": "\"ListAgents\""
+      }
+    },
+    "ListMcpServers": {
+      "fields": {
+        "_": "\"ListMcpServers\""
+      }
+    },
+    "ListModelProviders": {
+      "fields": {
+        "_": "\"ListModelProviders\"",
+        "agentId?": "string"
+      }
+    },
+    "ListProviderModels": {
+      "fields": {
+        "_": "\"ListProviderModels\"",
+        "agentId?": "string",
+        "provider": "string"
+      }
+    },
+    "ListRuns": {
+      "fields": {
+        "_": "\"ListRuns\"",
+        "agentId?": "string",
+        "limit?": "number",
+        "rootRunId?": "string",
+        "sessionId?": "string",
+        "status?": "RunStatus"
+      }
+    },
+    "ListSessions": {
+      "fields": {
+        "_": "\"ListSessions\"",
+        "agentId?": "string",
+        "cursor?": "SessionListCursor",
+        "includeChildren?": "boolean",
+        "limit?": "number",
+        "parentSessionId?": "string"
+      }
+    },
+    "ListSigningIdentities": {
+      "fields": {
+        "_": "\"ListSigningIdentities\"",
+        "agentId?": "string"
+      }
+    },
+    "MessageSession": {
+      "fields": {
+        "_": "\"MessageSession\"",
+        "clientMessageId?": "string",
+        "content": "MessageSessionContentPart[]",
+        "sessionId": "string"
+      }
+    },
+    "ReadAgentMemoryFile": {
+      "fields": {
+        "_": "\"ReadAgentMemoryFile\"",
+        "agentId": "string",
+        "path": "string"
+      }
+    },
+    "ReadSessionAttachment": {
+      "fields": {
+        "_": "\"ReadSessionAttachment\"",
+        "attachmentId": "string",
+        "sessionId": "string"
+      }
+    },
+    "RefreshMcpServer": {
+      "fields": {
+        "_": "\"RefreshMcpServer\"",
+        "name": "string"
+      }
+    },
+    "RegisterSigner": {
+      "fields": {
+        "_": "\"RegisterSigner\"",
+        "capability": "Uint8Array<ArrayBufferLike>"
+      }
+    },
+    "RemoveAgentCollaborator": {
+      "fields": {
+        "_": "\"RemoveAgentCollaborator\"",
+        "accountId": "string",
+        "agentId": "string"
+      }
+    },
+    "RetrySession": {
+      "fields": {
+        "_": "\"RetrySession\"",
+        "sessionId": "string"
+      }
+    },
+    "SaveAgentTool": {
+      "fields": {
+        "_": "\"SaveAgentTool\"",
+        "agentId": "string",
+        "previousName?": "string",
+        "tool": "AgentToolInput"
+      }
+    },
+    "SetAgentPublicChat": {
+      "fields": {
+        "_": "\"SetAgentPublicChat\"",
+        "agentId": "string",
+        "publicChat": "boolean"
+      }
+    },
+    "SetAgentPublicRead": {
+      "fields": {
+        "_": "\"SetAgentPublicRead\"",
+        "agentId": "string",
+        "publicRead": "boolean"
+      }
+    },
+    "SetMcpServer": {
+      "fields": {
+        "_": "\"SetMcpServer\"",
+        "config": "McpServerConfig",
+        "name": "string"
+      }
+    },
+    "SetModelProvider": {
+      "fields": {
+        "_": "\"SetModelProvider\"",
+        "name": "string",
+        "provider": "ModelProviderConfig"
+      }
+    },
+    "SetSecret": {
+      "fields": {
+        "_": "\"SetSecret\"",
+        "metadata?": "Record<string, unknown>",
+        "name": "string",
+        "value": "Uint8Array<ArrayBufferLike>"
+      }
+    },
+    "SignalRun": {
+      "fields": {
+        "_": "\"SignalRun\"",
+        "payload?": "unknown",
+        "runId": "string",
+        "signal": "string"
+      }
+    },
+    "StartProviderOAuth": {
+      "fields": {
+        "_": "\"StartProviderOAuth\"",
+        "providerType": "string"
+      }
+    },
+    "StopSession": {
+      "fields": {
+        "_": "\"StopSession\"",
+        "sessionId": "string"
+      }
+    },
+    "SubmitProviderOAuthCode": {
+      "fields": {
+        "_": "\"SubmitProviderOAuthCode\"",
+        "code": "string",
+        "loginId": "string"
+      }
+    },
+    "Subscribe": {
+      "fields": {
+        "_": "\"Subscribe\"",
+        "afterSeq?": "number",
+        "key": "`account/${string}` | `agents/${string}` | `runs/${string}` | `sessions/${string}`"
+      }
+    },
+    "UpdateAgent": {
+      "fields": {
+        "_": "\"UpdateAgent\"",
+        "agentId": "string",
+        "definition": "AgentDefinition"
+      }
+    },
+    "UpdateAgentTrigger": {
+      "fields": {
+        "_": "\"UpdateAgentTrigger\"",
+        "patch": "AgentTriggerPatch",
+        "triggerId": "string"
+      }
+    },
+    "UpdateSession": {
+      "fields": {
+        "_": "\"UpdateSession\"",
+        "modelOverride?": "SessionModelOverride | null",
+        "sessionId": "string",
+        "title?": "string"
+      }
+    },
+    "UpdateSigningIdentity": {
+      "fields": {
+        "_": "\"UpdateSigningIdentity\"",
+        "icon?": "SigningIdentityIcon",
+        "label": "string",
+        "name": "string"
+      }
+    },
+    "UploadAgentMemoryFileToIpfs": {
+      "fields": {
+        "_": "\"UploadAgentMemoryFileToIpfs\"",
+        "agentId": "string",
+        "path": "string"
+      }
+    },
+    "UploadSessionAttachment": {
+      "fields": {
+        "_": "\"UploadSessionAttachment\"",
+        "content": "Uint8Array<ArrayBufferLike>",
+        "mimeType?": "string",
+        "name": "string",
+        "sessionId": "string"
+      }
+    },
+    "WriteAgentMemoryFile": {
+      "fields": {
+        "_": "\"WriteAgentMemoryFile\"",
+        "agentId": "string",
+        "content": "Uint8Array<ArrayBufferLike> | string",
+        "path": "string"
+      }
+    }
+  },
+  "responses": {
+    "AbortFileUploadResponse": {
+      "fields": {
+        "_": "\"AbortFileUploadResponse\"",
+        "uploadId": "string"
+      }
+    },
+    "AcceptAgentInviteResponse": {
+      "fields": {
+        "_": "\"AcceptAgentInviteResponse\"",
+        "agent": "AgentInfo"
+      }
+    },
+    "AppendFileUploadChunkResponse": {
+      "fields": {
+        "_": "\"AppendFileUploadChunkResponse\"",
+        "received": "number",
+        "uploadId": "string"
+      }
+    },
+    "BeginFileUploadResponse": {
+      "fields": {
+        "_": "\"BeginFileUploadResponse\"",
+        "maxChunkBytes": "number",
+        "uploadId": "string"
+      }
+    },
+    "CancelProviderOAuthResponse": {
+      "fields": {
+        "_": "\"CancelProviderOAuthResponse\"",
+        "loginId": "string"
+      }
+    },
+    "CancelRunResponse": {
+      "fields": {
+        "_": "\"CancelRunResponse\"",
+        "canceled": "boolean",
+        "runId": "string"
+      }
+    },
+    "CommitFileUploadResponse": {
+      "fields": {
+        "_": "\"CommitFileUploadResponse\"",
+        "attachment?": "SessionAttachmentInfo",
+        "entry?": "AgentMemoryEntry"
+      }
+    },
+    "CreateAgentResponse": {
+      "fields": {
+        "_": "\"CreateAgentResponse\"",
+        "agentId": "string"
+      }
+    },
+    "CreateAgentTriggerResponse": {
+      "fields": {
+        "_": "\"CreateAgentTriggerResponse\"",
+        "trigger": "AgentTriggerInfo",
+        "webhookSecret?": "string"
+      }
+    },
+    "CreateSessionResponse": {
+      "fields": {
+        "_": "\"CreateSessionResponse\"",
+        "sessionId": "string"
+      }
+    },
+    "CreateSigningIdentityResponse": {
+      "fields": {
+        "_": "\"CreateSigningIdentityResponse\"",
+        "identity": "SigningIdentity"
+      }
+    },
+    "DeclineAgentInviteResponse": {
+      "fields": {
+        "_": "\"DeclineAgentInviteResponse\"",
+        "agentId": "string"
+      }
+    },
+    "DeleteAgentMemoryFileResponse": {
+      "fields": {
+        "_": "\"DeleteAgentMemoryFileResponse\"",
+        "agentId": "string",
+        "deleted": "boolean",
+        "path": "string"
+      }
+    },
+    "DeleteAgentResponse": {
+      "fields": {
+        "_": "\"DeleteAgentResponse\"",
+        "agentId": "string"
+      }
+    },
+    "DeleteAgentToolResponse": {
+      "fields": {
+        "_": "\"DeleteAgentToolResponse\"",
+        "agentId": "string",
+        "deleted": "boolean",
+        "name": "string"
+      }
+    },
+    "DeleteAgentTriggerResponse": {
+      "fields": {
+        "_": "\"DeleteAgentTriggerResponse\"",
+        "triggerId": "string"
+      }
+    },
+    "DeleteMcpServerResponse": {
+      "fields": {
+        "_": "\"DeleteMcpServerResponse\"",
+        "name": "string"
+      }
+    },
+    "DeleteModelProviderResponse": {
+      "fields": {
+        "_": "\"DeleteModelProviderResponse\"",
+        "name": "string"
+      }
+    },
+    "DeleteSessionResponse": {
+      "fields": {
+        "_": "\"DeleteSessionResponse\"",
+        "agentId": "string",
+        "sessionId": "string"
+      }
+    },
+    "DeleteSigningIdentityResponse": {
+      "fields": {
+        "_": "\"DeleteSigningIdentityResponse\"",
+        "name": "string"
+      }
+    },
+    "DownloadAgentMemoryFileResponse": {
+      "fields": {
+        "_": "\"DownloadAgentMemoryFileResponse\"",
+        "agentId": "string",
+        "contentType?": "string",
+        "entry": "AgentMemoryEntry",
+        "finalUrl": "string"
+      }
+    },
+    "Error": {
+      "fields": {
+        "_": "\"Error\"",
+        "code?": "\"protocol_too_old\"",
+        "message": "string"
+      }
+    },
+    "GetAgentResponse": {
+      "fields": {
+        "_": "\"GetAgentResponse\"",
+        "agent": "AgentInfo",
+        "sessionCount": "number"
+      }
+    },
+    "GetAgentTriggerResponse": {
+      "fields": {
+        "_": "\"GetAgentTriggerResponse\"",
+        "firings": "TriggerFiringInfo[]",
+        "sessions": "SessionInfo[]",
+        "trigger": "AgentTriggerInfo",
+        "webhookSecret?": "string"
+      }
+    },
+    "GetRunJournalResponse": {
+      "fields": {
+        "_": "\"GetRunJournalResponse\"",
+        "entries": "RunJournalEntryInfo[]",
+        "runId": "string"
+      }
+    },
+    "GetRunResponse": {
+      "fields": {
+        "_": "\"GetRunResponse\"",
+        "run": "RunInfo"
+      }
+    },
+    "GetSessionEventResponse": {
+      "fields": {
+        "_": "\"GetSessionEventResponse\"",
+        "event": "SessionEvent"
+      }
+    },
+    "GetSessionResponse": {
+      "fields": {
+        "_": "\"GetSessionResponse\"",
+        "contextWindow?": "number",
+        "events": "SessionEvent[]",
+        "hasMoreBefore?": "boolean",
+        "session": "SessionInfo",
+        "systemPromptMarkdown": "string",
+        "triggerContext?": "AgentSessionTriggerContext"
+      }
+    },
+    "ImportSigningIdentityResponse": {
+      "fields": {
+        "_": "\"ImportSigningIdentityResponse\"",
+        "identity": "SigningIdentity"
+      }
+    },
+    "InviteAgentCollaboratorResponse": {
+      "fields": {
+        "_": "\"InviteAgentCollaboratorResponse\"",
+        "collaborator": "AgentCollaboratorInfo"
+      }
+    },
+    "InvokeSessionToolResponse": {
+      "fields": {
+        "_": "\"InvokeSessionToolResponse\"",
+        "error?": "string",
+        "output?": "unknown",
+        "resultEventId": "string",
+        "sessionId": "string"
+      }
+    },
+    "ListAgentCollaboratorsResponse": {
+      "fields": {
+        "_": "\"ListAgentCollaboratorsResponse\"",
+        "agentId": "string",
+        "collaborators": "AgentCollaboratorInfo[]",
+        "publicChat": "boolean",
+        "publicRead": "boolean"
+      }
+    },
+    "ListAgentInvitesResponse": {
+      "fields": {
+        "_": "\"ListAgentInvitesResponse\"",
+        "invites": "AgentInviteInfo[]"
+      }
+    },
+    "ListAgentMemoryDirResponse": {
+      "fields": {
+        "_": "\"ListAgentMemoryDirResponse\"",
+        "agentId": "string",
+        "entries": "AgentMemoryEntry[]",
+        "path": "string",
+        "totalBytes": "number",
+        "totals?": "{bytes: number; files: number; truncated: boolean}"
+      }
+    },
+    "ListAgentMemoryResponse": {
+      "fields": {
+        "_": "\"ListAgentMemoryResponse\"",
+        "agentId": "string",
+        "entries": "AgentMemoryEntry[]",
+        "totalBytes": "number",
+        "truncated?": "boolean"
+      }
+    },
+    "ListAgentToolsResponse": {
+      "fields": {
+        "_": "\"ListAgentToolsResponse\"",
+        "agentId": "string",
+        "tools": "AgentToolInfo[]"
+      }
+    },
+    "ListAgentTriggersResponse": {
+      "fields": {
+        "_": "\"ListAgentTriggersResponse\"",
+        "triggers": "AgentTriggerInfo[]"
+      }
+    },
+    "ListAgentsResponse": {
+      "fields": {
+        "_": "\"ListAgentsResponse\"",
+        "agents": "AgentInfo[]"
+      }
+    },
+    "ListMcpServersResponse": {
+      "fields": {
+        "_": "\"ListMcpServersResponse\"",
+        "servers": "RedactedMcpServer[]"
+      }
+    },
+    "ListModelProvidersResponse": {
+      "fields": {
+        "_": "\"ListModelProvidersResponse\"",
+        "providers": "RedactedModelProvider[]"
+      }
+    },
+    "ListProviderModelsResponse": {
+      "fields": {
+        "_": "\"ListProviderModelsResponse\"",
+        "models": "ProviderModelInfo[]"
+      }
+    },
+    "ListRunsResponse": {
+      "fields": {
+        "_": "\"ListRunsResponse\"",
+        "runs": "RunInfo[]"
+      }
+    },
+    "ListSessionsResponse": {
+      "fields": {
+        "_": "\"ListSessionsResponse\"",
+        "agents": "AgentInfo[]",
+        "nextCursor?": "SessionListCursor",
+        "sessions": "SessionInfo[]"
+      }
+    },
+    "ListSigningIdentitiesResponse": {
+      "fields": {
+        "_": "\"ListSigningIdentitiesResponse\"",
+        "identities": "SigningIdentity[]"
+      }
+    },
+    "MessageSessionResponse": {
+      "fields": {
+        "_": "\"MessageSessionResponse\"",
+        "assistantEventId": "string",
+        "continuedToSessionId?": "string",
+        "sessionId": "string"
+      }
+    },
+    "ProviderOAuthStatusResponse": {
+      "fields": {
+        "_": "\"ProviderOAuthStatusResponse\"",
+        "error?": "string",
+        "loginId": "string",
+        "secretName?": "string",
+        "status": "\"completed\" | \"failed\" | \"pending\""
+      }
+    },
+    "ReadAgentMemoryFileResponse": {
+      "fields": {
+        "_": "\"ReadAgentMemoryFileResponse\"",
+        "agentId": "string",
+        "file": "AgentMemoryFile"
+      }
+    },
+    "ReadSessionAttachmentResponse": {
+      "fields": {
+        "_": "\"ReadSessionAttachmentResponse\"",
+        "attachment": "SessionAttachmentInfo",
+        "data": "Uint8Array<ArrayBufferLike>"
+      }
+    },
+    "RegisterSignerResponse": {
+      "fields": {
+        "_": "\"RegisterSignerResponse\"",
+        "accountId": "string",
+        "signerId": "string"
+      }
+    },
+    "RemoveAgentCollaboratorResponse": {
+      "fields": {
+        "_": "\"RemoveAgentCollaboratorResponse\"",
+        "accountId": "string",
+        "agentId": "string"
+      }
+    },
+    "RetrySessionResponse": {
+      "fields": {
+        "_": "\"RetrySessionResponse\"",
+        "assistantEventId": "string",
+        "sessionId": "string"
+      }
+    },
+    "SaveAgentToolResponse": {
+      "fields": {
+        "_": "\"SaveAgentToolResponse\"",
+        "agentId": "string",
+        "tool": "AgentToolInfo"
+      }
+    },
+    "SetAgentPublicChatResponse": {
+      "fields": {
+        "_": "\"SetAgentPublicChatResponse\"",
+        "agent": "AgentInfo"
+      }
+    },
+    "SetAgentPublicReadResponse": {
+      "fields": {
+        "_": "\"SetAgentPublicReadResponse\"",
+        "agent": "AgentInfo"
+      }
+    },
+    "SetMcpServerResponse": {
+      "fields": {
+        "_": "\"SetMcpServerResponse\"",
+        "server": "RedactedMcpServer"
+      }
+    },
+    "SetModelProviderResponse": {
+      "fields": {
+        "_": "\"SetModelProviderResponse\"",
+        "provider": "RedactedModelProvider"
+      }
+    },
+    "SetSecretResponse": {
+      "fields": {
+        "_": "\"SetSecretResponse\"",
+        "secret": "RedactedSecret"
+      }
+    },
+    "SignalRunResponse": {
+      "fields": {
+        "_": "\"SignalRunResponse\"",
+        "delivered": "boolean",
+        "runId": "string"
+      }
+    },
+    "StartProviderOAuthResponse": {
+      "fields": {
+        "_": "\"StartProviderOAuthResponse\"",
+        "authUrl": "string",
+        "expiresAt": "number",
+        "loginId": "string"
+      }
+    },
+    "StopSessionResponse": {
+      "fields": {
+        "_": "\"StopSessionResponse\"",
+        "sessionId": "string",
+        "stopped": "boolean"
+      }
+    },
+    "SubmitProviderOAuthCodeResponse": {
+      "fields": {
+        "_": "\"SubmitProviderOAuthCodeResponse\""
+      }
+    },
+    "UpdateAgentTriggerResponse": {
+      "fields": {
+        "_": "\"UpdateAgentTriggerResponse\"",
+        "trigger": "AgentTriggerInfo"
+      }
+    },
+    "UpdateSessionResponse": {
+      "fields": {
+        "_": "\"UpdateSessionResponse\"",
+        "session": "SessionInfo"
+      }
+    },
+    "UpdateSigningIdentityResponse": {
+      "fields": {
+        "_": "\"UpdateSigningIdentityResponse\"",
+        "identity": "SigningIdentity"
+      }
+    },
+    "UploadAgentMemoryFileToIpfsResponse": {
+      "fields": {
+        "_": "\"UploadAgentMemoryFileToIpfsResponse\"",
+        "agentId": "string",
+        "cid": "string",
+        "mimeType?": "string",
+        "path": "string",
+        "size": "number",
+        "url": "string"
+      }
+    },
+    "UploadSessionAttachmentResponse": {
+      "fields": {
+        "_": "\"UploadSessionAttachmentResponse\"",
+        "attachment": "SessionAttachmentInfo"
+      }
+    },
+    "WriteAgentMemoryFileResponse": {
+      "fields": {
+        "_": "\"WriteAgentMemoryFileResponse\"",
+        "agentId": "string",
+        "entry": "AgentMemoryEntry"
+      }
+    }
+  },
+  "types": {
+    "AgentAccessRole": {
+      "alias": "\"chatter\" | \"owner\" | \"reader\" | \"writer\""
+    },
+    "AgentActivity": {
+      "fields": {
+        "at": "number",
+        "busy": "boolean",
+        "kind": "AgentActivityKind",
+        "messageAt": "number",
+        "messageFrom": "\"agent\" | \"user\"",
+        "sessionId": "string"
+      }
+    },
+    "AgentActivityKind": {
+      "alias": "\"agent\" | \"tool\" | \"user\""
+    },
+    "AgentCollaboratorInfo": {
+      "fields": {
+        "accountId": "string",
+        "createdAt": "number",
+        "role": "AgentAccessRole",
+        "status": "\"accepted\" | \"pending\"",
+        "updatedAt": "number"
+      }
+    },
+    "AgentCollaboratorRole": {
+      "alias": "\"reader\" | \"writer\""
+    },
+    "AgentDefinition": {
+      "fields": {
+        "enabledModels?": "AgentModelRef[]",
+        "mcpServers?": "string[]",
+        "metadata?": "Record<string, unknown>",
+        "model": "string",
+        "modelProvider": "string",
+        "name": "string",
+        "reasoningLevel?": "ReasoningLevel",
+        "signingKey?": "string",
+        "signingKeys?": "string[]",
+        "systemPrompt": "AgentPromptBlock[] | string",
+        "tools?": "string[]"
+      }
+    },
+    "AgentInfo": {
+      "fields": {
+        "accessRole?": "AgentAccessRole",
+        "account": "string",
+        "activity?": "AgentActivity",
+        "createdAt": "number",
+        "definition": "AgentDefinition",
+        "id": "string",
+        "publicChat?": "boolean",
+        "publicRead?": "boolean",
+        "stateDir": "string",
+        "status": "\"error\" | \"idle\" | \"running\" | \"stopped\"",
+        "updatedAt": "number"
+      }
+    },
+    "AgentInviteInfo": {
+      "fields": {
+        "agentId": "string",
+        "agentName": "string",
+        "createdAt": "number",
+        "ownerAccountId": "string",
+        "role": "AgentCollaboratorRole",
+        "updatedAt": "number"
+      }
+    },
+    "AgentMemoryEntry": {
+      "fields": {
+        "entryCount?": "number",
+        "mimeType?": "string",
+        "path": "string",
+        "size": "number",
+        "type": "\"dir\" | \"file\"",
+        "updatedAt": "number"
+      }
+    },
+    "AgentMemoryFile": {
+      "fields": {
+        "content?": "string",
+        "data?": "Uint8Array<ArrayBufferLike>",
+        "encoding": "\"binary\" | \"utf8\"",
+        "mimeType?": "string",
+        "path": "string",
+        "size": "number",
+        "updatedAt": "number"
+      }
+    },
+    "AgentModelRef": {
+      "fields": {
+        "model": "string",
+        "provider": "string"
+      }
+    },
+    "AgentPromptBlock": {
+      "fields": {
+        "block": "{[key: string]: unknown; id: string; type: string}",
+        "children?": "AgentPromptBlock[]"
+      }
+    },
+    "AgentRunUsage": {
+      "fields": {
+        "cacheRead": "number",
+        "cacheWrite": "number",
+        "input": "number",
+        "output": "number",
+        "total": "number"
+      }
+    },
+    "AgentScheduleTrigger": {
+      "variants": {
+        "interval": {
+          "fields": {
+            "every": "number",
+            "kind": "\"interval\"",
+            "unit": "\"hours\" | \"minutes\""
+          }
+        },
+        "once": {
+          "fields": {
+            "kind": "\"once\"",
+            "runAt": "number",
+            "timezone?": "string"
+          }
+        },
+        "weekly": {
+          "fields": {
+            "daysOfWeek": "number[]",
+            "kind": "\"weekly\"",
+            "timeOfDay": "string",
+            "timezone": "string"
+          }
+        }
+      }
+    },
+    "AgentSessionTriggerContext": {
+      "fields": {
+        "activity": "Record<string, unknown>",
+        "activityKey": "string",
+        "activitySummary": "string",
+        "error?": "string",
+        "firedAt": "number",
+        "firingId": "string",
+        "prompt": "string",
+        "promptBlocks?": "AgentPromptBlock[]",
+        "source": "AgentTriggerSource",
+        "status": "string",
+        "triggerId": "string",
+        "triggerName": "string"
+      }
+    },
+    "AgentSessionTriggerSummary": {
+      "fields": {
+        "activityKey": "string",
+        "activitySummary": "string",
+        "firedAt": "number",
+        "firingId": "string",
+        "source": "AgentTriggerSource",
+        "triggerId": "string",
+        "triggerName": "string"
+      }
+    },
+    "AgentToolInfo": {
+      "fields": {
+        "cid": "string",
+        "createdAt": "number",
+        "description": "string",
+        "enabled": "boolean",
+        "granted": "boolean",
+        "input": "Record<string, unknown>",
+        "kind": "\"builtin\" | \"lambda\" | \"mcp\"",
+        "name": "string",
+        "output?": "Record<string, unknown>",
+        "remoteName?": "string",
+        "runtime?": "\"python\" | \"typescript\"",
+        "server?": "string",
+        "source?": "string",
+        "summary": "string",
+        "updatedAt": "number"
+      }
+    },
+    "AgentToolInput": {
+      "fields": {
+        "description": "string",
+        "input": "Record<string, unknown>",
+        "name": "string",
+        "output?": "Record<string, unknown>",
+        "runtime": "\"python\" | \"typescript\"",
+        "source": "string",
+        "summary?": "string"
+      }
+    },
+    "AgentTriggerInfo": {
+      "fields": {
+        "account": "string",
+        "agentId": "string",
+        "continuation?": "TriggerContinuation",
+        "createdAt": "number",
+        "enabled": "boolean",
+        "id": "string",
+        "lastCheckedAt?": "number",
+        "lastError?": "string",
+        "lastFiredAt?": "number",
+        "name": "string",
+        "prompt": "AgentPromptBlock[] | string",
+        "source": "AgentTriggerSource",
+        "updatedAt": "number"
+      }
+    },
+    "AgentTriggerInput": {
+      "fields": {
+        "continuation?": "TriggerContinuation",
+        "enabled?": "boolean",
+        "name": "string",
+        "prompt?": "AgentPromptBlock[] | string",
+        "source": "AgentTriggerSource"
+      }
+    },
+    "AgentTriggerPatch": {
+      "fields": {
+        "continuation?": "TriggerContinuation",
+        "enabled?": "boolean",
+        "name?": "string",
+        "prompt?": "AgentPromptBlock[] | string",
+        "source?": "AgentTriggerSource"
+      }
+    },
+    "AgentTriggerSource": {
+      "variants": {
+        "document-comment": {
+          "fields": {
+            "author?": "string",
+            "resource": "string",
+            "type": "\"document-comment\""
+          }
+        },
+        "run-completed": {
+          "fields": {
+            "agentId?": "string",
+            "status?": "\"canceled\" | \"failed\" | \"succeeded\"",
+            "titleMatch?": "string",
+            "type": "\"run-completed\""
+          }
+        },
+        "schedule": {
+          "fields": {
+            "schedule": "AgentScheduleTrigger",
+            "type": "\"schedule\""
+          }
+        },
+        "site-update": {
+          "fields": {
+            "eventTypes?": "string[]",
+            "resourcePrefix": "string",
+            "type": "\"site-update\""
+          }
+        },
+        "user-mention": {
+          "fields": {
+            "mentionedAccounts": "string[]",
+            "resourcePrefix?": "string",
+            "type": "\"user-mention\""
+          }
+        },
+        "webhook": {
+          "fields": {
+            "type": "\"webhook\""
+          }
+        }
+      }
+    },
+    "FileUploadTarget": {
+      "variants": {
+        "memory": {
+          "fields": {
+            "agentId": "string",
+            "kind": "\"memory\"",
+            "path": "string"
+          }
+        },
+        "session-attachment": {
+          "fields": {
+            "kind": "\"session-attachment\"",
+            "mimeType?": "string",
+            "name": "string",
+            "sessionId": "string"
+          }
+        }
+      }
+    },
+    "JsonSchema": {
+      "fields": {
+        "additionalProperties?": "JsonSchema | false | true",
+        "description?": "string",
+        "enum?": "string[]",
+        "items?": "JsonSchema",
+        "maxItems?": "number",
+        "maxLength?": "number",
+        "maximum?": "number",
+        "minItems?": "number",
+        "minLength?": "number",
+        "minimum?": "number",
+        "properties?": "Record<string, JsonSchema>",
+        "required?": "string[]",
+        "type?": "\"array\" | \"boolean\" | \"integer\" | \"null\" | \"number\" | \"object\" | \"string\" | JsonSchemaTypeName[]"
+      }
+    },
+    "JsonSchemaTypeName": {
+      "alias": "\"array\" | \"boolean\" | \"integer\" | \"null\" | \"number\" | \"object\" | \"string\""
+    },
+    "McpServerConfig": {
+      "fields": {
+        "headers?": "Record<string, string>",
+        "secretRefs?": "Record<string, string>",
+        "transport?": "McpServerTransport",
+        "url": "string"
+      }
+    },
+    "McpServerStatus": {
+      "fields": {
+        "checkedAt?": "number",
+        "error?": "string",
+        "state": "\"error\" | \"ok\" | \"unknown\""
+      }
+    },
+    "McpServerTransport": {
+      "alias": "\"http\" | \"sse\""
+    },
+    "McpToolInfo": {
+      "fields": {
+        "description?": "string",
+        "inputSchema?": "JsonSchema",
+        "name": "string",
+        "toolName": "string"
+      }
+    },
+    "MessageSessionContentPart": {
+      "variants": {
+        "attachment": {
+          "fields": {
+            "id": "string",
+            "type": "\"attachment\""
+          }
+        },
+        "context": {
+          "fields": {
+            "lines": "string[]",
+            "type": "\"context\""
+          }
+        },
+        "text": {
+          "fields": {
+            "blocks?": "AgentPromptBlock[]",
+            "clientMessageId?": "string",
+            "text": "string",
+            "type": "\"text\""
+          }
+        }
+      }
+    },
+    "ModelProviderConfig": {
+      "fields": {
+        "authMode?": "\"api-key\" | \"subscription\"",
+        "baseUrl?": "string",
+        "modelDefaults?": "Record<string, unknown>",
+        "secretRefs?": "Record<string, string>",
+        "type": "string"
+      }
+    },
+    "ProviderModelInfo": {
+      "fields": {
+        "id": "string",
+        "name": "string"
+      }
+    },
+    "ReasoningLevel": {
+      "alias": "\"high\" | \"low\" | \"max\" | \"medium\" | \"minimal\" | \"xhigh\""
+    },
+    "RedactedMcpServer": {
+      "fields": {
+        "createdAt": "number",
+        "hasSecrets": "boolean",
+        "headerNames": "string[]",
+        "id": "string",
+        "name": "string",
+        "secretHeaderNames": "string[]",
+        "status": "McpServerStatus",
+        "tools": "McpToolInfo[]",
+        "transport": "McpServerTransport",
+        "updatedAt": "number",
+        "url": "string"
+      }
+    },
+    "RedactedModelProvider": {
+      "fields": {
+        "authMode?": "\"api-key\" | \"subscription\"",
+        "authStatus?": "\"needs-login\" | \"ok\"",
+        "createdAt": "number",
+        "hasSecrets": "boolean",
+        "id": "string",
+        "name": "string",
+        "type": "string",
+        "updatedAt": "number"
+      }
+    },
+    "RedactedSecret": {
+      "fields": {
+        "createdAt": "number",
+        "hasValue": "true",
+        "id": "string",
+        "metadata?": "Record<string, unknown>",
+        "name": "string",
+        "updatedAt": "number"
+      }
+    },
+    "RunInfo": {
+      "fields": {
+        "account": "string",
+        "agentId?": "string",
+        "childRunCount?": "number",
+        "continuedFromRunId?": "string",
+        "createdAt": "number",
+        "depth": "number",
+        "error?": "{callSeq?: number; code: string; detail?: unknown; message: string; stack?: string; tool?: string}",
+        "finishedAt?": "number",
+        "id": "string",
+        "kind": "\"agent\" | \"workflow\"",
+        "origin": "\"agent\" | \"system\" | \"trigger\" | \"user\" | \"workflow\"",
+        "parentRunId?": "string",
+        "parentToolCallId?": "string",
+        "plan?": "RunPlan",
+        "planStepId?": "string",
+        "rootRunId": "string",
+        "sessionId?": "string",
+        "sourceText?": "string",
+        "startedAt?": "number",
+        "status": "RunStatus",
+        "stepLabel?": "string",
+        "title": "string",
+        "unmetObligations?": "UnmetObligation[]",
+        "updatedAt": "number",
+        "usage?": "RunUsageInfo",
+        "wait?": "RunWaitInfo"
+      }
+    },
+    "RunJournalEntryInfo": {
+      "fields": {
+        "createdAt": "number",
+        "entry": "Record<string, unknown>",
+        "runId": "string",
+        "seq": "number"
+      }
+    },
+    "RunPlan": {
+      "fields": {
+        "ownerRunId?": "string",
+        "settledAt?": "number",
+        "steps": "RunPlanStep[]",
+        "title?": "string"
+      }
+    },
+    "RunPlanStep": {
+      "fields": {
+        "id": "string",
+        "label": "string",
+        "resolvedBy?": "\"runtime\"",
+        "status": "\"done\" | \"failed\" | \"pending\" | \"running\" | \"skipped\""
+      }
+    },
+    "RunStatus": {
+      "alias": "\"canceled\" | \"claimed\" | \"failed\" | \"queued\" | \"running\" | \"succeeded\" | \"waiting\""
+    },
+    "RunUsageInfo": {
+      "fields": {
+        "cacheRead": "number",
+        "cacheWrite": "number",
+        "children?": "{cacheRead: number; cacheWrite: number; input: number; output: number; runs: number; total: number}",
+        "input": "number",
+        "output": "number",
+        "total": "number"
+      }
+    },
+    "RunWaitInfo": {
+      "fields": {
+        "answerWith?": "string",
+        "label?": "string",
+        "pendingChildren?": "number",
+        "reason": "\"budget-pause\" | \"children\" | \"event\" | \"timer\"",
+        "wakeAt?": "number"
+      }
+    },
+    "SessionActivity": {
+      "fields": {
+        "messageAt": "number",
+        "messageFrom": "\"agent\" | \"user\""
+      }
+    },
+    "SessionActor": {
+      "alias": "\"agent\" | \"system\" | \"trigger\" | \"user\""
+    },
+    "SessionAttachmentInfo": {
+      "fields": {
+        "createdAt": "number",
+        "id": "string",
+        "mimeType?": "string",
+        "name": "string",
+        "sessionId": "string",
+        "size": "number"
+      }
+    },
+    "SessionContinuationLink": {
+      "fields": {
+        "continuationId": "string",
+        "createdAt": "number",
+        "reason": "SessionContinuationReason",
+        "sessionId": "string",
+        "title?": "string"
+      }
+    },
+    "SessionContinuationReason": {
+      "alias": "\"context_pressure\" | \"other\" | \"phase_change\" | \"refocus\" | \"topic_change\" | \"user_request\""
+    },
+    "SessionEvent": {
+      "fields": {
+        "createdAt": "number",
+        "event": "SessionEventPayload",
+        "id": "string",
+        "seq": "number",
+        "sessionId": "string",
+        "truncated?": "boolean"
+      }
+    },
+    "SessionEventMeta": {
+      "fields": {
+        "accountId?": "string",
+        "continuedFrom?": "{eventId: string; seq: number; sessionId: string}",
+        "durationMs?": "number",
+        "model?": "string",
+        "provider?": "string",
+        "reasoningLevel?": "\"default\" | \"high\" | \"low\" | \"max\" | \"medium\" | \"minimal\" | \"off\" | \"xhigh\"",
+        "signerId?": "string",
+        "turn?": "{index?: number; ttftMs?: number; turnMs?: number}",
+        "usage?": "AgentRunUsage"
+      }
+    },
+    "SessionEventPayload": {
+      "alias": "Record<string, unknown> | {actor?: SessionActor; attachments?: SessionAttachmentInfo[]; blocks?: AgentPromptBlock[]; clientMessageId?: string; content: string; contextLines?: string[]; meta?: SessionEventMeta; rawMarkdown?: string; role: \"assistant\" | \"tool\" | \"user\"; toolCallId?: string; type: \"message\"} | {actor?: SessionActor; error?: string; meta?: SessionEventMeta; name: string; output?: unknown; toolCallId: string; type: \"tool_result\"} | {actor?: SessionActor; id: string; input: unknown; meta?: SessionEventMeta; name: string; type: \"tool_call\"} | {actor?: SessionActor; message: string; type: \"error\"} | {actor?: SessionActor; name: string; runId: string; sessionId?: string; title: string; toolCallId: string; type: \"tool_spawn\"}"
+    },
+    "SessionInfo": {
+      "fields": {
+        "account": "string",
+        "activity?": "SessionActivity",
+        "agentId": "string",
+        "childSessionCount?": "number",
+        "continuedFrom?": "SessionContinuationLink",
+        "continuedTo?": "SessionContinuationLink",
+        "createdAt": "number",
+        "description?": "string",
+        "id": "string",
+        "modelOverride?": "SessionModelOverride",
+        "parentSessionId?": "string",
+        "plan?": "RunPlan",
+        "runId?": "string",
+        "startedByTrigger?": "AgentSessionTriggerSummary",
+        "status": "\"error\" | \"idle\" | \"stopped\" | \"streaming\"",
+        "title?": "string",
+        "updatedAt": "number"
+      }
+    },
+    "SessionListCursor": {
+      "fields": {
+        "idBefore": "string",
+        "updatedBefore": "number"
+      }
+    },
+    "SessionModelOverride": {
+      "fields": {
+        "model": "string",
+        "provider": "string",
+        "reasoningLevel?": "ReasoningLevel"
+      }
+    },
+    "SigningIdentity": {
+      "fields": {
+        "accountId?": "string",
+        "createdAt": "number",
+        "dev?": "boolean",
+        "icon?": "string",
+        "id": "string",
+        "label?": "string",
+        "name": "string",
+        "serverUrl?": "string",
+        "updatedAt": "number"
+      }
+    },
+    "SigningIdentityIcon": {
+      "fields": {
+        "data": "Uint8Array<ArrayBufferLike>",
+        "fileName?": "string",
+        "mimeType?": "string"
+      }
+    },
+    "TriggerContinuation": {
+      "variants": {
+        "newThread": {
+          "fields": {
+            "includeAgentSystemPrompt?": "boolean",
+            "kind": "\"newThread\"",
+            "systemPrompt?": "string",
+            "tools?": "string[]"
+          }
+        },
+        "script": {
+          "fields": {
+            "input?": "unknown",
+            "kind": "\"script\"",
+            "onFailure?": "TriggerFailurePolicy",
+            "script": "string"
+          }
+        },
+        "tool": {
+          "fields": {
+            "input?": "unknown",
+            "kind": "\"tool\"",
+            "onFailure?": "TriggerFailurePolicy",
+            "tool": "string"
+          }
+        },
+        "wake": {
+          "fields": {
+            "kind": "\"wake\"",
+            "payload?": "unknown",
+            "runId?": "string",
+            "signal": "string"
+          }
+        }
+      }
+    },
+    "TriggerFailurePolicy": {
+      "alias": "\"none\" | \"thread\""
+    },
+    "TriggerFiringInfo": {
+      "fields": {
+        "activityKey": "string",
+        "activitySummary": "string",
+        "createdAt": "number",
+        "error?": "string",
+        "id": "string",
+        "runId?": "string",
+        "sessionId?": "string",
+        "status": "string"
+      }
+    },
+    "UnmetObligation": {
+      "variants": {
+        "plan": {
+          "fields": {
+            "kind": "\"plan\"",
+            "steps": "string[]"
+          }
+        },
+        "typed-result": {
+          "fields": {
+            "kind": "\"typed-result\""
+          }
+        }
+      }
+    }
+  }
+}

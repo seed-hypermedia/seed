@@ -1,5 +1,5 @@
 import type {NoticeTone} from '@shm/ui/notice'
-import {AgentServerError} from './client'
+import {AgentProtocolError, AgentServerError} from './client'
 
 /**
  * How a failed agent-server request should be shown.
@@ -61,6 +61,14 @@ export function describeAgentError(
       tone: 'warning',
       title: serverLabel ? `Can’t reach ${serverLabel}` : 'Can’t reach the agent server',
       detail: `${failed} because the server isn’t responding.`,
+    }
+  }
+  if (error instanceof AgentProtocolError) {
+    // Not this request's fault and not an outage: the app needs updating to talk to this server.
+    return {
+      tone: 'error',
+      title: serverLabel ? `This app is out of date for ${serverLabel}` : 'This app is out of date',
+      detail: error.message,
     }
   }
   if (error instanceof AgentServerError) {

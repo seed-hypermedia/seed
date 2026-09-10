@@ -11,6 +11,9 @@
     "test:docker": "bun scripts/smoke-docker.ts",
     "test:trigger": "bun scripts/smoke-trigger.ts",
     "typecheck": "bun tsgo --noEmit",
+    "protocol:snapshot": "bun scripts/protocol-surface.ts write",
+    "protocol:check": "bun scripts/protocol-surface.ts check",
+    "protocol:diff": "bun scripts/protocol-surface.ts diff",
     "format:check": "prettier --check .",
     "format:write": "prettier --write .",
     "check": "conc 'bun typecheck' 'bun format:write'"
@@ -48,6 +51,7 @@
     "concurrently": "^9.2.1",
     "prettier": "3.1.1",
     "prettier-plugin-tailwindcss": "0.6.14",
-    "superjson": "2.2.1"
+    "superjson": "2.2.1",
+    "typescript": "5.8.3"
   }
 }

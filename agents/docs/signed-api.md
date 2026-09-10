@@ -18,7 +18,17 @@ Equivalent prefixed endpoint:
 POST /agents/api/message
 ```
 
-Responses are DAG-CBOR encoded `AgentResponse` values.
+Responses are DAG-CBOR encoded `AgentResponse` values. Every response carries the server's protocol version in the
+`X-Agents-Protocol` header (also in `/api/version` as `protocol` and `minClientProtocol`).
+
+## Protocol versioning
+
+Clients and servers are deployed independently, so the wire surface is versioned by a single integer,
+`AGENTS_PROTOCOL_VERSION` in `agents/protocol/src/version.ts`. A client declares the version it speaks in
+`envelope.protocol`; the server answers in that version's shape (shims in `agents/src/protocol-compat.ts`) or, below
+`MIN_CLIENT_PROTOCOL`, refuses with HTTP 426 and `{_: 'Error', code: 'protocol_too_old'}`. `bun run protocol:check` in
+CI fails any change to the surface that would break a released client without a version bump. The rules, the table of
+what counts as breaking, and the per-version changelog are in `agents/protocol/PROTOCOL.md`.
 
 ## Signed envelope
 
@@ -28,6 +38,7 @@ type SignedActionEnvelope = {
   signer: blobs.Principal
   sig: blobs.Signature
   account: blobs.Principal
+  protocol?: number // AGENTS_PROTOCOL_VERSION of the client; absent = 1
   action: AgentAction
 }
 

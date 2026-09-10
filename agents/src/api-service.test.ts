@@ -12,7 +12,16 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import {z} from 'zod'
-import {modelReasoningSupport, sessionEventActor, type AgentDefinition} from '@seed-hypermedia/agents-protocol'
+import {
+  AGENTS_PROTOCOL_HEADER,
+  AGENTS_PROTOCOL_VERSION,
+  MIN_CLIENT_PROTOCOL,
+  modelReasoningSupport,
+  sessionEventActor,
+  type AgentDefinition,
+} from '@seed-hypermedia/agents-protocol'
+import {createAPIRoutes} from '@/main'
+import {clientProtocolOf, clientProtocolProblem, type GetAgentResponseV1} from '@/protocol-compat'
 import {startTestMcpServer} from '@/mcp-test-server'
 
 /**
@@ -11312,5 +11321,133 @@ describe('narrowDefinitionTools', () => {
     ).toEqual(['publish'])
     // Names that are not lambdas of this agent never ride along.
     expect(apisvc.narrowDefinitionTools(parentBase, ['made_up_tool'], ['check_broken_links'])).toEqual([])
+  })
+})
+
+describe('protocol version negotiation', () => {
+  async function createAgentWithSession(svc: apisvc.Service, owner: blobs.Signer) {
+    await setDefaultProvider(svc, owner)
+    const created = await svc.message(
+      await apisvc.createSignedEnvelope(owner, {
+        action: {
+          _: 'CreateAgent',
+          definition: {name: 'Versioned', systemPrompt: 'Be stable.', modelProvider: 'openai', model: 'gpt'},
+        },
+      }),
+    )
+    if (created._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+    const session = await svc.message(
+      await apisvc.createSignedEnvelope(owner, {action: {_: 'CreateSession', agentId: created.agentId}}),
+    )
+    if (session._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+    return {agentId: created.agentId, sessionId: session.sessionId}
+  }
+
+  test('a client declaring the current protocol gets GetAgent without sessions', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      const {agentId} = await createAgentWithSession(svc, owner)
+      const read = await svc.message(await apisvc.createSignedEnvelope(owner, {action: {_: 'GetAgent', agentId}}))
+      if (read._ !== 'GetAgentResponse') throw new Error('unexpected response')
+      expect(read.sessionCount).toBe(1)
+      expect('sessions' in read).toBe(false)
+    } finally {
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
+  test('a client declaring no protocol (pre-2 desktop) still gets the sessions it reads unguarded', async () => {
+    // The #1078 regression: a 2026.9.4 desktop read `response.sessions.filter(...)` and crashed
+    // its window when the field went missing. Such clients send no `protocol` at all.
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      const {agentId, sessionId} = await createAgentWithSession(svc, owner)
+      const envelope = await apisvc.createSignedEnvelope(owner, {action: {_: 'GetAgent', agentId}, protocol: null})
+      expect('protocol' in envelope).toBe(false)
+      const read = (await svc.message(envelope)) as GetAgentResponseV1
+      if (read._ !== 'GetAgentResponse') throw new Error('unexpected response')
+      expect(read.sessionCount).toBe(1)
+      expect(read.sessions.map((session) => session.id)).toEqual([sessionId])
+    } finally {
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
+  test('a client below the minimum protocol is refused with a typed 426 before anything else', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      // Cannot happen today (MIN_CLIENT_PROTOCOL is 1), so the judgement is exercised directly.
+      expect(clientProtocolProblem(MIN_CLIENT_PROTOCOL)).toBeNull()
+      expect(clientProtocolProblem(MIN_CLIENT_PROTOCOL - 1)).toMatchObject({
+        status: 426,
+        code: 'protocol_too_old',
+        message: expect.stringContaining('Update Seed'),
+      })
+      // A malformed envelope is left to verification, which answers 401 as before.
+      expect(clientProtocolOf(null)).toBe(1)
+      // A nonsense declaration is treated as the implicit version 1, never as "unsupported".
+      const garbage = await apisvc.createSignedEnvelope(owner, {action: {_: 'ListAgents'}, protocol: -7})
+      expect(clientProtocolOf(garbage)).toBe(1)
+      const list = await svc.message(garbage)
+      expect(list._).toBe('ListAgentsResponse')
+      // A future client is admitted: the server answers in its own protocol.
+      const future = await apisvc.createSignedEnvelope(owner, {
+        action: {_: 'ListAgents'},
+        protocol: AGENTS_PROTOCOL_VERSION + 5,
+      })
+      expect((await svc.message(future))._).toBe('ListAgentsResponse')
+    } finally {
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
+  test('the HTTP layer sends the protocol header and the error code', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      const routes = createAPIRoutes(svc)
+      const message = (routes['/api/message'] as {POST: (req: Request) => Promise<Response>}).POST
+      const envelope = await apisvc.createSignedEnvelope(owner, {action: {_: 'ListAgents'}})
+      const ok = await message(
+        new Request('http://agents.test/api/message', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/cbor'},
+          body: cbor.encode(envelope) as BodyInit,
+        }),
+      )
+      expect(ok.status).toBe(200)
+      expect(ok.headers.get(AGENTS_PROTOCOL_HEADER)).toBe(String(AGENTS_PROTOCOL_VERSION))
+      expect(ok.headers.get('Access-Control-Expose-Headers')).toContain(AGENTS_PROTOCOL_HEADER)
+
+      const version = (routes['/api/version'] as {GET: () => Response}).GET()
+      expect(await version.json()).toMatchObject({
+        protocol: AGENTS_PROTOCOL_VERSION,
+        minClientProtocol: MIN_CLIENT_PROTOCOL,
+      })
+      expect(version.headers.get(AGENTS_PROTOCOL_HEADER)).toBe(String(AGENTS_PROTOCOL_VERSION))
+
+      // A body that is not an envelope still gets the 401 verification always gave it.
+      const garbage = await message(
+        new Request('http://agents.test/api/message', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/cbor'},
+          body: cbor.encode(null) as BodyInit,
+        }),
+      )
+      expect(garbage.status).toBe(401)
+    } finally {
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
   })
 })

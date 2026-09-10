@@ -1,4 +1,9 @@
 import type * as AgentsProtocol from '@seed-hypermedia/agents-protocol'
+import {
+  AGENTS_PROTOCOL_HEADER,
+  AGENTS_PROTOCOL_VERSION,
+  declaredProtocolVersion,
+} from '@seed-hypermedia/agents-protocol'
 import * as blobs from '@shm/shared/blobs'
 import * as cbor from '@shm/shared/cbor'
 import {getAgentsPlatform} from './platform'
@@ -139,6 +144,10 @@ export type AgentServerHealth = {
   codeExecReason?: string
   /** Machine-readable cause when codeExec is false (e.g. 'whp-disabled'), for targeted help UI. */
   codeExecReasonCode?: string
+  /** Wire protocol the server speaks; absent on servers from before protocol 2 (see agents/protocol/PROTOCOL.md). */
+  protocol?: number
+  /** Oldest client protocol the server still answers. Absent on servers from before protocol 2. */
+  minClientProtocol?: number
 }
 
 /** Normalizes an agent server URL for storage and fetch calls. */
@@ -209,6 +218,9 @@ export async function signAgentAction(input: {accountUid: string; action: AgentA
           ...(delegation.capabilityBlob ? {capabilityBlob: delegation.capabilityBlob} : {}),
         }
       : {}),
+    // Signed with the rest: the server answers in this protocol's shape, or refuses if it no
+    // longer serves it (see `agents/protocol/PROTOCOL.md`).
+    protocol: AGENTS_PROTOCOL_VERSION,
     action: {...omitUndefined(input.action), ts: Date.now()},
   } as unknown as blobs.Blob)
 }
@@ -236,11 +248,36 @@ function omitUndefined<T>(value: T): T {
  */
 export class AgentServerError extends Error {
   readonly status: number
-  constructor(message: string, status: number) {
+  /** The server's machine-readable cause, when it sent one. */
+  readonly code?: AgentsProtocol.ErrorResponse['code']
+  constructor(message: string, status: number, code?: AgentsProtocol.ErrorResponse['code']) {
     super(message)
     this.name = 'AgentServerError'
     this.status = status
+    if (code) this.code = code
   }
+}
+
+/**
+ * The server has retired the protocol version this app speaks (HTTP 426, `protocol_too_old`).
+ * Nothing about the request was wrong and the server is up: the fix is updating the app, and the
+ * message says so. It is not a "refusal" of the resource asked for, so call sites that give up a
+ * remembered resource on a refusal must not do so on this.
+ */
+export class AgentProtocolError extends AgentServerError {
+  constructor(message: string, status: number) {
+    super(message, status, 'protocol_too_old')
+    this.name = 'AgentProtocolError'
+  }
+}
+
+/**
+ * The protocol version a server advertised on a response, read from its header. Servers from
+ * before protocol 2 send no header, which counts as protocol 1. For display and diagnostics: the
+ * client does not refuse older servers (see `agents/protocol/src/version.ts`).
+ */
+export function serverProtocolOf(headers: Headers): number {
+  return declaredProtocolVersion(Number(headers.get(AGENTS_PROTOCOL_HEADER)))
 }
 
 export async function sendAgentAction(input: {
@@ -258,9 +295,13 @@ export async function sendAgentAction(input: {
   })
   const decoded = cbor.decode<AgentsResponse>(new Uint8Array(await res.arrayBuffer()))
   if (!res.ok || decoded._ === 'Error') {
+    if (decoded._ === 'Error' && decoded.code === 'protocol_too_old') {
+      throw new AgentProtocolError(decoded.message, res.status)
+    }
     throw new AgentServerError(
       decoded._ === 'Error' ? decoded.message : `Agent server request failed: HTTP ${res.status}`,
       res.status,
+      decoded._ === 'Error' ? decoded.code : undefined,
     )
   }
   return decoded

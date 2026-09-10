@@ -8,11 +8,17 @@
  * `/api/version` and inside `/api/health`.
  *
  * `commit`/`branch`/`date` mirror the daemon `/debug/version` and web `/hm/api/version`
- * shape; `version` (the image tag) is an agents-specific addition.
+ * shape; `version` (the image tag) and the protocol fields are agents-specific additions.
  */
+import {AGENTS_PROTOCOL_VERSION, MIN_CLIENT_PROTOCOL} from '@seed-hypermedia/agents-protocol'
+
 export type BuildInfo = {
   /** Image tag / release version, e.g. `2026.6.10` or `dev`. */
   version: string
+  /** Agents wire protocol this build speaks (`AGENTS_PROTOCOL_VERSION`); see agents/protocol/PROTOCOL.md. */
+  protocol: number
+  /** Oldest client protocol this build still answers (`MIN_CLIENT_PROTOCOL`). */
+  minClientProtocol: number
   /** Full git commit SHA the image was built from. */
   commit: string
   /** Git ref the image was built from. */
@@ -24,6 +30,8 @@ export type BuildInfo = {
 export function getBuildInfo(): BuildInfo {
   return {
     version: process.env.SEED_AGENTS_VERSION || 'dev',
+    protocol: AGENTS_PROTOCOL_VERSION,
+    minClientProtocol: MIN_CLIENT_PROTOCOL,
     commit: process.env.SEED_AGENTS_COMMIT || 'unknown',
     branch: process.env.SEED_AGENTS_BRANCH || 'unknown',
     date: process.env.SEED_AGENTS_DATE || 'unknown',

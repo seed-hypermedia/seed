@@ -1,6 +1,7 @@
 import type {Database} from 'bun:sqlite'
 import type * as api from '@/api'
 import {
+  AGENTS_PROTOCOL_VERSION,
   callableToolRegistry,
   getSeedTool,
   sessionEventActor,
@@ -41,6 +42,7 @@ import {
 } from '@/code-exec'
 import * as scheduleTriggers from '@/schedule-triggers'
 import * as auth from '@/auth'
+import {clientProtocolOf, clientProtocolProblem, downgradeResponse} from '@/protocol-compat'
 import * as cbor from '@/cbor'
 import * as mcp from '@/mcp'
 import * as runs from '@/runs'
@@ -310,10 +312,13 @@ export type ServiceEvent =
 export class APIError extends Error {
   /** HTTP status code for the error response. */
   readonly status: number
+  /** Machine-readable cause, sent as `ErrorResponse.code` when set. */
+  readonly code?: api.ErrorResponse['code']
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code?: api.ErrorResponse['code']) {
     super(message)
     this.status = status
+    if (code) this.code = code
   }
 }
 
@@ -1019,10 +1024,31 @@ export class Service {
     }
   }
 
-  /** Verifies and dispatches a signed action envelope. */
+  /**
+   * Verifies and dispatches a signed action envelope, answering in the shape of the client's
+   * declared protocol version (see `protocol-compat.ts`).
+   */
   async message(envelope: api.SignedActionEnvelope): Promise<api.AgentResponse> {
+    // Judged before the signature: the answer does not depend on who signed, and a refused client
+    // should learn why without the server doing any more work for it.
+    const clientProtocol = clientProtocolOf(envelope)
+    this.#assertClientProtocol(clientProtocol)
     const verified = await this.#verifyEnvelope(envelope)
+    const response = await this.#dispatch(envelope, verified)
+    return downgradeResponse(response, clientProtocol, {
+      // Viewer-scoped like `ListSessions {agentId}`: a superset of who passes GetAgent's reader check.
+      listAgentSessions: (agentId) =>
+        this.#listSessionPage(verified.accountId, agentId, DEFAULT_SESSION_PAGE_SIZE, undefined, undefined, false)
+          .sessions,
+    })
+  }
 
+  #assertClientProtocol(clientProtocol: number): void {
+    const problem = clientProtocolProblem(clientProtocol)
+    if (problem) throw new APIError(problem.status, problem.message, problem.code)
+  }
+
+  async #dispatch(envelope: api.SignedActionEnvelope, verified: auth.VerifiedEnvelope): Promise<api.AgentResponse> {
     const accountId = this.#actionAccountId(verified.accountId, envelope.action)
 
     switch (envelope.action._) {
@@ -2746,6 +2772,21 @@ export class Service {
     parentSessionId?: string,
     includeChildren?: boolean,
   ): api.ListSessionsResponse {
+    const page = this.#listSessionPage(accountId, agentId, limit, cursor, parentSessionId, includeChildren)
+    const referencedAgentIds = new Set(page.sessions.map((session) => session.agentId))
+    const agents = this.#listAgents(accountId).agents.filter((agent) => referencedAgentIds.has(agent.id))
+    return {_: 'ListSessionsResponse', agents, ...page}
+  }
+
+  /** One page of {@link #listSessions} without the agent lookup, for callers that only need rows. */
+  #listSessionPage(
+    accountId: string,
+    agentId?: string,
+    limit?: number,
+    cursor?: api.SessionListCursor,
+    parentSessionId?: string,
+    includeChildren?: boolean,
+  ): Pick<api.ListSessionsResponse, 'sessions' | 'nextCursor'> {
     const pageSize = boundedInteger(limit, DEFAULT_SESSION_PAGE_SIZE, 1, MAX_SESSION_PAGE_SIZE)
     // Account-wide listings only cover agents the account owns or collaborates on. A listing scoped to
     // one agent additionally admits public-read agents, which #actionAccountId already authorized.
@@ -2804,14 +2845,9 @@ export class Service {
         this.#sessionContinuationLinks(session.account_id, session.id),
       ),
     )
-    const referencedAgentIds = new Set(sessions.map((session) => session.agentId))
-    const agents = this.#listAgents(accountId).agents.filter((agent) => referencedAgentIds.has(agent.id))
     const last = page[page.length - 1]
-
     return {
-      _: 'ListSessionsResponse',
       sessions,
-      agents,
       ...(hasMore && last ? {nextCursor: {updatedBefore: last.updated_at, idBefore: last.id}} : {}),
     }
   }
@@ -8154,6 +8190,7 @@ export class Service {
     /** Snapshot + durable journal replay for `runs/<rootRunId>` subscriptions. */
     runsReplay?: {runs: api.RunInfo[]; entries: api.RunJournalEntryInfo[]}
   }> {
+    this.#assertClientProtocol(clientProtocolOf(envelope))
     const verified = await this.#verifyEnvelope(envelope)
     if (envelope.action._ !== 'Subscribe') throw new APIError(400, 'Expected Subscribe action')
     const key = envelope.action.key
@@ -15793,8 +15830,14 @@ export async function createSignedEnvelope(
     capabilityBlob?: Uint8Array
     action: api.UnsignedAgentAction
     ts?: number
+    /**
+     * Protocol version to declare; defaults to this build's. `null` declares none, as clients from
+     * before protocol 2 do (servers read that as protocol 1).
+     */
+    protocol?: number | null
   },
 ): Promise<api.SignedActionEnvelope> {
+  const protocol = input.protocol === undefined ? AGENTS_PROTOCOL_VERSION : input.protocol
   const envelope: api.SignedActionEnvelope = {
     type: 'AgentsAction',
     signer: signer.principal,
@@ -15802,6 +15845,7 @@ export async function createSignedEnvelope(
     account: input.account ?? signer.principal,
     ...(input.capability !== undefined ? {capability: input.capability} : {}),
     ...(input.capabilityBlob !== undefined ? {capabilityBlob: input.capabilityBlob} : {}),
+    ...(protocol !== null ? {protocol} : {}),
     action: {...input.action, ts: input.ts ?? Date.now()} as api.AgentAction,
   }
   return (await blobs.sign(signer, envelope as unknown as blobs.Blob)) as unknown as api.SignedActionEnvelope

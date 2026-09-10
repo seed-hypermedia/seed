@@ -52,7 +52,10 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
       return cbor.response(await svc.message(envelope))
     } catch (error) {
       if (error instanceof apisvc.APIError) {
-        return cbor.response({_: 'Error', message: error.message} satisfies api.ErrorResponse, {status: error.status})
+        return cbor.response(
+          {_: 'Error', message: error.message, ...(error.code ? {code: error.code} : {})} satisfies api.ErrorResponse,
+          {status: error.status},
+        )
       }
       // A thrown non-API error must still come back as a CORS-bearing CBOR error: Bun's bare 500
       // carries no Access-Control-Allow-Origin, which browsers report only as "Failed to fetch".
@@ -115,6 +118,8 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
         status: 'ok',
         uptime: process.uptime(),
         version: buildInfo.version,
+        protocol: buildInfo.protocol,
+        minClientProtocol: buildInfo.minClientProtocol,
         hmServerUrl: svc.hmServerUrl,
         ipfsServerUrl: svc.ipfsServerUrl,
         webTools: svc.webToolCapabilities(),
@@ -268,11 +273,7 @@ function sendIfSubscribed(
 }
 
 function corsHeaders(): HeadersInit {
-  return {
-    'Access-Control-Allow-Headers': 'Content-Type, Accept',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Origin': '*',
-  }
+  return cbor.corsHeaders('GET, POST, OPTIONS')
 }
 
 async function main(): Promise<void> {
@@ -529,7 +530,11 @@ async function main(): Promise<void> {
               }
             }
           } catch (error) {
-            sendWS(ws, {_: 'error', message: error instanceof Error ? error.message : 'Invalid subscription'})
+            sendWS(ws, {
+              _: 'error',
+              message: error instanceof Error ? error.message : 'Invalid subscription',
+              ...(error instanceof apisvc.APIError && error.code ? {code: error.code} : {}),
+            })
           }
         })()
       },
