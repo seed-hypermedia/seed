@@ -2052,7 +2052,7 @@ func (srv *Server) ListUnreferencedDocuments(ctx context.Context, in *documents.
 	defer discard(&err)
 	for row := range rows {
 		iri := blob.IRI(row.ColumnText(0))
-		if int32(len(out.Documents)) == in.PageSize {
+		if len(out.Documents) == int(in.PageSize) {
 			out.NextPageToken = apiutil.EncodePageToken(struct {
 				Account string `json:"a"`
 				IRI     string `json:"i"`
