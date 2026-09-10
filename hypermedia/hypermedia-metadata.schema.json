@@ -40,9 +40,10 @@
     },
     "schemaDefinition": {
       "value": {
-        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-ipfs"
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-ipfs",
+        "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-schema"
       },
-      "description": "This document DEFINES a schema: ipfs://<cid> of the schema blob it describes. Other documents reference this document's URL as their `schema`/`childrenSchema`."
+      "description": "This document DEFINES a schema: ipfs://<cid> of the schema blob it describes. Its target is the meta-schema, so an editor creates and validates the blob as an Onyx schema (the struct form, rooted at Struct by default). Other documents reference this document's URL as their `schema`/`childrenSchema`."
     },
     "layout": {
       "value": {
