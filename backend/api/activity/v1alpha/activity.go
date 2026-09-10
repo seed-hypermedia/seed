@@ -82,6 +82,12 @@ type feedCursor struct {
 	key         string
 }
 
+type citationPageToken struct {
+	CursorValue int64 `json:"v"`
+	BlobID      int64 `json:"b"`
+	LinkID      int64 `json:"l"`
+}
+
 var resourcePattern = regexp.MustCompile(`^hm://[a-zA-Z0-9*]+/?[a-zA-Z0-9*-/]*$`)
 
 // NewServer creates a new Server.
@@ -154,8 +160,15 @@ func buildMainEventsQuery(filtersStr string, orderByObserved bool) string {
 // ListEvents list all the events seen locally.
 func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsRequest) (*activity.ListEventsResponse, error) {
 	var cursorValue int64 = math.MaxInt64
+	var cursorBlobID int64 = math.MaxInt64
+	var cursorLinkID int64
 	if req.PageToken != "" {
-		if err := apiutil.DecodePageToken(req.PageToken, &cursorValue, nil); err != nil {
+		var token citationPageToken
+		if err := apiutil.DecodePageToken(req.PageToken, &token, nil); err == nil {
+			cursorValue = token.CursorValue
+			cursorBlobID = token.BlobID
+			cursorLinkID = token.LinkID
+		} else if err := apiutil.DecodePageToken(req.PageToken, &cursorValue, nil); err != nil {
 			return nil, fmt.Errorf("failed to decode page token: %w", err)
 		}
 	}
@@ -167,6 +180,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	srv.log.Debug("Listing events", zap.Int64("cursor_value", cursorValue), zap.String("order", req.Order.String()))
 	var filtersStr string
 	var authorsJSON, linkTypesJSON string
+	var citationFilter, blobOnlyFilter bool
 
 	filterResource := "*"
 	noResourceFilter := req.FilterResource == "" || req.FilterResource == "*"
@@ -248,6 +262,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	if len(req.FilterEventType) > 0 {
 		filtersStr += "lower(" + storage.StructuralBlobsType.String() + ") in ("
 		linkTypesJSON = "["
+		citationTypesSeen := make(map[string]struct{}, 4)
 		for i, eventType := range req.FilterEventType {
 			// Hardcode this to prevent injection attacks
 			if strings.ToLower(eventType) != "capability" &&
@@ -263,15 +278,29 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				strings.ToLower(eventType) != "doc/button" {
 				return nil, fmt.Errorf("Invalid event type filter [%s]: Only Capability | Ref | Comment | DagPB | Profile | Contact | Comment/Target | Comment/Embed | Doc/Embed | Doc/Link | Doc/Button are supported at the moment", eventType)
 			}
+			normalizedType := strings.ToLower(eventType)
 			if i > 0 {
 				filtersStr += ", "
 			}
-			filtersStr += "'" + strings.ToLower(eventType) + "'"
-			linkTypesJSON += "\"" + strings.ToLower(eventType) + "\", "
+			filtersStr += "'" + normalizedType + "'"
+			linkTypesJSON += "\"" + normalizedType + "\", "
+			switch normalizedType {
+			case "comment/embed", "doc/embed", "doc/link", "doc/button":
+				citationTypesSeen[normalizedType] = struct{}{}
+			}
 		}
 		if len(linkTypesJSON) > 1 {
 			linkTypesJSON = strings.TrimSuffix(linkTypesJSON, ", ")
 		}
+		// The citations route historically filters on the four modern link
+		// types above. Older document citations were indexed as Ref links, but
+		// adding Ref to the shared blob predicate would also surface ordinary
+		// document updates. Widen only the mention-link predicate instead.
+		citationFilter = len(req.FilterEventType) == 4 && len(citationTypesSeen) == 4
+		if citationFilter {
+			linkTypesJSON += ", \"ref\""
+		}
+		blobOnlyFilter = len(req.FilterEventType) == 1 && strings.EqualFold(req.FilterEventType[0], "ref")
 		linkTypesJSON += "]"
 		filtersStr += ") AND "
 	}
@@ -454,9 +483,19 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	// Smallest cursor value returned by the mentions DB fetch (same contract
 	// as mainScanFloor).
 	var mentionsScanFloor int64
+	// Final raw mention row consumed by the SQL LIMIT. Citation pagination
+	// advances from this tuple rather than the final post-dedup survivor, so a
+	// duplicate discarded in Go cannot reappear on the next request.
+	var mentionsRawCursor feedCursor
 
 	// Add mentions to the events list
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		// Ref is both a structural document-update blob and a historical
+		// citation link type. The versions route asks for Ref blobs only; do
+		// not let Ref links enter that feed as mentions.
+		if blobOnlyFilter {
+			return nil
+		}
 		// In the unfiltered (noResourceFilter) path we skip the IRI→id
 		// resolution entirely and use the no-targets variant of the
 		// mentions query — the IN(...) list would otherwise blow up to
@@ -497,6 +536,15 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		if !orderByObserved {
 			queryStr = strings.Replace(queryStr, "structural_blobs.id <= :idx", "structural_blobs.ts <= :idx", 1)
 		}
+		if citationFilter {
+			cursorColumn := "structural_blobs.id"
+			if !orderByObserved {
+				cursorColumn = "structural_blobs.ts"
+			}
+			queryStr = strings.Replace(queryStr, cursorColumn+" <= :idx",
+				"("+cursorColumn+" < :idx OR ("+cursorColumn+" = :idx AND (structural_blobs.id < :cursor_blob_id OR (structural_blobs.id = :cursor_blob_id AND resource_links.id > :cursor_link_id))))", 1)
+			args = append(args, cursorBlobID, cursorLinkID)
+		}
 
 		if len(authorsJSON) > 2 {
 			queryStr += authorsFilterMentions
@@ -506,7 +554,11 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			queryStr += linkTypesFilterMentions
 			args = append(args, linkTypesJSON)
 		}
-		if orderByObserved {
+		if citationFilter && orderByObserved {
+			queryStr += limitCitationMentionsByObserved
+		} else if citationFilter {
+			queryStr += limitCitationMentionsByClaimed
+		} else if orderByObserved {
 			queryStr += limitMentionsByObserved
 		} else {
 			queryStr += limitMentionsByClaimed
@@ -580,6 +632,12 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				cursor = blobID
 			}
 			mentionsScanFloor = cursor
+			mentionsRawCursor = feedCursor{
+				cursorValue: cursor,
+				blobID:      blobID,
+				kind:        feedCursorKindMention,
+				linkID:      linkID,
+			}
 			eventCursors = append(eventCursors, feedCursor{
 				cursorValue: cursor,
 				blobID:      blobID,
@@ -701,13 +759,30 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			}
 		}
 		if minCursor != 0 {
-			nextPageToken = apiutil.EncodePageToken(minCursor-1, nil)
+			if citationFilter {
+				boundary := mentionsRawCursor
+				nextPageToken = apiutil.EncodePageToken(citationPageToken{
+					CursorValue: boundary.cursorValue,
+					BlobID:      boundary.blobID,
+					LinkID:      boundary.linkID,
+				}, nil)
+			} else {
+				nextPageToken = apiutil.EncodePageToken(minCursor-1, nil)
+			}
 		}
 	} else if pageLen == 0 && rawHasMore && coverageFloor > 0 {
 		// Everything on this page was clamped or filtered out, but the DB has
 		// more rows. Emit a token at the coverage boundary so the client can
 		// keep paging instead of dead-ending on an empty page.
-		nextPageToken = apiutil.EncodePageToken(coverageFloor-1, nil)
+		if citationFilter && mentionsRawCursor.cursorValue != 0 {
+			nextPageToken = apiutil.EncodePageToken(citationPageToken{
+				CursorValue: mentionsRawCursor.cursorValue,
+				BlobID:      mentionsRawCursor.blobID,
+				LinkID:      mentionsRawCursor.linkID,
+			}, nil)
+		} else {
+			nextPageToken = apiutil.EncodePageToken(coverageFloor-1, nil)
+		}
 	}
 
 	return &activity.ListEventsResponse{
@@ -818,7 +893,10 @@ func filterDeletedAndDedupEvents(
 				continue
 			}
 			seenMentionGroup[groupKey] = struct{}{}
-			key := nm.Target + "\x00" + nm.SourceType + "\x00" + e.Account + "\x00" + strconv.FormatInt(e.EventTime.AsTime().UnixNano(), 10)
+			key := strings.Join([]string{
+				nm.Target, nm.SourceType, e.Account, strconv.FormatInt(e.EventTime.AsTime().UnixNano(), 10),
+				nm.Source, nm.TargetVersion, nm.TargetFragment,
+			}, "\x00")
 			if _, ok := seen[key]; ok {
 				continue
 			}
@@ -1104,5 +1182,15 @@ LIMIT :page_size;
 
 var limitMentionsByClaimed = `
 ORDER BY structural_blobs.ts DESC
+LIMIT :page_size;
+`
+
+var limitCitationMentionsByObserved = `
+ORDER BY structural_blobs.id DESC, resource_links.id ASC
+LIMIT :page_size;
+`
+
+var limitCitationMentionsByClaimed = `
+ORDER BY structural_blobs.ts DESC, structural_blobs.id DESC, resource_links.id ASC
 LIMIT :page_size;
 `
