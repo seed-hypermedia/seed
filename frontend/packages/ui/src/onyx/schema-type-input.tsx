@@ -7,7 +7,7 @@ import {parseExploreQuery} from '@shm/shared/explore'
 import {useExploreResults} from '@shm/shared/models/explore'
 import {useResource} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {useMemo, useState} from 'react'
+import {useMemo, useRef, useState} from 'react'
 import {Input} from '../components/input'
 import {Popover, PopoverAnchor, PopoverContent} from '../components/popover'
 import {cn} from '../utils'
@@ -58,6 +58,7 @@ export function SchemaTypeInput({
   // `text` is the query while the user types; null shows the current type's name.
   const [text, setText] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
   const resolvedLabel = useTypeLabel(value)
   const label = labelOverride ?? resolvedLabel
   const query = text ?? ''
@@ -88,12 +89,15 @@ export function SchemaTypeInput({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverAnchor asChild>
         <Input
+          ref={inputRef}
           value={text ?? label}
           aria-label={ariaLabel}
           placeholder={placeholder}
           title={value || undefined}
           className={cn('min-w-40 text-sm', text === null && value && 'font-medium', className)}
           onFocus={() => setOpen(true)}
+          // A click on an already-focused input (e.g. after Escape) reopens the list.
+          onPointerDown={() => setOpen(true)}
           onChange={(e) => {
             setText(e.target.value)
             setOpen(true)
@@ -118,6 +122,11 @@ export function SchemaTypeInput({
         align="start"
         className="max-h-72 w-80 overflow-y-auto p-1"
         onOpenAutoFocus={(e) => e.preventDefault()}
+        // The input is the anchor, not part of the content: a pointer-down on it
+        // must not count as "outside" (that would close the list on every click).
+        onInteractOutside={(e) => {
+          if (inputRef.current?.contains(e.target as Node)) e.preventDefault()
+        }}
         data-testid="schema-type-results"
       >
         {shownOptions.map((o) => (

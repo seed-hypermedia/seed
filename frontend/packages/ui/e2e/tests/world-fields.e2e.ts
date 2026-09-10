@@ -144,34 +144,42 @@ test.describe('world-builder field types', () => {
   test('the schema editor offers Date fields and a target type for references', async ({page}) => {
     await openHarness(page, {name: 'X', schemaDefinition: ''})
     const dialog = await openDefineDialog(page)
-    await dialog.getByPlaceholder('e.g. Employee').fill('Quest')
+    const option = (label: string) => page.getByTestId('schema-type-option').filter({has: page.getByText(label, {exact: true})})
 
-    // A Date field.
+    // A Date field: the type input opens its options on click.
     await dialog.getByRole('button', {name: 'Add field'}).click()
     await dialog.getByRole('textbox', {name: 'Field name'}).first().fill('due')
-    await dialog.getByRole('combobox').first().click()
-    await page.getByRole('option', {name: 'Date', exact: true}).click()
+    await dialog.getByRole('textbox', {name: 'Type of due'}).click()
+    await option('Date').click()
+    await expect(dialog.getByRole('textbox', {name: 'Type of due'})).toHaveValue('Date')
 
     // An HM link with a target type.
     await dialog.getByRole('button', {name: 'Add field'}).click()
     await dialog.getByRole('textbox', {name: 'Field name'}).nth(1).fill('giver')
-    await dialog.getByRole('combobox').nth(1).click()
-    await page.getByRole('option', {name: 'HM link'}).click()
+    await dialog.getByRole('textbox', {name: 'Type of giver'}).click()
+    await option('HM link').click()
     await dialog.getByLabel('Target type for giver').fill(`${ONYX}/example-character-doc`)
 
     await dialog.getByTestId('linked-object-publish').click()
     await expect(dialog).toBeHidden()
     const published: any = await page.evaluate(() => (window as any).__lastPublishedSchema)
-    expect(published.properties.due).toEqual({ref: `${ONYX}/date`})
-    expect(published.properties.giver).toMatchObject({format: 'hm-url', target: `${ONYX}/example-character-doc`})
+    expect(published.properties.due).toEqual({value: {ref: `${ONYX}/hypermedia-date`}})
+    expect(published.properties.giver).toMatchObject({
+      value: {format: 'hm-url', target: `${ONYX}/example-character-doc`},
+    })
   })
 
   test('the schema editor can define a signed blob type (extends the envelope, pins a type tag)', async ({page}) => {
     await openHarness(page, {name: 'X', schemaDefinition: ''})
     const dialog = await openDefineDialog(page)
-    await dialog.getByPlaceholder('e.g. Employee').fill('Vote')
-    await dialog.getByLabel('Signed blob type').click()
-    await expect(dialog.getByLabel('Type tag')).toHaveValue('Vote')
+    // The root type is a type reference like any other: pasting the envelope's URL extends it.
+    const rootType = dialog.getByRole('textbox', {name: 'Root type'})
+    await rootType.click()
+    await rootType.press('ControlOrMeta+a')
+    await rootType.fill(`${ONYX}/hypermedia-blob`)
+    await rootType.press('Enter')
+    await expect(rootType).toHaveValue('Hypermedia Blob')
+    await expect(dialog.getByLabel('Type tag')).toHaveValue('Custom')
     await dialog.getByLabel('Type tag').fill('DocVote')
 
     await dialog.getByRole('button', {name: 'Add field'}).click()
