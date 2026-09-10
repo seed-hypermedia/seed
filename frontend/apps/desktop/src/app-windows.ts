@@ -951,7 +951,8 @@ export function createLoadingWindow(): BrowserWindow {
   const primaryDisplay = screen.getPrimaryDisplay()
   const {width: screenWidth, height: screenHeight} = primaryDisplay.workAreaSize
 
-  // Discord-style loading window: small, centered, frameless
+  // Keep the loading window compact, but give it standard window controls so
+  // a long-running migration does not block the rest of the desktop.
   const windowWidth = 400
   const windowHeight = 480
 
@@ -960,16 +961,17 @@ export function createLoadingWindow(): BrowserWindow {
     height: windowHeight,
     x: Math.floor((screenWidth - windowWidth) / 2),
     y: Math.floor((screenHeight - windowHeight) / 2),
+    title: 'Seed — Loading',
     show: true, // Show immediately for testing
-    frame: false,
-    transparent: true,
+    frame: true,
+    transparent: false,
     resizable: false,
-    movable: false,
-    minimizable: false,
+    movable: true,
+    minimizable: true,
     maximizable: false,
-    closable: true, // Allow closing for testing
-    alwaysOnTop: true,
-    skipTaskbar: true,
+    closable: true,
+    alwaysOnTop: false,
+    skipTaskbar: false,
     backgroundColor: '#1e1e1e',
     webPreferences: {
       preload: path.join(__dirname, 'preload-loading.js'),
