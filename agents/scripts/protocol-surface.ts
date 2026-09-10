@@ -46,6 +46,10 @@ function serialize(surface: ProtocolSurface): string {
 }
 
 const mode = process.argv[2] ?? 'check'
+if (mode !== 'write' && mode !== 'check' && mode !== 'diff') {
+  console.error(`unknown mode ${mode}; use write, check, or diff`)
+  process.exit(2)
+}
 const current = extractSurface()
 
 if (mode === 'write') {
@@ -58,26 +62,23 @@ const ref = baseRef()
 const base = baseSurface(ref)
 const changelog = readFileSync(changelogPath, 'utf8')
 
+const baseComparable = base !== null && base.format === current.format
+if (base && !baseComparable) {
+  console.log(`${surfaceRepoPath} at ${ref} was written in snapshot format ${base.format} (now ${current.format})`)
+}
+
 if (mode === 'diff') {
-  if (!base) {
-    console.log(`no ${surfaceRepoPath} at ${ref}; nothing to compare`)
+  if (!baseComparable) {
+    console.log(`nothing to compare against ${ref}`)
     process.exit(0)
   }
   const verdict = judgeSurfaceChange(base, current, changelog)
   for (const change of verdict.changes) {
-    console.log(
-      `${change.severity === 'breaking' ? 'BREAKING' : 'ok      '} ${change.path}: ${change.detail} [${
-        change.direction
-      }]`,
-    )
+    const tag = change.severity === 'breaking' ? 'BREAKING' : 'ok      '
+    console.log(`${tag} ${change.path}: ${change.detail} [${change.direction}]`)
   }
   if (verdict.changes.length === 0) console.log('no protocol changes')
   process.exit(0)
-}
-
-if (mode !== 'check') {
-  console.error(`unknown mode ${mode}; use write, check, or diff`)
-  process.exit(2)
 }
 
 const problems: string[] = []
@@ -93,20 +94,15 @@ if (committed !== null && committed !== serialize(current)) {
   )
 }
 
-if (base) {
+if (baseComparable) {
   const verdict = judgeSurfaceChange(base, current, changelog)
   problems.push(...verdict.problems)
   const compatible = verdict.changes.filter((change) => change.severity === 'compatible')
   if (compatible.length > 0) {
-    console.log(
-      `${compatible.length} compatible protocol change${compatible.length === 1 ? '' : 's'} against ${ref.slice(
-        0,
-        12,
-      )}`,
-    )
+    console.log(`${compatible.length} compatible protocol change${compatible.length === 1 ? '' : 's'} against ${ref}`)
   }
 } else {
-  console.log(`no ${surfaceRepoPath} at ${ref.slice(0, 12)}; skipping the compatibility diff`)
+  console.log(`skipping the compatibility diff against ${ref}`)
 }
 
 if (problems.length > 0) {

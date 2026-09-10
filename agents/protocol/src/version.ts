@@ -21,6 +21,11 @@
  * with its own in the {@link AGENTS_PROTOCOL_HEADER} response header and in `/api/version`.
  * Clients and servers from before this file existed send and advertise nothing, which both sides
  * read as protocol 1.
+ *
+ * Only the "old client, new server" direction is enforced: hosted servers redeploy before any
+ * client can update, and the desktop bundles its own server. A self-hosted server that falls behind
+ * a client is expected to be upgraded; the client reads the server's version for display and
+ * diagnostics but does not refuse it.
  */
 
 /** The protocol version this code speaks (client and server alike). */
@@ -31,12 +36,6 @@ export const AGENTS_PROTOCOL_VERSION = 2
  * refused with a `protocol_too_old` error (HTTP 426) rather than served a shape it may crash on.
  */
 export const MIN_CLIENT_PROTOCOL = 1
-
-/**
- * The oldest server protocol a client built from this code still accepts. A server below it (a
- * self-hosted server left behind) is reported as too old rather than trusted to answer correctly.
- */
-export const MIN_SERVER_PROTOCOL = 1
 
 /** Response header carrying the server's {@link AGENTS_PROTOCOL_VERSION}. */
 export const AGENTS_PROTOCOL_HEADER = 'X-Agents-Protocol'

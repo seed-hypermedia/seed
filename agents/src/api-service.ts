@@ -42,12 +42,7 @@ import {
 } from '@/code-exec'
 import * as scheduleTriggers from '@/schedule-triggers'
 import * as auth from '@/auth'
-import {
-  ProtocolTooOldError,
-  assertClientProtocolSupported,
-  clientProtocolOf,
-  downgradeResponse,
-} from '@/protocol-compat'
+import {clientProtocolOf, clientProtocolProblem, downgradeResponse} from '@/protocol-compat'
 import * as cbor from '@/cbor'
 import * as mcp from '@/mcp'
 import * as runs from '@/runs'
@@ -1034,24 +1029,23 @@ export class Service {
    * declared protocol version (see `protocol-compat.ts`).
    */
   async message(envelope: api.SignedActionEnvelope): Promise<api.AgentResponse> {
+    // Judged before the signature: the answer does not depend on who signed, and a refused client
+    // should learn why without the server doing any more work for it.
     const clientProtocol = clientProtocolOf(envelope)
     this.#assertClientProtocol(clientProtocol)
     const verified = await this.#verifyEnvelope(envelope)
     const response = await this.#dispatch(envelope, verified)
     return downgradeResponse(response, clientProtocol, {
+      // Viewer-scoped like `ListSessions {agentId}`: a superset of who passes GetAgent's reader check.
       listAgentSessions: (agentId) =>
-        this.#listSessions(verified.accountId, agentId, DEFAULT_SESSION_PAGE_SIZE, undefined, undefined, false)
+        this.#listSessionPage(verified.accountId, agentId, DEFAULT_SESSION_PAGE_SIZE, undefined, undefined, false)
           .sessions,
     })
   }
 
   #assertClientProtocol(clientProtocol: number): void {
-    try {
-      assertClientProtocolSupported(clientProtocol)
-    } catch (error) {
-      if (error instanceof ProtocolTooOldError) throw new APIError(error.status, error.message, error.code)
-      throw error
-    }
+    const problem = clientProtocolProblem(clientProtocol)
+    if (problem) throw new APIError(problem.status, problem.message, problem.code)
   }
 
   async #dispatch(envelope: api.SignedActionEnvelope, verified: auth.VerifiedEnvelope): Promise<api.AgentResponse> {
@@ -2778,6 +2772,21 @@ export class Service {
     parentSessionId?: string,
     includeChildren?: boolean,
   ): api.ListSessionsResponse {
+    const page = this.#listSessionPage(accountId, agentId, limit, cursor, parentSessionId, includeChildren)
+    const referencedAgentIds = new Set(page.sessions.map((session) => session.agentId))
+    const agents = this.#listAgents(accountId).agents.filter((agent) => referencedAgentIds.has(agent.id))
+    return {_: 'ListSessionsResponse', agents, ...page}
+  }
+
+  /** One page of {@link #listSessions} without the agent lookup, for callers that only need rows. */
+  #listSessionPage(
+    accountId: string,
+    agentId?: string,
+    limit?: number,
+    cursor?: api.SessionListCursor,
+    parentSessionId?: string,
+    includeChildren?: boolean,
+  ): Pick<api.ListSessionsResponse, 'sessions' | 'nextCursor'> {
     const pageSize = boundedInteger(limit, DEFAULT_SESSION_PAGE_SIZE, 1, MAX_SESSION_PAGE_SIZE)
     // Account-wide listings only cover agents the account owns or collaborates on. A listing scoped to
     // one agent additionally admits public-read agents, which #actionAccountId already authorized.
@@ -2836,14 +2845,9 @@ export class Service {
         this.#sessionContinuationLinks(session.account_id, session.id),
       ),
     )
-    const referencedAgentIds = new Set(sessions.map((session) => session.agentId))
-    const agents = this.#listAgents(accountId).agents.filter((agent) => referencedAgentIds.has(agent.id))
     const last = page[page.length - 1]
-
     return {
-      _: 'ListSessionsResponse',
       sessions,
-      agents,
       ...(hasMore && last ? {nextCursor: {updatedBefore: last.updated_at, idBefore: last.id}} : {}),
     }
   }

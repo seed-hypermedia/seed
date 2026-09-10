@@ -10,19 +10,20 @@
  * from the base: what it *reads* (responses and the types they reach) must still be there in the
  * shape it expects, and what it *writes* (actions, the envelope, and the types they reach) must
  * still be accepted. Anything else is breaking and needs a protocol version bump — see
- * `agents/protocol/PROTOCOL.md`. The rules are deliberately conservative: a changed type string
- * counts as breaking even when the change might be benign, because a human deciding "this is
- * fine, bump and note it" is cheap and a crashed release is not.
+ * `agents/protocol/PROTOCOL.md`. The rules are deliberately conservative: a changed type counts as
+ * breaking even when the change might be benign, because a human deciding "this is fine, bump and
+ * note it" is cheap and a crashed release is not.
  */
 import ts from 'typescript'
 import path from 'node:path'
 
 /**
- * A named type on the wire: an object (field name → rendered type, the name suffixed `?` when the
- * field is optional, so a PR diff of the snapshot reads like the type itself), or anything else
- * (its rendered form).
+ * A type on the wire, in one of three forms: an object (`fields`: name → rendered type, the name
+ * suffixed `?` when optional, so a snapshot diff reads like the type itself); a discriminated
+ * union of objects (`variants`: discriminant value → object shape); or anything else (`alias`:
+ * its rendered form).
  */
-export type SurfaceShape = {fields?: Record<string, string>; alias?: string}
+export type SurfaceShape = {fields?: Record<string, string>; variants?: Record<string, SurfaceShape>; alias?: string}
 
 /** One field of an object type, parsed back out of {@link SurfaceShape.fields}. */
 export type SurfaceField = {type: string; optional: boolean}
@@ -38,17 +39,18 @@ export function surfaceFields(shape: SurfaceShape): Map<string, SurfaceField> {
 }
 
 /**
- * Aliases rendered by name and never recorded under `types`: their members are the `actions` and
- * `responses` groups themselves, and expanding them again would report every action change twice
- * (once correctly classified under `actions`, once as an opaque string change here).
+ * Version of the snapshot layout itself. Bumped when the extractor changes what it writes (a new
+ * shape form, a different rendering), so that such a change is never mistaken for a protocol
+ * change: the check skips the compatibility diff when the base was written in another format.
  */
-const GROUP_ALIASES = new Set(['UnsignedAgentAction', 'AgentAction', 'AgentResponse'])
+export const SURFACE_FORMAT = 1
 
+/** The whole wire surface at one commit: what `agents/protocol/surface.json` holds. */
 export type ProtocolSurface = {
+  format: number
   protocol: number
   minClientProtocol: number
-  minServerProtocol: number
-  /** The signed envelope a client sends, keyed `SignedActionEnvelope`. */
+  /** The signed envelope a client sends. */
   envelope: SurfaceShape
   /** Every `UnsignedAgentAction` member, keyed by its `_` discriminant. */
   actions: Record<string, SurfaceShape>
@@ -58,17 +60,37 @@ export type ProtocolSurface = {
   types: Record<string, SurfaceShape>
 }
 
+/** One classified difference between two surfaces. */
 export type SurfaceChange = {
   /** `breaking` needs a protocol bump; `compatible` does not. */
   severity: 'breaking' | 'compatible'
   /** Which side a client from the base would be hurt on. */
   direction: 'reads' | 'writes'
-  /** `responses.GetAgentResponse.sessions`, `types.SessionInfo`, ... */
+  /** `responses.GetAgentResponse.sessions`, `types.SessionInfo`, `types.AgentTriggerSource.<schedule>.at`, ... */
   path: string
   detail: string
 }
 
+/**
+ * Aliases rendered by name and never recorded under `types`: their members are the `actions` and
+ * `responses` groups themselves, and expanding them again would report every action change twice
+ * (once correctly classified under `actions`, once as an opaque string change here).
+ */
+const GROUP_ALIASES = new Set(['UnsignedAgentAction', 'AgentAction', 'AgentResponse'])
+
+/** Keys a discriminated union may be keyed by, in order of preference. */
+const DISCRIMINANTS = ['_', 'type', 'kind']
+
 const DEFAULT_ENTRY = path.resolve(import.meta.dir, '../protocol/src/index.ts')
+
+/** Plain code-point order: `localeCompare` depends on the ICU build and would make snapshots drift. */
+function byCodePoint(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0
+}
+
+function sortKeys<T>(record: Record<string, T>): Record<string, T> {
+  return Object.fromEntries(Object.entries(record).sort(([a], [b]) => byCodePoint(a, b)))
+}
 
 /** Reads the protocol package's wire surface. Slow (a full type-check of the package): call once. */
 export function extractSurface(entryFile: string = DEFAULT_ENTRY): ProtocolSurface {
@@ -93,17 +115,14 @@ export function extractSurface(entryFile: string = DEFAULT_ENTRY): ProtocolSurfa
   const exports = new Map(checker.getExportsOfModule(moduleSymbol).map((symbol) => [symbol.name, symbol]))
   const protocolDir = path.dirname(entryFile)
 
-  const exportedType = (name: string): ts.Type => {
+  const exportedSymbol = (name: string): ts.Symbol => {
     const symbol = exports.get(name)
     if (!symbol) throw new Error(`protocol does not export ${name}`)
-    const resolved = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol
-    return checker.getDeclaredTypeOfSymbol(resolved)
+    return symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol
   }
+  const exportedType = (name: string): ts.Type => checker.getDeclaredTypeOfSymbol(exportedSymbol(name))
   const exportedConstant = (name: string): number => {
-    const symbol = exports.get(name)
-    if (!symbol) throw new Error(`protocol does not export ${name}`)
-    const resolved = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol
-    const type = checker.getTypeOfSymbol(resolved)
+    const type = checker.getTypeOfSymbol(exportedSymbol(name))
     if (!type.isNumberLiteral()) throw new Error(`${name} must be a number literal`)
     return type.value
   }
@@ -115,13 +134,45 @@ export function extractSurface(entryFile: string = DEFAULT_ENTRY): ProtocolSurfa
   const isProtocolSymbol = (symbol: ts.Symbol | undefined): boolean =>
     !!symbol?.declarations?.some((decl) => decl.getSourceFile().fileName.startsWith(protocolDir))
 
+  /** A checker-made synthetic symbol name (`__type`, `__object`), as opposed to something the author wrote. */
+  const isSynthetic = (symbol: ts.Symbol): boolean => symbol.name.startsWith('__')
+
   const shapeOf = (type: ts.Type): SurfaceShape => {
-    if (type.isUnion() && !(type.flags & ts.TypeFlags.Boolean)) return {alias: render(type, true)}
+    if (type.isUnion() && !(type.flags & ts.TypeFlags.Boolean)) {
+      const variants = variantsOf(type)
+      return variants ? {variants} : {alias: render(type, true)}
+    }
     if (type.flags & ts.TypeFlags.Object || type.isIntersection()) {
       const fields = fieldsOf(type)
       if (fields) return {fields}
     }
     return {alias: render(type, true)}
+  }
+
+  /**
+   * A union of objects keyed by a shared discriminant becomes one shape per member, so that an
+   * optional field added to one member reads as what it is (additive) rather than as an opaque
+   * change to the whole union.
+   */
+  const variantsOf = (type: ts.UnionType): Record<string, SurfaceShape> | undefined => {
+    const members = type.types
+    if (members.length < 2 || !members.every((member) => member.flags & ts.TypeFlags.Object)) return undefined
+    for (const key of DISCRIMINANTS) {
+      const variants: Record<string, SurfaceShape> = {}
+      let ok = true
+      for (const member of members) {
+        const tag = checker.getPropertyOfType(member, key)
+        const tagType = tag && declaredType(tag)
+        const fields = tagType?.isStringLiteral() && !(tagType.value in variants) ? fieldsOf(member) : undefined
+        if (!fields) {
+          ok = false
+          break
+        }
+        variants[(tagType as ts.StringLiteralType).value] = {fields}
+      }
+      if (ok) return sortKeys(variants)
+    }
+    return undefined
   }
 
   const fieldsOf = (type: ts.Type): Record<string, string> | undefined => {
@@ -134,7 +185,8 @@ export function extractSurface(entryFile: string = DEFAULT_ENTRY): ProtocolSurfa
     for (const info of indexInfos) {
       fields[`[key: ${render(info.keyType)}]`] = render(info.type)
     }
-    for (const prop of props.sort((a, b) => a.name.localeCompare(b.name))) {
+    // Copied before sorting: the checker hands out its own cached member array.
+    for (const prop of [...props].sort((a, b) => byCodePoint(a.name, b.name))) {
       const optional = (prop.flags & ts.SymbolFlags.Optional) !== 0
       fields[optional ? `${prop.name}?` : prop.name] = render(declaredType(prop))
     }
@@ -154,6 +206,10 @@ export function extractSurface(entryFile: string = DEFAULT_ENTRY): ProtocolSurfa
     return checker.getTypeOfSymbol(prop)
   }
 
+  /** `Name` or `Name<arg, arg>`. */
+  const named = (name: string, args: readonly ts.Type[]): string =>
+    args.length ? `${name}<${args.map((arg) => render(arg)).join(', ')}>` : name
+
   /**
    * Renders a type for the snapshot. Named protocol aliases are recorded under `types` and
    * referenced by name, so a change inside them shows up once, where it happened; everything
@@ -168,11 +224,10 @@ export function extractSurface(entryFile: string = DEFAULT_ENTRY): ProtocolSurfa
         return alias.name
       }
       // A lib alias such as `Record<string, X>` or `Partial<X>`: keep the name, render the args.
-      const args = type.aliasTypeArguments ?? []
-      return args.length ? `${alias.name}<${args.map((arg) => render(arg)).join(', ')}>` : alias.name
+      return named(alias.name, type.aliasTypeArguments ?? [])
     }
     if (type.flags & ts.TypeFlags.Boolean) return 'boolean'
-    if (type.isUnion()) return uniqueSorted(type.types.map((member) => render(member))).join(' | ')
+    if (type.isUnion()) return [...new Set(type.types.map((member) => render(member)))].sort(byCodePoint).join(' | ')
     if (type.isIntersection()) {
       const fields = fieldsOf(type)
       return fields ? renderFields(fields) : type.types.map((member) => render(member)).join(' & ')
@@ -188,14 +243,13 @@ export function extractSurface(entryFile: string = DEFAULT_ENTRY): ProtocolSurfa
     if (type.flags & ts.TypeFlags.Object) {
       if (type.getCallSignatures().length > 0) return 'function'
       const symbol = type.getSymbol()
-      if (symbol && isProtocolSymbol(symbol) && symbol.name !== '__type' && symbol.name !== '__object') {
-        record(symbol.name, type)
-        return symbol.name
-      }
-      if (symbol && !isProtocolSymbol(symbol) && symbol.name !== '__type' && symbol.name !== '__object') {
+      if (symbol && !isSynthetic(symbol)) {
+        if (isProtocolSymbol(symbol)) {
+          record(symbol.name, type)
+          return symbol.name
+        }
         // A lib object such as `Uint8Array` or `Date`: its name is its contract.
-        const args = checker.getTypeArguments(type as ts.TypeReference)
-        return args.length ? `${symbol.name}<${args.map((arg) => render(arg)).join(', ')}>` : symbol.name
+        return named(symbol.name, checker.getTypeArguments(type as ts.TypeReference))
       }
       const fields = fieldsOf(type)
       return fields ? renderFields(fields) : '{}'
@@ -241,9 +295,9 @@ export function extractSurface(entryFile: string = DEFAULT_ENTRY): ProtocolSurfa
   const envelope = shapeOf(exportedType('SignedActionEnvelope'))
 
   return {
+    format: SURFACE_FORMAT,
     protocol: exportedConstant('AGENTS_PROTOCOL_VERSION'),
     minClientProtocol: exportedConstant('MIN_CLIENT_PROTOCOL'),
-    minServerProtocol: exportedConstant('MIN_SERVER_PROTOCOL'),
     envelope,
     actions,
     responses,
@@ -251,26 +305,23 @@ export function extractSurface(entryFile: string = DEFAULT_ENTRY): ProtocolSurfa
   }
 }
 
-function uniqueSorted(values: string[]): string[] {
-  return [...new Set(values)].sort()
+/** Every identifier-looking token in a shape's rendered types, recursively. */
+function mentionedNames(shape: SurfaceShape, into: Set<string>): Set<string> {
+  const texts = shape.alias !== undefined ? [shape.alias] : Object.values(shape.fields ?? {})
+  for (const text of texts) {
+    for (const token of text.match(/(?<![\w.])[A-Za-z_$][\w$]*(?![\w])/g) ?? []) into.add(token)
+  }
+  for (const variant of Object.values(shape.variants ?? {})) mentionedNames(variant, into)
+  return into
 }
 
-function sortKeys<T>(record: Record<string, T>): Record<string, T> {
-  return Object.fromEntries(Object.entries(record).sort(([a], [b]) => a.localeCompare(b)))
-}
-
-/** Names of `types` entries reachable from a set of shapes, following rendered type strings. */
+/** Names of `types` entries reachable from a set of shapes, following rendered type references. */
 export function reachableTypes(roots: SurfaceShape[], types: Record<string, SurfaceShape>): Set<string> {
-  const names = Object.keys(types)
   const seen = new Set<string>()
   const queue = [...roots]
-  const mentioned = (shape: SurfaceShape): string[] => {
-    const text = shape.alias ?? Object.values(shape.fields ?? {}).join(' ')
-    return names.filter((name) => new RegExp(`(?<![\\w.])${name}(?![\\w])`).test(text))
-  }
   while (queue.length) {
-    for (const name of mentioned(queue.pop()!)) {
-      if (seen.has(name)) continue
+    for (const name of mentionedNames(queue.pop()!, new Set())) {
+      if (seen.has(name) || !(name in types)) continue
       seen.add(name)
       queue.push(types[name]!)
     }
@@ -278,31 +329,49 @@ export function reachableTypes(roots: SurfaceShape[], types: Record<string, Surf
   return seen
 }
 
+type Direction = 'reads' | 'writes'
+
 /**
  * Classifies the differences between two surfaces from the point of view of a client built from
- * `base` talking to a server built from `current` — and, for what the client writes, of a server
- * built from `base` receiving a client built from `current` is *not* the concern: servers redeploy
- * first, so the question is always "does the old client survive the new server".
+ * `base` talking to a server built from `current`. The other direction (a new client against an
+ * old server) is not judged: servers deploy first, so the question is always "does the old client
+ * survive the new server". A type reached both by what the client reads and by what it writes is
+ * reported once per direction.
  */
 export function diffSurfaces(base: ProtocolSurface, current: ProtocolSurface): SurfaceChange[] {
   const changes: SurfaceChange[] = []
   const readTypes = reachableTypes(Object.values(base.responses), base.types)
   const writeTypes = reachableTypes([base.envelope, ...Object.values(base.actions)], base.types)
+  const push = (severity: SurfaceChange['severity'], direction: Direction, path: string, detail: string) =>
+    changes.push({severity, direction, path, detail})
 
-  const compareShape = (
-    pathPrefix: string,
-    before: SurfaceShape,
-    after: SurfaceShape,
-    direction: 'reads' | 'writes',
-  ) => {
-    if (before.alias !== undefined || after.alias !== undefined) {
-      if (before.alias !== after.alias || !!before.fields !== !!after.fields) {
-        changes.push({
-          severity: 'breaking',
-          direction,
-          path: pathPrefix,
-          detail: `type changed from \`${before.alias ?? '{…}'}\` to \`${after.alias ?? '{…}'}\``,
-        })
+  const compareShape = (pathPrefix: string, before: SurfaceShape, after: SurfaceShape, direction: Direction): void => {
+    const form = (shape: SurfaceShape) => (shape.fields ? 'fields' : shape.variants ? 'variants' : 'alias')
+    if (form(before) !== form(after)) {
+      push('breaking', direction, pathPrefix, `type changed form (${form(before)} → ${form(after)})`)
+      return
+    }
+    if (before.alias !== undefined) {
+      if (before.alias !== after.alias) {
+        push('breaking', direction, pathPrefix, `type changed from \`${before.alias}\` to \`${after.alias}\``)
+      }
+      return
+    }
+    if (before.variants) {
+      const afterVariants = after.variants ?? {}
+      for (const [tag, shape] of Object.entries(before.variants)) {
+        const next = afterVariants[tag]
+        if (!next) push('breaking', direction, `${pathPrefix}.<${tag}>`, 'union member removed')
+        else compareShape(`${pathPrefix}.<${tag}>`, shape, next, direction)
+      }
+      for (const tag of Object.keys(afterVariants)) {
+        if (tag in before.variants) continue
+        // A reader with an exhaustive switch does not know the new member; a writer never sends it.
+        if (direction === 'reads') {
+          push('breaking', direction, `${pathPrefix}.<${tag}>`, 'union member added; old clients do not know it')
+        } else {
+          push('compatible', direction, `${pathPrefix}.<${tag}>`, 'union member added')
+        }
       }
       return
     }
@@ -312,77 +381,49 @@ export function diffSurfaces(base: ProtocolSurface, current: ProtocolSurface): S
       const next = afterFields.get(name)
       const fieldPath = `${pathPrefix}.${name}`
       if (!next) {
-        changes.push({
-          severity: 'breaking',
-          direction,
-          path: fieldPath,
-          detail:
-            direction === 'reads'
-              ? 'field removed; old clients still read it'
-              : 'field removed; old clients still send it',
-        })
+        const who = direction === 'reads' ? 'old clients still read it' : 'old clients still send it'
+        push('breaking', direction, fieldPath, `field removed; ${who}`)
         continue
       }
       if (next.type !== field.type) {
-        changes.push({
-          severity: 'breaking',
-          direction,
-          path: fieldPath,
-          detail: `type changed from \`${field.type}\` to \`${next.type}\``,
-        })
+        push('breaking', direction, fieldPath, `type changed from \`${field.type}\` to \`${next.type}\``)
       }
       if (field.optional !== next.optional) {
         // Reads: a field an old client relies on may now be missing. Writes: a server may now
         // refuse an old client that omits it.
         const breaking = direction === 'reads' ? !field.optional && next.optional : field.optional && !next.optional
-        changes.push({
-          severity: breaking ? 'breaking' : 'compatible',
+        push(
+          breaking ? 'breaking' : 'compatible',
           direction,
-          path: fieldPath,
-          detail: next.optional ? 'became optional' : 'became required',
-        })
+          fieldPath,
+          next.optional ? 'became optional' : 'became required',
+        )
       }
     }
     for (const [name, field] of afterFields) {
       if (beforeFields.has(name)) continue
-      const breaking = direction === 'writes' && !field.optional
-      changes.push({
-        severity: breaking ? 'breaking' : 'compatible',
-        direction,
-        path: `${pathPrefix}.${name}`,
-        detail: breaking ? 'required field added; old clients do not send it' : 'field added',
-      })
+      if (direction === 'writes' && !field.optional) {
+        push('breaking', direction, `${pathPrefix}.${name}`, 'required field added; old clients do not send it')
+      } else {
+        push('compatible', direction, `${pathPrefix}.${name}`, 'field added')
+      }
     }
   }
 
   const compareGroup = (
     group: 'actions' | 'responses',
-    direction: 'reads' | 'writes',
+    direction: Direction,
     before: Record<string, SurfaceShape>,
     after: Record<string, SurfaceShape>,
   ) => {
+    const kind = group.slice(0, -1)
     for (const [name, shape] of Object.entries(before)) {
       const next = after[name]
-      if (!next) {
-        changes.push({
-          severity: 'breaking',
-          direction,
-          path: `${group}.${name}`,
-          detail: `${group.slice(0, -1)} removed`,
-        })
-        continue
-      }
-      compareShape(`${group}.${name}`, shape, next, direction)
+      if (!next) push('breaking', direction, `${group}.${name}`, `${kind} removed`)
+      else compareShape(`${group}.${name}`, shape, next, direction)
     }
     for (const name of Object.keys(after)) {
-      if (!(name in before)) {
-        changes.push({
-          severity: 'compatible',
-          direction,
-          path: `${group}.${name}`,
-          detail: `${group.slice(0, -1)} added`,
-        })
-      }
+      if (!(name in before)) push('compatible', direction, `${group}.${name}`, `${kind} added`)
     }
   }
 
@@ -391,33 +432,20 @@ export function diffSurfaces(base: ProtocolSurface, current: ProtocolSurface): S
   compareShape('envelope', base.envelope, current.envelope, 'writes')
 
   for (const [name, shape] of Object.entries(base.types)) {
-    const directions: Array<'reads' | 'writes'> = []
+    const directions: Direction[] = []
     if (readTypes.has(name)) directions.push('reads')
     if (writeTypes.has(name)) directions.push('writes')
-    if (directions.length === 0) continue
     const next = current.types[name]
     for (const direction of directions) {
-      if (!next) {
-        changes.push({severity: 'breaking', direction, path: `types.${name}`, detail: 'type no longer on the wire'})
-        continue
-      }
-      compareShape(`types.${name}`, shape, next, direction)
+      if (!next) push('breaking', direction, `types.${name}`, 'type no longer on the wire')
+      else compareShape(`types.${name}`, shape, next, direction)
     }
   }
 
-  return dedupe(changes)
+  return changes
 }
 
-function dedupe(changes: SurfaceChange[]): SurfaceChange[] {
-  const seen = new Set<string>()
-  return changes.filter((change) => {
-    const key = `${change.severity}|${change.direction}|${change.path}|${change.detail}`
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
-}
-
+/** The outcome of {@link judgeSurfaceChange}: the classified changes and why the check fails, if it does. */
 export type SurfaceVerdict = {ok: boolean; problems: string[]; changes: SurfaceChange[]}
 
 /**
@@ -431,8 +459,8 @@ export function judgeSurfaceChange(base: ProtocolSurface, current: ProtocolSurfa
   if (current.protocol < base.protocol) {
     problems.push(`AGENTS_PROTOCOL_VERSION went down from ${base.protocol} to ${current.protocol}`)
   }
-  if (current.minClientProtocol > current.protocol || current.minServerProtocol > current.protocol) {
-    problems.push('MIN_CLIENT_PROTOCOL and MIN_SERVER_PROTOCOL cannot exceed AGENTS_PROTOCOL_VERSION')
+  if (current.minClientProtocol > current.protocol) {
+    problems.push('MIN_CLIENT_PROTOCOL cannot exceed AGENTS_PROTOCOL_VERSION')
   }
   if (current.minClientProtocol < base.minClientProtocol) {
     problems.push(`MIN_CLIENT_PROTOCOL went down from ${base.minClientProtocol} to ${current.minClientProtocol}`)

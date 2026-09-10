@@ -1,5 +1,4 @@
 import type * as api from '@/api'
-import {AGENTS_PROTOCOL_HEADER, AGENTS_PROTOCOL_VERSION, MIN_CLIENT_PROTOCOL} from '@seed-hypermedia/agents-protocol'
 import {ActivityMonitor} from '@/activity-monitor'
 import * as apisvc from '@/api-service'
 import {getBuildInfo} from '@/build-info'
@@ -119,8 +118,8 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
         status: 'ok',
         uptime: process.uptime(),
         version: buildInfo.version,
-        protocol: AGENTS_PROTOCOL_VERSION,
-        minClientProtocol: MIN_CLIENT_PROTOCOL,
+        protocol: buildInfo.protocol,
+        minClientProtocol: buildInfo.minClientProtocol,
         hmServerUrl: svc.hmServerUrl,
         ipfsServerUrl: svc.ipfsServerUrl,
         webTools: svc.webToolCapabilities(),
@@ -135,11 +134,7 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
       {headers: corsHeaders()},
     )
   }
-  const version = () =>
-    Response.json(
-      {...buildInfo, protocol: AGENTS_PROTOCOL_VERSION, minClientProtocol: MIN_CLIENT_PROTOCOL},
-      {headers: corsHeaders()},
-    )
+  const version = () => Response.json(buildInfo, {headers: corsHeaders()})
   // Aggregate latency stats (metric names and millisecond percentiles only — no ids, no content),
   // so "is this server slow, and where" is one curl away. Same exposure class as /api/health.
   const perf = () => Response.json(perfSnapshot(), {headers: corsHeaders()})
@@ -278,13 +273,7 @@ function sendIfSubscribed(
 }
 
 function corsHeaders(): HeadersInit {
-  return {
-    'Access-Control-Allow-Headers': 'Content-Type, Accept',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Expose-Headers': AGENTS_PROTOCOL_HEADER,
-    [AGENTS_PROTOCOL_HEADER]: String(AGENTS_PROTOCOL_VERSION),
-  }
+  return cbor.corsHeaders('GET, POST, OPTIONS')
 }
 
 async function main(): Promise<void> {
@@ -541,7 +530,11 @@ async function main(): Promise<void> {
               }
             }
           } catch (error) {
-            sendWS(ws, {_: 'error', message: error instanceof Error ? error.message : 'Invalid subscription'})
+            sendWS(ws, {
+              _: 'error',
+              message: error instanceof Error ? error.message : 'Invalid subscription',
+              ...(error instanceof apisvc.APIError && error.code ? {code: error.code} : {}),
+            })
           }
         })()
       },

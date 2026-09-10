@@ -64,11 +64,10 @@ export function describeAgentError(
     }
   }
   if (error instanceof AgentProtocolError) {
-    // Not this request's fault and not an outage: the two sides need updating to talk again.
-    const outdated = error.mismatch === 'client_too_old' ? 'This app is out of date' : 'The server is out of date'
+    // Not this request's fault and not an outage: the app needs updating to talk to this server.
     return {
       tone: 'error',
-      title: serverLabel ? `${outdated} for ${serverLabel}` : outdated,
+      title: serverLabel ? `This app is out of date for ${serverLabel}` : 'This app is out of date',
       detail: error.message,
     }
   }

@@ -1,8 +1,14 @@
 import {describe, expect, test} from 'bun:test'
 import {readFileSync} from 'node:fs'
 import path from 'node:path'
-import {AGENTS_PROTOCOL_VERSION, MIN_CLIENT_PROTOCOL, MIN_SERVER_PROTOCOL} from '@seed-hypermedia/agents-protocol'
-import {diffSurfaces, extractSurface, judgeSurfaceChange, type ProtocolSurface} from './protocol-surface'
+import {AGENTS_PROTOCOL_VERSION, MIN_CLIENT_PROTOCOL} from '@seed-hypermedia/agents-protocol'
+import {
+  SURFACE_FORMAT,
+  diffSurfaces,
+  extractSurface,
+  judgeSurfaceChange,
+  type ProtocolSurface,
+} from './protocol-surface'
 
 const surfacePath = path.resolve(import.meta.dir, '../protocol/surface.json')
 const changelogPath = path.resolve(import.meta.dir, '../protocol/PROTOCOL.md')
@@ -10,10 +16,6 @@ const changelogPath = path.resolve(import.meta.dir, '../protocol/PROTOCOL.md')
 // One extraction for the whole file: it type-checks the protocol package.
 const current = extractSurface()
 const committed = JSON.parse(readFileSync(surfacePath, 'utf8')) as ProtocolSurface
-
-function clone(surface: ProtocolSurface): ProtocolSurface {
-  return structuredClone(surface)
-}
 
 function breaking(base: ProtocolSurface, next: ProtocolSurface) {
   return diffSurfaces(base, next)
@@ -27,16 +29,17 @@ describe('protocol surface snapshot', () => {
   })
 
   test('records the version constants', () => {
+    expect(current.format).toBe(SURFACE_FORMAT)
     expect(current.protocol).toBe(AGENTS_PROTOCOL_VERSION)
     expect(current.minClientProtocol).toBe(MIN_CLIENT_PROTOCOL)
-    expect(current.minServerProtocol).toBe(MIN_SERVER_PROTOCOL)
   })
 
   test('lists every action and response by its discriminant, and the envelope', () => {
     expect(current.actions.GetAgent?.fields).toEqual({_: '"GetAgent"', agentId: 'string'})
-    expect(current.responses.GetAgentResponse?.fields).toMatchObject({
+    expect(current.responses.GetAgentResponse?.fields).toEqual({
+      _: '"GetAgentResponse"',
+      agent: 'AgentInfo',
       sessionCount: 'number',
-      'sessions?': 'SessionInfo[]',
     })
     expect(current.envelope.fields).toMatchObject({'protocol?': 'number', action: 'AgentAction'})
     // The action union is the `actions` group; it must not be duplicated as an opaque type.
@@ -50,19 +53,40 @@ describe('protocol surface snapshot', () => {
     expect(current.types.SessionInfo?.fields?.['modelOverride?']).toBe('SessionModelOverride')
     expect(current.types.SessionModelOverride).toBeDefined()
   })
+
+  test('splits discriminated unions into members, and leaves literal unions whole', () => {
+    expect(current.types.AgentTriggerSource?.variants?.schedule?.fields).toMatchObject({type: '"schedule"'})
+    expect(current.types.RunStatus?.alias).toContain('"queued"')
+    expect(current.types.RunStatus?.variants).toBeUndefined()
+  })
 })
 
 describe('protocol compatibility rules', () => {
   test('the #1078 change is caught: a response field removed is breaking for readers', () => {
-    const base = clone(current)
+    const base = structuredClone(current)
     base.responses.GetAgentResponse!.fields = {_: '"GetAgentResponse"', agent: 'AgentInfo', sessions: 'SessionInfo[]'}
-    const next = clone(current)
-    delete next.responses.GetAgentResponse!.fields!['sessions?']
-    expect(breaking(base, next)).toEqual(['responses.GetAgentResponse.sessions [reads]'])
+    expect(breaking(base, current)).toEqual(['responses.GetAgentResponse.sessions [reads]'])
+  })
+
+  test('a change inside one member of a discriminated union is judged by the field rules', () => {
+    const next = structuredClone(current)
+    next.types.AgentTriggerSource!.variants!.schedule!.fields!['timezone?'] = 'string'
+    expect(breaking(current, next)).toEqual([])
+
+    const removed = structuredClone(current)
+    delete removed.types.AgentTriggerSource!.variants!.schedule
+    const added = structuredClone(current)
+    added.types.AgentTriggerSource!.variants!.pigeon = {fields: {type: '"pigeon"', loft: 'string'}}
+    // The source is written (CreateAgentTrigger) and read (AgentTriggerInfo).
+    expect(breaking(current, removed)).toEqual([
+      'types.AgentTriggerSource.<schedule> [reads]',
+      'types.AgentTriggerSource.<schedule> [writes]',
+    ])
+    expect(breaking(current, added)).toEqual(['types.AgentTriggerSource.<pigeon> [reads]'])
   })
 
   test('additive changes are compatible', () => {
-    const next = clone(current)
+    const next = structuredClone(current)
     next.responses.GetAgentResponse!.fields!['starred?'] = 'boolean'
     next.responses.GetAgentResponse!.fields!.owner = 'string'
     next.actions.GetAgent!.fields!['includeArchived?'] = 'boolean'
@@ -74,13 +98,13 @@ describe('protocol compatibility rules', () => {
   })
 
   test('a required field added to an action is breaking for writers', () => {
-    const next = clone(current)
+    const next = structuredClone(current)
     next.actions.GetAgent!.fields!.reason = 'string'
     expect(breaking(current, next)).toEqual(['actions.GetAgent.reason [writes]'])
   })
 
   test('optionality flips are judged by direction', () => {
-    const next = clone(current)
+    const next = structuredClone(current)
     // Readers lose a guarantee.
     delete next.responses.GetAgentResponse!.fields!.sessionCount
     next.responses.GetAgentResponse!.fields!['sessionCount?'] = 'number'
@@ -92,7 +116,7 @@ describe('protocol compatibility rules', () => {
       'actions.ListSessions.limit [writes]',
     ])
 
-    const relaxed = clone(current)
+    const relaxed = structuredClone(current)
     delete relaxed.actions.ListSessions!.fields!.agentId
     delete relaxed.actions.GetAgent!.fields!.agentId
     relaxed.actions.GetAgent!.fields!['agentId?'] = 'string'
@@ -100,7 +124,7 @@ describe('protocol compatibility rules', () => {
   })
 
   test('a change inside a nested type is attributed to the type, in every direction it travels', () => {
-    const next = clone(current)
+    const next = structuredClone(current)
     // AgentDefinition is sent (CreateAgent) and received (AgentInfo).
     delete next.types.AgentDefinition!.fields!.model
     expect(breaking(current, next)).toEqual([
@@ -108,22 +132,22 @@ describe('protocol compatibility rules', () => {
       'types.AgentDefinition.model [writes]',
     ])
 
-    const widened = clone(current)
+    const widened = structuredClone(current)
     widened.types.RunStatus = {alias: `${current.types.RunStatus!.alias} | "paused"`}
     expect(breaking(current, widened)).toContain('types.RunStatus [reads]')
   })
 
   test('removing an action or response is breaking', () => {
-    const next = clone(current)
+    const next = structuredClone(current)
     delete next.actions.GetAgent
     delete next.responses.GetAgentResponse
     expect(breaking(current, next)).toEqual(['responses.GetAgentResponse [reads]', 'actions.GetAgent [writes]'])
   })
 
   test('types no longer reachable from the wire are not compared', () => {
-    const base = clone(current)
+    const base = structuredClone(current)
     base.types.Orphan = {fields: {x: 'string'}}
-    const next = clone(current)
+    const next = structuredClone(current)
     expect(breaking(base, next)).toEqual([])
   })
 })
@@ -136,7 +160,7 @@ describe('protocol version judgement', () => {
   })
 
   test('a breaking change without a bump fails, naming the change', () => {
-    const next = clone(current)
+    const next = structuredClone(current)
     delete next.responses.GetAgentResponse!.fields!.sessionCount
     const verdict = judgeSurfaceChange(current, next, changelog)
     expect(verdict.ok).toBe(false)
@@ -145,7 +169,7 @@ describe('protocol version judgement', () => {
   })
 
   test('a bump needs a changelog entry, and then passes', () => {
-    const next = clone(current)
+    const next = structuredClone(current)
     delete next.responses.GetAgentResponse!.fields!.sessionCount
     next.protocol = current.protocol + 1
     const missing = judgeSurfaceChange(current, next, changelog)
@@ -160,12 +184,15 @@ describe('protocol version judgement', () => {
   })
 
   test('the version never goes down and the minimums never exceed it', () => {
-    const down = clone(current)
+    const down = structuredClone(current)
     down.protocol = current.protocol - 1
     expect(judgeSurfaceChange(current, down, changelog).ok).toBe(false)
-    const minTooHigh = clone(current)
+    const minTooHigh = structuredClone(current)
     minTooHigh.minClientProtocol = current.protocol + 1
     expect(judgeSurfaceChange(current, minTooHigh, changelog).ok).toBe(false)
+    const minDown = structuredClone(current)
+    minDown.minClientProtocol = current.minClientProtocol - 1
+    expect(judgeSurfaceChange(current, minDown, changelog).ok).toBe(false)
   })
 
   test('the committed changelog has an entry for the current version', () => {

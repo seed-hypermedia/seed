@@ -2,8 +2,6 @@ import type * as AgentsProtocol from '@seed-hypermedia/agents-protocol'
 import {
   AGENTS_PROTOCOL_HEADER,
   AGENTS_PROTOCOL_VERSION,
-  IMPLICIT_PROTOCOL_VERSION,
-  MIN_SERVER_PROTOCOL,
   declaredProtocolVersion,
 } from '@seed-hypermedia/agents-protocol'
 import * as blobs from '@shm/shared/blobs'
@@ -146,6 +144,10 @@ export type AgentServerHealth = {
   codeExecReason?: string
   /** Machine-readable cause when codeExec is false (e.g. 'whp-disabled'), for targeted help UI. */
   codeExecReasonCode?: string
+  /** Wire protocol the server speaks; absent on servers from before protocol 2 (see agents/protocol/PROTOCOL.md). */
+  protocol?: number
+  /** Oldest client protocol the server still answers. Absent on servers from before protocol 2. */
+  minClientProtocol?: number
 }
 
 /** Normalizes an agent server URL for storage and fetch calls. */
@@ -257,41 +259,25 @@ export class AgentServerError extends Error {
 }
 
 /**
- * The client and server speak protocol versions that cannot be reconciled: either the server has
- * retired this app's version (`client_too_old`, the server said so) or the server is older than
- * this app still supports (`server_too_old`, judged from the server's advertised version).
- *
- * Either way the fix is an update, of the app or of the server, and the message says which. Call
- * sites treat it like any refusal: the content is not shown, the reason is.
+ * The server has retired the protocol version this app speaks (HTTP 426, `protocol_too_old`).
+ * Nothing about the request was wrong and the server is up: the fix is updating the app, and the
+ * message says so. It is not a "refusal" of the resource asked for, so call sites that give up a
+ * remembered resource on a refusal must not do so on this.
  */
 export class AgentProtocolError extends AgentServerError {
-  readonly mismatch: 'client_too_old' | 'server_too_old'
-  constructor(mismatch: AgentProtocolError['mismatch'], message: string, status: number) {
-    super(message, status, mismatch === 'client_too_old' ? 'protocol_too_old' : undefined)
+  constructor(message: string, status: number) {
+    super(message, status, 'protocol_too_old')
     this.name = 'AgentProtocolError'
-    this.mismatch = mismatch
   }
 }
 
 /**
  * The protocol version a server advertised on a response, read from its header. Servers from
- * before protocol 2 send no header, which counts as protocol 1.
+ * before protocol 2 send no header, which counts as protocol 1. For display and diagnostics: the
+ * client does not refuse older servers (see `agents/protocol/src/version.ts`).
  */
 export function serverProtocolOf(headers: Headers): number {
-  const raw = headers.get(AGENTS_PROTOCOL_HEADER)
-  if (raw === null) return IMPLICIT_PROTOCOL_VERSION
-  return declaredProtocolVersion(Number(raw))
-}
-
-/** Throws when a server's advertised protocol is older than this build still accepts. */
-export function assertServerProtocolSupported(headers: Headers): void {
-  const serverProtocol = serverProtocolOf(headers)
-  if (serverProtocol >= MIN_SERVER_PROTOCOL) return
-  throw new AgentProtocolError(
-    'server_too_old',
-    `This agents server speaks protocol ${serverProtocol}, but this app needs protocol ${MIN_SERVER_PROTOCOL} or newer. Update the server to continue.`,
-    0,
-  )
+  return declaredProtocolVersion(Number(headers.get(AGENTS_PROTOCOL_HEADER)))
 }
 
 export async function sendAgentAction(input: {
@@ -310,7 +296,7 @@ export async function sendAgentAction(input: {
   const decoded = cbor.decode<AgentsResponse>(new Uint8Array(await res.arrayBuffer()))
   if (!res.ok || decoded._ === 'Error') {
     if (decoded._ === 'Error' && decoded.code === 'protocol_too_old') {
-      throw new AgentProtocolError('client_too_old', decoded.message, res.status)
+      throw new AgentProtocolError(decoded.message, res.status)
     }
     throw new AgentServerError(
       decoded._ === 'Error' ? decoded.message : `Agent server request failed: HTTP ${res.status}`,
@@ -318,8 +304,5 @@ export async function sendAgentAction(input: {
       decoded._ === 'Error' ? decoded.code : undefined,
     )
   }
-  // Checked after the server's own verdict: a too-old server that still managed to refuse the
-  // request has said something more specific than "too old".
-  assertServerProtocolSupported(res.headers)
   return decoded
 }

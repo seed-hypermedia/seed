@@ -101,7 +101,7 @@ import {
   encodeAssistantSessionRef,
   type AssistantSessionRef,
 } from './assistant-session-ref'
-import {AgentServerError, type AgentInfo} from './client'
+import {AgentProtocolError, AgentServerError, type AgentInfo} from './client'
 import type {AgentActivity} from '@seed-hypermedia/agents-protocol'
 import {describeAgentError, errorMessage} from './errors'
 import {useAssistantWindowContextLines} from './assistant-window-context'
@@ -221,8 +221,10 @@ export function AssistantPanel({
     storedSessionAgentId: storedSessionQuery.data?.session.agentId,
     // Only a refusal from the server gives the session up; a server that could not be reached may
     // simply be down (the desktop's local one is still booting on launch), so the session is held
-    // and its fetch keeps polling.
-    storedSessionUnavailable: storedSessionQuery.error instanceof AgentServerError,
+    // and its fetch keeps polling. A protocol mismatch is about the app's version, not the session,
+    // and the session is still there once the app updates.
+    storedSessionUnavailable:
+      storedSessionQuery.error instanceof AgentServerError && !(storedSessionQuery.error instanceof AgentProtocolError),
     agentsSettled,
     isDraft,
   })

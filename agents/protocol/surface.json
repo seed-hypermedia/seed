@@ -1,7 +1,7 @@
 {
+  "format": 1,
   "protocol": 2,
   "minClientProtocol": 1,
-  "minServerProtocol": 1,
   "envelope": {
     "fields": {
       "account": "Uint8Array<ArrayBufferLike>",
@@ -249,11 +249,6 @@
         "path?": "string"
       }
     },
-    "ListAgents": {
-      "fields": {
-        "_": "\"ListAgents\""
-      }
-    },
     "ListAgentTools": {
       "fields": {
         "_": "\"ListAgentTools\"",
@@ -264,6 +259,11 @@
       "fields": {
         "_": "\"ListAgentTriggers\"",
         "agentId": "string"
+      }
+    },
+    "ListAgents": {
+      "fields": {
+        "_": "\"ListAgents\""
       }
     },
     "ListMcpServers": {
@@ -641,8 +641,7 @@
       "fields": {
         "_": "\"GetAgentResponse\"",
         "agent": "AgentInfo",
-        "sessionCount": "number",
-        "sessions?": "SessionInfo[]"
+        "sessionCount": "number"
       }
     },
     "GetAgentTriggerResponse": {
@@ -739,12 +738,6 @@
         "truncated?": "boolean"
       }
     },
-    "ListAgentsResponse": {
-      "fields": {
-        "_": "\"ListAgentsResponse\"",
-        "agents": "AgentInfo[]"
-      }
-    },
     "ListAgentToolsResponse": {
       "fields": {
         "_": "\"ListAgentToolsResponse\"",
@@ -756,6 +749,12 @@
       "fields": {
         "_": "\"ListAgentTriggersResponse\"",
         "triggers": "AgentTriggerInfo[]"
+      }
+    },
+    "ListAgentsResponse": {
+      "fields": {
+        "_": "\"ListAgentsResponse\"",
+        "agents": "AgentInfo[]"
       }
     },
     "ListMcpServersResponse": {
@@ -1067,7 +1066,30 @@
       }
     },
     "AgentScheduleTrigger": {
-      "alias": "{daysOfWeek: number[]; kind: \"weekly\"; timeOfDay: string; timezone: string} | {every: number; kind: \"interval\"; unit: \"hours\" | \"minutes\"} | {kind: \"once\"; runAt: number; timezone?: string}"
+      "variants": {
+        "interval": {
+          "fields": {
+            "every": "number",
+            "kind": "\"interval\"",
+            "unit": "\"hours\" | \"minutes\""
+          }
+        },
+        "once": {
+          "fields": {
+            "kind": "\"once\"",
+            "runAt": "number",
+            "timezone?": "string"
+          }
+        },
+        "weekly": {
+          "fields": {
+            "daysOfWeek": "number[]",
+            "kind": "\"weekly\"",
+            "timeOfDay": "string",
+            "timezone": "string"
+          }
+        }
+      }
     },
     "AgentSessionTriggerContext": {
       "fields": {
@@ -1162,10 +1184,67 @@
       }
     },
     "AgentTriggerSource": {
-      "alias": "{agentId?: string; status?: \"canceled\" | \"failed\" | \"succeeded\"; titleMatch?: string; type: \"run-completed\"} | {author?: string; resource: string; type: \"document-comment\"} | {eventTypes?: string[]; resourcePrefix: string; type: \"site-update\"} | {mentionedAccounts: string[]; resourcePrefix?: string; type: \"user-mention\"} | {schedule: AgentScheduleTrigger; type: \"schedule\"} | {type: \"webhook\"}"
+      "variants": {
+        "document-comment": {
+          "fields": {
+            "author?": "string",
+            "resource": "string",
+            "type": "\"document-comment\""
+          }
+        },
+        "run-completed": {
+          "fields": {
+            "agentId?": "string",
+            "status?": "\"canceled\" | \"failed\" | \"succeeded\"",
+            "titleMatch?": "string",
+            "type": "\"run-completed\""
+          }
+        },
+        "schedule": {
+          "fields": {
+            "schedule": "AgentScheduleTrigger",
+            "type": "\"schedule\""
+          }
+        },
+        "site-update": {
+          "fields": {
+            "eventTypes?": "string[]",
+            "resourcePrefix": "string",
+            "type": "\"site-update\""
+          }
+        },
+        "user-mention": {
+          "fields": {
+            "mentionedAccounts": "string[]",
+            "resourcePrefix?": "string",
+            "type": "\"user-mention\""
+          }
+        },
+        "webhook": {
+          "fields": {
+            "type": "\"webhook\""
+          }
+        }
+      }
     },
     "FileUploadTarget": {
-      "alias": "{agentId: string; kind: \"memory\"; path: string} | {kind: \"session-attachment\"; mimeType?: string; name: string; sessionId: string}"
+      "variants": {
+        "memory": {
+          "fields": {
+            "agentId": "string",
+            "kind": "\"memory\"",
+            "path": "string"
+          }
+        },
+        "session-attachment": {
+          "fields": {
+            "kind": "\"session-attachment\"",
+            "mimeType?": "string",
+            "name": "string",
+            "sessionId": "string"
+          }
+        }
+      }
     },
     "JsonSchema": {
       "fields": {
@@ -1173,12 +1252,12 @@
         "description?": "string",
         "enum?": "string[]",
         "items?": "JsonSchema",
-        "maximum?": "number",
         "maxItems?": "number",
         "maxLength?": "number",
-        "minimum?": "number",
+        "maximum?": "number",
         "minItems?": "number",
         "minLength?": "number",
+        "minimum?": "number",
         "properties?": "Record<string, JsonSchema>",
         "required?": "string[]",
         "type?": "\"array\" | \"boolean\" | \"integer\" | \"null\" | \"number\" | \"object\" | \"string\" | JsonSchemaTypeName[]"
@@ -1214,7 +1293,28 @@
       }
     },
     "MessageSessionContentPart": {
-      "alias": "{blocks?: AgentPromptBlock[]; clientMessageId?: string; text: string; type: \"text\"} | {id: string; type: \"attachment\"} | {lines: string[]; type: \"context\"}"
+      "variants": {
+        "attachment": {
+          "fields": {
+            "id": "string",
+            "type": "\"attachment\""
+          }
+        },
+        "context": {
+          "fields": {
+            "lines": "string[]",
+            "type": "\"context\""
+          }
+        },
+        "text": {
+          "fields": {
+            "blocks?": "AgentPromptBlock[]",
+            "clientMessageId?": "string",
+            "text": "string",
+            "type": "\"text\""
+          }
+        }
+      }
     },
     "ModelProviderConfig": {
       "fields": {
@@ -1459,7 +1559,40 @@
       }
     },
     "TriggerContinuation": {
-      "alias": "{includeAgentSystemPrompt?: boolean; kind: \"newThread\"; systemPrompt?: string; tools?: string[]} | {input?: unknown; kind: \"script\"; onFailure?: TriggerFailurePolicy; script: string} | {input?: unknown; kind: \"tool\"; onFailure?: TriggerFailurePolicy; tool: string} | {kind: \"wake\"; payload?: unknown; runId?: string; signal: string}"
+      "variants": {
+        "newThread": {
+          "fields": {
+            "includeAgentSystemPrompt?": "boolean",
+            "kind": "\"newThread\"",
+            "systemPrompt?": "string",
+            "tools?": "string[]"
+          }
+        },
+        "script": {
+          "fields": {
+            "input?": "unknown",
+            "kind": "\"script\"",
+            "onFailure?": "TriggerFailurePolicy",
+            "script": "string"
+          }
+        },
+        "tool": {
+          "fields": {
+            "input?": "unknown",
+            "kind": "\"tool\"",
+            "onFailure?": "TriggerFailurePolicy",
+            "tool": "string"
+          }
+        },
+        "wake": {
+          "fields": {
+            "kind": "\"wake\"",
+            "payload?": "unknown",
+            "runId?": "string",
+            "signal": "string"
+          }
+        }
+      }
     },
     "TriggerFailurePolicy": {
       "alias": "\"none\" | \"thread\""
@@ -1477,7 +1610,19 @@
       }
     },
     "UnmetObligation": {
-      "alias": "{kind: \"plan\"; steps: string[]} | {kind: \"typed-result\"}"
+      "variants": {
+        "plan": {
+          "fields": {
+            "kind": "\"plan\"",
+            "steps": "string[]"
+          }
+        },
+        "typed-result": {
+          "fields": {
+            "kind": "\"typed-result\""
+          }
+        }
+      }
     }
   }
 }

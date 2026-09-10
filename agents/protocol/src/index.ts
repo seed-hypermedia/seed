@@ -1670,7 +1670,7 @@ export type AgentWSEvent =
         usage?: AgentRunUsage
       }
     }
-  | {_: 'error'; message: string}
+  | {_: 'error'; message: string; code?: ProtocolErrorCode}
 
 /** Redacted provider metadata returned after provider writes. */
 export type RedactedModelProvider = {
@@ -1969,12 +1969,6 @@ export type GetAgentResponse = {
    * sessions themselves come from `ListSessions {agentId, includeChildren: false}`.
    */
   sessionCount: number
-  /**
-   * @deprecated Protocol 1 answered every session of the agent here. Servers still fill it (newest
-   * page only) for clients that declare no protocol; protocol 2 clients never receive it. Removed
-   * when `MIN_CLIENT_PROTOCOL` reaches 2.
-   */
-  sessions?: SessionInfo[]
 }
 
 /** Successful response for `ListAgentTriggers`. */

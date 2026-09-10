@@ -21,7 +21,7 @@ import {
   type AgentDefinition,
 } from '@seed-hypermedia/agents-protocol'
 import {createAPIRoutes} from '@/main'
-import {ProtocolTooOldError, assertClientProtocolSupported, clientProtocolOf} from '@/protocol-compat'
+import {clientProtocolOf, clientProtocolProblem, type GetAgentResponseV1} from '@/protocol-compat'
 import {startTestMcpServer} from '@/mcp-test-server'
 
 /**
@@ -11369,10 +11369,10 @@ describe('protocol version negotiation', () => {
       const {agentId, sessionId} = await createAgentWithSession(svc, owner)
       const envelope = await apisvc.createSignedEnvelope(owner, {action: {_: 'GetAgent', agentId}, protocol: null})
       expect('protocol' in envelope).toBe(false)
-      const read = await svc.message(envelope)
+      const read = (await svc.message(envelope)) as GetAgentResponseV1
       if (read._ !== 'GetAgentResponse') throw new Error('unexpected response')
       expect(read.sessionCount).toBe(1)
-      expect(read.sessions?.map((session) => session.id)).toEqual([sessionId])
+      expect(read.sessions.map((session) => session.id)).toEqual([sessionId])
     } finally {
       sqlite.closeDatabase(db)
       cleanup()
@@ -11384,19 +11384,15 @@ describe('protocol version negotiation', () => {
     try {
       const owner = blobs.generateNobleKeyPair()
       const svc = new apisvc.Service(db, dataDir)
-      // Cannot happen today (MIN_CLIENT_PROTOCOL is 1), so the check is exercised directly.
-      expect(() => assertClientProtocolSupported(MIN_CLIENT_PROTOCOL - 1)).toThrow(ProtocolTooOldError)
-      expect(() => assertClientProtocolSupported(MIN_CLIENT_PROTOCOL)).not.toThrow()
-      try {
-        assertClientProtocolSupported(0)
-      } catch (error) {
-        expect(error).toBeInstanceOf(ProtocolTooOldError)
-        if (error instanceof ProtocolTooOldError) {
-          expect(error.status).toBe(426)
-          expect(error.code).toBe('protocol_too_old')
-          expect(error.message).toContain('Update Seed')
-        }
-      }
+      // Cannot happen today (MIN_CLIENT_PROTOCOL is 1), so the judgement is exercised directly.
+      expect(clientProtocolProblem(MIN_CLIENT_PROTOCOL)).toBeNull()
+      expect(clientProtocolProblem(MIN_CLIENT_PROTOCOL - 1)).toMatchObject({
+        status: 426,
+        code: 'protocol_too_old',
+        message: expect.stringContaining('Update Seed'),
+      })
+      // A malformed envelope is left to verification, which answers 401 as before.
+      expect(clientProtocolOf(null)).toBe(1)
       // A nonsense declaration is treated as the implicit version 1, never as "unsupported".
       const garbage = await apisvc.createSignedEnvelope(owner, {action: {_: 'ListAgents'}, protocol: -7})
       expect(clientProtocolOf(garbage)).toBe(1)
@@ -11438,6 +11434,17 @@ describe('protocol version negotiation', () => {
         protocol: AGENTS_PROTOCOL_VERSION,
         minClientProtocol: MIN_CLIENT_PROTOCOL,
       })
+      expect(version.headers.get(AGENTS_PROTOCOL_HEADER)).toBe(String(AGENTS_PROTOCOL_VERSION))
+
+      // A body that is not an envelope still gets the 401 verification always gave it.
+      const garbage = await message(
+        new Request('http://agents.test/api/message', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/cbor'},
+          body: cbor.encode(null) as BodyInit,
+        }),
+      )
+      expect(garbage.status).toBe(401)
     } finally {
       sqlite.closeDatabase(db)
       cleanup()
