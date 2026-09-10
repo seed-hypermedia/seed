@@ -457,6 +457,7 @@ function AgentSessionPage({
               serverUrl={serverUrl}
               sessionId={sessionId}
               modelOverride={session.data?.session.modelOverride}
+              thoroughness={session.data?.session.thoroughness}
               canWrite={canWrite}
             />
             <Button

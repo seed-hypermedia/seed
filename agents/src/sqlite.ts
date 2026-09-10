@@ -14,6 +14,9 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Per-session thoroughness override (a THOROUGHNESS_PRESETS key, or NULL for the agent's own):
+  // the delegation budget new runs in the session start with.
+  `ALTER TABLE sessions ADD COLUMN thoroughness TEXT;`,
   // Per-session latest message (see SessionActivity in the protocol), so a session list can show
   // which chats hold something unread without the agent-level rollup.
   `ALTER TABLE sessions ADD COLUMN message_at INTEGER;

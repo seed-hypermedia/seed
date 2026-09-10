@@ -11526,3 +11526,309 @@ describe('protocol version negotiation', () => {
     }
   })
 })
+
+describe('delegation budget', () => {
+  type ProviderCall = {model: string; messagesJSON: string; toolNames: string[]}
+  function toolNamesOf(body: {tools?: Array<{function?: {name?: string}; name?: string}>}): string[] {
+    return (body.tools ?? []).map((tool) => tool.function?.name ?? tool.name ?? '')
+  }
+
+  test('quick thoroughness makes first-level children leaves: no delegate verb, and both sides are told', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const providerCalls: ProviderCall[] = []
+    try {
+      const account = blobs.generateNobleKeyPair()
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(await fetchBodyText(url, init))
+        const messagesJSON = JSON.stringify(body.messages)
+        providerCalls.push({model: body.model, messagesJSON, toolNames: toolNamesOf(body)})
+        if (body.messages.some((message: {role?: string}) => message.role === 'tool')) {
+          return openAIStreamResponse([
+            {id: 'parent-2', choices: [{delta: {content: 'All done.'}}]},
+            {id: 'parent-2', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        if (messagesJSON.includes('Summarize the report.')) {
+          return openAIStreamResponse([
+            {id: 'child', choices: [{delta: {content: 'Summary done.'}}]},
+            {id: 'child', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {
+            id: 'parent-1',
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: 'spawn-leaf',
+                      type: 'function',
+                      function: {
+                        name: 'delegate',
+                        arguments: JSON.stringify({title: 'Summarizer', brief: 'Summarize the report.'}),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          {id: 'parent-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const svc = new apisvc.Service(db, dataDir)
+      const sessionId = await seedAgentSession(svc, account, 'You are the router.', {thoroughness: 'quick'})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'MessageSession', sessionId, content: [{type: 'text', text: 'Delegate the summary'}]},
+        }),
+      )
+      await svc.awaitQueueIdle()
+
+      const parentCalls = providerCalls.filter((call) => call.messagesJSON.includes('Delegate the summary'))
+      const childCalls = providerCalls.filter((call) => !call.messagesJSON.includes('Delegate the summary'))
+      expect(parentCalls.length).toBeGreaterThan(0)
+      expect(childCalls.length).toBeGreaterThan(0)
+
+      // The root (depth 0 of 1) may delegate, and is told its children will be leaves.
+      expect(parentCalls[0]!.toolNames).toContain('delegate')
+      expect(parentCalls[0]!.messagesJSON).toContain('Delegation budget: you are at depth 0 of 1')
+      expect(parentCalls[0]!.messagesJSON).toContain('CANNOT delegate further')
+      // The child (depth 1 of 1) is a leaf: no delegate verb at all, and its prompt says why.
+      expect(childCalls[0]!.toolNames).not.toContain('delegate')
+      expect(childCalls[0]!.messagesJSON).toContain('leaf worker in a delegation tree (depth 1 of 1)')
+
+      // The child succeeded, and its result tells the parent where it sat.
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const result = session.events
+        .map(
+          (event) =>
+            event.event as {
+              type?: string
+              name?: string
+              output?: {
+                status?: string
+                delegation?: {
+                  depth: number
+                  maxDepth: number
+                  childCouldDelegate: boolean
+                  parentChildrenRemaining: number
+                  parentMaxChildren: number
+                }
+              }
+            },
+        )
+        .find((event) => event.type === 'tool_result' && event.name === 'delegate')
+      expect(result?.output?.status).toBe('succeeded')
+      expect(result?.output?.delegation).toEqual({
+        depth: 1,
+        maxDepth: 1,
+        childCouldDelegate: false,
+        parentChildrenRemaining: 3,
+        parentMaxChildren: 4,
+      })
+
+      // The budget rode along on the child run, so the tree keeps one setting even if the agent's changes.
+      const spawn = session.events
+        .map((event) => event.event as {type?: string; sessionId?: string})
+        .find((event) => event.type === 'tool_spawn')
+      const childRun = db
+        .query<{budget_cbor: Uint8Array | null}, [string]>(`SELECT budget_cbor FROM runs WHERE session_id = ?`)
+        .get(spawn!.sessionId!)
+      expect(childRun?.budget_cbor).toBeTruthy()
+      expect(cbor.decode<{maxDepth: number; maxChildren: number}>(childRun!.budget_cbor!)).toEqual({
+        maxDepth: 1,
+        maxChildren: 4,
+      })
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('a script child costs no depth: quick still runs root → script → worker, and the worker is a leaf', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const providerCalls: ProviderCall[] = []
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const workflowSource = [
+        'export default async function (input, ctx) {',
+        "  const worker = await ctx.delegate({title: 'Mini worker', prompt: 'You are worker Mini.', input: 'Say hi'})",
+        '  return {worker: worker.text}',
+        '}',
+      ].join('\n')
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(await fetchBodyText(url, init))
+        const messagesJSON = JSON.stringify(body.messages)
+        providerCalls.push({model: body.model, messagesJSON, toolNames: toolNamesOf(body)})
+        if (body.messages.some((message: {role?: string}) => message.role === 'tool')) {
+          return openAIStreamResponse([
+            {id: 'parent-2', choices: [{delta: {content: 'Done.'}}]},
+            {id: 'parent-2', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        if (messagesJSON.includes('worker Mini')) {
+          return openAIStreamResponse([
+            {id: 'mini', choices: [{delta: {content: 'Mini says hi.'}}]},
+            {id: 'mini', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {
+            id: 'parent-1',
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: 'spawn-script',
+                      type: 'function',
+                      function: {
+                        name: 'delegate',
+                        arguments: JSON.stringify({title: 'Mini workflow', script: workflowSource, input: {}}),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          {id: 'parent-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const svc = new apisvc.Service(db, dataDir)
+      const sessionId = await seedAgentSession(svc, account, 'You are the orchestrator.', {thoroughness: 'quick'})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'MessageSession', sessionId, content: [{type: 'text', text: 'Run the mini workflow'}]},
+        }),
+      )
+      await svc.awaitQueueIdle()
+
+      // Under a depth-per-run count the worker would sit at depth 2 of 1 and never run; the script
+      // is transparent, so it runs at depth 1 — as a leaf.
+      const workerCalls = providerCalls.filter((call) => !call.messagesJSON.includes('Run the mini workflow'))
+      expect(workerCalls.length).toBeGreaterThan(0)
+      expect(workerCalls[0]!.toolNames).not.toContain('delegate')
+      expect(workerCalls[0]!.messagesJSON).toContain('leaf worker in a delegation tree (depth 1 of 1)')
+
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const result = session.events
+        .map((event) => event.event as {type?: string; name?: string; output?: {status?: string}})
+        .find((event) => event.type === 'tool_result' && event.name === 'delegate')
+      expect(result?.output?.status).toBe('succeeded')
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('thoroughness is validated on the agent and set, returned, and cleared per session', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await setDefaultProvider(svc, account)
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {
+              _: 'CreateAgent',
+              definition: {
+                name: 'Agent',
+                systemPrompt: 'ok',
+                modelProvider: 'openai',
+                model: 'gpt',
+                thoroughness: 'max' as unknown as 'quick',
+              },
+            },
+          }),
+        ),
+      ).rejects.toThrow('Thoroughness must be quick, normal, or deep')
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Agent',
+              systemPrompt: 'ok',
+              modelProvider: 'openai',
+              model: 'gpt',
+              thoroughness: 'deep',
+            },
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const agent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetAgent', agentId: createdAgent.agentId}}),
+      )
+      if (agent._ !== 'GetAgentResponse') throw new Error('unexpected response')
+      expect(agent.agent.definition.thoroughness).toBe('deep')
+
+      // A draft composer sends its choices with CreateSession, validated like an edit would be.
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'CreateSession', agentId: createdAgent.agentId, thoroughness: 'bogus' as unknown as 'quick'},
+          }),
+        ),
+      ).rejects.toThrow('Thoroughness must be quick, normal, or deep')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateSession',
+            agentId: createdAgent.agentId,
+            title: 'Chat',
+            thoroughness: 'normal',
+            modelOverride: {provider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+      const sessionId = createdSession.sessionId
+      const created = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId}}),
+      )
+      if (created._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(created.session.thoroughness).toBe('normal')
+      expect(created.session.modelOverride).toEqual({provider: 'openai', model: 'gpt'})
+      const quick = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'UpdateSession', sessionId, thoroughness: 'quick'}}),
+      )
+      if (quick._ !== 'UpdateSessionResponse') throw new Error('unexpected response')
+      expect(quick.session.thoroughness).toBe('quick')
+      expect(quick.session.title).toBe('Chat')
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'UpdateSession', sessionId, thoroughness: 'bogus' as unknown as 'quick'},
+          }),
+        ),
+      ).rejects.toThrow('Thoroughness must be quick, normal, deep, or null')
+      const cleared = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'UpdateSession', sessionId, thoroughness: null}}),
+      )
+      if (cleared._ !== 'UpdateSessionResponse') throw new Error('unexpected response')
+      expect(cleared.session.thoroughness).toBeUndefined()
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+})

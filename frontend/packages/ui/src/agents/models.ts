@@ -42,7 +42,7 @@ import {isOptimisticUserEcho} from './agent-session-rows'
 import {moveAgentToServer, type MoveAgentOptions} from './move-agent'
 import {getAgentsPlatform} from './platform'
 import {parseSpaceAgentIds} from './space-agents'
-import {getToolReferencedUrls, type AgentActivity} from '@seed-hypermedia/agents-protocol'
+import {getToolReferencedUrls, type AgentActivity, type Thoroughness} from '@seed-hypermedia/agents-protocol'
 import * as cbor from '@shm/shared/cbor'
 import {getQueryClient, invalidateQueries} from '@shm/shared/models/query-client'
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
@@ -3510,12 +3510,33 @@ export function useCreateAgentSession(serverUrl: string | undefined, accountUid:
 /** Creates a session on the server associated with a listed agent. */
 export function useCreateAgentSessionOnServer(accountUid: string | null | undefined) {
   return useMutation({
-    mutationFn: async ({serverUrl, agentId, title}: {serverUrl: string; agentId: string; title?: string}) => {
+    mutationFn: async ({
+      serverUrl,
+      agentId,
+      title,
+      modelOverride,
+      thoroughness,
+    }: {
+      serverUrl: string
+      agentId: string
+      title?: string
+      /** Model the session starts pinned to (a draft composer's choice); absent follows the agent. */
+      modelOverride?: SessionModelOverride
+      /** Delegation budget the session starts with; absent follows the agent. */
+      thoroughness?: Thoroughness
+    }) => {
       if (!accountUid) throw new Error('Select an account first')
       return sendAgentAction({
         serverUrl,
         accountUid,
-        action: {_: 'CreateSession', agentId, ...(title ? {title} : {}), clientRequestId: crypto.randomUUID()},
+        action: {
+          _: 'CreateSession',
+          agentId,
+          ...(title ? {title} : {}),
+          ...(modelOverride ? {modelOverride} : {}),
+          ...(thoroughness ? {thoroughness} : {}),
+          clientRequestId: crypto.randomUUID(),
+        },
       })
     },
     onSuccess(_result, {serverUrl}) {
@@ -3532,11 +3553,14 @@ export function useUpdateAgentSession(serverUrl: string | undefined, accountUid:
       sessionId,
       title,
       modelOverride,
+      thoroughness,
     }: {
       sessionId: string
       title?: string
       /** Pins the session to a provider/model pair; null returns it to the agent's own model. */
       modelOverride?: SessionModelOverride | null
+      /** Pins the session's delegation budget; null returns it to the agent's own thoroughness. */
+      thoroughness?: Thoroughness | null
     }) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       const res = await sendAgentAction({
@@ -3547,12 +3571,13 @@ export function useUpdateAgentSession(serverUrl: string | undefined, accountUid:
           sessionId,
           ...(title !== undefined ? {title} : {}),
           ...(modelOverride !== undefined ? {modelOverride} : {}),
+          ...(thoroughness !== undefined ? {thoroughness} : {}),
         },
       })
       if (res._ !== 'UpdateSessionResponse') throw new Error('Unexpected UpdateSession response')
       return res.session
     },
-    async onMutate({sessionId, title, modelOverride}) {
+    async onMutate({sessionId, title, modelOverride, thoroughness}) {
       if (!serverUrl || !accountUid) return undefined
       // Merge the edited fields into every cached copy immediately, so a rename never flashes
       // back to the old title while the round trip is in flight.
@@ -3560,6 +3585,7 @@ export function useUpdateAgentSession(serverUrl: string | undefined, accountUid:
         ...session,
         ...(title !== undefined ? {title} : {}),
         ...(modelOverride !== undefined ? {modelOverride: modelOverride ?? undefined} : {}),
+        ...(thoroughness !== undefined ? {thoroughness: thoroughness ?? undefined} : {}),
       })
       return applyOptimisticUpdates([
         {

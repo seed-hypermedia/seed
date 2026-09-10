@@ -130,6 +130,8 @@ Important incomplete work:
     - [MCP servers](./mcp.md) — remote MCP servers as tool documents: discovery, projection, runtime, actions, UI.
     - [Session continuation](./session-continuation.md) — `continue_session`: fresh successor sessions at semantic
       boundaries instead of compaction; projection manifests, context meter, guarded navigation.
+    - [Delegation budgets](./delegation-budgets.md) — thoroughness presets and the depth/children budget (#1070); why a
+      hard cap is only a first step, and the proposal for budget pauses, tree budgets, and cost-denominated budgets.
 12. [Prompt injection map](./prompt-injection-map.md) — where hosted-agent and desktop-assistant prompts are defined,
     assembled, and sent to providers.
 13. [Security](./security.md) — current security model and hardening gaps.

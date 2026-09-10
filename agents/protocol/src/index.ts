@@ -1,11 +1,13 @@
 export * from './tool-registry'
 import type {JsonSchema} from './tool-registry'
 export * from './reasoning'
+export * from './delegation'
 export * from './model-capabilities'
 export * from './version'
 
 import type {ReasoningLevel} from './reasoning'
 import type {ProtocolErrorCode} from './version'
+import type {Thoroughness} from './delegation'
 
 /** Shared options for Seed assistant/agent system prompt construction. */
 export type SeedAssistantPromptOptions = {
@@ -50,6 +52,11 @@ export type AgentDefinition = {
    * provider default when reasoning cannot be disabled).
    */
   reasoningLevel?: ReasoningLevel
+  /**
+   * Default delegation budget for this agent's runs (see {@link THOROUGHNESS_PRESETS}): how deep
+   * and how wide its delegation trees may grow. Absent means `normal`. A session may override it.
+   */
+  thoroughness?: Thoroughness
   /**
    * Quick-switch model choices the user checked for this agent. Entries may
    * span multiple providers; selecting one switches `modelProvider` and
@@ -769,6 +776,13 @@ export type CreateSession = {
   _: 'CreateSession'
   agentId: string
   title?: string
+  /**
+   * Model configuration the session starts with, so a choice made in a draft composer (before
+   * the session exists) is in place for its first run. Same meaning as `UpdateSession`.
+   */
+  modelOverride?: SessionModelOverride
+  /** Delegation budget the session starts with; absent means the agent's own thoroughness. */
+  thoroughness?: Thoroughness
   clientRequestId?: string
 }
 
@@ -868,6 +882,12 @@ export type UpdateSession = {
    * to the agent's own model. Omit to leave the override unchanged.
    */
   modelOverride?: SessionModelOverride | null
+  /**
+   * Sets or clears the session's thoroughness override: a preset pins this session's delegation
+   * budget, `null` returns it to the agent's own. Omit to leave it unchanged. Takes effect on the
+   * next run started in the session; runs already in flight keep the budget they were created with.
+   */
+  thoroughness?: Thoroughness | null
 }
 
 /**
@@ -1164,6 +1184,8 @@ export type SessionInfo = {
   childSessionCount?: number
   /** Per-session model configuration; absent means the agent's own model runs. */
   modelOverride?: SessionModelOverride
+  /** Per-session delegation budget; absent means the agent's own thoroughness applies. */
+  thoroughness?: Thoroughness
   /**
    * The agent's own one-or-two-sentence account of what this session is doing, maintained via
    * the `status` verb. Shown beside the title in session lists so a reader (or a parent session)

@@ -467,10 +467,24 @@ result. `await: false` detaches — the child runs with the brief as its first m
 and `tools` are rejected loudly rather than silently discarded (`api-service.ts:7909`); `model` is still honored,
 resolved against the agent's enabled models.
 
-Durable limits come from the run tree, so they survive restarts: spawn-chain depth 3 (`MAX_SESSION_SPAWN_DEPTH`, checked
-at `api-service.ts:3438`), 10 awaited children per run and 10 detached starts per session
-(`MAX_SESSION_SPAWNS_PER_SESSION`, `api-service.ts:3444` and `api-service.ts:2270`), and 3 `return_result` retries
-(`MAX_RETURN_RESULT_RETRIES`).
+**Budget.** Depth and fan-out are a per-tree budget, not constants. Every root run (a user's turn, a trigger firing, a
+continuation successor, a retry) is created with `budget.maxDepth` / `budget.maxChildren` from the session's
+`thoroughness` override or, failing that, the agent definition's, and every child copies its parent's budget — so a
+whole tree answers to one setting even if the user changes it mid-run. The presets (`THOROUGHNESS_PRESETS` in
+`agents-protocol/delegation.ts`) are quick (depth 1, 4 children per run), normal (3, 10) and deep (5, 16); `normal` is
+the default. Depth counts model children only: a script child is transparent (`#delegationDepth`), so root → script →
+worker → sub-worker is depth 2, not 3, and the tree the user sees matches what the limit counts.
+
+**Leaves.** A run at the budget's depth is a leaf. It gets **no delegate verb at all** and no spawn handlers
+(`#delegationStatus`, `canDelegate`), and its system prompt says so ("You are a leaf worker…"), instead of a verb whose
+every call is refused and costs a turn. Every non-leaf turn's prompt states its depth, how many children it may still
+start, and whether its children could delegate further — a parent whose children will be leaves is told to give them
+self-contained briefs (`delegationPrompt()`). A resolved child's `tool_result` also carries
+`delegation: {depth, maxDepth, childCouldDelegate, parentChildrenRemaining, parentMaxChildren}` — the parent's count is
+the live one, since its system prompt was built when the run started — and `~/self` shows the agent's preset and limits.
+Using the last slot is answered by `childrenExhaustedMessage()`, which says to finish alone now and how to pack the next
+long list (several items per brief, or one script child whose children draw on their own budget). The remaining fixed
+limit is 3 `return_result` retries (`MAX_RETURN_RESULT_RETRIES`).
 
 ## `plan`
 

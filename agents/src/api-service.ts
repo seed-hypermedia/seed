@@ -9,6 +9,10 @@ import {
   REASONING_LEVELS,
   type ReasoningLevel,
   type ModelReasoningSupport,
+  delegationLimitsFor,
+  isThoroughness,
+  type DelegationLimits,
+  type Thoroughness,
   modelReasoningSupport,
   modelContextWindow,
   modelSupportsImageInput,
@@ -146,10 +150,11 @@ const MAX_MCP_HEADER_COUNT = 16
 const MAX_MCP_HEADER_VALUE_BYTES = 4096
 const MAX_SECRET_BYTES = 64 * 1024
 const MAX_MESSAGE_TEXT_BYTES = 64 * 1024
-/** Longest chain of agent-started sessions (A starts B starts C…) before start_session refuses. */
-const MAX_SESSION_SPAWN_DEPTH = 3
-/** Most sessions one session may start with start_session, a backstop against runaway spawning. */
-const MAX_SESSION_SPAWNS_PER_SESSION = 10
+/**
+ * Delegation depth and fan-out are no longer fixed constants: every root run is created with a
+ * budget from the session's or agent's thoroughness preset (see `THOROUGHNESS_PRESETS` in the
+ * protocol package), children inherit it, and the checks below read it from the run tree.
+ */
 /** Bound on the agent-maintained session description (status verb). */
 const MAX_SESSION_DESCRIPTION_BYTES = 1024
 /** Successors one session may be continued into; beyond this a loop is likelier than a branch. */
@@ -392,6 +397,56 @@ type SubSessionSpec = {
 
 /** A delegate's reasoning choice: one of the levels, or `off` for no reasoning. */
 export type DelegateReasoningLevel = ReasoningLevel | 'off'
+
+/**
+ * Where a run sits in its delegation tree and what it may still spawn. Computed once per turn and
+ * per spawn from the run tree (see `Service.#delegationStatus`), then used to decide whether the
+ * delegate verb is offered at all and to tell the model how much room its children have.
+ */
+export type DelegationStatus = {
+  /** Model-child levels above this run, inclusive; 0 for a user's or trigger's run. */
+  depth: number
+  limits: DelegationLimits
+  /** Children this run has already spawned (model or script, awaited or detached). */
+  childrenSpawned: number
+  /** False for a leaf: the run sits at `limits.maxDepth` and gets no delegate verb. */
+  canDelegate: boolean
+  /** Levels a child of this run could delegate further; 0 means its children would be leaves. */
+  childLevelsRemaining: number
+  childrenRemaining: number
+}
+
+/**
+ * The delegation paragraph of a turn's system prompt: a leaf is told plainly to do the work
+ * itself (it has no delegate verb to try), and a parent learns how much room its children have so
+ * it sizes their briefs accordingly instead of discovering the limit by failing.
+ */
+export function delegationPrompt(status: DelegationStatus): string {
+  const {depth, limits, childLevelsRemaining, childrenRemaining} = status
+  if (!status.canDelegate) {
+    return `\n\nYou are a leaf worker in a delegation tree (depth ${depth} of ${limits.maxDepth}): delegation is not available to you, and there is no delegate verb. Do this work yourself, completely, then report back. Do not plan around helpers or ask for more delegation.`
+  }
+  const childRoom =
+    childLevelsRemaining === 0
+      ? 'Children you delegate CANNOT delegate further: give each one a self-contained task it can finish alone, with everything it needs in the brief.'
+      : `Children you delegate may delegate ${childLevelsRemaining} more level${
+          childLevelsRemaining === 1 ? '' : 's'
+        } below them.`
+  return `\n\nDelegation budget: you are at depth ${depth} of ${
+    limits.maxDepth
+  } and may start ${childrenRemaining} more child${childrenRemaining === 1 ? '' : 'ren'} in this run (${
+    limits.maxChildren
+  } per run; every child's result reports \`delegation.parentChildrenRemaining\`, the live count). Plan batches to fit: several items per brief, or one script child for a long list. ${childRoom}`
+}
+
+/**
+ * The refusal when a run has used every child slot. It says what actually works from here —
+ * finishing alone now, and packing the next such task into fewer children — rather than only
+ * that the door is shut.
+ */
+export function childrenExhaustedMessage(maxChildren: number): string {
+  return `This run has used its budget of ${maxChildren} children. Finish the remaining work yourself in this turn; do not retry delegate. Next time you face a long list, put several items into each brief, or hand the whole list to ONE script child (ctx.parallel) — a script's own children draw on a separate budget.`
+}
 
 const DELEGATE_REASONING_LEVELS = `off, ${REASONING_LEVELS.join(', ')}`
 
@@ -1203,6 +1258,8 @@ export class Service {
           envelope.action.agentId,
           envelope.action.title,
           envelope.action.clientRequestId,
+          envelope.action.modelOverride,
+          envelope.action.thoroughness,
         )
       case 'ListSessions':
         return this.#listSessions(
@@ -1219,6 +1276,7 @@ export class Service {
           envelope.action.sessionId,
           envelope.action.title,
           envelope.action.modelOverride,
+          envelope.action.thoroughness,
         )
       case 'DeleteSession':
         return this.#deleteSession(accountId, envelope.action.sessionId)
@@ -2835,7 +2893,7 @@ export class Service {
 
     const rows = stmt<SessionRow, (string | number)[]>(
       this.#db,
-      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description, message_at, message_from,
+      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description, message_at, message_from, thoroughness,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE ${conditions.join(' AND ')} ORDER BY updated_at DESC, id DESC LIMIT ?`,
@@ -3449,9 +3507,26 @@ export class Service {
     agentId: string,
     rawTitle?: string,
     clientRequestId?: string,
+    rawModelOverride?: api.SessionModelOverride,
+    rawThoroughness?: Thoroughness,
   ): Promise<api.CreateSessionResponse> {
-    return this.#withIdempotency(accountId, 'CreateSession', clientRequestId, {agentId, title: rawTitle}, () =>
-      this.#createSessionOnce(accountId, agentId, rawTitle),
+    return this.#withIdempotency(
+      accountId,
+      'CreateSession',
+      clientRequestId,
+      {agentId, title: rawTitle, modelOverride: rawModelOverride, thoroughness: rawThoroughness},
+      () => {
+        // Validated like UpdateSession, so a draft composer's choice cannot store what an edit
+        // would refuse.
+        const modelOverride =
+          rawModelOverride === undefined
+            ? undefined
+            : this.#normalizeSessionModelOverride(accountId, rawModelOverride) ?? undefined
+        if (rawThoroughness !== undefined && !isThoroughness(rawThoroughness)) {
+          throw new APIError(400, 'Thoroughness must be quick, normal, or deep')
+        }
+        return this.#createSessionOnce(accountId, agentId, rawTitle, {modelOverride, thoroughness: rawThoroughness})
+      },
     )
   }
 
@@ -3464,6 +3539,8 @@ export class Service {
       runId?: string
       titleSource?: 'system' | 'agent'
       modelOverride?: api.SessionModelOverride
+      /** Delegation budget override the session starts with. */
+      thoroughness?: Thoroughness
       /** Agent-authored description, set at creation by a continuation's predecessor. */
       description?: string
       /** A checklist carried across a continuation edge, already re-stamped for the new session. */
@@ -3488,8 +3565,8 @@ export class Service {
     const title = normalizedTitle && isPlaceholderSessionTitle(normalizedTitle) ? null : normalizedTitle
     stmt(
       this.#db,
-      `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, parent_session_id, run_id, model_override_cbor, description, plan_cbor, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, parent_session_id, run_id, model_override_cbor, thoroughness, description, plan_cbor, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run([
       sessionId,
       accountId,
@@ -3500,6 +3577,7 @@ export class Service {
       opts.parentSessionId ?? null,
       opts.runId ?? null,
       opts.modelOverride ? cbor.encode(opts.modelOverride) : null,
+      opts.thoroughness ?? null,
       opts.description ?? null,
       opts.plan ? cbor.encode(opts.plan) : null,
       now,
@@ -3518,11 +3596,12 @@ export class Service {
     sessionId: string,
     rawTitle: string | undefined,
     rawModelOverride: api.SessionModelOverride | null | undefined,
+    rawThoroughness?: Thoroughness | null,
   ): api.UpdateSessionResponse {
     const existing = this.#getSessionInfo(accountId, sessionId)
     if (!existing) throw new APIError(404, 'Session not found')
-    if (rawTitle === undefined && rawModelOverride === undefined) {
-      throw new APIError(400, 'Nothing to update: provide a title or a model override')
+    if (rawTitle === undefined && rawModelOverride === undefined && rawThoroughness === undefined) {
+      throw new APIError(400, 'Nothing to update: provide a title, a model override, or a thoroughness')
     }
     const now = Date.now()
     if (rawTitle !== undefined) {
@@ -3537,6 +3616,17 @@ export class Service {
       stmt(this.#db, `UPDATE sessions SET model_override_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`).run(
         [override ? cbor.encode(override) : null, now, accountId, sessionId],
       )
+    }
+    if (rawThoroughness !== undefined) {
+      if (rawThoroughness !== null && !isThoroughness(rawThoroughness)) {
+        throw new APIError(400, 'Thoroughness must be quick, normal, deep, or null')
+      }
+      this.#db.run(`UPDATE sessions SET thoroughness = ?, updated_at = ? WHERE account_id = ? AND id = ?`, [
+        rawThoroughness,
+        now,
+        accountId,
+        sessionId,
+      ])
     }
     const session = this.#getSessionInfo(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
@@ -4061,7 +4151,7 @@ export class Service {
     }
     const session = stmt<SessionRow, [string, string]>(
       this.#db,
-      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description, message_at, message_from,
+      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description, message_at, message_from, thoroughness,
                 0 AS child_count, created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
     ).get(accountId, sessionId)
@@ -4237,6 +4327,7 @@ export class Service {
       agentId,
       sessionId: successorSessionId,
       title: sessionTitleFromPrompt(original.rawMarkdown ?? original.content ?? input.title),
+      budget: this.#delegationBudgetForSession(accountId, agentId, successorSessionId),
       input: {
         kind: 'session-message',
         userEventIds: [copiedEventId],
@@ -4349,22 +4440,28 @@ export class Service {
   ): {sessionId: string; title: string} {
     const input = isPlainRecord(raw) ? raw : {}
     const prompt = normalizeBoundedString(input.prompt, 'Session prompt', MAX_MESSAGE_TEXT_BYTES)
-    // Chain depth and fan-out are read from the durable session lineage, so restarts do not relax them.
-    const depth = this.#sessionChainDepth(parentSessionId)
-    if (depth >= MAX_SESSION_SPAWN_DEPTH) {
+    // Depth and fan-out come from the durable run tree (the session lineage when no run is
+    // known), so restarts do not relax them. A detached child is a model child like any other:
+    // it takes a level and a slot from the same budget.
+    const limits = parentRun ? this.#delegationLimits(parentRun) : delegationLimitsFor(undefined)
+    const depth = parentRun ? this.#delegationDepth(parentRun) : this.#sessionChainDepth(parentSessionId)
+    if (depth + 1 > limits.maxDepth) {
       throw new APIError(
         400,
-        `Session spawn chain limit reached (${MAX_SESSION_SPAWN_DEPTH}); this session was itself started by a chain of agent-started sessions. Finish the work here instead.`,
+        `Session spawn chain limit reached (${limits.maxDepth}); this session was itself started by a chain of agent-started sessions. Finish the work here instead.`,
       )
     }
-    const spawned =
-      stmt<{n: number}, [string]>(this.#db, `SELECT COUNT(*) AS n FROM sessions WHERE parent_session_id = ?`).get(
-        parentSessionId,
-      )?.n ?? 0
-    if (spawned >= MAX_SESSION_SPAWNS_PER_SESSION) {
+    const spawned = parentRun
+      ? stmt<{n: number}, [string]>(this.#db, `SELECT COUNT(*) AS n FROM runs WHERE parent_run_id = ?`).get(
+          parentRun.id,
+        )?.n ?? 0
+      : stmt<{n: number}, [string]>(this.#db, `SELECT COUNT(*) AS n FROM sessions WHERE parent_session_id = ?`).get(
+          parentSessionId,
+        )?.n ?? 0
+    if (spawned >= limits.maxChildren) {
       throw new APIError(
         400,
-        `This session already started ${MAX_SESSION_SPAWNS_PER_SESSION} sessions; finish the remaining work here instead.`,
+        `This session already started ${limits.maxChildren} sessions; finish the remaining work here instead.`,
       )
     }
     const title =
@@ -4396,8 +4493,10 @@ export class Service {
           origin: 'agent',
           background: true,
           // Detached from the caller's TURN (no park, no result), but still a member of its run
-          // TREE so the progress card shows it, cancel cascades, and usage rolls up.
+          // TREE so the progress card shows it, cancel cascades, and usage rolls up — under the
+          // same delegation budget.
           parentRunId: parentRun?.id,
+          budget: limits,
           title,
         })
       } catch (error) {
@@ -4550,6 +4649,7 @@ export class Service {
       agentId: session.agentId,
       sessionId,
       title: `Respond to user ${verb}`,
+      budget: this.#delegationBudgetForSession(accountId, session.agentId, sessionId),
       input: {
         kind: 'session-message',
         userEventIds: [callEvent.id, resultEvent.id],
@@ -4624,12 +4724,17 @@ export class Service {
       userOrigin?: {accountId: string; signerId: string}
       /** Prompt/tool profile for an autonomous thread (child delegation or trigger firing). */
       runConfig?: Pick<SubSessionSpec, 'systemPrompt' | 'includeAgentSystemPrompt' | 'tools'>
+      /**
+       * Delegation budget for the run. A child of a known run inherits that run's; otherwise the
+       * session's or agent's thoroughness decides (see #delegationBudgetForSession).
+       */
+      budget?: runs.RunBudget
     } = {},
   ): Promise<api.MessageSessionResponse> {
     const messages = normalizeMessageContent(rawContent)
     const session = stmt<SessionRow, [string, string]>(
       this.#db,
-      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description, message_at, message_from,
+      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description, message_at, message_from, thoroughness,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
@@ -4727,6 +4832,7 @@ export class Service {
         ...(opts.runConfig ? {spec: {input: 'trigger-firing', ...opts.runConfig}} : {}),
       },
       queue: opts.background ? 'background' : 'interactive',
+      budget: opts.budget ?? this.#delegationBudgetForSession(accountId, session.agent_id, sessionId),
       // Background turns ride out a flaky provider; a turn the user is watching fails fast instead,
       // because retrying holds the session lock through the backoff — the error would never reach
       // them and their next message would bounce off "already streaming". They have Retry.
@@ -5002,6 +5108,8 @@ export class Service {
     run: runs.RunRecord | undefined,
     runningSession: RunningSession | undefined,
     outputSchema: JsonSchema | undefined,
+    /** False for a leaf: no spawn handlers, so even a hallucinated delegate call is refused. */
+    canDelegate = true,
   ): Pick<AgentServicePiToolContext, 'spawnSubSession' | 'spawnWorkflow' | 'returnResultSchema' | 'deliverResult'> {
     if (!run || !runningSession) return {}
     const liveRun = run
@@ -5009,12 +5117,14 @@ export class Service {
     const context: Pick<
       AgentServicePiToolContext,
       'spawnSubSession' | 'spawnWorkflow' | 'returnResultSchema' | 'deliverResult'
-    > = {
-      spawnSubSession: (toolCallId: string, input: unknown) =>
-        this.#spawnSubSession(accountId, liveRun, sessionId, agentId, live, toolCallId, input),
-      spawnWorkflow: (toolCallId: string, input: unknown) =>
-        this.#spawnWorkflowFromChat(accountId, liveRun, sessionId, agentId, live, toolCallId, input),
-    }
+    > = canDelegate
+      ? {
+          spawnSubSession: (toolCallId: string, input: unknown) =>
+            this.#spawnSubSession(accountId, liveRun, sessionId, agentId, live, toolCallId, input),
+          spawnWorkflow: (toolCallId: string, input: unknown) =>
+            this.#spawnWorkflowFromChat(accountId, liveRun, sessionId, agentId, live, toolCallId, input),
+        }
+      : {}
     if (outputSchema) {
       const schema = outputSchema
       context.returnResultSchema = schema
@@ -5692,17 +5802,12 @@ export class Service {
     raw: unknown,
   ): {status: string; sessionId: string; title: string} {
     const spec = normalizeSubSessionSpec(raw)
-    if (parentRun.depth + 1 > MAX_SESSION_SPAWN_DEPTH) {
-      throw new APIError(400, `Sub-session depth limit reached (${MAX_SESSION_SPAWN_DEPTH}); finish the work here.`)
+    const delegation = this.#delegationStatus(parentRun)
+    if (!delegation.canDelegate) {
+      throw new APIError(400, `Sub-session depth limit reached (${delegation.limits.maxDepth}); finish the work here.`)
     }
-    const childCount =
-      stmt<{n: number}, [string]>(this.#db, `SELECT COUNT(*) AS n FROM runs WHERE parent_run_id = ?`).get(parentRun.id)
-        ?.n ?? 0
-    if (childCount >= MAX_SESSION_SPAWNS_PER_SESSION) {
-      throw new APIError(
-        400,
-        `This run already spawned ${MAX_SESSION_SPAWNS_PER_SESSION} sub-sessions; finish the remaining work here.`,
-      )
+    if (delegation.childrenRemaining <= 0) {
+      throw new APIError(400, childrenExhaustedMessage(delegation.limits.maxChildren))
     }
     // Children always run as the delegating agent — direct agent-to-agent delegation is
     // deliberately unsupported (agents collaborate through Seed content instead), and
@@ -5750,6 +5855,7 @@ export class Service {
         ...(step?.id ? {planStepId: step.id} : {}),
       },
       queue: 'background',
+      budget: delegation.limits,
       maxAttempts: AGENT_RUN_MAX_ATTEMPTS,
     })
     runningSession.parkToolCallIds = [...(runningSession.parkToolCallIds ?? []), toolCallId]
@@ -5775,7 +5881,8 @@ export class Service {
       parentRunId: parentRun.id,
       childRunId,
       sessionId: session.sessionId,
-      depth: parentRun.depth + 1,
+      depth: delegation.depth + 1,
+      maxDepth: delegation.limits.maxDepth,
       typed: spec.output !== undefined,
     })
     return {status: 'spawned', sessionId: session.sessionId, title}
@@ -5785,6 +5892,83 @@ export class Service {
    * Child terminal status → parent resolution: appends the durable sub_session tool_result on the
    * parent transcript and shrinks the parent's wait set, requeuing it when the set empties.
    */
+  /**
+   * Delegation limits for a run: the budget it was created with, else the defaults. Root runs are
+   * created with the session's or agent's thoroughness (see {@link #delegationBudgetForSession})
+   * and children copy their parent's, so a whole tree answers to one budget even if the settings
+   * change while it runs.
+   */
+  #delegationLimits(run: runs.RunRecord): DelegationLimits {
+    const defaults = delegationLimitsFor(undefined)
+    return {
+      maxDepth: run.budget?.maxDepth ?? defaults.maxDepth,
+      maxChildren: run.budget?.maxChildren ?? defaults.maxChildren,
+    }
+  }
+
+  /**
+   * The budget a new root run starts with: the session's thoroughness override when it has one,
+   * else the agent's default, else `normal`. Read at run creation so a change made mid-conversation
+   * applies from the next turn on.
+   */
+  #delegationBudgetForSession(accountId: string, agentId: string, sessionId?: string): runs.RunBudget {
+    const sessionLevel = sessionId
+      ? stmt<{thoroughness: string | null}, [string, string]>(
+          this.#db,
+          `SELECT thoroughness FROM sessions WHERE account_id = ? AND id = ?`,
+        ).get(accountId, sessionId)?.thoroughness
+      : undefined
+    const thoroughness = isThoroughness(sessionLevel)
+      ? sessionLevel
+      : this.#agentDefinition(accountId, agentId).thoroughness
+    return {...delegationLimitsFor(thoroughness)}
+  }
+
+  /** The budget a trigger's headless run starts with: the agent's default thoroughness. */
+  #delegationBudgetForAgent(accountId: string, agentId: string): runs.RunBudget {
+    return {...delegationLimitsFor(this.#agentDefinition(accountId, agentId).thoroughness)}
+  }
+
+  /**
+   * Model-child levels above `run`, inclusive: 0 for a user's or trigger's run, 1 for a child it
+   * delegated, and so on. Script children are transparent — a script is orchestration, not
+   * thinking — so a script's own children sit one level below the script's parent, not two. This
+   * is what the depth limit counts; `run.depth` (every ancestor) stays as the tree's raw shape.
+   */
+  #delegationDepth(run: runs.RunRecord): number {
+    return (
+      stmt<{depth: number}, [string]>(
+        this.#db,
+        `WITH RECURSIVE chain(id, parent_id, kind, n) AS (
+           SELECT id, parent_run_id, kind, 0 FROM runs WHERE id = ?1
+           UNION ALL
+           SELECT r.id, r.parent_run_id, r.kind, c.n + 1
+           FROM runs r JOIN chain c ON r.id = c.parent_id
+           WHERE c.n < 64
+         )
+         SELECT COUNT(*) AS depth FROM chain WHERE parent_id IS NOT NULL AND kind = 'agent'`,
+      ).get(run.id)?.depth ?? 0
+    )
+  }
+
+  /** Where `run` sits in its delegation tree and what it may still spawn (see {@link DelegationStatus}). */
+  #delegationStatus(run: runs.RunRecord): DelegationStatus {
+    const limits = this.#delegationLimits(run)
+    const depth = this.#delegationDepth(run)
+    const childrenSpawned =
+      stmt<{n: number}, [string]>(this.#db, `SELECT COUNT(*) AS n FROM runs WHERE parent_run_id = ?`).get(run.id)?.n ??
+      0
+    const canDelegate = depth < limits.maxDepth
+    return {
+      depth,
+      limits,
+      childrenSpawned,
+      canDelegate,
+      childLevelsRemaining: Math.max(0, limits.maxDepth - depth - 1),
+      childrenRemaining: Math.max(0, limits.maxChildren - childrenSpawned),
+    }
+  }
+
   /**
    * The delegation contract a run is executing: the spec it must satisfy and the parent tool call
    * its result answers.
@@ -5841,16 +6025,36 @@ export class Service {
     if (!parent || parent.kind !== 'agent' || !parent.sessionId) return
     const toolName = parentToolName ?? seedVerbRegistry.delegate.name
     let result: Record<string, unknown>
+    // Where the child sat in the tree, and how much room the PARENT has left, ride along on every
+    // outcome. The parent's system prompt was built when its run started, so this is the only
+    // count that is fresh at the moment it plans its next batch — it learns the limit here, not
+    // from a refusal.
+    const childDelegation = this.#delegationStatus(child)
+    const parentDelegation = this.#delegationStatus(parent)
+    const delegation = {
+      depth: childDelegation.depth,
+      maxDepth: childDelegation.limits.maxDepth,
+      childCouldDelegate: childDelegation.canDelegate,
+      parentChildrenRemaining: parentDelegation.childrenRemaining,
+      parentMaxChildren: parentDelegation.limits.maxChildren,
+    }
     if (child.status === 'succeeded') {
-      result = {status: 'succeeded', runId: child.id, sessionId: child.sessionId, output: child.output ?? null}
+      result = {
+        status: 'succeeded',
+        runId: child.id,
+        sessionId: child.sessionId,
+        output: child.output ?? null,
+        delegation,
+      }
     } else if (child.status === 'canceled') {
-      result = {status: 'canceled', runId: child.id, sessionId: child.sessionId}
+      result = {status: 'canceled', runId: child.id, sessionId: child.sessionId, delegation}
     } else {
       result = {
         status: 'failed',
         runId: child.id,
         sessionId: child.sessionId,
         error: {code: child.error?.code ?? 'run-failed', message: child.error?.message ?? 'Sub-session failed'},
+        delegation,
       }
     }
     // Append the durable result at most once, but ALWAYS resolve the wait: a crash (or double
@@ -5993,8 +6197,14 @@ export class Service {
     if (lintErrors.length > 0) {
       throw new APIError(400, `Workflow source rejected:\n- ${lintErrors.join('\n- ')}`)
     }
-    if (parentRun.depth + 1 > MAX_SESSION_SPAWN_DEPTH) {
-      throw new APIError(400, `Workflow depth limit reached (${MAX_SESSION_SPAWN_DEPTH})`)
+    // A script takes no level itself (see #delegationDepth), but it exists to delegate: a leaf
+    // may not start one, and the fan-out slot it takes is the parent's.
+    const delegation = this.#delegationStatus(parentRun)
+    if (!delegation.canDelegate) {
+      throw new APIError(400, `Workflow depth limit reached (${delegation.limits.maxDepth})`)
+    }
+    if (delegation.childrenRemaining <= 0) {
+      throw new APIError(400, childrenExhaustedMessage(delegation.limits.maxChildren))
     }
     const hasher = new Bun.CryptoHasher('sha256')
     hasher.update(source)
@@ -6023,6 +6233,7 @@ export class Service {
         ...(step?.id ? {planStepId: step.id} : {}),
       },
       queue: 'background',
+      budget: delegation.limits,
       maxAttempts: 1,
     })
     runningSession.parkToolCallIds = [...(runningSession.parkToolCallIds ?? []), toolCallId]
@@ -6053,8 +6264,9 @@ export class Service {
     stepLabel?: string,
   ): {childRunId: string; sessionId?: string} {
     const spec = normalizeSubSessionSpec(rawSpec)
-    if (workflowRun.depth + 1 > MAX_SESSION_SPAWN_DEPTH) {
-      throw new APIError(400, `Sub-session depth limit reached (${MAX_SESSION_SPAWN_DEPTH})`)
+    const delegation = this.#delegationStatus(workflowRun)
+    if (!delegation.canDelegate) {
+      throw new APIError(400, `Sub-session depth limit reached (${delegation.limits.maxDepth})`)
     }
     const currentPlan = runs.getRun(this.#db, workflowRun.accountId, workflowRun.id)?.plan ?? workflowRun.plan
     const stepId = stepLabel ? currentPlan?.steps.find((step) => step.label === stepLabel)?.id : undefined
@@ -6062,8 +6274,8 @@ export class Service {
       stmt<{n: number}, [string]>(this.#db, `SELECT COUNT(*) AS n FROM runs WHERE parent_run_id = ?`).get(
         workflowRun.id,
       )?.n ?? 0
-    if (childCount >= MAX_SESSION_SPAWNS_PER_SESSION) {
-      throw new APIError(400, `This workflow already spawned ${MAX_SESSION_SPAWNS_PER_SESSION} sub-sessions`)
+    if (childCount >= delegation.limits.maxChildren) {
+      throw new APIError(400, `This workflow already spawned ${delegation.limits.maxChildren} sub-sessions`)
     }
     const accountId = workflowRun.accountId
     const childAgentId = workflowRun.agentId
@@ -6116,6 +6328,7 @@ export class Service {
         ...(stepId ? {planStepId: stepId} : {}),
       },
       queue: 'background',
+      budget: delegation.limits,
       maxAttempts: AGENT_RUN_MAX_ATTEMPTS,
     })
     return {childRunId, sessionId: session.sessionId}
@@ -6506,6 +6719,7 @@ export class Service {
       sessionId,
       // The retry replays the failed turn, so it carries that turn's name.
       title: latest.title,
+      budget: this.#delegationBudgetForSession(accountId, session.agentId, sessionId),
       input: {kind: 'session-retry', retryOfRunId: latest.id},
       queue: 'interactive',
       maxAttempts: 1,
@@ -6613,6 +6827,8 @@ export class Service {
     definition: api.AgentDefinition,
     stateDir?: string,
     runPromptProfile?: Pick<SubSessionSpec, 'systemPrompt' | 'includeAgentSystemPrompt' | 'prompt'>,
+    /** Where this turn's run sits in its delegation tree; absent for runless prompt previews. */
+    delegation?: DelegationStatus,
   ): Promise<string> {
     const signingKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
     const agentPromptBlocks =
@@ -6679,7 +6895,8 @@ export class Service {
         )}. When you delegate, pass \`model\` so each child runs on the model its task deserves: route simple, mechanical, or high-volume subtasks (extraction, reformatting, short summaries, routine lookups) to a cheaper/faster model, and route work that needs deep reasoning, difficult code, or careful judgment to the strongest enabled model — even when that is not the model you are running on. Judge tiers by model family and name. Whenever you pass \`model\`, also pass \`reasoningLevel\` (${DELEGATE_REASONING_LEVELS}) — off for mechanical work, higher for hard problems. Omit both when the child should simply inherit its agent's configured model and reasoning level.`
       : ''
     const conversationMembersPrompt = await this.#conversationMembersPrompt(accountId, agentId)
-    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${modelChoicePrompt}${userActionsPrompt}${continuationPrompt}${conversationMembersPrompt}${spaceIndex}`
+    const delegationParagraph = delegation ? delegationPrompt(delegation) : ''
+    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${modelChoicePrompt}${delegationParagraph}${userActionsPrompt}${continuationPrompt}${conversationMembersPrompt}${spaceIndex}`
     if (!signingKeys.length) return basePrompt
     const identities = signingKeys.flatMap((name) => {
       const row = stmt<{metadata_cbor: Uint8Array | null}, [string, string]>(
@@ -6801,6 +7018,10 @@ export class Service {
     // A session-level model override replaces the definition's model settings for this whole run.
     definition = this.#definitionForSession(accountId, definition, session)
     const subSessionOutputSchema = run ? this.#spawnContextForRun(run).spec?.output : undefined
+    // A leaf (at the budget's depth) gets no delegate verb at all — the prompt says so — rather
+    // than a verb whose every call is refused and costs a turn.
+    const delegation = run ? this.#delegationStatus(run) : undefined
+    const canDelegate = delegation?.canDelegate === true
     // Continuation needs a run to end and a conversation that is the foreground: a delegated child
     // (awaited by a parent, typed or not) reports back instead of moving on.
     const canContinueSession = run !== undefined && !run.parentRunId && !subSessionOutputSchema
@@ -6833,6 +7054,7 @@ export class Service {
         definition,
         agentStateDir,
         run ? this.#spawnContextForRun(run).spec : undefined,
+        delegation,
       ),
     )
     endSystemPromptSpan()
@@ -6918,6 +7140,7 @@ export class Service {
           run,
           runningSession,
           subSessionOutputSchema,
+          canDelegate,
         ),
       }),
       // The verbs are the provider-facing surface; expanded callables are promoted beside them.
@@ -6926,8 +7149,9 @@ export class Service {
         seedVerbRegistry.read.name,
         seedVerbRegistry.write.name,
         seedVerbRegistry.call.name,
-        // Delegation needs a run to park on; the rare runless invocation simply omits it.
-        ...(run !== undefined ? [seedVerbRegistry.delegate.name] : []),
+        // Delegation needs a run to park on (the rare runless invocation omits it) and room in
+        // the budget: a leaf sees no delegate verb.
+        ...(run !== undefined && canDelegate ? [seedVerbRegistry.delegate.name] : []),
         seedVerbRegistry.plan.name,
         seedVerbRegistry.status.name,
         // A foreground conversation may carry itself into a successor; a delegated child may not.
@@ -7985,7 +8209,7 @@ export class Service {
     }
     const session = stmt<SessionRow, [string, string]>(
       this.#db,
-      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description, message_at, message_from,
+      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description, message_at, message_from, thoroughness,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
@@ -8275,7 +8499,7 @@ export class Service {
   #getSessionInfo(accountId: string, sessionId: string): api.SessionInfo | null {
     const session = stmt<SessionRow, [string, string]>(
       this.#db,
-      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description, message_at, message_from,
+      `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description, message_at, message_from, thoroughness,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
@@ -8829,6 +9053,7 @@ export class Service {
       sourceText: source,
       input: {input},
       queue: 'background',
+      budget: this.#delegationBudgetForAgent(accountId, trigger.agentId),
       maxAttempts: 1,
     })
     stmt(this.#db, `UPDATE trigger_firings SET run_id = ?, status = ? WHERE account_id = ? AND id = ?`).run([
@@ -9202,6 +9427,7 @@ type SessionRow = {
   plan_cbor: Uint8Array | null
   model_override_cbor: Uint8Array | null
   description: string | null
+  thoroughness: string | null
   child_count: number
   created_at: number
   updated_at: number
@@ -9730,6 +9956,7 @@ function sessionRowToInfo(
     ...(row.run_id ? {runId: row.run_id} : {}),
     ...(row.plan_cbor ? {plan: cbor.decode<api.RunPlan>(row.plan_cbor)} : {}),
     ...(row.model_override_cbor ? {modelOverride: cbor.decode<api.SessionModelOverride>(row.model_override_cbor)} : {}),
+    ...(isThoroughness(row.thoroughness) ? {thoroughness: row.thoroughness} : {}),
     ...(row.description ? {description: row.description} : {}),
     ...(row.child_count > 0 ? {childSessionCount: row.child_count} : {}),
     ...(continuation.continuedFrom ? {continuedFrom: continuation.continuedFrom} : {}),
@@ -10043,6 +10270,11 @@ function normalizeDefinition(raw: api.AgentDefinition): api.AgentDefinition {
   if (raw.reasoningLevel !== undefined) {
     if (!isReasoningLevel(raw.reasoningLevel)) throw new APIError(400, 'Reasoning level is invalid')
     definition.reasoningLevel = raw.reasoningLevel
+  }
+
+  if (raw.thoroughness !== undefined) {
+    if (!isThoroughness(raw.thoroughness)) throw new APIError(400, 'Thoroughness must be quick, normal, or deep')
+    definition.thoroughness = raw.thoroughness
   }
 
   if (raw.enabledModels !== undefined) {
@@ -11694,6 +11926,10 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
     modelProvider: provider ? {id: provider.id, name: provider.name, type: provider.type} : definition.modelProvider,
     ...(definition.reasoningLevel ? {reasoningLevel: definition.reasoningLevel} : {}),
     ...(definition.enabledModels?.length ? {enabledModels: definition.enabledModels} : {}),
+    delegation: {
+      thoroughness: definition.thoroughness ?? 'normal',
+      ...delegationLimitsFor(definition.thoroughness),
+    },
     systemPrompt,
     grants: {
       callableTools: context.callableTools,
@@ -11719,7 +11955,8 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
         : []),
       'Create, edit, enable, or disable automations with write ~/triggers/<name>; they take effect immediately. A trigger can start a thread for you, or — with continuation {kind: "tool"} or {kind: "script"} — run one of your ~/tools/ or a workflow script with no model at all, waking you only if it fails (onFailure: "thread").',
       'Browse your other conversations with read thread: (options {query, agentId, limit}) and read one with thread:<id>.',
-      'Your definition (name, model, system prompt, grants, signing keys) is edited by the user in the desktop; you cannot change it yourself.',
+      "Delegation is budgeted: `delegation` shows your thoroughness preset and its maximum depth and children per run; a session may override the preset. Each turn's system prompt tells you your current depth and how much room your children have; a leaf worker gets no delegate verb at all.",
+      'Your definition (name, model, system prompt, grants, signing keys, thoroughness) is edited by the user in the desktop; you cannot change it yourself.',
     ].join('\n'),
   }
 }
