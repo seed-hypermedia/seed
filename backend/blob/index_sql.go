@@ -51,6 +51,12 @@ var qBlobLinksInsertOrIgnore = dqb.Str(`
 	VALUES (:blobLinksSource, :blobLinksType, :blobLinksTarget)
 `)
 
+// The raw-content lookups return only the most recently indexed non-empty row
+// for the block. fts_index is WITHOUT ROWID with the fts rowid as its primary
+// key, so within one genesis (or blob) the index is ordered by rowid and the
+// reverse scan stops at the first hit without a sort. Scanning the whole group
+// instead used to dominate reindexing: the group grows with every indexed move
+// of the block, and every move triggered one such scan.
 var qFTSGetRawContentByGenesis = dqb.Str(`
 	SELECT
 	fts.raw_content,
@@ -59,6 +65,9 @@ FROM fts_index ftsi
 JOIN fts ON fts.rowid = ftsi.rowid
 WHERE ftsi.block_id = :FTSBlockID
 AND ftsi.genesis_blob = :FTSGenesisBlob
+AND fts.raw_content != ''
+ORDER BY ftsi.rowid DESC
+LIMIT 1
 `)
 
 var qFTSGetRawContentByBlobID = dqb.Str(`
@@ -69,8 +78,14 @@ FROM fts_index ftsi
 JOIN fts ON fts.rowid = ftsi.rowid
 WHERE ftsi.block_id = :FTSBlockID
 AND ftsi.blob_id = :FTSBlobID
+AND fts.raw_content != ''
+ORDER BY ftsi.rowid DESC
+LIMIT 1
 `)
 
+// dbFTSGetRawContent returns the latest non-empty indexed content of a block
+// within the document identified by its genesis multihash (or, when that is
+// empty, within the given blob), along with the version it was indexed under.
 func dbFTSGetRawContent(conn *sqlite.Conn, FTSBlobID int64, FTSBlockID, FTSGenesisMultihash string) (string, string, error) {
 	before := func(stmt *sqlite.Stmt) {
 		stmt.SetText(":FTSBlockID", FTSBlockID)
@@ -99,10 +114,7 @@ func dbFTSGetRawContent(conn *sqlite.Conn, FTSBlobID int64, FTSBlockID, FTSGenes
 
 	var rawContent, ftsVersion string
 	var err error
-	onStep := func(i int, stmt *sqlite.Stmt) error {
-		if stmt.ColumnText(0) == "" {
-			return nil
-		}
+	onStep := func(_ int, stmt *sqlite.Stmt) error {
 		rawContent = stmt.ColumnText(0)
 		ftsVersion = stmt.ColumnText(1)
 		return nil
