@@ -72,8 +72,8 @@ test.describe('schema editor', () => {
     await openDefineDialog(page)
     const dialog = defineDialog(page)
 
-    // Name the type.
-    await dialog.getByPlaceholder('e.g. Employee').fill('Widget')
+    // A fresh schema is rooted at Struct — a custom object with its own keys.
+    await expect(dialog.getByRole('textbox', {name: 'Root type'})).toHaveValue('Struct')
 
     // Add a field, rename it, choose a kind, mark it required.
     await dialog.getByRole('button', {name: 'Add field'}).click()
@@ -81,12 +81,13 @@ test.describe('schema editor', () => {
     await expect(fieldName).toHaveValue('field')
     await fieldName.fill('width')
 
-    // Radix Select: open + pick "Whole number" (integer).
-    await dialog.getByRole('combobox').first().click()
-    await page.getByRole('option', {name: 'Whole number'}).click()
-    await expect(dialog.getByRole('combobox').first()).toContainText('Whole number')
+    // The type input: focus opens the options; pick the core Integer kind.
+    const fieldType = dialog.getByRole('textbox', {name: 'Type of width'})
+    await fieldType.click()
+    await page.getByTestId('schema-type-option').filter({hasText: 'Integer'}).click()
+    await expect(fieldType).toHaveValue('Integer')
 
-    const required = dialog.getByRole('checkbox')
+    const required = dialog.getByRole('checkbox', {name: 'required'})
     await required.click()
     await expect(required).toHaveAttribute('aria-checked', 'true')
 
@@ -102,19 +103,24 @@ test.describe('schema editor', () => {
     // The published schema carried the field, kind, and required flag.
     const published = await page.evaluate(() => (window as any).__lastPublishedSchema)
     expect(published).toMatchObject({
-      name: 'Widget',
-      properties: {width: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-integer'}},
-      required: ['width'],
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct',
+      properties: {width: {value: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-integer'}, required: true}},
     })
   })
 
-  test('the schema form insists on a type name before publishing', async ({page}) => {
+  test('a schema carries no name: a blank struct is publishable as is', async ({page}) => {
     await openHarness(page, {name: 'X', schemaDefinition: ''})
     await openDefineDialog(page)
     const dialog = defineDialog(page)
-    await expect(dialog.getByTestId('linked-object-publish')).toBeDisabled()
-    await dialog.getByPlaceholder('e.g. Employee').fill('Thing')
+    await expect(dialog.getByRole('textbox', {name: 'Root type'})).toHaveValue('Struct')
+    await expect(dialog.getByText('✓ conforms to schema')).toBeVisible()
     await expect(dialog.getByTestId('linked-object-publish')).toBeEnabled()
+    await dialog.getByTestId('linked-object-publish').click()
+    await expect(dialog).toBeHidden()
+    const published: any = await page.evaluate(() => (window as any).__lastPublishedSchema)
+    expect(published.type).toBe('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct')
+    expect(published.properties).toEqual({})
+    expect(published.name).toBeUndefined()
   })
 
   test('a schemaDefinition pointing at a schema shows the schema name as a pill', async ({page}) => {
@@ -147,8 +153,6 @@ test.describe('schema editor', () => {
     await openDefineDialog(page)
     const dialog = defineDialog(page)
 
-    await dialog.getByPlaceholder('e.g. Employee').fill('Point')
-
     // Add + rename first field.
     await dialog.getByRole('button', {name: 'Add field'}).click()
     await dialog.getByRole('textbox', {name: 'Field name'}).first().fill('x')
@@ -171,7 +175,7 @@ test.describe('schema editor', () => {
 
     const published: any = await page.evaluate(() => (window as any).__lastPublishedSchema)
     expect(Object.keys(published.properties)).toEqual(['x'])
-    expect(published.required).toEqual(['x'])
+    expect(published.properties.x.required).toBe(true)
     expect(published.properties.y).toBeUndefined()
   })
 
@@ -182,7 +186,6 @@ test.describe('schema editor', () => {
     await openHarness(page, {name: 'X', schemaDefinition: ''})
     await openDefineDialog(page)
     const dialog = defineDialog(page)
-    await dialog.getByPlaceholder('e.g. Employee').fill('Comp')
     await dialog.getByRole('button', {name: 'Add field'}).click()
 
     const fieldName = dialog.getByRole('textbox', {name: 'Field name'})
@@ -205,20 +208,20 @@ test.describe('schema editor', () => {
     await openHarness(page, {name: 'X', schemaDefinition: ''})
     await openDefineDialog(page)
     const dialog = defineDialog(page)
-    await dialog.getByPlaceholder('e.g. Employee').fill('Thing')
+    const rootType = dialog.getByRole('textbox', {name: 'Root type'})
 
-    // Struct form is shown first (the "Type name" field + "Add field").
-    await expect(dialog.getByText('Type name')).toBeVisible()
+    // Struct form is shown first (the root "Type" input + "Add field").
+    await expect(rootType).toBeVisible()
 
-    // Toggle to JSON: the struct-only "Type name" label disappears and the
-    // toggle flips to "Form" (the raw OnyxDataEditor is now shown).
+    // Toggle to JSON: the struct-only root type input disappears and the
+    // toggle flips to "Form" (the raw JSON editor is now shown).
     await dialog.getByRole('button', {name: 'JSON'}).click()
-    await expect(dialog.getByText('Type name')).toHaveCount(0)
+    await expect(rootType).toHaveCount(0)
     await expect(dialog.getByRole('button', {name: 'Form'})).toBeVisible()
 
     // Toggle back to the form.
     await dialog.getByRole('button', {name: 'Form'}).click()
-    await expect(dialog.getByText('Type name')).toBeVisible()
+    await expect(rootType).toBeVisible()
     await expect(dialog.getByRole('button', {name: 'JSON'})).toBeVisible()
   })
 
