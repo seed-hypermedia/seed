@@ -2228,7 +2228,7 @@ func (srv *Server) ListEntityMentions(ctx context.Context, in *entpb.ListEntityM
 			return err
 		}
 
-		return nil
+		return resolveCommentSourceDocuments(conn, resp.Mentions)
 	}); err != nil {
 		return nil, err
 	}
@@ -2276,6 +2276,43 @@ var qEntitiesLookupID = dqb.Str(`
 	LIMIT 1
 `)
 
+// resolveCommentSourceDocuments rewrites the SourceDocument of comment mentions to the
+// current location of the document each comment was written against. The query reports
+// the path recorded in the comment blob, which goes stale once that document is moved.
+// See the same-named helper in the documents API for ListCitations.
+func resolveCommentSourceDocuments(conn *sqlite.Conn, mentions []*entpb.Mention) error {
+	var iris []string
+	seen := make(map[string]struct{})
+	for _, m := range mentions {
+		if m.SourceType != "Comment" || m.SourceDocument == "" {
+			continue
+		}
+		if _, ok := seen[m.SourceDocument]; ok {
+			continue
+		}
+		seen[m.SourceDocument] = struct{}{}
+		iris = append(iris, m.SourceDocument)
+	}
+
+	moved, err := blob.ResolveRedirects(conn, iris)
+	if err != nil {
+		return fmt.Errorf("failed to resolve comment source documents: %w", err)
+	}
+
+	for _, m := range mentions {
+		if current, ok := moved[m.SourceDocument]; ok && m.SourceType == "Comment" {
+			m.SourceDocument = current
+		}
+	}
+
+	return nil
+}
+
+// The Comment branch of the query reports source_iri as the document the comment was
+// written against (structural_blobs.resource), not the requested target, so that a
+// comment on another document that links to the target is attributed to that other
+// document. resolveCommentSourceDocuments then follows redirects forward for
+// comments written against a since-moved document.
 const qListMentionsTpl = `
 WITH RECURSIVE
 latest_document_generations AS (
@@ -2331,7 +2368,7 @@ AND structural_blobs.type IN ('Change')
 AND (:publicOnly = 0 OR pb3.id IS NOT NULL)
 )
 SELECT
-    (SELECT iri FROM redirect_ancestors WHERE depth = 0) AS source_iri,
+    source_resources.iri AS source_iri,
     blobs.codec,
     blobs.multihash,
 	public_keys.principal AS author,
@@ -2350,6 +2387,7 @@ SELECT
 FROM redirect_ancestors ra
 CROSS JOIN resource_links ON resource_links.target = ra.resource
 CROSS JOIN structural_blobs ON structural_blobs.id = resource_links.source
+JOIN resources AS source_resources ON source_resources.id = structural_blobs.resource
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN public_blobs pb ON pb.id = blobs.id

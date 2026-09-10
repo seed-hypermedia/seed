@@ -1157,8 +1157,146 @@ func TestCommentCitations(t *testing.T) {
 
 	for _, citation := range citations.Citations {
 		require.Equal(t, "Comment", citation.SourceType)
+		require.Equal(t, "hm://"+alice.me.Account.PublicKey.String(), citation.SourceDocument)
 		require.Equal(t, target.Version, citation.TargetVersion)
 	}
+}
+
+// TestListCitations_CommentSourceDocument is a regression test for
+// https://github.com/seed-hypermedia/seed/issues/921.
+//
+// A comment cites a document either by targeting it directly, or by linking to it
+// from a comment that lives on some other document. In both cases SourceDocument
+// must name the document the comment lives on: that's what clients use to fetch
+// the comment (ListComments is keyed by target document) and to render "citing
+// discussions". Since 5213a8e1f the query reported the *requested* document for
+// every comment citation, so a comment on another document was attributed to the
+// cited document itself, where it could never be found — the document showed a
+// comment count of 1 with an empty comments panel.
+//
+// Comments record their target's path at write time, so the test also moves both
+// documents to check that SourceDocument follows redirects to the current path,
+// which is what the frontend needs to load the document's metadata.
+func TestListCitations_CommentSourceDocument(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+	space := alice.me.Account.PublicKey.String()
+
+	publish := func(path, title string) *pb.Document {
+		t.Helper()
+		doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+			SigningKeyName: "main",
+			Account:        space,
+			Path:           path,
+			Changes: []*pb.DocumentChange{
+				{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: title}}},
+			},
+		})
+		require.NoError(t, err)
+		return doc
+	}
+
+	comment := func(doc *pb.Document, path, text, link string) *pb.Comment {
+		t.Helper()
+		cmt, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
+			SigningKeyName: "main",
+			TargetAccount:  space,
+			TargetPath:     path,
+			TargetVersion:  doc.Version,
+			Content: []*pb.BlockNode{
+				{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: text, Link: link}},
+			},
+		})
+		require.NoError(t, err)
+		return cmt
+	}
+
+	move := func(doc *pb.Document, from, to string) {
+		t.Helper()
+		_, err := alice.CreateRef(ctx, &pb.CreateRefRequest{
+			Account:        space,
+			Path:           to,
+			SigningKeyName: "main",
+			Target: &pb.RefTarget{
+				Target: &pb.RefTarget_Version_{
+					Version: &pb.RefTarget_Version{Genesis: doc.Genesis, Version: doc.Version},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = alice.CreateRef(ctx, &pb.CreateRefRequest{
+			Account:        space,
+			Path:           from,
+			SigningKeyName: "main",
+			Target: &pb.RefTarget{
+				Target: &pb.RefTarget_Redirect_{
+					Redirect: &pb.RefTarget_Redirect{Account: space, Path: to},
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	// commentCitations lists the citations of iri and returns the comment ones keyed by comment ID.
+	commentCitations := func(iri string) map[string]*pb.Citation {
+		t.Helper()
+		res, err := alice.ListCitations(ctx, &pb.ListCitationsRequest{Iri: iri, PageSize: 50})
+		require.NoError(t, err)
+		out := make(map[string]*pb.Citation)
+		for _, c := range res.Citations {
+			require.Equal(t, iri, c.Target, "citation must report the requested target")
+			if c.SourceType != "Comment" {
+				continue
+			}
+			require.NotContains(t, out, c.Source, "comment must be listed once")
+			out[c.Source] = c
+		}
+		return out
+	}
+
+	publish("", "Alice's Home Page")
+	cited := publish("/cited", "Cited Document")
+	other := publish("/other", "Other Document")
+
+	citedIRI := "hm://" + space + "/cited"
+
+	// A comment on the cited document itself.
+	direct := comment(cited, "/cited", "Direct comment", "")
+	// A comment on another document whose body links to the cited document.
+	// This is the #921 scenario: it counts as a citation of /cited, but it lives on /other.
+	external := comment(other, "/other", "Comment linking to the cited document", citedIRI)
+
+	citations := commentCitations(citedIRI)
+	require.Len(t, citations, 2, "both the direct and the linking comment cite the document")
+	require.Equal(t, citedIRI, citations["hm://"+direct.Id].SourceDocument, "a direct comment lives on the cited document")
+	require.Equal(t, "hm://"+space+"/other", citations["hm://"+external.Id].SourceDocument, "a linking comment lives on its own document, not on the cited one")
+
+	// Moving the citing document (twice, so the walk needs more than one hop) must not
+	// leave the comment attributed to a path that now redirects: the comment blob still
+	// records /other, but the document lives at /other-final now.
+	move(other, "/other", "/other-moved")
+	move(other, "/other-moved", "/other-final")
+
+	citations = commentCitations(citedIRI)
+	require.Len(t, citations, 2)
+	require.Equal(t, citedIRI, citations["hm://"+direct.Id].SourceDocument)
+	require.Equal(t, "hm://"+space+"/other-final", citations["hm://"+external.Id].SourceDocument, "the citing comment's document must be reported at its current path")
+
+	// Moving the cited document: citations are no longer served from the redirected
+	// old path, and on the new path both comments keep pointing at current documents.
+	// The direct comment was written against /cited, so its document is now /cited-moved.
+	move(cited, "/cited", "/cited-moved")
+	movedIRI := "hm://" + space + "/cited-moved"
+
+	require.Empty(t, commentCitations(citedIRI), "a redirected path must not serve citations")
+
+	citations = commentCitations(movedIRI)
+	require.Len(t, citations, 2, "citations must follow the cited document to its new path")
+	require.Equal(t, movedIRI, citations["hm://"+direct.Id].SourceDocument, "a direct comment must be attributed to the document's current path")
+	require.Equal(t, "hm://"+space+"/other-final", citations["hm://"+external.Id].SourceDocument)
 }
 
 func TestListCitations_TargetBlockRevisionAtMentionVersion(t *testing.T) {
