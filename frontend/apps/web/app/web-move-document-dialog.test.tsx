@@ -154,7 +154,7 @@ describe('WebDocumentDestinationDialog', () => {
     }))
     const request = vi.fn(async () => ({
       type: 'document',
-      document: {generationInfo: {genesis: 'genesis-cid', generation: 8n}},
+      document: {version: 'source-version', generationInfo: {genesis: 'genesis-cid', generation: 8n}},
     }))
     createRedirectRefMock.mockClear()
 
