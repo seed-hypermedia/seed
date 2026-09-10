@@ -172,7 +172,6 @@ import {SiteFileBrowserLayout} from './site-file-browser-layout'
 import {SiteHeader} from './site-header'
 import {Spinner} from './spinner'
 import {toast} from './toast'
-import {UnreferencedDocuments} from './unreferenced-documents'
 import {useBlockScroll} from './use-block-scroll'
 import {useCopyHmLink} from './use-copy-hm-link'
 import {useMedia} from './use-media'
@@ -798,6 +797,8 @@ export interface ResourcePageProps {
   optionsMenuItems?: MenuItemType[]
   /** Root-level creation menu shown beside Home in the file explorer. */
   fileBrowserCreateMenuItem?: MenuItemType | null
+  fileBrowserOnIncludeDocument?: import('./site-file-browser').SiteFileBrowserProps['onIncludeDocument']
+  fileBrowserGetIncludeDocumentState?: import('./site-file-browser').SiteFileBrowserProps['getIncludeDocumentState']
   /** @deprecated use optionsMenuItems */
   extraMenuItems?: MenuItemType[]
   /** Existing draft info for showing draft indicator in toolbar */
@@ -903,6 +904,8 @@ export function ResourcePage({
   CommentEditor,
   optionsMenuItems,
   fileBrowserCreateMenuItem,
+  fileBrowserOnIncludeDocument,
+  fileBrowserGetIncludeDocumentState,
   extraMenuItems,
   existingDraft,
   reservedDraftId,
@@ -1346,6 +1349,8 @@ export function ResourcePage({
       rightActions={rightActions}
       onPrefetchDocument={onPrefetchDocument}
       fileBrowserCreateMenuItem={effectiveFileBrowserCreateMenuItem}
+      fileBrowserOnIncludeDocument={fileBrowserOnIncludeDocument}
+      fileBrowserGetIncludeDocumentState={fileBrowserGetIncludeDocumentState}
       editNavPanePortalRef={setEditNavPanePortalElement}
       transientResourceError={transientResourceError}
       liveNavigationItems={liveNavigationItems}
@@ -1534,6 +1539,8 @@ export interface PageShellProps {
   /** Starts loading a document route before navigation when the platform supports it. */
   onPrefetchDocument?: (id: UnpackedHypermediaId) => void
   fileBrowserCreateMenuItem?: MenuItemType | null
+  fileBrowserOnIncludeDocument?: import('./site-file-browser').SiteFileBrowserProps['onIncludeDocument']
+  fileBrowserGetIncludeDocumentState?: import('./site-file-browser').SiteFileBrowserProps['getIncludeDocumentState']
 }
 
 /** Persistent site chrome for the header and file browser around route content. */
@@ -1551,6 +1558,8 @@ export function PageShell({
   liveNavigationItems,
   onPrefetchDocument,
   fileBrowserCreateMenuItem,
+  fileBrowserOnIncludeDocument,
+  fileBrowserGetIncludeDocumentState,
 }: PageShellProps) {
   // Mobile: let content flow naturally (document scroll)
   // Desktop: fixed height container (element scroll via ScrollArea in children)
@@ -1599,6 +1608,8 @@ export function PageShell({
         onMobileOpenChange={setIsFileBrowserOpen}
         onPrefetch={onPrefetchDocument}
         createMenuItem={fileBrowserCreateMenuItem}
+        onIncludeDocument={fileBrowserOnIncludeDocument}
+        getIncludeDocumentState={fileBrowserGetIncludeDocumentState}
         onNavigate={(id) => {
           setIsFileBrowserOpen(false)
           navigate({key: 'document', id})
@@ -1625,6 +1636,8 @@ export function PageWrapper({
   liveNavigationItems,
   onPrefetchDocument,
   fileBrowserCreateMenuItem,
+  fileBrowserOnIncludeDocument,
+  fileBrowserGetIncludeDocumentState,
 }: {
   siteHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId
@@ -1642,6 +1655,8 @@ export function PageWrapper({
   /** Starts loading a document route before navigation when the platform supports it. */
   onPrefetchDocument?: (id: UnpackedHypermediaId) => void
   fileBrowserCreateMenuItem?: MenuItemType | null
+  fileBrowserOnIncludeDocument?: import('./site-file-browser').SiteFileBrowserProps['onIncludeDocument']
+  fileBrowserGetIncludeDocumentState?: import('./site-file-browser').SiteFileBrowserProps['getIncludeDocumentState']
 }) {
   // Live-preview the in-flight nav while the user edits the home doc, so
   // additions/reorders/deletions in the EditNavPopover show immediately in
@@ -1668,6 +1683,8 @@ export function PageWrapper({
       liveNavigationItems={liveItems}
       onPrefetchDocument={onPrefetchDocument}
       fileBrowserCreateMenuItem={fileBrowserCreateMenuItem}
+      fileBrowserOnIncludeDocument={fileBrowserOnIncludeDocument}
+      fileBrowserGetIncludeDocumentState={fileBrowserGetIncludeDocumentState}
     >
       {children}
     </PageShell>
@@ -3608,7 +3625,6 @@ function MainContent({
   isUnpublishedDraft,
   isBlockInPublishedVersion,
   CommentEditor,
-  directory,
   siteUrl,
   inlineCards,
   inlineInsert,
@@ -3846,7 +3862,6 @@ function MainContent({
           onTextSelection={onTextSelection}
           isUnpublishedDraft={isUnpublishedDraft}
           isBlockInPublishedVersion={isBlockInPublishedVersion}
-          directory={directory}
           inlineCards={inlineCards}
           inlineInsert={inlineInsert}
           DocumentContentComponent={DocumentContentComponent}
@@ -3880,7 +3895,6 @@ function ContentViewWithOutline({
   onTextSelection,
   isUnpublishedDraft,
   isBlockInPublishedVersion,
-  directory,
   inlineCards,
   inlineInsert,
   DocumentContentComponent,
@@ -3913,7 +3927,6 @@ function ContentViewWithOutline({
   onTextSelection?: () => void
   isUnpublishedDraft?: boolean
   isBlockInPublishedVersion?: (blockId: string) => boolean
-  directory?: import('@seed-hypermedia/client/hm-types').HMDocumentInfo[]
   inlineCards?: ReactNode
   inlineInsert?: ReactNode
   DocumentContentComponent?: React.ComponentType<DocumentContentProps>
@@ -4000,12 +4013,6 @@ function ContentViewWithOutline({
         </DocumentContentHandoff>
         {inlineInsert}
         {inlineCards}
-        <UnreferencedDocuments
-          docId={docId}
-          content={document.content}
-          draftContent={existingDraftContent}
-          directory={directory}
-        />
       </div>
 
       {showSidebars && <div {...sidebarProps} />}

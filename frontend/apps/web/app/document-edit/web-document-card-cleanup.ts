@@ -29,6 +29,7 @@ import {
   DocumentCardCleanupOperation,
   DocumentCardCleanupStore,
   getPublicDocumentCardCleanupSnapshot,
+  isDocumentCardCleanupJobActive,
   normalizeDocumentCardCleanupStore,
 } from '@shm/shared/models/document-card-cleanup-machine'
 import {createActor} from 'xstate'
@@ -229,11 +230,13 @@ async function publishParentUpdate(
 }
 
 function invalidateParent(parentDocumentId: string) {
+  const parent = unpackHmId(parentDocumentId)
   invalidateQueries([queryKeys.ENTITY, parentDocumentId], {refetchType: 'all'})
   invalidateQueries([queryKeys.RESOLVED_ENTITY, parentDocumentId], {refetchType: 'all'})
   invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentDocumentId, 'Children'], {refetchType: 'all'})
   invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentDocumentId, 'AllDescendants'], {refetchType: 'all'})
   invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, parentDocumentId], {refetchType: 'all'})
+  if (parent) invalidateQueries([queryKeys.DOC_LIST_UNREFERENCED, parent.uid], {refetchType: 'all'})
 }
 
 function createCleanupActor(deps: WebCleanupDeps) {
@@ -303,8 +306,6 @@ function createCleanupActor(deps: WebCleanupDeps) {
       if (operation === 'add' && plan.changes.length && targetDocumentId) {
         const references = await resolveDirectDocumentReferences((parentDocument as HMDocument).content || [])
         if (references.ids.some((id) => id.id === targetDocumentId)) return {changes: [], removedBlockIds: []}
-        if (references.unresolved.length)
-          throw new Error('Cannot resolve all parent links. Review the parent references before retrying.')
         if (job.cardParentId !== undefined) {
           for (const change of plan.changes) {
             if (change.op.case === 'moveBlock') {
@@ -423,8 +424,9 @@ export async function enqueueWebDocumentCardCleanup(input: EnqueueWebDocumentCar
   const snapshot = hasBrowserStorage()
     ? getPublicSnapshot()
     : getPublicDocumentCardCleanupSnapshot(getCleanupActor(deps).getSnapshot() as any)
-  if (snapshot.jobs.some((job) => job.id === jobId && !['done', 'skippedTerminal'].includes(job.state)))
+  if (snapshot.jobs.some((job) => job.id === jobId && isDocumentCardCleanupJobActive(job))) {
     return {enqueued: false, reason: 'duplicate' as const, jobId}
+  }
 
   await sendCleanupCommand({
     type: 'cleanup.enqueue',

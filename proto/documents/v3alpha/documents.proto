@@ -80,6 +80,10 @@ service Documents {
   // Lists documents within the account. Only the most recent versions show up.
   rpc ListDocuments(ListDocumentsRequest) returns (ListDocumentsResponse);
 
+  // Lists published documents that are not referenced by their immediate
+  // parent's latest published content.
+  rpc ListUnreferencedDocuments(ListUnreferencedDocumentsRequest) returns (ListUnreferencedDocumentsResponse);
+
   // Lists all the root documents that we know about.
   rpc ListRootDocuments(ListRootDocumentsRequest) returns (ListRootDocumentsResponse);
 
@@ -539,6 +543,30 @@ message ListDocumentsResponse {
 
   // Token for the next page if there're more results.
   string next_page_token = 2;
+}
+
+// Request for listing unreferenced documents in a site.
+message ListUnreferencedDocumentsRequest {
+  // Required. ID of the site account.
+  string account = 1;
+
+  // Optional. Number of results per page. Default is defined by the server.
+  int32 page_size = 2;
+
+  // Optional. Value from next_page_token obtained from a previous response.
+  string page_token = 3;
+}
+
+// Response with unreferenced documents.
+message ListUnreferencedDocumentsResponse {
+  // Published documents not covered by their immediate parent.
+  repeated DocumentInfo documents = 1;
+
+  // Token for the next page if there are more results.
+  string next_page_token = 2;
+
+  // True while one or more current parents have not been indexed successfully.
+  bool index_incomplete = 3;
 }
 
 // A typed scalar document attribute value.

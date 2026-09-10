@@ -1,4 +1,4 @@
-import {HMDocument, HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMDocument, HMDocumentInfo, HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {QuerySearchInputProvider} from '@shm/editor/query-search-context'
 import {hmId, useJoinSite, useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import {CommentsProvider, InlineEditCommentProps} from '@shm/shared/comments-service-provider'
@@ -10,6 +10,7 @@ import {canCreateChildDocuments} from '@shm/shared/document-utils'
 import {HomeDraftProvider} from '@shm/shared/home-draft-context'
 import {type EditorAccessor} from '@shm/shared/models/document-machine'
 import {useResource} from '@shm/shared/models/entity'
+import {isDocumentCardCleanupJobActive} from '@shm/shared/models/document-card-cleanup-machine'
 import {selectContext, useDocumentMachineRef, useOnDocumentRenamed} from '@shm/shared/models/use-document-machine'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {replaceRouteDocumentId} from '@shm/shared/routes'
@@ -47,6 +48,8 @@ import {useWebCanEdit} from './document-edit/use-web-can-edit'
 import {isPendingSpaceUid, isSpaceHomeDraftId} from './document-edit/web-create-space-draft'
 import {createWebDocumentMachine} from './document-edit/web-document-actors'
 import {
+  enqueueWebDocumentCardCleanup,
+  getWebDocumentCardCleanupSnapshot,
   loadWebCleanupDraft,
   reportWebDocumentCardCleanupConflict,
   startWebDocumentCardCleanupCoordinator,
@@ -499,6 +502,45 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       : undefined
 
   const siteUid = docId.uid
+  const cleanupSnapshot = useQuery({
+    queryKey: ['web-document-card-cleanup'],
+    queryFn: () => getWebDocumentCardCleanupSnapshot(),
+    refetchInterval: 1_000,
+  })
+  const fileBrowserOnIncludeDocument = useCallback(
+    async (document: HMDocumentInfo, context: import('@shm/ui/site-file-browser').IncludeDocumentContext) => {
+      try {
+        const result = await enqueueWebDocumentCardCleanup(
+          {
+            operation: 'add',
+            parentDocumentId: context.parentId.id,
+            targetDocumentId: document.id.id,
+            signingAccountUid: context.signingAccountUid,
+            capabilityId: context.capabilityId,
+          },
+          {client: universalClient},
+        )
+        if (!result.enqueued && result.reason !== 'duplicate') throw new Error('Could not queue document inclusion')
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Could not include document')
+        throw error
+      }
+    },
+    [universalClient],
+  )
+  const fileBrowserGetIncludeDocumentState = useCallback(
+    (document: HMDocumentInfo) => {
+      const matchingJob = cleanupSnapshot.data?.jobs.find(
+        (job) => job.operation === 'add' && job.target?.id === document.id.id,
+      )
+      return {
+        disabled: false,
+        pending: matchingJob ? isDocumentCardCleanupJobActive(matchingJob) : false,
+        reason: matchingJob?.state === 'failedNeedsAttention' ? matchingJob.lastError : undefined,
+      }
+    },
+    [cleanupSnapshot.data?.jobs],
+  )
   const currentResource = useResource(useLocalDraftShell ? undefined : docId)
   const currentDocument = currentResource.data?.type === 'document' ? currentResource.data.document : undefined
   const canCreateChildDocs =
@@ -704,6 +746,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                           rightActions={<WebHeaderActions siteUid={docId.uid} />}
                           optionsMenuItems={optionsMenuItems}
                           fileBrowserCreateMenuItem={fileBrowserCreateMenuItem}
+                          fileBrowserOnIncludeDocument={fileBrowserOnIncludeDocument}
+                          fileBrowserGetIncludeDocumentState={fileBrowserGetIncludeDocumentState}
                           inlineInsert={inlineInsert}
                           DocumentContentComponent={DocumentContentComponent}
                           ssrContentHTML={ssrContentHTML}

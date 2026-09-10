@@ -5,6 +5,7 @@ import {
   unpackHmId,
 } from '@seed-hypermedia/client/hm-types'
 import {Block, DocumentChange} from '../client/.generated/documents/v3alpha/documents_pb'
+import {applyRebasePlan, classifyRebase} from './document-changes'
 
 /** Result of planning embed cleanup for a deleted document. */
 export type DocumentCardCleanupPlan = {
@@ -72,6 +73,43 @@ export type DocumentCardCleanupOperationInput =
 export type DocumentCardCleanupContentResult = {
   content: HMBlockNode[]
   changedBlockIds: string[]
+}
+
+/** Rebases an unpublished parent draft over the published document-card update. */
+export function rebaseDocumentReferenceDraft(input: {
+  base: HMBlockNode[]
+  mine: HMBlockNode[]
+  published: HMBlockNode[]
+  mineTouchedIds?: string[]
+}) {
+  const baseRevisions = new Map<string, string | undefined>()
+  const indexBase = (nodes: HMBlockNode[]) =>
+    nodes.forEach((node) => {
+      baseRevisions.set(node.block.id, (node.block as any).revision)
+      indexBase(node.children || [])
+    })
+  indexBase(input.base)
+  const newChangeCids = new Set<string>()
+  const indexPublished = (nodes: HMBlockNode[]) =>
+    nodes.forEach((node) => {
+      const revision = (node.block as any).revision
+      if (revision && revision !== baseRevisions.get(node.block.id)) newChangeCids.add(revision)
+      indexPublished(node.children || [])
+    })
+  indexPublished(input.published)
+  const classification = classifyRebase(
+    input.base,
+    input.mine,
+    input.published,
+    input.mineTouchedIds || [],
+    newChangeCids,
+  )
+  return {
+    content: classification.autoMergeable
+      ? applyRebasePlan(input.mine, input.published, classification.plan)
+      : input.mine,
+    conflictedBlockIds: classification.conflictedBlockIds,
+  }
 }
 
 function documentIdForPath(uid: string, path: string[]) {

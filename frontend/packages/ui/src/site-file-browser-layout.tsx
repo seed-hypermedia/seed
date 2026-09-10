@@ -5,7 +5,7 @@ import {createContext, ReactNode, useContext, useEffect, useMemo, useRef, useSta
 import {createPortal} from 'react-dom'
 import {ImperativePanelHandle, Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
 import {Button} from './button'
-import {SiteFileBrowser} from './site-file-browser'
+import {SiteFileBrowser, type SiteFileBrowserProps} from './site-file-browser'
 import {Tooltip} from './tooltip'
 import {useMedia} from './use-media'
 import type {MenuItemType} from './options-dropdown'
@@ -38,6 +38,8 @@ export interface SiteFileBrowserLayoutProps {
   onNavigate: (id: UnpackedHypermediaId) => void
   onPrefetch?: (id: UnpackedHypermediaId) => void
   createMenuItem?: MenuItemType | null
+  onIncludeDocument?: SiteFileBrowserProps['onIncludeDocument']
+  getIncludeDocumentState?: SiteFileBrowserProps['getIncludeDocumentState']
   children: ReactNode
 }
 
@@ -51,6 +53,8 @@ export function SiteFileBrowserLayout({
   onNavigate,
   onPrefetch,
   createMenuItem,
+  onIncludeDocument,
+  getIncludeDocumentState,
   children,
 }: SiteFileBrowserLayoutProps) {
   const media = useMedia()
@@ -72,6 +76,8 @@ export function SiteFileBrowserLayout({
       searchVisible={searchVisible}
       onSearchVisibleChange={setSearchVisible}
       createMenuItem={createMenuItem}
+      onIncludeDocument={onIncludeDocument}
+      getIncludeDocumentState={getIncludeDocumentState}
       onCreate={() => {
         if (isMobile) onMobileOpenChange(false)
       }}

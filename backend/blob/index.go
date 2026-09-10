@@ -319,6 +319,14 @@ type DerivedDocFields struct {
 
 	// IsCollection reports the structurally derived Collection status.
 	IsCollection bool
+
+	// ReferencedDocuments contains distinct, unversioned hm document IRIs
+	// explicitly referenced by visible content.
+	ReferencedDocuments []string
+
+	// HasSelfQuery reports whether visible content contains a query targeting
+	// this document's children.
+	HasSelfQuery bool
 }
 
 // DeriveDocFields derives DerivedDocFields for a document from the changes that

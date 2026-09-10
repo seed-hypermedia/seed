@@ -159,9 +159,12 @@ func DeriveDocFields(iri blob.IRI, changes []blob.ChangeRecord) (fields blob.Der
 		}
 	}
 
+	refs, selfQuery := doc.ReferenceSummary()
 	return blob.DerivedDocFields{
-		FirstImage:   doc.FirstContentImage(),
-		IsCollection: doc.IsCollection(),
+		FirstImage:          doc.FirstContentImage(),
+		IsCollection:        doc.IsCollection(),
+		ReferencedDocuments: refs,
+		HasSelfQuery:        selfQuery,
 	}, nil
 }
 
@@ -2001,6 +2004,123 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 
 	return out, nil
 }
+
+// ListUnreferencedDocuments implements Documents API v3.
+func (srv *Server) ListUnreferencedDocuments(ctx context.Context, in *documents.ListUnreferencedDocumentsRequest) (*documents.ListUnreferencedDocumentsResponse, error) {
+	if in.Account == "" {
+		return nil, status.Error(codes.InvalidArgument, "account is required")
+	}
+	ns, err := core.DecodePrincipal(in.Account)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid account: %v", err)
+	}
+	srv.clampPageSize("ListUnreferencedDocuments", &in.PageSize, defaultPageSize)
+	accountIRI, err := blob.NewIRI(ns, "")
+	if err != nil {
+		return nil, err
+	}
+	cursor := struct {
+		Account string `json:"a"`
+		IRI     string `json:"i"`
+	}{Account: in.Account, IRI: string(accountIRI)}
+	if in.PageToken != "" {
+		if err := apiutil.DecodePageToken(in.PageToken, &cursor, nil); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
+		if cursor.Account != in.Account {
+			return nil, status.Error(codes.InvalidArgument, "page token belongs to a different account")
+		}
+	}
+
+	conn, release, err := srv.db.ReadConn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
+	// The unreferenced section is a publishing aid for public site structure.
+	// Private documents never belong in it, including for their owner.
+	visibility := "AND cdg.visibility IS NOT 'Private'"
+	baseArgs := []any{accountIRI + "/", accountIRI + "0"}
+	query := fmt.Sprintf(qListUnreferencedDocuments, visibility)
+	args := append(append([]any{}, baseArgs...), cursor.IRI, in.PageSize+1)
+
+	out := &documents.ListUnreferencedDocumentsResponse{Documents: make([]*documents.DocumentInfo, 0, min(in.PageSize, maxPageAllocBuffer))}
+	lookup := blob.NewLookupCache(conn)
+	lastIRI := cursor.IRI
+	rows, discard, check := sqlitex.Query(conn, query, args...).All()
+	defer discard(&err)
+	for row := range rows {
+		iri := blob.IRI(row.ColumnText(0))
+		if int32(len(out.Documents)) == in.PageSize {
+			out.NextPageToken = apiutil.EncodePageToken(struct {
+				Account string `json:"a"`
+				IRI     string `json:"i"`
+			}{Account: in.Account, IRI: lastIRI}, nil)
+			break
+		}
+		info, err := getDocumentInfo(conn, lookup, iri)
+		if err != nil {
+			return nil, err
+		}
+		out.Documents = append(out.Documents, info)
+		lastIRI = string(iri)
+	}
+	if err := check(); err != nil {
+		return nil, err
+	}
+
+	incompleteArgs := append([]any{}, baseArgs...)
+	incomplete, err := sqlitex.QueryOne[int](conn, fmt.Sprintf(qUnreferencedIndexIncomplete, visibility), incompleteArgs...)
+	if err != nil {
+		return nil, err
+	}
+	out.IndexIncomplete = incomplete != 0
+	return out, nil
+}
+
+const currentDocumentGenerations = `
+	SELECT dg.* FROM document_generations dg
+	WHERE dg.generation = (SELECT MAX(g.generation) FROM document_generations g WHERE g.resource = dg.resource)
+	AND dg.is_deleted = 0 AND json_array_length(dg.heads) > 0
+`
+
+var qListUnreferencedDocuments = `
+	WITH current_docs AS (` + currentDocumentGenerations + `)
+	SELECT child.iri
+	FROM resources child
+	JOIN current_docs cdg ON cdg.resource = child.id
+	JOIN resources parent ON substr(child.iri, 1, length(parent.iri) + 1) = parent.iri || '/'
+		AND instr(substr(child.iri, length(parent.iri) + 2), '/') = 0
+	JOIN current_docs pdg ON pdg.resource = parent.id
+	JOIN document_reference_summaries summary ON summary.resource = parent.id
+		AND summary.generation = pdg.generation AND summary.genesis = pdg.genesis
+		AND json(summary.heads) = json(pdg.heads)
+	WHERE child.iri >= ? AND child.iri < ? AND child.iri > ?
+	AND summary.status = 1 AND summary.has_self_query = 0
+	%s
+	AND NOT EXISTS (SELECT 1 FROM document_reference_targets target
+		WHERE target.parent = parent.id AND target.target_iri = child.iri)
+	ORDER BY child.iri
+	LIMIT ?
+`
+
+var qUnreferencedIndexIncomplete = `
+	WITH current_docs AS (` + currentDocumentGenerations + `)
+	SELECT EXISTS (
+		SELECT 1 FROM resources child
+		JOIN current_docs cdg ON cdg.resource = child.id
+		JOIN resources parent ON substr(child.iri, 1, length(parent.iri) + 1) = parent.iri || '/'
+			AND instr(substr(child.iri, length(parent.iri) + 2), '/') = 0
+		JOIN current_docs pdg ON pdg.resource = parent.id
+		LEFT JOIN document_reference_summaries summary ON summary.resource = parent.id
+			AND summary.generation = pdg.generation AND summary.genesis = pdg.genesis
+			AND json(summary.heads) = json(pdg.heads)
+		WHERE child.iri >= ? AND child.iri < ?
+		%s
+		AND (summary.resource IS NULL OR summary.status != 1)
+	)
+`
 
 func getDocumentInfo(conn *sqlite.Conn, lookup *blob.LookupCache, iri blob.IRI) (info *documents.DocumentInfo, err error) {
 	q := wrapDocumentsQuery(baseDocumentsQuery().Where("r.iri = ?"), "")

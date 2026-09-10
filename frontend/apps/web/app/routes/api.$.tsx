@@ -9,6 +9,7 @@ import {
   ListAccountsRequest,
   ListDocumentAttributeNamesRequest,
   ListDocumentAttributeValuesRequest,
+  ListUnreferencedDocumentsRequest,
   QueryDocumentsRequest,
 } from '@shm/shared/client/grpc-types'
 import type {JsonValue} from '@bufbuild/protobuf'
@@ -97,6 +98,7 @@ export async function action({request, params}: ActionFunctionArgs) {
       ListAccounts: ListAccountsRequest,
       ListDocumentAttributeNames: ListDocumentAttributeNamesRequest,
       ListDocumentAttributeValues: ListDocumentAttributeValuesRequest,
+      ListUnreferencedDocuments: ListUnreferencedDocumentsRequest,
     } as const
     if (key in documentRpcRequests) {
       try {
@@ -112,7 +114,9 @@ export async function action({request, params}: ActionFunctionArgs) {
               ? await documents.listAccounts(query)
               : key === 'ListDocumentAttributeNames'
                 ? await documents.listDocumentAttributeNames(query)
-                : await documents.listDocumentAttributeValues(query)
+                : key === 'ListDocumentAttributeValues'
+                  ? await documents.listDocumentAttributeValues(query)
+                  : await documents.listUnreferencedDocuments(query)
         return withCors(
           new Response(JSON.stringify(result.toJson()), {
             status: 200,

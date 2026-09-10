@@ -1,5 +1,6 @@
 import type {
   DiscoveryState,
+  HMDocumentInfo,
   HMListedDraft,
   HMPrepareDocumentChangeInput,
   HMRequest,
@@ -50,6 +51,11 @@ export type DiscoveryService = {
 
 // Platform-agnostic client interface for universal data operations
 export type UniversalClient = {
+  /** Lists published documents not referenced by their immediate published parent. */
+  listUnreferencedDocuments?: (
+    request: {siteAccount: string; pageSize: number; pageToken: string},
+    options?: UniversalClientRequestOptions,
+  ) => Promise<{documents: HMDocumentInfo[]; nextPageToken?: string; indexIncomplete?: boolean}>
   /** Queries document metadata using the daemon's recursive attribute filter API. */
   queryDocuments?: (
     request: QueryDocumentsRequest,

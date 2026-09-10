@@ -39,6 +39,7 @@ import {
   DocumentCardCleanupOperation,
   DocumentCardCleanupStore,
   getPublicDocumentCardCleanupSnapshot,
+  isDocumentCardCleanupJobActive,
   normalizeDocumentCardCleanupStore,
 } from './app-document-card-cleanup-machine'
 import {nanoid} from 'nanoid'
@@ -103,6 +104,7 @@ function invalidateParent(parentDocumentId: string) {
   appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentDocumentId, 'Children'])
   appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentDocumentId, 'AllDescendants'])
   appInvalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, parentDocumentId])
+  appInvalidateQueries([queryKeys.DOC_LIST_UNREFERENCED, parent.uid])
 }
 
 async function resolveParentCapability(
@@ -329,8 +331,6 @@ function createCleanupActor() {
       if (operation === 'add' && plan.changes.length && targetDocumentId) {
         const references = await resolveDirectDocumentReferences((parentDocument as HMDocument).content || [])
         if (references.ids.some((id) => id.id === targetDocumentId)) return {changes: [], removedBlockIds: []}
-        if (references.unresolved.length)
-          throw new Error('Cannot resolve all parent links. Review the parent references before retrying.')
         if (job.cardParentId !== undefined) {
           for (const change of plan.changes) {
             if (change.op.case === 'moveBlock') {
@@ -540,9 +540,7 @@ export const documentCardCleanupApi = t.router({
         parentDocumentId: parent.id,
         signingAccountUid: input.signingAccountUid,
       })
-      if (
-        getPublicSnapshot().jobs.some((job) => job.id === jobId && !['done', 'skippedTerminal'].includes(job.state))
-      ) {
+      if (getPublicSnapshot().jobs.some((job) => job.id === jobId && isDocumentCardCleanupJobActive(job))) {
         return {enqueued: false, reason: 'duplicate' as const, jobId}
       }
 

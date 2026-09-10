@@ -217,6 +217,11 @@ function retainDismissedHistory(jobs: DocumentCardCleanupJob[], now: number) {
   return jobs.filter((job) => job.state !== 'dismissed' || retained.has(job))
 }
 
+/** Returns whether a cleanup job is still running or eligible for retry/recovery. */
+export function isDocumentCardCleanupJobActive(job: DocumentCardCleanupJob) {
+  return !['done', 'skippedTerminal', 'failedNeedsAttention', 'dismissed'].includes(job.state)
+}
+
 /** Produces a stable deduplication key for a reconciliation intent. */
 export function cleanupJobId(input: {
   targetBlockId?: string
