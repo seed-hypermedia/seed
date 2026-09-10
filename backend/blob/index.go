@@ -565,6 +565,12 @@ type DocumentState struct {
 // and tombstones with exactly the same errors: a caller that uses this to skip
 // a document load stays indistinguishable from one that doesn't. Returns
 // NotFound when the resource has no generations, matching loadDocument.
+//
+// On a redirect or a tombstone the error comes back with Generation and
+// Visibility still filled in, because the generation row is read before those
+// conditions are examined. A caller that follows a redirect needs the redirect's
+// own generation to supersede it, and has no cheaper way to read it. Heads are
+// left empty in that case: the resource is not readable.
 func (idx *Index) ResolveLatest(ctx context.Context, resource IRI) (DocumentState, error) {
 	conn, release, err := idx.db.ReadConn(ctx)
 	if err != nil {
@@ -574,7 +580,7 @@ func (idx *Index) ResolveLatest(ctx context.Context, resource IRI) (DocumentStat
 
 	dg, found, err := idx.resolveLatestGeneration(conn, resource)
 	if err != nil {
-		return DocumentState{}, err
+		return DocumentState{Generation: dg.Generation, Visibility: dg.Visibility}, err
 	}
 
 	if !found || len(dg.Heads) == 0 {

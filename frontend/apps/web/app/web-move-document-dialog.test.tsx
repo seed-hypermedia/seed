@@ -73,7 +73,7 @@ describe('WebDocumentDestinationDialog', () => {
     sharedDestinationDialogMock.mockClear()
   })
 
-  it('uses the shared destination dialog with only move enabled on web', () => {
+  it('uses the shared destination dialog with move and republish enabled on web', () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -102,7 +102,7 @@ describe('WebDocumentDestinationDialog', () => {
     expect(sharedDestinationDialogMock).toHaveBeenCalledWith(
       expect.objectContaining({
         input: {id, mode: 'move'},
-        enabledModes: ['move'],
+        enabledModes: ['move', 'republish'],
       }),
       {},
     )
@@ -138,6 +138,67 @@ describe('WebDocumentDestinationDialog', () => {
 
     const dialogProps = (sharedDestinationDialogMock.mock.calls as any[])[0][0]
     expect(dialogProps.writableDocuments[0].id).toBe(writableLocationId)
+  })
+
+  it('republish mode submits a republish redirect through the dialog', async () => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    const from = makeId('source', ['doc'])
+    const to = makeId('site', ['parent', 'copy'])
+    const queryClient = new QueryClient()
+    const publish = vi.fn(async () => ({}))
+    const getSigner = vi.fn(() => ({
+      getPublicKey: async () => new Uint8Array([1]),
+      sign: async () => new Uint8Array([2]),
+    }))
+    const request = vi.fn(async () => ({
+      type: 'document',
+      document: {version: 'source-version', generationInfo: {genesis: 'genesis-cid', generation: 8n}},
+    }))
+    createRedirectRefMock.mockClear()
+
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <UniversalAppProvider
+            openRoute={vi.fn()}
+            openUrl={vi.fn()}
+            universalClient={{request, publish, getSigner} as any}
+          >
+            <WebDocumentDestinationDialog
+              input={{id: from, mode: 'republish'}}
+              onClose={vi.fn()}
+              signingAccountId="site"
+              capabilityId="cap-cid"
+              canMove
+            />
+          </UniversalAppProvider>
+        </QueryClientProvider>,
+      )
+    })
+
+    const dialogProps = (sharedDestinationDialogMock.mock.calls as any[])[0][0]
+    expect(dialogProps.enabledModes).toEqual(['move', 'republish'])
+
+    await act(async () => {
+      await dialogProps.onSubmit({from, to, mode: 'republish', signingAccountId: 'site'})
+    })
+
+    expect(createRedirectRefMock).toHaveBeenCalledWith(
+      {
+        space: 'site',
+        path: '/parent/copy',
+        genesis: 'genesis-cid',
+        generation: expect.any(Number),
+        targetSpace: 'source',
+        targetPath: '/doc',
+        republish: true,
+        capability: 'cap-cid',
+      },
+      expect.anything(),
+    )
+    expect(publish).toHaveBeenCalledTimes(1)
   })
 })
 

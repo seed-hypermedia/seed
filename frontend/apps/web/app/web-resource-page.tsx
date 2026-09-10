@@ -540,6 +540,11 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     return (id: UnpackedHypermediaId, origin?: DocumentCardActionOrigin) =>
       destinationDialog.open({id, mode: 'move', origin})
   }, [destinationDialog, signingAccountId])
+  const onRepublishDocument = useMemo(() => {
+    if (!signingAccountId) return undefined
+    return (id: UnpackedHypermediaId, origin?: DocumentCardActionOrigin) =>
+      destinationDialog.open({id, mode: 'republish', origin})
+  }, [destinationDialog, signingAccountId])
   const canWriteDocument = useCallback(
     (id: UnpackedHypermediaId) =>
       !!signingAccountId && (id.uid === signingAccountId || (effectiveCanEdit && id.uid === docId.uid)),
@@ -675,6 +680,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
           myAccountIds={signingAccountId ? [signingAccountId] : []}
           canWriteDocument={canWriteDocument}
           onMoveDocument={onMoveDocument}
+          onRepublishDocument={onRepublishDocument}
           onDeleteDocument={onDeleteDocument}
           onRestoreDocumentVersion={effectiveCanEdit && signingAccountId ? onRestoreDocumentVersion : undefined}
         >

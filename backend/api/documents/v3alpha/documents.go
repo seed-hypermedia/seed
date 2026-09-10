@@ -50,6 +50,7 @@ const (
 	maxPageAllocBuffer             = 400  // Arbitrary limit to prevent allocating too much memory when client requested huge page size.
 	maxQueryDocumentsPageSize      = 1000
 	maxQueryDocumentSorts          = 16
+	maxRedirectHops                = 5 // Matches MAX_REDIRECT_HOPS in frontend/packages/shared/src/redirects.ts.
 	publicOnlyListVisibilityFilter = `dg.visibility IS NOT 'Private'`
 	indexedAttributeString         = "s"
 	indexedAttributeBool           = "b"
@@ -1076,6 +1077,124 @@ type documentChangeParams struct {
 	allowPrivateCreationForTest bool
 }
 
+// redirectDetails extracts the redirect target from the FailedPrecondition error the index reports
+// for a path holding a redirect Ref. It returns nil for every other error, including the tombstone
+// that carries no redirect.
+func redirectDetails(err error) *documents.RedirectErrorDetails {
+	st, ok := status.FromError(err)
+	if !ok {
+		return nil
+	}
+
+	for _, d := range st.Details() {
+		if rd, ok := d.(*documents.RedirectErrorDetails); ok {
+			return rd
+		}
+	}
+
+	return nil
+}
+
+// loadDocumentForChange loads the document that a change must build on, following redirect Refs.
+//
+// A path holding a redirect Ref (a republished or moved document) has no change DAG of its own, so
+// editing it is a takeover: the Change has to build on the redirect target's DAG, and the fresh-
+// generation Version Ref published at this path then supersedes the redirect. Without this,
+// PrepareChange mints a brand-new genesis, the client signs its Ref against the target's genesis,
+// and indexing rejects the Ref with a genesis mismatch (crossLinkRefMaybe in blob/blob_ref.go).
+//
+// The returned document keeps the requested path as its identity, because that is where the Ref
+// belongs. Only the change history comes from the target. Redirects are resolved through
+// Index.ResolveLatest, which reports republish and move redirects through the same error, so both
+// kinds are taken over the same way, and which costs one indexed row read per hop.
+//
+// The chain is bounded by maxRedirectHops, the limit the readers use, so the daemon never accepts a
+// takeover that every client would then fail to resolve. (The 16 in the redirect_ancestors CTEs is a
+// SQL recursion depth, not a reader limit.) Cycles are refused outright: minting an empty document
+// instead would produce exactly the disagreeing genesis this resolution exists to prevent.
+func (srv *Server) loadDocumentForChange(ctx context.Context, identity blob.IRI, heads []cid.Cid) (*docmodel.Document, error) {
+	source := identity
+	visited := map[blob.IRI]struct{}{identity: {}}
+
+	// Generation of the redirect Ref being taken over, or -1 when this is an ordinary edit. The Ref
+	// this change produces has to outrank it, or the publish succeeds and the path keeps redirecting.
+	redirectGeneration := int64(-1)
+
+	for hop := 0; ; hop++ {
+		state, err := srv.idx.ResolveLatest(ctx, source)
+		if err == nil {
+			if source != identity && state.Visibility == blob.VisibilityPrivate {
+				// A redirect must not become a read primitive for a private document. The prepared
+				// change would carry the target's genesis and heads, which no read RPC on a
+				// public-only node discloses.
+				targetNS, targetPath, err := source.SpacePath()
+				if err != nil {
+					return nil, err
+				}
+
+				if err := srv.denyPrivateDocument(ctx, targetNS, targetPath); err != nil {
+					return nil, err
+				}
+			}
+
+			break // A readable document: build the change on it.
+		}
+
+		if status.Code(err) == codes.NotFound {
+			break // Nothing indexed here: the change starts a new document.
+		}
+
+		redirect := redirectDetails(err)
+		if redirect == nil {
+			// A tombstone, with no redirect to follow. There is no history to build on, so the
+			// change starts a new document at the requested path.
+			source = identity
+			break
+		}
+
+		if hop >= maxRedirectHops {
+			return nil, status.Errorf(codes.FailedPrecondition, "cannot edit %s: its redirect chain is longer than %d hops", identity, maxRedirectHops)
+		}
+
+		targetNS, err := core.DecodePrincipal(redirect.TargetAccount)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid redirect target account %q: %v", redirect.TargetAccount, err)
+		}
+
+		target, err := makeIRI(targetNS, redirect.TargetPath)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid redirect target %s%s: %v", redirect.TargetAccount, redirect.TargetPath, err)
+		}
+
+		if _, seen := visited[target]; seen {
+			return nil, status.Errorf(codes.FailedPrecondition, "cannot edit %s: its redirect chain is a cycle through %s", identity, target)
+		}
+		visited[target] = struct{}{}
+
+		// Only the first hop matters for the generation: that is the redirect Ref sitting at the
+		// path this change is written to.
+		if redirectGeneration < 0 {
+			redirectGeneration = state.Generation
+		}
+
+		source = target
+	}
+
+	doc, err := srv.loadDocumentFrom(ctx, identity, source, heads, true)
+	if err != nil {
+		return nil, err
+	}
+
+	if redirectGeneration >= 0 {
+		// Outrank the redirect this change takes over. Clients compute their own generation for the
+		// Ref they sign; a server-signed publish (Document.Ref) has no other source for it, and
+		// would otherwise inherit the target's generation, which says nothing about this path.
+		doc.Generation = maybe.New(redirectGeneration + 1)
+	}
+
+	return doc, nil
+}
+
 // handleDocumentChangeRequest validates input, loads or creates the document, and applies the requested changes.
 func (srv *Server) handleDocumentChangeRequest(ctx context.Context, in documentChangeParams) (*docmodel.Document, error) {
 	ns, err := core.DecodePrincipal(in.Account)
@@ -1114,17 +1233,13 @@ func (srv *Server) handleDocumentChangeRequest(ctx context.Context, in documentC
 		return nil, err
 	}
 
-	doc, err := srv.loadDocument(ctx, ns, in.Path, heads, true)
+	// loadDocumentForChange decides on its own when a path has no usable history and the change
+	// starts a new document. Errors it does return are refusals — an unresolvable redirect chain, a
+	// private target — and must not be turned into a fresh document: minting one is exactly the
+	// broken publish this resolution exists to prevent.
+	doc, err := srv.loadDocumentForChange(ctx, iri, heads)
 	if err != nil {
-		if status.Code(err) != codes.FailedPrecondition {
-			return nil, err
-		}
-
-		clock := cclock.New()
-		doc, err = docmodel.New(iri, clock)
-		if err != nil {
-			return nil, err
-		}
+		return nil, err
 	}
 
 	if in.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE && doc.Visibility() != blob.VisibilityPrivate && !in.allowPrivateCreationForTest && !privateCreationEnabledForTests.Load() {
@@ -2156,8 +2271,11 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 			return nil, 0, fmt.Errorf("failed to parse redirect target %v: %w", redirect.Value, err)
 		}
 		redirectInfo = &documents.RefTarget_Redirect{
-			Account:   space.String(),
-			Path:      path,
+			Account: space.String(),
+			Path:    path,
+			// Always a republish, because the query feeding this row keeps only generations with
+			// is_deleted = 0, and a move redirect is a tombstone. Move redirects never reach here
+			// at all; readers that need both kinds go through Index.ResolveLatest instead.
 			Republish: true,
 		}
 	}
@@ -2718,13 +2836,23 @@ func (srv *Server) loadDocument(ctx context.Context, account core.Principal, pat
 		return nil, err
 	}
 
+	return srv.loadDocumentFrom(ctx, iri, iri, heads, ensurePath)
+}
+
+// loadDocumentFrom replays the changes stored at source, but gives the result the identity of
+// identity: that is the address of every Ref derived from it, because Document.Ref reads the space
+// and the path from the document's own IRI.
+//
+// The two differ only for a redirect takeover, where the history lives at the redirect target while
+// the Ref belongs at the redirect path. Every other caller passes the same IRI twice.
+func (srv *Server) loadDocumentFrom(ctx context.Context, identity, source blob.IRI, heads []cid.Cid, ensurePath bool) (*docmodel.Document, error) {
 	clock := cclock.New()
-	doc, err := docmodel.New(iri, clock)
+	doc, err := docmodel.New(identity, clock)
 	if err != nil {
 		return nil, err
 	}
 
-	changes, check := srv.idx.IterChanges(ctx, iri, heads)
+	changes, check := srv.idx.IterChanges(ctx, source, heads)
 	for ch := range changes {
 		doc.SetVisibility(ch.Visibility)
 		if doc.Generation.IsSet() {
@@ -2748,7 +2876,7 @@ func (srv *Server) loadDocument(ctx context.Context, account core.Principal, pat
 
 	if len(doc.Heads()) == 0 {
 		if !ensurePath {
-			return nil, status.Errorf(codes.NotFound, "document not found: %s", iri)
+			return nil, status.Errorf(codes.NotFound, "document not found: %s", source)
 		}
 
 		doc.Generation = maybe.New(cclock.New().MustNow().UnixMilli())
