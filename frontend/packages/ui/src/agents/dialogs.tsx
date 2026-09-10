@@ -47,9 +47,10 @@ import {Camera, Copy, ExternalLink, FileKey, Plus, Trash2} from 'lucide-react'
 import {useEffect, useRef, useState} from 'react'
 import {generateAgentName} from './agent-name'
 import {DEFAULT_AGENT_TOOLS} from './agent-tools'
-import {modelReasoningSupport, type ReasoningLevel} from '@seed-hypermedia/agents-protocol'
+import {modelReasoningSupport, type ReasoningLevel, type Thoroughness} from '@seed-hypermedia/agents-protocol'
 import {ProviderModelSelect} from './provider-model-select'
 import {coerceReasoningLevel, ReasoningSlider} from './reasoning-select'
+import {ThoroughnessPicker} from './thoroughness-select'
 import {pickDefaultProviderModel} from './model-utils'
 import {AgentPromptEditor, promptBlocksForRequest} from './prompt-editor'
 import {ProviderIcon} from './provider-icons'
@@ -903,6 +904,7 @@ export function CreateAgentDialog({
   const [name, setName] = useState(generateAgentName)
   const [model, setModel] = useState('')
   const [reasoningLevel, setReasoningLevel] = useState<ReasoningLevel | undefined>(undefined)
+  const [thoroughness, setThoroughness] = useState<Thoroughness>('normal')
   const [enabledModels, setEnabledModels] = useState<AgentModelRef[]>([])
   const [systemPrompt, setSystemPrompt] = useState<HMBlockNode[]>(() =>
     markdownBlockNodesToHMBlockNodes(parseMarkdown('You are a helpful agent.').tree),
@@ -962,6 +964,7 @@ export function CreateAgentDialog({
         modelProvider: providerName,
         model,
         reasoningLevel: coerceReasoningLevel(selectedProviderType, model, reasoningLevel),
+        thoroughness,
         ...(enabledModels.length ? {enabledModels} : {}),
         tools: DEFAULT_AGENT_TOOLS,
         signingKey: signingKeyName,
@@ -1093,6 +1096,9 @@ export function CreateAgentDialog({
             />
           </div>
         ) : null}
+        <div className="flex flex-col justify-end gap-1">
+          <ThoroughnessPicker value={thoroughness} onChange={setThoroughness} />
+        </div>
       </div>
       {addProviderDialog.content}
       <div className="flex flex-col gap-1">

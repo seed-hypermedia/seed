@@ -436,7 +436,16 @@ export function delegationPrompt(status: DelegationStatus): string {
     limits.maxDepth
   } and may start ${childrenRemaining} more child${childrenRemaining === 1 ? '' : 'ren'} in this run (${
     limits.maxChildren
-  } per run). ${childRoom}`
+  } per run; every child's result reports \`delegation.parentChildrenRemaining\`, the live count). Plan batches to fit: several items per brief, or one script child for a long list. ${childRoom}`
+}
+
+/**
+ * The refusal when a run has used every child slot. It says what actually works from here —
+ * finishing alone now, and packing the next such task into fewer children — rather than only
+ * that the door is shut.
+ */
+export function childrenExhaustedMessage(maxChildren: number): string {
+  return `This run has used its budget of ${maxChildren} children. Finish the remaining work yourself in this turn; do not retry delegate. Next time you face a long list, put several items into each brief, or hand the whole list to ONE script child (ctx.parallel) — a script's own children draw on a separate budget.`
 }
 
 const DELEGATE_REASONING_LEVELS = `off, ${REASONING_LEVELS.join(', ')}`
@@ -5798,10 +5807,7 @@ export class Service {
       throw new APIError(400, `Sub-session depth limit reached (${delegation.limits.maxDepth}); finish the work here.`)
     }
     if (delegation.childrenRemaining <= 0) {
-      throw new APIError(
-        400,
-        `This run already spawned ${delegation.limits.maxChildren} sub-sessions; finish the remaining work here.`,
-      )
+      throw new APIError(400, childrenExhaustedMessage(delegation.limits.maxChildren))
     }
     // Children always run as the delegating agent — direct agent-to-agent delegation is
     // deliberately unsupported (agents collaborate through Seed content instead), and
@@ -6019,13 +6025,18 @@ export class Service {
     if (!parent || parent.kind !== 'agent' || !parent.sessionId) return
     const toolName = parentToolName ?? seedVerbRegistry.delegate.name
     let result: Record<string, unknown>
-    // Where the child sat in the tree rides along: a parent planning further work then knows how
-    // much room the next child has instead of learning the limit from a refusal.
+    // Where the child sat in the tree, and how much room the PARENT has left, ride along on every
+    // outcome. The parent's system prompt was built when its run started, so this is the only
+    // count that is fresh at the moment it plans its next batch — it learns the limit here, not
+    // from a refusal.
     const childDelegation = this.#delegationStatus(child)
+    const parentDelegation = this.#delegationStatus(parent)
     const delegation = {
       depth: childDelegation.depth,
       maxDepth: childDelegation.limits.maxDepth,
       childCouldDelegate: childDelegation.canDelegate,
+      parentChildrenRemaining: parentDelegation.childrenRemaining,
+      parentMaxChildren: parentDelegation.limits.maxChildren,
     }
     if (child.status === 'succeeded') {
       result = {
@@ -6036,13 +6047,14 @@ export class Service {
         delegation,
       }
     } else if (child.status === 'canceled') {
-      result = {status: 'canceled', runId: child.id, sessionId: child.sessionId}
+      result = {status: 'canceled', runId: child.id, sessionId: child.sessionId, delegation}
     } else {
       result = {
         status: 'failed',
         runId: child.id,
         sessionId: child.sessionId,
         error: {code: child.error?.code ?? 'run-failed', message: child.error?.message ?? 'Sub-session failed'},
+        delegation,
       }
     }
     // Append the durable result at most once, but ALWAYS resolve the wait: a crash (or double
@@ -6192,10 +6204,7 @@ export class Service {
       throw new APIError(400, `Workflow depth limit reached (${delegation.limits.maxDepth})`)
     }
     if (delegation.childrenRemaining <= 0) {
-      throw new APIError(
-        400,
-        `This run already spawned ${delegation.limits.maxChildren} children; finish the remaining work here.`,
-      )
+      throw new APIError(400, childrenExhaustedMessage(delegation.limits.maxChildren))
     }
     const hasher = new Bun.CryptoHasher('sha256')
     hasher.update(source)

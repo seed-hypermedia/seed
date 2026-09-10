@@ -11613,12 +11613,27 @@ describe('delegation budget', () => {
             event.event as {
               type?: string
               name?: string
-              output?: {status?: string; delegation?: {depth: number; maxDepth: number; childCouldDelegate: boolean}}
+              output?: {
+                status?: string
+                delegation?: {
+                  depth: number
+                  maxDepth: number
+                  childCouldDelegate: boolean
+                  parentChildrenRemaining: number
+                  parentMaxChildren: number
+                }
+              }
             },
         )
         .find((event) => event.type === 'tool_result' && event.name === 'delegate')
       expect(result?.output?.status).toBe('succeeded')
-      expect(result?.output?.delegation).toEqual({depth: 1, maxDepth: 1, childCouldDelegate: false})
+      expect(result?.output?.delegation).toEqual({
+        depth: 1,
+        maxDepth: 1,
+        childCouldDelegate: false,
+        parentChildrenRemaining: 3,
+        parentMaxChildren: 4,
+      })
 
       // The budget rode along on the child run, so the tree keeps one setting even if the agent's changes.
       const spawn = session.events
