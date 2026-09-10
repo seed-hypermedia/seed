@@ -105,7 +105,12 @@ import {AgentProtocolError, AgentServerError, type AgentInfo} from './client'
 import type {AgentActivity} from '@seed-hypermedia/agents-protocol'
 import {describeAgentError, errorMessage} from './errors'
 import {useAssistantWindowContextLines} from './assistant-window-context'
-import {AgentRichMessageComposer, SubSessionDrivenNotice, TERMINAL_RUN_STATUSES} from './rich-message-composer'
+import {
+  AgentRichMessageComposer,
+  SubSessionDrivenNotice,
+  SubSessionHeader,
+  TERMINAL_RUN_STATUSES,
+} from './rich-message-composer'
 import type {AgentsRichEditorSubmitHandle} from './platform'
 import {RunRecordCard, SessionRunCard} from './run-card'
 import {DelayedSpinner, SessionModelBadge} from './header'
@@ -1086,6 +1091,22 @@ function AssistantSessionChat({
   return (
     <OpenAgentSessionContext.Provider value={onOpenSession ? openInPanel : null}>
       <div className="flex flex-1 flex-col overflow-hidden">
+        {parentSessionId ? (
+          <SubSessionHeader
+            compact
+            parentTitle={parentSession.data?.session.title}
+            onOpenParent={() =>
+              onOpenSession
+                ? onOpenSession(parentSessionId)
+                : navigate({
+                    key: 'agent-session',
+                    agentId: parentSession.data?.session.agentId,
+                    sessionId: parentSessionId,
+                    serverUrl,
+                  })
+            }
+          />
+        ) : null}
         {sessionInfo?.continuedFrom ? (
           <ContinuationHeader
             compact

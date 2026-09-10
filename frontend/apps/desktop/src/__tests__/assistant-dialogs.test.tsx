@@ -51,6 +51,7 @@ vi.mock('@shm/ui/agents/dialogs', () => ({CreateAgentDialog: () => null}))
 vi.mock('@shm/ui/agents/rich-message-composer', () => ({
   AgentRichMessageComposer: () => null,
   SubSessionDrivenNotice: () => null,
+  SubSessionHeader: () => null,
   TERMINAL_RUN_STATUSES: new Set(),
 }))
 

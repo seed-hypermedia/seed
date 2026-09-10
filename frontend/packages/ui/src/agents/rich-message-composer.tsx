@@ -1,5 +1,6 @@
 import {trimTrailingEmptyBlocks} from '@seed-hypermedia/client'
 import {Button} from '@shm/ui/button'
+import {cn} from '@shm/ui/utils'
 import {CornerLeftUp, Send, Square} from 'lucide-react'
 import React, {useRef, useState} from 'react'
 import type {RunStatus, SessionAttachmentInfo} from './client'
@@ -19,6 +20,36 @@ import {UserToolPalette} from './user-tool-palette'
 
 /** Run states a sub-session's parent can no longer be driving it from. */
 export const TERMINAL_RUN_STATUSES = new Set<RunStatus>(['succeeded', 'failed', 'canceled'])
+
+/**
+ * Header pill for a sub-session: where it came from, and the way up. Shared by the full session
+ * page and the assistant sidebar so a child looks the same on both. Whether the parent is still
+ * driving is told at the composer, where the answer to "why can't I type?" belongs (see
+ * {@link SubSessionDrivenNotice}).
+ */
+export function SubSessionHeader({
+  parentTitle,
+  compact,
+  onOpenParent,
+}: {
+  parentTitle?: string
+  compact?: boolean
+  onOpenParent: () => void
+}) {
+  return (
+    <div className={cn('flex flex-none flex-col gap-2', compact ? 'px-3 pt-2' : 'pt-3')} aria-label="Sub-session of">
+      <button
+        type="button"
+        className="bg-muted hover:bg-muted/70 text-muted-foreground hover:text-foreground flex max-w-full items-center gap-1.5 self-start rounded-full px-2.5 py-1 text-xs"
+        onClick={onOpenParent}
+        title="Open the parent session"
+      >
+        <CornerLeftUp className="size-3 flex-none" />
+        <span className="min-w-0 truncate">{parentTitle || 'Parent session'}</span>
+      </button>
+    </div>
+  )
+}
 
 /**
  * Why a driven sub-session's composer is gone: the parent owns this conversation right now. The

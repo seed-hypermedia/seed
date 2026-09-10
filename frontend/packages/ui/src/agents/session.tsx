@@ -66,35 +66,19 @@ import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {ArrowDown, CornerLeftUp, ExternalLink, Info, Link2, ScrollText, Trash2} from 'lucide-react'
+import {ArrowDown, ExternalLink, Info, Link2, ScrollText, Trash2} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AgentHeader, AgentSubpageHeader, SessionModelBadge} from './header'
 import {writeStickyAgentSession} from './sticky-session'
 import {RunRecordCard, SessionRunCard} from './run-card'
-import {AgentRichMessageComposer, SubSessionDrivenNotice, TERMINAL_RUN_STATUSES} from './rich-message-composer'
+import {
+  AgentRichMessageComposer,
+  SubSessionDrivenNotice,
+  SubSessionHeader,
+  TERMINAL_RUN_STATUSES,
+} from './rich-message-composer'
 import {SessionProviderGate, useMissingSessionProvider} from './session-provider-gate'
 import {getTriggerActivityRoute, summarizeTriggerSource, TriggerContextView} from './trigger-types'
-
-/**
- * Header affordance for a sub-session: where it came from. Whether the parent is still driving is
- * told at the composer, where the answer to "why can't I type?" belongs (see
- * {@link SubSessionDrivenNotice}).
- */
-function SubSessionHeader({parentTitle, onOpenParent}: {parentTitle?: string; onOpenParent: () => void}) {
-  return (
-    <div className="flex flex-none flex-col gap-2 pt-3">
-      <button
-        type="button"
-        className="bg-muted hover:bg-muted/70 text-muted-foreground hover:text-foreground flex max-w-full items-center gap-1.5 self-start rounded-full px-2.5 py-1 text-xs"
-        onClick={onOpenParent}
-        title="Open the parent session"
-      >
-        <CornerLeftUp className="size-3 flex-none" />
-        <span className="min-w-0 truncate">{parentTitle || 'Parent session'}</span>
-      </button>
-    </div>
-  )
-}
 
 function TriggerContextPopover({
   context,

@@ -69,6 +69,12 @@ vi.mock('@shm/ui/agents/models', () => ({
   useMessageAgentSession: () => ({mutate: vi.fn()}),
   useStopAgentSession: () => ({mutate: vi.fn()}),
   useRetrySession: () => ({mutate: vi.fn(), isPending: false}),
+  useUpdateAgentSession: () => ({mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false}),
+  // The panel header's model/thoroughness picker and the provider gate: nothing configured here.
+  useUpdateAgent: () => ({mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false}),
+  useModelProviders: () => ({data: [], isLoading: false}),
+  useProviderModelCatalogs: () => ({}),
+  useSigningIdentities: () => ({data: [], isLoading: false}),
   // Sub-session nesting and the pinned run card: idle by default, so neither renders here.
   useChildSessions: () => ({data: undefined, isLoading: false, isError: false}),
   useSessionRuns: () => ({data: []}),
@@ -95,6 +101,7 @@ vi.mock('@shm/ui/agents/rich-message-composer', () => {
   const React = require('react')
   return {
     SubSessionDrivenNotice: () => React.createElement('div', null, 'This session is controlled by its parent'),
+    SubSessionHeader: () => null,
     TERMINAL_RUN_STATUSES: new Set(['succeeded', 'failed', 'canceled']),
     AgentRichMessageComposer: ({
       focusOnMount = true,
