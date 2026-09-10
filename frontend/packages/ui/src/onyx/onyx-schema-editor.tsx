@@ -516,10 +516,13 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
     unionOption(),
     {label: 'HM link', hint: 'string · hm-url', schema: kindSchema('hm-url')},
     {label: 'IPFS file / object', hint: 'string · ipfs', schema: kindSchema('ipfs')},
-    ...FIELD_KINDS.filter(({kind}) => !isReferenceKind(kind)).map(({kind, label}) => {
-      const slug = `onyx-${kind}`
-      return {label: ONYX_PAGES[slug]?.name ?? label, hint: 'core type', url: nameToUrl(slug)!}
-    }),
+    // A core kind applies its canonical property schema (a list gets `items`, a
+    // struct `properties`, a date its library ref) — not a bare type URL.
+    ...FIELD_KINDS.filter(({kind}) => !isReferenceKind(kind)).map(({kind, label}) => ({
+      label: ONYX_PAGES[`hypermedia-${kind}`]?.name ?? label,
+      hint: 'core type',
+      schema: kindSchema(kind),
+    })),
   ]
   const fieldUrl = nodeUrl
   const fieldLabel = nodeLabel
@@ -541,9 +544,9 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
   const rootTypeOptions: TypeOption[] = [
     unionOption(),
     ...FIELD_KINDS.filter(({kind}) => !isReferenceKind(kind)).map(({kind, label}) => ({
-      label: ONYX_PAGES[`onyx-${kind}`]?.name ?? label,
+      label: ONYX_PAGES[`hypermedia-${kind}`]?.name ?? label,
       hint: 'core type',
-      url: nameToUrl(`onyx-${kind}`)!,
+      url: kindUrl(kind),
     })),
   ]
   const setRootType = (url: string) => {

@@ -30,6 +30,7 @@ import {SchemaAwareEditor, schemaFormProblems, seedForSchema} from './schema-awa
 import {isOnyxSchema, validate} from './onyx-engine'
 import {useResolvedSchema} from './onyx-schema-resolve'
 import {SchemaPicker} from './schema-picker'
+import {useTypeLabel} from './schema-type-input'
 
 const DAG_CBOR_CODE = 0x71
 /** Encode a dag-json value as DAG-CBOR and publish it; returns the CID. */
@@ -131,6 +132,8 @@ function LinkedObjectEditor({
   }, [target, existingParts?.schemaCid])
   const {schema, cid: schemaBlobCid, isLoading: schemaLoading} = useResolvedSchema(schemaRef)
   const locked = !!target
+  // The locked schema reads by its page name ("Onyx schema"), not its URL.
+  const targetLabel = useTypeLabel(target ?? '')
   const advisory = !locked
 
   // The value being authored. Seeded from the existing object (edit) or the schema.
@@ -179,9 +182,13 @@ function LinkedObjectEditor({
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="text-muted-foreground">Schema</span>
         {locked ? (
-          <span className="bg-muted rounded-md px-2 py-1 font-mono text-xs" data-testid="linked-object-target">
-            {target}
-            <span className="text-muted-foreground"> · required</span>
+          <span
+            className="bg-muted rounded-md px-2 py-1 text-xs font-medium"
+            title={target}
+            data-testid="linked-object-target"
+          >
+            {targetLabel || target}
+            <span className="text-muted-foreground font-normal"> · required</span>
           </span>
         ) : (
           <SchemaPicker
