@@ -984,6 +984,7 @@ export type Notification =
       eventId?: string
       eventAtMs?: number
       source: 'comment' | 'document'
+      sourceContext?: string
       comment?: HMComment
       resolvedNames?: Record<string, string>
     }

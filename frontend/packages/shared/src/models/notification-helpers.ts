@@ -30,7 +30,10 @@ export function notificationRouteForPayload(payload: NotificationPayload): NavRo
   if (payload.eventType === 'citation') {
     if (!payload.sourceId && !payload.target.uid) return null
     const sourceUid = payload.sourceId || payload.target.uid
-    const sourceId = hmId(sourceUid, {path: payload.target.path ?? undefined})
+    const sourceId = hmId(sourceUid, {
+      path: payload.target.path ?? undefined,
+      blockRef: payload.sourceContext || undefined,
+    })
     if (payload.citationType === 'c' && payload.commentId) {
       return {
         key: 'comments',

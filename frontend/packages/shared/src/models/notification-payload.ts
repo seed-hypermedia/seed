@@ -34,6 +34,7 @@ export const NotificationPayloadSchema = z.object({
   commentId: z.string().nullable(),
   sourceId: z.string().nullable(),
   citationType: z.enum(['d', 'c']).nullable(),
+  sourceContext: z.string().nullable().optional(),
 })
 export type NotificationPayload = z.infer<typeof NotificationPayloadSchema>
 
