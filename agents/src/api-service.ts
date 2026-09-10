@@ -4421,8 +4421,9 @@ export class Service {
       )
     }
     const spawned = parentRun
-      ? stmt<{n: number}, [string]>(this.#db, `SELECT COUNT(*) AS n FROM runs WHERE parent_run_id = ?`).get(parentRun.id)
-          ?.n ?? 0
+      ? stmt<{n: number}, [string]>(this.#db, `SELECT COUNT(*) AS n FROM runs WHERE parent_run_id = ?`).get(
+          parentRun.id,
+        )?.n ?? 0
       : stmt<{n: number}, [string]>(this.#db, `SELECT COUNT(*) AS n FROM sessions WHERE parent_session_id = ?`).get(
           parentSessionId,
         )?.n ?? 0
@@ -5864,16 +5865,6 @@ export class Service {
    * parent transcript and shrinks the parent's wait set, requeuing it when the set empties.
    */
   /**
-   * The delegation contract a run is executing: the spec it must satisfy and the parent tool call
-   * its result answers.
-   *
-   * A typed child's spec rides the input of the run that SPAWNED it. Any later run on the same
-   * session — a user retry, a new message — carries no spec of its own, and before this inherited
-   * nothing: the output schema, the return_result tool, the typed-completion semantics and the
-   * parent link all vanished, so the child could not fulfil its contract and the parent parked
-   * forever. `sessions.run_id` is the durable record of that spawn, so later runs inherit from it.
-   */
-  /**
    * Delegation limits for a run: the budget it was created with, else the defaults. Root runs are
    * created with the session's or agent's thoroughness (see {@link #delegationBudgetForSession})
    * and children copy their parent's, so a whole tree answers to one budget even if the settings
@@ -5894,11 +5885,10 @@ export class Service {
    */
   #delegationBudgetForSession(accountId: string, agentId: string, sessionId?: string): runs.RunBudget {
     const sessionLevel = sessionId
-      ? this.#db
-          .query<{thoroughness: string | null}, [string, string]>(
-            `SELECT thoroughness FROM sessions WHERE account_id = ? AND id = ?`,
-          )
-          .get(accountId, sessionId)?.thoroughness
+      ? stmt<{thoroughness: string | null}, [string, string]>(
+          this.#db,
+          `SELECT thoroughness FROM sessions WHERE account_id = ? AND id = ?`,
+        ).get(accountId, sessionId)?.thoroughness
       : undefined
     const thoroughness = isThoroughness(sessionLevel)
       ? sessionLevel
@@ -5919,18 +5909,17 @@ export class Service {
    */
   #delegationDepth(run: runs.RunRecord): number {
     return (
-      this.#db
-        .query<{depth: number}, [string]>(
-          `WITH RECURSIVE chain(id, parent_id, kind, n) AS (
-             SELECT id, parent_run_id, kind, 0 FROM runs WHERE id = ?1
-             UNION ALL
-             SELECT r.id, r.parent_run_id, r.kind, c.n + 1
-             FROM runs r JOIN chain c ON r.id = c.parent_id
-             WHERE c.n < 64
-           )
-           SELECT COUNT(*) AS depth FROM chain WHERE parent_id IS NOT NULL AND kind = 'agent'`,
-        )
-        .get(run.id)?.depth ?? 0
+      stmt<{depth: number}, [string]>(
+        this.#db,
+        `WITH RECURSIVE chain(id, parent_id, kind, n) AS (
+           SELECT id, parent_run_id, kind, 0 FROM runs WHERE id = ?1
+           UNION ALL
+           SELECT r.id, r.parent_run_id, r.kind, c.n + 1
+           FROM runs r JOIN chain c ON r.id = c.parent_id
+           WHERE c.n < 64
+         )
+         SELECT COUNT(*) AS depth FROM chain WHERE parent_id IS NOT NULL AND kind = 'agent'`,
+      ).get(run.id)?.depth ?? 0
     )
   }
 
@@ -5939,7 +5928,7 @@ export class Service {
     const limits = this.#delegationLimits(run)
     const depth = this.#delegationDepth(run)
     const childrenSpawned =
-      this.#db.query<{n: number}, [string]>(`SELECT COUNT(*) AS n FROM runs WHERE parent_run_id = ?`).get(run.id)?.n ??
+      stmt<{n: number}, [string]>(this.#db, `SELECT COUNT(*) AS n FROM runs WHERE parent_run_id = ?`).get(run.id)?.n ??
       0
     const canDelegate = depth < limits.maxDepth
     return {
@@ -5952,6 +5941,16 @@ export class Service {
     }
   }
 
+  /**
+   * The delegation contract a run is executing: the spec it must satisfy and the parent tool call
+   * its result answers.
+   *
+   * A typed child's spec rides the input of the run that SPAWNED it. Any later run on the same
+   * session — a user retry, a new message — carries no spec of its own, and before this inherited
+   * nothing: the output schema, the return_result tool, the typed-completion semantics and the
+   * parent link all vanished, so the child could not fulfil its contract and the parent parked
+   * forever. `sessions.run_id` is the durable record of that spawn, so later runs inherit from it.
+   */
   #spawnContextForRun(run: runs.RunRecord): {
     spec?: SubSessionSpec
     parentRunId?: string

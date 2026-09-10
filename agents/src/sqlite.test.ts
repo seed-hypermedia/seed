@@ -123,6 +123,27 @@ describe('sqlite', () => {
     }
   })
 
+  test('a database one migration behind gains only the newest migration (sessions.thoroughness)', () => {
+    // The array is prepend-only and reversed on apply, so the newest migration must sit at the
+    // top: placed lower, a deployed database would replay an older migration (tolerated as
+    // "already exists") and never receive the new column.
+    const db = createMemoryDatabase()
+    try {
+      db.run(sqlite.schema.replace(/    thoroughness TEXT,\n/u, ''))
+      expect(columnExists(db, 'sessions', 'thoroughness')).toBe(false)
+      db.run(`INSERT INTO server_config (key, value) VALUES (?, ?)`, [
+        sqlite.SCHEMA_MIGRATION_VERSION_KEY,
+        String(sqlite.desiredVersion - 1),
+      ])
+      const result = sqlite.openWithDatabase(db)
+      expect(result.ok).toBe(true)
+      expect(columnExists(db, 'sessions', 'thoroughness')).toBe(true)
+      expect(getConfigValue(db, sqlite.SCHEMA_MIGRATION_VERSION_KEY)).toBe(String(sqlite.desiredVersion))
+    } finally {
+      sqlite.closeDatabase(db)
+    }
+  })
+
   test('recreates baseline tables missing despite an up-to-date migration version', () => {
     // The migration version is only a count, so a database migrated on a feature branch whose Nth
     // migration differs from main's Nth carries the right number with the wrong schema. This is

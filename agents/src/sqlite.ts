@@ -14,6 +14,9 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Per-session thoroughness override (a THOROUGHNESS_PRESETS key, or NULL for the agent's own):
+  // the delegation budget new runs in the session start with.
+  `ALTER TABLE sessions ADD COLUMN thoroughness TEXT;`,
   // Per-session latest message (see SessionActivity in the protocol), so a session list can show
   // which chats hold something unread without the agent-level rollup.
   `ALTER TABLE sessions ADD COLUMN message_at INTEGER;
@@ -25,9 +28,6 @@ export const migrations: string[] = [
   ALTER TABLE agents ADD COLUMN message_at INTEGER;
   ALTER TABLE agents ADD COLUMN message_from TEXT;
   ALTER TABLE agents ADD COLUMN activity_session_id TEXT;`,
-  // Per-session thoroughness override (a THOROUGHNESS_PRESETS key, or NULL for the agent's own):
-  // the delegation budget new runs in the session start with.
-  `ALTER TABLE sessions ADD COLUMN thoroughness TEXT;`,
   // #getSessionTriggerContext filters trigger_firings by (account_id, session_id) with ORDER BY
   // created_at, but the only usable index was the (account_id, …) autoindex prefix — so each call
   // scanned every firing for the account and temp-b-tree-sorted (~9ms on prod). It runs once per
