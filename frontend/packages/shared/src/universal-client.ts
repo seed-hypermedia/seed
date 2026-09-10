@@ -104,5 +104,7 @@ export type UniversalClient = {
   getSigner?: (accountUid: string) => HMSigner
 
   // Combined prepare + sign + publish in one call
-  publishDocument?: (input: PublishDocumentInput) => Promise<void>
+  publishDocument?: (
+    input: PublishDocumentInput,
+  ) => Promise<void | import('@seed-hypermedia/client').PublishDocumentResult>
 }

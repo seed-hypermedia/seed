@@ -1338,6 +1338,10 @@ export const HMNavigationItemSchema = z.object({
 export type HMNavigationItem = z.infer<typeof HMNavigationItemSchema>
 
 export const HMDraftContentSchema = z.object({
+  /** Baselines superseded by reference maintenance; stale autosaves must not restore them. */
+  maintenancePreviousDeps: z.array(z.array(z.string())).optional(),
+  /** Monotonic local maintenance epoch; prevents stale same-version autosaves. */
+  maintenanceRevision: z.number().int().nonnegative().default(0),
   content: z.array(z.any()), // EditorBlock validation is handled elsewhere
   deps: z.array(z.string().min(1)).default([]),
   navigation: z.array(HMNavigationItemSchema).optional(),
@@ -1347,6 +1351,7 @@ export const HMDraftContentSchema = z.object({
    * auto-rebase classifier to distinguish locally-edited blocks from incoming
    * remote edits. Persisted so reload-after-rebase keeps the touch history.
    */
+  removedChildDocumentIds: z.array(z.string()).optional(),
   mineTouchedIds: z.array(z.string()).optional(),
   /**
    * Snapshot of the published HMBlockNode[] tree at the time the draft was

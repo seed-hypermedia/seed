@@ -30,6 +30,7 @@ import {
 } from '@shm/ui/components/dropdown-menu'
 import {createCopyLinkMenuItem} from '@shm/ui/copy-link-menu'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
+import {useDocumentMaintenance} from '@shm/ui/document-maintenance'
 import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {HMIcon} from '@shm/ui/hm-icon'
@@ -53,6 +54,7 @@ import {
   Import as ImportIcon,
   Layers,
   LayoutList,
+  ListChecks,
   LogOut,
   Plus,
   Search,
@@ -175,6 +177,7 @@ export function useWebCreateDocumentMenuItem({
 } {
   const navigate = useNavigate()
   const importInputRef = useRef<HTMLInputElement>(null)
+  const client = useUniversalClient()
 
   const createDraft = useCallback(
     (visibility?: HMResourceVisibility, collection = false) => {
@@ -186,6 +189,7 @@ export function useWebCreateDocumentMenuItem({
       })
       const seed = collection ? buildCollectionDraftSeed(crypto.randomUUID()) : null
       void createWebDocumentDraft({
+        client,
         locationId,
         signingAccountId,
         visibility,
@@ -197,9 +201,9 @@ export function useWebCreateDocumentMenuItem({
           ? {content: editorBlocksToHMBlockNodes([createDefaultCollectionQueryBlock(nanoid(8))]), persist: true}
           : {}),
         navigate: (route) => navigate(route),
-      })
+      }).catch((error) => toast.error(error instanceof Error ? error.message : 'Could not create document'))
     },
-    [capabilityCid, locationId, navigate, signingAccountId],
+    [client, capabilityCid, locationId, navigate, signingAccountId],
   )
 
   const menuItem = useMemo<MenuItemType | null>(() => {
@@ -246,6 +250,7 @@ export function useWebCreateDocumentMenuItem({
             if (!file) return
             toast.promise(
               createWebDocumentDraftFromMarkdownFile({
+                client,
                 file,
                 locationId,
                 signingAccountId,
@@ -279,6 +284,9 @@ function PlaceholderAvatar({onClick}: {onClick: () => void}) {
  * Site-header join button or avatar with notifications bell
  */
 export function WebHeaderActions({siteUid}: {siteUid: string}) {
+  const maintenance = useDocumentMaintenance()
+  const accountMenuTriggerRef = useRef<HTMLButtonElement>(null)
+  const openMaintenanceOnMenuClose = useRef(false)
   const keyPair = useLocalKeyPair()
   const accountId = keyPair?.delegatedAccountUid ?? keyPair?.id
   const {content: createAccountContent, createAccount} = useCreateAccount({})
@@ -384,6 +392,19 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
         <UserCog className="size-5" />
         <span className="text-sm">Manage account</span>
       </button>
+      {maintenance ? (
+        <button
+          className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
+          aria-haspopup="dialog"
+          onClick={() => {
+            setMobileMenuOpen(false)
+            if (accountMenuTriggerRef.current) maintenance.openDialog(accountMenuTriggerRef.current)
+          }}
+        >
+          <ListChecks className="size-5" />
+          <span className="text-sm">Document maintenance</span>
+        </button>
+      ) : null}
       <div className="bg-border mx-4 h-px" />
       {canCreateSpace ? (
         <button
@@ -431,7 +452,11 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
       {isMobile ? (
         <div className="flex items-center gap-2">
           {keyPair.notifyServerUrl ? <NotifsButton /> : null}
-          <button className="flex cursor-pointer rounded-full shadow-lg" onClick={() => setMobileMenuOpen(true)}>
+          <button
+            ref={accountMenuTriggerRef}
+            className="flex cursor-pointer rounded-full shadow-lg"
+            onClick={() => setMobileMenuOpen(true)}
+          >
             {avatarIcon}
           </button>
           {joinButton}
@@ -451,9 +476,23 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
           {keyPair.notifyServerUrl ? <NotifsButton /> : null}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex cursor-pointer rounded-full shadow-lg">{avatarIcon}</button>
+              <button ref={accountMenuTriggerRef} className="flex cursor-pointer rounded-full shadow-lg">
+                {avatarIcon}
+              </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="bottom" align="end" className="min-w-[200px]">
+            <DropdownMenuContent
+              side="bottom"
+              align="end"
+              className="min-w-[200px]"
+              onCloseAutoFocus={(event) => {
+                if (!openMaintenanceOnMenuClose.current) return
+                openMaintenanceOnMenuClose.current = false
+                if (maintenance && accountMenuTriggerRef.current) {
+                  event.preventDefault()
+                  maintenance.openDialog(accountMenuTriggerRef.current)
+                }
+              }}
+            >
               <div className="flex items-center gap-3 px-2 py-2">
                 {avatarIcon}
                 <div className="min-w-0">
@@ -482,6 +521,17 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                 <UserCog className="size-4" />
                 Manage account
               </DropdownMenuItem>
+              {maintenance ? (
+                <DropdownMenuItem
+                  aria-haspopup="dialog"
+                  onSelect={() => {
+                    openMaintenanceOnMenuClose.current = true
+                  }}
+                >
+                  <ListChecks className="size-4" />
+                  Document maintenance
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
               {canCreateSpace ? (
                 <DropdownMenuItem

@@ -372,6 +372,34 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
+  it.each([false, true])('keeps a refetched parent while waiting for draft hydration (draft: %s)', (hasDraft) => {
+    const actor = createTestActor()
+    actor.start()
+    const card = {
+      block: {id: 'child-card', type: 'Embed', link: 'hm://z6Mktest/doc/child', attributes: {view: 'Card'}},
+      children: [],
+    } as HMBlockNode
+    const fresh = {...mockDocument, version: 'maintenance-version', content: [card]}
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'document.remoteUpdate', document: fresh})
+    actor.send({
+      type: 'draft.resolved',
+      draftId: hasDraft ? 'parent-draft' : null,
+      content: hasDraft ? [card] : null,
+      cursorPosition: null,
+      deps: hasDraft ? ['maintenance-version'] : null,
+      baseBlocks: hasDraft ? [card] : null,
+    })
+    expect(actor.getSnapshot().context.document).toEqual(fresh)
+    expect(actor.getSnapshot().context.publishedVersion).toBe('maintenance-version')
+    if (hasDraft) {
+      expect(actor.getSnapshot().context.deps).toEqual(['maintenance-version'])
+      expect(actor.getSnapshot().context.baseBlocks).toEqual([card])
+      expect(actor.getSnapshot().context.draftContent).toEqual([card])
+    }
+    actor.stop()
+  })
+
   it('loading → document.loaded + draft.resolved → loaded', () => {
     const actor = createTestActor()
     actor.start()

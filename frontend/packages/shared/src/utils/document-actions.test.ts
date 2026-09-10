@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {hmId} from './entity-id-url'
 import {
+  canUseDocumentDestination,
   canShowMoveDocumentAction,
   canShowRepublishDocumentAction,
   canUseDocumentAsDestinationParent,
@@ -53,7 +54,62 @@ describe('move target validation', () => {
   })
 
   it('excludes private documents as destination parents', () => {
-    expect(canUseDocumentAsDestinationParent({visibility: 'PRIVATE'})).toBe(false)
-    expect(canUseDocumentAsDestinationParent({visibility: 'PUBLIC'})).toBe(true)
+    expect(canUseDocumentAsDestinationParent({visibility: 'PRIVATE', version: 'v1'})).toBe(false)
+    expect(canUseDocumentAsDestinationParent(undefined)).toBe(false)
+    expect(canUseDocumentAsDestinationParent({visibility: 'PUBLIC'})).toBe(false)
+    expect(canUseDocumentAsDestinationParent({visibility: 'PUBLIC', version: 'v1'})).toBe(true)
+  })
+})
+
+describe('document destination occupancy', () => {
+  const source = hmId('site', {path: ['new']})
+  const destination = hmId('site', {path: ['old']})
+  it('allows moving back over a direct move redirect to the current source', () => {
+    expect(
+      canUseDocumentDestination({type: 'redirect', id: destination, redirectTarget: source, republish: false}, source),
+    ).toBe(true)
+  })
+  it('rejects real documents, unrelated redirects, republished paths, and unknown results', () => {
+    expect(canUseDocumentDestination({type: 'document', id: destination, document: {} as any}, source)).toBe(false)
+    expect(
+      canUseDocumentDestination(
+        {type: 'redirect', id: destination, redirectTarget: hmId('site', {path: ['other']}), republish: false},
+        source,
+      ),
+    ).toBe(false)
+    expect(
+      canUseDocumentDestination({type: 'redirect', id: destination, redirectTarget: source, republish: true}, source),
+    ).toBe(false)
+    expect(
+      canUseDocumentDestination(
+        {type: 'redirect', id: destination, redirectTarget: hmId('other', {path: ['new']}), republish: false},
+        source,
+      ),
+    ).toBe(false)
+    expect(canUseDocumentDestination(undefined, source)).toBe(false)
+    expect(canUseDocumentDestination({type: 'error', id: destination, message: 'offline'}, source)).toBe(false)
+  })
+  it('rejects pinned redirect targets but compares source permalinks by document identity', () => {
+    expect(
+      canUseDocumentDestination(
+        {type: 'redirect', id: destination, redirectTarget: {...source, version: 'old-version'}, republish: false},
+        source,
+      ),
+    ).toBe(false)
+    expect(
+      canUseDocumentDestination(
+        {type: 'redirect', id: destination, redirectTarget: source, republish: false},
+        {...source, version: 'current-version'},
+      ),
+    ).toBe(true)
+  })
+  it('does not let drafts or republishing reuse a redirect', () => {
+    expect(
+      canUseDocumentDestination({type: 'redirect', id: destination, redirectTarget: source, republish: false}),
+    ).toBe(false)
+  })
+  it('allows empty and deleted destinations', () => {
+    expect(canUseDocumentDestination({type: 'not-found', id: destination})).toBe(true)
+    expect(canUseDocumentDestination({type: 'tombstone', id: destination})).toBe(true)
   })
 })

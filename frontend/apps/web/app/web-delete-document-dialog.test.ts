@@ -20,6 +20,7 @@ vi.mock('@shm/shared/models/query-client', () => ({
 }))
 
 vi.mock('./document-edit/web-document-card-cleanup', () => ({
+  releaseWebDocumentCardCleanup: vi.fn(async () => {}),
   enqueueWebDocumentCardCleanup: enqueueCleanupMock,
 }))
 
@@ -85,11 +86,13 @@ describe('deleteWebDocuments', () => {
       },
       expect.anything(),
     )
+    expect(enqueueCleanupMock.mock.invocationCallOrder.at(-1)!).toBeLessThan(publish.mock.invocationCallOrder[0]!)
     expect(publish).toHaveBeenCalledTimes(2)
     expect(invalidateQueriesMock).toHaveBeenCalled()
     expect(enqueueCleanupMock).toHaveBeenCalledWith(
       {
         deletedDocumentId: ids[0]!.id,
+        awaitingPrimary: {documentId: ids[0]!.id, expectedType: 'tombstone'},
         signingAccountUid: 'uid-1',
         capabilityId: 'cap-cid',
       },

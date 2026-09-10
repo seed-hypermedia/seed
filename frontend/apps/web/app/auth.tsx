@@ -8,6 +8,7 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
+import {DocumentMaintenanceTrigger} from '@shm/ui/document-maintenance'
 import {EditProfileForm, SiteMetaFields} from '@shm/ui/edit-profile-form'
 import {SeedLogo} from '@shm/ui/seed-logo'
 import {Spinner} from '@shm/ui/spinner'
@@ -690,6 +691,7 @@ export function LogoutButton() {
           </a>
         </Button>
       ) : null}
+      <DocumentMaintenanceTrigger alwaysVisible />
       <Button variant="outline" onClick={() => logoutDialog.open({})}>
         <LogOut className="size-4" />
         {tx('Logout')}

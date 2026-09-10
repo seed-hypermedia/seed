@@ -1,3 +1,4 @@
+import {DocumentMaintenanceBanner} from '@shm/ui/document-maintenance'
 import {MainWrapper} from '@/components/main-wrapper'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {
@@ -48,6 +49,7 @@ export default function NotificationsPage() {
       <PanelContainer className="dark:bg-background bg-white">
         <MainWrapper scrollable>
           <GeneralPageSurface>
+            <DocumentMaintenanceBanner />
             <NotificationPageEmptyState title="Notifications" description="Select an account to view notifications." />
           </GeneralPageSurface>
         </MainWrapper>

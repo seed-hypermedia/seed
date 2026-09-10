@@ -1,10 +1,20 @@
+import {reconcileChildRemovalIntent} from '@shm/shared/utils/confirmed-child-deletion'
+import {getCleanupJobParent} from '@shm/shared/models/document-card-cleanup-machine'
+import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
+import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
+import {
+  executeConfirmedChildDeletion,
+  resolveDirectDocumentReferences,
+} from '@shm/shared/utils/confirmed-child-deletion'
+import type {UniversalClient} from '@shm/shared/universal-client'
+import {rebaseDocumentReferenceDraft, findPublishedCardPosition} from '@shm/shared/utils/document-reference-rebase'
+import type {HMDocument} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId} from '@seed-hypermedia/client/hm-types'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {prepareHMDocument} from '@shm/shared/document-utils'
-import {hasSelfQueryBlockInEditorContent} from '@shm/shared/content'
 import {
-  hmLinkTargetsDocument,
+  verifyDocumentCleanupPrimary,
   planDocumentCardAppend,
   planDocumentCardRemoval,
   planDocumentCardRewrite,
@@ -15,7 +25,7 @@ import {appStore} from './app-store.mts'
 import {getSigner, seedClient} from './app-client'
 import {grpcClient} from './app-grpc'
 import {appInvalidateQueries} from './app-invalidation'
-import {draftsApi} from './app-drafts'
+import {draftsApi, compareAndSwapDraft} from './app-drafts'
 import {t} from './app-trpc'
 import {dispatchAllWindowsAppEvent} from './app-windows'
 import * as log from './logger'
@@ -55,6 +65,7 @@ type RunOptions = {
 let scheduledRun: ReturnType<typeof setTimeout> | null = null
 let hasStarted = false
 let cleanupActor: any | null = null
+let storageError: string | undefined
 
 function getParentDocumentId(deletedDocumentId: string) {
   const id = unpackHmId(deletedDocumentId)
@@ -107,106 +118,16 @@ async function resolveParentCapability(
   return capability?.id || job.capabilityId
 }
 
-type EditorBlockLike = {
-  id?: string
-  type?: string
-  props?: {url?: string; view?: string}
-  children?: EditorBlockLike[]
-  [key: string]: unknown
-}
-
-function isMatchingDocumentDraftEmbed(block: EditorBlockLike, documentId: string) {
-  if (block.type !== 'embed') return false
-  const url = block.props?.url
-  return !!url && hmLinkTargetsDocument(url, documentId)
-}
-
-function removeDocumentEmbedsFromDraftBlocks(blocks: EditorBlockLike[], documentId: string) {
-  const removedBlockIds: string[] = []
-  const inspectedEmbeds: Array<{id?: string; view?: string; url?: string; matches: boolean}> = []
-
-  function expandBlock(block: EditorBlockLike): EditorBlockLike[] {
-    const children = Array.isArray(block.children) ? block.children : []
-    const isMatchingEmbed = isMatchingDocumentDraftEmbed(block, documentId)
-    if (block.type === 'embed') {
-      inspectedEmbeds.push({id: block.id, view: block.props?.view, url: block.props?.url, matches: isMatchingEmbed})
-    }
-    if (isMatchingEmbed) {
-      if (block.id) removedBlockIds.push(block.id)
-      return children.flatMap(expandBlock)
-    }
-
-    const nextChildren = children.flatMap(expandBlock)
-    return [{...block, children: nextChildren}]
-  }
-
-  const content = blocks.flatMap(expandBlock)
-  return {content, removedBlockIds, inspectedEmbeds}
-}
-
-const removeDeletedDocumentEmbedsFromDraftBlocks = removeDocumentEmbedsFromDraftBlocks
-
-function draftBlocksContainDocumentLink(blocks: EditorBlockLike[], documentId: string): boolean {
-  return blocks.some((block) => {
-    if (isMatchingDocumentDraftEmbed(block, documentId)) return true
-    return Array.isArray(block.children) && draftBlocksContainDocumentLink(block.children, documentId)
-  })
-}
-
-function appendDocumentCardToDraftBlocks(blocks: EditorBlockLike[], documentId: string) {
-  const blockId = nanoid(10)
-  return {
-    content: [
-      ...blocks,
-      {
-        id: blockId,
-        type: 'embed',
-        props: {url: documentId, view: 'Card', defaultOpen: 'false'},
-        content: [],
-        children: [],
-      },
-    ],
-    changedBlockIds: [blockId],
-  }
-}
-
-function rewriteDocumentEmbedsInDraftBlocks(
-  blocks: EditorBlockLike[],
-  sourceDocumentId: string,
-  targetDocumentId: string,
-) {
-  const rewrittenBlockIds: string[] = []
-
-  function rewrite(block: EditorBlockLike): EditorBlockLike {
-    const children = Array.isArray(block.children) ? block.children.map(rewrite) : []
-    if (isMatchingDocumentDraftEmbed(block, sourceDocumentId)) {
-      if (block.id) rewrittenBlockIds.push(block.id)
-      return {
-        ...block,
-        props: {
-          ...block.props,
-          url: targetDocumentId,
-          view: block.props?.view || 'Card',
-        },
-        children,
-      }
-    }
-    return {...block, children}
-  }
-
-  return {content: blocks.map(rewrite), changedBlockIds: rewrittenBlockIds}
-}
-
 function getJobOperation(job: DocumentCardCleanupJob): DocumentCardCleanupOperation {
   return job.operation || 'remove'
 }
 
 function getJobSourceDocumentId(job: DocumentCardCleanupJob) {
-  return job.sourceDocumentId || job.deletedDocumentId
+  return job.source?.id
 }
 
 function getJobTargetDocumentId(job: DocumentCardCleanupJob) {
-  return job.targetDocumentId || job.sourceDocumentId || job.deletedDocumentId
+  return job.target?.id || job.source?.id
 }
 
 async function loadParentDraft(parentDocumentId: string, jobId?: string) {
@@ -236,114 +157,73 @@ async function loadParentDraft(parentDocumentId: string, jobId?: string) {
   return draft
 }
 
-async function cleanupParentDraft(job: DocumentCardCleanupJob, draft: Awaited<ReturnType<typeof loadParentDraft>>) {
-  if (!draft) return []
-
-  const drafts = draftsApi.createCaller({})
-  const originalContent = (draft.content || []) as EditorBlockLike[]
-  const operation = getJobOperation(job)
-  const sourceDocumentId = getJobSourceDocumentId(job)
-  const targetDocumentId = getJobTargetDocumentId(job)
-  let content = originalContent
-  let changedBlockIds: string[] = []
-  let inspectedEmbeds: Array<{id?: string; view?: string; url?: string; matches: boolean}> = []
-
-  if (operation === 'remove' && sourceDocumentId) {
-    const result = removeDocumentEmbedsFromDraftBlocks(originalContent, sourceDocumentId)
-    content = result.content
-    changedBlockIds = result.removedBlockIds
-    inspectedEmbeds = result.inspectedEmbeds
-  } else if (operation === 'add' && targetDocumentId) {
-    const parent = unpackHmId(job.parentDocumentId)
-    if (!parent) throw new Error(`Invalid parent document id: ${job.parentDocumentId}`)
-    if (
-      !hasSelfQueryBlockInEditorContent(originalContent, parent.uid, parent.path || []) &&
-      !draftBlocksContainDocumentLink(originalContent, targetDocumentId)
-    ) {
-      const result = appendDocumentCardToDraftBlocks(originalContent, targetDocumentId)
-      content = result.content
-      changedBlockIds = result.changedBlockIds
-    }
-  } else if (operation === 'rewrite' && sourceDocumentId && targetDocumentId) {
-    if (!draftBlocksContainDocumentLink(originalContent, targetDocumentId)) {
-      const result = rewriteDocumentEmbedsInDraftBlocks(originalContent, sourceDocumentId, targetDocumentId)
-      content = result.content
-      changedBlockIds = result.changedBlockIds
-    }
+async function reconcileParentDraft(
+  job: DocumentCardCleanupJob,
+  publishedDocument: NonNullable<Awaited<ReturnType<typeof loadParentDocument>>>,
+) {
+  const draft = await loadParentDraft(getCleanupJobParent(job).id, job.id)
+  if (!draft) return
+  let base = draft.baseBlocks
+  if (!base) {
+    if (!draft.deps?.length) throw new Error('Parent draft has no published baseline')
+    const parent = getCleanupJobParent(job)
+    const document = await grpcClient.documents.getDocument({
+      account: parent.uid,
+      path: hmIdPathToEntityQueryPath(parent.path || []),
+      version: draft.deps.join('.'),
+    })
+    base = prepareHMDocument(document).content || []
   }
-
-  cleanupDebug(`${CLEANUP_LOG_PREFIX} draft scan`, {
-    jobId: job.id,
-    deletedDocumentId: job.deletedDocumentId,
-    operation,
-    sourceDocumentId,
-    targetDocumentId,
-    parentDocumentId: job.parentDocumentId,
-    draftId: draft.id,
-    topLevelBlockCountBefore: originalContent.length,
-    topLevelBlockCountAfter: content.length,
-    inspectedEmbeds,
-    removedBlockIds: changedBlockIds,
-  })
-  if (!changedBlockIds.length) return []
-
-  cleanupInfo(`${CLEANUP_LOG_PREFIX} writing parent draft`, {
-    jobId: job.id,
-    deletedDocumentId: job.deletedDocumentId,
-    parentDocumentId: job.parentDocumentId,
-    draftId: draft.id,
-    removedBlockIds: changedBlockIds,
-    autoReload: true,
-  })
-
-  await drafts.write({
-    id: draft.id,
-    locationUid: draft.locationUid,
-    locationPath: draft.locationPath,
-    editUid: draft.editUid,
-    editPath: draft.editPath,
-    metadata: draft.metadata || {},
-    content,
-    deps: draft.deps || [],
-    navigation: draft.navigation,
-    visibility: draft.visibility,
-    cursorPosition: draft.cursorPosition,
-    mineTouchedIds: draft.mineTouchedIds,
-    baseBlocks: draft.baseBlocks,
-    publishPath: draft.publishPath,
-  })
+  const previousContent = editorBlocksToHMBlockNodes(draft.content || [])
+  function resolveTemporaryCards(blocks: any[]): any[] {
+    return blocks.map((block) => ({
+      ...block,
+      ...(job.operation === 'add' && job.childDraftId && block.props?.draftId === job.childDraftId
+        ? {props: {...block.props, draftId: '', url: getJobTargetDocumentId(job), revision: undefined}}
+        : {}),
+      children: resolveTemporaryCards(block.children || []),
+    }))
+  }
+  const mine = editorBlocksToHMBlockNodes(resolveTemporaryCards(draft.content || []))
+  const result = rebaseDocumentReferenceDraft(
+    {...job, sourceDocumentId: job.source?.id, targetDocumentId: job.target?.id},
+    base,
+    mine,
+    publishedDocument.content || [],
+  )
+  if (
+    !(await compareAndSwapDraft(draft, {
+      ...draft,
+      removedChildDocumentIds: reconcileChildRemovalIntent(
+        {operation: job.operation, sourceDocumentId: job.source?.id, targetDocumentId: job.target?.id},
+        draft.removedChildDocumentIds ?? [],
+      ),
+      content: hmBlocksToEditorContent(result.content),
+      baseBlocks: publishedDocument.content || [],
+      deps: publishedDocument.version.split('.'),
+      mineTouchedIds: result.mineTouchedIds,
+    }))
+  ) {
+    throw new Error('Parent draft changed while reconciling; retrying with the latest edits')
+  }
   appInvalidateQueries([queryKeys.DRAFT, draft.id])
-  cleanupInfo(`${CLEANUP_LOG_PREFIX} broadcasting draft externally modified`, {
-    jobId: job.id,
-    deletedDocumentId: job.deletedDocumentId,
-    parentDocumentId: job.parentDocumentId,
-    draftId: draft.id,
-    removedBlockIds: changedBlockIds,
-  })
   dispatchAllWindowsAppEvent({
     type: 'draft_externally_modified',
     draftId: draft.id,
     source: 'document-card-cleanup',
-    deletedDocumentId: job.deletedDocumentId,
-    removedBlockIds: changedBlockIds,
-    autoReload: true,
-  })
-  const writtenDraft = await drafts.get(draft.id)
-  const writtenContent = (writtenDraft?.content || []) as EditorBlockLike[]
-  const verifyScan = sourceDocumentId
-    ? removeDeletedDocumentEmbedsFromDraftBlocks(writtenContent, sourceDocumentId)
-    : {removedBlockIds: []}
-  cleanupInfo(`${CLEANUP_LOG_PREFIX} parent draft written`, {
     jobId: job.id,
-    deletedDocumentId: job.deletedDocumentId,
-    parentDocumentId: job.parentDocumentId,
-    draftId: draft.id,
-    removedBlockIds: changedBlockIds,
-    notifiedWindows: true,
-    topLevelBlockCountOnDisk: writtenContent.length,
-    stillMatchingBlockIdsOnDisk: verifyScan.removedBlockIds,
+    maintenanceRevision: (draft.maintenanceRevision ?? 0) + 1,
+    cardBlockId: job.cardBlockId,
+    childDraftId: job.childDraftId,
+    targetBlockId: job.targetBlockId,
+    operation: getJobOperation(job) as 'add' | 'remove' | 'rewrite',
+    sourceDocumentId: getJobSourceDocumentId(job),
+    targetDocumentId: getJobTargetDocumentId(job),
+    deletedDocumentId: job.source?.id,
+    previousContent,
+    publishedDocument,
+    autoReload: false,
   })
-  return changedBlockIds
 }
 
 async function publishParentUpdate(
@@ -351,8 +231,9 @@ async function publishParentUpdate(
   parentDocument: Awaited<ReturnType<typeof loadParentDocument>>,
   changes: any[],
 ) {
-  const parent = unpackHmId(job.parentDocumentId)
-  if (!parent) throw new Error(`Invalid parent document id: ${job.parentDocumentId}`)
+  if (storageError) throw new Error(storageError)
+  const parent = getCleanupJobParent(job)
+  if (!parent) throw new Error(`Invalid parent document id: ${getCleanupJobParent(job).id}`)
   if (!parentDocument) return 'missing-parent' as const
   await seedClient.publishDocument(
     {
@@ -370,39 +251,103 @@ async function publishParentUpdate(
 }
 
 function createCleanupActor() {
-  const persistedSnapshot = appStore.get(CLEANUP_MACHINE_STORAGE_KEY)
+  const persistedSnapshot = appStore.get(CLEANUP_MACHINE_STORAGE_KEY) as
+    | {context?: {jobs?: DocumentCardCleanupJob[]}}
+    | undefined
   const previousStore = normalizeDocumentCardCleanupStore(
-    appStore.get(CLEANUP_STORAGE_KEY) as DocumentCardCleanupStore | undefined,
+    (appStore.get(CLEANUP_STORAGE_KEY) as DocumentCardCleanupStore | undefined) ?? {
+      coordinatorState: 'idle',
+      jobs: persistedSnapshot?.context?.jobs || [],
+    },
   )
   const machine = createDocumentCardCleanupCoordinatorMachine({
     now: () => Date.now(),
     getParentDocumentId,
     scheduleCleanup: scheduleDocumentCardCleanup,
-    loadParentDraft: (job) => loadParentDraft(job.parentDocumentId, job.id),
-    loadParentDocument: (job) => loadParentDocument(job.parentDocumentId),
-    cleanupParentDraft: (job, draft) => cleanupParentDraft(job, draft as any),
-    planPublishedParent: (job, parentDocument) => {
+    loadParentDraft: (job) => loadParentDraft(getCleanupJobParent(job).id, job.id),
+    loadParentDocument: (job) => loadParentDocument(getCleanupJobParent(job).id),
+    cleanupParentDraft: async () => [],
+    verifyPrimaryOutcome: (job) =>
+      verifyDocumentCleanupPrimary({request: seedClient.request as UniversalClient['request']}, job.awaitingPrimary!),
+    executeConfirmedDeletion: (job) => {
+      if (storageError) throw new Error(storageError)
+      return executeConfirmedChildDeletion(
+        {request: seedClient.request as UniversalClient['request'], publish: seedClient.publish, getSigner},
+        {...job, parentDocumentId: getCleanupJobParent(job).id, sourceDocumentId: job.source?.id},
+      )
+    },
+    findTemporaryCard: async (job) => {
+      const draft = await loadParentDraft(getCleanupJobParent(job).id)
+      function find(blocks: any[]): string | undefined {
+        for (const block of blocks) {
+          if (block.props?.draftId === job.childDraftId) return block.id
+          const nested = find(block.children || [])
+          if (nested) return nested
+        }
+      }
+      const blockId = find(draft?.content || [])
+      if (!blockId || !draft) return undefined
+      const published = await loadParentDocument(getCleanupJobParent(job).id)
+      const position = findPublishedCardPosition(
+        published?.content || [],
+        editorBlocksToHMBlockNodes(draft.content || []),
+        blockId,
+      )
+      return {blockId, parentId: position?.parent || '', leftSibling: position?.leftSibling || ''}
+    },
+    reconcileParentDraft: (job, document) => {
+      if (storageError) throw new Error(storageError)
+      return reconcileParentDraft(job, document as any)
+    },
+    planPublishedParent: async (job, parentDocument) => {
       const operation = getJobOperation(job)
       const sourceDocumentId = getJobSourceDocumentId(job)
       const targetDocumentId = getJobTargetDocumentId(job)
       const plan =
         operation === 'add' && targetDocumentId
-          ? planDocumentCardAppend(parentDocument as any, job.parentDocumentId, targetDocumentId, nanoid(10))
+          ? planDocumentCardAppend(
+              parentDocument as any,
+              getCleanupJobParent(job).id,
+              targetDocumentId,
+              job.cardBlockId || nanoid(10),
+            )
           : operation === 'rewrite' && sourceDocumentId && targetDocumentId
             ? planDocumentCardRewrite(parentDocument as any, sourceDocumentId, targetDocumentId)
             : sourceDocumentId
-              ? planDocumentCardRemoval(parentDocument as any, sourceDocumentId)
+              ? planDocumentCardRemoval(parentDocument as any, sourceDocumentId, {targetBlockId: job.targetBlockId})
               : {changes: [], removedBlockIds: []}
       cleanupDebug(`${CLEANUP_LOG_PREFIX} published parent plan`, {
         jobId: job.id,
-        deletedDocumentId: job.deletedDocumentId,
+        deletedDocumentId: job.source?.id,
         operation,
         sourceDocumentId,
         targetDocumentId,
-        parentDocumentId: job.parentDocumentId,
+        parentDocumentId: getCleanupJobParent(job).id,
         changeCount: plan.changes.length,
         removedBlockIds: 'removedBlockIds' in plan ? plan.removedBlockIds : [],
       })
+      if (operation === 'add' && plan.changes.length && targetDocumentId) {
+        const references = await resolveDirectDocumentReferences((parentDocument as HMDocument).content || [])
+        if (references.ids.some((id) => id.id === targetDocumentId)) return {changes: [], removedBlockIds: []}
+        if (references.unresolved.length)
+          throw new Error('Cannot resolve all parent links. Review the parent references before retrying.')
+        if (job.cardParentId !== undefined) {
+          for (const change of plan.changes) {
+            if (change.op.case === 'moveBlock') {
+              change.op.value.parent = job.cardParentId
+              change.op.value.leftSibling = job.cardLeftSibling || ''
+            }
+          }
+        }
+      }
+      const targetIdentity = job.target || (operation === 'add' ? job.source : undefined)
+      if ((operation === 'add' || operation === 'rewrite') && plan.changes.length && targetIdentity) {
+        const target = await seedClient.request('Resource', {...targetIdentity, version: null, latest: true})
+        if (target.type !== 'document')
+          throw new Error(
+            'The child target moved, was deleted, or is not yet available. Review this reference update before retrying.',
+          )
+      }
       return {
         changes: plan.changes,
         removedBlockIds:
@@ -424,8 +369,8 @@ function createCleanupActor() {
     onJobProgress: (job) => {
       cleanupDebug(`${CLEANUP_LOG_PREFIX} job progress`, {
         jobId: job.id,
-        deletedDocumentId: job.deletedDocumentId,
-        parentDocumentId: job.parentDocumentId,
+        deletedDocumentId: job.source?.id,
+        parentDocumentId: getCleanupJobParent(job).id,
         state: job.state,
         attempts: job.attempts,
         nextRunAt: job.nextRunAt ?? null,
@@ -433,16 +378,15 @@ function createCleanupActor() {
     },
   })
 
-  const actor = createActor(
-    machine as any,
-    persistedSnapshot
-      ? ({snapshot: persistedSnapshot as any, input: {jobs: previousStore.jobs}} as any)
-      : {input: {jobs: previousStore.jobs}},
-  )
+  const actor = createActor(machine as any, {input: {jobs: previousStore.jobs}})
   actor.subscribe((snapshot) => {
     const publicSnapshot = getPublicDocumentCardCleanupSnapshot(snapshot as any)
-    appStore.set(CLEANUP_MACHINE_STORAGE_KEY, actor.getPersistedSnapshot())
-    appStore.set(CLEANUP_STORAGE_KEY, publicSnapshot)
+    try {
+      appStore.set(CLEANUP_STORAGE_KEY, publicSnapshot)
+    } catch (error) {
+      storageError = error instanceof Error ? error.message : 'Could not save document maintenance progress'
+      log.error('Document maintenance storage failed; subsequent mutations are paused', {error: storageError})
+    }
     appInvalidateQueries(CLEANUP_STATUS_QUERY_KEY)
   })
   actor.start()
@@ -468,18 +412,110 @@ function scheduleDocumentCardCleanup(delayMs?: number | null) {
   }, delayMs)
 }
 
+/** Durable parent-reference maintenance and recovery endpoints. */
 export const documentCardCleanupApi = t.router({
-  getSnapshot: t.procedure.query(() => getPublicSnapshot()),
+  retry: t.procedure.input(z.object({jobId: z.string()})).mutation(({input}) => {
+    getCleanupActor().send({type: 'cleanup.retry', jobId: input.jobId})
+    return getPublicSnapshot()
+  }),
+  reviewDeletion: t.procedure.input(z.object({jobId: z.string()})).query(async ({input}) => {
+    const job = getPublicSnapshot().jobs.find((job) => job.id === input.jobId)
+    if (!job || job.operation !== 'delete-child' || (job.state !== 'failedNeedsAttention' && job.state !== 'dismissed'))
+      throw new Error('This deletion is no longer awaiting review')
+    const {reviewConfirmedChildDeletion} = await import('@shm/shared/utils/confirmed-child-deletion')
+    return reviewConfirmedChildDeletion(
+      {request: seedClient.request as UniversalClient['request']},
+      {
+        parentDocumentId: getCleanupJobParent(job).id,
+        sourceDocumentId: job.source?.id,
+        approvedSubtree: job.approvedSubtree,
+        authorizingParentVersion: job.authorizingParentVersion,
+      },
+    )
+  }),
+  confirmDeletion: t.procedure
+    .input(
+      z.object({jobId: z.string(), approvedSubtree: z.array(z.object({id: z.string(), version: z.string()})).min(1)}),
+    )
+    .mutation(async ({input}) => {
+      const job = getPublicSnapshot().jobs.find((job) => job.id === input.jobId)
+      if (
+        !job ||
+        job.operation !== 'delete-child' ||
+        (job.state !== 'failedNeedsAttention' && job.state !== 'dismissed')
+      )
+        throw new Error('This deletion is no longer awaiting review')
+      const {reviewConfirmedChildDeletion} = await import('@shm/shared/utils/confirmed-child-deletion')
+      const current = await reviewConfirmedChildDeletion(
+        {request: seedClient.request as UniversalClient['request']},
+        {
+          parentDocumentId: getCleanupJobParent(job).id,
+          sourceDocumentId: job.source?.id,
+          approvedSubtree: job.approvedSubtree,
+          authorizingParentVersion: job.authorizingParentVersion,
+        },
+      )
+      if (
+        current.length !== input.approvedSubtree.length ||
+        current.some(
+          (document) =>
+            !input.approvedSubtree.some(
+              (approved) => approved.id === document.id && approved.version === document.version,
+            ),
+        )
+      )
+        throw new Error('The deletion scope changed again. Review the current scope before confirming.')
+      getCleanupActor().send({type: 'cleanup.reconfirmDeletion', ...input})
+      if (storageError) throw new Error(storageError)
+      return getPublicSnapshot()
+    }),
+  dismiss: t.procedure.input(z.object({jobId: z.string()})).mutation(({input}) => {
+    if (storageError) throw new Error(storageError)
+    getCleanupActor().send({type: 'cleanup.dismiss', jobId: input.jobId})
+    if (storageError) throw new Error(storageError)
+    return getPublicSnapshot()
+  }),
+  clearDismissed: t.procedure.mutation(() => {
+    if (storageError) throw new Error(storageError)
+    getCleanupActor().send({type: 'cleanup.clearDismissed'})
+    if (storageError) throw new Error(storageError)
+    return getPublicSnapshot()
+  }),
+  getSnapshot: t.procedure.query(() => ({...getPublicSnapshot(), storageError})),
+  release: t.procedure
+    .input(z.object({jobId: z.string(), authorizingParentVersion: z.string().optional()}))
+    .mutation(({input}) => {
+      getCleanupActor().send({type: 'cleanup.release', ...input})
+      if (storageError) throw new Error(storageError)
+      return getPublicSnapshot()
+    }),
+  reportConflict: t.procedure.input(z.object({jobId: z.string(), error: z.string()})).mutation(({input}) => {
+    getCleanupActor().send({type: 'cleanup.needsAttention', ...input})
+    return getPublicSnapshot()
+  }),
   enqueue: t.procedure
     .input(
       z.object({
-        operation: z.enum(['remove', 'add', 'rewrite']).optional(),
+        operation: z.enum(['remove', 'add', 'rewrite', 'delete-child']).optional(),
         deletedDocumentId: z.string().optional(),
         sourceDocumentId: z.string().optional(),
         targetDocumentId: z.string().optional(),
         parentDocumentId: z.string().optional(),
         signingAccountUid: z.string(),
         capabilityId: z.string().optional(),
+        awaitingPrimary: z
+          .object({
+            documentId: z.string(),
+            expectedVersion: z.string().optional(),
+            expectedGenesis: z.string().optional(),
+            expectedType: z.enum(['document', 'redirect', 'tombstone']),
+            targetDocumentId: z.string().optional(),
+          })
+          .optional(),
+        childDraftId: z.string().optional(),
+        targetBlockId: z.string().optional(),
+        approvedSubtree: z.array(z.object({id: z.string(), version: z.string()})).optional(),
+        authorizingParentVersion: z.string().optional(),
       }),
     )
     .mutation(async ({input}) => {
@@ -493,7 +529,10 @@ export const documentCardCleanupApi = t.router({
       const sourceDocumentId = input.sourceDocumentId || input.deletedDocumentId
       const targetDocumentId = input.targetDocumentId
 
+      const intentId = input.awaitingPrimary ? nanoid(16) : undefined
       const jobId = cleanupJobId({
+        targetBlockId: input.targetBlockId,
+        intentId,
         operation,
         deletedDocumentId: input.deletedDocumentId,
         sourceDocumentId,
@@ -501,12 +540,15 @@ export const documentCardCleanupApi = t.router({
         parentDocumentId: parent.id,
         signingAccountUid: input.signingAccountUid,
       })
-      if (getPublicSnapshot().jobs.some((job) => job.id === jobId)) {
+      if (
+        getPublicSnapshot().jobs.some((job) => job.id === jobId && !['done', 'skippedTerminal'].includes(job.state))
+      ) {
         return {enqueued: false, reason: 'duplicate' as const, jobId}
       }
 
       getCleanupActor().send({
         type: 'cleanup.enqueue',
+        intentId,
         operation,
         deletedDocumentId: input.deletedDocumentId,
         sourceDocumentId,
@@ -514,7 +556,13 @@ export const documentCardCleanupApi = t.router({
         parentDocumentId: parent.id,
         signingAccountUid: input.signingAccountUid,
         capabilityId: input.capabilityId,
+        awaitingPrimary: input.awaitingPrimary,
+        childDraftId: input.childDraftId,
+        targetBlockId: input.targetBlockId,
+        approvedSubtree: input.approvedSubtree,
+        authorizingParentVersion: input.authorizingParentVersion,
       } as any)
+      if (storageError) throw new Error(storageError)
       return {enqueued: true, jobId}
     }),
 })

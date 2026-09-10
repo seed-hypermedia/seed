@@ -61,6 +61,14 @@ const tombstoneResponse = (id: ReturnType<typeof hmId>) => ({
 })
 
 describe('queryResource', () => {
+  test('can inspect a destination redirect without following it or sharing the resolved cache', async () => {
+    const client = createMockClient(() => redirectResponse(docA, docB))
+    const raw = queryResource(client, docA, {followRedirects: false})
+    expect(await raw.queryFn()).toEqual(redirectResponse(docA, docB))
+    expect(client.request).toHaveBeenCalledTimes(1)
+    expect(raw.queryKey).not.toEqual(queryResource(client, docA).queryKey)
+  })
+
   test('returns document directly when no redirect', async () => {
     const client = createMockClient(() => documentResponse(docA))
     const query = queryResource(client, docA)

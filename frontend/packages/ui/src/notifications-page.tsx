@@ -1,3 +1,4 @@
+import {DocumentMaintenanceBanner} from './document-maintenance'
 import type {NotificationPayload} from '@shm/shared/models/notification-payload'
 import {Bell} from 'lucide-react'
 import {ReactNode, useMemo} from 'react'
@@ -100,6 +101,7 @@ export function NotificationsPageContent({
     <GeneralPageContainer>
       <GeneralPageHeader title="Notifications" loading={headerLoading} actions={headerActions} />
 
+      <DocumentMaintenanceBanner />
       <NotificationFilterTabs filter={filter} onFilterChange={onFilterChange} />
 
       {isLoading ? (

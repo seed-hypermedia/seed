@@ -8,6 +8,8 @@ import {createContext, MutableRefObject, useContext} from 'react'
  * consumed by action implementations provided via `.provide()` on the machine.
  */
 export type EditorHandlers = {
+  /** Restore focus without changing the current selection. */
+  focus?: () => void
   /** Flip the editor's `isEditable` flag synchronously. */
   setEditable: (editable: boolean) => void
   /** Replace the editor content with whatever blocks should be loaded on entry. */

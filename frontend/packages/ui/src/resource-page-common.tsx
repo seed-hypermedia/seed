@@ -1,3 +1,4 @@
+import {ChildDeletionPublishDialog} from './child-deletion-publish-dialog'
 import type {EditorBlock, EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
 import {
   BlockRange,
@@ -810,6 +811,9 @@ export interface ResourcePageProps {
   /** Cursor position saved in the draft file; used to restore cursor on reload. */
   existingDraftCursorPosition?: number
   /** Block IDs the user previously touched in this draft, persisted across reloads (for rebase classifier). */
+  /** Revision of the saved draft after reference maintenance. */
+  existingDraftMaintenanceRevision?: number
+  existingDraftRemovedChildDocumentIds?: string[]
   existingDraftMineTouchedIds?: string[]
   /** Three-way merge base captured at draft start or last rebase, persisted across reloads. */
   existingDraftBaseBlocks?: HMBlockNode[]
@@ -905,6 +909,8 @@ export function ResourcePage({
   existingDraftVisibility,
   existingDraftContent,
   existingDraftCursorPosition,
+  existingDraftMaintenanceRevision,
+  existingDraftRemovedChildDocumentIds,
   existingDraftMineTouchedIds,
   existingDraftBaseBlocks,
   existingDraftPublishPath,
@@ -1391,6 +1397,8 @@ export function ResourcePage({
             existingDraftVisibility={existingDraftVisibility}
             existingDraftContent={existingDraftContent}
             existingDraftCursorPosition={existingDraftCursorPosition}
+            existingDraftMaintenanceRevision={existingDraftMaintenanceRevision}
+            existingDraftRemovedChildDocumentIds={existingDraftRemovedChildDocumentIds}
             existingDraftMineTouchedIds={existingDraftMineTouchedIds}
             existingDraftBaseBlocks={existingDraftBaseBlocks}
             existingDraftPublishPath={existingDraftPublishPath}
@@ -1414,6 +1422,7 @@ export function ResourcePage({
             transientResourceError={transientResourceError}
           />
         </AttributeAutocompleteProvider>
+        <ChildDeletionPublishDialog />
         {machineExtras}
         {inspect && (
           <Suspense fallback={null}>
@@ -1712,6 +1721,8 @@ function DocumentBody({
   existingDraftVisibility,
   existingDraftContent,
   existingDraftCursorPosition,
+  existingDraftMaintenanceRevision,
+  existingDraftRemovedChildDocumentIds,
   existingDraftMineTouchedIds,
   existingDraftBaseBlocks,
   existingDraftPublishPath,
@@ -1755,6 +1766,9 @@ function DocumentBody({
   existingDraftVisibility?: HMDocument['visibility']
   existingDraftContent?: HMBlockNode[]
   existingDraftCursorPosition?: number
+  /** Revision of the saved draft after reference maintenance. */
+  existingDraftMaintenanceRevision?: number
+  existingDraftRemovedChildDocumentIds?: string[]
   existingDraftMineTouchedIds?: string[]
   existingDraftBaseBlocks?: HMBlockNode[]
   existingDraftPublishPath?: string[]
@@ -1813,6 +1827,8 @@ function DocumentBody({
           cursorPosition: number | null
           metadata?: import('@seed-hypermedia/client/hm-types').HMMetadata | null
           deps?: string[] | null
+          maintenanceRevision?: number
+          removedChildDocumentIds?: string[] | null
           mineTouchedIds?: string[] | null
           baseBlocks?: HMBlockNode[] | null
           publishPath?: string[] | null
@@ -1829,6 +1845,8 @@ function DocumentBody({
         cursorPosition: existingDraftCursorPosition ?? null,
         metadata: existingDraft.metadata ?? null,
         deps: existingDraftDeps ?? null,
+        maintenanceRevision: existingDraftMaintenanceRevision ?? 0,
+        removedChildDocumentIds: existingDraftRemovedChildDocumentIds ?? null,
         mineTouchedIds: existingDraftMineTouchedIds ?? null,
         baseBlocks: existingDraftBaseBlocks ?? null,
         publishPath: existingDraftPublishPath ?? null,
@@ -1842,6 +1860,8 @@ function DocumentBody({
     existingDraftContent,
     existingDraftCursorPosition,
     existingDraftDeps,
+    existingDraftMaintenanceRevision,
+    existingDraftRemovedChildDocumentIds,
     existingDraftMineTouchedIds,
     existingDraftBaseBlocks,
     existingDraftPublishPath,

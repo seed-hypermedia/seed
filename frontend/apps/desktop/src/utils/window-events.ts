@@ -1,3 +1,4 @@
+import type {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
 import {useEffect} from 'react'
 import {useIPC} from '../app-context'
 
@@ -20,8 +21,18 @@ export type AppWindowEvent =
       type: 'draft_externally_modified'
       draftId: string
       source?: 'document-card-cleanup'
+      cardBlockId?: string
+      childDraftId?: string
+      targetBlockId?: string
+      maintenanceRevision?: number
+      jobId?: string
+      operation?: 'add' | 'remove' | 'rewrite'
+      sourceDocumentId?: string
+      targetDocumentId?: string
       deletedDocumentId?: string
       removedBlockIds?: string[]
+      previousContent?: HMBlockNode[]
+      publishedDocument?: HMDocument
       autoReload?: boolean
     }
   | {type: 'document_path_changed'; oldId: string; newId: string}

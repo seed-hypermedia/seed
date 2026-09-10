@@ -1,6 +1,7 @@
 import '@/blocknote/core/style.css'
 import '@/editor.css'
 
+import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {hypermediaUrlToHref, RenderResourceProvider, useOpenUrl, useUniversalAppContext} from '@shm/shared'
 import type {DocumentContentProps} from '@shm/shared/document-content-props'
@@ -13,7 +14,7 @@ import {
   useDocumentSelector,
 } from '@shm/shared/models/use-document-machine'
 import {collectChildDraftIds} from '@shm/shared/utils/child-draft-refs'
-import {hmLinkTargetsDocument} from '@shm/shared/utils/document-card-cleanup'
+import {getRemovedChildReferenceTargets, hmLinkTargetsDocument} from '@shm/shared/utils/document-card-cleanup'
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {Extension} from '@tiptap/core'
 import {Plugin, PluginKey, NodeSelection as PMNodeSelection, TextSelection} from 'prosemirror-state'
@@ -203,28 +204,8 @@ export function DocumentEditor({
   // block-fragment landing callback).
   const docEditorRef = useRef<BlockNoteEditor<HMBlockSchema> | null>(null)
 
-  // Freeze blocks once editing starts so document query refetches don't
-  // recreate the editor and lose the user's edits (or loaded draft content).
-  const frozenBlocksRef = useRef<typeof blocks | null>(null)
-  if (isEditing && !frozenBlocksRef.current) {
-    frozenBlocksRef.current = blocks
-  }
-  if (!isEditing) {
-    frozenBlocksRef.current = null
-  }
-  const effectiveBlocks = frozenBlocksRef.current ?? blocks
-
-  const initialContent = useMemo(() => {
-    // Detect format: HMBlockNode has { block, children }, EditorBlock has { type, id } at top level.
-    // Draft content is saved in EditorBlock format (editor.topLevelBlocks) and does NOT
-    // need conversion. Published content is HMBlockNode format and needs hmBlocksToEditorContent.
-    const first = effectiveBlocks?.[0]
-    const isEditorFormat = first != null && 'type' in first && !('block' in first)
-    const editorBlocks = isEditorFormat
-      ? (effectiveBlocks as any[])
-      : hmBlocksToEditorContent(effectiveBlocks, {childrenType: 'Group'})
-    return editorBlocks.length > 0 ? editorBlocks : [{type: 'paragraph' as const}]
-  }, [effectiveBlocks])
+  const sessionActive = useDocumentSelector((snapshot) => snapshot.matches('editing') || snapshot.matches('publishing'))
+  const initialContent = useDocumentEditorInitialContent(blocks, sessionActive)
 
   const editor = useBlockNote<HMBlockSchema>(
     {
@@ -238,8 +219,17 @@ export function DocumentEditor({
       onEditorContentChange(editor) {
         if (suppressChangeRef.current) return
         const {changed, nextKey} = getEditorBlocksChange(lastEditorContentKeyRef.current, editor.topLevelBlocks)
+        const previousKey = lastEditorContentKeyRef.current
         lastEditorContentKeyRef.current = nextKey
         if (!changed) return
+        if (previousKey) {
+          const removed = getRemovedChildReferenceTargets(
+            actorRef.getSnapshot().context.documentId,
+            editorBlocksToHMBlockNodes(JSON.parse(previousKey)),
+            editorBlocksToHMBlockNodes(editor.topLevelBlocks as any),
+          )
+          if (removed.length) actorRef.send({type: 'childReferences.removed', documentIds: removed})
+        }
         actorRef.send({type: 'childDraftRefs.changed', draftIds: collectChildDraftIds(editor.topLevelBlocks)})
         actorRef.send({type: 'change'})
       },
@@ -529,6 +519,7 @@ export function DocumentEditor({
         actorRef.send({type: 'editor.baselineUpdate', blocks: editor.topLevelBlocks as any})
         actorRef.send({type: 'childDraftRefs.changed', draftIds: collectChildDraftIds(editor.topLevelBlocks)})
       },
+      focus: () => editor._tiptapEditor?.view.focus(),
       getCurrentBlocks: () => editor.topLevelBlocks as any,
       replaceCurrentContent: (blocks) => {
         suppressChangeRef.current = true
@@ -798,4 +789,29 @@ export function DocumentEditor({
       </FragmentActionsContext.Provider>
     </RenderResourceProvider>
   )
+}
+
+/** Keeps editor initialization stable throughout editing and publication review, preserving undo/redo history. */
+export function useDocumentEditorInitialContent(blocks: DocumentContentProps['blocks'], sessionActive: boolean) {
+  // Publication review pauses the same session; saved draft snapshots must not recreate its editor.
+  const frozenBlocksRef = useRef<typeof blocks | null>(null)
+  if (sessionActive && !frozenBlocksRef.current) {
+    frozenBlocksRef.current = blocks
+  }
+  if (!sessionActive) {
+    frozenBlocksRef.current = null
+  }
+  const effectiveBlocks = frozenBlocksRef.current ?? blocks
+
+  return useMemo(() => {
+    // Detect format: HMBlockNode has { block, children }, EditorBlock has { type, id } at top level.
+    // Draft content is saved in EditorBlock format (editor.topLevelBlocks) and does NOT
+    // need conversion. Published content is HMBlockNode format and needs hmBlocksToEditorContent.
+    const first = effectiveBlocks?.[0]
+    const isEditorFormat = first != null && 'type' in first && !('block' in first)
+    const editorBlocks = isEditorFormat
+      ? (effectiveBlocks as any[])
+      : hmBlocksToEditorContent(effectiveBlocks, {childrenType: 'Group'})
+    return editorBlocks.length > 0 ? editorBlocks : [{type: 'paragraph' as const}]
+  }, [effectiveBlocks])
 }

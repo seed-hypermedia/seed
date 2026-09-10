@@ -1,3 +1,10 @@
+import {
+  inspectChildDeletions,
+  validateConfirmedChildDeletions,
+  type ConfirmChildDeletionInput,
+  type ConfirmedChildDeletion,
+} from '@shm/shared/utils/confirmed-child-deletion'
+import {toast} from '@shm/ui/toast'
 /**
  * Web-side actor implementations for the document state machine.
  *
@@ -60,7 +67,7 @@ import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {nanoid} from 'nanoid'
 import {fromPromise} from 'xstate'
 
-import {enqueueWebDocumentCardCleanup} from './web-document-card-cleanup'
+import {enqueueWebDocumentCardCleanup, releaseWebDocumentCardCleanup} from './web-document-card-cleanup'
 import {
   deleteWebDocDraft,
   getWebDocDraft,
@@ -96,6 +103,9 @@ export interface CreateWebDocumentMachineDeps {
 export function createWebDocumentMachine(deps: CreateWebDocumentMachineDeps) {
   return documentMachine.provide({
     actors: {
+      inspectChildDeletions: fromPromise<ConfirmedChildDeletion[], ConfirmChildDeletionInput>(async ({input}) =>
+        inspectChildDeletions(deps.client, input),
+      ),
       writeDraft: makeWriteDraftActor(deps),
       publishDocument: makePublishDocumentActor(deps),
       discardDraft: makeDiscardDraftActor(deps),
@@ -192,6 +202,10 @@ export async function writeWebDraft(
     // and a full replace would wipe those fields on the first autosave.
     metadata: {...(existingDraft?.metadata ?? {}), ...(input.metadata ?? {})},
     deps: input.deps,
+    baseBlocks: input.baseBlocks,
+    mineTouchedIds: input.mineTouchedIds,
+    maintenanceRevision: input.maintenanceRevision ?? 0,
+    removedChildDocumentIds: input.removedChildDocumentIds,
     navigation: input.navigation ?? null,
     locationUid: isReservedRouteDraft ? deps.docId.uid : input.locationUid || null,
     locationPath: locationPath?.length ? locationPath : null,
@@ -279,10 +293,20 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
 
   const editor = deps.getEditor()
   const editorBlocks = editor?.getTopLevelBlocks() ?? null
-  const liveEditorBlocks: EditorBlock[] =
-    editorBlocks && editorBlocks.length
-      ? editorBlocks
-      : hmBlocksToEditorContent(draft.content ?? [], {childrenType: 'Group'})
+  const liveEditorBlocks: EditorBlock[] = editorBlocks
+    ? editorBlocks
+    : hmBlocksToEditorContent(draft.content ?? [], {childrenType: 'Group'})
+
+  if (input.confirmedChildDeletions?.length) {
+    await validateConfirmedChildDeletions(deps.client, {
+      parentId: deps.docId,
+      content: editorBlocksToHMBlockNodes(liveEditorBlocks),
+      confirmations: input.confirmedChildDeletions,
+    }).catch((error) => {
+      if (!(error instanceof Error) || !error.message.includes('unresolved external reference')) throw error
+      console.warn('Child deletion requires manual reference review after publication', error)
+    })
+  }
 
   const resource = await deps.client.request('Resource', deps.docId)
   // A path holding a redirect Ref (a republished or moved document) is edited by taking it over:
@@ -308,6 +332,11 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
           : currentPath
   const publishedDocId =
     publishPath === currentPath ? deps.docId : hmId(deps.docId.uid, {...deps.docId, path: publishPath})
+  if (!editDocument && !isPrivate && publishPath.length) {
+    const parent = await deps.client.request('Resource', hmId(publishedDocId.uid, {path: publishPath.slice(0, -1)}))
+    if (parent.type !== 'document' || !parent.document.version || parent.document.visibility === 'PRIVATE')
+      throw new Error('Publish the parent document before creating children')
+  }
   const publishBlocks = !editDocument
     ? retargetQueryBlockIncludesForPublish(liveEditorBlocks, deps.docId, publishedDocId)
     : liveEditorBlocks
@@ -389,7 +418,12 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
     } as any,
   )) as any
 
-  const {changeCid, publishInput} = await signDocumentChange(
+  const {
+    changeCid,
+    genesis: signedGenesis,
+    generation: signedGeneration,
+    publishInput,
+  } = await signDocumentChange(
     {
       account: deps.docId.uid,
       path,
@@ -402,7 +436,48 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
     signer,
   )
 
+  const pendingJobs: string[] = []
+  const primaryProof = {
+    documentId: publishedDocId.id,
+    expectedType: 'document' as const,
+    expectedVersion: changeCid.toString(),
+  }
+  const followups = [
+    ...(!editDocument && !isPrivate && publishPath.length
+      ? [{operation: 'add' as const, targetDocumentId: publishedDocId.id, childDraftId: input.draftId}]
+      : []),
+    ...(input.confirmedChildDeletions || []).map((confirmation) => ({
+      operation: 'delete-child' as const,
+      sourceDocumentId: confirmation.childId.id,
+      approvedSubtree: confirmation.documents,
+      authorizingParentVersion: changeCid.toString(),
+    })),
+  ]
+  for (const followup of followups) {
+    try {
+      const queued = await enqueueWebDocumentCardCleanup(
+        {
+          ...followup,
+          parentDocumentId:
+            followup.operation === 'add'
+              ? hmId(publishedDocId.uid, {path: publishPath.slice(0, -1)}).id
+              : publishedDocId.id,
+          signingAccountUid: signerAccountUid,
+          capabilityId: capabilityCid || undefined,
+          awaitingPrimary: primaryProof,
+        },
+        {client: deps.client},
+      )
+      if (queued.jobId) pendingJobs.push(queued.jobId)
+    } catch (error) {
+      console.error('Could not persist publication maintenance intent', error)
+      toast.error(
+        'Parent maintenance could not be saved. Publication will continue; please review document references manually.',
+      )
+    }
+  }
   await (deps.client as any).publish(publishInput)
+  for (const jobId of pendingJobs) await releaseWebDocumentCardCleanup(jobId).catch(console.error)
 
   // The blob is now published. Refetch by explicit version CID to get the
   // resulting document — but the daemon may not have indexed the new version
@@ -411,13 +486,37 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
   // publishDocument actor's onError), leaving the draft/metadata staged so the
   // Publish button stays green/visible even though the publish succeeded.
   const newVersionStr = changeCid.toString()
-  const publishedDocument = await resolvePublishedDocument(deps, publishPath, newVersionStr, editDocument, draft)
+  const optimisticPublishedDocument = {
+    ...editDocument,
+    account: publishedDocId.uid,
+    path,
+    version: newVersionStr,
+    genesis: signedGenesis,
+    generationInfo: {
+      ...editDocument?.generationInfo,
+      generation: BigInt(signedGeneration),
+    },
+    content: editorBlocksToHMBlockNodes(publishBlocks),
+    metadata: {...editDocument?.metadata, ...draft.metadata},
+    detachedBlocks: editDocument?.detachedBlocks || {},
+    visibility: isPrivate ? 'PRIVATE' : 'PUBLIC',
+  } as HMDocument
+  const publishedDocument = await resolvePublishedDocument(
+    deps,
+    publishPath,
+    newVersionStr,
+    optimisticPublishedDocument,
+    draft,
+  )
 
   // Delete every local draft for this doc, not just the published one. A stray
   // orphan record (e.g. an empty draft from an earlier autosave race) would
   // otherwise survive the publish and reload as a blank draft on the next visit
   // — "after publishing, the Content tab is blank with an active Publish button".
-  await deleteAllDocumentDrafts(deps.docId.id, input.draftId, input.deletedChildDraftIds)
+  await deleteAllDocumentDrafts(deps.docId.id, input.draftId, input.deletedChildDraftIds).catch((error) => {
+    console.error('Document published, but local draft cleanup failed', error)
+    toast.error('Document published. Its local draft could not be cleared; please review before publishing again.')
+  })
 
   // Shared cache invalidation: writes new doc to cache + marks stale.
   // Do NOT refetch ENTITY — daemon's "latest" pointer may still be stale.
@@ -426,13 +525,6 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
     invalidateAfterPublish(deps.docId, publishedDocument)
   }
   invalidateQueries(['web-doc-draft', deps.docId.id])
-  enqueueParentCardAfterFirstPublish({
-    shouldEnqueue: !editDocument,
-    publishedDocId,
-    signingAccountUid: signerAccountUid,
-    capabilityId: capabilityCid || undefined,
-    client: deps.client,
-  })
 
   // Refetch draft query only — clears existingDraftContent in the UI.
   try {
@@ -457,7 +549,7 @@ async function resolvePublishedDocument(
   deps: CreateWebDocumentMachineDeps,
   publishPath: string[],
   newVersionStr: string,
-  editDocument: HMDocument | null,
+  editDocument: HMDocument,
   draft: {metadata: HMMetadata | null | undefined},
 ): Promise<HMDocument> {
   const RETRY_DELAYS_MS = [150, 300, 500, 800, 1200]
@@ -472,45 +564,11 @@ async function resolvePublishedDocument(
       await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]))
     }
   }
-  if (!editDocument) {
-    // First publish with nothing to fall back to — surface the failure.
-    throw new Error('post-publish resource is not a document')
-  }
   return {
     ...editDocument,
     version: newVersionStr,
     metadata: {...(editDocument.metadata ?? {}), ...((draft.metadata as HMMetadata) ?? {})},
   } as HMDocument
-}
-
-function enqueueParentCardAfterFirstPublish({
-  shouldEnqueue,
-  publishedDocId,
-  signingAccountUid,
-  capabilityId,
-  client,
-}: {
-  shouldEnqueue: boolean
-  publishedDocId: UnpackedHypermediaId
-  signingAccountUid: string
-  capabilityId?: string
-  client: UniversalClient
-}) {
-  const path = publishedDocId.path || []
-  if (!shouldEnqueue || !path.length) return
-
-  void enqueueWebDocumentCardCleanup(
-    {
-      operation: 'add',
-      parentDocumentId: hmId(publishedDocId.uid, {path: path.slice(0, -1)}).id,
-      targetDocumentId: publishedDocId.id,
-      signingAccountUid,
-      capabilityId,
-    },
-    {client},
-  ).catch((error) => {
-    console.warn('Document published, but parent document card cleanup failed to enqueue', error)
-  })
 }
 
 /** Delete a parent draft plus any removed child drafts. */

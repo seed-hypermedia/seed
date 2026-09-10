@@ -22,6 +22,16 @@ export interface WebDocDraft {
   capabilityCid?: string
   /** Editor blocks at the time of last save. */
   content: HMBlockNode[]
+  /** Published content used as the three-way rebase baseline; absent in older drafts. */
+  baseBlocks?: HMBlockNode[] | null
+  /** Locally touched block IDs to restore for conflict detection. */
+  /** Explicit authored child-reference removals; cleared with the draft. */
+  removedChildDocumentIds?: string[]
+  mineTouchedIds?: string[]
+  /** Baselines invalidated by maintenance; stale autosaves are retained as recovery snapshots instead. */
+  maintenancePreviousDeps?: string[][]
+  /** Local maintenance epoch, independent of the published version. */
+  maintenanceRevision?: number
   /** Pending metadata changes for this draft (subset of HMMetadata). */
   metadata: HMMetadata | Record<string, unknown>
   /** Heads we will use as `baseVersion` on publish. */
@@ -133,10 +143,79 @@ export async function putWebDocDraft(draft: Omit<WebDocDraft, 'updatedAt'> & {up
     isCollection: deriveDocumentType(draft.content, documentId) === 'collection',
     updatedAt: draft.updatedAt ?? Date.now(),
   }
-  const existing = await getWebDocDraft(record.draftId)
-  if (existing) await saveDraftSnapshot(existing)
-  const store = await tx('readwrite')
-  await reqToPromise(store.put(record))
+  const db = await openDB()
+  await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction([STORE, SNAPSHOT_STORE], 'readwrite')
+    const drafts = transaction.objectStore(STORE)
+    let stale = false
+    transaction.oncomplete = () =>
+      stale ? reject(new Error('Draft baseline changed; reload to reconcile your edits')) : resolve()
+    transaction.onerror = () => reject(transaction.error ?? new Error('Draft write failed'))
+    transaction.onabort = () => reject(transaction.error ?? new Error('Draft write aborted'))
+    const request = drafts.get(record.draftId)
+    request.onsuccess = () => {
+      const existing = request.result as WebDocDraft | undefined
+      const previousDeps = existing?.maintenancePreviousDeps ?? []
+      stale =
+        (record.maintenanceRevision ?? 0) !== (existing?.maintenanceRevision ?? 0) ||
+        previousDeps.some(
+          (deps) => deps.length === record.deps.length && deps.every((dep) => record.deps.includes(dep)),
+        )
+      const snapshotDraft = stale ? record : existing
+      if (snapshotDraft) {
+        const createdAt = Date.now()
+        transaction.objectStore(SNAPSHOT_STORE).put({
+          snapshotId: `${record.draftId}:${createdAt}:${Math.random().toString(36).slice(2)}`,
+          draftId: record.draftId,
+          createdAt,
+          draft: snapshotDraft,
+        } satisfies WebDocDraftSnapshot)
+      }
+      if (!stale) drafts.put({...record, maintenancePreviousDeps: previousDeps})
+    }
+  })
+  await pruneDraftSnapshots(record.draftId)
+}
+
+/** Atomically rebases an unchanged draft, retaining the previous record for recovery. */
+export async function compareAndSwapWebDocDraft(expected: WebDocDraft, replacement: WebDocDraft): Promise<boolean> {
+  if (expected.draftId !== replacement.draftId) throw new Error('Cannot change draft identity during reconciliation')
+  const db = await openDB()
+  const documentId = unpackHmId(replacement.docId) ?? hmId(replacement.editUid ?? replacement.locationUid ?? '')
+  const record: WebDocDraft = {
+    ...replacement,
+    isCollection: deriveDocumentType(replacement.content, documentId) === 'collection',
+    updatedAt: Date.now(),
+  }
+  return new Promise<boolean>((resolve, reject) => {
+    const transaction = db.transaction([STORE, SNAPSHOT_STORE], 'readwrite')
+    const drafts = transaction.objectStore(STORE)
+    let replaced = false
+    transaction.oncomplete = () => resolve(replaced)
+    transaction.onerror = () => reject(transaction.error ?? new Error('Draft reconciliation transaction failed'))
+    transaction.onabort = () => reject(transaction.error ?? new Error('Draft reconciliation transaction aborted'))
+    const request = drafts.get(expected.draftId)
+    request.onsuccess = () => {
+      const current = request.result as WebDocDraft | undefined
+      if (!current || JSON.stringify(current) !== JSON.stringify(expected)) return
+      const createdAt = Date.now()
+      transaction.objectStore(SNAPSHOT_STORE).put({
+        snapshotId: `${current.draftId}:${createdAt}:${Math.random().toString(36).slice(2)}`,
+        draftId: current.draftId,
+        createdAt,
+        draft: current,
+      } satisfies WebDocDraftSnapshot)
+      const previousDeps = current.maintenancePreviousDeps ?? []
+      const changedBaseline =
+        current.deps.length !== record.deps.length || current.deps.some((dep) => !record.deps.includes(dep))
+      drafts.put({
+        ...record,
+        maintenanceRevision: (current.maintenanceRevision ?? 0) + 1,
+        maintenancePreviousDeps: changedBaseline ? [...previousDeps, current.deps] : previousDeps,
+      })
+      replaced = true
+    }
+  })
 }
 
 /** Delete a draft by id. Idempotent. */

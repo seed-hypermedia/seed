@@ -119,12 +119,13 @@ export function useResource(
   id: UnpackedHypermediaId | null | undefined,
   options?: UseQueryOptions<HMResource | null> & {
     subscribed?: boolean
+    followRedirects?: boolean
     recursive?: boolean
     onRedirectOrDeleted?: (opts: {isDeleted: boolean; redirectTarget: UnpackedHypermediaId | null}) => void
   },
 ) {
   const client = useUniversalClient()
-  const {subscribed, recursive, onRedirectOrDeleted, ...queryOptions} = options ?? {}
+  const {subscribed, recursive, followRedirects, onRedirectOrDeleted, ...queryOptions} = options ?? {}
 
   // Discovery subscription (desktop only)
   useEffect(() => {
@@ -138,7 +139,7 @@ export function useResource(
   }, [subscribed, recursive, id?.id, client.subscribeEntity])
 
   const result = useQuery({
-    ...queryResource(client, id),
+    ...queryResource(client, id, {followRedirects}),
     ...queryOptions,
   })
 

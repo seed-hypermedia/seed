@@ -184,3 +184,5 @@ describe('DeleteDocumentDialog', () => {
     listSiteDataMock.splice(0, listSiteDataMock.length)
   })
 })
+
+vi.mock('@shm/ui/document-deletion-references', () => ({DocumentDeletionReferences: () => null}))

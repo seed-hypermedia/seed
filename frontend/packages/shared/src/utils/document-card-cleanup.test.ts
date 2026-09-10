@@ -1,9 +1,12 @@
 import type {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
+import {unpackHmId} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
 import {
+  verifyDocumentCleanupPrimary,
   appendDraftCardToEditorBlocks,
   applyDocumentCardCleanupToBlockNodes,
   planDocumentCardMoveOperations,
+  getDirectChildrenLosingReferences,
   planDeletedDocumentCardEmbedCleanup,
   planDocumentCardAppend,
   planDocumentCardRemoval,
@@ -68,7 +71,7 @@ describe('planDeletedDocumentCardEmbedCleanup', () => {
     expect(result).toEqual({changes: [], removedBlockIds: []})
   })
 
-  it('removes content, card, and link embeds pointing at the deleted document', () => {
+  it('removes only Card embeds pointing at the deleted document', () => {
     const result = planDeletedDocumentCardEmbedCleanup(
       doc([
         embed('embed-content', 'hm://target/doc', 'Content'),
@@ -80,20 +83,8 @@ describe('planDeletedDocumentCardEmbedCleanup', () => {
       'hm://target/doc',
     )
 
-    expect(plainChanges(result.changes)).toEqual([
-      {case: 'deleteBlock', blockId: 'embed-content'},
-      {case: 'deleteBlock', blockId: 'embed-default-content'},
-      {case: 'deleteBlock', blockId: 'embed-card'},
-      {case: 'deleteBlock', blockId: 'embed-link'},
-      {case: 'deleteBlock', blockId: 'embed-comments'},
-    ])
-    expect(result.removedBlockIds).toEqual([
-      'embed-content',
-      'embed-default-content',
-      'embed-card',
-      'embed-link',
-      'embed-comments',
-    ])
+    expect(plainChanges(result.changes)).toEqual([{case: 'deleteBlock', blockId: 'embed-card'}])
+    expect(result.removedBlockIds).toEqual(['embed-card'])
   })
 
   it('ignores inline embed annotations', () => {
@@ -291,20 +282,20 @@ describe('planDocumentCardRewrite', () => {
     }
   })
 
-  it('does not rewrite when the target link already exists', () => {
+  it('rewrites stale references even when the target link already exists', () => {
     const result = planDocumentCardRewrite(
       doc([embedCard('old-card', 'hm://parent/site/old'), embedCard('new-card', 'hm://parent/site/new')]),
       'hm://parent/site/old',
       'hm://parent/site/new',
     )
 
-    expect(result.changes).toEqual([])
-    expect(result.rewrittenBlockIds).toEqual([])
+    expect(plainChanges(result.changes)).toEqual([{case: 'replaceBlock'}])
+    expect(result.rewrittenBlockIds).toEqual(['old-card'])
   })
 })
 
 describe('applyDocumentCardCleanupToBlockNodes', () => {
-  it('removes matching embeds from draft block nodes and preserves their children', () => {
+  it('removes matching cards from draft block nodes and preserves other embeds and children', () => {
     const result = applyDocumentCardCleanupToBlockNodes(
       [
         paragraph('before'),
@@ -318,8 +309,8 @@ describe('applyDocumentCardCleanupToBlockNodes', () => {
       },
     )
 
-    expect(result.changedBlockIds).toEqual(['card', 'comments'])
-    expect(result.content.map((node) => node.block.id)).toEqual(['before', 'child', 'after'])
+    expect(result.changedBlockIds).toEqual(['card'])
+    expect(result.content.map((node) => node.block.id)).toEqual(['before', 'child', 'comments', 'after'])
   })
 
   it('appends a missing child card to draft block nodes', () => {
@@ -352,6 +343,135 @@ describe('applyDocumentCardCleanupToBlockNodes', () => {
     expect((result.content[1]?.block as any).link).toBe('hm://parent/site/new')
     expect(result.content.map((node) => node.block.id)).toEqual(['intro', 'card', 'tail'])
   })
+})
+
+describe('document reference maintenance', () => {
+  const source = 'hm://parent/site/old'
+  const target = 'hm://parent/site/new'
+  const references: [string, HMBlockNode][] = [
+    ['card', embedCard('reference', source)],
+    ['content embed', embed('reference', source, 'Content')],
+    ['default embed', embed('reference', source, undefined)],
+    ['link embed', embed('reference', source, 'Link')],
+    ['comments embed', embed('reference', source, 'Comments')],
+    ['link block', {block: {id: 'reference', type: 'Link', link: source, text: 'Child'}, children: []}],
+    [
+      'button block',
+      {block: {id: 'reference', type: 'Button', link: source, text: 'Child', attributes: {}}, children: []},
+    ],
+    ...(['Link', 'Embed'] as const).map((type): [string, HMBlockNode] => {
+      const node = paragraph(
+        'reference',
+        [],
+        [
+          {type, link: source, starts: [4], ends: [9]},
+          {type: 'Link', link: 'https://example.com', starts: [14], ends: [18]},
+          {type: 'Bold', starts: [4], ends: [9]},
+        ],
+      )
+      node.block = {...node.block, text: 'See Child and more'} as HMBlockNode['block']
+      return [`${type} annotation`, node]
+    }),
+  ]
+
+  it.each(references)('does not append when a nested %s already references the child', (_, reference) => {
+    const content = [paragraph('container', [reference])]
+    expect(planDocumentCardAppend(doc(content), 'hm://parent/site', source, 'new-card')).toEqual({
+      changes: [],
+      addedBlockIds: [],
+    })
+    expect(
+      applyDocumentCardCleanupToBlockNodes(content, {
+        operation: 'add',
+        parentDocumentId: 'hm://parent/site',
+        targetDocumentId: source,
+        newBlockId: 'new-card',
+      }),
+    ).toEqual({content, changedBlockIds: []})
+  })
+
+  it.each(references.filter(([name]) => name !== 'card'))(
+    'preserves a %s and its text when deleting the referenced document',
+    (_, reference) => {
+      const content = [paragraph('container', [reference])]
+      expect(planDocumentCardRemoval(doc(content), source)).toEqual({changes: [], removedBlockIds: []})
+      expect(applyDocumentCardCleanupToBlockNodes(content, {operation: 'remove', sourceDocumentId: source})).toEqual({
+        content,
+        changedBlockIds: [],
+      })
+    },
+  )
+
+  it.each(references)('rewrites a nested %s without removing its text or other annotations', (_, reference) => {
+    reference = {...reference, block: {...reference.block, revision: 'old-revision'} as HMBlockNode['block']}
+    const content = [paragraph('container', [reference]), embedCard('existing-target', target)]
+    const original = JSON.parse(JSON.stringify(content))
+    const block = reference.block
+    const expected =
+      'link' in block
+        ? {...block, revision: undefined, link: target}
+        : {
+            ...block,
+            revision: undefined,
+            annotations: ('annotations' in block ? block.annotations || [] : []).map((annotation) =>
+              'link' in annotation && annotation.link === source ? {...annotation, link: target} : annotation,
+            ),
+          }
+    const plan = planDocumentCardRewrite(doc(content), source, target)
+    expect(plan.rewrittenBlockIds).toEqual(['reference'])
+    expect(plan.changes).toHaveLength(1)
+    const change = plan.changes[0]
+    expect(change?.op.case).toBe('replaceBlock')
+    if (change?.op.case === 'replaceBlock') {
+      const {revision, ...expectedJson} = expected
+      expect(change.op.value.toJson()).toMatchObject(expectedJson)
+      expect(change.op.value.revision).toBe('')
+    }
+    const draft = applyDocumentCardCleanupToBlockNodes(content, {
+      operation: 'rewrite',
+      sourceDocumentId: source,
+      targetDocumentId: target,
+    })
+    expect(draft.changedBlockIds).toEqual(['reference'])
+    expect(draft.content).toEqual([
+      paragraph('container', [{...reference, block: expected as HMBlockNode['block']}]),
+      content[1],
+    ])
+    expect(content).toEqual(original)
+  })
+
+  it.each(['Children', 'AllDescendants'] as const)(
+    'does not append for a nested self-query with %s mode and a limit',
+    (mode) => {
+      const query = {
+        block: {
+          id: 'query',
+          type: 'Query',
+          attributes: {
+            columnCount: 3,
+            style: 'Card',
+            banner: false,
+            query: {
+              includes: [{space: 'parent', path: '/site', mode}],
+              limit: 1,
+              sort: [{term: 'title', reverse: true}],
+            },
+          },
+        },
+        children: [],
+      } as HMBlockNode
+      const content = [paragraph('container', [query])]
+      expect(planDocumentCardAppend(doc(content), 'hm://parent/site', source, 'new-card').addedBlockIds).toEqual([])
+      expect(
+        applyDocumentCardCleanupToBlockNodes(content, {
+          operation: 'add',
+          parentDocumentId: 'hm://parent/site',
+          targetDocumentId: source,
+          newBlockId: 'new-card',
+        }),
+      ).toEqual({content, changedBlockIds: []})
+    },
+  )
 })
 
 describe('planDocumentCardMoveOperations', () => {
@@ -438,5 +558,119 @@ describe('draft-card editor block helpers', () => {
         'new-card',
       ).addedBlockIds,
     ).toEqual([])
+  })
+})
+
+describe('getDirectChildrenLosingReferences', () => {
+  const parent = unpackHmId('hm://parent/site')!
+  it('returns only direct children whose final direct reference was removed', () => {
+    const before = [
+      embedCard('one', 'hm://parent/site/child?v=old#block'),
+      paragraph('two', [], [{type: 'Link', link: 'hm://parent/site/child', starts: [0], ends: [1]}]),
+      embedCard('other-account', 'hm://other/site/child'),
+      embedCard('grandchild', 'hm://parent/site/child/deeper'),
+      embedCard('self', 'hm://parent/site'),
+      embedCard('sibling', 'hm://parent/elsewhere'),
+    ]
+    expect(getDirectChildrenLosingReferences(parent, before, [before[1]!])).toEqual([])
+    expect(getDirectChildrenLosingReferences(parent, before, []).map((id) => id.id)).toEqual(['hm://parent/site/child'])
+    expect(getDirectChildrenLosingReferences(parent, [], [])).toEqual([])
+  })
+  it('counts nested inline embeds and block links but never query results', () => {
+    const before = [
+      paragraph('container', [
+        paragraph('inline', [], [{type: 'Embed', link: 'hm://parent/site/child', starts: [0], ends: [1]}]),
+        {
+          block: {id: 'button', type: 'Button', link: 'hm://parent/site/button', text: '', attributes: {}},
+          children: [],
+        },
+        {
+          block: {
+            id: 'query',
+            type: 'Query',
+            attributes: {
+              columnCount: 3,
+              style: 'Card',
+              banner: false,
+              query: {includes: [{space: 'parent', path: '/site', mode: 'Children'}]},
+            },
+          },
+          children: [],
+        } as HMBlockNode,
+      ]),
+    ]
+    expect(getDirectChildrenLosingReferences(parent, before, []).map((id) => id.id)).toEqual([
+      'hm://parent/site/child',
+      'hm://parent/site/button',
+    ])
+  })
+})
+
+describe('revision preservation', () => {
+  it('keeps unchanged block revisions while clearing rewritten block revisions', () => {
+    const untouched = paragraph('untouched')
+    ;(untouched.block as {revision?: string}).revision = 'unchanged'
+    const rewritten = embedCard('rewritten', 'hm://parent/site/old')
+    ;(rewritten.block as {revision?: string}).revision = 'stale'
+    const result = applyDocumentCardCleanupToBlockNodes([untouched, rewritten], {
+      operation: 'rewrite',
+      sourceDocumentId: 'hm://parent/site/old',
+      targetDocumentId: 'hm://parent/site/new',
+    })
+    expect((result.content[0]?.block as {revision?: string}).revision).toBe('unchanged')
+    expect((result.content[1]?.block as {revision?: string}).revision).toBeUndefined()
+  })
+})
+
+describe('primary-operation recovery proof', () => {
+  it('does not follow a captured move destination that has moved again', async () => {
+    const client = {
+      request: async (_key: string, id: {id: string}) => ({
+        type: 'redirect',
+        redirectTarget: unpackHmId(id.id === 'hm://alice/a' ? 'hm://alice/b' : 'hm://alice/c'),
+      }),
+    } as any
+    await expect(
+      verifyDocumentCleanupPrimary(client, {
+        documentId: 'hm://alice/a',
+        expectedType: 'redirect',
+        targetDocumentId: 'hm://alice/b',
+        expectedGenesis: 'same-genesis',
+      }),
+    ).rejects.toThrow('captured destination moved')
+  })
+
+  it('never accepts document existence alone as proof of a completed publication', async () => {
+    const client = {request: async () => ({type: 'document', document: {version: 'unrelated', genesis: 'g'}})} as any
+    await expect(
+      verifyDocumentCleanupPrimary(client, {documentId: 'hm://alice/child', expectedType: 'document'}),
+    ).rejects.toThrow('identity is unavailable')
+  })
+  it('accepts the exact signed publication version and rejects a changed version', async () => {
+    const client = {request: async () => ({type: 'document', document: {version: 'v2', genesis: 'g'}})} as any
+    await expect(
+      verifyDocumentCleanupPrimary(client, {
+        documentId: 'hm://alice/child',
+        expectedType: 'document',
+        expectedVersion: 'v2',
+      }),
+    ).resolves.toBeUndefined()
+    await expect(
+      verifyDocumentCleanupPrimary(client, {
+        documentId: 'hm://alice/child',
+        expectedType: 'document',
+        expectedVersion: 'v1',
+      }),
+    ).rejects.toThrow('version changed')
+  })
+  it('never treats a missing resource or a redirect as a completed deletion', async () => {
+    for (const type of ['not-found', 'redirect']) {
+      await expect(
+        verifyDocumentCleanupPrimary({request: async () => ({type})} as any, {
+          documentId: 'hm://alice/child',
+          expectedType: 'tombstone',
+        }),
+      ).rejects.toThrow('outcome not confirmed')
+    }
   })
 })

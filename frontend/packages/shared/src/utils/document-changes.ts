@@ -579,6 +579,18 @@ export function classifyRebase(
   const baseIds = collectBlockIds(base)
   const mineIds = collectBlockIds(mine)
 
+  // A remote edit or addition must not disappear silently with an ancestor deleted locally.
+  // Stop at retained ancestors: their subtree can be reattached from the local tree.
+  const theirsMap = createBlocksMap(theirs, '')
+  Object.keys(theirsMap).forEach((id) => {
+    if (!theirsTouched.has(id) || mineIds.has(id)) return
+    let parentId = theirsMap[id]?.parent
+    while (parentId && !mineIds.has(parentId)) {
+      if (baseIds.has(parentId)) theirsTouched.add(parentId)
+      parentId = theirsMap[parentId]?.parent
+    }
+  })
+
   // Extend mineTouched with structural deletes (in base, not in mine) so
   // "user deleted a block" participates in conflict detection.
   const mineTouched = new Set<string>(mineTouchedIds)
@@ -620,11 +632,11 @@ export function classifyRebase(
  *
  * Strategy: walk theirs' structure (ordering, nesting). For each block id:
  *   - If picked as "mine" (either by the plan or user pick in Phase B),
- *     take the block payload from `mine`.
+ *     take the block payload from `mine`, or remove it if mine deleted it.
  *   - Otherwise keep theirs.
  *
  * Then re-attach any mine-exclusive blocks (present in mine, absent from theirs
- * and not deleted by theirs) at their original mine-relative positions under
+ * and not deleted by theirs) at the end of the children list under
  * their original parent when the parent still exists. If the parent was
  * removed by theirs, they are appended at the end of the root list.
  *
@@ -639,7 +651,7 @@ export function applyRebasePlan(
   picks: Record<string, 'mine' | 'theirs'> = {},
 ): HMBlockNode[] {
   const mineFlat = flattenBlocks(mine)
-  const mineChildrenOf = buildChildrenMap(mine)
+  const mergedNodes = new Map<string, HMBlockNode>()
   const theirsIds = collectBlockIds(theirs)
 
   const chooseMine = (id: string): boolean => {
@@ -650,47 +662,65 @@ export function applyRebasePlan(
   }
 
   const rebuild = (nodes: HMBlockNode[]): HMBlockNode[] =>
-    nodes.map((n) => {
+    nodes.flatMap((n) => {
       const id = n.block?.id
-      const block = id && chooseMine(id) ? mineFlat.get(id) ?? n.block : n.block
-      return {
+      // Retained descendants can move out of a deleted parent in the local tree.
+      const children = n.children ? rebuild(n.children) : n.children
+      if (id && chooseMine(id) && !mineFlat.has(id)) return []
+      const block = id && chooseMine(id) ? mineFlat.get(id) : n.block
+      const rebuilt = {
         block,
-        children: n.children?.length ? rebuild(n.children) : n.children,
+        children,
       } as HMBlockNode
+      if (id) mergedNodes.set(id, rebuilt)
+      return [rebuilt]
     })
 
   const rebuilt = rebuild(theirs)
+  const attachedIds = collectBlockIds(rebuilt)
 
-  // Re-attach mine-only blocks (adds) that theirs didn't include and weren't deleted by theirs.
-  const appended: HMBlockNode[] = []
-  const mineOnlyIds: string[] = []
-  mineFlat.forEach((_, id) => {
-    if (!theirsIds.has(id)) mineOnlyIds.push(id)
-  })
-
-  for (const id of mineOnlyIds) {
-    const block = mineFlat.get(id)
-    if (!block) continue
-    const children = mineChildrenOf.get(id) ?? []
-    appended.push({block, children} as HMBlockNode)
-  }
-
-  return appended.length ? [...rebuilt, ...appended] : rebuilt
-}
-
-/** Build {parentId -> children HMBlockNode[]} for a tree. Root uses key ''. */
-function buildChildrenMap(nodes: HMBlockNode[]): Map<string, HMBlockNode[]> {
-  const map = new Map<string, HMBlockNode[]>()
-  const walk = (ns: HMBlockNode[], parent: string) => {
-    const bucket = map.get(parent) ?? []
-    for (const n of ns) {
-      bucket.push(n)
-      if (n.block?.id && n.children?.length) walk(n.children, n.block.id)
+  // Walk the local tree once so new descendants stay nested and are not appended twice.
+  const appendMineOnly = (nodes: HMBlockNode[], parentId?: string) => {
+    for (const n of nodes) {
+      const id = n.block?.id
+      if (!id) continue
+      if (
+        !attachedIds.has(id) &&
+        (theirsIds.has(id) || (picks[id] !== 'theirs' && (chooseMine(id) || !plan.theirsBlocks.has(id))))
+      ) {
+        const added = mergedNodes.get(id) ?? {...n, children: n.children ? [] : n.children}
+        const parent = parentId ? mergedNodes.get(parentId) : undefined
+        if (parent) {
+          parent.children ??= []
+          parent.children.push(added)
+        } else {
+          rebuilt.push(added)
+        }
+        mergedNodes.set(id, added)
+        collectBlockIds([added]).forEach((attachedId) => attachedIds.add(attachedId))
+      }
+      if (n.children?.length) appendMineOnly(n.children, id)
     }
-    map.set(parent, bucket)
   }
-  walk(nodes, '')
-  return map
+  appendMineOnly(mine)
+
+  // Explicit remote choices survive even when the user removes their ancestor.
+  // Preorder attachment keeps selected descendants inside an already restored subtree.
+  const appendPickedTheirs = (nodes: HMBlockNode[]) => {
+    for (const n of nodes) {
+      const id = n.block?.id
+      if (id && picks[id] === 'theirs' && !attachedIds.has(id)) {
+        const retained = mergedNodes.get(id)
+        if (retained) {
+          rebuilt.push(retained)
+          collectBlockIds([retained]).forEach((attachedId) => attachedIds.add(attachedId))
+        }
+      }
+      if (n.children?.length) appendPickedTheirs(n.children)
+    }
+  }
+  appendPickedTheirs(theirs)
+  return rebuilt
 }
 
 /**

@@ -268,7 +268,9 @@ describe('createSeedClient', () => {
     const mockedCreateGenesisChange = vi.mocked(createGenesisChange)
     const mockedSignDocumentChange = vi.mocked(signDocumentChange)
     mockedSignDocumentChange.mockResolvedValueOnce({
-      changeCid: {} as any,
+      changeCid: {toString: () => 'signed-change'} as any,
+      genesis: 'signed-genesis',
+      generation: 1,
       publishInput: {
         blobs: [{cid: 'bafy-change', data: new Uint8Array([4, 5, 6])}],
       },
@@ -293,7 +295,7 @@ describe('createSeedClient', () => {
       sign: vi.fn(async () => new Uint8Array([2])),
     }
 
-    await client.publishDocument(
+    const publication = await client.publishDocument(
       {
         account: 'test-uid',
         path: '/new-doc',
@@ -316,6 +318,7 @@ describe('createSeedClient', () => {
       signer,
     )
 
+    expect(publication).toEqual({version: 'signed-change', genesis: 'signed-genesis', generation: 1})
     expect(fetchFn).toHaveBeenCalledTimes(2)
     expect(fetchFn.mock.calls[0]?.[0]).toBe('https://example.com/api/PrepareDocumentChange')
     expect(fetchFn.mock.calls[1]?.[0]).toBe('https://example.com/api/PublishBlobs')
@@ -344,7 +347,9 @@ describe('createSeedClient', () => {
       blobs: [{cid: 'bafy-genesis-ref', data: new Uint8Array([2])}],
     })
     mockedSignDocumentChange.mockResolvedValueOnce({
-      changeCid: {} as any,
+      changeCid: {toString: () => 'signed-change'} as any,
+      genesis: 'signed-genesis',
+      generation: 1,
       publishInput: {
         blobs: [{cid: 'bafy-content', data: new Uint8Array([4, 5, 6])}],
       },

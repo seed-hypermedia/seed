@@ -101,6 +101,7 @@ function resource(id: ReturnType<typeof hmId>, name: string) {
       document: {
         metadata: {name},
         visibility: 'PUBLIC',
+        version: 'v1',
       },
     },
     isLoading: false,
@@ -152,7 +153,7 @@ describe('DocumentDestinationDialog', () => {
     writableDocumentsMock.splice(0, writableDocumentsMock.length, {
       entity: {
         id: hmId('alice'),
-        document: {metadata: {name: 'Alice Site'}, visibility: 'PUBLIC'},
+        document: {metadata: {name: 'Alice Site'}, visibility: 'PUBLIC', version: 'v1'},
       },
       accountsWithWrite: ['alice'],
     })
@@ -177,7 +178,15 @@ describe('DocumentDestinationDialog', () => {
       const pathKey = id?.path?.join('/') || ''
       if (pathKey === '') {
         return {
-          data: [{id: hmId('alice', {path: ['docs']}), path: ['docs'], metadata: {name: 'Docs'}, visibility: 'PUBLIC'}],
+          data: [
+            {
+              id: hmId('alice', {path: ['docs']}),
+              path: ['docs'],
+              metadata: {name: 'Docs'},
+              visibility: 'PUBLIC',
+              version: 'v1',
+            },
+          ],
           isLoading: false,
         }
       }
@@ -189,6 +198,7 @@ describe('DocumentDestinationDialog', () => {
               path: ['docs', 'guide'],
               metadata: {name: 'Guide'},
               visibility: 'PUBLIC',
+              version: 'v1',
             },
           ],
           isLoading: false,
@@ -196,6 +206,37 @@ describe('DocumentDestinationDialog', () => {
       }
       return {data: [], isLoading: false}
     })
+  })
+
+  it.each([
+    ['own move redirect', 'redirect', false, 'docs/api', true],
+    ['unrelated move redirect', 'redirect', false, 'docs/other', false],
+    ['republish redirect', 'redirect', true, 'docs/api', false],
+    ['occupied document', 'document', false, 'docs/api', false],
+  ])('checks the raw destination and handles %s', (_label, type, republish, target, allowed) => {
+    const previous = useResourceMock.getMockImplementation()!
+    useResourceMock.mockImplementation((id, options) => {
+      if (id?.path?.join('/') === 'docs/old') {
+        expect(options).toEqual({followRedirects: false})
+        return {
+          data: {type, id, redirectTarget: hmId('alice', {path: String(target).split('/')}), republish, document: {}},
+          isLoading: false,
+        }
+      }
+      return previous(id, options)
+    })
+    const {container, root} = renderDialog({id: hmId('alice', {path: ['docs', 'api']}), mode: 'move'})
+    try {
+      const input = container.querySelector('input[placeholder="url-path"]')!
+      act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'old')
+        input.dispatchEvent(new Event('input', {bubbles: true}))
+      })
+      expect(findButtonExact(container, 'Move')?.disabled).toBe(!allowed)
+      expect(container.textContent?.includes('A document already exists')).toBe(!allowed)
+    } finally {
+      cleanup(root, container)
+    }
   })
 
   it('opens nested documents at the source parent with the current slug selected', () => {

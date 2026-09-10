@@ -217,7 +217,7 @@ export type SignDocumentChangeInput = {
 export async function signDocumentChange(
   input: SignDocumentChangeInput,
   signer: AnySigner,
-): Promise<{changeCid: CID; publishInput: HMPublishBlobsInput}> {
+): Promise<{changeCid: CID; genesis: string; generation: number; publishInput: HMPublishBlobsInput}> {
   const {
     bytes: signedBytes,
     cid: changeCid,
@@ -245,6 +245,8 @@ export async function signDocumentChange(
 
   return {
     changeCid,
+    genesis: effectiveGenesis,
+    generation: effectiveGeneration,
     publishInput: {
       blobs: [{data: normalizeBytes(signedBytes), cid: changeCid.toString()}, ...refBlobs.blobs],
     },

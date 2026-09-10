@@ -111,6 +111,61 @@ describe('documentMachine rebase transitions', () => {
     actor.stop()
   })
 
+  it('keeps the published baseline separate from merged local edits and splits version heads', () => {
+    const actor = createTestActor()
+    enterEditing(actor)
+    const incoming = {...remoteDocument, version: 'headA.headB'}
+    const merged: HMBlockNode[] = [
+      {block: {type: 'Paragraph', id: 'local', text: 'Unpublished edit', attributes: {}}, children: []},
+    ]
+    actor.send({type: 'rebase.apply', mergedBlocks: merged, newDocument: incoming})
+    expect(actor.getSnapshot().context.baseBlocks).toBe(incoming.content)
+    expect(actor.getSnapshot().context.deps).toEqual(['headA', 'headB'])
+    actor.stop()
+  })
+
+  it('retains local edits, additions, deletions, and touched moves for the next rebase', () => {
+    const actor = createTestActor()
+    enterEditing(actor)
+    const paragraph = (id: string, text = id): HMBlockNode => ({
+      block: {type: 'Paragraph', id, text, attributes: {}},
+      children: [],
+    })
+    const incoming = {
+      ...remoteDocument,
+      content: ['edited', 'deleted', 'moved', 'unchanged', 'resolved'].map((id) => paragraph(id)),
+    }
+    const merged = [
+      paragraph('edited', 'My unsaved text'),
+      paragraph('unchanged'),
+      paragraph('resolved'),
+      paragraph('moved'),
+      paragraph('added'),
+    ]
+    actor.send({type: 'rebase.blockTouched', blockIds: ['edited', 'deleted', 'moved', 'resolved']})
+    actor.send({type: 'rebase.apply', mergedBlocks: merged, newDocument: incoming})
+    expect(actor.getSnapshot().context.mineTouchedIds.sort()).toEqual(['added', 'deleted', 'edited', 'moved'])
+    actor.stop()
+  })
+
+  it('preserves an empty saved baseline when restoring a draft against a newer document', () => {
+    const actor = createTestActor()
+    actor.start()
+    actor.send({type: 'document.loaded', document: remoteDocument})
+    actor.send({
+      type: 'draft.resolved',
+      draftId: 'saved',
+      content: baseBlocks,
+      cursorPosition: null,
+      baseBlocks: [],
+      mineTouchedIds: ['b1'],
+    })
+    actor.send({type: 'edit.start'})
+    expect(actor.getSnapshot().context.baseBlocks).toEqual([])
+    expect(actor.getSnapshot().context.mineTouchedIds).toEqual(['b1'])
+    actor.stop()
+  })
+
   it('rebase.detectConflict preserves pending remote update and enters conflict state', () => {
     const actor = createTestActor()
     enterEditing(actor)
@@ -206,4 +261,39 @@ describe('documentMachine rebase transitions', () => {
     expect(actor.getSnapshot().matches('publishing')).toBe(true)
     actor.stop()
   })
+})
+
+it('passes the restored maintenance epoch to the next autosave', async () => {
+  let capture!: (value: number | undefined) => void
+  const savedEpoch = new Promise<number | undefined>((resolve) => {
+    capture = resolve
+  })
+  const actor = createActor(
+    documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise(async ({input}) => {
+          capture(input.maintenanceRevision)
+          return {id: 'existing-draft'}
+        }),
+        publishDocument: fromPromise(async () => baseDocument),
+      },
+    }),
+    {input: {documentId, canEdit: true}},
+  )
+  actor.start()
+  actor.send({type: 'document.loaded', document: baseDocument})
+  actor.send({
+    type: 'draft.resolved',
+    draftId: 'existing-draft',
+    content: baseBlocks,
+    cursorPosition: null,
+    maintenanceRevision: 7,
+  })
+  actor.send({type: 'edit.start'})
+  actor.send({type: 'edit.cancel'})
+  actor.send({type: 'edit.start'})
+  actor.send({type: 'change'})
+  actor.send({type: 'publish.start'})
+  expect(await savedEpoch).toBe(7)
+  actor.stop()
 })

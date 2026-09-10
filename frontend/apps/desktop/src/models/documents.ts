@@ -1,3 +1,6 @@
+import {canUseDocumentDestination} from '@shm/shared/utils/document-actions'
+import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
+import {toast} from '@shm/ui/toast'
 import {desktopUniversalClient} from '@/desktop-universal-client'
 import {reportError} from '@/errors'
 import {grpcClient} from '@/grpc-client'
@@ -59,8 +62,7 @@ import {pathNameify} from '../utils/path'
 import {computeNewDraftParams, resolvePublishPath} from '../utils/publish-utils'
 import {useNavigate} from '../utils/useNavigate'
 import {useBroadcastWindowEvent} from '../utils/window-events'
-import {moveDraftCardBetweenParentDrafts, updateParentCardsAfterDocumentRelocation} from './auto-link-parent'
-import type {ParentCardsAfterRelocationResult} from './auto-link-parent'
+import {moveDraftCardBetweenParentDrafts} from './auto-link-parent'
 import {useMyAccountIds} from './daemon'
 import {useGatewayUrl} from './gateway-settings'
 import {getNavigationChanges} from './navigation'
@@ -151,6 +153,11 @@ export function useCreateInlineDraft(parentId: UnpackedHypermediaId | undefined)
   return useMutation({
     mutationFn: async ({visibility}: {visibility?: HMResourceVisibility} = {}) => {
       if (!parentId) throw new Error('No parent ID')
+      if (visibility !== 'PRIVATE') {
+        const parent = await desktopUniversalClient.request('Resource', hmId(parentId.uid, {path: parentId.path}))
+        if (parent.type !== 'document' || !parent.document.version || parent.document.visibility === 'PRIVATE')
+          throw new Error('Publish the parent document before creating children')
+      }
       const writeParams = buildInlineDraftWrite({
         parentId,
         draftId: nanoid(10),
@@ -172,6 +179,7 @@ export function useUpdateDraftMetadata() {
       const draft = await client.drafts.get.query(draftId)
       if (!draft) throw new Error(`Draft ${draftId} not found`)
       await client.drafts.write.mutate({
+        ...draft,
         id: draft.id,
         locationUid: draft.locationUid,
         locationPath: draft.locationPath,
@@ -257,8 +265,10 @@ export function usePublishResource(
   opts?: UseMutationOptions<HMDocument, unknown, PublishDraftInput>,
 ) {
   const accts = useMyAccountIds()
-  const editEntity = useResource(editId)
-  const editDocument = editEntity.data?.type === 'document' ? editEntity.data.document : undefined
+  // Never use the previous route's document as a publication baseline.
+  const editEntity = useResource(editId, {keepPreviousData: false})
+  const editDocument =
+    editId && !editEntity.isPreviousData && editEntity.data?.type === 'document' ? editEntity.data.document : undefined
   const writeRecentSigner = useMutation({
     mutationFn: (signingKeyName: string) => client.recentSigners.writeRecentSigner.mutate(signingKeyName),
   })
@@ -344,6 +354,14 @@ export function usePublishResource(
             })
           }
 
+          if (!existingDocVersion && draft.visibility !== 'PRIVATE' && resolvedPath.length) {
+            const parent = await desktopUniversalClient.request(
+              'Resource',
+              hmId(destinationId.uid, {path: resolvedPath.slice(0, -1)}),
+            )
+            if (parent.type !== 'document' || !parent.document.version || parent.document.visibility === 'PRIVATE')
+              throw new Error('Publish the parent document before creating children')
+          }
           if (!existingDocVersion) {
             newContent = retargetQueryBlockIncludesForPublish(newContent, destinationId, resolvedDestinationId)
           }
@@ -428,12 +446,56 @@ export function usePublishResource(
                 ? editDocument?.generationInfo?.generation
                 : undefined,
           }
-          await desktopUniversalClient.publishDocument!(publishInput)
+          let parentMaintenanceJobId: string | undefined
+          if (!existingDocVersion && draft.visibility !== 'PRIVATE' && resolvedPath.length) {
+            try {
+              const queued = await client.documentCardCleanup.enqueue.mutate({
+                operation: 'add',
+                parentDocumentId: hmId(resolvedDestinationId.uid, {path: resolvedPath.slice(0, -1)}).id,
+                targetDocumentId: resolvedDestinationId.id,
+                childDraftId: draft.id,
+                signingAccountUid: accountId,
+                awaitingPrimary: {documentId: resolvedDestinationId.id, expectedType: 'document'},
+              })
+              parentMaintenanceJobId = queued.jobId
+            } catch (error) {
+              console.error('Could not persist first publication maintenance intent', error)
+              toast.error(
+                'Parent maintenance could not be saved. Publication will continue; please review parent links manually.',
+              )
+            }
+          }
+          const publication = await desktopUniversalClient.publishDocument!(publishInput)
+          if (parentMaintenanceJobId)
+            await client.documentCardCleanup.release.mutate({jobId: parentMaintenanceJobId}).catch((error) => {
+              console.error('Published document maintenance awaits recovery', error)
+            })
 
-          const updatedDoc = await grpcClient.documents.getDocument({
-            account: resolvedDestinationId.uid,
-            path: docPath,
-          })
+          let updatedDoc
+          try {
+            updatedDoc = await grpcClient.documents.getDocument({
+              account: resolvedDestinationId.uid,
+              path: docPath,
+              ...(publication ? {version: publication.version} : {}),
+            })
+          } catch (error) {
+            if (!publication) throw error
+            // The signed publication is authoritative even while indexing is unavailable.
+            // Use the actual submitted content and signed identifiers, never a synthetic version.
+            console.warn('Document published; using its signed result while indexing catches up', error)
+            return {
+              ...editDocument,
+              account: resolvedDestinationId.uid,
+              path: docPath,
+              version: publication.version,
+              genesis: publication.genesis,
+              generationInfo: {genesis: publication.genesis, generation: BigInt(publication.generation)},
+              metadata: draft.metadata,
+              content: editorBlocksToHMBlockNodes(newContent),
+              visibility: draft.visibility === 'PRIVATE' ? 'PRIVATE' : 'PUBLIC',
+              detachedBlocks: editDocument?.detachedBlocks || {},
+            } as HMDocument
+          }
           // console.log('[publish] result', {
           //   requestedBaseVersion: baseVersion,
           //   resultVersion: updatedDoc.version,
@@ -919,13 +981,7 @@ export function usePushResource() {
 
 // Auto-link helpers moved to ./auto-link-parent.ts so tests can import them
 // without pulling in the editor bundle via documents.ts.
-export {
-  addLinkToParentDraft,
-  autoLinkParentAfterPublish,
-  documentContainsLinkToChild,
-  documentHasSelfQuery,
-  publishLinkToParentDocument,
-} from './auto-link-parent'
+export {autoLinkParentAfterPublish, documentContainsLinkToChild, documentHasSelfQuery} from './auto-link-parent'
 export type {AutoLinkParentResult} from './auto-link-parent'
 
 export function useListSite(id?: UnpackedHypermediaId) {
@@ -1090,6 +1146,14 @@ export function useCreateDraft(
       hasInitialData,
     )
     if (!plan) return
+    if (visibility !== 'PRIVATE' && plan.routeId.path?.length) {
+      const parent = await desktopUniversalClient.request(
+        'Resource',
+        hmId(plan.routeId.uid, {path: plan.routeId.path.slice(0, -1)}),
+      )
+      if (parent.type !== 'document' || !parent.document.version || parent.document.visibility === 'PRIVATE')
+        throw new Error('Publish the parent document before creating children')
+    }
     if (plan.shouldWrite) {
       if (visibility === 'PRIVATE') rememberDraftReturnParentId(plan.draftId, hmId(plan.routeId.uid))
       await client.drafts.write.mutate({
@@ -1139,7 +1203,35 @@ export function useForkDocument() {
         },
         signer,
       )
+
+      let pendingJobId: string | undefined
+      if (to.path?.length) {
+        const parentId = hmId(to.uid, {path: to.path.slice(0, -1)})
+        const parent = await universalClient.request('Resource', parentId)
+        if (parent.type !== 'document' || !parent.document.version || parent.document.visibility === 'PRIVATE')
+          throw new Error('Destination parent must be published and public')
+        const queued = await client.documentCardCleanup.enqueue
+          .mutate({
+            operation: 'add',
+            parentDocumentId: parentId.id,
+            targetDocumentId: to.id,
+            signingAccountUid: signingAccountId,
+            awaitingPrimary: {
+              documentId: to.id,
+              expectedType: 'document',
+              expectedVersion: doc.version,
+              expectedGenesis: doc.genesis,
+            },
+          })
+          .catch((error) => {
+            console.error('Could not persist fork parent maintenance', error)
+            toast.error('Parent maintenance could not be saved; please review the fork parent manually.')
+          })
+        pendingJobId = queued?.jobId
+      }
       await universalClient.publish(refInput)
+      if (pendingJobId) await client.documentCardCleanup.release.mutate({jobId: pendingJobId}).catch(console.error)
+
       push(from)
       push(to)
     },
@@ -1320,6 +1412,7 @@ async function retargetDraftAfterPublishedMove(from: UnpackedHypermediaId, to: U
     pathsEqual(draft.locationPath, fromParent.path || [])
 
   await client.drafts.write.mutate({
+    ...draft,
     id: draft.id,
     locationUid: shouldMoveLocation ? toParent!.uid : draft.locationUid,
     locationPath: shouldMoveLocation ? toParent!.path || [] : draft.locationPath,
@@ -1336,29 +1429,6 @@ async function retargetDraftAfterPublishedMove(from: UnpackedHypermediaId, to: U
   invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, from.uid])
   invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, to.uid])
   return draft.id
-}
-
-function broadcastRelocatedParentDraftChanges(
-  broadcastWindowEvent: ReturnType<typeof useBroadcastWindowEvent>,
-  result: ParentCardsAfterRelocationResult,
-  sourceId: UnpackedHypermediaId,
-) {
-  if (result.removed.kind === 'removed-from-draft') {
-    broadcastWindowEvent({
-      type: 'draft_externally_modified',
-      draftId: result.removed.parentDraftId,
-      source: 'document-card-cleanup',
-      deletedDocumentId: sourceId.id,
-      removedBlockIds: result.removed.removedBlockIds,
-    })
-  }
-  if (result.added.kind === 'added-to-draft') {
-    broadcastWindowEvent({
-      type: 'draft_externally_modified',
-      draftId: result.added.parentDraftId,
-      source: 'document-card-cleanup',
-    })
-  }
 }
 
 export function useMoveDraft() {
@@ -1384,6 +1454,7 @@ export function useMoveDraft() {
         : getDocumentParentId(from)
 
       await client.drafts.write.mutate({
+        ...draft,
         id: draft.id,
         locationUid: toParent.uid,
         locationPath: toParent.path || [],
@@ -1437,6 +1508,11 @@ export function useMoveDocument() {
       origin?: DocumentCardActionOrigin
     }) => {
       if (!universalClient.getSigner) throw new Error('Signing not available')
+      if (to.path?.length) {
+        const parent = await universalClient.request('Resource', hmId(to.uid, {path: to.path.slice(0, -1)}))
+        if (parent.type !== 'document' || !parent.document.version || parent.document.visibility === 'PRIVATE')
+          throw new Error('Destination parent must be published and public')
+      }
       const signer = universalClient.getSigner(signingAccountId)
       const sourceCapabilityId = await resolveWriteCapabilityId(signingAccountId, from)
       const targetCapabilityId = await resolveWriteCapabilityId(signingAccountId, to)
@@ -1458,6 +1534,14 @@ export function useMoveDocument() {
           isSubdocumentMove: true,
         }))
       const moves: PlannedMove[] = [{from, to, isSubdocumentMove: false}, ...childMoves]
+      // Check every destination before publishing any part of a recursive move.
+      await Promise.all(
+        moves.map(async (move) => {
+          const destination = await universalClient.request('Resource', hmId(move.to.uid, {path: move.to.path}))
+          if (!canUseDocumentDestination(destination, move.from))
+            throw new Error(`A document already exists at ${move.to.id}, or its availability could not be verified.`)
+        }),
+      )
       // console.log(`[move-document] planned subdocument moves`, {count: childMoves.length, childMoves})
       // console.log(`[move-document] recursive move plan`, {from, to, childMoves, moves})
       // console.log(`[move-document] loading source documents`, {count: moves.length, moves})
@@ -1509,6 +1593,39 @@ export function useMoveDocument() {
       //   count: moveRefBundles.length,
       //   moveRefBundles,
       // })
+      const reconciliationInputs = getDocumentCardReconciliationInputsForMove({
+        from,
+        to,
+        signingAccountUid: signingAccountId,
+        sourceCapabilityId,
+        targetCapabilityId,
+      })
+      if (origin)
+        reconciliationInputs.push({
+          operation: 'remove',
+          sourceDocumentId: from.id,
+          parentDocumentId: origin.parentDocumentId.id,
+          targetBlockId: origin.embedBlockId,
+          signingAccountUid: signingAccountId,
+        } as any)
+      const pendingJobs: string[] = []
+      for (const reconciliationInput of reconciliationInputs) {
+        const queued = await client.documentCardCleanup.enqueue
+          .mutate({
+            ...reconciliationInput,
+            awaitingPrimary: {
+              documentId: from.id,
+              expectedType: 'redirect',
+              targetDocumentId: to.id,
+              expectedGenesis: moveResources[0]?.doc.genesis,
+            },
+          } as any)
+          .catch((error) => {
+            console.error('Document saved, but parent maintenance could not be queued', error)
+            toast.error('Document saved. Parent maintenance could not be saved; please review its parent links.')
+          })
+        if (queued?.jobId) pendingJobs.push(queued.jobId)
+      }
       for (const moveRefs of moveRefBundles) {
         // const moveScope = moveScopeLabel(moveRefs.isSubdocumentMove)
         // console.groupCollapsed(
@@ -1551,29 +1668,13 @@ export function useMoveDocument() {
         push(moveRefs.targetId)
         // console.groupEnd()
       }
-      await retargetDraftAfterPublishedMove(from, to)
-
-      const reconciliationInputs = getDocumentCardReconciliationInputsForMove({
-        from,
-        to,
-        signingAccountUid: signingAccountId,
-        sourceCapabilityId,
-        targetCapabilityId,
+      await retargetDraftAfterPublishedMove(from, to).catch((error) => {
+        console.error('Document moved, but its draft location needs review', error)
+        toast.error('Document moved. Its local draft location needs manual review.')
       })
-      for (const reconciliationInput of reconciliationInputs) {
-        await client.documentCardCleanup.enqueue.mutate(reconciliationInput as any)
-      }
-      // console.log(`[move-document] recursive move complete`, {moves})
 
-      if (origin) {
-        const parentCardResult = await updateParentCardsAfterDocumentRelocation({
-          from,
-          to,
-          signingAccountUid: signingAccountId,
-          origin,
-        })
-        broadcastRelocatedParentDraftChanges(broadcastWindowEvent, parentCardResult, from)
-      }
+      for (const jobId of pendingJobs) await client.documentCardCleanup.release.mutate({jobId}).catch(console.error)
+      // console.log(`[move-document] recursive move complete`, {moves})
 
       return moves
     },
@@ -1622,6 +1723,12 @@ export function useRepublishDocument() {
       origin?: DocumentCardActionOrigin
     }) => {
       if (!universalClient.getSigner) throw new Error('Signing not available')
+      if (to.path?.length) {
+        const parent = await universalClient.request('Resource', hmId(to.uid, {path: to.path.slice(0, -1)}))
+        if (parent.type !== 'document' || !parent.document.version || parent.document.visibility === 'PRIVATE')
+          throw new Error('Destination parent must be published and public')
+      }
+
       const signer = universalClient.getSigner(signingAccountId)
       // Follows redirects so an already-republished doc can be republished elsewhere too.
       const {document: doc} = await followToDocument(universalClient as unknown as SeedClient, from)
@@ -1634,26 +1741,33 @@ export function useRepublishDocument() {
         capabilityId,
       })
       const refInput = await createRedirectRef(refOperation, signer)
-      await universalClient.publish(refInput)
-      push(from)
-      push(to)
+      let pendingJobId: string | undefined
       const reconciliationInput = getDocumentCardReconciliationInputForRepublish({
         to,
         signingAccountUid: signingAccountId,
         capabilityId,
       })
       if (reconciliationInput) {
-        await client.documentCardCleanup.enqueue.mutate(reconciliationInput as any)
+        const queued = await client.documentCardCleanup.enqueue
+          .mutate({
+            ...reconciliationInput,
+            awaitingPrimary: {
+              documentId: to.id,
+              expectedType: 'redirect',
+              targetDocumentId: from.id,
+              expectedGenesis: doc.genesis,
+            },
+          } as any)
+          .catch((error) => {
+            console.error('Document saved, but parent maintenance could not be queued', error)
+            toast.error('Document saved. Parent maintenance could not be saved; please review its parent links.')
+          })
+        pendingJobId = queued?.jobId
       }
-      if (origin) {
-        const parentCardResult = await updateParentCardsAfterDocumentRelocation({
-          from,
-          to,
-          signingAccountUid: signingAccountId,
-          origin,
-        })
-        broadcastRelocatedParentDraftChanges(broadcastWindowEvent, parentCardResult, from)
-      }
+      await universalClient.publish(refInput)
+      push(from)
+      push(to)
+      if (pendingJobId) await client.documentCardCleanup.release.mutate({jobId: pendingJobId}).catch(console.error)
       return {from, to}
     },
     onSuccess: ({from, to}) => {

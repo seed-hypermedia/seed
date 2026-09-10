@@ -1,3 +1,4 @@
+import {DocumentMaintenanceTrigger} from '@shm/ui/document-maintenance'
 import {useContactList} from '@/models/contacts'
 import {
   isJoinedSiteDragBlocked,
@@ -103,6 +104,9 @@ export function MainAppSidebar() {
                 title="Agents"
                 bold
               />
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <DocumentMaintenanceTrigger />
             </SidebarMenuItem>
             {/* <SidebarMenuItem>
               <SmallListItem

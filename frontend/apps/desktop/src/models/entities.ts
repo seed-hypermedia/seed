@@ -1,3 +1,4 @@
+import {toast} from '@shm/ui/toast'
 import {grpcClient} from '@/grpc-client'
 import {client} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
@@ -47,11 +48,12 @@ export async function enqueueDeletedDocumentParentCardCleanup({
   ids,
   capabilityId,
   signingAccountUid,
-}: DeleteEntitiesInput): Promise<void> {
+}: DeleteEntitiesInput) {
   const selectedDeletedDocument = ids[0]
   if (!selectedDeletedDocument) return
-  await client.documentCardCleanup.enqueue.mutate({
+  return client.documentCardCleanup.enqueue.mutate({
     deletedDocumentId: selectedDeletedDocument.id,
+    awaitingPrimary: {documentId: selectedDeletedDocument.id, expectedType: 'tombstone'},
     signingAccountUid,
     capabilityId,
   })
@@ -66,6 +68,12 @@ export function useDeleteEntities(opts: UseMutationOptions<void, unknown, Delete
     mutationFn: async ({ids, capabilityId, signingAccountUid}: DeleteEntitiesInput) => {
       if (!universalClient.getSigner) throw new Error('Signing not available')
       const signer = universalClient.getSigner(signingAccountUid)
+      const queued = await enqueueDeletedDocumentParentCardCleanup({ids, capabilityId, signingAccountUid}).catch(
+        (error) => {
+          console.error('Documents deleted, but parent maintenance could not be queued', error)
+          toast.error('Documents deleted. Parent cards need manual review because maintenance could not be saved.')
+        },
+      )
       await Promise.all(
         ids.map(async (id) => {
           await deleteRecent.mutateAsync(id.id)
@@ -100,7 +108,7 @@ export function useDeleteEntities(opts: UseMutationOptions<void, unknown, Delete
           await universalClient.publish(refInput)
         }),
       )
-      await enqueueDeletedDocumentParentCardCleanup({ids, capabilityId, signingAccountUid})
+      if (queued?.jobId) await client.documentCardCleanup.release.mutate({jobId: queued.jobId}).catch(console.error)
       void pushDeletedEntitiesBestEffort(push, ids).catch((error) => {
         console.error('Failed to push deleted entity updates', error)
       })

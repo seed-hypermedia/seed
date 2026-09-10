@@ -1,4 +1,4 @@
-import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {HMResource, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 
 export type DocumentCardActionOrigin = {
   parentDocumentId: UnpackedHypermediaId
@@ -34,8 +34,10 @@ export function canShowRepublishDocumentAction({
 }
 
 /** Returns whether a document can be selected as a parent destination for new child documents. */
-export function canUseDocumentAsDestinationParent(document: {visibility?: string} | null | undefined) {
-  return document?.visibility !== 'PRIVATE'
+export function canUseDocumentAsDestinationParent(
+  document: {visibility?: string; version?: string} | null | undefined,
+) {
+  return !!document?.version && document.visibility !== 'PRIVATE'
 }
 
 /** Returns true when a Move target parent would put the source inside itself. */
@@ -57,4 +59,20 @@ export function isMoveTargetSameSite(sourceId: UnpackedHypermediaId, targetParen
 /** Returns true when a parent is a valid Move destination candidate for the source. */
 export function canUseMoveTargetParent(sourceId: UnpackedHypermediaId, targetParentId: UnpackedHypermediaId | null) {
   return isMoveTargetSameSite(sourceId, targetParentId) && !isMoveTargetParentBlocked(sourceId, targetParentId)
+}
+
+/** Allows empty destinations, or a move back over a direct move redirect to its current source. */
+export function canUseDocumentDestination(resource: HMResource | null | undefined, moveSource?: UnpackedHypermediaId) {
+  if (resource?.type === 'not-found' || resource?.type === 'tombstone') return true
+  if (resource?.type !== 'redirect' || resource.republish || !moveSource) return false
+  const target = resource.redirectTarget
+  const sourcePath = moveSource.path || []
+  const targetPath = target.path || []
+  return (
+    target.uid === moveSource.uid &&
+    !target.version &&
+    !target.blockRef &&
+    targetPath.length === sourcePath.length &&
+    targetPath.every((part, index) => part === sourcePath[index])
+  )
 }

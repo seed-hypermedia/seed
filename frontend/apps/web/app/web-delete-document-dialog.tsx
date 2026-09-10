@@ -1,3 +1,4 @@
+import {toast} from '@shm/ui/toast'
 import {createTombstoneRef, followToDocument, type SeedClient} from '@seed-hypermedia/client'
 import type {HMDocumentInfo, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, useUniversalClient} from '@shm/shared'
@@ -14,7 +15,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {Text} from '@shm/ui/text'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useQuery} from '@tanstack/react-query'
-import {enqueueWebDocumentCardCleanup} from './document-edit/web-document-card-cleanup'
+import {enqueueWebDocumentCardCleanup, releaseWebDocumentCardCleanup} from './document-edit/web-document-card-cleanup'
 
 export type WebDeleteDocumentDialogInput = {
   id: UnpackedHypermediaId
@@ -107,6 +108,24 @@ export async function deleteWebDocuments(
   if (!client.getSigner) throw new Error('Signing not available')
   const signer = client.getSigner(input.signingAccountId) as HMSigner
 
+  let pendingJobId: string | undefined
+  const selectedDeletedDocument = input.ids[0]
+  if (selectedDeletedDocument) {
+    const queued = await enqueueWebDocumentCardCleanup(
+      {
+        deletedDocumentId: selectedDeletedDocument.id,
+        awaitingPrimary: {documentId: selectedDeletedDocument.id, expectedType: 'tombstone'},
+        signingAccountUid: input.signingAccountId,
+        capabilityId: input.capabilityId,
+      },
+      {client},
+    ).catch((error) => {
+      console.warn('Documents deleted, but parent maintenance could not be queued', error)
+      toast.error('Documents deleted. Parent cards need manual review because maintenance could not be saved.')
+    })
+    pendingJobId = queued?.jobId
+  }
+
   await Promise.all(
     input.ids.map(async (id) => {
       await client.deleteRecent?.(id.id)
@@ -142,17 +161,7 @@ export async function deleteWebDocuments(
     }),
   )
 
-  const selectedDeletedDocument = input.ids[0]
-  if (selectedDeletedDocument) {
-    await enqueueWebDocumentCardCleanup(
-      {
-        deletedDocumentId: selectedDeletedDocument.id,
-        signingAccountUid: input.signingAccountId,
-        capabilityId: input.capabilityId,
-      },
-      {client},
-    )
-  }
+  if (pendingJobId) await releaseWebDocumentCardCleanup(pendingJobId).catch(console.error)
 
   invalidateQueries([])
   input.ids.forEach((id) => {

@@ -4,11 +4,12 @@ import {HMBlockNode, HMDocument, HMMetadata, HMNavigationItem} from '@seed-hyper
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {useActorRef, useSelector} from '@xstate/react'
 import {createContext, createElement, ReactNode, useContext, useEffect, useMemo, useRef} from 'react'
-import {ActorRefFrom, SnapshotFrom} from 'xstate'
+import {ActorRefFrom, SnapshotFrom, enqueueActions} from 'xstate'
 import {applyRebasePlan, classifyRebase} from '../utils/document-changes'
 import {computeInlineDraftPublishPath} from '../utils/publish-paths'
 import {
   documentMachine,
+  reconcileLiveDocumentMaintenance,
   getCollectionEditorBlocks,
   DocumentMachineContext,
   DocumentMachineEvent,
@@ -146,38 +147,39 @@ export function DocumentMachineProvider({input, machine, inspect, children}: Doc
             })
             editorHandlersRef.current?.replaceCurrentContent?.(context.editorBaseline)
           },
-          applyExternalDraftCleanupToEditor: ({context, event}) => {
+          applyExternalDraftState: enqueueActions(({context, event, enqueue}) => {
             if (
               event.type !== 'draft.externallyModified' ||
               event.source !== 'document-card-cleanup' ||
               event.draftId !== context.draftId
-            ) {
+            )
               return
-            }
-            documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer applying cleanup to editor`, {
-              documentId: context.documentId.id,
-              draftId: context.draftId,
-              deletedDocumentId: event.deletedDocumentId,
-              removedBlockIds: event.removedBlockIds ?? [],
-              hasEditorHandlers: !!editorHandlersRef.current,
-            })
-            if (event.content) {
-              editorHandlersRef.current?.replaceCurrentContent?.(
-                hmBlocksToEditorContent(event.content, {childrenType: 'Group'}),
+            try {
+              const blocks = editorHandlersRef.current?.getCurrentBlocks()
+              const patch = reconcileLiveDocumentMaintenance(
+                context,
+                event,
+                blocks ? editorBlocksToHMBlockNodes(blocks) : null,
               )
-            } else if (event.deletedDocumentId) {
-              editorHandlersRef.current?.applyDocumentCardCleanup?.({
-                deletedDocumentId: event.deletedDocumentId,
-                removedBlockIds: event.removedBlockIds,
-              })
+              enqueue.assign(patch)
+              if (patch.hasChangedWhileSaving) enqueue.raise({type: 'change'})
+              if (patch.draftContent)
+                enqueue(() => {
+                  editorHandlersRef.current?.replaceCurrentContent?.(
+                    hmBlocksToEditorContent(patch.draftContent!, {childrenType: 'Group'}),
+                  )
+                })
+            } catch (error) {
+              if (event.jobId)
+                enqueue.emit({
+                  type: 'maintenanceConflict',
+                  jobId: event.jobId,
+                  error: error instanceof Error ? error.message : String(error),
+                })
             }
-            const currentBlocks = editorHandlersRef.current?.getCurrentBlocks()
-            documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer applied cleanup to editor`, {
-              documentId: context.documentId.id,
-              draftId: context.draftId,
-              editorTopLevelBlockCount: countTopLevelBlocks(currentBlocks),
-            })
-          },
+          }),
+          // The reconciliation action above applies only a successfully merged snapshot.
+          applyExternalDraftCleanupToEditor: () => {},
         },
       }),
     [machine],
@@ -459,6 +461,8 @@ export function useDraftResolutionSync(
         cursorPosition: number | null
         metadata?: HMMetadata | null
         deps?: string[] | null
+        maintenanceRevision?: number
+        removedChildDocumentIds?: string[] | null
         mineTouchedIds?: string[] | null
         baseBlocks?: HMBlockNode[] | null
         publishPath?: string[] | null
@@ -475,6 +479,8 @@ export function useDraftResolutionSync(
         draftId: resolved.draftId,
         contentTopLevelBlockCount: countTopLevelBlocks(resolved.content),
         deps: resolved.deps ?? null,
+        maintenanceRevision: resolved.maintenanceRevision ?? 0,
+        removedChildDocumentIds: resolved.removedChildDocumentIds ?? null,
         mineTouchedIds: resolved.mineTouchedIds ?? null,
         baseBlockCount: countTopLevelBlocks(resolved.baseBlocks),
       })
@@ -485,6 +491,8 @@ export function useDraftResolutionSync(
         cursorPosition: resolved.cursorPosition,
         metadata: resolved.metadata ?? null,
         deps: resolved.deps ?? null,
+        maintenanceRevision: resolved.maintenanceRevision ?? 0,
+        removedChildDocumentIds: resolved.removedChildDocumentIds ?? null,
         mineTouchedIds: resolved.mineTouchedIds ?? null,
         baseBlocks: resolved.baseBlocks ?? null,
         publishPath: resolved.publishPath ?? null,
@@ -496,6 +504,8 @@ export function useDraftResolutionSync(
           draftId: resolved.draftId,
           contentTopLevelBlockCount: countTopLevelBlocks(resolved.content),
           deps: resolved.deps ?? null,
+          maintenanceRevision: resolved.maintenanceRevision ?? 0,
+          removedChildDocumentIds: resolved.removedChildDocumentIds ?? null,
           mineTouchedIds: resolved.mineTouchedIds ?? null,
           baseBlockCount: countTopLevelBlocks(resolved.baseBlocks),
         },

@@ -1,3 +1,10 @@
+import {
+  inspectChildDeletions,
+  validateConfirmedChildDeletions,
+  type ConfirmChildDeletionInput,
+  type ConfirmedChildDeletion,
+} from '@shm/shared/utils/confirmed-child-deletion'
+import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {useAppContext} from '@/app-context'
 import {CommentBox, renderDesktopInlineEditor, triggerCommentDraftFocus} from '@/components/commenting'
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
@@ -14,7 +21,6 @@ import {EditingDocToolsRight, useDesktopToolbarCallbacks} from '@/components/edi
 import {useFollowProfileIntent} from '@/components/desktop-intents'
 import {DocumentDestinationDialog} from '@/components/document-destination-dialog'
 import {JoinButton} from '@/components/join-button'
-import {ParentUpdateToast} from '@/components/parent-update-toast'
 import {usePublishSite, useRemoveSiteDialog} from '@/components/publish-site'
 import {SearchInput} from '@/components/search-input'
 import {domainResolver, grpcClient} from '@/grpc-client'
@@ -22,7 +28,6 @@ import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-contro
 import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
 import {
-  autoLinkParentAfterPublish,
   resolveDraftWriteAnchors,
   // useChildDrafts,
   useMoveDocument,
@@ -45,6 +50,7 @@ import {useBroadcastWindowEvent, useListenAppEvent} from '@/utils/window-events'
 import {
   DOCUMENT_ATTRIBUTE_DESCRIPTIONS,
   HMBlockNode,
+  HMDocument,
   HMComment,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
@@ -154,13 +160,32 @@ type DraftExternallyModifiedEvent = {
   type: 'draft_externally_modified'
   draftId: string
   source?: 'document-card-cleanup'
+  cardBlockId?: string
+  childDraftId?: string
+  targetBlockId?: string
+  maintenanceRevision?: number
+  jobId?: string
+  operation?: 'add' | 'remove' | 'rewrite'
+  sourceDocumentId?: string
+  targetDocumentId?: string
   deletedDocumentId?: string
   removedBlockIds?: string[]
   autoReload?: boolean
+  previousContent?: HMBlockNode[]
+  publishedDocument?: HMDocument
 }
 
 function DraftExternalModificationMachineLogger() {
   const actorRef = useDocumentMachineRef()
+
+  useEffect(() => {
+    const subscription = actorRef.on('maintenanceConflict', ({jobId, error}) => {
+      void client.documentCardCleanup.reportConflict.mutate({jobId, error}).catch((reportError) => {
+        cleanupError(`${CLEANUP_LOG_PREFIX} failed to persist live draft conflict`, {jobId, error: reportError})
+      })
+    })
+    return () => subscription.unsubscribe()
+  }, [actorRef])
 
   const handleDraftExternallyModified = useCallback(
     async (event: DraftExternallyModifiedEvent) => {
@@ -195,16 +220,36 @@ function DraftExternalModificationMachineLogger() {
         })
       }
 
+      // A delayed fetch must not pair an old maintenance baseline with a newer draft.
+      if (
+        event.publishedDocument &&
+        (!draft || [...draft.deps].sort().join('.') !== event.publishedDocument.version.split('.').sort().join('.'))
+      ) {
+        return
+      }
+
+      if (event.maintenanceRevision !== undefined && draft?.maintenanceRevision !== event.maintenanceRevision) return
       actorRef.send({
         type: 'draft.externallyModified',
         draftId: event.draftId,
         source: event.source,
         deletedDocumentId: event.deletedDocumentId,
         removedBlockIds: event.removedBlockIds,
-        content: draft?.content ?? null,
+        content: draft ? editorBlocksToHMBlockNodes(draft.content) : null,
+        jobId: event.jobId,
+        cardBlockId: event.cardBlockId,
+        childDraftId: event.childDraftId,
+        targetBlockId: event.targetBlockId,
+        operation: event.operation,
+        sourceDocumentId: event.sourceDocumentId,
+        targetDocumentId: event.targetDocumentId,
+        previousContent: event.previousContent,
+        publishedDocument: event.publishedDocument,
         cursorPosition: draft?.cursorPosition ?? null,
         metadata: draft?.metadata ?? null,
         deps: draft?.deps ?? null,
+        maintenanceRevision: draft?.maintenanceRevision ?? 0,
+        removedChildDocumentIds: draft?.removedChildDocumentIds ?? null,
         mineTouchedIds: draft?.mineTouchedIds ?? null,
         baseBlocks: draft?.baseBlocks ?? null,
       })
@@ -333,7 +378,9 @@ export default function DesktopResourcePage() {
   // instead of published blocks (avoids the flash + replaceBlocks race condition)
   const draftQuery = useDraft(existingDraft ? existingDraft.id : undefined)
   const draftData = existingDraft && draftQuery.data?.id === existingDraft.id ? draftQuery.data : undefined
-  const existingDraftContent = draftData?.content
+  // Draft resolution is one-shot: do not hydrate an actor from stale cached
+  // content while a maintenance-triggered refetch is restoring its new baseline.
+  const existingDraftContent = draftQuery.isFetching ? undefined : draftData?.content
 
   // When another window writes to this draft (e.g. a child publish appended a
   // card embed via auto-link-parent), the editor's in-memory ProseMirror state
@@ -546,6 +593,8 @@ export default function DesktopResourcePage() {
           editPath: anchors.editPath,
           visibility: draftVisibility,
           mineTouchedIds: input.mineTouchedIds.length ? input.mineTouchedIds : undefined,
+          maintenanceRevision: input.maintenanceRevision ?? 0,
+          removedChildDocumentIds: input.removedChildDocumentIds,
           baseBlocks: input.baseBlocks ?? undefined,
           publishPath: input.publishPath ?? undefined,
         })
@@ -583,34 +632,42 @@ export default function DesktopResourcePage() {
         const draftData = await client.drafts.get.query(input.draftId)
         if (!draftData) throw new Error('Draft not found: ' + input.draftId)
 
-        const isPrivate = draftData.visibility === 'PRIVATE'
-        // First-publish detection covers two cases:
-        //   1. Legacy location-only drafts (no editUid) — clearly new docs.
-        //   2. "Claimed" drafts (editUid+editPath set) where the doc at that
-        //      path doesn't exist yet — also new docs (e.g. inline card flow).
-        // Path encoding must match `hmIdPathToEntityQueryPath`: the daemon
-        // expects `''` for the root home doc, not `'/'` — passing `'/'`
-        // resolves to "not found" and would misclassify a home-doc edit as a
-        // first publish, redirecting it to a brand-new child slug.
-        let isFirstPublish = !draftData.editUid
-        if (!isFirstPublish && draftData.editUid) {
-          try {
-            const editPathString = (draftData.editPath ?? []).filter((term) => !!term).join('/')
-            const existing = await grpcClient.documents.getDocument({
-              account: draftData.editUid,
-              path: editPathString ? `/${editPathString}` : '',
-            })
-            if (!existing?.version) isFirstPublish = true
-          } catch {
-            isFirstPublish = true
-          }
+        if (input.confirmedChildDeletions?.length) {
+          await validateConfirmedChildDeletions(universalClient, {
+            parentId: input.documentId,
+            content: editorBlocksToHMBlockNodes(draftData.content || []),
+            confirmations: input.confirmedChildDeletions,
+          }).catch((error) => {
+            if (!(error instanceof Error) || !error.message.includes('unresolved external reference')) throw error
+            console.warn('Child deletion requires manual reference review after publication', error)
+          })
         }
-
         // The actual destination (slug rename for inline first-publish, plus
         // any explicit pathOverride from the publish popover) is resolved
         // inside `usePublishResource` so both the unified-editor flow and the
         // legacy draft-route flow share the same logic. We just hand it the
         // raw route id.
+        const pendingDeletionJobs: string[] = []
+        for (const confirmation of input.confirmedChildDeletions || []) {
+          const queued = await client.documentCardCleanup.enqueue
+            .mutate({
+              operation: 'delete-child',
+              sourceDocumentId: confirmation.childId.id,
+              parentDocumentId: input.documentId.id,
+              approvedSubtree: confirmation.documents,
+              authorizingParentVersion: 'pending-publication',
+              awaitingPrimary: {documentId: input.documentId.id, expectedType: 'document'},
+              signingAccountUid: input.publishAccountUid || '',
+              capabilityId: capability?.role === 'owner' ? undefined : capability?.id,
+            })
+            .catch((error) => {
+              console.error('Parent published, but confirmed deletion could not be queued', error)
+              toast.error(
+                'Parent published. Confirmed child deletions need manual review because maintenance could not be saved.',
+              )
+            })
+          if (queued?.jobId) pendingDeletionJobs.push(queued.jobId)
+        }
         const result = await publishResourceRef.current.mutateAsync({
           draft: draftData,
           destinationId: input.documentId,
@@ -622,6 +679,10 @@ export default function DesktopResourcePage() {
         const newRouteId = hmId(result.account, {
           path: entityQueryPathToHmIdPath(result.path),
         })
+        for (const jobId of pendingDeletionJobs)
+          await client.documentCardCleanup.release
+            .mutate({jobId, authorizingParentVersion: result.version})
+            .catch(console.error)
         const pathChanged = oldRouteId.id !== newRouteId.id
 
         // If the URL changed (first publish from `-${draftId}` → real slug),
@@ -634,46 +695,6 @@ export default function DesktopResourcePage() {
             oldId: oldRouteId.id,
             newId: newRouteId.id,
           })
-        }
-
-        if (isFirstPublish) {
-          try {
-            const childId = hmId(result.account, {
-              path: entityQueryPathToHmIdPath(result.path),
-            })
-            const outcome = await autoLinkParentAfterPublish({
-              childId,
-              childDraftId: input.draftId,
-              signingAccountUid: input.publishAccountUid || undefined,
-              isPrivate,
-            })
-            if (outcome.kind === 'added-to-draft' || outcome.kind === 'published-parent') {
-              const parentId = outcome.parentId
-              const navigateToParent = () => {
-                navigateRef.current({
-                  key: 'document',
-                  id: hmId(parentId.uid, {path: parentId.path, latest: true}),
-                })
-              }
-              const message =
-                outcome.kind === 'added-to-draft' ? 'Link added to parent draft' : 'Parent document updated'
-              toast.success(<ParentUpdateToast message={message} onViewParent={navigateToParent} />)
-
-              // Tell every window holding this draft open that its on-disk
-              // content has changed under it. The ProseMirror editor in the
-              // parent's window keeps its own state, so React-Query
-              // invalidation alone won't surface the new embed.
-              if (outcome.kind === 'added-to-draft') {
-                broadcastWindowEventRef.current({
-                  type: 'draft_externally_modified',
-                  draftId: outcome.parentDraftId,
-                })
-              }
-            }
-          } catch (error) {
-            console.error('Failed to add link to parent:', error)
-            toast.error('Published document, but failed to add link to parent')
-          }
         }
 
         await deleteDraftsForCleanup(input.draftId, input.deletedChildDraftIds)
@@ -743,6 +764,7 @@ export default function DesktopResourcePage() {
         const draft = await client.drafts.get.query(input.draftId)
         if (!draft) throw new Error(`Draft ${input.draftId} not found`)
         await client.drafts.write.mutate({
+          ...draft,
           id: draft.id,
           locationUid: draft.locationUid,
           locationPath: draft.locationPath,
@@ -755,6 +777,7 @@ export default function DesktopResourcePage() {
           visibility: draft.visibility,
           cursorPosition: draft.cursorPosition,
           mineTouchedIds: draft.mineTouchedIds,
+          removedChildDocumentIds: draft.removedChildDocumentIds,
           baseBlocks: draft.baseBlocks,
           publishPath: input.path,
         })
@@ -771,6 +794,9 @@ export default function DesktopResourcePage() {
     () =>
       documentMachine.provide({
         actors: {
+          inspectChildDeletions: fromPromise<ConfirmedChildDeletion[], ConfirmChildDeletionInput>(async ({input}) =>
+            inspectChildDeletions(universalClient, input),
+          ),
           writeDraft: writeDraftActor,
           publishDocument: publishDocumentActor,
           discardDraft: discardDraftActor,
@@ -830,7 +856,7 @@ export default function DesktopResourcePage() {
 
   // Tracks drafts created from query blocks so the corresponding inline draft card can focus its title.
   const [lastCreatedDraftId, setLastCreatedDraftId] = useState<string | null>(null)
-  const canCreateChildDocs = canCreateChildDocuments(doc?.visibility, draftData?.visibility)
+  const canCreateChildDocs = !!doc?.version && canCreateChildDocuments(doc?.visibility, draftData?.visibility)
   const {menuItem: newMenuItem, content: newMenuContent} = useCreateDocumentMenuItem({
     locationId: docId,
     canCreateChildren: canCreateChildDocs,
@@ -1206,6 +1232,8 @@ export default function DesktopResourcePage() {
                     existingDraftVisibility={draftData?.visibility}
                     existingDraftContent={existingDraftContent}
                     existingDraftCursorPosition={draftData?.cursorPosition}
+                    existingDraftMaintenanceRevision={draftData?.maintenanceRevision}
+                    existingDraftRemovedChildDocumentIds={draftData?.removedChildDocumentIds}
                     existingDraftMineTouchedIds={draftData?.mineTouchedIds}
                     existingDraftBaseBlocks={draftData?.baseBlocks}
                     existingDraftPublishPath={draftData?.publishPath}

@@ -54,12 +54,17 @@ vi.mock('@/grpc-client', () => ({
 
 vi.mock('@/desktop-universal-client', () => ({
   desktopUniversalClient: {
+    request: vi.fn(async () => ({type: 'document', document: {version: 'parent-version', visibility: 'PUBLIC'}})),
     publishDocument: publishDocumentMock,
   },
 }))
 
 vi.mock('@/trpc', () => ({
   client: {
+    documentCardCleanup: {
+      enqueue: {mutate: vi.fn(async () => ({jobId: 'job'}))},
+      release: {mutate: vi.fn(async () => {})},
+    },
     recentSigners: {
       writeRecentSigner: {mutate: writeRecentSignerMock},
     },
@@ -201,6 +206,55 @@ describe('usePublishResource path resolution', () => {
     listDocumentChangesMock.mockResolvedValue({changes: []})
   })
 
+  it('keeps successful publication successful when the indexed document reload fails', async () => {
+    const editId = hmId('acct-1', {path: ['parent', '-draft-abc']})
+    getDocumentMock.mockRejectedValue(new Error('index unavailable'))
+    publishDocumentMock.mockResolvedValue({version: 'signed-version', genesis: 'signed-genesis', generation: 42})
+    const {call, cleanup} = await renderHarness(editId)
+    try {
+      let result: any
+      await act(async () => {
+        result = await call.mutateAsync({draft: makeDraft(), destinationId: editId, accountId: 'acct-1'})
+      })
+      expect(result).toMatchObject({
+        version: 'signed-version',
+        genesis: 'signed-genesis',
+        generationInfo: {generation: BigInt(42)},
+      })
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('does not inherit metadata retained from the previously viewed parent on first publish', async () => {
+    useResourceMock.mockReturnValue({
+      isPreviousData: true,
+      data: {type: 'document', document: {metadata: {icon: 'parent-icon', summary: 'Parent summary'}, content: []}},
+    })
+    getDocumentMock.mockResolvedValue({
+      version: 'published',
+      account: 'acct-1',
+      path: '/parent/my-cool-doc',
+      content: [],
+      metadata: {},
+    })
+    const {call, cleanup} = await renderHarness(undefined)
+    try {
+      await act(async () => {
+        await call.mutateAsync({
+          draft: makeDraft(),
+          destinationId: hmId('acct-1', {path: ['parent', '-draft-abc']}),
+          accountId: 'acct-1',
+        })
+      })
+      const changes = JSON.stringify(publishDocumentMock.mock.calls[0][0].changes)
+      expect(changes).toContain('My Cool Doc')
+      expect(changes).not.toContain('parent-icon')
+      expect(changes).not.toContain('Parent summary')
+    } finally {
+      cleanup()
+    }
+  })
   it('renames the placeholder editPath to the title slug on first publish', async () => {
     const editId = hmId('acct-1', {path: ['parent', '-draft-abc']})
     // No doc exists at the placeholder yet → first publish.

@@ -1,3 +1,4 @@
+import {DocumentMaintenanceTrigger} from './document-maintenance'
 import {
   HMDocument,
   HMMetadata,
@@ -139,6 +140,7 @@ export function SiteHeader({
       {siteHomeId && !IS_DESKTOP ? (
         <div className="hidden items-center gap-1 md:flex">
           <AssistantPanelHeaderButton siteUid={siteHomeId.uid} />
+          <DocumentMaintenanceTrigger compact />
           <HeaderSearch siteHomeId={siteHomeId} />
         </div>
       ) : null}
@@ -258,9 +260,12 @@ export function SiteHeader({
                       }}
                     />
                     <MobileFeedLink siteHomeId={siteHomeId} onClick={() => setIsMobileMenuOpen(false)} />
-                    {!IS_DESKTOP && (
-                      <AssistantPanelMenuItem siteUid={siteHomeId.uid} onClick={() => setIsMobileMenuOpen(false)} />
-                    )}
+                  </div>
+                )}
+                {!IS_DESKTOP && (
+                  <div className="mb-4 flex flex-col gap-2 px-1">
+                    <AssistantPanelMenuItem siteUid={siteHomeId.uid} onClick={() => setIsMobileMenuOpen(false)} />
+                    <DocumentMaintenanceTrigger onClick={() => setIsMobileMenuOpen(false)} />
                   </div>
                 )}
                 {/* 

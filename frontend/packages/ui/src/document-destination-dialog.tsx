@@ -13,6 +13,7 @@ import {getMetadataName} from '@shm/shared/content'
 import {useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {
   canUseDocumentAsDestinationParent,
+  canUseDocumentDestination,
   canUseMoveTargetParent,
   isMoveTargetParentBlocked,
   isMoveTargetSameSite,
@@ -118,7 +119,7 @@ export function DocumentDestinationDialog({
     return hmId(targetParent.uid, {path: [...(targetParent.path || []), slug]})
   }, [targetParent, slug])
   const targetParentResource = useResource(targetParent)
-  const destinationResource = useResource(destinationId)
+  const destinationResource = useResource(destinationId, {followRedirects: false})
   const destinationUrl = useDestinationUrl(destinationId)
   const targetCanWrite = !!targetParent && canWriteLocation(writableDocuments, targetParent, selectedAccountUid)
   const targetParentIsPrivate =
@@ -132,7 +133,10 @@ export function DocumentDestinationDialog({
   const moveTargetWrongSite = input.mode === 'move' && !!targetParent && !isMoveTargetSameSite(sourceId, targetParent)
   const moveTargetBlocked = input.mode === 'move' && isMoveTargetParentBlocked(sourceId, targetParent)
   const sourceIsHomeDocument = !sourceId.path?.length
-  const destinationExists = destinationResource.data?.type === 'document'
+  const destinationExists = !canUseDocumentDestination(
+    destinationResource.data,
+    input.mode === 'move' && !isDraftSource ? sourceId : undefined,
+  )
   const validationMessage = modeDisabled
     ? `${modeCopy[input.mode].action} is not available here.`
     : sourceIsHomeDocument
