@@ -181,7 +181,7 @@ describe('InspectIpfsPage as the blob editor', () => {
   it('field context: edits the referenced object and, on confirm, publishes a direct metadata change', async () => {
     const schema = {
       name: 'Stats',
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct',
       properties: {},
     }
     const cid = CID.createV1(0x71, await sha256.digest(cbor.encode(schema))).toString()
