@@ -1180,6 +1180,7 @@ describe('api service', () => {
       expect(new Set(collaboratorMessageAudience)).toEqual(new Set([ownerAccountId, collaboratorAccountId]))
       expect(requestBodies).toHaveLength(2)
       expect(requestBodies[0]).toContain('<conversation_members>')
+      expect(requestBodies[0]).toContain('Not every message needs a reply from you')
       expect(requestBodies[0]).toContain('Olivia Owner')
       expect(requestBodies[0]).toContain('Casey Collaborator')
       expect(requestBodies[0]).toContain(`<message_sender>\\n{\\"accountId\\":\\"${ownerAccountId}\\"}`)
@@ -4094,6 +4095,80 @@ describe('api service', () => {
         {type: 'message', role: 'assistant', content: 'Hello human'},
       ])
       expect(events.some((event) => event.type === 'session-partial' && event.textDelta === 'Hello human')).toBe(true)
+    } finally {
+      globalThis.fetch = originalFetch
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
+  test('a turn with no assistant text ends the run quietly instead of as an error', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const events: apisvc.ServiceEvent[] = []
+      const svc = new apisvc.Service(db, dataDir, {onEvent: (event) => events.push(event)})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Agent', systemPrompt: 'prompt', modelProvider: 'openai', model: 'gpt-test'},
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      // The model reasons and stops without writing a word — the shape of "I have nothing to add".
+      globalThis.fetch = mock(async () =>
+        openAIStreamResponse([{id: 'chat-1', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()}]),
+      ) as unknown as typeof fetch
+
+      const message = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [{type: 'text', text: 'talking to someone else here'}],
+            clientMessageId: 'message-1',
+          },
+        }),
+      )
+      expect(message).toMatchObject({_: 'MessageSessionResponse', assistantEventId: ''})
+      await svc.awaitQueueIdle()
+
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(session.session.status).toBe('idle')
+      // Only the human's message is on the record: no error event, no empty assistant bubble.
+      expect(session.events.map((event) => event.event.type)).toEqual(['message'])
+      const runsList = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListRuns', sessionId: createdSession.sessionId}}),
+      )
+      if (runsList._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      expect(runsList.runs.map((run) => run.status)).toEqual(['succeeded'])
+      // The streaming partial is closed so no client waits on a bubble that never fills.
+      expect(events.some((event) => event.type === 'session-partial' && event.done === true)).toBe(true)
     } finally {
       globalThis.fetch = originalFetch
       sqlite.closeDatabase(db)
