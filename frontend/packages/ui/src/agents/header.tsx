@@ -706,15 +706,15 @@ export function SessionModelBadge({
             />
           </div>
         ) : null}
-        {/* How deep and wide this session's runs may delegate; "Default" follows the agent. Applies
-            from the next turn — runs already in flight keep the budget they started with. */}
+        {/* How deep and wide this session's runs may delegate. Shows the preset in effect (the
+            session's own, else the agent's); a click pins the session to that preset from the next
+            turn on — runs already in flight keep the budget they started with. */}
         <div className="border-border mt-1 border-t px-2 pt-2 pb-1">
           <ThoroughnessPicker
             compact
-            value={thoroughness}
-            inheritedValue={definition.thoroughness ?? 'normal'}
+            value={thoroughness ?? definition.thoroughness ?? 'normal'}
             disabled={!canWrite || saving}
-            onChange={(next) => commit({thoroughness: next ?? null}, 'Could not set the session thoroughness')}
+            onChange={(next) => commit({thoroughness: next}, 'Could not set the session thoroughness')}
           />
         </div>
         <div className="border-border mt-1 border-t p-1">

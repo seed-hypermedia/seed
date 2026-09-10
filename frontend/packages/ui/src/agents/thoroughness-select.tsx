@@ -11,43 +11,23 @@ import {Layers} from 'lucide-react'
 import {cn} from '@shm/ui/utils'
 
 /**
- * Segmented picker for a delegation preset (quick / normal / deep). With `inheritedValue` set, a
- * leading "Default" segment stands for "follow the agent" and `onChange(undefined)` clears the
- * override — the session-level use; without it the picker edits the agent's own default.
+ * Segmented picker for a delegation preset: Quick / Normal / Deep, Normal being the default. It
+ * always shows a concrete preset — the caller resolves "unset" to whatever applies (the agent's
+ * own, or `normal`) before passing `value`.
  */
 export function ThoroughnessPicker({
   value,
-  inheritedValue,
   onChange,
   disabled,
   compact,
 }: {
   value: Thoroughness | undefined
-  /** The agent's preset a cleared value falls back to; presence enables the "Default" segment. */
-  inheritedValue?: Thoroughness
-  onChange: (value: Thoroughness | undefined) => void
+  onChange: (value: Thoroughness) => void
   disabled?: boolean
   compact?: boolean
 }) {
-  const effective = value ?? inheritedValue ?? DEFAULT_THOROUGHNESS
+  const effective = value ?? DEFAULT_THOROUGHNESS
   const limits = THOROUGHNESS_PRESETS[effective]
-  const segments: Array<{key: Thoroughness | 'default'; label: string; tooltip: string}> = [
-    ...(inheritedValue !== undefined
-      ? [
-          {
-            key: 'default' as const,
-            label: 'Default',
-            tooltip: `Follow the agent's setting (${THOROUGHNESS_LABELS[inheritedValue]}).`,
-          },
-        ]
-      : []),
-    ...THOROUGHNESS_LEVELS.map((level) => ({
-      key: level,
-      label: THOROUGHNESS_LABELS[level],
-      tooltip: `${THOROUGHNESS_DESCRIPTIONS[level]} Depth ${THOROUGHNESS_PRESETS[level].maxDepth}, ${THOROUGHNESS_PRESETS[level].maxChildren} helpers per turn.`,
-    })),
-  ]
-  const active: Thoroughness | 'default' = value ?? (inheritedValue !== undefined ? 'default' : effective)
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between gap-2">
@@ -64,22 +44,26 @@ export function ThoroughnessPicker({
         aria-label="Thoroughness"
         className={cn('bg-muted/60 flex rounded-md p-0.5', compact ? 'text-[11px]' : 'text-xs')}
       >
-        {segments.map((segment) => {
-          const isActive = segment.key === active
+        {THOROUGHNESS_LEVELS.map((level) => {
+          const isActive = level === effective
+          const preset = THOROUGHNESS_PRESETS[level]
           return (
-            <Tooltip key={segment.key} content={segment.tooltip}>
+            <Tooltip
+              key={level}
+              content={`${THOROUGHNESS_DESCRIPTIONS[level]} Depth ${preset.maxDepth}, ${preset.maxChildren} helpers per turn.`}
+            >
               <button
                 type="button"
                 role="radio"
                 aria-checked={isActive}
                 disabled={disabled}
-                onClick={() => onChange(segment.key === 'default' ? undefined : segment.key)}
+                onClick={() => onChange(level)}
                 className={cn(
                   'flex-1 rounded-sm px-2 py-1 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
                   isActive ? 'bg-background text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground',
                 )}
               >
-                {segment.label}
+                {THOROUGHNESS_LABELS[level]}
               </button>
             </Tooltip>
           )
