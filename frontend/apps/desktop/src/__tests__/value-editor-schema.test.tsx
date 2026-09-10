@@ -8,7 +8,7 @@ import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 
 const ARTICLE_SCHEMA: OnyxSchema = {
-  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
+  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct',
   required: ['title', 'status'],
   properties: {
     title: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string', minLength: 1},

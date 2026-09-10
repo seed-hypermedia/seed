@@ -50,4 +50,4 @@ summary: Every Onyx term in one place — kind, schema, meta-schema, variant, ge
 
 **Canonical encoding** — DAG-CBOR's single, deterministic byte form for any value (sorted keys, shortest integers, …). Makes CIDs stable; makes JSON key order and whitespace cosmetic. <!-- id:SuKcFDhF -->
 
-**Struct** — informal term for a `map` constrained by `properties` (fixed named fields), as opposed to an open map constrained by `values`. Not a separate kind. <!-- id:kAXo8rDd -->
+**Struct** — the kind for named fields: `properties` fixes each field, and the struct is closed (unlisted keys rejected) unless it adds a `values` tail. A `map` has no named fields — every value matches one `values` schema. Distinct kinds since `struct` was promoted; naming fields on a `map` is the pre-struct legacy form. <!-- id:kAXo8rDd -->
