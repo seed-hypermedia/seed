@@ -404,15 +404,18 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 
 	// Each block gets at most one fts row per change.
 	//
-	// The CRDT emits one MoveBlocks entry per recorded move, so a block dragged
-	// around during an editing session can appear thousands of times in a single
-	// change. Indexing every entry used to look up the block's previous content
-	// (a scan over every fts row the block already had) and insert yet another
-	// copy, which made the reindex quadratic in the number of moves. Moves are
-	// therefore only collected here and resolved after the loop, and only for
-	// blocks that the change doesn't also replace or delete: those ops write the
-	// block's final content for this version themselves, so a move row would be
-	// a stale duplicate at the same version.
+	// A change can list the same block in MoveBlocks ops many times over: the
+	// block tree's Commit yields a subtree once per historical position of its
+	// ancestors (older writers batched those repeats into a single op, and prod
+	// has one op moving the same block 1962 times), and frontend clients build
+	// MoveBlocks ops directly without going through docmodel. Indexing every
+	// entry used to look up the block's previous content (a scan over every fts
+	// row the block already had) and insert yet another copy, which made the
+	// reindex quadratic in the number of moves. Moves are therefore only
+	// collected here and resolved after the loop, and only for blocks that the
+	// change doesn't also replace or delete: those ops write the block's final
+	// content for this version themselves, so a move row would be a stale
+	// duplicate at the same version.
 	ftsWritten := map[string]struct{}{}
 	movedSeen := map[string]struct{}{}
 	var movedBlocks []string
