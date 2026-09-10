@@ -940,10 +940,6 @@ export type HMLiteralSchema = {
  */
 export type HMMapSchema = {
   type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map'
-  /** Legacy: fields written as name → schema by maps published before struct existed. New schemas with named fields are structs. */
-  properties?: {[key: string]: HMSchema}
-  /** Legacy: the required field names of a map published before struct existed. */
-  required?: string[]
   /** The schema every value of the map must match. */
   values?: HMSchema
   description?: string
