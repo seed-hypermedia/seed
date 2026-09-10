@@ -1042,6 +1042,7 @@ const METADATA_KEYS: (keyof HMMetadata)[] = [
   'layout',
   'showOutline',
   'showActivity',
+  'showCollaborators',
   'contentWidth',
   'childrenType',
   'seedExperimentalLogo',

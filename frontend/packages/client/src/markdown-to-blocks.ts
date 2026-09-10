@@ -793,7 +793,7 @@ const METADATA_STRING_KEYS = [
 ] as const
 
 /** Boolean-typed metadata keys. */
-const METADATA_BOOLEAN_KEYS = ['showOutline', 'showActivity'] as const
+const METADATA_BOOLEAN_KEYS = ['showOutline', 'showActivity', 'showCollaborators'] as const
 
 /**
  * Strip YAML frontmatter (--- delimited) from markdown content.

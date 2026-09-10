@@ -590,6 +590,7 @@ export const HMDocumentMetadataSchema = z
     seedExperimentalHomeOrder: z.union([z.literal('UpdatedFirst'), z.literal('CreatedFirst')]).optional(),
     showOutline: z.boolean().optional(),
     showActivity: z.boolean().optional(),
+    showCollaborators: z.boolean().optional(),
     contentWidth: z.union([z.literal('S'), z.literal('M'), z.literal('L')]).optional(),
     childrenType: HMBlockChildrenTypeSchema.optional(),
     theme: z
@@ -639,6 +640,7 @@ export const DOCUMENT_ATTRIBUTE_DESCRIPTIONS: Readonly<Record<string, string>> =
   seedExperimentalHomeOrder: 'Legacy ordering preference for a space home page.',
   showOutline: 'Whether to show the document outline.',
   showActivity: 'Whether to show document activity and tools.',
+  showCollaborators: 'Whether to show the collaborator bar on a space home page.',
   contentWidth: 'Width of the document content area.',
   childrenType: 'Layout of the document’s root-level blocks.',
   theme: 'Visual settings for a space.',

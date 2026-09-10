@@ -5,7 +5,7 @@ import {createContext, useContext, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {createRoot, type Root} from 'react-dom/client'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {DocumentViewContent, PageWrapper} from '../resource-page-common'
+import {DocumentViewContent, PageWrapper, shouldShowCollaboratorsBar} from '../resource-page-common'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 vi.mock('../use-media', () => ({useMedia: () => ({xs: false})}))
@@ -169,6 +169,27 @@ describe('PageWrapper edit navigation pane portal', () => {
     })
 
     expect(container.querySelector('[data-testid="edit-nav-pane-target"]')?.textContent).toContain('edit nav context')
+  })
+})
+
+describe('shouldShowCollaboratorsBar', () => {
+  const visible = {
+    isHomeDoc: true,
+    activeView: 'content' as const,
+    isLoading: false,
+    memberCount: 2,
+  }
+
+  it('defaults to visible and honors an explicit home-page opt-out', () => {
+    expect(shouldShowCollaboratorsBar(visible)).toBe(true)
+    expect(shouldShowCollaboratorsBar({...visible, showCollaborators: false})).toBe(false)
+  })
+
+  it('stays hidden outside a loaded home content view with members', () => {
+    expect(shouldShowCollaboratorsBar({...visible, isHomeDoc: false})).toBe(false)
+    expect(shouldShowCollaboratorsBar({...visible, activeView: 'all-documents'})).toBe(false)
+    expect(shouldShowCollaboratorsBar({...visible, isLoading: true})).toBe(false)
+    expect(shouldShowCollaboratorsBar({...visible, memberCount: 0})).toBe(false)
   })
 })
 

@@ -101,7 +101,7 @@ export function SwitchField({label, id, ...props}: SwitchProps & {label: string;
       <Label htmlFor={id} size="sm" className="text-muted-foreground flex-1">
         {label}
       </Label>
-      <Switch {...props} />
+      <Switch id={id} {...props} />
     </div>
   )
 }

@@ -36,6 +36,7 @@ export function OptionsPanel({
             <OriginalPublishDate metadata={metadata} onMetadata={onMetadata} />
             <ContentWidth metadata={metadata} onMetadata={onMetadata} />
             <ActivityVisibility metadata={metadata} onMetadata={onMetadata} />
+            <CollaboratorVisibility metadata={metadata} onMetadata={onMetadata} />
           </>
         ) : (
           <>
@@ -282,6 +283,27 @@ function ActivityVisibility({
         checked={metadata.showActivity !== false}
         onCheckedChange={(value) => {
           onMetadata({showActivity: value})
+        }}
+      />
+    </div>
+  )
+}
+
+function CollaboratorVisibility({
+  metadata,
+  onMetadata,
+}: {
+  metadata: HMMetadata
+  onMetadata: (values: Partial<HMMetadata>) => void
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <SwitchField
+        label="Show Collaborators"
+        id="collaborators"
+        checked={metadata.showCollaborators !== false}
+        onCheckedChange={(value) => {
+          onMetadata({showCollaborators: value})
         }}
       />
     </div>

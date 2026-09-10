@@ -25,6 +25,7 @@ afterEach(() => {
 })
 
 function renderOptionsPanel(isHomeDoc: boolean) {
+  const onMetadata = vi.fn()
   act(() => {
     root.render(
       <TooltipProvider>
@@ -40,12 +41,13 @@ function renderOptionsPanel(isHomeDoc: boolean) {
               showActivity: true,
             } as any
           }
-          onMetadata={vi.fn()}
+          onMetadata={onMetadata}
           fileUpload={vi.fn()}
         />
       </TooltipProvider>,
     )
   })
+  return onMetadata
 }
 
 describe('OptionsPanel document metadata fields', () => {
@@ -66,6 +68,19 @@ describe('OptionsPanel document metadata fields', () => {
     expect(container.textContent).not.toContain('Summary')
     expect(container.textContent).not.toContain('Cover Image')
     expect(container.textContent).not.toContain('Document Options')
+  })
+
+  it('stages collaborator visibility only for a space home document', () => {
+    const onMetadata = renderOptionsPanel(true)
+    const toggle = container.querySelector<HTMLButtonElement>('#collaborators')
+
+    expect(toggle).not.toBeNull()
+    expect(toggle?.getAttribute('aria-checked')).toBe('true')
+    act(() => toggle?.click())
+    expect(onMetadata).toHaveBeenCalledWith({showCollaborators: false})
+
+    renderOptionsPanel(false)
+    expect(container.querySelector('#collaborators')).toBeNull()
   })
 
   it('removes title, icon, cover, and summary controls for regular documents', () => {
