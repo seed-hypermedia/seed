@@ -1,4 +1,5 @@
 import {hasProfileSubscription, hmId, useContactListOfAccount, useRouteLink} from '@shm/shared'
+import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {useAccountsMetadata} from '@shm/shared/models/entity'
 import {useMemo} from 'react'
 import {HMIcon} from './hm-icon'
@@ -8,6 +9,7 @@ import {SizableText} from './text'
 /** Shows accounts that this account is following (contacts with profile subscription). */
 export function FollowingContent({siteUid, accountUid}: {siteUid?: string | null; accountUid: string}) {
   const allContacts = useContactListOfAccount(accountUid)
+  const viewerContacts = useSelectedAccountContacts()
   // Filter to only show contacts with profile subscription (explicit or implicit for legacy)
   // Deduplicate by subject (account being followed)
   const following = useMemo(() => {
@@ -45,6 +47,11 @@ export function FollowingContent({siteUid, accountUid}: {siteUid?: string | null
             key={contact.id}
             accountUid={contact.subject}
             metadata={accountData?.metadata}
+            petname={
+              viewerContacts.data?.find(
+                (viewerContact) => viewerContact.subject === contact.subject && hasProfileSubscription(viewerContact),
+              )?.name
+            }
             siteUid={siteUid}
           />
         )
@@ -57,10 +64,12 @@ export function FollowingContent({siteUid, accountUid}: {siteUid?: string | null
 function FollowingItem({
   accountUid,
   metadata,
+  petname,
   siteUid,
 }: {
   accountUid: string
   metadata?: {name?: string; icon?: string} | null
+  petname?: string
   siteUid?: string | null
 }) {
   const linkProps = useRouteLink(
@@ -83,8 +92,13 @@ function FollowingItem({
       <HMIcon id={hmId(accountUid)} size={40} icon={metadata?.icon} name={metadata?.name} />
       <div className="min-w-0 flex-1">
         <SizableText weight="medium" className="truncate">
-          {metadata?.name || 'Untitled'}
+          {petname || metadata?.name || accountUid}
         </SizableText>
+        {petname && petname !== metadata?.name && (
+          <SizableText color="muted" size="sm" className="truncate">
+            {metadata?.name || accountUid}
+          </SizableText>
+        )}
       </div>
     </a>
   )

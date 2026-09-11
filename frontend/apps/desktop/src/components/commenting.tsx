@@ -16,17 +16,18 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {CommentEditor, type CommentEditorSubmitHandle} from '@shm/editor/comment-editor'
-import {queryClient, queryKeys} from '@shm/shared'
+import {hmId, queryClient, queryKeys} from '@shm/shared'
 import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import type {InlineEditCommentProps} from '@shm/shared/comments-service-provider'
 import {hasBlockContent} from '@shm/shared/content'
-import {useDocumentComments} from '@shm/shared/models/comments'
+import {getMentionThreadContext, useDocumentComments} from '@shm/shared/models/comments'
 import {useContacts} from '@shm/shared/models/contacts'
 import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {applyOptimisticComment, buildOptimisticComment, navigateToComment} from '@shm/shared/optimistic-comment'
 import {useUniversalClient} from '@shm/shared/routing'
 import {useNavRoute} from '@shm/shared/utils/navigation'
+import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {Button} from '@shm/ui/button'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -101,6 +102,15 @@ function CommentBoxImpl(props: {
   // Use route-provided version data first, fall back to resolved values from comments service
   const finalReplyVersion = props.replyCommentVersion || resolvedReply?.replyCommentVersion
   const finalRootVersion = props.rootReplyCommentVersion || resolvedReply?.rootReplyCommentVersion
+  const mentionThread = useMemo(
+    () =>
+      getMentionThreadContext(commentsService.data?.comments, {
+        replyCommentId: commentId,
+        replyCommentVersion: finalReplyVersion,
+        rootReplyCommentVersion: finalRootVersion,
+      }),
+    [commentsService.data?.comments, commentId, finalReplyVersion, finalRootVersion],
+  )
 
   const draft = useCommentDraft(
     quotingBlockId ? {...docId, blockRef: quotingBlockId, blockRange: quotingRange ?? null} : docId,
@@ -500,7 +510,10 @@ function CommentBoxImpl(props: {
               }
             : undefined
         }
-        perspectiveAccountUid={selectedAccountId}
+        perspectiveAccountUid={account?.id.uid ?? selectedAccountId}
+        mentionThread={mentionThread}
+        siteUid={docId.uid}
+        documentId={docId}
         submitButton={({getContent, reset, disabled}) => (
           <Tooltip
             content={account ? `Publish Comment as "${account.metadata?.name}"` : 'Create an account to comment'}
@@ -580,7 +593,9 @@ function InlineEditBox({comment, onSave, onCancel, isSaving}: InlineEditCommentP
         universalClient={universalClient}
         domainResolver={domainResolver}
         account={account ? {id: account.id, metadata: account.metadata} : undefined}
-        perspectiveAccountUid={selectedAccountId}
+        perspectiveAccountUid={comment.author}
+        siteUid={comment.targetAccount}
+        documentId={hmId(comment.targetAccount, {path: entityQueryPathToHmIdPath(comment.targetPath)})}
         submitButton={({getContent, reset, disabled}) => (
           <>
             <Button variant="ghost" size="icon" onClick={onCancel} disabled={isSaving}>

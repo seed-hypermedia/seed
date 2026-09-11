@@ -273,6 +273,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
         type: 'inline-embed',
         styles: {},
         link: inlineEmbed.link,
+        ...(inlineEmbed.mentionKind ? {mentionKind: inlineEmbed.mentionKind} : {}),
       } as EditorInlineEmbed)
       skipToCodepoint(inlineEmbed.end)
       textStart = i
@@ -566,13 +567,16 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     return annotationsChanged
   }
 
-  function findInlineEmbedStartingAt(pos: number): {link: string; end: number} | null {
+  function findInlineEmbedStartingAt(
+    pos: number,
+  ): {link: string; end: number; mentionKind?: 'account' | 'document'} | null {
     const blockAnnotations = (block as any).annotations as unknown[] | undefined
     if (!blockAnnotations) return null
 
     for (const annotation of blockAnnotations) {
       const annotationData = annotation as unknown as {
         type?: string
+        attributes?: {mentionKind?: 'account' | 'document'}
         link?: string
         starts?: number[]
         ends?: number[]
@@ -585,7 +589,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
       const end = annotationData.ends?.[spanIndex]
       if (typeof end !== 'number' || end <= pos) continue
 
-      return {link: annotationData.link || '', end}
+      return {link: annotationData.link || '', end, mentionKind: annotationData.attributes?.mentionKind}
     }
 
     return null

@@ -57,7 +57,7 @@ export class AnnotationSet {
   _annotationId(type: string, attributes: {[key: string]: string} | null) {
     if (attributes) {
       if (attributes.link) {
-        return `${type}-${attributes.link}`
+        return JSON.stringify([type, attributes.link, attributes.mentionKind || null])
       }
 
       if (attributes.href) {

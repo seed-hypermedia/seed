@@ -1,12 +1,15 @@
+import {SelectedAccountContactsProvider} from '@shm/shared/models/contacts'
+import {useStream} from '@shm/shared/use-stream'
 import '@/blocknote/core/style.css'
 import '@/editor.css'
 import '@shm/ui/hm-prose.css'
 import {HMFormattingToolbar} from '@shm/editor/hm-formatting-toolbar'
 import {HypermediaLinkPreview} from '@shm/editor/hm-link-preview'
-import {SearchResultItem, UniversalAppProvider, writeableStateStream} from '@shm/shared'
+import {hmId, SearchResultItem, UniversalAppProvider, writeableStateStream} from '@shm/shared'
 import {NavContextProvider} from '@shm/shared/utils/navigation'
 import {DocumentMachineProvider, useDocumentMachineRef} from '@shm/shared/models/use-document-machine'
 import {DocumentEditor} from '../../src/document-editor'
+import {CommentEditor} from '../../src/comment-editor'
 import {DraftActionsContext, type DraftActions} from '../../src/draft-actions-context'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
@@ -138,9 +141,50 @@ function mockQueryDocInfo(name: string) {
   }
 }
 
+const [selectMentionAccount, mentionAccount] = writeableStateStream<string | null>(
+  new URLSearchParams(window.location.search).get('petnames') === '1' ? 'viewer-a' : null,
+)
+;(window as any).TEST_SELECT_MENTION_ACCOUNT = selectMentionAccount
+
 // Mock universal context client for document search tests
 const mockUniversalClient = {
   request: async (method: string, params: any) => {
+    if (method === 'AccountContacts') {
+      const name = params === 'viewer-a' ? 'Burdi' : params === 'viewer-b' ? 'Buddy' : ''
+      return name
+        ? [{id: params + '/contact', account: params, subject: 'bafy-mention-account', name, signer: params}]
+        : []
+    }
+    if (method === 'MentionCandidates') {
+      const account = params.mode === 'account'
+      const petname =
+        account &&
+        (params.perspectiveAccountUid === 'viewer-a'
+          ? 'Burdi'
+          : params.perspectiveAccountUid === 'viewer-b'
+            ? 'Buddy'
+            : undefined)
+      return [
+        {
+          id: hmId('bafy-mention-account', account ? {} : {version: 'v-current'}),
+          type: params.mode,
+          title: petname || (account ? 'Alice' : 'Home document'),
+          petname: petname || undefined,
+          publicName: account ? 'Alice Public' : undefined,
+          icon: '',
+          parentNames: [],
+          searchQuery: params.query,
+          sameSite: true,
+          issuedContact: account,
+          activityTime: Date.now() - 120_000,
+          activityType: 'publication',
+          accountRole: account ? 'site-editor' : undefined,
+        },
+      ].filter((candidate) => candidate.title.toLowerCase().includes(params.query.toLowerCase()))
+    }
+    if (method === 'Account') {
+      return {id: hmId(params), metadata: {name: 'Alice'}}
+    }
     if (method === 'Search') {
       return {entities: [mockHmDoc]}
     }
@@ -561,6 +605,7 @@ function RealModeApp({fixtureName}: {fixtureName: FixtureName}) {
 }
 
 export function TestEditor() {
+  const selectedMentionAccount = useStream(mentionAccount)
   const fixtureName = getFixtureFromUrl()
   const sp = new URLSearchParams(window.location.search)
   const real = sp.get('real') === '1'
@@ -570,6 +615,7 @@ export function TestEditor() {
         <QueryClientProvider client={mockQueryClient}>
           <NavContextProvider value={navContext}>
             <UniversalAppProvider
+              selectedIdentity={mentionAccount}
               universalClient={mockUniversalClient as any}
               openUrl={(url?: string, newWindow?: boolean) => {
                 const w = window as any
@@ -582,7 +628,37 @@ export function TestEditor() {
                 w.TEST_OPEN_ROUTE.push(args)
               }}
             >
-              <RealModeApp fixtureName={fixtureName} />
+              <SelectedAccountContactsProvider>
+                {sp.get('comment') === '1' ? (
+                  <div data-testid="comment-harness">
+                    <CommentEditor
+                      hideAvatar
+                      focusOnMount
+                      submitOnEnter
+                      universalClient={mockUniversalClient as any}
+                      documentId={editModeId}
+                      siteUid={editModeId.uid}
+                      perspectiveAccountUid={selectedMentionAccount || 'bafy-writer'}
+                      mentionThread={
+                        sp.get('thread') === '1'
+                          ? {
+                              replyAuthorUid: 'bafy-mention-account',
+                              participants: [{uid: 'bafy-mention-account', latestCommentTime: Date.now() - 120_000}],
+                            }
+                          : undefined
+                      }
+                      handleSubmit={() => {
+                        document
+                          .querySelector('[data-testid="comment-harness"]')
+                          ?.setAttribute('data-submitted', 'true')
+                      }}
+                      submitButton={() => <button type="button">Submit comment</button>}
+                    />
+                  </div>
+                ) : (
+                  <RealModeApp fixtureName={fixtureName} />
+                )}
+              </SelectedAccountContactsProvider>
             </UniversalAppProvider>
           </NavContextProvider>
         </QueryClientProvider>

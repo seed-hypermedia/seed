@@ -1,105 +1,76 @@
 import {Fragment} from 'prosemirror-model'
-import {Plugin} from 'prosemirror-state'
+import {Plugin, TextSelection} from 'prosemirror-state'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {BlockSchema} from './blocknote/core/extensions/Blocks/api/blockTypes'
-import {EventEmitter} from './blocknote/core/shared/EventEmitter'
 import {
   createMentionSuggestionPlugin,
   MentionPluginState,
+  MentionMode,
   mentionSuggestionPluginKey,
 } from './mention-suggestion-plugin'
 
-export type MentionMenuState = {
-  show: boolean
-  referencePos: DOMRect | undefined
-  query: string
-}
+/** Navigation key pressed while the mention menu is active. */
+export type MentionMenuKey = 'ArrowUp' | 'ArrowDown' | 'Enter' | 'Escape'
 
-type MentionMenuEvents = {
-  update: MentionMenuState
-  keyboard: {key: 'ArrowUp' | 'ArrowDown' | 'Enter' | 'Escape'}
-}
-
-/** Bridge between the ProseMirror mention plugin and React UI. */
-export class MentionMenuProsemirrorPlugin<BSchema extends BlockSchema> extends EventEmitter<MentionMenuEvents> {
+/**
+ * Owns the mention suggestion ProseMirror plugin. React reads the plugin state
+ * through {@link mentionSuggestionPluginKey} (active flag, query start and
+ * decoration id) instead of subscribing to emitted state; this class only
+ * exposes the commands that must dispatch back into the editor.
+ */
+export class MentionMenuProsemirrorPlugin<BSchema extends BlockSchema> {
   public readonly plugin: Plugin
-  private deactivateFn: (view: import('prosemirror-view').EditorView) => void
-  private currentState: MentionPluginState = {active: false, queryStartPos: undefined, decorationId: undefined}
+  /** Called when the user presses a navigation key while the menu is active. */
+  public onKeyboard: ((key: MentionMenuKey) => void) | null = null
 
   constructor(private readonly editor: BlockNoteEditor<BSchema>) {
-    super()
-
-    const {plugin, deactivate} = createMentionSuggestionPlugin({
-      onStateChange: (state, query) => {
-        this.currentState = state
-        const referencePos = this.getReferencePos()
-        this.emit('update', {
-          show: state.active,
-          referencePos,
-          query,
-        })
-      },
-      onKeyboard: (key) => {
-        this.emit('keyboard', {key})
-      },
-      getReferencePos: () => this.getReferencePos(),
+    const {plugin} = createMentionSuggestionPlugin({
+      onKeyboard: (key) => this.onKeyboard?.(key),
     })
-
     this.plugin = plugin
-    this.deactivateFn = deactivate
-  }
-
-  /** Subscribe to popup show/hide/query changes. */
-  public onUpdate(callback: (state: MentionMenuState) => void) {
-    return this.on('update', callback)
-  }
-
-  /** Subscribe to keyboard navigation events. */
-  public onKeyboard(callback: (event: {key: 'ArrowUp' | 'ArrowDown' | 'Enter' | 'Escape'}) => void) {
-    return this.on('keyboard', callback)
   }
 
   /** Close the mention popup. */
   public close() {
     const view = this.editor._tiptapEditor.view
     if (view) {
-      this.deactivateFn(view)
+      const saved = mentionSuggestionPluginKey.getState(view.state)
+      const tr = view.state.tr.setMeta(mentionSuggestionPluginKey, {deactivate: true})
+      if (saved?.active && saved.suspended)
+        tr.setSelection(
+          TextSelection.create(view.state.doc, saved.from === saved.queryStartPos ? saved.from : saved.to, saved.to),
+        )
+      view.dispatch(tr)
     }
   }
 
-  /** Signal that the query returned no results and has enough chars to auto-close. */
-  public closeNoResults() {
+  /** Open a picker at the current selection, without inserting a textual trigger. */
+  public open(mode: MentionMode) {
     const view = this.editor._tiptapEditor.view
-    if (view) {
-      view.dispatch(view.state.tr.setMeta(mentionSuggestionPluginKey, {closeNoResults: true}))
-    }
+    view.dispatch(view.state.tr.setMeta(mentionSuggestionPluginKey, {activate: true, mode}))
   }
 
-  /** Replace the `@query` range with an inline-embed node + trailing space. */
-  public insertMention(link: string) {
+  /** Keep the replacement range while the mobile dialog owns focus. */
+  public suspend(suspended = true) {
     const view = this.editor._tiptapEditor.view
-    if (!view) return
+    view.dispatch(view.state.tr.setMeta(mentionSuggestionPluginKey, {suspend: suspended}))
+  }
 
+  /** Replace the saved trigger/query selection with one atomic inline mention. */
+  public insertMention(link: string, mentionKind: MentionMode = 'account') {
+    const view = this.editor._tiptapEditor.view
     const state = mentionSuggestionPluginKey.getState(view.state) as MentionPluginState
-    if (!state.active || !state.queryStartPos) return
-
-    const from = state.queryStartPos - 1
-    const to = view.state.selection.from
-    const node = view.state.schema.nodes['inline-embed']?.create({link})
+    if (!state.active) return
+    let to = state.to
+    if (
+      mentionKind === 'document' &&
+      view.state.doc.textBetween(to, Math.min(to + 2, view.state.doc.content.size)) === ']]'
+    )
+      to += 2
+    const node = view.state.schema.nodes['inline-embed']?.create({link, mentionKind})
     if (!node) return
-
-    this.deactivateFn(view)
-    view.dispatch(view.state.tr.replaceWith(from, to, Fragment.fromArray([node, view.state.schema.text(' ')])))
-  }
-
-  /** The current decoration ID, if the mention menu is active. */
-  public get decorationId(): string | undefined {
-    return this.currentState.decorationId
-  }
-
-  private getReferencePos(): DOMRect | undefined {
-    if (!this.currentState.active || !this.currentState.decorationId) return undefined
-    const decorationNode = document.querySelector(`[data-decoration-id="${this.currentState.decorationId}"]`)
-    return decorationNode?.getBoundingClientRect()
+    const tr = view.state.tr.replaceWith(state.from, to, Fragment.fromArray([node, view.state.schema.text(' ')]))
+    tr.setSelection(TextSelection.create(tr.doc, state.from + node.nodeSize + 1))
+    view.dispatch(tr.setMeta(mentionSuggestionPluginKey, {deactivate: true}).scrollIntoView())
   }
 }

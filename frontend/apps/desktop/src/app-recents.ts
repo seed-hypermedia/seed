@@ -1,3 +1,4 @@
+import {loadAccount} from '@shm/shared/api-account'
 import {getDocumentTitle} from '@shm/shared/content'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {RecentsResult} from '@shm/shared/models/recents'
@@ -51,6 +52,11 @@ export async function updateRecentRoute(route: NavRoute) {
     } catch {
       // Document not found or other error - use default name
     }
+  }
+  if (route.key === 'profile' || route.key === 'site-profile') {
+    const uid = route.key === 'site-profile' ? route.accountUid ?? route.id.uid : route.id.uid
+    const account = await loadAccount(grpcClient, uid)
+    name = account.type === 'account' ? account.metadata?.name || uid : uid
   }
   if (!url) return
   updateRecents((state: RecentsState): RecentsState => {

@@ -120,6 +120,7 @@ export const InlineEmbedAnnotationSchema = z
   .object({
     type: z.literal('Embed'),
     ...baseAnnotationProperties,
+    attributes: z.object({mentionKind: z.enum(['account', 'document']).optional()}).optional(),
     link: z.string(),
   })
   .strict()
@@ -1543,6 +1544,43 @@ export const HMSearchRequestSchema = z.object({
 })
 export type HMSearchRequest = z.infer<typeof HMSearchRequestSchema>
 
+/** A published entity eligible for the account or document mention picker. */
+export const HMMentionCandidateSchema = z.object({
+  id: unpackedHmIdSchema,
+  type: z.enum(['account', 'document']),
+  title: z.string(),
+  icon: z.string(),
+  parentNames: z.array(z.string()),
+  searchQuery: z.string(),
+  /** Requested account identity before the daemon resolves an account alias. */
+  sourceAccountUid: z.string().optional(),
+  publicName: z.string().optional(),
+  petname: z.string().optional(),
+  activityTime: z.number().optional(),
+  activityType: z.enum(['publication', 'comment']).optional(),
+  accountRole: z.enum(['site-owner', 'site-editor', 'document-editor', 'site-follower']).optional(),
+  sameSite: z.boolean(),
+  issuedContact: z.boolean(),
+  hint: z.string().optional(),
+})
+/** Shared mention candidate shape; visit timestamps remain local to the client. */
+export type HMMentionCandidate = z.infer<typeof HMMentionCandidateSchema>
+/** Bounded request for one mention mode with optional acting-account/site context. */
+export const HMMentionCandidatesRequestSchema = z.object({
+  key: z.literal('MentionCandidates'),
+  input: z.object({
+    mode: z.enum(['account', 'document']),
+    query: z.string().trim(),
+    perspectiveAccountUid: z.string().optional(),
+    siteUid: z.string().optional(),
+    documentId: unpackedHmIdSchema.optional(),
+    seedIds: z.array(unpackedHmIdSchema).max(20).optional(),
+  }),
+  output: z.array(HMMentionCandidateSchema).max(100),
+})
+/** Universal-client request for mention candidates. */
+export type HMMentionCandidatesRequest = z.infer<typeof HMMentionCandidatesRequestSchema>
+
 export const HMQueryRequestSchema = z.object({
   key: z.literal('Query'),
   input: HMQuerySchema,
@@ -2065,6 +2103,7 @@ export const HMGetRequestSchema = z.discriminatedUnion('key', [
   HMAccountRequestSchema,
   HMCommentRequestSchema,
   HMSearchRequestSchema,
+  HMMentionCandidatesRequestSchema,
   HMQueryRequestSchema,
   HMQueryBlockRequestSchema,
   HMAccountContactsRequestSchema,
@@ -2103,6 +2142,7 @@ export const HMRequestSchema = z.discriminatedUnion('key', [
   HMAccountRequestSchema,
   HMCommentRequestSchema,
   HMSearchRequestSchema,
+  HMMentionCandidatesRequestSchema,
   HMQueryRequestSchema,
   HMQueryBlockRequestSchema,
   HMAccountContactsRequestSchema,

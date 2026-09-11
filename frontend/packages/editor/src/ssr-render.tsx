@@ -46,6 +46,7 @@ import {blockToNode} from './blocknote/core/api/nodeConversions/nodeConversions'
 import editorStyles from './blocknote/core/editor.module.css'
 import blockStyles from './blocknote/core/extensions/Blocks/nodes/Block.module.css'
 import {hmBlockSchema} from './schema'
+import {MentionToken} from './mentions-plugin'
 import {setSSREmbedRenderer} from './ssr-embed-renderer'
 import {CodeBlockScroller} from './tiptap-extension-code-block/code-block-view'
 import {getHighlightRuns} from './tiptap-extension-code-block/lowlight-plugin'
@@ -205,6 +206,23 @@ function renderUncached(blocks: HMBlockNode[], opts: SSRRenderOpts): string | nu
   // 4. Post-process: React node-view blocks, code highlighting, link hrefs.
   const blockById = indexEditorBlocks(editorBlocks)
   renderReactBlocks(target, blockById, opts)
+  for (const mention of Array.from(target.querySelectorAll('a[data-inline-embed]'))) {
+    const value = mention.getAttribute('data-inline-embed') || ''
+    const kind = mention.getAttribute('data-mention-kind')
+    mention.classList.add('inline-embed-token')
+    mention.innerHTML = renderToString(
+      <QueryClientProvider client={opts.queryClient}>
+        <UniversalAppProvider
+          openUrl={() => {}}
+          openRoute={() => {}}
+          universalClient={undefined as any}
+          {...(opts.appContext || {})}
+        >
+          <MentionToken value={value} mentionKind={kind === 'account' || kind === 'document' ? kind : undefined} />
+        </UniversalAppProvider>
+      </QueryClientProvider>,
+    )
+  }
   renderCodeBlocks(target, blockById)
   addTrailingBreaks(target)
   rewriteLinkHrefs(target, opts.renderHref)

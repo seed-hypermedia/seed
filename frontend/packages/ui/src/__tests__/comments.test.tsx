@@ -70,6 +70,7 @@ vi.mock('@shm/shared/models/comments', () => ({
 
 vi.mock('@shm/shared/models/entity', () => ({
   useAccount: () => ({data: {metadata: {name: 'Alice'}}}),
+  useAccounts: (ids: Array<string | null>) => ids.map((id) => ({data: id ? {metadata: {name: 'Alice'}} : undefined})),
   useIsCurrentUser: () => false,
   useResources: () => [],
   useResource: () => ({

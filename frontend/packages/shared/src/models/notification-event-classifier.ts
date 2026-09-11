@@ -1,7 +1,7 @@
-import {getAnnotations} from '../content'
+import {extractAllContentRefs, getAnnotations} from '../content'
 import {HMBlockNode, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId} from '../utils/entity-id-url'
-import {LoadedEventWithNotifMeta} from './activity-service'
+import type {LoadedEventWithNotifMeta} from './activity-service'
 
 /**
  * Resolves the account UID referenced by a mention target when it points to
@@ -17,11 +17,28 @@ export function getMentionedAccountUid(target: string | UnpackedHypermediaId | n
   return null
 }
 
+/** Resolves explicit citation identity without reinterpreting legacy or mixed references. */
+export function getCitationMentionKind(
+  content: HMBlockNode[],
+  targetId: UnpackedHypermediaId,
+  sourceContext?: string,
+): 'account' | 'document' | undefined {
+  const matchingRefs = extractAllContentRefs(content).filter(
+    (ref) =>
+      ref.refId?.uid === targetId.uid &&
+      (ref.refId.path || []).join('/') === (targetId.path || []).join('/') &&
+      (!sourceContext || ref.blockId === sourceContext),
+  )
+  if (matchingRefs.length && matchingRefs.every((ref) => ref.mentionKind === 'document')) return 'document'
+  if (matchingRefs.length && matchingRefs.every((ref) => ref.mentionKind === 'account')) return 'account'
+  return undefined
+}
+
 function collectMentionedAccountUidsFromBlock(block: HMBlockNode, accountUids: Set<string>) {
   const annotations = getAnnotations(block.block)
   if (Array.isArray(annotations)) {
     for (const annotation of annotations) {
-      if (annotation.type !== 'Embed') continue
+      if (annotation.type !== 'Embed' || annotation.attributes?.mentionKind === 'document') continue
       const mentionedAccountUid = getMentionedAccountUid(annotation.link)
       if (mentionedAccountUid) accountUids.add(mentionedAccountUid)
     }
@@ -71,6 +88,7 @@ export function classifyNotificationEvent(
   accountUid: string,
 ): NotificationReason | null {
   if (event.type === 'citation') {
+    if (event.mentionKind === 'document') return null
     // Comment citations that target documents are mirrored by comment blob events.
     // Suppress them here to avoid duplicate discussion notifications in desktop inbox.
     if (event.citationType === 'c' && event.target?.id?.path?.length) {

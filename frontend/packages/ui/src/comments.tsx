@@ -39,12 +39,11 @@ import {
   useDocumentComments,
   useDocumentDiscussions,
 } from '@shm/shared/models/comments'
-import {useIsCurrentUser, useResource, useResources} from '@shm/shared/models/entity'
+import {useAccounts, useIsCurrentUser, useResource, useResources} from '@shm/shared/models/entity'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {getRoutePanel} from '@shm/shared/routes'
 import {useTxString} from '@shm/shared/translation'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
-import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {Bookmark, Link, MessageSquare, Pencil, Trash2, X} from 'lucide-react'
 import {memo, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {SelectionContent} from './accessories'
@@ -630,29 +629,49 @@ export const Comment = memo(function Comment({
   const {contacts, origin: appOrigin} = useUniversalAppContext()
 
   const bookmarkRefs = useMemo(
-    () => Array.from(new Map(extractAllContentRefs(comment.content).map((ref) => [ref.link, ref])).values()),
+    () =>
+      Array.from(
+        new Map(
+          extractAllContentRefs(comment.content).map((ref) => [
+            ref.mentionKind ? `${ref.mentionKind}:${ref.link}` : ref.link,
+            ref,
+          ]),
+        ).values(),
+      ),
     [comment.content],
   )
-  const bookmarkRefIds = useMemo(
-    () => bookmarkRefs.map(({refId}) => (refId.path?.[0] === ':profile' ? hmId(refId.path[1] || refId.uid) : refId)),
+  const bookmarkAccountIds = useMemo(
+    () =>
+      bookmarkRefs.map(({refId, mentionKind}) =>
+        mentionKind !== 'document' &&
+        (mentionKind === 'account' || refId?.path?.[0] === ':profile' || !refId?.path?.length)
+          ? refId?.path?.[0] === ':profile'
+            ? refId.path[1] || refId.uid
+            : refId?.uid
+          : null,
+      ),
     [bookmarkRefs],
   )
+  const bookmarkRefIds = useMemo(
+    () => bookmarkRefs.map(({refId}, index) => (bookmarkAccountIds[index] ? null : refId)),
+    [bookmarkRefs, bookmarkAccountIds],
+  )
+  const bookmarkAccounts = useAccounts(bookmarkAccountIds)
   const bookmarkRefResources = useResources(bookmarkRefIds, {subscribed: true})
   const bookmarkResolvedNames = useMemo(() => {
     const names: Record<string, string> = {}
     bookmarkRefs.forEach((ref, index) => {
-      const id = unpackHmId(ref.link)
-      const resource = bookmarkRefResources[index]?.data
-      if (!id || resource?.type !== 'document') return
-
-      const profileAccountUid = id.path?.[0] === ':profile' ? id.path[1] || id.uid : null
-      names[ref.link] =
-        profileAccountUid || !id.path?.length
-          ? getContactMetadata(profileAccountUid || id.uid, resource.document.metadata, contacts).name
-          : getDocumentTitle(resource.document)
+      const key = ref.mentionKind ? `${ref.mentionKind}:${ref.link}` : ref.link
+      const accountUid = bookmarkAccountIds[index]
+      if (accountUid) {
+        names[key] = getContactMetadata(accountUid, bookmarkAccounts[index]?.data?.metadata, contacts).name
+      } else {
+        const resource = bookmarkRefResources[index]?.data
+        if (resource?.type === 'document') names[key] = getDocumentTitle(resource.document)
+      }
     })
     return names
-  }, [bookmarkRefs, bookmarkRefResources, contacts])
+  }, [bookmarkRefs, bookmarkAccountIds, bookmarkAccounts, bookmarkRefResources, contacts])
 
   const authorHmId = comment.author || authorId ? hmId(authorId || comment.author) : null
   const docId = getCommentTargetId(comment)

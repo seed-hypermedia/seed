@@ -126,7 +126,8 @@ vi.mock('../desktop-intents', () => ({
   useDesktopAccountIntent: () => ({content: null, requireAccount: vi.fn()}),
 }))
 
-vi.mock('@shm/shared/models/comments', () => ({
+vi.mock('@shm/shared/models/comments', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@shm/shared/models/comments')>()),
   useDocumentComments: () => ({data: {comments: []}}),
 }))
 

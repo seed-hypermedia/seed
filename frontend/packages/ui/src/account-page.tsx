@@ -1,7 +1,16 @@
 import {HMMetadataPayload} from '@seed-hypermedia/client/hm-types'
-import {hmId, hostnameStripProtocol, ProfileTab, useDomain, useFollowProfile, useRouteLink} from '@shm/shared'
+import {
+  hasProfileSubscription,
+  hmId,
+  hostnameStripProtocol,
+  ProfileTab,
+  useDomain,
+  useFollowProfile,
+  useRouteLink,
+} from '@shm/shared'
+import {useSaveContact, useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {IS_DESKTOP} from '@shm/shared/constants'
-import {useAccount, useResource} from '@shm/shared/models/entity'
+import {useAccount, useResource, useSelectedAccountId} from '@shm/shared/models/entity'
 import {ActivityIcon, AlertCircle, Check, LucideIcon, Rss, UserCheck, Users} from 'lucide-react'
 import {ReactNode} from 'react'
 import {Button} from './button'
@@ -16,6 +25,7 @@ import {Pencil} from './icons'
 import {MembershipContent} from './membership'
 import {PageLayout} from './page-layout'
 import {PageTabItem, PageTabs} from './page-tabs'
+import {ProfileName} from './profile-name'
 
 export type SiteAccountTab = 'profile' | 'membership' | 'followers' | 'following'
 
@@ -142,6 +152,12 @@ export function AccountPage({
     profileUid: accountUid,
   })
 
+  const viewerUid = useSelectedAccountId()
+  const viewerContacts = useSelectedAccountContacts()
+  const saveContact = useSaveContact()
+  const contact = viewerContacts.data?.find(
+    (contact) => contact.subject === accountUid && hasProfileSubscription(contact),
+  )
   const handleFollowClick = onFollowClick ?? followProfile
 
   return (
@@ -149,15 +165,32 @@ export function AccountPage({
       <PageLayout contentMaxWidth={720}>
         <div className="space-y-6 py-8">
           <div className="m-4 flex-col space-y-6">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
               <HMIcon
                 id={hmId(accountUid)}
                 size={64}
                 icon={account.data?.metadata?.icon}
                 name={account.data?.metadata?.name}
               />
-              <div className="min-w-0 flex-1 space-y-1">
-                <h1 className="truncate text-2xl font-bold">{account.data?.metadata?.name || accountUid}</h1>
+              <div className="min-w-40 flex-1 space-y-1">
+                <ProfileName
+                  key={`${viewerUid}:${accountUid}:${contact?.id || ''}`}
+                  publicName={account.data?.metadata?.name || accountUid}
+                  petname={!isOwnAccount ? contact?.name : undefined}
+                  onSave={
+                    !isOwnAccount && viewerUid && contact
+                      ? async (name) => {
+                          await saveContact.mutateAsync({
+                            accountUid: viewerUid,
+                            subjectUid: accountUid,
+                            name,
+                            editId: contact.id,
+                            subscribe: contact.subscribe,
+                          })
+                        }
+                      : undefined
+                  }
+                />
                 <SiteLink account={account.data} />
               </div>
               <div className="flex items-center gap-2">

@@ -1,6 +1,6 @@
 import {desktopUniversalClient} from '@/desktop-universal-client'
 import {ipc} from '@/ipc'
-import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
+import {SelectedAccountContactsProvider} from '@shm/shared/models/contacts'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {client} from '@/trpc'
 import {reportTelemetry, TelemetryStage, telemetryKeyForRoute} from '@/telemetry'
@@ -81,8 +81,6 @@ export function NavigationContainer({children}: {children: ReactNode}) {
 
   const experiments = useExperiments().data
 
-  const contacts = useSelectedAccountContacts()
-
   const pushAfterActionRef = useRef<ReturnType<typeof usePushAfterAction>>()
 
   return (
@@ -139,7 +137,6 @@ export function NavigationContainer({children}: {children: ReactNode}) {
         navigation.dispatch({type: 'selectedIdentity', value: keyId})
       }}
       universalClient={desktopUniversalClient}
-      contacts={contacts.data}
       broadcastEvent={(event: AppEvent) => {
         // @ts-expect-error
         window.ipc?.broadcast(event)
@@ -157,11 +154,13 @@ export function NavigationContainer({children}: {children: ReactNode}) {
         pushAfterActionRef.current?.({id, trigger: 'publish'})
       }}
     >
-      <NavContextProvider value={navigation}>
-        <PushAfterActionSetter pushAfterActionRef={pushAfterActionRef} />
-        {children}
-        <DevTools />
-      </NavContextProvider>
+      <SelectedAccountContactsProvider>
+        <NavContextProvider value={navigation}>
+          <PushAfterActionSetter pushAfterActionRef={pushAfterActionRef} />
+          {children}
+          <DevTools />
+        </NavContextProvider>
+      </SelectedAccountContactsProvider>
     </UniversalAppProvider>
   )
 }

@@ -12,11 +12,12 @@ global.window = {
 // Mock the origin variable that local-db.ts uses
 ;(global as any).origin = TEST_ORIGIN
 
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {RecentsResult} from '@shm/shared/models/recents'
 import {indexedDB} from 'fake-indexeddb'
 import 'fake-indexeddb/auto'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
-import {addRecent, clearRecents, deleteRecent, getRecents, resetDB} from './local-db-recents'
+import {addRecent, clearRecents, deleteRecent, getRecents, resetDB, recordRecentRoute} from './local-db-recents'
 
 const DB_NAME = 'recents-db-01'
 
@@ -239,5 +240,25 @@ describe('local-db-recents integration', () => {
       // Always close the database connection
       db.close()
     }
+  })
+  it('records profiles separately from home documents', async () => {
+    const db = await resetDB(indexedDB)
+    try {
+      await recordRecentRoute({key: 'profile', id: hmId('alice')}, 'Alice')
+      await recordRecentRoute({key: 'document', id: hmId('alice', {version: 'v1'})}, 'Home')
+      await recordRecentRoute({key: 'document', id: hmId('alice', {version: 'v2'})}, 'Home updated')
+      const recents = await getRecents()
+      expect(recents.map((recent) => recent.id.id).sort()).toEqual(['hm://alice', 'hm://alice/:profile'])
+      expect(recents.find((recent) => recent.id.id === 'hm://alice')?.name).toBe('Home updated')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('tolerates unavailable local storage for reading and recording', async () => {
+    const db = await resetDB(indexedDB)
+    db.close()
+    await expect(getRecents()).resolves.toEqual([])
+    await expect(recordRecentRoute({key: 'profile', id: hmId('alice')}, 'Alice')).resolves.toBeNull()
   })
 })

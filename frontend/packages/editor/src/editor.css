@@ -610,3 +610,69 @@ html[data-debug-blocks='1'] .blockChildren[data-list-type='Grid'] {
 .dark [data-content-type='code-block'] {
   background-color: rgba(0, 0, 0, 0.5) !important;
 }
+
+:root {
+  --mention-motion-enter: 180ms;
+  --mention-motion-exit: 100ms;
+  --mention-motion-pop: cubic-bezier(0.2, 0.8, 0.2, 1.12);
+  --mention-motion-settle: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.tippy-box[data-animation='mention-popover'] {
+  transform-origin: top left;
+  transition-property: opacity, transform, visibility;
+  transition-timing-function: var(--mention-motion-pop);
+}
+.tippy-box[data-animation='mention-popover'][data-placement^='top'] {
+  transform-origin: bottom left;
+}
+.tippy-box[data-animation='mention-popover'][data-state='hidden'] {
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-0.25rem) scale(0.97);
+  transition-timing-function: var(--mention-motion-settle);
+}
+.tippy-box[data-animation='mention-popover'][data-placement^='top'][data-state='hidden'] {
+  transform: translateY(0.25rem) scale(0.97);
+}
+.tippy-box[data-animation='mention-popover'][data-state='visible'] {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.mention-mobile-dialog[data-state='open'] {
+  animation: mention-mobile-in var(--mention-motion-enter) var(--mention-motion-settle) both;
+}
+.mention-mobile-dialog[data-state='closed'] {
+  pointer-events: none;
+  animation: mention-mobile-out var(--mention-motion-exit) var(--mention-motion-settle) both;
+}
+@keyframes mention-mobile-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes mention-mobile-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tippy-box[data-animation='mention-popover'] {
+    transition-duration: 0s !important;
+    transform: none !important;
+  }
+  .mention-mobile-dialog[data-state] {
+    animation: none;
+  }
+}

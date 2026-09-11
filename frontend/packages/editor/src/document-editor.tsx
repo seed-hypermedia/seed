@@ -166,6 +166,9 @@ export function DocumentEditor({
   const getImageUrl = useImageUrl()
   const onCreateInlineDraft = useDraftActions()?.onCreateInlineDraft
   const actorRef = useDocumentMachineRef()
+  const actingAccountUid = useDocumentSelector(
+    (snapshot) => snapshot.context.signingAccountId ?? snapshot.context.publishAccountUid,
+  )
   const canEdit = useDocumentSelector(selectCanEdit)
   const isEditing = useDocumentSelector(selectIsEditing)
   const renderHref = useCallback(
@@ -714,7 +717,12 @@ export function DocumentEditor({
               <SideMenuPositioner editor={editor} />
               <SlashMenuPositioner editor={editor} />
               <LinkMenuPositioner editor={editor} />
-              <MentionMenuPositioner editor={editor} perspectiveAccountUid={perspectiveAccountUid} />
+              <MentionMenuPositioner
+                editor={editor}
+                perspectiveAccountUid={actingAccountUid ?? perspectiveAccountUid}
+                siteUid={resourceId.uid}
+                documentId={resourceId}
+              />
               <HyperlinkToolbarPositioner
                 // @ts-expect-error
                 hyperlinkToolbar={HypermediaLinkPreview}

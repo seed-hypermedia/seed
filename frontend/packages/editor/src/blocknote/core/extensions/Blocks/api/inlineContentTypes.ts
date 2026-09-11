@@ -36,9 +36,11 @@ export type BNLink = {
   content: StyledText[]
 }
 
+/** An inline entity reference; legacy references omit the explicit kind. */
 export type InlineEmbed = {
   type: 'inline-embed'
   link: string
+  mentionKind?: 'account' | 'document'
 }
 
 export type PartialLink = Omit<BNLink, 'content'> & {

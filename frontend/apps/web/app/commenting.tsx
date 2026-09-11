@@ -25,12 +25,13 @@ import {
 } from '@shm/shared'
 import type {InlineEditCommentProps} from '@shm/shared/comments-service-provider'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
-import {useDocumentComments} from '@shm/shared/models/comments'
+import {getMentionThreadContext, useDocumentComments} from '@shm/shared/models/comments'
 import {useAccount} from '@shm/shared/models/entity'
 import {invalidateQueries, useQueryClient} from '@shm/shared/models/query-client'
 import {applyOptimisticComment, buildOptimisticComment, navigateToComment} from '@shm/shared/optimistic-comment'
 import {useTxString} from '@shm/shared/translation'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
+import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {Button, buttonVariants} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
 import {EmailNotificationsSuccess} from '@shm/ui/email-notifications'
@@ -107,6 +108,15 @@ export default function WebCommenting({
   const replyCommentVersion = replyCommentVersionProp || resolvedReply?.replyCommentVersion
   const rootReplyCommentVersion = rootReplyCommentVersionProp || resolvedReply?.rootReplyCommentVersion
   const isReplyEditor = isReplying || !!replyCommentId || !!commentId
+  const mentionThread = useMemo(
+    () =>
+      getMentionThreadContext(commentsService.data?.comments, {
+        replyCommentId,
+        replyCommentVersion,
+        rootReplyCommentVersion,
+      }),
+    [commentsService.data?.comments, replyCommentId, replyCommentVersion, rootReplyCommentVersion],
+  )
 
   // Use draft persistence
   const {
@@ -470,7 +480,10 @@ export default function WebCommenting({
           )
         }}
         account={myAccount.data}
-        perspectiveAccountUid={myAccount.data?.id.uid} // TODO: figure out if this is the correct value
+        perspectiveAccountUid={myAccount.data?.id.uid}
+        mentionThread={mentionThread}
+        siteUid={docId.uid}
+        documentId={docId}
       />
       {createAccountContent}
       {emailNotificationsPromptContent}
@@ -755,6 +768,9 @@ export function WebInlineEditBox({comment, onSave, onCancel, isSaving}: InlineEd
         importWebFile={(url) => importWebFile(url)}
         handleFileAttachment={(file) => handleFileAttachment(file)}
         universalClient={client}
+        perspectiveAccountUid={comment.author}
+        siteUid={comment.targetAccount}
+        documentId={hmId(comment.targetAccount, {path: entityQueryPathToHmIdPath(comment.targetPath)})}
         hideAvatar
         submitButton={({getContent, reset, disabled}) => (
           <>

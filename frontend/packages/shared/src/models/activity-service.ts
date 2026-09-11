@@ -10,6 +10,7 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {CID} from 'multiformats'
+import {getCitationMentionKind} from './notification-event-classifier'
 import {FeedOrder} from '../client/.generated/activity/v1alpha/activity_pb'
 import {Mention} from '../client/.generated/entities/v1alpha/entities_pb'
 import {prepareHMComment, prepareHMDocument} from '../document-utils'
@@ -123,6 +124,8 @@ export type LoadedRefEvent = {
 }
 
 export type LoadedCitationEvent = {
+  /** Explicit source mention identity, absent for legacy or mixed references. */
+  mentionKind?: 'account' | 'document'
   id: string
   type: 'citation'
   citationType: 'd' | 'c' // 'd' = document reference, 'c' = comment reference
@@ -623,12 +626,14 @@ export async function loadCitationEvent(
 
     // Fetch source document metadata (best effort; keep event if metadata fails)
     let sourceMetadata: HMMetadata | undefined
+    let sourceContent: HMDocument['content'] = []
     try {
       const sourceDocument = await cache.getDocument({
         account: sourceUnpacked.uid,
         path: sourceUnpacked.path?.length ? `/${sourceUnpacked.path.join('/')}` : '',
         version: sourceVersion || undefined,
       })
+      if (sourceDocument && citationType === 'd') sourceContent = prepareHMDocument(sourceDocument).content
       sourceMetadata = sourceDocument?.metadata?.toJson({
         emitDefaultValues: true,
         enumAsInteger: false,
@@ -697,9 +702,16 @@ export async function loadCitationEvent(
       }
     }
 
+    const mentionKind = getCitationMentionKind(
+      comment?.content || sourceContent || [],
+      targetId,
+      event.newMention.sourceContext,
+    )
+
     return {
       id: eventId,
       type: 'citation',
+      mentionKind,
       citationType,
       author,
       time: event.eventTime || '',

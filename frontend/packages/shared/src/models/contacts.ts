@@ -7,7 +7,8 @@ import {ContactSubscribe} from '@seed-hypermedia/client/contact'
 import type {HMContact, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useMutation, useQueries, useQuery} from '@tanstack/react-query'
 import {getContactMetadata} from '../content'
-import {useUniversalClient} from '../routing'
+import {UniversalAppContext, useUniversalAppContext, useUniversalClient} from '../routing'
+import {createElement, type ReactNode} from 'react'
 import {hmId} from '../utils/entity-id-url'
 import {useAccount, useAccounts, useResources, useSelectedAccountId} from './entity'
 import {queryContactsOfAccount, queryContactsOfSubject} from './queries'
@@ -53,6 +54,7 @@ export function useSaveContact() {
       }
     },
     onSuccess: (_, contact) => {
+      invalidateQueries([queryKeys.SEARCH, 'inlineMentions'])
       invalidateQueries([queryKeys.CONTACTS_SUBJECT, contact.subjectUid])
       invalidateQueries([queryKeys.CONTACTS_ACCOUNT, contact.accountUid])
       invalidateQueries([queryKeys.DOCUMENT_COLLABORATORS, contact.subjectUid])
@@ -77,6 +79,7 @@ export function useDeleteContact() {
       await client.publish(await deleteContactBlob({contactId: contact.id}, signer))
     },
     onSuccess: (_, contact) => {
+      invalidateQueries([queryKeys.SEARCH, 'inlineMentions'])
       invalidateQueries([queryKeys.CONTACTS_SUBJECT, contact.subject])
       invalidateQueries([queryKeys.CONTACTS_ACCOUNT, contact.account])
       invalidateQueries([queryKeys.DOCUMENT_COLLABORATORS, contact.subject])
@@ -104,6 +107,13 @@ export function useContactListsOfAccount(accountUids: string[]) {
 export function useSelectedAccountContacts() {
   const selectedAccount = useSelectedAccountId()
   return useContactListOfAccount(selectedAccount)
+}
+
+/** Supplies live, selected-viewer petnames beneath the platform's identity/client provider. */
+export function SelectedAccountContactsProvider({children}: {children: ReactNode}) {
+  const context = useUniversalAppContext()
+  const contacts = useSelectedAccountContacts()
+  return createElement(UniversalAppContext.Provider, {value: {...context, contacts: contacts.data}}, children)
 }
 
 export function useContact(id: UnpackedHypermediaId | undefined) {

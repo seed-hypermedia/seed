@@ -1,4 +1,5 @@
 import {unpackHmId} from '@shm/shared'
+import {getRecentsRouteEntityUrl, type NavRoute} from '@shm/shared/routes'
 import {RecentsResult} from '@shm/shared/models/recents'
 
 const DB_NAME = 'recents-db-01'
@@ -190,6 +191,26 @@ export async function addRecent(id: string, name: string): Promise<RecentsResult
  * @returns Array of recent items
  */
 export async function getRecents(): Promise<RecentsResult[]> {
+  try {
+    return await readRecents()
+  } catch {
+    // Local history is optional, including in storage-restricted browsers.
+    return []
+  }
+}
+
+/** Records a canonical route visit without letting unavailable storage interrupt navigation. */
+export async function recordRecentRoute(route: NavRoute, name: string): Promise<RecentsResult | null> {
+  const id = getRecentsRouteEntityUrl(route)
+  if (!id) return null
+  try {
+    return await addRecent(id, name)
+  } catch {
+    return null
+  }
+}
+
+async function readRecents(): Promise<RecentsResult[]> {
   const db = await getDB()
   const tx = db.transaction(RECENTS_STORE_NAME, 'readonly')
   const store = tx.objectStore(RECENTS_STORE_NAME)

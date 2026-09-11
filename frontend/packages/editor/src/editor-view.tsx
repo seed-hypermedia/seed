@@ -1,3 +1,5 @@
+import type {MentionThreadContext} from '@shm/shared/models/mention-ranking'
+import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import '@/blocknote/core/style.css'
 import '@/editor.css'
 import {
@@ -16,9 +18,15 @@ export function HyperMediaEditorView({
   editor,
   openUrl,
   perspectiveAccountUid,
+  siteUid,
+  documentId,
+  mentionThread,
 }: {
   editor: HyperMediaEditor
   openUrl: (url: string, newWindow?: boolean) => void
+  siteUid?: string
+  documentId?: UnpackedHypermediaId
+  mentionThread?: MentionThreadContext
   perspectiveAccountUid?: string | null
 }) {
   const editable = editor.isEditable
@@ -38,7 +46,13 @@ export function HyperMediaEditorView({
         // @ts-expect-error
         openUrl={openUrl}
       />
-      <MentionMenuPositioner editor={editor} perspectiveAccountUid={perspectiveAccountUid} />
+      <MentionMenuPositioner
+        editor={editor}
+        perspectiveAccountUid={perspectiveAccountUid}
+        siteUid={siteUid}
+        documentId={documentId}
+        mentionThread={mentionThread}
+      />
     </BlockNoteView>
   )
 }

@@ -33,6 +33,7 @@ import {
   classifyCommentNotificationForAccount,
   extractMentionedAccountUidsFromComment,
   getMentionedAccountUid,
+  getCitationMentionKind,
 } from '@shm/shared/models/notification-event-classifier'
 import {CID} from 'multiformats'
 import {
@@ -1262,17 +1263,20 @@ async function getAccountMetadata(accountId: string): Promise<HMMetadata | null>
 /** Resolves inline content references to display names for notification emails. */
 export async function resolveContentReferenceNames(
   content: HMBlockNode[] | null | undefined,
-  resolveReferenceName: (id: UnpackedHypermediaId) => Promise<string | null> = resolveContentReferenceName,
+  resolveReferenceName: (
+    id: UnpackedHypermediaId,
+    mentionKind?: 'account' | 'document',
+  ) => Promise<string | null> = resolveContentReferenceName,
 ): Promise<Record<string, string> | undefined> {
   if (!content?.length) return undefined
 
   const names: Record<string, string> = {}
-  const links = new Map<string, UnpackedHypermediaId>()
+  const links = new Map<string, {id: UnpackedHypermediaId; mentionKind?: 'account' | 'document'}>()
   collectInlineEmbedReferenceLinks(content, links)
 
-  for (const [link, refId] of links) {
+  for (const [link, ref] of links) {
     try {
-      const name = await resolveReferenceName(refId)
+      const name = await resolveReferenceName(ref.id, ref.mentionKind)
       if (name) names[link] = name
     } catch (error: any) {
       reportError(`Error resolving content reference ${link}: ${error.message}`)
@@ -1282,23 +1286,32 @@ export async function resolveContentReferenceNames(
   return Object.keys(names).length ? names : undefined
 }
 
-function collectInlineEmbedReferenceLinks(content: HMBlockNode[], links: Map<string, UnpackedHypermediaId>) {
+function collectInlineEmbedReferenceLinks(
+  content: HMBlockNode[],
+  links: Map<string, {id: UnpackedHypermediaId; mentionKind?: 'account' | 'document'}>,
+) {
   for (const blockNode of content) {
     const annotations = getAnnotations(blockNode.block)
     if (annotations) {
       for (const annotation of annotations) {
-        if (annotation.type !== 'Embed' || !annotation.link || links.has(annotation.link)) continue
+        if (annotation.type !== 'Embed' || !annotation.link) continue
+        const mentionKind = annotation.attributes?.mentionKind
+        const key = mentionKind ? `${mentionKind}:${annotation.link}` : annotation.link
+        if (links.has(key)) continue
         const refId = unpackHmId(annotation.link)
-        if (refId) links.set(annotation.link, refId)
+        if (refId) links.set(key, {id: refId, mentionKind})
       }
     }
     if (blockNode.children?.length) collectInlineEmbedReferenceLinks(blockNode.children, links)
   }
 }
 
-async function resolveContentReferenceName(id: UnpackedHypermediaId): Promise<string | null> {
+async function resolveContentReferenceName(
+  id: UnpackedHypermediaId,
+  mentionKind?: 'account' | 'document',
+): Promise<string | null> {
   const mentionedAccountUid = getMentionedAccountUid(id)
-  if (mentionedAccountUid) {
+  if (mentionedAccountUid && mentionKind !== 'document') {
     const metadata = await getAccountMetadata(mentionedAccountUid)
     return metadata?.name?.trim() || 'Untitled Profile'
   }
@@ -1456,6 +1469,7 @@ async function evaluateMentionEventForNotifications(
 
   let mentionUrl: string
   let mentionComment: HMComment | undefined
+  let sourceContent: HMBlockNode[] = []
   let mentionResolvedNames: Record<string, string> | undefined
   if (isCommentMention) {
     const sourceCommentId = unpackHmId(mentionEvent.source)
@@ -1476,18 +1490,28 @@ async function evaluateMentionEventForNotifications(
         })
         const rawComment = toPlainMessage(serverComment)
         mentionComment = HMCommentSchema.parse(rawComment)
+        sourceContent = mentionComment.content
         mentionResolvedNames = await resolveContentReferenceNames(mentionComment.content)
       }
     } catch (error: any) {
       reportError(`Error loading mention comment ${mentionEvent.sourceBlob?.cid}: ${error.message}`)
     }
   } else {
+    const sourceDocument = await getDocument(
+      hmId(sourceId.uid, {
+        path: sourceId.path,
+        version: mentionEvent.sourceBlob?.cid || sourceId.version || null,
+      }),
+    )
+    sourceContent = sourceDocument?.content || []
     mentionUrl = await buildVerifiedResourceUrl(sourceDocId.uid, {
       siteUrl,
       siteOwnerUid: sourceDocId.uid,
       path: sourceDocId.path,
     })
   }
+
+  if (getCitationMentionKind(sourceContent, targetId, mentionEvent.sourceContext) === 'document') return
 
   for (const sub of allSubscriptions) {
     if (!sub.notifyAllMentions || sub.id !== targetAccountUid) continue
@@ -2026,7 +2050,8 @@ async function loadRefEvent(event: PlainMessage<Event>) {
 
 type MentionMap = Record<string, Set<string>> // block id -> set of account ids
 
-function getMentionsOfDocument(document: HMDocument): MentionMap {
+/** Collects person mentions by block, excluding explicit document mentions. */
+export function getMentionsOfDocument(document: HMDocument): MentionMap {
   const mentionMap: MentionMap = {}
   extractMentionsFromBlockNodes(document.content, mentionMap)
   return mentionMap
@@ -2044,7 +2069,7 @@ function extractMentionsFromBlockNode(blockNode: HMBlockNode, mentionMap: Mentio
   const annotations = getAnnotations(block)
   if (annotations) {
     for (const annotation of annotations) {
-      if (annotation.type !== 'Embed') continue
+      if (annotation.type !== 'Embed' || annotation.attributes?.mentionKind === 'document') continue
       const mentionedAccountUid = getMentionedAccountUid(annotation.link)
       if (!mentionedAccountUid) continue
       mentionMap[block.id] = mentionMap[block.id] ?? new Set()

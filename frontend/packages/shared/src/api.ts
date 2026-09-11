@@ -28,6 +28,7 @@ import {QueryBlock} from './api-query-block'
 import {Resource, ResourceParams} from './api-resource'
 import {ResourceMetadata, ResourceMetadataParams} from './api-resource-metadata'
 import {Search} from './api-search'
+import {MentionCandidates} from './api-mention-candidates'
 import {HMRequestImplementation, HMRequestParams} from './api-types'
 
 export const APIQueries = {
@@ -38,6 +39,7 @@ export const APIQueries = {
   AccountContacts,
   SubjectContacts,
   Search,
+  MentionCandidates,
   Query,
   QueryBlock,
   ListComments,

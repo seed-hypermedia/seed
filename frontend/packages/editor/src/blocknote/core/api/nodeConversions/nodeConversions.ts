@@ -113,6 +113,8 @@ export function inlineContentToNodes(blockContent: PartialInlineContent[], schem
         schema.nodes['inline-embed'].create({
           // @ts-expect-error
           link: content.link,
+          // @ts-expect-error inline embeds extend BlockNote inline content.
+          mentionKind: content.mentionKind,
         }),
       )
     } else {
@@ -250,6 +252,7 @@ function contentNodeToInlineContent(contentNode: Node) {
       content.push({
         type: node.type.name,
         link: node.attrs.link,
+        ...(node.attrs.mentionKind ? {mentionKind: node.attrs.mentionKind} : {}),
       })
 
       currentContent = undefined

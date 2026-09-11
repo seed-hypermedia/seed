@@ -834,3 +834,51 @@ describe('documentToText', () => {
     expect(result).toBe('Block 1 - included\n\nBlock 2 - included')
   })
 })
+
+it('keeps explicit home-document labels separate from legacy account labels', () => {
+  expect(
+    contentToText({
+      content: [
+        {
+          block: {
+            type: 'Paragraph',
+            id: 'p',
+            text: '\uFFFC \uFFFC',
+            annotations: [
+              {type: 'Embed', link: 'hm://alice', starts: [0], ends: [1]},
+              {type: 'Embed', link: 'hm://alice', starts: [2], ends: [3], attributes: {mentionKind: 'document'}},
+            ],
+          },
+          children: [],
+        },
+      ] as any,
+      resolvedNames: {'hm://alice': 'Alice', 'document:hm://alice': 'Home Page'},
+    }),
+  ).toBe('Alice Home Page')
+})
+
+it('resolves profile account names without requiring a home document', async () => {
+  const grpcClient = createMockGrpcClient({
+    root: {
+      content: [
+        {
+          block: {
+            type: 'Paragraph',
+            text: '\uFFFC',
+            annotations: [
+              {
+                type: 'Embed',
+                link: 'hm://alice/:profile',
+                starts: [0],
+                ends: [1],
+                attributes: {mentionKind: 'account'},
+              },
+            ],
+          },
+        },
+      ],
+    },
+  })
+  Object.assign(grpcClient.documents, {getAccount: vi.fn(async () => ({profile: {name: 'Alice'}}))})
+  expect(await documentToText({documentId: hmId('root'), grpcClient, options: {}})).toBe('[Alice]')
+})

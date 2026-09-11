@@ -3,12 +3,13 @@
 // happy-dom, React node views via renderToString. Visual parity against the
 // live editor is verified separately by apps/web/scripts/ssr-parity-check.mjs.
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
-import {queryQueryBlock} from '@shm/shared/models/queries'
+import {queryAccount, queryResource, queryQueryBlock} from '@shm/shared/models/queries'
 import {QueryClient} from '@tanstack/react-query'
-import {describe, expect, it} from 'vitest'
+import {describe, expect, it, vi} from 'vitest'
 import {hmBlockToEditorBlock} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {getQueryBlockInput} from './query-block-input'
 import {renderDocumentToHTML} from './ssr-render'
+import {unpackHmId} from '@shm/shared'
 
 const APP_CONTEXT = {
   origin: 'http://localhost:3000',
@@ -298,5 +299,48 @@ describe('renderDocumentToHTML', () => {
     ] as any)
     expect(html).toContain('href="http://localhost:3000/docs/page"')
     expect(html).toContain('data-hm-link="hm://uid1/docs/page"')
+  })
+})
+
+describe('server-rendered mention labels', () => {
+  it('renders prefixed account labels and unprefixed home document labels before hydration', () => {
+    const queryClient = new QueryClient()
+    const client = {request: vi.fn(async () => null)} as any
+    queryClient.setQueryData(queryAccount(client, 'alice').queryKey, {metadata: {name: 'Alice'}})
+    queryClient.setQueryData(queryResource(client, unpackHmId('hm://alice')).queryKey, {
+      type: 'document',
+      document: {metadata: {name: 'Home document'}},
+    })
+    const html = renderDocumentToHTML(
+      [
+        {
+          block: {
+            id: 'mentions',
+            type: 'Paragraph',
+            text: '\uFFFC and \uFFFC',
+            attributes: {},
+            annotations: [
+              {
+                type: 'Embed',
+                link: 'hm://alice/:profile',
+                starts: [0],
+                ends: [1],
+                attributes: {mentionKind: 'account'},
+              },
+              {type: 'Embed', link: 'hm://alice', starts: [6], ends: [7], attributes: {mentionKind: 'document'}},
+            ],
+          },
+          children: [],
+        },
+      ] as any,
+      {queryClient, appContext: {...APP_CONTEXT, universalClient: client}},
+    )
+    expect(client.request).not.toHaveBeenCalled()
+    expect(html).toContain('>@Alice<')
+    expect(html).toContain('>Home document<')
+    expect(html).not.toContain('@Home document')
+    expect(html).toContain('data-mention-kind="account"')
+    expect(html).toContain('href="/hm/alice/:profile"')
+    queryClient.clear()
   })
 })

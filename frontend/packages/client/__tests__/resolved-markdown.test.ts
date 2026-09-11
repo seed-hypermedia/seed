@@ -218,3 +218,35 @@ describe('resolved markdown', () => {
     expect(markdown).toContain('hi [@Alice Example](hm://alice/:profile)')
   })
 })
+
+it('resolves an explicit home document independently from a legacy account at the same URL', async () => {
+  const c = client({
+    'Account:hm://alice': {type: 'account', metadata: {name: 'Alice'}},
+    'Resource:hm://alice': {type: 'document', document: doc('Home Page', [])},
+  })
+  const markdown = await documentToResolvedMarkdown(
+    doc('Root', [
+      paragraph('p', '￼', [{type: 'Embed', link: 'hm://alice', starts: [0], ends: [1]}]),
+      paragraph('q', '￼', [
+        {type: 'Embed', link: 'hm://alice', starts: [0], ends: [1], attributes: {mentionKind: 'document'}},
+      ]),
+    ]),
+    {client: c},
+  )
+  expect(markdown).toContain('[@Alice](hm://alice)')
+  expect(markdown).toContain('[Home Page](hm://alice)')
+})
+
+it('does not duplicate the @ prefix in resolved account mention names', async () => {
+  const c = client({'Account:hm://alice': {type: 'account', metadata: {name: '@Alice'}}})
+  const markdown = await documentToResolvedMarkdown(
+    doc('Root', [
+      paragraph('p1', '\uFFFC', [
+        {type: 'Embed', starts: [0], ends: [1], link: 'hm://alice/:profile', attributes: {mentionKind: 'account'}},
+      ]),
+    ]),
+    {client: c},
+  )
+  expect(markdown).toContain('[@Alice](hm://alice/:profile)')
+  expect(markdown).not.toContain('@@Alice')
+})
