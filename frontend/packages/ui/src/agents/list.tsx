@@ -1,6 +1,6 @@
-import { hostnameStripProtocol } from '@shm/shared'
-import { abbreviateUid } from '@shm/shared/utils/abbreviate'
-import { Button } from '@shm/ui/button'
+import {hostnameStripProtocol} from '@shm/shared'
+import {abbreviateUid} from '@shm/shared/utils/abbreviate'
+import {Button} from '@shm/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,20 +12,20 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
-import { Container, PanelContainer } from '@shm/ui/container'
-import { Notice, NOTICE_TONE_DOT_CLASS } from '@shm/ui/notice'
-import { SizableText } from '@shm/ui/text'
-import { Tooltip } from '@shm/ui/tooltip'
-import { useAppDialog } from '@shm/ui/universal-dialog'
-import { useLoadMoreSentinel } from '@shm/ui/use-load-more-sentinel'
-import { ArrowRight, Bot, Check, ChevronDown, CircleUserRound, Mail, Server, Settings, X } from 'lucide-react'
-import { useMemo } from 'react'
-import { useSelectedAccountId } from './account'
-import { AgentListRow } from './agent-row'
-import { AgentTitleMenu } from './agent-title-menu'
-import { CreateAgentDialog, ManageAgentAccountsDialog, ModelProvidersDialog } from './dialogs'
-import { describeAgentError } from './errors'
-import { HomeSessionComposer, type HomeComposerAgent } from './home-composer'
+import {Container, PanelContainer} from '@shm/ui/container'
+import {Notice, NOTICE_TONE_DOT_CLASS} from '@shm/ui/notice'
+import {SizableText} from '@shm/ui/text'
+import {Tooltip} from '@shm/ui/tooltip'
+import {useAppDialog} from '@shm/ui/universal-dialog'
+import {useLoadMoreSentinel} from '@shm/ui/use-load-more-sentinel'
+import {ArrowRight, Bot, Check, ChevronDown, CircleUserRound, Mail, Server, Settings, X} from 'lucide-react'
+import {useMemo} from 'react'
+import {useSelectedAccountId} from './account'
+import {AgentListRow} from './agent-row'
+import {AgentTitleMenu} from './agent-title-menu'
+import {CreateAgentDialog, ManageAgentAccountsDialog, ModelProvidersDialog} from './dialogs'
+import {describeAgentError} from './errors'
+import {NewSessionComposer, type NewSessionAgent} from './new-session-composer'
 import {
   describeAgentServer,
   isLocalAgentServer,
@@ -42,11 +42,11 @@ import {
   useLocalAgentServerUrl,
   useSpaceAgents,
 } from './models'
-import { useClickNavigate, useNavigate } from './navigation'
-import { AgentsNoAccountPage } from './no-account'
-import { getAgentsPlatform } from './platform'
-import { AgentServersDialog } from './server-settings'
-import { SessionListItem } from './session-list-item'
+import {useClickNavigate, useNavigate} from './navigation'
+import {AgentsNoAccountPage} from './no-account'
+import {getAgentsPlatform} from './platform'
+import {AgentServersDialog} from './server-settings'
+import {SessionListItem} from './session-list-item'
 
 function AgentsListPage() {
   const selectedAccountId = useSelectedAccountId()
@@ -56,7 +56,7 @@ function AgentsListPage() {
   return <AgentsListContent selectedAccountId={selectedAccountId} />
 }
 
-function AgentsListContent({ selectedAccountId }: { selectedAccountId: string }) {
+function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
   // Keep every account these agents can author as synced locally, so they are immediately
   // mentionable and openable elsewhere in the app.
   useAgentAccountsSync()
@@ -78,14 +78,14 @@ function AgentsListContent({ selectedAccountId }: { selectedAccountId: string })
   const agents = useMemo(
     () =>
       serverUrls.flatMap((serverUrl, index) =>
-        (agentQueries[index]?.data || []).map((agent) => ({ ...agent, serverUrl })),
+        (agentQueries[index]?.data || []).map((agent) => ({...agent, serverUrl})),
       ),
     [agentQueries, serverUrls],
   )
   const invites = useMemo(
     () =>
       serverUrls.flatMap((serverUrl, index) =>
-        (inviteQueries[index]?.data || []).map((invite) => ({ ...invite, serverUrl })),
+        (inviteQueries[index]?.data || []).map((invite) => ({...invite, serverUrl})),
       ),
     [inviteQueries, serverUrls],
   )
@@ -112,9 +112,9 @@ function AgentsListContent({ selectedAccountId }: { selectedAccountId: string })
   }, [sessionPages.entries, spaceAgents.sessions])
   const isLoadingSessions = sessionPages.isLoading || (spaceAgents.isLoading && !sessions.length)
   // Every agent the composer below can address: the account's own plus the space's published ones.
-  const composerAgents = useMemo<HomeComposerAgent[]>(
+  const composerAgents = useMemo<NewSessionAgent[]>(
     () => [
-      ...agents.map(({ serverUrl, ...agent }) => ({ serverUrl, agent })),
+      ...agents.map(({serverUrl, ...agent}) => ({serverUrl, agent})),
       ...spaceAgents.agents.filter(
         (option) => !agents.some((agent) => agent.serverUrl === option.serverUrl && agent.id === option.agent.id),
       ),
@@ -123,7 +123,7 @@ function AgentsListContent({ selectedAccountId }: { selectedAccountId: string })
   )
   const latestSession = sessions[0]
   const defaultComposerAgent = useMemo(
-    () => (latestSession ? { serverUrl: latestSession.serverUrl, agentId: latestSession.session.agentId } : undefined),
+    () => (latestSession ? {serverUrl: latestSession.serverUrl, agentId: latestSession.session.agentId} : undefined),
     [latestSession],
   )
   const loadMoreSentinel = useLoadMoreSentinel({
@@ -181,12 +181,13 @@ function AgentsListContent({ selectedAccountId }: { selectedAccountId: string })
                             {showStatusDot ? (
                               <span
                                 aria-label={status}
-                                className={`inline-block size-2.5 flex-none rounded-full align-middle ${health?.isLoading
+                                className={`inline-block size-2.5 flex-none rounded-full align-middle ${
+                                  health?.isLoading
                                     ? 'bg-muted-foreground/40'
                                     : health?.isError
                                       ? NOTICE_TONE_DOT_CLASS.warning
                                       : 'bg-green-500'
-                                  } `}
+                                } `}
                               />
                             ) : null}
                           </span>
@@ -201,15 +202,15 @@ function AgentsListContent({ selectedAccountId }: { selectedAccountId: string })
                             </SizableText>
                           </DropdownMenuLabel>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => navigate({ key: 'agent-server', serverUrl })}>
+                          <DropdownMenuItem onClick={() => navigate({key: 'agent-server', serverUrl})}>
                             <ArrowRight />
                             Open Server
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => manageAccountsDialog.open({ serverUrl, selectedAccountId })}>
+                          <DropdownMenuItem onClick={() => manageAccountsDialog.open({serverUrl, selectedAccountId})}>
                             <CircleUserRound />
                             Accounts
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => providersDialog.open({ serverUrl, selectedAccountId })}>
+                          <DropdownMenuItem onClick={() => providersDialog.open({serverUrl, selectedAccountId})}>
                             <Settings />
                             Providers
                           </DropdownMenuItem>
@@ -233,7 +234,7 @@ function AgentsListContent({ selectedAccountId }: { selectedAccountId: string })
                 <span>
                   <Button
                     className="max-sm:min-h-10"
-                    onClick={() => createAgentDialog.open({ serverUrls, selectedAccountId })}
+                    onClick={() => createAgentDialog.open({serverUrls, selectedAccountId})}
                     disabled={!!createAgentDisabledReason}
                   >
                     <Bot className="size-4" />
@@ -279,7 +280,7 @@ function AgentsListContent({ selectedAccountId }: { selectedAccountId: string })
             <section className="flex flex-col gap-3">
               <SizableText weight="bold">Agents in this space</SizableText>
               <div className="flex flex-col gap-2">
-                {publishedAgents.map(({ serverUrl, agent }) => (
+                {publishedAgents.map(({serverUrl, agent}) => (
                   <AgentListRow
                     key={`${serverUrl}:${agent.id}`}
                     agentId={agent.id}
@@ -313,7 +314,7 @@ function AgentsListContent({ selectedAccountId }: { selectedAccountId: string })
               </SizableText>
             ) : null}
             <div className="flex flex-col gap-1">
-              {sessions.map(({ serverUrl, session, agent }) => (
+              {sessions.map(({serverUrl, session, agent}) => (
                 <SessionListItem
                   key={`${serverUrl}:${session.id}`}
                   session={session}
@@ -322,22 +323,22 @@ function AgentsListContent({ selectedAccountId }: { selectedAccountId: string })
                   agentName={agent?.definition.name || session.agentId}
                   onOpen={(event) =>
                     clickNavigate(
-                      { key: 'agent-session', agentId: session.agentId, sessionId: session.id, serverUrl },
+                      {key: 'agent-session', agentId: session.agentId, sessionId: session.id, serverUrl},
                       event,
                     )
                   }
                   onOpenSession={(child, event) =>
-                    clickNavigate({ key: 'agent-session', agentId: child.agentId, sessionId: child.id, serverUrl }, event)
+                    clickNavigate({key: 'agent-session', agentId: child.agentId, sessionId: child.id, serverUrl}, event)
                   }
                   onOpenTrigger={() =>
                     session.startedByTrigger
                       ? navigate({
-                        key: 'agent',
-                        agentId: session.agentId,
-                        serverUrl,
-                        tab: 'triggers',
-                        triggerId: session.startedByTrigger.triggerId,
-                      })
+                          key: 'agent',
+                          agentId: session.agentId,
+                          serverUrl,
+                          tab: 'triggers',
+                          triggerId: session.startedByTrigger.triggerId,
+                        })
                       : undefined
                   }
                 />
@@ -355,7 +356,7 @@ function AgentsListContent({ selectedAccountId }: { selectedAccountId: string })
       </div>
       <div className="border-border bg-panel flex-none border-t">
         <Container className="max-w-4xl gap-0 py-2">
-          <HomeSessionComposer
+          <NewSessionComposer
             agents={composerAgents}
             accountUid={selectedAccountId}
             localServerUrl={localServerUrl.data}
@@ -405,7 +406,7 @@ function AgentInviteRow({
           accept.mutate(invite.agentId, {
             onSuccess: (result) => {
               if (result._ !== 'AcceptAgentInviteResponse') return
-              navigate({ key: 'agent', agentId: invite.agentId, serverUrl: invite.serverUrl })
+              navigate({key: 'agent', agentId: invite.agentId, serverUrl: invite.serverUrl})
             },
           })
         }
@@ -421,7 +422,7 @@ function AgentInviteRow({
 }
 
 /** Keeps the account-scoped live subscription to one server open while the list is on screen. */
-function AgentServerSubscription({ serverUrl, selectedAccountId }: { serverUrl: string; selectedAccountId: string }) {
+function AgentServerSubscription({serverUrl, selectedAccountId}: {serverUrl: string; selectedAccountId: string}) {
   useAgentWebSocketSubscription(serverUrl, selectedAccountId, `account/${selectedAccountId}`)
   return null
 }

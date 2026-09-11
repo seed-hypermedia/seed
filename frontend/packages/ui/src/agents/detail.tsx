@@ -15,9 +15,6 @@ import {
   getAgentWebhookUrl,
 } from './client'
 import {
-  addOptimisticSessionMessage,
-  addOptimisticSessionToCaches,
-  type AgentSessionDraftMessage,
   getDefaultAgentServerUrl,
   isLocalAgentServer,
   useAgentCollaborators,
@@ -33,14 +30,12 @@ import {
   useAgentTrigger,
   useAgentTriggers,
   useAgentWebSocketSubscription,
-  useCreateAgentSession,
   useCreateAgentTrigger,
   useCreateSigningIdentity,
   useDeleteAgent,
   useDeleteAgentTool,
   useDeleteAgentTrigger,
   useInviteAgentCollaborator,
-  useMessageAgentSession,
   useModelProviders,
   useProviderModels,
   useRemoveAgentCollaborator,
@@ -145,7 +140,7 @@ import {pickDefaultProviderModel} from './model-utils'
 import {AgentPromptEditor, promptBlocksForRequest, promptBlocksToMarkdown} from './prompt-editor'
 import {AgentsNoAccountPage} from './no-account'
 import {agentAccessCanChat, agentAccessCanWrite} from './access'
-import {AgentRichMessageComposer} from './rich-message-composer'
+import {NewSessionComposer} from './new-session-composer'
 import {type AgentsRichEditorSubmitHandle} from './platform'
 
 function AgentDetailPage({
@@ -180,8 +175,6 @@ function AgentDetailPage({
   // The header count comes from the agent, not from however many pages happen to be loaded.
   const sessionCount = agent.data?.sessionCount ?? topLevelSessions.length
   const triggers = useAgentTriggers(serverUrl, selectedAccountId, agentId)
-  const createSession = useCreateAgentSession(serverUrl, selectedAccountId)
-  const messageSession = useMessageAgentSession(serverUrl, selectedAccountId)
   const updateAgent = useUpdateAgent(serverUrl, selectedAccountId)
   const updateSigningIdentity = useUpdateSigningIdentity(serverUrl, selectedAccountId)
   const deleteAgentDialog = useAppDialog(DeleteAgentDialog, {isAlert: true})
@@ -318,49 +311,6 @@ function AgentDetailPage({
       await updateSigningIdentity.mutateAsync({name: agentSigningKey, label: trimmed})
     }
     if (!nameModelDirty) setName(trimmed)
-  }
-
-  // The session only exists once the user actually does something: the bottom composer drafts
-  // against no session, and the first send — or the first user tool run — creates one and
-  // delivers that action in the same motion, so abandoning the draft leaves no empty session
-  // behind.
-  async function startDraftSession(): Promise<string> {
-    if (!selectedAccountId) throw new Error('Select an account first')
-    // No title at creation: the agent names the session, with a server-side fallback from the
-    // first user message — 'Untitled session' is a display placeholder, never data.
-    const result = await createSession.mutateAsync({agentId})
-    if (result._ !== 'CreateSessionResponse') throw new Error('Unexpected session response')
-    // Seed the caches before navigating so the session page renders the optimistic first
-    // message immediately instead of an empty transcript while the real fetch lands.
-    const now = Date.now()
-    addOptimisticSessionToCaches(serverUrl, selectedAccountId, {
-      id: result.sessionId,
-      account: selectedAccountId,
-      agentId,
-      status: 'idle',
-      createdAt: now,
-      updatedAt: now,
-    })
-    return result.sessionId
-  }
-
-  const startSessionSendingRef = useRef(false)
-  async function handleStartSession(message: AgentSessionDraftMessage) {
-    // The composer already cleared itself; a second send racing the create must not open a second
-    // session.
-    if (!selectedAccountId || startSessionSendingRef.current) return
-    startSessionSendingRef.current = true
-    try {
-      const sessionId = await startDraftSession()
-      // Send the stamped drafts, so the durable echo replaces the optimistic row by identity.
-      const messages = addOptimisticSessionMessage(serverUrl, selectedAccountId, sessionId, [message])
-      messageSession.mutate({sessionId, message: messages})
-      navigate({key: 'agent-session', agentId, sessionId, serverUrl})
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not create session')
-    } finally {
-      startSessionSendingRef.current = false
-    }
   }
 
   useEffect(() => {
@@ -532,7 +482,6 @@ function AgentDetailPage({
       // The session is only created when the first message is sent, so "New session"
       // just puts the cursor in the composer that will do it.
       onCreateSession={canChat ? () => startComposerRef.current?.focus({moveCursorToEnd: true}) : undefined}
-      creatingSession={createSession.isLoading}
       onCreateTrigger={canWrite ? () => createTriggerDialog.open({serverUrl, selectedAccountId, agentId}) : undefined}
       canCreateTrigger={!!selectedAccountId && canWrite}
       menuItems={
@@ -665,27 +614,17 @@ function AgentDetailPage({
                     ) : null}
                   </div>
                   {canChat ? (
-                    // No sessionId: this is a draft composer — the first send creates the session
-                    // and delivers the message in one motion (see handleStartSession).
-                    <AgentRichMessageComposer
-                      isBusy={createSession.isLoading || messageSession.isLoading}
-                      isStreaming={false}
-                      stopPending={false}
-                      disabledMessage={!selectedAccountId ? 'Select an account to start a session.' : undefined}
-                      serverUrl={serverUrl}
-                      accountId={selectedAccountId ?? null}
-                      agentTools={agent.data.agent.definition.tools}
-                      agentToolsLoading={agent.isLoading}
-                      focusOnMount={false}
-                      canInvokeTools={canWrite}
-                      composerHandleRef={startComposerRef}
-                      onToolStartSession={startDraftSession}
-                      onToolSessionStarted={(sessionId) =>
-                        navigate({key: 'agent-session', agentId, sessionId, serverUrl})
-                      }
-                      onSend={(message) => void handleStartSession(message)}
-                      onStop={() => {}}
-                    />
+                    // The same draft composer as the home page, pinned to this agent: the first send
+                    // (or tool run) creates the session and opens it.
+                    <div className="border-border border-t">
+                      <NewSessionComposer
+                        fixedAgent={{serverUrl, agent: agent.data.agent}}
+                        accountUid={selectedAccountId}
+                        localServerUrl={localServerUrl.data}
+                        agentToolsLoading={agent.isLoading}
+                        composerHandleRef={startComposerRef}
+                      />
+                    </div>
                   ) : null}
                 </section>
               ) : null}
