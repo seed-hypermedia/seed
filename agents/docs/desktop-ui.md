@@ -96,8 +96,8 @@ a Manage Agent Servers entry to the settings list, plus Create Agent. Health rea
 and the status dot is suppressed for the local server unless it is actually erroring — the local server is part of the
 app, so an "online" light on it is noise, while a failure is a real problem.
 
-Clicking a server opens the `agent-server` page, a thin route that lists that server's agents and exposes the same two
-dialogs. Both it and the index render `AgentsNoAccountPage` when no account is selected, because agent servers reject
+Clicking a server opens the `agent-server` page: the same sessions feed as the index (`AgentSessionsFeed`), scoped
+to that one server, with a composer limited to that server's agents, plus Create Agent and the same two dialogs. Both it and the index render `AgentsNoAccountPage` when no account is selected, because agent servers reject
 unauthenticated requests — including the local one.
 
 Data refreshes through React Query polling and WebSocket invalidations; there are no manual reload controls.

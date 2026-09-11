@@ -13,11 +13,10 @@ import {
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
 import {Container, PanelContainer} from '@shm/ui/container'
-import {Notice, NOTICE_TONE_DOT_CLASS} from '@shm/ui/notice'
+import {NOTICE_TONE_DOT_CLASS} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {useLoadMoreSentinel} from '@shm/ui/use-load-more-sentinel'
 import {ArrowRight, Bot, Check, ChevronDown, CircleUserRound, Mail, Plus, Server, Settings, X} from 'lucide-react'
 import {useMemo} from 'react'
 import {useSelectedAccountId} from './account'
@@ -42,11 +41,11 @@ import {
   useLocalAgentServerUrl,
   useSpaceAgents,
 } from './models'
-import {useClickNavigate, useNavigate} from './navigation'
+import {useNavigate} from './navigation'
 import {AgentsNoAccountPage} from './no-account'
 import {getAgentsPlatform} from './platform'
 import {AgentServersDialog} from './server-settings'
-import {SessionListItem} from './session-list-item'
+import {AgentSessionsFeed} from './sessions-feed'
 
 function AgentsListPage() {
   const selectedAccountId = useSelectedAccountId()
@@ -61,7 +60,6 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
   // mentionable and openable elsewhere in the app.
   useAgentAccountsSync()
   const navigate = useNavigate()
-  const clickNavigate = useClickNavigate()
   const serverUrlsQuery = useAgentServerUrls()
   const serverUrls = serverUrlsQuery.data || []
   const localServerUrl = useLocalAgentServerUrl()
@@ -126,10 +124,6 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
     () => (latestSession ? {serverUrl: latestSession.serverUrl, agentId: latestSession.session.agentId} : undefined),
     [latestSession],
   )
-  const loadMoreSentinel = useLoadMoreSentinel({
-    enabled: sessionPages.hasNextPage && !sessionPages.isFetchingNextPage,
-    onLoadMore: sessionPages.fetchNextPage,
-  })
   // One notice per failing server, named, so a single unreachable server reads as exactly that
   // and never as "agents are broken": the other servers' sessions are still listed below.
   const serverProblems = sessionPages.serverErrors.map((problem) => ({
@@ -316,66 +310,16 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
                 </section>
               ) : null}
 
-              <section className="flex flex-col gap-3">
-                {isLoadingSessions ? <SizableText color="muted">Loading sessions…</SizableText> : null}
-                {serverProblems.map((problem) => (
-                  <Notice
-                    key={problem.serverUrl}
-                    tone={problem.notice.tone}
-                    title={problem.notice.title}
-                    onRetry={problem.refetch}
-                    retryPending={problem.isFetching}
-                  >
-                    {problem.notice.detail}
-                  </Notice>
-                ))}
-                {!isLoadingSessions && !sessions.length && !serverProblems.length ? (
-                  <SizableText color="muted">
-                    {serverUrls.length ? 'No sessions yet. Start one below.' : 'No sessions yet.'}
-                  </SizableText>
-                ) : null}
-                <div className="flex flex-col gap-1">
-                  {sessions.map(({serverUrl, session, agent}) => (
-                    <SessionListItem
-                      key={`${serverUrl}:${session.id}`}
-                      session={session}
-                      serverUrl={serverUrl}
-                      accountUid={selectedAccountId}
-                      agentName={agent?.definition.name || session.agentId}
-                      onOpen={(event) =>
-                        clickNavigate(
-                          {key: 'agent-session', agentId: session.agentId, sessionId: session.id, serverUrl},
-                          event,
-                        )
-                      }
-                      onOpenSession={(child, event) =>
-                        clickNavigate(
-                          {key: 'agent-session', agentId: child.agentId, sessionId: child.id, serverUrl},
-                          event,
-                        )
-                      }
-                      onOpenTrigger={() =>
-                        session.startedByTrigger
-                          ? navigate({
-                              key: 'agent',
-                              agentId: session.agentId,
-                              serverUrl,
-                              tab: 'triggers',
-                              triggerId: session.startedByTrigger.triggerId,
-                            })
-                          : undefined
-                      }
-                    />
-                  ))}
-                </div>
-                {/* Scrolling near the end loads the next page; this row is only ever seen if the fetch is slow. */}
-                <div ref={loadMoreSentinel} aria-hidden="true" className="h-px" />
-                {sessionPages.isFetchingNextPage ? (
-                  <SizableText size="sm" color="muted" className="text-center">
-                    Loading more…
-                  </SizableText>
-                ) : null}
-              </section>
+              <AgentSessionsFeed
+                sessions={sessions}
+                accountUid={selectedAccountId}
+                isLoading={isLoadingSessions}
+                hasNextPage={sessionPages.hasNextPage}
+                isFetchingNextPage={sessionPages.isFetchingNextPage}
+                fetchNextPage={sessionPages.fetchNextPage}
+                problems={serverProblems}
+                emptyText={serverUrls.length ? 'No sessions yet. Start one below.' : 'No sessions yet.'}
+              />
             </>
           )}
         </Container>
