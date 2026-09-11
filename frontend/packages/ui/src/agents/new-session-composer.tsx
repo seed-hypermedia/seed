@@ -23,13 +23,30 @@ import {
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Bot, Check, ChevronDown} from 'lucide-react'
-import {useEffect, useMemo, useRef, useState} from 'react'
+import {useMemo, useRef, useState} from 'react'
 
 /** One agent a new session can be started with. */
 export type NewSessionAgent = {serverUrl: string; agent: AgentInfo}
 
 /** Identity of a chosen agent; session and agent ids are only unique per server. */
 export type NewSessionAgentKey = {serverUrl: string; agentId: string}
+
+/** The model and delegation budget a draft session will start with. Empty means the agent's own. */
+export type DraftModelChoice = {modelOverride?: SessionModelOverride; thoroughness?: Thoroughness}
+
+/**
+ * Keeps only what `agent` can run: an override survives when it is the agent's own pair or one of
+ * its enabled models, so a choice made for another agent can never start a session here.
+ */
+export function choiceForAgent(choice: DraftModelChoice, agent: AgentInfo): DraftModelChoice {
+  const {modelOverride, thoroughness} = choice
+  const {definition} = agent
+  const allowed = [{provider: definition.modelProvider, model: definition.model}, ...(definition.enabledModels ?? [])]
+  const keep =
+    !!modelOverride &&
+    allowed.some((entry) => entry.provider === modelOverride.provider && entry.model === modelOverride.model)
+  return {...(keep ? {modelOverride} : {}), ...(thoroughness ? {thoroughness} : {})}
+}
 
 /**
  * The draft composer shared by the Agents home page and an agent's Sessions tab: a message typed
@@ -71,27 +88,32 @@ export function NewSessionComposer({
     [agents, fixedAgent],
   )
   const [chosen, setChosen] = useState<NewSessionAgentKey | null>(null)
+  // The first default that arrives is kept. It follows the most recent session, which changes as
+  // activity lands, and the agent (and with it the model) must not change under someone typing.
+  const [latchedDefault, setLatchedDefault] = useState<NewSessionAgentKey | undefined>(undefined)
+  if (!latchedDefault && defaultAgent) setLatchedDefault(defaultAgent)
   const selected = useMemo(() => {
     if (fixedAgent) return fixedAgent
-    const wanted = chosen ?? defaultAgent
+    const wanted = chosen ?? latchedDefault
     const match = wanted
       ? chattable.find(({serverUrl, agent}) => serverUrl === wanted.serverUrl && agent.id === wanted.agentId)
       : undefined
     return match ?? chattable[0]
-  }, [fixedAgent, chosen, defaultAgent, chattable])
+  }, [fixedAgent, chosen, latchedDefault, chattable])
 
   const createSession = useCreateAgentSessionOnServer(accountUid)
   const messageSession = useMessageAgentSession(selected?.serverUrl, accountUid)
-  const [modelChoice, setModelChoice] = useState<{modelOverride?: SessionModelOverride; thoroughness?: Thoroughness}>(
-    {},
-  )
-  const modelChoiceRef = useRef(modelChoice)
-  modelChoiceRef.current = modelChoice
-  // A model chosen for one agent means nothing to another: switching agents starts from its default.
+  // The choice is tagged with the agent it was made for. Only a choice made for the selected agent
+  // is shown or sent, and it is re-checked against that agent's own models, so no render and no
+  // send can pair one agent with another's model. Picking a different agent clears it outright.
+  const [modelChoice, setModelChoice] = useState<{agentKey: string} & DraftModelChoice>({agentKey: ''})
   const selectedKey = selected ? `${selected.serverUrl}:${selected.agent.id}` : ''
-  useEffect(() => {
-    setModelChoice({})
-  }, [selectedKey])
+  const activeChoice = useMemo<DraftModelChoice>(
+    () => (selected && modelChoice.agentKey === selectedKey ? choiceForAgent(modelChoice, selected.agent) : {}),
+    [modelChoice, selected, selectedKey],
+  )
+  const modelChoiceRef = useRef(activeChoice)
+  modelChoiceRef.current = activeChoice
 
   // The session only exists once the user actually does something: the first send — or the first
   // user tool run — creates one and delivers that action in the same motion, so an abandoned draft
@@ -210,7 +232,12 @@ export function NewSessionComposer({
                 return (
                   <DropdownMenuItem
                     key={`${serverUrl}:${agent.id}`}
-                    onClick={() => setChosen({serverUrl, agentId: agent.id})}
+                    onClick={() => {
+                      if (isActive) return
+                      // A new agent starts from its own default model settings.
+                      setChosen({serverUrl, agentId: agent.id})
+                      setModelChoice({agentKey: ''})
+                    }}
                   >
                     <Bot />
                     <span className="flex min-w-0 flex-1 flex-col">
@@ -231,16 +258,19 @@ export function NewSessionComposer({
         {/* The same per-session model switcher a live session shows, so the first turn already
             runs on the chosen model rather than the user fixing it after the fact. */}
         <SessionModelBadge
+          // Remounted per agent, so a pending reasoning commit from the last agent dies with it.
+          key={selectedKey}
           agent={selected.agent}
           agentId={selected.agent.id}
           serverUrl={selected.serverUrl}
-          modelOverride={modelChoice.modelOverride}
-          thoroughness={modelChoice.thoroughness}
+          modelOverride={activeChoice.modelOverride}
+          thoroughness={activeChoice.thoroughness}
           canWrite={canWrite}
           draft={{
             onChange: (patch: SessionModelPatch) =>
               setModelChoice((current) => ({
-                ...current,
+                ...(current.agentKey === selectedKey ? current : {}),
+                agentKey: selectedKey,
                 ...(patch.modelOverride !== undefined ? {modelOverride: patch.modelOverride ?? undefined} : {}),
                 ...(patch.thoroughness !== undefined ? {thoroughness: patch.thoroughness ?? undefined} : {}),
               })),

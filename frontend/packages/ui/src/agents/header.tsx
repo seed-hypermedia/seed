@@ -522,10 +522,22 @@ export function SessionModelBadge({
   const agentPair: AgentModelRef | null = definition
     ? {provider: definition.modelProvider, model: definition.model}
     : null
+  // A draft offers only this agent's own models, so an override outside that list (one chosen for
+  // another agent, say) is not honored: the badge shows, and the caller sends, the agent's pair.
+  // A live session keeps showing its stored override, since that is what its runs use.
+  const overrideInAgentList =
+    !draft ||
+    (!!modelOverride &&
+      !!definition &&
+      [{provider: definition.modelProvider, model: definition.model}, ...(definition.enabledModels ?? [])].some(
+        (entry) => entry.provider === modelOverride.provider && entry.model === modelOverride.model,
+      ))
   // An override whose provider was deleted is ignored by the runtime (the turn runs on the agent's
   // pair), so the badge shows the agent's pair too rather than a model that never runs.
   const overrideRunnable =
-    !!modelOverride && (!providers.data || providers.data.some((provider) => provider.name === modelOverride.provider))
+    !!modelOverride &&
+    overrideInAgentList &&
+    (!providers.data || providers.data.some((provider) => provider.name === modelOverride.provider))
   const effective: AgentModelRef | null = overrideRunnable ? modelOverride : agentPair
   const effectiveReasoning = overrideRunnable ? modelOverride.reasoningLevel : definition?.reasoningLevel
 
