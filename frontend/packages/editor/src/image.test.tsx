@@ -44,12 +44,12 @@ vi.mock('./media-container', () => ({
   ),
 }))
 
-import {ImageDisplay} from './image'
+import {ImageBlock, ImageDisplay} from './image'
 
-function makeEditor(editorWidth = 390) {
+function makeEditor(editorWidth = 390, importWebFile?: any) {
   return {
     domElement: {firstElementChild: {clientWidth: editorWidth}},
-    importWebFile: undefined,
+    importWebFile,
     isEditable: true,
     renderType: 'editor',
     setTextCursorPosition: vi.fn(),
@@ -144,5 +144,52 @@ describe('ImageDisplay responsive sizing', () => {
         width: '76.92%',
       },
     })
+  })
+})
+
+describe('pasted remote image import', () => {
+  it('imports a remote image through the configured native boundary', async () => {
+    const importWebFile = vi.fn().mockResolvedValue({cid: 'image-cid', type: 'image/jpeg', size: 12})
+    const assign = vi.fn()
+
+    await act(async () => {
+      root.render(<ImageDisplay editor={makeEditor(390, importWebFile)} block={makeBlock()} assign={assign} />)
+    })
+
+    await vi.waitFor(() =>
+      expect(assign).toHaveBeenCalledWith({props: {url: 'ipfs://image-cid'}}, {addToHistory: false}),
+    )
+    expect(importWebFile).toHaveBeenCalledWith('https://example.com/tall-mobile-screenshot.png')
+  })
+
+  it('keeps the original remote image when native import fails', async () => {
+    const error = new Error('network failure')
+    const importWebFile = vi.fn().mockRejectedValue(error)
+    const assign = vi.fn()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await act(async () => {
+      root.render(<ImageDisplay editor={makeEditor(390, importWebFile)} block={makeBlock()} assign={assign} />)
+    })
+
+    await vi.waitFor(() => expect(consoleError).toHaveBeenCalledWith('Could not fetch image from URL:', error))
+    expect(assign).not.toHaveBeenCalled()
+    expect(container.querySelector('img')?.getAttribute('src')).toBe('https://example.com/tall-mobile-screenshot.png')
+
+    consoleError.mockRestore()
+  })
+
+  it('parses external image attributes into an image block', () => {
+    const wrapper = document.createElement('div')
+    wrapper.innerHTML = '<p>before</p><img src="https://example.com/image.jpg" alt="alt text"><p>after</p>'
+    const image = wrapper.querySelector('img')!
+    const rule = ImageBlock.parseHTML[0]
+
+    expect(rule.getAttrs?.(image)).toMatchObject({
+      url: 'https://example.com/image.jpg',
+      src: 'https://example.com/image.jpg',
+      alt: 'alt text',
+    })
+    expect(wrapper.textContent).toBe('beforeafter')
   })
 })

@@ -1,49 +1,110 @@
-import {describe, expect, it, vi, afterEach} from 'vitest'
-import {
-  createNodePropsFromAttachmentResult,
-  extractPastedImageSources,
-  imageSourceToFile,
-} from './handle-local-media-paste-plugin'
+import {describe, expect, it, vi} from 'vitest'
+import {createNodePropsFromAttachmentResult, handleLocalMediaPastePlugin} from './handle-local-media-paste-plugin'
 
 describe('local media paste helpers', () => {
-  afterEach(() => {
+  it('leaves rich HTML images to the editor parser without renderer fetch', () => {
+    const plugin = handleLocalMediaPastePlugin({})
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const getAsFile = vi.fn(() => null)
+    const imageFile = new File(['image'], 'paste.png', {type: 'image/png'})
+    const event = {
+      clipboardData: {
+        getData: vi.fn((type: string) =>
+          type === 'text/html' ? '<p>before</p><img src="https://example.com/image.jpg"><p>after</p>' : '',
+        ),
+        items: [{type: 'text/html', getAsFile}],
+        files: [imageFile],
+      },
+    }
+    const view = {
+      state: {
+        selection: {
+          $anchor: {
+            parent: {type: {name: 'paragraph'}, nodeSize: 3},
+            end: () => 1,
+          },
+        },
+      },
+    }
+
+    expect(plugin.props.handlePaste?.(view as never, event as never, undefined as never)).toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(getAsFile).not.toHaveBeenCalled()
+
     vi.unstubAllGlobals()
   })
 
-  it('extracts pasted HTML image sources', () => {
-    const html = `
-      <p>before</p>
-      <img src="data:image/png;base64,abc" alt="pasted screenshot">
-      <img src="https://example.com/image.webp">
-    `
+  it('still claims direct clipboard images and inserts their uploaded node', async () => {
+    const file = new File(['image'], 'paste.png', {type: 'image/png'})
+    const handleFileAttachment = vi.fn().mockResolvedValue({url: 'ipfs://cid'})
+    const create = vi.fn((props: Record<string, any>) => ({type: 'image', props}))
+    const insert = vi.fn(() => 'transaction')
+    const dispatch = vi.fn()
+    const plugin = handleLocalMediaPastePlugin({handleFileAttachment})
+    const view = {
+      dom: {closest: vi.fn(() => null)},
+      dispatch,
+      state: {
+        schema: {nodes: {image: {create}}},
+        tr: {insert},
+        selection: {
+          $anchor: {
+            parent: {type: {name: 'paragraph'}, nodeSize: 3},
+            end: () => 1,
+          },
+        },
+      },
+    }
+    const event = {
+      clipboardData: {
+        getData: vi.fn(() => ''),
+        items: [{type: 'image/png', getAsFile: vi.fn(() => file)}],
+        files: [],
+      },
+    }
 
-    expect(extractPastedImageSources(html)).toEqual(['data:image/png;base64,abc', 'https://example.com/image.webp'])
+    expect(plugin.props.handlePaste?.(view as never, event as never, undefined as never)).toBe(true)
+    await vi.waitFor(() => expect(dispatch).toHaveBeenCalledWith('transaction'))
+    expect(handleFileAttachment).toHaveBeenCalledWith(file)
+    expect(create).toHaveBeenCalledWith({name: 'paste.png', url: 'ipfs://cid', displaySrc: ''})
   })
 
-  it('skips Seed image block HTML that the schema parser handles', () => {
-    const html = `
-      <div data-content-type="image">
-        <img src="ipfs://already-a-block">
-      </div>
-      <p><img src="https://example.com/external.png"></p>
-    `
+  it.each([
+    {type: 'video/mp4', name: 'clip.mp4', nodeType: 'video'},
+    {type: 'application/pdf', name: 'notes.pdf', nodeType: 'file'},
+  ])('claims a mixed HTML + $nodeType clipboard attachment', async ({type, name, nodeType}) => {
+    const file = new File(['attachment'], name, {type})
+    const handleFileAttachment = vi.fn().mockResolvedValue({url: 'ipfs://cid'})
+    const create = vi.fn((props: Record<string, any>) => ({type: nodeType, props}))
+    const insert = vi.fn(() => 'transaction')
+    const dispatch = vi.fn()
+    const plugin = handleLocalMediaPastePlugin({handleFileAttachment})
+    const view = {
+      dom: {closest: vi.fn(() => null)},
+      dispatch,
+      state: {
+        schema: {nodes: {[nodeType]: {create}}},
+        tr: {insert},
+        selection: {
+          $anchor: {
+            parent: {type: {name: 'paragraph'}, nodeSize: 3},
+            end: () => 1,
+          },
+        },
+      },
+    }
+    const event = {
+      clipboardData: {
+        getData: vi.fn((flavor: string) => (flavor === 'text/html' ? '<p>attachment</p>' : '')),
+        items: [{type, getAsFile: vi.fn(() => file)}],
+        files: [file],
+      },
+    }
 
-    expect(extractPastedImageSources(html)).toEqual(['https://example.com/external.png'])
-  })
-
-  it('converts pasted HTML image sources to Files', async () => {
-    const blob = new Blob(['jpeg data'], {type: 'image/jpeg'})
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      blob: async () => blob,
-    }))
-    vi.stubGlobal('fetch', fetchMock)
-
-    const file = await imageSourceToFile('https://example.com/image.jpg', () => 123)
-
-    expect(fetchMock).toHaveBeenCalledWith('https://example.com/image.jpg')
-    expect(file.name).toBe('pasted-image-123.jpg')
-    expect(file.type).toBe('image/jpeg')
+    expect(plugin.props.handlePaste?.(view as never, event as never, undefined as never)).toBe(true)
+    await vi.waitFor(() => expect(dispatch).toHaveBeenCalledWith('transaction'))
+    expect(handleFileAttachment).toHaveBeenCalledWith(file)
   })
 
   it('maps desktop/web document upload results to IPFS node props', () => {
