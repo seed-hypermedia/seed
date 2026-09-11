@@ -3176,6 +3176,31 @@ function useSignedAgentSocket(
   }, [serverUrl, accountUid, key])
 }
 
+/**
+ * Applies one streamed assistant-state patch only to the directly subscribed session.
+ *
+ * Account subscriptions also receive every session partial, but their callers only need durable
+ * cache invalidations. Ignoring those partials prevents an account socket from retaining live state
+ * for every session it observes and from duplicating the selected session's streaming work.
+ */
+export function applyAgentSessionPartial(
+  current: Record<string, AgentSessionLiveState>,
+  subscribedKey: AgentSubscriptionKey | undefined,
+  eventKey: string,
+  patch: {textDelta?: string; done?: boolean; usage?: AgentRunUsage; activity?: AgentRunActivity},
+): Record<string, AgentSessionLiveState> {
+  if (!subscribedKey?.startsWith('sessions/') || eventKey !== subscribedKey) return current
+  const sessionId = eventKey.slice('sessions/'.length)
+  const existing = current[sessionId] ?? EMPTY_SESSION_LIVE_STATE
+  const next: AgentSessionLiveState = {
+    ...existing,
+    ...(patch.usage ? {usage: patch.usage} : {}),
+    ...(patch.activity ? {activity: patch.activity} : {}),
+  }
+  if (!patch.done) next.text = existing.text + (patch.textDelta || '')
+  return {...current, [sessionId]: next}
+}
+
 /** Subscribes to signed agent-server WebSocket updates and refreshes cached data. */
 export function useAgentWebSocketSubscription(
   serverUrl: string | undefined,
@@ -3254,8 +3279,9 @@ export function useAgentWebSocketSubscription(
       // sessions (two lookups per row on the server), and nothing in a transcript event changes
       // the agent. The account hints refresh agent detail for the reasons that do.
     } else if (event._ === 'appendPartial') {
-      // Run-keyed partials (workflow progress) are handled by the run-tree hook, not here.
-      if (!event.key.startsWith('sessions/')) return
+      // Account subscriptions also receive every session partial, but their callers only need
+      // durable cache invalidations. Ignore those updates before logging or scheduling React state.
+      if (!key?.startsWith('sessions/') || event.key !== key) return
       const patch = event.patch as {
         textDelta?: string
         done?: boolean
@@ -3273,24 +3299,19 @@ export function useAgentWebSocketSubscription(
         totalTokens: patch.usage?.total,
       })
       setPartials((current) => {
-        const existing = current[sessionId] ?? EMPTY_SESSION_LIVE_STATE
-        // Usage and activity updates always apply, even on the `done` patch.
-        const next: AgentSessionLiveState = {
-          ...existing,
-          ...(patch.usage ? {usage: patch.usage} : {}),
-          ...(patch.activity ? {activity: patch.activity} : {}),
-        }
+        const next = applyAgentSessionPartial(current, key, event.key, patch)
+        if (next === current) return current
+        const totalLength = next[sessionId]?.text.length ?? 0
         if (patch.done) {
           log('partial marked done; keeping visible until durable append', {
             sessionId,
             partialId: event.partialId,
-            totalLength: existing.text.length,
+            totalLength,
           })
-          return {...current, [sessionId]: next}
+        } else {
+          log('partial state updated', {sessionId, partialId: event.partialId, totalLength})
         }
-        next.text = existing.text + (patch.textDelta || '')
-        log('partial state updated', {sessionId, partialId: event.partialId, totalLength: next.text.length})
-        return {...current, [sessionId]: next}
+        return next
       })
     } else if (event._ === 'error') {
       log('server error event', {message: event.message})
