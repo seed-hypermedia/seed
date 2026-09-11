@@ -1,6 +1,7 @@
 import type {DomainResolverFn} from '@seed-hypermedia/client'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {HMBlockNode, HMMetadata} from '@seed-hypermedia/client/hm-types'
+import {blocksHaveDraftContent} from './comment-editor-draft-content'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {packReferenceUrl, useOpenUrl, useUniversalClient, writeableStateStream} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
@@ -383,20 +384,7 @@ export function CommentEditor({
     submitOnEnter,
   )
   // Check if we have non-empty draft content
-  const hasDraftContent =
-    initialBlocks &&
-    initialBlocks.length > 0 &&
-    initialBlocks.some((block) => {
-      // Check if block has text content (for paragraph-like blocks)
-      if ('text' in block.block && typeof block.block.text === 'string' && block.block.text.trim().length > 0) {
-        return true
-      }
-      // Check if block has children
-      if (block.children && block.children.length > 0) {
-        return true
-      }
-      return false
-    })
+  const hasDraftContent = blocksHaveDraftContent(initialBlocks)
   const [isExpanded, setIsExpanded] = useState(() => focusOnMount || hasDraftContent || false)
   const openUrl = useOpenUrl()
   const [isDraggingOver, setIsDraggingOver] = useState(false)
