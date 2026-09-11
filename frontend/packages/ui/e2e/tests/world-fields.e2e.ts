@@ -144,7 +144,8 @@ test.describe('world-builder field types', () => {
   test('the schema editor offers Date fields and a target type for references', async ({page}) => {
     await openHarness(page, {name: 'X', schemaDefinition: ''})
     const dialog = await openDefineDialog(page)
-    const option = (label: string) => page.getByTestId('schema-type-option').filter({has: page.getByText(label, {exact: true})})
+    const option = (label: string) =>
+      page.getByTestId('schema-type-option').filter({has: page.getByText(label, {exact: true})})
 
     // A Date field: the type input opens its options on click.
     await dialog.getByRole('button', {name: 'Add field'}).click()

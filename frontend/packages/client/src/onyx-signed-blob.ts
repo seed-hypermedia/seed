@@ -121,7 +121,9 @@ export function hasSignedEnvelope(value: unknown): value is Record<string, unkno
 /** The Ed25519 public key inside a principal (multicodec 0xed 0x01 + 32 bytes). */
 export function principalToPublicKey(principal: Uint8Array): Uint8Array {
   if (principal.length !== 34 || principal[0] !== 0xed || principal[1] !== 0x01) {
-    throw new Error(`Unsupported principal: expected an Ed25519 multicodec key (34 bytes), got ${principal.length} bytes`)
+    throw new Error(
+      `Unsupported principal: expected an Ed25519 multicodec key (34 bytes), got ${principal.length} bytes`,
+    )
   }
   return principal.slice(2)
 }
