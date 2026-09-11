@@ -3,6 +3,7 @@ import React from 'react'
 import type {
   HMCapability,
   HMListDocumentCollaboratorsOutput,
+  HMMentionCandidate,
   HMSiteMember,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
@@ -64,6 +65,10 @@ vi.mock('@shm/shared/models/search', () => ({
   useSearch: () => ({data: {entities: []}}),
 }))
 
+vi.mock('@shm/shared/models/inline-mentions', () => ({
+  useInlineMentions: () => ({suggestions: [], isFetching: false, isError: false, refetch: vi.fn()}),
+}))
+
 vi.mock('../hm-icon', () => ({
   HMIcon: () => null,
   LoadedHMIcon: () => null,
@@ -76,7 +81,12 @@ vi.mock('../toast', () => ({
   },
 }))
 
-import {CollaboratorsPage, getRenderedCollaboratorsCount} from '../collaborators-page'
+import {
+  CollaboratorsPage,
+  getInviteAccountLabel,
+  getInviteAccountResults,
+  getRenderedCollaboratorsCount,
+} from '../collaborators-page'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -232,6 +242,74 @@ describe('getRenderedCollaboratorsCount', () => {
 })
 
 describe('collaborator invitations', () => {
+  it('limits the account results popover height and scrolls overflowing results', async () => {
+    selectedCapabilityState.value = capability('publisher', id('publisher'))
+
+    act(() => {
+      root.render(React.createElement(CollaboratorsPage, {docId: id('publisher')}))
+    })
+
+    const input = container.querySelector<HTMLInputElement>('input[placeholder="Invite members"]')!
+    await act(async () => {
+      input.focus()
+      input.click()
+      await Promise.resolve()
+    })
+
+    expect(document.body.querySelector('.max-h-96.overflow-y-auto.border.shadow-lg')).not.toBeNull()
+  })
+
+  it('maps only canonical account candidates and respects identity names', () => {
+    const candidates: HMMentionCandidate[] = [
+      {
+        id: id('friend', [':profile']),
+        type: 'account',
+        title: 'Buddy',
+        petname: 'Buddy',
+        publicName: 'Alice',
+        icon: '',
+        parentNames: [],
+        issuedContact: true,
+        sameSite: false,
+        searchQuery: '',
+      },
+      {
+        id: id('publisher', ['guide']),
+        type: 'document',
+        title: 'Guide',
+        icon: '',
+        parentNames: [],
+        issuedContact: false,
+        sameSite: true,
+        searchQuery: '',
+      },
+    ]
+
+    const [result] = getInviteAccountResults(candidates, [], [])
+
+    expect(result?.id.uid).toBe('friend')
+    expect(result?.id.path).toEqual([])
+    expect(result?.label).toBe('Buddy')
+    expect(result?.publicName).toBe('Alice')
+    expect(getInviteAccountLabel({id: id('friend'), label: '', publicName: 'Alice'})).toBe('Alice')
+  })
+
+  it('excludes owners, existing collaborators, and selected accounts', () => {
+    const candidate: HMMentionCandidate = {
+      id: id('friend'),
+      type: 'account',
+      title: 'Friend',
+      icon: '',
+      parentNames: [],
+      issuedContact: false,
+      sameSite: false,
+      searchQuery: '',
+    }
+
+    expect(getInviteAccountResults([candidate], ['friend'], [])).toEqual([])
+    expect(getInviteAccountResults([candidate], [], [{id: id('friend'), label: 'Friend'}])).toEqual([])
+  })
+
   it('does not render the invitation form for a sub-document', () => {
     selectedCapabilityState.value = capability('publisher', id('publisher'))
 

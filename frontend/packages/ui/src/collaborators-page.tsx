@@ -3,6 +3,7 @@ import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
 import {
   HMCapability,
   HMListDocumentCollaboratorsOutput,
+  HMMentionCandidate,
   HMMetadata,
   HMMetadataPayload,
   HMSiteMember,
@@ -11,15 +12,15 @@ import {
 import {resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
 import {useRouteLink} from '@shm/shared'
 import {useAddCapabilities, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
+import {useInlineMentions} from '@shm/shared/models/inline-mentions'
+import {mentionCandidateSubtitle} from '@shm/shared/models/mention-ranking'
 import {
   useAccount,
   useCapabilities,
   useCollaborators,
-  useResource,
   useSelectedAccountId,
   useSiteMembers,
 } from '@shm/shared/models/entity'
-import {useSearch} from '@shm/shared/models/search'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {hmId, hmIdToURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {Users} from 'lucide-react'
@@ -35,8 +36,39 @@ import {toast} from './toast'
 export type SearchResult = {
   id: UnpackedHypermediaId
   label: string
+  publicName?: string
+  petname?: string
+  subtitle?: string
+  icon?: string
   unresolved?: boolean
   metadata?: HMMetadata
+}
+
+/** Returns the invite label using the same identity precedence as account mentions. */
+export function getInviteAccountLabel(result: SearchResult) {
+  return result.petname || result.publicName || result.label || abbreviateUid(result.id.uid)
+}
+
+/** Converts ranked mention candidates into canonical, selectable invite accounts. */
+export function getInviteAccountResults(
+  candidates: HMMentionCandidate[],
+  excludeUids: string[],
+  values: SearchResult[],
+): SearchResult[] {
+  const excluded = new Set([...excludeUids, ...values.map((value) => value.id.uid)])
+  return candidates.flatMap((candidate) => {
+    if (candidate.type !== 'account' || excluded.has(candidate.id.uid)) return []
+    return [
+      {
+        id: hmId(candidate.id.uid),
+        label: candidate.petname || candidate.publicName || candidate.title || abbreviateUid(candidate.id.uid),
+        publicName: candidate.publicName,
+        petname: candidate.petname,
+        subtitle: mentionCandidateSubtitle(candidate),
+        icon: candidate.icon,
+      },
+    ]
+  })
 }
 
 /** Returns the number of people rows rendered by the document People tab. */
@@ -84,6 +116,7 @@ function AddCollaboratorForm({id, domainResolver}: {id: UnpackedHypermediaId; do
           onValuesChange={setSelectedCollaborators}
           excludeUids={excludeUids}
           domainResolver={domainResolver}
+          siteUid={id.uid}
         />
         {selectedCollaborators.length ? (
           <Button
@@ -125,6 +158,7 @@ export function AccountSearchInput({
   onValuesChange,
   excludeUids,
   domainResolver,
+  siteUid,
 }: {
   label: string
   placeholder?: string
@@ -133,11 +167,14 @@ export function AccountSearchInput({
   /** Account UIDs to omit from search matches (e.g. the owner or already-added accounts). */
   excludeUids?: string[]
   domainResolver?: DomainResolverFn
+  siteUid?: string
 }) {
   const [search, setSearch] = useState('')
   const selectedAccountId = useSelectedAccountId()
-  const searchResults = useSearch(search, {
-    perspectiveAccountUid: selectedAccountId ?? undefined,
+  const mentionResults = useInlineMentions(search, {
+    mode: 'account',
+    perspectiveAccountUid: selectedAccountId,
+    siteUid,
   })
 
   // Handle URL/ID resolution inline in onChange to avoid useEffect re-render issues.
@@ -146,9 +183,10 @@ export function AccountSearchInput({
       // Try direct hm:// parsing synchronously
       const hmUrl = unpackHmId(value)
       if (hmUrl) {
-        const label = hmIdToURL(hmId(hmUrl.uid))
+        const accountId = hmId(hmUrl.uid)
+        const label = hmIdToURL(accountId)
         if (label) {
-          onValuesChange([...values, {id: hmUrl, label, unresolved: true}])
+          onValuesChange([...values, {id: accountId, label, unresolved: true}])
           setSearch('')
           return
         }
@@ -173,36 +211,10 @@ export function AccountSearchInput({
     [values, onValuesChange, domainResolver],
   )
 
-  const matches = useMemo(() => {
-    const matchesByAccountUid = new Map<string, SearchResult & {type: string}>()
-    const orderedAccountUids: string[] = []
-    const excluded = new Set(excludeUids ?? [])
-
-    for (const result of search ? searchResults.data?.entities || [] : []) {
-      if (!result) continue // probably id was not parsed correctly
-      if (result.id.path?.length) continue // this is a directory document, not an account
-      if (excluded.has(result.id.uid)) continue // owner or already-added account
-      if (values.find((value) => value.id.uid === result.id.uid)) continue // already selected
-      if (result.type !== 'contact' && result.type !== 'document') continue
-
-      const match = {
-        id: result.id,
-        label: result.title,
-        type: result.type,
-        metadata: result.metadata,
-      }
-      const existing = matchesByAccountUid.get(result.id.uid)
-      if (!existing) {
-        matchesByAccountUid.set(result.id.uid, match)
-        orderedAccountUids.push(result.id.uid)
-      } else if (existing.type !== 'contact' && result.type === 'contact') {
-        // Prefer real profile/contact results, but keep root account documents as a legacy fallback.
-        matchesByAccountUid.set(result.id.uid, match)
-      }
-    }
-
-    return orderedAccountUids.map((uid) => matchesByAccountUid.get(uid)!).filter(Boolean)
-  }, [search, searchResults.data?.entities, values, excludeUids])
+  const matches = useMemo(
+    () => getInviteAccountResults(mentionResults.suggestions, excludeUids ?? [], values),
+    [mentionResults.suggestions, values, excludeUids],
+  )
 
   return (
     <div className="flex flex-1">
@@ -214,6 +226,15 @@ export function AccountSearchInput({
         onValuesChange={onValuesChange}
         placeholder={placeholder}
       >
+        {mentionResults.isFetching ? <div className="text-muted-foreground px-4 py-2 text-sm">Searching…</div> : null}
+        {mentionResults.isError ? (
+          <div className="px-4 py-2 text-sm" role="alert">
+            Unable to load accounts.{' '}
+            <button className="underline" type="button" onClick={() => mentionResults.refetch()}>
+              Retry
+            </button>
+          </div>
+        ) : null}
         {matches.map(
           (result) =>
             result && (
@@ -224,11 +245,14 @@ export function AccountSearchInput({
                 }}
                 member={result}
               >
-                Add &quot;{result?.label}&quot;
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate">{getInviteAccountLabel(result)}</span>
+                  <span className="text-muted-foreground truncate text-xs">{result.subtitle}</span>
+                </span>
               </TagInputItem>
             ),
         )}
-        {search && matches.length == 0 ? (
+        {search && matches.length == 0 && !mentionResults.isFetching && !mentionResults.isError ? (
           <TagInputItem
             onClick={async () => {
               // Try resolving bare domains (e.g. "gabo.es")
@@ -664,7 +688,7 @@ const TagInput = forwardRef<HTMLInputElement, TagInputProps>(function TagInput(p
               ) : (
                 <>
                   <LoadedHMIcon id={value.id} size={20} />
-                  <SizableText>{value.label}</SizableText>
+                  <SizableText>{getInviteAccountLabel(value)}</SizableText>
                 </>
               )}
               <X size={12} />
@@ -694,7 +718,9 @@ const TagInput = forwardRef<HTMLInputElement, TagInputProps>(function TagInput(p
             <Ariakit.SelectList
               // @ts-expect-error
               store={select}
-              render={<div className="z-100 rounded-sm bg-white dark:bg-black" />}
+              render={
+                <div className="border-border z-100 max-h-96 overflow-y-auto rounded-md border bg-white shadow-lg dark:bg-black" />
+              }
             />
           }
         >
@@ -707,11 +733,16 @@ const TagInput = forwardRef<HTMLInputElement, TagInputProps>(function TagInput(p
 
 function UnresolvedItem({value}: {value: SearchResult}) {
   const account = useAccount(value.id.uid, {subscribe: true})
+  const selectedAccountId = useSelectedAccountId()
+  const mention = useInlineMentions(value.id.uid, {
+    mode: 'account',
+    perspectiveAccountUid: selectedAccountId,
+  }).suggestions.find((candidate) => candidate.id.uid === value.id.uid)
   const metadata = account.data?.metadata
-  const label = metadata?.name || abbreviateUid(value.id.uid)
+  const label = mention?.petname || mention?.publicName || metadata?.name || abbreviateUid(value.id.uid)
   return (
     <>
-      <HMIcon id={value.id} name={metadata?.name} icon={metadata?.icon} size={20} />
+      <HMIcon id={value.id} name={label} icon={mention?.icon || metadata?.icon} size={20} />
       <SizableText>{label}</SizableText>
     </>
   )
@@ -723,8 +754,6 @@ interface TagInputItemProps extends Ariakit.SelectItemProps {
 }
 
 const TagInputItem = forwardRef<HTMLDivElement, TagInputItemProps>(function TagInputItem(props, ref) {
-  const resource = useResource(props.member?.id)
-  const metadata = resource.data?.type === 'document' ? resource.data.document?.metadata : undefined
   return (
     <Ariakit.SelectItem
       ref={ref}
@@ -732,8 +761,8 @@ const TagInputItem = forwardRef<HTMLDivElement, TagInputItemProps>(function TagI
       render={<Ariakit.ComboboxItem render={<TagInputItemContent className="combobox-item" render={props.render} />} />}
     >
       <div className="flex flex-1 justify-start gap-2">
-        {metadata && props.member?.id ? (
-          <HMIcon size={16} name={metadata?.name} icon={metadata?.icon} id={props.member?.id} />
+        {props.member?.id ? (
+          <HMIcon size={20} name={getInviteAccountLabel(props.member)} icon={props.member.icon} id={props.member.id} />
         ) : null}
         <div className="flex flex-1">
           <SizableText size="sm" className="text-currentColor">
