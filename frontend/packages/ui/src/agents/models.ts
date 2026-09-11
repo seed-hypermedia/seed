@@ -177,6 +177,12 @@ type AgentSessionsPage = {sessions: SessionInfo[]; nextCursor?: SessionListCurso
 const AGENT_SESSIONS_PAGE_SIZE = 50
 
 /**
+ * Sessions per server per page of the home list. Small, because the page asks every server at once
+ * and scrolls in the rest well before the reader reaches the end (see useLoadMoreSentinel).
+ */
+const HOME_SESSIONS_PAGE_SIZE = 20
+
+/**
  * Applies `fn` to the session rows of a cached per-agent list, whichever shape it is: the paginated
  * detail list (`{pages: [{sessions}]}`) or the sidebar's single page (`{sessions}`). Anything else
  * (the flat cross-server sidebar list, an unrelated query under the same prefix) is left alone.
@@ -2620,7 +2626,7 @@ export function useAllAgentSessionPages(serverUrls: string[] | undefined, accoun
           action: {
             _: 'ListSessions',
             includeChildren: false,
-            limit: AGENT_SESSIONS_PAGE_SIZE,
+            limit: HOME_SESSIONS_PAGE_SIZE,
             ...(cursor ? {cursor} : {}),
           },
         })

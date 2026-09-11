@@ -101,23 +101,23 @@ describe('useAllAgentSessionPages', () => {
   })
 
   it('pages every server that still has a cursor, without duplicating rows', async () => {
-    // 120 rows on server one and 30 on two, against a page size of 50.
-    mockState.servers = {[SERVERS[0]!]: sessions('one', 120, 100000), [SERVERS[1]!]: sessions('two', 30, 100000)}
+    // 45 rows on server one and 10 on two, against a page size of 20.
+    mockState.servers = {[SERVERS[0]!]: sessions('one', 45, 100000), [SERVERS[1]!]: sessions('two', 10, 100000)}
     await render()
-    expect(latest!.entries).toHaveLength(80)
+    expect(latest!.entries).toHaveLength(30)
     expect(latest!.hasNextPage).toBe(true)
 
     act(() => latest!.fetchNextPage())
     await settle()
-    expect(latest!.entries).toHaveLength(130)
+    expect(latest!.entries).toHaveLength(50)
     // Only server one had more; server two was not asked again.
     expect(mockState.calls.filter((c) => c.serverUrl === SERVERS[1] && c.cursor)).toHaveLength(0)
     expect(latest!.hasNextPage).toBe(true)
 
     act(() => latest!.fetchNextPage())
     await settle()
-    expect(latest!.entries).toHaveLength(150)
-    expect(new Set(latest!.entries.map((e) => `${e.serverUrl}:${e.session.id}`)).size).toBe(150)
+    expect(latest!.entries).toHaveLength(55)
+    expect(new Set(latest!.entries.map((e) => `${e.serverUrl}:${e.session.id}`)).size).toBe(55)
     expect(latest!.hasNextPage).toBe(false)
     const times = latest!.entries.map((e) => e.session.updatedAt)
     expect(times).toEqual([...times].sort((a, b) => b - a))

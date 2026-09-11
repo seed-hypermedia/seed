@@ -35,6 +35,7 @@ import {Notice, NOTICE_TONE_DOT_CLASS} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
+import {useLoadMoreSentinel} from '@shm/ui/use-load-more-sentinel'
 import {ArrowRight, Bot, Check, ChevronDown, CircleUserRound, Mail, Server, Settings, X} from 'lucide-react'
 import {useMemo} from 'react'
 import {AgentListRow} from './agent-row'
@@ -109,6 +110,10 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
       : sessionPages.entries
   }, [sessionPages.entries, spaceAgents.sessions])
   const isLoadingSessions = sessionPages.isLoading || (spaceAgents.isLoading && !sessions.length)
+  const loadMoreSentinel = useLoadMoreSentinel({
+    enabled: sessionPages.hasNextPage && !sessionPages.isFetchingNextPage,
+    onLoadMore: sessionPages.fetchNextPage,
+  })
   // One notice per failing server, named, so a single unreachable server reads as exactly that
   // and never as "agents are broken": the other servers' sessions are still listed below.
   const serverProblems = sessionPages.serverErrors.map((problem) => ({
@@ -321,15 +326,12 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
               />
             ))}
           </div>
-          {sessionPages.hasNextPage ? (
-            <Button
-              className="w-full"
-              variant="outline"
-              disabled={sessionPages.isFetchingNextPage}
-              onClick={() => sessionPages.fetchNextPage()}
-            >
-              {sessionPages.isFetchingNextPage ? 'Loading…' : 'Load more'}
-            </Button>
+          {/* Scrolling near the end loads the next page; this row is only ever seen if the fetch is slow. */}
+          <div ref={loadMoreSentinel} aria-hidden="true" className="h-px" />
+          {sessionPages.isFetchingNextPage ? (
+            <SizableText size="sm" color="muted" className="text-center">
+              Loading more…
+            </SizableText>
           ) : null}
         </section>
       </Container>
