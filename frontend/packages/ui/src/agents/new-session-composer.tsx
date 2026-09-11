@@ -13,6 +13,7 @@ import {
 import {useNavigate} from './navigation'
 import type {AgentsRichEditorSubmitHandle} from './platform'
 import {AgentRichMessageComposer} from './rich-message-composer'
+import {SessionProviderGate, useMissingSessionProvider} from './session-provider-gate'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -101,6 +102,15 @@ export function NewSessionComposer({
     return match ?? chattable[0]
   }, [fixedAgent, chosen, latchedDefault, chattable])
 
+  // An agent whose provider is gone cannot run. Stop here, before the send, and have the user pick
+  // a provider and model (or add a provider) instead of creating a session that opens on that gate.
+  const missingProvider = useMissingSessionProvider({
+    serverUrl: selected?.serverUrl ?? '',
+    accountUid,
+    agentId: selected?.agent.id,
+    definition: selected?.agent.definition,
+  })
+
   const createSession = useCreateAgentSessionOnServer(accountUid)
   const messageSession = useMessageAgentSession(selected?.serverUrl, accountUid)
   // The choice is tagged with the agent it was made for. Only a choice made for the selected agent
@@ -173,28 +183,42 @@ export function NewSessionComposer({
 
   return (
     <div className="flex flex-col">
-      <AgentRichMessageComposer
-        // Keyed by agent so the editor's captured callbacks never send to the previous choice.
-        key={selectedKey}
-        isBusy={createSession.isLoading || messageSession.isLoading}
-        isStreaming={false}
-        stopPending={false}
-        serverUrl={selected.serverUrl}
-        accountId={accountUid ?? null}
-        disabledMessage={disabledMessage}
-        agentTools={selected.agent.definition.tools}
-        agentToolsLoading={agentToolsLoading}
-        focusOnMount={false}
-        canInvokeTools={canWrite}
-        composerHandleRef={composerHandleRef}
-        onToolStartSession={startDraftSession}
-        onToolSessionStarted={(sessionId) =>
-          navigate({key: 'agent-session', agentId: selected.agent.id, sessionId, serverUrl: selected.serverUrl})
-        }
-        bordered={false}
-        onSend={(message) => void handleSend(message)}
-        onStop={() => {}}
-      />
+      {missingProvider ? (
+        <div className="px-3 pt-2 pb-1">
+          <SessionProviderGate
+            serverUrl={selected.serverUrl}
+            accountUid={accountUid}
+            agentId={selected.agent.id}
+            definition={selected.agent.definition}
+            missingProvider={missingProvider}
+            canWrite={canWrite}
+            canAddProvider={selected.agent.accessRole === 'owner'}
+          />
+        </div>
+      ) : (
+        <AgentRichMessageComposer
+          // Keyed by agent so the editor's captured callbacks never send to the previous choice.
+          key={selectedKey}
+          isBusy={createSession.isLoading || messageSession.isLoading}
+          isStreaming={false}
+          stopPending={false}
+          serverUrl={selected.serverUrl}
+          accountId={accountUid ?? null}
+          disabledMessage={disabledMessage}
+          agentTools={selected.agent.definition.tools}
+          agentToolsLoading={agentToolsLoading}
+          focusOnMount={false}
+          canInvokeTools={canWrite}
+          composerHandleRef={composerHandleRef}
+          onToolStartSession={startDraftSession}
+          onToolSessionStarted={(sessionId) =>
+            navigate({key: 'agent-session', agentId: selected.agent.id, sessionId, serverUrl: selected.serverUrl})
+          }
+          bordered={false}
+          onSend={(message) => void handleSend(message)}
+          onStop={() => {}}
+        />
+      )}
       <div className="flex flex-none flex-wrap items-center justify-between gap-2 px-3 pb-2">
         {fixedAgent ? (
           <div className="flex max-w-72 min-w-0 items-center gap-1.5 px-1.5 py-1">
@@ -255,27 +279,31 @@ export function NewSessionComposer({
             </DropdownMenuContent>
           </DropdownMenu>
         )}
-        {/* The same per-session model switcher a live session shows, so the first turn already
+        {missingProvider ? null : (
+          <>
+            {/* The same per-session model switcher a live session shows, so the first turn already
             runs on the chosen model rather than the user fixing it after the fact. */}
-        <SessionModelBadge
-          // Remounted per agent, so a pending reasoning commit from the last agent dies with it.
-          key={selectedKey}
-          agent={selected.agent}
-          agentId={selected.agent.id}
-          serverUrl={selected.serverUrl}
-          modelOverride={activeChoice.modelOverride}
-          thoroughness={activeChoice.thoroughness}
-          canWrite={canWrite}
-          draft={{
-            onChange: (patch: SessionModelPatch) =>
-              setModelChoice((current) => ({
-                ...(current.agentKey === selectedKey ? current : {}),
-                agentKey: selectedKey,
-                ...(patch.modelOverride !== undefined ? {modelOverride: patch.modelOverride ?? undefined} : {}),
-                ...(patch.thoroughness !== undefined ? {thoroughness: patch.thoroughness ?? undefined} : {}),
-              })),
-          }}
-        />
+            <SessionModelBadge
+              // Remounted per agent, so a pending reasoning commit from the last agent dies with it.
+              key={selectedKey}
+              agent={selected.agent}
+              agentId={selected.agent.id}
+              serverUrl={selected.serverUrl}
+              modelOverride={activeChoice.modelOverride}
+              thoroughness={activeChoice.thoroughness}
+              canWrite={canWrite}
+              draft={{
+                onChange: (patch: SessionModelPatch) =>
+                  setModelChoice((current) => ({
+                    ...(current.agentKey === selectedKey ? current : {}),
+                    agentKey: selectedKey,
+                    ...(patch.modelOverride !== undefined ? {modelOverride: patch.modelOverride ?? undefined} : {}),
+                    ...(patch.thoroughness !== undefined ? {thoroughness: patch.thoroughness ?? undefined} : {}),
+                  })),
+              }}
+            />
+          </>
+        )}
       </div>
     </div>
   )

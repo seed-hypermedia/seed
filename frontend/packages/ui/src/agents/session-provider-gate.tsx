@@ -1,7 +1,11 @@
+import {Button} from '@shm/ui/button'
 import {Notice} from '@shm/ui/notice'
 import {toast} from '@shm/ui/toast'
+import {useAppDialog} from '@shm/ui/universal-dialog'
+import {Plus} from 'lucide-react'
 import {useMemo} from 'react'
 import type {AgentDefinition, AgentModelRef, SessionModelOverride} from './client'
+import {AddModelProviderDialog} from './dialogs'
 import {useModelProviders, useUpdateAgent, useUpdateAgentSession} from './models'
 import {ProviderModelSelect} from './provider-model-select'
 import {coerceReasoningLevel} from './reasoning-select'
@@ -37,6 +41,11 @@ export function useMissingSessionProvider(input: {
  * and, for writers, offers the picker that repairs the agent definition itself, so every session
  * of the agent recovers, not just this one. A session override left pointing at a missing provider
  * is cleared along the way so the session plainly follows the repaired agent.
+ *
+ * Also stands in front of a draft (no `sessionId`), so a new session is never created on an agent
+ * that cannot run. When the server has no providers at all the picker would be empty, so the owner
+ * gets an "Add provider…" button instead; providers belong to the agent's owner, so nobody else can
+ * add one that this agent could use.
  */
 export function SessionProviderGate({
   serverUrl,
@@ -47,17 +56,22 @@ export function SessionProviderGate({
   modelOverride,
   missingProvider,
   canWrite,
+  canAddProvider = false,
 }: {
   serverUrl: string
   accountUid: string | null | undefined
   agentId: string
-  sessionId: string
+  /** The session whose dead override is cleared; absent for a draft, which has no session yet. */
+  sessionId?: string
   definition: AgentDefinition
-  modelOverride: SessionModelOverride | null | undefined
+  modelOverride?: SessionModelOverride | null
   missingProvider: string
   canWrite: boolean
+  /** The viewer owns the agent, so a provider they add is one the agent can use. */
+  canAddProvider?: boolean
 }) {
   const providers = useModelProviders(serverUrl, accountUid, agentId)
+  const addProviderDialog = useAppDialog(AddModelProviderDialog)
   const updateAgent = useUpdateAgent(serverUrl, accountUid)
   const updateSession = useUpdateAgentSession(serverUrl, accountUid)
   const pending = updateAgent.isLoading || updateSession.isLoading
@@ -89,34 +103,64 @@ export function SessionProviderGate({
       })
       // A stale override would keep showing a model that never runs; the agent's new pair is the
       // one the user just chose, so the session simply follows it.
-      if (overrideGone) await updateSession.mutateAsync({sessionId, modelOverride: null})
+      if (overrideGone && sessionId) await updateSession.mutateAsync({sessionId, modelOverride: null})
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not set the model')
     }
   }
 
+  const isDraft = !sessionId
+  // With no provider on the server, the picker has nothing to offer: adding one is the only way on.
+  const noProviders = !!providers.data && providers.data.length === 0
+  const openAddProvider = canAddProvider
+    ? () => addProviderDialog.open({serverUrl, selectedAccountId: accountUid})
+    : undefined
+  const problem = noProviders
+    ? `No model providers are configured on this server, so this agent’s provider “${missingProvider}” cannot run.`
+    : `The provider “${missingProvider}” this ${
+        isDraft ? 'agent uses' : 'session was using'
+      } is no longer configured on this server.`
+  const nextStep = !canWrite
+    ? ` The agent’s owner needs to choose a new provider before ${
+        isDraft ? 'a session can start' : 'this conversation can continue'
+      }.`
+    : noProviders
+      ? openAddProvider
+        ? ' Add a provider, then pick a model to keep going.'
+        : ' The agent’s owner needs to add a provider first.'
+      : ' Pick a provider and model to keep going.'
+
   return (
-    <Notice tone="warning" title="Choose a model to continue">
-      <div className="flex flex-col gap-2">
-        <span>
-          The provider “{missingProvider}” this session was using is no longer configured on this server.
-          {canWrite
-            ? ' Pick a provider and model to keep going.'
-            : ' The agent’s owner needs to choose a new provider before this conversation can continue.'}
-        </span>
-        {canWrite ? (
-          <div className="max-w-sm">
-            <ProviderModelSelect
-              serverUrl={serverUrl}
-              accountUid={accountUid}
-              agentId={agentId}
-              value={{provider: '', model: ''}}
-              onChange={(entry) => void choose(entry)}
-              disabled={pending}
-            />
-          </div>
-        ) : null}
-      </div>
-    </Notice>
+    <>
+      <Notice tone="warning" title={isDraft ? 'Choose a model to start' : 'Choose a model to continue'}>
+        <div className="flex flex-col gap-2">
+          <span>
+            {problem}
+            {nextStep}
+          </span>
+          {canWrite && noProviders && openAddProvider ? (
+            <div>
+              <Button size="sm" onClick={openAddProvider} disabled={pending}>
+                <Plus className="size-4" />
+                Add provider…
+              </Button>
+            </div>
+          ) : canWrite && !noProviders ? (
+            <div className="max-w-sm">
+              <ProviderModelSelect
+                serverUrl={serverUrl}
+                accountUid={accountUid}
+                agentId={agentId}
+                value={{provider: '', model: ''}}
+                onChange={(entry) => void choose(entry)}
+                onAddProvider={openAddProvider}
+                disabled={pending}
+              />
+            </div>
+          ) : null}
+        </div>
+      </Notice>
+      {addProviderDialog.content}
+    </>
   )
 }

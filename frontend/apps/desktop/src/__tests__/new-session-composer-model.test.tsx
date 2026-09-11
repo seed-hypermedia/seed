@@ -13,6 +13,8 @@ const mockState = vi.hoisted(() => ({
   badgeProps: null as null | Record<string, any>,
   composerProps: null as null | Record<string, any>,
   createCalls: [] as Array<Record<string, unknown>>,
+  missingProvider: null as string | null,
+  gateProps: null as null | Record<string, any>,
 }))
 
 vi.mock('@shm/ui/agents/models', () => ({
@@ -39,6 +41,13 @@ vi.mock('@shm/ui/agents/header', () => ({
   SessionModelBadge: (props: Record<string, any>) => {
     mockState.badgeProps = props
     return null
+  },
+}))
+vi.mock('@shm/ui/agents/session-provider-gate', () => ({
+  useMissingSessionProvider: () => mockState.missingProvider,
+  SessionProviderGate: (props: Record<string, any>) => {
+    mockState.gateProps = props
+    return <div data-testid="provider-gate" />
   },
 }))
 // Radix menus only mount their content once opened; render every part inline so items are clickable.
@@ -124,6 +133,8 @@ beforeEach(() => {
   mockState.badgeProps = null
   mockState.composerProps = null
   mockState.createCalls = []
+  mockState.missingProvider = null
+  mockState.gateProps = null
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -188,6 +199,19 @@ describe('NewSessionComposer model choice', () => {
     pickAgent('Alpha')
     expect(mockState.badgeProps!.agent.id).toBe('alpha')
     expect(mockState.badgeProps!.modelOverride).toBeUndefined()
+  })
+
+  it('an agent whose provider is gone gets the provider gate instead of the editor', () => {
+    mockState.missingProvider = 'OpenAI'
+    render()
+    expect(container.querySelector('[data-testid="provider-gate"]')).not.toBeNull()
+    // Nothing to send from and no model to pick until a provider exists.
+    expect(mockState.composerProps).toBeNull()
+    expect(mockState.badgeProps).toBeNull()
+    expect(mockState.gateProps).toMatchObject({agentId: 'alpha', missingProvider: 'OpenAI', canAddProvider: true})
+    expect(mockState.gateProps).not.toHaveProperty('sessionId')
+    // The agent picker stays, so another agent can still be chosen.
+    expect(container.querySelectorAll('[data-testid="agent-option"]')).toHaveLength(2)
   })
 
   it('keeps the first default agent when the most recent session changes', async () => {

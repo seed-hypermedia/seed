@@ -662,6 +662,7 @@ function AgentSessionPage({
                     modelOverride={session.data?.session.modelOverride}
                     missingProvider={missingProvider}
                     canWrite={canWrite}
+                    canAddProvider={agent.data.agent.accessRole === 'owner'}
                   />
                 ) : undefined
               }

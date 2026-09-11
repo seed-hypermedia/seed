@@ -83,6 +83,10 @@ vi.mock('@/grpc-client', () => ({grpcClient: {}}))
 // The composer's editor comes from the platform adapter, which this test does not register.
 vi.mock('@shm/ui/agents/rich-message-composer', () => ({AgentRichMessageComposer: () => null}))
 vi.mock('@shm/ui/agents/header', () => ({SessionModelBadge: () => null}))
+vi.mock('@shm/ui/agents/session-provider-gate', () => ({
+  SessionProviderGate: () => null,
+  useMissingSessionProvider: () => null,
+}))
 vi.mock('@shm/ui/agents/dialogs', () => ({
   CreateAgentDialog: () => null,
   ManageAgentAccountsDialog: () => null,
