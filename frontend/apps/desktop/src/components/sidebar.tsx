@@ -1,4 +1,3 @@
-import {DocumentMaintenanceTrigger} from '@shm/ui/document-maintenance'
 import {useContactList} from '@/models/contacts'
 import {
   isJoinedSiteDragBlocked,
@@ -36,12 +35,10 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarSeparator,
 } from '@shm/ui/components/sidebar'
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {CircleOff} from '@shm/ui/icons'
-import {SmallListItem} from '@shm/ui/list-item'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
@@ -56,62 +53,9 @@ import {GenericSidebarContainer} from './sidebar-base'
 export const AppSidebar = memo(MainAppSidebar)
 
 export function MainAppSidebar() {
-  const route = useNavRoute()
-  const navigate = useNavigate()
   const selectedAccountId = useSelectedAccountId()
-  const selectedSite = useResource(selectedAccountId ? hmId(selectedAccountId) : undefined)
-  const contacts = useSelectedAccountContacts()
-  const hasSelectedSite = selectedSite.data?.type === 'document' && selectedSite.data.document
-  const joinedSiteCount = selectedAccountId
-    ? new Set(
-        (contacts.data ?? [])
-          .filter((contact) => contact.subscribe?.site && contact.subject !== selectedAccountId)
-          .map((contact) => contact.subject),
-      ).size
-    : 1
-  const isCheckingOnboardingVisibility =
-    !!selectedAccountId && (contacts.isLoading || selectedSite.isInitialLoading || selectedSite.isDiscovering)
-  const shouldShowOnboarding = !isCheckingOnboardingVisibility && !hasSelectedSite && joinedSiteCount < 2
   return (
-    <GenericSidebarContainer
-      footer={({isVisible}) => (
-        <SidebarFooterLayout className="gap-0 p-0">
-          <SidebarMenu className="px-2 pb-3">
-            {shouldShowOnboarding ? (
-              <SidebarMenuItem>
-                <SmallListItem
-                  onClick={() => {
-                    navigate({key: 'onboarding'})
-                  }}
-                  title="Get Started with Seed"
-                  bold
-                  className="min-h-12 w-full border border-dashed border-neutral-400 bg-transparent py-2 hover:border-neutral-600 hover:bg-transparent dark:border-neutral-600 dark:hover:border-neutral-400 dark:hover:bg-transparent"
-                  icon={<span className="h-2 w-2 rounded-full bg-emerald-500" />}
-                  rightHover={[]}
-                />
-              </SidebarMenuItem>
-            ) : null}
-          </SidebarMenu>
-          <SidebarSeparator />
-          <SidebarMenu className="py-4">
-            <SidebarMenuItem>
-              <DocumentMaintenanceTrigger />
-            </SidebarMenuItem>
-            {/* <SidebarMenuItem>
-              <SmallListItem
-                active={route.key == 'contacts'}
-                onClick={() => {
-                  navigate({key: 'contacts'})
-                }}
-                icon={<Contact className="size-4" />}
-                title="Contacts"
-                bold
-              />
-            </SidebarMenuItem> */}
-          </SidebarMenu>
-        </SidebarFooterLayout>
-      )}
-    >
+    <GenericSidebarContainer>
       <SidebarHeader>
         <CreateDocumentButton />
       </SidebarHeader>
