@@ -86,7 +86,9 @@ reader/writer badge on their own page.
 The Agents index (`list.tsx`) is a **Recent Sessions** list: the account-wide `ListSessions` of every configured server,
 merged newest-activity-first and paged with a Load more button (`useAllAgentSessionPages` advances every server that
 still has a cursor, so the merged order never hides a newer session behind one server's page boundary). Each row is the
-shared `SessionListItem` with an agent chip; a space's published agents contribute the visitor's chats with them. The
+shared `SessionListItem` with an agent chip; a space's published agents contribute the visitor's chats with them. With no agents at all (every server answered, none failed), the
+list and composer give way to a centered invitation to create the first agent, or to add a server when none is
+configured. The
 page title (and every agent page's title) is `AgentTitleMenu`, a dropdown of all agents that opens an agent's sessions.
 The header also holds a servers button — "Agent Server" or "N Agent Servers" — whose menu has one submenu per server
 (status, Open Server, **Accounts** and **Providers** opening `ManageAgentAccountsDialog` and `ModelProvidersDialog`) and

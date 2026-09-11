@@ -18,7 +18,7 @@ import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useLoadMoreSentinel} from '@shm/ui/use-load-more-sentinel'
-import {ArrowRight, Bot, Check, ChevronDown, CircleUserRound, Mail, Server, Settings, X} from 'lucide-react'
+import {ArrowRight, Bot, Check, ChevronDown, CircleUserRound, Mail, Plus, Server, Settings, X} from 'lucide-react'
 import {useMemo} from 'react'
 import {useSelectedAccountId} from './account'
 import {AgentListRow} from './agent-row'
@@ -142,11 +142,24 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
     isFetching: problem.isFetching,
   }))
   const createAgentDisabledReason = !serverUrls.length ? 'Configure an agent server before creating an agent.' : null
+  // "No agents" is only known once every server has answered and the space's agents have loaded:
+  // deciding earlier would flash the invitation on every visit. A server that failed to answer may
+  // hold agents, so a failure keeps the normal page, where its notice is shown.
+  const hasNoAgents =
+    serverUrlsQuery.data !== undefined &&
+    agentQueries.every((query) => query.data !== undefined || query.isError) &&
+    !agentQueries.some((query) => query.isError) &&
+    !spaceAgents.isLoading &&
+    composerAgents.length === 0
+  const openServers = () => (openServerSettings ? openServerSettings() : serverSettingsDialog.open(true))
 
   return (
     <PanelContainer className="flex flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <Container className="max-w-4xl gap-6 py-8">
+        <Container
+          // Full height with no agents, so the invitation can sit in the middle of the page.
+          className={hasNoAgents ? 'flex min-h-full max-w-4xl flex-col gap-6 py-8' : 'max-w-4xl gap-6 py-8'}
+        >
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="bg-primary/10 text-primary flex size-11 items-center justify-center rounded-xl">
@@ -276,95 +289,143 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
             </section>
           ) : null}
 
-          {publishedAgents.length ? (
-            <section className="flex flex-col gap-3">
-              <SizableText weight="bold">Agents in this space</SizableText>
-              <div className="flex flex-col gap-2">
-                {publishedAgents.map(({serverUrl, agent}) => (
-                  <AgentListRow
-                    key={`${serverUrl}:${agent.id}`}
-                    agentId={agent.id}
-                    name={agent.definition.name}
-                    status={agent.status}
-                    serverUrl={serverUrl}
-                    accessRole={agent.accessRole}
-                    activity={agent.activity}
-                  />
-                ))}
-              </div>
-            </section>
-          ) : null}
+          {hasNoAgents ? (
+            // Nothing to list and nobody to talk to yet: the page's one job is getting a first agent.
+            <NoAgentsInvitation
+              onCreate={() => createAgentDialog.open({serverUrls, selectedAccountId})}
+              onManageServers={serverUrls.length ? undefined : openServers}
+            />
+          ) : (
+            <>
+              {publishedAgents.length ? (
+                <section className="flex flex-col gap-3">
+                  <SizableText weight="bold">Agents in this space</SizableText>
+                  <div className="flex flex-col gap-2">
+                    {publishedAgents.map(({serverUrl, agent}) => (
+                      <AgentListRow
+                        key={`${serverUrl}:${agent.id}`}
+                        agentId={agent.id}
+                        name={agent.definition.name}
+                        status={agent.status}
+                        serverUrl={serverUrl}
+                        accessRole={agent.accessRole}
+                        activity={agent.activity}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ) : null}
 
-          <section className="flex flex-col gap-3">
-            {isLoadingSessions ? <SizableText color="muted">Loading sessions…</SizableText> : null}
-            {serverProblems.map((problem) => (
-              <Notice
-                key={problem.serverUrl}
-                tone={problem.notice.tone}
-                title={problem.notice.title}
-                onRetry={problem.refetch}
-                retryPending={problem.isFetching}
-              >
-                {problem.notice.detail}
-              </Notice>
-            ))}
-            {!isLoadingSessions && !sessions.length && !serverProblems.length ? (
-              <SizableText color="muted">
-                {serverUrls.length ? 'No sessions yet. Start one below.' : 'No sessions yet.'}
-              </SizableText>
-            ) : null}
-            <div className="flex flex-col gap-1">
-              {sessions.map(({serverUrl, session, agent}) => (
-                <SessionListItem
-                  key={`${serverUrl}:${session.id}`}
-                  session={session}
-                  serverUrl={serverUrl}
-                  accountUid={selectedAccountId}
-                  agentName={agent?.definition.name || session.agentId}
-                  onOpen={(event) =>
-                    clickNavigate(
-                      {key: 'agent-session', agentId: session.agentId, sessionId: session.id, serverUrl},
-                      event,
-                    )
-                  }
-                  onOpenSession={(child, event) =>
-                    clickNavigate({key: 'agent-session', agentId: child.agentId, sessionId: child.id, serverUrl}, event)
-                  }
-                  onOpenTrigger={() =>
-                    session.startedByTrigger
-                      ? navigate({
-                          key: 'agent',
-                          agentId: session.agentId,
-                          serverUrl,
-                          tab: 'triggers',
-                          triggerId: session.startedByTrigger.triggerId,
-                        })
-                      : undefined
-                  }
-                />
-              ))}
-            </div>
-            {/* Scrolling near the end loads the next page; this row is only ever seen if the fetch is slow. */}
-            <div ref={loadMoreSentinel} aria-hidden="true" className="h-px" />
-            {sessionPages.isFetchingNextPage ? (
-              <SizableText size="sm" color="muted" className="text-center">
-                Loading more…
-              </SizableText>
-            ) : null}
-          </section>
+              <section className="flex flex-col gap-3">
+                {isLoadingSessions ? <SizableText color="muted">Loading sessions…</SizableText> : null}
+                {serverProblems.map((problem) => (
+                  <Notice
+                    key={problem.serverUrl}
+                    tone={problem.notice.tone}
+                    title={problem.notice.title}
+                    onRetry={problem.refetch}
+                    retryPending={problem.isFetching}
+                  >
+                    {problem.notice.detail}
+                  </Notice>
+                ))}
+                {!isLoadingSessions && !sessions.length && !serverProblems.length ? (
+                  <SizableText color="muted">
+                    {serverUrls.length ? 'No sessions yet. Start one below.' : 'No sessions yet.'}
+                  </SizableText>
+                ) : null}
+                <div className="flex flex-col gap-1">
+                  {sessions.map(({serverUrl, session, agent}) => (
+                    <SessionListItem
+                      key={`${serverUrl}:${session.id}`}
+                      session={session}
+                      serverUrl={serverUrl}
+                      accountUid={selectedAccountId}
+                      agentName={agent?.definition.name || session.agentId}
+                      onOpen={(event) =>
+                        clickNavigate(
+                          {key: 'agent-session', agentId: session.agentId, sessionId: session.id, serverUrl},
+                          event,
+                        )
+                      }
+                      onOpenSession={(child, event) =>
+                        clickNavigate(
+                          {key: 'agent-session', agentId: child.agentId, sessionId: child.id, serverUrl},
+                          event,
+                        )
+                      }
+                      onOpenTrigger={() =>
+                        session.startedByTrigger
+                          ? navigate({
+                              key: 'agent',
+                              agentId: session.agentId,
+                              serverUrl,
+                              tab: 'triggers',
+                              triggerId: session.startedByTrigger.triggerId,
+                            })
+                          : undefined
+                      }
+                    />
+                  ))}
+                </div>
+                {/* Scrolling near the end loads the next page; this row is only ever seen if the fetch is slow. */}
+                <div ref={loadMoreSentinel} aria-hidden="true" className="h-px" />
+                {sessionPages.isFetchingNextPage ? (
+                  <SizableText size="sm" color="muted" className="text-center">
+                    Loading more…
+                  </SizableText>
+                ) : null}
+              </section>
+            </>
+          )}
         </Container>
       </div>
-      <div className="border-border bg-panel flex-none border-t">
-        <Container className="max-w-4xl gap-0 py-2">
-          <NewSessionComposer
-            agents={composerAgents}
-            accountUid={selectedAccountId}
-            localServerUrl={localServerUrl.data}
-            defaultAgent={defaultComposerAgent}
-          />
-        </Container>
-      </div>
+      {hasNoAgents ? null : (
+        <div className="border-border bg-panel flex-none border-t">
+          <Container className="max-w-4xl gap-0 py-2">
+            <NewSessionComposer
+              agents={composerAgents}
+              accountUid={selectedAccountId}
+              localServerUrl={localServerUrl.data}
+              defaultAgent={defaultComposerAgent}
+            />
+          </Container>
+        </div>
+      )}
     </PanelContainer>
+  )
+}
+
+/**
+ * The Agents page with no agents at all: a centered invitation to create the first one. With no
+ * agent server configured there is nowhere to create it, so the action becomes managing servers.
+ */
+function NoAgentsInvitation({onCreate, onManageServers}: {onCreate: () => void; onManageServers?: () => void}) {
+  return (
+    <section className="flex flex-1 flex-col items-center justify-center gap-4 py-16 text-center">
+      <div className="bg-primary/10 text-primary flex size-16 items-center justify-center rounded-2xl">
+        <Bot className="size-8" />
+      </div>
+      <SizableText size="2xl" weight="bold">
+        Create your first agent
+      </SizableText>
+      <SizableText color="muted" className="max-w-md">
+        {onManageServers
+          ? 'Agents run on an agent server. Add one, then create an agent to start a session with it.'
+          : 'An agent works with you in sessions. You choose its model and give it a name and instructions.'}
+      </SizableText>
+      {onManageServers ? (
+        <Button size="lg" className="mt-2" onClick={onManageServers}>
+          <Server className="size-4" />
+          Manage Agent Servers
+        </Button>
+      ) : (
+        <Button size="lg" className="mt-2" onClick={onCreate}>
+          <Plus className="size-4" />
+          Create your first agent
+        </Button>
+      )}
+    </section>
   )
 }
 

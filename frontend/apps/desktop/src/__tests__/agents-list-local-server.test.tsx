@@ -13,6 +13,8 @@ const mockState = vi.hoisted(() => ({
   localServerUrl: 'http://localhost:3051' as string | null,
   healths: [] as Array<{isLoading: boolean; isError: boolean; data?: {uptime: number}}>,
   selectedAccountId: 'account-1' as string | null,
+  agents: [] as Array<Record<string, unknown>>,
+  agentListsLoading: false,
   accountIds: ['account-1'] as string[],
   invites: [] as Array<{
     agentId: string
@@ -31,7 +33,12 @@ vi.mock('@shm/ui/agents/models', () => ({
   useAgentServerUrls: () => ({data: mockState.serverUrls}),
   useLocalAgentServerUrl: () => ({data: mockState.localServerUrl}),
   useAgentServerHealths: () => mockState.healths,
-  useAgentLists: () => mockState.serverUrls.map(() => ({data: [], isFetching: false, isError: false})),
+  useAgentLists: () =>
+    mockState.serverUrls.map((_, index) => ({
+      data: mockState.agentListsLoading ? undefined : index === 1 ? mockState.agents : [],
+      isFetching: mockState.agentListsLoading,
+      isError: false,
+    })),
   useSpaceAgents: () => ({agents: [], sessions: [], isLoading: false}),
   useAllAgentSessionPages: () => ({
     entries: [],
@@ -170,10 +177,49 @@ describe('agents list — local server presentation', () => {
     mockState.selectedAccountId = 'account-1'
     mockState.accountIds = ['account-1']
     mockState.invites = []
+    mockState.agents = []
+    mockState.agentListsLoading = false
   })
 
   afterEach(() => {
     document.body.innerHTML = ''
+  })
+
+  it('invites you to create a first agent, skipping the sessions and composer, when there are none', () => {
+    const {container, root} = renderList()
+
+    expect(container.textContent).toContain('Create your first agent')
+    expect(container.textContent).not.toContain('No sessions yet')
+    // The composer's own no-agents line would show if it were mounted.
+    expect(container.textContent).not.toContain('Create an agent to start a session.')
+
+    cleanupRendered(root, container)
+  })
+
+  it('lists sessions with the composer, not the invitation, once an agent exists', () => {
+    mockState.agents = [
+      {
+        id: 'agent-1',
+        status: 'idle',
+        accessRole: 'owner',
+        definition: {name: 'Helper', modelProvider: 'openai', model: 'gpt'},
+      },
+    ]
+    const {container, root} = renderList()
+
+    expect(container.textContent).not.toContain('Create your first agent')
+    expect(container.textContent).toContain('No sessions yet')
+
+    cleanupRendered(root, container)
+  })
+
+  it('does not flash the invitation while agent lists are loading', () => {
+    mockState.agentListsLoading = true
+    const {container, root} = renderList()
+
+    expect(container.textContent).not.toContain('Create your first agent')
+
+    cleanupRendered(root, container)
   })
 
   it('shows pending agent invitations with their role and actions', () => {
