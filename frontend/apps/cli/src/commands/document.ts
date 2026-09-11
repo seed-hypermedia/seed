@@ -47,6 +47,7 @@ import {
 import {resolveFileLinks} from '../utils/file-links'
 import {markdownBlockNodesToHMBlockNodes} from '@seed-hypermedia/client'
 import type {HMBlockNode, HMDocument, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {mergeMetadata, mergeUpdateMetadata, metadataToSetAttributes} from './document-metadata'
 
 // ── Input helpers ────────────────────────────────────────────────────────────
 
@@ -624,14 +625,15 @@ export function registerDocumentCommands(program: Command) {
           }
         }
 
-        // Merge metadata: input (frontmatter) < CLI flags
-        const merged = mergeMetadata(inputMeta, options)
+        // Merge metadata: input (frontmatter) < CLI flags. Replacing a cover without an
+        // explicit focal point must not make the new image inherit the previous cover's crop.
+        const merged = mergeUpdateMetadata(inputMeta, options, existingDoc.metadata)
 
         // Resolve file:// links in metadata
         if (Object.keys(merged).length > 0) {
           const resolved = await resolveMetadataFileLinks(merged)
           metaBlobs = resolved.blobs
-          const metaOp = metadataToSetAttributes(resolved.metadata)
+          const metaOp = metadataToSetAttributes(resolved.metadata, existingDoc.metadata)
           if (metaOp) ops.push(metaOp)
         }
 
@@ -1030,101 +1032,8 @@ export function registerDocumentCommands(program: Command) {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-/** All HMMetadata keys that can be set via CLI flags or frontmatter. */
-const METADATA_KEYS: (keyof HMMetadata)[] = [
-  'name',
-  'summary',
-  'displayAuthor',
-  'displayPublishTime',
-  'icon',
-  'cover',
-  'coverPosition',
-  'siteUrl',
-  'layout',
-  'showOutline',
-  'showActivity',
-  'contentWidth',
-  'childrenType',
-  'seedExperimentalLogo',
-  'seedExperimentalHomeOrder',
-  'importCategories',
-  'importTags',
-]
-
 /** Metadata fields that support file:// paths (resolved to ipfs://). */
 const FILE_LINK_METADATA_KEYS = ['cover', 'icon', 'seedExperimentalLogo'] as const
-
-/**
- * Extract metadata values from CLI options.
- * Commander.js converts kebab-case flags to camelCase (--display-author → displayAuthor).
- */
-function extractCliMetadata(options: Record<string, unknown>): HMMetadata {
-  const meta: HMMetadata = {}
-  for (const key of METADATA_KEYS) {
-    if (options[key] !== undefined) {
-      ;(meta as any)[key] = options[key]
-    }
-  }
-  return meta
-}
-
-/**
- * Merge metadata from multiple sources.
- * Priority: defaults < inputMeta (frontmatter/PDF) < CLI flags.
- */
-export function mergeMetadata(
-  inputMeta: HMMetadata,
-  options: Record<string, unknown>,
-  defaults?: Partial<HMMetadata>,
-): HMMetadata {
-  const cliMeta = extractCliMetadata(options)
-  const result: HMMetadata = {}
-
-  for (const key of METADATA_KEYS) {
-    const cli = (cliMeta as any)[key]
-    const input = (inputMeta as any)[key]
-    const def = defaults ? (defaults as any)[key] : undefined
-
-    const value = cli !== undefined ? cli : input !== undefined ? input : def
-    if (value !== undefined) {
-      ;(result as any)[key] = value
-    }
-  }
-
-  // Handle theme (nested object, not a simple flag)
-  if (inputMeta.theme) result.theme = inputMeta.theme
-
-  return result
-}
-
-/**
- * Convert an HMMetadata object to a SetAttributes operation.
- * Only includes fields with defined values, flattening nested objects into key paths.
- */
-function metadataToSetAttributes(metadata: HMMetadata): DocumentOperation | null {
-  const attrs: Array<{key: string[]; value: string | number | boolean | null}> = []
-
-  const flatten = (value: unknown, key: string[]) => {
-    if (value === undefined) return
-
-    if (value !== null && typeof value === 'object') {
-      for (const [nestedKey, nestedValue] of Object.entries(value)) {
-        flatten(nestedValue, [...key, nestedKey])
-      }
-      return
-    }
-
-    if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-      attrs.push({key, value})
-    }
-  }
-
-  for (const [key, value] of Object.entries(metadata)) {
-    flatten(value, [key])
-  }
-  if (attrs.length === 0) return null
-  return {type: 'SetAttributes', attrs}
-}
 
 /**
  * Resolve file:// links in metadata fields (cover, icon, seedExperimentalLogo).
@@ -1152,7 +1061,8 @@ async function resolveMetadataFileLinks(metadata: HMMetadata): Promise<{metadata
   return {metadata: resolved, blobs: allBlobs}
 }
 
-// Re-export slugify from SDK client for backwards compatibility
+// Re-export helpers from their focused modules for backwards compatibility
+export {mergeMetadata} from './document-metadata'
 export {slugify} from '@seed-hypermedia/client'
 
 /**
