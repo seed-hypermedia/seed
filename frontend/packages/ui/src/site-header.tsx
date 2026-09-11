@@ -1,4 +1,3 @@
-import {DocumentMaintenanceTrigger} from './document-maintenance'
 import {
   HMDocument,
   HMMetadata,
@@ -11,8 +10,9 @@ import {useIsHomeDraftOverride} from '@shm/shared/home-draft-context'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
+import {DocumentMaintenanceTrigger} from './document-maintenance'
 import {DraftBadge} from './draft-badge'
-import {ChevronDown, Close, Menu} from './icons'
+import {ChevronDown, Close, Menu, Search} from './icons'
 import {SmallListItem} from './list-item'
 import {useResponsiveItems} from './use-responsive-items'
 
@@ -22,7 +22,7 @@ import {Activity, Lock} from 'lucide-react'
 import {AssistantPanelHeaderButton, AssistantPanelMenuItem} from './assistant-panel-toggle'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {DocNavigationItem, DocumentOutline, DocumentSmallListItem, useNodesOutline} from './navigation'
-import {HeaderSearch, MobileSearch} from './search'
+import {MobileSearch} from './search'
 import {Separator} from './separator'
 import {SiteLogo} from './site-logo'
 import {Tooltip} from './tooltip'
@@ -62,6 +62,41 @@ function getActiveSiteHeaderItemKey(items: DocNavigationItem[], docId: UnpackedH
   return items
     .filter((item) => isSiteHeaderItemActive(item, docId))
     .sort((a, b) => (b.id?.path?.length ?? 0) - (a.id?.path?.length ?? 0))[0]?.key
+}
+
+/**
+ * Site header entry point to Explore page, scoped to the space being viewed.
+ */
+function ExploreHeaderButton({siteHomeId}: {siteHomeId: UnpackedHypermediaId}) {
+  const linkRef = useRef<HTMLAnchorElement>(null)
+  const linkProps = useRouteLink({
+    key: 'explore',
+    context: {type: 'site', id: {...siteHomeId, latest: true, version: null}},
+  })
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
+      if (!(event.metaKey || event.ctrlKey) || event.key !== 'k') return
+      event.preventDefault()
+      // Click the anchor rather than navigating directly, so the shortcut and the button share one
+      // navigation path and cannot drift apart.
+      linkRef.current?.click()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  return (
+    <Tooltip content="Explore">
+      <Button asChild variant="ghost" size="icon" className="h-8 rounded-full border-1 border-transparent p-0">
+        <a ref={linkRef} aria-label="Explore" {...linkProps}>
+          <Search className="size-4" />
+        </a>
+      </Button>
+    </Tooltip>
+  )
 }
 
 export function SiteHeader({
@@ -139,9 +174,9 @@ export function SiteHeader({
       </Button>
       {siteHomeId && !IS_DESKTOP ? (
         <div className="hidden items-center gap-1 md:flex">
+          <ExploreHeaderButton siteHomeId={siteHomeId} />
           <AssistantPanelHeaderButton siteUid={siteHomeId.uid} />
           <DocumentMaintenanceTrigger compact />
-          <HeaderSearch siteHomeId={siteHomeId} />
         </div>
       ) : null}
     </>

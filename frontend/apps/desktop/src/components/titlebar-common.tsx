@@ -1,17 +1,6 @@
+import {DEFAULT_AGENT_SERVER_URL} from '@/agents-defaults'
 import {domainResolver} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
-import {DEFAULT_AGENT_SERVER_URL} from '@/agents-defaults'
-import {useSelectedAccountId as useSelectedAgentsAccountId} from '@shm/ui/agents/account'
-import {AgentActivityLiveUpdates, useAgentActivityIndicator} from '@shm/ui/agents/activity'
-import {AgentActivityDot} from '@shm/ui/agents/activity-dot'
-import {
-  agentRouteServerUrl,
-  isLocalAgentServer,
-  LOCAL_AGENT_SERVER_LABEL,
-  useAgentServerUrls,
-  useAgentSession,
-  useLocalAgentServerUrl,
-} from '@shm/ui/agents/models'
 import {useForceVaultSync, useLogout, useMyAccountIds, useVaultStatus} from '@/models/daemon'
 import {useExistingDraft} from '@/models/drafts'
 import {useExperiments} from '@/models/experiments'
@@ -29,8 +18,8 @@ import {
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
 import {client} from '@/trpc'
-import {pathNameify} from '@/utils/path'
 import {queryDevtoolsOpen, RouteDialog, setQueryDevtoolsOpen} from '@/utils/navigation-container'
+import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -43,6 +32,17 @@ import {createInspectNavRouteFromRoute, DocumentRoute, FeedRoute, NavRoute} from
 import {useStream} from '@shm/shared/use-stream'
 import {createWebHMUrl, hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
+import {useSelectedAccountId as useSelectedAgentsAccountId} from '@shm/ui/agents/account'
+import {AgentActivityLiveUpdates, useAgentActivityIndicator} from '@shm/ui/agents/activity'
+import {AgentActivityDot} from '@shm/ui/agents/activity-dot'
+import {
+  agentRouteServerUrl,
+  isLocalAgentServer,
+  LOCAL_AGENT_SERVER_LABEL,
+  useAgentServerUrls,
+  useAgentSession,
+  useLocalAgentServerUrl,
+} from '@shm/ui/agents/models'
 import {Button} from '@shm/ui/button'
 import {
   DropdownMenu,
@@ -534,11 +534,41 @@ export function PageActionButtons(props: TitleBarProps) {
   return (
     <TitlebarSection>
       {route.key == 'document' || route.key == 'feed' ? <DocumentTitlebarButtons route={route} /> : null}
+      <ExploreButton />
       <AssistantChatButton assistantOpen={props.assistantOpen} onToggleAssistant={props.onToggleAssistant} />
       <BookmarksPopover />
       <NotificationButton />
       <AccountProfileButton />
     </TitlebarSection>
+  )
+}
+
+/**
+ * Titlebar entry point to Explore page, scoped to the space in the current route.
+ * Routes with no space open Explore across the whole node instead.
+ */
+function ExploreButton() {
+  const route = useNavRoute()
+  const navigate = useNavigate()
+  const isActive = route.key === 'explore'
+  const routeId = route && 'id' in route && typeof route.id !== 'string' ? route.id : null
+  const siteId = routeId?.uid ? hmId(routeId.uid) : null
+  return (
+    <Tooltip content="Explore" asChild>
+      <Button
+        className={cn(
+          'window-no-drag h-8 w-8 rounded-full border p-0',
+          isActive
+            ? 'border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
+            : 'border-transparent',
+        )}
+        aria-current={isActive ? 'page' : undefined}
+        aria-label="Explore"
+        onClick={() => navigate({key: 'explore', context: siteId ? {type: 'site', id: siteId} : {type: 'node'}})}
+      >
+        <Search className="size-4" />
+      </Button>
+    </Tooltip>
   )
 }
 

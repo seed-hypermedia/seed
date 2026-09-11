@@ -66,11 +66,11 @@ import {
   documentMachine,
   DocumentMachineProvider,
   selectCanEditCurrentRoute,
+  selectCollectionQueryBlock,
   selectContext,
   selectDraftOverlayAllowed,
-  selectCollectionQueryBlock,
-  selectIsEditing,
   selectIsCollection,
+  selectIsEditing,
   selectIsUnpublishedDraft,
   selectPublishedVersion,
   selectRenderableBlocks,
@@ -135,9 +135,8 @@ import {
   AlertDialogTitle,
 } from './components/alert-dialog'
 import {Popover, PopoverAnchor, PopoverContent, PopoverTrigger} from './components/popover'
-import {Tabs, TabsList, TabsTrigger} from './components/tabs'
 import {ScrollArea} from './components/scroll-area'
-import {SelectField, SwitchField, TextField} from './form-fields'
+import {Tabs, TabsList, TabsTrigger} from './components/tabs'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
@@ -154,6 +153,7 @@ import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-ve
 import {ExplorePage} from './explore-page'
 import {Feed, type DraftVersionEntry} from './feed'
 import {FeedFilters} from './feed-filters'
+import {SelectField, SwitchField, TextField} from './form-fields'
 import {HMIcon} from './hm-icon'
 import {useDocumentLayout} from './layout'
 import {MembersFacepile} from './members-facepile'
@@ -2651,7 +2651,9 @@ function DocumentBody({
   const floatingButtonsAction = activeView === 'content' && !documentContentAction ? floatingButtons : null
 
   // The bar always states where you are, so a home document is its own single crumb.
-  const topBarBreadcrumbs = breadcrumbs ?? [{id: hmId(docId.uid, {latest: true}), metadata}]
+  const spaceBreadcrumbs = breadcrumbs ?? [{id: hmId(docId.uid, {latest: true}), metadata}]
+  const topBarBreadcrumbs: BreadcrumbEntry[] =
+    activeView === 'explore' ? [...spaceBreadcrumbs, {label: 'Explore'}] : spaceBreadcrumbs
   const documentTopBar = (
     <DocumentTopBar
       breadcrumbs={topBarBreadcrumbs}
@@ -3736,6 +3738,10 @@ function MainContent({
           onOpenResult={(result) => {
             if (result.type === 'comment') {
               navigate({key: 'comments', id: result.documentId, openComment: result.commentId})
+              return
+            }
+            if (result.type === 'contact') {
+              navigate({key: 'profile', id: result.id})
               return
             }
             navigate({key: 'document', id: result.id})

@@ -3,8 +3,10 @@ import {useNavigate} from '@/utils/useNavigate'
 import {parseExploreQuery, type HMExploreResult} from '@shm/shared/explore'
 import {useExploreResults} from '@shm/shared/models/explore'
 import {useNavRoute} from '@shm/shared/utils/navigation'
-import {ExplorePage} from '@shm/ui/explore-page'
 import {PanelContainer} from '@shm/ui/container'
+import type {BreadcrumbEntry} from '@shm/ui/document-header'
+import {DocumentTopBar} from '@shm/ui/document-top-bar'
+import {ExplorePage} from '@shm/ui/explore-page'
 import {useMemo} from 'react'
 
 function contextLabel(route: Extract<ReturnType<typeof useNavRoute>, {key: 'explore'}>) {
@@ -35,14 +37,25 @@ export default function ExploreDesktopPage() {
       navigate({key: 'comments', id: result.documentId, openComment: result.commentId})
       return
     }
+    // A contact result is a person, so it opens their profile rather than the space at that account.
+    if (result.type === 'contact') {
+      navigate({key: 'profile', id: result.id})
+      return
+    }
     navigate({key: 'document', id: result.id})
   }
 
   if (!exploreRoute) return null
 
+  const breadcrumbs: BreadcrumbEntry[] =
+    exploreRoute.context.type === 'site'
+      ? [{id: exploreRoute.context.id, metadata: {}}, {label: 'Explore'}]
+      : [{label: 'Explore'}]
+
   return (
     <PanelContainer>
       <MainWrapper scrollable>
+        <DocumentTopBar breadcrumbs={breadcrumbs} />
         <ExplorePage
           contextLabel={contextLabel(exploreRoute)}
           query={query}
