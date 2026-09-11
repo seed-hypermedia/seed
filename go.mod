@@ -12,6 +12,7 @@ require (
 	github.com/burdiyan/go/mainutil v0.0.0-20200124222818-6f87e0e684b6
 	github.com/fullstorydev/grpcui v1.4.3
 	github.com/fxamacker/cbor/v2 v2.7.0
+	github.com/gabriel-vasile/mimetype v1.4.13
 	github.com/getsentry/sentry-go v0.27.0
 	github.com/go-viper/mapstructure/v2 v2.2.1
 	github.com/google/go-cmp v0.7.0

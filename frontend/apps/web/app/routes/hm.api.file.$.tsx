@@ -51,6 +51,12 @@ async function loadFile(params: Record<string, string | undefined>, request: Req
     if (contentRange) responseHeaders['Content-Range'] = contentRange
     const acceptRanges = response.headers.get('accept-ranges')
     if (acceptRanges) responseHeaders['Accept-Ranges'] = acceptRanges
+    // The daemon types files by their bytes, so an SVG now arrives as image/svg+xml.
+    // Keep its sandbox so a script inside it can't run on the site's origin.
+    const csp = response.headers.get('content-security-policy')
+    if (csp) responseHeaders['Content-Security-Policy'] = csp
+    const typeOptions = response.headers.get('x-content-type-options')
+    if (typeOptions) responseHeaders['X-Content-Type-Options'] = typeOptions
 
     return new Response(response.body, {
       status: response.status,

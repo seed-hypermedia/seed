@@ -6,13 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
+	"path"
 	"seed/backend/blob"
 	"seed/backend/ipfs"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/gabriel-vasile/mimetype"
 	"github.com/ipfs/boxo/blockservice"
 	blockstore "github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/boxo/exchange"
@@ -36,6 +39,17 @@ const (
 	PublicIPFSCacheControl = "public, max-age=29030400, immutable"
 	// PrivateIPFSCacheControl permits browser caching but prevents shared CDN caches from storing private content.
 	PrivateIPFSCacheControl = "private, max-age=29030400, immutable"
+	// DefaultContentType is served when the type of a file can't be determined.
+	DefaultContentType = "application/octet-stream"
+	// SandboxContentSecurityPolicy is sent with any file whose type could carry script (SVG, XML, text, unknown binaries),
+	// so that navigating to the file directly renders it in an opaque origin with no script execution.
+	// Without it, an uploaded SVG or HTML file would run as the daemon's own origin and could call its API.
+	// Loading such a file in <img> is unaffected: images never execute script anyway.
+	SandboxContentSecurityPolicy = "sandbox"
+
+	// sniffBytes is how much of the file is inspected to determine its type.
+	// This is what the detector reads at most; more doesn't improve accuracy.
+	sniffBytes = 3072
 )
 
 // PublicCIDChecker checks whether a CID is publicly cacheable.
@@ -146,11 +160,30 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 		size = int64(len(n.RawData()))
 	}
 
-	w.Header().Set("Content-Type", "application/octet-stream")
+	filename := r.URL.Query().Get("filename")
+
+	// IPFS addresses bytes, not files: nothing in the DAG says what the content is.
+	// The type is a property of the bytes, so derive it from them at the one place that serves them,
+	// rather than asking every writer to record it and every reader to trust that record.
+	// A download name, when the caller gives one, wins because it's what the user will see.
+	head, body, err := peekHead(response)
+	if err != nil {
+		fm.log.Warn("GetFile: failed to read file head", zap.Error(err), zap.String("cid", cidStr))
+		http.Error(w, "Could not read the data with the given CID: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	response = body
+	contentType := ContentTypeFor(filename, head)
+
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if !isInertContentType(contentType) {
+		w.Header().Set("Content-Security-Policy", SandboxContentSecurityPolicy)
+	}
 	w.Header().Set("ETag", cidStr)
 	w.Header().Set("Cache-Control", fm.cacheControlForCID(ctx, cid))
 
-	if filename := r.URL.Query().Get("filename"); filename != "" {
+	if filename != "" {
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 	}
 
@@ -221,6 +254,86 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 	if _, err := io.Copy(w, response); err != nil {
 		fm.log.Warn("GetFile: failed to write response in full", zap.Error(err), zap.String("cid", cidStr))
 	}
+}
+
+// peekHead reads the beginning of r for type detection and hands back a reader
+// positioned at the start of the content again. Seekable readers (UnixFS files,
+// raw blocks) are rewound so that range requests can still seek on them; anything
+// else gets the consumed bytes stitched back in front.
+func peekHead(r io.Reader) ([]byte, io.Reader, error) {
+	head := make([]byte, sniffBytes)
+	n, err := io.ReadFull(r, head)
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+		return nil, nil, err
+	}
+	head = head[:n]
+
+	if s, ok := r.(io.Seeker); ok {
+		if _, err := s.Seek(0, io.SeekStart); err == nil {
+			return head, r, nil
+		}
+	}
+
+	return head, io.MultiReader(bytes.NewReader(head), r), nil
+}
+
+// ContentTypeFor determines the Content-Type to serve for a file.
+// A filename with a known extension takes precedence; otherwise the type is
+// detected from the leading bytes of the content, falling back to DefaultContentType.
+// Types that would render as a document on the daemon's origin (HTML) are downgraded to plain text.
+func ContentTypeFor(filename string, head []byte) string {
+	if ext := path.Ext(filename); ext != "" {
+		if t := mime.TypeByExtension(ext); t != "" {
+			return neuterContentType(t)
+		}
+	}
+
+	if len(head) == 0 {
+		return DefaultContentType
+	}
+
+	return neuterContentType(mimetype.Detect(head).String())
+}
+
+// neuterContentType replaces types the browser would render as an active document with plain text.
+// There's no reason for the daemon to ever serve a page, and doing so would be a stored XSS on its origin.
+func neuterContentType(contentType string) string {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return DefaultContentType
+	}
+
+	switch mediaType {
+	case "text/html", "application/xhtml+xml":
+		return "text/plain; charset=utf-8"
+	}
+
+	return contentType
+}
+
+// isInertContentType reports whether a type is rendered by the browser without
+// any possibility of script execution, so it needs no Content-Security-Policy.
+// SVG is an image that can carry <script>, so it's deliberately not in this set.
+func isInertContentType(contentType string) bool {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return false
+	}
+
+	if mediaType == "image/svg+xml" {
+		return false
+	}
+
+	switch {
+	case strings.HasPrefix(mediaType, "image/"),
+		strings.HasPrefix(mediaType, "video/"),
+		strings.HasPrefix(mediaType, "audio/"),
+		strings.HasPrefix(mediaType, "font/"),
+		mediaType == "application/pdf":
+		return true
+	}
+
+	return false
 }
 
 func (fm *FileManager) cacheControlForCID(ctx context.Context, c cid.Cid) string {
