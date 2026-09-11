@@ -561,6 +561,13 @@ export const HMDocumentMetadataSchema = z
     icon: z.string().optional(),
     thumbnail: z.string().optional(), // DEPRECATED
     cover: z.string().optional(),
+    coverPosition: z
+      .object({
+        x: z.number().int().min(0).max(100).optional(),
+        y: z.number().int().min(0).max(100).optional(),
+      })
+      .nullable()
+      .optional(),
     siteUrl: z.string().optional(),
     /**
      * Agents server a space advertises for its readers (an http(s) origin). Clients viewing the
@@ -629,6 +636,7 @@ export const DOCUMENT_ATTRIBUTE_DESCRIPTIONS: Readonly<Record<string, string>> =
   icon: 'Square document or space image.',
   thumbnail: 'Deprecated image field kept for older documents.',
   cover: 'Wide cover image shown in headers and cards.',
+  coverPosition: 'Horizontal and vertical focal point for the cover image, as integer percentages.',
   siteUrl: 'Published website URL for a space.',
   agentServerUrl: 'Agents server readers of this space connect to.',
   spaceAgents: 'Agents this space publishes to its readers, by id and order.',

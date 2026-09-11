@@ -1038,6 +1038,7 @@ const METADATA_KEYS: (keyof HMMetadata)[] = [
   'displayPublishTime',
   'icon',
   'cover',
+  'coverPosition',
   'siteUrl',
   'layout',
   'showOutline',
