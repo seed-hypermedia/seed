@@ -1,0 +1,34 @@
+{
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct",
+  "properties": {
+    "key": {
+      "value": "GetDomain",
+      "required": true
+    },
+    "input": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct",
+        "properties": {
+          "domain": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string"
+            },
+            "required": true
+          },
+          "forceCheck": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-boolean"
+            }
+          }
+        }
+      },
+      "required": true
+    },
+    "output": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-domain-info"
+      },
+      "required": true
+    }
+  }
+}

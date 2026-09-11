@@ -1,0 +1,17 @@
+---
+name: "Example: Address"
+summary: "A postal address: street and city (required) plus an optional postal code."
+schemaDefinition: ipfs://bafyreifcx2y5xz33x4dgka7j64mfpjly456kofoqlsreynylpoxbc727xe
+---
+This document describes the **example-address** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:zGVF-gc0 -->
+
+# Shape <!-- id:lFNyvCCx -->
+
+A **closed struct** with these fields: <!-- id:XGrPnmSZ -->
+  - `street` _(required)_ — [string](./hypermedia-string.md) <!-- id:HT49CZz8 -->
+  - `city` _(required)_ — [string](./hypermedia-string.md) <!-- id:qzZ2rGQ3 -->
+  - `postalCode` — [string](./hypermedia-string.md) <!-- id:PeOlj5sn -->
+
+# Depends on <!-- id:Rd4ib7lU -->
+
+- [string](./hypermedia-string.md) <!-- id:WE2Dzd5r -->

@@ -1,0 +1,53 @@
+---
+name: Glossary
+summary: Every Onyx term in one place — kind, schema, meta-schema, variant, generic, primitive, CID, authority, and more.
+---
+**Onyx** — the self-describing type system defined in this directory. <!-- id:SdlfZE4n -->
+
+**Kind** — one of the nine value types in the data model: `null`, `boolean`, `integer`, `float`, `string`, `bytes`, `list`, `map`, `link`. A value is exactly one kind. ([the data model](./data-model.md)) <!-- id:bqWTniMt -->
+
+**Schema** — a value of kind `map` that constrains other values, written with the twelve-key vocabulary — or a bare literal (`"draft"`, `1`, `true`, `null`) that accepts exactly one value. Every schema is itself typed by the meta-schema, and is one of the meta-schema's variants. <!-- id:VEzPEsxm -->
+
+**Meta-schema** — `hypermedia-schema`: the schema that describes what a schema is. A **discriminated union** of nine map variants and the four literal kinds; a valid instance of itself, and the system's axiom — the one block whose type is known out of band. <!-- id:8ezN9NKn -->
+
+**Discriminated union** — a type that is "one of" a fixed set of variant shapes, told apart by a discriminant. In Onyx the discriminant is the `type` tag (plus "has `anyOf`" / "has `var`" / "bare `ref`"). Expressed with `anyOf`. ([the schema language](./schema-language.md)) <!-- id:h8At7AjF -->
+
+**Variant** — one of the member schemas of the meta-schema union: `hypermedia-struct-schema`, `hypermedia-map-schema`, `hypermedia-list-schema`, `hypermedia-scalar-schema`, `hypermedia-link-schema`, `hypermedia-include-schema`, `hypermedia-anyof`, `hypermedia-var-schema`, `hypermedia-literal-schema` — each a closed map — plus the bare `string`, `integer`, `boolean` and `null` kinds, which are literals. <!-- id:wz8rwZiN -->
+
+**`anyOf`** — the union keyword: a list of schemas; a value is valid if it matches any of them. Onyx's one composite construct. A union whose arms are all literals is a fixed set of choices (`{anyOf: ["draft", "published"]}`), which the editors show as a dropdown. <!-- id:h2hqK0Zk -->
+
+**Literal** — a schema that accepts exactly one value, written as the value itself (`"Change"`, `1`, `true`, `null`) or as `{value, description}` when the value deserves an explanation. Only a string, integer, boolean, or null can be a literal. ([the schema language](./schema-language.md)) <!-- id:gzOtVtdg -->
+
+**Generic** — a schema parameterized over a type. Declared with `params` (named type parameters, each with a default), used via `var` (a type-variable reference, `{ "var": "B" }`), and instantiated with `args` (`{ "ref": X, "args": { "B": … } }`). The parameter threads through references and defaults when unbound. Worked example: `Change<Block>` (`hypermedia-change`) instantiated as `example-myapp-change`. ([the schema language](./schema-language.md)) <!-- id:roR5fLFr -->
+
+**Primitive** — one of the standard-library schemas `hypermedia-<kind>.schema.json`, each exactly `{ "type": <kind> }` (e.g. `hypermedia-string`, `hypermedia-boolean`). The canonical, content-addressed block for a kind; reference it (`{ "ref": "hypermedia-string" }`) instead of inlining a type. An _instance_ of the meta-schema — not to be confused with a **variant**, which is a _shape_ the meta-schema is a union of. ([the data model](./data-model.md)) <!-- id:VexhdhZC -->
+
+**Closed map** — a `map` schema with `properties` and no `values`: keys outside `properties` are rejected. The default for structs; what lets the meta-schema reject malformed schemas. Add `values` to make a map open. <!-- id:b0h1HebK -->
+
+**Self-description** — the property that the meta-schema is a valid instance of itself: `hypermedia-schema` matches its own `union` variant, whose `anyOf` items match its `include` variant, whose targets match the other variants. ([the schema language](./schema-language.md)) <!-- id:lRtXYs1R -->
+
+**Include** — a bare reference `{ "ref": "hm://…" }` (no `type`, no refinements). Becomes exactly the referenced schema. ([references](./references.md)) <!-- id:Oj8fzm9C -->
+
+**Extension** — a reference node that _also_ carries refinements (`{ "ref": parent, "properties": {…}, "required": […] }`). A subtype: the parent's fields plus the new ones, `required` unioned, closedness preserved. No `extends` keyword — the presence of refinements is what distinguishes it from a bare include. Example: `example-employee` extends `example-person`. ([the schema language](./schema-language.md)) <!-- id:fI5oH13P -->
+
+**Link** — a value of kind `link`: a **CID** pointing to a separate block. A _typed link_ (`{ "type":"link", "ref":"x" }`) records the expected type of the target, checked lazily. <!-- id:hnTnzi8n -->
+
+**CID** — Content IDentifier: a self-describing hash that names a block by its content. The canonical form of a reference. <!-- id:HpRmXVre -->
+
+**IPLD** — InterPlanetary Linked Data: the data model (the nine kinds) Onyx adopts. Onyx is a schema layer over it. <!-- id:y29ozOuc -->
+
+**DAG-CBOR** — the canonical binary encoding of Onyx blocks on IPFS: a deterministic CBOR profile with native CID links. <!-- id:zM24j7ft -->
+
+**dag-json** — the JSON projection of the same data model, used as the human-editable form in this repo. Renders links as `{"/":"…"}` and bytes as `{"/":{"bytes":"…"}}`. <!-- id:Kk1Lg2px -->
+
+**Envelope** — the reserved-`/`-key JSON spelling of a link or bytes in dag-json. A spelling of a distinct kind, **not** a real map. ([encoding](./encoding.md)) <!-- id:ZkBHl9kD -->
+
+**`hm://` URL** — a **name reference**: how one schema points at another (`hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string`). A name is independent of content, so — unlike a CID — names can form cycles, which is what makes recursion expressible. Local filenames are the dev alias (`hypermedia-string` ⇄ `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string`). <!-- id:_K0v1JJQ -->
+
+**Authority** — a public key that owns and signs everything under its name. A domain like `hyper.media` resolves to one. The library is published under one authority, the Onyx account (`hm://z6MkmZUb…/*`), and its families are told apart by name prefix: `hypermedia-*` for the type language and the Hypermedia Network's blob schemas (see [the Hypermedia chapter](./hypermedia.md)), `seed-*` for the Seed API's read models, and `example-*` for the examples. <!-- id:B-w01awU -->
+
+**Fixpoint problem** — the impossibility of baking a block's own CID into its own content (a hash preimage), which also means a _cycle_ of CIDs has no encoding order. The reason references are **names**, not hashes. ([references](./references.md)) <!-- id:IhPD5TJj -->
+
+**Canonical encoding** — DAG-CBOR's single, deterministic byte form for any value (sorted keys, shortest integers, …). Makes CIDs stable; makes JSON key order and whitespace cosmetic. <!-- id:SuKcFDhF -->
+
+**Struct** — the kind for named fields: `properties` fixes each field, and the struct is closed (unlisted keys rejected) unless it adds a `values` tail. A `map` has no named fields — every value matches one `values` schema. Distinct kinds since `struct` was promoted; naming fields on a `map` is the pre-struct legacy form. <!-- id:kAXo8rDd -->

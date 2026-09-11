@@ -1,0 +1,21 @@
+{
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct",
+  "properties": {
+    "type": {
+      "value": "error",
+      "required": true
+    },
+    "id": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id"
+      },
+      "required": true
+    },
+    "message": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string"
+      },
+      "required": true
+    }
+  }
+}

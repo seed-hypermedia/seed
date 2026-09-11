@@ -1,0 +1,7 @@
+{
+  "anyOf": [
+    "flex-start",
+    "center",
+    "flex-end"
+  ]
+}

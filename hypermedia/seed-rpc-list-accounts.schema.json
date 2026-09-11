@@ -1,0 +1,39 @@
+{
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct",
+  "properties": {
+    "key": {
+      "value": "ListAccounts",
+      "required": true
+    },
+    "input": {
+      "value": {
+        "anyOf": [
+          {
+            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map"
+          },
+          {
+            "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-null"
+          }
+        ]
+      },
+      "required": true
+    },
+    "output": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct",
+        "properties": {
+          "accounts": {
+            "value": {
+              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-list",
+              "items": {
+                "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-metadata-payload"
+              }
+            },
+            "required": true
+          }
+        }
+      },
+      "required": true
+    }
+  }
+}

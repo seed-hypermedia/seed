@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Schema Editor E2E Test Harness</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 20px;
+        font-family:
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+      }
+      #root {
+        max-width: 800px;
+        margin: 0 auto;
+      }
+      .test-harness {
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 20px;
+        min-height: 400px;
+      }
+      /* Radix Dialog/Select/Dropdown portals render unstyled here (no Tailwind
+         build in the harness); make their content visibly framed so failures are
+         legible in traces/screenshots. Functionality does not depend on this. */
+      [role='dialog'] {
+        background: #fff;
+        border: 1px solid #ccc;
+        padding: 16px;
+        z-index: 50;
+      }
+      [role='listbox'],
+      [role='menu'] {
+        background: #fff;
+        border: 1px solid #ccc;
+        z-index: 60;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>

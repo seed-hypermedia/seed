@@ -1,0 +1,36 @@
+{
+  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base",
+  "properties": {
+    "type": {
+      "value": "TableColumn"
+    },
+    "attributes": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct",
+        "properties": {
+          "childrenType": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-children-type"
+            }
+          },
+          "columnCount": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-float"
+            }
+          },
+          "width": {
+            "value": {
+              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-float",
+              "minimum": 0
+            }
+          },
+          "isHeader": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-boolean"
+            }
+          }
+        }
+      }
+    }
+  }
+}

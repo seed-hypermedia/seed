@@ -1048,3 +1048,18 @@ describe('comment permalink version (?v pins the comment version)', () => {
     })
   })
 })
+
+describe('schemaRouteSchema + inspector draft paths', () => {
+  test('parses a schema-by-CID route', () => {
+    expect(navRouteSchema.parse({key: 'schema', cid: 'bafySchema'})).toEqual({key: 'schema', cid: 'bafySchema'})
+  })
+
+  test('new blobs and new instances are inspector paths, not a separate route', () => {
+    expect(navRouteSchema.parse({key: 'inspect-ipfs', ipfsPath: 'new'})).toEqual({key: 'inspect-ipfs', ipfsPath: 'new'})
+    expect(navRouteSchema.parse({key: 'inspect-ipfs', ipfsPath: 'new/bafySchema'})).toEqual({
+      key: 'inspect-ipfs',
+      ipfsPath: 'new/bafySchema',
+    })
+    expect(() => navRouteSchema.parse({key: 'raw-blob'})).toThrow()
+  })
+})

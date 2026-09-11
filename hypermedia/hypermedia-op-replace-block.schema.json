@@ -1,0 +1,20 @@
+{
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct",
+  "properties": {
+    "type": {
+      "value": "ReplaceBlock",
+      "required": true
+    },
+    "block": {
+      "value": {
+        "var": "Block"
+      },
+      "required": true
+    }
+  },
+  "params": {
+    "Block": {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block"
+    }
+  }
+}

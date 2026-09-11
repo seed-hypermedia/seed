@@ -1,0 +1,117 @@
+// @vitest-environment jsdom
+// The schema editor's Root kind: 'signed' → the schema extends the envelope
+// (ref hypermedia-blob, no root type) and pins a `type` tag; 'struct' → a plain
+// struct again; 'extends' → rooted on any pasted base ref. The pinned `type`
+// never shows as an editable field row. Transitions are the pure withRootKind;
+// the component renders the matching controls (tag input / base-ref input).
+import {act} from 'react-dom/test-utils'
+import {createRoot, type Root} from 'react-dom/client'
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+import type {ReactNode} from 'react'
+import {TooltipProvider} from '../../tooltip'
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
+import {UniversalAppProvider} from '@shm/shared/routing'
+import {MAP_URL, STRUCT_URL, fieldSchema, nameToUrl, requiredFieldNames} from '../onyx-engine'
+import {emptyStructSchema, isSignedBlobType, OnyxSchemaEditor, withRootKind} from '../onyx-schema-editor'
+import {isSignedBlobSchema, signedBlobTypeTag} from '../signed-blob'
+;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
+// Full DOM renders of the editor are slow when the suite runs in parallel.
+vi.setConfig({testTimeout: 20_000})
+
+// The type picker searches through the app client; the stub answers nothing.
+const testClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
+const stubUniversalClient = {request: async () => null} as any
+function AppShell({children}: {children: ReactNode}) {
+  return (
+    <QueryClientProvider client={testClient}>
+      <UniversalAppProvider openUrl={() => {}} openRoute={null} universalClient={stubUniversalClient}>
+        <TooltipProvider>{children}</TooltipProvider>
+      </UniversalAppProvider>
+    </QueryClientProvider>
+  )
+}
+
+describe('schema root kind', () => {
+  let container: HTMLDivElement
+  let root: Root
+  beforeEach(() => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  const render = (schema: any, onSchema: (s: any) => void = () => {}) =>
+    act(() =>
+      root.render(
+        <AppShell>
+          <OnyxSchemaEditor schema={schema} onSchema={onSchema} />
+        </AppShell>,
+      ),
+    )
+
+  it('signed extends the envelope and pins a default type tag; struct restores a plain map', () => {
+    let schema: any = emptyStructSchema()
+    schema = withRootKind(schema, 'signed')
+    expect(isSignedBlobType(schema)).toBe(true)
+    expect(schema.ref).toBe(nameToUrl('hypermedia-blob'))
+    expect(schema.type).toBeUndefined()
+    // Schemas carry no name, so the pinned tag starts as the editable default.
+    expect(fieldSchema(schema, 'type')).toBe('Custom')
+    expect(requiredFieldNames(schema)).toContain('type')
+    // The engine sees a real signed-blob schema with the tag.
+    expect(isSignedBlobSchema(schema)).toBe(true)
+    expect(signedBlobTypeTag(schema)).toBe('Custom')
+
+    render(schema)
+    // The pinned type is not offered as an editable field row; the tag input is.
+    expect(
+      Array.from(container.querySelectorAll('[aria-label="Field name"]')).map((i) => (i as HTMLInputElement).value),
+    ).toEqual([])
+    expect((container.querySelector('[aria-label="Type tag"]') as HTMLInputElement).value).toBe('Custom')
+
+    schema = withRootKind(schema, 'struct')
+    expect(isSignedBlobType(schema)).toBe(false)
+    expect(schema.type).toBe(STRUCT_URL)
+    expect(fieldSchema(schema, 'type')).toBeUndefined()
+    expect(requiredFieldNames(schema)).not.toContain('type')
+  })
+
+  it('extends roots the schema on any base ref, editable in the type input, and fields survive', () => {
+    let schema: any = {
+      ...emptyStructSchema(),
+      properties: {permissions: {value: {type: MAP_URL}, required: true}},
+    }
+    schema = withRootKind(schema, 'extends')
+    expect(schema.type).toBeUndefined()
+    expect(schema.ref).toBe('')
+    expect(fieldSchema(schema, 'permissions')).toBeTruthy()
+    expect(requiredFieldNames(schema)).toContain('permissions')
+
+    let latest: any = schema
+    render(schema, (s) => (latest = s))
+    const refInput = container.querySelector('[aria-label="Root type"]') as HTMLInputElement
+    expect(refInput).toBeTruthy()
+    // Pasting a base ref and pressing Enter roots the extension on it.
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
+      setter.call(refInput, 'ipfs://bafyBase')
+      refInput.dispatchEvent(new Event('input', {bubbles: true}))
+    })
+    act(() => {
+      refInput.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}))
+    })
+    expect(latest.ref).toBe('ipfs://bafyBase')
+    expect(latest.type).toBeUndefined()
+
+    // Leaving signed for extends keeps a non-envelope base; envelope refs never leak into it.
+    const signed = withRootKind(emptyStructSchema(), 'signed')
+    const extended = withRootKind(signed, 'extends')
+    expect(extended.ref).toBe('')
+    expect(fieldSchema(extended, 'type')).toBeUndefined()
+    expect(requiredFieldNames(extended)).not.toContain('type')
+  })
+})

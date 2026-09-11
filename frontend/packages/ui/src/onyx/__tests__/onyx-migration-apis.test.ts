@@ -1,0 +1,98 @@
+import {describe, expect, it} from 'vitest'
+import {ONYX_SCHEMAS, isOnyxSchema, kindOf, requiredFieldNames, validate} from '../onyx-engine'
+import {documentMetadataSchema} from '../onyx-metadata-schema-keys'
+import {onyxSubschema, parseOnyxError} from '../onyx-schema-context'
+import {literalOptions, suggestedFieldType} from '../onyx-value-editor-schema'
+
+const S = (n: string) => ONYX_SCHEMAS[n]
+
+describe('isOnyxSchema', () => {
+  it('true for a real Onyx schema, false for data and for v1-dialect shapes', () => {
+    expect(isOnyxSchema(S('example-person'))).toBe(true)
+    expect(isOnyxSchema(S('hypermedia-string'))).toBe(true)
+    expect(isOnyxSchema({name: 'Alice', age: 30})).toBe(false) // plain data
+    expect(isOnyxSchema({type: 'object', properties: {}})).toBe(false) // v1 JSON-Schema dialect
+    expect(isOnyxSchema(null)).toBe(false)
+    expect(isOnyxSchema('hi')).toBe(false)
+  })
+})
+
+describe('parseOnyxError', () => {
+  it('parses the $.a.b[2] path prefix and the message', () => {
+    expect(parseOnyxError('$.name: expected string, got integer')).toEqual({
+      path: ['name'],
+      message: 'expected string, got integer',
+    })
+    expect(parseOnyxError('$[0]: expected map, got list')).toEqual({path: [0], message: 'expected map, got list'})
+    expect(parseOnyxError('$.a.b[2].c: nope')).toEqual({path: ['a', 'b', 2, 'c'], message: 'nope'})
+    expect(parseOnyxError('$: matches none of the 4 variants')).toEqual({
+      path: [],
+      message: 'matches none of the 4 variants',
+    })
+  })
+
+  it('round-trips real validate() errors into the right leaf path', () => {
+    const errs = validate(S('example-geo'), {lat: 'x', lng: 0})
+    expect(errs.length).toBeGreaterThan(0)
+    expect(parseOnyxError(errs[0]!).path).toEqual(['lat'])
+  })
+})
+
+describe('onyxSubschema', () => {
+  it('descends a map to a field and resolves its ref', () => {
+    const sub = onyxSubschema(S('example-person'), ['name'], {})
+    expect(sub && sub !== 'unresolved' && kindOf(sub.type)).toBe('string')
+  })
+  it('undefined for an unknown key on a closed struct', () => {
+    expect(onyxSubschema(S('example-geo'), ['nope'], {})).toBeUndefined()
+  })
+})
+
+describe('suggestedFieldType', () => {
+  it('maps Onyx kinds to add-form field types', () => {
+    expect(suggestedFieldType(S('hypermedia-string'))).toBe('text')
+    expect(suggestedFieldType(S('hypermedia-integer'))).toBe('number')
+    expect(suggestedFieldType(S('hypermedia-float'))).toBe('number')
+    expect(suggestedFieldType(S('hypermedia-boolean'))).toBe('toggle')
+    expect(suggestedFieldType(S('hypermedia-map'))).toBe('object')
+    expect(suggestedFieldType(S('hypermedia-list'))).toBe('list')
+    expect(suggestedFieldType(S('hypermedia-null'))).toBe('null')
+    expect(suggestedFieldType(S('hypermedia-link'))).toBe('link')
+    expect(suggestedFieldType(S('hypermedia-bytes'))).toBe('bytes')
+  })
+})
+
+describe('documentMetadataSchema (document-schema extension)', () => {
+  it('inherits the base metadata fields and adds the document type fields', () => {
+    const merged = documentMetadataSchema(S('example-employee'))
+    // inherited from hypermedia-metadata (the base document schema)
+    expect(merged.properties).toHaveProperty('name')
+    expect(merged.properties).toHaveProperty('summary')
+    // added by the employee schema (which extends example-person)
+    expect(merged.properties).toHaveProperty('employeeId')
+    expect(merged.properties).toHaveProperty('department')
+    expect(merged.properties).toHaveProperty('name') // person's name too, same key
+    // employee's required field surfaces as required
+    expect(requiredFieldNames(merged)).toContain('employeeId')
+    // open: arbitrary keys (e.g. schemaDefinition itself) are accepted
+    expect(merged.values).toEqual({})
+    expect(
+      validate(merged, {name: 'Acme Co', schemaDefinition: 'ipfs://x', employeeId: '7', department: 'Eng'}),
+    ).toEqual([])
+  })
+
+  it('folds in schema-keyed extra properties', () => {
+    const merged = documentMetadataSchema(S('example-geo'), {'ipfs://cidkey': S('hypermedia-string')})
+    expect(merged.properties).toHaveProperty('ipfs://cidkey')
+  })
+})
+
+describe('literalOptions', () => {
+  it('returns dropdown options for a union of literals', () => {
+    const opts = literalOptions(S('example-status')) // anyOf: draft/published/archived
+    expect(opts?.map((o) => o.value)).toEqual(['draft', 'published', 'archived'])
+  })
+  it('null when the schema is not a union of literals', () => {
+    expect(literalOptions(S('hypermedia-string'))).toBeNull()
+  })
+})

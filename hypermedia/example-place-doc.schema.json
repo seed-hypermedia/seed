@@ -1,0 +1,59 @@
+{
+  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-document",
+  "properties": {
+    "metadata": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata",
+        "properties": {
+          "kind": {
+            "value": {
+              "anyOf": [
+                "city",
+                "town",
+                "village",
+                "fortress",
+                "ruin",
+                "wilderness",
+                "realm"
+              ]
+            },
+            "required": true
+          },
+          "founded": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-date"
+            },
+            "description": "Founding date."
+          },
+          "region": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-hm-url",
+              "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-place-doc"
+            },
+            "description": "The larger place this one lies within."
+          },
+          "ruler": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-hm-url",
+              "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-faction-doc"
+            },
+            "description": "The faction that holds this place."
+          },
+          "coordinates": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-ipfs",
+              "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-geo"
+            },
+            "description": "An `ipfs://` object conforming to Geo point."
+          },
+          "map": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-ipfs"
+            },
+            "description": "A map image file on IPFS."
+          }
+        }
+      }
+    }
+  }
+}

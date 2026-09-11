@@ -1,0 +1,50 @@
+{
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct",
+  "properties": {
+    "strength": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-integer",
+        "minimum": 1,
+        "maximum": 10
+      },
+      "required": true,
+      "description": "1–10"
+    },
+    "intellect": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-integer",
+        "minimum": 1,
+        "maximum": 10
+      },
+      "required": true,
+      "description": "1–10"
+    },
+    "charisma": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-integer",
+        "minimum": 1,
+        "maximum": 10
+      },
+      "required": true,
+      "description": "1–10"
+    },
+    "alignment": {
+      "value": {
+        "anyOf": [
+          "lawful",
+          "neutral",
+          "chaotic"
+        ]
+      }
+    },
+    "traits": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-list",
+        "items": {
+          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string"
+        }
+      },
+      "description": "Free-form descriptors."
+    }
+  }
+}

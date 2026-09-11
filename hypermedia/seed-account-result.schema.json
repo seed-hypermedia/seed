@@ -1,0 +1,52 @@
+{
+  "anyOf": [
+    {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct",
+      "properties": {
+        "type": {
+          "value": "account",
+          "required": true
+        },
+        "id": {
+          "value": {
+            "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id"
+          },
+          "required": true
+        },
+        "metadata": {
+          "value": {
+            "anyOf": [
+              {
+                "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata"
+              },
+              {
+                "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-null"
+              }
+            ]
+          },
+          "required": true
+        },
+        "hasSite": {
+          "value": {
+            "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-boolean"
+          }
+        }
+      }
+    },
+    {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct",
+      "properties": {
+        "type": {
+          "value": "account-not-found",
+          "required": true
+        },
+        "uid": {
+          "value": {
+            "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string"
+          },
+          "required": true
+        }
+      }
+    }
+  ]
+}

@@ -69,9 +69,19 @@ export default defineConfig(({command, mode}) => {
     },
     // Define environment variables that will be replaced at build time
     define: {
-      // Define process object for the renderer process (browser environment)
+      // Define process object for the renderer process (browser environment).
+      // The renderer reads the daemon/API/appdata configuration through `process.env` and
+      // `import.meta.env` in @shm/shared/constants; in a packaged build `import.meta.env` is
+      // empty, so these must be baked into `process.env` here or the renderer falls back to the
+      // default ports (56001…) and cannot reach a daemon started on non-default ports — which is
+      // exactly what package:test / package:e2e do. Production leaves these unset, so the keys
+      // are simply absent and the defaults apply as before.
       process: JSON.stringify({
-        env: {},
+        env: Object.fromEntries(
+          Object.entries(process.env).filter(
+            ([key, value]) => value !== undefined && /^(VITE_DESKTOP_|DAEMON_)/.test(key),
+          ),
+        ),
         platform: process.platform,
         arch: process.arch,
         versions: process.versions,

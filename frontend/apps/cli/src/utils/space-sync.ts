@@ -13,7 +13,15 @@
  * A `SpaceLayout` maps document paths to files. The default layout puts the
  * home document at `index.md` and `/a/b` at `a/b.md`; a schema blob goes to
  * `<file>.schema.json` beside the document that defines it.
+ *
+ * Schemas travel with their documents. Export writes the DAG-CBOR blob a
+ * document's `metadata.schemaDefinition` points at as `<file>.schema.json`;
+ * import encodes that file back to canonical DAG-CBOR, publishes the blob with
+ * the document, and sets `schemaDefinition: ipfs://<cid>` (the file is the
+ * truth, whatever the frontmatter says). A `{$type, value}` file is an
+ * instance, not a type: its document conforms to `$type` (`metadata.schema`).
  */
+import {effectiveSchemaRef, loadSchema, metadataViolations} from './onyx'
 import {existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
 import {dirname, join, normalize, relative, resolve} from 'node:path'
 import {
@@ -40,10 +48,30 @@ import {
   toAPIBlockNode,
 } from '@seed-hypermedia/client/block-diff'
 import type {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
+import * as dagCbor from '@ipld/dag-cbor'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {CID} from 'multiformats/cid'
+import {sha256} from 'multiformats/hashes/sha2'
 import {hmBlockNodeToBlockNode} from './block-diff'
 import {resolveFileLinks} from './file-links'
+
+/** Run `fn` over `items` with at most `limit` in flight; results in input order. */
+async function mapPool<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length)
+  let next = 0
+  const workers = Array.from({length: Math.min(limit, items.length)}, async () => {
+    for (;;) {
+      const i = next++
+      if (i >= items.length) return
+      out[i] = await fn(items[i]!, i)
+    }
+  })
+  await Promise.all(workers)
+  return out
+}
+
+/** How many documents are fetched or published at once. */
+const CONCURRENCY = 6
 
 // ─── Layout ──────────────────────────────────────────────────────────────────
 
@@ -110,6 +138,73 @@ function relativeToHmLinks(nodes: HMBlockNode[], file: string, account: string, 
   })
 }
 
+/**
+ * Relative links to files that are not documents (`./images/x.png`, `./spec.pdf`)
+ * become `file://` links to their absolute path, which the import uploads as
+ * blobs (resolveFileLinks). The parser already writes `file://./x` for a
+ * relative image; anything still relative that exists on disk is treated the
+ * same. Links that resolve to nothing are left alone for the link check.
+ */
+function relativeAssetsToFileLinks(nodes: HMBlockNode[], dir: string, file: string): HMBlockNode[] {
+  const fileDir = resolve(dir, dirname(file))
+  return rewriteLinks(nodes, (link) => {
+    let rel: string | null = null
+    if (/^file:\/\/(?!\/)/.test(link)) rel = link.slice('file://'.length)
+    else if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(link) && !link.startsWith('/') && !link.startsWith('#')) rel = link
+    if (rel === null || /\.md(#.*)?$/.test(rel)) return link
+    const abs = resolve(fileDir, rel.split('#')[0]!)
+    return existsSync(abs) && statSync(abs).isFile() ? `file://${abs}` : link
+  })
+}
+
+export type BrokenLink = {file: string; link: string; reason: string}
+
+/** Every link in a tree: block links and annotation links. */
+function collectLinks(nodes: HMBlockNode[], out: string[] = []): string[] {
+  for (const node of nodes) {
+    const block = node.block as Record<string, unknown>
+    if (typeof block.link === 'string' && block.link) out.push(block.link)
+    for (const a of (block.annotations as Array<Record<string, unknown>> | undefined) || []) {
+      if (typeof a.link === 'string' && a.link) out.push(a.link)
+    }
+    if (node.children) collectLinks(node.children, out)
+  }
+  return out
+}
+
+/**
+ * Links that would be broken once published: a link into this space whose
+ * path no file in the directory publishes, a relative file link that resolves
+ * to nothing, or a `file://` asset that does not exist. External links
+ * (http, ipfs, other spaces) are not checked.
+ */
+export function findBrokenLinks(
+  file: string,
+  nodes: HMBlockNode[],
+  account: string,
+  publishedPaths: Set<string>,
+): BrokenLink[] {
+  const broken: BrokenLink[] = []
+  for (const link of collectLinks(nodes)) {
+    const space = new RegExp(`^hm://${account}(/[^#?]*)?([#?].*)?$`).exec(link)
+    if (space) {
+      const path = (space[1] || '').replace(/\/$/, '')
+      if (!publishedPaths.has(path)) {
+        broken.push({file, link, reason: `no document at ${path || '(home)'} in the directory`})
+      }
+      continue
+    }
+    if (link.startsWith('file://')) {
+      if (!existsSync(link.slice('file://'.length))) broken.push({file, link, reason: 'file not found'})
+      continue
+    }
+    if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(link) && !link.startsWith('#') && !link.startsWith('/')) {
+      broken.push({file, link, reason: 'relative link resolves to no published document or file'})
+    }
+  }
+  return broken
+}
+
 /** `hm://<account>/<path>` → `./other.md` (relative to `file`) when the layout maps the path to a file. */
 function hmToRelativeLinks(nodes: HMBlockNode[], file: string, account: string, layout: SpaceLayout): HMBlockNode[] {
   if (!layout.fileForLinkPath) return nodes
@@ -154,11 +249,9 @@ export async function listSpaceDocuments(client: SeedClient, uid: string): Promi
   const home = await client.request('Resource', hmId(uid))
   if (home.type === 'document') docs.push(home.document)
   const query = await client.request('Query', {includes: [{space: uid, path: '', mode: 'AllDescendants'}]})
-  for (const info of query?.results || []) {
-    if (info.type !== 'document') continue
-    const res = await client.request('Resource', hmId(uid, {path: info.path}))
-    if (res.type === 'document') docs.push(res.document)
-  }
+  const infos = (query?.results || []).filter((info) => info.type === 'document')
+  const fetched = await mapPool(infos, CONCURRENCY, (info) => client.request('Resource', hmId(uid, {path: info.path})))
+  for (const res of fetched) if (res.type === 'document') docs.push(res.document)
   return docs
 }
 
@@ -262,7 +355,7 @@ export async function exportDocument(
 export async function exportSpace(opts: ExportOptions): Promise<ExportResult> {
   const result = emptyExportResult()
   const docs = await listSpaceDocuments(opts.client, opts.uid)
-  for (const doc of docs) await exportDocument(opts, doc, result)
+  await mapPool(docs, CONCURRENCY, (doc) => exportDocument(opts, doc, result))
   return result
 }
 
@@ -316,6 +409,48 @@ export async function grantWriters(
   return granted
 }
 
+// ─── Schemas ─────────────────────────────────────────────────────────────────
+
+export type SchemaFile =
+  /** A type: the document DEFINES this schema (`schemaDefinition: ipfs://<cid>`). */
+  | {kind: 'type'; cid: string; data: Uint8Array}
+  /** An instance (`{$type, value}`): the document CONFORMS to `$type` (`schema`). */
+  | {kind: 'instance'; type: string}
+
+/** Canonical DAG-CBOR encoding of a schema object and its CID (v1, sha2-256, dag-cbor). */
+export async function encodeSchemaBlob(obj: unknown): Promise<{data: Uint8Array; cid: string}> {
+  const data = dagCbor.encode(obj)
+  const hash = await sha256.digest(data)
+  return {data: new Uint8Array(data), cid: CID.create(1, dagCbor.code, hash).toString()}
+}
+
+/** The schema file beside a markdown file, when the layout maps one and it exists. */
+export async function readSchemaFile(dir: string, mdFile: string, layout: SpaceLayout): Promise<SchemaFile | null> {
+  const schemaFile = layout.schemaFileFor(mdFile)
+  if (!schemaFile) return null
+  const full = resolve(dir, schemaFile)
+  if (!existsSync(full)) return null
+  const obj = JSON.parse(readFileSync(full, 'utf8')) as Record<string, unknown> | null
+  if (obj && typeof obj === 'object' && typeof obj.$type === 'string' && 'value' in obj) {
+    return {kind: 'instance', type: obj.$type}
+  }
+  const {data, cid} = await encodeSchemaBlob(obj)
+  return {kind: 'type', cid, data}
+}
+
+/** The metadata a schema file implies for its document. */
+export function applySchemaMetadata(metadata: HMMetadata, schema: SchemaFile | null): HMMetadata {
+  if (!schema) return metadata
+  const out = {...(metadata as Record<string, unknown>)}
+  if (schema.kind === 'instance') {
+    out.schema = schema.type
+    delete out.schemaDefinition
+  } else {
+    out.schemaDefinition = `ipfs://${schema.cid}`
+  }
+  return out as HMMetadata
+}
+
 // ─── Import ──────────────────────────────────────────────────────────────────
 
 export type ImportOptions = {
@@ -332,7 +467,73 @@ export type ImportOptions = {
   metadataFor?: (file: string, metadata: HMMetadata) => HMMetadata
   /** Restrict to these files (relative to dir). */
   only?: string[]
+  /** Validate every document against its effective schema first; refuse to publish on a violation. */
+  check?: boolean
   log?: (line: string) => void
+}
+
+export type SchemaViolation = {file: string; path: string; schema: string; via: 'own' | 'inherited'; errors: string[]}
+
+/**
+ * Every document in `files` that would violate its effective schema once published: its own
+ * `schema`, else the `childrenSchema` of its parent — the parent file in the directory when
+ * there is one, else the parent document on the site. A schema that cannot be resolved is
+ * reported as a violation too: a typed document whose type is unreachable is not known to
+ * conform. Advisory by nature (see typed-documents.md); `--check` turns it into a gate.
+ */
+export async function checkSchemas(
+  opts: ImportOptions,
+  files?: string[],
+  prepared: Map<string, ReturnType<typeof prepareFile>> = new Map(),
+): Promise<SchemaViolation[]> {
+  const layout = opts.layout || defaultLayout
+  const all = listMarkdownFiles(opts.dir)
+  const targets = files ?? all
+  const metadataOf = new Map<string, Record<string, unknown>>()
+  const fileOfPath = new Map<string, string>()
+  for (const file of all) {
+    const p = layout.pathForFile(file)
+    if (p !== null) fileOfPath.set(p, file)
+  }
+  for (const file of all) {
+    let prep = prepared.get(file)
+    if (!prep) prepared.set(file, (prep = prepareFile(opts, layout, file)))
+    const schema = await readSchemaFile(opts.dir, file, layout)
+    metadataOf.set(file, applySchemaMetadata(prep.metadata, schema) as Record<string, unknown>)
+  }
+  const out: SchemaViolation[] = []
+  for (const file of targets) {
+    const path = layout.pathForFile(file)
+    if (path === null) continue
+    const metadata = metadataOf.get(file) ?? {}
+    let ref: string | null = typeof metadata.schema === 'string' ? metadata.schema : null
+    let via: 'own' | 'inherited' = 'own'
+    if (!ref && path) {
+      const parentPath = path.replace(/\/[^/]+$/, '')
+      const parentFile = fileOfPath.get(parentPath)
+      const parentMeta = parentFile ? metadataOf.get(parentFile) : undefined
+      if (parentMeta && typeof parentMeta.childrenSchema === 'string') {
+        ref = parentMeta.childrenSchema
+        via = 'inherited'
+      } else {
+        const id = hmId(opts.account, {path: path.replace(/^\//, '').split('/')})
+        const effective = await effectiveSchemaRef(opts.client, id, metadata).catch(() => null)
+        if (effective?.ref && effective.source !== 'none') {
+          ref = effective.ref
+          via = effective.source
+        }
+      }
+    }
+    if (!ref) continue
+    try {
+      const loaded = await loadSchema(opts.client, ref)
+      const errors = metadataViolations(loaded.schema, metadata, loaded.registry)
+      if (errors.length) out.push({file, path, schema: ref, via, errors})
+    } catch (error) {
+      out.push({file, path, schema: ref, via, errors: [(error as Error).message]})
+    }
+  }
+  return out
 }
 
 export type ImportResult = {
@@ -484,6 +685,44 @@ export function metadataDiffOp(
   return attrs.length ? {type: 'SetAttributes', attrs} : null
 }
 
+/** A file parsed and its links rewritten for `account`: what the import publishes. */
+function prepareFile(opts: ImportOptions, layout: SpaceLayout, file: string) {
+  const raw = readFileSync(resolve(opts.dir, file), 'utf8')
+  const {tree, metadata} = parseMarkdown(raw)
+  const nodes = relativeAssetsToFileLinks(
+    relativeToHmLinks(markdownBlockNodesToHMBlockNodes(tree), file, opts.account, layout),
+    opts.dir,
+    file,
+  )
+  return {raw, tree, metadata, nodes}
+}
+
+/**
+ * Every link in `files` that would be broken once published (see
+ * findBrokenLinks), against the set of paths the whole directory publishes.
+ */
+export function checkLinks(
+  opts: ImportOptions,
+  files?: string[],
+  prepared: Map<string, ReturnType<typeof prepareFile>> = new Map(),
+): BrokenLink[] {
+  const layout = opts.layout || defaultLayout
+  const all = listMarkdownFiles(opts.dir)
+  const publishedPaths = new Set<string>()
+  for (const f of all) {
+    const p = layout.pathForFile(f)
+    if (p !== null) publishedPaths.add(p)
+  }
+  const broken: BrokenLink[] = []
+  for (const file of files ?? all) {
+    if (layout.pathForFile(file) === null) continue
+    let prep = prepared.get(file)
+    if (!prep) prepared.set(file, (prep = prepareFile(opts, layout, file)))
+    broken.push(...findBrokenLinks(file, prep.nodes, opts.account, publishedPaths))
+  }
+  return broken
+}
+
 export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
   const layout = opts.layout || defaultLayout
   const log = opts.log || (() => {})
@@ -492,26 +731,56 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
   const allFiles = new Set(listMarkdownFiles(opts.dir))
   let index: Promise<BlockIndex> | undefined
 
-  for (const file of files) {
+  // Nothing is published while a link would break.
+  const prepared = new Map<string, ReturnType<typeof prepareFile>>()
+  const broken = checkLinks(opts, files, prepared)
+  if (broken.length) {
+    const lines = broken.slice(0, 50).map((b) => `  ${b.file}: ${b.link}  (${b.reason})`)
+    if (broken.length > 50) lines.push(`  … and ${broken.length - 50} more`)
+    throw new Error(
+      `${broken.length} broken link${broken.length === 1 ? '' : 's'} in ${opts.dir}:\n${lines.join('\n')}`,
+    )
+  }
+  // With --check, nothing is published while a document would violate its schema either.
+  if (opts.check) {
+    const bad = await checkSchemas(opts, files, prepared)
+    if (bad.length) {
+      const lines = bad.flatMap((v) => [`  ${v.file} (${v.schema}, ${v.via}):`, ...v.errors.map((e) => `    ✗ ${e}`)])
+      throw new Error(
+        `${bad.length} document${bad.length === 1 ? '' : 's'} in ${opts.dir} would violate a schema:\n${lines.join(
+          '\n',
+        )}`,
+      )
+    }
+    log(`schema check passed for ${(files ?? listMarkdownFiles(opts.dir)).length} files`)
+  }
+
+  const processFile = async (file: string) => {
     const path = layout.pathForFile(file)
     if (path === null) {
       result.skipped.push(file)
-      continue
+      return
     }
-    const raw = readFileSync(resolve(opts.dir, file), 'utf8')
-    const {tree, metadata: fileMetadata} = parseMarkdown(raw)
-    const metadata = opts.metadataFor ? opts.metadataFor(file, fileMetadata) : fileMetadata
-    const resolved = await resolveFileLinks(
-      relativeToHmLinks(markdownBlockNodesToHMBlockNodes(tree), file, opts.account, layout),
-    )
+    let prep = prepared.get(file)
+    if (!prep) prepared.set(file, (prep = prepareFile(opts, layout, file)))
+    const {raw, tree, metadata: fileMetadata, nodes} = prep
+    const schema = await readSchemaFile(opts.dir, file, layout)
+    const metadata = applySchemaMetadata(opts.metadataFor ? opts.metadataFor(file, fileMetadata) : fileMetadata, schema)
+    // The schema blob rides along with the change that binds it.
+    const schemaBlobs = schema?.kind === 'type' ? [{data: schema.data, cid: schema.cid}] : []
+    const resolved = await resolveFileLinks(nodes)
     const newTree = resolved.nodes.map(hmBlockNodeToBlockNode)
     const id = hmId(opts.account, {path: path ? path.replace(/^\//, '').split('/') : []})
 
     const existing = await opts.client.request('Resource', id)
     const label = path || '(home)'
+    // The directory is the truth about what lives at a path: a deleted document
+    // (tombstone) or a redirect there is replaced by a fresh one. The new Ref's
+    // generation is later than theirs, which is what takes the path over.
+    const absent = existing.type === 'not-found' || existing.type === 'tombstone' || existing.type === 'redirect'
 
     let movedFrom: string | null = null
-    if (existing.type === 'not-found') {
+    if (absent) {
       // No document here yet: a rename/move of an existing one, or a new one.
       const ids = explicitBlockIds(raw, tree)
       if (ids.length) {
@@ -525,14 +794,14 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
       }
     }
 
-    if (existing.type === 'not-found' && movedFrom === null) {
+    if (absent && movedFrom === null) {
       const ops: DocumentOperation[] = []
       const metaOp = metadataDiffOp(undefined, metadata as Record<string, unknown>)
       if (metaOp) ops.push(metaOp)
       ops.push(...flattenToOperations(newTree))
       log(`create  ${label}  (${file})`)
       result.created.push(file)
-      if (opts.dryRun) continue
+      if (opts.dryRun) return
       const {unsignedBytes, ts} = createChangeOps({ops})
       const changeBlock = await createChange(unsignedBytes, opts.signer)
       const ref = await createVersionRef(
@@ -550,21 +819,27 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
         blobs: [
           {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
           ...ref.blobs,
+          ...schemaBlobs,
           ...resolved.blobs.map((b) => ({data: b.data, cid: b.cid})),
         ],
       })
-      continue
+      return
     }
 
     const baseId =
       movedFrom === null ? id : hmId(opts.account, {path: movedFrom ? movedFrom.replace(/^\//, '').split('/') : []})
-    const base = await resolveEditableDocument(opts.client, baseId)
+    // The Resource call already returned the current document, which is all a
+    // diff needs. The editable state (genesis, heads, depth) costs a fetch of
+    // the whole change history, so it is resolved only to publish — which for
+    // an unchanged document never happens.
+    let base: Awaited<ReturnType<typeof resolveEditableDocument>> | undefined
+    const getBase = async () => (base ??= await resolveEditableDocument(opts.client, baseId))
     if (movedFrom !== null) {
       log(`move    ${movedFrom || '(home)'} -> ${label}  (${file})`)
       result.moved.push(`${movedFrom} -> ${path}`)
-      if (!opts.dryRun) await publishMove(opts, movedFrom, path, base.document)
+      if (!opts.dryRun) await publishMove(opts, movedFrom, path, (await getBase()).document)
     }
-    const oldDoc = base.document
+    const oldDoc = movedFrom === null && existing.type === 'document' ? existing.document : (await getBase()).document
     const oldNodes = (oldDoc.content || []).map(toAPIBlockNode)
     const oldMap = createBlocksMap(oldNodes)
     // A hand-written file carries no block ids: match its blocks to the
@@ -582,13 +857,13 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     if (ops.length === 0) {
       log(`same    ${label}`)
       result.unchanged.push(file)
-      continue
+      return
     }
     log(`update  ${label}  (${file}: ${ops.length} op${ops.length === 1 ? '' : 's'})`)
     result.updated.push(file)
-    if (opts.dryRun) continue
+    if (opts.dryRun) return
 
-    const state = base.state
+    const state = (await getBase()).state
     const {unsignedBytes, ts} = createChangeOps({
       ops,
       genesisCid: CID.parse(state.genesis),
@@ -611,9 +886,11 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
       blobs: [
         {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
         ...ref.blobs,
+        ...schemaBlobs,
         ...resolved.blobs.map((b) => ({data: b.data, cid: b.cid})),
       ],
     })
   }
+  await mapPool(files, CONCURRENCY, processFile)
   return result
 }

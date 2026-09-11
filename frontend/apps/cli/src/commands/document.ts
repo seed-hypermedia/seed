@@ -34,6 +34,7 @@ import {documentToMarkdown} from '../markdown'
 import {keyOptions, resolveSigningKey} from '../utils/keys'
 import {resolveIdWithClient} from '../utils/resolve-id'
 import {createSignerFromKey} from '../utils/signer'
+import {META_SCHEMA, encodeBlob, loadEffectiveSchema, metadataViolations, readJsonFile, violations} from '../utils/onyx'
 import {resolveDocumentState} from '../utils/depth'
 import {parseMarkdown, flattenToOperations, type BlockNode} from '../utils/markdown'
 import {parseBlocksJson, hmBlockNodesToOperations} from '../utils/blocks-json'
@@ -388,6 +389,16 @@ export function registerDocumentCommands(program: Command) {
     .option('--seed-experimental-home-order <value>', 'Home ordering (UpdatedFirst, CreatedFirst)')
     .option('--import-categories <value>', 'Import categories (comma-separated)')
     .option('--import-tags <value>', 'Import tags (comma-separated)')
+    .option(
+      '--metadata <json>',
+      'Any metadata attributes, as a JSON object (custom keys included); merged over frontmatter and flags',
+    )
+    .option('--schema <ref>', 'The schema this document conforms to (a type document hm:// URL or ipfs://<cid>)')
+    .option('--children-schema <ref>', 'The schema this document’s direct children conform to')
+    .option(
+      '--schema-definition <file>',
+      'Publish this dag-json schema file as a blob and bind it as the document’s schemaDefinition',
+    )
     .option('--grobid-url <url>', 'GROBID server URL for PDF extraction')
     .option('--dry-run', 'Preview extracted content without publishing')
     .option('--force', 'Overwrite existing document at the same path (creates new lineage)')
@@ -405,8 +416,9 @@ export function registerDocumentCommands(program: Command) {
           quiet: globalOpts.quiet,
         })
 
-        // Merge metadata: defaults < input (frontmatter/PDF) < CLI flags
+        // Merge metadata: defaults < input (frontmatter/PDF) < CLI flags < --metadata
         const metadata = mergeMetadata(input.metadata, options, {name: 'Untitled'})
+        const schemaBlob = await applySchemaDefinition(metadata, options.schemaDefinition)
 
         // ── Dry-run: preview and exit ──
         if (options.dryRun) {
@@ -507,6 +519,7 @@ export function registerDocumentCommands(program: Command) {
           blobs: [
             {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
             ...refInput.blobs,
+            ...(schemaBlob ? [schemaBlob] : []),
             ...input.fileBlobs.map((b) => ({data: b.data, cid: b.cid})),
             ...metaBlobs.map((b) => ({data: b.data, cid: b.cid})),
           ],
@@ -546,6 +559,16 @@ export function registerDocumentCommands(program: Command) {
     .option('--name <value>', 'Set document title')
     .option('--summary <value>', 'Set document summary')
     .option('--display-author <value>', 'Display author name')
+    .option(
+      '--metadata <json>',
+      'Any metadata attributes, as a JSON object (custom keys included); merged over frontmatter and flags',
+    )
+    .option('--schema <ref>', 'The schema this document conforms to (a type document hm:// URL or ipfs://<cid>)')
+    .option('--children-schema <ref>', 'The schema this document’s direct children conform to')
+    .option(
+      '--schema-definition <file>',
+      'Publish this dag-json schema file as a blob and bind it as the document’s schemaDefinition',
+    )
     .option('--display-publish-time <value>', 'Display publish time (YYYY-MM-DD)')
     .option('--icon <value>', 'Document icon (ipfs:// or file:// URL)')
     .option('--cover <value>', 'Cover image (ipfs:// or file:// URL)')
@@ -624,8 +647,9 @@ export function registerDocumentCommands(program: Command) {
           }
         }
 
-        // Merge metadata: input (frontmatter) < CLI flags
+        // Merge metadata: input (frontmatter) < CLI flags < --metadata
         const merged = mergeMetadata(inputMeta, options)
+        const schemaBlob = await applySchemaDefinition(merged, options.schemaDefinition)
 
         // Resolve file:// links in metadata
         if (Object.keys(merged).length > 0) {
@@ -646,7 +670,9 @@ export function registerDocumentCommands(program: Command) {
         }
 
         if (ops.length === 0) {
-          printError('No updates specified. Use --name, --summary, -f <file>, or --delete-blocks.')
+          printError(
+            'No updates specified. Use --name, --summary, --metadata, --schema-definition, -f <file>, or --delete-blocks.',
+          )
           process.exit(1)
         }
 
@@ -680,6 +706,7 @@ export function registerDocumentCommands(program: Command) {
           blobs: [
             {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
             ...refInput.blobs,
+            ...(schemaBlob ? [schemaBlob] : []),
             ...fileBlobs.map((b) => ({data: b.data, cid: b.cid})),
             ...metaBlobs.map((b) => ({data: b.data, cid: b.cid})),
           ],
@@ -994,6 +1021,56 @@ export function registerDocumentCommands(program: Command) {
       }
     })
 
+  // ── validate ─────────────────────────────────────────────────────────────
+
+  doc
+    .command('validate <id>')
+    .description(
+      'Check a document against its effective schema (its own `schema`, else the parent’s `childrenSchema`); exit 1 on violations',
+    )
+    .option('--content', 'Validate the whole document ({metadata, content}), not only the metadata')
+    .action(async (id: string, options, cmd) => {
+      const globalOpts = cmd.optsWithGlobals()
+      const structured = !!(globalOpts.json || globalOpts.yaml)
+      try {
+        const {id: resourceId, client} = await resolveIdWithClient(id, globalOpts)
+        const resource = await client.request('Resource', resourceId)
+        if (resource.type !== 'document') {
+          printError(`${id} is not a document (${resource.type})`)
+          process.exit(1)
+        }
+        const document = resource.document
+        const metadata = (document.metadata ?? {}) as Record<string, unknown>
+        const effective = await loadEffectiveSchema(client, resourceId, metadata)
+        if (!effective) {
+          const report = {id, schema: null, violations: []}
+          if (structured) console.log(formatOutput(report, getOutputFormat(globalOpts), isPretty(globalOpts)))
+          else printInfo(`${id} has no schema (no \`schema\` of its own and no \`childrenSchema\` on its parent)`)
+          return
+        }
+        let errors: string[]
+        if (options.content) {
+          errors = violations(effective.schema, {metadata, content: document.content ?? []}, effective.registry)
+        } else {
+          errors = metadataViolations(effective.schema, metadata, effective.registry)
+        }
+        const report = {id, schema: effective.ref, via: effective.via, violations: errors}
+        if (structured) console.log(formatOutput(report, getOutputFormat(globalOpts), isPretty(globalOpts)))
+        else if (errors.length) {
+          printError(
+            `${id} does not conform to ${effective.ref} (${effective.via}; ${errors.length} violation${
+              errors.length === 1 ? '' : 's'
+            }):`,
+          )
+          for (const e of errors) console.error(`  ✗ ${e}`)
+        } else printSuccess(`${id} conforms to ${effective.ref} (${effective.via})`)
+        if (errors.length) process.exit(1)
+      } catch (error) {
+        printError((error as Error).message)
+        process.exit(1)
+      }
+    })
+
   // ── cid ──────────────────────────────────────────────────────────────────
 
   doc
@@ -1093,7 +1170,54 @@ export function mergeMetadata(
   // Handle theme (nested object, not a simple flag)
   if (inputMeta.theme) result.theme = inputMeta.theme
 
+  // Every other frontmatter key is a custom attribute and travels as-is (a typed document's
+  // `surname`, its `schema`, a folder's `childrenSchema`, …); the built-in keys above win.
+  for (const [key, value] of Object.entries(inputMeta as Record<string, unknown>)) {
+    if (value === undefined || key in result || (METADATA_KEYS as string[]).includes(key) || key === 'theme') continue
+    ;(result as Record<string, unknown>)[key] = value
+  }
+
+  // The schema-binding fields, and any attribute at all, from the command line.
+  if (typeof options.schema === 'string') (result as Record<string, unknown>).schema = options.schema
+  if (typeof options.childrenSchema === 'string')
+    (result as Record<string, unknown>).childrenSchema = options.childrenSchema
+  if (options.metadata !== undefined)
+    Object.assign(result as Record<string, unknown>, parseMetadataOption(options.metadata))
+
   return result
+}
+
+/** `--metadata '<json>'`: a JSON object of attributes; anything else is refused. */
+function parseMetadataOption(raw: unknown): Record<string, unknown> {
+  if (typeof raw !== 'string') throw new Error('--metadata expects a JSON object')
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch (error) {
+    throw new Error(`--metadata is not valid JSON: ${(error as Error).message}`)
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+    throw new Error('--metadata must be a JSON object')
+  return parsed as Record<string, unknown>
+}
+
+/**
+ * `--schema-definition <file>`: encode the schema file to its DAG-CBOR blob, bind it to the
+ * document as `schemaDefinition: ipfs://<cid>`, and return the blob to publish alongside the
+ * change. The file must be a valid Onyx schema.
+ */
+async function applySchemaDefinition(
+  metadata: HMMetadata,
+  file: unknown,
+): Promise<{data: Uint8Array; cid: string} | null> {
+  if (typeof file !== 'string') return null
+  const schema = readJsonFile(file)
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) throw new Error(`${file} does not hold a schema`)
+  const errors = violations(META_SCHEMA, schema)
+  if (errors.length) throw new Error(`${file} is not a valid Onyx schema:\n${errors.map((e) => `  ✗ ${e}`).join('\n')}`)
+  const blob = await encodeBlob(schema)
+  ;(metadata as Record<string, unknown>).schemaDefinition = `ipfs://${blob.cid}`
+  return blob
 }
 
 /**
