@@ -38,6 +38,42 @@ function makeBlocks(text: string): HMBlockNode[] {
 }
 
 describe('createComment', () => {
+  it.each([
+    {name: 'no blocks', content: []},
+    {name: 'a blank paragraph', content: makeBlocks('   ')},
+  ])('rejects $name before signing', async ({content}) => {
+    const signer = makeSigner()
+
+    await expect(
+      createComment(
+        {
+          content,
+          docId: TEST_DOC_ID,
+          docVersion: 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi',
+        },
+        signer,
+      ),
+    ).rejects.toThrow('Cannot create an empty comment')
+    expect(signer.sign).not.toHaveBeenCalled()
+  })
+
+  it('rejects an empty quoted reply instead of publishing a quote-only wrapper', async () => {
+    const signer = makeSigner()
+
+    await expect(
+      createComment(
+        {
+          content: [],
+          docId: TEST_DOC_ID,
+          docVersion: 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi',
+          quotingBlockId: 'quoted-block',
+        },
+        signer,
+      ),
+    ).rejects.toThrow('Cannot create an empty comment')
+    expect(signer.sign).not.toHaveBeenCalled()
+  })
+
   it('creates a publish-ready payload from content', async () => {
     const signer = makeSigner()
     const publishInput = await createComment(
@@ -203,6 +239,24 @@ describe('createComment', () => {
 })
 
 describe('updateComment', () => {
+  it('rejects blank updates before signing', async () => {
+    const signer = makeSigner()
+
+    await expect(
+      updateComment(
+        {
+          commentId: 'z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou/zb2rhiKhUepk2',
+          targetAccount: TEST_DOC_ID.uid,
+          targetPath: '/test-doc',
+          targetVersion: 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi',
+          content: makeBlocks('   '),
+        },
+        signer,
+      ),
+    ).rejects.toThrow('Cannot update a comment with empty content')
+    expect(signer.sign).not.toHaveBeenCalled()
+  })
+
   it('creates a publish-ready payload that preserves reply metadata', async () => {
     const signer = makeSigner()
     const publishInput = await updateComment(
