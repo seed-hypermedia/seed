@@ -179,6 +179,7 @@ describe('journaled tool rows', () => {
     const parent = makeRun({id: 'root-1', status: 'running', kind: 'workflow', agentId: 'agent-1'} as never)
     render(
       <RunWorkHierarchy
+        serverUrl="http://localhost:3050"
         run={parent}
         childRuns={[]}
         journal={[
@@ -247,6 +248,7 @@ describe('integrated step rows', () => {
     const onOpenSession = vi.fn()
     render(
       <RunWorkHierarchy
+        serverUrl="http://localhost:3050"
         run={parent}
         childRuns={[child]}
         plan={plan}
@@ -292,6 +294,7 @@ describe('integrated step rows', () => {
     const onOpenSession = vi.fn()
     render(
       <RunWorkHierarchy
+        serverUrl="http://localhost:3050"
         run={parent}
         childRuns={[stamped]}
         plan={renamedPlan}
@@ -315,6 +318,7 @@ describe('integrated step rows', () => {
     const onOpenSession = vi.fn()
     render(
       <RunWorkHierarchy
+        serverUrl="http://localhost:3050"
         run={parent}
         childRuns={[child]}
         plan={plan}
@@ -360,6 +364,7 @@ describe('integrated step rows', () => {
     const onCancelRun = vi.fn()
     render(
       <RunWorkHierarchy
+        serverUrl="http://localhost:3050"
         run={parent}
         childRuns={[notion, coda]}
         plan={batchPlan}
@@ -415,6 +420,7 @@ describe('integrated step rows', () => {
     }
     render(
       <RunWorkHierarchy
+        serverUrl="http://localhost:3050"
         run={parent}
         childRuns={[]}
         plan={mixedPlan}
@@ -432,6 +438,7 @@ describe('integrated step rows', () => {
     const onOpenSession = vi.fn()
     render(
       <RunWorkHierarchy
+        serverUrl="http://localhost:3050"
         run={parent}
         childRuns={[child]}
         plan={plan}
@@ -455,6 +462,7 @@ describe('integrated step rows', () => {
     const onCancelRun = vi.fn()
     render(
       <RunWorkHierarchy
+        serverUrl="http://localhost:3050"
         run={parent}
         childRuns={[child]}
         plan={plan}

@@ -636,8 +636,6 @@ export function EditAgentAccountDialog({
   const [label, setLabel] = useState(identity.label || identity.accountId || identity.name)
   const [iconFile, setIconFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const profileId = identity.accountId ? hmId(identity.accountId) : undefined
-
   // Release the object URL when the dialog unmounts or the preview is replaced.
   useEffect(() => {
     return () => {

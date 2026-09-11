@@ -180,7 +180,8 @@ const writeVerb = {
       },
       content: {
         type: 'string',
-        description: 'The content to write. Markdown for hm:// documents; raw text for memory files; a JSON object for ipfs:// objects.',
+        description:
+          'The content to write. Markdown for hm:// documents; raw text for memory files; a JSON object for ipfs:// objects.',
       },
       options: {
         type: 'object',
@@ -189,7 +190,8 @@ const writeVerb = {
       },
       dryRun: {
         type: 'boolean',
-        description: 'For hm:// writes and ipfs:// objects: validate and echo what would be published without publishing anything.',
+        description:
+          'For hm:// writes and ipfs:// objects: validate and echo what would be published without publishing anything.',
       },
     },
     required: ['address'],

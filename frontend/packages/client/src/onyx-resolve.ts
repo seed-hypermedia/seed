@@ -257,13 +257,20 @@ export async function loadSchemaRef(client: SchemaFetchClient, ref: string | Ony
   }
   if (ONYX_SCHEMAS[ref]) return {schema: ONYX_SCHEMAS[ref], cid: schemaCid(ref), registry: {}}
   const resolved = await resolveSchemaRef(client, ref)
-  if (resolved.kind === 'none') throw new Error(`Not a schema reference: ${ref} (expected an ipfs:// CID or an hm:// URL)`)
+  if (resolved.kind === 'none')
+    throw new Error(`Not a schema reference: ${ref} (expected an ipfs:// CID or an hm:// URL)`)
   if (!resolved.schema) {
     if (resolved.kind === 'hm-doc')
-      throw new Error(`${ref} does not define a schema (no schemaDefinition on the document, or the document was not found)`)
+      throw new Error(
+        `${ref} does not define a schema (no schemaDefinition on the document, or the document was not found)`,
+      )
     throw new Error(`Could not fetch the schema at ${ref}`)
   }
-  return {schema: resolved.schema, cid: resolved.cid, registry: await hydrateSchemaRegistry(client, resolved.schema, {})}
+  return {
+    schema: resolved.schema,
+    cid: resolved.cid,
+    registry: await hydrateSchemaRegistry(client, resolved.schema, {}),
+  }
 }
 
 export type DocumentSchemaCheck = {
