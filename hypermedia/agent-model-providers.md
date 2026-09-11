@@ -132,19 +132,18 @@ For everything else: <!-- id:bGOJ6vf9 -->
 
 `gpt-5-chat*` variants expose no reasoning control. Anything else — including every OpenAI-compatible passthrough type — returns null, and the desktop's `ReasoningSelect` renders nothing for it. <!-- id:1zBT-TX_ -->
 
-`agents/protocol/src/reasoning.ts` is shared by the server and every model picker. Levels are `minimal`, `low`,
-`medium`, `high`, `xhigh`, `max`, and the lists are **empirically verified against live provider APIs**, not scraped,
-because providers gate levels per model generation:
+`agents/protocol/src/reasoning.ts` is shared by the server and every model picker. Levels are `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, and the lists are **empirically verified against live provider APIs**, not scraped, because providers gate levels per model generation: <!-- id:o0RRTzN9 -->
 
-| family                           | levels                        | leaving it unset                                 |
-| -------------------------------- | ----------------------------- | ------------------------------------------------ |
-| OpenAI gpt-5 / gpt-5-mini        | minimal, low, medium, high    | provider default (can't disable)                 |
-| OpenAI gpt-5.1                   | low, medium, high             | off (sends `effort: 'none'`)                     |
-| OpenAI gpt-5.2+ (incl. 5.4, 5.6) | low, medium, high, xhigh      | off (sends `effort: 'none'`)                     |
-| OpenAI gpt-6+ (e.g. gpt-6-astra) | low, medium, high, xhigh, max | provider default (rejects `none`, can't disable) |
-| OpenAI o-series (o1/o3/o4)       | low, medium, high             | provider default                                 |
-| Anthropic claude-3-7 and later   | minimal, low, medium, high    | off                                              |
-| Google gemini-2.5+               | minimal, low, medium, high    | off, except `-pro` (default)                     |
+<!-- id:w2DBomCg -->
+| family <!-- col:TbnFySPL --> | levels <!-- col:sraKZh6w --> | leaving it unset <!-- col:KEjviHEU --> <!-- id:fkOMp1v4 --> |
+| --- | --- | --- |
+| OpenAI gpt-5 / gpt-5-mini | minimal, low, medium, high | provider default (can't disable) <!-- id:G66u980h --> |
+| OpenAI gpt-5.1 | low, medium, high | off (sends `effort: 'none'`) <!-- id:NLKtzFqk --> |
+| OpenAI gpt-5.2+ (incl. 5.4, 5.6) | low, medium, high, xhigh | off (sends `effort: 'none'`) <!-- id:P_htn8ec --> |
+| OpenAI gpt-6+ (e.g. gpt-6-astra) | low, medium, high, xhigh, max | provider default (rejects `none`, can't disable) <!-- id:WgwQFUTj --> |
+| OpenAI o-series (o1/o3/o4) | low, medium, high | provider default <!-- id:IAXkw7dU --> |
+| Anthropic claude-3-7 and later | minimal, low, medium, high | off <!-- id:moUuGMt9 --> |
+| Google gemini-2.5+ | minimal, low, medium, high | off, except `-pro` (default) <!-- id:ZPj6RMRf --> |
 
 Each run creates an in-memory Pi session (`#runPiAgent`, `api-service.ts:4298`) with: <!-- id:8GvfxwcF -->
   - `AuthStorage` — `inMemory()` with a runtime-only API key for api-key providers, or `fromStorage()` over the persisted OAuth backend for subscription providers; <!-- id:ydcMAJua -->
@@ -154,19 +153,9 @@ Each run creates an in-memory Pi session (`#runPiAgent`, `api-service.ts:4298`) 
   - a no-discovery `ResourceLoader` whose system prompt is the assembled agent prompt (see `prompt-injection-map.md`); <!-- id:vS47YBmy -->
   - `noTools: 'builtin'` and an explicit tool list: the five verbs, plus any promoted callables, plus `return_result` for typed children. `delegate` is included only when the turn has a run to park on. <!-- id:cQrTAIZl -->
 
-The selected level rides on `AgentDefinition.reasoningLevel` and is passed to Pi as `thinkingLevel` at session creation
-(`#runPiAgent` in `api-service.ts`, defaulting to `'off'`). `applyReasoningEffort()` then decides what the outgoing
-OpenAI Responses payload says about effort: the stored level wins over anything Pi produced (Pi clamps levels for models
-its catalog does not know); with no level the request sends `none` where the generation accepts it and otherwise omits
-the effort so the provider default applies (Pi writes `none` for every level-less reasoning model, which gpt-6+
-rejects).
+The selected level rides on `AgentDefinition.reasoningLevel` and is passed to Pi as `thinkingLevel` at session creation (`#runPiAgent` in `api-service.ts`, defaulting to `'off'`). `applyReasoningEffort()` then decides what the outgoing OpenAI Responses payload says about effort: the stored level wins over anything Pi produced (Pi clamps levels for models its catalog does not know); with no level the request sends `none` where the generation accepts it and otherwise omits the effort so the provider default applies (Pi writes `none` for every level-less reasoning model, which gpt-6+ rejects). <!-- id:n3rwsNjt -->
 
-The matrix is a first guess, not the last word. When a provider rejects the effort a run sent ("Unsupported value:
-'none' is not supported with the 'gpt-6-astra' model. Supported values are: 'low', …"), `learnReasoningEffortSupport()`
-records the accepted list for that model in process memory and `applyReasoningEffort()` uses it on every later request —
-a rejected `none` is dropped for the provider default, a rejected level moves to the nearest accepted one. So a model
-newer than this file costs one failed turn, then runs; extend the matrix afterwards so the picker offers the right
-levels.
+The matrix is a first guess, not the last word. When a provider rejects the effort a run sent ("Unsupported value: 'none' is not supported with the 'gpt-6-astra' model. Supported values are: 'low', …"), `learnReasoningEffortSupport()` records the accepted list for that model in process memory and `applyReasoningEffort()` uses it on every later request — a rejected `none` is dropped for the provider default, a rejected level moves to the nearest accepted one. So a model newer than this file costs one failed turn, then runs; extend the matrix afterwards so the picker offers the right levels. <!-- id:a_HKwf5s -->
 
 Every request logs `{sessionId, agentId, provider, model, reasoningLevel, activeTools, payloadTools}` before dispatch, which is the first thing to read when a provider rejects a call. <!-- id:yWv424ld -->
 
