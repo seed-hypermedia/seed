@@ -42,6 +42,7 @@ import {describeAgentError} from './errors'
 import {AgentsNoAccountPage} from './no-account'
 import {getAgentsPlatform} from './platform'
 import {AgentServersDialog} from './server-settings'
+import {AgentTitleMenu} from './agent-title-menu'
 
 function AgentsListPage() {
   const selectedAccountId = useSelectedAccountId()
@@ -122,9 +123,7 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
             <div className="bg-primary/10 text-primary flex size-11 items-center justify-center rounded-xl">
               <Bot className="size-6" />
             </div>
-            <SizableText size="2xl" weight="bold">
-              Agents
-            </SizableText>
+            <AgentTitleMenu title="Agents" />
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <DropdownMenu>

@@ -10,6 +10,7 @@ import {modelLabel} from './model-utils'
 import {useSelectedAccountId} from './account'
 import {useNavigate} from './navigation'
 import {readStickyAgentSession} from './sticky-session'
+import {AgentTitleMenu} from './agent-title-menu'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {toast} from '@shm/ui/toast'
 import type {NavRoute} from '@shm/shared/routes'
@@ -33,7 +34,6 @@ import {
   Loader2,
   MessageSquarePlus,
   MessagesSquare,
-  Pencil,
   ScrollText,
   Settings,
   UserRound,
@@ -289,7 +289,6 @@ export function AgentHeader({
   agentId,
   agentName,
   agentNameSaveState = 'idle',
-  onAgentNameChange,
   onEditName,
   serverUrl,
   activeTab,
@@ -306,7 +305,7 @@ export function AgentHeader({
   agentId?: string
   agentName?: string
   agentNameSaveState?: AgentTitleSaveState
-  onAgentNameChange?: (value: string) => void
+  /** Offered in the title menu when the viewer may rename the agent. */
   onEditName?: () => void
   serverUrl: string
   activeTab: AgentPageTab
@@ -386,31 +385,11 @@ export function AgentHeader({
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 sm:flex-nowrap">
           <div className="flex min-w-0 flex-col gap-1">
             <div className="flex min-w-0 items-center gap-2.5">
-              {onEditName ? (
-                <button
-                  type="button"
-                  aria-label="Rename agent"
-                  onClick={onEditName}
-                  className="hover:bg-muted/60 group -mx-1 flex min-w-0 items-center gap-2 rounded-md px-1 py-0.5 text-left"
-                >
-                  <SizableText size="2xl" weight="bold" className="min-w-0 truncate">
-                    {currentAgentName}
-                  </SizableText>
-                  <Pencil className="text-muted-foreground size-4 flex-none opacity-0 transition-opacity group-hover:opacity-100" />
-                </button>
-              ) : onAgentNameChange ? (
-                <input
-                  aria-label="Agent name"
-                  className="focus:ring-primary/25 -mx-1 min-w-0 truncate rounded-md bg-transparent px-1 py-0.5 text-2xl font-bold outline-none focus:ring-2"
-                  value={agentName ?? agent?.definition.name ?? ''}
-                  placeholder="Agent"
-                  onChange={(event) => onAgentNameChange(event.currentTarget.value)}
-                />
-              ) : (
-                <SizableText size="2xl" weight="bold" className="block truncate">
-                  {agent?.definition.name || 'Agent'}
-                </SizableText>
-              )}
+              <AgentTitleMenu
+                title={currentAgentName}
+                current={agentId ? {serverUrl, agentId} : undefined}
+                onRename={onEditName}
+              />
               {agent && agentId ? (
                 <AgentIdentityChip serverUrl={serverUrl} agentId={agentId} definition={agent.definition} />
               ) : null}
