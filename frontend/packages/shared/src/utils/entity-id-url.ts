@@ -946,7 +946,8 @@ export function isHypermediaScheme(url?: string) {
   return !!url?.startsWith(`${HYPERMEDIA_SCHEME}://`) || !!url?.startsWith('hm://')
 }
 
-export function isPublicGatewayLink(text: string, gwUrl: StateStream<string>) {
+export function isPublicGatewayLink(text: string, gwUrl?: StateStream<string>) {
+  if (!gwUrl) return false
   const matchesGateway = text.indexOf(gwUrl.get()) === 0
   return !!matchesGateway
 }
