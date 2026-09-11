@@ -1,8 +1,9 @@
+import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, test} from 'vitest'
 import {DocumentFilter_Comparison_Operator} from '../client/grpc-types'
 import {
-  compileExploreQuery,
   clearExploreConditions,
+  compileExploreQuery,
   cycleExploreSort,
   documentInfoToExploreResultDocument,
   exploreQueryChips,
@@ -10,13 +11,12 @@ import {
   removeExploreQueryChip,
   searchResultItemToExploreResult,
   serializeExploreQuery,
-  toggleExplorePredicate,
   toggleExploreColumn,
+  toggleExplorePredicate,
 } from '../explore'
-import {hmId} from '../utils/entity-id-url'
-import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
+import {assembleExploreResults, exploreStreamSelection, resultKey} from '../models/explore'
 import type {SearchResultItem} from '../models/search'
-import {assembleExploreResults, exploreStreamSelection} from '../models/explore'
+import {hmId} from '../utils/entity-id-url'
 
 function searchItem(overrides: Partial<SearchResultItem>): SearchResultItem {
   return {
@@ -293,6 +293,28 @@ describe('search result mapping', () => {
       updateTime: '2026-01-01T00:00:00.000Z',
     } as unknown as HMDocumentInfo
     expect(documentInfoToExploreResultDocument(space)).toMatchObject({type: 'space', id: {uid: 'alice'}})
+  })
+
+  test('gives every result in one assembly a distinct key', () => {
+    const blockA = hmId('alice', {path: ['roadmap'], blockRef: 'block-1'})
+    const blockB = hmId('alice', {path: ['roadmap'], blockRef: 'block-2'})
+    const result = assembleExploreResults({
+      parsed: parseExploreQuery('roadmap'),
+      context: {type: 'node'},
+      textPages: [
+        {
+          entities: [
+            searchItem({id: blockA, title: 'First block'}),
+            searchItem({id: blockB, title: 'Second block'}),
+            searchItem({id: hmId('alice', {path: ['roadmap']}), title: 'Roadmap'}),
+          ],
+          nextPageToken: '',
+        },
+      ],
+    })
+    const keys = result.results.map(resultKey)
+    expect(keys).toHaveLength(3)
+    expect(new Set(keys).size).toBe(keys.length)
   })
 
   test('counts spaces and contacts as their own facets', () => {

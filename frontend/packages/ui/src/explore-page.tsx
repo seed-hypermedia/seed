@@ -1,7 +1,6 @@
-import * as Ariakit from '@ariakit/react'
-import {DocumentSort, QueryDocumentsRequest} from '@shm/shared/client/grpc-types'
+import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
+import {getMetadataName} from '@shm/shared/content'
 import type {
-  ExplorePredicate,
   ExplorePresentation,
   ExploreQueryNode,
   ExploreSortRule,
@@ -11,29 +10,35 @@ import type {
   ParsedExploreQuery,
 } from '@shm/shared/explore'
 import {
-  clearExploreConditions,
-  compileExploreQuery,
   cycleExploreSort,
   exploreQueryChips,
+  isExploreSpaceId,
   removeExploreQueryChip,
   serializeExploreQuery,
-  toggleExploreColumn,
   toggleExplorePredicate,
 } from '@shm/shared/explore'
+import {useSelectedAccountCapability} from '@shm/shared/models/capabilities'
+import {useAccountsMetadata, useCapabilities} from '@shm/shared/models/entity'
+import type {ExploreAccount} from '@shm/shared/models/explore'
 import {
   exploreDocumentKey,
   exploreStreamSelection,
+  resultKey,
+  useExploreAccountList,
   useExploreAccounts,
   useExploreAttributeNames,
-  useExploreAttributeValues,
+  useExploreJoinedSpaces,
+  useExploreRecentDocuments,
 } from '@shm/shared/models/explore'
-import {hmId, packHmId} from '@shm/shared/utils/entity-id-url'
+import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
+import {useRouteLink} from '@shm/shared/routing'
+import {formattedDate, formattedDateMedium} from '@shm/shared/utils/date'
+import {activitySlugToFilter, hmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {
-  ArrowDown,
-  ArrowUp,
   Check,
   ChevronDown,
   FileText,
+  GitBranch,
   Globe,
   Loader2,
   MessageSquare,
@@ -44,8 +49,13 @@ import {
 } from 'lucide-react'
 import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {Button} from './button'
+import {Checkbox} from './components/checkbox'
 import {Input} from './components/input'
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
+import {FacePile} from './face-pile'
+import {HMIcon} from './hm-icon'
+import {PrivateBadge} from './private-badge'
+import {SizableText} from './text'
+import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
 /** Highlights query terms in text without interpreting them as a regular expression. */
@@ -74,170 +84,473 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-function exploreColumnLabel(column: string) {
-  const builtIns: Record<string, string> = {
-    title: 'Title',
-    space: 'Space',
-    path: 'Path',
-    updated: 'Updated',
-    version: 'Version',
-  }
-  return builtIns[column] ?? column
-}
-
-function ExploreScopePill({
+/** Space picker opened by the scope chip. */
+function ExploreScopeMenu({
   context,
-  contextLabel,
   accounts,
   onChange,
 }: {
   context: HMExploreContext
-  contextLabel: string
   accounts: Array<{value: string; label: string}>
-  onChange?: (scope: HMExploreContext) => void
-}) {
-  const [open, setOpen] = useState(false)
-  if (!onChange) {
-    return (
-      <span className="border-border bg-muted/30 text-muted-foreground rounded-md border px-3 py-2 text-xs">
-        {contextLabel}
-      </span>
-    )
-  }
-  const scopeLabel = context.type === 'node' ? 'Whole node' : context.id.uid
-  return (
-    <div className="relative">
-      <Button size="sm" variant="outline" onClick={() => setOpen((value) => !value)}>
-        {scopeLabel}
-        <ChevronDown className="ml-1 size-3.5" aria-hidden />
-      </Button>
-      {open ? (
-        <div className="bg-popover text-popover-foreground absolute top-full right-0 z-30 mt-2 min-w-48 rounded-md border p-1 shadow-md">
-          <button
-            type="button"
-            className="hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs"
-            onClick={() => {
-              onChange({type: 'node'})
-              setOpen(false)
-            }}
-          >
-            {context.type === 'node' ? <Check className="size-3.5" /> : <span className="size-3.5" />}
-            Whole node
-          </button>
-          {accounts.map((account) => (
-            <button
-              key={account.value}
-              type="button"
-              className="hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs"
-              onClick={() => {
-                onChange({type: 'site', id: hmId(account.value)})
-                setOpen(false)
-              }}
-            >
-              {context.type === 'site' && context.id.uid === account.value ? (
-                <Check className="size-3.5" />
-              ) : (
-                <span className="size-3.5" />
-              )}
-              {account.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-function ExploreColumnsMenu({
-  columns,
-  selected,
-  onToggle,
-}: {
-  columns: string[]
-  selected: string[]
-  onToggle: (column: string) => void
+  onChange: (scope: HMExploreContext) => void
 }) {
   return (
-    <div className="bg-popover text-popover-foreground absolute top-full right-24 z-30 mt-2 min-w-48 rounded-md border p-1 shadow-md">
-      <p className="text-muted-foreground px-2 py-1.5 text-[11px] font-medium uppercase">Columns</p>
-      {columns.map((column) => (
+    <div className="bg-popover text-popover-foreground absolute top-full left-0 z-30 mt-2 max-h-80 min-w-56 overflow-auto rounded-md border p-1 shadow-md">
+      <button
+        type="button"
+        className="hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm"
+        onClick={() => onChange({type: 'node'})}
+      >
+        {context.type === 'node' ? <Check className="size-3.5" /> : <span className="size-3.5" />}
+        All spaces
+      </button>
+      {accounts.map((account) => (
         <button
+          key={account.value}
           type="button"
-          key={column}
-          className="hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs"
-          onClick={() => onToggle(column)}
+          className="hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm"
+          onClick={() => onChange({type: 'site', id: hmId(account.value)})}
         >
-          {selected.includes(column) ? <Check className="size-3.5" /> : <span className="size-3.5" />}
-          {exploreColumnLabel(column)}
+          {context.type === 'site' && context.id.uid === account.value ? (
+            <Check className="size-3.5" />
+          ) : (
+            <span className="size-3.5" />
+          )}
+          <span className="truncate">{account.label}</span>
         </button>
       ))}
     </div>
   )
 }
 
-function ExploreSortMenu({
-  rules,
-  availableKeys,
-  onCycleDirection,
-  onRemove,
-  onAdd,
+/** Trigger for one dropdown in the Explore filter row. */
+function ExploreChipButton({
+  label,
+  active,
+  open,
+  onClick,
 }: {
-  rules: ExploreSortRule[]
-  availableKeys: string[]
-  onCycleDirection: (key: string) => void
-  onRemove: (key: string) => void
-  onAdd: (key: string) => void
+  label: string
+  active?: boolean
+  open?: boolean
+  onClick: () => void
 }) {
-  const activeKeys = new Set(rules.map((rule) => rule.key))
   return (
-    <div className="bg-popover text-popover-foreground absolute top-full right-0 z-30 mt-2 min-w-56 rounded-md border p-1 shadow-md">
-      <p className="text-muted-foreground px-2 py-1.5 text-[11px] font-medium uppercase">Sort order</p>
-      {rules.length
-        ? rules.map((rule) => (
-            <div key={rule.key} className="flex items-center gap-2 rounded px-2 py-1.5 text-xs">
-              <button
-                type="button"
-                className="hover:bg-accent rounded p-1"
-                onClick={() => onCycleDirection(rule.key)}
-                aria-label={`Change ${rule.key} sort direction`}
-              >
-                {rule.direction === 'asc' ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
-              </button>
-              <span className="min-w-0 flex-1 truncate">{rule.key}</span>
-              <button
-                type="button"
-                className="text-muted-foreground hover:text-foreground rounded px-1 text-[11px]"
-                onClick={() => onRemove(rule.key)}
-                aria-label={`Remove ${rule.key} sort`}
-              >
-                Remove
-              </button>
-            </div>
-          ))
-        : null}
-      <div className="border-border mt-1 border-t pt-1">
-        <p className="text-muted-foreground px-2 py-1.5 text-[11px] font-medium uppercase">Add attribute sort</p>
-        {availableKeys
-          .filter((key) => !activeKeys.has(key))
-          .map((key) => (
-            <button
-              key={key}
-              type="button"
-              className="hover:bg-accent flex w-full items-center rounded px-2 py-1.5 text-left text-xs"
-              onClick={() => onAdd(key)}
-            >
-              {key}
-            </button>
-          ))}
-        {!availableKeys.some((key) => !activeKeys.has(key)) ? (
-          <p className="text-muted-foreground px-2 py-2 text-xs">
-            {rules.length ? 'All attributes are already selected.' : 'No attribute names available.'}
-          </p>
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={onClick}
+      aria-expanded={!!open}
+      className={cn('rounded-full', (active || open) && 'border-primary text-primary')}
+    >
+      {label}
+      <ChevronDown className="ml-1 size-3.5" aria-hidden />
+    </Button>
+  )
+}
+
+const typeOptions: Array<{value: HMExploreResultType; label: string}> = [
+  {value: 'document', label: 'Documents'},
+  {value: 'block', label: 'Text blocks'},
+  {value: 'comment', label: 'Conversations'},
+  {value: 'space', label: 'Spaces'},
+  {value: 'contact', label: 'People'},
+]
+
+/**
+ * Multi-select of result types, applied in one go rather than per click.
+ * The counts are already loaded results, so they move as more pages arrive.
+ */
+function ExploreTypeMenu({
+  counts,
+  showCounts,
+  selected,
+  onApply,
+}: {
+  counts: Record<HMExploreResultType | 'all', number>
+  showCounts: boolean
+  selected: HMExploreResultType[]
+  onApply: (types: HMExploreResultType[]) => void
+}) {
+  const [draft, setDraft] = useState<HMExploreResultType[]>(selected)
+  return (
+    <div className="bg-popover text-popover-foreground absolute top-full left-0 z-30 mt-2 min-w-60 rounded-md border p-2 shadow-md">
+      {typeOptions.map((option) => {
+        const checked = draft.includes(option.value)
+        return (
+          <label
+            key={option.value}
+            className="hover:bg-accent flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm"
+          >
+            <Checkbox
+              className="border-muted-foreground/50 border"
+              checked={checked}
+              onCheckedChange={() =>
+                setDraft(checked ? draft.filter((value) => value !== option.value) : [...draft, option.value])
+              }
+            />
+            <span className="flex-1">{option.label}</span>
+            {showCounts ? <span className="text-muted-foreground tabular-nums">{counts[option.value]}</span> : null}
+          </label>
+        )
+      })}
+      <Button size="sm" variant="brand" className="mt-2 w-full" onClick={() => onApply(draft)}>
+        Apply filters
+      </Button>
+    </div>
+  )
+}
+
+// Card shell shared by the Explore landing sections.
+const exploreCardClassName =
+  'border-border hover:border-primary/40 flex flex-col gap-3 rounded-lg border bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:bg-black'
+
+// Card of a recently updated document on the Explore landing page.
+function ExploreDocumentCard({document, spaceName}: {document: HMDocumentInfo; spaceName?: string}) {
+  const id = document.id
+  const linkProps = useRouteLink({key: 'document', id})
+  const commentsLink = useRouteLink({key: 'comments', id})
+  const citationsLink = useRouteLink({key: 'activity', id, filterEventType: activitySlugToFilter('citations')})
+  const interactions = useInteractionSummary(id)
+  const authorUids = document.authors ?? []
+  const accountsMetadata = useAccountsMetadata(authorUids)
+  const authorName = authorUids.length
+    ? getMetadataName(accountsMetadata.data?.[authorUids[0]!]?.metadata) || undefined
+    : undefined
+  const tag =
+    spaceName ||
+    document.breadcrumbs?.[0]?.name ||
+    (isExploreSpaceId(id) ? getMetadataName(document.metadata) : undefined) ||
+    id.uid.slice(0, 8)
+  const trail = (document.breadcrumbs ?? [])
+    .slice(1, -1)
+    .map((crumb) => crumb.name)
+    .filter(Boolean)
+  const updated = document.activitySummary?.latestChangeTime ?? document.updateTime
+  const citations = interactions.data?.citations ?? 0
+  const comments = interactions.data?.comments ?? 0
+  return (
+    <div className={cn(exploreCardClassName, 'relative')}>
+      <div className="flex items-start justify-between gap-3">
+        <span className="bg-brand-12 text-brand-3 dark:bg-brand-3/25 dark:text-brand-8 min-w-0 truncate rounded px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase">
+          {tag}
+        </span>
+        <span className="text-muted-foreground shrink-0 text-xs">
+          {trail.length ? `${trail.join(' / ')} · ` : ''}
+          {updated ? formattedDate(updated) : ''}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <a {...linkProps} className="min-w-0 flex-1 after:absolute after:inset-0 after:content-['']">
+          <SizableText weight="bold" className="truncate font-sans">
+            {getMetadataName(document.metadata) || id.path?.at(-1) || 'Untitled'}
+          </SizableText>
+        </a>
+        {document.visibility === 'PRIVATE' ? <PrivateBadge size="sm" /> : null}
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        {authorUids.length ? (
+          <span className="flex min-w-0 items-center gap-2">
+            <FacePile accounts={authorUids} accountsMetadata={accountsMetadata.data ?? {}} />
+            {authorName ? (
+              <SizableText size="sm" className="truncate font-sans">
+                {authorName}
+              </SizableText>
+            ) : null}
+          </span>
+        ) : (
+          <span />
+        )}
+        {citations || comments ? (
+          <span className="border-border relative z-10 flex shrink-0 items-center overflow-hidden rounded-md border">
+            {citations ? (
+              <Tooltip content="Citations">
+                <a
+                  {...citationsLink}
+                  className="text-muted-foreground hover:bg-muted hover:text-foreground flex items-center gap-1 px-2.5 py-1 text-xs transition-colors"
+                >
+                  <GitBranch className="size-3.5" aria-hidden />
+                  {citations}
+                </a>
+              </Tooltip>
+            ) : null}
+            {comments ? (
+              <Tooltip content="Conversations">
+                <a
+                  {...commentsLink}
+                  className="text-muted-foreground hover:bg-muted hover:text-foreground border-border flex items-center gap-1 px-2.5 py-1 text-xs transition-colors [&:not(:first-child)]:border-l"
+                >
+                  <MessageSquare className="size-3.5" aria-hidden />
+                  {comments}
+                </a>
+              </Tooltip>
+            ) : null}
+          </span>
         ) : null}
       </div>
     </div>
   )
 }
+
+// Card of a joined space
+function ExploreSpaceCard({space}: {space: HMDocumentInfo}) {
+  const id = hmId(space.id.uid)
+  const capability = useSelectedAccountCapability(id)
+  const linkProps = useRouteLink({key: 'document', id})
+  const name = getMetadataName(space.metadata) || space.id.uid.slice(0, 8)
+  const updated = space.activitySummary?.latestChangeTime ?? space.updateTime
+  return (
+    <a {...linkProps} className={exploreCardClassName}>
+      <div className="flex items-center gap-2">
+        <HMIcon size={24} id={id} name={name} icon={space.metadata?.icon} />
+        <span className="min-w-0 flex-1 truncate font-semibold">{name}</span>
+        {capability?.role ? (
+          <span className="bg-muted text-muted-foreground shrink-0 rounded px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase">
+            {capability.role}
+          </span>
+        ) : null}
+      </div>
+      {updated ? <span className="text-muted-foreground text-xs">Updated {formattedDateMedium(updated)}</span> : null}
+    </a>
+  )
+}
+
+// How many spaces are shown before the section has to be expanded.
+const COLLAPSED_SPACE_COUNT = 3
+
+/** Kinds Explore can list without a search term. */
+type ExploreBrowseKind = 'document' | 'space' | 'contact'
+const BROWSABLE_KINDS: ExploreBrowseKind[] = ['document', 'space', 'contact']
+
+/** Names a capability role the way the space People tab does. */
+function exploreRoleLabel(role: string | undefined) {
+  if (role === 'writer') return 'Writer'
+  if (role === 'agent') return 'Device'
+  if (role === 'owner') return 'Owner'
+  if (role === 'member') return 'Member'
+  return role
+}
+
+/** One account in the Explore People list, with its role when the list is scoped to a space. */
+function ExplorePersonCard({account}: {account: ExploreAccount & {role?: string}}) {
+  const id = hmId(account.uid)
+  const linkProps = useRouteLink({key: 'profile', id})
+  const metadata = useAccountsMetadata([account.uid])
+  const name = account.name || getMetadataName(metadata.data?.[account.uid]?.metadata) || account.uid.slice(0, 8)
+  const role = exploreRoleLabel(account.role)
+  return (
+    <a {...linkProps} className={cn(exploreCardClassName, 'gap-2')}>
+      <span className="flex min-w-0 items-center gap-2">
+        <HMIcon size={24} id={id} name={name} icon={account.icon} />
+        <span className="min-w-0 flex-1 truncate font-semibold">{name}</span>
+        {role ? (
+          <span className="bg-muted text-muted-foreground shrink-0 rounded px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase">
+            {role}
+          </span>
+        ) : null}
+      </span>
+    </a>
+  )
+}
+
+/**
+ * Everything of one kind in scope, listed without a search term. Reached from a Jump to pill, and
+ * left by clearing the type chip.
+ */
+function ExploreBrowse({kind, context}: {kind: ExploreBrowseKind; context: HMExploreContext}) {
+  const results = useExploreRecentDocuments(context, {
+    enabled: kind !== 'contact',
+    pageSize: 50,
+    rootsOnly: kind === 'space',
+  })
+  const spaceId = context.type === 'site' ? context.id : null
+  const capabilities = useCapabilities(kind === 'contact' ? spaceId : null)
+  const allAccounts = useExploreAccountList({enabled: kind === 'contact' && !spaceId})
+  const accounts = spaceId
+    ? {
+        isLoading: capabilities.isLoading,
+        // Filter out agent capabilities.
+        data: Object.values(
+          (capabilities.data ?? [])
+            .filter((capability) => capability.role !== 'agent')
+            .reduce<Record<string, {uid: string; role: string}>>((byAccount, capability) => {
+              const existing = byAccount[capability.accountUid]
+              const rank = (role: string) => ['owner', 'writer', 'member'].indexOf(role)
+              if (!existing || rank(capability.role) < rank(existing.role)) {
+                byAccount[capability.accountUid] = {uid: capability.accountUid, role: capability.role}
+              }
+              return byAccount
+            }, {}),
+        ),
+      }
+    : allAccounts
+  const heading = kind === 'space' ? 'Spaces' : kind === 'contact' ? 'People' : 'Documents'
+  if (kind === 'contact') {
+    if (accounts.isLoading) {
+      return <ExploreState icon={<Loader2 className="animate-spin" />} title="Loading" detail="Finding people." />
+    }
+    if (!accounts.data?.length) {
+      return <ExploreState icon={<Search />} title="No people" detail="This node knows no accounts yet." />
+    }
+    return (
+      <section aria-label={heading} className="flex flex-col gap-3">
+        <h2 className="text-lg font-semibold">{heading}</h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {accounts.data.map((account) => (
+            <ExplorePersonCard key={account.uid} account={account} />
+          ))}
+        </div>
+      </section>
+    )
+  }
+  if (results.isLoading) {
+    return (
+      <ExploreState
+        icon={<Loader2 className="animate-spin" />}
+        title="Loading"
+        detail={`Finding ${heading.toLowerCase()}.`}
+      />
+    )
+  }
+  if (!results.data?.length) {
+    return (
+      <ExploreState icon={<Search />} title={`No ${heading.toLowerCase()}`} detail="Nothing here yet in this scope." />
+    )
+  }
+  return (
+    <section aria-label={heading} className="flex flex-col gap-3">
+      <h2 className="text-lg font-semibold">{heading}</h2>
+      <div className="flex flex-col gap-2">
+        {results.data.map((document) => (
+          <ExploreDocumentCard key={exploreDocumentKey(document.id)} document={document} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/** The spaces this identity has joined, shown before anything is searched for. */
+function ExploreYourSpaces() {
+  const spaces = useExploreJoinedSpaces()
+  const [expanded, setExpanded] = useState(false)
+  if (spaces.isLoading || !spaces.data?.length) return null
+  const total = spaces.data.length
+  const visible = expanded ? spaces.data : spaces.data.slice(0, COLLAPSED_SPACE_COUNT)
+  return (
+    <section aria-label="Your spaces" className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold">Your Spaces</h2>
+        {total > COLLAPSED_SPACE_COUNT ? (
+          <Button variant="link" size="sm" onClick={() => setExpanded((value) => !value)}>
+            {expanded ? 'Show less' : `View all ${total}`}
+          </Button>
+        ) : null}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {visible.map((space) => (
+          <ExploreSpaceCard key={space.id.uid} space={space} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/**
+ * Types that explore can list without a search term. Comments and text blocks are deliberately absent:
+ * `ListComments` needs a specific target document, and blocks exist only as full-text matches, so
+ * neither can be enumerated. They stay available in the type filter, where they narrow a search.
+ */
+const jumpToOptions: Array<{value: ExploreBrowseKind; label: string; icon: typeof FileText}> = [
+  {value: 'document', label: 'Documents', icon: FileText},
+  {value: 'space', label: 'Spaces', icon: Globe},
+  {value: 'contact', label: 'People', icon: User},
+]
+
+// Shortcuts into one kind of result.
+function ExploreJumpTo({
+  active,
+  kinds,
+  onJump,
+}: {
+  active: HMExploreResultType[]
+  kinds: ExploreBrowseKind[]
+  onJump: (type: ExploreBrowseKind) => void
+}) {
+  const options = jumpToOptions.filter((option) => kinds.includes(option.value))
+  if (!options.length) return null
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-muted-foreground text-sm">Jump to:</span>
+      {options.map((option) => (
+        <Button
+          key={option.value}
+          size="sm"
+          variant="outline"
+          className={cn('rounded-full', active.includes(option.value) && 'border-primary text-primary')}
+          onClick={() => onJump(option.value)}
+        >
+          <option.icon className="size-4" aria-hidden />
+          {option.label}
+        </Button>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * What Explore shows before anything is searched for: the documents most recently active in scope.
+ * Reuses the shared document row, so these read the same as they do in a directory listing.
+ */
+function ExploreLanding({context}: {context: HMExploreContext}) {
+  const recent = useExploreRecentDocuments(context)
+  // Same query as the Your Spaces section, so this is served from cache rather than refetched.
+  const spaces = useExploreJoinedSpaces()
+  const spaceNames = useMemo(() => {
+    const names: Record<string, string> = {}
+    for (const space of spaces.data ?? []) {
+      const name = getMetadataName(space.metadata)
+      if (name) names[space.id.uid] = name
+    }
+    return names
+  }, [spaces.data])
+  if (recent.isLoading) {
+    return <ExploreState icon={<Loader2 className="animate-spin" />} title="Loading" detail="Finding recent work." />
+  }
+  if (!recent.data?.length) {
+    return (
+      <ExploreState
+        icon={<Search />}
+        title="Start exploring"
+        detail="Search documents, conversations, text blocks, spaces and people."
+      />
+    )
+  }
+  return (
+    <section aria-label="Recently updated documents" className="flex flex-col gap-3">
+      <h2 className="text-lg font-semibold">Recently Updated Documents</h2>
+      <div className="flex flex-col gap-2">
+        {recent.data.map((document) => (
+          <ExploreDocumentCard
+            key={exploreDocumentKey(document.id)}
+            document={document}
+            spaceName={spaceNames[document.id.uid]}
+          />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/** Result orderings offered above the list. */
+type ExploreSortOption = 'relevance' | 'recent' | 'oldest' | 'title'
+const sortOptions: Array<{value: ExploreSortOption; label: string}> = [
+  {value: 'relevance', label: 'Relevance'},
+  {value: 'recent', label: 'Recently updated'},
+  {value: 'oldest', label: 'Oldest first'},
+  {value: 'title', label: 'Title'},
+]
 
 export type ExplorePageProps = {
   contextLabel: string
@@ -275,19 +588,30 @@ const tabs: Array<{id: ResultTab; label: string}> = [
 /** Shared Explore search/results surface used by desktop and web wrappers. */
 export function ExplorePage(props: ExplorePageProps) {
   const [activeTab, setActiveTab] = useState<ResultTab>('all')
-  const [menu, setMenu] = useState<'type' | 'in' | 'attributes' | null>(null)
-  const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [menu, setMenu] = useState<'scope' | 'type' | 'in' | 'attributes' | 'sort' | null>(null)
+  const [sortBy, setSortBy] = useState<ExploreSortOption>('relevance')
   const [draft, setDraft] = useState(props.query)
-  const [builderAst, setBuilderAst] = useState<ExploreQueryNode | null>(props.parsed.ast)
-  const [activeValueField, setActiveValueField] = useState('')
-  const [activeValueKind, setActiveValueKind] = useState<'string' | 'int' | 'bool'>('string')
-  const [columnsOpen, setColumnsOpen] = useState(false)
-  const [sortOpen, setSortOpen] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<number | null>(null)
   const onQueryChangeRef = useRef(props.onQueryChange)
   onQueryChangeRef.current = props.onQueryChange
   useEffect(() => setDraft(props.query), [props.query])
-  useEffect(() => setBuilderAst(props.parsed.ast), [props.parsed.ast])
+  // Dismiss an open dropdown on blur.
+  useEffect(() => {
+    if (!menu) return
+    const onPointerDown = (event: MouseEvent) => {
+      if (!(event.target as HTMLElement | null)?.closest('[data-explore-menu]')) setMenu(null)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenu(null)
+    }
+    window.addEventListener('mousedown', onPointerDown)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('mousedown', onPointerDown)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [menu])
   useEffect(() => {
     const timer = window.setTimeout(() => {
       if (draft !== props.query) onQueryChangeRef.current(draft)
@@ -302,11 +626,56 @@ export function ExplorePage(props: ExplorePageProps) {
   const chips = useMemo(() => exploreQueryChips(props.parsed), [props.parsed])
   const accounts = useExploreAccounts(true)
   const attributeNames = useExploreAttributeNames(props.accountUid || '', true)
-  const attributeValues = useExploreAttributeValues(activeValueField, activeValueKind, '', true)
   const visibleResults = props.results.filter((result) => activeTab === 'all' || result.type === activeTab)
+  // The scope chip reads the space's own name where we have it, falling back to the uid so it is
+  // never blank while accounts are still loading.
+  const scopeUid = props.context.type === 'site' ? props.context.id.uid : null
+  const scopeLabel = scopeUid
+    ? accounts.data?.find((account) => account.value === scopeUid)?.label ?? props.contextLabel ?? scopeUid
+    : 'All spaces'
+  const selectedTypes = chips
+    .filter((chip) => chip.kind === 'type')
+    .map((chip) => chip.token.replace(/^type:/, '') as HMExploreResultType)
+  // Rewrites the type predicates to exactly the chosen set, one toggle per difference.
+  const applyTypes = (next: HMExploreResultType[]) => {
+    let parsed = props.parsed
+    for (const type of selectedTypes) {
+      if (!next.includes(type)) parsed = toggleExplorePredicate(parsed, `type:${type}`)
+    }
+    for (const type of next) {
+      if (!selectedTypes.includes(type)) parsed = toggleExplorePredicate(parsed, `type:${type}`)
+    }
+    updateQuery(serializeExploreQuery(parsed))
+  }
+  // Ordering is applied to the results already loaded rather than to the query.
+  const sortedResults = useMemo(() => {
+    if (sortBy === 'relevance') return visibleResults
+    const ordered = [...visibleResults]
+    if (sortBy === 'title') {
+      ordered.sort((a, b) => exploreResultTitle(a).localeCompare(exploreResultTitle(b)))
+      return ordered
+    }
+    const time = (result: HMExploreResult) => (result.versionTime ? new Date(result.versionTime).getTime() : 0)
+    ordered.sort((a, b) => (sortBy === 'recent' ? time(b) - time(a) : time(a) - time(b)))
+    return ordered
+  }, [visibleResults, sortBy])
+  // With no search term, a single browsable type turns the landing into a plain listing of that
+  // kind. Clearing the chip returns to the landing.
+  const jumpToKinds: ExploreBrowseKind[] = props.context.type === 'site' ? ['document', 'contact'] : BROWSABLE_KINDS
+  const browseKinds = selectedTypes.filter((type): type is ExploreBrowseKind =>
+    BROWSABLE_KINDS.includes(type as ExploreBrowseKind),
+  )
+  // Comments and text blocks have no listing API, so selecting them can only narrow a later search.
+  const searchOnlyTypes = selectedTypes.filter((type) => !BROWSABLE_KINDS.includes(type as ExploreBrowseKind))
+  /** Scope chips carry a raw account uid. Show the space's name where the account list knows it. */
+  const chipDisplayLabel = (chip: (typeof chips)[number]) => {
+    if (chip.kind !== 'scope' || !chip.token.startsWith('in:')) return chip.label
+    const uid = chip.token.slice('in:'.length)
+    const name = accounts.data?.find((account) => account.value === uid)?.label
+    return name && name !== uid ? `In ${name}` : chip.label
+  }
   const streams = exploreStreamSelection(props.parsed, props.context)
   const willSearch = streams.text || streams.documents
-  const documentOnly = activeTab !== 'all' && activeTab !== 'document'
   const updateQuery = (next: string) => {
     if (debounceRef.current !== null) {
       window.clearTimeout(debounceRef.current)
@@ -315,31 +684,14 @@ export function ExplorePage(props: ExplorePageProps) {
     setDraft(next)
     onQueryChangeRef.current(next)
   }
-  const commitBuilderAst = (nextAst: ExploreQueryNode | null) => {
-    setBuilderAst(nextAst)
-    const nextQuery = serializeExploreBuilderQuery(nextAst, props.parsed.presentation)
-    if (nextQuery !== props.query) updateQuery(nextQuery)
-  }
   const updatePresentation = (presentation: ExplorePresentation) =>
     updateQuery(withPresentation(props.parsed.ast, presentation))
-  const builtInColumns = ['title', 'space', 'path', 'updated', 'version']
-  const availableColumns = [...builtInColumns, ...(attributeNames.data ?? [])]
   const selectedColumns = props.parsed.presentation.columns?.length
     ? props.parsed.presentation.columns
     : ['title', 'space', 'path', 'updated']
   const sortRules = props.parsed.presentation.sort ?? []
   const cycleSort = (key: string) => {
     const nextRules = cycleExploreSort(sortRules, key)
-    updatePresentation({...props.parsed.presentation, sort: nextRules.length ? nextRules : undefined})
-  }
-  const cycleSortDirection = (key: string) => {
-    const nextRules = sortRules.map((rule) =>
-      rule.key === key ? {...rule, direction: rule.direction === 'asc' ? ('desc' as const) : ('asc' as const)} : rule,
-    )
-    updatePresentation({...props.parsed.presentation, sort: nextRules})
-  }
-  const removeSort = (key: string) => {
-    const nextRules = sortRules.filter((rule) => rule.key !== key)
     updatePresentation({...props.parsed.presentation, sort: nextRules.length ? nextRules : undefined})
   }
   // Contacts carry none of the table's columns, so People stays a list.
@@ -352,108 +704,79 @@ export function ExplorePage(props: ExplorePageProps) {
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-5 py-6 lg:px-8">
       <header className="border-border flex flex-col gap-4 border-b pb-5">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-muted-foreground text-[11px] font-semibold tracking-[0.2em] uppercase">Explore</div>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight">Advanced search</h1>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-3xl font-bold tracking-tight">Explore</h1>
+          <div className="relative w-full sm:max-w-xl">
+            <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" aria-hidden />
+            <Input
+              ref={inputRef}
+              value={draft}
+              onChangeText={setDraft}
+              placeholder={scopeUid ? `Search in ${scopeLabel}` : 'Search across all your spaces...'}
+              aria-label="Search"
+              className="bg-background h-11 pl-9 text-sm"
+            />
           </div>
-          <ExploreScopePill
-            context={props.context}
-            contextLabel={props.contextLabel}
-            accounts={accounts.data ?? []}
-            onChange={props.onScopeChange}
-          />
         </div>
-        <Input
-          value={draft}
-          onChangeText={setDraft}
-          placeholder="Search documents, blocks, conversations, and attributes"
-          aria-label="Explore query"
-          className="bg-background h-11 font-mono text-sm"
-        />
         <div className="relative flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1">
-            <Button
-              size="sm"
-              variant={props.parsed.presentation.view === 'table' ? 'secondary' : 'outline'}
-              onClick={() =>
-                updatePresentation({
-                  ...props.parsed.presentation,
-                  view: props.parsed.presentation.view === 'table' ? 'list' : 'table',
-                })
-              }
-            >
-              {props.parsed.presentation.view === 'table' ? 'Table' : 'List'}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!tableMode}
-              onClick={() => setColumnsOpen((open) => !open)}
-              title={!tableMode ? 'Columns are available for document results.' : undefined}
-            >
-              Columns
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!tableMode}
-              onClick={() => setSortOpen((open) => !open)}
-              title={!tableMode ? 'Sorting is available for document results.' : undefined}
-            >
-              Sort{sortRules.length ? ` (${sortRules.length})` : ''}
-            </Button>
-          </div>
-          {columnsOpen ? (
-            <ExploreColumnsMenu
-              columns={availableColumns}
-              selected={selectedColumns}
-              onToggle={(column) => {
-                const next = toggleExploreColumn(selectedColumns, column)
-                updatePresentation({...props.parsed.presentation, columns: next.length ? next : ['title']})
-              }}
-            />
-          ) : null}
-          {sortOpen ? (
-            <ExploreSortMenu
-              rules={sortRules}
-              availableKeys={attributeNames.data ?? []}
-              onCycleDirection={cycleSortDirection}
-              onRemove={removeSort}
-              onAdd={cycleSort}
-            />
-          ) : null}
-          {(['type', 'in', 'attributes'] as const).map((kind) => (
-            <div key={kind} className="relative">
-              <Button size="sm" variant="outline" onClick={() => setMenu(menu === kind ? null : kind)}>
-                {kind[0]!.toUpperCase() + kind.slice(1)}
-              </Button>
-              {menu === kind ? (
-                <ExploreFilterMenu
-                  options={
-                    kind === 'type'
-                      ? ['type:document', 'type:block', 'type:comment', 'type:space', 'type:contact']
-                      : kind === 'in'
-                        ? accounts.data?.map((account) => `in:${account.value}`) ?? []
-                        : attributeNames.data?.map((name) => `has:${name}`) ?? []
-                  }
-                  activeTokens={chips.map((chip) => chip.token)}
-                  onToggle={(predicate) => {
-                    const next = toggleExplorePredicate(props.parsed, predicate)
-                    updateQuery(serializeExploreQuery(next))
+          {props.onScopeChange ? (
+            <div className="relative" data-explore-menu>
+              <ExploreChipButton
+                label={scopeLabel}
+                active={props.context.type === 'site'}
+                open={menu === 'scope'}
+                onClick={() => setMenu(menu === 'scope' ? null : 'scope')}
+              />
+              {menu === 'scope' ? (
+                <ExploreScopeMenu
+                  context={props.context}
+                  accounts={accounts.data ?? []}
+                  onChange={(scope) => {
+                    props.onScopeChange?.(scope)
                     setMenu(null)
                   }}
                 />
               ) : null}
             </div>
-          ))}
-          <Button
-            size="sm"
-            variant={advancedOpen ? 'secondary' : 'outline'}
-            onClick={() => setAdvancedOpen((open) => !open)}
-          >
-            Advanced
-          </Button>
+          ) : null}
+          <div className="relative" data-explore-menu>
+            <ExploreChipButton
+              label={selectedTypes.length ? `${selectedTypes.length} types` : 'All types'}
+              active={selectedTypes.length > 0}
+              open={menu === 'type'}
+              onClick={() => setMenu(menu === 'type' ? null : 'type')}
+            />
+            {menu === 'type' ? (
+              <ExploreTypeMenu
+                counts={props.counts}
+                showCounts={willSearch}
+                selected={selectedTypes}
+                onApply={(types) => {
+                  applyTypes(types)
+                  setMenu(null)
+                }}
+              />
+            ) : null}
+          </div>
+          <div className="relative" data-explore-menu>
+            <ExploreChipButton
+              label="Attributes"
+              active={chips.some((chip) => chip.kind === 'attribute')}
+              open={menu === 'attributes'}
+              onClick={() => setMenu(menu === 'attributes' ? null : 'attributes')}
+            />
+            {menu === 'attributes' ? (
+              <ExploreFilterMenu
+                options={(attributeNames.data ?? []).map((name) => ({token: `has:${name}`, label: name}))}
+                activeTokens={chips.map((chip) => chip.token)}
+                onToggle={(predicate) => {
+                  const next = toggleExplorePredicate(props.parsed, predicate)
+                  updateQuery(serializeExploreQuery(next))
+                  setMenu(null)
+                }}
+              />
+            ) : null}
+          </div>
         </div>
         {chips.length ? (
           <div className="flex flex-wrap items-center gap-2">
@@ -464,7 +787,7 @@ export function ExplorePage(props: ExplorePageProps) {
                 onClick={() => updateQuery(serializeExploreQuery(removeExploreQueryChip(props.parsed, chip.id)))}
                 className="border-border bg-muted/40 hover:bg-muted inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-mono text-xs transition-colors"
               >
-                {chip.label}
+                {chipDisplayLabel(chip)}
                 <X className="size-3" aria-hidden />
               </button>
             ))}
@@ -484,53 +807,62 @@ export function ExplorePage(props: ExplorePageProps) {
         ))}
       </header>
 
-      {advancedOpen ? (
-        <ExploreBuilder
-          ast={builderAst}
-          attributeNames={attributeNames.data ?? []}
-          attributeValues={attributeValues.data ?? []}
-          accounts={accounts.data ?? []}
-          context={props.context}
-          presentation={props.parsed.presentation}
-          onFocusValue={(field, kind) => {
-            setActiveValueField(field)
-            setActiveValueKind(kind)
-          }}
-          onChange={commitBuilderAst}
-        />
+      {willSearch ? (
+        <nav className="border-border flex flex-wrap gap-1 border-b" role="tablist" aria-label="Explore result types">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                'border-b-2 px-3 py-2 text-sm transition-colors',
+                activeTab === tab.id
+                  ? 'border-foreground text-foreground font-medium'
+                  : 'text-muted-foreground hover:text-foreground border-transparent',
+              )}
+            >
+              {tab.label} <span className="text-muted-foreground tabular-nums">{props.counts[tab.id]}</span>
+            </button>
+          ))}
+        </nav>
       ) : null}
 
-      <nav className="border-border flex flex-wrap gap-1 border-b" role="tablist" aria-label="Explore result types">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              'border-b-2 px-3 py-2 text-sm transition-colors',
-              activeTab === tab.id
-                ? 'border-foreground text-foreground font-medium'
-                : 'text-muted-foreground hover:text-foreground border-transparent',
-            )}
-          >
-            {tab.label} <span className="text-muted-foreground tabular-nums">{props.counts[tab.id]}</span>
-          </button>
-        ))}
-      </nav>
-
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium">{props.counts[activeTab]} results</p>
-          {documentOnly ? (
-            <p className="text-muted-foreground text-xs">Attribute sorting applies to documents.</p>
-          ) : null}
+      {willSearch ? (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-medium">
+            {props.counts[activeTab]} results
+            {props.textTerms.length ? <> for &ldquo;{props.textTerms.join(' ')}&rdquo;</> : null}
+          </p>
+          <div className="relative" data-explore-menu>
+            <ExploreChipButton
+              label={`Sort by ${sortOptions.find((option) => option.value === sortBy)?.label ?? 'Relevance'}`}
+              active={sortBy !== 'relevance'}
+              open={menu === 'sort'}
+              onClick={() => setMenu(menu === 'sort' ? null : 'sort')}
+            />
+            {menu === 'sort' ? (
+              <div className="bg-popover text-popover-foreground absolute top-full right-0 z-30 mt-2 min-w-48 rounded-md border p-1 shadow-md">
+                {sortOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className="hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm"
+                    onClick={() => {
+                      setSortBy(option.value)
+                      setMenu(null)
+                    }}
+                  >
+                    {sortBy === option.value ? <Check className="size-3.5" /> : <span className="size-3.5" />}
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
-        <span className="text-muted-foreground text-xs">
-          {props.textTerms.length ? 'Text matches highlighted below' : 'Attribute query'}
-        </span>
-      </div>
+      ) : null}
 
       <section aria-live="polite" className="min-h-48">
         {props.isLoading || props.intersectionPending || props.isRefetching ? (
@@ -558,20 +890,41 @@ export function ExplorePage(props: ExplorePageProps) {
           willSearch ? (
             <ExploreState icon={<Search />} title="No results" detail="Try a broader search or remove a filter." />
           ) : (
-            <ExploreState
-              icon={<Search />}
-              title={props.query.trim() ? 'Add a search term' : 'Start exploring'}
-              detail={
-                props.query.trim()
-                  ? 'Type filters narrow results, but they do not search on their own. Add a word to search for.'
-                  : 'Search documents, conversations, text blocks, spaces and people.'
-              }
-            />
+            // Filters alone never run a search, so a type chip on its own must not empty the page.
+            <div className="flex flex-col gap-6">
+              <ExploreJumpTo
+                active={selectedTypes}
+                kinds={jumpToKinds}
+                onJump={(type) =>
+                  applyTypes(
+                    selectedTypes.includes(type)
+                      ? selectedTypes.filter((value) => value !== type)
+                      : [...selectedTypes, type],
+                  )
+                }
+              />
+              {searchOnlyTypes.length ? (
+                <p className="text-muted-foreground text-sm">
+                  {searchOnlyTypes
+                    .map((type) => typeOptions.find((option) => option.value === type)?.label ?? type)
+                    .join(' and ')}{' '}
+                  can only be found by searching. Add a term above.
+                </p>
+              ) : null}
+              {browseKinds.length ? (
+                browseKinds.map((kind) => <ExploreBrowse key={kind} kind={kind} context={props.context} />)
+              ) : searchOnlyTypes.length ? null : (
+                <>
+                  <ExploreYourSpaces />
+                  <ExploreLanding context={props.context} />
+                </>
+              )}
+            </div>
           )
         ) : null}
         {visibleResults.length && tableMode ? (
           <ExploreTable
-            results={visibleResults.filter(
+            results={sortedResults.filter(
               (result): result is Extract<HMExploreResult, {type: 'document' | 'space'}> =>
                 result.type === 'document' || result.type === 'space',
             )}
@@ -582,13 +935,9 @@ export function ExplorePage(props: ExplorePageProps) {
           />
         ) : visibleResults.length ? (
           <div className="border-border divide-border bg-background overflow-hidden rounded-lg border">
-            {visibleResults.map((result) => (
+            {sortedResults.map((result) => (
               <ExploreResultRow
-                key={
-                  result.type === 'comment'
-                    ? `${result.type}:${result.commentId}`
-                    : `${result.type}:${exploreDocumentKey(result.id)}`
-                }
+                key={resultKey(result)}
                 result={result}
                 terms={props.textTerms}
                 blocks={
@@ -621,7 +970,7 @@ function ExploreFilterMenu({
   activeTokens,
   onToggle,
 }: {
-  options: string[]
+  options: Array<{token: string; label: string}>
   activeTokens: string[]
   onToggle: (predicate: string) => void
 }) {
@@ -630,15 +979,15 @@ function ExploreFilterMenu({
       {options.length ? (
         options.map((option) => (
           <button
-            key={option}
+            key={option.token}
             type="button"
             className={cn(
-              'hover:bg-muted rounded px-2 py-1.5 text-left font-mono text-xs',
-              activeTokens.includes(option) && 'bg-accent',
+              'hover:bg-muted truncate rounded px-2 py-1.5 text-left text-sm',
+              activeTokens.includes(option.token) && 'bg-accent',
             )}
-            onClick={() => onToggle(option)}
+            onClick={() => onToggle(option.token)}
           >
-            {option}
+            {option.label}
           </button>
         ))
       ) : (
@@ -648,462 +997,8 @@ function ExploreFilterMenu({
   )
 }
 
-type BuilderNode = ExploreQueryNode
-
-function builderPredicateIsComplete(predicate: ExplorePredicate) {
-  if (predicate.kind === 'type') return Boolean(predicate.value)
-  if (predicate.kind === 'scope') return Boolean(predicate.value.trim())
-  if (predicate.operator === 'exists' || predicate.operator === 'missing') return Boolean(predicate.key.trim())
-  return Boolean(predicate.key.trim() && 'value' in predicate && String(predicate.value).trim())
-}
-
-function serializableBuilderNode(node: ExploreQueryNode | null): ExploreQueryNode | null {
-  if (!node || (node.kind === 'predicate' && !builderPredicateIsComplete(node.predicate))) return null
-  if (node.kind === 'text' || node.kind === 'predicate') return node
-  if (node.kind === 'not') {
-    const child = serializableBuilderNode(node.child)
-    return child ? {kind: 'not', child} : null
-  }
-  const children = node.children.flatMap((child) => {
-    const next = serializableBuilderNode(child)
-    return next ? [next] : []
-  })
-  return children.length ? {...node, children} : null
-}
-
-/** Serializes the completed portion of a builder AST while retaining pending UI nodes locally. */
-export function serializeExploreBuilderQuery(ast: ExploreQueryNode | null, presentation: ExplorePresentation) {
-  return serializeExploreQuery({ast: serializableBuilderNode(ast), presentation, diagnostics: []})
-}
-
-function appendExploreNode(ast: ExploreQueryNode | null, next: ExploreQueryNode): ExploreQueryNode {
-  if (!ast) return next
-  if (ast.kind === 'and') return {kind: 'and', children: [...ast.children, next]}
-  return {kind: 'and', children: [ast, next]}
-}
-
 function withPresentation(ast: ExploreQueryNode | null, presentation: ExplorePresentation) {
   return serializeExploreQuery({ast, presentation, diagnostics: []})
-}
-
-function predicateToDraft(predicate: ExplorePredicate): {
-  field: string
-  kind: 'comparison' | 'contains' | 'prefix' | 'exists' | 'missing'
-  operator: '=' | '!=' | '<' | '<=' | '>' | '>='
-  valueKind: 'string' | 'int' | 'bool'
-  value: string
-} {
-  if (predicate.kind === 'scope') {
-    return {
-      field: predicate.scope === 'path' ? '$path' : '$space',
-      kind: predicate.scope === 'path' && predicate.prefix ? 'prefix' : 'contains',
-      operator: '=',
-      valueKind: 'string',
-      value: predicate.value,
-    }
-  }
-  if (predicate.kind === 'type') {
-    return {field: 'type', kind: 'contains', operator: '=', valueKind: 'string', value: predicate.value}
-  }
-  if (predicate.operator === 'exists' || predicate.operator === 'missing')
-    return {field: predicate.key, kind: predicate.operator, operator: '=', valueKind: 'string', value: ''}
-  if (predicate.operator === 'contains' || predicate.operator === 'prefix')
-    return {field: predicate.key, kind: predicate.operator, operator: '=', valueKind: 'string', value: predicate.value}
-  if (predicate.operator !== 'comparison')
-    return {field: predicate.key, kind: 'contains', operator: '=', valueKind: 'string', value: ''}
-  return {
-    field: predicate.key,
-    kind: 'comparison',
-    operator: predicate.comparison,
-    valueKind: typeof predicate.value === 'number' ? 'int' : typeof predicate.value === 'boolean' ? 'bool' : 'string',
-    value: String(predicate.value),
-  }
-}
-
-function draftToPredicate(
-  field: string,
-  kind: 'comparison' | 'contains' | 'prefix' | 'exists' | 'missing',
-  operator: '=' | '!=' | '<' | '<=' | '>' | '>=',
-  valueKind: 'string' | 'int' | 'bool',
-  value: string,
-): ExplorePredicate | null {
-  if (!field.trim()) return null
-  if (field === 'type' && ['document', 'block', 'comment'].includes(value))
-    return {kind: 'type', value: value as HMExploreResultType}
-  if (field === '$space') return {kind: 'scope', scope: 'space', value: value.trim()}
-  if (field === '$path') return {kind: 'scope', scope: 'path', value: value.trim() || '/', prefix: kind === 'prefix'}
-  if (kind === 'exists' || kind === 'missing') return {kind: 'attribute', key: field.trim(), operator: kind}
-  if (!value.trim()) return null
-  if (kind === 'contains' || kind === 'prefix') return {kind: 'attribute', key: field.trim(), operator: kind, value}
-  const typedValue = valueKind === 'int' ? Number(value) : valueKind === 'bool' ? value === 'true' : value
-  return {kind: 'attribute', key: field.trim(), operator: 'comparison', comparison: operator, value: typedValue}
-}
-
-function ExploreBuilder({
-  ast,
-  attributeNames,
-  attributeValues,
-  accounts,
-  context,
-  presentation,
-  onFocusValue,
-  onChange,
-}: {
-  ast: ExploreQueryNode | null
-  attributeNames: string[]
-  attributeValues: string[]
-  accounts: Array<{value: string; label: string}>
-  context: HMExploreContext
-  presentation: ExplorePresentation
-  onFocusValue: (field: string, kind: 'string' | 'int' | 'bool') => void
-  onChange: (ast: ExploreQueryNode | null) => void
-}) {
-  if (!ast) {
-    return (
-      <section className="border-border bg-muted/10 rounded-lg border p-4">
-        <BuilderToolbar onAdd={(node) => onChange(node)} />
-      </section>
-    )
-  }
-  return (
-    <section className="border-border bg-muted/10 flex flex-col gap-4 rounded-lg border p-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-muted-foreground text-[11px] font-semibold tracking-[0.18em] uppercase">Query builder</p>
-          <p className="text-muted-foreground mt-1 text-xs">
-            Edit document conditions without losing text or presentation directives.
-          </p>
-        </div>
-        <Button size="sm" variant="ghost" onClick={() => onChange(clearExploreConditions(ast))}>
-          Clear conditions
-        </Button>
-      </div>
-      <BuilderNodeEditor
-        node={ast}
-        path={[]}
-        attributeNames={attributeNames}
-        attributeValues={attributeValues}
-        accounts={accounts}
-        onFocusValue={onFocusValue}
-        onChange={onChange}
-      />
-      <BuilderToolbar onAdd={(node) => onChange(appendExploreNode(ast, node))} />
-      <details className="border-border bg-background rounded-md border px-3 py-2">
-        <summary className="cursor-pointer text-xs font-medium">Request preview</summary>
-        <pre className="text-muted-foreground mt-2 overflow-auto text-[11px]">
-          {JSON.stringify(
-            new QueryDocumentsRequest({
-              filter: compileExploreQuery({ast, presentation, diagnostics: []}, context).filter,
-              sort: (presentation.sort ?? []).map(
-                (rule) => new DocumentSort({key: rule.key, descending: rule.direction === 'desc'}),
-              ),
-            }).toJson(),
-            null,
-            2,
-          )}
-        </pre>
-      </details>
-    </section>
-  )
-}
-
-function BuilderToolbar({onAdd}: {onAdd: (node: ExploreQueryNode) => void}) {
-  return (
-    <div className="flex gap-2">
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={() =>
-          onAdd({
-            kind: 'predicate',
-            predicate: {kind: 'attribute', key: '', operator: 'contains', value: ''},
-          })
-        }
-      >
-        Add condition
-      </Button>
-      <Button size="sm" variant="outline" onClick={() => onAdd({kind: 'and', children: []})}>
-        Add group
-      </Button>
-    </div>
-  )
-}
-
-function BuilderNodeEditor({
-  node,
-  path,
-  attributeNames,
-  attributeValues,
-  accounts,
-  onFocusValue,
-  onChange,
-}: {
-  node: BuilderNode
-  path: number[]
-  attributeNames: string[]
-  attributeValues: string[]
-  accounts: Array<{value: string; label: string}>
-  onFocusValue: (field: string, kind: 'string' | 'int' | 'bool') => void
-  onChange: (ast: ExploreQueryNode | null) => void
-}) {
-  const replace = (next: ExploreQueryNode | null) => onChange(next)
-  if (node.kind === 'text') {
-    return <div className="bg-muted/40 rounded-md px-3 py-2 font-mono text-xs">Text: {node.value || '(empty)'}</div>
-  }
-  if (node.kind === 'predicate') {
-    const draft = predicateToDraft(node.predicate)
-    return (
-      <BuilderCondition
-        draft={draft}
-        attributeNames={attributeNames}
-        attributeValues={attributeValues}
-        accounts={accounts}
-        onFocusValue={onFocusValue}
-        onChange={(next) => replace(next ? {kind: 'predicate', predicate: next} : null)}
-        onRemove={() => replace(null)}
-      />
-    )
-  }
-  if (node.kind === 'not') {
-    return (
-      <div className="border-border border-l-2 pl-3">
-        <div className="mb-2 flex items-center justify-between">
-          <div className="text-muted-foreground text-xs font-medium">Not</div>
-          <Button size="xs" variant="ghost" onClick={() => onChange(node.child)}>
-            Remove Not
-          </Button>
-        </div>
-        <BuilderNodeEditor
-          node={node.child}
-          path={[...path, 0]}
-          attributeNames={attributeNames}
-          attributeValues={attributeValues}
-          accounts={accounts}
-          onFocusValue={onFocusValue}
-          onChange={(next) => onChange(next ? {kind: 'not', child: next} : null)}
-        />
-      </div>
-    )
-  }
-  return (
-    <div className="border-border bg-background flex flex-col gap-3 rounded-md border p-3">
-      <div className="flex items-center justify-between gap-2">
-        <Select
-          value={node.kind}
-          onValueChange={(mode) =>
-            onChange(mode === 'not' ? {kind: 'not', child: node} : {...node, kind: mode as 'and' | 'or'})
-          }
-        >
-          <SelectTrigger size="sm" className="w-24">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="and">All</SelectItem>
-            <SelectItem value="or">Any</SelectItem>
-            <SelectItem value="not">Not</SelectItem>
-          </SelectContent>
-        </Select>
-        <div className="flex gap-1">
-          <Button
-            size="xs"
-            variant="outline"
-            onClick={() =>
-              onChange({
-                kind: node.kind,
-                children: [
-                  ...node.children,
-                  {kind: 'predicate', predicate: {kind: 'attribute', key: '', operator: 'exists'}},
-                ],
-              })
-            }
-          >
-            Add condition
-          </Button>
-          <Button
-            size="xs"
-            variant="outline"
-            onClick={() => onChange({kind: node.kind, children: [...node.children, {kind: 'and', children: []}]})}
-          >
-            Add group
-          </Button>
-          {path.length ? (
-            <Button size="xs" variant="ghost" onClick={() => replace(clearExploreConditions(node))}>
-              Remove
-            </Button>
-          ) : null}
-        </div>
-      </div>
-      {node.children.map((child, index) => (
-        <BuilderNodeEditor
-          key={`${path.join('.')}.${index}`}
-          node={child}
-          path={[...path, index]}
-          attributeNames={attributeNames}
-          attributeValues={attributeValues}
-          accounts={accounts}
-          onFocusValue={onFocusValue}
-          onChange={(next) => {
-            const children = [...node.children]
-            if (next) children[index] = next
-            else children.splice(index, 1)
-            onChange(children.length ? {...node, children} : null)
-          }}
-        />
-      ))}
-    </div>
-  )
-}
-
-function BuilderCondition({
-  draft,
-  attributeNames,
-  attributeValues,
-  accounts,
-  onFocusValue,
-  onChange,
-  onRemove,
-}: {
-  draft: ReturnType<typeof predicateToDraft>
-  attributeNames: string[]
-  attributeValues: string[]
-  accounts: Array<{value: string; label: string}>
-  onFocusValue: (field: string, kind: 'string' | 'int' | 'bool') => void
-  onChange: (predicate: ExplorePredicate | null) => void
-  onRemove: () => void
-}) {
-  const [field, setField] = useState(draft.field)
-  const [kind, setKind] = useState(draft.kind)
-  const [operator, setOperator] = useState(draft.operator)
-  const [valueKind, setValueKind] = useState(draft.valueKind)
-  const [value, setValue] = useState(draft.value)
-  useEffect(() => {
-    setField(draft.field)
-    setKind(draft.kind)
-    setOperator(draft.operator)
-    setValueKind(draft.valueKind)
-    setValue(draft.value)
-  }, [draft.field, draft.kind, draft.operator, draft.valueKind, draft.value])
-  const commit = (next: Partial<typeof draft>) => {
-    const merged = {field, kind, operator, valueKind, value, ...next}
-    setField(merged.field)
-    setKind(merged.kind)
-    setOperator(merged.operator)
-    setValueKind(merged.valueKind)
-    setValue(merged.value)
-    onChange(draftToPredicate(merged.field, merged.kind, merged.operator, merged.valueKind, merged.value))
-  }
-  return (
-    <div className="border-border flex flex-wrap items-center gap-2 rounded-md border p-2">
-      <ExploreAutocomplete
-        value={field}
-        options={[...attributeNames, '$space', '$path']}
-        onChange={(next) => commit({field: next})}
-        placeholder="field"
-        className="h-8 w-36 text-xs"
-      />
-      <Select value={kind} onValueChange={(next) => commit({kind: next as typeof kind})}>
-        <SelectTrigger size="sm" className="w-28">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="comparison">Compare</SelectItem>
-          <SelectItem value="contains">Contains</SelectItem>
-          <SelectItem value="prefix">Starts with</SelectItem>
-          <SelectItem value="exists">Exists</SelectItem>
-          <SelectItem value="missing">Missing</SelectItem>
-        </SelectContent>
-      </Select>
-      {kind === 'comparison' ? (
-        <Select value={operator} onValueChange={(next) => commit({operator: next as typeof operator})}>
-          <SelectTrigger size="sm" className="w-16">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {['=', '!=', '<', '<=', '>', '>='].map((item) => (
-              <SelectItem key={item} value={item}>
-                {item}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      ) : null}
-      {kind !== 'exists' && kind !== 'missing' ? (
-        <Select value={valueKind} onValueChange={(next) => commit({valueKind: next as typeof valueKind})}>
-          <SelectTrigger size="sm" className="w-24">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="string">Text</SelectItem>
-            <SelectItem value="int">Integer</SelectItem>
-            <SelectItem value="bool">Boolean</SelectItem>
-          </SelectContent>
-        </Select>
-      ) : null}
-      {kind !== 'exists' && kind !== 'missing' ? (
-        <ExploreAutocomplete
-          value={value}
-          options={attributeValues.length ? attributeValues : accounts.map((account) => account.value)}
-          onFocus={() => onFocusValue(field, valueKind)}
-          onChange={(next) => commit({value: next})}
-          placeholder="value"
-          className="h-8 min-w-32 flex-1 text-xs"
-        />
-      ) : null}
-      <Button size="iconSm" variant="ghost" aria-label="Remove condition" onClick={onRemove}>
-        ×
-      </Button>
-    </div>
-  )
-}
-
-function ExploreAutocomplete({
-  value,
-  options,
-  onChange,
-  onFocus,
-  placeholder,
-  className,
-}: {
-  value: string
-  options: string[]
-  onChange: (value: string) => void
-  onFocus?: () => void
-  placeholder: string
-  className?: string
-}) {
-  const store = Ariakit.useComboboxStore({value, setValue: onChange})
-  const query = value.trim().toLocaleLowerCase()
-  const suggestions = options.filter((option) => !query || option.toLocaleLowerCase().includes(query)).slice(0, 50)
-  return (
-    <div className="relative min-w-0 flex-1">
-      <Ariakit.Combobox
-        store={store}
-        value={value}
-        onChange={(event) => onChange(event.currentTarget.value)}
-        onFocus={onFocus}
-        placeholder={placeholder}
-        className={cn(
-          'border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-8 w-full rounded-md border px-2 text-xs outline-none focus-visible:ring-2',
-          className,
-        )}
-      />
-      <Ariakit.ComboboxPopover
-        store={store}
-        gutter={4}
-        sameWidth
-        className="bg-popover text-popover-foreground z-50 max-h-48 overflow-auto rounded-md border p-1 shadow-md"
-      >
-        {suggestions.map((suggestion) => (
-          <Ariakit.ComboboxItem
-            key={suggestion}
-            store={store}
-            value={suggestion}
-            className="hover:bg-accent focus:bg-accent w-full rounded px-2 py-1 text-left text-xs outline-none"
-          />
-        ))}
-      </Ariakit.ComboboxPopover>
-    </div>
-  )
 }
 
 function tableCellValue(result: Extract<HMExploreResult, {type: 'document' | 'space'}>, column: string) {
@@ -1166,7 +1061,7 @@ function ExploreTable({
         </thead>
         <tbody>
           {results.map((result) => (
-            <tr key={exploreDocumentKey(result.id)} className="hover:bg-muted/20 border-b last:border-b-0">
+            <tr key={resultKey(result)} className="hover:bg-muted/20 border-b last:border-b-0">
               {columns.map((column) => (
                 <td key={column} className="max-w-80 px-3 py-2 align-top">
                   {column === 'title' ? (

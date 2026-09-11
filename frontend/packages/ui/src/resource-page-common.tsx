@@ -3740,6 +3740,10 @@ function MainContent({
               navigate({key: 'comments', id: result.documentId, openComment: result.commentId})
               return
             }
+            if (result.type === 'contact') {
+              navigate({key: 'profile', id: result.id})
+              return
+            }
             navigate({key: 'document', id: result.id})
           }}
         />

@@ -1,27 +1,27 @@
 import appError from '@/errors'
+import {domainResolver} from '@/grpc-client'
 import {useConnectPeer} from '@/models/contacts'
-import {agentUrlToRoute} from '@/omnibar-url'
 import {useExperiments} from '@/models/experiments'
 import {useGatewayHost_DEPRECATED} from '@/models/gateway-settings'
+import {agentUrlToRoute} from '@/omnibar-url'
 import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {parseDeepLink} from '@/utils/deep-links'
 import {useTriggerWindowEvent} from '@/utils/window-events'
-import {SearchType} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
-import {HYPERMEDIA_SCHEME} from '@shm/shared/constants'
+import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import {SearchResult} from '@seed-hypermedia/client/editor-types'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {SearchType} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
+import {HYPERMEDIA_SCHEME} from '@shm/shared/constants'
 import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
-import {resolveHypermediaUrl} from '@seed-hypermedia/client'
-import {domainResolver} from '@/grpc-client'
 import {createDocumentNavRoute, createInspectNavRoute, NavRoute} from '@shm/shared/routes'
 import {
   extractViewTermFromUrl,
+  hmId,
   isHypermediaScheme,
   isSiteProfileTab,
   packHmId,
-  hmId,
   parseCustomURL,
   parseFragment,
   unpackHmId,
@@ -29,13 +29,13 @@ import {
 } from '@shm/shared/utils/entity-id-url'
 import {appRouteOfId, isHttpUrl, useNavRoute} from '@shm/shared/utils/navigation'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
-import {RecentSearchResultItem, SearchInput as SearchInputUI, SearchResultItem} from '@shm/ui/search'
+import {useDebounce} from '@shm/shared/utils/use-debounce'
 import {Button} from '@shm/ui/button'
+import {RecentSearchResultItem, SearchInput as SearchInputUI, SearchResultItem} from '@shm/ui/search'
 import {Separator} from '@shm/ui/separator'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useMutation} from '@tanstack/react-query'
-import {useDebounce} from '@shm/shared/utils/use-debounce'
 import {forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState} from 'react'
 
 export interface SearchInputHandle {
@@ -239,23 +239,6 @@ export const SearchInput = forwardRef<
           },
         }
       }) || []
-  const queryDocumentsItem: SearchResult = {
-    key: 'advanced-search',
-    title: 'Advanced search',
-    path: [],
-    onFocus: () => {},
-    onMouseEnter: () => {},
-    onSelect: () => {
-      const routeId = route && 'id' in route && typeof route.id !== 'string' ? route.id : null
-      const siteId = routeId?.uid ? hmId(routeId.uid) : null
-      onSelect({
-        route: {
-          key: 'explore',
-          context: siteId ? {type: 'site', id: siteId} : {type: 'node'},
-        },
-      })
-    },
-  }
   const exploreItem: SearchResult = {
     key: 'explore-results',
     title: debouncedSearch ? `Explore results for “${debouncedSearch}”` : 'Explore',
@@ -276,7 +259,7 @@ export const SearchInput = forwardRef<
   }
   const isDisplayingRecents = !debouncedSearch.length
   const resultItems = isDisplayingRecents ? recentItems : [...(queryItem ? [queryItem] : []), ...searchItems]
-  const footerItems = debouncedSearch ? [exploreItem, queryDocumentsItem] : [queryDocumentsItem]
+  const footerItems = [exploreItem]
   const activeItems = [...resultItems, ...footerItems]
 
   // Expose keyboard handlers via ref

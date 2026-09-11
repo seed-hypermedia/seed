@@ -1,8 +1,14 @@
 import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
 import {useInfiniteQuery, useQuery} from '@tanstack/react-query'
 import {
+  BuiltinSortAttribute,
   ContentTypeFilter,
   DocumentAttributeKind,
+  DocumentFilter,
+  DocumentFilter_And,
+  DocumentFilter_Or,
+  DocumentFilter_PathMatch,
+  DocumentFilter_SpaceMatch,
   DocumentSort,
   EntityKindFilter,
   ListAccountsRequest,
@@ -22,6 +28,7 @@ import {
   type ParsedExploreQuery,
 } from '../explore'
 import {useUniversalClient} from '../routing'
+import {useSelectedAccountContacts} from './contacts'
 import {prepareHMDocumentInfo, useSelectedAccountId} from './entity'
 import {queryKeys} from './query-keys'
 import type {SearchResultItem} from './search'
@@ -66,7 +73,13 @@ export function useExploreAccounts(enabled = true) {
     queryFn: async () => {
       if (!client.listAccounts) return []
       const response = await client.listAccounts(new ListAccountsRequest({pageSize: 1000}))
-      return response.accounts.map((account) => ({value: account.id, label: account.id}))
+      return response.accounts.map((account) => {
+        const homeMetadata = account.homeDocumentInfo?.metadata?.toJson() as {name?: string} | undefined
+        return {
+          value: account.id,
+          label: homeMetadata?.name || account.profile?.name || account.id,
+        }
+      })
     },
   })
 }
@@ -136,7 +149,7 @@ export function exploreDocumentKey(id: {uid: string; path?: string[] | null}) {
   return `${id.uid}:${(id.path ?? []).join('/')}`
 }
 
-function resultKey(result: HMExploreResult) {
+export function resultKey(result: HMExploreResult) {
   if (result.type === 'comment') return `comment:${exploreDocumentKey(result.documentId)}:${result.commentId}`
   if (result.type === 'block') {
     return `block:${exploreDocumentKey(result.id)}:${result.id.blockRef ?? ''}:${result.id.blockRange ?? ''}`
@@ -453,4 +466,138 @@ export function useExploreResults(
     loadMore,
     hasMore: Boolean((selection.documents && documentQuery.hasNextPage) || (selection.text && textQuery.hasNextPage)),
   }
+}
+
+/**
+ * The most recently active documents in scope, for the Explore landing state.
+ *
+ * Ordered by activity rather than update time. Scoped to one space, or across
+ * the node when Explore is unscoped.
+ */
+export function useExploreRecentDocuments(
+  context: HMExploreContext,
+  options: {enabled?: boolean; pageSize?: number; rootsOnly?: boolean} = {},
+) {
+  const client = useUniversalClient()
+  const pageSize = options.pageSize ?? 10
+  const rootsOnly = options.rootsOnly ?? false
+  return useQuery({
+    queryKey: [queryKeys.ENTITY, 'explore-recent-documents', context, pageSize, rootsOnly],
+    enabled: (options.enabled ?? true) && Boolean(client.queryDocuments),
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMDocumentInfo[]> => {
+      if (!client.queryDocuments) return []
+      // An empty path selects root documents, which is how a space is addressed, so `rootsOnly`
+      // turns this same query into a list of spaces.
+      const scopeFilters = [
+        context.type === 'site'
+          ? new DocumentFilter({
+              filter: {case: 'spaceMatch', value: new DocumentFilter_SpaceMatch({space: context.id.uid})},
+            })
+          : null,
+        rootsOnly
+          ? new DocumentFilter({
+              filter: {case: 'pathMatch', value: new DocumentFilter_PathMatch({path: '', prefix: false})},
+            })
+          : null,
+      ].filter((filter): filter is DocumentFilter => !!filter)
+      const response = await client.queryDocuments(
+        new QueryDocumentsRequest({
+          filter:
+            scopeFilters.length === 0
+              ? undefined
+              : scopeFilters.length === 1
+                ? scopeFilters[0]
+                : new DocumentFilter({filter: {case: 'and', value: new DocumentFilter_And({filters: scopeFilters})}}),
+          sort: [new DocumentSort({attribute: BuiltinSortAttribute.ACTIVITY_TIME, descending: true})],
+          pageSize,
+        }),
+        {signal},
+      )
+      return response.documents.map((document) => prepareHMDocumentInfo(document))
+    },
+  })
+}
+
+// The spaces this identity has joined.
+export function useExploreJoinedSpaces(options: {enabled?: boolean} = {}) {
+  const client = useUniversalClient()
+  const selectedAccountUid = useSelectedAccountId()
+  const contacts = useSelectedAccountContacts()
+
+  // The same space joined twice leaves one contact record per join.
+  // The backend returns them newest first, so the first per subject wins.
+  const joinedUids = Array.from(
+    new Set([
+      ...(selectedAccountUid ? [selectedAccountUid] : []),
+      ...(contacts.data ?? []).filter((contact) => contact.subscribe?.site).map((contact) => contact.subject),
+    ]),
+  )
+
+  const query = useQuery({
+    queryKey: [queryKeys.ENTITY, 'explore-joined-spaces', joinedUids],
+    enabled: (options.enabled ?? true) && Boolean(client.queryDocuments) && joinedUids.length > 0,
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMDocumentInfo[]> => {
+      if (!client.queryDocuments) return []
+      const response = await client.queryDocuments(
+        new QueryDocumentsRequest({
+          filter: new DocumentFilter({
+            filter: {
+              case: 'and',
+              value: new DocumentFilter_And({
+                filters: [
+                  new DocumentFilter({
+                    filter: {
+                      case: 'or',
+                      value: new DocumentFilter_Or({
+                        filters: joinedUids.map(
+                          (uid) =>
+                            new DocumentFilter({
+                              filter: {case: 'spaceMatch', value: new DocumentFilter_SpaceMatch({space: uid})},
+                            }),
+                        ),
+                      }),
+                    },
+                  }),
+                  // An empty path selects the root document of each space.
+                  new DocumentFilter({
+                    filter: {case: 'pathMatch', value: new DocumentFilter_PathMatch({path: '', prefix: false})},
+                  }),
+                ],
+              }),
+            },
+          }),
+          sort: [new DocumentSort({attribute: BuiltinSortAttribute.ACTIVITY_TIME, descending: true})],
+          pageSize: joinedUids.length,
+        }),
+        {signal},
+      )
+      return response.documents.map((document) => prepareHMDocumentInfo(document))
+    },
+  })
+
+  return {...query, isLoading: contacts.isLoading || query.isLoading}
+}
+
+// One account shown by the Explore People list.
+export type ExploreAccount = {uid: string; name?: string; icon?: string}
+
+// Accounts known to this node, for the Explore People list.
+export function useExploreAccountList(options: {enabled?: boolean; pageSize?: number} = {}) {
+  const client = useUniversalClient()
+  const pageSize = options.pageSize ?? 50
+  return useQuery({
+    queryKey: [queryKeys.ENTITY, 'explore-account-list', pageSize],
+    enabled: (options.enabled ?? true) && Boolean(client.listAccounts),
+    queryFn: async (): Promise<ExploreAccount[]> => {
+      if (!client.listAccounts) return []
+      const response = await client.listAccounts(new ListAccountsRequest({pageSize}))
+      return response.accounts
+        .filter((account) => !account.aliasAccount)
+        .map((account) => ({
+          uid: account.id,
+          name: account.profile?.name || undefined,
+          icon: account.profile?.icon || undefined,
+        }))
+    },
+  })
 }
