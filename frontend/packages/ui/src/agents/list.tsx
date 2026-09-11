@@ -1,24 +1,6 @@
-import {
-  describeAgentServer,
-  isLocalAgentServer,
-  LOCAL_AGENT_SERVER_LABEL,
-  useAcceptAgentInvite,
-  useAgentAccountsSync,
-  useAgentInviteLists,
-  useAgentLists,
-  useAgentServerHealths,
-  useAllAgentSessionPages,
-  useDeclineAgentInvite,
-  useAgentServerUrls,
-  useAgentWebSocketSubscription,
-  useLocalAgentServerUrl,
-  useSpaceAgents,
-} from './models'
-import {useSelectedAccountId} from './account'
-import {useClickNavigate, useNavigate} from './navigation'
-import {hostnameStripProtocol} from '@shm/shared'
-import {abbreviateUid} from '@shm/shared/utils/abbreviate'
-import {Button} from '@shm/ui/button'
+import { hostnameStripProtocol } from '@shm/shared'
+import { abbreviateUid } from '@shm/shared/utils/abbreviate'
+import { Button } from '@shm/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,22 +12,41 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
-import {Container, PanelContainer} from '@shm/ui/container'
-import {Notice, NOTICE_TONE_DOT_CLASS} from '@shm/ui/notice'
-import {SizableText} from '@shm/ui/text'
-import {Tooltip} from '@shm/ui/tooltip'
-import {useAppDialog} from '@shm/ui/universal-dialog'
-import {useLoadMoreSentinel} from '@shm/ui/use-load-more-sentinel'
-import {ArrowRight, Bot, Check, ChevronDown, CircleUserRound, Mail, Server, Settings, X} from 'lucide-react'
-import {useMemo} from 'react'
-import {AgentListRow} from './agent-row'
-import {CreateAgentDialog, ManageAgentAccountsDialog, ModelProvidersDialog} from './dialogs'
-import {describeAgentError} from './errors'
-import {AgentsNoAccountPage} from './no-account'
-import {getAgentsPlatform} from './platform'
-import {AgentServersDialog} from './server-settings'
-import {AgentTitleMenu} from './agent-title-menu'
-import {SessionListItem} from './session-list-item'
+import { Container, PanelContainer } from '@shm/ui/container'
+import { Notice, NOTICE_TONE_DOT_CLASS } from '@shm/ui/notice'
+import { SizableText } from '@shm/ui/text'
+import { Tooltip } from '@shm/ui/tooltip'
+import { useAppDialog } from '@shm/ui/universal-dialog'
+import { useLoadMoreSentinel } from '@shm/ui/use-load-more-sentinel'
+import { ArrowRight, Bot, Check, ChevronDown, CircleUserRound, Mail, Server, Settings, X } from 'lucide-react'
+import { useMemo } from 'react'
+import { useSelectedAccountId } from './account'
+import { AgentListRow } from './agent-row'
+import { AgentTitleMenu } from './agent-title-menu'
+import { CreateAgentDialog, ManageAgentAccountsDialog, ModelProvidersDialog } from './dialogs'
+import { describeAgentError } from './errors'
+import { HomeSessionComposer, type HomeComposerAgent } from './home-composer'
+import {
+  describeAgentServer,
+  isLocalAgentServer,
+  LOCAL_AGENT_SERVER_LABEL,
+  useAcceptAgentInvite,
+  useAgentAccountsSync,
+  useAgentInviteLists,
+  useAgentLists,
+  useAgentServerHealths,
+  useAgentServerUrls,
+  useAgentWebSocketSubscription,
+  useAllAgentSessionPages,
+  useDeclineAgentInvite,
+  useLocalAgentServerUrl,
+  useSpaceAgents,
+} from './models'
+import { useClickNavigate, useNavigate } from './navigation'
+import { AgentsNoAccountPage } from './no-account'
+import { getAgentsPlatform } from './platform'
+import { AgentServersDialog } from './server-settings'
+import { SessionListItem } from './session-list-item'
 
 function AgentsListPage() {
   const selectedAccountId = useSelectedAccountId()
@@ -55,7 +56,7 @@ function AgentsListPage() {
   return <AgentsListContent selectedAccountId={selectedAccountId} />
 }
 
-function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
+function AgentsListContent({ selectedAccountId }: { selectedAccountId: string }) {
   // Keep every account these agents can author as synced locally, so they are immediately
   // mentionable and openable elsewhere in the app.
   useAgentAccountsSync()
@@ -77,14 +78,14 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
   const agents = useMemo(
     () =>
       serverUrls.flatMap((serverUrl, index) =>
-        (agentQueries[index]?.data || []).map((agent) => ({...agent, serverUrl})),
+        (agentQueries[index]?.data || []).map((agent) => ({ ...agent, serverUrl })),
       ),
     [agentQueries, serverUrls],
   )
   const invites = useMemo(
     () =>
       serverUrls.flatMap((serverUrl, index) =>
-        (inviteQueries[index]?.data || []).map((invite) => ({...invite, serverUrl})),
+        (inviteQueries[index]?.data || []).map((invite) => ({ ...invite, serverUrl })),
       ),
     [inviteQueries, serverUrls],
   )
@@ -110,6 +111,21 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
       : sessionPages.entries
   }, [sessionPages.entries, spaceAgents.sessions])
   const isLoadingSessions = sessionPages.isLoading || (spaceAgents.isLoading && !sessions.length)
+  // Every agent the composer below can address: the account's own plus the space's published ones.
+  const composerAgents = useMemo<HomeComposerAgent[]>(
+    () => [
+      ...agents.map(({ serverUrl, ...agent }) => ({ serverUrl, agent })),
+      ...spaceAgents.agents.filter(
+        (option) => !agents.some((agent) => agent.serverUrl === option.serverUrl && agent.id === option.agent.id),
+      ),
+    ],
+    [agents, spaceAgents.agents],
+  )
+  const latestSession = sessions[0]
+  const defaultComposerAgent = useMemo(
+    () => (latestSession ? { serverUrl: latestSession.serverUrl, agentId: latestSession.session.agentId } : undefined),
+    [latestSession],
+  )
   const loadMoreSentinel = useLoadMoreSentinel({
     enabled: sessionPages.hasNextPage && !sessionPages.isFetchingNextPage,
     onLoadMore: sessionPages.fetchNextPage,
@@ -128,213 +144,225 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
   const createAgentDisabledReason = !serverUrls.length ? 'Configure an agent server before creating an agent.' : null
 
   return (
-    <PanelContainer className="overflow-y-auto">
-      <Container className="max-w-4xl gap-6 py-8">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-primary/10 text-primary flex size-11 items-center justify-center rounded-xl">
-              <Bot className="size-6" />
+    <PanelContainer className="flex flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <Container className="max-w-4xl gap-6 py-8">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-primary/10 text-primary flex size-11 items-center justify-center rounded-xl">
+                <Bot className="size-6" />
+              </div>
+              <AgentTitleMenu title="Agents" />
             </div>
-            <AgentTitleMenu title="Agents" />
+            <div className="flex flex-wrap items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="max-sm:min-h-10">
+                    <Server className="size-4" />
+                    {describeAgentServerCount(serverUrls.length)}
+                    <ChevronDown className="size-4 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-56">
+                  {serverUrls.map((serverUrl, index) => {
+                    const health = healthQueries[index]
+                    const status = health?.isLoading ? 'Checking…' : health?.isError ? 'Unreachable' : 'Online'
+                    const isLocal = isLocalAgentServer(serverUrl, localServerUrl.data)
+                    // The local server is part of the app, so an "online" indicator on it is noise. A
+                    // failure still shows, because that is a real problem the user needs to see.
+                    const showStatusDot = !isLocal || health?.isError
+                    return (
+                      <DropdownMenuSub key={serverUrl}>
+                        <DropdownMenuSubTrigger>
+                          <span className="flex min-w-0 items-center gap-2">
+                            <SizableText size="sm" className={isLocal ? 'truncate font-medium' : 'truncate font-mono'}>
+                              {isLocal ? LOCAL_AGENT_SERVER_LABEL : hostnameStripProtocol(serverUrl)}
+                            </SizableText>
+                            {showStatusDot ? (
+                              <span
+                                aria-label={status}
+                                className={`inline-block size-2.5 flex-none rounded-full align-middle ${health?.isLoading
+                                    ? 'bg-muted-foreground/40'
+                                    : health?.isError
+                                      ? NOTICE_TONE_DOT_CLASS.warning
+                                      : 'bg-green-500'
+                                  } `}
+                              />
+                            ) : null}
+                          </span>
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent className="min-w-48">
+                          <DropdownMenuLabel className="flex flex-col gap-0.5">
+                            <SizableText size="sm" className={isLocal ? 'font-medium' : 'font-mono'}>
+                              {isLocal ? LOCAL_AGENT_SERVER_LABEL : hostnameStripProtocol(serverUrl)}
+                            </SizableText>
+                            <SizableText size="xs" color="muted">
+                              {isLocal && !health?.isError ? 'Managed by this app' : status}
+                            </SizableText>
+                          </DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => navigate({ key: 'agent-server', serverUrl })}>
+                            <ArrowRight />
+                            Open Server
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => manageAccountsDialog.open({ serverUrl, selectedAccountId })}>
+                            <CircleUserRound />
+                            Accounts
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => providersDialog.open({ serverUrl, selectedAccountId })}>
+                            <Settings />
+                            Providers
+                          </DropdownMenuItem>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+                    )
+                  })}
+                  {!serverUrls.length ? (
+                    <DropdownMenuItem disabled>No agent servers configured.</DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => (openServerSettings ? openServerSettings() : serverSettingsDialog.open(true))}
+                  >
+                    <Server />
+                    Manage Agent Servers
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Tooltip content={createAgentDisabledReason || 'Create Agent'}>
+                <span>
+                  <Button
+                    className="max-sm:min-h-10"
+                    onClick={() => createAgentDialog.open({ serverUrls, selectedAccountId })}
+                    disabled={!!createAgentDisabledReason}
+                  >
+                    <Bot className="size-4" />
+                    Create Agent
+                  </Button>
+                </span>
+              </Tooltip>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="max-sm:min-h-10">
-                  <Server className="size-4" />
-                  {describeAgentServerCount(serverUrls.length)}
-                  <ChevronDown className="size-4 opacity-60" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-56">
-                {serverUrls.map((serverUrl, index) => {
-                  const health = healthQueries[index]
-                  const status = health?.isLoading ? 'Checking…' : health?.isError ? 'Unreachable' : 'Online'
-                  const isLocal = isLocalAgentServer(serverUrl, localServerUrl.data)
-                  // The local server is part of the app, so an "online" indicator on it is noise. A
-                  // failure still shows, because that is a real problem the user needs to see.
-                  const showStatusDot = !isLocal || health?.isError
-                  return (
-                    <DropdownMenuSub key={serverUrl}>
-                      <DropdownMenuSubTrigger>
-                        <span className="flex min-w-0 items-center gap-2">
-                          <SizableText size="sm" className={isLocal ? 'truncate font-medium' : 'truncate font-mono'}>
-                            {isLocal ? LOCAL_AGENT_SERVER_LABEL : hostnameStripProtocol(serverUrl)}
-                          </SizableText>
-                          {showStatusDot ? (
-                            <span
-                              aria-label={status}
-                              className={`inline-block size-2.5 flex-none rounded-full align-middle ${
-                                health?.isLoading
-                                  ? 'bg-muted-foreground/40'
-                                  : health?.isError
-                                    ? NOTICE_TONE_DOT_CLASS.warning
-                                    : 'bg-green-500'
-                              } `}
-                            />
-                          ) : null}
-                        </span>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent className="min-w-48">
-                        <DropdownMenuLabel className="flex flex-col gap-0.5">
-                          <SizableText size="sm" className={isLocal ? 'font-medium' : 'font-mono'}>
-                            {isLocal ? LOCAL_AGENT_SERVER_LABEL : hostnameStripProtocol(serverUrl)}
-                          </SizableText>
-                          <SizableText size="xs" color="muted">
-                            {isLocal && !health?.isError ? 'Managed by this app' : status}
-                          </SizableText>
-                        </DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => navigate({key: 'agent-server', serverUrl})}>
-                          <ArrowRight />
-                          Open Server
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => manageAccountsDialog.open({serverUrl, selectedAccountId})}>
-                          <CircleUserRound />
-                          Accounts
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => providersDialog.open({serverUrl, selectedAccountId})}>
-                          <Settings />
-                          Providers
-                        </DropdownMenuItem>
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                  )
-                })}
-                {!serverUrls.length ? <DropdownMenuItem disabled>No agent servers configured.</DropdownMenuItem> : null}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => (openServerSettings ? openServerSettings() : serverSettingsDialog.open(true))}
-                >
-                  <Server />
-                  Manage Agent Servers
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Tooltip content={createAgentDisabledReason || 'Create Agent'}>
-              <span>
-                <Button
-                  className="max-sm:min-h-10"
-                  onClick={() => createAgentDialog.open({serverUrls, selectedAccountId})}
-                  disabled={!!createAgentDisabledReason}
-                >
-                  <Bot className="size-4" />
-                  Create Agent
-                </Button>
-              </span>
-            </Tooltip>
-          </div>
-        </div>
 
-        {/* Live updates for every server stay mounted regardless of whether the servers menu is open. */}
-        {serverUrls.map((serverUrl) => (
-          <AgentServerSubscription key={serverUrl} serverUrl={serverUrl} selectedAccountId={selectedAccountId} />
-        ))}
-
-        {providersDialog.content}
-        {manageAccountsDialog.content}
-        {createAgentDialog.content}
-        {serverSettingsDialog.content}
-
-        {invites.length ? (
-          <section className="flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-              <Mail className="text-muted-foreground size-4" />
-              <SizableText weight="bold">Invites</SizableText>
-              <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-bold">
-                {invites.length}
-              </span>
-            </div>
-            <div className="flex flex-col gap-2">
-              {invites.map((invite) => (
-                <AgentInviteRow
-                  key={`${invite.serverUrl}:${invite.agentId}`}
-                  invite={invite}
-                  selectedAccountId={selectedAccountId}
-                />
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        {publishedAgents.length ? (
-          <section className="flex flex-col gap-3">
-            <SizableText weight="bold">Agents in this space</SizableText>
-            <div className="flex flex-col gap-2">
-              {publishedAgents.map(({serverUrl, agent}) => (
-                <AgentListRow
-                  key={`${serverUrl}:${agent.id}`}
-                  agentId={agent.id}
-                  name={agent.definition.name}
-                  status={agent.status}
-                  serverUrl={serverUrl}
-                  accessRole={agent.accessRole}
-                  activity={agent.activity}
-                />
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        <section className="flex flex-col gap-3">
-          <SizableText weight="bold">Recent Sessions</SizableText>
-          {isLoadingSessions ? <SizableText color="muted">Loading sessions…</SizableText> : null}
-          {serverProblems.map((problem) => (
-            <Notice
-              key={problem.serverUrl}
-              tone={problem.notice.tone}
-              title={problem.notice.title}
-              onRetry={problem.refetch}
-              retryPending={problem.isFetching}
-            >
-              {problem.notice.detail}
-            </Notice>
+          {/* Live updates for every server stay mounted regardless of whether the servers menu is open. */}
+          {serverUrls.map((serverUrl) => (
+            <AgentServerSubscription key={serverUrl} serverUrl={serverUrl} selectedAccountId={selectedAccountId} />
           ))}
-          {!isLoadingSessions && !sessions.length && !serverProblems.length ? (
-            <SizableText color="muted">
-              {serverUrls.length ? 'No sessions yet. Pick an agent from the title to start one.' : 'No sessions yet.'}
-            </SizableText>
+
+          {providersDialog.content}
+          {manageAccountsDialog.content}
+          {createAgentDialog.content}
+          {serverSettingsDialog.content}
+
+          {invites.length ? (
+            <section className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <Mail className="text-muted-foreground size-4" />
+                <SizableText weight="bold">Invites</SizableText>
+                <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-bold">
+                  {invites.length}
+                </span>
+              </div>
+              <div className="flex flex-col gap-2">
+                {invites.map((invite) => (
+                  <AgentInviteRow
+                    key={`${invite.serverUrl}:${invite.agentId}`}
+                    invite={invite}
+                    selectedAccountId={selectedAccountId}
+                  />
+                ))}
+              </div>
+            </section>
           ) : null}
-          <div className="flex flex-col gap-1">
-            {sessions.map(({serverUrl, session, agent}) => (
-              <SessionListItem
-                key={`${serverUrl}:${session.id}`}
-                session={session}
-                serverUrl={serverUrl}
-                accountUid={selectedAccountId}
-                agentName={agent?.definition.name || session.agentId}
-                onOpen={(event) =>
-                  clickNavigate(
-                    {key: 'agent-session', agentId: session.agentId, sessionId: session.id, serverUrl},
-                    event,
-                  )
-                }
-                onOpenSession={(child, event) =>
-                  clickNavigate({key: 'agent-session', agentId: child.agentId, sessionId: child.id, serverUrl}, event)
-                }
-                onOpenTrigger={() =>
-                  session.startedByTrigger
-                    ? navigate({
+
+          {publishedAgents.length ? (
+            <section className="flex flex-col gap-3">
+              <SizableText weight="bold">Agents in this space</SizableText>
+              <div className="flex flex-col gap-2">
+                {publishedAgents.map(({ serverUrl, agent }) => (
+                  <AgentListRow
+                    key={`${serverUrl}:${agent.id}`}
+                    agentId={agent.id}
+                    name={agent.definition.name}
+                    status={agent.status}
+                    serverUrl={serverUrl}
+                    accessRole={agent.accessRole}
+                    activity={agent.activity}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          <section className="flex flex-col gap-3">
+            {isLoadingSessions ? <SizableText color="muted">Loading sessions…</SizableText> : null}
+            {serverProblems.map((problem) => (
+              <Notice
+                key={problem.serverUrl}
+                tone={problem.notice.tone}
+                title={problem.notice.title}
+                onRetry={problem.refetch}
+                retryPending={problem.isFetching}
+              >
+                {problem.notice.detail}
+              </Notice>
+            ))}
+            {!isLoadingSessions && !sessions.length && !serverProblems.length ? (
+              <SizableText color="muted">
+                {serverUrls.length ? 'No sessions yet. Start one below.' : 'No sessions yet.'}
+              </SizableText>
+            ) : null}
+            <div className="flex flex-col gap-1">
+              {sessions.map(({ serverUrl, session, agent }) => (
+                <SessionListItem
+                  key={`${serverUrl}:${session.id}`}
+                  session={session}
+                  serverUrl={serverUrl}
+                  accountUid={selectedAccountId}
+                  agentName={agent?.definition.name || session.agentId}
+                  onOpen={(event) =>
+                    clickNavigate(
+                      { key: 'agent-session', agentId: session.agentId, sessionId: session.id, serverUrl },
+                      event,
+                    )
+                  }
+                  onOpenSession={(child, event) =>
+                    clickNavigate({ key: 'agent-session', agentId: child.agentId, sessionId: child.id, serverUrl }, event)
+                  }
+                  onOpenTrigger={() =>
+                    session.startedByTrigger
+                      ? navigate({
                         key: 'agent',
                         agentId: session.agentId,
                         serverUrl,
                         tab: 'triggers',
                         triggerId: session.startedByTrigger.triggerId,
                       })
-                    : undefined
-                }
-              />
-            ))}
-          </div>
-          {/* Scrolling near the end loads the next page; this row is only ever seen if the fetch is slow. */}
-          <div ref={loadMoreSentinel} aria-hidden="true" className="h-px" />
-          {sessionPages.isFetchingNextPage ? (
-            <SizableText size="sm" color="muted" className="text-center">
-              Loading more…
-            </SizableText>
-          ) : null}
-        </section>
-      </Container>
+                      : undefined
+                  }
+                />
+              ))}
+            </div>
+            {/* Scrolling near the end loads the next page; this row is only ever seen if the fetch is slow. */}
+            <div ref={loadMoreSentinel} aria-hidden="true" className="h-px" />
+            {sessionPages.isFetchingNextPage ? (
+              <SizableText size="sm" color="muted" className="text-center">
+                Loading more…
+              </SizableText>
+            ) : null}
+          </section>
+        </Container>
+      </div>
+      <div className="border-border bg-panel flex-none border-t">
+        <Container className="max-w-4xl gap-0 py-2">
+          <HomeSessionComposer
+            agents={composerAgents}
+            accountUid={selectedAccountId}
+            localServerUrl={localServerUrl.data}
+            defaultAgent={defaultComposerAgent}
+          />
+        </Container>
+      </div>
     </PanelContainer>
   )
 }
@@ -377,7 +405,7 @@ function AgentInviteRow({
           accept.mutate(invite.agentId, {
             onSuccess: (result) => {
               if (result._ !== 'AcceptAgentInviteResponse') return
-              navigate({key: 'agent', agentId: invite.agentId, serverUrl: invite.serverUrl})
+              navigate({ key: 'agent', agentId: invite.agentId, serverUrl: invite.serverUrl })
             },
           })
         }
@@ -393,7 +421,7 @@ function AgentInviteRow({
 }
 
 /** Keeps the account-scoped live subscription to one server open while the list is on screen. */
-function AgentServerSubscription({serverUrl, selectedAccountId}: {serverUrl: string; selectedAccountId: string}) {
+function AgentServerSubscription({ serverUrl, selectedAccountId }: { serverUrl: string; selectedAccountId: string }) {
   useAgentWebSocketSubscription(serverUrl, selectedAccountId, `account/${selectedAccountId}`)
   return null
 }

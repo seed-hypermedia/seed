@@ -48,6 +48,11 @@ vi.mock('@shm/ui/agents/models', () => ({
       isError: false,
     })),
   useAcceptAgentInvite: () => ({isLoading: false, mutate: vi.fn()}),
+  useCreateAgentSessionOnServer: () => ({isLoading: false, mutateAsync: vi.fn()}),
+  useMessageAgentSession: () => ({isLoading: false, mutate: vi.fn()}),
+  addOptimisticSessionToCaches: vi.fn(),
+  addOptimisticSessionMessage: vi.fn(),
+  describeAgentServer: (serverUrl: string) => serverUrl,
   useDeclineAgentInvite: () => ({isLoading: false, mutate: vi.fn()}),
   useAgentWebSocketSubscription: () => ({text: ''}),
   useAgentAccountsSync: () => {},
@@ -75,6 +80,9 @@ vi.mock('@shm/ui/agents/platform', () => ({
 }))
 vi.mock('@/trpc', () => ({client: {}}))
 vi.mock('@/grpc-client', () => ({grpcClient: {}}))
+// The composer's editor comes from the platform adapter, which this test does not register.
+vi.mock('@shm/ui/agents/rich-message-composer', () => ({AgentRichMessageComposer: () => null}))
+vi.mock('@shm/ui/agents/header', () => ({SessionModelBadge: () => null}))
 vi.mock('@shm/ui/agents/dialogs', () => ({
   CreateAgentDialog: () => null,
   ManageAgentAccountsDialog: () => null,
