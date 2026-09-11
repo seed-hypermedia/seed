@@ -80,6 +80,22 @@ vi.mock('@shm/ui/universal-dialog', () => ({
 vi.mock('@shm/ui/tooltip', () => ({
   Tooltip: ({children}: {children: React.ReactNode}) => children,
 }))
+// The servers live in a dropdown whose Radix content only mounts once opened (and needs layout
+// APIs jsdom lacks). Render every part inline so the tests can inspect what the menu presents.
+vi.mock('@shm/ui/components/dropdown-menu', () => {
+  const Inline = ({children, asChild: _asChild, ...props}: any) => <div {...props}>{children}</div>
+  return {
+    DropdownMenu: Inline,
+    DropdownMenuTrigger: Inline,
+    DropdownMenuContent: Inline,
+    DropdownMenuItem: Inline,
+    DropdownMenuLabel: Inline,
+    DropdownMenuSeparator: () => null,
+    DropdownMenuSub: Inline,
+    DropdownMenuSubContent: Inline,
+    DropdownMenuSubTrigger: Inline,
+  }
+})
 vi.mock('@shm/shared/utils/navigation', () => {
   const React = require('react')
   const NavContext = React.createContext(null)
@@ -98,7 +114,7 @@ vi.mock('@shm/shared/utils/navigation', () => {
   }
 })
 
-import AgentsListPage from '@shm/ui/agents/list'
+import AgentsListPage, {describeAgentServerCount} from '@shm/ui/agents/list'
 
 function renderList() {
   const container = document.createElement('div')
@@ -160,6 +176,24 @@ describe('agents list — local server presentation', () => {
     expect(container.textContent).toContain('Decline')
 
     cleanupRendered(root, container)
+  })
+
+  it('labels the servers menu with the count, singular when there is one', () => {
+    const {container, root} = renderList()
+    expect(container.textContent).toContain('2 Agent Servers')
+    expect(container.textContent).toContain('Manage Agent Servers')
+    cleanupRendered(root, container)
+
+    mockState.serverUrls = ['https://agentic.seed.hyper.media']
+    mockState.localServerUrl = null
+    mockState.healths = [{isLoading: false, isError: false, data: {uptime: 60}}]
+    const single = renderList()
+    expect(single.container.textContent).toContain('Agent Server')
+    expect(single.container.textContent).not.toContain('1 Agent Server')
+    expect(describeAgentServerCount(1)).toBe('Agent Server')
+    expect(describeAgentServerCount(3)).toBe('3 Agent Servers')
+    expect(describeAgentServerCount(0)).toBe('No Agent Servers')
+    cleanupRendered(single.root, single.container)
   })
 
   it('names the local server instead of showing its URL', () => {
@@ -240,7 +274,7 @@ describe('agents list — no active account', () => {
     expect(container.textContent).toContain('Sign in or create an account')
     expect(container.textContent).not.toContain('Local Agents')
     expect(container.textContent).not.toContain('agentic.seed.hyper.media')
-    expect(container.textContent).not.toContain('Agent Servers')
+    expect(container.textContent).not.toContain('Agent Server')
 
     cleanupRendered(root, container)
   })

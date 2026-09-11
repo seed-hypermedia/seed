@@ -18,13 +18,24 @@ import {useNavigate} from './navigation'
 import {hostnameStripProtocol} from '@shm/shared'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {Button} from '@shm/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@shm/ui/components/dropdown-menu'
 import {Container, PanelContainer} from '@shm/ui/container'
 import {Notice, NOTICE_TONE_DOT_CLASS} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {Bot, Check, CircleUserRound, Mail, Settings, X} from 'lucide-react'
-import React, {useMemo} from 'react'
+import {ArrowRight, Bot, Check, ChevronDown, CircleUserRound, Mail, Server, Settings, X} from 'lucide-react'
+import {useMemo} from 'react'
 import {AgentListRow} from './agent-row'
 import {CreateAgentDialog, ManageAgentAccountsDialog, ModelProvidersDialog} from './dialogs'
 import {describeAgentError} from './errors'
@@ -73,9 +84,9 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
     [inviteQueries, serverUrls],
   )
   const spaceAgents = useSpaceAgents(selectedAccountId)
-  // Only the ones the user does not already have. A space owner's own agents belong under "All
-  // Agents" below, where they can be opened and edited; what this section is for is the visitor
-  // case, where every list comes back empty and the space's published agents are the only way in.
+  // Only the ones the user does not already have. A space owner's own agents belong in the main
+  // list below, where they can be opened and edited; what this section is for is the visitor case,
+  // where every list comes back empty and the space's published agents are the only way in.
   const publishedAgents = useMemo(
     () =>
       spaceAgents.agents.filter(
@@ -106,7 +117,7 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
   return (
     <PanelContainer className="overflow-y-auto">
       <Container className="max-w-4xl gap-6 py-8">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="bg-primary/10 text-primary flex size-11 items-center justify-center rounded-xl">
               <Bot className="size-6" />
@@ -115,80 +126,99 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
               Agents
             </SizableText>
           </div>
-        </div>
-
-        <section className="flex flex-col gap-2">
-          <div className="flex items-center justify-between gap-4">
-            <SizableText weight="bold">Agent Servers</SizableText>
-            <Tooltip content="Configure agent servers">
-              <Button onClick={() => (openServerSettings ? openServerSettings() : serverSettingsDialog.open(true))}>
-                <Settings className="size-4" />
-              </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="max-sm:min-h-10">
+                  <Server className="size-4" />
+                  {describeAgentServerCount(serverUrls.length)}
+                  <ChevronDown className="size-4 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-56">
+                {serverUrls.map((serverUrl, index) => {
+                  const health = healthQueries[index]
+                  const status = health?.isLoading ? 'Checking…' : health?.isError ? 'Unreachable' : 'Online'
+                  const isLocal = isLocalAgentServer(serverUrl, localServerUrl.data)
+                  // The local server is part of the app, so an "online" indicator on it is noise. A
+                  // failure still shows, because that is a real problem the user needs to see.
+                  const showStatusDot = !isLocal || health?.isError
+                  return (
+                    <DropdownMenuSub key={serverUrl}>
+                      <DropdownMenuSubTrigger>
+                        <span className="flex min-w-0 items-center gap-2">
+                          <SizableText size="sm" className={isLocal ? 'truncate font-medium' : 'truncate font-mono'}>
+                            {isLocal ? LOCAL_AGENT_SERVER_LABEL : hostnameStripProtocol(serverUrl)}
+                          </SizableText>
+                          {showStatusDot ? (
+                            <span
+                              aria-label={status}
+                              className={`inline-block size-2.5 flex-none rounded-full align-middle ${
+                                health?.isLoading
+                                  ? 'bg-muted-foreground/40'
+                                  : health?.isError
+                                    ? NOTICE_TONE_DOT_CLASS.warning
+                                    : 'bg-green-500'
+                              } `}
+                            />
+                          ) : null}
+                        </span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="min-w-48">
+                        <DropdownMenuLabel className="flex flex-col gap-0.5">
+                          <SizableText size="sm" className={isLocal ? 'font-medium' : 'font-mono'}>
+                            {isLocal ? LOCAL_AGENT_SERVER_LABEL : hostnameStripProtocol(serverUrl)}
+                          </SizableText>
+                          <SizableText size="xs" color="muted">
+                            {isLocal && !health?.isError ? 'Managed by this app' : status}
+                          </SizableText>
+                        </DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => navigate({key: 'agent-server', serverUrl})}>
+                          <ArrowRight />
+                          Open Server
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => manageAccountsDialog.open({serverUrl, selectedAccountId})}>
+                          <CircleUserRound />
+                          Accounts
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => providersDialog.open({serverUrl, selectedAccountId})}>
+                          <Settings />
+                          Providers
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  )
+                })}
+                {!serverUrls.length ? <DropdownMenuItem disabled>No agent servers configured.</DropdownMenuItem> : null}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => (openServerSettings ? openServerSettings() : serverSettingsDialog.open(true))}
+                >
+                  <Server />
+                  Manage Agent Servers
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Tooltip content={createAgentDisabledReason || 'Create Agent'}>
+              <span>
+                <Button
+                  className="max-sm:min-h-10"
+                  onClick={() => createAgentDialog.open({serverUrls, selectedAccountId})}
+                  disabled={!!createAgentDisabledReason}
+                >
+                  <Bot className="size-4" />
+                  Create Agent
+                </Button>
+              </span>
             </Tooltip>
           </div>
-          {serverUrls.map((serverUrl, index) => {
-            const health = healthQueries[index]
-            const status = health?.isLoading ? 'Checking…' : health?.isError ? 'Unreachable' : 'Online'
-            const isLocal = isLocalAgentServer(serverUrl, localServerUrl.data)
-            // The local server is part of the app, so an "online" indicator on it is noise. A
-            // failure still shows, because that is a real problem the user needs to see.
-            const showStatusDot = !isLocal || health?.isError
-            return (
-              <AgentServerSubscription key={serverUrl} serverUrl={serverUrl} selectedAccountId={selectedAccountId}>
-                <div
-                  className="border-border bg-card hover:bg-muted/50 flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2 transition-colors"
-                  onClick={() => navigate({key: 'agent-server', serverUrl})}
-                >
-                  <div className="flex min-w-0 items-center gap-2">
-                    <SizableText size="xs" className={isLocal ? 'truncate font-medium' : 'truncate font-mono'}>
-                      {isLocal ? LOCAL_AGENT_SERVER_LABEL : hostnameStripProtocol(serverUrl)}
-                    </SizableText>
-                    {showStatusDot ? (
-                      <Tooltip content={status} asChild>
-                        <span
-                          className={`inline-block size-2.5 rounded-full align-middle ${
-                            health?.isLoading
-                              ? 'bg-muted-foreground/40'
-                              : health?.isError
-                                ? NOTICE_TONE_DOT_CLASS.warning
-                                : 'bg-green-500'
-                          } `}
-                        />
-                      </Tooltip>
-                    ) : null}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="max-sm:min-h-10"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        manageAccountsDialog.open({serverUrl, selectedAccountId})
-                      }}
-                    >
-                      <CircleUserRound className="size-4" />
-                      Accounts
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="max-sm:min-h-10"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        providersDialog.open({serverUrl, selectedAccountId})
-                      }}
-                    >
-                      <Settings className="size-4" />
-                      Providers
-                    </Button>
-                  </div>
-                </div>
-              </AgentServerSubscription>
-            )
-          })}
-          {!serverUrls.length ? <SizableText color="muted">No agent servers configured.</SizableText> : null}
-        </section>
+        </div>
+
+        {/* Live updates for every server stay mounted regardless of whether the servers menu is open. */}
+        {serverUrls.map((serverUrl) => (
+          <AgentServerSubscription key={serverUrl} serverUrl={serverUrl} selectedAccountId={selectedAccountId} />
+        ))}
 
         {providersDialog.content}
         {manageAccountsDialog.content}
@@ -236,21 +266,6 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
         ) : null}
 
         <section className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-4">
-            <SizableText weight="bold">All Agents</SizableText>
-            <Tooltip content={createAgentDisabledReason || 'Create Agent'}>
-              <span>
-                <Button
-                  className="max-sm:min-h-10"
-                  onClick={() => createAgentDialog.open({serverUrls, selectedAccountId})}
-                  disabled={!!createAgentDisabledReason}
-                >
-                  <Bot className="size-4" />
-                  Create Agent
-                </Button>
-              </span>
-            </Tooltip>
-          </div>
           {isLoadingAgents ? <SizableText color="muted">Loading agents…</SizableText> : null}
           {serverProblems.map((problem) => (
             <Notice
@@ -338,17 +353,17 @@ function AgentInviteRow({
   )
 }
 
-function AgentServerSubscription({
-  serverUrl,
-  selectedAccountId,
-  children,
-}: {
-  serverUrl: string
-  selectedAccountId: string
-  children: React.ReactNode
-}) {
+/** Keeps the account-scoped live subscription to one server open while the list is on screen. */
+function AgentServerSubscription({serverUrl, selectedAccountId}: {serverUrl: string; selectedAccountId: string}) {
   useAgentWebSocketSubscription(serverUrl, selectedAccountId, `account/${selectedAccountId}`)
-  return <>{children}</>
+  return null
+}
+
+/** Label for the servers menu button: "Agent Server" alone when there is one, counted otherwise. */
+export function describeAgentServerCount(count: number) {
+  if (count === 1) return 'Agent Server'
+  if (count === 0) return 'No Agent Servers'
+  return `${count} Agent Servers`
 }
 
 export default AgentsListPage
