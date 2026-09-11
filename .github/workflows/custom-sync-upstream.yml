@@ -1,5 +1,7 @@
 name: Custom - Sync Fork From Upstream
 
+# Manual fallback only. The daily sync runs as a Devin Automation, because GITHUB_TOKEN
+# cannot push commits that touch .github/workflows/* (upstream ships workflow changes).
 on:
   workflow_dispatch:
     inputs:
@@ -7,14 +9,10 @@ on:
         description: 'Release tag to rebase custom-images onto, even if it was already mirrored (e.g. 2026.7.1).'
         required: false
         type: string
-  schedule:
-    # Mirror upstream once a day.
-    - cron: '17 5 * * *'
 
 permissions:
   actions: write
   contents: write
-  issues: write
 
 concurrency:
   group: ${{ github.workflow }}
@@ -77,23 +75,6 @@ jobs:
             release_tag=$FORCED_TAG
           fi
           echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
-
-      - name: Open or update failure issue
-        if: failure()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          title='Upstream sync of main failed'
-          body="The scheduled sync with \`seed-hypermedia/seed\` failed — either the mirroring of \`main\` or of the upstream tags. Check the failed step in the run below, resolve it manually, then re-run the workflow.
-
-          Failed run: $RUN_URL"
-          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "in:title \"$title\"" --json number --jq '.[0].number')
-          if [ -n "$existing" ]; then
-            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "Sync failed again: $RUN_URL"
-          else
-            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
-          fi
 
   rebase-custom-images:
     name: Rebase custom-images onto the new release
@@ -168,20 +149,3 @@ jobs:
           # Pushes made with GITHUB_TOKEN never trigger workflows, so the tag push above
           # cannot start the image build on its own; dispatch it explicitly at the tag.
           gh workflow run custom-ghcr-images.yml --repo "$GITHUB_REPOSITORY" --ref "$RELEASE_TAG-custom"
-
-      - name: Open or update failure issue
-        if: failure()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          title='Rebase of custom-images failed'
-          body="The rebase of \`custom-images\` onto the newly mirrored release tag failed (most likely a conflict with the fork's custom commits), or the \`<version>-custom\` tag could not be pushed. Check the failed step in the run below, resolve it manually, then re-run the workflow.
-
-          Failed run: $RUN_URL"
-          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "in:title \"$title\"" --json number --jq '.[0].number')
-          if [ -n "$existing" ]; then
-            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "Rebase failed again: $RUN_URL"
-          else
-            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
-          fi
