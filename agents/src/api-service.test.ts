@@ -67,10 +67,12 @@ describe('api service', () => {
         id: 'https://hyper.media/hm/z6MkDoc/employees/:attributes',
       })
 
-      // The view term was stripped before hitting the resolver.
-      expect(resourceRequests).toHaveLength(1)
-      expect(resourceRequests[0]).not.toContain(':attributes')
+      // The view term was stripped before hitting the resolver. The second request checks the
+      // parent document for an inherited childrenSchema; neither request includes the view term.
+      expect(resourceRequests).toHaveLength(2)
+      expect(resourceRequests.every((request) => !request.includes(':attributes'))).toBe(true)
       expect(resourceRequests[0]).toContain('hm://z6MkDoc/employees')
+      expect(resourceRequests[1]).toContain('hm://z6MkDoc')
 
       // Metadata only: no document content in any form.
       expect(result.view).toBe('attributes')
@@ -135,8 +137,8 @@ describe('api service', () => {
     try {
       const result = await apisvc.readHypermedia({id: republishedAt})
 
-      // The redirect was followed: one request for the republished path, one for the original.
-      expect(resourceRequests).toEqual([republishedAt, original])
+      // The redirect was followed, then the original's parent was checked for childrenSchema.
+      expect(resourceRequests).toEqual([republishedAt, original, 'hm://z6MkOther/resources'])
 
       // The agent gets the original's content, attributed to the original's address...
       expect(result.id).toBe(original)
