@@ -17,7 +17,7 @@ import {
   useUpdateSigningIdentity,
 } from './models'
 import {useNavigate} from './navigation'
-import {keyfile, markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/client'
+import {keyfile} from '@seed-hypermedia/client'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
@@ -56,6 +56,29 @@ import {AgentPromptEditor, promptBlocksForRequest} from './prompt-editor'
 import {ProviderIcon} from './provider-icons'
 import {isSubscriptionSignInAvailable, SubscriptionSignIn} from './provider-oauth'
 import {PROVIDER_METADATA, PROVIDER_TYPE_ORDER, providerLabel} from './provider-registry'
+
+/** The shared agent skill document that a new agent's system prompt embeds by default. */
+export const DEFAULT_AGENT_SKILL_URL = 'hm://z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS/resources/skill'
+
+/**
+ * A new agent's default system prompt is a single Embed of the shared skill document rather than
+ * inline text, so every new agent picks up the current published guidance when the service
+ * resolves the embed into the model-facing prompt.
+ */
+export function defaultAgentSystemPrompt(): HMBlockNode[] {
+  return [
+    {
+      block: {
+        id: 'default-skill',
+        type: 'Embed',
+        text: '',
+        link: DEFAULT_AGENT_SKILL_URL,
+        attributes: {childrenType: 'Group', view: 'Content'},
+        annotations: [],
+      },
+    },
+  ]
+}
 
 export function ModelProvidersDialog({
   input,
@@ -906,9 +929,7 @@ export function CreateAgentDialog({
   const [reasoningLevel, setReasoningLevel] = useState<ReasoningLevel | undefined>(undefined)
   const [thoroughness, setThoroughness] = useState<Thoroughness>('normal')
   const [enabledModels, setEnabledModels] = useState<AgentModelRef[]>([])
-  const [systemPrompt, setSystemPrompt] = useState<HMBlockNode[]>(() =>
-    markdownBlockNodesToHMBlockNodes(parseMarkdown('You are a helpful agent.').tree),
-  )
+  const [systemPrompt, setSystemPrompt] = useState<HMBlockNode[]>(defaultAgentSystemPrompt)
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {

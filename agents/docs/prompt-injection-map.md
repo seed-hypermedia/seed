@@ -146,8 +146,12 @@ Ranked by exposure. Everything here is untrusted content that reaches the model.
 - **Assistant panel** (`frontend/apps/desktop/src/components/assistant-panel.tsx`) is a client of the agents service; it
   builds no system prompt of its own. It contributes window context as `context` content parts (line 562). The old
   `app-chat.ts` / `chat-provider-options.ts` local-assistant prompt path is gone.
-- **Default new-agent prompt**: `You are a helpful agent.` (`frontend/apps/desktop/src/pages/agents/dialogs.tsx:698`),
-  user-editable, becomes `AgentDefinition.systemPrompt`.
+- **Default new-agent prompt**: a single Embed block of the shared skill document
+  (`hm://z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS/resources/skill`, published at
+  https://seed.hyper.media/resources/skill) — see `defaultAgentSystemPrompt` in
+  `frontend/packages/ui/src/agents/dialogs.tsx`. User-editable, becomes `AgentDefinition.systemPrompt`; the service
+  inlines the embedded document when it resolves the prompt, so whoever can edit that document shapes every new
+  agent's prompt.
 - **Prompt tab** (`pages/agents/detail.tsx`) edits those blocks with the Seed block editor; the server normalizes and
   resolves them to markdown before use.
 - **System prompt dialog** (`pages/agents/session.tsx`) shows `systemPromptMarkdown` — the exact prompt that would be
