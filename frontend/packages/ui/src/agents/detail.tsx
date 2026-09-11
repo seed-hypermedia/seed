@@ -613,19 +613,6 @@ function AgentDetailPage({
                       </Button>
                     ) : null}
                   </div>
-                  {canChat ? (
-                    // The same draft composer as the home page, pinned to this agent: the first send
-                    // (or tool run) creates the session and opens it.
-                    <div className="border-border border-t">
-                      <NewSessionComposer
-                        fixedAgent={{serverUrl, agent: agent.data.agent}}
-                        accountUid={selectedAccountId}
-                        localServerUrl={localServerUrl.data}
-                        agentToolsLoading={agent.isLoading}
-                        composerHandleRef={startComposerRef}
-                      />
-                    </div>
-                  ) : null}
                 </section>
               ) : null}
 
@@ -828,6 +815,21 @@ function AgentDetailPage({
           ) : null}
         </Container>
       </div>
+      {tab === 'sessions' && agent.data && canChat ? (
+        // The same draft composer as the home page, in the same full-width footer, pinned to this
+        // agent: the first send (or tool run) creates the session and opens it.
+        <div className="border-border bg-panel flex-none border-t">
+          <Container className="max-w-4xl gap-0 py-2">
+            <NewSessionComposer
+              fixedAgent={{serverUrl, agent: agent.data.agent}}
+              accountUid={selectedAccountId}
+              localServerUrl={localServerUrl.data}
+              agentToolsLoading={agent.isLoading}
+              composerHandleRef={startComposerRef}
+            />
+          </Container>
+        </div>
+      ) : null}
       {isTriggerDetail && agent.data ? (
         <AgentTriggersTab
           agentId={agentId}
