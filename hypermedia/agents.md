@@ -80,7 +80,7 @@ Important incomplete work: <!-- id:JtelYxuX -->
 12. [Tools](./agent-tools.md) — tool-call lifecycle and `read` behavior. <!-- id:KGBqHjS9 -->
     - [MCP servers](./agent-mcp.md) — remote MCP servers as tool documents: discovery, projection, runtime, actions, UI. <!-- id:nBG4qV_k -->
     - [Session continuation](./agent-session-continuation.md) — `continue_session`: fresh successor sessions at semantic boundaries instead of compaction; projection manifests, context meter, guarded navigation. <!-- id:0bqVomwP -->
-    - [Delegation budgets](./agent-delegation-budgets.md) — thoroughness presets and the depth/children budget (#1070); why a hard cap is only a first step, and the proposal for budget pauses, tree budgets, and cost-denominated budgets.
+    - [Delegation budgets](./agent-delegation-budgets.md) — thoroughness presets and the depth/children budget (#1070); why a hard cap is only a first step, and the proposal for budget pauses, tree budgets, and cost-denominated budgets. <!-- id:x7f0aR_N -->
 13. [Prompt injection map](./agent-prompt-injection-map.md) — where hosted-agent and desktop-assistant prompts are defined, assembled, and sent to providers. <!-- id:o4G1iJaN -->
 14. [Security](./agent-security.md) — current security model and hardening gaps. <!-- id:0GTW6WER -->
 15. [Development](./agent-development.md) — safe extension workflow, validation commands, doc-maintenance rules. <!-- id:0Zyq0q0h -->
