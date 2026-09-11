@@ -211,6 +211,7 @@ export function NewSessionComposer({
           // Keyed by agent so the editor's captured callbacks never send to the previous choice.
           key={selectedKey}
           isBusy={createSession.isLoading || messageSession.isLoading}
+          placeholder={`Start a chat with ${selected.agent.definition.name || 'this agent'}`}
           isStreaming={false}
           stopPending={false}
           serverUrl={selected.serverUrl}
@@ -230,7 +231,8 @@ export function NewSessionComposer({
           onStop={() => {}}
         />
       )}
-      <div className="flex flex-none flex-wrap items-center justify-between gap-2 px-3 pb-2">
+      {/* One line: the agent button gives up room before the model button wraps away. */}
+      <div className="flex flex-none items-center justify-between gap-2 px-3 pb-2">
         {fixedAgent ? (
           <div className="flex max-w-72 min-w-0 items-center gap-1.5 px-1.5 py-1">
             <Bot className="text-muted-foreground size-4 flex-none" />
@@ -247,14 +249,18 @@ export function NewSessionComposer({
                 className="hover:bg-muted flex max-w-72 min-w-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-left"
               >
                 <Bot className="text-muted-foreground size-4 flex-none" />
-                <SizableText size="sm" className="min-w-0 truncate font-medium">
-                  {selected.agent.definition.name || 'Agent'}
-                </SizableText>
-                {showServer ? (
-                  <SizableText size="xs" color="muted" className="truncate">
-                    {describeAgentServer(selected.serverUrl, localServerUrl)}
-                  </SizableText>
-                ) : null}
+                {/* The server rides on the same clipped line as the name: when both do not fit, it wraps
+                  onto the hidden second line and simply disappears, while a long name truncates. */}
+                <span className="flex h-5 min-w-0 flex-wrap items-center gap-x-1.5 overflow-hidden">
+                  <span className="max-w-full min-w-0 truncate text-sm font-medium">
+                    {selected.agent.definition.name || 'Agent'}
+                  </span>
+                  {showServer ? (
+                    <span className="text-muted-foreground text-xs whitespace-nowrap">
+                      {describeAgentServer(selected.serverUrl, localServerUrl)}
+                    </span>
+                  ) : null}
+                </span>
                 <ChevronDown className="text-muted-foreground size-3 flex-none" />
               </button>
             </DropdownMenuTrigger>

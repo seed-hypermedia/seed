@@ -18,6 +18,7 @@ import type {NativeStackNavigationProp} from '@react-navigation/native-stack'
 import type {RunInfo} from '@shm/ui/agents/client'
 import {
   addOptimisticSessionMessage,
+  useAgentDetail,
   useAgentRunTreeSubscription,
   useAgentSession,
   useAgentWebSocketSubscription,
@@ -53,6 +54,9 @@ export function AgentSessionScreen({navigation, route}: Props) {
   const accountUid = useAgentsAccount()
 
   const session = useAgentSession(serverUrl, accountUid, sessionId)
+  // Only for the composer's "Chat with <agent>"; shares its cache with the agent screen.
+  const agentDetail = useAgentDetail(serverUrl, accountUid, agentId ?? session.data?.session.agentId)
+  const agentName = agentDetail.data?.agent.definition.name
   const sendMessage = useMessageAgentSession(serverUrl, accountUid)
   const stopSession = useStopAgentSession(serverUrl, accountUid)
   const retrySession = useRetrySession(serverUrl, accountUid)
@@ -229,6 +233,7 @@ export function AgentSessionScreen({navigation, route}: Props) {
       ) : (
         <Composer
           onSubmit={submit}
+          placeholder={agentName ? `Chat with ${agentName}` : undefined}
           busy={busy && !parked}
           activity={live.activity?.phase}
           onStop={() => stopSession.mutate(sessionId)}

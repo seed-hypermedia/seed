@@ -498,7 +498,8 @@ NESTED BLOCKS
 .blockContent.isFirstEmptyBlock:before {
   font-size: 0.9em;
   font-family: var(--font-sans, sans-serif);
-  content: "Enter text or type '/' for commands";
+  /* A host can say what the editor is for: an agent composer names who the chat is with. */
+  content: var(--hm-editor-placeholder, "Enter text or type '/' for commands");
 }
 
 .blockContent.isFilter.hasAnchor:before {

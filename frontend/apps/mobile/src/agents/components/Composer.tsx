@@ -22,6 +22,7 @@ export function Composer({
   activity,
   onStop,
   error,
+  placeholder = 'Chat with the agent',
 }: {
   onSubmit: (text: string) => void
   /** A model turn is running: shows what it is doing and offers Stop. */
@@ -30,6 +31,8 @@ export function Composer({
   activity?: string
   onStop?: () => void
   error?: string
+  /** Shown in the empty field: who the chat is with, once known. */
+  placeholder?: string
 }) {
   const [text, setText] = useState('')
 
@@ -61,7 +64,7 @@ export function Composer({
           testID="agent-composer-input"
           value={text}
           onChangeText={setText}
-          placeholder="Message the agent"
+          placeholder={placeholder}
           placeholderTextColor={theme.mutedForeground}
           multiline
           style={styles.input}

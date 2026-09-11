@@ -636,6 +636,7 @@ function AgentSessionPage({
             />
             <AgentRichMessageComposer
               isBusy={isAgentBusy}
+              placeholder={agent.data ? `Chat with ${agent.data.agent.definition.name || 'this agent'}` : undefined}
               isStreaming={isAgentStreaming}
               disabledMessage={
                 !canChat ? (

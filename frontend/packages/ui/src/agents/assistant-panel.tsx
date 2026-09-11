@@ -1135,6 +1135,7 @@ function AssistantSessionChat({
           panel's new-chat flows. */}
         <AgentRichMessageComposer
           isBusy={isBusy}
+          placeholder={agent ? `Chat with ${agent.definition.name || 'this agent'}` : undefined}
           isStreaming={isStreaming}
           disabledMessage={
             readOnly ? (

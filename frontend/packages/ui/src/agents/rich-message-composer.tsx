@@ -91,6 +91,7 @@ export function AgentRichMessageComposer({
   onToolSessionStarted,
   onSend,
   onStop,
+  placeholder,
   bordered = true,
 }: {
   isBusy: boolean
@@ -119,9 +120,16 @@ export function AgentRichMessageComposer({
   onToolSessionStarted?: (sessionId: string) => void
   onSend: (message: AgentSessionDraftMessage) => void
   onStop: () => void
+  /** Text shown in the empty editor, e.g. who the chat is with. The editor's generic hint otherwise. */
+  placeholder?: string
   /** Draws the composer's own top rule. Off when the container around it already draws one. */
   bordered?: boolean
 }) {
+  // The editor draws its empty-state text from this variable (see Block.module.css); a CSS string
+  // needs quotes and escapes, which JSON string syntax provides.
+  const placeholderStyle = placeholder
+    ? ({'--hm-editor-placeholder': JSON.stringify(placeholder)} as React.CSSProperties)
+    : undefined
   const [draftMarkdown, setDraftMarkdown] = useState('')
   const {CommentEditor} = getAgentsPlatform()
   const internalHandleRef = useRef<AgentsRichEditorSubmitHandle | null>(null)
@@ -212,7 +220,10 @@ export function AgentRichMessageComposer({
       <div className="flex items-end gap-2 px-3 py-2">
         {/* The compact chat sizing is desktop-only: iOS Safari zooms the whole page whenever a
             focused field is under 16px, so phones get 16px in the composer instead. */}
-        <div className="min-w-0 flex-1 font-sans [&_.ProseMirror]:font-sans max-sm:[&_.ProseMirror]:!text-base sm:[&_.ProseMirror]:!text-sm [&_.comment-editor]:!min-h-8 [&_.comment-editor]:!pt-1 [&_.comment-editor]:!pb-1 [&_.comment-editor]:font-sans sm:[&_.comment-editor]:!text-sm [&_.comment-editor_.ProseMirror]:!min-h-0 [&_.comment-editor_.bn-editor]:!min-h-0 sm:[&_.hm-prose]:!text-sm">
+        <div
+          style={placeholderStyle}
+          className="min-w-0 flex-1 font-sans [&_.ProseMirror]:font-sans max-sm:[&_.ProseMirror]:!text-base sm:[&_.ProseMirror]:!text-sm [&_.comment-editor]:!min-h-8 [&_.comment-editor]:!pt-1 [&_.comment-editor]:!pb-1 [&_.comment-editor]:font-sans sm:[&_.comment-editor]:!text-sm [&_.comment-editor_.ProseMirror]:!min-h-0 [&_.comment-editor_.bn-editor]:!min-h-0 sm:[&_.hm-prose]:!text-sm"
+        >
           <CommentEditor
             focusOnMount={focusOnMount}
             hideAvatar
