@@ -1,5 +1,6 @@
 import {hmId, type NavRoute} from '@shm/shared'
 import {describe, expect, it, vi} from 'vitest'
+import {createDocumentVersionsPanelRoute} from '../document-versions-panel'
 import {
   getDocumentResourceRouteKey,
   getCommentReplyPanelRoute,
@@ -20,7 +21,23 @@ import {
   getCitationsTargetId,
   orderDocumentMenuItems,
   BACK_TO_TOP_SCROLL_OFFSET,
+  getMobilePanelPresentation,
+  getMobilePanelTitle,
 } from '../resource-page-common'
+
+describe('mobile document panel routing', () => {
+  const docId = hmId('alice', {path: ['doc']})
+
+  it('keeps discussions specialized while routing versions and options to their own panel bodies', () => {
+    expect(getMobilePanelPresentation({key: 'comments', id: docId})).toBe('discussions')
+    expect(getMobilePanelPresentation(createDocumentVersionsPanelRoute(docId))).toBe('panel')
+    expect(getMobilePanelPresentation({key: 'options'})).toBe('panel')
+  })
+
+  it('labels the filtered versions activity route as versions history', () => {
+    expect(getMobilePanelTitle(createDocumentVersionsPanelRoute(docId))).toBe('Versions history')
+  })
+})
 
 describe('back to top visibility', () => {
   it('uses a 200px visibility threshold', () => {
