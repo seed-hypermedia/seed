@@ -1,6 +1,5 @@
 import {
   addOptimisticSessionMessage,
-  addOptimisticSessionToCaches,
   describeAgentServer,
   removeOptimisticSessionFromLists,
   useAgentLists,
@@ -8,9 +7,9 @@ import {
   useAgentSession,
   useSessionRuns,
   useAgentWebSocketSubscription,
-  useAllAgentSessions,
+  useAllAgentSessionPages,
+  useAgentSessions,
   useSpaceAgents,
-  useCreateAgentSessionOnServer,
   useDeleteAgentSession,
   useLocalAgentServerUrl,
   useMessageAgentSession,
@@ -42,12 +41,10 @@ import {
 import {
   agentRowActivity,
   latestSessionEventAt,
-  sessionRowActivity,
   markAgentSessionRead,
   summarizeAgentActivity,
   useAgentActivityReadState,
   useMarkAgentSessionRead,
-  type AgentActivityReadState,
   type AgentRowActivity,
 } from './activity'
 import {AgentActivityMark} from './activity-dot'
@@ -70,9 +67,11 @@ import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {
   ArrowDown,
+  ArrowLeft,
   Bot,
   ChevronDown,
   LayoutGrid,
+  LayoutList,
   Link2,
   Maximize2,
   MessageCirclePlus,
@@ -102,8 +101,7 @@ import {
   type AssistantSessionRef,
 } from './assistant-session-ref'
 import {AgentProtocolError, AgentServerError, type AgentInfo} from './client'
-import type {AgentActivity, SessionModelOverride, Thoroughness} from '@seed-hypermedia/agents-protocol'
-import {describeAgentError, errorMessage} from './errors'
+import {describeAgentError} from './errors'
 import {useAssistantWindowContextLines} from './assistant-window-context'
 import {
   AgentRichMessageComposer,
@@ -113,16 +111,19 @@ import {
 } from './rich-message-composer'
 import type {AgentsRichEditorSubmitHandle} from './platform'
 import {RunRecordCard, SessionRunCard} from './run-card'
-import {DelayedSpinner, SessionModelBadge, type SessionModelPatch} from './header'
-import {SessionStatusDot, SessionSummaryBanner, SubSessionsDisclosure} from './session-children'
+import {DelayedSpinner, SessionModelBadge} from './header'
+import {SessionSummaryBanner} from './session-children'
+import {NewSessionComposer} from './new-session-composer'
+import {AgentSessionsFeed, type AgentSessionsFeedProblem} from './sessions-feed'
+import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 
 /**
  * Assistant sidebar.
  *
- * A session view over the Agents service, scoped to one agent at a time: the dropdown at the very
- * top picks the agent context, the row below it picks a session within that context, and new chats
- * start directly in the current context — no dialog in the way. A new chat is a draft until the
- * first send, which creates the session and delivers the message in one motion.
+ * The Agents page, in a column: the dropdown at the very top filters the chat list to one agent or
+ * to all of them, the list shows those chats newest first with a composer below it, and opening a
+ * chat replaces the list until the back button returns to it (same filter, same scroll position).
+ * A new chat costs nothing until the first send, which creates the session and opens it here.
  *
  * Shared between desktop (mounted in the main window beside the page, toggled from the footer) and
  * web (mounted beside the site page, toggled from the account menu). Everything host-specific —
@@ -136,13 +137,14 @@ export function AssistantPanel({
   onAgentChange,
   onClose,
 }: {
-  /** Serialized {@link AssistantSessionRef} restored from window state. */
+  /** Serialized {@link AssistantSessionRef} restored from window state: the chat that was open. */
   initialSessionId?: string | null
-  /** Serialized agent ref (see `encodeAssistantAgentRef`) the user last chose, restored from window state. */
+  /** Serialized agent ref (see `encodeAssistantAgentRef`) the list was filtered to, restored from window state. */
   initialAgentId?: string | null
   newChatRequest?: number
+  /** Reports the open chat (serialized), or null when the list is showing, for the host to persist. */
   onSessionChange?: (sessionId: string | null) => void
-  /** Reports the user's explicit agent choice (serialized), for the host to persist beside the session. */
+  /** Reports the list's agent filter (serialized), or null for all agents, for the host to persist. */
   onAgentChange?: (agentId: string | null) => void
   /** Renders a close button in the header when the host has no other way to dismiss the panel. */
   onClose?: () => void
@@ -151,27 +153,23 @@ export function AssistantPanel({
   const serverUrls = useAgentServerUrls()
   const localServerUrl = useLocalAgentServerUrl()
   const agentQueries = useAgentLists(serverUrls.data, accountUid)
-  const ownSessions = useAllAgentSessions(serverUrls.data, accountUid)
+  const ownSessions = useAllAgentSessionPages(serverUrls.data, accountUid)
   const navigate = useNavigate()
 
   const spaceAgents = useSpaceAgents(accountUid)
 
-  // The account-wide session lists never include a public agent's sessions — the space's agents
-  // reach a visitor through GetAgent instead, which carries them along. Merge both sources so the
-  // context of a space agent lists its chats (the visitor's own included) like any other agent.
-  const sessions = useMemo(() => {
-    if (spaceAgents.sessions.length === 0) return ownSessions
+  // The account-wide lists never include a public agent's chats — the space's agents reach a
+  // visitor through GetAgent instead, which carries them along. Merge both, so "All agents" lists a
+  // space agent's chats (the visitor's own included) like any other agent's.
+  const allSessions = useMemo(() => {
+    if (spaceAgents.sessions.length === 0) return ownSessions.entries
     const seen = new Set(ownSessions.entries.map((entry) => `${entry.serverUrl}:${entry.session.id}`))
     const extra = spaceAgents.sessions.filter((entry) => !seen.has(`${entry.serverUrl}:${entry.session.id}`))
-    if (extra.length === 0) return ownSessions
-    return {
-      ...ownSessions,
-      entries: [...ownSessions.entries, ...extra].sort((a, b) => b.session.updatedAt - a.session.updatedAt),
-    }
-  }, [ownSessions, spaceAgents.sessions])
+    if (extra.length === 0) return ownSessions.entries
+    return [...ownSessions.entries, ...extra].sort((a, b) => b.session.updatedAt - a.session.updatedAt)
+  }, [ownSessions.entries, spaceAgents.sessions])
 
-  // "No agents" and "not this agent" only mean something once every list has answered. Until then
-  // the remembered selection is held rather than resolved against a partial picture.
+  // "No agents" and "that agent is gone" only mean something once every list has answered.
   const agentsSettled =
     !accountUid ||
     (serverUrls.data !== undefined &&
@@ -209,30 +207,34 @@ export function AssistantPanel({
   const [chosenAgent, setChosenAgentRaw] = useState<AssistantAgentKey | null>(() =>
     decodeAssistantAgentRef(initialAgentId),
   )
-  const [isDraft, setIsDraft] = useState(false)
   const lastNewChatRequestRef = useRef(0)
-  // Handle onto whichever rich composer is mounted (session chat or draft), for imperative focus.
-  const composerRef = useRef<AgentsRichEditorSubmitHandle | null>(null)
+  // The list's new-chat composer and the open chat's composer are never on screen together; each
+  // keeps its own handle, so focusing one never reaches a stale editor of the other.
+  const listComposerRef = useRef<AgentsRichEditorSubmitHandle | null>(null)
+  const sessionComposerRef = useRef<AgentsRichEditorSubmitHandle | null>(null)
+  const windowContextLines = useAssistantWindowContextLines()
+  const windowContextLinesRef = useRef(windowContextLines)
+  windowContextLinesRef.current = windowContextLines
 
-  // Shares its cache with the transcript below; used to attribute a restored session to its agent
-  // before the session lists have loaded, and for the full-view navigation target.
+  // Shares its cache with the transcript below; names a restored chat's agent before the lists
+  // include it, and is the target of the header's Open action.
   const storedSessionQuery = useAgentSession(stored?.serverUrl, accountUid, stored?.sessionId)
 
   const selection = resolveAssistantSelection({
     agents,
-    sessions: sessions.entries,
+    sessions: allSessions,
     chosenAgent,
     storedSession: stored,
     storedSessionAgentId: storedSessionQuery.data?.session.agentId,
-    // Only a refusal from the server gives the session up; a server that could not be reached may
-    // simply be down (the desktop's local one is still booting on launch), so the session is held
-    // and its fetch keeps polling. A protocol mismatch is about the app's version, not the session,
-    // and the session is still there once the app updates.
+    // Only a refusal from the server closes the chat; a server that could not be reached may
+    // simply be down (the desktop's local one is still booting on launch), so the chat stays and
+    // its fetch keeps polling. A protocol mismatch is about the app's version, not the chat.
     storedSessionUnavailable:
       storedSessionQuery.error instanceof AgentServerError && !(storedSessionQuery.error instanceof AgentProtocolError),
     agentsSettled,
-    isDraft,
   })
+  const filterAgent = selection.filterAgent
+  const activeSession = selection.session
 
   const setStored = useCallback(
     (ref: AssistantSessionRef | null) => {
@@ -250,46 +252,65 @@ export function AssistantPanel({
     [onAgentChange],
   )
 
-  // Keep window state in step with what is actually shown (e.g. the resolver dropped a stored
-  // session that belongs to another agent after a context switch). A draft is exempt: it shows no
-  // session by design, and the stored ref doubles as the record of which agent the user was last
-  // in — clearing it would make every new chat forget its context and fall back to the first
-  // agent. Nor is anything written while the agent lists are still loading: the resolver only
-  // holds the remembered session through that gap, and a null or substitute written back now would
-  // overwrite the very selection being restored.
+  // A chat its server refused is closed, and the host's remembered ref cleared with it.
   useEffect(() => {
-    if (isDraft || !agentsSettled) return
-    const resolved = selection.session
-    const same = resolved?.serverUrl === stored?.serverUrl && resolved?.sessionId === stored?.sessionId
-    if (!same && !(resolved === null && stored === null)) setStored(resolved)
-  }, [selection.session, stored, setStored, isDraft, agentsSettled])
+    if (stored && !activeSession) setStored(null)
+  }, [stored, activeSession, setStored])
 
-  const focusInput = useCallback(() => {
-    composerRef.current?.focus({moveCursorToEnd: true})
-    requestAnimationFrame(() => composerRef.current?.focus({moveCursorToEnd: true}))
-  }, [])
+  // Going into a chat and back lands on the same list, scrolled where it was: the rows come back
+  // from the query cache, so restoring the offset once they render is enough.
+  const listScrollRef = useRef<HTMLDivElement>(null)
+  const listScrollTopRef = useRef(0)
+  const listVisibleRef = useRef(!activeSession)
+  listVisibleRef.current = !activeSession
+  useIsomorphicLayoutEffect(() => {
+    if (!activeSession && listScrollRef.current) listScrollRef.current.scrollTop = listScrollTopRef.current
+  }, [activeSession])
 
-  const selectSession = useCallback(
+  const openSession = useCallback(
     (ref: AssistantSessionRef) => {
-      setIsDraft(false)
+      if (listVisibleRef.current) listScrollTopRef.current = listScrollRef.current?.scrollTop ?? 0
       setStored(ref)
     },
     [setStored],
   )
+  const backToList = useCallback(() => setStored(null), [setStored])
 
-  const startDraft = useCallback(() => {
-    setIsDraft(true)
-    focusInput()
-  }, [focusInput])
+  // "New chat" (the top bar, the host's footer button, a just-created agent) returns to the list
+  // and puts the cursor in its composer. From a chat, the composer only mounts on the next render,
+  // so the focus waits for it.
+  const focusComposerPendingRef = useRef(false)
+  const startNewChat = useCallback(() => {
+    setStored(null)
+    if (listVisibleRef.current && listComposerRef.current) {
+      listComposerRef.current.focus({moveCursorToEnd: true})
+      return
+    }
+    focusComposerPendingRef.current = true
+  }, [setStored])
+  useEffect(() => {
+    if (!focusComposerPendingRef.current || activeSession || !listComposerRef.current) return
+    focusComposerPendingRef.current = false
+    listComposerRef.current.focus({moveCursorToEnd: true})
+  })
 
   useEffect(() => {
     if (!newChatRequest || newChatRequest === lastNewChatRequestRef.current) return
     lastNewChatRequestRef.current = newChatRequest
-    startDraft()
-  }, [newChatRequest, startDraft])
+    startNewChat()
+  }, [newChatRequest, startNewChat])
 
-  const activeAgent = selection.agent
-  // Which agents still have an unseen latest message on this device, so the pickers can point at
+  // The agent whose chat was open last: under "All agents" the composer starts with them, so a new
+  // chat continues with whoever the user was just talking to.
+  const lastSessionAgentRef = useRef<AssistantAgentKey | null>(null)
+  if (selection.sessionAgent) {
+    lastSessionAgentRef.current = {
+      serverUrl: selection.sessionAgent.serverUrl,
+      agentId: selection.sessionAgent.agent.id,
+    }
+  }
+
+  // Which agents still have an unseen latest message on this device, so the picker can point at
   // them: the title-bar dot only goes out once every one of these has been looked at.
   const readState = useAgentActivityReadState()
   const rowActivities = useMemo(() => {
@@ -312,7 +333,7 @@ export function AssistantPanel({
   // start a new chat keeps that intent instead.
   const jumpedToUnreadRef = useRef(false)
   useEffect(() => {
-    if (jumpedToUnreadRef.current || !agentsSettled || sessions.isLoading || !readState.data) return
+    if (jumpedToUnreadRef.current || !agentsSettled || ownSessions.isLoading || !readState.data) return
     jumpedToUnreadRef.current = true
     if (newChatRequest) return
     const indicator = summarizeAgentActivity(agents, readState.data)
@@ -321,13 +342,70 @@ export function AssistantPanel({
       (option) => option.serverUrl === indicator.serverUrl && option.agent.id === indicator.agentId,
     )
     if (!picked?.agent.activity) return
-    setChosenAgent({serverUrl: indicator.serverUrl, agentId: indicator.agentId})
-    selectSession({serverUrl: indicator.serverUrl, sessionId: indicator.sessionId})
+    openSession({serverUrl: indicator.serverUrl, sessionId: indicator.sessionId})
     markAgentSessionRead(indicator.serverUrl, indicator.sessionId, picked.agent.activity.messageAt)
-  }, [agentsSettled, sessions.isLoading, readState.data, agents, newChatRequest, setChosenAgent, selectSession])
-  const activeSession = selection.session
+  }, [agentsSettled, ownSessions.isLoading, readState.data, agents, newChatRequest, openSession])
+
+  // The list: every agent's chats, or the chosen agent's own paged list — filtered on the server,
+  // so a quiet agent is not found by paging through everyone else's.
+  const agentSessionPages = useAgentSessions(filterAgent?.serverUrl, accountUid, filterAgent?.agent.id)
+  const listEntries = useMemo<AgentSessionListEntry[]>(() => {
+    if (selection.filterPending) return []
+    if (!filterAgent) return allSessions
+    const seen = new Set<string>()
+    const entries: AgentSessionListEntry[] = []
+    for (const page of agentSessionPages.data?.pages ?? []) {
+      for (const session of page.sessions) {
+        if (seen.has(session.id)) continue
+        seen.add(session.id)
+        entries.push({serverUrl: filterAgent.serverUrl, session, agent: filterAgent.agent})
+      }
+    }
+    return entries
+  }, [selection.filterPending, filterAgent, allSessions, agentSessionPages.data])
+  const listPaging = filterAgent
+    ? {
+        isLoading: agentSessionPages.isFetching && !agentSessionPages.data,
+        hasNextPage: !!agentSessionPages.hasNextPage,
+        isFetchingNextPage: agentSessionPages.isFetchingNextPage,
+        fetchNextPage: () => void agentSessionPages.fetchNextPage(),
+      }
+    : {
+        isLoading: selection.filterPending || ownSessions.isLoading || (spaceAgents.isLoading && !allSessions.length),
+        hasNextPage: ownSessions.hasNextPage,
+        isFetchingNextPage: ownSessions.isFetchingNextPage,
+        fetchNextPage: ownSessions.fetchNextPage,
+      }
+  const listProblems: AgentSessionsFeedProblem[] = filterAgent
+    ? agentSessionPages.isError
+      ? [
+          {
+            serverUrl: filterAgent.serverUrl,
+            notice: describeAgentError(agentSessionPages.error, {
+              failed: 'Couldn’t load chats',
+              serverLabel: describeAgentServer(filterAgent.serverUrl, localServerUrl.data),
+            }),
+            refetch: () => void agentSessionPages.refetch(),
+            isFetching: agentSessionPages.isFetching,
+          },
+        ]
+      : []
+    : ownSessions.serverErrors.map((problem) => ({
+        serverUrl: problem.serverUrl,
+        notice: describeAgentError(problem.error, {
+          failed: 'Couldn’t load chats',
+          serverLabel: describeAgentServer(problem.serverUrl, localServerUrl.data),
+        }),
+        refetch: problem.refetch,
+        isFetching: problem.isFetching,
+      }))
+  const latestEntry = allSessions[0]
+  const composerDefault =
+    lastSessionAgentRef.current ??
+    (latestEntry ? {serverUrl: latestEntry.serverUrl, agentId: latestEntry.session.agentId} : undefined)
+
   const sessionEntry = activeSession
-    ? sessions.entries.find(
+    ? allSessions.find(
         (entry) => entry.serverUrl === activeSession.serverUrl && entry.session.id === activeSession.sessionId,
       )
     : undefined
@@ -337,16 +415,15 @@ export function AssistantPanel({
   const deleteSession = useDeleteAgentSession(activeSession?.serverUrl, accountUid)
   const deleteDialog = useAppDialog(DeleteSessionDialog, {isAlert: true})
   const createAgentDialog = useAppDialog(CreateAgentDialog)
-  // Creating from the sidebar stays in the sidebar: select the new agent's context and open a
-  // draft so the user can talk to it immediately.
+  // Creating from the sidebar stays in the sidebar: filter to the new agent and put the cursor in
+  // the composer, so the user can talk to it immediately.
   const openCreateAgent = () =>
     createAgentDialog.open({
       serverUrls: serverUrls.data || [],
       selectedAccountId: accountUid,
       onCreated: ({serverUrl, agentId}) => {
         setChosenAgent({serverUrl, agentId})
-        setIsDraft(true)
-        focusInput()
+        startNewChat()
       },
     })
 
@@ -359,33 +436,26 @@ export function AssistantPanel({
       <div className="border-border window-drag flex h-10 items-center justify-between gap-1 border-b px-2 py-2">
         <AssistantAgentPicker
           agents={agents}
-          activeAgent={activeAgent}
+          activeAgent={filterAgent}
+          pending={selection.filterPending}
           rowActivities={rowActivities}
           localServerUrl={localServerUrl.data ?? null}
           advertisedServerUrl={serverUrls.advertisedServerUrl}
           onSelect={(key) => {
+            // Choosing whose chats to see always lands on that list, as on the Agents page.
             setChosenAgent(key)
-            // Picking an agent that has something unread lands on that chat, read: the whole point
-            // of the dot was to get here, and leaving it lit on the way in would be a nag.
-            const picked = agents.find(
-              (option) => option.serverUrl === key.serverUrl && option.agent.id === key.agentId,
-            )
-            const activity = picked?.agent.activity
-            if (activity && rowActivities[`${key.serverUrl}${key.agentId}`]?.unread) {
-              selectSession({serverUrl: key.serverUrl, sessionId: activity.sessionId})
-              markAgentSessionRead(key.serverUrl, activity.sessionId, activity.messageAt)
-            }
+            setStored(null)
           }}
           onCreateAgent={openCreateAgent}
           onOpenAgentsPage={() => navigate({key: 'agents'})}
-          onOpenAgentPage={
-            activeAgent
-              ? () => navigate({key: 'agent', agentId: activeAgent.agent.id, serverUrl: activeAgent.serverUrl})
-              : undefined
+          onOpenAgentPage={() =>
+            filterAgent
+              ? navigate({key: 'agent', agentId: filterAgent.agent.id, serverUrl: filterAgent.serverUrl})
+              : navigate({key: 'agents'})
           }
         />
         <div className="no-window-drag flex shrink-0 items-center">
-          <button onClick={startDraft} className="text-muted-foreground hover:text-foreground p-1" title="New chat">
+          <button onClick={startNewChat} className="text-muted-foreground hover:text-foreground p-1" title="New chat">
             <MessageCirclePlus className="size-4" />
           </button>
           {onClose ? (
@@ -400,102 +470,132 @@ export function AssistantPanel({
           ) : null}
         </div>
       </div>
-      <div className="border-border flex items-center gap-1 border-b px-2 py-1.5">
-        <AssistantSessionPicker
-          entries={selection.agentSessions}
-          isLoading={sessions.isLoading}
-          accountUid={accountUid}
-          selected={activeSession}
-          selectedTitle={sessionTitle}
-          isDraft={!activeSession}
-          readState={readState.data}
-          agentActivity={activeAgent?.agent.activity}
-          onSelect={selectSession}
-        />
-        {activeSession ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="text-muted-foreground hover:text-foreground p-1" title="Chat options">
-                <MoreHorizontal className="size-3.5" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                disabled={!sessionAgentId}
-                onClick={() =>
-                  sessionAgentId &&
-                  navigate({
-                    key: 'agent-session',
-                    serverUrl: activeSession.serverUrl,
-                    agentId: sessionAgentId,
-                    sessionId: activeSession.sessionId,
-                  })
-                }
-              >
-                <Maximize2 className="size-3.5" />
-                Open
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={!sessionAgentId}
-                onClick={() => {
-                  const url =
-                    sessionAgentId &&
-                    buildAgentSessionUrl(activeSession.serverUrl, sessionAgentId, activeSession.sessionId)
-                  if (!url) return
-                  void navigator.clipboard?.writeText(url)
-                  toast.success('Session URL copied')
-                }}
-              >
-                <Link2 className="size-3.5" />
-                Copy URL
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={() =>
-                  deleteDialog.open({
-                    sessionTitle,
-                    onConfirm: () => {
-                      if (!accountUid) return
-                      // Drop it from the cached lists first, or the resolver would re-select the
-                      // session being deleted from the still-stale list.
-                      removeOptimisticSessionFromLists(activeSession.serverUrl, accountUid, activeSession.sessionId)
-                      setStored(null)
-                      deleteSession.mutate(activeSession.sessionId)
-                    },
-                  })
-                }
-              >
-                <Trash2 className="size-3.5" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : null}
-      </div>
       {activeSession ? (
-        <AssistantSessionChat
-          key={`${activeSession.serverUrl}${activeSession.sessionId}`}
-          sessionRef={activeSession}
-          accountUid={accountUid}
-          agentHint={activeAgent?.agent}
-          agentsSettled={agentsSettled}
-          composerRef={composerRef}
-          onOpenSession={(sessionId) => selectSession({serverUrl: activeSession.serverUrl, sessionId})}
-        />
-      ) : activeAgent ? (
-        <AssistantDraftChat
-          key={`${activeAgent.serverUrl}${activeAgent.agent.id}`}
-          serverUrl={activeAgent.serverUrl}
-          agent={activeAgent.agent}
-          agentName={activeAgent.agent.definition.name}
-          accountUid={accountUid}
-          readOnly={!agentAccessCanChat(activeAgent.agent.accessRole)}
-          canInvokeTools={agentAccessCanWrite(activeAgent.agent.accessRole)}
-          composerRef={composerRef}
-          onSessionCreated={selectSession}
-        />
-      ) : sessions.isLoading || !agentsSettled ? (
+        <>
+          <div className="border-border flex items-center gap-1 border-b px-1 py-1">
+            <button
+              type="button"
+              onClick={backToList}
+              className="text-muted-foreground hover:text-foreground rounded p-1"
+              title="Back to chats"
+              aria-label="Back to chats"
+            >
+              <ArrowLeft className="size-4" />
+            </button>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <span className="truncate text-xs font-medium">{sessionTitle || 'Untitled session'}</span>
+              {!filterAgent && selection.sessionAgent ? (
+                <span className="text-muted-foreground truncate text-[10px]">
+                  {selection.sessionAgent.agent.definition.name}
+                </span>
+              ) : null}
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="text-muted-foreground hover:text-foreground p-1" title="Chat options">
+                  <MoreHorizontal className="size-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  disabled={!sessionAgentId}
+                  onClick={() =>
+                    sessionAgentId &&
+                    navigate({
+                      key: 'agent-session',
+                      serverUrl: activeSession.serverUrl,
+                      agentId: sessionAgentId,
+                      sessionId: activeSession.sessionId,
+                    })
+                  }
+                >
+                  <Maximize2 className="size-3.5" />
+                  Open
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!sessionAgentId}
+                  onClick={() => {
+                    const url =
+                      sessionAgentId &&
+                      buildAgentSessionUrl(activeSession.serverUrl, sessionAgentId, activeSession.sessionId)
+                    if (!url) return
+                    void navigator.clipboard?.writeText(url)
+                    toast.success('Session URL copied')
+                  }}
+                >
+                  <Link2 className="size-3.5" />
+                  Copy URL
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() =>
+                    deleteDialog.open({
+                      sessionTitle,
+                      onConfirm: () => {
+                        if (!accountUid) return
+                        // Drop it from the cached lists first, so the list it returns to never
+                        // shows the chat being deleted.
+                        removeOptimisticSessionFromLists(activeSession.serverUrl, accountUid, activeSession.sessionId)
+                        backToList()
+                        deleteSession.mutate(activeSession.sessionId)
+                      },
+                    })
+                  }
+                >
+                  <Trash2 className="size-3.5" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <AssistantSessionChat
+            key={`${activeSession.serverUrl}${activeSession.sessionId}`}
+            sessionRef={activeSession}
+            accountUid={accountUid}
+            agentHint={selection.sessionAgent?.agent}
+            agentsSettled={agentsSettled}
+            composerRef={sessionComposerRef}
+            onOpenSession={(sessionId) => openSession({serverUrl: activeSession.serverUrl, sessionId})}
+          />
+        </>
+      ) : agents.length ? (
+        <>
+          <div ref={listScrollRef} className="min-h-0 flex-1 overflow-y-auto px-1 py-1">
+            <AgentSessionsFeed
+              compact
+              sessions={listEntries}
+              accountUid={accountUid}
+              readState={readState.data}
+              showAgentName={!filterAgent}
+              isLoading={listPaging.isLoading}
+              hasNextPage={listPaging.hasNextPage}
+              isFetchingNextPage={listPaging.isFetchingNextPage}
+              fetchNextPage={listPaging.fetchNextPage}
+              problems={listProblems}
+              emptyText={filterAgent ? 'No chats with this agent yet.' : 'No chats yet.'}
+              onOpenSession={(target) => openSession({serverUrl: target.serverUrl, sessionId: target.sessionId})}
+            />
+          </div>
+          {selection.filterPending ? null : (
+            <div className="border-border flex-none border-t">
+              <NewSessionComposer
+                {...(filterAgent ? {fixedAgent: filterAgent} : {agents, defaultAgent: composerDefault})}
+                accountUid={accountUid}
+                localServerUrl={localServerUrl.data}
+                composerHandleRef={listComposerRef}
+                disabledMessage={
+                  filterAgent && !agentAccessCanChat(filterAgent.agent.accessRole)
+                    ? 'You have read-only access to this agent.'
+                    : undefined
+                }
+                getContextLines={() => windowContextLinesRef.current}
+                onSessionStarted={({serverUrl, sessionId}) => openSession({serverUrl, sessionId})}
+              />
+            </div>
+          )}
+        </>
+      ) : !agentsSettled || ownSessions.isLoading ? (
         <div className="text-muted-foreground flex flex-1 items-center justify-center px-4 text-center text-xs">
           Loading…
         </div>
@@ -541,8 +641,8 @@ export function AssistantPanel({
 /**
  * Agent-context dropdown at the very top of the sidebar.
  *
- * Choosing the context up front is what removes the friction of a per-chat agent dialog: every
- * action below (sessions, new chats) applies to this agent. Agents are grouped under their server
+ * Filters the chat list below to one agent, or to all of them ("All agents", the default); the
+ * composer under the list follows the choice. Agents are grouped under their server
  * so the same name on two servers stays distinguishable. The footer actions — creating an agent
  * and jumping to the full Agents page — live here so the sidebar is self-sufficient: on a fresh
  * install with zero agents, this dropdown is where you fix that.
@@ -550,6 +650,7 @@ export function AssistantPanel({
 function AssistantAgentPicker({
   agents,
   activeAgent,
+  pending = false,
   rowActivities,
   localServerUrl,
   advertisedServerUrl,
@@ -560,12 +661,15 @@ function AssistantAgentPicker({
 }: {
   agents: AssistantAgentOption[]
   activeAgent: AssistantAgentOption | null
+  /** A remembered agent choice whose lists are still loading: the filter is not known yet. */
+  pending?: boolean
   /** Each agent's own indicator (unread, or working), keyed `${serverUrl}${agentId}`. */
   rowActivities: Record<string, AgentRowActivity>
   localServerUrl: string | null
   /** Server the site on screen advertises; its group is labeled so the user knows why it is here. */
   advertisedServerUrl?: string | null
-  onSelect: (key: AssistantAgentKey) => void
+  /** Filters to one agent, or to all of them with null. */
+  onSelect: (key: AssistantAgentKey | null) => void
   onCreateAgent: () => void
   onOpenAgentsPage: () => void
   /** Opens the active agent's full page; the expand affordance shows only while hovering the picker. */
@@ -607,12 +711,27 @@ function AssistantAgentPicker({
               ) : null}
             </span>
             <SizableText size="sm" className="min-w-0 truncate font-medium">
-              {activeAgent?.agent.definition.name || 'Agents'}
+              {activeAgent ? activeAgent.agent.definition.name : pending ? 'Loading…' : 'All agents'}
             </SizableText>
             <ChevronDown className="text-muted-foreground size-3 shrink-0" />
           </button>
         </PopoverTrigger>
         <PopoverContent align="start" className="max-h-96 w-72 overflow-y-auto p-1">
+          {groups.length ? (
+            <button
+              type="button"
+              className={`hover:bg-muted flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs font-medium ${
+                !activeAgent && !pending ? 'bg-muted' : ''
+              }`}
+              onClick={() => {
+                onSelect(null)
+                setOpen(false)
+              }}
+            >
+              <LayoutList className="text-muted-foreground size-3.5 shrink-0" />
+              All agents
+            </button>
+          ) : null}
           {groups.length === 0 ? (
             <div className="text-muted-foreground px-2 py-3 text-center text-xs">No agents yet.</div>
           ) : (
@@ -685,264 +804,17 @@ function AssistantAgentPicker({
           </div>
         </PopoverContent>
       </Popover>
-      {activeAgent && onOpenAgentPage ? (
+      {onOpenAgentPage ? (
         <button
           type="button"
-          title={`Open ${activeAgent.agent.definition.name}`}
-          aria-label={`Open the ${activeAgent.agent.definition.name} agent page`}
+          title={activeAgent ? `Open ${activeAgent.agent.definition.name}` : 'Open the Agents page'}
+          aria-label={activeAgent ? `Open the ${activeAgent.agent.definition.name} agent page` : 'Open the Agents page'}
           onClick={onOpenAgentPage}
           className="no-window-drag text-muted-foreground hover:text-foreground p-1 opacity-0 transition-opacity group-hover/agentpicker:opacity-100 focus-visible:opacity-100"
         >
           <Maximize2 className="size-3.5" />
         </button>
       ) : null}
-    </div>
-  )
-}
-
-/** Session dropdown for the active agent context. Most of the row; the "…" menu sits beside it. */
-function AssistantSessionPicker({
-  entries,
-  isLoading,
-  accountUid,
-  selected,
-  selectedTitle,
-  isDraft,
-  readState,
-  agentActivity,
-  onSelect,
-}: {
-  entries: AgentSessionListEntry[]
-  isLoading: boolean
-  accountUid: string | null | undefined
-  selected: AssistantSessionRef | null
-  selectedTitle?: string
-  isDraft: boolean
-  /** This device's read marks, for each row's unread state. */
-  readState?: AgentActivityReadState
-  /** The active agent's rollup, which names the tool a busy session is running. */
-  agentActivity?: AgentActivity
-  onSelect: (ref: AssistantSessionRef) => void
-}) {
-  const [open, setOpen] = useState(false)
-  // Each row's own indicator — unread, or the agent working in it — and, for the closed trigger,
-  // the most pressing one among the chats not on screen.
-  const rows = useMemo(() => {
-    const byId: Record<string, AgentRowActivity> = {}
-    for (const entry of entries) {
-      const row = sessionRowActivity(entry.session, entry.serverUrl, readState, agentActivity)
-      if (row) byId[entry.session.id] = row
-    }
-    return byId
-  }, [entries, readState, agentActivity])
-  const elsewhere = entries
-    .filter((entry) => entry.session.id !== selected?.sessionId)
-    .map((entry) => rows[entry.session.id])
-    .filter((row): row is AgentRowActivity => !!row)
-  const triggerRow = elsewhere.find((row) => row.unread) ?? elsewhere[0] ?? null
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="bg-muted text-foreground flex min-w-0 flex-1 items-center gap-1 rounded px-2 py-1 text-xs"
-        >
-          <span className="min-w-0 flex-1 truncate text-left">
-            {isDraft ? 'New chat' : selectedTitle || 'Untitled session'}
-          </span>
-          {triggerRow ? <AgentActivityMark tone={triggerRow.tone} label={triggerRow.label} /> : null}
-          <ChevronDown className="size-3 shrink-0" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="max-h-80 w-72 overflow-y-auto p-1">
-        {isLoading && entries.length === 0 ? (
-          <div className="text-muted-foreground px-2 py-3 text-center text-xs">Loading sessions…</div>
-        ) : entries.length === 0 ? (
-          <div className="text-muted-foreground px-2 py-3 text-center text-xs">No chats with this agent yet.</div>
-        ) : (
-          entries.map((entry) => {
-            const isSelected = entry.serverUrl === selected?.serverUrl && entry.session.id === selected?.sessionId
-            return (
-              <div key={`${entry.serverUrl}${entry.session.id}`} className="flex flex-col">
-                <button
-                  type="button"
-                  className={`hover:bg-muted flex w-full items-center gap-2 rounded px-2 py-1.5 text-left ${
-                    isSelected ? 'bg-muted' : ''
-                  }`}
-                  onClick={() => {
-                    onSelect({serverUrl: entry.serverUrl, sessionId: entry.session.id})
-                    setOpen(false)
-                  }}
-                >
-                  {rows[entry.session.id] ? (
-                    <AgentActivityMark
-                      tone={rows[entry.session.id]!.tone}
-                      label={rows[entry.session.id]!.label}
-                      className="size-2"
-                    />
-                  ) : (
-                    <SessionStatusDot status={entry.session.status} className="size-2" />
-                  )}
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="flex items-center gap-1.5">
-                      <span className="min-w-0 flex-1 truncate text-xs">
-                        {entry.session.title || 'Untitled session'}
-                      </span>
-                      {rows[entry.session.id] ? (
-                        <span className="text-muted-foreground shrink-0 text-[10px]">
-                          {rows[entry.session.id]!.short}
-                        </span>
-                      ) : null}
-                    </span>
-                    {entry.session.description ? (
-                      <span className="text-muted-foreground line-clamp-3 text-xs">{entry.session.description}</span>
-                    ) : null}
-                  </span>
-                </button>
-                {entry.session.childSessionCount ? (
-                  <div className="pl-4">
-                    <SubSessionsDisclosure
-                      compact
-                      serverUrl={entry.serverUrl}
-                      accountUid={accountUid}
-                      parentSessionId={entry.session.id}
-                      childSessionCount={entry.session.childSessionCount}
-                      selectedSessionId={entry.serverUrl === selected?.serverUrl ? selected?.sessionId : undefined}
-                      onOpenSession={(child) => {
-                        onSelect({serverUrl: entry.serverUrl, sessionId: child.id})
-                        setOpen(false)
-                      }}
-                    />
-                  </div>
-                ) : null}
-              </div>
-            )
-          })
-        )}
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-/**
- * Composer-only state for a chat that does not exist yet.
- *
- * The session is created on the first send and the message delivered in the same motion, so "new
- * chat" costs nothing until the user actually says something — and abandoning it leaves no empty
- * session behind.
- */
-function AssistantDraftChat({
-  serverUrl,
-  agent,
-  agentName,
-  accountUid,
-  composerRef,
-  onSessionCreated,
-  readOnly,
-  canInvokeTools,
-}: {
-  serverUrl: string
-  agent: AgentInfo
-  agentName: string
-  accountUid: string | null | undefined
-  readOnly: boolean
-  /** False for chat-only access: the tool palette needs write access to the agent. */
-  canInvokeTools: boolean
-  composerRef: React.MutableRefObject<AgentsRichEditorSubmitHandle | null>
-  onSessionCreated: (ref: AssistantSessionRef) => void
-}) {
-  const agentId = agent.id
-  const createSession = useCreateAgentSessionOnServer(accountUid)
-  const messageSession = useMessageAgentSession(serverUrl, accountUid)
-  // The model and thoroughness the session will start with: the same badge as a live session,
-  // held locally until the first send creates the session (there is nothing to save them to yet).
-  const [modelChoice, setModelChoice] = useState<{modelOverride?: SessionModelOverride; thoroughness?: Thoroughness}>(
-    {},
-  )
-  const modelChoiceRef = useRef(modelChoice)
-  modelChoiceRef.current = modelChoice
-  const windowContextLines = useAssistantWindowContextLines()
-  const windowContextLinesRef = useRef(windowContextLines)
-  windowContextLinesRef.current = windowContextLines
-
-  const isSendingRef = useRef(false)
-
-  async function handleSend(message: AgentSessionDraftMessage) {
-    // The composer already cleared itself; a second send racing the create must not open a second
-    // session.
-    if (!accountUid || isSendingRef.current) return
-    isSendingRef.current = true
-    try {
-      // No title at creation: the agent names the session (status verb, with the server's fallback
-      // namer behind it). 'New chat' is only the optimistic row's display label below.
-      const result = await createSession.mutateAsync({serverUrl, agentId, ...modelChoiceRef.current})
-      if (result._ !== 'CreateSessionResponse') throw new Error('Unexpected CreateSession response')
-      // Seed the caches before selecting: the selection resolver can only keep the new session if
-      // it can attribute it to this agent, and the list refetch has not landed yet.
-      const now = Date.now()
-      addOptimisticSessionToCaches(serverUrl, accountUid, {
-        id: result.sessionId,
-        account: accountUid,
-        agentId,
-        title: 'New chat',
-        status: 'idle',
-        createdAt: now,
-        updatedAt: now,
-        ...modelChoiceRef.current,
-      })
-      // Send the stamped drafts, so the durable echo replaces the optimistic row by identity.
-      const messages = addOptimisticSessionMessage(serverUrl, accountUid, result.sessionId, [
-        {...message, contextLines: windowContextLinesRef.current},
-      ])
-      messageSession.mutate({sessionId: result.sessionId, message: messages})
-      onSessionCreated({serverUrl, sessionId: result.sessionId})
-    } catch (caught) {
-      toast.error(errorMessage(caught, 'Could not start the chat'))
-    } finally {
-      isSendingRef.current = false
-    }
-  }
-
-  return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="text-muted-foreground flex flex-1 items-center justify-center px-4 text-center text-xs">
-        {`Send a message to start chatting with ${agentName}`}
-      </div>
-      {/* No sessionId yet: attachments and the tool palette unlock once the first send creates
-          the session. A draft is always user-initiated, so the composer takes focus on mount. */}
-      <AgentRichMessageComposer
-        isBusy={false}
-        isStreaming={false}
-        stopPending={false}
-        disabledMessage={readOnly ? 'You have read-only access to this agent.' : undefined}
-        serverUrl={serverUrl}
-        accountId={accountUid ?? null}
-        canInvokeTools={canInvokeTools}
-        composerHandleRef={composerRef}
-        onSend={(message) => void handleSend(message)}
-        onStop={() => {}}
-      />
-      {/* The same per-session model switcher a live session shows, so the first turn already runs
-          on the chosen model and budget rather than the user fixing it after the fact. */}
-      <div className="flex flex-none items-center justify-end gap-2 px-3 pb-2">
-        <SessionModelBadge
-          agent={agent}
-          agentId={agentId}
-          serverUrl={serverUrl}
-          modelOverride={modelChoice.modelOverride}
-          thoroughness={modelChoice.thoroughness}
-          canWrite={canInvokeTools}
-          draft={{
-            onChange: (patch: SessionModelPatch) =>
-              setModelChoice((current) => ({
-                ...current,
-                ...(patch.modelOverride !== undefined ? {modelOverride: patch.modelOverride ?? undefined} : {}),
-                ...(patch.thoroughness !== undefined ? {thoroughness: patch.thoroughness ?? undefined} : {}),
-              })),
-          }}
-        />
-      </div>
     </div>
   )
 }

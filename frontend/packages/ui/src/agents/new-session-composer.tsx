@@ -66,6 +66,8 @@ export function NewSessionComposer({
   composerHandleRef,
   agentToolsLoading,
   disabledMessage,
+  onSessionStarted,
+  getContextLines,
 }: {
   /** Agents the picker offers. Ignored when `fixedAgent` is set. */
   agents?: NewSessionAgent[]
@@ -81,8 +83,14 @@ export function NewSessionComposer({
   agentToolsLoading?: boolean
   /** When set, the editor is replaced by this explanation. */
   disabledMessage?: React.ReactNode
+  /** Opens the started session; by default the main window navigates to its page. */
+  onSessionStarted?: (started: {serverUrl: string; agentId: string; sessionId: string}) => void
+  /** Lines the host adds to the first message as context (the sidebar's current window). */
+  getContextLines?: () => string[] | undefined
 }) {
   const navigate = useNavigate()
+  const openStarted = (started: {serverUrl: string; agentId: string; sessionId: string}) =>
+    onSessionStarted ? onSessionStarted(started) : navigate({key: 'agent-session', ...started})
   // Only agents the account may actually chat with are offered.
   const chattable = useMemo(
     () => (fixedAgent ? [fixedAgent] : (agents ?? []).filter(({agent}) => agentAccessCanChat(agent.accessRole))),
@@ -160,9 +168,12 @@ export function NewSessionComposer({
     try {
       const sessionId = await startDraftSession()
       // Send the stamped drafts, so the durable echo replaces the optimistic row by identity.
-      const messages = addOptimisticSessionMessage(serverUrl, accountUid, sessionId, [message])
+      const contextLines = getContextLines?.()
+      const messages = addOptimisticSessionMessage(serverUrl, accountUid, sessionId, [
+        contextLines ? {...message, contextLines} : message,
+      ])
       messageSession.mutate({sessionId, message: messages})
-      navigate({key: 'agent-session', agentId: agent.id, sessionId, serverUrl})
+      openStarted({serverUrl, agentId: agent.id, sessionId})
     } catch (caught) {
       toast.error(errorMessage(caught, 'Could not start the session'))
     } finally {
@@ -212,7 +223,7 @@ export function NewSessionComposer({
           composerHandleRef={composerHandleRef}
           onToolStartSession={startDraftSession}
           onToolSessionStarted={(sessionId) =>
-            navigate({key: 'agent-session', agentId: selected.agent.id, sessionId, serverUrl: selected.serverUrl})
+            openStarted({serverUrl: selected.serverUrl, agentId: selected.agent.id, sessionId})
           }
           bordered={false}
           onSend={(message) => void handleSend(message)}

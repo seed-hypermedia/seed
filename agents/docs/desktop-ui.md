@@ -67,6 +67,14 @@ key (`local-assistant-bootstrap-v1`) so two windows racing on first launch dedup
 respected rather than undone on next launch. Its callable grant is search only; the verbs cover reading and memory, and
 with no signing key `hm://` publishing stays blocked.
 
+The panel is the Agents page in a column. The dropdown at the top filters the chat list to one agent or to **All
+agents** (the default; web persists the filter beside the open chat). The list is the shared `AgentSessionsFeed` in
+`compact` mode, with unread and working marks per chat, and the shared `NewSessionComposer` below it, fixed to the
+filtered agent or with its own agent picker under All agents. Opening a chat, whether from the list, by sending a first
+message, or through the unread jump when the panel opens, replaces the list. The chat's header has a back button to the
+same filtered list and scroll position, plus Open, Copy URL and Delete. `resolveAssistantSelection`
+(`assistant-selection.ts`) keeps a restored chat open until its server refuses it.
+
 The panel runs the same components as the full session page in `compact` mode — `ChatMessageBubble` /
 `AssistantMessageParts` / `AgentErrorRow` from the shared renderer, `buildAgentSessionChatRows` + `frozenRunIds` from
 the same row model, and `SessionRunCard` / `RunRecordCard` from `pages/agents/run-card`. It does **not** mount the

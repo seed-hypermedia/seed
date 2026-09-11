@@ -3555,6 +3555,12 @@ export function removeOptimisticSessionFromLists(serverUrl: string, accountUid: 
   getQueryClient().setQueriesData({queryKey: ['agents', 'sessions', serverUrl, accountUid]}, (old: any) =>
     patchSessionPages(old, (sessions) => sessions.filter((session) => session.id !== sessionId)),
   )
+  // So does the paged cross-server feed (useAllAgentSessionPages), which keeps entries per page.
+  getQueryClient().setQueriesData({queryKey: ['agents', 'sessions', serverUrl, accountUid]}, (old: any) =>
+    old && Array.isArray(old.entries)
+      ? {...old, entries: old.entries.filter((entry: AgentSessionListEntry) => entry.session.id !== sessionId)}
+      : old,
+  )
 }
 
 /**
