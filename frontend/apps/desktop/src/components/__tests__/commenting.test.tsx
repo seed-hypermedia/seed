@@ -6,10 +6,15 @@ import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {CommentBox} from '../commenting'
 
-const {writeCommentDraftMock, invalidateQueriesMock} = vi.hoisted(() => ({
-  writeCommentDraftMock: vi.fn(),
-  invalidateQueriesMock: vi.fn(),
-}))
+const {createCommentMock, invalidateQueriesMock, publishMock, subscribeContactMock, writeCommentDraftMock} = vi.hoisted(
+  () => ({
+    createCommentMock: vi.fn(),
+    invalidateQueriesMock: vi.fn(),
+    publishMock: vi.fn(),
+    subscribeContactMock: vi.fn(),
+    writeCommentDraftMock: vi.fn(),
+  }),
+)
 
 vi.mock('@/grpc-client', () => ({
   grpcClient: {},
@@ -66,12 +71,22 @@ vi.mock('@seed-hypermedia/client', async (importOriginal) => {
   return {
     ...actual,
     commentRecordIdFromBlob: vi.fn(),
-    createComment: vi.fn(),
+    createComment: createCommentMock,
   }
 })
 
 vi.mock('@shm/editor/comment-editor', () => ({
-  CommentEditor: ({onContentChange}: {onContentChange?: (blocks: any[]) => void}) => {
+  CommentEditor: ({
+    onContentChange,
+    submitButton,
+  }: {
+    onContentChange?: (blocks: any[]) => void
+    submitButton?: (props: {
+      getContent: () => Promise<{blockNodes: any[]}>
+      reset: () => void
+      disabled: boolean
+    }) => React.ReactNode | undefined
+  }) => {
     useEffect(() => {
       onContentChange?.([
         {
@@ -85,7 +100,11 @@ vi.mock('@shm/editor/comment-editor', () => ({
       ])
     }, [onContentChange])
 
-    return <div data-testid="comment-editor" />
+    return (
+      <div data-testid="comment-editor">
+        {submitButton?.({getContent: async () => ({blockNodes: []}), reset: vi.fn(), disabled: false})}
+      </div>
+    )
   },
 }))
 
@@ -101,6 +120,11 @@ vi.mock('@shm/shared/client/.generated/documents/v3alpha/documents_pb', async ()
     },
   }
 })
+
+vi.mock('../desktop-intents', () => ({
+  useContactSubscribeIntent: () => subscribeContactMock,
+  useDesktopAccountIntent: () => ({content: null, requireAccount: vi.fn()}),
+}))
 
 vi.mock('@shm/shared/models/comments', () => ({
   useDocumentComments: () => ({data: {comments: []}}),
@@ -130,9 +154,13 @@ vi.mock('@shm/shared/optimistic-comment', () => ({
 
 vi.mock('@shm/shared/routing', () => ({
   useUniversalClient: () => ({
-    getSigner: vi.fn(),
-    publish: vi.fn(),
+    getSigner: vi.fn(() => ({})),
+    publish: publishMock,
   }),
+}))
+
+vi.mock('@shm/ui/tooltip', () => ({
+  Tooltip: ({children}: {children: React.ReactNode}) => children,
 }))
 
 vi.mock('@shm/shared/utils/navigation', () => ({
@@ -142,7 +170,7 @@ vi.mock('@shm/shared/utils/navigation', () => ({
 }))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-function renderCommentBox() {
+function renderCommentBox(docUid = 'alice') {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
@@ -156,7 +184,7 @@ function renderCommentBox() {
   act(() => {
     root.render(
       <QueryClientProvider client={queryClient}>
-        <CommentBox docId={hmId('alice', {path: ['doc']})} />
+        <CommentBox docId={hmId(docUid, {path: ['doc']})} />
       </QueryClientProvider>,
     )
   })
@@ -203,5 +231,33 @@ describe('CommentBox draft persistence', () => {
       quotingBlockId: undefined,
       context: undefined,
     })
+  })
+})
+
+describe('CommentBox site membership', () => {
+  it('joins a remote site before a logged-in account publishes its first comment', async () => {
+    subscribeContactMock.mockResolvedValue(undefined)
+    createCommentMock.mockReturnValue(new Promise(() => {}))
+
+    const {container, root} = renderCommentBox('site-account')
+    const submit = container.querySelector('button')
+    expect(submit).not.toBeNull()
+
+    await act(async () => {
+      submit?.click()
+    })
+
+    await vi.waitFor(() => {
+      expect(subscribeContactMock).toHaveBeenCalledWith({
+        accountUid: 'alice',
+        subjectUid: 'site-account',
+        subscribe: 'site',
+      })
+    })
+    expect(subscribeContactMock.mock.invocationCallOrder[0]).toBeLessThan(
+      createCommentMock.mock.invocationCallOrder[0]!,
+    )
+
+    cleanupRendered(root, container)
   })
 })

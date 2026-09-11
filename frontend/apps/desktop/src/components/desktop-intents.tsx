@@ -55,6 +55,7 @@ export function useContactSubscribeIntent() {
       if (!universalClient.getSigner) throw new Error('Signing not available')
       const contacts = await universalClient.request('AccountContacts', input.accountUid)
       const existingContact = contacts.find((contact) => contact.subject === input.subjectUid)
+      if (existingContact?.subscribe?.[input.subscribe]) return
       const signer = universalClient.getSigner(input.accountUid)
       const hadLegacyProfile = existingContact && !existingContact.subscribe
       const nextSubscribe = {

@@ -52,7 +52,7 @@ vi.mock('../desktop-auth-dialog', () => ({
   useDesktopAuthDialog: () => ({content: null, open: vi.fn()}),
 }))
 
-import {useJoinSiteIntent} from '../desktop-intents'
+import {useContactSubscribeIntent, useJoinSiteIntent} from '../desktop-intents'
 
 function renderHook<T>(useHook: () => T) {
   let result: T
@@ -73,6 +73,24 @@ function cleanupRendered(root: Root, container: HTMLDivElement) {
   act(() => root.unmount())
   container.remove()
 }
+
+describe('desktop contact subscription intent', () => {
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('does not republish an existing site subscription', async () => {
+    requestMock.mockResolvedValue([{id: 'contact-1', subject: 'z6MkJoinedSite', name: '', subscribe: {site: true}}])
+    const {container, root, result} = renderHook(useContactSubscribeIntent)
+    try {
+      await result()({accountUid: 'z6MkJoiningAccount', subjectUid: 'z6MkJoinedSite', subscribe: 'site'})
+      expect(createContactMock).not.toHaveBeenCalled()
+      expect(publishMock).not.toHaveBeenCalled()
+    } finally {
+      cleanupRendered(root, container)
+    }
+  })
+})
 
 describe('desktop Join site intent', () => {
   afterEach(() => {
