@@ -76,21 +76,13 @@ type AgentWSEvent =
 
 ## `account/<accountId>` <!-- id:fx6p0P_O -->
 
-Account-wide notifications. Every open desktop window and signed-in web tab holds one (it feeds the unread indicator),
-so it carries only the small `account/<id>` change hints and run changes — never transcript frames. Session appends,
-streaming partials and session snapshots go to direct `sessions/<id>` (and `agents/<id>`) subscribers only; the sidebar
-and lists take the session snapshot and the agent's activity rollup from the hints.
+Account-wide notifications. Every open desktop window and signed-in web tab holds one (it feeds the unread indicator), so it carries only the small `account/<id>` change hints and run changes — never transcript frames. Session appends, streaming partials and session snapshots go to direct `sessions/<id>` (and `agents/<id>`) subscribers only; the sidebar and lists take the session snapshot and the agent's activity rollup from the hints. <!-- id:9O2G7Ybf -->
 
-Two reasons carry the agent's fresh **activity rollup** (`AgentActivity`: latest event time and kind, latest message
-time and sender, that message's session, and whether any run is live):
+Two reasons carry the agent's fresh **activity rollup** (`AgentActivity`: latest event time and kind, latest message time and sender, that message's session, and whether any run is live): <!-- id:OzgtYWK9 -->
+  - `session-event` — coalesced to about one per session per 1.5 s while a transcript grows. <!-- id:yK6_GLlz -->
+  - `session-updated` — on a real session status transition, which is what flips `busy`. <!-- id:r4S8_Jm_ -->
 
-- `session-event` — coalesced to about one per session per 1.5 s while a transcript grows.
-- `session-updated` — on a real session status transition, which is what flips `busy`.
-
-Both also carry the session's fresh `SessionInfo` (`session`). Clients write the rollup into their cached agent rows and
-the snapshot into their cached session lists, so neither an always-visible unread indicator nor an open sidebar costs a
-`ListAgents`, `ListSessions`, `GetSession` or `GetAgent` refetch: the open transcript already streams on its own
-`sessions/<id>` subscription. A client that ignores the fields behaves as before.
+Both also carry the session's fresh `SessionInfo` (`session`). Clients write the rollup into their cached agent rows and the snapshot into their cached session lists, so neither an always-visible unread indicator nor an open sidebar costs a `ListAgents`, `ListSessions`, `GetSession` or `GetAgent` refetch: the open transcript already streams on its own `sessions/<id>` subscription. A client that ignores the fields behaves as before. <!-- id:a-vij3l8 -->
 
 ## `agents/<agentId>` <!-- id:Y8P8IKFA -->
 

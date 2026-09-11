@@ -121,14 +121,9 @@ Important columns: <!-- id:UGC0f3j9 -->
   - `accepted_at` — acceptance time, NULL while pending; <!-- id:5t_8TYy2 -->
   - `created_at`, `updated_at`. <!-- id:dS_KLpBe -->
 
-Activity rollup (`activity_at`, `activity_kind`, `message_at`, `message_from`, `activity_session_id`): the latest
-transcript activity across the agent's sessions, written on every appended session event. Tool calls, spawns and results
-— and every event of a delegated child session — move only `activity_at`/`activity_kind`; a message from a person, a
-trigger or the agent in a top-level session also moves the `message_*` columns and `activity_session_id`. Exposed as
-`AgentInfo.activity` together with a `busy` flag derived from live runs, so unread indicators read the agents list and
-never enumerate sessions. NULL until the first event.
+Activity rollup (`activity_at`, `activity_kind`, `message_at`, `message_from`, `activity_session_id`): the latest transcript activity across the agent's sessions, written on every appended session event. Tool calls, spawns and results — and every event of a delegated child session — move only `activity_at`/`activity_kind`; a message from a person, a trigger or the agent in a top-level session also moves the `message_*` columns and `activity_session_id`. Exposed as `AgentInfo.activity` together with a `busy` flag derived from live runs, so unread indicators read the agents list and never enumerate sessions. NULL until the first event. <!-- id:9iteVK4p -->
 
-### `agent_collaborators`
+### `agent_collaborators` <!-- id:Yl68bI_J -->
 
 ## `agent_triggers` <!-- id:qcPEzEQt -->
 
@@ -181,177 +176,99 @@ Current session statuses: <!-- id:Y7bhU8xC -->
 `status` is now a **derived mirror** of run state, maintained for client compatibility: `streaming` iff a non-terminal agent run references the session, `error` when the session's latest run failed, else `idle` (canceled runs also mirror to `idle` so old clients see the pre-runs behavior). Liveness truth lives in the `runs` table, so a crash can never permanently wedge a session in `streaming` — the boot sweep requeues interrupted runs and the mirror re-derives. <!-- id:D2AGZrqn -->
 
 Deleting a session detaches rather than cascades: its runs keep their history with `session_id` nulled, and child sessions promote to top level (`parent_session_id` nulled). <!-- id:q1tDrj6T -->
+  - `account_id` <!-- id:76arTwKk -->
+  - `agent_id` <!-- id:DdsNRIJq -->
+  - `title` <!-- id:SRnTlgaa -->
+  - `title_source` (`system`, `agent`, or `user`) <!-- id:5ua2TJCh -->
+  - `status` <!-- id:Daa6xjFQ -->
+  - `parent_session_id` — set on sessions spawned by another session (model children of `delegate`, script children's `ctx.delegate`, and agent-started sessions); lineage-aware clients exclude rows with a parent from the top-level `ListSessions` view by passing `includeChildren: false` <!-- id:5dMDKbn0 -->
+  - `run_id` — the run this session is the transcript of, for sessions created as run children <!-- id:A1gAuKdj -->
+  - `plan_cbor` — the live checklist written by the `plan` verb (a `RunPlan`) <!-- id:uznTdR5R -->
 
-- `account_id`
-- `agent_id`
-- `title`
-- `title_source` (`system`, `agent`, or `user`)
-- `status`
-- `parent_session_id` — set on sessions spawned by another session (model children of `delegate`, script children's
-  `ctx.delegate`, and agent-started sessions); lineage-aware clients exclude rows with a parent from the top-level
-  `ListSessions` view by passing `includeChildren: false`
-- `run_id` — the run this session is the transcript of, for sessions created as run children
-- `plan_cbor` — the live checklist written by the `plan` verb (a `RunPlan`)
+`title_source` protects a title the user typed. Rows start `system`; `UpdateSession` writes `user`, and every automatic titling path refuses to overwrite a `user` row. Today the automatic path is `#ensureSessionTitled`, a dedicated minimal model call made when a turn parks or finalizes with the session still untitled (enabled by `SEED_AGENTS_SESSION_TITLE_GENERATION`); it deliberately leaves `title_source` at `system`, so the user can still rename. The third value, `agent`, is written only by `#setSessionTitleFromAgent`, which no code path calls — the in-turn `set_session_title` tool it belonged to was deliberately deleted (`api-service.test.ts` asserts it never reappears in the tool list), and the function has outlived it. <!-- id:vT6x614- -->
 
-`title_source` protects a title the user typed. Rows start `system`; `UpdateSession` writes `user`, and every automatic
-titling path refuses to overwrite a `user` row. Today the automatic path is `#ensureSessionTitled`, a dedicated minimal
-model call made when a turn parks or finalizes with the session still untitled (enabled by
-`SEED_AGENTS_SESSION_TITLE_GENERATION`); it deliberately leaves `title_source` at `system`, so the user can still
-rename. The third value, `agent`, is written only by `#setSessionTitleFromAgent`, which no code path calls — the in-turn
-`set_session_title` tool it belonged to was deliberately deleted (`api-service.test.ts` asserts it never reappears in
-the tool list), and the function has outlived it.
+`plan_cbor` carries `RunPlan`: `{title?, steps: [{id, label, status, resolvedBy?}], settledAt?}`. Two fields are the runtime's own word rather than the model's, and `normalizeRunPlan` cannot be talked into either. `resolvedBy: 'runtime'` marks a step the runtime closed because every child attached to it came back succeeded — only success is ever derived this way. `settledAt` stamps the moment every step became terminal (done/failed/skipped), so a client watching only the snapshot knows when the checklist finished; a later edit that reopens a step clears it. <!-- id:M9Dc8noD -->
 
-`plan_cbor` carries `RunPlan`: `{title?, steps: [{id, label, status, resolvedBy?}], settledAt?}`. Two fields are the
-runtime's own word rather than the model's, and `normalizeRunPlan` cannot be talked into either. `resolvedBy: 'runtime'`
-marks a step the runtime closed because every child attached to it came back succeeded — only success is ever derived
-this way. `settledAt` stamps the moment every step became terminal (done/failed/skipped), so a client watching only the
-snapshot knows when the checklist finished; a later edit that reopens a step clears it.
+Current session statuses: <!-- id:h2yq1yyf -->
+  - `idle` <!-- id:gA1qAgl9 -->
+  - `streaming` <!-- id:pxlhGAfs -->
+  - `stopped` <!-- id:qtpZz8iF -->
+  - `error` <!-- id:pdnndVW0 -->
 
-Current session statuses:
+`status` is now a **derived mirror** of run state, maintained for client compatibility: `streaming` iff a non-terminal agent run references the session, `error` when the session's latest run failed, else `idle` (canceled runs also mirror to `idle` so old clients see the pre-runs behavior). Liveness truth lives in the `runs` table, so a crash can never permanently wedge a session in `streaming` — the boot sweep requeues interrupted runs and the mirror re-derives. <!-- id:9uOzsENo -->
 
-- `idle`
-- `streaming`
-- `stopped`
-- `error`
+Deleting a session detaches rather than cascades: its runs keep their history with `session_id` nulled, and child sessions promote to top level (`parent_session_id` nulled). <!-- id:aFlSb3HO -->
 
-`status` is now a **derived mirror** of run state, maintained for client compatibility: `streaming` iff a non-terminal
-agent run references the session, `error` when the session's latest run failed, else `idle` (canceled runs also mirror
-to `idle` so old clients see the pre-runs behavior). Liveness truth lives in the `runs` table, so a crash can never
-permanently wedge a session in `streaming` — the boot sweep requeues interrupted runs and the mirror re-derives.
+Latest message (`message_at`, `message_from`): the per-session half of the agent rollup above, written on every appended message from a person, a trigger or the agent in a top-level session; tool activity and child sessions never move it. Exposed as `SessionInfo.activity`, so a session list can mark which chats hold something unread. <!-- id:wYqb8zHh -->
 
-Deleting a session detaches rather than cascades: its runs keep their history with `session_id` nulled, and child
-sessions promote to top level (`parent_session_id` nulled).
+### `runs` <!-- id:owVHA5ZD -->
 
-Latest message (`message_at`, `message_from`): the per-session half of the agent rollup above, written on every appended
-message from a person, a trigger or the agent in a top-level session; tool activity and child sessions never move it.
-Exposed as `SessionInfo.activity`, so a session list can mark which chats hold something unread.
+Every execution — an interactive turn, a trigger firing, an agent-started session, a delegated model child, a script child — is a durable row in `runs`. The table doubles as the dispatch queue (see `agents/src/runs.ts`); runs form a tree via `parent_run_id` with a denormalized `root_run_id` so one WebSocket subscription covers a whole tree. <!-- id:J9QpEEMz -->
 
-### `runs`
+Important columns: <!-- id:KBSutS-f -->
+  - `id`, `account_id`, `root_run_id`, `parent_run_id`, `depth` <!-- id:5EAmAwDS -->
+  - `parent_tool_call_id` — the parent's `delegate` call that spawned this run. It also rides in the run's input payload, but only a column can be read back without decoding every run: this is what lets a delegate row in a transcript find its child _while that child is still working_, before any result exists. <!-- id:ckmeLyT4 -->
+  - `continued_from_run_id` — the run this one continues. `ctx.continueAsNew` ends a run and starts a successor carrying only the state it declared, so a day-scale loop never grows an unbounded journal; the two rows are one piece of work. <!-- id:TYylRUY4 -->
+  - `kind` — `agent` (a model turn, with a transcript session) or `workflow` (a script child in the QuickJS engine) <!-- id:JqfAKDTg -->
+  - `agent_id`, `session_id` (transcript session for agent runs; NULL for script runs), `trigger_firing_id` <!-- id:EklbAJZc -->
+  - `origin` — `user`, `trigger`, `agent`, `workflow`, or `system` <!-- id:zvRVgNFS -->
+  - `title`, `model` <!-- id:hsCyN0Ht -->
+  - `source_cid`, `source_text` — script runs: the JS module and its `sha256:` digest <!-- id:KJdGZTeX -->
+  - `input_cbor`, `output_cbor`, `error_cbor` (`{code, message, retryable?, httpStatus?}`) <!-- id:2ap3z4qw -->
+  - `status` — `queued`, `claimed`, `running`, `waiting`, `succeeded`, `failed`, `canceled` <!-- id:-cdheKz4 -->
+  - `wait_cbor` — why a run is parked, one of four reasons: `children` (spawned children, with `toolCallIds`), `timer` (`wakeAt`), `event` (`ctx.waitForEvent`), `budget-pause` (it stopped rather than spend more). `RunWaitInfo.answerWith` names the signal that would answer the wait by hand, when one can. <!-- id:FE_KLF0y -->
+  - `attempt`, `max_attempts`, `not_before` (backoff/timer wake), `queue` (`interactive` or `background`) <!-- id:rbRG2Dva -->
+  - `lease_owner`, `lease_expires_at` — crash recovery: the boot sweep requeues rows a dead process left claimed/running <!-- id:SEprW4Bh -->
+  - `budget_cbor`, `usage_cbor` (persisted per turn boundary, child usage rolled up into the parent on finalize) <!-- id:H9i6CZmm -->
+  - `plan_cbor` — a workflow's own `ctx.step`/`ctx.plan` snapshot, or the immutable copy of a session plan written onto its owning agent run when that plan settles; the latter keeps completed checklist history after the session starts a new mutable plan <!-- id:SszS3VLK -->
 
-Every execution — an interactive turn, a trigger firing, an agent-started session, a delegated model child, a script
-child — is a durable row in `runs`. The table doubles as the dispatch queue (see `agents/src/runs.ts`); runs form a tree
-via `parent_run_id` with a denormalized `root_run_id` so one WebSocket subscription covers a whole tree.
+A run's `output_cbor`/`error_cbor` may also carry `unmetObligations`: what the run committed to and had not delivered when it ended — an undelivered typed result (`{kind: 'typed-result'}`) or plan steps left neither finished nor written off (`{kind: 'plan', steps}`). Nearly every run keeps its word, so the presence of the field is the signal. A run with budget left is asked once to settle every open obligation at the same time; one that runs out leaves the notice on the log instead of quietly writing the debt off. <!-- id:0g9nHuH1 -->
 
-Important columns:
+Deleting a trigger detaches its runs (`trigger_firing_id` nulled) before deleting firings. <!-- id:fYlkMgPD -->
 
-- `id`, `account_id`, `root_run_id`, `parent_run_id`, `depth`
-- `parent_tool_call_id` — the parent's `delegate` call that spawned this run. It also rides in the run's input payload,
-  but only a column can be read back without decoding every run: this is what lets a delegate row in a transcript find
-  its child _while that child is still working_, before any result exists.
-- `continued_from_run_id` — the run this one continues. `ctx.continueAsNew` ends a run and starts a successor carrying
-  only the state it declared, so a day-scale loop never grows an unbounded journal; the two rows are one piece of work.
-- `kind` — `agent` (a model turn, with a transcript session) or `workflow` (a script child in the QuickJS engine)
-- `agent_id`, `session_id` (transcript session for agent runs; NULL for script runs), `trigger_firing_id`
-- `origin` — `user`, `trigger`, `agent`, `workflow`, or `system`
-- `title`, `model`
-- `source_cid`, `source_text` — script runs: the JS module and its `sha256:` digest
-- `input_cbor`, `output_cbor`, `error_cbor` (`{code, message, retryable?, httpStatus?}`)
-- `status` — `queued`, `claimed`, `running`, `waiting`, `succeeded`, `failed`, `canceled`
-- `wait_cbor` — why a run is parked, one of four reasons: `children` (spawned children, with `toolCallIds`), `timer`
-  (`wakeAt`), `event` (`ctx.waitForEvent`), `budget-pause` (it stopped rather than spend more). `RunWaitInfo.answerWith`
-  names the signal that would answer the wait by hand, when one can.
-- `attempt`, `max_attempts`, `not_before` (backoff/timer wake), `queue` (`interactive` or `background`)
-- `lease_owner`, `lease_expires_at` — crash recovery: the boot sweep requeues rows a dead process left claimed/running
-- `budget_cbor`, `usage_cbor` (persisted per turn boundary, child usage rolled up into the parent on finalize)
-- `plan_cbor` — a workflow's own `ctx.step`/`ctx.plan` snapshot, or the immutable copy of a session plan written onto
-  its owning agent run when that plan settles; the latter keeps completed checklist history after the session starts a
-  new mutable plan
+### `run_event_waits` <!-- id:QVhkk8KJ -->
 
-A run's `output_cbor`/`error_cbor` may also carry `unmetObligations`: what the run committed to and had not delivered
-when it ended — an undelivered typed result (`{kind: 'typed-result'}`) or plan steps left neither finished nor written
-off (`{kind: 'plan', steps}`). Nearly every run keeps its word, so the presence of the field is the signal. A run with
-budget left is asked once to settle every open obligation at the same time; one that runs out leaves the notice on the
-log instead of quietly writing the debt off.
+One row per outstanding `ctx.waitForEvent`: `(run_id, wait_id)` primary key plus `account_id`, `match_cbor` (the wait criteria — a `{signal}` for a person or system answering, or `{eventType, resource, author}` for the activity feed), `timeout_at`, and `created_at`, indexed by `(account_id, created_at)`. <!-- id:AEwf2-Ob -->
 
-Deleting a trigger detaches its runs (`trigger_firing_id` nulled) before deleting firings.
+Waits get their own table rather than a marker on `agent_triggers` deliberately: a trigger is user configuration — listed and edited in the desktop, carrying prompts and continuations — while a wait is transient run state, created by a running script and deleted the moment it is delivered, times out, or its run dies. Sharing the table would mean filtering the marker out of every trigger listing and mutation forever, and a leaked row would read to its owner as a trigger they never made. <!-- id:2sM7zQH7 -->
 
-### `run_event_waits`
+### `mcp_servers` <!-- id:ib5VqCKi -->
 
-One row per outstanding `ctx.waitForEvent`: `(run_id, wait_id)` primary key plus `account_id`, `match_cbor` (the wait
-criteria — a `{signal}` for a person or system answering, or `{eventType, resource, author}` for the activity feed),
-`timeout_at`, and `created_at`, indexed by `(account_id, created_at)`.
+One row per remote MCP server an account has connected, unique on `(account_id, name)`: `id`, `config_cbor` (`{url, transport?, headers?, secretRefs?}` — secret header values live in `secrets` under the `mcp-<name>-<header>` convention and are referenced by name), `tools_cbor` (the `McpToolInfo[]` from the last **successful** discovery, kept across a later failed refresh), `status_cbor` (`{state, error?, checkedAt?}`), timestamps. Agents reference servers by name from `definition.mcpServers`; deleting a server scrubs those references, the projected documents, and its owned secrets. See [`mcp.md`](./agent-mcp.md). <!-- id:UiaRvvYB -->
 
-Waits get their own table rather than a marker on `agent_triggers` deliberately: a trigger is user configuration —
-listed and edited in the desktop, carrying prompts and continuations — while a wait is transient run state, created by a
-running script and deleted the moment it is delivered, times out, or its run dies. Sharing the table would mean
-filtering the marker out of every trigger listing and mutation forever, and a leaked row would read to its owner as a
-trigger they never made.
+### `tool_documents` <!-- id:MTO8Yctb -->
 
-### `mcp_servers`
+Every tool an agent holds is a content-addressed document, one row per `(account_id, agent_id, name)`: `kind` (`builtin`, `lambda`, or `mcp`), `cid`, `doc_cbor`, `enabled`, timestamps. <!-- id:Jec2vp-q -->
 
-One row per remote MCP server an account has connected, unique on `(account_id, name)`: `id`, `config_cbor`
-(`{url, transport?, headers?, secretRefs?}` — secret header values live in `secrets` under the `mcp-<name>-<header>`
-convention and are referenced by name), `tools_cbor` (the `McpToolInfo[]` from the last **successful** discovery, kept
-across a later failed refresh), `status_cbor` (`{state, error?, checkedAt?}`), timestamps. Agents reference servers by
-name from `definition.mcpServers`; deleting a server scrubs those references, the projected documents, and its owned
-secrets. See [`mcp.md`](./agent-mcp.md).
+`doc_cbor` is the canonical DAG-CBOR encoding of a `ToolDocument` (`agents/src/tool-documents.ts`) — `{name, kind, summary, description, input, output?, source?, runtime?, binding?}` — and `cid` is the CIDv1 over exactly those bytes, the same encoding the hypermedia network uses for blobs. The CID is the tool's version: it changes on every edit, so "what exactly can this agent run" is always answerable, and publishing a tool to the network later means publishing bytes that already exist. <!-- id:RoxSKZs4 -->
 
-### `tool_documents`
+Builtin rows are materialized (and refreshed when the shipped registry contract changes, detected by CID mismatch) by `ensureBuiltinToolDocuments`, which runs whenever the Space index or a `~/tools` listing is built and on `ListAgentTools`. Builtins carry a `binding` — the runtime executor id — and no source; lambdas carry authored TypeScript or Python source that runs in the `execute` sandbox when called by name through the `call` verb. Authored documents are validated before they are ever stored (name pattern `^[a-z][a-z0-9_-]{1,63}$`, 16 KiB description cap, 256 KiB source cap, input/output schemas run through `validateJsonSchemaShape`), because both the Space index and the `call` verb trust stored documents. A lambda may not take a builtin's or a verb's name, and builtins cannot be deleted — they are withheld through the agent's grants instead. <!-- id:UkF_WBM6 -->
 
-Every tool an agent holds is a content-addressed document, one row per `(account_id, agent_id, name)`: `kind`
-(`builtin`, `lambda`, or `mcp`), `cid`, `doc_cbor`, `enabled`, timestamps.
+`mcp` rows are projections of `mcp_servers.tools_cbor` filtered by the agent's `definition.mcpServers`, named `<server>__<tool>` and carrying `server` and `remoteName`. `syncMcpToolDocuments` reconciles them (rewrite on CID change, delete when the server is disabled or gone) eagerly on agent and server writes and opportunistically on every listing and run start. They cannot be deleted or replaced by a lambda; a lambda that already holds the name wins. <!-- id:D9pPvF30 -->
 
-`doc_cbor` is the canonical DAG-CBOR encoding of a `ToolDocument` (`agents/src/tool-documents.ts`) —
-`{name, kind, summary, description, input, output?, source?, runtime?, binding?}` — and `cid` is the CIDv1 over exactly
-those bytes, the same encoding the hypermedia network uses for blobs. The CID is the tool's version: it changes on every
-edit, so "what exactly can this agent run" is always answerable, and publishing a tool to the network later means
-publishing bytes that already exist.
+### `agent_drafts` <!-- id:gHq4m5O9 -->
 
-Builtin rows are materialized (and refreshed when the shipped registry contract changes, detected by CID mismatch) by
-`ensureBuiltinToolDocuments`, which runs whenever the Space index or a `~/tools` listing is built and on
-`ListAgentTools`. Builtins carry a `binding` — the runtime executor id — and no source; lambdas carry authored
-TypeScript or Python source that runs in the `execute` sandbox when called by name through the `call` verb. Authored
-documents are validated before they are ever stored (name pattern `^[a-z][a-z0-9_-]{1,63}$`, 16 KiB description cap, 256
-KiB source cap, input/output schemas run through `validateJsonSchemaShape`), because both the Space index and the `call`
-verb trust stored documents. A lambda may not take a builtin's or a verb's name, and builtins cannot be deleted — they
-are withheld through the agent's grants instead.
+Hypermedia write drafts (`write hm://…` with `options.action: 'draft.create'` and friends): per-account rows holding the draft content as CBOR (`content_format` + `content_cbor`), optional `metadata_cbor`, the signing identity (`signer_secret_name`), and the edit/location targets the draft will publish against. Indexed by account + `updated_at`, by agent, and by `status`. <!-- id:rm2-wu0S -->
 
-`mcp` rows are projections of `mcp_servers.tools_cbor` filtered by the agent's `definition.mcpServers`, named
-`<server>__<tool>` and carrying `server` and `remoteName`. `syncMcpToolDocuments` reconciles them (rewrite on CID
-change, delete when the server is disabled or gone) eagerly on agent and server writes and opportunistically on every
-listing and run start. They cannot be deleted or replaced by a lambda; a lambda that already holds the name wins.
+### `run_journal` <!-- id:KeafRTFj -->
 
-### `agent_drafts`
+Append-only journal for script (workflow) runs — the execution spine that makes replay-from-top resume safe. Rows are `(run_id, seq, entry_cbor, created_at)` with `seq` monotonic per run. Each entry carries a `callSeq` correlating the entries of one `ctx` call (`call`/`result`, `timer`/`fired` — the `(run_id, seq)` primary key cannot repeat) and a `key`: the effect's **deterministic content key** (`tool|name|inputJSON`, `agent|specJSON`, `sleep|ms`, …). Replay matches by key with FIFO per-key group consumption, not by arrival order — continuation ordering after `ctx.parallel` depends on real completion timing, so order-based matching misfiles results on resume. A live effect with no journaled group executes fresh (the run's source is pinned via `source_cid`/`source_text`); groups left unconsumed at success log a warning. Entry kinds: `call`, `result`, `timer`, `fired`, `wait`, `event`, `now`, `log`, `step`, `plan` (see `WorkflowJournalEntry` in `agents/src/workflow-host.ts`) — `wait`/`event` are the two halves of a `ctx.waitForEvent`, the registration and its resolution (a delivered payload, or nothing at all on timeout). A call entry may carry a `description`: the human-readable narration a script attaches to an effect, which rides the entry as display metadata and stays out of the replay key. Caps: 5,000 entries or 8 MiB per run, after which the run fails `journal-cap`. Entries are streamed to `runs/<rootRunId>` subscribers as `append` events and replayed on subscribe. <!-- id:iRSUT5EN -->
 
-Hypermedia write drafts (`write hm://…` with `options.action: 'draft.create'` and friends): per-account rows holding the
-draft content as CBOR (`content_format` + `content_cbor`), optional `metadata_cbor`, the signing identity
-(`signer_secret_name`), and the edit/location targets the draft will publish against. Indexed by account + `updated_at`,
-by agent, and by `status`.
+### `trigger_firings` <!-- id:Fd3UN3-9 -->
 
-### `run_journal`
+Tracks activity events or scheduled occurrences that matched a trigger and the sessions created from those matches. The activity and schedule monitors use this table for durable idempotency and trigger session history. <!-- id:nzSkmUXQ -->
 
-Append-only journal for script (workflow) runs — the execution spine that makes replay-from-top resume safe. Rows are
-`(run_id, seq, entry_cbor, created_at)` with `seq` monotonic per run. Each entry carries a `callSeq` correlating the
-entries of one `ctx` call (`call`/`result`, `timer`/`fired` — the `(run_id, seq)` primary key cannot repeat) and a
-`key`: the effect's **deterministic content key** (`tool|name|inputJSON`, `agent|specJSON`, `sleep|ms`, …). Replay
-matches by key with FIFO per-key group consumption, not by arrival order — continuation ordering after `ctx.parallel`
-depends on real completion timing, so order-based matching misfiles results on resume. A live effect with no journaled
-group executes fresh (the run's source is pinned via `source_cid`/`source_text`); groups left unconsumed at success log
-a warning. Entry kinds: `call`, `result`, `timer`, `fired`, `wait`, `event`, `now`, `log`, `step`, `plan` (see
-`WorkflowJournalEntry` in `agents/src/workflow-host.ts`) — `wait`/`event` are the two halves of a `ctx.waitForEvent`,
-the registration and its resolution (a delivered payload, or nothing at all on timeout). A call entry may carry a
-`description`: the human-readable narration a script attaches to an effect, which rides the entry as display metadata
-and stays out of the replay key. Caps: 5,000 entries or 8 MiB per run, after which the run fails `journal-cap`. Entries
-are streamed to `runs/<rootRunId>` subscribers as `append` events and replayed on subscribe.
+Important columns: <!-- id:8PX2rrPY -->
+  - `account_id` <!-- id:dnPEyI81 -->
+  - `agent_id` <!-- id:0mHpvWjA -->
+  - `trigger_id` <!-- id:NdbK1KsH -->
+  - `activity_key` <!-- id:h79dRMwH -->
+  - `session_id` <!-- id:BSmMax93 -->
+  - `activity_cbor` <!-- id:MfaYBBnz -->
+  - `status` <!-- id:WyDNJbIh -->
+  - `error` <!-- id:NKYtVO9i -->
 
-### `trigger_firings`
-
-Tracks activity events or scheduled occurrences that matched a trigger and the sessions created from those matches. The
-activity and schedule monitors use this table for durable idempotency and trigger session history.
-
-Important columns:
-
-- `account_id`
-- `agent_id`
-- `trigger_id`
-- `activity_key`
-- `session_id`
-- `activity_cbor`
-- `status`
-- `error`
-
-`(account_id, trigger_id, activity_key)` is unique so feed retries or schedule monitor retries cannot create duplicate
-firings for the same trigger. Schedule triggers use stable keys in the form `schedule:<triggerId>:<scheduledAt>`.
+`(account_id, trigger_id, activity_key)` is unique so feed retries or schedule monitor retries cannot create duplicate firings for the same trigger. Schedule triggers use stable keys in the form `schedule:<triggerId>:<scheduledAt>`. <!-- id:qoYOwG2t -->
 
 Every execution — an interactive turn, a trigger firing, an agent-started session, a delegated model child, a script child — is a durable row in `runs`. The table doubles as the dispatch queue (see `agents/src/runs.ts`); runs form a tree via `parent_run_id` with a denormalized `root_run_id` so one WebSocket subscription covers a whole tree. <!-- id:dqTBE6dB -->
 

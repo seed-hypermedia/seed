@@ -12,7 +12,7 @@ These are the things a person should be able to do with the type system, stated 
 
 **An agent.** An agent reads hypermedia with `read <address>` and publishes with `write <address>`; publishing needs the **publish** grant on the agent. The contracts are in [tools](./agent-tools.md). <!-- id:jCZEzRiL -->
 
-**Running the automated tests.** The CLI and agent steps of every story run against a real daemon and the built web app: from `tests/`, `SKIP_BUILD=true pnpm exec vitest --run user-stories` (drop `SKIP_BUILD` for the first run, which builds the web app). The two automated app stories run against a packaged desktop app: from `frontend/apps/desktop`, `pnpm package:e2e` once, then `pnpm e2e:stories`. The desktop suite uses its own account, appdata (`Seed-e2e`) and ports (58100–58106), so it never touches a dev or installed app.
+**Running the automated tests.** The CLI and agent steps of every story run against a real daemon and the built web app: from `tests/`, `SKIP_BUILD=true pnpm exec vitest --run user-stories` (drop `SKIP_BUILD` for the first run, which builds the web app). The two automated app stories run against a packaged desktop app: from `frontend/apps/desktop`, `pnpm package:e2e` once, then `pnpm e2e:stories`. The desktop suite uses its own account, appdata (`Seed-e2e`) and ports (58100–58106), so it never touches a dev or installed app. <!-- id:4wHdEdfA -->
 
 **Names used below.** `<acct>` is an account id such as `z6Mk…`; `<onyx>` is the account that publishes this library, `z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb`, so `hm://<onyx>/hypermedia-document` is the base document type. <!-- id:oztmKE3p -->
 
