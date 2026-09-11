@@ -63,6 +63,27 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Add independently backfilled summaries of references in published
+	// document content. This is intentionally additive and does not schedule a
+	// full blob reindex; the bounded document-fields worker populates it.
+	{Version: "2026-09-09.120000", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			CREATE TABLE IF NOT EXISTS document_reference_summaries (
+				resource INTEGER PRIMARY KEY REFERENCES resources (id) ON UPDATE CASCADE ON DELETE CASCADE,
+				generation INTEGER NOT NULL,
+				genesis TEXT NOT NULL,
+				heads JSON NOT NULL,
+				status INTEGER NOT NULL CHECK (status IN (1, 2)),
+				has_self_query INTEGER NOT NULL DEFAULT 0
+			) WITHOUT ROWID;
+			CREATE TABLE IF NOT EXISTS document_reference_targets (
+				parent INTEGER NOT NULL REFERENCES document_reference_summaries (resource) ON UPDATE CASCADE ON DELETE CASCADE,
+				target_iri TEXT NOT NULL,
+				PRIMARY KEY (parent, target_iri)
+			) WITHOUT ROWID;
+			CREATE INDEX IF NOT EXISTS document_reference_targets_by_target ON document_reference_targets (target_iri, parent);
+		`))
+	}},
 	// Materialize comment activity so the document listings can read it instead of
 	// deriving it per request. ListDirectory used to spend 53ms of a 60ms call
 	// re-deciding which blob is the live version of every comment in the listed

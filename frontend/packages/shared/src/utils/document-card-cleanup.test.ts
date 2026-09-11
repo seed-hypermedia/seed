@@ -11,6 +11,7 @@ import {
   planDocumentCardAppend,
   planDocumentCardRemoval,
   planDocumentCardRewrite,
+  rebaseDocumentReferenceDraft,
   removeDraftCardFromEditorBlocks,
 } from './document-card-cleanup'
 
@@ -212,6 +213,19 @@ describe('planDeletedDocumentCardEmbedCleanup', () => {
   })
 })
 
+describe('rebaseDocumentReferenceDraft', () => {
+  it('reapplies unpublished draft blocks over the newly published card version', () => {
+    const base = [paragraph('published')]
+    const mine = [paragraph('published'), paragraph('mine')]
+    const theirs = [paragraph('published'), embedCard('stable-card', 'hm://parent/site/child')]
+
+    const result = rebaseDocumentReferenceDraft({base, mine, published: theirs, mineTouchedIds: ['mine']})
+
+    expect(result.conflictedBlockIds).toEqual([])
+    expect(result.content.map((node) => node.block.id)).toEqual(['published', 'stable-card', 'mine'])
+  })
+})
+
 describe('planDocumentCardAppend', () => {
   it('appends a card embed to a parent without self query or existing child card', () => {
     const result = planDocumentCardAppend(
@@ -254,6 +268,26 @@ describe('planDocumentCardAppend', () => {
   it('does not append when the parent already links to the child', () => {
     const result = planDocumentCardAppend(
       doc([embedCard('existing', 'hm://parent/site/child?v=bafy')]),
+      'hm://parent/site',
+      'hm://parent/site/child',
+      'new-card',
+    )
+
+    expect(result.changes).toEqual([])
+    expect(result.addedBlockIds).toEqual([])
+  })
+
+  it('does not append when nested text has an ordinary versioned link to the child', () => {
+    const result = planDocumentCardAppend(
+      doc([
+        paragraph('outer', [
+          paragraph(
+            'linked',
+            [],
+            [{type: 'Link', link: 'hm://parent/site/child?v=bafy#paragraph', starts: [0], ends: [5]}],
+          ),
+        ]),
+      ]),
       'hm://parent/site',
       'hm://parent/site/child',
       'new-card',

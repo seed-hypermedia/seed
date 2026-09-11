@@ -52,6 +52,7 @@ import {
   HMBlockNode,
   HMDocument,
   HMComment,
+  HMDocumentInfo,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {DocumentAttributeKind} from '@shm/shared/client/grpc-types'
@@ -64,6 +65,7 @@ import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import type {LinkExtensionOptions} from '@shm/shared/document-content-props'
 import {canCreateChildDocuments} from '@shm/shared/document-utils'
 import {useIsSiteOwner} from '@shm/shared/models/capabilities'
+import {isDocumentCardCleanupJobActive} from '@shm/shared/models/document-card-cleanup-machine'
 import {createEmailSubscribersMenuItem} from '@shm/ui/site-email-subscribers'
 // import {hasQueryBlockTargetingSelf, hasSelfQueryBlockInEditorContent} from '@shm/shared/content'
 import {
@@ -99,7 +101,7 @@ import type {AttributeAutocomplete, AttributeSuggestionKind} from '@shm/ui/value
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {useMutation} from '@tanstack/react-query'
+import {useMutation, useQuery} from '@tanstack/react-query'
 import {Copy, FileInput, History, Layers, LayoutList, Split} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
@@ -864,6 +866,42 @@ export default function DesktopResourcePage() {
   const {menuItem: fileBrowserCreateMenuItem} = useCreateDocumentMenuItem({
     locationId: hmId(docId.uid),
   })
+  const cleanupSnapshot = useQuery({
+    queryKey: ['trpc.documentCardCleanup.getSnapshot'],
+    queryFn: () => client.documentCardCleanup.getSnapshot.query(),
+    refetchInterval: 1_000,
+  })
+  const fileBrowserOnIncludeDocument = useCallback(
+    async (document: HMDocumentInfo, context: import('@shm/ui/site-file-browser').IncludeDocumentContext) => {
+      try {
+        const result = await client.documentCardCleanup.enqueue.mutate({
+          operation: 'add',
+          parentDocumentId: context.parentId.id,
+          targetDocumentId: document.id.id,
+          signingAccountUid: context.signingAccountUid,
+          capabilityId: context.capabilityId,
+        })
+        if (!result.enqueued && result.reason !== 'duplicate') throw new Error('Could not queue document inclusion')
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Could not include document')
+        throw error
+      }
+    },
+    [],
+  )
+  const fileBrowserGetIncludeDocumentState = useCallback(
+    (document: HMDocumentInfo) => {
+      const matchingJob = cleanupSnapshot.data?.jobs.find(
+        (job) => job.operation === 'add' && job.target?.id === document.id.id,
+      )
+      return {
+        disabled: false,
+        pending: matchingJob ? isDocumentCardCleanupJobActive(matchingJob) : false,
+        reason: matchingJob?.state === 'failedNeedsAttention' ? matchingJob.lastError : undefined,
+      }
+    },
+    [cleanupSnapshot.data?.jobs],
+  )
 
   // Bottom-of-doc "draft cards" — disabled while inline-draft UX is still
   // being settled. Restore by uncommenting these blocks, the related imports
@@ -1221,6 +1259,8 @@ export default function DesktopResourcePage() {
                     CommentEditor={CommentBox}
                     optionsMenuItems={menuItems}
                     fileBrowserCreateMenuItem={fileBrowserCreateMenuItem}
+                    fileBrowserOnIncludeDocument={fileBrowserOnIncludeDocument}
+                    fileBrowserGetIncludeDocumentState={fileBrowserGetIncludeDocumentState}
                     existingDraft={existingDraft}
                     reservedDraftId={
                       placeholderDraftId &&

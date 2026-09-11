@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { Account, BatchGetAccountsRequest, BatchGetAccountsResponse, BatchGetDocumentInfoRequest, BatchGetDocumentInfoResponse, Contact, CreateAliasRequest, CreateContactRequest, CreateRefRequest, DeleteContactRequest, DeleteDocumentRequest, Document, DocumentChangeInfo, DocumentInfo, GetAccountRequest, GetContactRequest, GetDocumentChangeRequest, GetDocumentInfoRequest, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListContactsRequest, ListContactsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentAttributeNamesRequest, ListDocumentAttributeNamesResponse, ListDocumentAttributeValuesRequest, ListDocumentAttributeValuesResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRefsRequest, ListRefsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, PrepareChangeRequest, PrepareChangeResponse, QueryDocumentsRequest, QueryDocumentsResponse, Ref, UpdateContactRequest, UpdateDocumentReadStatusRequest, UpdateProfileRequest } from "./documents_pb";
+import { Account, BatchGetAccountsRequest, BatchGetAccountsResponse, BatchGetDocumentInfoRequest, BatchGetDocumentInfoResponse, Contact, CreateAliasRequest, CreateContactRequest, CreateRefRequest, DeleteContactRequest, DeleteDocumentRequest, Document, DocumentChangeInfo, DocumentInfo, GetAccountRequest, GetContactRequest, GetDocumentChangeRequest, GetDocumentInfoRequest, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListContactsRequest, ListContactsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentAttributeNamesRequest, ListDocumentAttributeNamesResponse, ListDocumentAttributeValuesRequest, ListDocumentAttributeValuesResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRefsRequest, ListRefsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, ListUnreferencedDocumentsRequest, ListUnreferencedDocumentsResponse, PrepareChangeRequest, PrepareChangeResponse, QueryDocumentsRequest, QueryDocumentsResponse, Ref, UpdateContactRequest, UpdateDocumentReadStatusRequest, UpdateProfileRequest } from "./documents_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -208,6 +208,18 @@ export const Documents = {
       name: "ListDocuments",
       I: ListDocumentsRequest,
       O: ListDocumentsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Lists published documents that are not referenced by their immediate
+     * parent's latest published content.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.ListUnreferencedDocuments
+     */
+    listUnreferencedDocuments: {
+      name: "ListUnreferencedDocuments",
+      I: ListUnreferencedDocumentsRequest,
+      O: ListUnreferencedDocumentsResponse,
       kind: MethodKind.Unary,
     },
     /**

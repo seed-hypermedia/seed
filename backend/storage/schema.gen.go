@@ -218,6 +218,42 @@ const (
 	C_DocumentGenerationsVisibilityTimestamp  = "document_generations.visibility_timestamp"
 )
 
+// Table document_reference_summaries.
+const (
+	DocumentReferenceSummaries             sqlitegen.Table  = "document_reference_summaries"
+	DocumentReferenceSummariesGeneration   sqlitegen.Column = "document_reference_summaries.generation"
+	DocumentReferenceSummariesGenesis      sqlitegen.Column = "document_reference_summaries.genesis"
+	DocumentReferenceSummariesHasSelfQuery sqlitegen.Column = "document_reference_summaries.has_self_query"
+	DocumentReferenceSummariesHeads        sqlitegen.Column = "document_reference_summaries.heads"
+	DocumentReferenceSummariesResource     sqlitegen.Column = "document_reference_summaries.resource"
+	DocumentReferenceSummariesStatus       sqlitegen.Column = "document_reference_summaries.status"
+)
+
+// Table document_reference_summaries. Plain strings.
+const (
+	T_DocumentReferenceSummaries             = "document_reference_summaries"
+	C_DocumentReferenceSummariesGeneration   = "document_reference_summaries.generation"
+	C_DocumentReferenceSummariesGenesis      = "document_reference_summaries.genesis"
+	C_DocumentReferenceSummariesHasSelfQuery = "document_reference_summaries.has_self_query"
+	C_DocumentReferenceSummariesHeads        = "document_reference_summaries.heads"
+	C_DocumentReferenceSummariesResource     = "document_reference_summaries.resource"
+	C_DocumentReferenceSummariesStatus       = "document_reference_summaries.status"
+)
+
+// Table document_reference_targets.
+const (
+	DocumentReferenceTargets          sqlitegen.Table  = "document_reference_targets"
+	DocumentReferenceTargetsParent    sqlitegen.Column = "document_reference_targets.parent"
+	DocumentReferenceTargetsTargetIRI sqlitegen.Column = "document_reference_targets.target_iri"
+)
+
+// Table document_reference_targets. Plain strings.
+const (
+	T_DocumentReferenceTargets          = "document_reference_targets"
+	C_DocumentReferenceTargetsParent    = "document_reference_targets.parent"
+	C_DocumentReferenceTargetsTargetIRI = "document_reference_targets.target_iri"
+)
+
 // Table domains.
 const (
 	Domains            sqlitegen.Table  = "domains"
@@ -805,6 +841,14 @@ var Schema = sqlitegen.Schema{
 		DocumentGenerationsResource:             {Table: DocumentGenerations, SQLType: "INTEGER"},
 		DocumentGenerationsVisibility:           {Table: DocumentGenerations, SQLType: "TEXT"},
 		DocumentGenerationsVisibilityTimestamp:  {Table: DocumentGenerations, SQLType: "INTEGER"},
+		DocumentReferenceSummariesGeneration:    {Table: DocumentReferenceSummaries, SQLType: "INTEGER"},
+		DocumentReferenceSummariesGenesis:       {Table: DocumentReferenceSummaries, SQLType: "TEXT"},
+		DocumentReferenceSummariesHasSelfQuery:  {Table: DocumentReferenceSummaries, SQLType: "INTEGER"},
+		DocumentReferenceSummariesHeads:         {Table: DocumentReferenceSummaries, SQLType: "JSON"},
+		DocumentReferenceSummariesResource:      {Table: DocumentReferenceSummaries, SQLType: "INTEGER"},
+		DocumentReferenceSummariesStatus:        {Table: DocumentReferenceSummaries, SQLType: "INTEGER"},
+		DocumentReferenceTargetsParent:          {Table: DocumentReferenceTargets, SQLType: "INTEGER"},
+		DocumentReferenceTargetsTargetIRI:       {Table: DocumentReferenceTargets, SQLType: "TEXT"},
 		DomainsDomain:                           {Table: Domains, SQLType: "TEXT"},
 		DomainsLastCheck:                        {Table: Domains, SQLType: "INTEGER"},
 		DomainsLastConfig:                       {Table: Domains, SQLType: "JSON"},

@@ -582,3 +582,31 @@ func TestIsCollection(t *testing.T) {
 		require.False(t, doc.IsCollection(), "a dirty document has no stable committed state")
 	})
 }
+
+func TestReferenceSummary(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+	space := alice.Principal().String()
+	iri := blob.IRI("hm://" + space + "/parent")
+	doc := must.Do2(New(iri, cclock.New()))
+	must.Do(doc.MoveBlock("outer", "", ""))
+	must.Do(doc.ReplaceBlock(&documents.Block{Id: "outer", Type: "Paragraph"}))
+	must.Do(doc.MoveBlock("card", "outer", ""))
+	must.Do(doc.ReplaceBlock(&documents.Block{
+		Id: "card", Type: "Embed", Link: "hm://" + space + "/child?v=abc#block",
+		Annotations: []*documents.Annotation{{Type: "Link", Link: "hm://" + space + "/other?version=def"}},
+	}))
+	must.Do(doc.MoveBlock("query", "", "outer"))
+	must.Do(doc.ReplaceBlock(&documents.Block{
+		Id: "query", Type: "Query",
+		Attributes: must.Do2(structpb.NewStruct(map[string]any{
+			"query": map[string]any{"includes": []any{map[string]any{"space": space, "path": "/parent", "mode": "Children"}}},
+		})),
+	}))
+	change := must.Do2(doc.SignChange(alice))
+	loaded := must.Do2(New(iri, cclock.New()))
+	must.Do(loaded.ApplyChange(change.CID, change.Decoded))
+
+	refs, selfQuery := loaded.ReferenceSummary()
+	require.Equal(t, []string{"hm://" + space + "/child", "hm://" + space + "/other"}, refs)
+	require.True(t, selfQuery)
+}

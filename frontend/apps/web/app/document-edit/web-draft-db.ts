@@ -25,9 +25,9 @@ export interface WebDocDraft {
   /** Published content used as the three-way rebase baseline; absent in older drafts. */
   baseBlocks?: HMBlockNode[] | null
   /** Locally touched block IDs to restore for conflict detection. */
+  mineTouchedIds?: string[]
   /** Explicit authored child-reference removals; cleared with the draft. */
   removedChildDocumentIds?: string[]
-  mineTouchedIds?: string[]
   /** Baselines invalidated by maintenance; stale autosaves are retained as recovery snapshots instead. */
   maintenancePreviousDeps?: string[][]
   /** Local maintenance epoch, independent of the published version. */

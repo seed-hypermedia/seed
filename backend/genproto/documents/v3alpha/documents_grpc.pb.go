@@ -37,6 +37,7 @@ const (
 	Documents_ListContacts_FullMethodName                = "/com.seed.documents.v3alpha.Documents/ListContacts"
 	Documents_ListDirectory_FullMethodName               = "/com.seed.documents.v3alpha.Documents/ListDirectory"
 	Documents_ListDocuments_FullMethodName               = "/com.seed.documents.v3alpha.Documents/ListDocuments"
+	Documents_ListUnreferencedDocuments_FullMethodName   = "/com.seed.documents.v3alpha.Documents/ListUnreferencedDocuments"
 	Documents_ListRootDocuments_FullMethodName           = "/com.seed.documents.v3alpha.Documents/ListRootDocuments"
 	Documents_QueryDocuments_FullMethodName              = "/com.seed.documents.v3alpha.Documents/QueryDocuments"
 	Documents_ListDocumentAttributeNames_FullMethodName  = "/com.seed.documents.v3alpha.Documents/ListDocumentAttributeNames"
@@ -98,6 +99,9 @@ type DocumentsClient interface {
 	ListDirectory(ctx context.Context, in *ListDirectoryRequest, opts ...grpc.CallOption) (*ListDirectoryResponse, error)
 	// Lists documents within the account. Only the most recent versions show up.
 	ListDocuments(ctx context.Context, in *ListDocumentsRequest, opts ...grpc.CallOption) (*ListDocumentsResponse, error)
+	// Lists published documents that are not referenced by their immediate
+	// parent's latest published content.
+	ListUnreferencedDocuments(ctx context.Context, in *ListUnreferencedDocumentsRequest, opts ...grpc.CallOption) (*ListUnreferencedDocumentsResponse, error)
 	// Lists all the root documents that we know about.
 	ListRootDocuments(ctx context.Context, in *ListRootDocumentsRequest, opts ...grpc.CallOption) (*ListRootDocumentsResponse, error)
 	// Queries the current, visible attributes of documents.
@@ -299,6 +303,16 @@ func (c *documentsClient) ListDocuments(ctx context.Context, in *ListDocumentsRe
 	return out, nil
 }
 
+func (c *documentsClient) ListUnreferencedDocuments(ctx context.Context, in *ListUnreferencedDocumentsRequest, opts ...grpc.CallOption) (*ListUnreferencedDocumentsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListUnreferencedDocumentsResponse)
+	err := c.cc.Invoke(ctx, Documents_ListUnreferencedDocuments_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *documentsClient) ListRootDocuments(ctx context.Context, in *ListRootDocumentsRequest, opts ...grpc.CallOption) (*ListRootDocumentsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListRootDocumentsResponse)
@@ -448,6 +462,9 @@ type DocumentsServer interface {
 	ListDirectory(context.Context, *ListDirectoryRequest) (*ListDirectoryResponse, error)
 	// Lists documents within the account. Only the most recent versions show up.
 	ListDocuments(context.Context, *ListDocumentsRequest) (*ListDocumentsResponse, error)
+	// Lists published documents that are not referenced by their immediate
+	// parent's latest published content.
+	ListUnreferencedDocuments(context.Context, *ListUnreferencedDocumentsRequest) (*ListUnreferencedDocumentsResponse, error)
 	// Lists all the root documents that we know about.
 	ListRootDocuments(context.Context, *ListRootDocumentsRequest) (*ListRootDocumentsResponse, error)
 	// Queries the current, visible attributes of documents.
@@ -527,6 +544,9 @@ func (UnimplementedDocumentsServer) ListDirectory(context.Context, *ListDirector
 }
 func (UnimplementedDocumentsServer) ListDocuments(context.Context, *ListDocumentsRequest) (*ListDocumentsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDocuments not implemented")
+}
+func (UnimplementedDocumentsServer) ListUnreferencedDocuments(context.Context, *ListUnreferencedDocumentsRequest) (*ListUnreferencedDocumentsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListUnreferencedDocuments not implemented")
 }
 func (UnimplementedDocumentsServer) ListRootDocuments(context.Context, *ListRootDocumentsRequest) (*ListRootDocumentsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListRootDocuments not implemented")
@@ -884,6 +904,24 @@ func _Documents_ListDocuments_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Documents_ListUnreferencedDocuments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUnreferencedDocumentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).ListUnreferencedDocuments(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Documents_ListUnreferencedDocuments_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).ListUnreferencedDocuments(ctx, req.(*ListUnreferencedDocumentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Documents_ListRootDocuments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListRootDocumentsRequest)
 	if err := dec(in); err != nil {
@@ -1138,6 +1176,10 @@ var Documents_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListDocuments",
 			Handler:    _Documents_ListDocuments_Handler,
+		},
+		{
+			MethodName: "ListUnreferencedDocuments",
+			Handler:    _Documents_ListUnreferencedDocuments_Handler,
 		},
 		{
 			MethodName: "ListRootDocuments",

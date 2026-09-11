@@ -183,6 +183,95 @@ describe('web document card cleanup', () => {
     })
   })
 
+  it('publishes an add against the published parent before reapplying it to an existing draft', async () => {
+    const parentId = makeId('alice', ['add-parent'])
+    const childId = makeId('alice', ['add-parent', 'child'])
+    await putWebDocDraft({
+      draftId: 'parent-draft-add',
+      docId: parentId.id,
+      signingAccountId: 'alice',
+      content: [paragraph('published'), paragraph('unpublished-text')],
+      baseBlocks: [paragraph('published')],
+      mineTouchedIds: ['unpublished-text'],
+      metadata: {name: 'Parent draft'},
+      deps: ['parent-version'],
+      navigation: null,
+      locationUid: null,
+      locationPath: null,
+      editUid: 'alice',
+      editPath: ['add-parent'],
+      cursorPosition: 5,
+    })
+    let publishedCard: HMBlockNode | null = null
+    const client = {
+      request: vi.fn(async () => ({
+        type: 'document',
+        document: {
+          ...makeDocument(parentId, [paragraph('published'), ...(publishedCard ? [publishedCard] : [])]),
+          version: publishedCard ? 'included-version' : 'parent-version',
+        },
+      })),
+      publishDocument: vi.fn(async (input: any) => {
+        const block = input.changes.find((change: any) => change.op.case === 'replaceBlock')?.op.value
+        publishedCard = block ? ({block, children: []} as any) : null
+      }),
+    }
+    const mod = await import('./web-document-card-cleanup')
+
+    await mod.enqueueWebDocumentCardCleanup(
+      {operation: 'add', parentDocumentId: parentId.id, targetDocumentId: childId.id, signingAccountUid: 'alice'},
+      {client} as any,
+    )
+    await mod.runNextWebDocumentCardCleanupForTest({now: () => 1_000})
+
+    expect(client.publishDocument).toHaveBeenCalledTimes(1)
+    const publishedBlockId = (client.publishDocument.mock.calls[0] as any)[0].changes[0].op.value.blockId
+    const draft = await getWebDocDraft('parent-draft-add')
+    expect(draft?.content.map((node) => node.block.id)).toEqual(['published', publishedBlockId, 'unpublished-text'])
+    expect(draft?.content[1]?.block).toMatchObject({type: 'Embed', link: childId.id})
+    expect(draft?.deps).toEqual(['included-version'])
+    expect(draft?.baseBlocks?.map((node) => node.block.id)).toEqual(['published', publishedBlockId])
+    expect(mod.getWebDocumentCardCleanupSnapshotForTest().jobs[0]).toMatchObject({
+      state: 'done',
+      publishedVersion: 'included-version',
+      cardBlockId: publishedBlockId,
+    })
+  })
+
+  it('includes a child even when an unrelated web link cannot be resolved', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Promise.reject(new Error('offline'))),
+    )
+    const parentId = makeId('alice', ['external-link-parent'])
+    const childId = makeId('alice', ['external-link-parent', 'child'])
+    let publishedCard: HMBlockNode | null = null
+    const externalLink = embed('external', 'https://example.invalid/document')
+    const client = {
+      request: vi.fn(async () => ({
+        type: 'document',
+        document: {
+          ...makeDocument(parentId, [externalLink, ...(publishedCard ? [publishedCard] : [])]),
+          version: publishedCard ? 'included-version' : 'parent-version',
+        },
+      })),
+      publishDocument: vi.fn(async (input: any) => {
+        const block = input.changes.find((change: any) => change.op.case === 'replaceBlock')?.op.value
+        publishedCard = block ? ({block, children: []} as HMBlockNode) : null
+      }),
+    }
+    const mod = await import('./web-document-card-cleanup')
+
+    await mod.enqueueWebDocumentCardCleanup(
+      {operation: 'add', parentDocumentId: parentId.id, targetDocumentId: childId.id, signingAccountUid: 'alice'},
+      {client} as any,
+    )
+    await mod.runNextWebDocumentCardCleanupForTest({now: () => 1_000})
+
+    expect(client.publishDocument).toHaveBeenCalledOnce()
+    expect(mod.getWebDocumentCardCleanupSnapshotForTest().jobs[0]).toMatchObject({state: 'done'})
+  })
+
   it('publishes planned changes when the parent has no web draft', async () => {
     const parentId = makeId('bob', ['parent'])
     const deletedId = makeId('bob', ['parent', 'child'])

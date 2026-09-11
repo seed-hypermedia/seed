@@ -9,6 +9,7 @@ import {UniversalClient} from '@shm/shared'
 import {APIRouter} from '@shm/shared/api'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {grpcClient} from './client.server'
+import {prepareHMDocumentInfo} from '@shm/shared/models/entity'
 
 // queryDaemon for handlers that need direct HTTP access (e.g., GetCID)
 async function queryDaemon<T>(pathAndQuery: string): Promise<T> {
@@ -94,4 +95,11 @@ export const serverUniversalClient: UniversalClient = {
   request: serverRequest as UniversalClient['request'],
   publish: serverPublish,
   queryDocuments: (request, options) => grpcClient.documents.queryDocuments(request, options),
+  listUnreferencedDocuments: async (request, options) => {
+    const response = await grpcClient.documents.listUnreferencedDocuments(
+      {account: request.siteAccount, pageSize: request.pageSize, pageToken: request.pageToken},
+      options,
+    )
+    return {...response, documents: response.documents.map(prepareHMDocumentInfo)}
+  },
 }

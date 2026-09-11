@@ -732,6 +732,81 @@ func (dm *Document) FirstContentImage() string {
 	return ""
 }
 
+// ReferenceSummary returns the distinct document identities explicitly linked
+// from visible content and whether any visible Query targets this document's
+// children. Versions and block fragments are removed from returned identities.
+func (dm *Document) ReferenceSummary() ([]string, bool) {
+	if dm.mut != nil {
+		return nil, false
+	}
+
+	space, path, err := dm.crdt.id.SpacePath()
+	if err != nil {
+		return nil, false
+	}
+
+	refs := map[string]struct{}{}
+	selfQuery := false
+	add := func(link string) {
+		u, err := url.Parse(link)
+		if err != nil || u.Scheme != "hm" || u.Host == "" {
+			return
+		}
+		u.RawQuery = ""
+		u.Fragment = ""
+		refs[strings.TrimSuffix(u.String(), "/")] = struct{}{}
+	}
+
+	for pair := range dm.crdt.tree.State().DFT("") {
+		bs := dm.crdt.stateBlocks[pair.Child]
+		if bs == nil {
+			continue
+		}
+		_, blk, ok := bs.GetLatestWithID()
+		if !ok {
+			continue
+		}
+		if blk.Type == "Embed" {
+			add(blk.Link)
+		}
+		for _, annotation := range blk.Annotations {
+			if annotation.Type == "Link" || annotation.Type == "Embed" {
+				add(annotation.Link)
+			}
+		}
+		if blk.Type == "Query" && queryExplicitlyTargetsDocument(blk, space.String(), path) {
+			selfQuery = true
+		}
+	}
+
+	out := slices.Collect(maps.Keys(refs))
+	sort.Strings(out)
+	return out, selfQuery
+}
+
+func queryExplicitlyTargetsDocument(blk blob.Block, space, path string) bool {
+	query, ok := blk.Attributes()["query"].(map[string]any)
+	if !ok {
+		return false
+	}
+	includes, ok := query["includes"].([]any)
+	if !ok {
+		return false
+	}
+	for _, raw := range includes {
+		include, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		includeSpace, _ := include["space"].(string)
+		includePath, _ := include["path"].(string)
+		if includeSpace == space && strings.Trim(includePath, "/") == strings.Trim(path, "/") {
+			return true
+		}
+	}
+	return false
+}
+
 // BlockFromProto converts a protobuf block into our internal representation.
 // It's largely the same, but we need a separate type for CBOR encoding which we use in the permanent data.
 func BlockFromProto(b *documents.Block) (blob.Block, error) {

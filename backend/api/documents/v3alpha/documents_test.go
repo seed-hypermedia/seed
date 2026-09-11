@@ -466,6 +466,65 @@ func TestListDocuments(t *testing.T) {
 	testutil.StructsEqual(list, list2).Compare(t, "list with no account ID must be allowed")
 }
 
+func TestListUnreferencedDocuments(t *testing.T) {
+	t.Parallel()
+	alice := newTestDocsAPI(t, "alice")
+	ctx := t.Context()
+	account := alice.me.Account.PublicKey.String()
+
+	parent, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main", Account: account, Path: "/parent",
+		Changes: []*documents.DocumentChange{{Op: &documents.DocumentChange_SetMetadata_{
+			SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Parent"},
+		}}},
+	})
+	require.NoError(t, err)
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main", Account: account, Path: "",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Site home"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "parent-card", Parent: "", LeftSibling: ""}}},
+			{Op: &documents.DocumentChange_ReplaceBlock{ReplaceBlock: &documents.Block{Id: "parent-card", Type: "Embed", Link: "hm://" + account + "/parent"}}},
+		},
+	})
+	require.NoError(t, err)
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main", Account: account, Path: "/parent/child",
+		Changes: []*documents.DocumentChange{{Op: &documents.DocumentChange_SetMetadata_{
+			SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Child"},
+		}}},
+	})
+	require.NoError(t, err)
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main", Account: account, Path: "/private-child",
+		Visibility: documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE,
+		Changes: []*documents.DocumentChange{{Op: &documents.DocumentChange_SetMetadata_{
+			SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Private child"},
+		}}},
+	})
+	require.NoError(t, err)
+
+	list, err := alice.ListUnreferencedDocuments(ctx, &documents.ListUnreferencedDocumentsRequest{Account: account})
+	require.NoError(t, err)
+	require.False(t, list.IndexIncomplete)
+	require.Len(t, list.Documents, 1)
+	require.Equal(t, "/parent/child", list.Documents[0].Path)
+
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main", Account: account, Path: "/parent", BaseVersion: parent.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "card", Parent: "", LeftSibling: ""}}},
+			{Op: &documents.DocumentChange_ReplaceBlock{ReplaceBlock: &documents.Block{Id: "card", Type: "Embed", Link: "hm://" + account + "/parent/child"}}},
+		},
+	})
+	require.NoError(t, err)
+	list, err = alice.ListUnreferencedDocuments(ctx, &documents.ListUnreferencedDocumentsRequest{Account: account})
+	require.NoError(t, err)
+	require.Empty(t, list.Documents)
+}
+
 func TestGetDocumentWithVersion(t *testing.T) {
 	t.Parallel()
 

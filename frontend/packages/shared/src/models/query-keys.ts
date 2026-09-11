@@ -41,6 +41,7 @@ export const queryKeys = {
   // documents
   ACCOUNT_DOCUMENTS: 'ACCOUNT_DOCUMENTS', //, accountId: string
   DOC_LIST_DIRECTORY: 'DOC_LIST_DIRECTORY', // accountUid: string
+  DOC_LIST_UNREFERENCED: 'DOC_LIST_UNREFERENCED', // site account UID
   QUERY_BLOCK: 'QUERY_BLOCK',
   DRAFT: 'DRAFT', // , id: string
   LIST_ROOT_DOCUMENTS: 'LIST_ROOT_DOCUMENTS', //

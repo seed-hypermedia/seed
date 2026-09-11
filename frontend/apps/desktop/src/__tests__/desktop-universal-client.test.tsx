@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
     publishBlobs: vi.fn(),
     publishDocument: undefined as undefined | ReturnType<typeof vi.fn>,
   },
+  listUnreferencedDocuments: vi.fn(),
 }))
 
 vi.mock('@seed-hypermedia/client', () => ({
@@ -16,6 +17,9 @@ vi.mock('@seed-hypermedia/client', () => ({
 
 vi.mock('@/grpc-client', () => ({
   grpcClient: {
+    documents: {
+      listUnreferencedDocuments: mocks.listUnreferencedDocuments,
+    },
     daemon: {
       signData: vi.fn(async () => ({signature: new Uint8Array([1, 2, 3])})),
     },
@@ -31,6 +35,14 @@ vi.mock('@/models/entities', () => ({
 vi.mock('@/models/recents', () => ({
   deleteRecent: vi.fn(),
   fetchRecents: vi.fn(),
+}))
+
+vi.mock('@shm/shared/models/entity', () => ({
+  prepareHMDocumentInfo: (document: {account: string; path: string}) => ({
+    ...document,
+    id: {id: `hm://${document.account}${document.path}`},
+    path: document.path.slice(1).split('/'),
+  }),
 }))
 
 vi.mock('@/trpc', () => ({
@@ -85,5 +97,30 @@ describe('desktopUniversalClient', () => {
     })
     expect(mocks.seedClient.publishDocument!.mock.calls[0]?.[1]).toHaveProperty('getPublicKey')
     expect(mocks.seedClient.publishDocument!.mock.calls[0]?.[1]).toHaveProperty('sign')
+  })
+
+  it('maps the unreferenced documents RPC response to shared document info', async () => {
+    mocks.listUnreferencedDocuments.mockResolvedValue({
+      documents: [{account: 'alice', path: '/parent/child', version: 'v1'}],
+      nextPageToken: 'next',
+      indexIncomplete: true,
+    })
+    const {desktopUniversalClient} = await import('../desktop-universal-client')
+
+    const result = await desktopUniversalClient.listUnreferencedDocuments!({
+      siteAccount: 'alice',
+      pageSize: 100,
+      pageToken: '',
+    })
+
+    expect(mocks.listUnreferencedDocuments).toHaveBeenCalledWith(
+      {account: 'alice', pageSize: 100, pageToken: ''},
+      undefined,
+    )
+    expect(result).toMatchObject({
+      documents: [{id: {id: 'hm://alice/parent/child'}, path: ['parent', 'child']}],
+      nextPageToken: 'next',
+      indexIncomplete: true,
+    })
   })
 })

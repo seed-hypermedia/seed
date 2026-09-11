@@ -2,6 +2,7 @@ import {createSeedClient} from '@seed-hypermedia/client'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {API_HTTP_URL} from '@shm/shared/constants'
 import type {UniversalClient} from '@shm/shared/universal-client'
+import {prepareHMDocumentInfo} from '@shm/shared/models/entity'
 import {base58btc} from 'multiformats/bases/base58'
 import {grpcClient} from '@/grpc-client'
 import {addSubscribedEntity, getDiscoveryStream, removeSubscribedEntity} from '@/models/entities'
@@ -41,6 +42,13 @@ export const desktopUniversalClient: UniversalClient = {
   request: seedClient.request as UniversalClient['request'],
   publish: seedClient.publish,
   queryDocuments: (request, options) => grpcClient.documents.queryDocuments(request, options),
+  listUnreferencedDocuments: async (request, options) => {
+    const response = await grpcClient.documents.listUnreferencedDocuments(
+      {account: request.siteAccount, pageSize: request.pageSize, pageToken: request.pageToken},
+      options,
+    )
+    return {...response, documents: response.documents.map(prepareHMDocumentInfo)}
+  },
   listAccounts: (request, options) => grpcClient.documents.listAccounts(request, options),
   listDocumentAttributeNames: (request, options) => grpcClient.documents.listDocumentAttributeNames(request, options),
   listDocumentAttributeValues: (request, options) => grpcClient.documents.listDocumentAttributeValues(request, options),

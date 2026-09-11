@@ -205,6 +205,26 @@ CREATE TABLE document_generations (
 -- Index to fullfill the rule of having an index on all foreign keys.
 CREATE INDEX document_generations_by_last_comment ON document_generations (last_comment) WHERE last_comment IS NOT NULL;
 
+-- Reference facts derived from the current published content of a document.
+-- Status is 1 for success and 2 for a failed derivation. Keeping failures
+-- explicit prevents readers from treating unknown content as reference-free.
+CREATE TABLE document_reference_summaries (
+    resource INTEGER PRIMARY KEY REFERENCES resources (id) ON UPDATE CASCADE ON DELETE CASCADE,
+    generation INTEGER NOT NULL,
+    genesis TEXT NOT NULL,
+    heads JSON NOT NULL,
+    status INTEGER NOT NULL CHECK (status IN (1, 2)),
+    has_self_query INTEGER NOT NULL DEFAULT 0
+) WITHOUT ROWID;
+
+CREATE TABLE document_reference_targets (
+    parent INTEGER NOT NULL REFERENCES document_reference_summaries (resource) ON UPDATE CASCADE ON DELETE CASCADE,
+    target_iri TEXT NOT NULL,
+    PRIMARY KEY (parent, target_iri)
+) WITHOUT ROWID;
+
+CREATE INDEX document_reference_targets_by_target ON document_reference_targets (target_iri, parent);
+
 -- Document attribute names, interned by their exact global identity.
 -- `search_key` is the Unicode case-folded form used only for autocomplete.
 CREATE TABLE document_attribute_keys (
