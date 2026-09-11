@@ -212,6 +212,10 @@ export const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => 
     }
     // @ts-ignore
     if (url && isValidUrl(url) && editor.importWebFile) {
+      // The import finishes a paste on the editor's behalf: keep it out of the undo history so
+      // Cmd-Z undoes the paste that created the block rather than reverting the URL swap (which
+      // would only trigger this effect again).
+      const silently = {addToHistory: false}
       timeoutPromise(editor.importWebFile(url), 5000, {
         reason: 'Error fetching the image.',
       })
@@ -221,19 +225,22 @@ export const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => 
             if (!imageData.type.includes('image')) {
               return
             }
-            assign({props: {url: `ipfs://${imageData.cid}`}} as MediaType)
+            assign({props: {url: `ipfs://${imageData.cid}`}} as MediaType, silently)
           }
           // Web result
           else if ('displaySrc' in imageData && 'fileBinary' in imageData) {
             if (!imageData.type.includes('image')) {
               return
             }
-            assign({
-              props: {
-                fileBinary: imageData.fileBinary,
-                displaySrc: imageData.displaySrc,
-              },
-            } as MediaType)
+            assign(
+              {
+                props: {
+                  fileBinary: imageData.fileBinary,
+                  displaySrc: imageData.displaySrc,
+                },
+              } as MediaType,
+              silently,
+            )
           }
         })
         .catch((e) => {

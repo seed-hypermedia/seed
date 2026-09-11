@@ -156,7 +156,9 @@ describe('pasted remote image import', () => {
       root.render(<ImageDisplay editor={makeEditor(390, importWebFile)} block={makeBlock()} assign={assign} />)
     })
 
-    await vi.waitFor(() => expect(assign).toHaveBeenCalledWith({props: {url: 'ipfs://image-cid'}}))
+    await vi.waitFor(() =>
+      expect(assign).toHaveBeenCalledWith({props: {url: 'ipfs://image-cid'}}, {addToHistory: false}),
+    )
     expect(importWebFile).toHaveBeenCalledWith('https://example.com/tall-mobile-screenshot.png')
   })
 
@@ -172,9 +174,7 @@ describe('pasted remote image import', () => {
 
     await vi.waitFor(() => expect(consoleError).toHaveBeenCalledWith('Could not fetch image from URL:', error))
     expect(assign).not.toHaveBeenCalled()
-    expect(container.querySelector('img')?.getAttribute('src')).toBe(
-      'resolved:https://example.com/tall-mobile-screenshot.png',
-    )
+    expect(container.querySelector('img')?.getAttribute('src')).toBe('https://example.com/tall-mobile-screenshot.png')
 
     consoleError.mockRestore()
   })

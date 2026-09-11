@@ -36,7 +36,7 @@ import {insertBlocks} from './api/blockManipulation/commands/insertBlocks'
 import {unnestBlock as unnestBlockCommand} from './api/blockManipulation/commands/nestBlock'
 import {newRemoveBlocks} from './api/blockManipulation/commands/removeBlocks'
 import {newReplaceBlocks} from './api/blockManipulation/commands/replaceBlocks'
-import {updateBlock} from './api/blockManipulation/commands/updateBlock'
+import {updateBlock, UpdateBlockOptions} from './api/blockManipulation/commands/updateBlock'
 import {BlockHoverActionsProsemirrorPlugin} from './extensions/BlockHoverActions/BlockHoverActionsPlugin'
 import {FormattingToolbarProsemirrorPlugin} from './extensions/FormattingToolbar/FormattingToolbarPlugin'
 import {FullBlockSelectionProsemirrorPlugin} from './extensions/FullBlockSelection/FullBlockSelectionPlugin'
@@ -718,9 +718,15 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
    * not be found.
    * @param blockToUpdate The block that should be updated.
    * @param update A partial block which defines how the existing block should be changed.
+   * @param options `addToHistory: false` keeps an editor-initiated update out of the undo stack.
    */
-  public updateBlock(blockToUpdate: BlockIdentifier, update: PartialBlock<BSchema>, keepSelection?: boolean) {
-    return updateBlock(this, blockToUpdate, update, keepSelection)
+  public updateBlock(
+    blockToUpdate: BlockIdentifier,
+    update: PartialBlock<BSchema>,
+    keepSelection?: boolean,
+    options?: UpdateBlockOptions,
+  ) {
+    return updateBlock(this, blockToUpdate, update, keepSelection, options)
   }
 
   // /**

@@ -197,11 +197,22 @@ function updateChildren<BSchema extends BlockSchema>(
   }
 }
 
+/** Options for {@link updateBlock}. */
+export type UpdateBlockOptions = {
+  /**
+   * `false` keeps the update out of the undo history: undo skips over it and reverts the user's
+   * previous action instead. Use it for updates the editor makes on its own (importing a pasted
+   * remote image to IPFS, for instance), so Cmd-Z still undoes the paste that created the block.
+   */
+  addToHistory?: boolean
+}
+
 export function updateBlock<BSchema extends BlockSchema>(
   editor: BlockNoteEditor<BSchema>,
   blockToUpdate: BlockIdentifier,
   update: PartialBlock<BSchema>,
   keepSelection?: boolean,
+  options?: UpdateBlockOptions,
 ): Block<BSchema> {
   const ttEditor = editor._tiptapEditor
 
@@ -215,6 +226,7 @@ export function updateBlock<BSchema extends BlockSchema>(
   // @ts-ignore
   ttEditor.commands.command(({state, dispatch}) => {
     updateBlockCommand(posInfo.posBeforeNode, update, keepSelection)({state, dispatch})
+    if (options?.addToHistory === false) state.tr.setMeta('addToHistory', false)
     return true
   })
 

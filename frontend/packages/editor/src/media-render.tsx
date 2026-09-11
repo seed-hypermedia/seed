@@ -98,10 +98,10 @@ export const MediaRender: React.FC<RenderProps> = ({
   useEffect(() => {
     if (!uploading && hasSrc && editor.importWebFile && block.props.src) {
       // @ts-ignore
+      // These updates are the editor finishing a paste, not a user action: keep them out of the
+      // undo history so Cmd-Z undoes the paste itself instead of reverting the import.
       if (block.props.src.startsWith('ipfs')) {
-        editor.updateBlock(block, {
-          props: {url: block.props.src, src: ''},
-        })
+        editor.updateBlock(block, {props: {url: block.props.src, src: ''}}, undefined, {addToHistory: false})
         return
       }
       setUploading(true)
@@ -112,25 +112,29 @@ export const MediaRender: React.FC<RenderProps> = ({
           setUploading(false)
           // Desktop result
           if ('cid' in imageData) {
-            editor.updateBlock(block, {
-              props: {
-                url: `ipfs://${imageData.cid}`,
-                size: imageData.size.toString(),
-                src: '',
-              },
-            })
+            editor.updateBlock(
+              block,
+              {props: {url: `ipfs://${imageData.cid}`, size: imageData.size.toString(), src: ''}},
+              undefined,
+              {addToHistory: false},
+            )
           }
           // Web result
           else if ('displaySrc' in imageData && 'fileBinary' in imageData) {
-            editor.updateBlock(block, {
-              props: {
-                displaySrc: imageData.displaySrc,
-                // @ts-expect-error - schema defines fileBinary as string but it's actually Uint8Array
-                fileBinary: imageData.fileBinary,
-                size: imageData.size?.toString() || '',
-                src: '',
+            editor.updateBlock(
+              block,
+              {
+                props: {
+                  displaySrc: imageData.displaySrc,
+                  // @ts-expect-error - schema defines fileBinary as string but it's actually Uint8Array
+                  fileBinary: imageData.fileBinary,
+                  size: imageData.size?.toString() || '',
+                  src: '',
+                },
               },
-            })
+              undefined,
+              {addToHistory: false},
+            )
           }
         })
         .catch((e: any) => {
@@ -140,11 +144,11 @@ export const MediaRender: React.FC<RenderProps> = ({
     }
   }, [hasSrc, block, uploading, editor, editor.importWebFile])
 
-  const assignMedia = (props: MediaType) => {
+  const assignMedia = (props: MediaType, options?: {addToHistory?: boolean}) => {
     beginEditIfNeeded()
     // we used to spread the current block.props into the new props, but now we just overwrite the whole thing because it was causing bugs
     // @ts-expect-error
-    editor.updateBlock(block.id, props)
+    editor.updateBlock(block.id, props, undefined, options)
   }
 
   if (hasSrc || uploading) {

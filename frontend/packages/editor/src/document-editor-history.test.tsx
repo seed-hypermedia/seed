@@ -35,3 +35,36 @@ it('keeps the editor and undo/redo history while publication review pauses an ed
   act(() => root.unmount())
   original._tiptapEditor.destroy()
 })
+
+it('undoes a paste in one step after the editor imported the pasted remote image on its own', () => {
+  let editor: ReturnType<typeof useBlockNote>
+  function Harness({blocks}: {blocks: DocumentContentProps['blocks']}) {
+    const initialContent = useDocumentEditorInitialContent(blocks, true)
+    editor = useBlockNote({blockSchema: hmBlockSchema, initialContent}, [initialContent])
+    return null
+  }
+  const blocks = [{id: 'text', type: 'paragraph', content: [{type: 'text', text: 'Before', styles: {}}]}] as any
+  const root = createRoot(document.createElement('div'))
+  act(() => root.render(<Harness blocks={blocks} />))
+  const original = editor!
+  // A rich HTML paste lands as an image block that still points at the remote source.
+  act(() =>
+    original.insertBlocks(
+      [{id: 'pasted', type: 'image', props: {url: 'https://example.com/pasted.png'}} as any],
+      'text',
+      'after',
+    ),
+  )
+  expect(original.getBlock('pasted')?.props.url).toBe('https://example.com/pasted.png')
+  // The block then imports that file to IPFS by itself, outside the undo history.
+  act(() => original.updateBlock('pasted', {props: {url: 'ipfs://imported'}}, undefined, {addToHistory: false}))
+  expect(original.getBlock('pasted')?.props.url).toBe('ipfs://imported')
+  // One Cmd-Z removes the paste; it does not merely revert the import (which would re-import).
+  act(() => original._tiptapEditor.commands.undo())
+  expect(original.getBlock('pasted')).toBeUndefined()
+  expect(original._tiptapEditor.state.doc.textContent).toBe('Before')
+  act(() => original._tiptapEditor.commands.redo())
+  expect(original.getBlock('pasted')).toBeDefined()
+  original._tiptapEditor.destroy()
+  act(() => root.unmount())
+})
