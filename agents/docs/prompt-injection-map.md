@@ -150,8 +150,8 @@ Ranked by exposure. Everything here is untrusted content that reaches the model.
   (`hm://z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS/resources/skill`, published at
   https://seed.hyper.media/resources/skill) — see `defaultAgentSystemPrompt` in
   `frontend/packages/ui/src/agents/dialogs.tsx`. User-editable, becomes `AgentDefinition.systemPrompt`; the service
-  inlines the embedded document when it resolves the prompt, so whoever can edit that document shapes every new
-  agent's prompt.
+  inlines the embedded document when it resolves the prompt, so whoever can edit that document shapes every new agent's
+  prompt.
 - **Prompt tab** (`pages/agents/detail.tsx`) edits those blocks with the Seed block editor; the server normalizes and
   resolves them to markdown before use.
 - **System prompt dialog** (`pages/agents/session.tsx`) shows `systemPromptMarkdown` — the exact prompt that would be
