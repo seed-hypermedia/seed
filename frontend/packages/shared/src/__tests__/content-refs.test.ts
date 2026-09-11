@@ -533,3 +533,20 @@ describe('extractAllContentRefs from editor draft blocks', () => {
     expect(hasQueryBlockTargetingSelf(editorBlocksToHMBlockNodes(draftBlocks), 'uid1', null)).toBe(true)
   })
 })
+
+it('preserves explicit mention kind when extracting references', () => {
+  const refs = extractAllContentRefs([
+    {
+      block: {
+        id: 'p',
+        type: 'Paragraph',
+        text: '\uFFFC',
+        annotations: [
+          {type: 'Embed', link: 'hm://alice', starts: [0], ends: [1], attributes: {mentionKind: 'document'}},
+        ],
+      },
+      children: [],
+    },
+  ] as any)
+  expect(refs[0]).toHaveProperty('mentionKind', 'document')
+})

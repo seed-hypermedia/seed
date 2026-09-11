@@ -1,4 +1,5 @@
 import {GRPCClient} from '.'
+import {accountMetadataFromAccount} from './account-metadata'
 import {HMBlock, HMBlockNode, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId} from './utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from './utils/path-api'
@@ -70,7 +71,11 @@ function blockToPlainText(block: HMBlock, resolvedNames: Readonly<Record<string,
 
   const embeds = new Map<number, string>()
   for (const annotation of annotations) {
-    const name = annotation.type === 'Embed' ? resolvedNames[annotation.link] : undefined
+    const kind = annotation.attributes?.mentionKind
+    const name =
+      annotation.type === 'Embed'
+        ? (kind ? resolvedNames[`${kind}:${annotation.link}`] : undefined) ?? resolvedNames[annotation.link]
+        : undefined
     if (!name) continue
     annotation.starts?.forEach((start: number) => embeds.set(start, name))
   }
@@ -235,7 +240,9 @@ async function processAnnotations(text: string, annotations: any[], context: Con
   const resolvedNames: Record<string, string> = {}
   for (const annotation of annotations) {
     if (annotation.type === 'Embed' && annotation.link) {
-      resolvedNames[annotation.link] = `[${await resolveInlineEmbed(annotation.link, context)}]`
+      const kind = annotation.attributes?.mentionKind
+      const key = kind ? `${kind}:${annotation.link}` : annotation.link
+      resolvedNames[key] = `[${await resolveInlineEmbed(annotation.link, context, kind)}]`
     }
   }
   return contentToText({
@@ -248,7 +255,11 @@ async function processAnnotations(text: string, annotations: any[], context: Con
 /**
  * Resolves an inline embed link to a document name
  */
-async function resolveInlineEmbed(link: string, context: ConversionContext): Promise<string> {
+async function resolveInlineEmbed(
+  link: string,
+  context: ConversionContext,
+  mentionKind?: 'account' | 'document',
+): Promise<string> {
   const id = unpackHmId(link)
 
   if (!id) {
@@ -263,10 +274,16 @@ async function resolveInlineEmbed(link: string, context: ConversionContext): Pro
   }
 
   try {
+    if (mentionKind !== 'document' && (mentionKind === 'account' || id.path?.[0] === ':profile')) {
+      const account = await context.grpcClient.documents.getAccount({
+        id: id.path?.[0] === ':profile' ? id.path[1] || id.uid : id.uid,
+      })
+      return accountMetadataFromAccount(account).name || id.uid
+    }
     const document = await context.grpcClient.documents.getDocument({
       account: id.uid,
       path: hmIdPathToEntityQueryPath(id.path),
-      version: id.version || undefined,
+      version: id.latest ? undefined : id.version || undefined,
     })
 
     return (document.metadata as any)?.name || 'Untitled Document'
@@ -312,7 +329,7 @@ async function processEmbedBlock(block: HMBlock, context: ConversionContext): Pr
     const document = await context.grpcClient.documents.getDocument({
       account: id.uid,
       path: hmIdPathToEntityQueryPath(id.path),
-      version: id.version || undefined,
+      version: id.latest ? undefined : id.version || undefined,
     })
 
     if (!document.content) {

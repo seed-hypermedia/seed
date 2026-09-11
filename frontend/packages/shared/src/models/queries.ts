@@ -481,6 +481,8 @@ export function queryContactsOfSubject(client: UniversalClient, uid: string | un
 export function queryContactsOfAccount(client: UniversalClient, uid: string | null | undefined) {
   return {
     queryKey: [queryKeys.CONTACTS_ACCOUNT, uid] as const,
+    // Never show the previous identity's petnames while another account's contacts load.
+    keepPreviousData: false,
     queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMContactRecord[]> => {
       if (!uid) return []
       return client.request('AccountContacts', uid, {signal})

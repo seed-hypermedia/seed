@@ -1,9 +1,10 @@
+import type {MentionThreadContext} from '@shm/shared/models/mention-ranking'
 import type {DomainResolverFn} from '@seed-hypermedia/client'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
-import {HMBlockNode, HMMetadata} from '@seed-hypermedia/client/hm-types'
+import {HMBlockNode, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {blocksHaveDraftContent} from './comment-editor-draft-content'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
-import {packReferenceUrl, useOpenUrl, useUniversalClient, writeableStateStream} from '@shm/shared'
+import {useOpenUrl, useUniversalClient, writeableStateStream} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
 import {useTx} from '@shm/shared/translation'
 import type {UniversalClient} from '@shm/shared/universal-client'
@@ -21,7 +22,6 @@ import {insertOrUpdateBlock} from './blocknote/core/extensions/SlashMenu/default
 import {FILE_DROP_INSERTED_EVENT} from './blocknote/core/extensions/DragMedia/DragExtension'
 import {HyperMediaEditorView} from './editor-view'
 import {createHypermediaDocLinkPlugin} from './hypermedia-link-plugin'
-import {MobileMentionsDialog} from './mobile-mentions-dialog'
 import {MobileSlashDialog} from './mobile-slash-dialog'
 import {mentionSuggestionPluginKey} from './mention-suggestion-plugin'
 import {slashMenuPluginKey} from './blocknote/core/extensions/SlashMenu/SlashMenuPlugin'
@@ -176,19 +176,6 @@ export function useCommentEditor(
                   handleKeyDown(view, event) {
                     if (!isMobileDevice()) return false
 
-                    if (event.key === '@' && onMobileMentionTriggerRef.current) {
-                      const {selection} = view.state
-                      const $from = selection.$from
-                      const textBeforeCursor = $from.parent.textContent.substring(0, $from.parentOffset)
-                      const isAtStart = textBeforeCursor.length === 0
-                      const isAfterSpace = textBeforeCursor.endsWith(' ')
-
-                      if (isAtStart || isAfterSpace) {
-                        onMobileMentionTriggerRef.current()
-                        return true
-                      }
-                    }
-
                     if (event.key === '/' && onMobileSlashTriggerRef.current) {
                       const {selection} = view.state
                       const $from = selection.$from
@@ -282,6 +269,9 @@ export function CommentEditor({
   focusOnMount,
   isReplying,
   perspectiveAccountUid,
+  siteUid,
+  documentId,
+  mentionThread,
   initialBlocks,
   onContentChange,
   onAvatarPress,
@@ -326,6 +316,10 @@ export function CommentEditor({
   focusOnMount?: boolean
   isReplying?: boolean
   perspectiveAccountUid?: string | null | undefined
+  siteUid?: string
+  documentId?: UnpackedHypermediaId
+  /** Loaded participants in the conversation being replied to. */
+  mentionThread?: MentionThreadContext
   initialBlocks?: HMBlockNode[]
   onContentChange?: (blocks: HMBlockNode[], mediaRefs?: Record<string, string>) => void
   onAvatarPress?: () => void
@@ -366,7 +360,6 @@ export function CommentEditor({
   const [submitTrigger, setSubmitTrigger] = useState(0)
   const submitCallbackRef = useRef<(() => void) | null>(null)
   const isMobile = useMobile()
-  const [isMentionsDialogOpen, setIsMentionsDialogOpen] = useState(false)
   const [isSlashDialogOpen, setIsSlashDialogOpen] = useState(false)
   const toolbarRef = useRef<HTMLDivElement>(null)
   const contextUniversalClient = useUniversalClient()
@@ -374,7 +367,7 @@ export function CommentEditor({
   const {editor} = useCommentEditor(
     perspectiveAccountUid,
     () => setSubmitTrigger((prev) => prev + 1),
-    isMobile ? () => setIsMentionsDialogOpen(true) : undefined,
+    undefined,
     isMobile ? () => setIsSlashDialogOpen(true) : undefined,
     importWebFile,
     handleFileAttachment,
@@ -1059,7 +1052,14 @@ export function CommentEditor({
             }}
           >
             {isExpanded ? (
-              <HyperMediaEditorView editor={editor} openUrl={openUrl} perspectiveAccountUid={perspectiveAccountUid} />
+              <HyperMediaEditorView
+                editor={editor}
+                openUrl={openUrl}
+                perspectiveAccountUid={perspectiveAccountUid}
+                mentionThread={mentionThread}
+                siteUid={siteUid}
+                documentId={documentId}
+              />
             ) : (
               <Button
                 onClick={() => {
@@ -1080,8 +1080,23 @@ export function CommentEditor({
             <div ref={toolbarRef} className={cn('mx-2 mb-2 flex gap-2', isMobile ? 'justify-between' : 'justify-end')}>
               {isExpanded && isMobile && (
                 <div className="flex items-center gap-2">
-                  <Button size="icon" variant="ghost" className="size-8" onClick={() => setIsMentionsDialogOpen(true)}>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-8"
+                    aria-label="Mention account"
+                    onClick={() => editor.mentionMenu?.open('account')}
+                  >
                     <AtSignIcon className="size-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-8"
+                    aria-label="Link document"
+                    onClick={() => editor.mentionMenu?.open('document')}
+                  >
+                    [[
                   </Button>
 
                   <Button size="icon" variant="ghost" className="size-8" onClick={handleImageClick}>
@@ -1109,18 +1124,6 @@ export function CommentEditor({
       {/* Mobile dialogs */}
       {isMobile && (
         <>
-          <MobileMentionsDialog
-            isOpen={isMentionsDialogOpen}
-            onClose={() => setIsMentionsDialogOpen(false)}
-            onSelect={(mention) => {
-              const {state, schema} = editor._tiptapEditor
-              const node = schema.nodes['inline-embed'].create({link: packReferenceUrl(mention.id)}, schema.text(' '))
-              editor._tiptapEditor.view.dispatch(state.tr.replaceSelectionWith(node).scrollIntoView())
-              setIsMentionsDialogOpen(false)
-              setTimeout(() => editor._tiptapEditor.commands.focus(), 100)
-            }}
-            perspectiveAccountUid={perspectiveAccountUid}
-          />
           <MobileSlashDialog isOpen={isSlashDialogOpen} onClose={() => setIsSlashDialogOpen(false)} editor={editor} />
         </>
       )}

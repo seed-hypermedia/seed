@@ -6,6 +6,7 @@ import {
   createInspectNavRoute,
   createRouteFromInspectNavRoute,
   defaultRoute,
+  getRecentsRouteEntityUrl,
   navRouteSchema,
   replaceRouteDocumentId,
   type NavRoute,
@@ -1046,5 +1047,27 @@ describe('comment permalink version (?v pins the comment version)', () => {
       openComment: 'z6Mk/z6FC',
       openCommentVersion: 'bafyCommentVersion',
     })
+  })
+})
+
+describe('recent route identity', () => {
+  test('keeps profile visits distinct from home documents', () => {
+    expect(getRecentsRouteEntityUrl({key: 'profile', id: hmId('alice')})).toBe('hm://alice/:profile')
+    expect(getRecentsRouteEntityUrl({key: 'document', id: hmId('alice', {version: 'old'})})).toBe('hm://alice')
+  })
+  test('records the viewed account, not the hosting site', () => {
+    expect(
+      getRecentsRouteEntityUrl({key: 'site-profile', id: hmId('site'), accountUid: 'alice', tab: 'following'}),
+    ).toBe('hm://alice/:profile')
+    expect(getRecentsRouteEntityUrl({key: 'site-profile', id: hmId('site'), tab: 'profile'})).toBe('hm://site/:profile')
+  })
+  test('ignores document version and panel changes', () => {
+    expect(
+      getRecentsRouteEntityUrl({
+        key: 'document',
+        id: hmId('alice', {path: ['post'], version: 'old', blockRef: 'block'}),
+      }),
+    ).toBe('hm://alice/post')
+    expect(getRecentsRouteEntityUrl({key: 'draft', id: 'draft'} as NavRoute)).toBeNull()
   })
 })

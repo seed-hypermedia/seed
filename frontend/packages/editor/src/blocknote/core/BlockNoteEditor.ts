@@ -213,13 +213,6 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
   public readonly schema: BSchema
   public ready = false
 
-  // @ts-expect-error
-  public inlineEmbedOptions: InlineMentionsResult = {
-    Profiles: [],
-    Documents: [],
-    Recents: [],
-  }
-
   public readonly dragStateManager: DragStateManager | null
   public readonly editorDragId: string | null
   public readonly sideMenu: SideMenuProsemirrorPlugin<BSchema> | null

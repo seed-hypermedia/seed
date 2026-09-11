@@ -1,8 +1,11 @@
 import {describe, expect, it} from 'vitest'
+import {hmId} from '../../utils/entity-id-url'
 import {
   classifyCommentNotificationForAccount,
+  classifyNotificationEvent,
   extractMentionedAccountUidsFromComment,
   getMentionedAccountUid,
+  getCitationMentionKind,
 } from '../notification-event-classifier'
 
 function makeCommentWithMention(link: string) {
@@ -99,4 +102,39 @@ describe('extractMentionedAccountUidsFromComment', () => {
       new Set(['alice']),
     )
   })
+})
+
+it('does not notify an account for an explicit home document mention', () => {
+  const comment = makeCommentWithMention('hm://alice?v=published&l')
+  Object.assign(comment.content[0]!.block.annotations[0]!, {attributes: {mentionKind: 'document'}})
+  expect(extractMentionedAccountUidsFromComment(comment)).toEqual(new Set())
+})
+
+it('does not classify explicit home document citations as account mentions', () => {
+  expect(
+    classifyNotificationEvent(
+      {type: 'citation', citationType: 'd', mentionKind: 'document', target: {id: {uid: 'alice', path: []}}} as any,
+      'alice',
+    ),
+  ).toBeNull()
+  expect(
+    classifyNotificationEvent(
+      {type: 'citation', citationType: 'd', target: {id: {uid: 'alice', path: []}}} as any,
+      'alice',
+    ),
+  ).toBe('mention')
+})
+
+it('derives citation identity from matching source blocks and preserves mixed legacy references', () => {
+  const comment = makeCommentWithMention('hm://alice?v=captured&l')
+  Object.assign(comment.content[0]!.block.annotations[0]!, {attributes: {mentionKind: 'document'}})
+  expect(getCitationMentionKind(comment.content, hmId('alice'), 'block-1')).toBe('document')
+  expect(getCitationMentionKind(comment.content, hmId('alice'), 'other-block')).toBeUndefined()
+  expect(getCitationMentionKind(comment.content, hmId('bob'))).toBeUndefined()
+  comment.content.push({
+    ...makeCommentWithMention('hm://alice').content[0]!,
+    block: {...makeCommentWithMention('hm://alice').content[0]!.block, id: 'legacy'},
+  })
+  expect(getCitationMentionKind(comment.content, hmId('alice'))).toBeUndefined()
+  expect(getCitationMentionKind(comment.content, hmId('alice'), 'block-1')).toBe('document')
 })

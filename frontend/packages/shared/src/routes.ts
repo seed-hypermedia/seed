@@ -463,7 +463,12 @@ export const navRouteSchema = z.discriminatedUnion('key', [
 ])
 export type NavRoute = z.infer<typeof navRouteSchema>
 
+/** Returns a version-independent visited entity, keeping profiles distinct from home documents. */
 export function getRecentsRouteEntityUrl(route: NavRoute) {
+  if (route.key === 'profile' || route.key === 'site-profile') {
+    const uid = route.key === 'site-profile' ? route.accountUid ?? route.id.uid : route.id.uid
+    return hmId(uid, {path: [':profile']}).id
+  }
   // this is used to uniquely identify an item for the recents list. So it references the entity without specifying version
   if (route.key === 'document') return route.id.id
   if (route.key === 'inspect') return route.id.id

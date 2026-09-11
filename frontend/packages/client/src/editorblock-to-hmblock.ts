@@ -141,6 +141,7 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
       textFamily?: string
     }
     href?: string
+    mentionKind?: 'account' | 'document'
     link?: string
   }
 
@@ -176,7 +177,12 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     }
 
     if (leaf.type == 'inline-embed') {
-      annotations.addSpan('Embed', {link: leaf.link!}, start, end)
+      annotations.addSpan(
+        'Embed',
+        {link: leaf.link!, ...(leaf.mentionKind ? {mentionKind: leaf.mentionKind} : {})},
+        start,
+        end,
+      )
     }
 
     if (leaf.type == 'link') {

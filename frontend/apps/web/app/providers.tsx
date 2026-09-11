@@ -1,3 +1,4 @@
+import {SelectedAccountContactsProvider} from '@shm/shared/models/contacts'
 import {useLocation, useNavigate, useNavigation} from '@remix-run/react'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client'
 import {NavRoute, OptimizedImageSize, routeToHref, UniversalAppProvider} from '@shm/shared'
@@ -5,8 +6,20 @@ import {DAEMON_FILE_URL, SEED_ASSET_HOST, SITE_BASE_URL} from '@shm/shared/const
 import {languagePacks} from '@shm/shared/language-packs'
 import {registerQueryClient} from '@shm/shared/models/query-client'
 import {ReadOnlyViewerComponent, ReadOnlyViewerProvider} from '@shm/shared/readonly-viewer-context'
-import {defaultRoute} from '@shm/shared/routes'
-import {isHttpUrl, NavAction, NavContextProvider, NavState, navStateReducer} from '@shm/shared/utils/navigation'
+import {getDocumentTitle} from '@shm/shared/content'
+import {queryAccount, queryResource} from '@shm/shared/models/queries'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {recordRecentRoute} from './local-db-recents'
+import {defaultRoute, getRecentsRouteEntityUrl} from '@shm/shared/routes'
+import {
+  isHttpUrl,
+  useNavRoute,
+  NavAction,
+  NavContextProvider,
+  NavState,
+  navStateReducer,
+} from '@shm/shared/utils/navigation'
 import {AssistantPanelProvider} from './assistant-panel-state'
 import {SiteContextPublisher} from './site-context-bridge'
 import {WebDocumentMaintenance} from './document-maintenance'
@@ -23,6 +36,46 @@ import {createContext, useContext, useEffect, useMemo, useState} from 'react'
 import {keyPairStore} from './auth'
 import {webUniversalClient} from './universal-client'
 import {isPerfEnabled, markNavEnd, markNavStart} from './web-perf-marks'
+
+function WebRecentVisitRecorder() {
+  const route = useNavRoute()
+  const url = getRecentsRouteEntityUrl(route)
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    if (!url) return
+    const id = unpackHmId(url)
+    if (!id) return
+    let cancelled = false
+    const visitedRoute: NavRoute = id.path?.[0] === ':profile' ? {key: 'profile', id} : {key: 'document', id}
+    async function record() {
+      let name = id!.uid
+      try {
+        if (visitedRoute.key === 'profile') {
+          const account = await queryClient.fetchQuery(queryAccount(webUniversalClient, id!.uid))
+          if (account) name = account.metadata?.name || name
+        } else {
+          const resource = await queryClient.fetchQuery(queryResource(webUniversalClient, id!))
+          if (resource?.type === 'document') name = getDocumentTitle(resource.document) || name
+        }
+      } catch {
+        // Keep the visit even when its display metadata cannot be loaded.
+      }
+      if (cancelled) return
+      const recent = await recordRecentRoute(visitedRoute, name)
+      if (recent) {
+        await Promise.all([
+          queryClient.invalidateQueries([queryKeys.RECENTS]),
+          queryClient.invalidateQueries([queryKeys.SEARCH, 'inlineMentions']),
+        ])
+      }
+    }
+    void record()
+    return () => {
+      cancelled = true
+    }
+  }, [url, queryClient])
+  return null
+}
 
 function getSelectedIdentity(): string | null {
   const kp = keyPairStore.get()
@@ -381,10 +434,13 @@ export function WebSiteProvider(props: {
         })
       }}
     >
-      <NavContextProvider value={navigation}>
-        <SiteContextPublisher />
-        {props.children}
-      </NavContextProvider>
+      <SelectedAccountContactsProvider>
+        <NavContextProvider value={navigation}>
+          <SiteContextPublisher />
+          <WebRecentVisitRecorder />
+          {props.children}
+        </NavContextProvider>
+      </SelectedAccountContactsProvider>
     </UniversalAppProvider>
   )
 }

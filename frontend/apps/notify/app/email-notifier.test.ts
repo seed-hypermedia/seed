@@ -5,6 +5,7 @@ import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import type {Event} from '@shm/shared'
 import {
   getEventId,
+  getMentionsOfDocument,
   isNotificationEventTooOld,
   isTransientGrpcUnavailableError,
   matchesCursorEvent,
@@ -271,4 +272,50 @@ describe('resolveContentReferenceNames', () => {
       'hm://doc-owner/projects/roadmap': 'Roadmap',
     })
   })
+})
+
+describe('explicit mention identities in notification content', () => {
+  it('resolves home-document and legacy account names independently even with identical URLs', async () => {
+    const content = [
+      {
+        block: {
+          id: 'p',
+          type: 'Paragraph',
+          attributes: {},
+          text: '\uFFFC\uFFFC',
+          annotations: [
+            {type: 'Embed', link: 'hm://alice', starts: [0], ends: [1], attributes: {mentionKind: 'document'}},
+            {type: 'Embed', link: 'hm://alice', starts: [1], ends: [2]},
+          ],
+        },
+        children: [],
+      },
+    ] as HMBlockNode[]
+    const names = await resolveContentReferenceNames(content, async (_id, kind) =>
+      kind === 'document' ? 'Alice home' : 'Alice profile',
+    )
+    expect(names).toEqual({'document:hm://alice': 'Alice home', 'hm://alice': 'Alice profile'})
+  })
+})
+
+it('does not classify explicit home-document mentions as account mentions in document changes', () => {
+  const document = {
+    content: [
+      {
+        block: {
+          id: 'p',
+          type: 'Paragraph',
+          attributes: {},
+          text: '\uFFFC',
+          annotations: [
+            {type: 'Embed', link: 'hm://alice', starts: [0], ends: [1], attributes: {mentionKind: 'document'}},
+            {type: 'Embed', link: 'hm://bob', starts: [1], ends: [2]},
+            {type: 'Embed', link: 'hm://carol/:profile', starts: [2], ends: [3], attributes: {mentionKind: 'account'}},
+          ],
+        },
+        children: [],
+      },
+    ],
+  }
+  expect(getMentionsOfDocument(document as any)).toEqual({p: new Set(['bob', 'carol'])})
 })

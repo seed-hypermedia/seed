@@ -1,153 +1,140 @@
-import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {InlineMentionsResult, useInlineMentions} from '@shm/shared/models/inline-mentions'
+import {mentionCandidateSubtitle} from '@shm/shared/models/mention-ranking'
+import {InlineMentionsResult} from '@shm/shared/models/inline-mentions'
 import {Button} from '@shm/ui/button'
 import {Dialog, DialogContent, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
 import {LoadedHMIcon} from '@shm/ui/hm-icon'
-import {Search, X} from '@shm/ui/icons'
-import {SizableText} from '@shm/ui/text'
-import {useEffect, useState} from 'react'
+import {X} from '@shm/ui/icons'
+import {useEffect, useLayoutEffect, useRef, useState} from 'react'
+import {MentionMode} from './mention-suggestion-plugin'
 
-interface MobileMentionsDialogProps {
+/** Mobile presentation of the same ranked suggestions and insertion operation as desktop. */
+export function MobileMentionsDialog({
+  isOpen,
+  onClose,
+  onSelect,
+  mode,
+  query,
+  onQuery,
+  results,
+  loading,
+  error,
+  onRetry,
+  onRestoreFocus,
+}: {
   isOpen: boolean
   onClose: () => void
-  onSelect: (mention: {id: UnpackedHypermediaId; label: string; type: string}) => void
-  perspectiveAccountUid?: string | null | undefined
-}
-
-export function MobileMentionsDialog({isOpen, onClose, onSelect, perspectiveAccountUid}: MobileMentionsDialogProps) {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [results, setResults] = useState<InlineMentionsResult>({
-    Profiles: [],
-    Documents: [],
-    Recents: [],
-    Contacts: [],
-  })
-  const [isLoading, setIsLoading] = useState(false)
-  const {onMentionsQuery} = useInlineMentions(perspectiveAccountUid)
-
+  onSelect: (item: InlineMentionsResult[number]) => void
+  mode: MentionMode
+  query: string
+  onQuery: (query: string) => void
+  results: InlineMentionsResult
+  loading: boolean
+  error: boolean
+  onRetry: () => void
+  onRestoreFocus: () => void
+}) {
+  const wasOpen = useRef(isOpen)
   useEffect(() => {
-    if (!isOpen) {
-      setSearchQuery('')
-      setResults({Profiles: [], Documents: [], Recents: [], Contacts: []})
-      return
+    if (wasOpen.current && !isOpen) onRestoreFocus()
+    wasOpen.current = isOpen
+  }, [isOpen, onRestoreFocus])
+  const [viewportBounds, setViewportBounds] = useState<{height: number; top: number}>()
+  useLayoutEffect(() => {
+    if (!isOpen || !window.visualViewport) return
+    const viewport = window.visualViewport
+    const update = () => setViewportBounds({height: viewport.height, top: viewport.offsetTop})
+    update()
+    viewport.addEventListener('resize', update)
+    viewport.addEventListener('scroll', update)
+    return () => {
+      viewport.removeEventListener('resize', update)
+      viewport.removeEventListener('scroll', update)
     }
-
-    const search = async () => {
-      setIsLoading(true)
-      try {
-        const mentionResults = await onMentionsQuery(searchQuery)
-        setResults(mentionResults)
-      } catch (error) {
-        console.error('Failed to search mentions:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    const timeoutId = setTimeout(search, 300)
-    return () => clearTimeout(timeoutId)
-  }, [searchQuery, isOpen])
-
-  const handleSelectMention = (item: any) => {
-    onSelect({
-      id: item.id,
-      label: item.title || item.label || 'Unknown',
-      type: item.type,
-    })
-    onClose()
-  }
-
-  const allResults = [...results.Contacts, ...results.Profiles, ...results.Documents, ...results.Recents]
-
+  }, [isOpen])
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="h-[100dvh] max-h-[100dvh] w-full max-w-full rounded-none p-0" showCloseButton={false}>
+      <DialogContent
+        className="mention-mobile-dialog top-0 h-dvh max-h-dvh w-full max-w-full translate-y-0 rounded-none p-0"
+        style={
+          viewportBounds
+            ? {height: viewportBounds.height, maxHeight: viewportBounds.height, top: viewportBounds.top}
+            : undefined
+        }
+        aria-describedby={undefined}
+        showCloseButton={false}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          onRestoreFocus()
+        }}
+      >
         <div className="flex h-full flex-col overflow-hidden">
           <DialogHeader className="border-b p-4">
             <div className="flex items-center justify-between">
-              <DialogTitle>Mention Contact, Profile, or Document</DialogTitle>
-              <Button size="icon" variant="ghost" onClick={onClose} className="size-8">
+              <DialogTitle>{mode === 'account' ? 'Mention account' : 'Link document'}</DialogTitle>
+              <Button size="icon" variant="ghost" aria-label="Cancel mention" onClick={onClose}>
                 <X className="size-4" />
               </Button>
             </div>
           </DialogHeader>
-
           <div className="border-b p-4">
-            <div className="relative">
-              <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-              <Input
-                placeholder="Search for people, profiles, or documents…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-                autoFocus
-              />
-            </div>
+            <Input
+              aria-label={mode === 'account' ? 'Search accounts' : 'Search documents'}
+              placeholder={mode === 'account' ? 'Search accounts…' : 'Search documents…'}
+              value={query}
+              onChange={(event) => onQuery(event.target.value)}
+              autoFocus
+            />
           </div>
-
-          <div className="flex-1 overflow-y-auto">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <SizableText className="text-muted-foreground">Searching…</SizableText>
-              </div>
-            ) : allResults.length === 0 ? (
-              <div className="flex items-center justify-center py-8">
-                <SizableText className="text-muted-foreground">
-                  {searchQuery ? 'No results found' : 'Start typing to search…'}
-                </SizableText>
-              </div>
-            ) : (
-              <div className="divide-y">
-                {results.Contacts.length > 0 && (
-                  <MentionSection title="Contacts" items={results.Contacts} onSelect={handleSelectMention} />
-                )}
-                {results.Profiles.length > 0 && (
-                  <MentionSection title="Profiles" items={results.Profiles} onSelect={handleSelectMention} />
-                )}
-                {results.Documents.length > 0 && (
-                  <MentionSection title="Documents" items={results.Documents} onSelect={handleSelectMention} />
-                )}
-                {results.Recents.length > 0 && searchQuery === '' && (
-                  <MentionSection title="Recent" items={results.Recents} onSelect={handleSelectMention} />
-                )}
+          <div
+            className="min-h-0 flex-1 overflow-y-auto"
+            role="listbox"
+            aria-label={mode === 'account' ? 'Accounts' : 'Documents'}
+            aria-busy={loading}
+          >
+            {loading && (
+              <p role="status" className="text-muted-foreground p-4">
+                Searching…
+              </p>
+            )}
+            {error && (
+              <div role="alert" className="p-4">
+                Unable to load mentions or resolve the published version.{' '}
+                <Button variant="ghost" onClick={onRetry}>
+                  Retry
+                </Button>
               </div>
             )}
+            {!loading && !error && !results.length && (
+              <p role="status" className="text-muted-foreground p-4">
+                No {mode === 'account' ? 'accounts' : 'documents'} found
+              </p>
+            )}
+            {results.map((item) => (
+              <Button
+                key={item.id.id}
+                role="option"
+                aria-selected={false}
+                disabled={loading || error}
+                variant="ghost"
+                className="h-auto min-h-12 w-full justify-start gap-3 px-4 py-3"
+                onClick={() => onSelect(item)}
+              >
+                <LoadedHMIcon id={item.id} size={32} />
+                <span className="flex min-w-0 flex-col items-start text-left">
+                  <span>{item.title || item.id.uid}</span>
+                  <span
+                    className="text-muted-foreground text-xs"
+                    title={item.type === 'account' ? item.id.uid : undefined}
+                  >
+                    {mentionCandidateSubtitle(item)}
+                  </span>
+                </span>
+              </Button>
+            ))}
           </div>
         </div>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function MentionSection({title, items, onSelect}: {title: string; items: any[]; onSelect: (item: any) => void}) {
-  if (items.length === 0) return null
-
-  return (
-    <div className="py-2">
-      <SizableText size="xs" weight="medium" className="text-muted-foreground px-4 py-2">
-        {title}
-      </SizableText>
-      {items.map((item) => (
-        <Button
-          key={item.id.id}
-          variant="ghost"
-          className="h-auto w-full justify-start px-4 py-3"
-          onClick={() => onSelect(item)}
-        >
-          <div className="flex items-center gap-3">
-            <LoadedHMIcon id={item.id} size={32} />
-            <div className="flex flex-col items-start">
-              <SizableText>{item.title || 'Untitled'}</SizableText>
-              {item.subtitle && (
-                <SizableText size="xs" className="text-muted-foreground">
-                  {item.subtitle}
-                </SizableText>
-              )}
-            </div>
-          </div>
-        </Button>
-      ))}
-    </div>
   )
 }

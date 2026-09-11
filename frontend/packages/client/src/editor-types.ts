@@ -211,6 +211,8 @@ export interface EditorLink {
 }
 
 export interface EditorInlineEmbed {
+  /** Explicit identity for new mentions; absent on legacy references. */
+  mentionKind?: 'account' | 'document'
   type: 'inline-embed'
   link: string
   styles: EditorInlineStyles | {}

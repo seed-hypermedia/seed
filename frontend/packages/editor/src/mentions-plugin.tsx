@@ -29,7 +29,12 @@ export function createInlineEmbedNode() {
     renderHTML({node, HTMLAttributes}) {
       return [
         'a',
-        {...HTMLAttributes, href: HTMLAttributes.link, 'data-inline-embed': HTMLAttributes.link},
+        {
+          ...HTMLAttributes,
+          href: HTMLAttributes.link,
+          'data-inline-embed': HTMLAttributes.link,
+          ...(node.attrs.mentionKind ? {'data-mention-kind': node.attrs.mentionKind} : {}),
+        },
         inlineEmbedClipboardText(node.attrs.link),
       ]
     },
@@ -44,7 +49,8 @@ export function createInlineEmbedNode() {
           getAttrs: (dom) => {
             if (dom instanceof HTMLElement) {
               var value = dom.getAttribute('data-inline-embed')
-              return {link: value}
+              const kind = dom.getAttribute('data-mention-kind')
+              return {link: value, mentionKind: kind === 'account' || kind === 'document' ? kind : null}
             }
             return false
           },
@@ -55,7 +61,8 @@ export function createInlineEmbedNode() {
           getAttrs: (dom) => {
             if (dom instanceof HTMLElement) {
               var value = dom.getAttribute('data-inline-embed')
-              return {link: value}
+              const kind = dom.getAttribute('data-mention-kind')
+              return {link: value, mentionKind: kind === 'account' || kind === 'document' ? kind : null}
             }
             return false
           },
@@ -64,6 +71,7 @@ export function createInlineEmbedNode() {
     },
     addAttributes() {
       return {
+        mentionKind: {default: null, rendered: false},
         link: {
           default: '',
         },
@@ -112,18 +120,26 @@ function InlineEmbedNodeComponent(props: any) {
       as={isEditable ? 'span' : 'a'}
       className={`inline-embed-token ${props.selected ? 'selected' : ''}`}
       data-inline-embed={props.node.attrs.link}
+      data-mention-kind={props.node.attrs.mentionKind || undefined}
       {...wrapperProps}
     >
-      <MentionToken value={props.node.attrs.link} selected={props.selected} />
+      <MentionToken
+        value={props.node.attrs.link}
+        mentionKind={props.node.attrs.mentionKind}
+        selected={props.selected}
+      />
     </NodeViewWrapper>
   )
 }
 
-export function MentionToken(props: {value: string; selected?: boolean}) {
+/** Renders explicit mention identities while preserving legacy root-account references. */
+export function MentionToken(props: {value: string; mentionKind?: 'account' | 'document'; selected?: boolean}) {
   const unpackedRef = unpackHmId(props.value)
   const profileAccountUid = unpackedRef?.path?.[0] === ':profile' ? unpackedRef.path[1] || unpackedRef.uid : null
 
-  if (profileAccountUid) {
+  if (unpackedRef && props.mentionKind === 'document') {
+    return <DocumentMention unpackedRef={unpackedRef} {...props} />
+  } else if (profileAccountUid) {
     return <ContactMention accountUid={profileAccountUid} highlightId={hmId(profileAccountUid)} {...props} />
   } else if (unpackedRef && unpackedRef.path && unpackedRef.path.length > 0) {
     return <DocumentMention unpackedRef={unpackedRef} {...props} />
@@ -166,7 +182,7 @@ function ContactMention({
 
   return (
     <MentionText selected={selected} {...highlight(highlightId)}>
-      {meta.name}
+      {meta.name.startsWith('@') ? meta.name : `@${meta.name}`}
     </MentionText>
   )
 }

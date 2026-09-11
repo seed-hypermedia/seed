@@ -1099,8 +1099,8 @@ async function resolveInlineEmbed(ann: HMAnnotation, type: 'open' | 'close', ctx
   if (!link) return '[↗ embed'
 
   try {
-    const resolved = await resolveReference(link, ctx)
-    const prefix = resolved.type === 'account' ? '@' : ''
+    const resolved = await resolveReference(link, ctx, ann.type === 'Embed' ? ann.attributes?.mentionKind : undefined)
+    const prefix = resolved.type === 'account' && !resolved.label.startsWith('@') ? '@' : ''
     return `[${prefix}${resolved.label}`
   } catch {
     return `[↗ ${fallbackLabel(link)}`
@@ -1147,20 +1147,25 @@ async function resolveEmbeddedResource(link: string, ctx: ResolveContext): Promi
   return resolved
 }
 
-async function resolveReference(link: string, ctx: ResolveContext): Promise<ResolvedReference> {
-  const cached = ctx.cache.get(link)
+async function resolveReference(
+  link: string,
+  ctx: ResolveContext,
+  mentionKind?: 'account' | 'document',
+): Promise<ResolvedReference> {
+  const cacheKey = `${mentionKind || 'legacy'}:${link}`
+  const cached = ctx.cache.get(cacheKey)
   if (cached) return cached
   const id = unpackHmId(link)
   if (!id) throw new Error('Invalid HM link')
 
   let resolved: ResolvedReference
   const profileAccountUid = id.path?.[0] === ':profile' ? id.path[1] || id.uid : !id.path?.length ? id.uid : null
-  if (profileAccountUid) {
+  if (profileAccountUid && mentionKind !== 'document') {
     try {
       const account = await ctx.client.request('Account', profileAccountUid)
       if (account.type === 'account') {
         resolved = {label: account.metadata?.name || fallbackUid(profileAccountUid), type: 'account'}
-        ctx.cache.set(link, resolved)
+        ctx.cache.set(cacheKey, resolved)
         return resolved
       }
     } catch {
@@ -1196,7 +1201,7 @@ async function resolveReference(link: string, ctx: ResolveContext): Promise<Reso
   } else {
     resolved = {label: fallbackLabel(link), type: 'unknown'}
   }
-  ctx.cache.set(link, resolved)
+  ctx.cache.set(cacheKey, resolved)
   return resolved
 }
 

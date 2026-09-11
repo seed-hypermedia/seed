@@ -416,6 +416,28 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
             ))}
 
             {/* Link button - different for mobile/desktop */}
+            {isMobile && props.editor.isEditable && (
+              <>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  aria-label="Mention account"
+                  onClick={() => props.editor.mentionMenu?.open('account')}
+                >
+                  @
+                </Button>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  aria-label="Link document"
+                  onClick={() => props.editor.mentionMenu?.open('document')}
+                >
+                  [[
+                </Button>
+              </>
+            )}
             {isMobile ? (
               <MobileLinkToolbarButton editor={props.editor} />
             ) : (

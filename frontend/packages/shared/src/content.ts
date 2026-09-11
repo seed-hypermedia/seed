@@ -186,7 +186,9 @@ export function queryBlockSortedItems({
   return reverse ? res.reverse() : res
 }
 
+/** A content reference, retaining explicit inline mention identity when present. */
 export type RefDefinition = {
+  mentionKind?: 'account' | 'document'
   blockId: string
   link: string
   refId: any
@@ -212,6 +214,7 @@ export function extractRefs(children: HMBlockNode[], skipCards?: boolean): RefDe
           blockId: block.block.id,
           link: annotation.link,
           refId: unpackHmId(annotation.link),
+          ...(annotation.attributes?.mentionKind ? {mentionKind: annotation.attributes.mentionKind} : {}),
         })
       }
     })
@@ -243,6 +246,7 @@ export function extractAllContentRefs(children: HMBlockNode[]): RefDefinition[] 
           blockId: block.block.id,
           link: annotation.link,
           refId: unpackHmId(annotation.link),
+          ...(annotation.attributes?.mentionKind ? {mentionKind: annotation.attributes.mentionKind} : {}),
         })
       }
       if (annotation.type === 'Link' && annotation.link) {

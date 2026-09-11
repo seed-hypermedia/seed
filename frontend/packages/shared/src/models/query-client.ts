@@ -1,4 +1,5 @@
 import {Query, QueryCache, QueryClient, type QueryKey} from '@tanstack/react-query'
+import {queryKeys} from './query-keys'
 
 // Re-export for consumers to avoid duplicate package instances
 export {QueryClientProvider, useQueryClient} from '@tanstack/react-query'
@@ -12,6 +13,7 @@ export function onQueryCacheError(handler: (error: unknown, query: Query) => voi
 export const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (err, query) => {
+      if (query.meta?.handlesErrorLocally) return
       queryCacheErrorSubscriptions.forEach((handler) => handler(err, query))
     },
   }),
@@ -69,6 +71,9 @@ export type InvalidateQueriesOptions = {
 }
 
 export function invalidateQueries(queryKey: QueryKey, options?: InvalidateQueriesOptions) {
+  if (queryKey[0] === queryKeys.RECENTS) {
+    invalidateQueries([queryKeys.SEARCH, 'inlineMentions'], options)
+  }
   // Always invalidate the registered client directly
   if (registeredClient) {
     registeredClient.invalidateQueries({queryKey, refetchType: options?.refetchType})
