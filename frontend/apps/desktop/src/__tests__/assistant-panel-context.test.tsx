@@ -225,8 +225,8 @@ function pickerTrigger() {
 
 /** Clicks an entry inside the open agent dropdown (list rows can carry the same agent names). */
 function clickInPicker(text: string) {
-  const button = Array.from(document.body.querySelectorAll('[role="dialog"] button')).find((element) =>
-    element.textContent?.includes(text),
+  const button = Array.from(document.body.querySelectorAll('[role="dialog"] button')).find(
+    (element) => element.textContent?.includes(text),
   )
   click(button)
 }

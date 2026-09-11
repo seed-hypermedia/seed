@@ -94,19 +94,20 @@ reader/writer badge on their own page.
 The Agents index (`list.tsx`) is a **Recent Sessions** list: the account-wide `ListSessions` of every configured server,
 merged newest-activity-first and paged with a Load more button (`useAllAgentSessionPages` advances every server that
 still has a cursor, so the merged order never hides a newer session behind one server's page boundary). Each row is the
-shared `SessionListItem` with an agent chip; a space's published agents contribute the visitor's chats with them. With no agents at all (every server answered, none failed), the
-list and composer give way to a centered invitation to create the first agent, or to add a server when none is
-configured. The
-page title (and every agent page's title) is `AgentTitleMenu`, a dropdown of all agents that opens an agent's sessions.
-The header also holds a servers button — "Agent Server" or "N Agent Servers" — whose menu has one submenu per server
-(status, Open Server, **Accounts** and **Providers** opening `ManageAgentAccountsDialog` and `ModelProvidersDialog`) and
-a Manage Agent Servers entry to the settings list, plus Create Agent. Health reads "Checking… / Unreachable / Online",
-and the status dot is suppressed for the local server unless it is actually erroring — the local server is part of the
-app, so an "online" light on it is noise, while a failure is a real problem.
+shared `SessionListItem` with an agent chip; a space's published agents contribute the visitor's chats with them. With
+no agents at all (every server answered, none failed), the list and composer give way to a centered invitation to create
+the first agent, or to add a server when none is configured. The page title (and every agent page's title) is
+`AgentTitleMenu`, a dropdown of all agents that opens an agent's sessions. The header also holds a servers button —
+"Agent Server" or "N Agent Servers" — whose menu has one submenu per server (status, Open Server, **Accounts** and
+**Providers** opening `ManageAgentAccountsDialog` and `ModelProvidersDialog`) and a Manage Agent Servers entry to the
+settings list, plus Create Agent. Health reads "Checking… / Unreachable / Online", and the status dot is suppressed for
+the local server unless it is actually erroring — the local server is part of the app, so an "online" light on it is
+noise, while a failure is a real problem.
 
-Clicking a server opens the `agent-server` page: the same sessions feed as the index (`AgentSessionsFeed`), scoped
-to that one server, with a composer limited to that server's agents, plus Create Agent and the same two dialogs. Both it and the index render `AgentsNoAccountPage` when no account is selected, because agent servers reject
-unauthenticated requests — including the local one.
+Clicking a server opens the `agent-server` page: the same sessions feed as the index (`AgentSessionsFeed`), scoped to
+that one server, with a composer limited to that server's agents, plus Create Agent and the same two dialogs. Both it
+and the index render `AgentsNoAccountPage` when no account is selected, because agent servers reject unauthenticated
+requests — including the local one.
 
 Data refreshes through React Query polling and WebSocket invalidations; there are no manual reload controls.
 
