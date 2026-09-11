@@ -48,4 +48,4 @@ export type PartialLink = Omit<BNLink, 'content'> & {
 }
 
 export type InlineContent = StyledText | BNLink | InlineEmbed
-export type PartialInlineContent = StyledText | PartialLink
+export type PartialInlineContent = StyledText | PartialLink | InlineEmbed

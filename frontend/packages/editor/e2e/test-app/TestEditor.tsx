@@ -701,7 +701,6 @@ function RawModeApp({fixtureName}: {fixtureName: FixtureName}) {
         }),
       ],
     },
-    // @ts-expect-error
     initialContent: fixtures[fixtureName],
   })
 

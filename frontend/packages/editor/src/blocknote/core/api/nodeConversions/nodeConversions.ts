@@ -106,17 +106,8 @@ export function inlineContentToNodes(blockContent: PartialInlineContent[], schem
       nodes.push(...linkToNodes(content, schema))
     } else if (content.type === 'text') {
       nodes.push(...styledTextArrayToNodes([content], schema))
-      // @ts-expect-error
-    } else if (content.type == 'inline-embed') {
-      nodes.push(
-        // @ts-ignore
-        schema.nodes['inline-embed'].create({
-          // @ts-expect-error
-          link: content.link,
-          // @ts-expect-error inline embeds extend BlockNote inline content.
-          mentionKind: content.mentionKind,
-        }),
-      )
+    } else if (content.type === 'inline-embed') {
+      nodes.push(schema.node('inline-embed', {link: content.link, mentionKind: content.mentionKind}))
     } else {
       throw new UnreachableCaseError(content)
     }
