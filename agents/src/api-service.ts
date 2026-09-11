@@ -9174,7 +9174,10 @@ async function readIpfsObject(
   if (schemaRef) {
     try {
       const loaded = await loadSchemaRef(client, schemaRef)
-      schema = {ref: schemaRef, violations: validateOnyx(loaded.schema, withoutSchemaLink(value), '$', {}, loaded.registry)}
+      schema = {
+        ref: schemaRef,
+        violations: validateOnyx(loaded.schema, withoutSchemaLink(value), '$', {}, loaded.registry),
+      }
     } catch (error) {
       schema = {ref: schemaRef, error: (error as Error).message}
     }
@@ -9184,7 +9187,9 @@ async function readIpfsObject(
     parts.push(
       signature.ok
         ? `signed by ${signature.signer}${signature.ts ? ` at ${new Date(signature.ts).toISOString()}` : ''}`
-        : `INVALID signature (${signature.reason ?? 'unknown'})${signature.signer ? `, claimed signer ${signature.signer}` : ''}`,
+        : `INVALID signature (${signature.reason ?? 'unknown'})${
+            signature.signer ? `, claimed signer ${signature.signer}` : ''
+          }`,
     )
   } else parts.push('unsigned')
   if (schema) {
@@ -11975,7 +11980,8 @@ async function writeIpfsObject(
     }
   }
   const client = createSeedClient(context.hmServerUrl)
-  const schemaRef = typeof options.schema === 'string' && options.schema.trim() ? options.schema.trim() : blobSchemaRef(value)
+  const schemaRef =
+    typeof options.schema === 'string' && options.schema.trim() ? options.schema.trim() : blobSchemaRef(value)
   const loaded = schemaRef
     ? await loadSchemaRef(client, schemaRef).catch((error) => {
         throw new APIError(400, `Could not load schema ${schemaRef}: ${(error as Error).message}`)
@@ -12000,7 +12006,11 @@ async function writeIpfsObject(
       throw new APIError(400, 'A signed blob must be a JSON object: its own fields; the envelope is added at signing')
     }
     for (const key of ['signer', 'sig', 'ts']) {
-      if (key in value) throw new APIError(400, `The object already has "${key}": the signed envelope is filled at signing, leave it out`)
+      if (key in value)
+        throw new APIError(
+          400,
+          `The object already has "${key}": the signed envelope is filled at signing, leave it out`,
+        )
     }
     if (options.type !== undefined && typeof options.type !== 'string') {
       throw new APIError(400, 'write ipfs:// options.type must be a string (the signed blob type tag)')
@@ -12057,7 +12067,10 @@ async function writeIpfsObject(
   }
 
   if (options.type !== undefined) {
-    throw new APIError(400, 'options.type applies to signed blobs (options.sign: true); an unsigned object carries the fields you give it')
+    throw new APIError(
+      400,
+      'options.type applies to signed blobs (options.sign: true); an unsigned object carries the fields you give it',
+    )
   }
   let published: unknown = value
   if (loaded?.cid && options.link !== false && isPlainMap(value) && !('schema' in value)) {
@@ -12073,11 +12086,16 @@ async function writeIpfsObject(
     ...(schemaRef ? {schema: schemaRef} : {}),
     ...warningsOf(violations),
   }
-  if (dryRun) return {summary: `Would publish ipfs://${cid}; nothing was published.`, ...base, value: published, dryRun: true}
+  if (dryRun)
+    return {summary: `Would publish ipfs://${cid}; nothing was published.`, ...base, value: published, dryRun: true}
   await client.publish({blobs: [{cid, data}]})
   return {
     summary: `Published object ipfs://${cid}${
-      schemaRef ? (violations.length ? ` with ${violations.length} schema warning(s) against ${schemaRef}` : ` (conforms to ${schemaRef})`) : ''
+      schemaRef
+        ? violations.length
+          ? ` with ${violations.length} schema warning(s) against ${schemaRef}`
+          : ` (conforms to ${schemaRef})`
+        : ''
     }.`,
     ...base,
   }
