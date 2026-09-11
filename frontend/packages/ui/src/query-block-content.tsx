@@ -763,6 +763,7 @@ function QueryBlockCards({
           <QueryBlockCard
             item={firstItem}
             context={context}
+            banner
             navigateCards={navigateCards}
             titleLinkOnly={titleLinkOnly}
             contributorUids={itemContributors?.[firstItem.id.id]}
@@ -789,12 +790,14 @@ function QueryBlockCards({
 function QueryBlockCard({
   item,
   context,
+  banner,
   navigateCards,
   titleLinkOnly,
   contributorUids,
 }: {
   item: HMDocumentInfo
   context: QueryTableValueContext
+  banner?: boolean
   navigateCards?: boolean
   titleLinkOnly?: boolean
   contributorUids?: string[]
@@ -810,6 +813,7 @@ function QueryBlockCard({
       interactionSummary={context.interactionSummaries?.[item.id.id]}
       accountsMetadata={context.accountsMetadata}
       contributorUids={contributorUids}
+      banner={banner}
       navigate={navigateCards}
       titleLinkOnly={titleLinkOnly}
       showSummary
