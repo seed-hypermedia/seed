@@ -130,6 +130,7 @@ export function HomeSessionComposer({
         agentTools={selected.agent.definition.tools}
         focusOnMount={false}
         canInvokeTools={canWrite}
+        bordered={false}
         onSend={(message) => void handleSend(message)}
         onStop={() => {}}
       />

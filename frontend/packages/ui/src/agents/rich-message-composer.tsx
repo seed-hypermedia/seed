@@ -91,6 +91,7 @@ export function AgentRichMessageComposer({
   onToolSessionStarted,
   onSend,
   onStop,
+  bordered = true,
 }: {
   isBusy: boolean
   isStreaming: boolean
@@ -118,6 +119,8 @@ export function AgentRichMessageComposer({
   onToolSessionStarted?: (sessionId: string) => void
   onSend: (message: AgentSessionDraftMessage) => void
   onStop: () => void
+  /** Draws the composer's own top rule. Off when the container around it already draws one. */
+  bordered?: boolean
 }) {
   const [draftMarkdown, setDraftMarkdown] = useState('')
   const {CommentEditor} = getAgentsPlatform()
@@ -179,16 +182,17 @@ export function AgentRichMessageComposer({
     onSend({text: markdown, blocks: trimmedBlocks, ...(attachments.length ? {attachments} : {})})
   }
 
+  const frameClassName = bordered ? 'border-border border-t' : undefined
   if (disabledMessage) {
     return (
-      <div className="border-border border-t">
+      <div className={frameClassName}>
         <div className="text-muted-foreground px-3 py-3 text-xs">{disabledMessage}</div>
       </div>
     )
   }
 
   return (
-    <div className="border-border border-t">
+    <div className={frameClassName}>
       {attachmentUpload ? (
         <div className="px-3 pt-2">
           <div className="text-muted-foreground mb-1 flex items-center justify-between gap-2 text-[11px]">
