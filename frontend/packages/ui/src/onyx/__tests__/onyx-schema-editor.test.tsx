@@ -129,7 +129,9 @@ describe('OnyxSchemaEditor (generics and JSON mode)', () => {
   it('shows a generic schema’s type parameters and offers them as field kinds', () => {
     act(() => {
       root.render(
-        <Harness initial={{type: STRUCT, params: {Block: {ref: BLOCK}}, properties: {body: {value: {var: 'Block'}}}}} />,
+        <Harness
+          initial={{type: STRUCT, params: {Block: {ref: BLOCK}}, properties: {body: {value: {var: 'Block'}}}}}
+        />,
       )
     })
     const params = container.querySelector('[data-testid="schema-params"]')!
