@@ -402,6 +402,9 @@ function CommentBoxImpl(props: {
         const targetDoc = targetEntity.data?.type === 'document' ? targetEntity.data.document : undefined
         const targetVersion = targetDoc?.version
         const signer = getSigner(account.id.uid)
+        if (account.id.uid !== docId.uid) {
+          await subscribeContact({accountUid: account.id.uid, subjectUid: docId.uid, subscribe: 'site'})
+        }
 
         // Wrap getContent to capture block nodes before they're consumed by createComment
         let capturedBlocks: HMBlockNode[] = []
@@ -458,6 +461,7 @@ function CommentBoxImpl(props: {
       quotingRange?.end,
       quoting,
       writeRecentSigner,
+      subscribeContact,
     ],
   )
 
