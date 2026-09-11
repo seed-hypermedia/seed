@@ -20,11 +20,23 @@ import {
   getCitationsTargetId,
   orderDocumentMenuItems,
   BACK_TO_TOP_SCROLL_OFFSET,
+  getBlockCitationsPanelRoute,
 } from '../resource-page-common'
 
 describe('back to top visibility', () => {
   it('uses a 200px visibility threshold', () => {
     expect(BACK_TO_TOP_SCROLL_OFFSET).toBe(200)
+  })
+})
+
+describe('block citations panel route', () => {
+  it('opens citations scoped to the selected block', () => {
+    const docId = hmId('alice', {path: ['doc']})
+    expect(getBlockCitationsPanelRoute(docId, 'block-a')).toMatchObject({
+      key: 'activity',
+      id: docId,
+      targetBlockId: 'block-a',
+    })
   })
 })
 

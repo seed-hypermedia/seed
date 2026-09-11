@@ -740,6 +740,8 @@ export function DocumentEditor({
               editor={editor}
               isBlockReferenceable={hoverActionAlwaysReferenceable}
               getCommentCount={(blockId) => blockCitations?.[blockId]?.comments}
+              getCitationCount={(blockId) => blockCitations?.[blockId]?.citations}
+              onOpenCitations={onBlockCitationClick}
               onCopyBlockLink={fragmentActionsValue?.onCopyBlockLink}
               onStartComment={fragmentActionsValue?.onCommentOnBlock}
             />

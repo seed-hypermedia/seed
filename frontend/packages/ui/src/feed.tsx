@@ -10,7 +10,14 @@ import {DocumentRoute, NavRoute} from '@shm/shared/routes'
 import {useRouteLink, useUniversalAppContext} from '@shm/shared/routing'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {useActivityFeed} from '@shm/shared/use-activity-feed'
-import {commentIdToHmId, getCommentTargetId, getVersionHeads, hmId, latestId} from '@shm/shared/utils/entity-id-url'
+import {
+  commentIdToHmId,
+  getCommentTargetId,
+  getVersionHeads,
+  hmId,
+  latestId,
+  parseFragment,
+} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import merge from 'lodash/merge'
 import {CircleAlert, FilePen, Link, Merge, RotateCcw, Trash2, X} from 'lucide-react'
@@ -113,6 +120,26 @@ export const RESTORE_VERSION_ACTION_BUTTON_CLASS =
 /** Shared classes for version-row action icons so restore/copy actions stay readable. */
 export const RESTORE_VERSION_ACTION_ICON_CLASS = 'size-4'
 
+/** Filters a citation feed to events that target one block. */
+export function filterCitationEventsByTargetBlock(events: LoadedEvent[], targetBlockId?: string): LoadedEvent[] {
+  if (!targetBlockId) return events
+  return events.filter(
+    (event) =>
+      event.type === 'citation' &&
+      event.citationType === 'd' &&
+      parseFragment(event.targetFragment ?? null)?.blockId === targetBlockId,
+  )
+}
+
+/** Builds an event link without carrying the citations panel to a cited document. */
+export function getEventNavigationRoute(
+  currentRoute: NavRoute,
+  targetRoute: NavRoute,
+  eventType: LoadedEvent['type'],
+): NavRoute {
+  return eventType === 'citation' ? targetRoute : merge({}, currentRoute, targetRoute)
+}
+
 export function Feed({
   filterResource,
   filterAuthors,
@@ -120,6 +147,7 @@ export function Feed({
   targetDomain,
   size = 'md',
   draftVersionEntry,
+  targetBlockId,
 }: {
   size?: 'sm' | 'md'
   filterResource: HMListEventsParams['filterResource']
@@ -127,6 +155,7 @@ export function Feed({
   filterEventType?: HMListEventsParams['filterEventType']
   targetDomain?: string
   draftVersionEntry?: DraftVersionEntry
+  targetBlockId?: string
 }) {
   const observerRef = useRef<IntersectionObserver>()
   const lastElementNodeRef = useRef<HTMLDivElement>(null)
@@ -177,10 +206,11 @@ export function Feed({
   // Flatten all pages into a single array of events.
   // Agent capability grants are implementation details for devices and should
   // not appear in user-facing feeds (notably profile feeds).
-  const allEvents = (data?.pages.flatMap((page) => page.events) || []).filter((event) => {
+  const visibleEvents = (data?.pages.flatMap((page) => page.events) || []).filter((event) => {
     if (event.type !== 'capability') return true
     return event.capability.role?.toLowerCase() !== 'agent'
   })
+  const allEvents = filterCitationEventsByTargetBlock(visibleEvents, targetBlockId)
 
   // Extract unique account IDs from events and subscribe for discovery.
   // Includes authors, reply parents, contact subjects, and capability delegates
@@ -1047,7 +1077,7 @@ function EventItem({
   latestDocUpdateVersion?: string | null
 }) {
   const currentRoute = useNavRoute()
-  const linkProps = useRouteLink(route ? merge({}, currentRoute, route) : currentRoute)
+  const linkProps = useRouteLink(route ? getEventNavigationRoute(currentRoute, route, event.type) : currentRoute)
   const latestDocId = event.type === 'doc-update' ? latestId(event.docId) : null
   const latestResource = useResource(latestDocId)
   const latestDocument = latestResource.data?.type === 'document' ? latestResource.data.document : null

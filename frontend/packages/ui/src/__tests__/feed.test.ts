@@ -3,11 +3,13 @@ import {
   canShowRestoreVersionButton,
   getDraftVersionInsertIndex,
   getLatestDocUpdateVersion,
+  getEventNavigationRoute,
   isSelectedDocUpdateVersion,
   RESTORE_VERSION_ACTION_BUTTON_CLASS,
   RESTORE_VERSION_ACTION_ICON_CLASS,
   RESTORE_VERSION_DIALOG,
   shouldShowDraftVersionEntry,
+  filterCitationEventsByTargetBlock,
 } from '../feed'
 
 const draft = {
@@ -50,6 +52,32 @@ describe('draft versions feed helpers', () => {
   it('places drafts without a visible base version at the top', () => {
     expect(getDraftVersionInsertIndex([docUpdate('latest-version')], {...draft, deps: ['missing-base']})).toBe(0)
     expect(getDraftVersionInsertIndex([docUpdate('latest-version')], {...draft, deps: []})).toBe(0)
+  })
+})
+
+describe('block citation filtering', () => {
+  it('keeps only citation events targeting the selected block', () => {
+    const events = [
+      {type: 'citation', citationType: 'd', targetFragment: 'block-a'},
+      {type: 'citation', citationType: 'd', targetFragment: 'block-b[2:8]'},
+      {type: 'citation', citationType: 'c', targetFragment: 'block-b'},
+      {type: 'comment'},
+    ] as any
+
+    expect(filterCitationEventsByTargetBlock(events, 'block-b')).toEqual([events[1]])
+  })
+})
+
+describe('citation navigation', () => {
+  it('does not carry the citations panel to the cited source document', () => {
+    const currentRoute = {
+      key: 'document',
+      id: draft.docId,
+      panel: {key: 'activity', filterEventType: ['doc/Link'], targetBlockId: 'block-a'},
+    } as any
+    const targetRoute = {key: 'document', id: {...draft.docId, id: 'hm://source', uid: 'source'}} as any
+
+    expect(getEventNavigationRoute(currentRoute, targetRoute, 'citation')).toEqual(targetRoute)
   })
 })
 
