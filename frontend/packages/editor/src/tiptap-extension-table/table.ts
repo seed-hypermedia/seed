@@ -294,7 +294,6 @@ export const Table = Node.create<TableOptions>({
           if (dispatch) {
             const selection = CellSelection.create(tr.doc, position.anchorCell, position.headCell)
 
-            // @ts-ignore
             tr.setSelection(selection)
           }
 
@@ -437,7 +436,6 @@ export const Table = Node.create<TableOptions>({
               // @ts-ignore
               View: this.options.View,
               // TODO: PR for @types/prosemirror-tables
-              // @ts-ignore
               lastColumnResizable: this.options.lastColumnResizable,
             }),
           ]

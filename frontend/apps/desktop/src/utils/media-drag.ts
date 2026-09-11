@@ -48,7 +48,6 @@ type FileType = {
   type: string
 }
 
-// @ts-ignore
 export async function handleDragMedia(file: File) {
   if (file.size > MAX_FILE_SIZE_B) {
     toast.error(`The size of ${file.name} exceeds ${MAX_FILE_SIZE_MB} MB.`)

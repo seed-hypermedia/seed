@@ -46,7 +46,6 @@ export const FileBlock = createReactBlockSpec({
   // the invisible-content merge/caret traps.
   containsInlineContent: false,
   selectable: true,
-  // @ts-ignore
   render: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) =>
     Render(block, editor),
 })

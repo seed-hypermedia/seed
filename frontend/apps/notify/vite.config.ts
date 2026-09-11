@@ -1,5 +1,4 @@
 import {vitePlugin as remix} from '@remix-run/dev'
-// @ts-ignore
 import {sentryVitePlugin} from '@sentry/vite-plugin'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -7,7 +6,6 @@ import * as path from 'path'
 import {defineConfig} from 'vite'
 import tsconfigPaths from 'vite-tsconfig-paths'
 
-// @ts-ignore
 import {envOnlyMacros} from 'vite-env-only'
 
 export default defineConfig(({isSsrBuild}) => {

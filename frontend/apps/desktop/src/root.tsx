@@ -297,16 +297,13 @@ function MainApp({}: {}) {
   )
 
   // const openMarkdownFiles = () => {
-  //   // @ts-ignore
   //   return window.docImport.openMarkdownFiles()
   // }
   // const openMarkdownDirectories = () => {
-  //   // @ts-ignore
   //   return window.docImport.openMarkdownDirectories()
   // }
 
   // const readMediaFile = (filePath: string) => {
-  //   // @ts-ignore
   //   return window.docImport.readMediaFile(filePath)
   // }
 

@@ -24,7 +24,6 @@ export const loggingInterceptor: Interceptor = (next) => async (req) => {
     const duration = Date.now() - startTime
     connectionMonitor.completeRequest(requestId, true)
     log.debug(`✅ ${req.method.name} completed`, {requestId, duration})
-    // @ts-ignore
     // log.debug(`🔃 to ${req.method.name} `, req.message, result?.message)
     return result
   } catch (e: any) {

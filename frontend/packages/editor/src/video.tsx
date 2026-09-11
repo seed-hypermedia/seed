@@ -83,7 +83,6 @@ export const VideoBlock = createReactBlockSpec({
   // the invisible-content merge/caret traps.
   containsInlineContent: false,
   selectable: true,
-  // @ts-ignore
   render: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) =>
     Render(block, editor),
 
@@ -319,9 +318,7 @@ const VideoDisplay = ({editor, block, assign}: DisplayComponentProps) => {
 
   // Determine video source
   const videoSrc = (() => {
-    // @ts-ignore
     const displaySrc = block.props.displaySrc
-    // @ts-ignore
     const url = block.props.url
 
     if (displaySrc) {

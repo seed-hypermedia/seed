@@ -199,10 +199,8 @@ export const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => 
   )
 
   useEffect(() => {
-    // @ts-ignore
     const url = block.props.url
     // Skip if this is a draft media (has mediaRef), a binary URL or an IPFS URL
-    // @ts-ignore
     if (block.props.displaySrc || block.props.mediaRef || (url && url.startsWith('ipfs://'))) {
       return
     }
@@ -210,7 +208,6 @@ export const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => 
     if (url && url.startsWith('blob:')) {
       return
     }
-    // @ts-ignore
     if (url && isValidUrl(url) && editor.importWebFile) {
       // The import finishes a paste on the editor's behalf: keep it out of the undo history so
       // Cmd-Z undoes the paste that created the block rather than reverting the URL swap (which
@@ -253,11 +250,8 @@ export const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => 
   // 2. Otherwise use url if it's an IPFS URL
   // 3. Skip invalid blob URLs from old drafts
   const imageSrc = (() => {
-    // @ts-ignore
     const displaySrc = block.props.displaySrc
-    // @ts-ignore
     const url = block.props.url
-    // @ts-ignore
     let mediaRef = block.props.mediaRef
 
     // Parse mediaRef from JSON string if needed

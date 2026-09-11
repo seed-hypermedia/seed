@@ -41,7 +41,6 @@ export const NostrBlock = createReactBlockSpec({
     },
   },
   containsInlineContent: true,
-  // @ts-ignore
   render: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) =>
     Render(block, editor),
 })
@@ -149,7 +148,6 @@ function NostrComponent({
 
   return (
     <div
-      // @ts-ignore
       contentEditable={false}
       className={`flex flex-col ${block.type}`}
       onMouseEnter={(e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
@@ -350,7 +348,6 @@ function NostrForm({
   return (
     <div
       className="border-border relative flex flex-col rounded border-[2.5px] font-sans outline-none"
-      // @ts-ignore
       contentEditable={false}
     >
       <Tabs

@@ -71,7 +71,6 @@ export function HypermediaHighlight({highlightColor = DEFAULT_HIGHLIGHT_COLOR}: 
 
   // Listen for hypermedia hover events
   useEffect(() => {
-    // @ts-ignore - window.appWindowEvents might not be defined in types
     const unsubscribe = window.appWindowEvents?.subscribe((event: any) => {
       if (!styleRef.current) return
       if (typeof event === 'object') {

@@ -199,7 +199,6 @@ export function useImporting(parentId: UnpackedHypermediaId) {
   const accts = useMyAccountsWithWriteAccess(parentId)
   const navigate = useNavigate()
   const signingAccount = useMemo(() => {
-    // @ts-ignore
     return accts.length ? accts[0].data : undefined
   }, [accts])
   const createDraft = useMutation({
@@ -602,13 +601,8 @@ const ImportDocumentsWithFeedback = (
             // Find the first non-empty line index
             const firstNonEmptyLineIndex = lines.findIndex((line) => line.trim() !== '')
 
-            if (
-              firstNonEmptyLineIndex !== -1 &&
-              // @ts-ignore
-              lines[firstNonEmptyLineIndex].startsWith('# ')
-            ) {
+            if (firstNonEmptyLineIndex !== -1 && lines[firstNonEmptyLineIndex].startsWith('# ')) {
               // Extract the h1 as the title and update documentTitle
-              // @ts-ignore
               documentTitle = lines[firstNonEmptyLineIndex].replace('# ', '').trim()
 
               // Remove the h1 line from the markdown content

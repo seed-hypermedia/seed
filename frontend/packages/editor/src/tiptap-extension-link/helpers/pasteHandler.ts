@@ -185,7 +185,6 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
         const link = candidate
           ? {
               ...candidate,
-              // @ts-ignore
               href: restoreBlockRangeSuffix(candidate.href, textContent.trim()),
             }
           : null
@@ -676,7 +675,6 @@ function getPastedNodes(parent: any, editor: any): any[] {
     if (node.type.name === 'blockChildren') {
       const prevContainer = nodes.pop()
       if (prevContainer) {
-        // @ts-ignore
         const container = editor.schema.nodes['blockNode'].create(
           prevContainer.attrs,
           prevContainer.content.addToEnd(node),
@@ -686,16 +684,13 @@ function getPastedNodes(parent: any, editor: any): any[] {
     } else if (node.type.name !== 'blockNode') {
       let nodeToInsert = node
       if (node.type.name === 'text') {
-        // @ts-ignore
         nodeToInsert = editor.schema.nodes.paragraph.create({}, node)
       }
-      // @ts-ignore
       const container = editor.schema.nodes['blockNode'].create(null, nodeToInsert)
       nodes.push(container)
     } else if (node.firstChild?.type.name === 'blockChildren') {
       const prevContainer = nodes.pop()
       if (prevContainer) {
-        // @ts-ignore
         const container = editor.schema.nodes['blockNode'].create(
           prevContainer.attrs,
           prevContainer.content.addToEnd(node.firstChild!),
