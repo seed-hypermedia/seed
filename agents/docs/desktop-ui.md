@@ -80,14 +80,19 @@ bubble that opens the exact lines the model was given.
 ## Server settings and dialogs
 
 The Agents index shows an **Invites** section when the selected account has pending agent invitations, with Accept and
-Decline actions. Accepting opens the agent; accepted shared agents then appear in **All Agents** with a reader/writer
-badge.
+Decline actions. Accepting opens the agent; accepted shared agents then appear in the title's agent menu with a
+reader/writer badge on their own page.
 
-The Agents index has two sections: **Agent Servers** (agents grouped by server, each with per-server **Accounts** and
-**Providers** buttons opening `ManageAgentAccountsDialog` and `ModelProvidersDialog`) and **All Agents**, the aggregated
-list across servers with Create Agent. Health reads "Checking… / Offline / Online", and the status dot is suppressed for
-the local server unless it is actually erroring (`list.tsx:83`) — the local server is part of the app, so an "online"
-light on it is noise, while a failure is a real problem.
+The Agents index (`list.tsx`) is a **Recent Sessions** list: the account-wide `ListSessions` of every configured server,
+merged newest-activity-first and paged with a Load more button (`useAllAgentSessionPages` advances every server that
+still has a cursor, so the merged order never hides a newer session behind one server's page boundary). Each row is the
+shared `SessionListItem` with an agent chip; a space's published agents contribute the visitor's chats with them. The
+page title (and every agent page's title) is `AgentTitleMenu`, a dropdown of all agents that opens an agent's sessions.
+The header also holds a servers button — "Agent Server" or "N Agent Servers" — whose menu has one submenu per server
+(status, Open Server, **Accounts** and **Providers** opening `ManageAgentAccountsDialog` and `ModelProvidersDialog`) and
+a Manage Agent Servers entry to the settings list, plus Create Agent. Health reads "Checking… / Unreachable / Online",
+and the status dot is suppressed for the local server unless it is actually erroring — the local server is part of the
+app, so an "online" light on it is noise, while a failure is a real problem.
 
 Clicking a server opens the `agent-server` page, a thin route that lists that server's agents and exposes the same two
 dialogs. Both it and the index render `AgentsNoAccountPage` when no account is selected, because agent servers reject

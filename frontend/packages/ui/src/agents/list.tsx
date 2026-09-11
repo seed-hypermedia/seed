@@ -7,6 +7,7 @@ import {
   useAgentInviteLists,
   useAgentLists,
   useAgentServerHealths,
+  useAllAgentSessionPages,
   useDeclineAgentInvite,
   useAgentServerUrls,
   useAgentWebSocketSubscription,
@@ -14,7 +15,7 @@ import {
   useSpaceAgents,
 } from './models'
 import {useSelectedAccountId} from './account'
-import {useNavigate} from './navigation'
+import {useClickNavigate, useNavigate} from './navigation'
 import {hostnameStripProtocol} from '@shm/shared'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {Button} from '@shm/ui/button'
@@ -43,6 +44,7 @@ import {AgentsNoAccountPage} from './no-account'
 import {getAgentsPlatform} from './platform'
 import {AgentServersDialog} from './server-settings'
 import {AgentTitleMenu} from './agent-title-menu'
+import {SessionListItem} from './session-list-item'
 
 function AgentsListPage() {
   const selectedAccountId = useSelectedAccountId()
@@ -57,6 +59,7 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
   // mentionable and openable elsewhere in the app.
   useAgentAccountsSync()
   const navigate = useNavigate()
+  const clickNavigate = useClickNavigate()
   const serverUrlsQuery = useAgentServerUrls()
   const serverUrls = serverUrlsQuery.data || []
   const localServerUrl = useLocalAgentServerUrl()
@@ -95,24 +98,28 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
       ),
     [agents, spaceAgents.agents],
   )
-  const isLoadingAgents = agentQueries.some((query) => query.isFetching && !query.data)
+  // The page's body: the account's sessions across every server, newest activity first. A space's
+  // published agents contribute the visitor's chats with them, exactly as the sidebar merges them.
+  const sessionPages = useAllAgentSessionPages(serverUrls, selectedAccountId)
+  const sessions = useMemo(() => {
+    const seen = new Set(sessionPages.entries.map((entry) => `${entry.serverUrl}:${entry.session.id}`))
+    const extra = spaceAgents.sessions.filter((entry) => !seen.has(`${entry.serverUrl}:${entry.session.id}`))
+    return extra.length
+      ? [...sessionPages.entries, ...extra].sort((a, b) => b.session.updatedAt - a.session.updatedAt)
+      : sessionPages.entries
+  }, [sessionPages.entries, spaceAgents.sessions])
+  const isLoadingSessions = sessionPages.isLoading || (spaceAgents.isLoading && !sessions.length)
   // One notice per failing server, named, so a single unreachable server reads as exactly that
-  // and never as "agents are broken": the other servers' agents are still listed below.
-  const serverProblems = serverUrls.flatMap((serverUrl, index) => {
-    const query = agentQueries[index]
-    if (!query?.isError) return []
-    return [
-      {
-        serverUrl,
-        notice: describeAgentError(query.error, {
-          failed: 'Couldn’t load agents',
-          serverLabel: describeAgentServer(serverUrl, localServerUrl.data),
-        }),
-        refetch: () => void query.refetch(),
-        isFetching: query.isFetching,
-      },
-    ]
-  })
+  // and never as "agents are broken": the other servers' sessions are still listed below.
+  const serverProblems = sessionPages.serverErrors.map((problem) => ({
+    serverUrl: problem.serverUrl,
+    notice: describeAgentError(problem.error, {
+      failed: 'Couldn’t load sessions',
+      serverLabel: describeAgentServer(problem.serverUrl, localServerUrl.data),
+    }),
+    refetch: problem.refetch,
+    isFetching: problem.isFetching,
+  }))
   const createAgentDisabledReason = !serverUrls.length ? 'Configure an agent server before creating an agent.' : null
 
   return (
@@ -265,7 +272,8 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
         ) : null}
 
         <section className="flex flex-col gap-3">
-          {isLoadingAgents ? <SizableText color="muted">Loading agents…</SizableText> : null}
+          <SizableText weight="bold">Recent Sessions</SizableText>
+          {isLoadingSessions ? <SizableText color="muted">Loading sessions…</SizableText> : null}
           {serverProblems.map((problem) => (
             <Notice
               key={problem.serverUrl}
@@ -277,22 +285,52 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
               {problem.notice.detail}
             </Notice>
           ))}
-          {!isLoadingAgents && !agents.length && !serverProblems.length ? (
-            <SizableText color="muted">No agents yet.</SizableText>
+          {!isLoadingSessions && !sessions.length && !serverProblems.length ? (
+            <SizableText color="muted">
+              {serverUrls.length ? 'No sessions yet. Pick an agent from the title to start one.' : 'No sessions yet.'}
+            </SizableText>
           ) : null}
-          <div className="flex flex-col gap-2">
-            {agents.map((agent) => (
-              <AgentListRow
-                key={`${agent.serverUrl}:${agent.id}`}
-                agentId={agent.id}
-                name={agent.definition.name}
-                status={agent.status}
-                serverUrl={agent.serverUrl}
-                accessRole={agent.accessRole}
-                activity={agent.activity}
+          <div className="flex flex-col gap-1">
+            {sessions.map(({serverUrl, session, agent}) => (
+              <SessionListItem
+                key={`${serverUrl}:${session.id}`}
+                session={session}
+                serverUrl={serverUrl}
+                accountUid={selectedAccountId}
+                agentName={agent?.definition.name || session.agentId}
+                onOpen={(event) =>
+                  clickNavigate(
+                    {key: 'agent-session', agentId: session.agentId, sessionId: session.id, serverUrl},
+                    event,
+                  )
+                }
+                onOpenSession={(child, event) =>
+                  clickNavigate({key: 'agent-session', agentId: child.agentId, sessionId: child.id, serverUrl}, event)
+                }
+                onOpenTrigger={() =>
+                  session.startedByTrigger
+                    ? navigate({
+                        key: 'agent',
+                        agentId: session.agentId,
+                        serverUrl,
+                        tab: 'triggers',
+                        triggerId: session.startedByTrigger.triggerId,
+                      })
+                    : undefined
+                }
               />
             ))}
           </div>
+          {sessionPages.hasNextPage ? (
+            <Button
+              className="w-full"
+              variant="outline"
+              disabled={sessionPages.isFetchingNextPage}
+              onClick={() => sessionPages.fetchNextPage()}
+            >
+              {sessionPages.isFetchingNextPage ? 'Loading…' : 'Load more'}
+            </Button>
+          ) : null}
         </section>
       </Container>
     </PanelContainer>
