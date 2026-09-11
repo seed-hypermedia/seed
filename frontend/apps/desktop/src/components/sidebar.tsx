@@ -47,7 +47,7 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
-import {ArrowDown, ArrowUp, Bot, ChevronDown, ChevronRight, LayoutList, MoreHorizontal, Settings} from 'lucide-react'
+import {ArrowDown, ArrowUp, ChevronDown, ChevronRight, LayoutList, MoreHorizontal, Settings} from 'lucide-react'
 import React, {memo} from 'react'
 import {CreateDocumentButton} from './create-doc-button'
 import {isSiteDocumentsActiveRoute} from './sidebar-active'
@@ -94,17 +94,6 @@ export function MainAppSidebar() {
           </SidebarMenu>
           <SidebarSeparator />
           <SidebarMenu className="py-4">
-            <SidebarMenuItem>
-              <SmallListItem
-                active={route.key == 'agents'}
-                onClick={() => {
-                  navigate({key: 'agents'})
-                }}
-                icon={<Bot className="size-4" />}
-                title="Agents"
-                bold
-              />
-            </SidebarMenuItem>
             <SidebarMenuItem>
               <DocumentMaintenanceTrigger />
             </SidebarMenuItem>

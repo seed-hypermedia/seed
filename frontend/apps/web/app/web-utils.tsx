@@ -46,6 +46,7 @@ import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
 import {
   Bell,
+  Bot,
   ExternalLink,
   FilePlus2,
   Globe,
@@ -378,6 +379,16 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
         <User className="size-5" />
         <span className="text-sm">My Profile</span>
       </button>
+      <button
+        className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
+        onClick={() => {
+          navigate({key: 'agents'})
+          setMobileMenuOpen(false)
+        }}
+      >
+        <Bot className="size-5" />
+        <span className="text-sm">Agents</span>
+      </button>
       <div className="bg-border mx-4 h-px" />
       <button
         className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left disabled:opacity-50"
@@ -509,6 +520,10 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
               >
                 <User className="size-4" />
                 My Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate({key: 'agents'})}>
+                <Bot className="size-4" />
+                Agents
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => {
