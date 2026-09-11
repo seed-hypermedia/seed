@@ -67,6 +67,14 @@ key (`local-assistant-bootstrap-v1`) so two windows racing on first launch dedup
 respected rather than undone on next launch. Its callable grant is search only; the verbs cover reading and memory, and
 with no signing key `hm://` publishing stays blocked.
 
+The panel is the Agents page in a column. The dropdown at the top filters the chat list to one agent or to **All
+agents** (the default; web persists the filter beside the open chat). The list is the shared `AgentSessionsFeed` in
+`compact` mode, with unread and working marks per chat, and the shared `NewSessionComposer` below it, fixed to the
+filtered agent or with its own agent picker under All agents. Opening a chat, whether from the list, by sending a first
+message, or through the unread jump when the panel opens, replaces the list. The chat's header has a back button to the
+same filtered list and scroll position, plus Open, Copy URL and Delete. `resolveAssistantSelection`
+(`assistant-selection.ts`) keeps a restored chat open until its server refuses it.
+
 The panel runs the same components as the full session page in `compact` mode — `ChatMessageBubble` /
 `AssistantMessageParts` / `AgentErrorRow` from the shared renderer, `buildAgentSessionChatRows` + `frozenRunIds` from
 the same row model, and `SessionRunCard` / `RunRecordCard` from `pages/agents/run-card`. It does **not** mount the
@@ -80,18 +88,26 @@ bubble that opens the exact lines the model was given.
 ## Server settings and dialogs
 
 The Agents index shows an **Invites** section when the selected account has pending agent invitations, with Accept and
-Decline actions. Accepting opens the agent; accepted shared agents then appear in **All Agents** with a reader/writer
-badge.
+Decline actions. Accepting opens the agent; accepted shared agents then appear in the title's agent menu with a
+reader/writer badge on their own page.
 
-The Agents index has two sections: **Agent Servers** (agents grouped by server, each with per-server **Accounts** and
-**Providers** buttons opening `ManageAgentAccountsDialog` and `ModelProvidersDialog`) and **All Agents**, the aggregated
-list across servers with Create Agent. Health reads "Checking… / Offline / Online", and the status dot is suppressed for
-the local server unless it is actually erroring (`list.tsx:83`) — the local server is part of the app, so an "online"
-light on it is noise, while a failure is a real problem.
+The Agents index (`list.tsx`) is a **Recent Sessions** list: the account-wide `ListSessions` of every configured server,
+merged newest-activity-first and paged with a Load more button (`useAllAgentSessionPages` advances every server that
+still has a cursor, so the merged order never hides a newer session behind one server's page boundary). Each row is the
+shared `SessionListItem` with an agent chip; a space's published agents contribute the visitor's chats with them. With
+no agents at all (every server answered, none failed), the list and composer give way to a centered invitation to create
+the first agent, or to add a server when none is configured. The page title (and every agent page's title) is
+`AgentTitleMenu`, a dropdown of all agents that opens an agent's sessions. The header also holds a servers button —
+"Agent Server" or "N Agent Servers" — whose menu has one submenu per server (status, Open Server, **Accounts** and
+**Providers** opening `ManageAgentAccountsDialog` and `ModelProvidersDialog`) and a Manage Agent Servers entry to the
+settings list, plus Create Agent. Health reads "Checking… / Unreachable / Online", and the status dot is suppressed for
+the local server unless it is actually erroring — the local server is part of the app, so an "online" light on it is
+noise, while a failure is a real problem.
 
-Clicking a server opens the `agent-server` page, a thin route that lists that server's agents and exposes the same two
-dialogs. Both it and the index render `AgentsNoAccountPage` when no account is selected, because agent servers reject
-unauthenticated requests — including the local one.
+Clicking a server opens the `agent-server` page: the same sessions feed as the index (`AgentSessionsFeed`), scoped to
+that one server, with a composer limited to that server's agents, plus Create Agent and the same two dialogs. Both it
+and the index render `AgentsNoAccountPage` when no account is selected, because agent servers reject unauthenticated
+requests — including the local one.
 
 Data refreshes through React Query polling and WebSocket invalidations; there are no manual reload controls.
 

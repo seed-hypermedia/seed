@@ -13,6 +13,8 @@ const mockState = vi.hoisted(() => ({
   localServerUrl: 'http://localhost:3051' as string | null,
   healths: [] as Array<{isLoading: boolean; isError: boolean; data?: {uptime: number}}>,
   selectedAccountId: 'account-1' as string | null,
+  agents: [] as Array<Record<string, unknown>>,
+  agentListsLoading: false,
   accountIds: ['account-1'] as string[],
   invites: [] as Array<{
     agentId: string
@@ -31,8 +33,21 @@ vi.mock('@shm/ui/agents/models', () => ({
   useAgentServerUrls: () => ({data: mockState.serverUrls}),
   useLocalAgentServerUrl: () => ({data: mockState.localServerUrl}),
   useAgentServerHealths: () => mockState.healths,
-  useAgentLists: () => mockState.serverUrls.map(() => ({data: [], isFetching: false, isError: false})),
-  useSpaceAgents: () => ({agents: [], isLoading: false}),
+  useAgentLists: () =>
+    mockState.serverUrls.map((_, index) => ({
+      data: mockState.agentListsLoading ? undefined : index === 1 ? mockState.agents : [],
+      isFetching: mockState.agentListsLoading,
+      isError: false,
+    })),
+  useSpaceAgents: () => ({agents: [], sessions: [], isLoading: false}),
+  useAllAgentSessionPages: () => ({
+    entries: [],
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage: vi.fn(),
+    isLoading: false,
+    serverErrors: [],
+  }),
   useAgentInviteLists: () =>
     mockState.serverUrls.map((_, index) => ({
       data: index === 0 ? mockState.invites : [],
@@ -40,6 +55,11 @@ vi.mock('@shm/ui/agents/models', () => ({
       isError: false,
     })),
   useAcceptAgentInvite: () => ({isLoading: false, mutate: vi.fn()}),
+  useCreateAgentSessionOnServer: () => ({isLoading: false, mutateAsync: vi.fn()}),
+  useMessageAgentSession: () => ({isLoading: false, mutate: vi.fn()}),
+  addOptimisticSessionToCaches: vi.fn(),
+  addOptimisticSessionMessage: vi.fn(),
+  describeAgentServer: (serverUrl: string) => serverUrl,
   useDeclineAgentInvite: () => ({isLoading: false, mutate: vi.fn()}),
   useAgentWebSocketSubscription: () => ({text: ''}),
   useAgentAccountsSync: () => {},
@@ -67,6 +87,13 @@ vi.mock('@shm/ui/agents/platform', () => ({
 }))
 vi.mock('@/trpc', () => ({client: {}}))
 vi.mock('@/grpc-client', () => ({grpcClient: {}}))
+// The composer's editor comes from the platform adapter, which this test does not register.
+vi.mock('@shm/ui/agents/rich-message-composer', () => ({AgentRichMessageComposer: () => null}))
+vi.mock('@shm/ui/agents/header', () => ({SessionModelBadge: () => null}))
+vi.mock('@shm/ui/agents/session-provider-gate', () => ({
+  SessionProviderGate: () => null,
+  useMissingSessionProvider: () => null,
+}))
 vi.mock('@shm/ui/agents/dialogs', () => ({
   CreateAgentDialog: () => null,
   ManageAgentAccountsDialog: () => null,
@@ -80,6 +107,22 @@ vi.mock('@shm/ui/universal-dialog', () => ({
 vi.mock('@shm/ui/tooltip', () => ({
   Tooltip: ({children}: {children: React.ReactNode}) => children,
 }))
+// The servers live in a dropdown whose Radix content only mounts once opened (and needs layout
+// APIs jsdom lacks). Render every part inline so the tests can inspect what the menu presents.
+vi.mock('@shm/ui/components/dropdown-menu', () => {
+  const Inline = ({children, asChild: _asChild, ...props}: any) => <div {...props}>{children}</div>
+  return {
+    DropdownMenu: Inline,
+    DropdownMenuTrigger: Inline,
+    DropdownMenuContent: Inline,
+    DropdownMenuItem: Inline,
+    DropdownMenuLabel: Inline,
+    DropdownMenuSeparator: () => null,
+    DropdownMenuSub: Inline,
+    DropdownMenuSubContent: Inline,
+    DropdownMenuSubTrigger: Inline,
+  }
+})
 vi.mock('@shm/shared/utils/navigation', () => {
   const React = require('react')
   const NavContext = React.createContext(null)
@@ -98,7 +141,7 @@ vi.mock('@shm/shared/utils/navigation', () => {
   }
 })
 
-import AgentsListPage from '@shm/ui/agents/list'
+import AgentsListPage, {describeAgentServerCount} from '@shm/ui/agents/list'
 
 function renderList() {
   const container = document.createElement('div')
@@ -134,10 +177,49 @@ describe('agents list — local server presentation', () => {
     mockState.selectedAccountId = 'account-1'
     mockState.accountIds = ['account-1']
     mockState.invites = []
+    mockState.agents = []
+    mockState.agentListsLoading = false
   })
 
   afterEach(() => {
     document.body.innerHTML = ''
+  })
+
+  it('invites you to create a first agent, skipping the sessions and composer, when there are none', () => {
+    const {container, root} = renderList()
+
+    expect(container.textContent).toContain('Create your first agent')
+    expect(container.textContent).not.toContain('No sessions yet')
+    // The composer's own no-agents line would show if it were mounted.
+    expect(container.textContent).not.toContain('Create an agent to start a session.')
+
+    cleanupRendered(root, container)
+  })
+
+  it('lists sessions with the composer, not the invitation, once an agent exists', () => {
+    mockState.agents = [
+      {
+        id: 'agent-1',
+        status: 'idle',
+        accessRole: 'owner',
+        definition: {name: 'Helper', modelProvider: 'openai', model: 'gpt'},
+      },
+    ]
+    const {container, root} = renderList()
+
+    expect(container.textContent).not.toContain('Create your first agent')
+    expect(container.textContent).toContain('No sessions yet')
+
+    cleanupRendered(root, container)
+  })
+
+  it('does not flash the invitation while agent lists are loading', () => {
+    mockState.agentListsLoading = true
+    const {container, root} = renderList()
+
+    expect(container.textContent).not.toContain('Create your first agent')
+
+    cleanupRendered(root, container)
   })
 
   it('shows pending agent invitations with their role and actions', () => {
@@ -160,6 +242,24 @@ describe('agents list — local server presentation', () => {
     expect(container.textContent).toContain('Decline')
 
     cleanupRendered(root, container)
+  })
+
+  it('labels the servers menu with the count, singular when there is one', () => {
+    const {container, root} = renderList()
+    expect(container.textContent).toContain('2 Agent Servers')
+    expect(container.textContent).toContain('Manage Agent Servers')
+    cleanupRendered(root, container)
+
+    mockState.serverUrls = ['https://agentic.seed.hyper.media']
+    mockState.localServerUrl = null
+    mockState.healths = [{isLoading: false, isError: false, data: {uptime: 60}}]
+    const single = renderList()
+    expect(single.container.textContent).toContain('Agent Server')
+    expect(single.container.textContent).not.toContain('1 Agent Server')
+    expect(describeAgentServerCount(1)).toBe('Agent Server')
+    expect(describeAgentServerCount(3)).toBe('3 Agent Servers')
+    expect(describeAgentServerCount(0)).toBe('No Agent Servers')
+    cleanupRendered(single.root, single.container)
   })
 
   it('names the local server instead of showing its URL', () => {
@@ -240,7 +340,7 @@ describe('agents list — no active account', () => {
     expect(container.textContent).toContain('Sign in or create an account')
     expect(container.textContent).not.toContain('Local Agents')
     expect(container.textContent).not.toContain('agentic.seed.hyper.media')
-    expect(container.textContent).not.toContain('Agent Servers')
+    expect(container.textContent).not.toContain('Agent Server')
 
     cleanupRendered(root, container)
   })

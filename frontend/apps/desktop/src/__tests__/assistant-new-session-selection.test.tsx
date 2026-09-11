@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 /**
- * Regression: creating a chat from the sidebar draft must land in the NEW session.
+ * Regression: a chat started from the sidebar's composer must open as the NEW session, with its
+ * agent known at once.
  *
- * `CreateSession` returns only an id. Before the optimistic cache seed existed, the selection
- * resolver could not attribute the just-created session to its agent (the session lists were
- * still stale and the session's own fetch had not landed), so with an explicitly chosen agent it
- * fell back to that agent's newest OLD session — and the panel's sync-back effect then persisted
- * the wrong selection. These tests drive the same inputs the panel derives from the caches.
+ * `CreateSession` returns only an id. The optimistic seed (a list entry and an empty GetSession
+ * answer) lets the selection resolver name the new chat's agent before the lists refetch, so the
+ * panel's header and the composer's next default follow the right agent. These tests drive the same
+ * inputs the panel derives from the caches.
  */
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 
@@ -62,7 +62,6 @@ function resolveFromCaches(newSessionId: string) {
     chosenAgent: {serverUrl: SERVER, agentId: AGENT_ID},
     storedSession: {serverUrl: SERVER, sessionId: newSessionId},
     storedSessionAgentId: detail?.session.agentId,
-    isDraft: false,
   })
 }
 
@@ -71,26 +70,28 @@ describe('sidebar new-chat selection after CreateSession', () => {
     queryClient.clear()
   })
 
-  it('without the seed, a stale list cannot name the new session’s agent, so the resolver holds it until its fetch does', () => {
+  it('without the seed, the new chat stays open but its agent is unknown until its own fetch lands', () => {
     queryClient.setQueryData(listKey, [{serverUrl: SERVER, session: session('s-old', 100)}])
-    // Undetermined, not dropped: dropping here sent the panel to a draft while the lists loaded.
-    expect(resolveFromCaches('s-new').session).toEqual({serverUrl: SERVER, sessionId: 's-new'})
-    // Once its own fetch names another agent, it no longer belongs in this context.
-    queryClient.setQueryData(sessionKey('s-new'), {session: {...session('s-new', 200), agentId: 'someone-else'}})
-    expect(resolveFromCaches('s-new').session).toBeNull()
+    const before = resolveFromCaches('s-new')
+    expect(before.session).toEqual({serverUrl: SERVER, sessionId: 's-new'})
+    expect(before.sessionAgent).toBeNull()
+    queryClient.setQueryData(sessionKey('s-new'), {session: session('s-new', 200)})
+    expect(resolveFromCaches('s-new').sessionAgent?.agent.id).toBe(AGENT_ID)
   })
 
-  it('the seed makes the resolver keep the just-created session over a stale list', () => {
+  it("the seed names the just-created chat's agent over a stale list", () => {
     queryClient.setQueryData(listKey, [{serverUrl: SERVER, session: session('s-old', 100)}])
     addOptimisticSessionToCaches(SERVER, ACCOUNT, session('s-new', 200))
-    expect(resolveFromCaches('s-new').session).toEqual({serverUrl: SERVER, sessionId: 's-new'})
+    const result = resolveFromCaches('s-new')
+    expect(result.session).toEqual({serverUrl: SERVER, sessionId: 's-new'})
+    expect(result.sessionAgent?.agent.id).toBe(AGENT_ID)
   })
 
   it('keeps attribution through the detail seed even if a stale list refetch drops the entry', () => {
     addOptimisticSessionToCaches(SERVER, ACCOUNT, session('s-new', 200))
     // A ListSessions response that raced the creation lands afterwards, without the new session.
     queryClient.setQueryData(listKey, [{serverUrl: SERVER, session: session('s-old', 100)}])
-    expect(resolveFromCaches('s-new').session).toEqual({serverUrl: SERVER, sessionId: 's-new'})
+    expect(resolveFromCaches('s-new').sessionAgent?.agent.id).toBe(AGENT_ID)
   })
 
   it('lets the optimistic first message attach to the seeded session', () => {

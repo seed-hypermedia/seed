@@ -177,6 +177,12 @@ type AgentSessionsPage = {sessions: SessionInfo[]; nextCursor?: SessionListCurso
 const AGENT_SESSIONS_PAGE_SIZE = 50
 
 /**
+ * Sessions per server per page of the home list. Small, because the page asks every server at once
+ * and scrolls in the rest well before the reader reaches the end (see useLoadMoreSentinel).
+ */
+const HOME_SESSIONS_PAGE_SIZE = 20
+
+/**
  * Applies `fn` to the session rows of a cached per-agent list, whichever shape it is: the paginated
  * detail list (`{pages: [{sessions}]}`) or the sidebar's single page (`{sessions}`). Anything else
  * (the flat cross-server sidebar list, an unrelated query under the same prefix) is left alone.
@@ -2581,6 +2587,122 @@ export function useAllAgentSessions(serverUrls: string[] | undefined, accountUid
   }
 }
 
+/** One page of the account-wide list on one server: a cursor of `undefined` is that server's first page. */
+type AllSessionsPageRef = {serverUrl: string; cursor?: SessionListCursor}
+
+/**
+ * The account's sessions across every configured server, paged, merged newest-first: the Agents
+ * home page. Each server is queried with the account-wide `ListSessions` (top level only; rows nest
+ * their children), and "load more" advances every server that still has a `nextCursor`, so the
+ * merged order stays honest — a page boundary on one server never hides a newer session on
+ * another. Pages are separate queries under the per-server sessions prefix, so the WebSocket
+ * invalidations that keep the sidebar current refetch these too; rows are de-duplicated by id
+ * because a refetch can shift a session across a page boundary.
+ */
+export function useAllAgentSessionPages(serverUrls: string[] | undefined, accountUid: string | null | undefined) {
+  const [extraPages, setExtraPages] = useState<AllSessionsPageRef[]>([])
+  // A different account or server set starts over: cursors from the old list mean nothing here.
+  const scope = `${accountUid ?? ''}|${(serverUrls || []).join(' ')}`
+  const scopeRef = useRef(scope)
+  if (scopeRef.current !== scope) {
+    scopeRef.current = scope
+    if (extraPages.length) setExtraPages([])
+  }
+  const pageRefs = useMemo<AllSessionsPageRef[]>(
+    () => [
+      ...(serverUrls || []).map((serverUrl) => ({serverUrl})),
+      ...extraPages.filter((page) => (serverUrls || []).includes(page.serverUrl)),
+    ],
+    [serverUrls, extraPages],
+  )
+  const queries = useQueries({
+    queries: pageRefs.map(({serverUrl, cursor}) => ({
+      queryKey: ['agents', 'sessions', serverUrl, accountUid, 'all', cursor ?? 'first'],
+      queryFn: async (): Promise<{entries: AgentSessionListEntry[]; nextCursor?: SessionListCursor}> => {
+        if (!accountUid) return {entries: []}
+        const res = await sendAgentAction({
+          serverUrl,
+          accountUid,
+          action: {
+            _: 'ListSessions',
+            includeChildren: false,
+            limit: HOME_SESSIONS_PAGE_SIZE,
+            ...(cursor ? {cursor} : {}),
+          },
+        })
+        if (res._ !== 'ListSessionsResponse') throw new Error('Unexpected ListSessions response')
+        const agentsById = new Map(res.agents.map((agent) => [agent.id, agent]))
+        return {
+          entries: res.sessions
+            .filter((session) => !session.parentSessionId)
+            .map((session) => ({serverUrl, session, agent: agentsById.get(session.agentId)})),
+          nextCursor: res.nextCursor,
+        }
+      },
+      enabled: !!accountUid,
+      retry: false,
+      useErrorBoundary: false,
+      // A membership list: sessions the runtime created while this page was away must show when
+      // it comes back, even on the web client, whose defaults never refetch on mount.
+      refetchOnMount: true,
+    })),
+  })
+
+  const entries = useMemo(() => {
+    const seen = new Set<string>()
+    const merged: AgentSessionListEntry[] = []
+    queries.forEach((query) => {
+      for (const entry of query.data?.entries ?? []) {
+        const key = `${entry.serverUrl}:${entry.session.id}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        merged.push(entry)
+      }
+    })
+    return merged.sort((a, b) => b.session.updatedAt - a.session.updatedAt)
+  }, [queries])
+
+  // The frontier: for each server, the cursor its last loaded page handed back, if any.
+  const nextByServer = new Map<string, SessionListCursor>()
+  pageRefs.forEach((page, index) => {
+    const next = queries[index]?.data?.nextCursor
+    if (next) nextByServer.set(page.serverUrl, next)
+    else if (queries[index]?.data) nextByServer.delete(page.serverUrl)
+  })
+  const hasNextPage = nextByServer.size > 0
+  const isFetchingNextPage = extraPages.some((_page, index) => {
+    const query = queries[(serverUrls || []).length + index]
+    return !!query && query.isLoading
+  })
+  const fetchNextPage = () => {
+    if (!nextByServer.size) return
+    setExtraPages((current) => {
+      const additions = Array.from(nextByServer.entries())
+        .filter(
+          ([serverUrl, cursor]) => !current.some((page) => page.serverUrl === serverUrl && page.cursor === cursor),
+        )
+        .map(([serverUrl, cursor]) => ({serverUrl, cursor}))
+      return additions.length ? [...current, ...additions] : current
+    })
+  }
+
+  const firstPages = queries.slice(0, (serverUrls || []).length)
+  return {
+    entries,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    // Loading only while nothing has arrived yet, so one slow server does not blank the list.
+    isLoading: firstPages.length > 0 && firstPages.every((query) => query.isLoading),
+    /** One entry per server whose first page failed, so the page can name it without hiding the rest. */
+    serverErrors: (serverUrls || []).flatMap((serverUrl, index) => {
+      const query = firstPages[index]
+      if (!query?.isError) return []
+      return [{serverUrl, error: query.error, refetch: () => void query.refetch(), isFetching: query.isFetching}]
+    }),
+  }
+}
+
 /**
  * Lists the sub-sessions spawned under one parent session.
  *
@@ -3432,6 +3554,12 @@ export function removeOptimisticSessionFromLists(serverUrl: string, accountUid: 
   // useSpaceAgents) live under the same prefix in their own shapes; they must forget it too.
   getQueryClient().setQueriesData({queryKey: ['agents', 'sessions', serverUrl, accountUid]}, (old: any) =>
     patchSessionPages(old, (sessions) => sessions.filter((session) => session.id !== sessionId)),
+  )
+  // So does the paged cross-server feed (useAllAgentSessionPages), which keeps entries per page.
+  getQueryClient().setQueriesData({queryKey: ['agents', 'sessions', serverUrl, accountUid]}, (old: any) =>
+    old && Array.isArray(old.entries)
+      ? {...old, entries: old.entries.filter((entry: AgentSessionListEntry) => entry.session.id !== sessionId)}
+      : old,
   )
 }
 

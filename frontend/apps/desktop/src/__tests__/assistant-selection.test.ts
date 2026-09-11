@@ -8,11 +8,12 @@ import {
 } from '@shm/ui/agents/assistant-selection'
 
 /**
- * Selection rules for the agent-scoped assistant sidebar.
+ * Selection rules for the assistant sidebar, which mirrors the Agents page: a filter (one agent or
+ * all of them) over the chat list, and an open chat that replaces the list until the user goes back.
  *
- * The regressions these guard: landing in another agent's transcript after switching contexts,
- * tearing down a restored session before its metadata loads (UI flash on every launch), and
- * re-selecting whatever the stale list says after the active session was deleted.
+ * The regressions these guard: tearing down a restored chat before its metadata loads (a flash on
+ * every launch, and the wrong chat written back as remembered), treating a remembered agent that is
+ * still loading as "all agents", and keeping a chat the server has refused.
  */
 
 const agent = (serverUrl: string, id: string, name: string): AssistantAgentOption =>
@@ -38,175 +39,130 @@ const sessions = [
   sessionEntry(REMOTE, 's-r1', 'researcher', 100),
 ]
 
-const base = {agents, sessions, chosenAgent: null, storedSession: null, isDraft: false}
+const base = {agents, sessions, chosenAgent: null, storedSession: null}
 
 describe('resolveAssistantSelection', () => {
-  it('defaults to the first agent (local server first) as a draft, with its sessions listed', () => {
-    // Nothing remembered means a new chat, never whichever chat happens to be newest — for a
-    // public agent that is somebody else's conversation.
+  it('lists every agent by default, with no chat open', () => {
+    // Nothing remembered means the list, never whichever chat happens to be newest — for a public
+    // agent that is somebody else's conversation.
     const result = resolveAssistantSelection(base)
-    expect(result.agent?.agent.id).toBe('assistant')
+    expect(result.filterAgent).toBeNull()
+    expect(result.filterPending).toBe(false)
     expect(result.session).toBeNull()
-    expect(result.agentSessions.map((entry) => entry.session.id)).toEqual(['s-a2', 's-a1'])
+    expect(result.sessionAgent).toBeNull()
   })
 
-  it('restores the stored session and enters its agent context', () => {
+  it('filters to the chosen agent', () => {
+    const result = resolveAssistantSelection({...base, chosenAgent: {serverUrl: REMOTE, agentId: 'researcher'}})
+    expect(result.filterAgent?.agent.id).toBe('researcher')
+    expect(result.session).toBeNull()
+  })
+
+  it('restores the stored chat and names its agent', () => {
     const result = resolveAssistantSelection({...base, storedSession: {serverUrl: REMOTE, sessionId: 's-r1'}})
-    expect(result.agent?.agent.id).toBe('researcher')
     expect(result.session).toEqual({serverUrl: REMOTE, sessionId: 's-r1'})
+    expect(result.sessionAgent?.agent.id).toBe('researcher')
+    expect(result.filterAgent).toBeNull()
   })
 
-  it('lets an explicit agent choice override the stored session, landing on a draft with that agent', () => {
+  it('keeps a chat open whatever the filter, since back returns to the filtered list', () => {
     const result = resolveAssistantSelection({
       ...base,
-      storedSession: {serverUrl: LOCAL, sessionId: 's-a1'},
-      chosenAgent: {serverUrl: REMOTE, agentId: 'researcher'},
+      chosenAgent: {serverUrl: LOCAL, agentId: 'assistant'},
+      storedSession: {serverUrl: REMOTE, sessionId: 's-r1'},
     })
-    expect(result.agent?.agent.id).toBe('researcher')
-    // Keeping s-a1 here would show one agent's transcript under another agent's header.
-    expect(result.session).toBeNull()
-    expect(result.agentSessions.map((entry) => entry.session.id)).toEqual(['s-r2', 's-r1'])
+    expect(result.filterAgent?.agent.id).toBe('assistant')
+    expect(result.session).toEqual({serverUrl: REMOTE, sessionId: 's-r1'})
+    expect(result.sessionAgent?.agent.id).toBe('researcher')
   })
 
-  it('drafting keeps the agent context but no active session', () => {
-    const result = resolveAssistantSelection({...base, isDraft: true})
-    expect(result.agent?.agent.id).toBe('assistant')
-    expect(result.session).toBeNull()
-  })
-
-  it('keeps a restored session whose agent is not yet known instead of flashing to another one', () => {
+  it('keeps a restored chat whose agent is not yet known instead of closing it', () => {
     const result = resolveAssistantSelection({
       ...base,
       sessions: [],
       storedSession: {serverUrl: LOCAL, sessionId: 's-unlisted'},
     })
     expect(result.session).toEqual({serverUrl: LOCAL, sessionId: 's-unlisted'})
+    expect(result.sessionAgent).toBeNull()
   })
 
-  it('attributes an unlisted stored session through its own fetch once available', () => {
+  it("names an unlisted chat's agent through its own fetch", () => {
     const result = resolveAssistantSelection({
       ...base,
-      sessions,
       storedSession: {serverUrl: REMOTE, sessionId: 's-r-new'},
       storedSessionAgentId: 'researcher',
     })
-    expect(result.agent?.agent.id).toBe('researcher')
     expect(result.session).toEqual({serverUrl: REMOTE, sessionId: 's-r-new'})
+    expect(result.sessionAgent?.agent.id).toBe('researcher')
   })
 
-  it('falls back to the agent context with no session when the agent has no chats', () => {
-    const result = resolveAssistantSelection({...base, sessions: []})
-    expect(result.agent?.agent.id).toBe('assistant')
-    expect(result.session).toBeNull()
-  })
-
-  it('resolves to nothing when no agents exist anywhere', () => {
-    const result = resolveAssistantSelection({...base, agents: [], sessions: []})
-    expect(result.agent).toBeNull()
-    expect(result.session).toBeNull()
-    expect(result.agentSessions).toEqual([])
-  })
-
-  it('holds a stored session whose agent has not been listed yet while the lists are still loading', () => {
-    // Launch: the local server answered first; the remote one (owning the stored session) has not.
-    // Settling on the local agent's newest here would be written back as the remembered selection.
-    const result = resolveAssistantSelection({
-      ...base,
-      agents: [agent(LOCAL, 'assistant', 'Assistant')],
-      storedSession: {serverUrl: REMOTE, sessionId: 's-r1'},
-      storedSessionAgentId: 'researcher',
-      agentsSettled: false,
-    })
-    expect(result.session).toEqual({serverUrl: REMOTE, sessionId: 's-r1'})
-  })
-
-  it('holds a stored session even before any agent is known, so the transcript shows at once', () => {
+  it('keeps a restored chat while the agent lists are still loading, even before any agent is known', () => {
+    // Launch: the remote server, which owns the stored chat, has not answered yet.
     const result = resolveAssistantSelection({
       ...base,
       agents: [],
       storedSession: {serverUrl: REMOTE, sessionId: 's-r1'},
       agentsSettled: false,
     })
-    expect(result.agent).toBeNull()
     expect(result.session).toEqual({serverUrl: REMOTE, sessionId: 's-r1'})
   })
 
-  it('moves on from a stored session once the lists have settled without its agent', () => {
+  it('closes a chat the server refused', () => {
+    // Deleted from another window: its fetch answered with a refusal.
     const result = resolveAssistantSelection({
       ...base,
-      agents: [agent(LOCAL, 'assistant', 'Assistant')],
-      storedSession: {serverUrl: REMOTE, sessionId: 's-r1'},
-      storedSessionAgentId: 'researcher',
-      agentsSettled: true,
-    })
-    expect(result.agent?.agent.id).toBe('assistant')
-    expect(result.session).toBeNull()
-  })
-
-  it('gives up a stored session the server refused, instead of holding it until its agent turns up', () => {
-    // Deleted from another window: the lists will never name it and its fetch answered 404.
-    const result = resolveAssistantSelection({
-      ...base,
-      sessions,
       storedSession: {serverUrl: LOCAL, sessionId: 's-gone'},
       storedSessionUnavailable: true,
     })
     expect(result.session).toBeNull()
+    expect(result.sessionAgent).toBeNull()
   })
 
-  it('holds the stored session while a remembered agent choice is still loading, then honors the choice', () => {
-    const loading = resolveAssistantSelection({
+  it('treats a remembered agent that has not loaded yet as pending, not as all agents', () => {
+    const result = resolveAssistantSelection({
       ...base,
       agents: [agent(LOCAL, 'assistant', 'Assistant')],
-      storedSession: {serverUrl: LOCAL, sessionId: 's-a1'},
       chosenAgent: {serverUrl: REMOTE, agentId: 'researcher'},
       agentsSettled: false,
     })
-    expect(loading.session).toEqual({serverUrl: LOCAL, sessionId: 's-a1'})
+    expect(result.filterAgent).toBeNull()
+    expect(result.filterPending).toBe(true)
+  })
 
-    const settled = resolveAssistantSelection({
+  it('falls back to all agents once the lists settle without the remembered agent', () => {
+    const result = resolveAssistantSelection({
       ...base,
-      storedSession: {serverUrl: LOCAL, sessionId: 's-a1'},
+      agents: [agent(LOCAL, 'assistant', 'Assistant')],
       chosenAgent: {serverUrl: REMOTE, agentId: 'researcher'},
       agentsSettled: true,
     })
-    expect(settled.agent?.agent.id).toBe('researcher')
-    expect(settled.session).toBeNull()
+    expect(result.filterAgent).toBeNull()
+    expect(result.filterPending).toBe(false)
   })
 
-  it('a remembered agent with no chats yet opens as an empty context, not another agent', () => {
+  it('a remembered agent with no chats yet is still the filter', () => {
     const result = resolveAssistantSelection({
       ...base,
       agents: [...agents, agent(REMOTE, 'fresh', 'Fresh')],
       chosenAgent: {serverUrl: REMOTE, agentId: 'fresh'},
     })
-    expect(result.agent?.agent.id).toBe('fresh')
+    expect(result.filterAgent?.agent.id).toBe('fresh')
     expect(result.session).toBeNull()
-  })
-
-  it('after deleting the active session, opens a draft in the same context — not the deleted one', () => {
-    // Delete flow: the session is removed from the cached lists and the stored selection cleared.
-    const remaining = sessions.filter((entry) => entry.session.id !== 's-a2')
-    const result = resolveAssistantSelection({...base, sessions: remaining, storedSession: null})
-    expect(result.agent?.agent.id).toBe('assistant')
-    expect(result.session).toBeNull()
-    expect(result.agentSessions.map((entry) => entry.session.id)).toEqual(['s-a1'])
   })
 })
 
 /**
- * A space publishes agents for its readers. Since the default context is the first option, that
- * ordering is what lets someone who just arrived open the panel and find something to talk to.
+ * A space publishes agents for its readers. The dropdown (and the composer's agent picker under
+ * "All agents") lists them first, so someone who just arrived finds something to talk to at once.
  */
 describe('orderAssistantAgents', () => {
   const SPACE = 'https://agents.space.example'
   const docsBot = agent(SPACE, 'docs', 'Docs Helper')
   const supportBot = agent(SPACE, 'support', 'Support')
 
-  it("puts the space's agents ahead of the user's own, so the default lands on the space", () => {
+  it("puts the space's agents ahead of the user's own", () => {
     const ordered = orderAssistantAgents([docsBot, supportBot], agents)
     expect(ordered.map((option) => option.agent.id)).toEqual(['docs', 'support', 'assistant', 'researcher'])
-    expect(resolveAssistantSelection({...base, agents: ordered}).agent?.agent.id).toBe('docs')
   })
 
   it('leaves the local server leading when no space publishes anything', () => {
@@ -218,13 +174,13 @@ describe('orderAssistantAgents', () => {
     expect(ordered.map((option) => option.agent.id)).toEqual(['researcher', 'assistant'])
   })
 
-  it("keeps an explicitly chosen agent over the space's default", () => {
+  it("keeps an explicitly chosen agent as the filter, whatever the space's order", () => {
     const ordered = orderAssistantAgents([docsBot], agents)
     const result = resolveAssistantSelection({
       ...base,
       agents: ordered,
       chosenAgent: {serverUrl: LOCAL, agentId: 'assistant'},
     })
-    expect(result.agent?.agent.id).toBe('assistant')
+    expect(result.filterAgent?.agent.id).toBe('assistant')
   })
 })

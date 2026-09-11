@@ -15,9 +15,6 @@ import {
   getAgentWebhookUrl,
 } from './client'
 import {
-  addOptimisticSessionMessage,
-  addOptimisticSessionToCaches,
-  type AgentSessionDraftMessage,
   getDefaultAgentServerUrl,
   isLocalAgentServer,
   useAgentCollaborators,
@@ -33,14 +30,12 @@ import {
   useAgentTrigger,
   useAgentTriggers,
   useAgentWebSocketSubscription,
-  useCreateAgentSession,
   useCreateAgentTrigger,
   useCreateSigningIdentity,
   useDeleteAgent,
   useDeleteAgentTool,
   useDeleteAgentTrigger,
   useInviteAgentCollaborator,
-  useMessageAgentSession,
   useModelProviders,
   useProviderModels,
   useRemoveAgentCollaborator,
@@ -53,8 +48,7 @@ import {
   useUpdateSigningIdentity,
 } from './models'
 import {describeAgentError} from './errors'
-import {SessionStatusDot, SubSessionsDisclosure} from './session-children'
-import {ContinuedFromListChip} from './continuation'
+import {SessionListItem} from './session-list-item'
 import {useSelectedAccountId} from './account'
 import {useClickNavigate, useNavigate} from './navigation'
 import {markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/client'
@@ -146,7 +140,7 @@ import {pickDefaultProviderModel} from './model-utils'
 import {AgentPromptEditor, promptBlocksForRequest, promptBlocksToMarkdown} from './prompt-editor'
 import {AgentsNoAccountPage} from './no-account'
 import {agentAccessCanChat, agentAccessCanWrite} from './access'
-import {AgentRichMessageComposer} from './rich-message-composer'
+import {NewSessionComposer} from './new-session-composer'
 import {type AgentsRichEditorSubmitHandle} from './platform'
 
 function AgentDetailPage({
@@ -181,8 +175,6 @@ function AgentDetailPage({
   // The header count comes from the agent, not from however many pages happen to be loaded.
   const sessionCount = agent.data?.sessionCount ?? topLevelSessions.length
   const triggers = useAgentTriggers(serverUrl, selectedAccountId, agentId)
-  const createSession = useCreateAgentSession(serverUrl, selectedAccountId)
-  const messageSession = useMessageAgentSession(serverUrl, selectedAccountId)
   const updateAgent = useUpdateAgent(serverUrl, selectedAccountId)
   const updateSigningIdentity = useUpdateSigningIdentity(serverUrl, selectedAccountId)
   const deleteAgentDialog = useAppDialog(DeleteAgentDialog, {isAlert: true})
@@ -319,49 +311,6 @@ function AgentDetailPage({
       await updateSigningIdentity.mutateAsync({name: agentSigningKey, label: trimmed})
     }
     if (!nameModelDirty) setName(trimmed)
-  }
-
-  // The session only exists once the user actually does something: the bottom composer drafts
-  // against no session, and the first send — or the first user tool run — creates one and
-  // delivers that action in the same motion, so abandoning the draft leaves no empty session
-  // behind.
-  async function startDraftSession(): Promise<string> {
-    if (!selectedAccountId) throw new Error('Select an account first')
-    // No title at creation: the agent names the session, with a server-side fallback from the
-    // first user message — 'Untitled session' is a display placeholder, never data.
-    const result = await createSession.mutateAsync({agentId})
-    if (result._ !== 'CreateSessionResponse') throw new Error('Unexpected session response')
-    // Seed the caches before navigating so the session page renders the optimistic first
-    // message immediately instead of an empty transcript while the real fetch lands.
-    const now = Date.now()
-    addOptimisticSessionToCaches(serverUrl, selectedAccountId, {
-      id: result.sessionId,
-      account: selectedAccountId,
-      agentId,
-      status: 'idle',
-      createdAt: now,
-      updatedAt: now,
-    })
-    return result.sessionId
-  }
-
-  const startSessionSendingRef = useRef(false)
-  async function handleStartSession(message: AgentSessionDraftMessage) {
-    // The composer already cleared itself; a second send racing the create must not open a second
-    // session.
-    if (!selectedAccountId || startSessionSendingRef.current) return
-    startSessionSendingRef.current = true
-    try {
-      const sessionId = await startDraftSession()
-      // Send the stamped drafts, so the durable echo replaces the optimistic row by identity.
-      const messages = addOptimisticSessionMessage(serverUrl, selectedAccountId, sessionId, [message])
-      messageSession.mutate({sessionId, message: messages})
-      navigate({key: 'agent-session', agentId, sessionId, serverUrl})
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not create session')
-    } finally {
-      startSessionSendingRef.current = false
-    }
   }
 
   useEffect(() => {
@@ -533,7 +482,6 @@ function AgentDetailPage({
       // The session is only created when the first message is sent, so "New session"
       // just puts the cursor in the composer that will do it.
       onCreateSession={canChat ? () => startComposerRef.current?.focus({moveCursorToEnd: true}) : undefined}
-      creatingSession={createSession.isLoading}
       onCreateTrigger={canWrite ? () => createTriggerDialog.open({serverUrl, selectedAccountId, agentId}) : undefined}
       canCreateTrigger={!!selectedAccountId && canWrite}
       menuItems={
@@ -665,29 +613,6 @@ function AgentDetailPage({
                       </Button>
                     ) : null}
                   </div>
-                  {canChat ? (
-                    // No sessionId: this is a draft composer — the first send creates the session
-                    // and delivers the message in one motion (see handleStartSession).
-                    <AgentRichMessageComposer
-                      isBusy={createSession.isLoading || messageSession.isLoading}
-                      isStreaming={false}
-                      stopPending={false}
-                      disabledMessage={!selectedAccountId ? 'Select an account to start a session.' : undefined}
-                      serverUrl={serverUrl}
-                      accountId={selectedAccountId ?? null}
-                      agentTools={agent.data.agent.definition.tools}
-                      agentToolsLoading={agent.isLoading}
-                      focusOnMount={false}
-                      canInvokeTools={canWrite}
-                      composerHandleRef={startComposerRef}
-                      onToolStartSession={startDraftSession}
-                      onToolSessionStarted={(sessionId) =>
-                        navigate({key: 'agent-session', agentId, sessionId, serverUrl})
-                      }
-                      onSend={(message) => void handleStartSession(message)}
-                      onStop={() => {}}
-                    />
-                  ) : null}
                 </section>
               ) : null}
 
@@ -890,6 +815,21 @@ function AgentDetailPage({
           ) : null}
         </Container>
       </div>
+      {tab === 'sessions' && agent.data && canChat ? (
+        // The same draft composer as the home page, in the same full-width footer, pinned to this
+        // agent: the first send (or tool run) creates the session and opens it.
+        <div className="border-border bg-panel flex-none border-t">
+          <Container className="max-w-4xl gap-0 py-2">
+            <NewSessionComposer
+              fixedAgent={{serverUrl, agent: agent.data.agent}}
+              accountUid={selectedAccountId}
+              localServerUrl={localServerUrl.data}
+              agentToolsLoading={agent.isLoading}
+              composerHandleRef={startComposerRef}
+            />
+          </Container>
+        </div>
+      ) : null}
       {isTriggerDetail && agent.data ? (
         <AgentTriggersTab
           agentId={agentId}
@@ -2877,72 +2817,6 @@ function zonedParts(
     minute: Number(values.minute),
     weekday: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf((values.weekday || 'Sun').slice(0, 3)),
   }
-}
-
-function SessionListItem({
-  session,
-  serverUrl,
-  accountUid,
-  onOpen,
-  onOpenSession,
-  onOpenTrigger,
-}: {
-  session: SessionInfo
-  serverUrl: string
-  accountUid: string | null | undefined
-  onOpen: (event: React.MouseEvent<HTMLButtonElement>) => void
-  /** Opens a sub-session listed under this one. */
-  onOpenSession?: (session: SessionInfo, event: React.MouseEvent<HTMLButtonElement>) => void
-  onOpenTrigger?: () => void
-}) {
-  return (
-    <div className="hover:bg-muted flex flex-col items-start rounded-lg px-3 py-2 transition-colors">
-      <button type="button" className="flex w-full flex-col gap-0.5 text-left max-sm:min-h-10" onClick={onOpen}>
-        <span className="flex w-full items-start gap-3">
-          <span className="flex h-5 flex-none items-center">
-            <SessionStatusDot status={session.status} />
-          </span>
-          <SizableText weight="bold" className="min-w-0 flex-1 truncate">
-            {session.title || 'Untitled session'}
-          </SizableText>
-          <span className="flex max-w-[50%] flex-none flex-wrap items-center justify-end gap-x-2 gap-y-1">
-            {session.continuedFrom ? <ContinuedFromListChip link={session.continuedFrom} /> : null}
-            <SizableText size="sm" color="muted" className="whitespace-nowrap">
-              {formattedDateMedium(new Date(session.updatedAt))}
-            </SizableText>
-          </span>
-        </span>
-        {session.description ? (
-          <SizableText size="sm" color="muted" className="line-clamp-3 w-full pl-5">
-            {session.description}
-          </SizableText>
-        ) : null}
-      </button>
-      {session.startedByTrigger ? (
-        <button
-          type="button"
-          className="bg-primary/10 text-primary mt-2 rounded-full px-2 py-0.5 text-xs font-bold"
-          onClick={(event) => {
-            event.stopPropagation()
-            onOpenTrigger?.()
-          }}
-        >
-          Triggered by {session.startedByTrigger.triggerName}
-        </button>
-      ) : null}
-      {session.childSessionCount && onOpenSession ? (
-        <div className="mt-1 w-full pl-5">
-          <SubSessionsDisclosure
-            serverUrl={serverUrl}
-            accountUid={accountUid}
-            parentSessionId={session.id}
-            childSessionCount={session.childSessionCount}
-            onOpenSession={onOpenSession}
-          />
-        </div>
-      ) : null}
-    </div>
-  )
 }
 
 /** A failed load of the page's subject, with the server named when it is not obvious from context. */

@@ -636,6 +636,7 @@ function AgentSessionPage({
             />
             <AgentRichMessageComposer
               isBusy={isAgentBusy}
+              placeholder={agent.data ? `Chat with ${agent.data.agent.definition.name || 'this agent'}` : undefined}
               isStreaming={isAgentStreaming}
               disabledMessage={
                 !canChat ? (
@@ -662,6 +663,7 @@ function AgentSessionPage({
                     modelOverride={session.data?.session.modelOverride}
                     missingProvider={missingProvider}
                     canWrite={canWrite}
+                    canAddProvider={agent.data.agent.accessRole === 'owner'}
                   />
                 ) : undefined
               }

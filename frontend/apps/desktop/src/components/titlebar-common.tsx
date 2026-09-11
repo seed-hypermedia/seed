@@ -428,6 +428,10 @@ export function AccountProfileButton() {
               My Profile
             </DropdownMenuItem>
           )}
+          <DropdownMenuItem onClick={() => navigate({key: 'agents'})}>
+            <Bot className="size-4" />
+            Agents
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => navigate({key: 'account-settings'})}>
             <UserCog className="size-4" />
             Account Settings
