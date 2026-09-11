@@ -2,6 +2,8 @@ name: Custom - Sync Fork From Upstream
 
 # Manual fallback only. The daily sync runs as a Devin Automation, because GITHUB_TOKEN
 # cannot push commits that touch .github/workflows/* (upstream ships workflow changes).
+# For the fallback to handle those, add a SYNC_PAT repository secret (PAT with `repo`
+# and `workflow` scopes); it is used for the pushes when present.
 on:
   workflow_dispatch:
     inputs:
@@ -31,7 +33,7 @@ jobs:
         with:
           ref: custom-images
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.SYNC_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Configure actions bot identity
         run: |
@@ -89,7 +91,7 @@ jobs:
         with:
           ref: custom-images
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.SYNC_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Configure actions bot identity
         run: |
