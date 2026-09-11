@@ -108,6 +108,31 @@ describe('pasteHandler', () => {
     expect(view.state.doc.nodeAt(0)?.marks[0]?.attrs.href).toBe(resolvedUrl)
   })
 
+  it('resolves a custom-domain document URL when gwUrl is omitted', async () => {
+    const uid = 'z6Mkg7Cizn2g6h9sheDdF6JuHpHY95XK9LUAe6urCieoimC8'
+    const path = 'alan-kay-ideas/multi-agent-is-actor-model'
+    const url = `https://dream-machines-2.hyper.media/${path}`
+    const resolvedUrl = `hm://${uid}/${path}`
+    const view = createPasteView()
+    const plugin = pasteHandler({
+      editor: {schema} as any,
+      type: schema.marks.link,
+      gwUrl: undefined as any,
+      domainResolver: async (hostname) => {
+        expect(hostname).toBe('dream-machines-2.hyper.media')
+        return {registeredAccountUid: uid, isGateway: false}
+      },
+      checkWebUrl: async () => null,
+    })
+
+    const handled = plugin.props.handlePaste?.(view, {} as any, new Slice(Fragment.from(schema.text(url)), 0, 0))
+
+    expect(handled).toBe(true)
+    await flushPasteHandler()
+    expect(view.state.doc.textContent).toBe(resolvedUrl)
+    expect(view.state.doc.nodeAt(0)?.marks[0]?.attrs.href).toBe(resolvedUrl)
+  })
+
   it('uses the universal client to insert a pasted hm:// document URL as a titled link', async () => {
     const url = 'hm://abc/path'
     const view = createPasteView()
