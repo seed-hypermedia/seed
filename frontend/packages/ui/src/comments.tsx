@@ -123,7 +123,9 @@ export function CommentDiscussions({
   const focusedComment = useMemo(() => {
     const listedComment = commentsService.data?.comments?.find((c) => c.id === commentId)
     if (listedComment) return listedComment
-    if (commentResource.data?.type === 'comment') return commentResource.data.comment
+    if (commentResource.data?.type === 'comment' && commentResource.data.comment.id === commentId) {
+      return commentResource.data.comment
+    }
     return null
   }, [commentsService.data?.comments, commentId, commentResource.data])
 
@@ -135,10 +137,11 @@ export function CommentDiscussions({
   // Wait for the resource query to fully settle before deciding deleted/not-found, so we don't
   // flash "This comment was deleted." while peer sync is still in flight (issue #435).
   const isFocusedCommentLoading =
-    commentResource.isFetching ||
-    commentResource.isLoading ||
-    commentResource.isDiscovering ||
-    (!commentResource.data && !commentResource.error)
+    !focusedComment &&
+    (commentResource.isFetching ||
+      commentResource.isLoading ||
+      commentResource.isDiscovering ||
+      (!commentResource.data && !commentResource.error))
   const isFocusedCommentDeleted = commentResource.data?.type === 'tombstone'
   const showDeletedPreview = !!showDeletedContent && isFocusedCommentDeleted && !!deletedLastVersion
   const showDeletedPreviewLoading = !!showDeletedContent && isFocusedCommentDeleted && deletedVersions.isLoading
