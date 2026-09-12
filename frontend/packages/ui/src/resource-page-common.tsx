@@ -898,6 +898,18 @@ function getPanelTitle(panelKey: string | null): string {
   }
 }
 
+/** Selects the mobile sheet body for a document panel route. */
+export function getMobilePanelPresentation(panelRoute: DocumentPanelRoute | null): 'discussions' | 'panel' | null {
+  if (!panelRoute) return null
+  return panelRoute.key === 'comments' ? 'discussions' : 'panel'
+}
+
+/** Gets the route-aware title for a mobile document panel. */
+export function getMobilePanelTitle(panelRoute: DocumentPanelRoute | null): string {
+  if (isDocumentVersionsPanelRoute(panelRoute)) return 'Versions history'
+  return getPanelTitle(panelRoute?.key ?? null)
+}
+
 export function ResourcePage({
   docId,
   resourceId,
@@ -2946,50 +2958,63 @@ function DocumentBody({
         </div>
 
         {mobilePanelOpen && (
-          <MobilePanelSheet isOpen={mobilePanelOpen} title={getPanelTitle(panelKey)} onClose={handlePanelClose}>
-            <DiscussionsPageContent
-              docId={commentsPanelTarget.docId}
-              showTitle={false}
-              showOpenInPanel={false}
-              contentMaxWidth={contentMaxWidth}
-              targetDomain={siteUrl}
-              openComment={commentsPanelTarget.openComment}
-              targetBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
-              blockId={panelRoute?.key === 'comments' ? panelRoute.blockId : undefined}
-              blockRange={panelRoute?.key === 'comments' ? panelRoute.blockRange : undefined}
-              commentEditor={
-                CommentEditor ? (
-                  <CommentEditor
-                    key={
-                      panelRoute?.key === 'comments'
-                        ? getCommentEditorRouteKey({
-                            openComment: panelRoute.openComment,
-                            targetBlockId: panelRoute.targetBlockId,
-                            blockRange: panelRoute.blockRange,
-                          })
-                        : undefined
-                    }
-                    docId={commentsPanelTarget.docId}
-                    quotingBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
-                    quotingRange={
-                      panelRoute?.key === 'comments' ? extractQuotingRange(panelRoute.blockRange) : undefined
-                    }
-                    commentId={commentsPanelTarget.openComment}
-                    isReplying={
-                      panelRoute?.key === 'comments' ? panelRoute.isReplying ?? !!panelRoute.openComment : false
-                    }
-                    replyCommentVersion={panelRoute?.key === 'comments' ? panelRoute.replyCommentVersion : undefined}
-                    rootReplyCommentVersion={
-                      panelRoute?.key === 'comments' ? panelRoute.rootReplyCommentVersion : undefined
-                    }
-                    // On mobile, opening the keyboard during the sheet entrance
-                    // causes visible viewport jumps. Let the drawer settle and
-                    // let users tap the composer when they are ready to type.
-                    focusOnMount={false}
-                  />
-                ) : undefined
-              }
-            />
+          <MobilePanelSheet isOpen={mobilePanelOpen} title={getMobilePanelTitle(panelRoute)} onClose={handlePanelClose}>
+            {getMobilePanelPresentation(panelRoute) === 'discussions' ? (
+              <DiscussionsPageContent
+                docId={commentsPanelTarget.docId}
+                showTitle={false}
+                showOpenInPanel={false}
+                contentMaxWidth={contentMaxWidth}
+                targetDomain={siteUrl}
+                openComment={commentsPanelTarget.openComment}
+                targetBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
+                blockId={panelRoute?.key === 'comments' ? panelRoute.blockId : undefined}
+                blockRange={panelRoute?.key === 'comments' ? panelRoute.blockRange : undefined}
+                commentEditor={
+                  CommentEditor ? (
+                    <CommentEditor
+                      key={
+                        panelRoute?.key === 'comments'
+                          ? getCommentEditorRouteKey({
+                              openComment: panelRoute.openComment,
+                              targetBlockId: panelRoute.targetBlockId,
+                              blockRange: panelRoute.blockRange,
+                            })
+                          : undefined
+                      }
+                      docId={commentsPanelTarget.docId}
+                      quotingBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
+                      quotingRange={
+                        panelRoute?.key === 'comments' ? extractQuotingRange(panelRoute.blockRange) : undefined
+                      }
+                      commentId={commentsPanelTarget.openComment}
+                      isReplying={
+                        panelRoute?.key === 'comments' ? panelRoute.isReplying ?? !!panelRoute.openComment : false
+                      }
+                      replyCommentVersion={panelRoute?.key === 'comments' ? panelRoute.replyCommentVersion : undefined}
+                      rootReplyCommentVersion={
+                        panelRoute?.key === 'comments' ? panelRoute.rootReplyCommentVersion : undefined
+                      }
+                      // On mobile, opening the keyboard during the sheet entrance
+                      // causes visible viewport jumps. Let the drawer settle and
+                      // let users tap the composer when they are ready to type.
+                      focusOnMount={false}
+                    />
+                  ) : undefined
+                }
+              />
+            ) : panelRoute ? (
+              <PanelContentRenderer
+                panelRoute={panelRoute}
+                docId={docId}
+                document={document}
+                contentMaxWidth={contentMaxWidth}
+                CommentEditor={CommentEditor}
+                siteUrl={siteUrl}
+                fileUpload={fileUpload}
+                draftVersionEntry={draftVersionEntry}
+              />
+            ) : null}
           </MobilePanelSheet>
         )}
       </>
