@@ -47,6 +47,20 @@ describe('classifyCommentNotificationForAccount', () => {
     expect(reason).toBe('discussion')
   })
 
+  it('defers a covered comment mention to its dedicated mention event', () => {
+    const reason = classifyCommentNotificationForAccount({
+      subscriptionAccountUid: 'alice',
+      commentAuthorUid: 'bob',
+      targetAccountUid: 'alice',
+      targetAuthorUids: ['alice'],
+      isTopLevelComment: true,
+      parentCommentAuthorUid: null,
+      mentionedAccountUids: new Set(['alice']),
+      hasDedicatedMentionEvent: true,
+    })
+    expect(reason).toBeNull()
+  })
+
   it('classifies top-level comments on collaborated documents as discussion', () => {
     const reason = classifyCommentNotificationForAccount({
       subscriptionAccountUid: 'alice',
