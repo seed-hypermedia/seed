@@ -1222,7 +1222,7 @@ async function evaluateEventForNotifications(
       threadRoot: comment.threadRoot ?? null,
     })
     await evaluateNewCommentForNotifications(comment, allSubscriptions, appendNotification, eventMeta, {
-      blobCid,
+      blobCid: blobCid ?? undefined,
       dedicatedCommentMentionTargets: options.dedicatedCommentMentionTargets,
     })
   }
