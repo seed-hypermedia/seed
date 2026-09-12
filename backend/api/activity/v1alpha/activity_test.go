@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -538,6 +539,87 @@ func TestListEventsEmitsNextTokenWhenClampEmptiesPage(t *testing.T) {
 	require.True(t, gotMention,
 		"the clamped comment must still be delivered: an emptied page must emit a token, not dead-end")
 	require.Greater(t, pages, 1, "the first page is emptied by the clamp, so a second page must be requested")
+}
+
+func TestListEventsCitationFilterIncludesLegacyRefMentionWithoutRefBlob(t *testing.T) {
+	alice := newTestServer(t, "alice")
+	ctx := context.Background()
+
+	author, err := core.DecodePrincipal("z6Mkv1LjkRosErBhmqrkmb5sDxXNs6EzBDSD8ktywpYLLGuC")
+	require.NoError(t, err)
+
+	sourceIRI := "hm://" + author.String() + "/historical-source"
+	targetIRI := "hm://" + author.String() + "/citation-target"
+	changeHash, err := multihash.Sum([]byte("historical citation Change"), multihash.SHA2_256, -1)
+	require.NoError(t, err)
+	refHash, err := multihash.Sum([]byte("published source Ref"), multihash.SHA2_256, -1)
+	require.NoError(t, err)
+	targetHash, err := multihash.Sum([]byte("ordinary target Ref update"), multihash.SHA2_256, -1)
+	require.NoError(t, err)
+
+	require.NoError(t, alice.db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		if err := sqlitex.Exec(conn, `INSERT INTO public_keys (id, principal) VALUES (1, ?);`, nil, []byte(author)); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn, `INSERT INTO blobs (id, multihash, codec, data, size, insert_time) VALUES (10, ?, ?, ?, 1, 10), (11, ?, ?, ?, 1, 11), (20, ?, ?, ?, 1, 20);`, nil,
+			[]byte(changeHash), int64(0x71), []byte{1}, []byte(refHash), int64(0x71), []byte{2}, []byte(targetHash), int64(0x71), []byte{3}); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn, `INSERT INTO resources (id, iri, owner, genesis_blob, create_time) VALUES (1, ?, 1, 10, 0), (2, ?, 1, 20, 0);`, nil, sourceIRI, targetIRI); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn, `INSERT INTO document_generations (resource, generation, genesis, genesis_change_time) VALUES (1, 0, ?, 0), (2, 0, ?, 0);`, nil, sourceIRI, targetIRI); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn, `INSERT INTO structural_blobs (id, type, ts, author, resource, genesis_blob, extra_attrs) VALUES (10, 'Change', 1000, 1, 1, 10, '{}'), (11, 'Ref', 1100, 1, 1, 10, '{}'), (20, 'Ref', 2000, 1, 2, 20, '{}');`, nil); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn, `INSERT INTO blob_links (source, target, type) VALUES (11, 10, 'Ref/head');`, nil); err != nil {
+			return err
+		}
+		return sqlitex.Exec(conn, `INSERT INTO resource_links (id, source, target, type, is_pinned, extra_attrs) VALUES (30, 10, 2, 'Ref', 0, '{"f":"one"}'), (31, 10, 2, 'Ref', 0, '{"f":"one"}'), (32, 10, 2, 'Ref', 0, '{"f":"two"}'), (33, 10, 2, 'Ref', 0, '{"f":"three"}');`, nil)
+	}))
+
+	var citationEvents []*activity.Event
+	var pageToken string
+	for {
+		citations, err := alice.ListEvents(ctx, &activity.ListEventsRequest{
+			PageSize:        2,
+			PageToken:       pageToken,
+			FilterResource:  targetIRI,
+			FilterEventType: []string{"comment/Embed", "doc/Embed", "doc/Link", "doc/Button"},
+		})
+		require.NoError(t, err)
+		citationEvents = append(citationEvents, citations.Events...)
+		if citations.NextPageToken == "" {
+			break
+		}
+		pageToken = citations.NextPageToken
+	}
+	require.Len(t, citationEvents, 3, "same-timestamp citations must survive pagination without re-emitting duplicate links")
+
+	fragments := make([]string, 0, len(citationEvents))
+	for _, event := range citationEvents {
+		mention := event.GetNewMention()
+		require.NotNil(t, mention)
+		require.Nil(t, event.GetNewBlob(), "citation mode must not expose document-update Ref blobs")
+		require.Equal(t, "Ref", mention.GetSourceType())
+		require.Equal(t, sourceIRI, mention.GetSource())
+		require.Equal(t, targetIRI, mention.GetTarget())
+		require.Equal(t, cid.NewCidV1(uint64(0x71), changeHash).String(), mention.GetSourceBlob().GetCid())
+		fragments = append(fragments, mention.GetTargetFragment())
+	}
+	require.ElementsMatch(t, []string{"one", "two", "three"}, fragments)
+
+	versions, err := alice.ListEvents(ctx, &activity.ListEventsRequest{
+		PageSize:        10,
+		FilterResource:  targetIRI,
+		FilterEventType: []string{"Ref"},
+	})
+	require.NoError(t, err)
+	require.Len(t, versions.Events, 1)
+	require.NotNil(t, versions.Events[0].GetNewBlob())
+	require.Nil(t, versions.Events[0].GetNewMention(), "versions mode must not expose historical citation links")
 }
 
 func TestListEventsCommentMentionSourceDocumentUsesCommentTarget(t *testing.T) {

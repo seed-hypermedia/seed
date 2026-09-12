@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest'
-import {getFeedEventId, loadCitationEvent, loadContactEvent} from '../models/activity-service'
+import {getEventType, getFeedEventId, loadCitationEvent, loadContactEvent} from '../models/activity-service'
 
 const TEST_CID = 'bafkreigh2akiscaildcuj3pww4f2ptib34dm5x3dpljubjkbzfgutz5jum'
 
@@ -166,6 +166,33 @@ describe('loadCitationEvent', () => {
       warnSpy.mockRestore()
       errorSpy.mockRestore()
     }
+  })
+})
+
+describe('getEventType', () => {
+  it('classifies a Ref-backed mention as a citation, not a document update', () => {
+    expect(
+      getEventType({
+        account: 'z6Mks-test-author',
+        eventTime: null,
+        observeTime: null,
+        newMention: {
+          source: 'hm://z6Mks-test-author/source',
+          sourceType: 'Ref',
+          sourceBlob: {cid: TEST_CID, author: 'z6Mks-test-author'},
+          target: 'hm://z6Mks-test-target/document',
+        },
+      } as any),
+    ).toBe('citation')
+
+    expect(
+      getEventType({
+        account: 'z6Mks-test-author',
+        eventTime: null,
+        observeTime: null,
+        newBlob: {blobType: 'Ref'},
+      } as any),
+    ).toBe('ref')
   })
 })
 

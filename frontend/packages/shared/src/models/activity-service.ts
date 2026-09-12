@@ -163,6 +163,10 @@ export function getEventType(event: HMActivityEvent): string | null {
     // For newMention events, sourceType contains the full type like "doc/Embed" or "comment/Link"
     const sourceType = event.newMention.sourceType?.toLowerCase()
 
+    if (sourceType === 'ref') {
+      return 'citation'
+    }
+
     if (sourceType) {
       return sourceType
     }
