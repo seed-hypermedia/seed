@@ -17,39 +17,39 @@ const {
   useResourceMock,
   onBookmarkToggleMock,
 } = vi.hoisted(() => {
-    const focusedComment = {
-      id: 'alice/comment',
-      version: 'focused-version',
-      author: 'alice',
-      targetAccount: 'alice',
-      targetPath: 'doc',
-      targetVersion: 'document-version',
-      content: [{block: {id: 'text', type: 'Paragraph', text: 'A comment worth saving'}}],
-      createTime: {seconds: 0, nanos: 0},
-      updateTime: {seconds: 0, nanos: 0},
-      visibility: 'PUBLIC',
-    }
-    const parentComment = {...focusedComment, id: 'alice/parent', version: 'parent-version'}
+  const focusedComment = {
+    id: 'alice/comment',
+    version: 'focused-version',
+    author: 'alice',
+    targetAccount: 'alice',
+    targetPath: 'doc',
+    targetVersion: 'document-version',
+    content: [{block: {id: 'text', type: 'Paragraph', text: 'A comment worth saving'}}],
+    createTime: {seconds: 0, nanos: 0},
+    updateTime: {seconds: 0, nanos: 0},
+    visibility: 'PUBLIC',
+  }
+  const parentComment = {...focusedComment, id: 'alice/parent', version: 'parent-version'}
 
-    return {
-      focusedComment,
-      parentComment,
-      useCommentParentsMock: vi.fn<() => any>(() => null),
-      useDocumentCommentsMock: vi.fn<() => any>(() => ({
-        data: null,
-        error: null,
-        isLoading: true,
-      })),
-      useResourceMock: vi.fn<() => any>(() => ({
-        data: {type: 'comment', comment: focusedComment},
-        error: null,
-        isDiscovering: false,
-        isFetching: false,
-        isLoading: false,
-      })),
-      onBookmarkToggleMock: vi.fn(),
-    }
-  })
+  return {
+    focusedComment,
+    parentComment,
+    useCommentParentsMock: vi.fn<() => any>(() => null),
+    useDocumentCommentsMock: vi.fn<() => any>(() => ({
+      data: null,
+      error: null,
+      isLoading: true,
+    })),
+    useResourceMock: vi.fn<() => any>(() => ({
+      data: {type: 'comment', comment: focusedComment},
+      error: null,
+      isDiscovering: false,
+      isFetching: false,
+      isLoading: false,
+    })),
+    onBookmarkToggleMock: vi.fn(),
+  }
+})
 
 vi.mock('@shm/shared', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@shm/shared')>()
