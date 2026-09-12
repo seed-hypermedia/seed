@@ -422,6 +422,23 @@ export function orderDocumentMenuItems(items: MenuItemType[]): MenuItemType[] {
   return orderedItems
 }
 
+/** Returns whether a space home page should show its collaborator summary bar. */
+export function shouldShowCollaboratorsBar({
+  isHomeDoc,
+  showCollaborators,
+  activeView,
+  isLoading,
+  memberCount,
+}: {
+  isHomeDoc: boolean
+  showCollaborators?: boolean
+  activeView: ActiveView
+  isLoading: boolean
+  memberCount: number
+}): boolean {
+  return isHomeDoc && showCollaborators !== false && activeView !== 'all-documents' && !isLoading && memberCount > 0
+}
+
 /** Returns a stable key for the exact document resource being viewed, including version state. */
 export function getDocumentResourceRouteKey(id: UnpackedHypermediaId): string {
   return `${id.id}@${id.version ?? ''}@${id.latest ? 'latest' : ''}`
@@ -2724,14 +2741,17 @@ function DocumentBody({
             className={cn(mainContentProps.className, 'flex flex-col', isCollection && '!w-full !max-w-none')}
             style={isCollection ? {...mainContentProps.style, maxWidth: undefined} : mainContentProps.style}
           >
-            {isHomeDoc &&
-              activeView !== 'all-documents' &&
-              !siteMembers.isInitialLoading &&
-              siteMembers.members.length > 0 && (
-                <div className="pt-4">
-                  <MembersFacepile members={siteMembers.members} siteId={siteId} />
-                </div>
-              )}
+            {shouldShowCollaboratorsBar({
+              isHomeDoc,
+              showCollaborators: metadata?.showCollaborators,
+              activeView,
+              isLoading: siteMembers.isInitialLoading,
+              memberCount: siteMembers.members.length,
+            }) && (
+              <div className="pt-4">
+                <MembersFacepile members={siteMembers.members} siteId={siteId} />
+              </div>
+            )}
             {!isHomeDoc &&
               (canEditCurrentRoute ? (
                 <EditableDocumentHeader
@@ -2763,14 +2783,17 @@ function DocumentBody({
           className={cn('mx-auto flex w-full flex-col px-4')}
           style={{maxWidth: isCollection ? undefined : contentMaxWidth}}
         >
-          {isHomeDoc &&
-            activeView !== 'all-documents' &&
-            !siteMembers.isInitialLoading &&
-            siteMembers.members.length > 0 && (
-              <div className="pt-4">
-                <MembersFacepile members={siteMembers.members} siteId={siteId} />
-              </div>
-            )}
+          {shouldShowCollaboratorsBar({
+            isHomeDoc,
+            showCollaborators: metadata?.showCollaborators,
+            activeView,
+            isLoading: siteMembers.isInitialLoading,
+            memberCount: siteMembers.members.length,
+          }) && (
+            <div className="pt-4">
+              <MembersFacepile members={siteMembers.members} siteId={siteId} />
+            </div>
+          )}
           {!isHomeDoc &&
             (canEditCurrentRoute ? (
               <EditableDocumentHeader
@@ -2947,49 +2970,53 @@ function DocumentBody({
 
         {mobilePanelOpen && (
           <MobilePanelSheet isOpen={mobilePanelOpen} title={getPanelTitle(panelKey)} onClose={handlePanelClose}>
-            <DiscussionsPageContent
-              docId={commentsPanelTarget.docId}
-              showTitle={false}
-              showOpenInPanel={false}
-              contentMaxWidth={contentMaxWidth}
-              targetDomain={siteUrl}
-              openComment={commentsPanelTarget.openComment}
-              targetBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
-              blockId={panelRoute?.key === 'comments' ? panelRoute.blockId : undefined}
-              blockRange={panelRoute?.key === 'comments' ? panelRoute.blockRange : undefined}
-              commentEditor={
-                CommentEditor ? (
-                  <CommentEditor
-                    key={
-                      panelRoute?.key === 'comments'
-                        ? getCommentEditorRouteKey({
-                            openComment: panelRoute.openComment,
-                            targetBlockId: panelRoute.targetBlockId,
-                            blockRange: panelRoute.blockRange,
-                          })
-                        : undefined
-                    }
-                    docId={commentsPanelTarget.docId}
-                    quotingBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
-                    quotingRange={
-                      panelRoute?.key === 'comments' ? extractQuotingRange(panelRoute.blockRange) : undefined
-                    }
-                    commentId={commentsPanelTarget.openComment}
-                    isReplying={
-                      panelRoute?.key === 'comments' ? panelRoute.isReplying ?? !!panelRoute.openComment : false
-                    }
-                    replyCommentVersion={panelRoute?.key === 'comments' ? panelRoute.replyCommentVersion : undefined}
-                    rootReplyCommentVersion={
-                      panelRoute?.key === 'comments' ? panelRoute.rootReplyCommentVersion : undefined
-                    }
-                    // On mobile, opening the keyboard during the sheet entrance
-                    // causes visible viewport jumps. Let the drawer settle and
-                    // let users tap the composer when they are ready to type.
-                    focusOnMount={false}
-                  />
-                ) : undefined
-              }
-            />
+            {panelRoute?.key === 'options' ? (
+              <DocumentOptionsPanel docId={docId} fileUpload={fileUpload} />
+            ) : (
+              <DiscussionsPageContent
+                docId={commentsPanelTarget.docId}
+                showTitle={false}
+                showOpenInPanel={false}
+                contentMaxWidth={contentMaxWidth}
+                targetDomain={siteUrl}
+                openComment={commentsPanelTarget.openComment}
+                targetBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
+                blockId={panelRoute?.key === 'comments' ? panelRoute.blockId : undefined}
+                blockRange={panelRoute?.key === 'comments' ? panelRoute.blockRange : undefined}
+                commentEditor={
+                  CommentEditor ? (
+                    <CommentEditor
+                      key={
+                        panelRoute?.key === 'comments'
+                          ? getCommentEditorRouteKey({
+                              openComment: panelRoute.openComment,
+                              targetBlockId: panelRoute.targetBlockId,
+                              blockRange: panelRoute.blockRange,
+                            })
+                          : undefined
+                      }
+                      docId={commentsPanelTarget.docId}
+                      quotingBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
+                      quotingRange={
+                        panelRoute?.key === 'comments' ? extractQuotingRange(panelRoute.blockRange) : undefined
+                      }
+                      commentId={commentsPanelTarget.openComment}
+                      isReplying={
+                        panelRoute?.key === 'comments' ? panelRoute.isReplying ?? !!panelRoute.openComment : false
+                      }
+                      replyCommentVersion={panelRoute?.key === 'comments' ? panelRoute.replyCommentVersion : undefined}
+                      rootReplyCommentVersion={
+                        panelRoute?.key === 'comments' ? panelRoute.rootReplyCommentVersion : undefined
+                      }
+                      // On mobile, opening the keyboard during the sheet entrance
+                      // causes visible viewport jumps. Let the drawer settle and
+                      // let users tap the composer when they are ready to type.
+                      focusOnMount={false}
+                    />
+                  ) : undefined
+                }
+              />
+            )}
           </MobilePanelSheet>
         )}
       </>

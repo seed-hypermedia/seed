@@ -335,6 +335,7 @@ describe('lossless: metadata', () => {
       seedExperimentalHomeOrder: 'UpdatedFirst',
       showOutline: true,
       showActivity: false,
+      showCollaborators: false,
       contentWidth: 'L',
       childrenType: 'Ordered',
       theme: {headerLayout: 'Center'},

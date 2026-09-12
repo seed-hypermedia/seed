@@ -62,6 +62,7 @@ const FM_KEY_ORDER = [
   'childrenType',
   'showOutline',
   'showActivity',
+  'showCollaborators',
   'seedExperimentalLogo',
   'seedExperimentalHomeOrder',
   'importCategories',
