@@ -606,12 +606,7 @@ async function collectNotificationsForEvents({
     })
   }
 
-  const mentionSourceBlobCids = new Set<string>()
-  for (const event of events) {
-    if (event.data.case !== 'newMention') continue
-    const sourceBlobCid = normalizeCidString(event.data.value?.sourceBlob?.cid)
-    if (sourceBlobCid) mentionSourceBlobCids.add(sourceBlobCid)
-  }
+  const dedicatedCommentMentionTargets = getDedicatedCommentMentionTargets(events)
 
   logNotifDebug('notification evaluation start', {
     eventCount: events.length,
@@ -644,7 +639,9 @@ async function collectNotificationsForEvents({
     }
     const notificationCountBefore = Object.values(notificationsToSend).reduce((count, items) => count + items.length, 0)
     try {
-      await evaluateEventForNotifications(event, subscriptions, appendNotification, {mentionSourceBlobCids})
+      await evaluateEventForNotifications(event, subscriptions, appendNotification, {
+        dedicatedCommentMentionTargets,
+      })
     } catch (error: any) {
       reportError('Error evaluating event for notifications: ' + error.message)
     }
@@ -1078,6 +1075,34 @@ function getEventAtMs(event: PlainMessage<Event>): number {
   return Date.now()
 }
 
+export function hasDedicatedCommentMentionEvent(
+  mentionedAccountUids: Set<string>,
+  targetsBySourceCid: Map<string, Set<string>>,
+  sourceCid: string | undefined,
+  accountUid: string,
+): boolean {
+  return Boolean(
+    mentionedAccountUids.has(accountUid) && sourceCid && targetsBySourceCid.get(sourceCid)?.has(accountUid),
+  )
+}
+
+/** Maps each comment blob to accounts whose dedicated mention event owns delivery. */
+export function getDedicatedCommentMentionTargets(events: PlainMessage<Event>[]): Map<string, Set<string>> {
+  const targetsBySourceCid = new Map<string, Set<string>>()
+  for (const event of events) {
+    if (event.data.case !== 'newMention') continue
+    const mention = event.data.value
+    if (!mention?.sourceType?.startsWith('comment/')) continue
+    const sourceCid = normalizeCidString(mention.sourceBlob?.cid)
+    const targetAccountUid = getMentionedAccountUid(mention.target)
+    if (!sourceCid || !targetAccountUid) continue
+    const targets = targetsBySourceCid.get(sourceCid) ?? new Set<string>()
+    targets.add(targetAccountUid)
+    targetsBySourceCid.set(sourceCid, targets)
+  }
+  return targetsBySourceCid
+}
+
 /**
  * Returns whether an event falls outside the notification replay window.
  */
@@ -1089,7 +1114,7 @@ async function evaluateEventForNotifications(
   event: PlainMessage<Event>,
   allSubscriptions: NotificationSubscription[],
   appendNotification: (subscription: NotificationSubscription, notif: Notification) => Promise<void>,
-  options: {mentionSourceBlobCids: Set<string>},
+  options: {dedicatedCommentMentionTargets: Map<string, Set<string>>},
 ) {
   const eventTime = normalizeDate(event.eventTime)
   const observeTime = normalizeDate(event.observeTime)
@@ -1185,7 +1210,6 @@ async function evaluateEventForNotifications(
     const rawComment = toPlainMessage(serverComment)
     const comment = HMCommentSchema.parse(rawComment)
     const blobCid = normalizeCidString(blob.cid)
-    const includeMentionsFromBody = !blobCid || !options.mentionSourceBlobCids.has(blobCid)
     logNotifVerbose('comment blob loaded', {
       eventId: eventMeta.eventId,
       eventAtMs: eventMeta.eventAtMs,
@@ -1196,10 +1220,10 @@ async function evaluateEventForNotifications(
       targetPath: comment.targetPath ?? null,
       replyParent: comment.replyParent ?? null,
       threadRoot: comment.threadRoot ?? null,
-      includeMentionsFromBody,
     })
     await evaluateNewCommentForNotifications(comment, allSubscriptions, appendNotification, eventMeta, {
-      includeMentionsFromBody,
+      blobCid,
+      dedicatedCommentMentionTargets: options.dedicatedCommentMentionTargets,
     })
   }
 }
@@ -1556,7 +1580,10 @@ async function evaluateNewCommentForNotifications(
   allSubscriptions: NotificationSubscription[],
   appendNotification: (subscription: NotificationSubscription, notif: Notification) => Promise<void>,
   eventMeta: NotificationEventMeta,
-  options: {includeMentionsFromBody: boolean},
+  options: {
+    blobCid: string | undefined
+    dedicatedCommentMentionTargets: Map<string, Set<string>>
+  },
 ) {
   logNotifDebug('evaluate comment notification', {
     eventId: eventMeta.eventId,
@@ -1564,7 +1591,6 @@ async function evaluateNewCommentForNotifications(
     commentAuthor: comment.author,
     targetAccount: comment.targetAccount,
     hasReplyParent: Boolean(comment.replyParent),
-    includeMentionsFromBody: options.includeMentionsFromBody,
   })
   const parentStartTime = Date.now()
   const parentComments = await getParentComments(comment)
@@ -1641,9 +1667,7 @@ async function evaluateNewCommentForNotifications(
   })
 
   // Get all mentioned users in this comment
-  const mentionedUsers = options.includeMentionsFromBody
-    ? extractMentionedAccountUidsFromComment(comment)
-    : new Set<string>()
+  const mentionedUsers = extractMentionedAccountUidsFromComment(comment)
   const resolvedNames = await resolveContentReferenceNames(comment.content)
 
   // Get the parent comment author for reply notifications
@@ -1685,6 +1709,12 @@ async function evaluateNewCommentForNotifications(
       isTopLevelComment: !comment.threadRoot,
       parentCommentAuthorUid: parentCommentAuthor,
       mentionedAccountUids: mentionedUsers,
+      hasDedicatedMentionEvent: hasDedicatedCommentMentionEvent(
+        mentionedUsers,
+        options.dedicatedCommentMentionTargets,
+        options.blobCid,
+        sub.id,
+      ),
     })
 
     logNotifVerbose('comment notification candidate evaluated', {

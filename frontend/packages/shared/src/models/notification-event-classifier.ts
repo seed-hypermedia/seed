@@ -71,9 +71,10 @@ export function classifyCommentNotificationForAccount(input: {
   isTopLevelComment: boolean
   parentCommentAuthorUid: string | null | undefined
   mentionedAccountUids: Set<string>
+  hasDedicatedMentionEvent?: boolean
 }): NotificationReason | null {
   const isSelfAuthored = input.commentAuthorUid === input.subscriptionAccountUid
-  if (isSelfAuthored) return null
+  if (isSelfAuthored || input.hasDedicatedMentionEvent) return null
   if (input.parentCommentAuthorUid === input.subscriptionAccountUid) return 'reply'
   const isTargetAuthor = Boolean(input.targetAuthorUids?.includes(input.subscriptionAccountUid))
   if (input.isTopLevelComment && (input.targetAccountUid === input.subscriptionAccountUid || isTargetAuthor)) {

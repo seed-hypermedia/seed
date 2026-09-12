@@ -4,7 +4,9 @@ import {Code, ConnectError} from '@connectrpc/connect'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import type {Event} from '@shm/shared'
 import {
+  getDedicatedCommentMentionTargets,
   getEventId,
+  hasDedicatedCommentMentionEvent,
   getMentionsOfDocument,
   isNotificationEventTooOld,
   isTransientGrpcUnavailableError,
@@ -55,11 +57,13 @@ function createMentionEvent(
     sourceCid?: string | undefined
     target?: string | undefined
     mentionType?: string | undefined
+    sourceType?: string | undefined
   } = {},
 ): PlainMessage<Event> {
   const sourceCid = 'sourceCid' in input ? input.sourceCid : TEST_CID_1
   const target = 'target' in input ? input.target : `hm://${TEST_ACCOUNT}`
   const mentionType = 'mentionType' in input ? input.mentionType : ''
+  const sourceType = 'sourceType' in input ? input.sourceType : 'doc/Embed'
   const sourceBlob: any = {
     author: TEST_ACCOUNT,
     createTime: toTimestamp(Date.UTC(2026, 0, 1, 12, 0, 0)),
@@ -67,7 +71,7 @@ function createMentionEvent(
   if (sourceCid !== undefined) sourceBlob.cid = sourceCid
   const value: any = {
     source: `hm://${TEST_ACCOUNT}`,
-    sourceType: 'doc/Embed',
+    sourceType,
     sourceContext: 'block-1',
     sourceBlob,
     isExactVersion: false,
@@ -88,6 +92,39 @@ function createMentionEvent(
     observeTime: toTimestamp(Date.UTC(2026, 0, 1, 12, 0, 0)) as PlainMessage<Event>['observeTime'],
   }
 }
+
+describe('getDedicatedCommentMentionTargets', () => {
+  it('maps comment mention events by source blob and account target', () => {
+    const commentMention = createMentionEvent({
+      sourceCid: TEST_CID_1,
+      target: `hm://${TEST_ACCOUNT}/:profile`,
+      sourceType: 'comment/Embed',
+    })
+    const documentMention = createMentionEvent({
+      sourceCid: TEST_CID_2,
+      target: `hm://${TEST_ACCOUNT}`,
+      sourceType: 'doc/Embed',
+    })
+
+    expect(getDedicatedCommentMentionTargets([commentMention, documentMention])).toEqual(
+      new Map([[TEST_CID_1, new Set([TEST_ACCOUNT])]]),
+    )
+  })
+})
+
+describe('hasDedicatedCommentMentionEvent', () => {
+  const targets = new Map([[TEST_CID_1, new Set([TEST_ACCOUNT])]])
+
+  it('defers only recipients covered by both comment content and a companion event', () => {
+    expect(hasDedicatedCommentMentionEvent(new Set([TEST_ACCOUNT]), targets, TEST_CID_1, TEST_ACCOUNT)).toBe(true)
+    expect(hasDedicatedCommentMentionEvent(new Set(['other-account']), targets, TEST_CID_1, TEST_ACCOUNT)).toBe(false)
+    expect(hasDedicatedCommentMentionEvent(new Set([TEST_ACCOUNT]), targets, TEST_CID_1, 'other-account')).toBe(false)
+  })
+
+  it('does not defer an account-home document citation excluded from body mentions', () => {
+    expect(hasDedicatedCommentMentionEvent(new Set(), targets, TEST_CID_1, TEST_ACCOUNT)).toBe(false)
+  })
+})
 
 describe('isNotificationEventTooOld', () => {
   it('accepts events seen within the last hour', () => {
