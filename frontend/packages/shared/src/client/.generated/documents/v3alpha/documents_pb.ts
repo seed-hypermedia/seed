@@ -4163,6 +4163,14 @@ export class ActivitySummary extends Message<ActivitySummary> {
   isUnread = false;
 
   /**
+   * Output only. Number of distinct documents citing this document.
+   * Computed from the resource-links target index without enumerating citations.
+   *
+   * @generated from field: int32 citation_count = 7;
+   */
+  citationCount = 0;
+
+  /**
    * Output only. Number of alive direct child documents.
    * Only populated in document listings; listing cards show it without
    * fetching a per-document interaction summary.
@@ -4184,6 +4192,7 @@ export class ActivitySummary extends Message<ActivitySummary> {
     { no: 2, name: "comment_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 3, name: "latest_change_time", kind: "message", T: Timestamp },
     { no: 5, name: "is_unread", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 7, name: "citation_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 6, name: "children_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
   ]);
 

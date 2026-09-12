@@ -1291,6 +1291,191 @@ func TestListDirectoryChildrenCount(t *testing.T) {
 	require.Equal(t, int32(0), children["/loner"])
 }
 
+func TestDocumentInfoCitationCount(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{PublicOnly: true})
+	ctx := context.Background()
+	account := alice.me.Account.PublicKey.String()
+
+	target, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/target", "", "main").
+		SetMetadata("name", "Target").
+		Build())
+	require.NoError(t, err)
+	targetIRI := "hm://" + account + "/target"
+
+	source, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/source",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "link-1"}}},
+			{Op: &documents.DocumentChange_ReplaceBlock{ReplaceBlock: &documents.Block{Id: "link-1", Type: "paragraph", Text: "First link", Link: targetIRI}}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Another link from a later change of the same source must not inflate the
+	// document-level count.
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/source",
+		BaseVersion:    source.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "link-2", LeftSibling: "link-1"}}},
+			{Op: &documents.DocumentChange_ReplaceBlock{ReplaceBlock: &documents.Block{Id: "link-2", Type: "paragraph", Text: "Second link", Link: targetIRI + "#b1"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/other-source",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "link"}}},
+			{Op: &documents.DocumentChange_ReplaceBlock{ReplaceBlock: &documents.Block{Id: "link", Type: "paragraph", Text: "Other link", Link: targetIRI}}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/private-source",
+		Visibility:     documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "private-link"}}},
+			{Op: &documents.DocumentChange_ReplaceBlock{ReplaceBlock: &documents.Block{Id: "private-link", Type: "paragraph", Text: "Private link", Link: targetIRI}}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Public-only anonymous reads must not reveal that a private document cites
+	// this target, matching ListCitations' public_blobs filter.
+	got, err := alice.GetDocumentInfo(ctx, &documents.GetDocumentInfoRequest{Account: account, Path: "/target"})
+	require.NoError(t, err)
+	require.Equal(t, int32(2), got.ActivitySummary.CitationCount)
+	require.Equal(t, target.Version, got.Version)
+
+	summary, err := alice.GetInteractionSummary(ctx, &documents.GetInteractionSummaryRequest{Iri: targetIRI})
+	require.NoError(t, err)
+	require.Equal(t, int32(2), summary.CitationCount)
+	require.Zero(t, summary.CommentCount)
+	require.Equal(t, []string{account}, summary.AuthorUids)
+	require.Equal(t, []*documents.InteractionSummaryBlock{{
+		TargetFragment: "b1",
+		CitationCount:  1,
+	}}, summary.Blocks)
+
+	// The target account owner may read private citations on a public-only node.
+	ownerCtx := blob.WithAuthenticatedCaller(ctx, alice.me.Account.Principal())
+	got, err = alice.GetDocumentInfo(ownerCtx, &documents.GetDocumentInfoRequest{Account: account, Path: "/target"})
+	require.NoError(t, err)
+	require.Equal(t, int32(3), got.ActivitySummary.CitationCount)
+	summary, err = alice.GetInteractionSummary(ownerCtx, &documents.GetInteractionSummaryRequest{Iri: targetIRI})
+	require.NoError(t, err)
+	require.Equal(t, int32(3), summary.CitationCount)
+
+	// Moving a citing document must preserve its identity rather than counting
+	// both the historical and current paths.
+	_, err = alice.CreateRef(ctx, &documents.CreateRefRequest{
+		Account: source.Account,
+		Path:    "/moved-source",
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Version_{
+				Version: &documents.RefTarget_Version{
+					Genesis: source.Genesis,
+					Version: source.Version,
+				},
+			},
+		},
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+	_, err = alice.CreateRef(ctx, &documents.CreateRefRequest{
+		Account:        source.Account,
+		Path:           source.Path,
+		SigningKeyName: "main",
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Redirect_{
+				Redirect: &documents.RefTarget_Redirect{Account: source.Account, Path: "/moved-source"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	got, err = alice.GetDocumentInfo(ctx, &documents.GetDocumentInfoRequest{Account: account, Path: "/target"})
+	require.NoError(t, err)
+	require.Equal(t, int32(2), got.ActivitySummary.CitationCount)
+
+	// A tombstoned source is no longer a visible citing document.
+	_, err = alice.CreateRef(ctx, &documents.CreateRefRequest{
+		Account:        account,
+		Path:           "/other-source",
+		SigningKeyName: "main",
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Tombstone_{Tombstone: &documents.RefTarget_Tombstone{}},
+		},
+	})
+	require.NoError(t, err)
+
+	got, err = alice.GetDocumentInfo(ctx, &documents.GetDocumentInfoRequest{Account: account, Path: "/target"})
+	require.NoError(t, err)
+	require.Equal(t, int32(1), got.ActivitySummary.CitationCount)
+}
+
+func TestInteractionSummaryFollowsMovedTarget(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+	account := alice.me.Account.PublicKey.String()
+
+	target, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/old-target", "", "main").
+		SetMetadata("name", "Target").
+		Build())
+	require.NoError(t, err)
+	oldIRI := "hm://" + account + "/old-target"
+
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/source",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "link"}}},
+			{Op: &documents.DocumentChange_ReplaceBlock{ReplaceBlock: &documents.Block{Id: "link", Type: "paragraph", Text: "Link", Link: oldIRI}}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = alice.CreateRef(ctx, &documents.CreateRefRequest{
+		Account: account,
+		Path:    "/new-target",
+		Target: &documents.RefTarget{Target: &documents.RefTarget_Version_{Version: &documents.RefTarget_Version{
+			Genesis: target.Genesis,
+			Version: target.Version,
+		}}},
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+	_, err = alice.CreateRef(ctx, &documents.CreateRefRequest{
+		Account: account,
+		Path:    "/old-target",
+		Target: &documents.RefTarget{Target: &documents.RefTarget_Redirect_{Redirect: &documents.RefTarget_Redirect{
+			Account: account,
+			Path:    "/new-target",
+		}}},
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+
+	summary, err := alice.GetInteractionSummary(ctx, &documents.GetInteractionSummaryRequest{Iri: "hm://" + account + "/new-target"})
+	require.NoError(t, err)
+	require.Equal(t, int32(1), summary.CitationCount, "citations of a pre-move target path remain visible")
+}
+
 func TestListDirectoryDerivesFallbackCoverImage(t *testing.T) {
 	t.Parallel()
 

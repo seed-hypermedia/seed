@@ -19,6 +19,9 @@ service Resources {
   // Lists citations of a given resource across the locally-available content.
   rpc ListCitations(ListCitationsRequest) returns (ListCitationsResponse);
 
+  // Returns bounded aggregate interaction data without enumerating citations.
+  rpc GetInteractionSummary(GetInteractionSummaryRequest) returns (InteractionSummary);
+
   // Makes sure a resource (and their related blobs) are pushed to a given peer.
   rpc PushResourcesToPeer(PushResourcesToPeerRequest) returns (stream com.seed.p2p.v1alpha.AnnounceBlobsProgress);
 }
@@ -57,6 +60,33 @@ message PushResourcesToPeerRequest {
 
   // Optional. Whether to push children documents recursively as well.
   bool recursive = 3;
+}
+
+// Request for aggregate interaction data about a resource.
+message GetInteractionSummaryRequest {
+  // Required. IRI of the cited resource.
+  string iri = 1;
+}
+
+// Aggregate interactions targeting a resource.
+message InteractionSummary {
+  // Number of distinct live documents citing the resource.
+  int32 citation_count = 1;
+
+  // Number of distinct live comments citing the resource.
+  int32 comment_count = 2;
+
+  // Counts grouped by the raw target fragment.
+  repeated InteractionSummaryBlock blocks = 3;
+
+  // Distinct account IDs that authored citations or comments.
+  repeated string author_uids = 4;
+}
+
+message InteractionSummaryBlock {
+  string target_fragment = 1;
+  int32 citation_count = 2;
+  int32 comment_count = 3;
 }
 
 // Request to list citations of a resource.

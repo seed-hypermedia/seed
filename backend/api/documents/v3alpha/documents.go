@@ -3,6 +3,7 @@ package documents
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -961,7 +962,7 @@ func (srv *Server) GetDocumentInfo(ctx context.Context, in *documents.GetDocumen
 		if err != nil {
 			return nil, err
 		}
-		return getDocumentInfo(conn, lookup, iri)
+		return getDocumentInfo(conn, lookup, iri, srv.citationVisibilityFilter(ctx))
 	})
 	if err != nil {
 		return nil, err
@@ -1009,7 +1010,7 @@ func (srv *Server) BatchGetDocumentInfo(ctx context.Context, in *documents.Batch
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		lookup := blob.NewLookupCache(conn)
 		for i, iri := range iris {
-			info, err := getDocumentInfo(conn, lookup, iri)
+			info, err := getDocumentInfo(conn, lookup, iri, srv.citationVisibilityFilter(ctx))
 			if err != nil {
 				return fmt.Errorf("failed to get document info for %s: %w", iri, err)
 			}
@@ -1364,7 +1365,7 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 		}
 
 		args.Append(in.PageSize)
-		query = wrapDocumentsQuery(qb, outerOrder)
+		query = wrapDocumentsQuery(qb, outerOrder, srv.citationVisibilityFilter(ctx))
 	}
 
 	out := &documents.ListDirectoryResponse{
@@ -1522,7 +1523,7 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 			iris[i] = blob.IRI("hm://" + acc.Id)
 		}
 
-		infos, err := getRootDocumentInfos(conn, lookup, iris)
+		infos, err := getRootDocumentInfos(conn, lookup, iris, srv.citationVisibilityFilter(ctx))
 		if err != nil {
 			return nil, fmt.Errorf("failed to load home document info: %w", err)
 		}
@@ -1553,7 +1554,7 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 // One query over the whole set fixes that, and it also makes the home document info
 // consistent with what ListRootDocuments reports for the same documents, since both
 // derive it the same way.
-func getRootDocumentInfos(conn *sqlite.Conn, lookup *blob.LookupCache, iris []blob.IRI) (out map[blob.IRI]*documents.DocumentInfo, err error) {
+func getRootDocumentInfos(conn *sqlite.Conn, lookup *blob.LookupCache, iris []blob.IRI, citationVisibilityFilter string) (out map[blob.IRI]*documents.DocumentInfo, err error) {
 	if len(iris) == 0 {
 		return nil, nil
 	}
@@ -1570,7 +1571,7 @@ func getRootDocumentInfos(conn *sqlite.Conn, lookup *blob.LookupCache, iris []bl
 	args = append(args, len(iris))
 
 	out = make(map[blob.IRI]*documents.DocumentInfo, len(iris))
-	rows, discard, check := sqlitex.Query(conn, wrapDocumentsQuery(qb, ""), args...).All()
+	rows, discard, check := sqlitex.Query(conn, wrapDocumentsQuery(qb, "", citationVisibilityFilter), args...).All()
 	defer discard(&err)
 	for row := range rows {
 		info, _, err := documentInfoFromRow(lookup, row)
@@ -1600,7 +1601,7 @@ func (srv *Server) GetAccount(ctx context.Context, in *documents.GetAccountReque
 
 	return sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (*documents.Account, error) {
 		lookup := blob.NewLookupCache(conn)
-		return srv.getAccountByID(conn, lookup, in.Id)
+		return srv.getAccountByID(ctx, conn, lookup, in.Id)
 	})
 }
 
@@ -1630,7 +1631,7 @@ func (srv *Server) BatchGetAccounts(ctx context.Context, in *documents.BatchGetA
 	in.Ids = slices.Compact(in.Ids)
 
 	for _, id := range in.Ids {
-		acc, err := srv.getAccountByID(conn, lookup, id)
+		acc, err := srv.getAccountByID(ctx, conn, lookup, id)
 		if err != nil {
 			if out.Errors == nil {
 				out.Errors = make(map[string][]byte, len(in.Ids))
@@ -1698,7 +1699,7 @@ func (srv *Server) baseAccountQuery() *dqb.SelectQuery {
 		LeftJoin("(SELECT DISTINCT substr(iri, 6, 48) AS id FROM subscriptions) subs", "spaces.id = subs.id")
 }
 
-func (srv *Server) getAccountByID(conn *sqlite.Conn, lookup *blob.LookupCache, id string) (out *documents.Account, err error) {
+func (srv *Server) getAccountByID(ctx context.Context, conn *sqlite.Conn, lookup *blob.LookupCache, id string) (out *documents.Account, err error) {
 	acc, err := core.DecodePrincipal(id)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to decode account %s: %v", id, err)
@@ -1730,7 +1731,7 @@ func (srv *Server) getAccountByID(conn *sqlite.Conn, lookup *blob.LookupCache, i
 		return nil, err
 	}
 
-	info, err := getDocumentInfo(conn, lookup, iri)
+	info, err := getDocumentInfo(conn, lookup, iri, srv.citationVisibilityFilter(ctx))
 	if err != nil {
 		// If the error is not found we handle it gracefully,
 		// and simply won't set the home document info.
@@ -1967,7 +1968,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 		srv.applyListVisibilityFilter(ctx, qb, &args)
 
 		args.Append(in.PageSize)
-		query = wrapDocumentsQuery(qb, "activity_time DESC")
+		query = wrapDocumentsQuery(qb, "activity_time DESC", srv.citationVisibilityFilter(ctx))
 	}
 
 	conn, release, err := srv.db.ReadConn(ctx)
@@ -2079,7 +2080,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		}
 
 		args.Append(in.PageSize)
-		query = wrapDocumentsQuery(qb, "activity_time DESC")
+		query = wrapDocumentsQuery(qb, "activity_time DESC", srv.citationVisibilityFilter(ctx))
 	}
 
 	conn, release, err := srv.db.ReadConn(ctx)
@@ -2174,7 +2175,7 @@ func (srv *Server) ListUnreferencedDocuments(ctx context.Context, in *documents.
 			}{Account: in.Account, IRI: lastIRI}, nil)
 			break
 		}
-		info, err := getDocumentInfo(conn, lookup, iri)
+		info, err := getDocumentInfo(conn, lookup, iri, srv.citationVisibilityFilter(ctx))
 		if err != nil {
 			return nil, err
 		}
@@ -2237,8 +2238,8 @@ var qUnreferencedIndexIncomplete = `
 	)
 `
 
-func getDocumentInfo(conn *sqlite.Conn, lookup *blob.LookupCache, iri blob.IRI) (info *documents.DocumentInfo, err error) {
-	q := wrapDocumentsQuery(baseDocumentsQuery().Where("r.iri = ?"), "")
+func getDocumentInfo(conn *sqlite.Conn, lookup *blob.LookupCache, iri blob.IRI, citationVisibilityFilter string) (info *documents.DocumentInfo, err error) {
+	q := wrapDocumentsQuery(baseDocumentsQuery().Where("r.iri = ?"), "", citationVisibilityFilter)
 	// 0 is the page size parameter.
 	rows, discard, check := sqlitex.Query(conn, q, iri, 0).All()
 	defer discard(&err)
@@ -2319,7 +2320,31 @@ const qDocumentsOuterColumns = `    (SELECT 1 FROM unread_resources WHERE iri = 
       WHERE cr.iri > i.iri || '/' AND cr.iri < i.iri || '0'
         AND instr(substr(cr.iri, length(i.iri) + 2), '/') = 0
         AND (SELECT cdg.is_deleted FROM document_generations cdg WHERE cdg.resource = cr.id ORDER BY cdg.generation DESC LIMIT 1) = 0
-    ) AS children_count`
+    ) AS children_count,
+    -- Distinct citing resources match InteractionSummary's document count:
+    -- multiple links or changes from one document still count once. Drive
+    -- from the target index so work is proportional to this document's inbound
+    -- links rather than to the whole resource_links table.
+    (SELECT count(DISTINCT current_source.id)
+      FROM resource_links rl INDEXED BY resource_links_by_target
+      JOIN structural_blobs change ON change.id = rl.source AND change.type = 'Change'
+      JOIN structural_blobs source_ref
+        ON source_ref.genesis_blob = coalesce(change.genesis_blob, change.id)
+        AND source_ref.type = 'Ref'
+      JOIN resources current_source ON current_source.id = coalesce(
+        (SELECT redirected.id FROM resources redirected WHERE redirected.iri = source_ref.extra_attrs->>'redirect'),
+        source_ref.resource
+      )
+      JOIN document_generations source_generation ON source_generation.resource = current_source.id
+      WHERE rl.target = (SELECT r.id FROM resources r WHERE r.iri = i.iri)
+        /* CITATION_VISIBILITY_FILTER */
+        AND source_generation.generation = (
+          SELECT max(latest.generation)
+          FROM document_generations latest
+          WHERE latest.resource = current_source.id
+        )
+        AND source_generation.is_deleted = 0
+    ) AS citation_count`
 
 // wrapDocumentsQuery wraps a query built by [baseDocumentsQuery] into an outer
 // SELECT that appends [qDocumentsOuterColumns]. The inner query keeps all the
@@ -2332,10 +2357,10 @@ const qDocumentsOuterColumns = `    (SELECT 1 FROM unread_resources WHERE iri = 
 // orderBy repeats the inner ordering in terms of the inner query's alias `i`
 // (the wrapper alone doesn't guarantee preserving the inner order); pass ""
 // for single-row lookups.
-func wrapDocumentsQuery(qb *dqb.SelectQuery, orderBy string) string {
+func wrapDocumentsQuery(qb *dqb.SelectQuery, orderBy, citationVisibilityFilter string) string {
 	var sb strings.Builder
 	sb.WriteString("SELECT\n    i.*,\n")
-	sb.WriteString(qDocumentsOuterColumns)
+	sb.WriteString(strings.Replace(qDocumentsOuterColumns, "/* CITATION_VISIBILITY_FILTER */", citationVisibilityFilter, 1))
 	sb.WriteString("\nFROM (\n")
 	sb.WriteString(qb.String())
 	sb.WriteString("\n) i")
@@ -2369,6 +2394,7 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		visibility        = blob.Visibility(row.ColumnText(inc()))
 		isUnread          = row.ColumnInt64(inc()) > 0
 		childrenCount     = row.ColumnInt64(inc())
+		citationCount     = row.ColumnInt64(inc())
 	)
 
 	iri := blob.IRI(iriRaw)
@@ -2527,6 +2553,7 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 			LatestChangeTime:  timestamppb.New(time.UnixMilli(lastChangeTime)),
 			IsUnread:          isUnread,
 			ChildrenCount:     int32(childrenCount), //nolint:gosec
+			CitationCount:     int32(citationCount), //nolint:gosec
 		},
 		GenerationInfo: &documents.GenerationInfo{
 			Genesis:    genesis,
@@ -2946,7 +2973,7 @@ func (srv *Server) loadDocumentInfo(ctx context.Context, account core.Principal,
 
 	return sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (*documents.DocumentInfo, error) {
 		lookup := blob.NewLookupCache(conn)
-		return getDocumentInfo(conn, lookup, iri)
+		return getDocumentInfo(conn, lookup, iri, srv.citationVisibilityFilter(ctx))
 	})
 }
 
@@ -3068,6 +3095,30 @@ func (srv *Server) checkWriteAccess(ctx context.Context, account core.Principal,
 	}
 
 	return nil
+}
+
+// citationVisibilityFilter preserves ListCitations' source-blob visibility
+// semantics for the indexed aggregate. On public-only nodes anonymous callers
+// see only citations made by public Changes. An authenticated caller may also
+// see private citations when they can write the target account root, matching
+// isPublicOnlyFor in ListCitations. The verified principal is encoded as a SQL
+// blob literal, so the outer projection needs no extra positional binding that
+// could disturb the inner query's carefully ordered parameters.
+func (srv *Server) citationVisibilityFilter(ctx context.Context) string {
+	if !srv.cfg.PublicOnly {
+		return ""
+	}
+
+	const publicSource = "EXISTS (SELECT 1 FROM public_blobs citation_public WHERE citation_public.id = change.id)"
+	caller, ok := blob.GetAuthenticatedCaller(ctx)
+	if !ok {
+		return "AND " + publicSource
+	}
+
+	targetOwner := "(SELECT citation_target.owner FROM resources citation_target WHERE citation_target.iri = i.iri)"
+	canWriteTargetRoot := blob.SQLCanWriteRootByOwnerID(targetOwner)
+	canWriteTargetRoot = strings.Replace(canWriteTargetRoot, "?", "X'"+hex.EncodeToString(caller)+"'", 1)
+	return "AND (" + publicSource + " OR " + canWriteTargetRoot + ")"
 }
 
 func (srv *Server) applyListVisibilityFilter(ctx context.Context, qb *dqb.SelectQuery, args *colx.Slice[any]) {

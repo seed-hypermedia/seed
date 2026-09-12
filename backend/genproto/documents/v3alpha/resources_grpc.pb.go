@@ -20,9 +20,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Resources_GetResource_FullMethodName         = "/com.seed.documents.v3alpha.Resources/GetResource"
-	Resources_ListCitations_FullMethodName       = "/com.seed.documents.v3alpha.Resources/ListCitations"
-	Resources_PushResourcesToPeer_FullMethodName = "/com.seed.documents.v3alpha.Resources/PushResourcesToPeer"
+	Resources_GetResource_FullMethodName           = "/com.seed.documents.v3alpha.Resources/GetResource"
+	Resources_ListCitations_FullMethodName         = "/com.seed.documents.v3alpha.Resources/ListCitations"
+	Resources_GetInteractionSummary_FullMethodName = "/com.seed.documents.v3alpha.Resources/GetInteractionSummary"
+	Resources_PushResourcesToPeer_FullMethodName   = "/com.seed.documents.v3alpha.Resources/PushResourcesToPeer"
 )
 
 // ResourcesClient is the client API for Resources service.
@@ -37,6 +38,8 @@ type ResourcesClient interface {
 	GetResource(ctx context.Context, in *GetResourceRequest, opts ...grpc.CallOption) (*Resource, error)
 	// Lists citations of a given resource across the locally-available content.
 	ListCitations(ctx context.Context, in *ListCitationsRequest, opts ...grpc.CallOption) (*ListCitationsResponse, error)
+	// Returns bounded aggregate interaction data without enumerating citations.
+	GetInteractionSummary(ctx context.Context, in *GetInteractionSummaryRequest, opts ...grpc.CallOption) (*InteractionSummary, error)
 	// Makes sure a resource (and their related blobs) are pushed to a given peer.
 	PushResourcesToPeer(ctx context.Context, in *PushResourcesToPeerRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[v1alpha.AnnounceBlobsProgress], error)
 }
@@ -63,6 +66,16 @@ func (c *resourcesClient) ListCitations(ctx context.Context, in *ListCitationsRe
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListCitationsResponse)
 	err := c.cc.Invoke(ctx, Resources_ListCitations_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *resourcesClient) GetInteractionSummary(ctx context.Context, in *GetInteractionSummaryRequest, opts ...grpc.CallOption) (*InteractionSummary, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InteractionSummary)
+	err := c.cc.Invoke(ctx, Resources_GetInteractionSummary_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -100,6 +113,8 @@ type ResourcesServer interface {
 	GetResource(context.Context, *GetResourceRequest) (*Resource, error)
 	// Lists citations of a given resource across the locally-available content.
 	ListCitations(context.Context, *ListCitationsRequest) (*ListCitationsResponse, error)
+	// Returns bounded aggregate interaction data without enumerating citations.
+	GetInteractionSummary(context.Context, *GetInteractionSummaryRequest) (*InteractionSummary, error)
 	// Makes sure a resource (and their related blobs) are pushed to a given peer.
 	PushResourcesToPeer(*PushResourcesToPeerRequest, grpc.ServerStreamingServer[v1alpha.AnnounceBlobsProgress]) error
 }
@@ -116,6 +131,9 @@ func (UnimplementedResourcesServer) GetResource(context.Context, *GetResourceReq
 }
 func (UnimplementedResourcesServer) ListCitations(context.Context, *ListCitationsRequest) (*ListCitationsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListCitations not implemented")
+}
+func (UnimplementedResourcesServer) GetInteractionSummary(context.Context, *GetInteractionSummaryRequest) (*InteractionSummary, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetInteractionSummary not implemented")
 }
 func (UnimplementedResourcesServer) PushResourcesToPeer(*PushResourcesToPeerRequest, grpc.ServerStreamingServer[v1alpha.AnnounceBlobsProgress]) error {
 	return status.Errorf(codes.Unimplemented, "method PushResourcesToPeer not implemented")
@@ -176,6 +194,24 @@ func _Resources_ListCitations_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Resources_GetInteractionSummary_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInteractionSummaryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ResourcesServer).GetInteractionSummary(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Resources_GetInteractionSummary_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ResourcesServer).GetInteractionSummary(ctx, req.(*GetInteractionSummaryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Resources_PushResourcesToPeer_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(PushResourcesToPeerRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -201,6 +237,10 @@ var Resources_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListCitations",
 			Handler:    _Resources_ListCitations_Handler,
+		},
+		{
+			MethodName: "GetInteractionSummary",
+			Handler:    _Resources_GetInteractionSummary_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

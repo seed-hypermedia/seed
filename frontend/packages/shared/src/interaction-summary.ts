@@ -1,7 +1,7 @@
 import {HMCitation, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {deduplicateCitations} from './citation-deduplication'
 import {ListDocumentChangesResponse} from './client/.generated/documents/v3alpha/documents_pb'
-import {ListCitationsResponse} from './client/.generated/documents/v3alpha/resources_pb'
+import {InteractionSummary, ListCitationsResponse} from './client/.generated/documents/v3alpha/resources_pb'
 import {hmId, unpackHmId} from './utils'
 import {parseFragment} from './utils/entity-id-url'
 
@@ -19,6 +19,31 @@ export type InteractionSummaryPayload = {
       comments: number
     }
   >
+}
+
+/** Builds the client payload from the daemon's bounded aggregate response. */
+export function calculateInteractionSummaryFromAggregate(
+  aggregate: InteractionSummary,
+  changes: ListDocumentChangesResponse['changes'],
+  childrenCount: number = 0,
+): InteractionSummaryPayload {
+  const blocks: InteractionSummaryPayload['blocks'] = {}
+  for (const counts of aggregate.blocks) {
+    const blockId = parseFragment(counts.targetFragment)?.blockId
+    if (!blockId) continue
+    const block = (blocks[blockId] ??= {citations: 0, comments: 0})
+    block.citations += counts.citationCount
+    block.comments += counts.commentCount
+  }
+
+  return {
+    citations: aggregate.citationCount,
+    comments: aggregate.commentCount,
+    changes: changes.length,
+    children: childrenCount,
+    authorUids: aggregate.authorUids,
+    blocks,
+  }
 }
 
 /**
@@ -104,6 +129,7 @@ export function calculateInteractionSummary(
   changes: ListDocumentChangesResponse['changes'],
   targetDocId: UnpackedHypermediaId,
   childrenCount: number = 0,
+  citationCount?: number,
 ): InteractionSummaryPayload {
   const allCitations = processResourceCitations(citations, targetDocId)
   const dedupedCitations = deduplicateCitations(allCitations)
@@ -128,7 +154,9 @@ export function calculateInteractionSummary(
   )
 
   return {
-    citations: uniqueDocSources.size, // Count distinct document sources citing this document
+    // Prefer the daemon's complete index-driven total. Falling back keeps the
+    // pure helper compatible with callers that only have a citation page.
+    citations: citationCount ?? uniqueDocSources.size,
     comments: uniqueCommentSources.size, // Count distinct comment sources
     changes: changes.length,
     children: childrenCount,

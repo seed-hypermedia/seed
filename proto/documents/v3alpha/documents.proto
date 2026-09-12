@@ -1111,6 +1111,10 @@ message ActivitySummary {
   // Whether there's any unread activity on this document/account.
   bool is_unread = 5;
 
+  // Output only. Number of distinct documents citing this document.
+  // Computed from the resource-links target index without enumerating citations.
+  int32 citation_count = 7;
+
   // Output only. Number of alive direct child documents.
   // Only populated in document listings; listing cards show it without
   // fetching a per-document interaction summary.
