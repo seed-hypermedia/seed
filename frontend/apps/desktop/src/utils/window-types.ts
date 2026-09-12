@@ -1,7 +1,7 @@
 import {NavRoute} from '@shm/shared/routes'
 
 export type WindowTypeInfo = {
-  key: 'settings' | 'comment' | 'main' | 'deleted-content' | 'inspect-ipfs'
+  key: 'settings' | 'comment' | 'main' | 'inspect-ipfs'
   minWidth: number
   minHeight: number
   maxWidth: number | undefined
@@ -15,18 +15,6 @@ export type WindowTypeInfo = {
 }
 
 export function getRouteWindowType(route: NavRoute): WindowTypeInfo {
-  if (route.key === 'deleted-content')
-    return {
-      key: 'deleted-content',
-      minWidth: 960,
-      minHeight: 720,
-      maxWidth: undefined,
-      maxHeight: undefined,
-      trafficLightPosition: {
-        x: 12,
-        y: 12,
-      },
-    } as const
   if (route.key === 'settings')
     return {
       key: 'settings',

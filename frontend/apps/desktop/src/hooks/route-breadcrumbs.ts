@@ -83,7 +83,6 @@ const STATIC_WINDOW_TITLES: Partial<Record<NavRoute['key'], string>> = {
   settings: 'Settings',
   'account-settings': 'Identity Settings',
   'site-settings': 'Space Settings',
-  'deleted-content': 'Deleted Content',
   'api-inspector': 'API Inspector',
   'query-documents': 'Query Documents',
   explore: 'Explore',
