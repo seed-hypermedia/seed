@@ -7,8 +7,10 @@ import {
   useOpenUrl,
   useUniversalAppContext,
 } from '@shm/shared'
+import {useImageUrl} from '@shm/ui/get-file-url'
 import {useCallback, useEffect, useMemo} from 'react'
 import {useBlockNote} from './blocknote'
+import {ImageGalleryOverlay} from './blocknote/react'
 import {BlockHoverActionsPositioner} from './blocknote/react/BlockHoverActions/BlockHoverActionsPositioner'
 import {PredictionConeDebugOverlay} from './blocknote/react/BlockHoverActions/PredictionConeDebugOverlay'
 import {RangeSelectionPositioner} from './blocknote/react/RangeSelection/RangeSelectionPositioner'
@@ -55,6 +57,7 @@ export function ReadOnlyViewer({
   onComment,
 }: ReadOnlyViewerProps) {
   const openUrl = useOpenUrl()
+  const getImageUrl = useImageUrl()
   const {hmUrlHref, openRouteNewWindow, origin, originHomeId, experiments} = useUniversalAppContext()
   const renderHref = useCallback(
     (url: string) =>
@@ -128,6 +131,7 @@ export function ReadOnlyViewer({
       >
         <ReadOnlyBlockNoteView editor={editor}>
           <>
+            <ImageGalleryOverlay editor={editor} resolveImageUrl={getImageUrl} />
             {hasHoverActions && (
               <BlockHoverActionsPositioner
                 editor={editor}
