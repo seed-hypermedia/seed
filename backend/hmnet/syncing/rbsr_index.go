@@ -233,6 +233,16 @@ func loadIndexedScopes(ctx context.Context, db *sqlitex.Pool, dkeys colx.HashSet
 					if err := materializeScope(conn, id, dkey); err != nil {
 						return err
 					}
+					shouldKeep, err := scopeHasItemsOrResource(conn, id, dkey)
+					if err != nil {
+						return err
+					}
+					if !shouldKeep {
+						if err := sqlitex.Exec(conn, qDeleteScope(), nil, id); err != nil {
+							return err
+						}
+						continue
+					}
 				}
 				scopeIDs = append(scopeIDs, id)
 			}
@@ -319,8 +329,22 @@ const qMaterializeReplace = `
 
 var qMaterializeClear = dqb.Str(`DELETE FROM rbsr_item WHERE scope = :scope;`)
 
+var qScopeHasItemsOrResource = dqb.Str(`SELECT
+	EXISTS(SELECT 1 FROM rbsr_item WHERE scope = :scope)
+	OR EXISTS(SELECT 1 FROM resources WHERE iri = :iri);`)
+
+var qDeleteScope = dqb.Str(`DELETE FROM rbsr_scope WHERE id = :scope;`)
+
 var qMarkMaterialized = dqb.Str(`
 	UPDATE rbsr_scope SET materialized = 1, last_access = :now WHERE id = :scope;`)
+
+func scopeHasItemsOrResource(conn *sqlite.Conn, scopeID int64, dkey DiscoveryKey) (keep bool, err error) {
+	err = sqlitex.Exec(conn, qScopeHasItemsOrResource(), func(stmt *sqlite.Stmt) error {
+		keep = stmt.ColumnInt64(0) != 0
+		return nil
+	}, scopeID, string(dkey.IRI))
+	return keep, err
+}
 
 // materializeScope (re)builds a scope's persisted blob set from collectBlobs —
 // the one place the expensive closure runs. Idempotent: it clears and refills
