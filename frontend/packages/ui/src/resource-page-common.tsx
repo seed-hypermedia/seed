@@ -846,6 +846,8 @@ export interface ResourcePageProps {
   inlineInsert?: ReactNode
   /** Whether the current user can edit this document (drives the state machine guard). */
   canEdit?: boolean
+  /** Force the private-document permission state even when the local data service can read the resource. */
+  accessDenied?: boolean
   /** Optional provided machine (with actors) for desktop editing support. */
   machine?: typeof documentMachine
   /** Optional XState inspect callback for debugging. Gated by developerTools flag. */
@@ -929,6 +931,7 @@ export function ResourcePage({
   onFollowClick,
   inlineInsert,
   canEdit = false,
+  accessDenied = false,
   machine,
   inspect,
   inspectStore,
@@ -1170,7 +1173,7 @@ export function ResourcePage({
   }
 
   // Handle private document (permission denied) — persistent state, always unmount.
-  if (resource.data?.type === 'error' && resource.data.message.toLowerCase().includes('permission')) {
+  if (accessDenied || (resource.data?.type === 'error' && resource.data.message.toLowerCase().includes('permission'))) {
     return (
       <PageWrapper
         siteHomeId={siteHomeId}
