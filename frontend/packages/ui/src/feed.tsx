@@ -921,32 +921,27 @@ function CitationSourceBlock({sourceId}: {sourceId: UnpackedHypermediaId}) {
   const resource = useResource(sourceId)
   const Viewer = useReadOnlyViewer()
 
+  // Must stay referentially stable: the viewer rebuilds its whole editor whenever
+  // the `blocks` array changes identity, so an inline `[blockNode]` literal would
+  // tear down and recreate a ProseMirror instance on every render.
+  const blocks = useMemo(() => {
+    const data = resource.data
+    const content =
+      data?.type === 'document' ? data.document?.content : data?.type === 'comment' ? data.comment?.content : undefined
+    if (!content || !sourceId.blockRef) return null
+    const blockNode = findContentBlock(content, sourceId.blockRef)
+    return blockNode ? [blockNode] : null
+  }, [resource.data, sourceId.blockRef])
+
   if (resource.isLoading) {
     return <div className="text-muted-foreground text-xs">Loading block…</div>
   }
 
-  if (resource.error || !resource.data || !Viewer) {
+  if (resource.error || !resource.data || !Viewer || !blocks) {
     return null
   }
 
-  const content =
-    resource.data.type === 'document'
-      ? resource.data.document?.content
-      : resource.data.type === 'comment'
-        ? resource.data.comment?.content
-        : undefined
-
-  if (!content || !sourceId.blockRef) {
-    return null
-  }
-
-  const blockNode = findContentBlock(content, sourceId.blockRef)
-
-  if (!blockNode) {
-    return null
-  }
-
-  return <Viewer blocks={[blockNode]} resourceId={sourceId} textUnit={14} layoutUnit={16} />
+  return <Viewer blocks={blocks} resourceId={sourceId} textUnit={14} layoutUnit={16} />
 }
 
 export function getEventRoute(event: LoadedEvent): NavRoute | null {
