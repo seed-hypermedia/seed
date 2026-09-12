@@ -2175,7 +2175,7 @@ func (srv *Server) ListUnreferencedDocuments(ctx context.Context, in *documents.
 			}{Account: in.Account, IRI: lastIRI}, nil)
 			break
 		}
-		info, err := getDocumentInfo(conn, lookup, iri)
+		info, err := getDocumentInfo(conn, lookup, iri, srv.citationVisibilityFilter(ctx))
 		if err != nil {
 			return nil, err
 		}
@@ -2239,10 +2239,9 @@ var qUnreferencedIndexIncomplete = `
 `
 
 func getDocumentInfo(conn *sqlite.Conn, lookup *blob.LookupCache, iri blob.IRI, citationVisibilityFilter string) (info *documents.DocumentInfo, err error) {
-	q := wrapDocumentsQuery(baseSingleDocumentQuery().Where("r.iri = ?"), "", citationVisibilityFilter)
-	// The IRI is bound twice: as the comment aggregation seed, and as the row filter.
+	q := wrapDocumentsQuery(baseDocumentsQuery().Where("r.iri = ?"), "", citationVisibilityFilter)
 	// 0 is the page size parameter.
-	rows, discard, check := sqlitex.Query(conn, q, iri, iri, 0).All()
+	rows, discard, check := sqlitex.Query(conn, q, iri, 0).All()
 	defer discard(&err)
 
 	for row := range rows {
