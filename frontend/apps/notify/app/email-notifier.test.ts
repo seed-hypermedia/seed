@@ -1,9 +1,11 @@
-import {describe, expect, it} from 'vitest'
+import {describe, expect, it, vi} from 'vitest'
 import type {PlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import type {Event} from '@shm/shared'
+import {requestAPI} from './notify-request'
 import {
+  evaluateMentionEventForNotifications,
   getEventId,
   getMentionsOfDocument,
   isNotificationEventTooOld,
@@ -11,6 +13,11 @@ import {
   matchesCursorEvent,
   resolveContentReferenceNames,
 } from './email-notifier'
+
+vi.mock('./notify-request', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./notify-request')>()
+  return {...actual, requestAPI: vi.fn()}
+})
 
 const TEST_CID_1 = 'bafkreigh2akiscaildcuj3pww4f2ptib34dm5x3dpljubjkbzfgutz5jum'
 const TEST_CID_2 = 'bafy2bzacedexveqjcytw4trm6a4lxgxyssrg3ubxyro6rp5o4lo545qcl3imw'
@@ -88,6 +95,47 @@ function createMentionEvent(
     observeTime: toTimestamp(Date.UTC(2026, 0, 1, 12, 0, 0)) as PlainMessage<Event>['observeTime'],
   }
 }
+
+describe('evaluateMentionEventForNotifications', () => {
+  it('carries a modern document mention sourceContext into the notification', async () => {
+    vi.mocked(requestAPI).mockImplementation(async (resource) => {
+      if (resource === 'ResourceMetadata') return {metadata: {name: 'Source Doc'}} as any
+      if (resource === 'Account') return {type: 'account', metadata: {name: 'Alice'}} as any
+      throw new Error(`Unexpected resource request: ${resource}`)
+    })
+    const appendNotification = vi.fn<Parameters<typeof evaluateMentionEventForNotifications>[2]>(async () => {})
+    const event = createMentionEvent()
+    if (event.data.case !== 'newMention') throw new Error('expected mention event')
+
+    await evaluateMentionEventForNotifications(
+      event.data.value,
+      [
+        {
+          id: TEST_ACCOUNT,
+          email: null,
+          adminToken: null,
+          shouldSendEmail: false,
+          source: 'inbox-registration',
+          notifyAllMentions: true,
+          notifyAllReplies: false,
+          notifyAllDiscussions: false,
+          notifyOwnedDocChange: false,
+          notifySiteDiscussions: false,
+        },
+      ],
+      appendNotification,
+      {eventId: 'mention-event-1', eventAtMs: Date.UTC(2026, 0, 1, 12, 0, 0)},
+      TEST_ACCOUNT,
+    )
+
+    expect(appendNotification).toHaveBeenCalledOnce()
+    expect(appendNotification.mock.calls[0]?.[1]).toMatchObject({
+      reason: 'mention',
+      source: 'document',
+      sourceContext: 'block-1',
+    })
+  })
+})
 
 describe('isNotificationEventTooOld', () => {
   it('accepts events seen within the last hour', () => {

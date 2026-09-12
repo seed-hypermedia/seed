@@ -26,6 +26,7 @@ export function notificationToPayload(notif: Notification, eventId: string, even
       commentId: notif.comment?.id ?? null,
       sourceId: null,
       citationType: null,
+      sourceContext: notif.sourceContext ?? null,
     }
   }
 

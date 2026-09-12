@@ -1392,7 +1392,7 @@ async function buildVerifiedResourceUrl(
   })
 }
 
-async function evaluateMentionEventForNotifications(
+export async function evaluateMentionEventForNotifications(
   mentionEvent: any,
   allSubscriptions: NotificationSubscription[],
   appendNotification: (subscription: NotificationSubscription, notif: Notification) => Promise<void>,
@@ -1520,6 +1520,7 @@ async function evaluateMentionEventForNotifications(
     await appendNotification(sub, {
       reason: 'mention',
       source: isCommentMention ? 'comment' : 'document',
+      sourceContext: mentionEvent.sourceContext || undefined,
       authorAccountId,
       authorMeta,
       targetMeta,
