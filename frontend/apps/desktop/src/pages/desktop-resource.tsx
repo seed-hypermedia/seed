@@ -45,6 +45,7 @@ import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {getPublishedResourceIdForDraftRoute} from '@/utils/draft-route'
 import {fileUpload} from '@/utils/file-upload'
+import {isPrivateDocumentDenied} from '@/utils/private-document-access'
 import {useNavigate} from '@/utils/useNavigate'
 import {useBroadcastWindowEvent, useListenAppEvent} from '@/utils/window-events'
 import {
@@ -1256,6 +1257,7 @@ export default function DesktopResourcePage() {
                     docId={docId}
                     resourceId={documentResourceId}
                     canEdit={canEdit}
+                    accessDenied={isPrivateDocumentDenied(doc?.visibility, canEdit)}
                     CommentEditor={CommentBox}
                     optionsMenuItems={menuItems}
                     fileBrowserCreateMenuItem={fileBrowserCreateMenuItem}
