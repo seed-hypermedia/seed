@@ -63,6 +63,30 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Rebuild the derived RBSR index with non-reusable scope IDs. Empty scopes
+	// can now be discarded after a failed/nonexistent discovery without letting
+	// an in-flight reader mistake a later row for the deleted scope. Rebuilding
+	// also removes empty rows accumulated before that cleanup existed.
+	{Version: "2026-09-12.040000", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			DROP TABLE IF EXISTS rbsr_item;
+			DROP TABLE IF EXISTS rbsr_scope;
+			CREATE TABLE rbsr_scope (
+			    id INTEGER PRIMARY KEY AUTOINCREMENT,
+			    iri TEXT NOT NULL,
+			    kind INTEGER NOT NULL,
+			    materialized INTEGER NOT NULL DEFAULT 0,
+			    last_access INTEGER NOT NULL DEFAULT 0,
+			    UNIQUE (iri, kind)
+			);
+			CREATE TABLE rbsr_item (
+			    scope INTEGER NOT NULL REFERENCES rbsr_scope (id) ON UPDATE CASCADE ON DELETE CASCADE,
+			    blob INTEGER NOT NULL REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE,
+			    PRIMARY KEY (scope, blob)
+			) WITHOUT ROWID;
+			CREATE INDEX rbsr_item_by_blob ON rbsr_item (blob);
+		`))
+	}},
 	// Add independently backfilled summaries of references in published
 	// document content. This is intentionally additive and does not schedule a
 	// full blob reindex; the bounded document-fields worker populates it.

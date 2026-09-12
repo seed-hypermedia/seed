@@ -519,7 +519,9 @@ CREATE TABLE embeddings_index (
 -- rbsr_item holds the resolved blob set for the scope, maintained incrementally
 -- by the syncing oracle so reconciliation no longer rebuilds the set per round.
 CREATE TABLE rbsr_scope (
-    id INTEGER PRIMARY KEY,
+    -- AUTOINCREMENT prevents a deleted empty scope ID from being reused while
+    -- an in-flight reader or verifier still holds that numeric identity.
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     -- The discovery key's resource IRI.
     iri TEXT NOT NULL,
     -- Reconciliation scope kind: 0=exact (IRI only), 1=depth_one (direct

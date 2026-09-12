@@ -144,6 +144,62 @@ func TestRbsrIndex_ResolveScopeIdempotent(t *testing.T) {
 	}))
 }
 
+func TestLoadIndexedScopes_DropsEmptyScopes(t *testing.T) {
+	t.Parallel()
+	db, base := oracleFixture(t)
+	ctx := context.Background()
+	missing := DiscoveryKey{IRI: blob.IRI(base + "/does-not-exist"), Recursive: true}
+
+	var previousSequence int64
+	for range 2 {
+		store := newAuthorizedTreeStore()
+		_, err := loadIndexedScopes(ctx, db, colx.HashSet[DiscoveryKey]{missing: {}}, store)
+		require.NoError(t, err)
+		require.NoError(t, store.Seal())
+		require.Zero(t, store.Size())
+
+		var scopes int
+		var sequence int64
+		require.NoError(t, db.WithSave(ctx, func(conn *sqlite.Conn) error {
+			if err := sqlitex.Exec(conn, `SELECT COUNT(*) FROM rbsr_scope WHERE iri = ?`, func(stmt *sqlite.Stmt) error {
+				scopes = stmt.ColumnInt(0)
+				return nil
+			}, string(missing.IRI)); err != nil {
+				return err
+			}
+			return sqlitex.Exec(conn, `SELECT seq FROM sqlite_sequence WHERE name = 'rbsr_scope'`, func(stmt *sqlite.Stmt) error {
+				sequence = stmt.ColumnInt64(0)
+				return nil
+			})
+		}))
+		require.Zero(t, scopes, "empty discovery scopes must not persist")
+		require.Greater(t, sequence, previousSequence, "deleted scope IDs must not be reused")
+		previousSequence = sequence
+	}
+}
+
+func TestLoadIndexedScopes_KeepsKnownEmptyResource(t *testing.T) {
+	t.Parallel()
+	db, base := oracleFixture(t)
+	ctx := context.Background()
+	known := DiscoveryKey{IRI: blob.IRI(base + "/known-empty"), Recursive: true}
+
+	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, `INSERT INTO resources (iri) VALUES (?)`, nil, string(known.IRI))
+	}))
+	_, err := loadIndexedScopes(ctx, db, colx.HashSet[DiscoveryKey]{known: {}}, newAuthorizedTreeStore())
+	require.NoError(t, err)
+
+	var scopes int
+	require.NoError(t, db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, `SELECT COUNT(*) FROM rbsr_scope WHERE iri = ? AND materialized = 1`, func(stmt *sqlite.Stmt) error {
+			scopes = stmt.ColumnInt(0)
+			return nil
+		}, string(known.IRI))
+	}))
+	require.Equal(t, 1, scopes, "known resources remain indexed even before they have eligible blobs")
+}
+
 // TestLoadIndexedScopes_ClientPathMatchesLegacy covers the client store build:
 // the shared three-phase load must produce the same store as the legacy
 // per-call rebuild — both on the cold (materializing) first call and the warm
