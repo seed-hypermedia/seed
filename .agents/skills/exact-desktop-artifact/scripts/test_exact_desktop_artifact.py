@@ -32,14 +32,27 @@ class TestHarness(unittest.TestCase):
   self.assertEqual(2,found['id'])
 
  def test_download_hashes_and_verifies_bound_artifact(self):
-  raw=archive(); run={'id':2,'head_sha':COMMIT,'head_branch':m.BRANCH,'event':'push','status':'completed','conclusion':'success','html_url':'https://example/run/2'}
+  raw=archive(); write=lambda artifact_id,token,path:(path.write_bytes(raw),(__import__('hashlib').sha256(raw).hexdigest(),len(raw)))[1]
+  run={'id':2,'head_sha':COMMIT,'head_branch':m.BRANCH,'event':'push','status':'completed','conclusion':'success','html_url':'https://example/run/2'}
   def fake_api(path,token,method='GET',data=None):
    if '/contents/' in path: return {'content':__import__('base64').b64encode(m.render(SHA,'438').encode()).decode()}
    if '/workflows/' in path: return {'workflow_runs':[run]}
    return {'artifacts':[{'id':9,'name':m.artifact_name(SHA,'438'),'expired':False,'digest':'sha256:'+__import__('hashlib').sha256(raw).hexdigest()}]}
-  with tempfile.TemporaryDirectory() as td, mock.patch.object(m,'load_token',return_value='token'), mock.patch.object(m,'api',side_effect=fake_api), mock.patch.object(m,'download_artifact_bytes',return_value=raw):
+  with tempfile.TemporaryDirectory() as td, mock.patch.object(m,'load_token',return_value='token'), mock.patch.object(m,'api',side_effect=fake_api), mock.patch.object(m,'download_artifact_to_path',side_effect=write):
    dest=pathlib.Path(td)/'artifact.zip'; result=m.download(COMMIT,SHA,'438',dest)
    self.assertTrue(result['manifestVerified']); self.assertEqual(raw,dest.read_bytes()); self.assertEqual(64,len(result['sha256']))
+
+ def test_failed_download_does_not_replace_destination(self):
+  run={'id':2,'head_sha':COMMIT,'head_branch':m.BRANCH,'event':'push','status':'completed','conclusion':'success','html_url':'https://example/run/2'}
+  def fake_api(path,token,method='GET',data=None):
+   if '/contents/' in path: return {'content':__import__('base64').b64encode(m.render(SHA,'438').encode()).decode()}
+   if '/workflows/' in path: return {'workflow_runs':[run]}
+   return {'artifacts':[{'id':9,'name':m.artifact_name(SHA,'438'),'expired':False}]}
+  def fail_download(artifact_id,token,path): path.write_bytes(b'partial'); raise RuntimeError('network failed')
+  with tempfile.TemporaryDirectory() as td, mock.patch.object(m,'load_token',return_value='token'), mock.patch.object(m,'api',side_effect=fake_api), mock.patch.object(m,'download_artifact_to_path',side_effect=fail_download):
+   dest=pathlib.Path(td)/'artifact.zip'; dest.write_bytes(b'old')
+   with self.assertRaisesRegex(RuntimeError,'network failed'): m.download(COMMIT,SHA,'438',dest)
+   self.assertEqual(b'old',dest.read_bytes()); self.assertEqual([],list(dest.parent.glob('*.tmp')))
 
  def test_manifest_only_is_rejected(self):
   raw=io.BytesIO()

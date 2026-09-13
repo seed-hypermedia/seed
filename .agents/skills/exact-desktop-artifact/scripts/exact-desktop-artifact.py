@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Launch and verify credential-safe exact-source Linux desktop artifacts."""
 from __future__ import annotations
-import argparse, base64, hashlib, io, json, re, time, urllib.error, urllib.parse, urllib.request, zipfile
+import argparse, base64, hashlib, io, json, os, re, tempfile, time, urllib.error, urllib.parse, urllib.request, zipfile
 from pathlib import Path
 
 REPO = "ion-lion/seed"
@@ -10,6 +10,7 @@ WORKFLOW = ".github/workflows/ion-exact-desktop-artifact.yml"
 API = f"https://api.github.com/repos/{REPO}"
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 ISSUE_RE = re.compile(r"^[0-9]{1,7}$")
+MAX_ARTIFACT_SIZE = 2 * 1024 * 1024 * 1024
 
 
 def validate(source_sha: str, issue: str, workflow_commit: str | None = None) -> None:
@@ -146,7 +147,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def download_artifact_bytes(artifact_id: int, token: str) -> bytes:
+def download_artifact_to_path(artifact_id: int, token: str, destination: Path) -> tuple[str, int]:
     initial = urllib.request.Request(
         f'{API}/actions/artifacts/{artifact_id}/zip',
         headers={'Accept': 'application/vnd.github+json', 'Authorization': 'Bearer ' + token,
@@ -165,8 +166,18 @@ def download_artifact_bytes(artifact_id: int, token: str) -> bytes:
     if parsed.scheme != 'https' or not allowed:
         raise RuntimeError('GitHub returned an unapproved artifact download location')
     clean = urllib.request.Request(location, headers={'User-Agent': 'Ion-exact-desktop-artifact'})
-    with urllib.request.build_opener(NoRedirect()).open(clean, timeout=120) as response:
-        return response.read()
+    digest, size = hashlib.sha256(), 0
+    with urllib.request.build_opener(NoRedirect()).open(clean, timeout=120) as response, destination.open('xb') as output:
+        length = response.headers.get('Content-Length')
+        if length is not None and int(length) > MAX_ARTIFACT_SIZE:
+            raise RuntimeError('artifact exceeds download size limit')
+        while chunk := response.read(1024 * 1024):
+            size += len(chunk)
+            if size > MAX_ARTIFACT_SIZE:
+                raise RuntimeError('artifact exceeds download size limit')
+            output.write(chunk); digest.update(chunk)
+        output.flush(); os.fsync(output.fileno())
+    return digest.hexdigest(), size
 
 
 def launch(source_sha: str, issue: str) -> dict:
@@ -242,10 +253,11 @@ def wait_for_run(workflow_commit: str, source_sha: str, issue: str, timeout: int
         time.sleep(interval)
 
 
-def verify_archive(raw: bytes, source_sha: str) -> None:
+def verify_archive(raw: bytes | Path, source_sha: str) -> None:
     validate(source_sha, '0')
     try:
-        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+        source = io.BytesIO(raw) if isinstance(raw, bytes) else raw
+        with zipfile.ZipFile(source) as archive:
             names = archive.namelist()
             manifests = [name for name in names if name == 'ION-SOURCE-SHA.txt' or name.endswith('/ION-SOURCE-SHA.txt')]
             packages = [name for name in names if Path(name).suffix in {'.deb', '.rpm', '.AppImage'} and archive.getinfo(name).file_size > 0]
@@ -275,18 +287,22 @@ def download(workflow_commit: str, source_sha: str, issue: str, destination: Pat
     if len(matches) != 1:
         raise RuntimeError(f'expected exactly one unexpired artifact named {expected}; found {len(matches)}')
     artifact = matches[0]
-    raw = download_artifact_bytes(artifact['id'], token)
-    verify_archive(raw, source_sha)
-    digest = artifact.get('digest')
-    computed = hashlib.sha256(raw).hexdigest()
-    if digest is not None and digest != 'sha256:' + computed:
-        raise RuntimeError('artifact digest does not match GitHub metadata')
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_bytes(raw)
+    temp = Path(tempfile.mkstemp(prefix=destination.name + '.', suffix='.tmp', dir=destination.parent)[1])
+    temp.unlink()
+    try:
+        computed, size = download_artifact_to_path(artifact['id'], token, temp)
+        verify_archive(temp, source_sha)
+        digest = artifact.get('digest')
+        if digest is not None and digest != 'sha256:' + computed:
+            raise RuntimeError('artifact digest does not match GitHub metadata')
+        os.replace(temp, destination)
+    finally:
+        temp.unlink(missing_ok=True)
     return {'runId': run['id'], 'runUrl': run['html_url'], 'artifactId': artifact['id'],
             'artifactName': expected, 'workflowCommit': workflow_commit, 'sourceSha': source_sha,
             'issue': issue, 'path': str(destination), 'sha256': computed,
-            'size': len(raw), 'manifestVerified': True}
+            'size': size, 'manifestVerified': True}
 
 
 def acquire(source_sha: str, issue: str, destination: Path, timeout: int, interval: int) -> dict:
