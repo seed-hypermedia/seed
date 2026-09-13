@@ -46,6 +46,15 @@ class TestHarness(unittest.TestCase):
   with zipfile.ZipFile(raw,'w') as z: z.writestr('ION-SOURCE-SHA.txt',SHA+'\n')
   with self.assertRaisesRegex(RuntimeError,'no non-empty supported'): m.verify_archive(raw.getvalue(),SHA)
 
+ def test_workflow_content_accepts_github_line_wrapping(self):
+  encoded=__import__('base64').b64encode(m.render(SHA,'438').encode()).decode()
+  wrapped='\n'.join(encoded[i:i+60] for i in range(0,len(encoded),60))
+  runs={'workflow_runs':[{'id':2,'head_sha':COMMIT,'head_branch':m.BRANCH,'event':'push'}]}
+  def fake_api(path,token,method='GET',data=None):
+   return {'content':wrapped} if '/contents/' in path else runs
+  with mock.patch.object(m,'api',side_effect=fake_api):
+   self.assertEqual(2,m.find_run(COMMIT,SHA,'438','token')['id'])
+
  def test_workflow_content_mismatch_is_rejected(self):
   with mock.patch.object(m,'api',return_value={'content':__import__('base64').b64encode(b'wrong').decode()}):
    with self.assertRaisesRegex(RuntimeError,'does not match'): m.find_run(COMMIT,SHA,'438','token')

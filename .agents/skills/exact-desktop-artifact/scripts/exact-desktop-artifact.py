@@ -199,7 +199,8 @@ def verify_workflow_commit(workflow_commit: str, source_sha: str, issue: str, to
     validate(source_sha, issue, workflow_commit)
     item = api(f'/repos/{REPO}/contents/{WORKFLOW}?ref={workflow_commit}', token)
     try:
-        actual = base64.b64decode(item['content'], validate=True).decode()
+        encoded = ''.join(item['content'].split())
+        actual = base64.b64decode(encoded, validate=True).decode()
     except (KeyError, ValueError, UnicodeDecodeError) as error:
         raise RuntimeError('workflow commit has malformed workflow content') from error
     if actual != render(source_sha, issue):
