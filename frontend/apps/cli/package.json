@@ -27,7 +27,7 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test src/test/cli-fixture.test.ts",
     "test:unit": "bun run test:unit:headless && FORCE_COLOR=1 bun test src/commands/account-profile.test.ts && FORCE_COLOR=1 bun test src/utils/keys.test.ts",
-    "test:unit:headless": "FORCE_COLOR=1 bun test src/output.test.ts src/config.test.ts src/version.test.ts src/utils/blocks-json.test.ts src/utils/block-diff.test.ts src/utils/space-sync.test.ts src/utils/key-derivation.test.ts src/utils/depth.test.ts src/commands/comment-blocks.test.ts src/commands/key-export.test.ts src/utils/space-archive.test.ts",
+    "test:unit:headless": "FORCE_COLOR=1 bun test src/output.test.ts src/config.test.ts src/version.test.ts src/utils/blocks-json.test.ts src/utils/block-diff.test.ts src/utils/space-sync.test.ts src/utils/dev-loop.test.ts src/utils/key-derivation.test.ts src/utils/depth.test.ts src/commands/comment-blocks.test.ts src/commands/key-export.test.ts src/utils/space-archive.test.ts",
     "test:daemon": "bun test src/test/cli.test.ts",
     "test:live": "bun test src/test/cli-live.test.ts",
     "prepublishOnly": "npm run build"

@@ -48,10 +48,53 @@ function loadOrCreateDevKey(dir: string): {keyPair: KeyPair; words: string[]; cr
   return {keyPair: deriveKeyPairFromMnemonic(words), words, created}
 }
 
-/** The daemon key name for a directory's dev site: `hm-sync-<dir name>` (key names are [a-zA-Z0-9_-]). */
-const devKeyName = (dir: string) => `hm-sync-${basename(dir).replace(/[^a-zA-Z0-9_-]/g, '_')}`
-/** A key this loop (or an earlier version of it) registered: ours to retire when it goes stale. */
+/**
+ * Every account this directory has used as its dev key, kept in `<dir>/.dev/accounts.json` (ignored with the rest
+ * of `.dev/`). It is the only proof a dev key is this directory's own: a key's name cannot tell this machine's
+ * stale key from another machine's live one, and a daemon whose keys sync through a remote vault holds both.
+ */
+export function recordDevAccount(dir: string, accountId: string): Set<string> {
+  const devDir = resolve(dir, '.dev')
+  const file = resolve(devDir, 'accounts.json')
+  let accounts: string[] = []
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'))
+    if (Array.isArray(parsed)) accounts = parsed.filter((a): a is string => typeof a === 'string')
+  } catch {
+    // No record yet (or an unreadable one): start from this account.
+  }
+  if (!accounts.includes(accountId)) {
+    accounts.push(accountId)
+    mkdirSync(devDir, {recursive: true})
+    writeFileSync(file, JSON.stringify(accounts, null, 2) + '\n')
+  }
+  return new Set(accounts)
+}
+
+/**
+ * The daemon key name for a directory's dev site: `hm-sync-<dir name>-<account suffix>`.
+ *
+ * The daemon addresses keys by name and a name belongs to one key, but every machine makes its own dev key. When
+ * the daemon's keys sync through a remote vault it sees every machine's dev key, so a name without the account
+ * in it lets one machine's key hold another's name, and registering then fails with "already exists". Key names
+ * are [a-zA-Z0-9_-]; the suffix is the account id's tail, which is base58.
+ */
+export const devKeyName = (dir: string, accountId: string) =>
+  `hm-sync-${basename(dir).replace(/[^a-zA-Z0-9_-]/g, '_')}-${accountId.slice(-8)}`
+/** A dev-site key by its name, from this machine or another. Never enough on its own to delete one. */
 const isDevSiteKey = (name: string) => name.startsWith('hm-sync-') || /^dev-[A-Za-z0-9]{6}$/.test(name)
+
+/**
+ * The dev keys to retire: this directory's earlier dev keys, known by account from its record. Keys another
+ * machine made are left alone, even when they are named like dev keys.
+ */
+export function staleDevKeys<K extends {name: string; publicKey: string}>(
+  keys: K[],
+  current: string,
+  ownAccounts: ReadonlySet<string>,
+): K[] {
+  return keys.filter((key) => key.publicKey !== current && ownAccounts.has(key.publicKey))
+}
 
 /**
  * Make sure the daemon holds the dev key under this directory's name, so the
@@ -64,7 +107,7 @@ async function ensureDaemonKey(
   accountId: string,
 ): Promise<Array<{name: string; publicKey: string}>> {
   const grpc = createGRPCClient(createGrpcWebTransport({baseUrl: daemonUrl}))
-  const name = devKeyName(dir)
+  const name = devKeyName(dir, accountId)
   const existing = await grpc.daemon.listKeys({})
   const ours = existing.keys.find((k) => k.publicKey === accountId)
   if (!ours) {
@@ -78,22 +121,31 @@ async function ensureDaemonKey(
 }
 
 /**
- * Retire the dev sites of earlier loops: every other key this loop registered
- * (`hm-sync:*`, or `dev-xxxxxx` from before the naming) still in the daemon.
- * Their documents are tombstoned so they stop turning up in search and links,
- * and the key is removed. The home document cannot be tombstoned (the daemon
- * refuses), so an empty home remains. Stale sites are how "old data" keeps
- * showing up: a regenerated key, another checkout, a renamed directory.
+ * Retire the dev sites of this directory's earlier dev keys (a regenerated key, a renamed directory) that are
+ * still in the daemon, known by account from the directory's record. Their documents are tombstoned so they stop
+ * turning up in search and links, and the key is removed. The home document cannot be tombstoned (the daemon
+ * refuses), so an empty home remains.
+ *
+ * Only recorded accounts are retired. Retiring by name alone deleted the live dev key of another machine whose
+ * keys sync through the same vault, and marked that machine's dev site deleted.
  */
 async function retireStaleDevSites(
   daemonUrl: string,
   client: SeedClient,
   keys: Array<{name: string; publicKey: string}>,
   current: string,
+  ownAccounts: ReadonlySet<string>,
 ) {
   const grpc = createGRPCClient(createGrpcWebTransport({baseUrl: daemonUrl}))
-  for (const key of keys) {
-    if (key.publicKey === current || !isDevSiteKey(key.name)) continue
+  const foreign = keys.filter(
+    (key) => key.publicKey !== current && isDevSiteKey(key.name) && !ownAccounts.has(key.publicKey),
+  )
+  if (foreign.length) {
+    printInfo(
+      `Leaving ${foreign.length} dev key(s) this directory did not create untouched (another machine's, or older).`,
+    )
+  }
+  for (const key of staleDevKeys(keys, current, ownAccounts)) {
     try {
       const versions = await listSpaceVersions(client, key.publicKey)
       let removed = 0
@@ -209,6 +261,7 @@ export type DevLoopOptions = {
 export async function runDevLoop(opts: DevLoopOptions) {
   const {keyPair, words, created} = loadOrCreateDevKey(opts.dir)
   const account = keyPair.accountId
+  const ownAccounts = recordDevAccount(opts.dir, account)
   printInfo(`Dev key: ${account}${created ? ' (new; saved under .dev/ in the directory)' : ''}`)
   printInfo(`Daemon:  ${opts.daemonUrl}`)
   printInfo(`API:     ${opts.apiUrl}`)
@@ -221,7 +274,7 @@ export async function runDevLoop(opts: DevLoopOptions) {
   const client = createSeedClient(opts.apiUrl)
   const signer = createSignerFromKey(keyPair)
 
-  if (opts.retireStale !== false) await retireStaleDevSites(opts.daemonUrl, client, localKeys, account)
+  if (opts.retireStale !== false) await retireStaleDevSites(opts.daemonUrl, client, localKeys, account, ownAccounts)
 
   // Every account in the app can edit the dev site, not just the dev key.
   await grantWriters(
