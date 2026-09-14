@@ -20,37 +20,66 @@ import (
 
 var _ blockstore.Blockstore = (*Index)(nil)
 
-func TestIndexIgnoresNonScalarDocumentAttributes(t *testing.T) {
+func TestIndexFlattensObjectDocumentAttributes(t *testing.T) {
 	alice := coretest.NewTester("alice").Account
 	db := storage.MakeTestDB(t)
 	idx, err := OpenIndex(t.Context(), db, zap.NewNop())
 	require.NoError(t, err)
 
 	clock := cclock.New()
-	change, err := NewChange(alice, cid.Undef, nil, 0, ChangeBody{
+	first, err := NewChange(alice, cid.Undef, nil, 0, ChangeBody{
 		Ops: []OpMap{
 			NewOpSetAttributes("", []KeyValue{
 				{Key: []string{"name"}, Value: "Document with provenance"},
-				{Key: []string{"provenance"}, Value: map[string]any{"source": "import"}},
+				{Key: []string{"customer"}, Value: map[string]any{
+					"name":    "Before",
+					"removed": "stale",
+				}},
+			}),
+		},
+	}, clock.MustNow())
+	require.NoError(t, err)
+	second, err := NewChange(alice, first.CID, []cid.Cid{first.CID}, 1, ChangeBody{
+		Ops: []OpMap{
+			NewOpSetAttributes("", []KeyValue{
+				{Key: []string{"customer"}, Value: map[string]any{
+					"name":   "After",
+					"score":  int64(42),
+					"active": true,
+					"address": map[string]any{
+						"city": "Lisbon",
+					},
+				}},
 			}),
 			{"type": "SetKey", "key": "legacyStructured", "value": []any{"one", "two"}},
 		},
 	}, clock.MustNow())
 	require.NoError(t, err)
-	ref, err := NewRef(alice, 0, change.CID, alice.Principal(), "/structured-attributes", []cid.Cid{change.CID}, clock.MustNow(), VisibilityPublic)
+	ref, err := NewRef(alice, 0, first.CID, alice.Principal(), "/structured-attributes", []cid.Cid{second.CID}, clock.MustNow(), VisibilityPublic)
 	require.NoError(t, err)
-	require.NoError(t, idx.PutMany(t.Context(), []blocks.Block{change, ref}))
+	require.NoError(t, idx.PutMany(t.Context(), []blocks.Block{first, second, ref}))
 
 	iri := must.Do2(NewIRI(alice.Principal(), "/structured-attributes"))
-	indexed, err := sqlitex.QueryOnePool[int](t.Context(), db, `
-		SELECT COUNT()
-		FROM document_attributes da
-		JOIN document_attribute_keys dak ON dak.id = da.key
-		JOIN resources r ON r.id = da.resource
-		WHERE r.iri = ? AND dak.key IN ('name', 'provenance', 'legacyStructured')
-	`, iri)
+	resource, err := sqlitex.QueryOnePool[int64](t.Context(), db, `SELECT id FROM resources WHERE iri = ?`, iri)
 	require.NoError(t, err)
-	require.Equal(t, 1, indexed, "only the scalar name attribute must be indexed")
+	conn, release, err := db.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
+	attrs, err := readDocumentAttributes(conn, resource, 0, "")
+	require.NoError(t, err)
+	require.Equal(t, map[string]any{
+		"name": "Document with provenance",
+		"customer": map[string]any{
+			"name":   "After",
+			"score":  int64(42),
+			"active": true,
+			"address": map[string]any{
+				"city": "Lisbon",
+			},
+		},
+	}, attrs.PublicMap())
+	require.NotContains(t, attrs, "customer.removed", "replacing an object must remove omitted leaves")
+	require.NotContains(t, attrs, "legacyStructured", "arrays remain unsupported")
 }
 
 // A block gets exactly one fts row per change, no matter how many times the
