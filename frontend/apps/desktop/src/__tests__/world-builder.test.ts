@@ -3,7 +3,7 @@
 // metadata, and a publisher that sends blobs first, then documents in order.
 import * as cbor from '@ipld/dag-cbor'
 import {describe, expect, it, vi} from 'vitest'
-import {nameToUrl} from '@shm/ui/onyx/onyx-engine'
+import {nameToUrl} from '@shm/ui/schema/engine'
 import {buildWorldPlan, docChanges, publishWorld, retargetSchema, slugify, WORLD_KIT_TYPES} from '../world-builder'
 
 const UID = 'z6MkfakeWorldOwner'

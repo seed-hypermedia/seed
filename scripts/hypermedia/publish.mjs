@@ -1,4 +1,4 @@
-// Publish step: hash every Onyx schema to its IPFS CID and write a manifest.
+// Publish step: hash every Hypermedia schema to its IPFS CID and write a manifest.
 //
 //   node publish.mjs            -> regenerate schemas.lock.json (hm:// URL -> CID)
 //   node publish.mjs --check    -> fail if the lockfile is out of date (for CI)
@@ -27,9 +27,9 @@ import { sha256 } from "multiformats/hashes/sha2";
 const DIR = HM_DIR;
 const LOCK = LOCK_PATH;
 
-// Canonical URL = the schema's published-doc URL under the onyx account; the name
+// Canonical URL = the schema's published-doc URL under the Hypermedia account; the name
 // is its path inside hypermedia/ (schema/string, example/person, …), see names.mjs.
-const ONYX = "z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb";
+const HYPERMEDIA_UID = "z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb";
 const fileToUrl = (file) => nameToUrl(nameOfFile(file));
 
 async function cidOf(obj) {
@@ -56,7 +56,7 @@ for (const f of files) {
 
 const sorted = Object.fromEntries(Object.keys(schemas).sort().map((k) => [k, schemas[k]]));
 const manifest = {
-  "//": "Onyx schema manifest — hm:// URL -> DAG-CBOR CID (CIDv1, sha2-256). Deterministic; regenerate with `node scripts/hypermedia/publish.mjs`.",
+  "//": "Hypermedia schema manifest — hm:// URL -> DAG-CBOR CID (CIDv1, sha2-256). Deterministic; regenerate with `node scripts/hypermedia/publish.mjs`.",
   codec: "dag-cbor",
   hash: "sha2-256",
   count: files.length,

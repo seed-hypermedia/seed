@@ -21,7 +21,7 @@
  * truth, whatever the frontmatter says). A `{$type, value}` file is an
  * instance, not a type: its document conforms to `$type` (`metadata.schema`).
  */
-import {effectiveSchemaRef, loadSchema, metadataViolations} from './onyx'
+import {effectiveSchemaRef, loadSchema, metadataViolations} from './schema'
 import {existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
 import {dirname, join, normalize, relative, resolve} from 'node:path'
 import {

@@ -1,10 +1,10 @@
 ---
 name: Design Rationale
-summary: Why Onyx is shaped the way it is — the principles, the decisions taken, the open questions, and the non-goals.
+summary: Why Hypermedia Schemas is shaped the way it is — the principles, the decisions taken, the open questions, and the non-goals.
 ---
 # Design rationale & open questions <!-- id:h0evtq_b -->
 
-Why Onyx is shaped the way it is, and what is still undecided. <!-- id:Ax8_SsL- -->
+Why Hypermedia Schemas is shaped the way it is, and what is still undecided. <!-- id:Ax8_SsL- -->
 
 ## Principles <!-- id:V0hRDQGX -->
 
@@ -12,7 +12,7 @@ Why Onyx is shaped the way it is, and what is still undecided. <!-- id:Ax8_SsL- 
 
 **Precise, not permissive.** The meta-schema is a _discriminated union_ of closed variants, so it rejects malformed schemas (`{type:"string", items:{…}}`) rather than shrugging at them. A type system whose own type is loose isn't honest; making `schema` a union is what makes it honest. <!-- id:W4Lj9Nfw -->
 
-**Name kinds, don't define them.** The schema language never defines what a `string` or a `link` is — the codec does. Onyx only _names_ codec-defined kinds so schemas can constrain to them. This is what let `link` and `bytes` join with zero structural change: they are two more literals in the same union as `string`. <!-- id:trZZS__7 -->
+**Name kinds, don't define them.** The schema language never defines what a `string` or a `link` is — the codec does. The schema language only _names_ codec-defined kinds so schemas can constrain to them. This is what let `link` and `bytes` join with zero structural change: they are two more literals in the same union as `string`. <!-- id:trZZS__7 -->
 
 **Representation is not kind.** A link renders as `{"/":…}` in JSON, but it is not a map and is never modeled as one. Keeping kinds atomic avoids dag-json's reserved-key ambiguity and keeps schemas honest about what a value _is_ versus how it happens to be spelled. <!-- id:xqXFLw1S -->
 
@@ -43,6 +43,6 @@ Why Onyx is shaped the way it is, and what is still undecided. <!-- id:Ax8_SsL- 
 
 ## Non-goals <!-- id:QsrBEUi9 -->
 
-- Not re-implementing JSON Schema. Onyx is intentionally tiny; breadth is a non-goal. <!-- id:Mcymn3Dx -->
+- Not re-implementing JSON Schema. the language is intentionally tiny; breadth is a non-goal. <!-- id:Mcymn3Dx -->
 - Not a query or transformation language — it types data, nothing more. <!-- id:i4B6KiPY -->
 - Not hiding IPLD. Links and content-addressing are surfaced, not abstracted away; they are the point. <!-- id:ssdyUSWm -->

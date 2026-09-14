@@ -21,8 +21,8 @@ import {setupTestEnv, type TestEnv} from './integration'
 const REPO = path.resolve(__dirname, '..')
 const CLI = path.join(REPO, 'frontend/apps/cli')
 const AGENTS = path.join(REPO, 'agents')
-const ONYX = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
-const KIND = (k: string) => `${ONYX}/hypermedia-${k}`
+const HYPERMEDIA_UID = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
+const KIND = (k: string) => `${HYPERMEDIA_UID}/hypermedia-${k}`
 const TIMEOUT = 180_000
 
 let env: TestEnv
@@ -428,10 +428,10 @@ describe('CLI · 7. Extend the signed blob envelope into a new signed type', () 
         'site/types/vote.schema.json',
         JSON.stringify(
           {
-            ref: `${ONYX}/hypermedia-blob`,
+            ref: `${HYPERMEDIA_UID}/hypermedia-blob`,
             properties: {
               type: {value: 'Vote', required: true},
-              target: {value: {ref: `${ONYX}/hypermedia-hm-url`}, required: true},
+              target: {value: {ref: `${HYPERMEDIA_UID}/hypermedia-hm-url`}, required: true},
               choice: {value: {anyOf: ['yes', 'no']}, required: true},
             },
           },

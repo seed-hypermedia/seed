@@ -1,6 +1,6 @@
 ---
 name: The Typed API
-summary: The Seed read API as an Onyx catalog — every method's key, input, and output are published schemas, and the in-app API console is generated from them rather than hand-written.
+summary: The Seed read API as an schema catalog — every method's key, input, and output are published schemas, and the in-app API console is generated from them rather than hand-written.
 ---
 # One call shape <!-- id:S_OZNfxS -->
 
@@ -26,7 +26,7 @@ Open the union page for the full list; every variant links to its own page with 
 
 # The read models <!-- id:eNHwY8y6 -->
 
-The `output` side is built from the read models under `rpc/type/`: the derived data the daemon computes for clients, as distinct from the signed blobs that travel the network. [rpc/type/document](./rpc/type/document.md) is a document with its versions, authors, and timestamps already resolved; [rpc/type/id](./rpc/type/id.md) is the parsed form of an `hm://` identifier; [rpc/type/interaction-summary](./rpc/type/interaction-summary.md) counts the comments, citations, and changes on a resource. The signed blobs are covered in [Onyx on the Hypermedia Network](./hypermedia.md); the read models are the other half of the picture — what you actually receive. <!-- id:AqyRPHIN -->
+The `output` side is built from the read models under `rpc/type/`: the derived data the daemon computes for clients, as distinct from the signed blobs that travel the network. [rpc/type/document](./rpc/type/document.md) is a document with its versions, authors, and timestamps already resolved; [rpc/type/id](./rpc/type/id.md) is the parsed form of an `hm://` identifier; [rpc/type/interaction-summary](./rpc/type/interaction-summary.md) counts the comments, citations, and changes on a resource. The signed blobs are covered in [Schemas on the Hypermedia Network](./hypermedia.md); the read models are the other half of the picture — what you actually receive. <!-- id:AqyRPHIN -->
 
 # The console <!-- id:pntyyyx_ -->
 
@@ -43,4 +43,4 @@ None of that is hand-wired. The console reads the `rpc/method` union at runtime,
 
 # Adding a method <!-- id:bViEZFh5 -->
 
-Add an `rpc/<method>.schema.json` with its `key` literal, `input`, and `output`; add a companion `.md`; reference it from the `rpc/method` union; run the publisher to update the lockfile and the generators to refresh the bundled registry and TypeScript types; sync. The method then appears in the console, in the tour, and as a typed call in the client — from one schema. The pipeline is described in [how Onyx works](./doc/schema/how-it-works.md). <!-- id:J_7p0r19 -->
+Add an `rpc/<method>.schema.json` with its `key` literal, `input`, and `output`; add a companion `.md`; reference it from the `rpc/method` union; run the publisher to update the lockfile and the generators to refresh the bundled registry and TypeScript types; sync. The method then appears in the console, in the tour, and as a typed call in the client — from one schema. The pipeline is described in [how Hypermedia Schemas work](./doc/schema/how-it-works.md). <!-- id:J_7p0r19 -->

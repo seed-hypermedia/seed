@@ -1,7 +1,7 @@
-// Onyx editor — a schema-driven data editor that runs in the browser.
+// Schema editor — a schema-driven data editor that runs in the browser.
 //
-// It is fed the whole schema set via `window.ONYX_DATA` (see /onyx-data.js) and
-// mounts on any <div id="onyx-editor" data-schema="<slug>">. It renders a form
+// It is fed the whole schema set via `window.SCHEMA_DATA` (see /schema-data.js) and
+// mounts on any <div id="schema-editor" data-schema="<slug>">. It renders a form
 // from the schema, live-validates the value with a browser port of the SAME
 // engine as validate.mjs (so the tour's editor and the reference validator can
 // never disagree), and shows the resulting dag-json.
@@ -10,20 +10,20 @@
 // meta-schema) it edits A SCHEMA. One engine, every editor.
 (function () {
   "use strict";
-  const DATA = window.ONYX_DATA || { schemas: {}, authority: [], manifest: {} };
+  const DATA = window.SCHEMA_DATA || { schemas: {}, authority: [], manifest: {} };
   const SCHEMAS = DATA.schemas;
   const AUTHORITY = DATA.authority;
 
   // ---- validator core (ported verbatim from validate.mjs) -----------------
 
   const ALIASES = DATA.aliases || {};
-  const ONYX = "z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb";
+  const HYPERMEDIA_UID = "z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb";
   // Schema keys are paths inside hypermedia/ (schema/string.schema.json); old names resolve through the aliases.
   const urlToFile = (ref) => {
     const m = /^hm:\/\/([^/]+)\/(.+)$/.exec(ref);
     let name;
     if (!m) name = ref.replace(/(\.schema)?(\.json)?$/, "");
-    else if (m[1] === ONYX) name = m[2];
+    else if (m[1] === HYPERMEDIA_UID) name = m[2];
     else {
       const prefix = AUTHORITY.find(([, a]) => a === m[1]);
       name = prefix ? `${prefix[0]}${m[2]}` : m[2];
@@ -525,7 +525,7 @@
       out.innerHTML = highlight(value);
       if (errors.length === 0) {
         status.className = "on-status ok";
-        status.innerHTML = '<span class="on-dot ok"></span> valid ' + (isMeta ? "Onyx schema" : slug);
+        status.innerHTML = '<span class="on-dot ok"></span> valid ' + (isMeta ? "Hypermedia schema" : slug);
       } else {
         status.className = "on-status bad";
         status.innerHTML = '<span class="on-dot bad"></span> ' + errors.length + " issue" + (errors.length > 1 ? "s" : "") +
@@ -564,5 +564,5 @@
     refresh();
   }
 
-  document.querySelectorAll("#onyx-editor, .onyx-editor").forEach(mount);
+  document.querySelectorAll("#schema-editor, .schema-editor").forEach(mount);
 })();

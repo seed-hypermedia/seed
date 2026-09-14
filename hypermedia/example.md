@@ -1,10 +1,10 @@
 ---
 name: Examples
-summary: A catalog of every Onyx example schema — structs, literals, generics, unions, recursion, extension, and live instances.
+summary: A catalog of every example schema — structs, literals, generics, unions, recursion, extension, and live instances.
 ---
-# Onyx examples <!-- id:HKSIPG2Z -->
+# Examples <!-- id:HKSIPG2Z -->
 
-Every example here is a schema built _with_ Onyx, published beside its page as `example/<name>` (local files are `example/<name>.schema.json`). Each one demonstrates a specific feature, links to others, and is checked by `validate.mjs` — validated as a well-formed schema, plus positive and negative **data** cases. <!-- id:eYTB9M9t -->
+Every example here is a schema built _with_ Hypermedia Schemas, published beside its page as `example/<name>` (local files are `example/<name>.schema.json`). Each one demonstrates a specific feature, links to others, and is checked by `validate.mjs` — validated as a well-formed schema, plus positive and negative **data** cases. <!-- id:eYTB9M9t -->
 
 ## Structs & primitives <!-- id:oGPlvmvN -->
 

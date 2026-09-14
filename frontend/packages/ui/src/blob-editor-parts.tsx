@@ -7,7 +7,7 @@ import {Button} from './button'
 import {Input} from './components/input'
 import {Textarea} from './components/textarea'
 import {parseCidString} from './dag-json'
-import {useSchemaWarningCount, useSchemaWarnings} from './onyx/onyx-schema-context'
+import {useSchemaWarningCount, useSchemaWarnings} from './schema/schema-context'
 import {Spinner} from './spinner'
 import {cn} from './utils'
 

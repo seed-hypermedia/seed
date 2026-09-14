@@ -35,7 +35,7 @@ import type {
 } from '@seed-hypermedia/client/hm-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
-import {freezeSchemaDraft} from '@shm/ui/onyx/schema-document'
+import {freezeSchemaDraft} from '@shm/ui/schema/schema-document'
 import {
   documentMachine,
   retargetQueryBlockIncludesForPublish,

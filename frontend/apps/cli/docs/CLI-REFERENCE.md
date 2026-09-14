@@ -191,7 +191,7 @@ Retrieve and decode a raw IPFS block by its Content Identifier.
 
 ### Schema Operations
 
-Onyx schemas as things of their own. A schema reference is a `.json` file (dag-json), an `ipfs://<cid>`, a library name such as `hypermedia-document`, or a type document's `hm://` URL, whose `schemaDefinition` is followed.
+Hypermedia schemas as things of their own. A schema reference is a `.json` file (dag-json), an `ipfs://<cid>`, a library name such as `hypermedia-document`, or a type document's `hm://` URL, whose `schemaDefinition` is followed.
 
 #### `schema get <ref>` - Print a schema
 
@@ -199,7 +199,7 @@ Prints the schema as dag-json with its CID. `--resolve` prints the resolved shap
 
 #### `schema validate <ref>` - Check a schema against the meta-schema
 
-Exit code 1 when the schema is not a valid Onyx schema; prints each violation.
+Exit code 1 when the schema is not a valid Hypermedia schema; prints each violation.
 
 ### Blob Operations
 

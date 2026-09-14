@@ -52,7 +52,7 @@ export {filterChildDrafts}
 import {hmId, hmIdToURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath, hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {DocNavigationItem} from '@shm/ui/navigation'
-import {freezeSchemaDraft} from '@shm/ui/onyx/schema-document'
+import {freezeSchemaDraft} from '@shm/ui/schema/schema-document'
 import {PushResourceStatus} from '@shm/ui/push-toast'
 import {useMutation, UseMutationOptions, useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {findParentNode} from '@tiptap/core'

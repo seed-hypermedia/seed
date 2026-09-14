@@ -1,5 +1,5 @@
 ---
-name: Onyx schema
+name: Meta-schema
 summary: "The meta-schema: a discriminated union of the shapes a schema can take. It is a valid instance of itself."
 schemaDefinition: ipfs://bafyreieroepmqw34dvcpgcusakgkl7c2rh4pyrfdfnyuofor3snuk5aiku
 ---

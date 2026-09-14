@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import {OnyxSchemaProvider, type OnyxSchema} from '@shm/ui/onyx/index'
+import {SchemaRegistryProvider, type HypermediaSchema} from '@shm/ui/schema/index'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {CBOR_VALUE_RULES, ValueEditor, ValueEditorProvider} from '@shm/ui/value-editor'
 import React from 'react'
@@ -44,12 +44,12 @@ afterEach(() => {
   container.remove()
 })
 
-function renderField(value: Record<string, unknown>, schema: OnyxSchema) {
+function renderField(value: Record<string, unknown>, schema: HypermediaSchema) {
   act(() => {
     root.render(
       <TooltipProvider>
         <ValueEditorProvider openUrl={() => {}}>
-          <OnyxSchemaProvider schema={schema} registry={{}} value={value}>
+          <SchemaRegistryProvider schema={schema} registry={{}} value={value}>
             <ValueEditor
               value={value}
               onValue={(next) => {
@@ -57,20 +57,20 @@ function renderField(value: Record<string, unknown>, schema: OnyxSchema) {
               }}
               rules={CBOR_VALUE_RULES}
             />
-          </OnyxSchemaProvider>
+          </SchemaRegistryProvider>
         </ValueEditorProvider>
       </TooltipProvider>,
     )
   })
 }
 
-const PROFILE_SCHEMA: OnyxSchema = {
+const PROFILE_SCHEMA: HypermediaSchema = {
   type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct',
   properties: {
     author: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string', format: 'hm-profile'},
   },
 }
-const DOC_SCHEMA: OnyxSchema = {
+const DOC_SCHEMA: HypermediaSchema = {
   type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct',
   properties: {
     post: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string', format: 'hm-url'},
@@ -93,7 +93,7 @@ describe('HM entity fields', () => {
   })
 
   it('a profile URL with a path is non-conforming and renders the search input instead', () => {
-    // The Onyx engine doesn't validate `format` (it's advisory UI only), so a
+    // The schema engine doesn't validate `format` (it's advisory UI only), so a
     // path-bearing profile URL produces no warning badge — unlike v1. The
     // preserved behavior: it's non-conforming, so HMEntityField swaps the resolved
     // display for the editable search input seeded with the raw value.

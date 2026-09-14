@@ -38,14 +38,14 @@ import {Spinner} from './spinner'
 import {toast} from './toast'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
-import {seedValue} from './onyx/onyx-data-editor'
-import {onyxSubschema, useOnyxSchema, useSubschema} from './onyx/onyx-schema-context'
+import {seedValue} from './schema/data-editor'
+import {subschemaAt, useSchemaContext, useSubschema} from './schema/schema-context'
 import {HMEntityField, HMEntityLink} from './hm-entity-field'
-import {DateValueField, type DateFieldMode} from './onyx/date-field'
+import {DateValueField, type DateFieldMode} from './schema/date-field'
 
 /** The multicodec code of a DAG-CBOR block — an ipfs reference to an object, not a file. */
 const DAG_CBOR_CODE = 0x71
-import {LinkedObjectDialog} from './onyx/linked-object-dialog'
+import {LinkedObjectDialog} from './schema/linked-object-dialog'
 import {
   LiteralValueSelect,
   literalOptions as literalOptionsOf,
@@ -55,7 +55,7 @@ import {
   useSchemaFieldSuggestions,
   useSchemaKeyLabel,
   type LiteralOption,
-} from './onyx/onyx-value-editor-schema'
+} from './schema/value-editor-schema'
 
 /**
  * Behavior rules for the recursive value editor, so it can serve both the
@@ -2601,11 +2601,11 @@ function SuggestionPopover<T>({
  * picked a type the schema starter doesn't match, the default wins.
  */
 function useCreateFieldValue() {
-  const ctx = useOnyxSchema()
+  const ctx = useSchemaContext()
   return useCallback(
     (targetPath: ValuePath, type: NewFieldType, rules: ValueEditorRules): unknown => {
       if (ctx) {
-        const sub = onyxSubschema(ctx.rootSchema, targetPath, ctx.registry)
+        const sub = subschemaAt(ctx.rootSchema, targetPath, ctx.registry)
         const starter = sub && sub !== 'unresolved' ? seedValue(sub, ctx.registry) : undefined
         if (starter !== undefined && valueToFieldType(starter) === type && findInvalidValue(starter, rules) === null) {
           return starter

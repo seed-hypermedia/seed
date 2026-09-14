@@ -3,7 +3,7 @@ name: Union schema
 summary: The variant for a union — a value matching any one of several alternatives (anyOf).
 schemaDefinition: ipfs://bafyreihjp6c7lp7mgjkv5jbicw3yrvz3gahra3vibtnchetrjsjtk7s3xy
 ---
-**`anyOf`** — the union keyword: a list of schemas; a value is valid if it matches any of them. Onyx's one composite construct. A union whose arms are all literals is a fixed set of choices (`{anyOf: ["draft", "published"]}`), which the editors show as a dropdown. <!-- id:ppR9ujjo -->
+**`anyOf`** — the union keyword: a list of schemas; a value is valid if it matches any of them. the schema language's one composite construct. A union whose arms are all literals is a fixed set of choices (`{anyOf: ["draft", "published"]}`), which the editors show as a dropdown. <!-- id:ppR9ujjo -->
 
 This document describes the **schema/anyof** type — a meta-schema variant. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:C3PmGxab -->
 

@@ -21,7 +21,7 @@ import {Block, DocumentChange} from '@shm/shared/client/.generated/documents/v3a
 import type {PublishDocumentInput} from '@shm/shared/universal-client'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {dagJsonToIpld} from '@shm/ui/dag-json'
-import {nameToUrl, ONYX_SCHEMAS, type OnyxSchema} from '@shm/ui/onyx/onyx-engine'
+import {nameToUrl, HM_SCHEMAS, type HypermediaSchema} from '@shm/ui/schema/engine'
 
 const DAG_CBOR_CODE = 0x71
 
@@ -129,7 +129,10 @@ export function childrenQueryBlock(
  * to this world's own type documents, so Character.home points at THIS world's
  * Place type. Targets for types not included stay on the library type.
  */
-export function retargetSchema(schema: OnyxSchema, typeUrls: Partial<Record<WorldKitType, string>>): OnyxSchema {
+export function retargetSchema(
+  schema: HypermediaSchema,
+  typeUrls: Partial<Record<WorldKitType, string>>,
+): HypermediaSchema {
   const libraryUrlToType = new Map<string, WorldKitType>()
   for (const t of WORLD_KIT_TYPES) libraryUrlToType.set(nameToUrl(WORLD_KIT[t].library)!, t)
   const walk = (node: unknown): unknown => {
@@ -144,7 +147,7 @@ export function retargetSchema(schema: OnyxSchema, typeUrls: Partial<Record<Worl
     }
     return out
   }
-  return walk(schema) as OnyxSchema
+  return walk(schema) as HypermediaSchema
 }
 
 async function encodeBlob(value: unknown): Promise<{cid: string; data: Uint8Array}> {
@@ -175,7 +178,7 @@ export async function buildWorldPlan(spec: WorldSpec): Promise<WorldPlan> {
   const blobs: WorldPlan['blobs'] = []
   const schemaCidByType: Partial<Record<WorldKitType, string>> = {}
   for (const t of types) {
-    const library = ONYX_SCHEMAS[WORLD_KIT[t].library]
+    const library = HM_SCHEMAS[WORLD_KIT[t].library]
     if (!library) throw new Error(`Kit schema missing from the bundle: ${WORLD_KIT[t].library}`)
     const blob = await encodeBlob(retargetSchema(library, typeUrls))
     blobs.push(blob)
@@ -209,7 +212,7 @@ export async function buildWorldPlan(spec: WorldSpec): Promise<WorldPlan> {
 
   for (const t of types) {
     const kit = WORLD_KIT[t]
-    const library = ONYX_SCHEMAS[kit.library]!
+    const library = HM_SCHEMAS[kit.library]!
     docs.push({
       role: 'type',
       path: typePath(t),

@@ -1,17 +1,17 @@
 /**
- * Schema commands — Onyx schemas as things of their own.
+ * Schema commands — Hypermedia schemas as things of their own.
  *
  *   schema get <ref>            print a schema (a file, ipfs://<cid>, a library name, or a type document URL)
- *   schema validate <ref>       check that a schema is a valid Onyx schema (against the meta-schema)
+ *   schema validate <ref>       check that a schema is a valid Hypermedia schema (against the meta-schema)
  *
  * Publishing a schema is a document operation: `document create --schema-definition <file>`
  * binds it to a page, which is what gives a type its hm:// name.
  */
 import type {Command} from 'commander'
-import {resolveSchema} from '@seed-hypermedia/client/onyx-engine'
+import {resolveSchema} from '@seed-hypermedia/client/schema-engine'
 import {getClient, getOutputFormat, isPretty} from '../index'
 import {formatOutput, printError, printSuccess} from '../output'
-import {META_SCHEMA, encodeBlob, loadSchema, violations} from '../utils/onyx'
+import {META_SCHEMA, encodeBlob, loadSchema, violations} from '../utils/schema'
 
 const fail: (message: string) => never = (message) => {
   printError(message)
@@ -19,7 +19,7 @@ const fail: (message: string) => never = (message) => {
 }
 
 export function registerSchemaCommands(program: Command) {
-  const schema = program.command('schema').description('Onyx schemas: get and validate')
+  const schema = program.command('schema').description('Hypermedia schemas: get and validate')
 
   schema
     .command('get <ref>')
@@ -45,7 +45,7 @@ export function registerSchemaCommands(program: Command) {
 
   schema
     .command('validate <ref>')
-    .description('Check that a schema is a valid Onyx schema (it must be an instance of the meta-schema)')
+    .description('Check that a schema is a valid Hypermedia schema (it must be an instance of the meta-schema)')
     .action(async (ref: string, _options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
       try {
@@ -53,7 +53,7 @@ export function registerSchemaCommands(program: Command) {
         const errors = violations(META_SCHEMA, loaded.schema, loaded.registry)
         if (errors.length) {
           printError(
-            `${loaded.source} is not a valid Onyx schema (${errors.length} violation${
+            `${loaded.source} is not a valid Hypermedia schema (${errors.length} violation${
               errors.length === 1 ? '' : 's'
             }):`,
           )
@@ -61,7 +61,7 @@ export function registerSchemaCommands(program: Command) {
           process.exit(1)
         }
         const cid = loaded.cid ?? (await encodeBlob(loaded.schema)).cid
-        printSuccess(`${loaded.source} is a valid Onyx schema (ipfs://${cid})`)
+        printSuccess(`${loaded.source} is a valid Hypermedia schema (ipfs://${cid})`)
       } catch (error) {
         fail((error as Error).message)
       }

@@ -1,17 +1,17 @@
 ---
-name: How Onyx Works
+name: How Hypermedia Schemas Work
 summary: The system end to end — from a schema file in the repository to a signed blob on the network, a browsable document, a resolved reference in the app, a generated TypeScript type, and a typed API call.
 ---
 # The tour in one paragraph <!-- id:7s8eFKqO -->
 
-A schema is written as a small JSON file. A publisher hashes it to its DAG-CBOR CID and records that in a lockfile. A sync uploads the blob and publishes a companion document at an `hm://` URL under the Onyx account, whose metadata points at the blob. Apps bundle the library, resolve any other reference over the network, and run one validation engine — the same one the reference validator uses — to drive explorers, editors, forms, and warnings. A generator turns every schema into a TypeScript type. And the read API is itself described by schemas, so the API console is derived rather than written. Each of those is a layer below. <!-- id:UiSIhbqU -->
+A schema is written as a small JSON file. A publisher hashes it to its DAG-CBOR CID and records that in a lockfile. A sync uploads the blob and publishes a companion document at an `hm://` URL under the Hypermedia account, whose metadata points at the blob. Apps bundle the library, resolve any other reference over the network, and run one validation engine — the same one the reference validator uses — to drive explorers, editors, forms, and warnings. A generator turns every schema into a TypeScript type. And the read API is itself described by schemas, so the API console is derived rather than written. Each of those is a layer below. <!-- id:UiSIhbqU -->
 
 ``` <!-- id:UwMwRuEn -->
-  onyx/<name>.json ──publish.mjs──▶ schemas.lock.json (name → CID)
+  hypermedia/<name>.schema.json ──publish.mjs──▶ schemas.lock.json (name → CID)
         │  + <name>.md                      │
         │                                   ▼
-        └──────sync-onyx──▶ DAG-CBOR blob (ipfs://<cid>)
-                              + document hm://<onyx>/<name>
+        └──────hypermedia:push──▶ DAG-CBOR blob (ipfs://<cid>)
+                              + document hm://<library>/<name>
                                   metadata.schemaDefinition = ipfs://<cid>
                                             │
               ┌─────────────────────────────┼──────────────────────────┐
@@ -22,7 +22,7 @@ A schema is written as a small JSON file. A publisher hashes it to its DAG-CBOR 
 
 # Layer 1 — Values and the codec <!-- id:yNp--FS1 -->
 
-Everything Onyx types is an IPLD value: one of nine kinds — `null`, `boolean`, `integer`, `float`, `string`, `bytes`, `list`, `map`, `link`. The canonical form is DAG-CBOR, a deterministic binary encoding with first-class links (CIDs). The human form is dag-json, a lossless JSON projection that spells a link as `{"/": "bafy…"}` and bytes as `{"/": {"bytes": "…"}}`. Everything in the repository is written in dag-json; everything on the network is DAG-CBOR. The two are projections of one graph, and the transform between them is mechanical. See [the data model](../../schema/data-model.md) and [encoding](../../schema/encoding.md). <!-- id:zh579VQH -->
+Everything a schema types is an IPLD value: one of nine kinds — `null`, `boolean`, `integer`, `float`, `string`, `bytes`, `list`, `map`, `link`. The canonical form is DAG-CBOR, a deterministic binary encoding with first-class links (CIDs). The human form is dag-json, a lossless JSON projection that spells a link as `{"/": "bafy…"}` and bytes as `{"/": {"bytes": "…"}}`. Everything in the repository is written in dag-json; everything on the network is DAG-CBOR. The two are projections of one graph, and the transform between them is mechanical. See [the data model](../../schema/data-model.md) and [encoding](../../schema/encoding.md). <!-- id:zh579VQH -->
 
 # Layer 2 — Schemas and the meta-schema <!-- id:oOZsaLa6 -->
 
@@ -39,7 +39,7 @@ The library is a folder of pairs: `<name>.schema.json` (the schema, in dag-json)
 | `rpc/` | the Seed API's RPC catalog, with its read models in `rpc/type/` | `rpc/type/resource`, `rpc/type/search-results`, `rpc/query` <!-- id:uMrZ9ndC --> |
 | `example/` | teaching schemas covering every feature, plus live instances | `example/person`, `example/folder`, `example/bob` <!-- id:uU6GnKnu --> |
 
-Inside a schema, every reference is an `hm://` URL under the Onyx account, and the path is the file's path: `hm://z6MkmZUb…/schema/string`, `hm://z6MkmZUb…/metadata`, `hm://z6MkmZUb…/example/person`. A reference is therefore always a real, published, clickable document — never a dead placeholder. <!-- id:HVN-l5c6 -->
+Inside a schema, every reference is an `hm://` URL under the Hypermedia account, and the path is the file's path: `hm://z6MkmZUb…/schema/string`, `hm://z6MkmZUb…/metadata`, `hm://z6MkmZUb…/example/person`. A reference is therefore always a real, published, clickable document — never a dead placeholder. <!-- id:HVN-l5c6 -->
 
 # Layer 4 — Publishing <!-- id:tf74B4h5 -->
 
@@ -47,7 +47,7 @@ Two scripts turn the folder into the network. <!-- id:A7RyUZrS -->
 
 **`publish.mjs`** encodes each schema to canonical DAG-CBOR, hashes it, and writes `schemas.lock.json`: a manifest from every `hm://` URL to its content CID. The lockfile is the contract between the repository and the network; a schema cannot silently change without the lockfile changing with it. <!-- id:9Dnutfyd -->
 
-**`sync-onyx`** signs in as the Onyx account and publishes three things. First, every schema blob, after re-computing each CID and refusing to continue if any disagrees with the lockfile. Second, one document per schema at its public name, whose content is the companion markdown: a **type** document carries `schemaDefinition = ipfs://<cid>` (this document defines a type), while an **instance** document — a file shaped `{$type, value}`, like `example/bob` — carries `schema = <$type>` (this document conforms to a type). Third, the narrative pages you are reading, from a `site/` folder, with `home` at the account root. <!-- id:nbEaMwcF -->
+**`hypermedia:push`** signs in as the Hypermedia account and publishes three things. First, every schema blob, after re-computing each CID and refusing to continue if any disagrees with the lockfile. Second, one document per schema at its public name, whose content is the companion markdown: a **type** document carries `schemaDefinition = ipfs://<cid>` (this document defines a type), while an **instance** document — a file shaped `{$type, value}`, like `example/bob` — carries `schema = <$type>` (this document conforms to a type). Third, the narrative pages you are reading, from a `site/` folder, with `home` at the account root. <!-- id:nbEaMwcF -->
 
 The result is that the type system dogfoods the network it types: browse the account and you are browsing the library. <!-- id:Tq9j2_Wz -->
 
@@ -73,7 +73,7 @@ There is one validation engine. The dependency-free reference validator proves t
   - the **document integration** — required attributes as fixed rows, red non-blocking validation, and the header actions on a schema-definition document; <!-- id:tvgeEE11 -->
   - the **inspector** — recognizes the signed blob types, detects when a blob _is_ a schema, and validates a blob against its attached schema. <!-- id:Ig_ARwrI -->
 
-These live behind Developer Mode in the Seed app (on by default on the web) and at the `/hm/onyx` route; any schema blob, bundled or published, has a full page at `/hm/schema/<cid>` where every reference — a library type, an `hm://` type document, an `ipfs://` schema — is a link, so a schema graph is browsed by clicking. Signed-blob schemas (anything extending [Signed blob](../../blob.md)) get a signing form instead of a plain editor: the envelope is filled and signed with the selected account at publish time. <!-- id:3fjjdA74 -->
+These live behind Developer Mode in the Seed app (on by default on the web) ; any schema blob, bundled or published, has a full page at `/hm/schema/<cid>` where every reference — a library type, an `hm://` type document, an `ipfs://` schema — is a link, so a schema graph is browsed by clicking. Signed-blob schemas (anything extending [Signed blob](../../blob.md)) get a signing form instead of a plain editor: the envelope is filled and signed with the selected account at publish time. <!-- id:3fjjdA74 -->
 
 # Layer 7 — Generated code <!-- id:jpRr0H4N -->
 
