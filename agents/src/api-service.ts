@@ -117,7 +117,7 @@ import type {
 import {hmIdPathToEntityQueryPath, unpackHmId} from '@seed-hypermedia/client/hm-types'
 import * as clientCbor from '@seed-hypermedia/client/cbor'
 import {findSeedIndexerCollision, ipldToDagJson} from '@seed-hypermedia/client/dag-json'
-import {validate as validateOnyx} from '@seed-hypermedia/client/onyx-engine'
+import {validate as validateSchema} from '@seed-hypermedia/client/schema-engine'
 import {
   blobSchemaRef,
   checkDocumentSchema,
@@ -125,14 +125,14 @@ import {
   isPlainMap,
   loadSchemaRef,
   withoutSchemaLink,
-} from '@seed-hypermedia/client/onyx-resolve'
+} from '@seed-hypermedia/client/schema-resolve'
 import {
   encodeDagCbor,
   hasSignedEnvelope,
   signBlob,
   signedBlobTypeTag,
   verifySignedBlob,
-} from '@seed-hypermedia/client/onyx-signed-blob'
+} from '@seed-hypermedia/client/signed-blob'
 import * as pi from '@mariozechner/pi-coding-agent'
 import {providerErrorReason, recordPerf, recordPerfCount, startPerfSpan} from '@/perf'
 import {sessionPerfRollup, type SessionPerfRollup} from '@/session-perf'
@@ -9670,7 +9670,7 @@ async function readIpfsObject(
       const loaded = await loadSchemaRef(client, schemaRef)
       schema = {
         ref: schemaRef,
-        violations: validateOnyx(loaded.schema, withoutSchemaLink(value), '$', {}, loaded.registry),
+        violations: validateSchema(loaded.schema, withoutSchemaLink(value), '$', {}, loaded.registry),
       }
     } catch (error) {
       schema = {ref: schemaRef, error: (error as Error).message}
@@ -12924,7 +12924,7 @@ async function writeIpfsObject(
     : null
   const force = options.force === true
   const violationsOf = (candidate: unknown): string[] =>
-    loaded ? validateOnyx(loaded.schema, withoutSchemaLink(candidate), '$', {}, loaded.registry) : []
+    loaded ? validateSchema(loaded.schema, withoutSchemaLink(candidate), '$', {}, loaded.registry) : []
   const refuse = (violations: string[]): never => {
     throw new APIError(
       400,
@@ -14318,7 +14318,7 @@ async function writeDocumentCreate(
 
 /**
  * How a document fares against its effective schema (its own `schema`, else the parent's
- * `childrenSchema`) and whether a `schemaDefinition` it carries is a valid Onyx schema — reported
+ * `childrenSchema`) and whether a `schemaDefinition` it carries is a valid Hypermedia schema — reported
  * beside the published id as `schema` and `warnings`, never as a refusal: conformance is advisory
  * (typed-documents.md), and a person may well build the type and its documents together.
  */
@@ -14340,7 +14340,7 @@ async function documentSchemaReport(
   const definition = (metadata as Record<string, unknown>).schemaDefinition
   if (typeof definition === 'string' && definition) {
     for (const violation of await checkSchemaDefinition(client, definition)) {
-      warnings.push(`schemaDefinition ${definition} is not a valid Onyx schema: ${violation}`)
+      warnings.push(`schemaDefinition ${definition} is not a valid Hypermedia schema: ${violation}`)
     }
   }
   if (warnings.length) out.warnings = warnings

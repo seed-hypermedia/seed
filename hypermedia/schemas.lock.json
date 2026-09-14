@@ -1,5 +1,5 @@
 {
-  "//": "Onyx schema manifest — hm:// URL -> DAG-CBOR CID (CIDv1, sha2-256). Deterministic; regenerate with `node scripts/hypermedia/publish.mjs`.",
+  "//": "Hypermedia schema manifest — hm:// URL -> DAG-CBOR CID (CIDv1, sha2-256). Deterministic; regenerate with `node scripts/hypermedia/publish.mjs`.",
   "codec": "dag-cbor",
   "hash": "sha2-256",
   "count": 186,
@@ -50,7 +50,7 @@
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/value": "bafyreiejjdkvxutyey6sz5trwhwrnjxcuvkxky7rxnuhmeishf64hqduk4",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/world-doc": "bafyreih3zktvjm5tylsg4ldmqetnl43s3jyg6goaehfgshbqgwntuscxtm",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hm-url": "bafyreicnzwaxpptqcxkqdfibs6sxjztqbmo3acukiblv47ugmjumva7cee",
-    "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/metadata": "bafyreib7yucrxnrcde6ial4qtdb7ka4vqgg5vwwny7kg5hzy5fyxzniiqu",
+    "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/metadata": "bafyreifkb4z4yjpwhaiebqe7765ar7626x2fz6pgv6bjapcoorhxutot6q",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/principal": "bafyreiaobe5qbpcte2qbsa6mipcryxtztkhf7uzfudrc7uktyze6bigfv4",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/profile": "bafyreia2xga7obc2ovbawarl2shkkq5irjmls6t5sxbtznac73niqqorb4",
     "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/ref": "bafyreifygqfy2uisfv3shqrmwhiintufsyem2xrgfl6lonvn7i46mjluye",

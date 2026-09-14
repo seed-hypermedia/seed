@@ -3,8 +3,8 @@ import {useState} from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
-import {ONYX_SCHEMAS, type OnyxSchema} from '../onyx/onyx-engine'
-import {metadataSchemaOf} from '../onyx/onyx-schema-resolve'
+import {HM_SCHEMAS, type HypermediaSchema} from '../schema/engine'
+import {metadataSchemaOf} from '../schema/schema-resolve'
 import {RequiredAttributesEditor} from '../required-attributes-editor'
 import {TooltipProvider} from '../tooltip'
 
@@ -24,7 +24,7 @@ afterEach(() => {
 
 /** Controlled wrapper exposing the latest staged patches. */
 let patches: Record<string, unknown>[] = []
-function Harness({schema, initial}: {schema?: OnyxSchema; initial: Record<string, unknown>}) {
+function Harness({schema, initial}: {schema?: HypermediaSchema; initial: Record<string, unknown>}) {
   const [meta, setMeta] = useState(initial)
   return (
     <TooltipProvider>
@@ -42,7 +42,7 @@ function Harness({schema, initial}: {schema?: OnyxSchema; initial: Record<string
 
 // The person document requires metadata.surname; its metadata sub-schema is the
 // conformance schema the caller resolves and passes down.
-const personMetaSchema = () => metadataSchemaOf(ONYX_SCHEMAS['example/person-doc'])!
+const personMetaSchema = () => metadataSchemaOf(HM_SCHEMAS['example/person-doc'])!
 
 describe('RequiredAttributesEditor', () => {
   beforeEach(() => {
@@ -56,7 +56,7 @@ describe('RequiredAttributesEditor', () => {
 
   it('renders nothing when the schema declares no required custom fields', () => {
     // A schema requiring only standard/header fields yields no required rows.
-    act(() => root.render(<Harness schema={ONYX_SCHEMAS['metadata']} initial={{name: 'X'}} />))
+    act(() => root.render(<Harness schema={HM_SCHEMAS['metadata']} initial={{name: 'X'}} />))
     expect(container.textContent).toBe('')
   })
 

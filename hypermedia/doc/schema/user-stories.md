@@ -6,7 +6,7 @@ These are the things a person should be able to do with the type system, stated 
 
 # Before you start <!-- id:aNQZP66c -->
 
-**The app.** On desktop the schema features sit behind a switch: Settings → Developers → **Enable Debug Tools**, then **Hypermedia Schemas**. With it on, the **New** menu gains **Schema**, and a document's options menu gains **New Blob**, **New Schema**, and **New World…**. On the web the same features are on by default. Validation is advisory everywhere: a value that breaks its schema is marked in red, never refused. See [why Onyx](./why.md). <!-- id:5iiI8U-W -->
+**The app.** On desktop the schema features sit behind a switch: Settings → Developers → **Enable Debug Tools**, then **Hypermedia Schemas**. With it on, the **New** menu gains **Schema**, and a document's options menu gains **New Blob**, **New Schema**, and **New World…**. On the web the same features are on by default. Validation is advisory everywhere: a value that breaks its schema is marked in red, never refused. See [why Hypermedia Schemas](./why.md). <!-- id:5iiI8U-W -->
 
 **The CLI.** Point it at the node you are working with and sign with a key it holds: `--server http://localhost:58004` for the desktop dev app's API, `--server https://hyper.media` (the default) for the public gateway, and `--key <name>` for the signing key (`key list` shows them). `--dev` selects the development keyring. The command reference is [CLI](../cli.md). <!-- id:l0yc6wyb -->
 
@@ -14,7 +14,7 @@ These are the things a person should be able to do with the type system, stated 
 
 **Running the automated tests.** The CLI and agent steps of every story run against a real daemon and the built web app: from `tests/`, `SKIP_BUILD=true pnpm exec vitest --run user-stories` (drop `SKIP_BUILD` for the first run, which builds the web app). The two automated app stories run against a packaged desktop app: from `frontend/apps/desktop`, `pnpm package:e2e` once, then `pnpm e2e:stories`. The desktop suite uses its own account, appdata (`Seed-e2e`) and ports (58100–58106), so it never touches a dev or installed app. <!-- id:4wHdEdfA -->
 
-**Names used below.** `<acct>` is an account id such as `z6Mk…`; `<onyx>` is the account that publishes this library, `z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb`, so `hm://<onyx>/hypermedia-document` is the base document type. <!-- id:oztmKE3p -->
+**Names used below.** `<acct>` is an account id such as `z6Mk…`; `<library>` is the account that publishes this library, `z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb`, so `hm://<library>/hypermedia-document` is the base document type. <!-- id:oztmKE3p -->
 
 # 1. Understand the document model <!-- id:AMFjgZzp -->
 
@@ -22,18 +22,18 @@ These are the things a person should be able to do with the type system, stated 
 
 **In the app** <!-- id:nnKMNDW8 -->
   1. Open any document. The **Attributes** tab lists its metadata as editable fields; the **Content** tab is the block tree. <!-- id:6ySwBrba -->
-  2. Open `hm://<onyx>/hypermedia-document`. The page explains the type in prose and shows its schema above the body: `metadata` and `content`, each a link. Follow `metadata` to [metadata](../../metadata.md) for every built-in key including `schema`, `childrenSchema` and `schemaDefinition`; follow `content` to [schema/block/node](../../schema/block/node.md) and on to the block types. <!-- id:0daJUHUr -->
+  2. Open `hm://<library>/hypermedia-document`. The page explains the type in prose and shows its schema above the body: `metadata` and `content`, each a link. Follow `metadata` to [metadata](../../metadata.md) for every built-in key including `schema`, `childrenSchema` and `schemaDefinition`; follow `content` to [schema/block/node](../../schema/block/node.md) and on to the block types. <!-- id:0daJUHUr -->
   3. Every type name on those pages is a link, down to the nine kinds in [the data model](../../schema/data-model.md). **Inspect Schema** in a type page's menu opens the same schema by CID at `/hm/schema/<cid>`, with dependencies and dependents. <!-- id:jRqwN-xe -->
 
 **With the CLI** <!-- id:fOPHu9gf -->
   1. `document get --md hm://<acct>/<path>` prints the document as markdown: the metadata as YAML frontmatter, the blocks with their ids in trailing comments. <!-- id:ZTyY0oGQ -->
   2. `document get --json hm://<acct>/<path>` prints the document as the API returns it; `document get -m` prints the metadata only. <!-- id:2YhQdcMj -->
-  3. `document get --md hm://<onyx>/hypermedia-document` reads the type page like any other; `schema get document` prints the schema it defines, and `schema get --resolve` the same with every reference followed and extensions merged. `blob get <cid>` reads any blob back as dag-json. <!-- id:pZdlc6-t -->
+  3. `document get --md hm://<library>/hypermedia-document` reads the type page like any other; `schema get document` prints the schema it defines, and `schema get --resolve` the same with every reference followed and extensions merged. `blob get <cid>` reads any blob back as dag-json. <!-- id:pZdlc6-t -->
   4. `document validate hm://<acct>/<path>` names the schema a document conforms to and how it got it (its own `schema`, or inherited from the parent's `childrenSchema`), or says it has none. <!-- id:EGiX5lnq -->
 
 **Through an agent** <!-- id:rHb3ns_h -->
   1. `read hm://<acct>/<path>` returns the document as markdown with frontmatter — the same picture the CLI gives. <!-- id:qjfRlvIg -->
-  2. `read hm://<onyx>/hypermedia-document` reads the type page; `read ipfs://<cid>` fetches a file into memory, and `read ipfs://<cid>` of a DAG-CBOR object decodes it (its value, signature check, and schema check). A typed document read also returns a `schema` block: the type, how it was bound, and any missing required fields. <!-- id:Ez-m69u7 -->
+  2. `read hm://<library>/hypermedia-document` reads the type page; `read ipfs://<cid>` fetches a file into memory, and `read ipfs://<cid>` of a DAG-CBOR object decodes it (its value, signature check, and schema check). A typed document read also returns a `schema` block: the type, how it was bound, and any missing required fields. <!-- id:Ez-m69u7 -->
 
 **Status.** App: works. CLI: works. Agent: works. <!-- id:HcS5eyFR -->
 
@@ -101,7 +101,7 @@ These are the things a person should be able to do with the type system, stated 
   2. Give the document a name and a description in the body — the schema itself carries neither; the page does. <!-- id:RIVfC-ds -->
   3. Press **Edit** on the schema section. In the editor, **Add field** for each property: its **Field name**, its type (picked from every type document, plus the built-ins — text, number, date, HM link, IPFS…), whether it is required, a description. A union or a list is edited in the same form; **Schema JSON** switches to editing the schema as text. <!-- id:lq5g88L3 -->
   4. Publish. The working schema is frozen into a DAG-CBOR blob, and the document's `schemaDefinition` points at it. The page now shows a schema tag in its header and a **Create** button. <!-- id:JwxifnQe -->
-  5. To build on an existing type instead, open its page and choose **Extend Schema**: the new draft starts as `{ref: <that type>}` plus your fields. A typed _document_ schema extends `hm://<onyx>/hypermedia-document` and refines `metadata` — see [typed documents](../../schema/typed-documents.md). <!-- id:H3Lkwivi -->
+  5. To build on an existing type instead, open its page and choose **Extend Schema**: the new draft starts as `{ref: <that type>}` plus your fields. A typed _document_ schema extends `hm://<library>/hypermedia-document` and refines `metadata` — see [typed documents](../../schema/typed-documents.md). <!-- id:H3Lkwivi -->
 
 **With the CLI** <!-- id:U6i9oiV8 -->
   1. Write the schema as dag-json next to the page: `types/person.md` and `types/person.schema.json`. `space import hm://<acct> ./site --key <name>` encodes the schema to its CID, publishes the blob, and binds it to the document as `schemaDefinition`. This is how this library itself is published — see [Repo HM sync](../repo-hm-sync.md). <!-- id:PwwtiTUC -->
@@ -143,10 +143,10 @@ These are the things a person should be able to do with the type system, stated 
   3. Or open the blob page and choose **Extend Schema** to start from the envelope directly. <!-- id:B4BhWu7g -->
 
 **With the CLI** <!-- id:jdh8RNzv -->
-  1. A schema whose root is `{"ref": "hm://<onyx>/hypermedia-blob", "properties": {"type": {"value": "Vote", "required": true}, …}}`, published as a type page with `document create --schema-definition vote.schema.json` or beside its page with `space import`, as in story 5. <!-- id:SsUIQT9- -->
+  1. A schema whose root is `{"ref": "hm://<library>/hypermedia-blob", "properties": {"type": {"value": "Vote", "required": true}, …}}`, published as a type page with `document create --schema-definition vote.schema.json` or beside its page with `space import`, as in story 5. <!-- id:SsUIQT9- -->
 
 **Through an agent** <!-- id:2OweK2rk -->
-  1. Same as story 5, with a schema whose root is `{"ref": "hm://<onyx>/hypermedia-blob", "properties": {"type": {"value": "Vote", "required": true}, …}}`: `write ipfs://` with `options: {schema: "schema/meta-schema"}` publishes the signed type's schema blob, then a `write hm://…/types/vote` with `metadata.schemaDefinition` binds it. <!-- id:21O_MRe- -->
+  1. Same as story 5, with a schema whose root is `{"ref": "hm://<library>/hypermedia-blob", "properties": {"type": {"value": "Vote", "required": true}, …}}`: `write ipfs://` with `options: {schema: "schema/meta-schema"}` publishes the signed type's schema blob, then a `write hm://…/types/vote` with `metadata.schemaDefinition` binds it. <!-- id:21O_MRe- -->
 
 **Status.** App: works. CLI: works. Agent: works. <!-- id:wJjSs4ZM -->
 
@@ -170,6 +170,6 @@ These are the things a person should be able to do with the type system, stated 
 
 # Where each surface stands <!-- id:dZwbHVf8 -->
 
-All three surfaces now cover all eight stories. The resolver, validator and signing rule that make it possible live in `@seed-hypermedia/client` (`onyx-engine`, `onyx-resolve`, `onyx-signed-blob`), shared by the app, the CLI, and the agents service, so the three never disagree about what a schema means. <!-- id:YzHMO1GS -->
+All three surfaces now cover all eight stories. The resolver, validator and signing rule that make it possible live in `@seed-hypermedia/client` (`schema-engine`, `schema-resolve`, `signed-blob`), shared by the app, the CLI, and the agents service, so the three never disagree about what a schema means. <!-- id:YzHMO1GS -->
 
 The CLI and agent columns are fully automated: every CLI and agent step above runs in `tests/user-stories.integration.test.ts`, against a real daemon and the web app (the agent steps through `agents/scripts/user-stories.ts`, the same `read`/`write` verbs a person invokes from the agent UI). The app column automates stories 1 and 2 in `frontend/apps/desktop/tests/user-stories/`; the rest of the app column is guided manual testing below, because an isolated test daemon cannot browse the public library and the schema/blob editors are covered by the desktop unit tests. <!-- id:P7-KXoKT -->

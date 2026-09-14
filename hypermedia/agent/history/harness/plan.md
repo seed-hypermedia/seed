@@ -10,9 +10,9 @@ Breaking changes are **allowed and preferred** over aliases or dual paths. What 
 
 # Architecture in one paragraph <!-- id:OTLbyjSp -->
 
-Three nouns: the **Space** (one document tree per agent account — `~/tools`, `~/memory`, `~/plans`, `~/triggers`, `agent.md`; every tool is a document with a summary line, an Onyx contract, a description, and source or a builtin binding), the **Log** (per-thread append-only events, each stamped with an `actor`), and the **Runs** (the v1 tree-queue, kept verbatim). Five verbs — `read`, `write`, `call`, `delegate`, `plan` — replace the 25-tool registry; everything else is a document under `~/tools/`, collapsed to its summary until touched. The user holds the same five verbs through the same log (symmetry). Two engines: QuickJS scripts orchestrate (journaled), microVM lambdas compute (TS first-class, Python kept). Long-running work is parked runs plus wake sources; triggers are documents that bind event sources to continuations and serve as the event bus. <!-- id:ceLCyUp6 -->
+Three nouns: the **Space** (one document tree per agent account — `~/tools`, `~/memory`, `~/plans`, `~/triggers`, `agent.md`; every tool is a document with a summary line, an Hypermedia schema contract, a description, and source or a builtin binding), the **Log** (per-thread append-only events, each stamped with an `actor`), and the **Runs** (the v1 tree-queue, kept verbatim). Five verbs — `read`, `write`, `call`, `delegate`, `plan` — replace the 25-tool registry; everything else is a document under `~/tools/`, collapsed to its summary until touched. The user holds the same five verbs through the same log (symmetry). Two engines: QuickJS scripts orchestrate (journaled), microVM lambdas compute (TS first-class, Python kept). Long-running work is parked runs plus wake sources; triggers are documents that bind event sources to continuations and serve as the event bus. <!-- id:ceLCyUp6 -->
 
-**Built:** the Space is `~/tools` and `~/memory`. `~/plans`, `~/triggers` and `agent.md` were never created — the checklist lives behind the `plan` verb, and triggers are still rows. Contracts are JSON Schema, not Onyx; Onyx is not wired into the harness anywhere. Everything else in this paragraph holds, with the user's symmetry desktop-only. <!-- id:ZNcXa6Z8 -->
+**Built:** the Space is `~/tools` and `~/memory`. `~/plans`, `~/triggers` and `agent.md` were never created — the checklist lives behind the `plan` verb, and triggers are still rows. Contracts are JSON Schema, not Hypermedia Schemas, which are not wired into the harness anywhere. Everything else in this paragraph holds, with the user's symmetry desktop-only. <!-- id:ZNcXa6Z8 -->
 
 # Branch & review protocol ("checkmark branches") <!-- id:-H1uiN0r -->
 
@@ -70,7 +70,7 @@ Success is measurable: default-agent system prompt shrinks by roughly the differ
 ## M2 — Tools as documents (`harness/02-tools-as-docs`) <!-- id:pykjWq6v -->
 
 <!-- id:Qd9-LqA3 -->
-- Tool documents in the Space: frontmatter-style metadata (name, summary, tags, grants required), Onyx input/output contracts, model-facing description, and source (lambda) or builtin binding id. Storage rides the agent-memory tree (`~/tools/**`) so read/write/versioning come free; each save produces a CID (content-address the canonical CBOR encoding). <!-- id:pfxepZrf -->
+- Tool documents in the Space: frontmatter-style metadata (name, summary, tags, grants required), Hypermedia schema input/output contracts, model-facing description, and source (lambda) or builtin binding id. Storage rides the agent-memory tree (`~/tools/**`) so read/write/versioning come free; each save produces a CID (content-address the canonical CBOR encoding). <!-- id:pfxepZrf -->
 - Boot upsert: builtins materialize/refresh their documents at service start; a forked builtin doc keeps the binding id but its contract diff is visible. <!-- id:yWQre-7U -->
 - **The index**: generated summary of the Space (one line per tool/group, memory dirs with counts, live plans, active triggers), injected into every run's system prompt; a CI test asserts the byte budget (\~1.5 KB default agent). <!-- id:R1y31ncj -->
 - **Touch-expand + pins**: `read` on a tool document (or contract-returning `call`) appends a durable `expanded {path, cid}` log event and activates the tool via Pi `setActiveToolsByName`; replay/compaction/park-resume reconstruct the active set from pins. Unpin is explicit. <!-- id:9lbfjX23 -->
@@ -88,13 +88,13 @@ Success is measurable: default-agent system prompt shrinks by roughly the differ
 <!-- id:LrsvYymg -->
 - `actor: 'user' | 'agent' | 'system' | 'trigger'` on session events (schema migration; existing rows backfill by event type). <!-- id:z156AeeQ -->
 - Protocol: user-invoked `read`/`write`/`call` against a thread — appended to the log as `actor: user` tool_call/tool_result pairs and executed as runs on the interactive queue; the agent sees them in transcript replay on its next turn, no side channel. <!-- id:hbGWd5iQ -->
-- Desktop: composer `/` palette over the Space (tools, saved plans, triggers); Onyx-schema-generated forms for tool input; results render with the existing card grammar; user edits to plan steps and per-child cancels emit log events the agent can read. <!-- id:BmoUZYWH -->
+- Desktop: composer `/` palette over the Space (tools, saved plans, triggers); schema-generated forms for tool input; results render with the existing card grammar; user edits to plan steps and per-child cancels emit log events the agent can read. <!-- id:BmoUZYWH -->
 - Web parity via the shared `@shm/ui/agents` package where the platform adapters allow. <!-- id:2oNvMAZU -->
 
 **Built** (deviations only): <!-- id:91bMbzvz -->
   - `actor` rides the event payload and legacy events derive theirs from shape through `sessionEventActor()`. There is no schema migration and no row backfill — the answer is computed at read time, which is also what makes it identical after compaction. <!-- id:JpE5YbZu -->
   - User verbs execute inline against the same dispatchers, guarded by an in-memory lock the agent's turn 409s against; they are not enqueued as runs on the interactive queue. <!-- id:X4tFCNnH -->
-  - Forms are generated from the tool's **JSON Schema** contract (`src/json-schema.ts`), not from Onyx schemas. Onyx is not wired into the harness anywhere — every contract in M1–M5 is JSON Schema. <!-- id:_FLpyW1z -->
+  - Forms are generated from the tool's **JSON Schema** contract (`src/json-schema.ts`), not from Hypermedia schemas, which are not wired into the harness anywhere — every contract in M1–M5 is JSON Schema. <!-- id:_FLpyW1z -->
   - The palette is a wrench button beside Send, not a `/` composer palette (the composer is a ProseMirror editor that owns its keystrokes — argued in the review). <!-- id:VDQdqnz_ -->
   - No web parity: the palette and actor-stamped rows are desktop-only; nothing landed in `@shm/ui/agents` or the web app. <!-- id:fHxxtiGe -->
 
@@ -103,12 +103,12 @@ Success is measurable: default-agent system prompt shrinks by roughly the differ
 <!-- id:TsiCTkS1 -->
 - `execute {runtime: 'ts' | 'python', code, files?}` — the whole compute surface; option sprawl (image/cpu/memory per call) collapses to service config. <!-- id:7zoChx-- -->
 - Bun-based TS runner image beside the Python image; one file-framed runner protocol for both; runner-protocol suite runs against the injected fake sandbox, real-microVM smoke stays gated. <!-- id:kmN61lHW -->
-- Lambda tool documents become callable: `call tools/<lambda>` = validate input (Onyx, outside VM) → `execute` stored source → validate output. Author→test→save flows through `write` + `call`. <!-- id:ZNhkgzS- -->
+- Lambda tool documents become callable: `call tools/<lambda>` = validate input (Hypermedia schema, outside VM) → `execute` stored source → validate output. Author→test→save flows through `write` + `call`. <!-- id:ZNhkgzS- -->
 
 **Built** (deviations only): <!-- id:T47pr9pr -->
   - `execute` takes `{runtime: 'ts' | 'python' | 'shell', code, timeout_secs?}` — `shell` was added (each runtime is one argv command: `bun -e`, `python -c`, `sh -c`, so nothing is shell-quoted unless the runtime _is_ the shell), and `files?` was not built: `/workspace` is the agent's memory, so files arrive and leave through `~/memory`. <!-- id:Gh4efNk3 -->
   - There is **no file-framed runner protocol**. A lambda's return value rides a marked stdout line (`__SEED_TOOL_RESULT__<json>`) so unmarked output stays usable as `logs`, and TS source is imported as a `data:text/typescript;base64,…` module rather than written to the sandbox filesystem. Reasons in the M4 review. <!-- id:QMhUv7y7 -->
-  - Both edges validate against **JSON Schema**, not Onyx. <!-- id:ig59DAd- -->
+  - Both edges validate against **JSON Schema**, not Hypermedia Schemas. <!-- id:ig59DAd- -->
   - TypeScript runs in its own image (`SEED_AGENTS_EXEC_TS_IMAGE`, default `oven/bun`) because the main rootfs is a Python image; the contract the model reads lists only the runtimes this server can actually run. <!-- id:6_-kv6Kz -->
   - Beyond the plan: a lambda call requires the same `execute` grant its runtime needs, so authoring a tool is not a way around an owner who turned code execution off. <!-- id:kwGeRwdN -->
 

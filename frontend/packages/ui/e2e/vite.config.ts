@@ -4,7 +4,7 @@ import {defineConfig} from 'vite'
 
 // Isolated Vite test-app for the @shm/ui schema-editor E2E suite. Mirrors the
 // @shm/editor harness (frontend/packages/editor/e2e), but mounts the real
-// DocumentMetadataView / Onyx schema-editor components. Port 5181 (5180 is the
+// DocumentMetadataView / Hypermedia schema-editor components. Port 5181 (5180 is the
 // editor harness) so both can run concurrently.
 //
 // Unlike the editor harness we resolve the workspace packages with explicit

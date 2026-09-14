@@ -1,4 +1,4 @@
-// Onyx tour server — a self-generating guided browse of the type system.
+// Schema tour server — a self-generating guided browse of the type system.
 //
 //   node tour.mjs            (serves on http://localhost:4747)
 //   PORT=8080 node tour.mjs
@@ -9,7 +9,7 @@
 
 import { createServer } from "node:http";
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { ALIASES, HM_DIR, LEGACY_AUTHORITY, ONYX, fileOfName, listSchemaFiles, nameOfFile, nameToUrl, refToName } from "./names.mjs";
+import { ALIASES, HM_DIR, LEGACY_AUTHORITY, HYPERMEDIA_UID, fileOfName, listSchemaFiles, nameOfFile, nameToUrl, refToName } from "./names.mjs";
 import { execFileSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -43,7 +43,7 @@ const loadText = (name) => readFileSync(resolve(DIR, name), "utf8");
 
 // The browser editor (editor-client.js) needs every schema + the authority
 // table client-side, so its ported validator can resolve refs. Served once as
-// /onyx-data.js and cached; the editor code is served as /editor-client.js.
+// /schema-data.js and cached; the editor code is served as /editor-client.js.
 const EDITOR_CLIENT = (() => { try { return readFileSync(resolve(SCRIPT_DIR, "editor-client.js"), "utf8"); } catch { return ""; } })();
 
 // References are hm:// URLs; local filenames are their dev alias. Each authority
@@ -55,7 +55,7 @@ const refToSlug = (ref) => base(urlToFile(ref)); // hm:// URL -> local route slu
 const refIsSchema = (ref) => SCHEMA_FILES.includes(urlToFile(ref));
 
 // `type` values are kind URLs (hm://hyper.media/<kind>); read the kind locally.
-const KIND_URL = new RegExp(`^hm://(?:hyper\\.media|${ONYX})/(?:schema/|hypermedia-)?([a-z]+)$`);
+const KIND_URL = new RegExp(`^hm://(?:hyper\\.media|${HYPERMEDIA_UID})/(?:schema/|hypermedia-)?([a-z]+)$`);
 const kindOf = (t) => (typeof t === "string" ? KIND_URL.exec(t)?.[1] ?? t : t);
 
 const KINDS = ["null", "boolean", "integer", "float", "string", "bytes", "list", "map", "link"];
@@ -79,8 +79,8 @@ const isInstance = (f) => INSTANCE_FILES.includes(f);
 const isHypermedia = (f) => !f.includes("/") || f.startsWith("schema/");
 const BLOCK_EXTRA = new Set(["schema/block/children-type.schema.json", "schema/block/button-alignment.schema.json", "schema/block/embed-view.schema.json", "schema/block/annotation.schema.json"]);
 const isHypermediaBlock = (f) => f.startsWith("schema/block/") || BLOCK_EXTRA.has(f);
-// onyx-* types beyond the meta-schema and the nine kind primitives (e.g. hypermedia-any).
-const isOnyxLibrary = (f) => f.startsWith("schema/") && !META_FILES.includes(f) && !isPrimitive(f);
+// library types beyond the meta-schema and the nine kind primitives (e.g. hypermedia-any).
+const isLibrarySchema = (f) => f.startsWith("schema/") && !META_FILES.includes(f) && !isPrimitive(f);
 const primitiveKind = (f) => {
   const s = loadJson(f);
   const structural = Object.keys(s).filter((k) => k !== "name" && k !== "description");
@@ -98,7 +98,7 @@ const metaTitle = (slug) => {
   return m ? esc([m.name, m.description].filter(Boolean).join(" — ")) : "";
 };
 
-// Wire each kind to its canonical primitive schema (onyx-<kind>), so a kind
+// Wire each kind to its canonical primitive schema (schema/<kind>), so a kind
 // badge like `string` links to hypermedia-string. This is what the user browses to.
 const KIND_SCHEMA = {};
 for (const k of KINDS) if (SCHEMA_FILES.includes(`schema/${k}.schema.json`)) KIND_SCHEMA[k] = `schema/${k}`;
@@ -345,10 +345,10 @@ function buildGraph() {
 const GRAPH = buildGraph();
 
 function graphSvg() {
-  // Keep the home DAG to the Onyx meta + examples: primitives (every schema
+  // Keep the home DAG to the meta-schema + examples: primitives (every schema
   // refs schema/string), instances, and the ~29 hypermedia blobs are excluded
   // here — their relationships show on each schema's Dependencies/Dependents.
-  const nodes = GRAPH.nodes.filter((n) => !isPrimitive(fileOfName(n)) && !isInstance(fileOfName(n)) && !isHypermedia(fileOfName(n)) && !isOnyxLibrary(fileOfName(n)));
+  const nodes = GRAPH.nodes.filter((n) => !isPrimitive(fileOfName(n)) && !isInstance(fileOfName(n)) && !isHypermedia(fileOfName(n)) && !isLibrarySchema(fileOfName(n)));
   const edges = GRAPH.edges.filter((e) => nodes.includes(e.from) && nodes.includes(e.to));
   const selfLoops = GRAPH.selfLoops;
   // layer(n) = 1 + max(layer of things n depends on); leaves = 0
@@ -455,7 +455,7 @@ function instancePage(name, file, doc) {
     ? `<div class="callout bad-callout">✗ does not match <a href="/schema/${typeSlug}">${typeSlug}</a>:<ul>${errors.map((e) => `<li><code>${esc(e)}</code></li>`).join("")}</ul></div>`
     : `<div class="callout variant-note">✓ a valid instance of <a href="/schema/${typeSlug}">${typeSlug}</a> — validated live by <code>validate.mjs</code>.</div>`;
   const body = `
-    <div class="crumb"><a href="/">Onyx</a> / <a href="#" class="muted">instances</a> / ${name}</div>
+    <div class="crumb"><a href="/">Hypermedia Schemas</a> / <a href="#" class="muted">instances</a> / ${name}</div>
     <h1><code class="filename">${file}</code></h1>
     <p class="hm-url"><span class="muted">published at</span> <code>${fileToUrl(file)}</code></p>
     <p class="lead"><span class="kind kind-instance">instance</span> <span class="muted">· of</span> <a href="/schema/${typeSlug}">${typeSlug}</a></p>
@@ -464,7 +464,7 @@ function instancePage(name, file, doc) {
     <section class="editor-wrap">
       <h2>Data editor <span class="muted">· seeded from this instance</span></h2>
       <p class="muted">Edit <code>${name}</code> as a live value of <a href="/schema/${typeSlug}">${typeSlug}</a> — validated on every keystroke.</p>
-      <div id="onyx-editor" data-schema="${typeSlug}" data-seed="${attr(JSON.stringify(doc.value))}"></div>
+      <div id="schema-editor" data-schema="${typeSlug}" data-seed="${attr(JSON.stringify(doc.value))}"></div>
     </section>
     <h2>Value <span class="muted">(the data, typed by <code>${esc(doc.$type)}</code>)</span></h2>
     <pre class="json">${highlightJson(doc.value)}</pre>
@@ -567,7 +567,7 @@ function schemaPage(name) {
   }
 
   const metaNote = isMeta
-    ? `<div class="callout">This is the <strong>meta-schema</strong> — the discriminated union that describes what every Onyx schema is, <em>including itself</em>. It validates against its own <code>union</code> variant, whose <code>anyOf</code> items validate against its <code>include</code> variant. The loop closes. See <a href="/doc/references">the fixpoint discussion</a>.</div>`
+    ? `<div class="callout">This is the <strong>meta-schema</strong> — the discriminated union that describes what every Hypermedia schema is, <em>including itself</em>. It validates against its own <code>union</code> variant, whose <code>anyOf</code> items validate against its <code>include</code> variant. The loop closes. See <a href="/doc/references">the fixpoint discussion</a>.</div>`
     : isVariant(file)
     ? `<div class="callout variant-note">A <strong>variant</strong> of the <a href="/schema/hypermedia-schema">meta-schema union</a> — one of the shapes a schema is allowed to take.</div>`
     : "";
@@ -577,7 +577,7 @@ function schemaPage(name) {
     : "";
 
   const body = `
-    <div class="crumb"><a href="/">Onyx</a> / <a href="#" class="muted">schemas</a> / ${name}</div>
+    <div class="crumb"><a href="/">Hypermedia Schemas</a> / <a href="#" class="muted">schemas</a> / ${name}</div>
     ${schema.name ? `<h1 class="schema-title">${esc(schema.name)}</h1>` : `<h1><code class="filename">${file}</code></h1>`}
     <p class="hm-url"><code class="filename">${file}</code> <span class="muted">· ${fileToUrl(file)}</span>${MANIFEST[fileToUrl(file)] ? ` <span class="muted">· CID</span> <code class="cid">${MANIFEST[fileToUrl(file)]}</code>` : ""}</p>
     ${schema.description ? `<p class="schema-desc">${esc(schema.description)}</p>` : ""}
@@ -591,7 +591,7 @@ function schemaPage(name) {
       <p class="muted">${isMeta
         ? "The editor pointed at the meta-schema builds a <em>schema</em> — every field below is a choice the meta-schema allows."
         : `Build a value of <code>${esc(fileToUrl(file))}</code>. Every keystroke is validated by the same engine as <code>validate.mjs</code>.`}</p>
-      <div id="onyx-editor" data-schema="${name}"></div>
+      <div id="schema-editor" data-schema="${name}"></div>
     </section>
     <h2>Source <span class="muted">(dag-json — <code>ref</code> values are links)</span></h2>
     <pre class="json">${highlightJson(schema)}</pre>
@@ -630,14 +630,14 @@ function sidebar(active) {
     return `<a class="nav-item${on}${indent}" href="/schema/${s}"${tip ? ` title="${tip}"` : ""}><code>${f}</code>${tag}</a>`;
   };
   const metaLinks = META_FILES.filter((f) => SCHEMA_FILES.includes(f)).map(schemaLink).join("");
-  const primitiveLinks = [...PRIMITIVE_FILES, ...SCHEMA_FILES.filter(isOnyxLibrary)].map(schemaLink).join("");
+  const primitiveLinks = [...PRIMITIVE_FILES, ...SCHEMA_FILES.filter(isLibrarySchema)].map(schemaLink).join("");
   const hmBlobLinks = SCHEMA_FILES.filter((f) => isHypermedia(f) && !isHypermediaBlock(f)).map(schemaLink).join("");
   const hmBlockLinks = SCHEMA_FILES.filter((f) => isHypermedia(f) && isHypermediaBlock(f)).map(schemaLink).join("");
   const exampleLinks = SCHEMA_FILES.filter((f) => f.startsWith("example-") && !isInstance(f)).map(schemaLink).join("");
   const instanceLinks = INSTANCE_FILES.map(schemaLink).join("");
   const homeOn = active.section === "home" ? " on" : "";
   return `<nav class="side">
-    <a class="brand" href="/">Onyx<span class="gem">◆</span></a>
+    <a class="brand" href="/">Hypermedia Schemas<span class="gem">◆</span></a>
     <a class="nav-item${homeOn}" href="/">Overview</a>
     <div class="nav-group">The tour</div>${docLinks}
     <div class="nav-group">Meta-schema</div>${metaLinks}
@@ -653,11 +653,11 @@ function sidebar(active) {
 function page(active, contentHtml) {
   // The editor only mounts on schema/instance pages, so ship its scripts there.
   const scripts = active.section === "schema"
-    ? `<script src="/onyx-data.js"></script><script src="/editor-client.js"></script>`
+    ? `<script src="/schema-data.js"></script><script src="/editor-client.js"></script>`
     : "";
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(active.title || "Onyx")}</title>
+<title>${esc(active.title || "Hypermedia Schemas")}</title>
 <style>${CSS}</style></head>
 <body>${sidebar(active)}<main><div class="wrap">${contentHtml}</div></main>${scripts}</body></html>`;
 }
@@ -698,7 +698,7 @@ function homePage() {
   const hero = `
     <header class="hero">
       <div class="gem-big">◆</div>
-      <h1>Onyx</h1>
+      <h1>Hypermedia Schemas</h1>
       <p class="tag-line">A self-describing type system for content-addressed data.</p>
       <div class="badges">
         <span class="badge ${VALIDATION.ok ? "good" : "bad"}">${VALIDATION.ok ? "✓ hypermedia-schema.json validates itself" : "✗ validation failed"}</span>
@@ -716,7 +716,7 @@ function homePage() {
   const primitives = PRIMITIVE_FILES.length
     ? `<section class="prim-wrap"><h2>Primitives — the standard library</h2><p class="muted">One canonical, referenceable schema per kind. Each is just <code>{ "type": &lt;kind&gt; }</code>; reference it (instead of inlining a type) and its <code>ref</code> becomes a CID. Click any kind badge in the explorer to land here.</p><div class="prim-grid">${primCells}</div></section>`
     : "";
-  return { title: "Onyx — a self-describing type system", body: `${hero}${graph}${primitives}${proof}<section class="readme doc">${mdToHtml(readme)}</section>` };
+  return { title: "Hypermedia Schemas — a self-describing type system", body: `${hero}${graph}${primitives}${proof}<section class="readme doc">${mdToHtml(readme)}</section>` };
 }
 
 // ---------------------------------------------------------------------------
@@ -735,12 +735,12 @@ const server = createServer((req, res) => {
     res.writeHead(200, { "content-type": "text/javascript; charset=utf-8" });
     return res.end(EDITOR_CLIENT);
   }
-  if (p === "/onyx-data.js") {
+  if (p === "/schema-data.js") {
     const schemas = {};
     for (const f of SCHEMA_FILES) schemas[f] = loadJson(f);
     const data = { schemas, authority: AUTHORITY, aliases: ALIASES, manifest: MANIFEST };
     res.writeHead(200, { "content-type": "text/javascript; charset=utf-8" });
-    return res.end(`window.ONYX_DATA = ${JSON.stringify(data)};`);
+    return res.end(`window.SCHEMA_DATA = ${JSON.stringify(data)};`);
   }
 
   if (p === "/") {
@@ -756,11 +756,11 @@ const server = createServer((req, res) => {
     const s = schemaPage(m[1]);
     if (s) return send({ section: "schema", slug: m[1], title: s.title }, s.body);
   }
-  send({ section: "home", title: "Not found" }, `<div class="wrap"><h1>404</h1><p><a href="/">Back to Onyx</a></p></div>`, 404);
+  send({ section: "home", title: "Not found" }, `<div class="wrap"><h1>404</h1><p><a href="/">Back home</a></p></div>`, 404);
 });
 
 server.listen(PORT, () => {
-  console.log(`\n  Onyx tour  ->  http://localhost:${PORT}\n`);
+  console.log(`\n  Schema tour  ->  http://localhost:${PORT}\n`);
   console.log(`  validator: ${VALIDATION.ok ? "self-validates ✓" : "FAILED ✗"}`);
   console.log(`  schemas:   ${SCHEMA_FILES.join(", ")}\n`);
 });

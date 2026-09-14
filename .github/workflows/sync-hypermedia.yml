@@ -1,6 +1,6 @@
 name: Repo HM sync (hypermedia)
 
-# Publishes hypermedia/ (developer docs, the Onyx schema library, agents docs)
+# Publishes hypermedia/ (developer docs, the Hypermedia schema library, agents docs)
 # to its Hypermedia site whenever main changes it.
 # Signs with SEED_DOCS_KEYFILE (a repository secret holding the contents of an
 # unencrypted .hmkey.json, as exported by the app): the site is that key's own

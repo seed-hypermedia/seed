@@ -601,7 +601,7 @@ export const HMDocumentMetadataSchema = z
     // Import taxonomy fields (comma-separated values from external sources like WordPress)
     importCategories: z.string().optional(),
     importTags: z.string().optional(),
-    // JSON-stringified schema definition; present iff this document describes a schema (see notes/onyx-schema-as-document.md).
+    // JSON-stringified schema definition; present iff this document describes a schema (see notes/schema-as-document.md).
     schemaDefinition: z.string().optional(),
     // The WORKING schema object a draft carries while its schema is being authored. Publish
     // freezes it into a DAG-CBOR blob and replaces it with `schemaDefinition: ipfs://<cid>`;

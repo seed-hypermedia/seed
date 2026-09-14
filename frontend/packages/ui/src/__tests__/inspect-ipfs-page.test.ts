@@ -6,8 +6,8 @@ import {inspectorBlobActions} from '../inspect-ipfs-page'
 
 // Two distinct real DAG-CBOR (0x71) CIDv1s: CBOR_CID stands in for the blob's
 // own editable CID; OTHER_CBOR_CID is a schema an instance points at. Under
-// Onyx a blob "is a schema" when it validates against the meta-schema, so the
-// fixtures use real Onyx-dialect schemas (`type: hm://…`), not a meta-CID link.
+// A blob "is a schema" when it validates against the meta-schema, so the
+// fixtures use real library-dialect schemas (`type: hm://…`), not a meta-CID link.
 let CBOR_CID: string
 let OTHER_CBOR_CID: string
 
@@ -17,12 +17,12 @@ beforeAll(async () => {
 })
 
 describe('inspectorBlobActions', () => {
-  test('an Onyx schema blob offers Edit + New Instance and reads as a schema', () => {
+  test('a Hypermedia schema blob offers Edit + New Instance and reads as a schema', () => {
     const value = {
       type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct',
       properties: {},
       name: 'Thing',
-    } // a valid Onyx schema (kinds are pinned to the onyx account's published URLs)
+    } // a valid Hypermedia schema (kinds are pinned to the Hypermedia account's published URLs)
     expect(inspectorBlobActions(CBOR_CID, value, true)).toEqual({
       canEdit: true,
       valueIsSchema: true,

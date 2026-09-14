@@ -2,7 +2,7 @@
 //
 // A schema's name is its path inside hypermedia/ without `.schema.json`
 // (`schema/string`, `schema/block/image`, `rpc/type/document`, `example/person`),
-// which is also the path its document publishes at: hm://<onyx>/<name>.
+// which is also the path its document publishes at: hm://<library>/<name>.
 // Names from before the folder reorganization (`hypermedia-string`, the bare
 // primitive `string`, the dev authorities) resolve through schemas.aliases.json.
 
@@ -13,9 +13,9 @@ import {fileURLToPath} from 'node:url'
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 export const HM_DIR = resolve(REPO_ROOT, 'hypermedia')
 export const LOCK_PATH = resolve(HM_DIR, 'schemas.lock.json')
-export const ONYX = 'z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
+export const HYPERMEDIA_UID = 'z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
 
-/** Dev authorities from before the onyx account, and the name prefix each implied. */
+/** Dev authorities from before the Hypermedia account, and the name prefix each implied. */
 export const LEGACY_AUTHORITY = [
   ['hypermedia-', 'hyper.media'],
   ['hypermedia-', 'seed.hyper.media'],
@@ -52,10 +52,10 @@ export function listSchemaFiles() {
 
 export const nameOfFile = (file) => file.replace(/\.schema\.json$/, '')
 export const fileOfName = (name) => `${name}.schema.json`
-export const nameToUrl = (name) => `hm://${ONYX}/${name}`
+export const nameToUrl = (name) => `hm://${HYPERMEDIA_UID}/${name}`
 
 /**
- * A schema reference -> its current name. Accepts an hm:// URL (onyx account or a
+ * A schema reference -> its current name. Accepts an hm:// URL (Hypermedia account or a
  * legacy dev authority), a bare name, or a file name. `has(name)` says whether a
  * name exists; a name that does not resolves through the aliases, else is returned as is.
  */
@@ -63,7 +63,7 @@ export function refToName(ref, has) {
   const m = /^hm:\/\/([^/]+)\/(.+)$/.exec(ref)
   let name
   if (!m) name = ref.replace(/\.schema\.json$|\.json$/, '')
-  else if (m[1] === ONYX) name = m[2]
+  else if (m[1] === HYPERMEDIA_UID) name = m[2]
   else {
     const prefix = LEGACY_AUTHORITY.find(([, authority]) => authority === m[1])?.[0]
     name = prefix ? `${prefix}${m[2]}` : m[2]

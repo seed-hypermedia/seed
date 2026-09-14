@@ -6,14 +6,14 @@
 // rows — so an author fills them in-place instead of hunting for the Attributes
 // tab. The caller resolves the schema (see useEffectiveDocSchema) and passes its
 // metadata sub-schema as `conformanceSchema`.
-import {fieldSchema, requiredFieldNames} from './onyx/onyx-engine'
+import {fieldSchema, requiredFieldNames} from './schema/engine'
 import {useMemo} from 'react'
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
-import {seedValue} from './onyx/onyx-data-editor'
-import type {OnyxSchema} from './onyx/onyx-engine'
-import {documentMetadataSchema} from './onyx/onyx-metadata-schema-keys'
-import {OnyxSchemaProvider} from './onyx/onyx-schema-context'
-import {RESERVED_METADATA_KEYS} from './onyx/schema-document'
+import {seedValue} from './schema/data-editor'
+import type {HypermediaSchema} from './schema/engine'
+import {documentMetadataSchema} from './schema/metadata-schema-keys'
+import {SchemaRegistryProvider} from './schema/schema-context'
+import {RESERVED_METADATA_KEYS} from './schema/schema-document'
 import {FieldRow, METADATA_VALUE_RULES, ValueEditorProvider} from './value-editor'
 
 /**
@@ -30,7 +30,7 @@ export function RequiredAttributesEditor({
   metadata,
   onMetadata,
 }: {
-  conformanceSchema: OnyxSchema | undefined
+  conformanceSchema: HypermediaSchema | undefined
   metadata: HMMetadata | undefined
   onMetadata: (patch: Record<string, unknown>) => void
 }) {
@@ -58,7 +58,7 @@ export function RequiredAttributesEditor({
 
   return (
     <ValueEditorProvider>
-      <OnyxSchemaProvider schema={schemaRoot} registry={{}} value={current}>
+      <SchemaRegistryProvider schema={schemaRoot} registry={{}} value={current}>
         <div className="border-border bg-muted/30 mb-4 flex flex-col rounded-lg border px-4 py-1">
           {requiredRows.map(({key, value}) => (
             <FieldRow
@@ -78,7 +78,7 @@ export function RequiredAttributesEditor({
             />
           ))}
         </div>
-      </OnyxSchemaProvider>
+      </SchemaRegistryProvider>
     </ValueEditorProvider>
   )
 }

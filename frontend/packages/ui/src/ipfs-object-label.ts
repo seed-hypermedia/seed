@@ -6,9 +6,9 @@
 // (react-query dedupes, so a page full of pills costs one request per CID).
 import {useCID} from '@shm/shared/models/entity'
 import {isDagJsonLink, parseCidString} from './dag-json'
-import {isOnyxSchema, nameForCid, ONYX_SCHEMAS, schemaForCid} from './onyx/onyx-engine'
-import {ONYX_PAGES} from './onyx/onyx-schemas.generated'
-import {useOnyxSchemaRegistry} from './onyx/onyx-schema-registry-cid'
+import {isHypermediaSchema, nameForCid, HM_SCHEMAS, schemaForCid} from './schema/engine'
+import {HM_SCHEMA_PAGES} from './schema/schema-registry.generated'
+import {useSchemaRegistry} from './schema/schema-registry-cid'
 
 const DAG_CBOR_CODE = 0x71
 
@@ -21,7 +21,7 @@ export function shortCid(cid: string): string {
 /** The name of a schema: its bundled page's name; a legacy root `name` on the blob; else the fallback. */
 function schemaName(schema: Record<string, any> | undefined, fallback: string, cid?: string): string {
   const slug = cid ? nameForCid(cid) : undefined
-  const page = slug ? ONYX_PAGES[slug] : undefined
+  const page = slug ? HM_SCHEMA_PAGES[slug] : undefined
   if (page?.name) return page.name
   return schema && typeof schema.name === 'string' && schema.name ? schema.name : fallback
 }
@@ -31,15 +31,15 @@ export function useIpfsObjectLabel(cid: string): {kind: IpfsObjectKind; label: s
   const isObject = parseCidString(cid)?.code === DAG_CBOR_CODE
   // Bundled schema CIDs need no fetch.
   const bundledName = isObject ? nameForCid(cid) : undefined
-  const bundled = bundledName ? ONYX_SCHEMAS[bundledName] : undefined
+  const bundled = bundledName ? HM_SCHEMAS[bundledName] : undefined
   const blob = useCID(isObject && !bundled ? cid : undefined)
   const value = blob.data?.value as Record<string, any> | undefined
-  const valueIsSchema = !!value && isOnyxSchema(value)
+  const valueIsSchema = !!value && isHypermediaSchema(value)
   const linkedSchemaCid =
     value && !valueIsSchema && isDagJsonLink(value.schema) && parseCidString(value.schema['/'])?.code === DAG_CBOR_CODE
       ? (value.schema['/'] as string)
       : undefined
-  const registry = useOnyxSchemaRegistry(linkedSchemaCid && !schemaForCid(linkedSchemaCid) ? [linkedSchemaCid] : [])
+  const registry = useSchemaRegistry(linkedSchemaCid && !schemaForCid(linkedSchemaCid) ? [linkedSchemaCid] : [])
   const linkedSchema = linkedSchemaCid ? schemaForCid(linkedSchemaCid) ?? registry.byCid[linkedSchemaCid] : undefined
 
   const title = `ipfs://${cid}`
