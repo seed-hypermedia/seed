@@ -8,7 +8,7 @@ import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to
 import {useAppContext} from '@/app-context'
 import {CommentBox, renderDesktopInlineEditor, triggerCommentDraftFocus} from '@/components/commenting'
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
-import {useCreateDocumentMenuItem} from '@/components/create-doc-button'
+import {DesktopDocumentCreateButton, useCreateDocumentMenuItem} from '@/components/create-doc-button'
 import {useDeleteDialog} from '@/components/delete-dialog'
 import {DesktopDraftActionsProvider} from '@/components/desktop-draft-actions-provider'
 import {DesktopDraftBreadcrumbProvider} from '@/components/desktop-draft-breadcrumb-provider'
@@ -859,10 +859,6 @@ export default function DesktopResourcePage() {
   // Tracks drafts created from query blocks so the corresponding inline draft card can focus its title.
   const [lastCreatedDraftId, setLastCreatedDraftId] = useState<string | null>(null)
   const canCreateChildDocs = !!doc?.version && canCreateChildDocuments(doc?.visibility, draftData?.visibility)
-  const {menuItem: newMenuItem, content: newMenuContent} = useCreateDocumentMenuItem({
-    locationId: docId,
-    canCreateChildren: canCreateChildDocs,
-  })
   const {menuItem: fileBrowserCreateMenuItem} = useCreateDocumentMenuItem({
     locationId: hmId(docId.uid),
   })
@@ -969,10 +965,6 @@ export default function DesktopResourcePage() {
       },
     }),
   )
-
-  if (newMenuItem) {
-    menuItems.push(newMenuItem)
-  }
 
   if (canEdit && selectedAccountId && docId.path?.length) {
     menuItems.push({
@@ -1207,6 +1199,7 @@ export default function DesktopResourcePage() {
             docId={docId}
             existingMenuItems={menuItems}
             getUnpublishedChildCount={getUnpublishedChildCount}
+            beforePublish={<DesktopDocumentCreateButton locationId={docId} />}
           />
         )
       : undefined
@@ -1318,7 +1311,6 @@ export default function DesktopResourcePage() {
       {editProfileDialog.content}
       {removeSiteDialog.content}
       {publishSite.content}
-      {newMenuContent}
       {followIntent.content}
     </div>
   )

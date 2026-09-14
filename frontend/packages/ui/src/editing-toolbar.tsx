@@ -481,17 +481,21 @@ export function EditingDocToolsRight({
   docId,
   existingMenuItems,
   unpublishedChildCount,
+  beforePublish,
   ...callbacks
 }: {
   docId: UnpackedHypermediaId
   existingMenuItems: MenuItemType[]
   unpublishedChildCount?: number
+  /** Contextual actions rendered immediately before Publish. */
+  beforePublish?: React.ReactNode
 } & EditingToolbarCallbacks) {
   return (
     <div className="relative flex items-center gap-1">
       <div className="pointer-events-none absolute right-full mr-2">
         <SaveIndicator />
       </div>
+      {beforePublish}
       <PublishButtonWithPopover
         docId={docId}
         existingMenuItems={existingMenuItems}

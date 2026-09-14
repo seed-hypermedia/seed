@@ -52,11 +52,11 @@ describe('query block table model', () => {
       item('Two', {status: 'Draft', priority: 5}),
     ])
 
-    expect(columns.slice(-2)).toEqual([
+    expect(columns.slice(-3)).toEqual([
       {id: 'metadata:priority', label: 'Priority', type: 'number', defaultVisible: false},
       {id: 'metadata:status', label: 'Status', type: 'text', defaultVisible: false},
+      {id: 'metadata:type', label: 'Type', type: 'text', defaultVisible: false},
     ])
-    expect(columns.some(({id}) => id === 'metadata:type')).toBe(false)
   })
 
   it('does not turn unrelated metadata attributes into tags', () => {

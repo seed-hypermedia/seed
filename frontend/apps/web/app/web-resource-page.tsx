@@ -70,7 +70,13 @@ import {useWebDeleteDocumentDialog} from './web-delete-document-dialog'
 import {useWebDocumentDestinationDialog} from './web-move-document-dialog'
 import {WebQuerySearchInput} from './web-query-search-input'
 import {WebDocumentPrefetch} from './web-document-prefetch'
-import {WebHeaderActions, WebSitePageShell, useWebCreateDocumentMenuItem, useWebMenuItems} from './web-utils'
+import {
+  WebDocumentCreateButton,
+  WebHeaderActions,
+  WebSitePageShell,
+  useWebCreateDocumentMenuItem,
+  useWebMenuItems,
+} from './web-utils'
 
 /** Lazy-loaded inline comment editor — avoids pulling the full editor bundle eagerly. */
 const LazyWebInlineEditor = lazy(() => import('./commenting').then((mod) => ({default: mod.WebInlineEditBox})))
@@ -493,11 +499,26 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   )
 
   const showPublishToolbar = route.key === 'document' || route.key === 'metadata'
+  const currentResource = useResource(useLocalDraftShell ? undefined : docId)
+  const currentDocument = currentResource.data?.type === 'document' ? currentResource.data.document : undefined
 
   const editingFloatingActions =
     effectiveCanEdit && showPublishToolbar
       ? ({menuItems}: {menuItems: any[]}) => (
-          <EditingDocToolsRight docId={docId} existingMenuItems={menuItems} {...webToolbarCallbacks} />
+          <EditingDocToolsRight
+            docId={docId}
+            existingMenuItems={menuItems}
+            beforePublish={
+              <WebDocumentCreateButton
+                locationId={docId}
+                currentDocument={currentDocument}
+                canEdit={effectiveCanEdit}
+                signingAccountId={signingAccountId ?? undefined}
+                capabilityCid={effectiveCapabilityCid}
+              />
+            }
+            {...webToolbarCallbacks}
+          />
         )
       : undefined
 
@@ -541,17 +562,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     },
     [cleanupSnapshot.data?.jobs],
   )
-  const currentResource = useResource(useLocalDraftShell ? undefined : docId)
-  const currentDocument = currentResource.data?.type === 'document' ? currentResource.data.document : undefined
   const canCreateChildDocs =
     !!currentDocument?.version && canCreateChildDocuments(currentDocument?.visibility, draftData?.visibility)
-  const {menuItem: newMenuItem, content: newMenuContent} = useWebCreateDocumentMenuItem({
-    locationId: docId,
-    signingAccountId: signingAccountId ?? undefined,
-    canCreate: effectiveCanEdit && !!signingAccountId,
-    canCreateChildren: canCreateChildDocs,
-    capabilityCid: effectiveCapabilityCid,
-  })
   const {menuItem: fileBrowserCreateMenuItem} = useWebCreateDocumentMenuItem({
     locationId: hmId(docId.uid),
     signingAccountId: signingAccountId ?? undefined,
@@ -642,8 +654,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     }
   }, [docId, effectiveCanEdit, isHomeTarget, onDeleteDocument, replaceRoute, signingAccountId])
   const optionsMenuItems = useMemo(
-    () => [newMenuItem, ...webMenuItems, moveMenuItem, deleteMenuItem].filter(Boolean) as MenuItemType[],
-    [deleteMenuItem, moveMenuItem, newMenuItem, webMenuItems],
+    () => [...webMenuItems, moveMenuItem, deleteMenuItem].filter(Boolean) as MenuItemType[],
+    [deleteMenuItem, moveMenuItem, webMenuItems],
   )
 
   // Inline subscribe box for non-members
@@ -799,7 +811,6 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       {followAccountContent}
       {createSpaceDialogContent}
       {createAccountContent}
-      {newMenuContent}
       {deleteDialog.content}
       {destinationDialog.content}
       {vaultSuccessContent}

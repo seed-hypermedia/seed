@@ -1,9 +1,19 @@
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
+import {useChildDrafts} from '@/models/documents'
 import {buildDocumentCollectionDraftSeed} from '@/utils/publish-utils'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {deriveDocumentType} from '@shm/shared/models/document-machine'
+import {documentCreationMachine, inferDocumentSchema} from '@shm/shared'
+import {useResource} from '@shm/shared/models/entity'
+import {queryQueryBlock} from '@shm/shared/models/queries'
+import {useUniversalClient} from '@shm/shared/routing'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {Button} from '@shm/ui/button'
+import {DocumentCreateButton} from '@shm/ui/document-create-button'
+import {toast} from '@shm/ui/toast'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,7 +25,9 @@ import {Add} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {FilePlus2, Grid3X3, Import} from 'lucide-react'
 import {nanoid} from 'nanoid'
-import {ReactNode, useCallback, useMemo} from 'react'
+import {ReactNode, useCallback, useEffect, useMemo, useState} from 'react'
+import {useActorRef, useSelector} from '@xstate/react'
+import {useQuery} from '@tanstack/react-query'
 import {useImportDialog, useImporting} from './import-doc-button'
 
 /** Builds the document creation submenu item and its dialog content for the document options menu. */
@@ -133,4 +145,158 @@ export function CreateDocumentButton({locationId}: {locationId?: UnpackedHyperme
   if (!locationId) return null
 
   return <CreateDocumentButtonContent locationId={locationId} />
+}
+
+function DesktopActorButton({
+  locationId,
+  currentIsCollection,
+  parentId,
+  parentIsCollection,
+  canEditParent,
+  schema,
+  onImportFinished,
+}: {
+  locationId: UnpackedHypermediaId
+  currentIsCollection: boolean
+  parentId?: UnpackedHypermediaId
+  parentIsCollection: boolean
+  canEditParent: boolean
+  schema?: ReturnType<typeof inferDocumentSchema>
+  onImportFinished: () => void
+}) {
+  const destination = parentIsCollection && canEditParent && parentId ? parentId : locationId
+  const createAtDestination = useCreateDraft({
+    locationUid: destination.uid,
+    locationPath: destination.path ?? undefined,
+  })
+  const createSubdocument = useCreateDraft({locationUid: locationId.uid, locationPath: locationId.path ?? undefined})
+  const importing = useImporting(destination, schema)
+  const importDialog = useImportDialog(onImportFinished)
+  const actor = useActorRef(documentCreationMachine, {
+    input: {
+      currentId: locationId,
+      resolve: async () => ({
+        canEditCurrent: true,
+        currentIsCollection,
+        parentId,
+        parentIsCollection,
+        canEditParent,
+        schema,
+      }),
+      create: async (request) => {
+        const createDraft = request.kind === 'subdocument' ? createSubdocument : createAtDestination
+        if (request.kind === 'collection') {
+          const seed = buildDocumentCollectionDraftSeed(nanoid(8))
+          await createDraft({initialMetadata: {...seed.metadata, ...request.metadata}, initialContent: seed.content})
+        } else {
+          await createDraft({initialMetadata: request.metadata})
+        }
+        return request.destination
+      },
+    },
+  })
+  const snapshot = useSelector(actor, (state) => state)
+
+  useEffect(() => {
+    if (snapshot.value !== 'failedCreation') return
+    toast.error(snapshot.context.error instanceof Error ? snapshot.context.error.message : 'Could not create document')
+    actor.send({type: 'retry.requested'})
+  }, [actor, snapshot.context.error, snapshot.value])
+
+  useEffect(
+    () =>
+      actor.subscribe({
+        complete: () => {
+          const output = actor.getSnapshot().output
+          if (output?.type !== 'import') return
+          importDialog.open({
+            onImportFile: importing.importFile,
+            onImportDirectory: importing.importDirectory,
+            onImportLatexFile: importing.importLatexFile,
+            onImportLatexDirectory: importing.importLatexDirectory,
+            onImportWebSite: importing.importWebSite,
+            onImportWordPress: importing.importWordPress,
+          })
+        },
+      }).unsubscribe,
+    [actor, importDialog, importing, onImportFinished],
+  )
+
+  return (
+    <>
+      <DocumentCreateButton
+        hidden={JSON.stringify(snapshot.value) === JSON.stringify({resolved: 'hidden'})}
+        disabled={JSON.stringify(snapshot.value) !== JSON.stringify({resolved: 'ready'})}
+        showSubdocument={snapshot.can({type: 'create.requested', kind: 'subdocument'})}
+        onCreate={(kind) => actor.send({type: 'create.requested', kind})}
+        onImport={() => actor.send({type: 'import.requested'})}
+      />
+      {importDialog.content}
+      {importing.content}
+    </>
+  )
+}
+
+/** Actor-backed document creation split button for the desktop document toolbar. */
+export function DesktopDocumentCreateButton({locationId}: {locationId: UnpackedHypermediaId}) {
+  const client = useUniversalClient()
+  const current = useResource(locationId)
+  const currentDocument = current.data?.type === 'document' ? current.data.document : undefined
+  const currentCapability = useSelectedAccountCapability(locationId)
+  const canEditCurrent = roleCanWrite(currentCapability?.role)
+  const parentId = locationId.path?.length ? hmId(locationId.uid, {path: locationId.path.slice(0, -1)}) : undefined
+  const parent = useResource(parentId)
+  const parentDocument = parent.data?.type === 'document' ? parent.data.document : undefined
+  const parentCapability = useSelectedAccountCapability(parentId)
+  const canEditParent = roleCanWrite(parentCapability?.role)
+  const currentIsCollection =
+    !!currentDocument && deriveDocumentType(currentDocument.content, locationId) === 'collection'
+  const parentIsCollection =
+    !!parentDocument && !!parentId && deriveDocumentType(parentDocument.content, parentId) === 'collection'
+  const schemaId = currentIsCollection ? locationId : parentIsCollection && canEditParent ? parentId : undefined
+  const children = useQuery(
+    queryQueryBlock(
+      client,
+      schemaId
+        ? {
+            query: {
+              includes: [{space: schemaId.uid, path: hmIdPathToEntityQueryPath(schemaId.path), mode: 'Children'}],
+            },
+          }
+        : null,
+    ),
+  )
+  const drafts = useChildDrafts(schemaId)
+  const schema = useMemo(
+    () =>
+      schemaId
+        ? inferDocumentSchema({
+            collectionId: schemaId,
+            publishedChildren: children.data?.results ?? [],
+            draftChildren: drafts.flatMap((draft) =>
+              draft.editUid ? [{id: hmId(draft.editUid, {path: draft.editPath}), metadata: draft.metadata ?? {}}] : [],
+            ),
+          })
+        : undefined,
+    [children.data?.results, drafts, schemaId],
+  )
+  const [generation, setGeneration] = useState(0)
+
+  if (current.isLoading || (parentId && parent.isLoading) || (schemaId && children.isLoading)) {
+    return <DocumentCreateButton disabled onCreate={() => {}} onImport={() => {}} />
+  }
+  if (!currentDocument || !canEditCurrent) return null
+
+  return (
+    <DesktopActorButton
+      key={generation}
+      locationId={locationId}
+      currentIsCollection={currentIsCollection}
+      parentId={parentId}
+      parentIsCollection={parentIsCollection}
+      canEditParent={canEditParent}
+      schema={schema}
+      onImportFinished={() => setGeneration((value) => value + 1)}
+    />
+  )
 }

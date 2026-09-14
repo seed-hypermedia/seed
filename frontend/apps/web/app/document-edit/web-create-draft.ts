@@ -11,6 +11,7 @@ import {
   parseMarkdown,
 } from '@seed-hypermedia/client/markdown-to-blocks'
 import {hmId} from '@shm/shared'
+import {applySchemaToMetadata, type DocumentSchema} from '@shm/shared/models/document-creation-schema'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {rememberDraftReturnParentId, rememberReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
@@ -166,12 +167,14 @@ export async function createWebDocumentDraftFromMarkdownFile({
   signingAccountId,
   navigate,
   capabilityCid,
+  schema,
 }: {
   file: File
   locationId: UnpackedHypermediaId
   client: Pick<UniversalClient, 'request'>
   signingAccountId: string
   capabilityCid?: string
+  schema?: DocumentSchema
   navigate: (route: WebDocumentDraftRoute) => void
 }): Promise<CreateWebDocumentDraftResult> {
   const text = await file.text()
@@ -182,7 +185,7 @@ export async function createWebDocumentDraftFromMarkdownFile({
     client,
     signingAccountId,
     capabilityCid,
-    metadata,
+    metadata: schema ? applySchemaToMetadata(metadata, schema) : metadata,
     content: markdownToHMBlockNodes(markdown),
     navigate,
   })
