@@ -178,6 +178,161 @@ export class PushResourcesToPeerRequest extends Message<PushResourcesToPeerReque
 }
 
 /**
+ * Request for aggregate interaction data about a resource.
+ *
+ * @generated from message com.seed.documents.v3alpha.GetInteractionSummaryRequest
+ */
+export class GetInteractionSummaryRequest extends Message<GetInteractionSummaryRequest> {
+  /**
+   * Required. IRI of the cited resource.
+   *
+   * @generated from field: string iri = 1;
+   */
+  iri = "";
+
+  constructor(data?: PartialMessage<GetInteractionSummaryRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.GetInteractionSummaryRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "iri", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetInteractionSummaryRequest {
+    return new GetInteractionSummaryRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetInteractionSummaryRequest {
+    return new GetInteractionSummaryRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetInteractionSummaryRequest {
+    return new GetInteractionSummaryRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetInteractionSummaryRequest | PlainMessage<GetInteractionSummaryRequest> | undefined, b: GetInteractionSummaryRequest | PlainMessage<GetInteractionSummaryRequest> | undefined): boolean {
+    return proto3.util.equals(GetInteractionSummaryRequest, a, b);
+  }
+}
+
+/**
+ * Aggregate interactions targeting a resource.
+ *
+ * @generated from message com.seed.documents.v3alpha.InteractionSummary
+ */
+export class InteractionSummary extends Message<InteractionSummary> {
+  /**
+   * Number of distinct live documents citing the resource.
+   *
+   * @generated from field: int32 citation_count = 1;
+   */
+  citationCount = 0;
+
+  /**
+   * Number of distinct live comments citing the resource.
+   *
+   * @generated from field: int32 comment_count = 2;
+   */
+  commentCount = 0;
+
+  /**
+   * Counts grouped by the raw target fragment.
+   *
+   * @generated from field: repeated com.seed.documents.v3alpha.InteractionSummaryBlock blocks = 3;
+   */
+  blocks: InteractionSummaryBlock[] = [];
+
+  /**
+   * Distinct account IDs that authored citations or comments.
+   *
+   * @generated from field: repeated string author_uids = 4;
+   */
+  authorUids: string[] = [];
+
+  constructor(data?: PartialMessage<InteractionSummary>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.InteractionSummary";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "citation_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "comment_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "blocks", kind: "message", T: InteractionSummaryBlock, repeated: true },
+    { no: 4, name: "author_uids", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): InteractionSummary {
+    return new InteractionSummary().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): InteractionSummary {
+    return new InteractionSummary().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): InteractionSummary {
+    return new InteractionSummary().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: InteractionSummary | PlainMessage<InteractionSummary> | undefined, b: InteractionSummary | PlainMessage<InteractionSummary> | undefined): boolean {
+    return proto3.util.equals(InteractionSummary, a, b);
+  }
+}
+
+/**
+ * @generated from message com.seed.documents.v3alpha.InteractionSummaryBlock
+ */
+export class InteractionSummaryBlock extends Message<InteractionSummaryBlock> {
+  /**
+   * @generated from field: string target_fragment = 1;
+   */
+  targetFragment = "";
+
+  /**
+   * @generated from field: int32 citation_count = 2;
+   */
+  citationCount = 0;
+
+  /**
+   * @generated from field: int32 comment_count = 3;
+   */
+  commentCount = 0;
+
+  constructor(data?: PartialMessage<InteractionSummaryBlock>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.InteractionSummaryBlock";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "target_fragment", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "citation_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "comment_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): InteractionSummaryBlock {
+    return new InteractionSummaryBlock().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): InteractionSummaryBlock {
+    return new InteractionSummaryBlock().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): InteractionSummaryBlock {
+    return new InteractionSummaryBlock().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: InteractionSummaryBlock | PlainMessage<InteractionSummaryBlock> | undefined, b: InteractionSummaryBlock | PlainMessage<InteractionSummaryBlock> | undefined): boolean {
+    return proto3.util.equals(InteractionSummaryBlock, a, b);
+  }
+}
+
+/**
  * Request to list citations of a resource.
  *
  * @generated from message com.seed.documents.v3alpha.ListCitationsRequest

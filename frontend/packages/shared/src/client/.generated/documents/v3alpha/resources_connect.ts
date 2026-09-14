@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { GetResourceRequest, ListCitationsRequest, ListCitationsResponse, PushResourcesToPeerRequest, Resource } from "./resources_pb";
+import { GetInteractionSummaryRequest, GetResourceRequest, InteractionSummary, ListCitationsRequest, ListCitationsResponse, PushResourcesToPeerRequest, Resource } from "./resources_pb";
 import { MethodKind } from "@bufbuild/protobuf";
 import { AnnounceBlobsProgress } from "../../p2p/v1alpha/syncing_pb";
 
@@ -37,6 +37,17 @@ export const Resources = {
       name: "ListCitations",
       I: ListCitationsRequest,
       O: ListCitationsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Returns bounded aggregate interaction data without enumerating citations.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Resources.GetInteractionSummary
+     */
+    getInteractionSummary: {
+      name: "GetInteractionSummary",
+      I: GetInteractionSummaryRequest,
+      O: InteractionSummary,
       kind: MethodKind.Unary,
     },
     /**
