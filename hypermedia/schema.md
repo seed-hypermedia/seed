@@ -18,7 +18,7 @@ This page is a practical guide to _using_ Hypermedia Schemas inside the Seed app
 New to Hypermedia Schemas? These four pages explain the system from the top down before the reference chapters go deep: <!-- id:XwK2BBFL -->
   - [Why Hypermedia Schemas](./doc/schema/why.md) — the problem it solves, what it makes possible, and what it deliberately is not. <!-- id:ASDj0A2q -->
   - [How Hypermedia Schemas work](./doc/schema/how-it-works.md) — the whole pipeline, from a schema file to a signed blob, a browsable document, a resolved reference, a generated type, and a typed API call. <!-- id:JnOo7Tmo -->
-  - [Typed documents](./schema/typed-documents.md) — how a document declares what it is with `schema`, `childrenSchema`, and `schemaDefinition`, and what the editor does about it. <!-- id:ejnPERZF -->
+  - [Typed documents](./schema/typed-documents.md) — how a document declares what it is with `attributesSchema`, `childAttributesSchema`, and `schemaDefinition`, and what the editor does about it. <!-- id:ejnPERZF -->
   - [The World Builder](./doc/world-builder.md) — a worked demo: scaffold an ontology of types that reference each other, with date pickers, title pills, and linked objects in every page. <!-- id:JKC7fUPx -->
   - [The typed API](./rpc.md) — every read method of the Seed API as a published schema, and the console generated from them. <!-- id:gnB4WgGS -->
   - [User stories](./doc/schema/user-stories.md) — what a person should be able to do with all of this through the app, the CLI, and an agent, step by step, and where each surface stands. <!-- id:xzhJgjsb -->

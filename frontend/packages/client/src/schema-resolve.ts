@@ -1,4 +1,4 @@
-// Resolving schema references: what a `schema`, `childrenSchema`, `ref` or `target` points at.
+// Resolving schema references: what an `attributesSchema`, `childAttributesSchema`, `ref` or `target` points at.
 //
 // A reference is one of three things (see hypermedia/schema/typed-documents.md):
 //   - a bundled library URL (`hm://<library>/schema/string`)     → resolved locally, no fetch
@@ -64,19 +64,16 @@ export function classifyRef(ref: string | null | undefined): RefKind {
 }
 
 /**
- * The metadata sub-schema of a (resolved) conformance schema. Document-shaped
- * schemas (extending the base document) carry it under `properties.metadata`;
- * a flat map schema IS the metadata schema. Returns undefined for no schema.
+ * An attributes schema, resolved: the struct a typed document's metadata is checked against.
+ * An `attributesSchema` names a struct of attributes directly (a person has a `surname`); there
+ * is no document wrapper to unwrap. Returns undefined for no schema.
  */
 export function metadataSchemaOf(
   schema: HypermediaSchema | undefined,
   reg: SchemaRegistry = {},
 ): HypermediaSchema | undefined {
   if (!schema) return undefined
-  const resolved = resolveSchema(schema, {}, reg).schema
-  const metaProp = fieldSchema(resolved, 'metadata')
-  if (metaProp) return resolveSchema(metaProp, {}, reg).schema
-  return resolved
+  return resolveSchema(schema, {}, reg).schema
 }
 
 /** The CID a document's `schemaDefinition` points at (`ipfs://<cid>`), if any. */
@@ -209,15 +206,15 @@ export type EffectiveSchemaRef = {
 }
 
 /**
- * The reference to a document's EFFECTIVE conformance schema: its own metadata `schema`, else
- * its parent's `childrenSchema` (one level: a folder types its direct children), else none.
+ * The reference to a document's EFFECTIVE attributes schema: its own metadata `attributesSchema`,
+ * else its parent's `childAttributesSchema` (one level: a folder types its direct children), else none.
  */
 export async function effectiveSchemaRef(
   client: SchemaFetchClient,
   id: UnpackedHypermediaId,
   metadata: HMMetadata | Record<string, unknown> | undefined,
 ): Promise<EffectiveSchemaRef> {
-  const own = (metadata as Record<string, unknown> | undefined)?.schema
+  const own = (metadata as Record<string, unknown> | undefined)?.attributesSchema
   if (typeof own === 'string' && own) return {ref: own, source: 'own'}
   if (!id.path || id.path.length === 0) return {ref: null, source: 'none'}
   const parentPath = id.path.slice(0, -1)
@@ -225,7 +222,7 @@ export async function effectiveSchemaRef(
   if (!parentId) return {ref: null, source: 'none'}
   const parent = await client.request('Resource', parentId).catch(() => undefined)
   const inherited =
-    parent?.type === 'document' ? (parent.document.metadata as Record<string, unknown>)?.childrenSchema : null
+    parent?.type === 'document' ? (parent.document.metadata as Record<string, unknown>)?.childAttributesSchema : null
   return typeof inherited === 'string' && inherited
     ? {ref: inherited, source: 'inherited'}
     : {ref: null, source: 'none'}
@@ -293,8 +290,9 @@ export type DocumentSchemaCheck = {
 }
 
 /**
- * Check a document against its effective schema: its own `schema`, else the parent's
- * `childrenSchema`. Advisory: an unresolvable type is reported in `error`, never thrown.
+ * Check a document against its effective attributes schema: its own `attributesSchema`, else the
+ * parent's `childAttributesSchema`. Advisory: an unresolvable type is reported in `error`, never
+ * thrown. With `content`, the block tree is also checked against the base document's content schema.
  */
 export async function checkDocumentSchema(
   client: SchemaFetchClient,
@@ -319,10 +317,11 @@ export async function checkDocumentSchema(
     .map((f) => f.name)
   const present = metadata ?? {}
   const missing = required.filter((name) => !(name in present))
-  const violations =
-    content !== undefined
-      ? validate(loaded.schema, {metadata: present, content}, '$', {}, loaded.registry)
-      : validate(metadataSchema, present, '$', {}, loaded.registry)
+  const violations = validate(metadataSchema, present, '$.metadata', {}, loaded.registry)
+  if (content !== undefined) {
+    const contentSchema = fieldSchema(resolveSchema(HM_SCHEMAS['document']!).schema, 'content')
+    if (contentSchema) violations.push(...validate(contentSchema, content, '$.content', {}, loaded.registry))
+  }
   return {...base, required, missing, violations}
 }
 

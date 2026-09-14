@@ -103,8 +103,8 @@ Create a new document from markdown or HMBlockNodes JSON.
 - `--blocks <json>`: HMBlockNodes JSON (inline)
 - `--blocks-file <file>`: Read HMBlockNodes JSON from file
 - `--metadata <json>`: Any metadata attributes as a JSON object, custom keys included; merged over the file's frontmatter and the flags. Every frontmatter key of a markdown file is kept as an attribute.
-- `--schema <ref>`: The schema this document conforms to (a type document `hm://` URL or `ipfs://<cid>`)
-- `--children-schema <ref>`: The schema this document's direct children conform to
+- `--attributes-schema <ref>`: The attributes schema this document conforms to (a schema document `hm://` URL or `ipfs://<cid>`)
+- `--child-attributes-schema <ref>`: The attributes schema this document's direct children conform to
 - `--schema-definition <file>`: Publish this dag-json schema file as a blob and bind it as the document's `schemaDefinition` (the document becomes a type others reference by URL)
 - `-k, --key <name>`: Signing key name or account ID
 
@@ -132,7 +132,7 @@ Update document content and metadata (smart diff — only changed blocks are sub
 
 #### `document validate <id>` - Check a document against its schema
 
-Resolves the document's effective schema — its own `schema`, else the `childrenSchema` of its parent — fetches every type it references, and lists each violation of the metadata. Exit code 1 when there are any; a document with no schema is reported as such and exits 0.
+Resolves the document's effective attributes schema — its own `attributesSchema`, else the `childAttributesSchema` of its parent — fetches every type it references, and lists each violation of the metadata. Exit code 1 when there are any; a document with no schema is reported as such and exits 0.
 
 **Options:**
 

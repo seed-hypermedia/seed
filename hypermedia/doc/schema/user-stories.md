@@ -22,14 +22,14 @@ These are the things a person should be able to do with the type system, stated 
 
 **In the app** <!-- id:nnKMNDW8 -->
   1. Open any document. The **Attributes** tab lists its metadata as editable fields; the **Content** tab is the block tree. <!-- id:6ySwBrba -->
-  2. Open `hm://<library>/hypermedia-document`. The page explains the type in prose and shows its schema above the body: `metadata` and `content`, each a link. Follow `metadata` to [metadata](../../metadata.md) for every built-in key including `schema`, `childrenSchema` and `schemaDefinition`; follow `content` to [block/node](../../block/node.md) and on to the block types. <!-- id:0daJUHUr -->
+  2. Open `hm://<library>/hypermedia-document`. The page explains the type in prose and shows its schema above the body: `metadata` and `content`, each a link. Follow `metadata` to [metadata](../../metadata.md) for every built-in key including `attributesSchema`, `childAttributesSchema` and `schemaDefinition`; follow `content` to [block/node](../../block/node.md) and on to the block types. <!-- id:0daJUHUr -->
   3. Every type name on those pages is a link, down to the nine kinds in [the data model](../../schema/data-model.md). **Inspect Schema** in a type page's menu opens the same schema by CID at `/hm/schema/<cid>`, with dependencies and dependents. <!-- id:jRqwN-xe -->
 
 **With the CLI** <!-- id:fOPHu9gf -->
   1. `document get --md hm://<acct>/<path>` prints the document as markdown: the metadata as YAML frontmatter, the blocks with their ids in trailing comments. <!-- id:ZTyY0oGQ -->
   2. `document get --json hm://<acct>/<path>` prints the document as the API returns it; `document get -m` prints the metadata only. <!-- id:2YhQdcMj -->
   3. `document get --md hm://<library>/hypermedia-document` reads the type page like any other; `schema get document` prints the schema it defines, and `schema get --resolve` the same with every reference followed and extensions merged. `blob get <cid>` reads any blob back as dag-json. <!-- id:pZdlc6-t -->
-  4. `document validate hm://<acct>/<path>` names the schema a document conforms to and how it got it (its own `schema`, or inherited from the parent's `childrenSchema`), or says it has none. <!-- id:EGiX5lnq -->
+  4. `document validate hm://<acct>/<path>` names the schema a document conforms to and how it got it (its own `attributesSchema`, or inherited from the parent's `childAttributesSchema`), or says it has none. <!-- id:EGiX5lnq -->
 
 **Through an agent** <!-- id:rHb3ns_h -->
   1. `read hm://<acct>/<path>` returns the document as markdown with frontmatter — the same picture the CLI gives. <!-- id:qjfRlvIg -->
@@ -44,32 +44,32 @@ These are the things a person should be able to do with the type system, stated 
 **In the app** <!-- id:9NjDgrYx -->
   1. Open the document and switch to the **Attributes** tab. <!-- id:MzKMGOOq -->
   2. Press **Add field**. Enter the **Field name**, pick its **Type** (text, number, toggle, list, object, link…), enter the value. Save or publish as with any edit. <!-- id:z1CMaGyt -->
-  3. To type the document, add the field `schema` and set it to the type document's URL (`hm://<acct>/types/person`) — the field is a document reference, so it offers a search and shows the target as a title pill. The type's required fields appear as fixed rows immediately (story 4). <!-- id:h3tBTXeu -->
+  3. To type the document, add the field `attributesSchema` and set it to the type document's URL (`hm://<acct>/types/person`) — the field is a document reference, so it offers a search and shows the target as a title pill. The type's required fields appear as fixed rows immediately (story 4). <!-- id:h3tBTXeu -->
 
 **With the CLI** <!-- id:RhZhfOGp -->
-  1. `space export hm://<acct> ./site` writes every document to a markdown file whose frontmatter carries every metadata key; add `surname: Smith` (and `schema: hm://<acct>/types/person`) to the file and run `space import hm://<acct> ./site --key <name>`. Only the changed document publishes. <!-- id:IvCAUrCj -->
+  1. `space export hm://<acct> ./site` writes every document to a markdown file whose frontmatter carries every metadata key; add `surname: Smith` (and `attributesSchema: hm://<acct>/types/person`) to the file and run `space import hm://<acct> ./site --key <name>`. Only the changed document publishes. <!-- id:IvCAUrCj -->
   2. `document create -f page.md` keeps every frontmatter key: `surname: Smith` in the file is `surname` on the document. <!-- id:pNoTGuIK -->
-  3. `document update hm://<acct>/<path> --metadata '{"surname":"Smith"}'` sets any attribute from the command line; `--schema hm://<acct>/types/person` types the document. Both work on `create` too, and a flag wins over the file. <!-- id:DZ8eFUBI -->
+  3. `document update hm://<acct>/<path> --metadata '{"surname":"Smith"}'` sets any attribute from the command line; `--attributes-schema hm://<acct>/types/person` types the document. Both work on `create` too, and a flag wins over the file. <!-- id:DZ8eFUBI -->
 
 **Through an agent** <!-- id:Oo3bqROi -->
-  1. `write hm://<acct>/<path>` with `options: {action: "update", metadata: {surname: "Smith", schema: "hm://<acct>/types/person"}}`. `options.metadata` is merged into the document's metadata and accepts custom keys; `dryRun: true` echoes what would publish. <!-- id:nCAjOm-h -->
+  1. `write hm://<acct>/<path>` with `options: {action: "update", metadata: {surname: "Smith", attributesSchema: "hm://<acct>/types/person"}}`. `options.metadata` is merged into the document's metadata and accepts custom keys; `dryRun: true` echoes what would publish. <!-- id:nCAjOm-h -->
 
 **Status.** App: works. CLI: works. Agent: works. <!-- id:liE5_ahF -->
 
 # 3. Give the direct children of a document a type <!-- id:McbpSdEO -->
 
-**Goal.** A person makes a folder typed: every page created directly under it is a person, a place, an event — without setting `schema` on each one by hand. <!-- id:szM70YP0 -->
+**Goal.** A person makes a folder typed: every page created directly under it is a person, a place, an event — without setting `attributesSchema` on each one by hand. <!-- id:szM70YP0 -->
 
 **In the app** <!-- id:iqobHnqn -->
   1. Open the folder document's **Attributes** tab. <!-- id:KK8Er4JX -->
-  2. Add the field `childrenSchema` and point it at the type document (`hm://<acct>/types/person`), the same search pill as `schema`. <!-- id:FC5f_ip4 -->
-  3. Create a page under the folder: its required attributes are already there as fixed rows, and its Attributes tab says which type it inherits. A child that sets its own `schema` uses that instead. See [typed documents](../../schema/typed-documents.md) for the inheritance rule. <!-- id:pHOiP3Yo -->
+  2. Add the field `childAttributesSchema` and point it at the type document (`hm://<acct>/types/person`), the same search pill as `attributesSchema`. <!-- id:FC5f_ip4 -->
+  3. Create a page under the folder: its required attributes are already there as fixed rows, and its Attributes tab says which type it inherits. A child that sets its own `attributesSchema` uses that instead. See [typed documents](../../schema/typed-documents.md) for the inheritance rule. <!-- id:pHOiP3Yo -->
 
 **With the CLI** <!-- id:9R7QXi7j -->
-  1. `document update hm://<acct>/people --children-schema hm://<acct>/types/person` — or `childrenSchema: hm://<acct>/types/person` in the folder's frontmatter, then `document create -f` or `space import`. <!-- id:cjn_V23c -->
+  1. `document update hm://<acct>/people --child-attributes-schema hm://<acct>/types/person` — or `childAttributesSchema: hm://<acct>/types/person` in the folder's frontmatter, then `document create -f` or `space import`. <!-- id:cjn_V23c -->
 
 **Through an agent** <!-- id:wlrYixCC -->
-  1. `write hm://<acct>/people` with `options: {action: "update", metadata: {childrenSchema: "hm://<acct>/types/person"}}`. <!-- id:ZUGHwsZT -->
+  1. `write hm://<acct>/people` with `options: {action: "update", metadata: {childAttributesSchema: "hm://<acct>/types/person"}}`. <!-- id:ZUGHwsZT -->
 
 **Status.** App: works. CLI: works. Agent: works. <!-- id:FLDR8JJZ -->
 
@@ -78,17 +78,17 @@ These are the things a person should be able to do with the type system, stated 
 **Goal.** Wherever a person edits a typed document, the editor tells them what the type requires and what is out of spec — and never stops them saving. <!-- id:7EPhbmDq -->
 
 **In the app** <!-- id:tcvWFOIf -->
-  1. Open a typed document (its own `schema`, or inherited from the parent's `childrenSchema`). The type's required fields are always-visible rows at the top of the **Attributes** tab and above the body in the **Content** tab; they cannot be removed. <!-- id:zEs9xjkx -->
+  1. Open a typed document (its own `attributesSchema`, or inherited from the parent's `childAttributesSchema`). The type's required fields are always-visible rows at the top of the **Attributes** tab and above the body in the **Content** tab; they cannot be removed. <!-- id:zEs9xjkx -->
   2. A field gets the control its type calls for: a dropdown for a union of literals, a date picker for a date, a searchable title pill for a document reference, a file picker for an IPFS reference. <!-- id:eVZIyat1 -->
   3. A value that breaks the schema shows a red badge on the field naming the rule ("surname is required", "status must be one of draft, published, archived"). Saving still works. <!-- id:5K-lLqtH -->
   4. The Attributes tab suggests the schema's optional fields as chips; pressing one adds it with a conforming starting value. <!-- id:FfbnAjlb -->
 
 **With the CLI** <!-- id:RzEbdruT -->
-  1. `document validate hm://<acct>/<path>` resolves the document's effective schema (its `schema`, else the parent's `childrenSchema`), fetches every type it references, and checks the metadata: each violation on its own line (`$.born: does not match pattern for format "date"`), exit code 1 when there are any. `--content` checks the whole document, `--json` reports `{schema, via, violations}`. <!-- id:yLJ2_4AB -->
+  1. `document validate hm://<acct>/<path>` resolves the document's effective attributes schema (its `attributesSchema`, else the parent's `childAttributesSchema`), fetches every type it references, and checks the metadata: each violation on its own line (`$.born: does not match pattern for format "date"`), exit code 1 when there are any. `--content` checks the whole document, `--json` reports `{schema, via, violations}`. <!-- id:yLJ2_4AB -->
   2. `space import self -d ./site --check` runs the same check over every file — a file's parent in the folder supplies the inherited type, the site's parent document when the folder has none — and publishes nothing while any file would violate its schema. <!-- id:e4MxYB4W -->
 
 **Through an agent** <!-- id:XFxKCawf -->
-  1. `read hm://<acct>/<path>` of a typed document returns a `schema` block — `{schema, via, required, missing, violations}` — naming the type, whether it was its own `schema` or inherited, and what is out of spec. A `write` to a typed document returns the violations as `warnings` beside the published id, and publishes anyway (advisory); `dryRun: true` returns the same warnings without publishing. <!-- id:U9EmE1SJ -->
+  1. `read hm://<acct>/<path>` of a typed document returns a `schema` block — `{schema, via, required, missing, violations}` — naming the type, whether it was its own `attributesSchema` or inherited, and what is out of spec. A `write` to a typed document returns the violations as `warnings` beside the published id, and publishes anyway (advisory); `dryRun: true` returns the same warnings without publishing. <!-- id:U9EmE1SJ -->
 
 **Status.** App: works. CLI: works. Agent: works. <!-- id:zukntbIZ -->
 

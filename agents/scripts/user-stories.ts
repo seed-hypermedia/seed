@@ -136,31 +136,34 @@ try {
   })
 
   const S2 = '2. Give a document custom metadata'
-  await step(S2, 'write with options.metadata sets custom keys and the schema field', async () => {
+  await step(S2, 'write with options.metadata sets custom keys and the attributesSchema field', async () => {
     await verb('write', {
       address: url('notes'),
-      options: {action: 'update', metadata: {surname: 'Smith', schema: url('types/person')}},
+      options: {action: 'update', metadata: {surname: 'Smith', attributesSchema: url('types/person')}},
     })
     const read = await verb('read', {address: url('notes')})
     assert(read.metadata?.surname === 'Smith', `surname = ${read.metadata?.surname}`)
-    assert(read.metadata?.schema === url('types/person'), `schema = ${read.metadata?.schema}`)
+    assert(
+      read.metadata?.attributesSchema === url('types/person'),
+      `attributesSchema = ${read.metadata?.attributesSchema}`,
+    )
   })
 
   const S3 = '3. Give the direct children of a document a type'
   await step(
     S3,
-    'write childrenSchema on a folder; a child written under it carries no schema of its own',
+    'write childAttributesSchema on a folder; a child written under it carries no schema of its own',
     async () => {
       await verb('write', {
         address: url('people'),
         content: 'Everyone we know.',
-        options: {name: 'People', metadata: {childrenSchema: url('types/person')}},
+        options: {name: 'People', metadata: {childAttributesSchema: url('types/person')}},
       })
       await verb('write', {address: url('people/bob'), content: 'Bob is a person.', options: {name: 'Bob'}})
       const folder = await verb('read', {address: url('people')})
-      assert(folder.metadata?.childrenSchema === url('types/person'), 'folder lacks childrenSchema')
+      assert(folder.metadata?.childAttributesSchema === url('types/person'), 'folder lacks childAttributesSchema')
       const child = await verb('read', {address: url('people/bob')})
-      assert(child.metadata?.schema === undefined, 'child should carry no schema of its own')
+      assert(child.metadata?.attributesSchema === undefined, 'child should carry no schema of its own')
     },
   )
 
