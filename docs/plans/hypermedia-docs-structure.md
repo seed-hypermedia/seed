@@ -1,6 +1,6 @@
 # hypermedia/ — a structure for the developer docs
 
-Status: superseded (2026-09-14). hypermedia/ was reorganized into root concepts plus `schema/`, `rpc/`, `example/`, `doc/` and `agent/` instead; see hypermedia/README.md. Originally a proposal, 2026-09-04. Branch `feat/onyx` (80 commits ahead of main; main still has the three-file `seed-docs/`).
+Status: superseded (2026-09-14). hypermedia/ was reorganized into root concepts plus `schema/`, `rpc/`, `example/`, `doc/` and `agent/` instead; see hypermedia/README.md. Originally a proposal, 2026-09-04. Branch `feat/hypermedia` (80 commits ahead of main; main still has the three-file `seed-docs/`).
 
 ## Where things stand
 
@@ -10,11 +10,11 @@ Status: superseded (2026-09-14). hypermedia/ was reorganized into root concepts 
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `hypermedia-*`          | 59 pages + 59 schemas                                                                                             | the protocol's value types (blob, change, ref, document, block-_, op-_, query-\*, …)                                                                    |
 | `seed-*`                | 66 pages + 66 schemas                                                                                             | the Seed server's JSON API types (`seed-rpc-*` calls, `seed-resource-*`, …)                                                                             |
-| `example-*`, `sprout-*` | 38 pages + 38 schemas                                                                                             | worked examples for the Onyx docs; also `validate.mjs` fixtures                                                                                         |
-| `onyx-*`                | 23 pages + 23 schemas                                                                                             | the Onyx type language itself (string, map, struct, schema, …)                                                                                          |
+| `example-*`, `sprout-*` | 38 pages + 38 schemas                                                                                             | worked examples for the Hypermedia Schemas docs; also `validate.mjs` fixtures                                                                                         |
+| `hypermedia-*`                | 23 pages + 23 schemas                                                                                             | the Hypermedia Schemas type language itself (string, map, struct, schema, …)                                                                                          |
 | `agent-*`, `agents.md`  | 43 pages                                                                                                          | Seed Agents (the Harness): ~18 durable reference pages, ~25 plans, reviews, build logs                                                                  |
 | `permissions-system*`   | 7 pages                                                                                                           | a design investigation                                                                                                                                  |
-| Onyx chapters           | 13 pages                                                                                                          | onyx, why, how-it-works, typed-documents, world-builder, api, data-model, schema-language, references, encoding, examples, hypermedia, design, glossary |
+| Hypermedia Schemas chapters           | 13 pages                                                                                                          | hypermedia, why, how-it-works, typed-documents, world-builder, api, data-model, schema-language, references, encoding, examples, hypermedia, design, glossary |
 | site + tooling          | index, README, cli, repo-hm-sync; publish/typegen/validate/tour/editor-client scripts; schemas.lock.json; images/ |
 
 Three problems, in order of pain:
@@ -79,8 +79,8 @@ doc/
     grpc                        the daemon API surface (proto/), how it is versioned
     rest-api                    the JSON API every seed-rpc-* type belongs to
 
-  onyx/                         the type system. The current chapters, unchanged, moved.
-    index (onyx.md), why, how-it-works, typed-documents, world-builder, api,
+  hypermedia/                         the type system. The current chapters, unchanged, moved.
+    index (hypermedia.md), why, how-it-works, typed-documents, world-builder, api,
     data-model, schema-language, references, encoding, examples, hypermedia, design
 
   build/                        building on Hypermedia. The "interfaces" layer, as guides.
@@ -122,7 +122,7 @@ doc/
 ### def/
 
 The glossary and the schema library become one thing: a page per term, with `<term>.schema.json` beside it when the term
-has a formal shape. Today the Onyx site is exactly this for 186 terms; the seedteamtalks `/def/*` glossary (50 terms)
+has a formal shape. Today the Hypermedia site is exactly this for 186 terms; the seedteamtalks `/def/*` glossary (50 terms)
 and `hypermedia/glossary.md`, `agent-glossary.md` are the same idea without schemas. Merge them.
 
 ```
@@ -135,7 +135,7 @@ def/
                                 + schema-less terms: account, site, member, path, sub-document, version, genesis-change,
                                 backlink, directory, discussion, feed, subscribe, search, entity-introduction,
                                 rbsr-syncing, bitswap, gossip, unreferenced-document, …   (from seedteamtalks /def, glossary.md)
-  onyx/<term>.md                the Onyx type language   (from onyx-*: string, map, struct, schema, union-schema, …)
+  hypermedia/<term>.md                the Hypermedia Schemas type language   (from hypermedia-*: string, map, struct, schema, union-schema, …)
   api/<term>.md                 the Seed server API types (from seed-*: rpc, rpc-list-comments, resource, document, …)
   example/<term>.md             worked examples          (from example-*, sprout-*)
   agents/<term>.md              the Harness vocabulary   (from agent-glossary.md: run, session, verb, tool, trigger, …)
@@ -143,10 +143,10 @@ def/
 
 Why the protocol vocabulary is the unprefixed one: this whole site is the Hypermedia developer docs, so `def/document`,
 `def/change`, `def/capability` are what a reader expects to find, and it is exactly what seedteamtalks `/def/*` already
-is. The Onyx primitives are a language _about_ those values, so they get a namespace; the API types are Seed's, not the
+is. The primitive schemas are a language _about_ those values, so they get a namespace; the API types are Seed's, not the
 protocol's, so they get one too.
 
-This reverses the earlier "clean primitives, prefixed rest" choice (`scripts/onyx-onify-refs.mjs`). The alternative —
+This reverses the earlier "clean primitives, prefixed rest" choice (`the reference-rewrite script (since removed)`). The alternative —
 keep that choice, just move files into `def/` with prefixes intact (`def/string`, `def/hypermedia-document`,
 `def/seed-rpc`) — is a smaller change with the same URL break, see below. I recommend the namespaces.
 
@@ -190,7 +190,7 @@ of the home page map and index it only from `log/index.md`.
 | `README.md` (root)                                                                                                                                          | doc/index + doc/apps          | the repo map                                                                          |
 | `docs/document-collections-adr.md`, `docs/daemon-saturation-incident.md`, `docs/embed-rerender-postmortem.md`, `docs/comment-request-spam-investigation.md` | log/\*                        | ADRs and postmortems                                                                  |
 | `docs/plans/*` (10), `docs/projects/*` (6), `docs/superpowers/{plans,specs}/*` (12), `notes/*` (7), `docs/*-plan.md`                                        | log/\*                        | only the ones still worth reading; the rest can stay where they are or be deleted     |
-| `docs/blob-schemas/*` (6)                                                                                                                                   | delete or log/                | the v1 "Seed Blob Schema" that Onyx replaced (`notes/onyx-v1-migration-plan.md`)      |
+| `docs/blob-schemas/*` (6)                                                                                                                                   | delete or log/                | the v1 "Seed Blob Schema" that Hypermedia Schemas replaced (`notes/schemas-v1-migration-plan.md`)      |
 | root-level `scratch.*.md`, `OVERNIGHT-PLAN.md`, `DEBUG_SESSION_SUMMARY.md`, `ci-optimization-log.md`, `*.html`, `frontend/apps/cli/cli-doc.md`              | delete                        | clutter, not docs                                                                     |
 
 Not brought in: `AGENTS.md` files and `.agents/skills/` (instructions for coding agents, they stay next to the code);
@@ -225,7 +225,7 @@ docs. The parts that are:
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- | ---------------------------------------------------------------------------------------------- |
 | /def/\* (50 terms; account, backlink, bitswap, capability, directory, gossip-protocol, hypermedia-url, join, member, profile, rbsr-syncing, site, sub-document, …) | 4–440    | def/\* — merged with the schema pages of the same name; schema-less terms become new def pages |
 | /tech/developer-guide-how-publishing-a-document-works-in-seed                                                                                                      | 1,016    | doc/protocol/documents                                                                         |
-| /tech/hypermedia-protocol-schemas, /tech/hypermedia-onyx, /tech/onyx-hm26, /tech/hm-26, /specs/onyx-wg                                                             | 90–790   | log/onyx/\* (the design history of Onyx)                                                       |
+| /tech/hypermedia-protocol-schemas, /tech/hypermedia-hypermedia, /tech/hypermedia-hm26, /tech/hm-26, /specs/hypermedia-wg                                                             | 90–790   | log/hypermedia/\* (the design history of Hypermedia Schemas)                                                       |
 | /tech/linking                                                                                                                                                      | 395      | doc/protocol/urls (older `hm://d/` grammar; historical)                                        |
 | /tech/document-block-types                                                                                                                                         | 230      | def/block\* pages                                                                              |
 | /tech/desktop-data-flow, /tech/normalized-data-shape, /tech/query-api-and-persisted-queries                                                                        | 80–350   | doc/apps/desktop, doc/apps/web                                                                 |
@@ -266,11 +266,11 @@ User-facing; only the technical resources belong here:
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
 | `index.md`, `README.md`, `images/`                                                                                                                                                                             | unchanged                                          |
 | `hypermedia-<x>.md` + `.schema.json`                                                                                                                                                                           | `def/<x>.md` + `.schema.json`                      |
-| `onyx-<x>.md` + `.schema.json`                                                                                                                                                                                 | `def/onyx/<x>.md` + `.schema.json`                 |
+| `hypermedia-<x>.md` + `.schema.json`                                                                                                                                                                                 | `def/hypermedia/<x>.md` + `.schema.json`                 |
 | `seed-<x>.md` + `.schema.json`                                                                                                                                                                                 | `def/api/<x>.md` + `.schema.json`                  |
 | `example-<x>.md`, `sprout-resource.md` + schemas                                                                                                                                                               | `def/example/<x>.md` + `.schema.json`              |
 | `glossary.md`, `agent-glossary.md`                                                                                                                                                                             | split into `def/*`, `def/agents/*`; `def/index.md` |
-| `onyx.md`, `why.md`, `how-it-works.md`, `typed-documents.md`, `world-builder.md`, `api.md`, `data-model.md`, `schema-language.md`, `references.md`, `encoding.md`, `examples.md`, `hypermedia.md`, `design.md` | `doc/onyx/{index,why,…}.md`                        |
+| `hypermedia.md`, `why.md`, `how-it-works.md`, `typed-documents.md`, `world-builder.md`, `api.md`, `data-model.md`, `schema-language.md`, `references.md`, `encoding.md`, `examples.md`, `hypermedia.md`, `design.md` | `doc/hypermedia/{index,why,…}.md`                        |
 | `agents.md` + 18 durable `agent-*`                                                                                                                                                                             | `doc/agents/{index,…}.md`                          |
 | 25 `agent-*` plans/reviews/logs                                                                                                                                                                                | `log/agents/*.md`                                  |
 | `permissions-system*.md`                                                                                                                                                                                       | `log/protocol/permissions-*.md`                    |
@@ -282,18 +282,18 @@ Renames publish as moves (the importer emits a redirect for a page renamed in gi
 ## Tooling changes
 
 1. `frontend/apps/cli/src/sync-hypermedia.ts` — `layout` becomes the default layout plus "README.md is not published";
-   drop `publicName`/`basenameForPublicName` (no more `onyx-` stripping). `loadSchemaBlobs` walks `def/` recursively and
-   keys the lockfile by path (`hm://<site>/def/onyx/string`).
-2. `hypermedia/publish.mjs`, `typegen.mjs`, `validate.mjs`, `scripts/gen-onyx.mjs`, `scripts/gen-onyx-site.mjs` —
-   recursive over `def/`; the bundle key becomes the path (`def/onyx/schema`), and the ~40 hardcoded basenames in
-   `frontend/packages/ui/src/onyx/**` and `frontend/packages/client/src/**` (`'onyx-schema'`, `'hypermedia-blob'`,
+   drop `publicName`/`basenameForPublicName` (no more `hypermedia-` stripping). `loadSchemaBlobs` walks `def/` recursively and
+   keys the lockfile by path (`hm://<site>/def/hypermedia/string`).
+2. `hypermedia/publish.mjs`, `typegen.mjs`, `validate.mjs`, `scripts/hypermedia/gen-registry.mjs`, `scripts/hypermedia/gen-docs.mjs` —
+   recursive over `def/`; the bundle key becomes the path (`def/hypermedia/schema`), and the ~40 hardcoded basenames in
+   `frontend/packages/ui/src/schema/**` and `frontend/packages/client/src/**` (`'hypermedia-schema'`, `'hypermedia-blob'`,
    `'seed-rpc'`, …) follow.
 3. **Schema URLs are the breaking change.** 186 schema files embed `hm://<site>/<name>` references (336 to `/string`
    alone). Moving a schema page changes its URL, which changes every referencing schema's bytes, which changes every
-   CID: a full re-lock and republish. `scripts/onyx-onify-refs.mjs` already does exactly this kind of rewrite; extend it
-   with the new mapping. The engine's bundled-URL resolution (`onyx-engine.ts`) must resolve the new URLs; anything on
+   CID: a full re-lock and republish. `the reference-rewrite script (since removed)` already does exactly this kind of rewrite; extend it
+   with the new mapping. The engine's bundled-URL resolution (`schema-engine.ts`) must resolve the new URLs; anything on
    the network conforming to an old URL (world-builder demos, dev data) breaks unless the resolver follows document
-   redirects — check that before publishing. This is cheapest now: `feat/onyx` is unmerged and main has no `hypermedia/`
+   redirects — check that before publishing. This is cheapest now: `feat/hypermedia` is unmerged and main has no `hypermedia/`
    at all.
 4. `.github/workflows/sync-hypermedia.yml` — unchanged.
 5. `docs/`, `notes/` in the repo: after the move, leave a one-line README pointing at `hypermedia/`.
@@ -305,7 +305,7 @@ Renames publish as moves (the importer emits a redirect for a page renamed in gi
 2. Tooling: make the schema scripts and the sync layout path-based and recursive; add a `--check` that fails on a broken
    relative link (the importer already refuses to publish one).
 3. Move: `git mv` by group; rewrite schema refs; re-lock; regenerate bundle and types; run `validate.mjs`,
-   `typegen.mjs --check`, the onyx unit tests, `pnpm typecheck`.
+   `typegen.mjs --check`, the hypermedia unit tests, `pnpm typecheck`.
 4. Split the glossaries into `def/` pages; write `def/index.md`; merge seedteamtalks `/def` prose into the pages of the
    same name.
 5. Bring in the repo docs (table above), one commit per page, editing as they land rather than pasting.

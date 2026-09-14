@@ -1,6 +1,6 @@
 import {useOpenUrl} from '@shm/shared'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
-import {OnyxSchemaBrowserPage} from '@shm/ui/onyx/schema-browser'
+import {SchemaBrowserPage} from '@shm/ui/schema/schema-browser'
 
 /** Parse a reserved `/hm/schema/<cid>` URL back to a schema route (mirrors routeToHref). */
 export function extractSchemaRouteFromPath(pathParts: string[]): {key: 'schema'; cid: string} | null {
@@ -14,5 +14,5 @@ export function WebSchemaPage() {
   const navigate = useNavigate()
   const openUrl = useOpenUrl()
   if (route.key !== 'schema') throw new Error(`WebSchemaPage: unsupported route ${route.key}`)
-  return <OnyxSchemaBrowserPage cid={route.cid} docId={route.id} navigate={navigate} openUrl={openUrl} />
+  return <SchemaBrowserPage cid={route.cid} docId={route.id} navigate={navigate} openUrl={openUrl} />
 }

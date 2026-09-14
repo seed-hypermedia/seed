@@ -1,4 +1,4 @@
-import {structFields} from './onyx/onyx-engine'
+import {structFields} from './schema/engine'
 import {
   AlertCircle,
   ArrowRight,

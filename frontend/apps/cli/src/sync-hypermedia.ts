@@ -1,5 +1,5 @@
 /**
- * sync-hypermedia.ts — hypermedia/ (developer docs, Onyx library, agents docs) ⇄ its Hypermedia site.
+ * sync-hypermedia.ts — hypermedia/ (developer docs, Hypermedia schema library, agents docs) ⇄ its Hypermedia site.
  *
  *   cd frontend/apps/cli
  *   bun run src/sync-hypermedia.ts push [--dry-run] [--server <url>] [--key <name>]
@@ -121,7 +121,7 @@ async function loadSchemaBlobs(): Promise<Array<{data: Uint8Array; cid: string}>
 
 /** Refresh the lockfile and the bundled registry after schema files changed. */
 function refreshSchemaArtifacts() {
-  for (const script of ['scripts/hypermedia/publish.mjs', 'scripts/gen-onyx.mjs', 'scripts/hypermedia/typegen.mjs']) {
+  for (const script of ['scripts/hypermedia/publish.mjs', 'scripts/hypermedia/gen-registry.mjs', 'scripts/hypermedia/typegen.mjs']) {
     const run = spawnSync('node', [script], {cwd: REPO_ROOT, stdio: 'inherit'})
     if (run.status !== 0) throw new Error(`${script} failed`)
   }
@@ -170,7 +170,7 @@ function noSigner(): HMSigner {
 async function push(args: string[]) {
   const dryRun = args.includes('--dry-run')
   const serverUrl = argValue(args, '--server') ?? 'https://hyper.media'
-  // The onyx key by default; in CI the key is SEED_CLI_MNEMONIC (see utils/keys.ts).
+  // The main key by default; in CI the key is SEED_CLI_MNEMONIC (see utils/keys.ts).
   const keyName = argValue(args, '--key') ?? (process.env.SEED_CLI_MNEMONIC ? undefined : 'main')
 
   // A dry run needs no signer: it only diffs against the server.
@@ -211,7 +211,7 @@ async function dev(args: string[]) {
     push: !args.includes('--no-push'),
     watchFiles: !args.includes('--no-watch'),
     retireStale: !args.includes('--keep-stale'),
-    // The dev site is current now; say whether the canonical Onyx site on
+    // The dev site is current now; say whether the canonical Hypermedia site on
     // hyper.media is, so stale data there is never a surprise.
     afterStart: async () => {
       const server = argValue(args, '--server') ?? 'https://hyper.media'
@@ -225,10 +225,10 @@ async function dev(args: string[]) {
           dryRun: true,
         })
         const behind = result.created.length + result.updated.length + result.moved.length
-        if (behind === 0) console.log(`The Onyx site on ${server} matches this folder.`)
+        if (behind === 0) console.log(`The Hypermedia site on ${server} matches this folder.`)
         else
           console.log(
-            `⚠ The Onyx site on ${server} (hm://${SITE}) is BEHIND this folder: ${result.created.length} to create, ${result.moved.length} to move, ${result.updated.length} to update. Run \`pnpm hypermedia:push\` (signs with the main key) to publish it.`,
+            `⚠ The Hypermedia site on ${server} (hm://${SITE}) is BEHIND this folder: ${result.created.length} to create, ${result.moved.length} to move, ${result.updated.length} to update. Run \`pnpm hypermedia:push\` (signs with the main key) to publish it.`,
           )
       } catch (err) {
         console.log(`Could not compare with ${server}: ${(err as Error).message}`)

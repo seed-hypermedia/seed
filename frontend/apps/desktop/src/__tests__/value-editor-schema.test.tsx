@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import {OnyxSchemaProvider, type OnyxSchema} from '@shm/ui/onyx/index'
+import {SchemaRegistryProvider, type HypermediaSchema} from '@shm/ui/schema/index'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {CBOR_VALUE_RULES, ValueEditor, ValueEditorProvider} from '@shm/ui/value-editor'
 import React from 'react'
@@ -7,7 +7,7 @@ import {createRoot, Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 
-const ARTICLE_SCHEMA: OnyxSchema = {
+const ARTICLE_SCHEMA: HypermediaSchema = {
   type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct',
   required: ['title', 'status'],
   properties: {
@@ -31,14 +31,14 @@ afterEach(() => {
   container.remove()
 })
 
-function renderEditor(value: unknown, schema?: OnyxSchema) {
+function renderEditor(value: unknown, schema?: HypermediaSchema) {
   act(() => {
     root.render(
       <TooltipProvider>
         <ValueEditorProvider openUrl={() => {}}>
-          <OnyxSchemaProvider schema={schema} registry={{}} value={value}>
+          <SchemaRegistryProvider schema={schema} registry={{}} value={value}>
             <ValueEditor value={value} onValue={() => {}} rules={CBOR_VALUE_RULES} />
-          </OnyxSchemaProvider>
+          </SchemaRegistryProvider>
         </ValueEditorProvider>
       </TooltipProvider>,
     )
@@ -88,11 +88,11 @@ describe('schema-aware value editor rendering', () => {
   })
 
   it('keeps unknown extra fields editable (advisory only)', () => {
-    // An Onyx map with `properties` but no `values` is closed, so an extra key
+    // A map with `properties` but no `values` is closed, so an extra key
     // is advisory-only non-conforming (the v1 `additionalProperties: false`).
-    // Onyx attributes the "unexpected key" warning to the containing map's path,
+    // The validator attributes the "unexpected key" warning to the containing map's path,
     // so nest the closed map under a field to get a rendered row to badge.
-    const schema: OnyxSchema = {
+    const schema: HypermediaSchema = {
       type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map',
       values: {},
       properties: {article: ARTICLE_SCHEMA},
@@ -104,7 +104,7 @@ describe('schema-aware value editor rendering', () => {
   })
 
   it('a union of literals containing "" renders safely (labels are JSON-quoted, so Radix never sees value="")', () => {
-    const schema: OnyxSchema = {
+    const schema: HypermediaSchema = {
       type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map',
       values: {},
       properties: {
@@ -118,7 +118,7 @@ describe('schema-aware value editor rendering', () => {
   })
 
   it('mixed-type literal unions render number members as a dropdown too', () => {
-    const schema: OnyxSchema = {
+    const schema: HypermediaSchema = {
       type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map',
       values: {},
       properties: {level: {anyOf: ['low', 1, 2, true]}},
@@ -134,7 +134,7 @@ describe('schema-aware value editor rendering', () => {
   })
 
   it('a union of literals with duplicate members falls back to free text', () => {
-    const schema: OnyxSchema = {
+    const schema: HypermediaSchema = {
       type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map',
       values: {},
       properties: {
@@ -174,13 +174,13 @@ describe('schema-aware value editor rendering', () => {
       return (
         <TooltipProvider>
           <ValueEditorProvider openUrl={() => {}}>
-            <OnyxSchemaProvider schema={ARTICLE_SCHEMA} registry={{}} value={value}>
+            <SchemaRegistryProvider schema={ARTICLE_SCHEMA} registry={{}} value={value}>
               <ValueEditor
                 value={value}
                 onValue={(v) => setValue(v as Record<string, unknown>)}
                 rules={CBOR_VALUE_RULES}
               />
-            </OnyxSchemaProvider>
+            </SchemaRegistryProvider>
           </ValueEditorProvider>
         </TooltipProvider>
       )

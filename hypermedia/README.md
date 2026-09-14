@@ -1,7 +1,7 @@
 # hypermedia/ — the Seed developer docs
 
 This folder is the source of truth for the documentation that Seed publishes to
-the Hypermedia network: the Hypermedia concepts, the **Onyx** schema library
+the Hypermedia network: the Hypermedia concepts, the **Hypermedia Schemas** schema library
 (every `*.schema.json` with its co-located `*.md`), the API, the examples, the
 developer docs and the **Agents** docs. A commit to `main` publishes it
 (`.github/workflows/sync-hypermedia.yml`), and the Seed app is the editor (see
@@ -25,7 +25,7 @@ Every page publishes at its path: `<path>.md` (with an optional
 | --- | --- |
 | `index.md` | the home document |
 | root pages | the essential Hypermedia concepts (`change`, `ref`, `document`, `cid`, `hm-url`, `authority`, …), plus the landings `schema`, `rpc`, `example` and `agent` |
-| `schema/` | the Onyx type system: its chapters, one page per term, the primitives and meta-schema variants, and the model's detail types (`block/`, `op/`, `query/`) |
+| `schema/` | the type system: its chapters, one page per term, the primitives and meta-schema variants, and the model's detail types (`block/`, `op/`, `query/`) |
 | `rpc/` | the Seed read API: one page per method, `rpc/method` (the union of them), and the read models in `rpc/type/` |
 | `example/` | the example schemas and instances, flat |
 | `doc/` | developer docs: publishing, the schema project's narrative (`doc/schema/`), the permissions investigation (`doc/permissions/`) |
@@ -39,14 +39,14 @@ as `schemaDefinition: ipfs://<cid>`. A `{$type, value}` file is an instance
 instead: its document conforms to `$type`. `schemas.lock.json` pins every
 schema's CID (`node scripts/hypermedia/publish.mjs --check`),
 `schemas.aliases.json` keeps references to a schema's old name resolving, and
-`scripts/gen-onyx.mjs` bundles the schemas into the app. The schema tools
+`scripts/hypermedia/gen-registry.mjs` bundles the schemas into the app. The schema tools
 (validate, publish, typegen, the tour) live in `scripts/hypermedia/`.
 
 ## Syncing
 
 ```sh
 pnpm hypermedia:push -- --dry-run   # what would change on hyper.media
-pnpm hypermedia:push                # publish to the Onyx site (signing key: main)
+pnpm hypermedia:push                # publish to the Hypermedia site (signing key: main)
 pnpm hypermedia:pull                # bring edits made in the Seed app back into git
 ./dev hm-sync                       # the local editing loop; `./dev up` runs it as the hm-sync pane
 ```
@@ -65,7 +65,7 @@ commit. See [repo-hm-sync.md](./doc/repo-hm-sync.md) and [cli.md](./doc/cli.md).
 
 ---
 
-# Onyx
+# Hypermedia Schemas
 
 **A self-describing type system for content-addressed data — and how Seed
 documents bind to it.** [schema.md](./schema.md) is the published guide; the
@@ -79,7 +79,7 @@ What follows is the engineering detail behind them.
 ## TypeScript types
 
 `scripts/hypermedia/typegen.mjs` generates a TS type for every schema
-(`frontend/packages/client/src/onyx-types.generated.ts`): maps become object
+(`frontend/packages/client/src/schema-types.generated.ts`): maps become object
 types, literals literal types, `anyOf` unions, extension intersection, and
 `params`/`var`/`args` real TS generics (`Change<Block>`). Regenerate with
 `node scripts/hypermedia/typegen.mjs`; `--check` fails if it's out of date. This is Phase 2 of
@@ -90,7 +90,7 @@ the app's types.
 
 ## How a document binds to a schema
 
-Onyx types the *values*. This section is how a **Hypermedia document** declares
+Hypermedia Schemas type the *values*. This section is how a **Hypermedia document** declares
 what it is. A document may carry three distinct schema-related metadata fields —
 all declared on the **base document** schema
 ([`document.json`](./document.schema.json)):
@@ -142,31 +142,31 @@ Hypermedia document URL (`hm://acct/path`, fetched → that doc's
 save invalid content.
 
 The full design + phased implementation notes live in
-[`../notes/onyx-schema-model-v2.md`](../notes/onyx-schema-model-v2.md).
+[`../notes/schema-model-v2.md`](../notes/schema-model-v2.md).
 
 ---
 
 ## In the Seed app
 
 The type system is ported into TypeScript in `@seed-hypermedia/client`
-(`frontend/packages/client/src/onyx-*.ts`), shared by the app, the CLI and the
+(`frontend/packages/client/src/schema-*.ts` and `signed-blob.ts`), shared by the app, the CLI and the
 agents service, so schema-authoring, browsing, validation and signing never
 disagree with the reference validator or with each other:
 
-- **Engine** (`onyx-engine.ts`) — a TS port of [`validate.mjs`](../scripts/hypermedia/validate.mjs);
+- **Engine** (`schema-engine.ts`) — a TS port of [`validate.mjs`](../scripts/hypermedia/validate.mjs);
   bundles every schema + the CID manifest; resolves a CID or `hm://` URL to a
   schema with no fetch when it's bundled.
-- **Resolver** (`onyx-resolve.ts`) — a reference (bundled URL, CID, or a type
+- **Resolver** (`schema-resolve.ts`) — a reference (bundled URL, CID, or a type
   document's URL) to its schema, over the network when needed, with every
   nested reference fetched into a registry; and a document's effective schema.
-- **Signed blobs** (`onyx-signed-blob.ts`) — the envelope, the signing rule
+- **Signed blobs** (`signed-blob.ts`) — the envelope, the signing rule
   (canonical CBOR with `sig` zeroed), publishing.
 - **CLI** (`frontend/apps/cli`) — `schema get|validate`, `blob get|validate|create|sign|verify`,
   `document validate`, `document create|update --metadata|--schema|--children-schema|--schema-definition`,
   `space import --check`; see [user stories](./doc/schema/user-stories.md).
 
-In the app (`frontend/packages/ui/src/onyx/`):
-- **Resolution** (`onyx-schema-resolve.tsx`) — `useResolvedSchema` (CID /
+In the app (`frontend/packages/ui/src/schema/`):
+- **Resolution** (`schema-resolve.tsx`) — `useResolvedSchema` (CID /
   bundled URL / fetched document URL) and `useEffectiveDocSchema` (own `schema`
   else parent `childrenSchema`).
 - **Required attributes** — the conformance schema's required custom fields are

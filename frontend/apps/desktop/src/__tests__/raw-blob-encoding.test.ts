@@ -1,6 +1,6 @@
 import * as cbor from '@ipld/dag-cbor'
 import {dagJsonToIpld} from '@shm/ui/dag-json'
-import {isOnyxSchema, ONYX_SCHEMAS, seedValue} from '@shm/ui/onyx/index'
+import {isHypermediaSchema, HM_SCHEMAS, seedValue} from '@shm/ui/schema/index'
 import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
 import {describe, expect, it} from 'vitest'
@@ -41,19 +41,19 @@ describe('schema publish path', () => {
   it('a new-schema starter runs the publish pipeline to a stable content-addressed CID', async () => {
     // Exactly what BlobEditor.publish() runs when storing a New Schema blob:
     // encode the seeded meta-schema instance and content-address it.
-    const starter = seedValue(ONYX_SCHEMAS['schema/meta-schema'])
+    const starter = seedValue(HM_SCHEMAS['schema/meta-schema'])
     const data = cbor.encode(dagJsonToIpld(starter))
     const digest = await sha256.digest(data)
-    expect(CID.createV1(0x71, digest).toString()).toBe('bafyreie44p6ice4lihyt2qeea6ceqphiegqr5zjw3pilzgqqkva7n6eace')
+    expect(CID.createV1(0x71, digest).toString()).toBe('bafyreihtkjwhxofcfzjs3b3nufl263l3xf3bzbtxaxspljwokklidswzti')
   })
 
-  it('a new-schema starter value is itself recognized as an Onyx schema', () => {
+  it('a new-schema starter value is itself recognized as a Hypermedia schema', () => {
     // Mirrors NewInstanceEditor seeding with schemaCid = meta-schema CID.
-    const starter = seedValue(ONYX_SCHEMAS['schema/meta-schema'])
-    expect(isOnyxSchema(starter)).toBe(true)
+    const starter = seedValue(HM_SCHEMAS['schema/meta-schema'])
+    expect(isHypermediaSchema(starter)).toBe(true)
   })
 
   it('an instance linking a regular schema is not itself a schema', () => {
-    expect(isOnyxSchema({schema: {'/': CID_STR}, title: 'x'})).toBe(false)
+    expect(isHypermediaSchema({schema: {'/': CID_STR}, title: 'x'})).toBe(false)
   })
 })

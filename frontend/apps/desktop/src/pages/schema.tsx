@@ -2,7 +2,7 @@ import DesktopResourcePage from './desktop-resource'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {useOpenUrl} from '@shm/shared'
 import {pageFrameStyles} from '@shm/ui/container'
-import {OnyxSchemaBrowserPage} from '@shm/ui/onyx/schema-browser'
+import {SchemaBrowserPage} from '@shm/ui/schema/schema-browser'
 import {cn} from '@shm/ui/utils'
 
 /**
@@ -20,7 +20,7 @@ export default function SchemaPage() {
   if (route.id) return <DesktopResourcePage />
   return (
     <div className={cn(pageFrameStyles, 'overflow-y-auto')}>
-      <OnyxSchemaBrowserPage cid={route.cid} navigate={navigate} openUrl={openUrl} />
+      <SchemaBrowserPage cid={route.cid} navigate={navigate} openUrl={openUrl} />
     </div>
   )
 }

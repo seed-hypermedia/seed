@@ -33,7 +33,7 @@ This is what makes a directory typed without making every page repeat itself, an
 
 # Extending the base document <!-- id:--K0cmG7 -->
 
-A typed document schema is an ordinary Onyx extension. It references the base document and refines the nested `metadata` — adding properties, marking some required — and may constrain `content` too. Here is the shape of the person-document schema from the library, in dag-json: <!-- id:M39usWyk -->
+A typed document schema is an ordinary schema extension. It references the base document and refines the nested `metadata` — adding properties, marking some required — and may constrain `content` too. Here is the shape of the person-document schema from the library, in dag-json: <!-- id:M39usWyk -->
 
 ```json <!-- id:5qgOO0Ub -->
 {
@@ -58,7 +58,7 @@ Because the base is [document](../document.md) — `{ metadata, content }` where
 Once a document has an effective schema, the Seed app changes in four visible ways: <!-- id:SaArwfA0 -->
   - **Required attributes are always present.** Each required field from the resolved schema is a fixed, non-removable row — at the top of the **Attributes** tab and above the body in the **Content** tab — so a person page can never quietly lose its surname. <!-- id:byLBE05n -->
   - **Fields get the right control.** A field whose format is a Hypermedia URL renders as a searchable, clickable title pill rather than a raw string. A field whose format is an IPFS reference gets a file picker and a file pill. A union of literals becomes a dropdown. `schema` and `childrenSchema` are themselves document-reference fields; `icon`, `cover`, and `schemaDefinition` are IPFS-reference fields. <!-- id:hF8BrCL- -->
-  - **Problems are shown in red and never block.** A per-field badge and a summary banner list the actual violations — "surname is required", "status must be one of draft, published, archived". Saving always works. Validation is a guardrail, not a gate; see [why Onyx](../doc/schema/why.md). <!-- id:lciGA4Bw -->
+  - **Problems are shown in red and never block.** A per-field badge and a summary banner list the actual violations — "surname is required", "status must be one of draft, published, archived". Saving always works. Validation is a guardrail, not a gate; see [why Hypermedia Schemas](../doc/schema/why.md). <!-- id:lciGA4Bw -->
   - **A type's home page gets actions.** A document carrying `schemaDefinition` shows a header tag that opens the schema in the explorer and a **Create** button that opens a value editor for that type and publishes a new conforming document — one whose `schema` is this page's URL. <!-- id:4EmRqGxG -->
 
 # Dates, references, and linked objects <!-- id:oDknmQiz -->

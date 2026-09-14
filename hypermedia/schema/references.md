@@ -4,7 +4,7 @@ summary: Include vs link, the hm:// naming layer, and why names — not content 
 ---
 # References: include, link, and the self-reference fixpoint <!-- id:5IJDwtlR -->
 
-Onyx has **two** ways one schema can point at another. They look similar in the human form but mean different things, and the distinction becomes load-bearing once everything is content-addressed. <!-- id:X8rzkWzP -->
+The schema language has **two** ways one schema can point at another. They look similar in the human form but mean different things, and the distinction becomes load-bearing once everything is content-addressed. <!-- id:X8rzkWzP -->
 
 ## Two kinds of reference <!-- id:JOeoh-SP -->
 
@@ -39,7 +39,7 @@ In this repo, references are **file names** because humans edit files. When sche
 
 ## The beautifully meta part — and its fixpoint <!-- id:NqDWNSWI -->
 
-Here is the twist that makes Onyx fold in on itself. The meta-schema refers back to itself — now through its variants. `schema/meta-schema` is `{ anyOf: [ …refs to the variants… ] }`, and each variant (e.g. `schema/map-schema`) contains `{ "ref": "schema/meta-schema" }`. So `schema/meta-schema` → variant → `schema/meta-schema` is a **cycle**, and after the transform some `ref` in that cycle must become the CID _of a block whose bytes are still being determined_. <!-- id:21u8uWpR -->
+Here is the twist that makes the meta-schema fold in on itself. The meta-schema refers back to itself — now through its variants. `schema/meta-schema` is `{ anyOf: [ …refs to the variants… ] }`, and each variant (e.g. `schema/map-schema`) contains `{ "ref": "schema/meta-schema" }`. So `schema/meta-schema` → variant → `schema/meta-schema` is a **cycle**, and after the transform some `ref` in that cycle must become the CID _of a block whose bytes are still being determined_. <!-- id:21u8uWpR -->
 
 But a CID is the hash of the block's bytes — and those bytes now have to contain that same CID. **You cannot compute it.** Finding content whose hash appears inside that very content is finding a hash preimage; it is computationally infeasible by design. A block genuinely cannot embed its own CID, and a reference cycle cannot be content-addressed in any order — no block in the cycle can be encoded first. <!-- id:HnmaGrbq -->
 
@@ -47,10 +47,10 @@ This is not a quirk of the meta-schema. **Any self-referential schema hits it.**
 
 ### The way out: reference by _name_, not by hash <!-- id:fVw9uG3N -->
 
-A CID is derived from content, so a cycle of CIDs has no encoding order. A **name** is not — it is a stable identifier independent of the content it points to. So references cannot be CIDs; they must be **names**. Onyx uses `hm://` URLs: <!-- id:VLYzJQfm -->
+A CID is derived from content, so a cycle of CIDs has no encoding order. A **name** is not — it is a stable identifier independent of the content it points to. So references cannot be CIDs; they must be **names**. The schema language uses `hm://` URLs: <!-- id:VLYzJQfm -->
 
 ``` <!-- id:RTAR4FMH -->
-hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string        the string kind, owned by the Onyx account
+hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string        the string kind, owned by the Hypermedia account
 hm://example.com/folder        the example folder schema
 hm://example.com/file          the example file schema
 ```

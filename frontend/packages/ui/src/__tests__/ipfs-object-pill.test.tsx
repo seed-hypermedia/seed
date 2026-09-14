@@ -9,7 +9,7 @@ import {sha256} from 'multiformats/hashes/sha2'
 import {act} from 'react-dom/test-utils'
 import {createRoot, type Root} from 'react-dom/client'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {schemaCid} from '../onyx/onyx-engine'
+import {schemaCid} from '../schema/engine'
 import {TooltipProvider} from '../tooltip'
 import {CBOR_VALUE_RULES, ValueDisplay, ValueEditorProvider} from '../value-editor'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true

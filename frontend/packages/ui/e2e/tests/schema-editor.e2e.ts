@@ -1,7 +1,7 @@
 import {expect, test, type Page} from '@playwright/test'
 
 /**
- * E2E suite for the Onyx schema-editor UI (DocumentMetadataView + the struct
+ * E2E suite for the Hypermedia schema-editor UI (DocumentMetadataView + the struct
  * SchemaEditorDialog + the value-editor add-field flow). Runs against the
  * isolated @shm/ui Vite harness (e2e/test-app), which mounts the REAL
  * components with a local metadata state and a mock universal client.
@@ -41,7 +41,7 @@ async function openDefineDialog(page: Page) {
     .getByRole('button', {name: 'Create linked object'})
     .click()
   await expect(defineDialog(page)).toBeVisible()
-  await expect(defineDialog(page).getByTestId('linked-object-target')).toContainText('Onyx schema')
+  await expect(defineDialog(page).getByTestId('linked-object-target')).toContainText('Hypermedia schema')
 }
 
 /** Open the "Add field" dialog from the DocumentMetadataView add-field form. */
@@ -230,14 +230,14 @@ test.describe('schema editor', () => {
   test('required field of the CONFORMANCE schema (metadata.schema) is an always-visible row', async ({page}) => {
     // A document that conforms to the person document schema (via `schema`, not
     // schemaDefinition) requires `surname` in its metadata.
-    const ONYX = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
-    await openHarness(page, {name: 'X', schema: `${ONYX}/example/person-doc`})
+    const HYPERMEDIA_UID = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
+    await openHarness(page, {name: 'X', schema: `${HYPERMEDIA_UID}/example/person-doc`})
 
     // `surname` (required by the person document) renders as an always-visible
     // required row (seeded if absent), so it never has to be "added".
     await expect(page.getByRole('treeitem', {name: /surname/}).first()).toBeVisible()
     // The seeded value is shown but NOT written to the draft (no auto-pollution).
-    expect(await meta(page)).toEqual({name: 'X', schema: `${ONYX}/example/person-doc`})
+    expect(await meta(page)).toEqual({name: 'X', schema: `${HYPERMEDIA_UID}/example/person-doc`})
 
     // A required field cannot be removed: its actions menu has no Remove item.
     await page.getByRole('button', {name: 'Actions for surname'}).click()
@@ -320,10 +320,10 @@ test.describe('schema editor', () => {
   })
 
   test('validation summary lists the actual errors by field (and ignores null tombstones)', async ({page}) => {
-    const ONYX = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
+    const HYPERMEDIA_UID = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
     // Conforms to the person document (requires metadata.surname), which is
     // absent; `icon: null` is a deletion tombstone, not a real value.
-    await openHarness(page, {name: 'X', schema: `${ONYX}/example/person-doc`, icon: null})
+    await openHarness(page, {name: 'X', schema: `${HYPERMEDIA_UID}/example/person-doc`, icon: null})
 
     const alert = page.getByRole('alert')
     await expect(alert).toBeVisible()
@@ -336,8 +336,8 @@ test.describe('schema editor', () => {
   })
 
   test('an HM-link field renders a clickable pill that navigates to the reference', async ({page}) => {
-    const ONYX = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
-    const target = `${ONYX}/example/employee`
+    const HYPERMEDIA_UID = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
+    const target = `${HYPERMEDIA_UID}/example/employee`
     // `schema` is an HM link (format hm-url) — a resolvable value shows as a pill.
     await openHarness(page, {name: 'X', schema: target})
 

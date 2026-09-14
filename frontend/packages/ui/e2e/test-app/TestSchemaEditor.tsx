@@ -3,15 +3,15 @@ import {UniversalAppProvider} from '@shm/shared/routing'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {useEffect, useRef, useState} from 'react'
 // ui-internal modules imported relative to source: the @shm/ui exports map only
-// resolves *.tsx, so `@shm/ui/onyx/onyx-engine` (a .ts) would fail as a bare
+// resolves *.tsx, so `@shm/ui/schema/engine` (a .ts) would fail as a bare
 // specifier. Relative imports sidestep that and keep all three consistent.
 import {DocumentMetadataView, type MetadataPatch} from '../../src/document-metadata-view'
-import {schemaCid} from '../../src/onyx/onyx-engine'
-import {useEffectiveDocSchema} from '../../src/onyx/onyx-schema-resolve'
+import {schemaCid} from '../../src/schema/engine'
+import {useEffectiveDocSchema} from '../../src/schema/schema-resolve'
 import {TooltipProvider} from '../../src/tooltip'
 
 /**
- * E2E harness for the Onyx schema editor UI. Mounts the REAL
+ * E2E harness for the Hypermedia schema editor UI. Mounts the REAL
  * DocumentMetadataView (which owns the add-field form, the schemaDefinition
  * row, and the SchemaEditorDialog) with a local metadata state and a mock
  * universal client so publishing/CID-resolution work without a daemon.

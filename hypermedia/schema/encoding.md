@@ -4,7 +4,7 @@ summary: DAG-CBOR as the canonical wire form, the dag-json human projection, can
 ---
 # Encoding: DAG-CBOR and the dag-json human form <!-- id:f2uoHc9L -->
 
-Onyx values — both schemas and the data they type — are **DAG-CBOR blocks** on IPFS. DAG-CBOR is a restricted, deterministic profile of CBOR (binary) with first-class support for links (CIDs). It is the canonical, on-the-wire form. <!-- id:xr_d_48R -->
+Hypermedia values — both schemas and the data they type — are **DAG-CBOR blocks** on IPFS. DAG-CBOR is a restricted, deterministic profile of CBOR (binary) with first-class support for links (CIDs). It is the canonical, on-the-wire form. <!-- id:xr_d_48R -->
 
 DAG-CBOR is not human-editable, so in this repo everything is written in **dag-json**: the JSON projection of the same data model. dag-json is a faithful, lossless-enough rendering that a person can read and diff, and that tools can convert to and from DAG-CBOR. <!-- id:hGuzUAVh -->
 
@@ -25,7 +25,7 @@ JSON has no native way to write bytes or a link, so dag-json borrows the map syn
 
 **These are not maps.** They are the JSON _spelling_ of two distinct kinds. In DAG-CBOR the ambiguity disappears — a link is a tagged CID, bytes are a byte string — but in dag-json they wear map syntax. This is the source of dag-json's one footgun: a genuine data map that happens to have a single `/` key is indistinguishable from a link. <!-- id:Bq6LLLsU -->
 
-Onyx's rule keeps you clear of it (see [the data model](./data-model.md)): links and bytes are **atomic kinds**, never described as maps in a schema. A schema says `{"type":"link"}`, full stop — it never reaches inside the envelope. The reference validator (`validate.mjs`) enforces the distinction: `typeOf` recognizes the two envelopes and reports `link` / `bytes`, so a value typed `map` will _reject_ a `{"/":…}` shape, and vice versa. <!-- id:2x73pir3 -->
+the schema language's rule keeps you clear of it (see [the data model](./data-model.md)): links and bytes are **atomic kinds**, never described as maps in a schema. A schema says `{"type":"link"}`, full stop — it never reaches inside the envelope. The reference validator (`validate.mjs`) enforces the distinction: `typeOf` recognizes the two envelopes and reports `link` / `bytes`, so a value typed `map` will _reject_ a `{"/":…}` shape, and vice versa. <!-- id:2x73pir3 -->
 
 ## Canonical encoding matters <!-- id:_xPmfmd5 -->
 
@@ -39,7 +39,7 @@ The upshot for authoring: **key order and formatting in these JSON files are cos
 
 ## The publish pipeline <!-- id:xI7XePTO -->
 
-`publish.mjs` turns this repo into live Onyx types: <!-- id:ilHK6ydh -->
+`publish.mjs` turns this repo into live Hypermedia types: <!-- id:ilHK6ydh -->
   1. Parse each `.json` file (dag-json). `ref`s are already **`hm://` URLs** — names, _not_ CIDs — so recursive and mutually-recursive schemas keep working (see [references](./references.md)). They are **not** rewritten. <!-- id:3NjmpKsi -->
   2. Canonically encode each schema to DAG-CBOR and content-address it: a CIDv1, sha2-256, `dag-cbor` (0x71) — the same codec the backend uses for its blobs. <!-- id:aqTbhvIL -->
   3. Write `schemas.lock.json`: the manifest mapping each `hm://` URL → its CID. Publish/pin the blocks under their authority at their `hm://` paths (signed by the authority's key). <!-- id:hVW1Ddfl -->

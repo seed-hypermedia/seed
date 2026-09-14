@@ -28,15 +28,15 @@ import {
   META_SCHEMA_CID,
   NEW_BLOB_PATH,
   newInstanceRoute,
-} from './onyx/blob-menu-items'
-import {seedValue} from './onyx/onyx-data-editor'
-import {emptyStructSchema} from './onyx/onyx-schema-editor'
-import {SchemaAwareEditor} from './onyx/schema-aware-editor'
-import {ONYX_SCHEMAS, isOnyxSchema, nameToUrl, schemaCid, schemaShape} from './onyx/onyx-engine'
-import {useResolvedSchema} from './onyx/onyx-schema-resolve'
-import {SchemaPicker} from './onyx/schema-picker'
-import {OnyxSchemaProvider} from './onyx/onyx-schema-context'
-import {useOnyxSchemaRegistry} from './onyx/onyx-schema-registry-cid'
+} from './schema/blob-menu-items'
+import {seedValue} from './schema/data-editor'
+import {emptyStructSchema} from './schema/schema-editor'
+import {SchemaAwareEditor} from './schema/schema-aware-editor'
+import {HM_SCHEMAS, isHypermediaSchema, nameToUrl, schemaCid, schemaShape} from './schema/engine'
+import {useResolvedSchema} from './schema/schema-resolve'
+import {SchemaPicker} from './schema/schema-picker'
+import {SchemaRegistryProvider} from './schema/schema-context'
+import {useSchemaRegistry} from './schema/schema-registry-cid'
 import {type MenuItemType, OptionsDropdown} from './options-dropdown'
 import {Spinner} from './spinner'
 import {toast} from './toast'
@@ -231,9 +231,9 @@ export function InspectIpfsPage({
   // are fetched) and links it via the reserved `schema` key. A new schema is
   // self-describing and carries no link. A blank draft is `{}`.
   const isMetaSeed = seedSchemaCid === META_SCHEMA_CID
-  const seedRegistry = useOnyxSchemaRegistry(seedSchemaCid && !isMetaSeed ? [seedSchemaCid] : [])
+  const seedRegistry = useSchemaRegistry(seedSchemaCid && !isMetaSeed ? [seedSchemaCid] : [])
   const seedSchema = isMetaSeed
-    ? ONYX_SCHEMAS['schema/meta-schema']
+    ? HM_SCHEMAS['schema/meta-schema']
     : seedSchemaCid
       ? seedRegistry.byCid[seedSchemaCid]
       : undefined
@@ -297,14 +297,14 @@ export function InspectIpfsPage({
 
   // ── schema advisory (edit: the draft; view: the published value) ──
   const advisoryTarget = mode === 'edit' ? editJson : hasSubpath ? undefined : rawValue
-  const valueIsSchema = useMemo(() => isOnyxSchema(advisoryTarget), [advisoryTarget])
+  const valueIsSchema = useMemo(() => isHypermediaSchema(advisoryTarget), [advisoryTarget])
   const attachedSchemaCid = useMemo(() => {
     if (valueIsSchema || !isPlainObject(advisoryTarget) || !isDagJsonLink(advisoryTarget.schema)) return undefined
     return parseCidString(advisoryTarget.schema['/'])?.code === DAG_CBOR_CODE ? advisoryTarget.schema['/'] : undefined
   }, [advisoryTarget, valueIsSchema])
-  const schemaRegistry = useOnyxSchemaRegistry(attachedSchemaCid ? [attachedSchemaCid] : [])
+  const schemaRegistry = useSchemaRegistry(attachedSchemaCid ? [attachedSchemaCid] : [])
   const schema = valueIsSchema
-    ? ONYX_SCHEMAS['schema/meta-schema']
+    ? HM_SCHEMAS['schema/meta-schema']
     : attachedSchemaCid
       ? schemaRegistry.byCid[attachedSchemaCid]
       : undefined
@@ -431,7 +431,7 @@ export function InspectIpfsPage({
         </div>
       ) : (
         <ValueEditorProvider onUndo={undo} onRedo={redo} openUrl={openHmUrl} openFile={openLinkedBlob}>
-          <OnyxSchemaProvider schema={schema} registry={{}} value={advisoryValue}>
+          <SchemaRegistryProvider schema={schema} registry={{}} value={advisoryValue}>
             <div className="flex flex-col gap-4">
               {!cid && (
                 <p className="text-muted-foreground text-xs" data-testid="draft-note">
@@ -488,12 +488,12 @@ export function InspectIpfsPage({
               ) : valueIsSchema ? (
                 // The blob IS a schema: the struct form (name, fields, kinds, targets,
                 // signed-blob toggle) — "Edit raw" is the JSON escape hatch.
-                <SchemaAwareEditor schema={ONYX_SCHEMAS['schema/meta-schema']!} value={editJson} onValue={update} />
+                <SchemaAwareEditor schema={HM_SCHEMAS['schema/meta-schema']!} value={editJson} onValue={update} />
               ) : (
                 <ValueEditor value={editJson} onValue={update} rules={CBOR_VALUE_RULES} />
               )}
             </div>
-          </OnyxSchemaProvider>
+          </SchemaRegistryProvider>
         </ValueEditorProvider>
       )
   } else if (mode === 'edit' && kind === 'text') {
@@ -540,7 +540,7 @@ export function InspectIpfsPage({
     // matches the editor; schema status (attached / is-a-schema) reads the same.
     body = (
       <ValueEditorProvider openFile={openLinkedBlob} openUrl={openHmUrl}>
-        <OnyxSchemaProvider schema={schema} registry={{}} value={advisoryValue}>
+        <SchemaRegistryProvider schema={schema} registry={{}} value={advisoryValue}>
           <div className="flex flex-col gap-4">
             <SchemaStatusRow
               attachedSchemaCid={attachedSchemaCid}
@@ -556,7 +556,7 @@ export function InspectIpfsPage({
             />
             <ValueDisplay value={preparedData} rules={CBOR_VALUE_RULES} />
           </div>
-        </OnyxSchemaProvider>
+        </SchemaRegistryProvider>
       </ValueEditorProvider>
     )
   }
@@ -791,7 +791,7 @@ export function inspectorBlobActions(
   isTopLevel: boolean,
 ): {canEdit: boolean; valueIsSchema: boolean; hasAttachedSchema: boolean; attachedSchemaCid: string | undefined} {
   const isDagCbor = !!cid && parseCidString(cid)?.code === DAG_CBOR_CODE
-  const valueIsSchema = isTopLevel && isOnyxSchema(rawValue)
+  const valueIsSchema = isTopLevel && isHypermediaSchema(rawValue)
   const schemaLink =
     isTopLevel && !valueIsSchema && !!rawValue && typeof rawValue === 'object'
       ? (rawValue as Record<string, unknown>).schema

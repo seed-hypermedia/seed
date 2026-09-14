@@ -1,9 +1,9 @@
-// Reference validator for Onyx schemas.
+// Reference validator for Hypermedia schemas.
 //
 //   node validate.mjs                  -> self-description proof + example checks
 //   node validate.mjs <schema> <data>  -> validate a JSON data file against a schema
 //
-// Onyx data model (9 kinds): null, boolean, integer, float, string, bytes,
+// Hypermedia data model (9 kinds): null, boolean, integer, float, string, bytes,
 // list, map, link. In human/dag-json form, a link is {"/":"<cid>"} and bytes
 // is {"/":{"bytes":"<base64>"}} -- both are distinct kinds, NOT maps.
 //
@@ -25,12 +25,12 @@ import { fileURLToPath } from "node:url";
 const DIR = HM_DIR;
 
 // References are hm:// URLs pointing at each schema's published document under
-// the onyx account: hm://<onyx>/<name>, where the name is the file's basename
+// the Hypermedia account: hm://<library>/<name>, where the name is the file's basename
 // (hypermedia-string, hypermedia-schema, example-person, …). Legacy forms —
 // the dev authorities (hyper.media / seed.hyper.media / example.com) and the
 // bare primitive names published before the `hypermedia-` rename — still
 // resolve for back-compat.
-const ONYX = "z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb";
+const HYPERMEDIA_UID = "z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb";
 const urlToFile = (ref) => fileOfName(refToName(ref, (name) => existsSync(resolve(DIR, fileOfName(name)))));
 
 const cache = new Map();
@@ -62,11 +62,11 @@ function typeOf(d) {
   return typeof d; // string, boolean
 }
 
-// A `type` value is a kind URL (hm://<onyx>/hypermedia-<kind>); read the kind
+// A `type` value is a kind URL (hm://<library>/hypermedia-<kind>); read the kind
 // locally off the URL — no fetch needed, so the discriminant stays local. The
-// legacy forms (hm://hyper.media/<kind>, hm://<onyx>/<kind>) still read.
+// legacy forms (hm://hyper.media/<kind>, hm://<library>/<kind>) still read.
 const KINDS = ["null", "boolean", "integer", "float", "string", "bytes", "list", "map", "struct", "link"];
-const KIND_URL = new RegExp(`^hm://(?:hyper\\.media|${ONYX})/(?:schema/|hypermedia-)?([a-z]+)$`);
+const KIND_URL = new RegExp(`^hm://(?:hyper\\.media|${HYPERMEDIA_UID})/(?:schema/|hypermedia-)?([a-z]+)$`);
 const kindOf = (t) => {
   const k = KIND_URL.exec(t)?.[1];
   return k && KINDS.includes(k) ? k : t;
@@ -300,10 +300,10 @@ section("Self-description");
 failed += report("hypermedia-schema.schema.json describes itself", validate(meta, meta));
 
 // =====================================================================
-// 2. Every schema block in the directory is a valid Onyx schema.
+// 2. Every schema block in the directory is a valid Hypermedia schema.
 //    Auto-discovered, so new examples are covered without editing tests.
 // =====================================================================
-section("Every schema block is a valid Onyx schema");
+section("Every schema block is a valid Hypermedia schema");
 const jsonFiles = listSchemaFiles();
 for (const f of jsonFiles) {
   if (isInstance(load(f))) continue; // instances are data, not schemas
@@ -314,12 +314,12 @@ for (const f of jsonFiles) {
 // 3. The discriminated union REJECTS malformed schemas.
 // =====================================================================
 section("The meta-schema rejects malformed schemas");
-const K = (k) => `hm://${ONYX}/schema/${k}`;
+const K = (k) => `hm://${HYPERMEDIA_UID}/schema/${k}`;
 failed += reportReject("scalar carrying `items`", validate(meta, { type: K("string"), items: { type: K("integer") } }));
 failed += reportReject("scalar carrying `properties`", validate(meta, { type: K("string"), properties: {} }));
 failed += reportReject("map schema with an unknown keyword", validate(meta, { type: K("map"), bogus: 1 }));
 failed += reportReject("struct schema with an unknown keyword", validate(meta, { type: K("struct"), bogus: 1 }));
-const U = (k) => `hm://${ONYX}/schema/${k}`;
+const U = (k) => `hm://${HYPERMEDIA_UID}/schema/${k}`;
 failed += report("a struct with fields is a valid schema", validate(meta, { type: U("struct"), properties: { a: { value: { type: U("string") }, required: true, description: "an a" } } }));
 failed += reportReject("a struct field must be a property ({value, …}), not a bare schema", validate(meta, { type: U("struct"), properties: { a: { type: U("string") } } }));
 failed += report("a map of values is a valid schema", validate(meta, { type: U("map"), values: { type: U("integer") } }));
@@ -356,7 +356,7 @@ const tagged = { type: U("struct"), properties: { type: { value: "Change", requi
 failed += report("a pinned tag field accepts the tag", validate(tagged, { type: "Change", n: 1 }));
 failed += reportReject("a pinned tag field rejects another tag", validate(tagged, { type: "Comment", n: 1 }));
 failed += reportReject("a pinned integer field rejects another integer", validate(tagged, { type: "Change", n: 2 }));
-const pinned = { ref: `hm://${ONYX}/schema/block/base`, properties: { type: { value: "Poll", required: true } } };
+const pinned = { ref: `hm://${HYPERMEDIA_UID}/schema/block/base`, properties: { type: { value: "Poll", required: true } } };
 failed += report("an extension can pin a field to a literal", validate(pinned, { id: "b1", type: "Poll" }));
 failed += reportReject("…and then rejects the base's other tags", validate(pinned, { id: "b1", type: "Paragraph" }));
 
@@ -472,7 +472,7 @@ const CASES = [
     valid: [
       { title: "Hi", slug: "hi", status: "draft", author: cid("bafyA") },
       {
-        title: "Onyx", slug: "onyx", status: "published", author: cid("bafyA"),
+        title: "Hypermedia", slug: "hypermedia", status: "published", author: cid("bafyA"),
         tags: ["types", "ipld"], body: bytes("QQ"), wordCount: 1200, featured: true,
         cover: cid("bafyBlob"), comments: [cid("c1"), cid("c2")], meta: { lang: "en" },
       },
@@ -655,7 +655,7 @@ for (const c of CASES) {
 // 4b. Value constraints — string length/pattern, numeric bounds, list size.
 // =====================================================================
 section("Value constraints");
-const S = (k, extra) => ({ type: `hm://${ONYX}/hypermedia-${k}`, ...extra });
+const S = (k, extra) => ({ type: `hm://${HYPERMEDIA_UID}/hypermedia-${k}`, ...extra });
 
 // string minLength / maxLength (counted in code points)
 const strLen = S("string", { minLength: 3, maxLength: 5 });

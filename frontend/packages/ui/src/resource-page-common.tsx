@@ -170,16 +170,17 @@ import {
   schemaDraftValue,
   SchemaDocumentHeaderActions,
   useSchemaMenuItems,
-} from './onyx/schema-document'
-import {OnyxSchemaEditor} from './onyx/onyx-schema-editor'
-import {OnyxSchemaBrowserPage} from './onyx/schema-browser'
-import {useEffectiveDocSchema} from './onyx/onyx-schema-resolve'
+} from './schema/schema-document'
+import {SchemaEditor} from './schema/schema-editor'
+import {SchemaBrowserPage} from './schema/schema-browser'
+import {useEffectiveDocSchema} from './schema/schema-resolve'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from './components/dialog'
 import {DocumentTools} from './document-tools'
-import {nameForCid, nameToUrl, ONYX_SCHEMAS} from './onyx/onyx-engine'
-import {libraryPageUrl} from './onyx/schema-browser'
-import {DepLists, OnyxNavContext, OnyxSchemaView} from './onyx/onyx-explorer'
-import {useOnyxSchemaRegistry} from './onyx/onyx-schema-registry-cid'
+import {nameForCid, nameToUrl, HM_SCHEMAS} from './schema/engine'
+import {HM_SCHEMA_ALIASES} from './schema/schema-registry.generated'
+import {libraryPageUrl} from './schema/schema-browser'
+import {DepLists, SchemaNavContext, SchemaView} from './schema/explorer'
+import {useSchemaRegistry} from './schema/schema-registry-cid'
 import {DocumentTopBar} from './document-top-bar'
 import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-versions-panel'
 import {ExplorePage} from './explore-page'
@@ -3464,16 +3465,16 @@ function DocumentSchemaSection({document, canEdit}: {document: HMDocument; canEd
  * saved onto the draft like any metadata change, and frozen into an IPFS blob at publish.
  */
 /**
- * The bundled library schema a document IS, by its path (`/timestamp` → onyx-timestamp,
- * `/schema/timestamp` → hypermedia-timestamp), whatever version of the blob it currently
- * points at. Dependencies are computed over the bundled library, so this is what names them.
+ * The bundled library schema a document IS, by its path (`/schema/timestamp` → schema/timestamp,
+ * or a name the schema had before the folder reorganization), whatever version of the blob it
+ * currently points at. Dependencies are computed over the bundled library, so this is what names them.
  */
 function bundledSlugForDocument(document: HMDocument): string | null {
   const name = (document.path || '').replace(/^\//, '')
-  if (!name || name.includes('/')) return null
-  if (ONYX_SCHEMAS[name]) return name
-  if (ONYX_SCHEMAS[`onyx-${name}`]) return `onyx-${name}`
-  return null
+  if (!name) return null
+  if (HM_SCHEMAS[name]) return name
+  const alias = HM_SCHEMA_ALIASES[name]
+  return alias && HM_SCHEMAS[alias] ? alias : null
 }
 
 /** A published schema seeded into the editor sheds a legacy root `name`/`description`: the document
@@ -3501,14 +3502,14 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
   const bundled = cid ? nameForCid(cid) : undefined
   // The library schema this document is, by path — its blob may be an older version than the bundle.
   const librarySlug = bundledSlugForDocument(document)
-  // A site that mirrors the library (the dev site, the Onyx site itself) links its own pages.
+  // A site that mirrors the library (the dev site, the Hypermedia site itself) links its own pages.
   const linkSpace = librarySlug ? document.account : undefined
   const navLibrary = (slug: string) => {
     const url = linkSpace ? libraryPageUrl(linkSpace, slug) : nameToUrl(slug)
     if (url) openUrl(url)
   }
-  const {byCid, isLoading} = useOnyxSchemaRegistry(cid && !bundled && canEditCurrentRoute ? [cid] : [])
-  const published = cid ? (bundled ? ONYX_SCHEMAS[bundled] : byCid[cid]) : undefined
+  const {byCid, isLoading} = useSchemaRegistry(cid && !bundled && canEditCurrentRoute ? [cid] : [])
+  const published = cid ? (bundled ? HM_SCHEMAS[bundled] : byCid[cid]) : undefined
   const edit = (next: Record<string, any>) => {
     beginEditIfNeeded()
     send({type: 'change', metadata: {[SCHEMA_DRAFT_KEY]: next} as any})
@@ -3524,12 +3525,12 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
           <div className="min-w-0 flex-1">
             {draftSchema ? (
               // The draft is not a blob yet: render the object itself.
-              <OnyxNavContext.Provider value={{openRef: (ref) => openUrl(ref)}}>
-                <OnyxSchemaView schema={draftSchema} nav={nav} hideIdentity />
-              </OnyxNavContext.Provider>
+              <SchemaNavContext.Provider value={{openRef: (ref) => openUrl(ref)}}>
+                <SchemaView schema={draftSchema} nav={nav} hideIdentity />
+              </SchemaNavContext.Provider>
             ) : (
               // Exactly what readers see (core-type leads, variants, collapsed dependencies).
-              <OnyxSchemaBrowserPage embedded cid={cid!} navigate={navigate} openUrl={openUrl} linkSpace={linkSpace} />
+              <SchemaBrowserPage embedded cid={cid!} navigate={navigate} openUrl={openUrl} linkSpace={linkSpace} />
             )}
             {librarySlug && (draftSchema || !bundled) && <DepLists name={librarySlug} nav={nav} />}
           </div>
@@ -3551,7 +3552,7 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
                 Changes stay in the document draft; publishing the document publishes them as a new schema object.
               </DialogDescription>
             </DialogHeader>
-            <OnyxSchemaEditor schema={current} onSchema={edit} />
+            <SchemaEditor schema={current} onSchema={edit} />
           </DialogContent>
         </Dialog>
       </div>
@@ -3565,7 +3566,7 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
   }
   return (
     <>
-      <OnyxSchemaBrowserPage embedded cid={cid} navigate={navigate} openUrl={openUrl} linkSpace={linkSpace} />
+      <SchemaBrowserPage embedded cid={cid} navigate={navigate} openUrl={openUrl} linkSpace={linkSpace} />
       {librarySlug && !bundled && <DepLists name={librarySlug} nav={navLibrary} />}
     </>
   )
