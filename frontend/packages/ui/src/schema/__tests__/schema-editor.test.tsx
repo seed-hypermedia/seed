@@ -156,11 +156,16 @@ describe('SchemaEditor (nested structs)', () => {
     expect(structFields(inner()).map((f) => f.name)).toEqual(['hash'])
     click(container.querySelector('[aria-label="Required sourceBlob.hash"]')!)
     expect(requiredFieldNames(inner())).toEqual(['hash'])
-    setInput(
-      container.querySelector('input[aria-label="Description of sourceBlob.hash"]') as HTMLInputElement,
-      'the CID',
-    )
+    const description = () =>
+      container.querySelector('input[aria-label="Description of sourceBlob.hash"]') as HTMLInputElement
+    // A space typed at the end survives (the input is controlled; trimming per keystroke ate it).
+    setInput(description(), 'the ')
+    expect(description().value).toBe('the ')
+    setInput(description(), 'the CID')
     expect(structFields(inner())[0]!.description).toBe('the CID')
+    setInput(description(), ' ')
+    expect(structFields(inner())[0]!.description).toBeUndefined()
+    setInput(description(), 'the CID')
     click(container.querySelector('[aria-label="Add field to sourceBlob"]')!)
     expect(structFields(inner()).map((f) => f.name)).toEqual(['hash', 'field'])
     click(container.querySelector('[aria-label="Remove sourceBlob.field"]')!)

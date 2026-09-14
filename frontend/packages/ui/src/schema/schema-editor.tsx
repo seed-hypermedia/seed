@@ -767,7 +767,8 @@ function StructFieldsEditor({
               placeholder="description"
               aria-label={`Description of ${q(name)}`}
               className="text-muted-foreground basis-full text-xs"
-              onChange={(e) => update(name, {description: e.target.value.trim() || undefined})}
+              // Not trimmed while typing: a controlled input would swallow every trailing space.
+              onChange={(e) => update(name, {description: e.target.value.trim() ? e.target.value : undefined})}
             />
             <NestedSchemaEditor
               node={ps}
