@@ -117,7 +117,7 @@ const TOUR = [
   "schema/references.md",
   "schema/encoding.md",
   "example.md",
-  "hypermedia.md",
+  "schema/blobs.md",
   "doc/schema/design.md",
 ].filter((f) => files.includes(f)).map((f) => ({
   slug: base(f),

@@ -26,7 +26,7 @@ Open the union page for the full list; every variant links to its own page with 
 
 # The read models <!-- id:eNHwY8y6 -->
 
-The `output` side is built from the read models under `rpc/type/`: the derived data the daemon computes for clients, as distinct from the signed blobs that travel the network. [rpc/type/document](./rpc/type/document.md) is a document with its versions, authors, and timestamps already resolved; [rpc/type/id](./rpc/type/id.md) is the parsed form of an `hm://` identifier; [rpc/type/interaction-summary](./rpc/type/interaction-summary.md) counts the comments, citations, and changes on a resource. The signed blobs are covered in [Schemas on the Hypermedia Network](./hypermedia.md); the read models are the other half of the picture — what you actually receive. <!-- id:AqyRPHIN -->
+The `output` side is built from the read models under `rpc/type/`: the derived data the daemon computes for clients, as distinct from the signed blobs that travel the network. [rpc/type/document](./rpc/type/document.md) is a document with its versions, authors, and timestamps already resolved; [rpc/type/id](./rpc/type/id.md) is the parsed form of an `hm://` identifier; [rpc/type/interaction-summary](./rpc/type/interaction-summary.md) counts the comments, citations, and changes on a resource. The signed blobs are covered in [Schemas on the Hypermedia Network](./schema/blobs.md); the read models are the other half of the picture — what you actually receive. <!-- id:AqyRPHIN -->
 
 # The console <!-- id:pntyyyx_ -->
 

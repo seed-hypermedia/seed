@@ -8,7 +8,7 @@ The Hypermedia Network stores its data as **DAG-CBOR blobs** in IPFS. There are 
 
 ## The shared base — extension in action <!-- id:5NuFY-Ul -->
 
-Every blob embeds a base envelope, [Signed blob](./blob.md): <!-- id:iAwaugHT -->
+Every blob embeds a base envelope, [Signed blob](../blob.md): <!-- id:iAwaugHT -->
 
 <!-- id:fmRGB5ga -->
 | field <!-- col:QDXqnDiH --> | type <!-- col:Wdc_fgoB --> | meaning <!-- col:FVItG8md --> <!-- id:l8an2_DE --> |
@@ -18,7 +18,7 @@ Every blob embeds a base envelope, [Signed blob](./blob.md): <!-- id:iAwaugHT --
 | `sig` | `signature` (bytes) | signature over the blob <!-- id:lD2RIqxm --> |
 | `ts` | `timestamp` (integer) | Unix-millisecond time <!-- id:nFpKKNpd --> |
 
-Each concrete type **extends** it (schema extension — [the schema language](./schema/schema-language.md)), inheriting those four fields and pinning `type` to a literal: <!-- id:zUkl9LQZ -->
+Each concrete type **extends** it (schema extension — [the schema language](./schema-language.md)), inheriting those four fields and pinning `type` to a literal: <!-- id:zUkl9LQZ -->
   - `change` — an append-only document change, linked into a causal DAG by `deps`; carries a `change-body` of ops. <!-- id:XNtWFQFG -->
   - `ref` — a signed pointer from a space/path to the current head Changes. <!-- id:z0t8cH-b -->
   - `profile` — an account's name / avatar / description (or an alias). <!-- id:kuRmAvLb -->
@@ -30,7 +30,7 @@ Open `change` in the schema explorer: `signer`/`sig`/`ts` show as **inherited**,
 
 ## Define your own signed blob type <!-- id:m8JR3RPQ -->
 
-The envelope is not reserved for the six built-in types. Any schema that extends [Signed blob](./blob.md) and pins a `type` tag is a signed blob type the app knows how to create: in the schema editor, tick **Signed blob type**, set the tag (say `Vote`), add your fields, and publish the type as a schema-definition page. Its **Create** button then opens the signing form — you fill in only your fields; `signer`, `ts`, and `sig` are added at signing time with the selected account's key, and the blob is published with the same convention the daemon verifies (sign the canonical CBOR with the signature zeroed). The result is a first-class, verifiable blob on the network — with a `type` the built-in indexer ignores but any app that resolves your schema can trust and render. Browse any schema, built-in or yours, at `/hm/schema/<cid>`. <!-- id:bcuDPBiZ -->
+The envelope is not reserved for the six built-in types. Any schema that extends [Signed blob](../blob.md) and pins a `type` tag is a signed blob type the app knows how to create: in the schema editor, tick **Signed blob type**, set the tag (say `Vote`), add your fields, and publish the type as a schema-definition page. Its **Create** button then opens the signing form — you fill in only your fields; `signer`, `ts`, and `sig` are added at signing time with the selected account's key, and the blob is published with the same convention the daemon verifies (sign the canonical CBOR with the signature zeroed). The result is a first-class, verifiable blob on the network — with a `type` the built-in indexer ignores but any app that resolves your schema can trust and render. Browse any schema, built-in or yours, at `/hm/schema/<cid>`. <!-- id:bcuDPBiZ -->
 
 ## The union — one of six <!-- id:TePpgQkJ -->
 
@@ -71,7 +71,7 @@ See `example/poll-block` (a custom block extending the same base) and `example/a
 
 ### Change is generic over its block type <!-- id:lMDDR7Ax -->
 
-To make _Change itself_ strict over an app's block set — not just the wire block — `change` is a **`Change<Block>`**: the `Block` parameter threads through `change → change-body → op → op-replace-block` (each level passes it down with `args`), defaulting to the extensible `block`. An app instantiates it — `example/myapp-change` = `Change<example/app-block>` — and now a `ReplaceBlock` op carrying a block type the app doesn't know is rejected _four levels deep_ (`$.body.ops[0].block`), while the default Change still accepts anything. This is real generic abstraction (`params` / `var` / `args`); see [the schema language](./schema/schema-language.md). <!-- id:-HAjdTZA -->
+To make _Change itself_ strict over an app's block set — not just the wire block — `change` is a **`Change<Block>`**: the `Block` parameter threads through `change → change-body → op → op-replace-block` (each level passes it down with `args`), defaulting to the extensible `block`. An app instantiates it — `example/myapp-change` = `Change<example/app-block>` — and now a `ReplaceBlock` op carrying a block type the app doesn't know is rejected _four levels deep_ (`$.body.ops[0].block`), while the default Change still accepts anything. This is real generic abstraction (`params` / `var` / `args`); see [the schema language](./schema-language.md). <!-- id:-HAjdTZA -->
 
 ## CBOR value shapes <!-- id:IMRnqrVW -->
 
