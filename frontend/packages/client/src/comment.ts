@@ -448,21 +448,24 @@ async function resolveCommentContentAndBlobs(input: CreateCommentInput): Promise
       input.prepareAttachments || defaultPrepareAttachments,
     )
     return {
-      content: wrapQuotedContent(trimTrailingEmptyBlocks(rawBlockNodes), input),
+      content: trimTrailingEmptyBlocks(rawBlockNodes),
       blobs,
     }
   }
 
   return {
-    content: wrapQuotedContent(trimTrailingEmptyBlocks(input.content), input),
+    content: trimTrailingEmptyBlocks(input.content),
     blobs: input.blobs || [],
   }
 }
 
 export async function createComment(input: CreateCommentInput, signer: AnySigner): Promise<HMPublishBlobsInput> {
-  const {content, blobs} = await resolveCommentContentAndBlobs(input)
+  const {content: unquotedContent, blobs} = await resolveCommentContentAndBlobs(input)
+  if (unquotedContent.length === 0) {
+    throw new Error('Cannot create an empty comment')
+  }
   const comment = await createCommentBlob({
-    content,
+    content: wrapQuotedContent(unquotedContent, input),
     docId: input.docId,
     docVersion: input.docVersion,
     signer,
@@ -536,9 +539,12 @@ export async function updateComment(input: UpdateCommentInput, signer: AnySigner
     throw new Error(`Invalid comment ID format: ${input.commentId}`)
   }
 
-  const signerKey = await signerPublicKey(signer)
   cleanContentOfUndefined(input.content)
   const trimmedContent = trimTrailingEmptyBlocks(input.content)
+  if (trimmedContent.length === 0) {
+    throw new Error('Cannot update a comment with empty content')
+  }
+  const signerKey = await signerPublicKey(signer)
 
   const comment: Record<string, unknown> = {
     type: 'Comment',
