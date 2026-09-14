@@ -1,7 +1,7 @@
 ---
 name: Capability
 summary: A delegation granting a role (WRITER or AGENT) from a space owner (the signer) to a delegate key, optionally scoped to a path.
-schemaDefinition: ipfs://bafyreidhgzc2vcirozmdplvaeaz4tk36ihrsr6qm5anb5uojumbispsgdu
+schemaDefinition: ipfs://bafyreibdhdt76ojj6z7w4a3txo34jrvmo75mhhlvejp5bv3jv3kqzwpnni
 ---
 This document describes the **capability** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:EoJZUC30 -->
 
@@ -11,13 +11,13 @@ This document describes the **capability** type — a Hypermedia Network blob sc
   - `type` — `"Capability"` <!-- id:SyOFox8W -->
   - `delegate` _(required)_ — [principal](./principal.md) <!-- id:kjRR_hac -->
   - `audience` — [principal](./principal.md) <!-- id:7U5hD2qS -->
-  - `path` — [string](./schema/string.md) <!-- id:1kkgb2vD -->
+  - `path` — [string](./string.md) <!-- id:1kkgb2vD -->
   - `role` — [role](./role.md) <!-- id:rR-UJPdL -->
-  - `label` — [string](./schema/string.md) <!-- id:vvjLBzH9 -->
+  - `label` — [string](./string.md) <!-- id:vvjLBzH9 -->
 
 # Depends on <!-- id:8jobVV8F -->
 
 - [blob](./blob.md) <!-- id:-Km-MHD- -->
 - [principal](./principal.md) <!-- id:3nHrzASo -->
 - [role](./role.md) <!-- id:-FedhZti -->
-- [string](./schema/string.md) <!-- id:C6Jjf4J4 -->
+- [string](./string.md) <!-- id:C6Jjf4J4 -->

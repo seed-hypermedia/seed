@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListComments"
 summary: "Lists all comments on a target document. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `o"
-schemaDefinition: ipfs://bafyreihvh6edzp27mv27n22rsp2cu6agsozxmzt5wzix4p4jfk2z7bvala
+schemaDefinition: ipfs://bafyreiextmxa2jbinre4p637sgzu6ocjbvr3h3asyumvzgttw5oqvw24wq
 ---
 Lists all comments on a target document. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:YbdgawAp -->
 

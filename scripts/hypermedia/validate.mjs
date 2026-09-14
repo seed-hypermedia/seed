@@ -7,7 +7,7 @@
 // list, map, link. In human/dag-json form, a link is {"/":"<cid>"} and bytes
 // is {"/":{"bytes":"<base64>"}} -- both are distinct kinds, NOT maps.
 //
-// Schema vocabulary: type, properties, required, items, values, ref, anyOf, and
+// Schema vocabulary: type, properties, items, values, ref, anyOf, and
 // literals (a bare scalar, or {value, description}).
 //   - a literal                 -> the value must equal it; {anyOf: ["a","b"]} is a fixed set.
 //   - `anyOf`                   -> union: value must match one of the variants.
@@ -87,7 +87,7 @@ function typeMatches(type, d) {
   }
 }
 
-const REFINE = ["properties", "required", "values", "items"];
+const REFINE = ["properties", "values", "items"];
 
 // A literal schema accepts exactly one value: a bare scalar (null, boolean,
 // integer, float, string) or, with a description, {value, description}.
@@ -100,24 +100,22 @@ export const isLiteralSchema = (s) => {
 export const literalValue = (s) => (s !== null && typeof s === "object" ? s.value : s);
 const literalNode = (s) => (s !== null && typeof s === "object" ? s : { value: s });
 
-// A struct writes its fields as `properties[name] = {value, required?, description?}`;
-// older blobs wrote `properties[name] = <schema>` with a `required` list. Both read.
+// A struct writes its fields as `properties[name] = {value, required?, description?}`.
 // (A literal schema is also spelled {value}, but a properties entry always wraps
 // its field's schema, so there `value` IS the field's schema.)
-const isPropertyEntry = (v) => !!v && typeof v === "object" && !Array.isArray(v) && "value" in v;
 export function structFields(schema) {
   if (!schema || !schema.properties || typeof schema.properties !== "object") return [];
-  const legacyRequired = new Set(Array.isArray(schema.required) ? schema.required : []);
-  return Object.entries(schema.properties).map(([name, entry]) =>
-    isPropertyEntry(entry)
-      ? { name, schema: entry.value === undefined ? {} : entry.value, required: entry.required === true, description: entry.description }
-      : { name, schema: entry ?? {}, required: legacyRequired.has(name), description: entry?.description },
-  );
+  return Object.entries(schema.properties).map(([name, entry]) => ({
+    name,
+    schema: entry?.value === undefined ? {} : entry.value,
+    required: entry?.required === true,
+    description: entry?.description,
+  }));
 }
 export function fieldSchema(schema, name) {
   const entry = schema?.properties?.[name];
   if (entry === undefined) return undefined;
-  return isPropertyEntry(entry) ? entry.value : entry;
+  return entry?.value === undefined ? {} : entry.value;
 }
 export function fieldsToProperties(fields) {
   const out = {};
@@ -314,16 +312,17 @@ for (const f of jsonFiles) {
 // 3. The discriminated union REJECTS malformed schemas.
 // =====================================================================
 section("The meta-schema rejects malformed schemas");
-const K = (k) => `hm://${HYPERMEDIA_UID}/schema/${k}`;
+const K = (k) => `hm://${HYPERMEDIA_UID}/${k}`;
 failed += reportReject("scalar carrying `items`", validate(meta, { type: K("string"), items: { type: K("integer") } }));
 failed += reportReject("scalar carrying `properties`", validate(meta, { type: K("string"), properties: {} }));
 failed += reportReject("map schema with an unknown keyword", validate(meta, { type: K("map"), bogus: 1 }));
 failed += reportReject("struct schema with an unknown keyword", validate(meta, { type: K("struct"), bogus: 1 }));
-const U = (k) => `hm://${HYPERMEDIA_UID}/schema/${k}`;
+const U = (k) => `hm://${HYPERMEDIA_UID}/${k}`;
 failed += report("a struct with fields is a valid schema", validate(meta, { type: U("struct"), properties: { a: { value: { type: U("string") }, required: true, description: "an a" } } }));
 failed += reportReject("a struct field must be a property ({value, …}), not a bare schema", validate(meta, { type: U("struct"), properties: { a: { type: U("string") } } }));
 failed += report("a map of values is a valid schema", validate(meta, { type: U("map"), values: { type: U("integer") } }));
-failed += report("a legacy map with fields (published before struct) still validates", validate(meta, { type: U("map"), properties: { a: { type: U("string") } } }));
+failed += reportReject("a map with named fields (that is a struct)", validate(meta, { type: U("map"), properties: { a: { value: { type: U("string") } } } }));
+failed += reportReject("a struct with a `required` list (fields carry their own flag)", validate(meta, { type: U("struct"), required: ["a"], properties: { a: { value: { type: U("string") } } } }));
 failed += reportReject("node with neither type nor ref nor anyOf", validate(meta, { properties: {} }));
 failed += reportReject("union with a non-schema arm", validate(meta, { anyOf: [{ nope: 1 }] }));
 failed += reportReject("bare kind name instead of a URL", validate(meta, { type: "string" }));
@@ -551,7 +550,7 @@ const CASES = [
     ],
   },
   {
-    schema: "schema/any-blob.schema.json",
+    schema: "blob/any.schema.json",
     valid: [
       { type: "Profile", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1, name: "Alice" },
       { type: "Contact", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1, subject: bytes("ZGVs"), name: "Bob" },
@@ -572,7 +571,7 @@ const CASES = [
 
   // --- Block types: strict concrete types vs the open forward-compatible type
   {
-    schema: "schema/block/paragraph.schema.json",
+    schema: "block/paragraph.schema.json",
     valid: [
       { id: "b1", type: "Paragraph", text: "Hello", annotations: [], attributes: { childrenType: "Group" } },
       { id: "b2", type: "Paragraph" },
@@ -584,13 +583,13 @@ const CASES = [
     ],
   },
   {
-    schema: "schema/block/image.schema.json",
+    schema: "block/image.schema.json",
     valid: [{ id: "i1", type: "Image", link: "ipfs://bafyimg", attributes: { width: 640, name: "pic.png" } }],
     invalid: [["missing link (required)", { id: "i1", type: "Image" }]],
   },
   {
     // The core union WE define — strict, rejects block types outside the eleven.
-    schema: "schema/block/core.schema.json",
+    schema: "block/core.schema.json",
     valid: [{ id: "b1", type: "Paragraph", text: "hi" }, { id: "i1", type: "Image", link: "ipfs://x" }],
     invalid: [["a block type outside the core", { id: "p1", type: "Poll", question: "?" }]],
   },
@@ -638,7 +637,7 @@ const CASES = [
     ],
   },
   {
-    schema: "schema/any.schema.json",
+    schema: "any.schema.json",
     valid: [null, true, 42, 3.14, "x", [1, "two", { a: [true] }], { k: { nested: [1, 2] } }, cid("bafy"), bytes("QQ")],
     invalid: [],
   },
@@ -673,14 +672,14 @@ failed += report("invalid regex is ignored (no throw, no error)", validate(S("st
 
 // `format: date` — the built-in Date type is a string refinement whose pattern
 // checks the ISO 8601 calendar-date shape (YYYY-MM-DD) without parsing.
-const dateT = load("schema/date.schema.json");
+const dateT = load("date.schema.json");
 failed += report("date: ISO calendar date", validate(dateT, "2026-08-26"));
 failed += report("date: leap day shape", validate(dateT, "2024-02-29"));
 failed += reportReject("date: month 13", validate(dateT, "2026-13-01"));
 failed += reportReject("date: slashes", validate(dateT, "26/08/2026"));
 failed += reportReject("date: date-time is not a date", validate(dateT, "2026-08-26T10:00:00Z"));
 failed += reportReject("date: not a string", validate(dateT, 20260826));
-const dateTimeT = load("schema/date-time.schema.json");
+const dateTimeT = load("date-time.schema.json");
 failed += report("date-time: RFC 3339 zulu", validate(dateTimeT, "2026-08-26T14:30:00Z"));
 failed += report("date-time: offset + fraction", validate(dateTimeT, "2026-08-26T14:30:00.250+02:00"));
 failed += reportReject("date-time: bare date", validate(dateTimeT, "2026-08-26"));
@@ -688,11 +687,11 @@ failed += reportReject("date-time: bare date", validate(dateTimeT, "2026-08-26")
 // `target` — a reference-valued string may name the schema its target should
 // conform to. Allowed on the scalar and include variants (advisory; never
 // dereferenced), rejected elsewhere because the variants are closed maps.
-failed += report("target on a scalar reference", validate(meta, { type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string", format: "ipfs", target: "hm://acme/stats" }));
+failed += report("target on a scalar reference", validate(meta, { type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", format: "ipfs", target: "hm://acme/stats" }));
 failed += report("target on an include reference", validate(meta, { ref: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hm-url", target: "hm://acme/place" }));
 failed += reportReject("target on a map schema", validate(meta, { type: K("map"), properties: {}, target: "hm://acme/x" }));
 failed += reportReject("target on a list schema", validate(meta, { type: K("list"), target: "hm://acme/x" }));
-failed += report("target does not affect the value", validate({ type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string", format: "ipfs", target: "hm://acme/stats" }, "ipfs://bafyfoo"));
+failed += report("target does not affect the value", validate({ type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", format: "ipfs", target: "hm://acme/stats" }, "ipfs://bafyfoo"));
 
 // integer minimum / maximum
 const intRange = S("integer", { minimum: 0, maximum: 100 });
@@ -707,7 +706,7 @@ failed += report("float within bounds", validate(floatRange, 0.5));
 failed += reportReject("float below minimum", validate(floatRange, -0.5));
 
 // list minItems / maxItems
-const listSize = S("list", { minItems: 1, maxItems: 3, items: { ref: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string" } });
+const listSize = S("list", { minItems: 1, maxItems: 3, items: { ref: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string" } });
 failed += report("list within size bounds", validate(listSize, ["a", "b"]));
 failed += reportReject("list too short", validate(listSize, []));
 failed += reportReject("list too long", validate(listSize, ["a", "b", "c", "d"]));

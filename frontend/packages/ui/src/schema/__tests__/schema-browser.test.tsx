@@ -18,10 +18,9 @@ const CUSTOM = {
   name: 'Vote',
   description: 'A vote on a document.',
   ref: nameToUrl('blob'),
-  required: ['type', 'target'],
   properties: {
-    type: 'Vote',
-    target: {ref: nameToUrl('hm-url'), target: 'hm://acme/proposal'},
+    type: {value: 'Vote', required: true},
+    target: {value: {ref: nameToUrl('hm-url'), target: 'hm://acme/proposal'}, required: true},
   },
 }
 
@@ -114,7 +113,7 @@ describe('SchemaByCid', () => {
         <QueryClientProvider client={new QueryClient({defaultOptions: {queries: {retry: false}}})}>
           <UniversalAppProvider openUrl={() => {}} openRoute={null} universalClient={{request: vi.fn()} as any}>
             <TooltipProvider>
-              <SchemaBrowserPage cid={schemaCid('schema/any-blob')!} navigate={navigate} openUrl={vi.fn()} />
+              <SchemaBrowserPage cid={schemaCid('blob/any')!} navigate={navigate} openUrl={vi.fn()} />
             </TooltipProvider>
           </UniversalAppProvider>
         </QueryClientProvider>,

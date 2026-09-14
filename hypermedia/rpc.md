@@ -8,7 +8,7 @@ Seed apps talk to a daemon through a universal client with a single call shape: 
 
 # The catalog <!-- id:LJgSGvSR -->
 
-Each method is an `rpc/<method>` schema: a closed map with three properties. `key` is a literal — the one method name — so the schema is self-identifying. `input` references the schema of what you pass. `output` references the schema of what comes back — often a union with `null` for "not found". For example, [RPC: Query](./rpc/query.md) pins `key = "Query"`, takes a [schema/query](./schema/query.md) — the same shape a Query block embeds in a document — and returns a [rpc/type/query-result](./rpc/type/query-result.md) or `null`. <!-- id:yWqxCdaY -->
+Each method is an `rpc/<method>` schema: a closed map with three properties. `key` is a literal — the one method name — so the schema is self-identifying. `input` references the schema of what you pass. `output` references the schema of what comes back — often a union with `null` for "not found". For example, [RPC: Query](./rpc/query.md) pins `key = "Query"`, takes a [query](./query.md) — the same shape a Query block embeds in a document — and returns a [rpc/type/query-result](./rpc/type/query-result.md) or `null`. <!-- id:yWqxCdaY -->
 
 [rpc/method](./rpc/method.md) is the union of every method. That one schema is the machine-readable table of contents for the API. A few of its variants: <!-- id:r2qlHKeD -->
 

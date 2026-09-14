@@ -1,7 +1,7 @@
 ---
 name: Search Results
 summary: A page of search results with the query echoed back and a pagination token. A derived read model computed by the Seed daemon/API for clients — not a signed netw
-schemaDefinition: ipfs://bafyreic5uk6vemtosfask5lwtvlv43b5f4ac65vwlu66vgt4dy6jjjeseq
+schemaDefinition: ipfs://bafyreibs2l53e4d3scih23cxm2b566buums3arfjhoneypfgp6hwtjol7a
 ---
 A page of search results with the query echoed back and a pagination token. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:1JEeVGHU -->
 
@@ -11,10 +11,10 @@ This document describes the **rpc/type/search-results** type — a Seed API read
 
 A **closed struct** with these fields: <!-- id:YHpy0iy7 -->
   - `entities` _(required)_ — list of [rpc/type/search-result-item](./search-result-item.md) <!-- id:KmQctIUf -->
-  - `searchQuery` _(required)_ — [string](../../schema/string.md) <!-- id:DKVjSdy9 -->
-  - `nextPageToken` _(required)_ — [string](../../schema/string.md) <!-- id:xIqVZi0C -->
+  - `searchQuery` _(required)_ — [string](../../string.md) <!-- id:DKVjSdy9 -->
+  - `nextPageToken` _(required)_ — [string](../../string.md) <!-- id:xIqVZi0C -->
 
 # Depends on <!-- id:3XiUHP7C -->
 
-- [string](../../schema/string.md) <!-- id:b9Kfh0VR -->
+- [string](../../string.md) <!-- id:b9Kfh0VR -->
 - [rpc/type/search-result-item](./search-result-item.md) <!-- id:9uDnhRLl -->

@@ -8,12 +8,14 @@ import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 
 const ARTICLE_SCHEMA: HypermediaSchema = {
-  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct',
-  required: ['title', 'status'],
+  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct',
   properties: {
-    title: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string', minLength: 1},
-    status: {anyOf: ['draft', 'published']},
-    count: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/integer'},
+    title: {
+      value: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string', minLength: 1},
+      required: true,
+    },
+    status: {value: {anyOf: ['draft', 'published']}, required: true},
+    count: {value: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer'}},
   },
 }
 
@@ -93,9 +95,9 @@ describe('schema-aware value editor rendering', () => {
     // The validator attributes the "unexpected key" warning to the containing map's path,
     // so nest the closed map under a field to get a rendered row to badge.
     const schema: HypermediaSchema = {
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map',
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct',
       values: {},
-      properties: {article: ARTICLE_SCHEMA},
+      properties: {article: {value: ARTICLE_SCHEMA}},
     }
     renderEditor({article: {title: 'Hello', status: 'draft', extra: 'kept'}}, schema)
     const inputs = Array.from(container.querySelectorAll('input')).map((el) => el.value)
@@ -105,10 +107,10 @@ describe('schema-aware value editor rendering', () => {
 
   it('a union of literals containing "" renders safely (labels are JSON-quoted, so Radix never sees value="")', () => {
     const schema: HypermediaSchema = {
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map',
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct',
       values: {},
       properties: {
-        status: {anyOf: ['', 'draft']},
+        status: {value: {anyOf: ['', 'draft']}},
       },
     }
     renderEditor({status: 'draft'}, schema)
@@ -119,9 +121,9 @@ describe('schema-aware value editor rendering', () => {
 
   it('mixed-type literal unions render number members as a dropdown too', () => {
     const schema: HypermediaSchema = {
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map',
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct',
       values: {},
-      properties: {level: {anyOf: ['low', 1, 2, true]}},
+      properties: {level: {value: {anyOf: ['low', 1, 2, true]}}},
     }
     renderEditor({level: 1}, schema)
     const combo = container.querySelector('[role="combobox"]')
@@ -135,10 +137,10 @@ describe('schema-aware value editor rendering', () => {
 
   it('a union of literals with duplicate members falls back to free text', () => {
     const schema: HypermediaSchema = {
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map',
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct',
       values: {},
       properties: {
-        status: {anyOf: ['draft', 'draft']},
+        status: {value: {anyOf: ['draft', 'draft']}},
       },
     }
     renderEditor({status: 'draft'}, schema)

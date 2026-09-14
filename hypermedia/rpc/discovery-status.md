@@ -1,7 +1,7 @@
 ---
 name: "RPC: DiscoveryStatus"
 summary: "Reports the state of a background discovery task. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you"
-schemaDefinition: ipfs://bafyreia5n5qrr5zyjovggff6t7v356n6nhnscqrt2c3yilyyvvn3avd2ya
+schemaDefinition: ipfs://bafyreieu4rxcfitfworbbu7uh52cojaspo5s53cdinx4gdzm6psm3yw3we
 ---
 Reports the state of a background discovery task. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:s7Yt7azE -->
 
@@ -16,6 +16,6 @@ A **closed struct** with these fields: <!-- id:w4vuYwBh -->
 
 # Depends on <!-- id:rIVmhfIF -->
 
-- [boolean](../schema/boolean.md) <!-- id:qYe5vPW7 -->
-- [string](../schema/string.md) <!-- id:Ev6PVaa6 -->
+- [boolean](../boolean.md) <!-- id:qYe5vPW7 -->
+- [string](../string.md) <!-- id:Ev6PVaa6 -->
 - [rpc/type/discovery-status](./type/discovery-status.md) <!-- id:xHV9GDA8 -->

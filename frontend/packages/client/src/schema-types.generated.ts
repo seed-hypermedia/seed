@@ -22,6 +22,13 @@ export type HMBlob = {
 }
 
 /**
+ * Any Blob
+ * Any Hypermedia CBOR blob — the discriminated union of the six blob types, tagged on the type field.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/blob/any
+ */
+export type HMAnyBlob = HMChange<HMBlock> | HMRef | HMProfile | HMComment | HMCapability | HMContact
+
+/**
  * Block
  * The open block: the common fields (id, type, text, link, annotations, attributes) plus arbitrary extra fields of any type, requiring only id and type. This is t
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block
@@ -35,6 +42,316 @@ export type HMBlock = {
   annotations?: HMAnnotation[]
   attributes?: {[key: string]: unknown}
 } & {[key: string]: unknown}
+
+/**
+ * Annotation
+ * An inline text annotation (bold, link, …) over character ranges, plus arbitrary inline attributes.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/annotation
+ */
+export type HMAnnotation = {
+  type?: string
+  link?: HMUrl
+  starts?: number[]
+  ends?: number[]
+} & {[key: string]: HMValue}
+
+/**
+ * Block (Base)
+ * Fields shared by every concrete block type: id, optional revision, and the type discriminator. Concrete blocks extend this.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/base
+ */
+export type HMBlockBase = {
+  id: string
+  revision?: string
+  type: string
+}
+
+/**
+ * Button Block
+ * A labelled button linking somewhere.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/button
+ */
+export type HMBlockButton = HMBlockBase & {
+  type?: 'Button'
+  text?: string
+  link: HMUrl
+  attributes?: {
+    childrenType?: HMChildrenType
+    columnCount?: number
+    name?: string
+    alignment?: HMButtonAlignment
+  } & {[key: string]: unknown}
+}
+
+/**
+ * Button Alignment
+ * Horizontal alignment of a Button block.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/button-alignment
+ */
+export type HMButtonAlignment = 'flex-start' | 'center' | 'flex-end'
+
+/**
+ * Children Type
+ * How a block's children are laid out: Group (default), Ordered, Unordered, Blockquote, or Grid.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/children-type
+ */
+export type HMChildrenType = 'Group' | 'Ordered' | 'Unordered' | 'Blockquote' | 'Grid'
+
+/**
+ * Code Block
+ * A code block, optionally tagged with a language.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/code
+ */
+export type HMBlockCode = HMBlockBase & {
+  type?: 'Code'
+  text?: string
+  attributes?: {
+    childrenType?: HMChildrenType
+    columnCount?: number
+    language?: string
+  } & {[key: string]: unknown}
+}
+
+/**
+ * Comment Block
+ * A comment content block: a Block extended with a recursive list of child comment blocks.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/comment
+ */
+export type HMCommentBlock = HMBlock & {
+  children?: HMCommentBlock[]
+}
+
+/**
+ * Core Block
+ * The union of the fifteen built-in block types (Paragraph, Heading, Code, Math, Image, Video, File, Button, Embed, WebEmbed, Nostr, Table, TableRow, TableColumn,
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/core
+ */
+export type HMBlockCore =
+  | HMBlockParagraph
+  | HMBlockHeading
+  | HMBlockCode
+  | HMBlockMath
+  | HMBlockImage
+  | HMBlockVideo
+  | HMBlockFile
+  | HMBlockButton
+  | HMBlockEmbed
+  | HMBlockWebEmbed
+  | HMBlockNostr
+  | HMBlockTable
+  | HMBlockTableRow
+  | HMBlockTableColumn
+  | HMBlockQuery
+
+/**
+ * Embed Block
+ * An embed of another Hypermedia document (an hm:// URL).
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/embed
+ */
+export type HMBlockEmbed = HMBlockBase & {
+  type?: 'Embed'
+  link: HMUrl
+  attributes?: {
+    childrenType?: HMChildrenType
+    columnCount?: number
+    view?: HMEmbedView
+  } & {[key: string]: unknown}
+}
+
+/**
+ * Embed View
+ * How an Embed block renders its target: Content, Card, Comments, or Link.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/embed-view
+ */
+export type HMEmbedView = 'Content' | 'Card' | 'Comments' | 'Link'
+
+/**
+ * File Block
+ * A file attachment, referenced by a URL.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/file
+ */
+export type HMBlockFile = HMBlockBase & {
+  type?: 'File'
+  link: HMUrl
+  attributes?: {
+    childrenType?: HMChildrenType
+    columnCount?: number
+    size?: number
+    name?: string
+  } & {[key: string]: unknown}
+}
+
+/**
+ * Heading Block
+ * A section heading.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/heading
+ */
+export type HMBlockHeading = HMBlockBase & {
+  type?: 'Heading'
+  text?: string
+  annotations?: HMAnnotation[]
+  attributes?: {
+    childrenType?: HMChildrenType
+    columnCount?: number
+  } & {[key: string]: unknown}
+}
+
+/**
+ * Image Block
+ * An image, referenced by a URL (typically ipfs://).
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/image
+ */
+export type HMBlockImage = HMBlockBase & {
+  type?: 'Image'
+  text?: string
+  annotations?: HMAnnotation[]
+  link: HMUrl
+  attributes?: {
+    childrenType?: HMChildrenType
+    columnCount?: number
+    width?: number
+    name?: string
+  } & {[key: string]: unknown}
+}
+
+/**
+ * Math Block
+ * A block of LaTeX/KaTeX math.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/math
+ */
+export type HMBlockMath = HMBlockBase & {
+  type?: 'Math'
+  text?: string
+  attributes?: {
+    childrenType?: HMChildrenType
+    columnCount?: number
+  } & {[key: string]: unknown}
+}
+
+/**
+ * Block Node
+ * A node of the document content tree: a Block plus its ordered child Block nodes. The recursion (children of the same type) expresses arbitrary nesting; a leaf s
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/node
+ */
+export type HMBlockNode = {
+  block: HMBlock
+  children?: HMBlockNode[]
+}
+
+/**
+ * Nostr Block
+ * An embed of a Nostr event (a nostr: URL).
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/nostr
+ */
+export type HMBlockNostr = HMBlockBase & {
+  type?: 'Nostr'
+  link: HMUrl
+}
+
+/**
+ * Paragraph Block
+ * A paragraph of rich text with annotations.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/paragraph
+ */
+export type HMBlockParagraph = HMBlockBase & {
+  type?: 'Paragraph'
+  text?: string
+  annotations?: HMAnnotation[]
+  attributes?: {
+    childrenType?: HMChildrenType
+    columnCount?: number
+    columnId?: string
+  } & {[key: string]: unknown}
+}
+
+/**
+ * Query Block
+ * A block that embeds a live query: its results (documents from the queried spaces) render in place, styled as cards, a list, or a table.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/query
+ */
+export type HMBlockQuery = HMBlockBase & {
+  type?: 'Query'
+  attributes: {
+    childrenType?: HMChildrenType
+    columnCount?: number
+    style?: HMQueryStyle
+    query: HMQuery
+    banner?: boolean
+    table?: HMQueryTableConfig
+  }
+}
+
+/**
+ * Table Block
+ * A table container. Its children are TableColumn blocks (childless; their sibling order defines column display order) followed by TableRow blocks whose children
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/table
+ */
+export type HMBlockTable = HMBlockBase & {
+  type?: 'Table'
+  attributes?: {
+    childrenType?: HMChildrenType
+    columnCount?: number
+  }
+}
+
+/**
+ * Table Column Block
+ * One column of a Table block: childless, identified by its block id (cells reference it via their columnId attribute), ordered by sibling position.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/table-column
+ */
+export type HMBlockTableColumn = HMBlockBase & {
+  type?: 'TableColumn'
+  attributes?: {
+    childrenType?: HMChildrenType
+    columnCount?: number
+    /** minimum: 0 */
+    width?: number
+    isHeader?: boolean
+  }
+}
+
+/**
+ * Table Row Block
+ * One row of a Table block. Its children are Paragraph cell blocks, each carrying a columnId attribute referencing a TableColumn id.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/table-row
+ */
+export type HMBlockTableRow = HMBlockBase & {
+  type?: 'TableRow'
+  attributes?: {
+    childrenType?: HMChildrenType
+    columnCount?: number
+    isHeader?: boolean
+  }
+}
+
+/**
+ * Video Block
+ * A video, referenced by a URL.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/video
+ */
+export type HMBlockVideo = HMBlockBase & {
+  type?: 'Video'
+  link: HMUrl
+  attributes?: {
+    childrenType?: HMChildrenType
+    columnCount?: number
+    width?: number
+    name?: string
+    autoplay?: boolean
+    loop?: boolean
+    muted?: boolean
+  } & {[key: string]: unknown}
+}
+
+/**
+ * Web Embed Block
+ * An embed of an external web resource (an http(s) URL).
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/web-embed
+ */
+export type HMBlockWebEmbed = HMBlockBase & {
+  type?: 'WebEmbed'
+  link: HMUrl
+}
 
 /**
  * Capability
@@ -61,6 +378,82 @@ export type HMChange<Block = HMBlock> = HMBlob & {
   deps?: HMCid[]
   depth?: number
   body?: HMChangeBody<Block>
+}
+
+/**
+ * Change Body
+ * The operations payload of a Change: an operation count hint and the list of ops.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/change/body
+ */
+export type HMChangeBody<Block = HMBlock> = {
+  opCount?: number
+  ops?: HMOp<Block>[]
+}
+
+/**
+ * Operation
+ * A single CRDT operation inside a Change body — a discriminated union tagged on type.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/change/op
+ */
+export type HMOp<Block = HMBlock> =
+  | HMOpSetAttributes
+  | HMOpMoveBlocks
+  | HMOpReplaceBlock<Block>
+  | HMOpDeleteBlocks
+  | HMOpSetKey
+
+/**
+ * DeleteBlocks Op
+ * Delete blocks by id.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/change/op/delete-blocks
+ */
+export type HMOpDeleteBlocks = {
+  type: 'DeleteBlocks'
+  blocks: string[]
+}
+
+/**
+ * MoveBlocks Op
+ * Move blocks under a parent, using RGA CRDT reference ids.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/change/op/move-blocks
+ */
+export type HMOpMoveBlocks = {
+  type: 'MoveBlocks'
+  parent?: string
+  blocks: string[]
+  ref?: number[]
+}
+
+/**
+ * ReplaceBlock Op
+ * Replace the content of a block.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/change/op/replace-block
+ */
+export type HMOpReplaceBlock<Block = HMBlock> = {
+  type: 'ReplaceBlock'
+  block: Block
+}
+
+/**
+ * SetAttributes Op
+ * Set attributes on a block, or document-level metadata when block is empty.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/change/op/set-attributes
+ */
+export type HMOpSetAttributes = {
+  type: 'SetAttributes'
+  block?: string
+  attrs?: HMKeyValue[]
+}
+
+/**
+ * SetKey Op
+ * Deprecated: set a single flat metadata key to a value.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/change/op/set-key
+ */
+export type HMOpSetKey = {
+  type: 'SetKey'
+  key?: string
+  value?: HMValue
 }
 
 /**
@@ -101,6 +494,30 @@ export type HMContact = HMBlob & {
   name?: string
   subscribe?: HMContactSubscribe
 }
+
+/**
+ * Contact Subscription
+ * Subscription preferences for a contact: subscribe to the subject's site and/or profile.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/contact/subscribe
+ */
+export type HMContactSubscribe = {
+  site?: boolean
+  profile?: boolean
+}
+
+/**
+ * Date
+ * A calendar date as an ISO 8601 string, `YYYY-MM-DD` (e.g. `2026-08-26`). A refinement of string — the value is still plain text on the wire — with `format: date
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date
+ */
+export type HMDate = string
+
+/**
+ * Date-Time
+ * An instant as an RFC 3339 / ISO 8601 string, `YYYY-MM-DDTHH:MM:SS[.sss]Z` or with a numeric offset (e.g. `2026-08-26T14:30:00Z`). A refinement of string with `f
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date-time
+ */
+export type HMDateTime = string
 
 /**
  * Document
@@ -502,6 +919,16 @@ export type HMHmUrl = string
 export type HMIpfs = string
 
 /**
+ * Key/Value
+ * A metadata attribute: a dotted key path (segments) and a value.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/key-value
+ */
+export type HMKeyValue = {
+  key?: string[]
+  value?: HMValue
+}
+
+/**
  * Document Metadata
  * Resolved document metadata (merged from Change ops): known keys plus arbitrary extras.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/metadata
@@ -531,6 +958,18 @@ export type HMMetadata = {
 } & {[key: string]: HMValue}
 
 /**
+ * Navigation item
+ * One entry of a site's navigation menu, stored in document metadata: a link with display text.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/metadata/navigation-item
+ */
+export type HMNavigationItem = {
+  type: 'Link'
+  id: string
+  text: string
+  link: HMUrl
+}
+
+/**
  * Principal
  * A public key identifying an account, agent, or space — raw CBOR bytes (a packed multicodec key).
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/principal
@@ -552,6 +991,60 @@ export type HMProfile = HMBlob & {
 }
 
 /**
+ * Query
+ * A live document query: which spaces/paths to include, how to sort, and an optional result limit. Embedded in a Query block's attributes; also the input of the Q
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/query
+ */
+export type HMQuery = {
+  includes: HMQueryInclusion[]
+  sort?: HMQuerySort[]
+  /** minimum: 0 */
+  limit?: number
+}
+
+/**
+ * Query Inclusion
+ * One source a Query block pulls documents from: a space (account), an optional path prefix inside it, and whether to list direct Children or AllDescendants.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/query/inclusion
+ */
+export type HMQueryInclusion = {
+  space: string
+  path?: string
+  mode: 'Children' | 'AllDescendants'
+}
+
+/**
+ * Query Sort
+ * One sort term for a Query block's results, optionally reversed.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/query/sort
+ */
+export type HMQuerySort = {
+  reverse?: boolean
+  term: 'Path' | 'Title' | 'CreateTime' | 'UpdateTime' | 'DisplayTime' | 'ActivityTime'
+}
+
+/**
+ * Query Style
+ * How a Query block presents its results: a card grid, a compact list, or a table.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/query/style
+ */
+export type HMQueryStyle = 'Card' | 'List' | 'Table'
+
+/**
+ * Query Table Config
+ * Persisted presentation settings for a Query block's Table view: which columns are visible and how wide they are.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/query/table-config
+ */
+export type HMQueryTableConfig = {
+  columns: {
+    id: string
+    visible: boolean
+    /** minimum: 0 */
+    width?: number
+  }[]
+}
+
+/**
  * Ref
  * A signed pointer (like a Git ref) claiming that a path in a space points at the current head Changes of a document.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/ref
@@ -566,6 +1059,17 @@ export type HMRef = HMBlob & {
   redirect?: HMRedirectTarget
   generation?: number
   visibility?: HMVisibility
+}
+
+/**
+ * Redirect Target
+ * A redirect from one document to another space and/or path.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/ref/redirect-target
+ */
+export type HMRedirectTarget = {
+  space?: HMPrincipal
+  path?: string
+  republish?: boolean
 }
 
 /**
@@ -1559,13 +2063,6 @@ export type HMSchema =
   | null
 
 /**
- * Any Blob
- * Any Hypermedia CBOR blob — the discriminated union of the six blob types, tagged on the type field.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/any-blob
- */
-export type HMAnyBlob = HMChange<HMBlock> | HMRef | HMProfile | HMComment | HMCapability | HMContact
-
-/**
  * Union schema
  * The variant for a union — a value matching any one of several alternatives (anyOf).
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/anyof
@@ -1576,350 +2073,6 @@ export type HMAnyof = {
   params?: {[key: string]: HMSchema}
   name?: string
 }
-
-/**
- * Annotation
- * An inline text annotation (bold, link, …) over character ranges, plus arbitrary inline attributes.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/annotation
- */
-export type HMAnnotation = {
-  type?: string
-  link?: HMUrl
-  starts?: number[]
-  ends?: number[]
-} & {[key: string]: HMValue}
-
-/**
- * Block (Base)
- * Fields shared by every concrete block type: id, optional revision, and the type discriminator. Concrete blocks extend this.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/base
- */
-export type HMBlockBase = {
-  id: string
-  revision?: string
-  type: string
-}
-
-/**
- * Button Block
- * A labelled button linking somewhere.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/button
- */
-export type HMBlockButton = HMBlockBase & {
-  type?: 'Button'
-  text?: string
-  link: HMUrl
-  attributes?: {
-    childrenType?: HMChildrenType
-    columnCount?: number
-    name?: string
-    alignment?: HMButtonAlignment
-  } & {[key: string]: unknown}
-}
-
-/**
- * Button Alignment
- * Horizontal alignment of a Button block.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/button-alignment
- */
-export type HMButtonAlignment = 'flex-start' | 'center' | 'flex-end'
-
-/**
- * Children Type
- * How a block's children are laid out: Group (default), Ordered, Unordered, Blockquote, or Grid.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/children-type
- */
-export type HMChildrenType = 'Group' | 'Ordered' | 'Unordered' | 'Blockquote' | 'Grid'
-
-/**
- * Code Block
- * A code block, optionally tagged with a language.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/code
- */
-export type HMBlockCode = HMBlockBase & {
-  type?: 'Code'
-  text?: string
-  attributes?: {
-    childrenType?: HMChildrenType
-    columnCount?: number
-    language?: string
-  } & {[key: string]: unknown}
-}
-
-/**
- * Comment Block
- * A comment content block: a Block extended with a recursive list of child comment blocks.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/comment
- */
-export type HMCommentBlock = HMBlock & {
-  children?: HMCommentBlock[]
-}
-
-/**
- * Core Block
- * The union of the fifteen built-in block types (Paragraph, Heading, Code, Math, Image, Video, File, Button, Embed, WebEmbed, Nostr, Table, TableRow, TableColumn,
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/core
- */
-export type HMBlockCore =
-  | HMBlockParagraph
-  | HMBlockHeading
-  | HMBlockCode
-  | HMBlockMath
-  | HMBlockImage
-  | HMBlockVideo
-  | HMBlockFile
-  | HMBlockButton
-  | HMBlockEmbed
-  | HMBlockWebEmbed
-  | HMBlockNostr
-  | HMBlockTable
-  | HMBlockTableRow
-  | HMBlockTableColumn
-  | HMBlockQuery
-
-/**
- * Embed Block
- * An embed of another Hypermedia document (an hm:// URL).
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/embed
- */
-export type HMBlockEmbed = HMBlockBase & {
-  type?: 'Embed'
-  link: HMUrl
-  attributes?: {
-    childrenType?: HMChildrenType
-    columnCount?: number
-    view?: HMEmbedView
-  } & {[key: string]: unknown}
-}
-
-/**
- * Embed View
- * How an Embed block renders its target: Content, Card, Comments, or Link.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/embed-view
- */
-export type HMEmbedView = 'Content' | 'Card' | 'Comments' | 'Link'
-
-/**
- * File Block
- * A file attachment, referenced by a URL.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/file
- */
-export type HMBlockFile = HMBlockBase & {
-  type?: 'File'
-  link: HMUrl
-  attributes?: {
-    childrenType?: HMChildrenType
-    columnCount?: number
-    size?: number
-    name?: string
-  } & {[key: string]: unknown}
-}
-
-/**
- * Heading Block
- * A section heading.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/heading
- */
-export type HMBlockHeading = HMBlockBase & {
-  type?: 'Heading'
-  text?: string
-  annotations?: HMAnnotation[]
-  attributes?: {
-    childrenType?: HMChildrenType
-    columnCount?: number
-  } & {[key: string]: unknown}
-}
-
-/**
- * Image Block
- * An image, referenced by a URL (typically ipfs://).
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/image
- */
-export type HMBlockImage = HMBlockBase & {
-  type?: 'Image'
-  text?: string
-  annotations?: HMAnnotation[]
-  link: HMUrl
-  attributes?: {
-    childrenType?: HMChildrenType
-    columnCount?: number
-    width?: number
-    name?: string
-  } & {[key: string]: unknown}
-}
-
-/**
- * Math Block
- * A block of LaTeX/KaTeX math.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/math
- */
-export type HMBlockMath = HMBlockBase & {
-  type?: 'Math'
-  text?: string
-  attributes?: {
-    childrenType?: HMChildrenType
-    columnCount?: number
-  } & {[key: string]: unknown}
-}
-
-/**
- * Block Node
- * A node of the document content tree: a Block plus its ordered child Block nodes. The recursion (children of the same type) expresses arbitrary nesting; a leaf s
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/node
- */
-export type HMBlockNode = {
-  block: HMBlock
-  children?: HMBlockNode[]
-}
-
-/**
- * Nostr Block
- * An embed of a Nostr event (a nostr: URL).
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/nostr
- */
-export type HMBlockNostr = HMBlockBase & {
-  type?: 'Nostr'
-  link: HMUrl
-}
-
-/**
- * Paragraph Block
- * A paragraph of rich text with annotations.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/paragraph
- */
-export type HMBlockParagraph = HMBlockBase & {
-  type?: 'Paragraph'
-  text?: string
-  annotations?: HMAnnotation[]
-  attributes?: {
-    childrenType?: HMChildrenType
-    columnCount?: number
-    columnId?: string
-  } & {[key: string]: unknown}
-}
-
-/**
- * Query Block
- * A block that embeds a live query: its results (documents from the queried spaces) render in place, styled as cards, a list, or a table.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/query
- */
-export type HMBlockQuery = HMBlockBase & {
-  type?: 'Query'
-  attributes: {
-    childrenType?: HMChildrenType
-    columnCount?: number
-    style?: HMQueryStyle
-    query: HMQuery
-    banner?: boolean
-    table?: HMQueryTableConfig
-  }
-}
-
-/**
- * Table Block
- * A table container. Its children are TableColumn blocks (childless; their sibling order defines column display order) followed by TableRow blocks whose children
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/table
- */
-export type HMBlockTable = HMBlockBase & {
-  type?: 'Table'
-  attributes?: {
-    childrenType?: HMChildrenType
-    columnCount?: number
-  }
-}
-
-/**
- * Table Column Block
- * One column of a Table block: childless, identified by its block id (cells reference it via their columnId attribute), ordered by sibling position.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/table-column
- */
-export type HMBlockTableColumn = HMBlockBase & {
-  type?: 'TableColumn'
-  attributes?: {
-    childrenType?: HMChildrenType
-    columnCount?: number
-    /** minimum: 0 */
-    width?: number
-    isHeader?: boolean
-  }
-}
-
-/**
- * Table Row Block
- * One row of a Table block. Its children are Paragraph cell blocks, each carrying a columnId attribute referencing a TableColumn id.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/table-row
- */
-export type HMBlockTableRow = HMBlockBase & {
-  type?: 'TableRow'
-  attributes?: {
-    childrenType?: HMChildrenType
-    columnCount?: number
-    isHeader?: boolean
-  }
-}
-
-/**
- * Video Block
- * A video, referenced by a URL.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/video
- */
-export type HMBlockVideo = HMBlockBase & {
-  type?: 'Video'
-  link: HMUrl
-  attributes?: {
-    childrenType?: HMChildrenType
-    columnCount?: number
-    width?: number
-    name?: string
-    autoplay?: boolean
-    loop?: boolean
-    muted?: boolean
-  } & {[key: string]: unknown}
-}
-
-/**
- * Web Embed Block
- * An embed of an external web resource (an http(s) URL).
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/web-embed
- */
-export type HMBlockWebEmbed = HMBlockBase & {
-  type?: 'WebEmbed'
-  link: HMUrl
-}
-
-/**
- * Change Body
- * The operations payload of a Change: an operation count hint and the list of ops.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/change-body
- */
-export type HMChangeBody<Block = HMBlock> = {
-  opCount?: number
-  ops?: HMOp<Block>[]
-}
-
-/**
- * Contact Subscription
- * Subscription preferences for a contact: subscribe to the subject's site and/or profile.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/contact-subscribe
- */
-export type HMContactSubscribe = {
-  site?: boolean
-  profile?: boolean
-}
-
-/**
- * Date
- * A calendar date as an ISO 8601 string, `YYYY-MM-DD` (e.g. `2026-08-26`). A refinement of string — the value is still plain text on the wire — with `format: date
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/date
- */
-export type HMDate = string
-
-/**
- * Date-Time
- * An instant as an RFC 3339 / ISO 8601 string, `YYYY-MM-DDTHH:MM:SS[.sss]Z` or with a numeric offset (e.g. `2026-08-26T14:30:00Z`). A refinement of string with `f
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/date-time
- */
-export type HMDateTime = string
 
 /**
  * Reference schema
@@ -1941,22 +2094,12 @@ export type HMIncludeSchema = {
 }
 
 /**
- * Key/Value
- * A metadata attribute: a dotted key path (segments) and a value.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/key-value
- */
-export type HMKeyValue = {
-  key?: string[]
-  value?: HMValue
-}
-
-/**
  * Link schema
  * The variant for a link (CID), optionally naming the expected target type.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/link-schema
  */
 export type HMLinkSchema = {
-  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/link'
+  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/link'
   ref?: string
   description?: string
   params?: {[key: string]: HMSchema}
@@ -1969,7 +2112,7 @@ export type HMLinkSchema = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/list-schema
  */
 export type HMListSchema = {
-  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/list'
+  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list'
   items?: HMSchema
   minItems?: number
   maxItems?: number
@@ -1996,90 +2139,12 @@ export type HMLiteralSchema = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map-schema
  */
 export type HMMapSchema = {
-  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map'
+  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map'
   /** The schema every value of the map must match. */
   values?: HMSchema
   description?: string
   params?: {[key: string]: HMSchema}
   name?: string
-}
-
-/**
- * Navigation item
- * One entry of a site's navigation menu, stored in document metadata: a link with display text.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/navigation-item
- */
-export type HMNavigationItem = {
-  type: 'Link'
-  id: string
-  text: string
-  link: HMUrl
-}
-
-/**
- * Operation
- * A single CRDT operation inside a Change body — a discriminated union tagged on type.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/op
- */
-export type HMOp<Block = HMBlock> =
-  | HMOpSetAttributes
-  | HMOpMoveBlocks
-  | HMOpReplaceBlock<Block>
-  | HMOpDeleteBlocks
-  | HMOpSetKey
-
-/**
- * DeleteBlocks Op
- * Delete blocks by id.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/op/delete-blocks
- */
-export type HMOpDeleteBlocks = {
-  type: 'DeleteBlocks'
-  blocks: string[]
-}
-
-/**
- * MoveBlocks Op
- * Move blocks under a parent, using RGA CRDT reference ids.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/op/move-blocks
- */
-export type HMOpMoveBlocks = {
-  type: 'MoveBlocks'
-  parent?: string
-  blocks: string[]
-  ref?: number[]
-}
-
-/**
- * ReplaceBlock Op
- * Replace the content of a block.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/op/replace-block
- */
-export type HMOpReplaceBlock<Block = HMBlock> = {
-  type: 'ReplaceBlock'
-  block: Block
-}
-
-/**
- * SetAttributes Op
- * Set attributes on a block, or document-level metadata when block is empty.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/op/set-attributes
- */
-export type HMOpSetAttributes = {
-  type: 'SetAttributes'
-  block?: string
-  attrs?: HMKeyValue[]
-}
-
-/**
- * SetKey Op
- * Deprecated: set a single flat metadata key to a value.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/op/set-key
- */
-export type HMOpSetKey = {
-  type: 'SetKey'
-  key?: string
-  value?: HMValue
 }
 
 /**
@@ -2097,83 +2162,18 @@ export type HMProperty = {
 }
 
 /**
- * Query
- * A live document query: which spaces/paths to include, how to sort, and an optional result limit. Embedded in a Query block's attributes; also the input of the Q
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/query
- */
-export type HMQuery = {
-  includes: HMQueryInclusion[]
-  sort?: HMQuerySort[]
-  /** minimum: 0 */
-  limit?: number
-}
-
-/**
- * Query Inclusion
- * One source a Query block pulls documents from: a space (account), an optional path prefix inside it, and whether to list direct Children or AllDescendants.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/query/inclusion
- */
-export type HMQueryInclusion = {
-  space: string
-  path?: string
-  mode: 'Children' | 'AllDescendants'
-}
-
-/**
- * Query Sort
- * One sort term for a Query block's results, optionally reversed.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/query/sort
- */
-export type HMQuerySort = {
-  reverse?: boolean
-  term: 'Path' | 'Title' | 'CreateTime' | 'UpdateTime' | 'DisplayTime' | 'ActivityTime'
-}
-
-/**
- * Query Style
- * How a Query block presents its results: a card grid, a compact list, or a table.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/query/style
- */
-export type HMQueryStyle = 'Card' | 'List' | 'Table'
-
-/**
- * Query Table Config
- * Persisted presentation settings for a Query block's Table view: which columns are visible and how wide they are.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/query/table-config
- */
-export type HMQueryTableConfig = {
-  columns: {
-    id: string
-    visible: boolean
-    /** minimum: 0 */
-    width?: number
-  }[]
-}
-
-/**
- * Redirect Target
- * A redirect from one document to another space and/or path.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/redirect-target
- */
-export type HMRedirectTarget = {
-  space?: HMPrincipal
-  path?: string
-  republish?: boolean
-}
-
-/**
  * Scalar schema
  * The variant for a scalar value (null, boolean, integer, float, string, bytes), optionally narrowed by value constraints. To pin a scalar to one value, use a literal.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/scalar-schema
  */
 export type HMScalarSchema = {
   type:
-    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/null'
-    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/boolean'
-    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/integer'
-    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/float'
-    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string'
-    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/bytes'
+    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null'
+    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean'
+    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer'
+    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float'
+    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string'
+    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/bytes'
   minLength?: number
   maxLength?: number
   pattern?: string
@@ -2190,11 +2190,11 @@ export type HMScalarSchema = {
 
 /**
  * Struct schema
- * The variant for a struct — known fields via properties and required, optionally open to extra keys via values.
+ * The variant for a struct — known fields via properties, optionally open to extra keys via values.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct-schema
  */
 export type HMStructSchema = {
-  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct'
+  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct'
   /** The fields by name: each a property with its value schema, whether it is required, and a description. */
   properties?: {[key: string]: HMProperty}
   /** Opens the struct: keys other than the named fields are allowed and their values must match this schema. */
@@ -2206,20 +2206,6 @@ export type HMStructSchema = {
   /** Legacy: a name some published schemas still carry. New schemas are named by their page. */
   name?: string
 }
-
-/**
- * Timestamp
- * A timestamp, encoded as an integer of Unix milliseconds.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/timestamp
- */
-export type HMTimestamp = number
-
-/**
- * Value
- * A metadata / attribute value: string, integer, boolean, or null.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/value
- */
-export type HMValue = string | number | boolean | null
 
 /**
  * Variable Schema
@@ -2240,11 +2226,25 @@ export type HMVarSchema = {
 export type HMSignature = HMBytes
 
 /**
+ * Timestamp
+ * A timestamp, encoded as an integer of Unix milliseconds.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/timestamp
+ */
+export type HMTimestamp = number
+
+/**
  * URL
  * A string holding a URL of any scheme — `https://…`, `hm://…`, `ipfs://…`. `format: url` tells an editor to render it as a link and to validate the shape, not a plain text field.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/url
  */
 export type HMUrl = string
+
+/**
+ * Value
+ * A metadata / attribute value: string, integer, boolean, or null.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/value
+ */
+export type HMValue = string | number | boolean | null
 
 /**
  * Visibility

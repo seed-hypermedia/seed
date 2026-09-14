@@ -22,7 +22,7 @@ These are the things a person should be able to do with the type system, stated 
 
 **In the app** <!-- id:nnKMNDW8 -->
   1. Open any document. The **Attributes** tab lists its metadata as editable fields; the **Content** tab is the block tree. <!-- id:6ySwBrba -->
-  2. Open `hm://<library>/hypermedia-document`. The page explains the type in prose and shows its schema above the body: `metadata` and `content`, each a link. Follow `metadata` to [metadata](../../metadata.md) for every built-in key including `schema`, `childrenSchema` and `schemaDefinition`; follow `content` to [schema/block/node](../../schema/block/node.md) and on to the block types. <!-- id:0daJUHUr -->
+  2. Open `hm://<library>/hypermedia-document`. The page explains the type in prose and shows its schema above the body: `metadata` and `content`, each a link. Follow `metadata` to [metadata](../../metadata.md) for every built-in key including `schema`, `childrenSchema` and `schemaDefinition`; follow `content` to [block/node](../../block/node.md) and on to the block types. <!-- id:0daJUHUr -->
   3. Every type name on those pages is a link, down to the nine kinds in [the data model](../../schema/data-model.md). **Inspect Schema** in a type page's menu opens the same schema by CID at `/hm/schema/<cid>`, with dependencies and dependents. <!-- id:jRqwN-xe -->
 
 **With the CLI** <!-- id:fOPHu9gf -->

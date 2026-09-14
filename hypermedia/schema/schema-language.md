@@ -11,7 +11,6 @@ A Hypermedia schema is a value of kind `map` built from **twelve core keys**, al
 | --- | --- | --- |
 | `type` | any | the kind — an `hm://` URL naming one of the nine (see [the data model](./data-model.md)) <!-- id:hwpC2KX7 --> |
 | `properties` | `map` | a map of known field name → schema <!-- id:InbInGwv --> |
-| `required` | `map` | list of field names that must be present <!-- id:zo28a4vv --> |
 | `items` | `list` | schema every element must match <!-- id:GxgxLBO8 --> |
 | `values` | `map` | schema every _value_ must match (open map / record) <!-- id:lBxL68T_ --> |
 | `value` | literal | the one value a literal schema accepts, when the literal needs a `description` (see below) <!-- id:Jh3SOAp5 --> |
@@ -25,11 +24,11 @@ A Hypermedia schema is a value of kind `map` built from **twelve core keys**, al
 
 `name` and `description` are **metadata** — they annotate the schema, not the data, so the validator ignores them when checking a value, and the schema explorer renders them as each schema's title and blurb. (A schema's `name` is unrelated to a field named `name` inside its `properties` — different levels.) <!-- id:GROkvj0R -->
 
-Both `type` and `ref` values are `hm://` URLs, so they are clickable and self-explanatory: `type` is `"hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map"`, not a bare `"map"`. **For readability these docs abbreviate `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map` as just `map`** — but the real value is always the URL. <!-- id:SZ-BjsVR -->
+Both `type` and `ref` values are `hm://` URLs, so they are clickable and self-explanatory: `type` is `"hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map"`, not a bare `"map"`. **For readability these docs abbreviate `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map` as just `map`** — but the real value is always the URL. <!-- id:SZ-BjsVR -->
 
 ## Literals <!-- id:Lit1eral -->
 
-A **literal** schema accepts exactly one value, and is written as that value: `"draft"`, `1`, `true`, `null`. A literal can be a string, an integer, a boolean, or null (the [value](./value.md) union) — never a float, a map, or a list. A union of literals is how a schema restricts a field to a fixed set of choices, and each choice can carry a description in the long form `{value, description}`: <!-- id:Lit2eral -->
+A **literal** schema accepts exactly one value, and is written as that value: `"draft"`, `1`, `true`, `null`. A literal can be a string, an integer, a boolean, or null (the [value](../value.md) union) — never a float, a map, or a list. A union of literals is how a schema restricts a field to a fixed set of choices, and each choice can carry a description in the long form `{value, description}`: <!-- id:Lit2eral -->
 
 ```json <!-- id:Lit3eral -->
 // a status field: one of three values, one of them explained
@@ -55,10 +54,9 @@ A reference node that _also_ carries refinements **extends** the schema it point
 // example/employee = example/person, plus employeeId and department
 {
   "ref": "hm://example.com/person",
-  "required": ["employeeId"],
   "properties": {
-    "employeeId": { "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string" },
-    "department": { "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string" }
+    "employeeId": { "value": { "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string" }, "required": true },
+    "department": { "value": { "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string" } }
   }
 }
 ```
@@ -66,10 +64,9 @@ A reference node that _also_ carries refinements **extends** the schema it point
 Open `example/employee` in the schema explorer to see the merged result — every field marked _inherited_ or _added_. <!-- id:rBtaiBHO -->
 
 The rules, all reusing existing keywords — no `extends` keyword needed: <!-- id:A9LrCpUD -->
-  - `properties` are **merged** (parent's + the extension's; same-named keys override). <!-- id:Zkb8fXkn -->
-  - `required` is the **union** of both. <!-- id:lk-pEXZe -->
+  - `properties` are **merged** (parent's + the extension's; same-named keys override). Each is a [property](./property.md), so a field's required flag travels with it. <!-- id:Zkb8fXkn -->
   - `values` / `items` on the extension override the parent's. <!-- id:jK0_muct -->
-  - the result keeps the parent's kind and closedness — so an employee must have `name` (inherited-required) **and** `employeeId` (added-required), may use any inherited field, and still rejects unknown keys. <!-- id:jmFaI8J0 -->
+  - the result keeps the parent's kind and closedness — so an employee must have `name` (required on the parent) **and** `employeeId` (required on the extension), may use any inherited field, and still rejects unknown keys. <!-- id:jmFaI8J0 -->
 
 A **bare** `{ "ref": X }` (no refinements) is a pure include, not an extension. The distinction is exactly whether refinements are present. This is validated by `validate.mjs` (see the `employee data` / `extension …` checks). <!-- id:QzURq80i -->
 
@@ -113,7 +110,7 @@ Beyond the kind, a schema may narrow the _values_ a leaf accepts. Every constrai
 
 ```json <!-- id:RBAU34K6 -->
 // a lowercase handle, 3–12 code points, matching a pattern
-{ "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string",
+{ "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
   "minLength": 3, "maxLength": 12, "pattern": "^[a-z0-9_]+$" }
 ```
 
@@ -135,7 +132,7 @@ The schema language has both flavours of generic. <!-- id:GUz2-s2k -->
   - `list` + `items` = `List<T>` — `items` is `T` <!-- id:aZPTtuab -->
   - `map` + `values` = `Map<V>` — `values` is `V` <!-- id:aY249UNO -->
 
-So `{"Apples":5,"Oranges":3}` is `Map<Integer>`, written `example/counts`: `{ "type":"map", "values":{ "ref":"schema/integer" } }`. It nests all the way down. <!-- id:-Yhf7y6_ -->
+So `{"Apples":5,"Oranges":3}` is `Map<Integer>`, written `example/counts`: `{ "type":"map", "values":{ "ref":"integer" } }`. It nests all the way down. <!-- id:-Yhf7y6_ -->
 
 **Generic abstraction** — defining a reusable parameterized type and instantiating it later — is expressed with three keys: <!-- id:s5ZsDksV -->
 
@@ -164,7 +161,7 @@ This is the crux, and with unions it is sharper than "a loose map with optional 
 | `schema/anyof` | `{anyOf:[schema, …]}` | has `anyOf` <!-- id:uRuXGK92 --> |
 | `schema/var-schema` | `{var}` | has `var` <!-- id:nw86Dhqn --> |
 | `schema/literal-schema` | `{value, description?}` | has `value` <!-- id:Lit5eral --> |
-| [string](./string.md), [integer](./integer.md), [boolean](./boolean.md), [null](./null.md) | a bare value | is not a map <!-- id:Lit6eral --> |
+| [string](../string.md), [integer](../integer.md), [boolean](../boolean.md), [null](../null.md) | a bare value | is not a map <!-- id:Lit6eral --> |
 
 Each variant is a **closed** map, so a nonsense schema like `{type:"string", items:{…}}` matches _none_ of them — the stray `items` key is rejected by the closed `schema/scalar-schema`, and the wrong `type` tag rules out the others. Run it: <!-- id:j-_t0aVk -->
 

@@ -7,8 +7,8 @@ This document describes the **example/status** type — an example schema. Its f
 
 # Shape <!-- id:sZ1X32AZ -->
 
-An **alias** of [string](../schema/string.md). <!-- id:UnZxtZQt -->
+An **alias** of [string](../string.md). <!-- id:UnZxtZQt -->
 
 # Depends on <!-- id:_fQOQayD -->
 
-- [string](../schema/string.md) <!-- id:683BR9ah -->
+- [string](../string.md) <!-- id:683BR9ah -->

@@ -44,7 +44,7 @@ describe('schema publish path', () => {
     const starter = seedValue(HM_SCHEMAS['schema'])
     const data = cbor.encode(dagJsonToIpld(starter))
     const digest = await sha256.digest(data)
-    expect(CID.createV1(0x71, digest).toString()).toBe('bafyreihtkjwhxofcfzjs3b3nufl263l3xf3bzbtxaxspljwokklidswzti')
+    expect(CID.createV1(0x71, digest).toString()).toBe('bafyreieff2wkyfnyxymypvvvy4fa6kxeulvgktdzvfqnqy2wsjtel7yioq')
   })
 
   it('a new-schema starter value is itself recognized as a Hypermedia schema', () => {

@@ -1,7 +1,7 @@
 ---
 name: Character Stats
 summary: "A character's attribute block — the object a character page links to from its `stats` field. Lives as its own DAG-CBOR blob (an `ipfs://` reference), so it can "
-schemaDefinition: ipfs://bafyreiel57bcf6ewurjtlrgxoojozzpjjhkd5rhxdpwphpr2krbbjjlifi
+schemaDefinition: ipfs://bafyreifimnperz3e46alr4mm6razpgpfjacdpm7z3u34ngnejoybrh7244
 ---
 A character's attribute block — the object a character page links to from its `stats` field. Lives as its own DAG-CBOR blob (an `ipfs://` reference), so it can hold integers and enums that document metadata cannot. <!-- id:oHLwcXC5 -->
 
@@ -13,9 +13,9 @@ A **closed struct** with these fields: <!-- id:G2YL1Yf3 -->
   - `strength` _(required)_ — `integer` (1–10) <!-- id:Z9r2yevr -->
   - `intellect` _(required)_ — `integer` (1–10) <!-- id:VbVkvo-D -->
   - `charisma` _(required)_ — `integer` (1–10) <!-- id:RKip766b -->
-  - `alignment` — [string](../schema/string.md) (one of `lawful`, `neutral`, `chaotic`) <!-- id:yokYx90K -->
-  - `traits` — list of [string](../schema/string.md) <!-- id:g0sFEEZM -->
+  - `alignment` — [string](../string.md) (one of `lawful`, `neutral`, `chaotic`) <!-- id:yokYx90K -->
+  - `traits` — list of [string](../string.md) <!-- id:g0sFEEZM -->
 
 # Depends on <!-- id:gbkbOHZl -->
 
-- [string](../schema/string.md) <!-- id:mX_FWlal -->
+- [string](../string.md) <!-- id:mX_FWlal -->

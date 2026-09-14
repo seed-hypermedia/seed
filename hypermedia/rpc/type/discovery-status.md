@@ -1,7 +1,7 @@
 ---
 name: Discovery Status
 summary: "The state of a background discovery task for a resource: pending, found (with the resolved version), or failed (with the error). A derived read model computed b"
-schemaDefinition: ipfs://bafyreiemlh7smxwfxspq3wsscbsvpxpvcwd7xaglcclfyxhoydagamqpiy
+schemaDefinition: ipfs://bafyreiepwonjk2no572teixuduanos2dg6w6mjhn3berijufvxjg74v2ii
 ---
 The state of a background discovery task for a resource: pending, found (with the resolved version), or failed (with the error). A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:qgX0_Pnd -->
 
@@ -11,9 +11,9 @@ This document describes the **rpc/type/discovery-status** type — a Seed API re
 
 A **closed struct** with these fields: <!-- id:30yArQuX -->
   - `state` _(required)_ — one of `"pending"` | `"found"` | `"failed"` <!-- id:9LZFnDbh -->
-  - `version` — [string](../../schema/string.md) <!-- id:8vEiaWJC -->
-  - `error` — [string](../../schema/string.md) <!-- id:7izs2ZlP -->
+  - `version` — [string](../../string.md) <!-- id:8vEiaWJC -->
+  - `error` — [string](../../string.md) <!-- id:7izs2ZlP -->
 
 # Depends on <!-- id:2Ac_QMa3 -->
 
-- [string](../../schema/string.md) <!-- id:mvuguHT_ -->
+- [string](../../string.md) <!-- id:mvuguHT_ -->

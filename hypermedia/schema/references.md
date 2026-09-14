@@ -50,7 +50,7 @@ This is not a quirk of the meta-schema. **Any self-referential schema hits it.**
 A CID is derived from content, so a cycle of CIDs has no encoding order. A **name** is not — it is a stable identifier independent of the content it points to. So references cannot be CIDs; they must be **names**. The schema language uses `hm://` URLs: <!-- id:VLYzJQfm -->
 
 ``` <!-- id:RTAR4FMH -->
-hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string        the string kind, owned by the Hypermedia account
+hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string        the string kind, owned by the Hypermedia account
 hm://example.com/folder        the example folder schema
 hm://example.com/file          the example file schema
 ```
@@ -67,9 +67,9 @@ This is the same split as **IPFS vs IPNS**, or a hash vs a domain name: <!-- id:
 | cycles | impossible | fine <!-- id:mcDC4EuJ --> |
 | use for | pinning an exact version | recursive / owned / evolving types <!-- id:X58GiMnr --> |
 
-An **authority** is a public key. A domain like `hyper.media` resolves to one, and that key signs everything published under it, so `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string` is a verifiable, owned name. Schemas reference each other across authorities freely — `example/person` (`hm://example.com/…`) references `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string` — and you can still pin any name to an exact CID when you want an immutable snapshot. Names for recursion and identity; CIDs for immutability. <!-- id:nsuDvsJA -->
+An **authority** is a public key. A domain like `hyper.media` resolves to one, and that key signs everything published under it, so `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string` is a verifiable, owned name. Schemas reference each other across authorities freely — `example/person` (`hm://example.com/…`) references `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string` — and you can still pin any name to an exact CID when you want an immutable snapshot. Names for recursion and identity; CIDs for immutability. <!-- id:nsuDvsJA -->
 
-In the repo, local filenames are the dev alias for these URLs (`schema/string` ⇄ `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string`, `example/file` ⇄ `hm://example.com/file`). Unlike the old "filename → CID at publish" story, the _name persists into deployment_ — that is what keeps the loop clickable and the recursion expressible. <!-- id:Mk1UgX6F -->
+In the repo, local filenames are the dev alias for these URLs (`string` ⇄ `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string`, `example/file` ⇄ `hm://example.com/file`). Unlike the old "filename → CID at publish" story, the _name persists into deployment_ — that is what keeps the loop clickable and the recursion expressible. <!-- id:Mk1UgX6F -->
 
 ### Why the meta-schema is special anyway <!-- id:9gbAh4Ot -->
 

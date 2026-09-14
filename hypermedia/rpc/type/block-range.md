@@ -1,7 +1,7 @@
 ---
 name: Block Range
 summary: "A selection within a block: either character offsets (start/end) or the whole block expanded. A derived read model computed by the Seed daemon/API for clients —"
-schemaDefinition: ipfs://bafyreicoh2wkegmbtyd3hv7yr6oc6ndkbzh76fzuqudd7whmmpahexrmay
+schemaDefinition: ipfs://bafyreihyd3xlmpbeihzxngnseyw5gnp7dtwbzhtj6j3sixonneng72ilk4
 ---
 A selection within a block: either character offsets (start/end) or the whole block expanded. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:cbPv3bBq -->
 
@@ -12,8 +12,8 @@ This document describes the **rpc/type/block-range** type — a Seed API read-mo
 A **closed struct** with these fields: <!-- id:N88QDkke -->
   - `start` — `integer` <!-- id:sZD7rgCl -->
   - `end` — `integer` <!-- id:sqGFTb5g -->
-  - `expanded` — [boolean](../../schema/boolean.md) <!-- id:uWwInii1 -->
+  - `expanded` — [boolean](../../boolean.md) <!-- id:uWwInii1 -->
 
 # Depends on <!-- id:JTmQ38m4 -->
 
-- [boolean](../../schema/boolean.md) <!-- id:-9DkLtVZ -->
+- [boolean](../../boolean.md) <!-- id:-9DkLtVZ -->

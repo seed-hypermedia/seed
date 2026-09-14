@@ -232,11 +232,7 @@ export function InspectIpfsPage({
   // self-describing and carries no link. A blank draft is `{}`.
   const isMetaSeed = seedSchemaCid === META_SCHEMA_CID
   const seedRegistry = useSchemaRegistry(seedSchemaCid && !isMetaSeed ? [seedSchemaCid] : [])
-  const seedSchema = isMetaSeed
-    ? HM_SCHEMAS['schema']
-    : seedSchemaCid
-      ? seedRegistry.byCid[seedSchemaCid]
-      : undefined
+  const seedSchema = isMetaSeed ? HM_SCHEMAS['schema'] : seedSchemaCid ? seedRegistry.byCid[seedSchemaCid] : undefined
   useEffect(() => {
     if (!isDraft || editJson !== undefined) return
     if (!seedSchemaCid) {

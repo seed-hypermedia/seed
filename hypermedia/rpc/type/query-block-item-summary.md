@@ -1,7 +1,7 @@
 ---
 name: Query Block Item Summary
 summary: Per-result interaction counts a Query block shows on its cards. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
-schemaDefinition: ipfs://bafyreid35rkqpilajvne7qe5u5yhmezgaxymztvou36rsauxb544koyqqi
+schemaDefinition: ipfs://bafyreigxkibnoh3bibyc3asfffouebaer6ox7z3lhpeiipw2fpt3u6e57a
 ---
 This document describes the **rpc/type/query-block-item-summary** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:juDfbRKD -->
 
@@ -10,8 +10,8 @@ This document describes the **rpc/type/query-block-item-summary** type — a See
 A **closed struct** with these fields: <!-- id:qq18fyuR -->
   - `comments` _(required)_ — `integer` <!-- id:npWZl1gz -->
   - `children` — `integer` <!-- id:3mQ5Cg-9 -->
-  - `authorUids` — list of [string](../../schema/string.md) <!-- id:h7HlbaFp -->
+  - `authorUids` — list of [string](../../string.md) <!-- id:h7HlbaFp -->
 
 # Depends on <!-- id:sjAu9-Sn -->
 
-- [string](../../schema/string.md) <!-- id:5lfnuo9f -->
+- [string](../../string.md) <!-- id:5lfnuo9f -->

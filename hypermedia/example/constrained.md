@@ -1,7 +1,7 @@
 ---
 name: "Example: Constrained Record"
 summary: "Exercises the value constraints: string length + pattern, numeric bounds, and list size."
-schemaDefinition: ipfs://bafyreif76kdin2jurfzyzvjdfjggclejean7wfwklqxfmoeod7sevpv5qa
+schemaDefinition: ipfs://bafyreibplh33onijghkuc62djn6xhbtvuzr3rbaukhadmveuticq26vnlm
 ---
 This document describes the **example/constrained** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:7mil43v3 -->
 
@@ -10,8 +10,8 @@ This document describes the **example/constrained** type — an example schema. 
 A **closed struct** with these fields: <!-- id:XZkJ0jr0 -->
   - `username` _(required)_ — `string` <!-- id:baxMEaLA -->
   - `score` _(required)_ — `integer` <!-- id:MU1mTe3O -->
-  - `tags` — list of [string](../schema/string.md) <!-- id:mA94BPqd -->
+  - `tags` — list of [string](../string.md) <!-- id:mA94BPqd -->
 
 # Depends on <!-- id:OQmAkkji -->
 
-- [string](../schema/string.md) <!-- id:iav6y69T -->
+- [string](../string.md) <!-- id:iav6y69T -->

@@ -1,7 +1,7 @@
 ---
 name: Search Result Item
 summary: "One hit of a network search: the matched id with display info (title, icon, breadcrumb parent names) and what kind of entity matched. A derived read model compu"
-schemaDefinition: ipfs://bafyreihrnvops7thfow5axoouagev6h4r5bxdinekf66ogh5ggsjgz3fru
+schemaDefinition: ipfs://bafyreicop5e5nk6s2335f2gpquaa2ozqihd3rzufvy6ej2vqlibjrgbr7e
 ---
 One hit of a network search: the matched id with display info (title, icon, breadcrumb parent names) and what kind of entity matched. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:qXiY7SqP -->
 
@@ -11,17 +11,17 @@ This document describes the **rpc/type/search-result-item** type — a Seed API 
 
 A **closed struct** with these fields: <!-- id:funk1VF2 -->
   - `id` _(required)_ — [rpc/type/id](./id.md) <!-- id:u3BNAqJ- -->
-  - `commentId` — [string](../../schema/string.md) <!-- id:zE7xXAp- -->
+  - `commentId` — [string](../../string.md) <!-- id:zE7xXAp- -->
   - `metadata` — [metadata](../../metadata.md) <!-- id:fu8241-R -->
-  - `title` _(required)_ — [string](../../schema/string.md) <!-- id:aUnRcaQs -->
-  - `icon` _(required)_ — [string](../../schema/string.md) <!-- id:nXDyjj9x -->
-  - `parentNames` _(required)_ — list of [string](../../schema/string.md) <!-- id:5J6naQQF -->
-  - `versionTime` — [string](../../schema/string.md) <!-- id:eRekKhdW -->
-  - `searchQuery` _(required)_ — [string](../../schema/string.md) <!-- id:RrP0uj-3 -->
+  - `title` _(required)_ — [string](../../string.md) <!-- id:aUnRcaQs -->
+  - `icon` _(required)_ — [string](../../string.md) <!-- id:nXDyjj9x -->
+  - `parentNames` _(required)_ — list of [string](../../string.md) <!-- id:5J6naQQF -->
+  - `versionTime` — [string](../../string.md) <!-- id:eRekKhdW -->
+  - `searchQuery` _(required)_ — [string](../../string.md) <!-- id:RrP0uj-3 -->
   - `type` _(required)_ — one of `"document"` | `"contact"` | `"comment"` <!-- id:ow59ehEv -->
 
 # Depends on <!-- id:ikD0x8fX -->
 
 - [metadata](../../metadata.md) <!-- id:e03fcW5T -->
-- [string](../../schema/string.md) <!-- id:u5Z_32fj -->
+- [string](../../string.md) <!-- id:u5Z_32fj -->
 - [rpc/type/id](./id.md) <!-- id:FD_zY--5 -->

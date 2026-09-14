@@ -22,7 +22,7 @@ describe('target references', () => {
   })
 
   it('an include of a refined primitive keeps its leaf refinements and can add a target', () => {
-    const {schema} = resolveSchema({ref: nameToUrl('schema/date')!, target: 'hm://x'})
+    const {schema} = resolveSchema({ref: nameToUrl('date')!, target: 'hm://x'})
     expect(schema.format).toBe('date')
     expect(schema.pattern).toMatch(/^\^/)
     expect(schema.target).toBe('hm://x')
@@ -38,7 +38,7 @@ describe('target references', () => {
       {value: 'a', description: undefined},
       {value: 'b', description: 'bee'},
     ])
-    expect(literalMembers({ref: nameToUrl('schema/string')!})).toBeNull()
+    expect(literalMembers({ref: nameToUrl('string')!})).toBeNull()
   })
 
   it('a character document exposes date, link and object fields with targets', () => {
@@ -61,8 +61,8 @@ describe('target references', () => {
 })
 
 describe('date types', () => {
-  const date = HM_SCHEMAS['schema/date']!
-  const dateTime = HM_SCHEMAS['schema/date-time']!
+  const date = HM_SCHEMAS['date']!
+  const dateTime = HM_SCHEMAS['date-time']!
 
   it('accepts ISO calendar dates and rejects other shapes with a format message', () => {
     expect(validate(date, '2026-08-26')).toEqual([])
