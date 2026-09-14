@@ -12,6 +12,7 @@ export type MentionSearchFn = (
   query: string,
   perspectiveAccountUid?: string | null,
   options?: {mode: MentionMode; siteUid?: string; documentId?: UnpackedHypermediaId},
+  signal?: AbortSignal,
 ) => Promise<InlineMentionsResult>
 
 function readDecorationRect(editor: BlockNoteEditor<any>, decorationId: string | undefined): DOMRect | undefined {
@@ -117,12 +118,17 @@ const mentionSearch = fromPromise<
     siteUid?: string
     documentId?: UnpackedHypermediaId
   }
->(({input}) =>
-  input.search(input.query, input.perspectiveAccountUid, {
-    mode: input.mode,
-    siteUid: input.siteUid,
-    documentId: input.documentId,
-  }),
+>(({input, signal}) =>
+  input.search(
+    input.query,
+    input.perspectiveAccountUid,
+    {
+      mode: input.mode,
+      siteUid: input.siteUid,
+      documentId: input.documentId,
+    },
+    signal,
+  ),
 )
 
 /**

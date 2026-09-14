@@ -43,7 +43,8 @@ export function queryInlineMentions(
       query,
       thread ?? null,
     ] as const,
-    staleTime: 15_000,
+    staleTime: query ? 15_000 : 5 * 60_000,
+    cacheTime: 30 * 60_000,
     // The picker owns its error and explicit Retry action, not the global toast/boundary.
     retry: false,
     useErrorBoundary: false,
@@ -124,10 +125,21 @@ export function useInlineMentions(
 export function useInlineMentionsSearch(thread?: MentionThreadContext) {
   const client = useUniversalClient()
   return useCallback(
-    (query: string, perspectiveAccountUid?: string | null, options: InlineMentionOptions = {}) =>
-      getQueryClient().fetchQuery(
-        queryInlineMentions(client, query, perspectiveAccountUid || undefined, {...options, thread}),
-      ),
+    async (
+      query: string,
+      perspectiveAccountUid?: string | null,
+      options: InlineMentionOptions = {},
+      signal?: AbortSignal,
+    ) => {
+      const queryOptions = queryInlineMentions(client, query, perspectiveAccountUid || undefined, {...options, thread})
+      const cancel = () => void getQueryClient().cancelQueries({queryKey: queryOptions.queryKey, exact: true})
+      signal?.addEventListener('abort', cancel, {once: true})
+      try {
+        return await getQueryClient().fetchQuery(queryOptions)
+      } finally {
+        signal?.removeEventListener('abort', cancel)
+      }
+    },
     [client, thread],
   )
 }

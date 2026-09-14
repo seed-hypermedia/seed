@@ -49,11 +49,16 @@ describe('mentionMenuMachine', () => {
     expect(actor.getSnapshot().matches('closed')).toBe(true)
     sendPluginUpdate({active: true})
     await flush()
-    expect(search).toHaveBeenCalledWith('', undefined, {mode: 'account', siteUid: undefined, documentId: undefined})
+    expect(search).toHaveBeenCalledWith(
+      '',
+      undefined,
+      {mode: 'account', siteUid: undefined, documentId: undefined},
+      expect.any(AbortSignal),
+    )
     expect(actor.getSnapshot().context.suggestions).toHaveLength(1)
     actor.stop()
   })
-  it('debounces query updates and refuses stale selection during refresh', async () => {
+  it('debounces query updates without inserting suggestions from the previous query', async () => {
     const search = vi.fn(async () => [item('a')])
     const {actor, editor} = setup(search)
     sendPluginUpdate({active: true})
@@ -145,7 +150,12 @@ describe('mentionMenuMachine', () => {
     await flush()
     actor.send({type: 'options.updated', search, perspectiveAccountUid: 'writer', siteUid: 'site'})
     await vi.advanceTimersByTimeAsync(150)
-    expect(search).toHaveBeenLastCalledWith('', 'writer', {mode: 'account', siteUid: 'site', documentId: undefined})
+    expect(search).toHaveBeenLastCalledWith(
+      '',
+      'writer',
+      {mode: 'account', siteUid: 'site', documentId: undefined},
+      expect.any(AbortSignal),
+    )
     actor.stop()
   })
 })

@@ -135,6 +135,21 @@ describe('mention candidate service', () => {
     )
     expect(peak).toBe(8)
   })
+  it('bounds metadata lookups and does not query activity per account', async () => {
+    const client = daemon()
+    client.documents.listContacts.mockResolvedValue({
+      contacts: Array.from({length: 100}, (_, i) => new Contact({subject: `contact${i}`, name: `Person ${i}`})),
+    })
+    await MentionCandidates.getData(
+      client as unknown as GRPCClient,
+      {mode: 'account', query: '', perspectiveAccountUid: 'viewer'},
+      async () => {
+        throw new Error('unexpected daemon query')
+      },
+    )
+    expect(client.documents.getAccount).toHaveBeenCalledTimes(20)
+    expect(client.activityFeed.listEvents).toHaveBeenCalledTimes(1)
+  })
   it('does not let a full following list exclude an active external account', async () => {
     const client = daemon()
     client.documents.listContacts.mockResolvedValue({
