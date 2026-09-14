@@ -1,5 +1,5 @@
 // Signed blobs: any schema that extends the Hypermedia signed-blob envelope
-// (`hypermedia-blob`: type, signer, sig, ts) — Change, Comment, Capability, …
+// (`blob`: type, signer, sig, ts) — Change, Comment, Capability, …
 // AND user-defined types. This module recognizes them, strips the envelope for
 // an editor (the user never types a signature), and signs + publishes:
 //   1. value (dag-json) → IPLD; set signer = the account's principal bytes,
@@ -121,7 +121,9 @@ export function hasSignedEnvelope(value: unknown): value is Record<string, unkno
 /** The Ed25519 public key inside a principal (multicodec 0xed 0x01 + 32 bytes). */
 export function principalToPublicKey(principal: Uint8Array): Uint8Array {
   if (principal.length !== 34 || principal[0] !== 0xed || principal[1] !== 0x01) {
-    throw new Error(`Unsupported principal: expected an Ed25519 multicodec key (34 bytes), got ${principal.length} bytes`)
+    throw new Error(
+      `Unsupported principal: expected an Ed25519 multicodec key (34 bytes), got ${principal.length} bytes`,
+    )
   }
   return principal.slice(2)
 }

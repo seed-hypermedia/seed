@@ -1,0 +1,62 @@
+{
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct",
+  "properties": {
+    "ref": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+      },
+      "required": true
+    },
+    "properties": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map",
+        "values": {
+          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/property"
+        }
+      },
+      "description": "Fields the extension adds to (or overrides in) the base struct, as properties."
+    },
+    "values": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/meta-schema"
+      }
+    },
+    "items": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/meta-schema"
+      }
+    },
+    "target": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+      },
+      "description": "For a reference-valued string (`format: hm-url` or `format: ipfs`): the schema the referenced document or object is expected to conform to — an `hm://` schema-document URL or `ipfs://<cid>`. Advisory: an editor pre-seeds and validates the target against it; a validator does not dereference the reference."
+    },
+    "description": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+      }
+    },
+    "params": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map",
+        "values": {
+          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/meta-schema"
+        }
+      }
+    },
+    "args": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map",
+        "values": {
+          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/meta-schema"
+        }
+      }
+    },
+    "name": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+      }
+    }
+  }
+}

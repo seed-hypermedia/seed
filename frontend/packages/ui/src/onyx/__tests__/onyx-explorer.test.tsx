@@ -25,34 +25,34 @@ const renderPage = (slug: string) => {
 
 describe('OnyxSchemaPage renders every schema shape without crashing', () => {
   it('the meta-schema (discriminated union)', () => {
-    renderPage('hypermedia-schema')
+    renderPage('schema/meta-schema')
     expect(container.textContent).toContain('Onyx schema')
     expect(container.textContent).toContain('meta-schema')
   })
 
   it('a primitive (self-grounding axiom)', () => {
-    renderPage('hypermedia-string')
+    renderPage('schema/string')
     expect(container.textContent).toContain('Core Type')
   })
 
   it('a meta variant', () => {
-    renderPage('hypermedia-map-schema')
+    renderPage('schema/map-schema')
     expect(container.textContent?.toLowerCase()).toContain('variant')
   })
 
   it('a closed struct with a fields table', () => {
-    renderPage('example-person')
+    renderPage('example/person')
     expect(container.querySelector('table')).toBeTruthy()
     expect(container.textContent?.toLowerCase()).toContain('required')
   })
 
   it('an extension (inherited/added origins)', () => {
-    renderPage('example-employee')
+    renderPage('example/employee')
     expect(container.textContent?.toLowerCase()).toContain('extends')
   })
 
   it('an instance validates against its $type', () => {
-    renderPage('example-bob')
+    renderPage('example/bob')
     expect(container.textContent?.toLowerCase()).toContain('instance')
   })
 })

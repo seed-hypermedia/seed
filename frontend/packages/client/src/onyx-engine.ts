@@ -7,24 +7,25 @@
 // list, map, link. In dag-json form a link is {"/":"<cid>"} and bytes is
 // {"/":{"bytes":"<base64>"}} — both distinct kinds, NOT maps.
 
-import {ONYX_AUTHORITY, ONYX_MANIFEST, ONYX_PAGES, ONYX_SCHEMAS} from './onyx-schemas.generated'
+import {ONYX_ALIASES, ONYX_AUTHORITY, ONYX_MANIFEST, ONYX_PAGES, ONYX_SCHEMAS} from './onyx-schemas.generated'
 
 export type OnyxSchema = Record<string, any>
-/** basename (no .json) -> schema, e.g. "hypermedia-map-schema". A caller may pass a
+/** basename (no .json) -> schema, e.g. "schema/map-schema". A caller may pass a
  * custom registry to resolve refs that aren't in the bundled standard library. */
 export type OnyxRegistry = Record<string, OnyxSchema>
 
 // The onyx account under which every schema is PUBLISHED as a document. A schema
 // reference is its published-doc URL: hm://<onyx>/<name>, where the name is the
-// bundled key (hypermedia-string, hypermedia-schema, example-person, …). Legacy
+// bundled key: its path in hypermedia/ (schema/string, schema/meta-schema, example/person, …). Legacy
 // forms — the dev authorities (hyper.media / seed.hyper.media / example.com) and
+// the prefixed names from before the folder reorganization (hypermedia-string), and
 // the bare primitive names published before the `hypermedia-` rename
 // (hm://<onyx>/string) — still resolve for back-compat.
 export const ONYX_DID = 'z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
 export const KINDS = ['null', 'boolean', 'integer', 'float', 'string', 'bytes', 'list', 'map', 'struct', 'link']
 /** The type language's own schemas: the kind primitives, the meta-schema and its
  * variants, and the built-in refinements — as opposed to the network's blob
- * schemas, the API read models and the examples that share the `hypermedia-` prefix. */
+ * schemas at the root and elsewhere under schema/, the API read models (rpc/) and the examples (example/). */
 export const LIBRARY_CORE: ReadonlySet<string> = new Set(
   [
     ...KINDS,
@@ -42,25 +43,28 @@ export const LIBRARY_CORE: ReadonlySet<string> = new Set(
     'link-schema',
     'include-schema',
     'var-schema',
-  ].map((k) => `hypermedia-${k}`),
+  ].map((k) => (k === 'schema' ? 'schema/meta-schema' : `schema/${k}`)),
 )
 export const isLibraryCore = (name: string): boolean => LIBRARY_CORE.has(name)
-const KIND_URL = new RegExp(`^hm://(?:hyper\\.media|${ONYX_DID})/(?:hypermedia-)?([a-z]+)$`)
+const KIND_URL = new RegExp(`^hm://(?:hyper\\.media|${ONYX_DID})/(?:schema/|hypermedia-)?([a-z]+)$`)
 
 /** hm:// URL (or bare name) -> bundled-schema key (basename, no .json). */
 export function refToName(ref: string): string {
   const m = /^hm:\/\/([^/]+)\/(.+)$/.exec(ref)
-  if (!m) return ref.replace(/\.json$/, '')
+  if (!m) {
+    const bare = ref.replace(/\.schema\.json$|\.json$/, '')
+    return ONYX_SCHEMAS[bare] ? bare : ONYX_ALIASES[bare] ?? bare
+  }
   const [, auth = '', name = ''] = m
   if (auth === ONYX_DID) {
     // Published-doc URL: the path is the bundled key. A bare primitive name
     // (published before the rename) resolves to its hypermedia-* schema.
     if (ONYX_SCHEMAS[name]) return name
-    if (ONYX_SCHEMAS[`hypermedia-${name}`]) return `hypermedia-${name}`
-    return name
+    return ONYX_ALIASES[name] ?? name
   }
   const prefix = ONYX_AUTHORITY.find(([, a]) => a === auth)?.[0]
-  return prefix ? `${prefix}${name}` : name
+  const legacy = prefix ? `${prefix}${name}` : name
+  return ONYX_SCHEMAS[legacy] ? legacy : ONYX_ALIASES[legacy] ?? legacy
 }
 
 /** bundled-schema key (basename) -> canonical published hm:// URL under the onyx account. */
@@ -71,7 +75,7 @@ export function nameToUrl(name: string): string | null {
 /** The canonical kind URL for a primitive kind (map, list, string, …). Schemas
  * authored in-app must use this so they validate against the meta-schema. */
 export function kindUrl(kind: string): string {
-  return `hm://${ONYX_DID}/hypermedia-${kind}`
+  return `hm://${ONYX_DID}/schema/${kind}`
 }
 
 /** The map kind URL (the shape every struct/metadata schema declares). */
@@ -82,7 +86,7 @@ export const STRUCT_URL = kindUrl('struct')
 /** Published DAG-CBOR CID for a schema, by basename or ANY hm:// URL form
  * (onyx-account or legacy dev-authority) — normalized through the bundle. */
 export function schemaCid(nameOrUrl: string): string | undefined {
-  const name = nameOrUrl.startsWith('hm://') ? refToName(nameOrUrl) : nameOrUrl
+  const name = refToName(nameOrUrl)
   const url = nameToUrl(name)
   return url ? ONYX_MANIFEST[url] : undefined
 }
@@ -460,12 +464,12 @@ export const validateAdvisory = validate
 
 /**
  * True when a value is itself an Onyx schema — i.e. it validates against the
- * meta-schema (`hypermedia-schema`). Replaces v1's `isSchemaBlob` (which matched a
+ * meta-schema (`schema/meta-schema`). Replaces v1's `isSchemaBlob` (which matched a
  * reserved `schema` link to a fixed meta-schema CID); here a blob IS a schema
  * iff it conforms to the discriminated-union meta-schema.
  */
 export function isOnyxSchema(value: unknown, reg: OnyxRegistry = {}): boolean {
-  const meta = ONYX_SCHEMAS['hypermedia-schema']
+  const meta = ONYX_SCHEMAS['schema/meta-schema']
   if (!meta || !value || typeof value !== 'object') return false
   return validate(meta, value, '$', {}, reg).length === 0
 }
@@ -476,13 +480,13 @@ export function isOnyxSchema(value: unknown, reg: OnyxRegistry = {}): boolean {
  */
 export function schemaShape(schema: OnyxSchema | undefined): {label: string; slug: string} | null {
   if (schema === undefined) return null
-  if (isLiteralSchema(schema)) return {label: 'Literal', slug: 'hypermedia-literal-schema'}
+  if (isLiteralSchema(schema)) return {label: 'Literal', slug: 'schema/literal-schema'}
   if (typeof schema !== 'object') return null
-  if (Array.isArray(schema.anyOf)) return {label: 'Union', slug: 'hypermedia-anyof'}
-  if (typeof schema.var === 'string') return {label: `⟨${schema.var}⟩`, slug: 'hypermedia-var-schema'}
+  if (Array.isArray(schema.anyOf)) return {label: 'Union', slug: 'schema/anyof'}
+  if (typeof schema.var === 'string') return {label: `⟨${schema.var}⟩`, slug: 'schema/var-schema'}
   if (typeof schema.type === 'string') {
     const kind = kindOf(schema.type)
-    const slug = kind !== schema.type ? `hypermedia-${kind}` : refToName(schema.type)
+    const slug = kind !== schema.type ? `schema/${kind}` : refToName(schema.type)
     if (ONYX_SCHEMAS[slug]) return {label: ONYX_PAGES[slug]?.name ?? slug, slug}
     return null
   }
@@ -509,7 +513,7 @@ export function collectRefs(schema: any, acc = new Set<string>()): Set<string> {
   if (typeof schema.ref === 'string') acc.add(refToName(schema.ref))
   if (typeof schema.type === 'string') {
     const kind = kindOf(schema.type)
-    if (kind !== schema.type && ONYX_SCHEMAS[`hypermedia-${kind}`]) acc.add(`hypermedia-${kind}`)
+    if (kind !== schema.type && ONYX_SCHEMAS[`schema/${kind}`]) acc.add(`schema/${kind}`)
   }
   for (const [k, v] of Object.entries(schema)) {
     if (k === 'ref' || k === 'type') continue

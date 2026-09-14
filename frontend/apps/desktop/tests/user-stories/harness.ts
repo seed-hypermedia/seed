@@ -42,7 +42,8 @@ export async function launchStoryApp(opts: {fresh?: boolean; shots?: string} = {
   const shotsDir = opts.shots ?? SHOTS_DIR
   fs.mkdirSync(shotsDir, {recursive: true})
   const env: Record<string, string> = {}
-  for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !/^(DAEMON_|VITE_DESKTOP_)/.test(k)) env[k] = v
+  for (const [k, v] of Object.entries(process.env))
+    if (v !== undefined && !/^(DAEMON_|VITE_DESKTOP_)/.test(k)) env[k] = v
   delete env.NODE_ENV
   Object.assign(env, {
     // Fixture mode: this directory persists across launches and the daemon keeps its keys in
@@ -97,7 +98,10 @@ export async function launchStoryApp(opts: {fresh?: boolean; shots?: string} = {
             .replace(/\s+/g, ' ')
             .trim()
             .slice(0, 80)
-          const value = e instanceof HTMLInputElement || e instanceof HTMLTextAreaElement ? ` = ${JSON.stringify(e.value.slice(0, 60))}` : ''
+          const value =
+            e instanceof HTMLInputElement || e instanceof HTMLTextAreaElement
+              ? ` = ${JSON.stringify(e.value.slice(0, 60))}`
+              : ''
           const name = e.getAttribute('name') ? `(name=${e.getAttribute('name')})` : ''
           return `${e.tagName.toLowerCase()}${id}${role}${name}: ${text || '·'}${value}`
         })

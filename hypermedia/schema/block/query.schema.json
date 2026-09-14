@@ -1,0 +1,47 @@
+{
+  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/base",
+  "properties": {
+    "type": {
+      "value": "Query"
+    },
+    "attributes": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct",
+        "properties": {
+          "childrenType": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/children-type"
+            }
+          },
+          "columnCount": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/float"
+            }
+          },
+          "style": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/query/style"
+            }
+          },
+          "query": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/query"
+            },
+            "required": true
+          },
+          "banner": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/boolean"
+            }
+          },
+          "table": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/query/table-config"
+            }
+          }
+        }
+      },
+      "required": true
+    }
+  }
+}

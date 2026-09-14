@@ -13,7 +13,8 @@ const CUSTOM = ' custom'
 export function instantiableLibrarySchemas(): {name: string; label: string; ref: string}[] {
   return Object.entries(ONYX_SCHEMAS)
     .filter(([name, s]) => {
-      if (isLibraryCore(name) || name.startsWith('seed-rpc')) return false
+      // API methods (rpc/<method>, the rpc/method union) are calls, not types to fill in; rpc/type/* are.
+      if (isLibraryCore(name) || (name.startsWith('rpc/') && !name.startsWith('rpc/type/'))) return false
       if (s.$type !== undefined) return false // an instance file, not a schema
       if (s.anyOf) return false
       const kind = s.type ? kindOf(s.type) : s.ref ? 'struct' : null

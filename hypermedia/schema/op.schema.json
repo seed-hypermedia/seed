@@ -1,0 +1,29 @@
+{
+  "anyOf": [
+    {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/op/set-attributes"
+    },
+    {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/op/move-blocks"
+    },
+    {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/op/replace-block",
+      "args": {
+        "Block": {
+          "var": "Block"
+        }
+      }
+    },
+    {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/op/delete-blocks"
+    },
+    {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/op/set-key"
+    }
+  ],
+  "params": {
+    "Block": {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block"
+    }
+  }
+}

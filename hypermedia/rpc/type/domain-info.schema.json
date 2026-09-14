@@ -1,0 +1,88 @@
+{
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct",
+  "properties": {
+    "domain": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+      },
+      "required": true
+    },
+    "lastCheck": {
+      "value": {
+        "anyOf": [
+          {
+            "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+          },
+          {
+            "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/null"
+          }
+        ]
+      },
+      "required": true
+    },
+    "status": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+      },
+      "required": true
+    },
+    "lastSuccess": {
+      "value": {
+        "anyOf": [
+          {
+            "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+          },
+          {
+            "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/null"
+          }
+        ]
+      },
+      "required": true
+    },
+    "registeredAccountUid": {
+      "value": {
+        "anyOf": [
+          {
+            "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+          },
+          {
+            "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/null"
+          }
+        ]
+      },
+      "required": true
+    },
+    "peerId": {
+      "value": {
+        "anyOf": [
+          {
+            "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+          },
+          {
+            "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/null"
+          }
+        ]
+      },
+      "required": true
+    },
+    "isGateway": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/boolean"
+      },
+      "required": true
+    },
+    "lastError": {
+      "value": {
+        "anyOf": [
+          {
+            "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+          },
+          {
+            "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/null"
+          }
+        ]
+      },
+      "required": true
+    }
+  }
+}

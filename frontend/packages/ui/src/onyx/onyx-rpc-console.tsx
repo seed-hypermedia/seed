@@ -1,11 +1,11 @@
 // The Onyx-driven API console: call the universal-client RPC surface directly,
 // with inputs edited by the standard schema-respecting value editor and both
-// sides advisorily validated against the published seed-rpc-* schemas.
+// sides advisorily validated against the published rpc/<method> schemas.
 //
-// The catalog is not hand-wired: it is derived from the `seed-rpc` union
+// The catalog is not hand-wired: it is derived from the `rpc/method` union
 // schema, whose variants each pin a method `key` and type its `input` and
-// `output`. Browsing to a seed-rpc-* schema page in the tour renders a live
-// call section for that method; the seed-rpc union page renders the full
+// `output`. Browsing to an rpc/<method> schema page in the tour renders a live
+// call section for that method; the rpc/method union page renders the full
 // console with a method picker.
 import {useMemo, useState} from 'react'
 import {useUniversalAppContext} from '@shm/shared/routing'
@@ -24,7 +24,7 @@ import {
 } from './onyx-engine'
 
 export type RpcMethod = {
-  /** The schema basename, e.g. `seed-rpc-search`. */
+  /** The schema basename, e.g. `rpc/search`. */
   slug: string
   /** The universal-client request key, e.g. `Search`. */
   key: string
@@ -33,9 +33,9 @@ export type RpcMethod = {
   output: OnyxSchema
 }
 
-/** The RPC catalog, derived from the `seed-rpc` union schema. */
+/** The RPC catalog, derived from the `rpc/method` union schema. */
 export function rpcMethods(): RpcMethod[] {
-  const union = ONYX_SCHEMAS['seed-rpc']
+  const union = ONYX_SCHEMAS['rpc/method']
   if (!union?.anyOf) return []
   const methods: RpcMethod[] = []
   for (const variant of union.anyOf) {
@@ -52,7 +52,7 @@ export function rpcMethods(): RpcMethod[] {
   return methods.sort((a, b) => a.key.localeCompare(b.key))
 }
 
-/** The rpcMethod for one seed-rpc-* schema slug, if it is one. */
+/** The rpcMethod for one rpc/<method> schema slug, if it is one. */
 export function rpcMethodForSlug(slug: string): RpcMethod | undefined {
   return rpcMethods().find((m) => m.slug === slug)
 }

@@ -1,4 +1,4 @@
-// Scaffold a co-located Markdown doc for every Onyx schema in hypermedia/*.schema.json,
+// Scaffold a co-located Markdown doc for every Onyx schema under hypermedia/ (**/*.schema.json),
 // written next to the schema as hypermedia/<name>.md. Each doc describes one
 // concept (a type) in prose; the sync step (frontend/apps/cli/src/sync-hypermedia.ts)
 // publishes it as hm://<onyx>/<name> with a `schemaDefinition` metadata field
@@ -12,8 +12,9 @@
 // regenerate every doc from the schema (discards manual edits).
 //
 //   node scripts/gen-onyx-site.mjs [--force]
-import {existsSync, readFileSync, writeFileSync, readdirSync} from 'node:fs'
-import {join} from 'node:path'
+import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs'
+import {listSchemaFiles, nameOfFile, refToName as resolveName} from './hypermedia/names.mjs'
+import {join, dirname} from 'node:path'
 
 const FORCE = process.argv.includes('--force')
 const BASE = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
@@ -26,9 +27,9 @@ const AUTHORITY = [
 const SRC = 'hypermedia'
 const OUT = 'hypermedia'
 
-const files = readdirSync(SRC).filter((f) => f.endsWith('.schema.json'))
+const files = listSchemaFiles()
 const schemas = {}
-for (const f of files) schemas[f.replace(/\.schema\.json$/, '')] = JSON.parse(readFileSync(join(SRC, f), 'utf8'))
+for (const f of files) schemas[nameOfFile(f)] = JSON.parse(readFileSync(join(SRC, f), 'utf8'))
 
 const ONYX = BASE.replace('hm://', '')
 // The published-doc name is the file's basename.
@@ -43,7 +44,7 @@ function refToName(ref) {
   const m = /^hm:\/\/([^/]+)\/(.+)$/.exec(ref)
   if (!m) return ref.replace(/\.schema\.json$/, '')
   const [, auth, name] = m
-  if (auth === ONYX) return schemas[name] ? name : schemas[`hypermedia-${name}`] ? `hypermedia-${name}` : name
+  if (auth === ONYX) return resolveName(url, (n) => !!schemas[n])
   const prefix = AUTHORITY.find(([, a]) => a === auth)?.[0]
   return prefix ? `${prefix}${name}` : name
 }
@@ -62,12 +63,12 @@ function collectRefs(node, acc = new Set()) {
 const dependencies = (name) => [...collectRefs(schemas[name])].filter((n) => n !== name && schemas[n]).sort()
 
 const isInstance = (s) => !!(s && s.$type && 'value' in s)
-const isPrimitive = (name) => [...KINDS, 'any'].map((k) => `hypermedia-${k}`).includes(name)
-const META_VARIANTS = ['hypermedia-anyof', 'hypermedia-literal-schema', 'hypermedia-property']
+const isPrimitive = (name) => [...KINDS, 'any'].map((k) => `schema/${k}`).includes(name)
+const META_VARIANTS = ['schema/anyof', 'schema/literal-schema', 'schema/property']
 const isMeta = (name) =>
-  name === 'hypermedia-schema' ||
+  name === 'schema/meta-schema' ||
   META_VARIANTS.includes(name) ||
-  (name.startsWith('hypermedia-') && name.endsWith('-schema'))
+  (name.startsWith('schema/') && name.endsWith('-schema'))
 
 /** A literal schema: a bare scalar, or {value, description?} with no other schema key. */
 const isLiteralSchema = (s) => {
@@ -125,13 +126,15 @@ function refinements(node) {
 
 function category(name, s) {
   if (isInstance(s)) return 'instance'
-  if (name === 'hypermedia-schema') return 'the meta-schema'
+  if (name === 'schema/meta-schema') return 'the meta-schema'
   if (isMeta(name)) return 'a meta-schema variant'
   if (isPrimitive(name)) return 'a primitive'
-  if (name.startsWith('hypermedia-')) return 'a Hypermedia Network blob schema'
-  if (name.startsWith('seed-'))
+  if (name.startsWith('rpc/'))
     return 'a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob)'
-  if (name.startsWith('example-')) return 'an example schema'
+  if (name.startsWith('example/')) return 'an example schema'
+  if (!name.includes('/') || name.startsWith('schema/')) return 'a Hypermedia Network blob schema'
+  if (false)
+    return 'a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob)'
   return 'a schema'
 }
 
@@ -241,6 +244,7 @@ summary: ${JSON.stringify(summary)}
 ---
 ${desc}${instanceNote}`
   const out = join(OUT, `${name}.md`)
+  mkdirSync(dirname(out), {recursive: true})
   if (!FORCE && existsSync(out)) continue // never clobber a hand-authored doc
   writeFileSync(out, md)
   count++

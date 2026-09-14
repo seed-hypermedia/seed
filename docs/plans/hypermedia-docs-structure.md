@@ -1,6 +1,6 @@
 # hypermedia/ — a structure for the developer docs
 
-Status: proposal, 2026-09-04. Branch `feat/onyx` (80 commits ahead of main; main still has the three-file `seed-docs/`).
+Status: superseded (2026-09-14). hypermedia/ was reorganized into root concepts plus `schema/`, `rpc/`, `example/`, `doc/` and `agent/` instead; see hypermedia/README.md. Originally a proposal, 2026-09-04. Branch `feat/onyx` (80 commits ahead of main; main still has the three-file `seed-docs/`).
 
 ## Where things stand
 

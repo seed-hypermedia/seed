@@ -26,18 +26,18 @@ afterEach(() => {
 
 describe('seedValue', () => {
   it('synthesizes a map default with required keys for example-geo', () => {
-    const seed = seedValue(ONYX_SCHEMAS['example-geo']) as Record<string, unknown>
+    const seed = seedValue(ONYX_SCHEMAS['example/geo']) as Record<string, unknown>
     expect(seed).toMatchObject({lat: 0, lng: 0})
   })
 
   it('synthesizes the first literal member for example-status', () => {
-    expect(seedValue(ONYX_SCHEMAS['example-status'])).toBe('draft')
+    expect(seedValue(ONYX_SCHEMAS['example/status'])).toBe('draft')
   })
 })
 
 describe('OnyxDataEditor', () => {
   it('renders map fields (required + optional) for example-geo without throwing', () => {
-    const schema = ONYX_SCHEMAS['example-geo']
+    const schema = ONYX_SCHEMAS['example/geo']
     act(() => {
       root.render(<OnyxDataEditor schema={schema} value={seedValue(schema)} onValue={() => {}} />)
     })
@@ -48,7 +48,7 @@ describe('OnyxDataEditor', () => {
   })
 
   it('renders a <select> of the literal members for example-status', () => {
-    const schema = ONYX_SCHEMAS['example-status']
+    const schema = ONYX_SCHEMAS['example/status']
     act(() => {
       root.render(<OnyxDataEditor schema={schema} value={seedValue(schema)} onValue={() => {}} />)
     })
@@ -59,7 +59,7 @@ describe('OnyxDataEditor', () => {
   })
 
   it('renders a union variant picker for example-app-block', () => {
-    const schema = ONYX_SCHEMAS['example-app-block']
+    const schema = ONYX_SCHEMAS['example/app-block']
     act(() => {
       root.render(<OnyxDataEditor schema={schema} value={seedValue(schema)} onValue={() => {}} />)
     })
@@ -72,7 +72,7 @@ describe('OnyxDataEditor', () => {
 
 describe('OnyxDataEditorPanel', () => {
   it('shows a live dag-json preview and a validation status', () => {
-    const schema = ONYX_SCHEMAS['example-geo']
+    const schema = ONYX_SCHEMAS['example/geo']
     act(() => {
       root.render(<OnyxDataEditorPanel schema={schema} />)
     })

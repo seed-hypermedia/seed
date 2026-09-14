@@ -2,7 +2,7 @@
  * The user stories, in the desktop app. One packaged, isolated app (the `story` worker fixture)
  * with the tester's identity and space already set up; each test drives the real UI and asserts
  * what the tester sees, then verifies persistence by reopening. The steps mirror the "In the app"
- * column of hypermedia/user-stories.md and the testing guide.
+ * column of hypermedia/doc/schema/user-stories.md and the testing guide.
  *
  * Coverage: stories 1 (the document model) and 2 (custom metadata) run here, offline, against the
  * tester's own space. The remaining app stories are guided manual tests in user-stories.md — they

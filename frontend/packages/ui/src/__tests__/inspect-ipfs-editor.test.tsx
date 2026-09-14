@@ -124,7 +124,7 @@ describe('InspectIpfsPage as the blob editor', () => {
   })
 
   it('`new/<schemaCid>` seeds an instance linked to its schema, with its required fields', async () => {
-    const employee = schemaCid('example-employee')!
+    const employee = schemaCid('example/employee')!
     const {published} = mount(`new/${employee}`)
     await waitFor(() => container.textContent!.includes('Schema attached'))
     expect(container.textContent).toContain('Schema attached')
@@ -156,7 +156,7 @@ describe('InspectIpfsPage as the blob editor', () => {
     expect(container.querySelector('[aria-label="Object schema"]')).toBeTruthy()
     act(() => root.unmount())
     root = createRoot(container)
-    mount(`new/${schemaCid('example-employee')!}`)
+    mount(`new/${schemaCid('example/employee')!}`)
     await flush()
     expect(container.querySelector('[data-testid="new-blob-schema-picker"]')).toBeNull()
   })
@@ -181,7 +181,7 @@ describe('InspectIpfsPage as the blob editor', () => {
   it('field context: edits the referenced object and, on confirm, publishes a direct metadata change', async () => {
     const schema = {
       name: 'Stats',
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct',
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct',
       properties: {},
     }
     const cid = CID.createV1(0x71, await sha256.digest(cbor.encode(schema))).toString()
