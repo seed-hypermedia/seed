@@ -38,6 +38,62 @@ function withoutMeta(payload: unknown): unknown {
 }
 
 describe('api service', () => {
+  test('relays browser tools through signed session actions without exposing another account’s browser', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const svc = new apisvc.Service(db, dataDir, {runQueue: {maxConcurrentModelRuns: 0}})
+    const server = Bun.serve({port: 0, routes: createAPIRoutes(svc)})
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      const stranger = blobs.generateNobleKeyPair()
+      const sessionId = await seedAgentSession(svc, owner, 'Browser test', {tools: ['browser']})
+      const connectionId = 'signed-browser-test-connection'
+      const send = async (signer: blobs.Signer, action: import('@/api').UnsignedAgentAction) => {
+        const response = await fetch(new URL('/api/message', server.url), {
+          method: 'POST',
+          headers: {'Content-Type': 'application/cbor'},
+          body: new Uint8Array(cbor.encode(await apisvc.createSignedEnvelope(signer, {action}))),
+        })
+        return {
+          status: response.status,
+          body: cbor.decode<import('@/api').AgentResponse>(new Uint8Array(await response.arrayBuffer())),
+        }
+      }
+      expect((await send(owner, {_: 'ConnectSessionBrowser', sessionId, connectionId})).body).toEqual({
+        _: 'SessionBrowserResponse',
+      })
+      expect((await send(stranger, {_: 'PollSessionBrowser', sessionId, connectionId})).status).toBe(404)
+      const execution = send(owner, {
+        _: 'InvokeSessionTool',
+        sessionId,
+        verb: 'call',
+        input: {tool: 'browser', input: {action: 'snapshot'}},
+      })
+      const poll = await send(owner, {_: 'PollSessionBrowser', sessionId, connectionId})
+      if (poll.body._ !== 'SessionBrowserResponse' || !poll.body.request)
+        throw new Error('Browser command was not delivered')
+      expect(poll.body.request.command).toEqual({action: 'snapshot'})
+      const result = {
+        _: 'ResolveSessionBrowser' as const,
+        sessionId,
+        connectionId,
+        requestId: poll.body.request.id,
+        output: {summary: 'Read page', text: 'Private page text'},
+      }
+      expect((await send(stranger, result)).status).toBe(404)
+      expect((await send(owner, result)).status).toBe(200)
+      expect((await execution).body).toMatchObject({
+        _: 'InvokeSessionToolResponse',
+        output: {text: 'Private page text'},
+      })
+      expect((await send(owner, {_: 'DisconnectSessionBrowser', sessionId, connectionId})).status).toBe(200)
+    } finally {
+      svc.stopRunQueue()
+      await server.stop(true)
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
   test('read tool returns only metadata for :attributes URLs', async () => {
     // Mirrors the desktop's attributes tab: `<doc>/:attributes` is a view term, not a path
     // segment. The regression this guards: the term being sent to the HM server as part of the

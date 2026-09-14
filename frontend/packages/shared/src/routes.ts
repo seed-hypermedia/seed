@@ -425,7 +425,20 @@ export const libraryRouteSchema = z.object({
 })
 export type LibraryRoute = z.infer<typeof libraryRouteSchema>
 
+/** An external website displayed in the experimental desktop browser. */
+export const webRouteSchema = z.object({
+  key: z.literal('web'),
+  url: z
+    .string()
+    .url()
+    .refine((url) => /^https?:\/\//.test(url)),
+  title: z.string().optional(),
+  browserId: z.number().optional(),
+  historyIndex: z.number().int().nonnegative().optional(),
+})
+
 export const navRouteSchema = z.discriminatedUnion('key', [
+  webRouteSchema,
   onboardingRouteSchema,
   libraryRouteSchema,
   contactsRouteSchema,

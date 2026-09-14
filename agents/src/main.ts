@@ -34,7 +34,7 @@ async function handleError(error: unknown): Promise<Response> {
 
 /** Creates Bun route handlers for the Agents signed CBOR API. */
 export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, string> {
-  const message = async (req: Request) => {
+  const message = async (req: Request, server?: Server<undefined>) => {
     if (!isCBORRequest(req)) {
       return cbor.response({_: 'Error', message: 'Content-Type must be application/cbor'} satisfies api.ErrorResponse, {
         status: 415,
@@ -49,6 +49,8 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
     }
 
     try {
+      // The browser heartbeat waits up to 20 seconds; Bun otherwise resets idle HTTP requests at 10.
+      if (envelope?.action?._ === 'PollSessionBrowser') server?.timeout(req, 30)
       return cbor.response(await svc.message(envelope))
     } catch (error) {
       if (error instanceof apisvc.APIError) {

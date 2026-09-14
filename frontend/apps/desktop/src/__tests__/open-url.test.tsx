@@ -6,6 +6,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 const mockState = vi.hoisted(() => ({
   externalOpen: vi.fn(),
+  browserEnabled: false,
   pushNavigate: vi.fn(),
   spawnNavigate: vi.fn(),
   latestOpenUrl: null as null | ((url?: string, newWindow?: boolean) => void),
@@ -15,6 +16,10 @@ vi.mock('../app-context', () => ({
   useAppContext: () => ({
     externalOpen: mockState.externalOpen,
   }),
+}))
+
+vi.mock('../models/experiments', () => ({
+  useExperiments: () => ({data: {webBrowser: mockState.browserEnabled}}),
 }))
 
 vi.mock('../utils/useNavigate', () => ({
@@ -54,10 +59,35 @@ describe('useOpenUrl', () => {
     mockState.pushNavigate.mockReset()
     mockState.spawnNavigate.mockReset()
     mockState.latestOpenUrl = null
+    mockState.browserEnabled = false
   })
 
   afterEach(() => {
     document.body.innerHTML = ''
+  })
+
+  it('opens websites externally unless the user opts in', () => {
+    const {container, root} = renderHarness()
+    act(() => mockState.latestOpenUrl?.('https://example.com'))
+    expect(mockState.externalOpen).toHaveBeenCalledWith('https://example.com')
+    expect(mockState.pushNavigate).not.toHaveBeenCalled()
+    cleanupRendered(root, container)
+  })
+
+  it('responds to preference changes without restarting and preserves new-window intent', () => {
+    const {container, root} = renderHarness()
+    mockState.browserEnabled = true
+    act(() => root.render(<OpenUrlHarness />))
+    act(() => mockState.latestOpenUrl?.('https://example.com'))
+    expect(mockState.pushNavigate).toHaveBeenCalledWith({key: 'web', url: 'https://example.com'})
+    act(() => mockState.latestOpenUrl?.('https://example.com/new', true))
+    expect(mockState.spawnNavigate).toHaveBeenCalledWith({key: 'web', url: 'https://example.com/new'})
+    expect(mockState.externalOpen).not.toHaveBeenCalled()
+    mockState.browserEnabled = false
+    act(() => root.render(<OpenUrlHarness />))
+    act(() => mockState.latestOpenUrl?.('https://example.com/external'))
+    expect(mockState.externalOpen).toHaveBeenCalledWith('https://example.com/external')
+    cleanupRendered(root, container)
   })
 
   it('routes comment URLs through in-app navigation instead of treating them as plain documents', () => {

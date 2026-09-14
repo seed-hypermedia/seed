@@ -16,10 +16,26 @@ import {
   agentUrl,
   resolveOmnibarUrlToHypermediaUrl,
   resolveOmnibarUrlToRoute,
+  parseBrowserAddress,
   selectValidatedOmnibarSiteUrl,
 } from '../omnibar-url'
 
 describe('omnibar url resolution', () => {
+  it('accepts full URLs and bare domains without turning search text or unsafe schemes into websites', () => {
+    expect(parseBrowserAddress(' example.com/path?q=seed#section ')).toBe('https://example.com/path?q=seed#section')
+    expect(parseBrowserAddress('https://example.com/path')).toBe('https://example.com/path')
+    expect(parseBrowserAddress('localhost:3000/page')).toBe('http://localhost:3000/page')
+    for (const value of [
+      'some search text',
+      'a document.txt',
+      'javascript:location.href',
+      'file:///tmp/test.html',
+      'hm://alice/docs',
+      'https://user:password@example.com',
+    ]) {
+      expect(parseBrowserAddress(value)).toBeNull()
+    }
+  })
   beforeEach(() => {
     resolveHypermediaUrlMock.mockReset()
   })

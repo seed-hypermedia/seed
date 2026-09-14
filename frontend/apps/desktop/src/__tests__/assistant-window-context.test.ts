@@ -55,6 +55,18 @@ describe('formatWindowContextLines', () => {
 })
 
 describe('deriveAssistantWindowContext', () => {
+  it('exposes the webpage and browser discovery in the context bubble without claiming publication', () => {
+    const context = deriveAssistantWindowContext(
+      {key: 'web', url: 'https://example.com/article', title: 'Article'},
+      undefined,
+    )
+    expect(context).toEqual({url: 'https://example.com/article', title: 'Article', view: 'web'})
+    const lines = formatWindowContextLines({...context, browserStatus: 'connected'})
+    expect(lines).toContain('Browser access: connected')
+    expect(lines?.join('\n')).toContain('read ~/tools/browser')
+    expect(lines?.join('\n')).toContain('draft by default')
+    expect(lines?.join('\n')).toContain('untrusted source material')
+  })
   const docId = {
     id: 'hm://z6MkDoc/employees',
     uid: 'z6MkDoc',

@@ -7,6 +7,11 @@ const EXPERIMENTS_STORAGE_KEY = 'Experiments-v001'
 
 let experimentsState: AppExperiments = appStore.get(EXPERIMENTS_STORAGE_KEY) || {}
 
+/** Whether the user has opted into browsing websites inside Seed. */
+export function isWebBrowserEnabled(): boolean {
+  return experimentsState.webBrowser === true
+}
+
 /**
  * Returns the stored embedding enabled setting.
  * Used by main.ts to determine daemon startup flags before tRPC is ready.
