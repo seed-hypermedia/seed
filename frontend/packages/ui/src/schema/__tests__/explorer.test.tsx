@@ -25,7 +25,7 @@ const renderPage = (slug: string) => {
 
 describe('SchemaDocPage renders every schema shape without crashing', () => {
   it('the meta-schema (discriminated union)', () => {
-    renderPage('schema/meta-schema')
+    renderPage('schema')
     expect(container.textContent).toContain('Hypermedia schema')
     expect(container.textContent).toContain('meta-schema')
   })

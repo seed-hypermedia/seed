@@ -1,5 +1,5 @@
 ---
-name: Redirect target
+name: Redirect Target
 summary: A redirect from one document to another space and/or path.
 schemaDefinition: ipfs://bafyreigyr2zb7gjachknyt4czzk5c56ctdddlzdush553uk6fw7apa4boi
 ---

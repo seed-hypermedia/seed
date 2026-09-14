@@ -1,5 +1,5 @@
 ---
-name: "Example: Constrained record"
+name: "Example: Constrained Record"
 summary: "Exercises the value constraints: string length + pattern, numeric bounds, and list size."
 schemaDefinition: ipfs://bafyreif76kdin2jurfzyzvjdfjggclejean7wfwklqxfmoeod7sevpv5qa
 ---

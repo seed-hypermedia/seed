@@ -14,7 +14,7 @@ import {emptyStructSchema, SchemaEditor} from './schema-editor'
 
 /** True when `schema` is the bundled meta-schema — the value is a schema. */
 export function isMetaSchema(schema: HypermediaSchema | undefined): boolean {
-  return !!schema && schema === HM_SCHEMAS['schema/meta-schema']
+  return !!schema && schema === HM_SCHEMAS['schema']
 }
 
 /** The struct form only fits map schemas (and ref-rooted extensions); unions etc. use JSON. */

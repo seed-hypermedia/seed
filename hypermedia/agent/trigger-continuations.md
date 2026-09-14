@@ -1,5 +1,5 @@
 ---
-name: "Trigger continuations: tool and script"
+name: "Trigger Continuations: Tool and Script"
 summary: A trigger's continuation is what a firing does. Until now every firing either started a thread (a model reads the prompt plus the event) or woke a parked…
 ---
 <!-- id:XD4Qi5MN -->

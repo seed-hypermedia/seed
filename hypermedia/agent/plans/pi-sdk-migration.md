@@ -1,5 +1,5 @@
 ---
-name: Pi SDK migration project
+name: Pi SDK Migration Project
 summary: This project tracks replacing the custom model-provider loop in Seed Agents with the Pi SDK agentic loop from @mariozechner/pi-coding-agent.
 ---
 <!-- id:ASM89C2A -->

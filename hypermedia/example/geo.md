@@ -1,5 +1,5 @@
 ---
-name: "Example: Geo point"
+name: "Example: Geo Point"
 summary: A latitude/longitude coordinate with an optional altitude.
 schemaDefinition: ipfs://bafyreiccubrx57av4ytuknpdb56evn7s2fgdpu352ww7hdahjevbmyxnx4
 ---

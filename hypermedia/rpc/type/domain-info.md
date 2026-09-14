@@ -1,5 +1,5 @@
 ---
-name: Domain info
+name: Domain Info
 summary: "The daemon's view of a site domain: registration, gateway status, and health-check results. A derived read model computed by the Seed daemon/API for clients — n"
 schemaDefinition: ipfs://bafyreig7stegsgvzrnjqdhx7j67hgvpglupbyyhntxhxar5c3xch4ccc5e
 ---

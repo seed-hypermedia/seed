@@ -1,5 +1,5 @@
 ---
-name: "Resource: error"
+name: "Resource: Error"
 summary: A resource that failed to load, with the error message. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
 schemaDefinition: ipfs://bafyreicxsb7tdglldq3e7lrbevz2yqhkdhrcailygmkjfo2gb6qnlan4hq
 ---

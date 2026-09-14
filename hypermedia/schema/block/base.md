@@ -1,5 +1,5 @@
 ---
-name: Block (base)
+name: Block (Base)
 summary: "Fields shared by every concrete block type: id, optional revision, and the type discriminator. Concrete blocks extend this."
 schemaDefinition: ipfs://bafyreidqgnqpegcifgbfqa6ias24a6hx2nrxoqpcfm6b5ft2ikshgphqla
 ---

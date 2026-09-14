@@ -1,8 +1,8 @@
 ---
-name: Schemas on the Hypermedia Network
+name: Network Blobs
 summary: How the Hypermedia Network's real DAG-CBOR blobs — Change, Ref, Profile, Comment, Capability, Contact — are schemafied with Hypermedia Schemas.
 ---
-# Hypermedia blobs — schemas on real data <!-- id:MZbfGNFo -->
+# Network blobs — schemas on real data <!-- id:MZbfGNFo -->
 
 The Hypermedia Network stores its data as **DAG-CBOR blobs** in IPFS. There are six signed blob types — Change, Ref, Profile, Comment, Capability, Contact — and they are _related_: every one embeds the same signed envelope. This is a real, production schemafication built entirely from the schema features in this repo, and it is published under the Hypermedia account: the blob schemas at the root (`change`, `ref`, …) and the block model under `schema/block/`. <!-- id:mIEsrB_H -->
 

@@ -1,5 +1,5 @@
 ---
-name: WebSocket subscriptions
+name: WebSocket Subscriptions
 summary: The Agents WebSocket API delivers live account, agent, and session updates after a signed subscription handshake.
 ---
 The Agents WebSocket API delivers live account, agent, and session updates after a signed subscription handshake. <!-- id:xPzzllRE -->

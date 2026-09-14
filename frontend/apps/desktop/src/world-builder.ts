@@ -295,7 +295,7 @@ export async function buildWorldPlan(spec: WorldSpec): Promise<WorldPlan> {
         blocks: [
           paragraph(
             'A starter character. In Attributes: "born" is a date picker, "home" and "faction" are links to typed ' +
-              'pages, "stats" creates a linked object that must match the Character stats schema, and "notes" ' +
+              'pages, "stats" creates a linked object that must match the Character Stats schema, and "notes" ' +
               'creates a free-form object.',
           ),
         ],

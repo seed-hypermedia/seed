@@ -1,5 +1,5 @@
 ---
-name: Query block payload
+name: Query Block Payload
 summary: "Everything a rendered Query block needs: the results plus per-item interaction summaries and author metadata. A derived read model computed by the Seed daemon/A"
 schemaDefinition: ipfs://bafyreidzbpl4r424w5xcauf3cfx2f3i3pigdtd43q7j65tkq6il34ztjzu
 ---

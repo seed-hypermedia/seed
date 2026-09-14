@@ -1,5 +1,5 @@
 ---
-name: Document (payload)
+name: Document (Payload)
 summary: "A document as the API returns it to clients: the signed document's metadata and content plus derived fields (resolved version, authors, timestamps, visibility)."
 schemaDefinition: ipfs://bafyreibweaikfwkisxejlp5er27snrgywcu4x7ynody2y4df6dcsoewe6a
 ---

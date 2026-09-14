@@ -1,5 +1,5 @@
 ---
-name: Literal schema
+name: Literal Schema
 summary: The variant for a literal — a schema that accepts exactly one value, with a description of what that value means.
 schemaDefinition: ipfs://bafyreidzhsbzyfku5mrik7ysv3ub3mwwhxk4vi2wy7xc36u2ulu5ww5n24
 ---

@@ -1,7 +1,7 @@
 ---
-name: Embed block
+name: Embed Block
 summary: An embed of another Hypermedia document (an hm:// URL).
-schemaDefinition: ipfs://bafyreigaus5vmrsjaqfz6wgebm4g6p4rn2vvfvazhpobntij2hgl5a4rim
+schemaDefinition: ipfs://bafyreih6xh4kifbsuyourwb6lybe33iatkh2ty7mz76ikvdzfafyefna3y
 ---
 This document describes the **schema/block/embed** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:qn5BFYI8 -->
 

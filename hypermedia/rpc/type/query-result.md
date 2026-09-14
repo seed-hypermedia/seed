@@ -1,5 +1,5 @@
 ---
-name: Query result
+name: Query Result
 summary: The documents a query matched, listed under the queried id. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
 schemaDefinition: ipfs://bafyreigxwkaclojs52rj726h6gc47qzke724j7vowx5gv5jiky5zh56j6y
 ---

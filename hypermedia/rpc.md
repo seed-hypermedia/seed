@@ -1,5 +1,5 @@
 ---
-name: The Typed API
+name: API
 summary: The Seed read API as an schema catalog — every method's key, input, and output are published schemas, and the in-app API console is generated from them rather than hand-written.
 ---
 # One call shape <!-- id:S_OZNfxS -->

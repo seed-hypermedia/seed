@@ -1,5 +1,5 @@
 ---
-name: Button alignment
+name: Button Alignment
 summary: Horizontal alignment of a Button block.
 schemaDefinition: ipfs://bafyreieh2zubatxgt6vvqfwcwwtdrviezj3ug75au5er37ij2nx6xjpn3m
 ---

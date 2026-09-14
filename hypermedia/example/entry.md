@@ -1,5 +1,5 @@
 ---
-name: "Example: Filesystem entry"
+name: "Example: Filesystem Entry"
 summary: Either a folder or a file (a union).
 schemaDefinition: ipfs://bafyreidatcny34iffq5sucivyr2viqilw5ewdquttk2gncp3tncxaj2icm
 ---

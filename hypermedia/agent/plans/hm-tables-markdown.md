@@ -1,5 +1,5 @@
 ---
-name: "Agents × HM Tables: Markdown Round-Trip Plan"
+name: "Agents × Tables: Markdown Round-Trip Plan"
 summary: "Status: design proposal, 2026-08-13. Nothing implemented."
 ---
 Status: design proposal, 2026-08-13. Nothing implemented. <!-- id:O0uRft0z -->

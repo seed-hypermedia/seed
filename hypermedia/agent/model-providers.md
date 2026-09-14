@@ -1,5 +1,5 @@
 ---
-name: Model providers
+name: Model Providers
 summary: Model providers are account-scoped records telling the agent server how to call an LLM backend. Provider credentials are stored separately and encrypted;…
 ---
 Model providers are account-scoped records telling the agent server how to call an LLM backend. Provider credentials are stored separately and encrypted; the record itself holds only a reference to them. <!-- id:F5iAgtU4 -->

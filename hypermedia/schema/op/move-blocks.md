@@ -1,5 +1,5 @@
 ---
-name: MoveBlocks op
+name: MoveBlocks Op
 summary: Move blocks under a parent, using RGA CRDT reference ids.
 schemaDefinition: ipfs://bafyreif36tnu4zu27kxgmjg7ch6yholvmhkp44qfzidjbvywnwou6ivpiq
 ---

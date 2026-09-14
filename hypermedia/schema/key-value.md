@@ -1,5 +1,5 @@
 ---
-name: Key/value
+name: Key/Value
 summary: "A metadata attribute: a dotted key path (segments) and a value."
 schemaDefinition: ipfs://bafyreiggej7ngnnrgby2klshzasklgvq3j32vxtcpmlfdhpx4r6umbc2xm
 ---

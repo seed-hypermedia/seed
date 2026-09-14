@@ -1,5 +1,5 @@
 ---
-name: Collaborators payload
+name: Collaborators Payload
 summary: "A document's collaboration picture: the publisher, inherited and directly granted capabilities, effective members, and their metadata. A derived read model comp"
 schemaDefinition: ipfs://bafyreidtnefpy3aujgc76fwazioiqh4lhyj7uk7fhucyaroeml454fy4lq
 ---

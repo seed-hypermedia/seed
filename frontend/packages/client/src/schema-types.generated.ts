@@ -10,7 +10,7 @@ export type HMLink = {'/': string}
 export type HMBytes = Uint8Array | {'/': {bytes: string}}
 
 /**
- * Hypermedia Blob
+ * Blob
  * The signed base envelope every Hypermedia CBOR blob extends: a `type` tag (the discriminator the network dispatches on), the signer's public key, an Ed25519 sig
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/blob
  */
@@ -31,7 +31,7 @@ export type HMBlock = {
   revision?: string
   type: string
   text?: string
-  link?: string
+  link?: HMUrl
   annotations?: HMAnnotation[]
   attributes?: {[key: string]: unknown}
 } & {[key: string]: unknown}
@@ -133,7 +133,7 @@ export type ExampleAdmin = ExampleEmployee & {
 }
 
 /**
- * Example: App block (extended core)
+ * Example: App Block (Extended Core)
  * How a third party extends the block model: the union of Hypermedia's core blocks PLUS their own custom blocks (here, a Poll). Strict — it accepts core blocks an
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/app-block
  */
@@ -207,7 +207,7 @@ export type ExampleComment = {
 }
 
 /**
- * Example: Constrained record
+ * Example: Constrained Record
  * Exercises the value constraints: string length + pattern, numeric bounds, and list size.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/constrained
  */
@@ -249,7 +249,7 @@ export type ExampleEmployee = ExamplePerson & {
 }
 
 /**
- * Example: Filesystem entry
+ * Example: Filesystem Entry
  * Either a folder or a file (a union).
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/entry
  */
@@ -318,7 +318,7 @@ export type ExampleFolder = {
 }
 
 /**
- * Example: Geo point
+ * Example: Geo Point
  * A latitude/longitude coordinate with an optional altitude.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/geo
  */
@@ -329,7 +329,7 @@ export type ExampleGeo = {
 }
 
 /**
- * Example: JSON value
+ * Example: JSON Value
  * A recursive JSON value: null, boolean, number, string, list, or map. References itself.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/json
  */
@@ -350,7 +350,7 @@ export type ExampleMatrix = number[][]
 export type ExampleMetadata = {[key: string]: string}
 
 /**
- * Example: MyApp change
+ * Example: MyApp Change
  * A Change instantiated with this app's block type — Change<example/app-block>. Because Block is bound, its ReplaceBlock ops are validated strictly against the ap
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/myapp-change
  */
@@ -370,7 +370,7 @@ export type ExamplePerson = {
 }
 
 /**
- * Example: Person document
+ * Example: Person Document
  * A document that describes a person — the base document, refined so its metadata requires a `surname`. Illustrates the corrected model: a typed document schema e
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/person-doc
  */
@@ -403,7 +403,7 @@ export type ExamplePlaceDoc = HMDocument & {
 }
 
 /**
- * Example: Poll block (custom)
+ * Example: Poll Block (Custom)
  * An example third-party block type: a poll with a question and options. It extends the shared block base, exactly like a core block.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/poll-block
  */
@@ -426,7 +426,7 @@ export type ExamplePollBlock = HMBlockBase & {
 export type ExampleRegistry = {[key: string]: ExamplePerson}
 
 /**
- * Character stats
+ * Character Stats
  * A character's attribute block — the object a character page links to from its `stats` field. Lives as its own DAG-CBOR blob (an `ipfs://` reference), so it can
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/stats
  */
@@ -488,14 +488,21 @@ export type ExampleWorldDoc = HMDocument & {
 }
 
 /**
- * HM link
+ * Resource URL
  * A reference to a Hypermedia document, held as an `hm://` URL string. `format: hm-url` tells an editor to render it as a searchable reference that displays the t
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hm-url
  */
 export type HMHmUrl = string
 
 /**
- * Document metadata
+ * IPFS URL
+ * A reference to a content-addressed file on IPFS, held as an `ipfs://<cid>` string. `format: ipfs-url` tells an editor to render it as a file reference — a pill you
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/ipfs-url
+ */
+export type HMIpfs = string
+
+/**
+ * Document Metadata
  * Resolved document metadata (merged from Change ops): known keys plus arbitrary extras.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/metadata
  */
@@ -504,7 +511,7 @@ export type HMMetadata = {
   summary?: string
   icon?: HMIpfs
   cover?: HMIpfs
-  siteUrl?: string
+  siteUrl?: HMUrl
   /** The schema THIS document conforms to (a schema-definition document's hm:// URL, or ipfs://<cid>). Must descend from the base document. */
   schema?: HMHmUrl
   /** The schema this document's CHILDREN must conform to (hm:// URL or ipfs://<cid>). Children may declare their own `schema` if it descends from this one. */
@@ -974,7 +981,7 @@ export type SeedRpcSubjectContacts = {
 }
 
 /**
- * Account result
+ * Account Result
  * The result of resolving an account: its metadata payload, or an explicit not-found. A derived read model computed by the Seed daemon/API for clients — not a sig
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/account-result
  */
@@ -991,21 +998,21 @@ export type SeedAccountResult =
     }
 
 /**
- * Accounts metadata
+ * Accounts Metadata
  * Account uid -> resolved metadata payload, sent alongside listings so clients can render authors without extra requests. A derived read model computed by the See
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/accounts-metadata
  */
 export type SeedAccountsMetadata = {[key: string]: SeedMetadataPayload}
 
 /**
- * Activity event
+ * Activity Event
  * One event of the activity feed. The event union is not yet pinned down schema-side, so this is an open map — tightening it is tracked follow-up work. A derived
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/activity-event
  */
 export type SeedActivityEvent = {[key: string]: unknown}
 
 /**
- * Activity summary
+ * Activity Summary
  * Latest-activity digest carried on document listings: newest comment/change and unread state. A derived read model computed by the Seed daemon/API for clients —
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/activity-summary
  */
@@ -1021,7 +1028,7 @@ export type SeedActivitySummary = {
 }
 
 /**
- * Block range
+ * Block Range
  * A selection within a block: either character offsets (start/end) or the whole block expanded. A derived read model computed by the Seed daemon/API for clients —
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/block-range
  */
@@ -1045,7 +1052,7 @@ export type SeedBreadcrumb = {
 }
 
 /**
- * Capability (payload)
+ * Capability (Payload)
  * A capability as the API returns it: who was granted which role on which grant id. A derived read model computed by the Seed daemon/API for clients — not a signe
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/capability
  */
@@ -1084,7 +1091,7 @@ export type SeedCitation = {
 }
 
 /**
- * Collaborators payload
+ * Collaborators Payload
  * A document's collaboration picture: the publisher, inherited and directly granted capabilities, effective members, and their metadata. A derived read model comp
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/collaborators-payload
  */
@@ -1098,7 +1105,7 @@ export type SeedCollaboratorsPayload = {
 }
 
 /**
- * Comment (payload)
+ * Comment (Payload)
  * A comment as the API returns it to clients: the signed comment's content plus derived fields (stable id, version CID, thread links, timestamps, visibility). A d
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/comment
  */
@@ -1121,7 +1128,7 @@ export type SeedComment = {
 }
 
 /**
- * Comment group
+ * Comment Group
  * A thread of comments grouped for display, with a count of elided replies. A derived read model computed by the Seed daemon/API for clients — not a signed networ
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/comment-group
  */
@@ -1134,7 +1141,7 @@ export type SeedCommentGroup = {
 }
 
 /**
- * Comment list
+ * Comment List
  * A list of comments plus the metadata payloads of every author involved. A derived read model computed by the Seed daemon/API for clients — not a signed network
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/comment-list
  */
@@ -1144,7 +1151,7 @@ export type SeedCommentList = {
 }
 
 /**
- * Contact record
+ * Contact Record
  * A contact as the API returns it: who named whom what, signed by which key, with timestamps and subscription preferences. A derived read model computed by the Se
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/contact-record
  */
@@ -1160,7 +1167,7 @@ export type SeedContactRecord = {
 }
 
 /**
- * Discovery status
+ * Discovery Status
  * The state of a background discovery task for a resource: pending, found (with the resolved version), or failed (with the error). A derived read model computed b
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/discovery-status
  */
@@ -1171,7 +1178,7 @@ export type SeedDiscoveryStatus = {
 }
 
 /**
- * Document (payload)
+ * Document (Payload)
  * A document as the API returns it to clients: the signed document's metadata and content plus derived fields (resolved version, authors, timestamps, visibility).
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/document
  */
@@ -1194,7 +1201,7 @@ export type SeedDocument = {
 }
 
 /**
- * Document info
+ * Document Info
  * One document in a listing (query results, directories): identity, authorship, timestamps, breadcrumbs, and its activity summary — without the full content. A de
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/document-info
  */
@@ -1222,7 +1229,7 @@ export type SeedDocumentInfo = {
 }
 
 /**
- * Domain info
+ * Domain Info
  * The daemon's view of a site domain: registration, gateway status, and health-check results. A derived read model computed by the Seed daemon/API for clients — n
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/domain-info
  */
@@ -1238,7 +1245,7 @@ export type SeedDomainInfo = {
 }
 
 /**
- * External comment group
+ * External Comment Group
  * A comment thread from ANOTHER document that cites this one, with its target's metadata payload. A derived read model computed by the Seed daemon/API for clients
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/external-comment-group
  */
@@ -1252,7 +1259,7 @@ export type SeedExternalCommentGroup = {
 }
 
 /**
- * Hypermedia ID (parsed)
+ * Parsed ID
  * A parsed hm:// identifier as clients pass it around: account uid, path segments, pinned version, block reference, and origin hints. Fields the URL does not carr
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/id
  */
@@ -1269,7 +1276,7 @@ export type SeedId = {
 }
 
 /**
- * Interaction summary
+ * Interaction Summary
  * Aggregate interaction counts for a document — citations, comments, changes, child documents, distinct authors — plus per-block citation/comment counts. A derive
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/interaction-summary
  */
@@ -1294,7 +1301,7 @@ export type SeedInteractionSummary = {
 }
 
 /**
- * Metadata payload
+ * Metadata Payload
  * A resource id with its resolved metadata (null when the document has none). A derived read model computed by the Seed daemon/API for clients — not a signed netw
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/metadata-payload
  */
@@ -1305,7 +1312,7 @@ export type SeedMetadataPayload = {
 }
 
 /**
- * Parsed fragment
+ * Parsed Fragment
  * A parsed URL fragment addressing a block (and optionally a range inside it). A derived read model computed by the Seed daemon/API for clients — not a signed net
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/parsed-fragment
  */
@@ -1314,7 +1321,7 @@ export type SeedParsedFragment = SeedBlockRange & {
 }
 
 /**
- * Query block item summary
+ * Query Block Item Summary
  * Per-result interaction counts a Query block shows on its cards. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/query-block-item-summary
  */
@@ -1327,7 +1334,7 @@ export type SeedQueryBlockItemSummary = {
 }
 
 /**
- * Query block payload
+ * Query Block Payload
  * Everything a rendered Query block needs: the results plus per-item interaction summaries and author metadata. A derived read model computed by the Seed daemon/A
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/query-block-payload
  */
@@ -1341,7 +1348,7 @@ export type SeedQueryBlockPayload = {
 }
 
 /**
- * Query result
+ * Query Result
  * The documents a query matched, listed under the queried id. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/query-result
  */
@@ -1352,7 +1359,7 @@ export type SeedQueryResult = {
 }
 
 /**
- * Raw capability
+ * Raw Capability
  * A capability as indexed, in raw wire form (all fields optional strings). A derived read model computed by the Seed daemon/API for clients — not a signed network
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/raw-capability
  */
@@ -1369,7 +1376,7 @@ export type SeedRawCapability = {
 }
 
 /**
- * Raw citation
+ * Raw Citation
  * A citation in raw indexed form, before client-side resolution into a rpc/type/citation. A derived read model computed by the Seed daemon/API for clients — not a sig
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/raw-citation
  */
@@ -1393,7 +1400,7 @@ export type SeedRawCitation = {
 }
 
 /**
- * Raw document change
+ * Raw Document Change
  * One change of a document's history in raw listing form: CID, author, dependency edges, time. A derived read model computed by the Seed daemon/API for clients —
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/raw-document-change
  */
@@ -1405,7 +1412,7 @@ export type SeedRawDocumentChange = {
 }
 
 /**
- * Redirect info
+ * Redirect Info
  * Marks a listed document as a redirect to another target. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/redirect-info
  */
@@ -1429,7 +1436,7 @@ export type SeedResource =
   | SeedResourceError
 
 /**
- * Resource: comment
+ * Resource: Comment
  * A resolved resource that is a comment. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/resource-comment
  */
@@ -1440,7 +1447,7 @@ export type SeedResourceComment = {
 }
 
 /**
- * Resource: document
+ * Resource: Document
  * A resolved resource that is a document. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/resource-document
  */
@@ -1451,7 +1458,7 @@ export type SeedResourceDocument = {
 }
 
 /**
- * Resource: error
+ * Resource: Error
  * A resource that failed to load, with the error message. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/resource-error
  */
@@ -1462,7 +1469,7 @@ export type SeedResourceError = {
 }
 
 /**
- * Resource: not-found
+ * Resource: Not Found
  * A resource id that resolved to nothing. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/resource-not-found
  */
@@ -1472,7 +1479,7 @@ export type SeedResourceNotFound = {
 }
 
 /**
- * Resource: redirect
+ * Resource: Redirect
  * A resource that redirects to another id (optionally republishing its content in place). A derived read model computed by the Seed daemon/API for clients — not a
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/resource-redirect
  */
@@ -1484,7 +1491,7 @@ export type SeedResourceRedirect = {
 }
 
 /**
- * Resource: tombstone
+ * Resource: Tombstone
  * A resource that was deleted (a tombstone ref). A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/resource-tombstone
  */
@@ -1494,7 +1501,7 @@ export type SeedResourceTombstone = {
 }
 
 /**
- * Search result item
+ * Search Result Item
  * One hit of a network search: the matched id with display info (title, icon, breadcrumb parent names) and what kind of entity matched. A derived read model compu
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/search-result-item
  */
@@ -1511,7 +1518,7 @@ export type SeedSearchResultItem = {
 }
 
 /**
- * Search results
+ * Search Results
  * A page of search results with the query echoed back and a pagination token. A derived read model computed by the Seed daemon/API for clients — not a signed netw
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/search-results
  */
@@ -1522,7 +1529,7 @@ export type SeedSearchResults = {
 }
 
 /**
- * Site member
+ * Site Member
  * One member of a site with their effective role. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/site-member
  */
@@ -1532,7 +1539,27 @@ export type SeedSiteMember = {
 }
 
 /**
- * Any blob
+ * Schema
+ * The meta-schema: a discriminated union of the shapes a schema can take, and a valid instance of itself — how to browse, author and validate schemas in the Seed app, plus the full reference documentation.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema
+ */
+export type HMSchema =
+  | HMStructSchema
+  | HMMapSchema
+  | HMListSchema
+  | HMScalarSchema
+  | HMLinkSchema
+  | HMIncludeSchema
+  | HMAnyof
+  | HMVarSchema
+  | HMLiteralSchema
+  | string
+  | number
+  | boolean
+  | null
+
+/**
+ * Any Blob
  * Any Hypermedia CBOR blob — the discriminated union of the six blob types, tagged on the type field.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/any-blob
  */
@@ -1557,13 +1584,13 @@ export type HMAnyof = {
  */
 export type HMAnnotation = {
   type?: string
-  link?: string
+  link?: HMUrl
   starts?: number[]
   ends?: number[]
 } & {[key: string]: HMValue}
 
 /**
- * Block (base)
+ * Block (Base)
  * Fields shared by every concrete block type: id, optional revision, and the type discriminator. Concrete blocks extend this.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/base
  */
@@ -1574,14 +1601,14 @@ export type HMBlockBase = {
 }
 
 /**
- * Button block
+ * Button Block
  * A labelled button linking somewhere.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/button
  */
 export type HMBlockButton = HMBlockBase & {
   type?: 'Button'
   text?: string
-  link: string
+  link: HMUrl
   attributes?: {
     childrenType?: HMChildrenType
     columnCount?: number
@@ -1591,21 +1618,21 @@ export type HMBlockButton = HMBlockBase & {
 }
 
 /**
- * Button alignment
+ * Button Alignment
  * Horizontal alignment of a Button block.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/button-alignment
  */
 export type HMButtonAlignment = 'flex-start' | 'center' | 'flex-end'
 
 /**
- * Children type
+ * Children Type
  * How a block's children are laid out: Group (default), Ordered, Unordered, Blockquote, or Grid.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/children-type
  */
 export type HMChildrenType = 'Group' | 'Ordered' | 'Unordered' | 'Blockquote' | 'Grid'
 
 /**
- * Code block
+ * Code Block
  * A code block, optionally tagged with a language.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/code
  */
@@ -1620,7 +1647,7 @@ export type HMBlockCode = HMBlockBase & {
 }
 
 /**
- * Comment block
+ * Comment Block
  * A comment content block: a Block extended with a recursive list of child comment blocks.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/comment
  */
@@ -1629,7 +1656,7 @@ export type HMCommentBlock = HMBlock & {
 }
 
 /**
- * Core block
+ * Core Block
  * The union of the fifteen built-in block types (Paragraph, Heading, Code, Math, Image, Video, File, Button, Embed, WebEmbed, Nostr, Table, TableRow, TableColumn,
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/core
  */
@@ -1651,13 +1678,13 @@ export type HMBlockCore =
   | HMBlockQuery
 
 /**
- * Embed block
+ * Embed Block
  * An embed of another Hypermedia document (an hm:// URL).
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/embed
  */
 export type HMBlockEmbed = HMBlockBase & {
   type?: 'Embed'
-  link: string
+  link: HMUrl
   attributes?: {
     childrenType?: HMChildrenType
     columnCount?: number
@@ -1666,20 +1693,20 @@ export type HMBlockEmbed = HMBlockBase & {
 }
 
 /**
- * Embed view
+ * Embed View
  * How an Embed block renders its target: Content, Card, Comments, or Link.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/embed-view
  */
 export type HMEmbedView = 'Content' | 'Card' | 'Comments' | 'Link'
 
 /**
- * File block
+ * File Block
  * A file attachment, referenced by a URL.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/file
  */
 export type HMBlockFile = HMBlockBase & {
   type?: 'File'
-  link: string
+  link: HMUrl
   attributes?: {
     childrenType?: HMChildrenType
     columnCount?: number
@@ -1689,7 +1716,7 @@ export type HMBlockFile = HMBlockBase & {
 }
 
 /**
- * Heading block
+ * Heading Block
  * A section heading.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/heading
  */
@@ -1704,7 +1731,7 @@ export type HMBlockHeading = HMBlockBase & {
 }
 
 /**
- * Image block
+ * Image Block
  * An image, referenced by a URL (typically ipfs://).
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/image
  */
@@ -1712,7 +1739,7 @@ export type HMBlockImage = HMBlockBase & {
   type?: 'Image'
   text?: string
   annotations?: HMAnnotation[]
-  link: string
+  link: HMUrl
   attributes?: {
     childrenType?: HMChildrenType
     columnCount?: number
@@ -1722,7 +1749,7 @@ export type HMBlockImage = HMBlockBase & {
 }
 
 /**
- * Math block
+ * Math Block
  * A block of LaTeX/KaTeX math.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/math
  */
@@ -1736,7 +1763,7 @@ export type HMBlockMath = HMBlockBase & {
 }
 
 /**
- * Block node
+ * Block Node
  * A node of the document content tree: a Block plus its ordered child Block nodes. The recursion (children of the same type) expresses arbitrary nesting; a leaf s
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/node
  */
@@ -1746,17 +1773,17 @@ export type HMBlockNode = {
 }
 
 /**
- * Nostr block
+ * Nostr Block
  * An embed of a Nostr event (a nostr: URL).
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/nostr
  */
 export type HMBlockNostr = HMBlockBase & {
   type?: 'Nostr'
-  link: string
+  link: HMUrl
 }
 
 /**
- * Paragraph block
+ * Paragraph Block
  * A paragraph of rich text with annotations.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/paragraph
  */
@@ -1772,7 +1799,7 @@ export type HMBlockParagraph = HMBlockBase & {
 }
 
 /**
- * Query block
+ * Query Block
  * A block that embeds a live query: its results (documents from the queried spaces) render in place, styled as cards, a list, or a table.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/query
  */
@@ -1789,7 +1816,7 @@ export type HMBlockQuery = HMBlockBase & {
 }
 
 /**
- * Table block
+ * Table Block
  * A table container. Its children are TableColumn blocks (childless; their sibling order defines column display order) followed by TableRow blocks whose children
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/table
  */
@@ -1802,7 +1829,7 @@ export type HMBlockTable = HMBlockBase & {
 }
 
 /**
- * Table column block
+ * Table Column Block
  * One column of a Table block: childless, identified by its block id (cells reference it via their columnId attribute), ordered by sibling position.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/table-column
  */
@@ -1818,7 +1845,7 @@ export type HMBlockTableColumn = HMBlockBase & {
 }
 
 /**
- * Table row block
+ * Table Row Block
  * One row of a Table block. Its children are Paragraph cell blocks, each carrying a columnId attribute referencing a TableColumn id.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/table-row
  */
@@ -1832,13 +1859,13 @@ export type HMBlockTableRow = HMBlockBase & {
 }
 
 /**
- * Video block
+ * Video Block
  * A video, referenced by a URL.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/video
  */
 export type HMBlockVideo = HMBlockBase & {
   type?: 'Video'
-  link: string
+  link: HMUrl
   attributes?: {
     childrenType?: HMChildrenType
     columnCount?: number
@@ -1851,17 +1878,17 @@ export type HMBlockVideo = HMBlockBase & {
 }
 
 /**
- * Web embed block
+ * Web Embed Block
  * An embed of an external web resource (an http(s) URL).
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/block/web-embed
  */
 export type HMBlockWebEmbed = HMBlockBase & {
   type?: 'WebEmbed'
-  link: string
+  link: HMUrl
 }
 
 /**
- * Change body
+ * Change Body
  * The operations payload of a Change: an operation count hint and the list of ops.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/change-body
  */
@@ -1871,7 +1898,7 @@ export type HMChangeBody<Block = HMBlock> = {
 }
 
 /**
- * Contact subscription
+ * Contact Subscription
  * Subscription preferences for a contact: subscribe to the subject's site and/or profile.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/contact-subscribe
  */
@@ -1888,7 +1915,7 @@ export type HMContactSubscribe = {
 export type HMDate = string
 
 /**
- * Date-time
+ * Date-Time
  * An instant as an RFC 3339 / ISO 8601 string, `YYYY-MM-DDTHH:MM:SS[.sss]Z` or with a numeric offset (e.g. `2026-08-26T14:30:00Z`). A refinement of string with `f
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/date-time
  */
@@ -1905,7 +1932,7 @@ export type HMIncludeSchema = {
   properties?: {[key: string]: HMProperty}
   values?: HMSchema
   items?: HMSchema
-  /** For a reference-valued string (`format: hm-url` or `format: ipfs`): the schema the referenced document or object is expected to conform to — an `hm://` schema-document URL or `ipfs://<cid>`. Advisory: an editor pre-seeds and validates the target against it; a validator does not dereference the reference. */
+  /** For a reference-valued string (`format: hm-url` or `format: ipfs-url`): the schema the referenced document or object is expected to conform to — an `hm://` schema-document URL or `ipfs://<cid>`. Advisory: an editor pre-seeds and validates the target against it; a validator does not dereference the reference. */
   target?: string
   description?: string
   params?: {[key: string]: HMSchema}
@@ -1914,14 +1941,7 @@ export type HMIncludeSchema = {
 }
 
 /**
- * IPFS link
- * A reference to a content-addressed file on IPFS, held as an `ipfs://<cid>` string. `format: ipfs` tells an editor to render it as a file reference — a pill you
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/ipfs
- */
-export type HMIpfs = string
-
-/**
- * Key/value
+ * Key/Value
  * A metadata attribute: a dotted key path (segments) and a value.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/key-value
  */
@@ -1959,7 +1979,7 @@ export type HMListSchema = {
 }
 
 /**
- * Literal schema
+ * Literal Schema
  * The variant for a literal — a schema that accepts exactly one value, with a description of what that value means.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/literal-schema
  */
@@ -1985,26 +2005,6 @@ export type HMMapSchema = {
 }
 
 /**
- * Meta-schema
- * The meta-schema: a discriminated union of the shapes a schema can take. It is a valid instance of itself.
- * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/meta-schema
- */
-export type HMSchema =
-  | HMStructSchema
-  | HMMapSchema
-  | HMListSchema
-  | HMScalarSchema
-  | HMLinkSchema
-  | HMIncludeSchema
-  | HMAnyof
-  | HMVarSchema
-  | HMLiteralSchema
-  | string
-  | number
-  | boolean
-  | null
-
-/**
  * Navigation item
  * One entry of a site's navigation menu, stored in document metadata: a link with display text.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/navigation-item
@@ -2013,7 +2013,7 @@ export type HMNavigationItem = {
   type: 'Link'
   id: string
   text: string
-  link: string
+  link: HMUrl
 }
 
 /**
@@ -2029,7 +2029,7 @@ export type HMOp<Block = HMBlock> =
   | HMOpSetKey
 
 /**
- * DeleteBlocks op
+ * DeleteBlocks Op
  * Delete blocks by id.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/op/delete-blocks
  */
@@ -2039,7 +2039,7 @@ export type HMOpDeleteBlocks = {
 }
 
 /**
- * MoveBlocks op
+ * MoveBlocks Op
  * Move blocks under a parent, using RGA CRDT reference ids.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/op/move-blocks
  */
@@ -2051,7 +2051,7 @@ export type HMOpMoveBlocks = {
 }
 
 /**
- * ReplaceBlock op
+ * ReplaceBlock Op
  * Replace the content of a block.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/op/replace-block
  */
@@ -2061,7 +2061,7 @@ export type HMOpReplaceBlock<Block = HMBlock> = {
 }
 
 /**
- * SetAttributes op
+ * SetAttributes Op
  * Set attributes on a block, or document-level metadata when block is empty.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/op/set-attributes
  */
@@ -2072,7 +2072,7 @@ export type HMOpSetAttributes = {
 }
 
 /**
- * SetKey op
+ * SetKey Op
  * Deprecated: set a single flat metadata key to a value.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/op/set-key
  */
@@ -2109,7 +2109,7 @@ export type HMQuery = {
 }
 
 /**
- * Query inclusion
+ * Query Inclusion
  * One source a Query block pulls documents from: a space (account), an optional path prefix inside it, and whether to list direct Children or AllDescendants.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/query/inclusion
  */
@@ -2120,7 +2120,7 @@ export type HMQueryInclusion = {
 }
 
 /**
- * Query sort
+ * Query Sort
  * One sort term for a Query block's results, optionally reversed.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/query/sort
  */
@@ -2130,14 +2130,14 @@ export type HMQuerySort = {
 }
 
 /**
- * Query style
+ * Query Style
  * How a Query block presents its results: a card grid, a compact list, or a table.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/query/style
  */
 export type HMQueryStyle = 'Card' | 'List' | 'Table'
 
 /**
- * Query table config
+ * Query Table Config
  * Persisted presentation settings for a Query block's Table view: which columns are visible and how wide they are.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/query/table-config
  */
@@ -2151,7 +2151,7 @@ export type HMQueryTableConfig = {
 }
 
 /**
- * Redirect target
+ * Redirect Target
  * A redirect from one document to another space and/or path.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/redirect-target
  */
@@ -2177,9 +2177,9 @@ export type HMScalarSchema = {
   minLength?: number
   maxLength?: number
   pattern?: string
-  /** A semantic hint for editors/renderers — the value is still a plain string. Known: `hm-url` (a Hypermedia document reference), `hm-profile` (an account reference), `ipfs` (an ipfs://<cid> reference to a file or DAG-CBOR object), `date` (an ISO 8601 `YYYY-MM-DD` calendar date), `date-time` (an RFC 3339 instant). */
+  /** A semantic hint for editors/renderers — the value is still a plain string. Known: `hm-url` (a Hypermedia document reference), `hm-profile` (an account reference), `ipfs-url` (an ipfs://<cid> reference to a file or DAG-CBOR object), `url` (a URL of any scheme), `date` (an ISO 8601 `YYYY-MM-DD` calendar date), `date-time` (an RFC 3339 instant). */
   format?: string
-  /** For a reference-valued string (`format: hm-url` or `format: ipfs`): the schema the referenced document or object is expected to conform to — an `hm://` schema-document URL or `ipfs://<cid>`. Advisory: an editor pre-seeds and validates the target against it; a validator does not dereference the reference. */
+  /** For a reference-valued string (`format: hm-url` or `format: ipfs-url`): the schema the referenced document or object is expected to conform to — an `hm://` schema-document URL or `ipfs://<cid>`. Advisory: an editor pre-seeds and validates the target against it; a validator does not dereference the reference. */
   target?: string
   minimum?: number
   maximum?: number
@@ -2222,7 +2222,7 @@ export type HMTimestamp = number
 export type HMValue = string | number | boolean | null
 
 /**
- * Variable schema
+ * Variable Schema
  * A type-variable reference: matches whatever a generic's parameter is bound to. Written { "var": "<name>" }.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/var-schema
  */
@@ -2238,6 +2238,13 @@ export type HMVarSchema = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/signature
  */
 export type HMSignature = HMBytes
+
+/**
+ * URL
+ * A string holding a URL of any scheme — `https://…`, `hm://…`, `ipfs://…`. `format: url` tells an editor to render it as a link and to validate the shape, not a plain text field.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/url
+ */
+export type HMUrl = string
 
 /**
  * Visibility

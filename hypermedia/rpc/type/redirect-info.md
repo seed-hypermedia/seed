@@ -1,5 +1,5 @@
 ---
-name: Redirect info
+name: Redirect Info
 summary: Marks a listed document as a redirect to another target. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
 schemaDefinition: ipfs://bafyreihfkqpu577w73yw6dftygsmvtbrwb6oiztsz6a3d5nipjz2nlkrvm
 ---

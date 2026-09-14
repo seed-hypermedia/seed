@@ -1,5 +1,5 @@
 ---
-name: Core block
+name: Core Block
 summary: The union of the fifteen built-in block types (Paragraph, Heading, Code, Math, Image, Video, File, Button, Embed, WebEmbed, Nostr, Table, TableRow, TableColumn,
 schemaDefinition: ipfs://bafyreif7kagirwaczrjsnxv2jniihbvcm2hc4c2nsdcwqg5qgjbxtxhzom
 ---

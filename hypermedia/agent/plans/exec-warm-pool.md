@@ -1,5 +1,5 @@
 ---
-name: Warm MicroVM Pool for executecode
+name: Warm MicroVM Pool for Code Execution
 summary: Design for keeping a sandbox alive between execute calls instead of booting a fresh microVM every time. This expands workstream 3 of perf-squeeze-plan.md…
 ---
 Design for keeping a sandbox alive between `execute` calls instead of booting a fresh microVM every time. This expands workstream 3 of [perf-squeeze-plan.md](./perf-squeeze.md) into an implementable shape, informed by the numbers in [agent/plans/speed.md](./speed.md). <!-- id:fS-QqfC6 -->

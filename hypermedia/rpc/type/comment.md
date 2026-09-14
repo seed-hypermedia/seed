@@ -1,5 +1,5 @@
 ---
-name: Comment (payload)
+name: Comment (Payload)
 summary: "A comment as the API returns it to clients: the signed comment's content plus derived fields (stable id, version CID, thread links, timestamps, visibility). A d"
 schemaDefinition: ipfs://bafyreigvkjvqrutotwfpl23ia7romd7wmsu26lxox53lhqk6bz4wgyef4u
 ---

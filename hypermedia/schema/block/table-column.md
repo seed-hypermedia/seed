@@ -1,5 +1,5 @@
 ---
-name: Table column block
+name: Table Column Block
 summary: "One column of a Table block: childless, identified by its block id (cells reference it via their columnId attribute), ordered by sibling position."
 schemaDefinition: ipfs://bafyreiaot62tetwvvq7js323thin33fnzn7ze3htkuvjymheui2are6u4q
 ---

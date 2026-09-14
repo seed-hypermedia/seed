@@ -1,7 +1,7 @@
 ---
 name: Faction
 summary: "A world-builder kit type: a page about a faction, order, house, or guild. Requires a `founded` date; links to its seat (a Place) and leader (a Character), and a"
-schemaDefinition: ipfs://bafyreidc64k3ieibsfgrzvwct6mmaiadcv262xodgxbjpyy72xhjcsgeva
+schemaDefinition: ipfs://bafyreieniiozcpe2mhrt3xw6664snoqzutniuungbsq5xmtywslmdsiwqq
 ---
 A world-builder kit type: a page about a faction, order, house, or guild. Requires a `founded` date; links to its seat (a Place) and leader (a Character), and a banner image. <!-- id:RvItBHZN -->
 
@@ -16,12 +16,12 @@ This document describes the **example/faction-doc** type — an example schema. 
   - `dissolved` — [date](../schema/date.md) <!-- id:goqd0e_j -->
   - `seat` — [hm-url](../hm-url.md) (→ must conform to [example/place-doc](./place-doc.md)) <!-- id:ii5ONvHX -->
   - `leader` — [hm-url](../hm-url.md) (→ must conform to [example/character-doc](./character-doc.md)) <!-- id:4wLuR37p -->
-  - `banner` — [schema/ipfs](../schema/ipfs.md) <!-- id:z9Hj7vQe -->
+  - `banner` — [ipfs-url](../ipfs-url.md) <!-- id:z9Hj7vQe -->
 
 # Depends on <!-- id:FhzqPOgw -->
 
 - [document](../document.md) <!-- id:ykhnuylE -->
 - [hm-url](../hm-url.md) <!-- id:-qmfs1ee -->
-- [schema/ipfs](../schema/ipfs.md) <!-- id:niUF-Oyt -->
+- [ipfs-url](../ipfs-url.md) <!-- id:niUF-Oyt -->
 - [metadata](../metadata.md) <!-- id:AisaIh3L -->
 - [date](../schema/date.md) <!-- id:CiiSksy4 -->

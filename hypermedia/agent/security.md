@@ -1,5 +1,5 @@
 ---
-name: Security model
+name: Security Model
 summary: The Agents security model centers on signed account-scoped actions, server-side owner/collaborator checks, encrypted/redacted secrets, signed WebSocket…
 ---
 The Agents security model centers on signed account-scoped actions, server-side owner/collaborator checks, encrypted/redacted secrets, signed WebSocket subscriptions, and a model-facing tool surface whose authority is fixed at five verbs. <!-- id:DmipMeA2 -->

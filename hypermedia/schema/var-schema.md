@@ -1,5 +1,5 @@
 ---
-name: Variable schema
+name: Variable Schema
 summary: "A type-variable reference: matches whatever a generic's parameter is bound to. Written { \"var\": \"<name>\" }."
 schemaDefinition: ipfs://bafyreib7iaz6yte7uj3ja4dzzw7cctmrzkfwh637u4scfa55eqrlv5z7v4
 ---

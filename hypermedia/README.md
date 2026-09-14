@@ -19,12 +19,12 @@ they work on GitHub and become `hm://` links when published. Start at
 Every page publishes at its path: `<path>.md` (with an optional
 `<path>.schema.json` beside it) is `/<path>`, so `schema/block/image.md` is
 `/schema/block/image`. A folder's landing page sits beside the folder
-(`schema.md` is `/schema`, the home of `schema/`).
+(`schema.md` is `/schema`, the meta-schema and the home of `schema/`).
 
 | path | what lives there |
 | --- | --- |
 | `index.md` | the home document |
-| root pages | the essential Hypermedia concepts (`change`, `ref`, `document`, `cid`, `hm-url`, `authority`, …), plus the landings `schema`, `rpc`, `example` and `agent` |
+| root pages | the essential Hypermedia concepts (`change`, `ref`, `document`, `cid`, `url`, `hm-url`, `ipfs-url`, `authority`, …), and `schema`, the meta-schema, which is also the landing of `schema/`, plus the landings `schema`, `rpc`, `example` and `agent` |
 | `schema/` | the type system: its chapters, one page per term, the primitives and meta-schema variants, and the model's detail types (`block/`, `op/`, `query/`) |
 | `rpc/` | the Seed read API: one page per method, `rpc/method` (the union of them), and the read models in `rpc/type/` |
 | `example/` | the example schemas and instances, flat |

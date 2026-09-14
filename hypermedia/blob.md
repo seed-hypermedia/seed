@@ -1,5 +1,5 @@
 ---
-name: Hypermedia Blob
+name: Blob
 summary: "The signed base envelope every Hypermedia CBOR blob extends: a `type` tag (the discriminator the network dispatches on), the signer's public key, an Ed25519 sig"
 schemaDefinition: ipfs://bafyreibnvz2v2isxtg74vvrnuzrljgibhb7h6skd455u5vojxfww7vxk3u
 ---

@@ -1,5 +1,5 @@
 ---
-name: Contact record
+name: Contact Record
 summary: "A contact as the API returns it: who named whom what, signed by which key, with timestamps and subscription preferences. A derived read model computed by the Se"
 schemaDefinition: ipfs://bafyreias3g4l5pyz4y324u23dsue3vewg42rr47bhpekhjh4adwnoanfve
 ---

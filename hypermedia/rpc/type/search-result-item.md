@@ -1,5 +1,5 @@
 ---
-name: Search result item
+name: Search Result Item
 summary: "One hit of a network search: the matched id with display info (title, icon, breadcrumb parent names) and what kind of entity matched. A derived read model compu"
 schemaDefinition: ipfs://bafyreihrnvops7thfow5axoouagev6h4r5bxdinekf66ogh5ggsjgz3fru
 ---

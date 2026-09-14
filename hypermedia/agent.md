@@ -1,5 +1,5 @@
 ---
-name: Seed Agents Knowledgebase
+name: Agents
 summary: This directory is the canonical knowledgebase for the Seed Agents feature. It is intended for future coding agents, product reviewers, and humans who need…
 ---
 This directory is the canonical knowledgebase for the Seed Agents feature. It is intended for future coding agents, product reviewers, and humans who need to understand what exists, how it works, what is complete, and what should happen next. <!-- id:PnjVgoZk -->

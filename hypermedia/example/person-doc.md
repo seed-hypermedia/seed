@@ -1,5 +1,5 @@
 ---
-name: "Example: Person document"
+name: "Example: Person Document"
 summary: "A document that describes a person — the base document, refined so its metadata requires a `surname`. Illustrates the corrected model: a typed document schema e"
 schemaDefinition: ipfs://bafyreiev4cr62q5jl4jw2bcecj4pcr3w7ehg4uwx265sakf2kkl5i3my3y
 ---

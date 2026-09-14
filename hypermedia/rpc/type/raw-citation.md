@@ -1,5 +1,5 @@
 ---
-name: Raw citation
+name: Raw Citation
 summary: A citation in raw indexed form, before client-side resolution into a rpc/type/citation. A derived read model computed by the Seed daemon/API for clients — not a sig
 schemaDefinition: ipfs://bafyreievxmfst75yek3vkyjxc7epdleew2eienl6hdep23u3ggifof7yh4
 ---

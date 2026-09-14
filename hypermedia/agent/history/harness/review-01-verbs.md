@@ -1,5 +1,5 @@
 ---
-name: "Checkmark review — M1: the five verbs (harness/01-verbs)"
+name: "Checkmark Review — M1: The Five Verbs (harness/01-verbs)"
 summary: 'Status: verified — reviewed by Eric. (The "draft — verification in flight" line this doc opened with was never updated once the gates and the adversarial…'
 ---
 Status: **verified — reviewed by Eric.** (The "draft — verification in flight" line this doc opened with was never updated once the gates and the adversarial pass below landed; corrected 2026-08-13.) <!-- id:5UcyW6vG -->

@@ -1,5 +1,5 @@
 ---
-name: Query inclusion
+name: Query Inclusion
 summary: "One source a Query block pulls documents from: a space (account), an optional path prefix inside it, and whether to list direct Children or AllDescendants."
 schemaDefinition: ipfs://bafyreihhhzom3jc77p36tcrggybzvtjm6jcdfkweyzrfoq57fllqpazn6i
 ---

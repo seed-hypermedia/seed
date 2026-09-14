@@ -1,5 +1,5 @@
 ---
-name: Agent triggers plan
+name: Agent Triggers Plan
 summary: "Status: Phase 1 CRUD and UI shell has started. Backend CRUD/persistence and the desktop Triggers tab/detail shell are in place. Phase 2 matching/idempotency…"
 ---
 <!-- id:yswfEM4q -->
