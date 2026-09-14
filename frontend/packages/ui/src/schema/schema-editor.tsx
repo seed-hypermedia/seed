@@ -365,6 +365,12 @@ function UnionOptionsEditor({
           >
             <X className="size-4" />
           </Button>
+          <NestedSchemaEditor
+            node={arm}
+            onNode={(next) => set(arms.map((a, j) => (j === i ? next : a)))}
+            options={options}
+            ariaPrefix={`${ariaPrefix} option ${i + 1}`}
+          />
         </div>
       ))}
       <Button
@@ -404,77 +410,63 @@ function ListItemsEditor({
         ariaLabel={`${ariaPrefix} item type`}
         className="w-56"
       />
-      {Array.isArray(items.anyOf) && (
-        <UnionOptionsEditor
-          schema={items}
-          onSchema={(next) => onSchema({...schema, items: next})}
-          options={options}
-          ariaPrefix={`${ariaPrefix} item`}
-        />
-      )}
+      <NestedSchemaEditor
+        node={items}
+        onNode={(next) => onSchema({...schema, items: next})}
+        options={options}
+        ariaPrefix={`${ariaPrefix} item`}
+      />
     </div>
   )
 }
 
+/** An inline struct or map (not a named type): its fields are edited in place. */
+const isInlineStruct = (ps: any) =>
+  !!ps && typeof ps === 'object' && !ps.anyOf && ['struct', 'map'].includes(kindOf(ps.type))
+
+/**
+ * What a type node spells out beneath its type picker: a union's options, a list's item type, or an
+ * inline struct's fields — each recursing, so a struct inside a struct (inside a list…) is editable.
+ */
+function NestedSchemaEditor({
+  node,
+  onNode,
+  options,
+  ariaPrefix,
+}: {
+  node: any
+  onNode: (s: HypermediaSchema) => void
+  options: TypeOption[]
+  ariaPrefix: string
+}) {
+  if (Array.isArray(node?.anyOf))
+    return <UnionOptionsEditor schema={node} onSchema={onNode} options={options} ariaPrefix={ariaPrefix} />
+  if (kindOf(node?.type) === 'list')
+    return <ListItemsEditor schema={node} onSchema={onNode} options={options} ariaPrefix={ariaPrefix} />
+  if (isInlineStruct(node))
+    return (
+      <div className="border-border flex basis-full flex-col gap-1 border-l pl-3" data-testid="schema-nested-struct">
+        <StructFieldsEditor schema={node} onSchema={onNode} options={options} path={ariaPrefix} />
+      </div>
+    )
+  return null
+}
+
 function StructSchemaForm({schema, onSchema}: {schema: HypermediaSchema; onSchema: (s: HypermediaSchema) => void}) {
   const fields = structFields(schema)
-  const properties: Record<string, any> = Object.fromEntries(fields.map((f) => [f.name, f.schema]))
-  const required = new Set<string>(fields.filter((f) => f.required).map((f) => f.name))
-  const entries = Object.entries(properties)
   const signed = isSignedBlobType(schema)
 
-  /** Write the fields back as `properties[name] = {value, required?, description?}`. */
-  const commitFields = (next: StructField[]) => {
-    // A ref-rooted schema EXTENDS something — the signed-blob envelope or any base schema (the
-    // "Extend Schema" flow). Editing fields must never silently drop that root.
-    // A map that gains named fields is a struct; a bare struct with only a `values` tail stays a struct.
-    const root =
-      !schema.type && typeof schema.ref === 'string'
-        ? {ref: schema.ref}
-        : {type: kindOf(schema.type) === 'map' && next.length === 0 ? MAP_URL : STRUCT_URL}
-    const {type: _t, ref: _r, ...rest} = schema
-    onSchema({...rest, ...root, properties: fieldsToProperties(next)})
-  }
-  const field = (name: string) => fields.find((f) => f.name === name)
-  /** The fields with one replaced (or, when `next` is null, removed). */
-  const withField = (name: string, next: StructField | null): StructField[] =>
-    next === null ? fields.filter((f) => f.name !== name) : fields.map((f) => (f.name === name ? next : f))
-  const commit = (nextProps: Record<string, any>, nextRequired: Set<string>) =>
-    commitFields(
-      Object.entries(nextProps).map(([name, sch]) => ({
-        name,
-        schema: sch,
-        required: nextRequired.has(name),
-        description: field(name)?.description,
-      })),
-    )
   const setTypeTag = (tag: string) => {
-    commit({...properties, type: tag.trim() || 'Custom'}, new Set(Array.from(required).concat('type')))
-  }
-  const renameField = (oldName: string, newName: string) => {
-    if (newName === oldName || newName in properties) return
-    commitFields(fields.map((f) => (f.name === oldName ? {...f, name: newName} : f)))
-  }
-  const setFieldDescription = (name: string, description: string) => {
-    const f = field(name)
-    if (f) commitFields(withField(name, {...f, description: description.trim() || undefined}))
-  }
-  // A reference field (HM link / IPFS) may name the type its target should
-  // conform to — this is how one type points at another (character.home → place).
-  const setFieldTarget = (name: string, target: string) => {
-    const {target: _old, ...rest} = properties[name] ?? {}
-    commit({...properties, [name]: target.trim() ? {...rest, target: target.trim()} : rest}, required)
-  }
-  const setRequired = (name: string, on: boolean) => {
-    const f = field(name)
-    if (f) commitFields(withField(name, {...f, required: on}))
-  }
-  const removeField = (name: string) => commitFields(withField(name, null))
-  const addField = () => {
-    let n = 1
-    let name = 'field'
-    while (name in properties) name = `field${++n}`
-    commitFields([...fields, {name, schema: kindSchema('string'), required: false}])
+    const typeField: StructField = {
+      ...fields.find((f) => f.name === 'type'),
+      name: 'type',
+      schema: tag.trim() || 'Custom',
+      required: true,
+    }
+    const next = fields.some((f) => f.name === 'type')
+      ? fields.map((f) => (f.name === 'type' ? typeField : f))
+      : [...fields, typeField]
+    onSchema(withFields(schema, next))
   }
 
   // Type parameters (`params`): a generic schema names them here and fields
@@ -524,16 +516,6 @@ function StructSchemaForm({schema, onSchema}: {schema: HypermediaSchema; onSchem
       schema: kindSchema(kind),
     })),
   ]
-  const fieldUrl = nodeUrl
-  const fieldLabel = nodeLabel
-
-  // `values`: the schema every field NOT listed above must satisfy. Present, the
-  // struct is open (extra fields allowed, typed); absent, it is closed.
-  const values: any = schema.values
-  const setValues = (next: HypermediaSchema | null) => {
-    const {values: _v, ...rest} = schema
-    onSchema(next ? {...rest, values: next} : rest)
-  }
 
   // The root type is a type reference like any other: a primitive kind URL (map,
   // list, string…) is the schema's `type`; any other schema document is its `ref`
@@ -571,10 +553,6 @@ function StructSchemaForm({schema, onSchema}: {schema: HypermediaSchema; onSchem
     if (schema.description) keep.description = schema.description
     onSchema({...keep, ...(next.anyOf && schema.anyOf ? {...next, anyOf: schema.anyOf} : next)})
   }
-  const setFieldType = (name: string, url: string) => {
-    commit({...properties, [name]: kindOf(url) !== url ? {type: url} : {ref: url}}, required)
-  }
-  const setFieldSchema = (name: string, next: HypermediaSchema) => commit({...properties, [name]: next}, required)
 
   return (
     <div className="flex flex-col gap-4">
@@ -657,103 +635,181 @@ function StructSchemaForm({schema, onSchema}: {schema: HypermediaSchema; onSchem
       {!rootIsUnion && !rootIsList && (
         <div className="flex flex-col gap-1">
           <label className="text-muted-foreground text-xs font-medium">Fields</label>
-          <div className="flex flex-col gap-1.5">
-            {entries.length === 0 && <p className="text-muted-foreground text-sm">No fields yet.</p>}
-            {entries
-              .filter(([name]) => !(signed && name === 'type'))
-              .map(([name, ps], index) => (
-                // Stable index key: renaming changes the property name but not the
-                // row's identity, so the (controlled) name input never remounts and
-                // keeps focus while typing.
-                <div key={index} className="flex flex-wrap items-center gap-2">
-                  <Input
-                    value={name}
-                    className="flex-1 font-mono text-sm"
-                    aria-label="Field name"
-                    onChange={(e) => renameField(name, e.target.value)}
-                  />
-                  <SchemaTypeInput
-                    value={fieldUrl(ps)}
-                    label={fieldLabel(ps)}
-                    options={fieldTypeOptions}
-                    onChange={(url) => setFieldType(name, url)}
-                    onPick={(next) => setFieldSchema(name, next)}
-                    ariaLabel={`Type of ${name}`}
-                    className="w-44 shrink-0"
-                  />
-                  {isReferenceKind(propKind(ps)) && (
-                    <Tooltip content="Target type — the schema the referenced document or object should conform to (an hm:// type document or ipfs:// schema). Optional.">
-                      <Input
-                        value={typeof ps?.target === 'string' ? ps.target : ''}
-                        placeholder="target type (hm:// or ipfs://)"
-                        aria-label={`Target type for ${name}`}
-                        className="w-52 shrink-0 font-mono text-xs"
-                        onChange={(e) => setFieldTarget(name, e.target.value)}
-                      />
-                    </Tooltip>
-                  )}
-                  <Tooltip content="Required — a value of this type must include this field">
-                    <label className="text-muted-foreground flex shrink-0 cursor-pointer items-center gap-1 text-xs">
-                      <Checkbox checked={required.has(name)} onCheckedChange={(on) => setRequired(name, on === true)} />
-                      required
-                    </label>
-                  </Tooltip>
-                  <Button variant="ghost" size="iconSm" aria-label={`Remove ${name}`} onClick={() => removeField(name)}>
-                    <X className="size-4" />
-                  </Button>
-                  <Input
-                    value={field(name)?.description ?? ''}
-                    placeholder="description"
-                    aria-label={`Description of ${name}`}
-                    className="text-muted-foreground basis-full text-xs"
-                    onChange={(e) => setFieldDescription(name, e.target.value)}
-                  />
-                  {Array.isArray(ps?.anyOf) && (
-                    <UnionOptionsEditor
-                      schema={ps}
-                      onSchema={(next) => setFieldSchema(name, next)}
-                      options={fieldTypeOptions}
-                      ariaPrefix={name}
-                    />
-                  )}
-                  {kindOf(ps?.type) === 'list' && (
-                    <ListItemsEditor
-                      schema={ps}
-                      onSchema={(next) => setFieldSchema(name, next)}
-                      options={fieldTypeOptions}
-                      ariaPrefix={name}
-                    />
-                  )}
-                </div>
-              ))}
-          </div>
-          <Button variant="outline" size="sm" className="mt-1 w-fit gap-1" onClick={addField}>
-            <Plus className="size-4" /> Add field
-          </Button>
-          <div className="mt-2 flex flex-wrap items-center gap-2" data-testid="schema-values">
-            <Tooltip content="Open struct — fields other than the ones above are allowed, and must have this kind">
-              <label className="text-muted-foreground flex cursor-pointer items-center gap-1 text-xs">
-                <Checkbox
-                  checked={values !== undefined}
-                  onCheckedChange={(on) => setValues(on === true ? {ref: ANY_URL} : null)}
-                />
-                other fields allowed
-              </label>
-            </Tooltip>
-            {values !== undefined && (
-              <SchemaTypeInput
-                value={fieldUrl(values)}
-                label={fieldLabel(values)}
-                options={fieldTypeOptions}
-                onChange={(url) => setValues(kindOf(url) !== url ? {type: url} : {ref: url})}
-                onPick={(next) => setValues(next)}
-                ariaLabel="Type of other fields"
-                className="w-44 shrink-0"
-              />
-            )}
-          </div>
+          <StructFieldsEditor schema={schema} onSchema={onSchema} options={fieldTypeOptions} />
         </div>
       )}
     </div>
+  )
+}
+
+/** A schema with its fields replaced, keeping its root: a ref-rooted schema (the signed-blob envelope
+ * or any base) keeps extending it; a map that gains named fields becomes a struct. */
+function withFields(schema: HypermediaSchema, next: StructField[]): HypermediaSchema {
+  const root =
+    !schema.type && typeof schema.ref === 'string'
+      ? {ref: schema.ref}
+      : {type: kindOf(schema.type) === 'map' && next.length === 0 ? MAP_URL : STRUCT_URL}
+  const {type: _t, ref: _r, ...rest} = schema
+  return {...rest, ...root, properties: fieldsToProperties(next)}
+}
+
+/**
+ * The field rows of a struct — name, type, target, required, description, and whatever the type
+ * spells out beneath (see {@link NestedSchemaEditor}) — plus Add field and the open-struct toggle.
+ * Used for the root and, recursively, for every inline struct a field declares. `path` names a
+ * nested struct (e.g. `sourceBlob`) so its controls stay distinguishable; absent at the root.
+ */
+function StructFieldsEditor({
+  schema,
+  onSchema,
+  options,
+  path,
+}: {
+  schema: HypermediaSchema
+  onSchema: (s: HypermediaSchema) => void
+  options: TypeOption[]
+  path?: string
+}) {
+  const fields = structFields(schema)
+  const signed = !path && isSignedBlobType(schema)
+  const commitFields = (next: StructField[]) => onSchema(withFields(schema, next))
+  const field = (name: string) => fields.find((f) => f.name === name)
+  /** The fields with one replaced (or, when `next` is null, removed). */
+  const withField = (name: string, next: StructField | null): StructField[] =>
+    next === null ? fields.filter((f) => f.name !== name) : fields.map((f) => (f.name === name ? next : f))
+  const update = (name: string, patch: Partial<StructField>) => {
+    const f = field(name)
+    if (f) commitFields(withField(name, {...f, ...patch}))
+  }
+  const renameField = (oldName: string, newName: string) => {
+    if (newName === oldName || field(newName)) return
+    update(oldName, {name: newName})
+  }
+  // A reference field (HM link / IPFS) may name the type its target should
+  // conform to — this is how one type points at another (character.home → place).
+  const setFieldTarget = (name: string, target: string) => {
+    const {target: _old, ...rest} = field(name)?.schema ?? {}
+    update(name, {schema: target.trim() ? {...rest, target: target.trim()} : rest})
+  }
+  const addField = () => {
+    let n = 1
+    let name = 'field'
+    while (field(name)) name = `field${++n}`
+    commitFields([...fields, {name, schema: kindSchema('string'), required: false}])
+  }
+
+  // `values`: the schema every field NOT listed above must satisfy. Present, the
+  // struct is open (extra fields allowed, typed); absent, it is closed.
+  const values: any = schema.values
+  const setValues = (next: HypermediaSchema | null) => {
+    const {values: _v, ...rest} = schema
+    onSchema(next ? {...rest, values: next} : rest)
+  }
+  /** How a control is named: bare at the root, qualified by the struct's path when nested. */
+  const q = (name: string) => (path ? `${path}.${name}` : name)
+  const visible = fields.filter((f) => !(signed && f.name === 'type'))
+
+  return (
+    <>
+      <div className="flex flex-col gap-1.5">
+        {visible.length === 0 && <p className="text-muted-foreground text-sm">No fields yet.</p>}
+        {visible.map(({name, schema: ps, required, description}, index) => (
+          // Stable index key: renaming changes the property name but not the
+          // row's identity, so the (controlled) name input never remounts and
+          // keeps focus while typing.
+          <div key={index} className="flex flex-wrap items-center gap-2">
+            <Input
+              value={name}
+              className="flex-1 font-mono text-sm"
+              aria-label={path ? `Field name in ${path}` : 'Field name'}
+              onChange={(e) => renameField(name, e.target.value)}
+            />
+            <SchemaTypeInput
+              value={nodeUrl(ps)}
+              label={nodeLabel(ps)}
+              options={options}
+              onChange={(url) => update(name, {schema: typeSchemaFor(url)})}
+              onPick={(next) => update(name, {schema: next})}
+              ariaLabel={`Type of ${q(name)}`}
+              className="w-44 shrink-0"
+            />
+            {isReferenceKind(propKind(ps)) && (
+              <Tooltip content="Target type — the schema the referenced document or object should conform to (an hm:// type document or ipfs:// schema). Optional.">
+                <Input
+                  value={typeof ps?.target === 'string' ? ps.target : ''}
+                  placeholder="target type (hm:// or ipfs://)"
+                  aria-label={`Target type for ${q(name)}`}
+                  className="w-52 shrink-0 font-mono text-xs"
+                  onChange={(e) => setFieldTarget(name, e.target.value)}
+                />
+              </Tooltip>
+            )}
+            <Tooltip content="Required — a value of this type must include this field">
+              <label className="text-muted-foreground flex shrink-0 cursor-pointer items-center gap-1 text-xs">
+                <Checkbox
+                  checked={required}
+                  aria-label={path ? `Required ${q(name)}` : undefined}
+                  onCheckedChange={(on) => update(name, {required: on === true})}
+                />
+                required
+              </label>
+            </Tooltip>
+            <Button
+              variant="ghost"
+              size="iconSm"
+              aria-label={`Remove ${q(name)}`}
+              onClick={() => commitFields(withField(name, null))}
+            >
+              <X className="size-4" />
+            </Button>
+            <Input
+              value={description ?? ''}
+              placeholder="description"
+              aria-label={`Description of ${q(name)}`}
+              className="text-muted-foreground basis-full text-xs"
+              onChange={(e) => update(name, {description: e.target.value.trim() || undefined})}
+            />
+            <NestedSchemaEditor
+              node={ps}
+              onNode={(next) => update(name, {schema: next})}
+              options={options}
+              ariaPrefix={q(name)}
+            />
+          </div>
+        ))}
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        className="mt-1 w-fit gap-1"
+        aria-label={path ? `Add field to ${path}` : undefined}
+        onClick={addField}
+      >
+        <Plus className="size-4" /> Add field
+      </Button>
+      <div className="mt-2 flex flex-wrap items-center gap-2" data-testid="schema-values">
+        <Tooltip content="Open struct — fields other than the ones above are allowed, and must have this kind">
+          <label className="text-muted-foreground flex cursor-pointer items-center gap-1 text-xs">
+            <Checkbox
+              checked={values !== undefined}
+              aria-label={path ? `Other fields allowed in ${path}` : undefined}
+              onCheckedChange={(on) => setValues(on === true ? {ref: ANY_URL} : null)}
+            />
+            other fields allowed
+          </label>
+        </Tooltip>
+        {values !== undefined && (
+          <SchemaTypeInput
+            value={nodeUrl(values)}
+            label={nodeLabel(values)}
+            options={options}
+            onChange={(url) => setValues(typeSchemaFor(url))}
+            onPick={(next) => setValues(next)}
+            ariaLabel={path ? `Type of other fields in ${path}` : 'Type of other fields'}
+            className="w-44 shrink-0"
+          />
+        )}
+      </div>
+    </>
   )
 }

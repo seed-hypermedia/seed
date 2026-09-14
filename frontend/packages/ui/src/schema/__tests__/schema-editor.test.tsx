@@ -126,6 +126,77 @@ describe('SchemaEditor (struct form)', () => {
   })
 })
 
+describe('SchemaEditor (nested structs)', () => {
+  const STRUCT = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct'
+  const STRING = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string'
+  const initial: HypermediaSchema = {
+    type: STRUCT,
+    properties: {
+      source: {value: {ref: STRING}, required: true},
+      sourceBlob: {value: {type: STRUCT, properties: {cid: {value: {ref: STRING}}}}},
+    },
+  }
+  const setInput = (el: HTMLInputElement, value: string) =>
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+      setter.call(el, value)
+      el.dispatchEvent(new Event('input', {bubbles: true}))
+    })
+  const inner = () => fieldSchema(latest, 'sourceBlob')!
+
+  it('shows and edits the fields of a struct inside a struct', () => {
+    act(() => root.render(<Harness initial={initial} />))
+    const nested = container.querySelector('[data-testid="schema-nested-struct"]')!
+    expect(nested).toBeTruthy()
+    expect((nested.querySelector('input[aria-label="Field name in sourceBlob"]') as HTMLInputElement).value).toBe('cid')
+    expect(nested.querySelector('input[aria-label="Type of sourceBlob.cid"]')).toBeTruthy()
+
+    // rename, require, describe, add and remove — all land inside the inner struct
+    setInput(nested.querySelector('input[aria-label="Field name in sourceBlob"]') as HTMLInputElement, 'hash')
+    expect(structFields(inner()).map((f) => f.name)).toEqual(['hash'])
+    click(container.querySelector('[aria-label="Required sourceBlob.hash"]')!)
+    expect(requiredFieldNames(inner())).toEqual(['hash'])
+    setInput(
+      container.querySelector('input[aria-label="Description of sourceBlob.hash"]') as HTMLInputElement,
+      'the CID',
+    )
+    expect(structFields(inner())[0]!.description).toBe('the CID')
+    click(container.querySelector('[aria-label="Add field to sourceBlob"]')!)
+    expect(structFields(inner()).map((f) => f.name)).toEqual(['hash', 'field'])
+    click(container.querySelector('[aria-label="Remove sourceBlob.field"]')!)
+    expect(structFields(inner()).map((f) => f.name)).toEqual(['hash'])
+
+    // the outer struct is untouched and the whole thing stays a valid schema
+    expect(structFields(latest).map((f) => f.name)).toEqual(['source', 'sourceBlob'])
+    expect(requiredFieldNames(latest)).toEqual(['source'])
+    expect(kindOf(inner().type)).toBe('struct')
+    expect(isHypermediaSchema(latest)).toBe(true)
+  })
+
+  it('recurses: a struct inside a list inside a struct inside a struct', () => {
+    const LIST = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list'
+    const deep: HypermediaSchema = {
+      type: STRUCT,
+      properties: {
+        a: {
+          value: {
+            type: STRUCT,
+            properties: {b: {value: {type: LIST, items: {type: STRUCT, properties: {c: {value: {ref: STRING}}}}}}},
+          },
+        },
+      },
+    }
+    act(() => root.render(<Harness initial={deep} />))
+    expect(container.querySelectorAll('[data-testid="schema-nested-struct"]')).toHaveLength(2)
+    const c = container.querySelector('input[aria-label="Field name in a.b item"]') as HTMLInputElement
+    expect(c.value).toBe('c')
+    setInput(c, 'd')
+    const items = fieldSchema(fieldSchema(latest, 'a'), 'b')!.items
+    expect(structFields(items).map((f) => f.name)).toEqual(['d'])
+    expect(isHypermediaSchema(latest)).toBe(true)
+  })
+})
+
 describe('SchemaEditor (generics and JSON mode)', () => {
   const MAP = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map'
   const STRUCT = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct'
