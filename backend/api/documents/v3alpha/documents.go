@@ -2156,9 +2156,8 @@ func (srv *Server) ListUnreferencedDocuments(ctx context.Context, in *documents.
 	// The unreferenced section is a publishing aid for public site structure.
 	// Private documents never belong in it, including for their owner.
 	visibility := "AND cdg.visibility IS NOT 'Private'"
-	baseArgs := []any{accountIRI + "/", accountIRI + "0"}
 	query := fmt.Sprintf(qListUnreferencedDocuments, visibility)
-	args := append(append([]any{}, baseArgs...), cursor.IRI, in.PageSize+1)
+	args := []any{accountIRI + "/", accountIRI + "0", cursor.IRI, in.PageSize + 1}
 
 	out := &documents.ListUnreferencedDocumentsResponse{Documents: make([]*documents.DocumentInfo, 0, min(in.PageSize, maxPageAllocBuffer))}
 	lookup := blob.NewLookupCache(conn)
@@ -2185,8 +2184,9 @@ func (srv *Server) ListUnreferencedDocuments(ctx context.Context, in *documents.
 		return nil, err
 	}
 
-	incompleteArgs := append([]any{}, baseArgs...)
-	incomplete, err := sqlitex.QueryOne[int](conn, fmt.Sprintf(qUnreferencedIndexIncomplete, visibility), incompleteArgs...)
+	// The parent range starts at the account root itself (not at root + '/'),
+	// because the root document is a valid parent of top-level documents.
+	incomplete, err := sqlitex.QueryOne[int](conn, fmt.Sprintf(qUnreferencedIndexIncomplete, visibility), accountIRI, accountIRI+"0")
 	if err != nil {
 		return nil, err
 	}
@@ -2194,20 +2194,30 @@ func (srv *Server) ListUnreferencedDocuments(ctx context.Context, in *documents.
 	return out, nil
 }
 
-const currentDocumentGenerations = `
-	SELECT dg.* FROM document_generations dg
-	WHERE dg.generation = (SELECT MAX(g.generation) FROM document_generations g WHERE g.resource = dg.resource)
-	AND dg.is_deleted = 0 AND json_array_length(dg.heads) > 0
-`
+// qUnreferencedParentIRI derives the parent IRI of `child` by stripping its
+// last path segment: rtrim removes every trailing character that is not '/'
+// (the set of characters of the IRI minus '/'), which stops at the last '/',
+// and the outer substr drops that '/'. Deriving the parent from the child (and
+// not the other way around) lets SQLite seek the unique resources.iri index for
+// the parent instead of scanning resources for every child: the daemon's
+// vendored SQLite (3.45) planned the previous substr-based self-join as a full
+// scan per child, which pegged the CPU of production servers.
+const qUnreferencedParentIRI = `substr(child.iri, 1, length(rtrim(child.iri, replace(child.iri, '/', ''))) - 1)`
 
+// The current generation of a document is joined by primary key
+// (resource, generation) on purpose, instead of through a shared CTE:
+// SQLite 3.45 doesn't materialize the CTE and rescans document_generations
+// with the correlated MAX subquery for every candidate row.
 var qListUnreferencedDocuments = `
-	WITH current_docs AS (` + currentDocumentGenerations + `)
 	SELECT child.iri
 	FROM resources child
-	JOIN current_docs cdg ON cdg.resource = child.id
-	JOIN resources parent ON substr(child.iri, 1, length(parent.iri) + 1) = parent.iri || '/'
-		AND instr(substr(child.iri, length(parent.iri) + 2), '/') = 0
-	JOIN current_docs pdg ON pdg.resource = parent.id
+	JOIN document_generations cdg ON cdg.resource = child.id
+		AND cdg.generation = (SELECT MAX(g.generation) FROM document_generations g WHERE g.resource = child.id)
+		AND cdg.is_deleted = 0 AND json_array_length(cdg.heads) > 0
+	JOIN resources parent ON parent.iri = ` + qUnreferencedParentIRI + `
+	JOIN document_generations pdg ON pdg.resource = parent.id
+		AND pdg.generation = (SELECT MAX(g.generation) FROM document_generations g WHERE g.resource = parent.id)
+		AND pdg.is_deleted = 0 AND json_array_length(pdg.heads) > 0
 	JOIN document_reference_summaries summary ON summary.resource = parent.id
 		AND summary.generation = pdg.generation AND summary.genesis = pdg.genesis
 		AND json(summary.heads) = json(pdg.heads)
@@ -2220,20 +2230,30 @@ var qListUnreferencedDocuments = `
 	LIMIT ?
 `
 
+// qUnreferencedIndexIncomplete walks the parents of the account (root
+// included) and reports whether any of them, having at least one alive direct
+// child, lacks an up-to-date reference summary. Children are found with the
+// same IRI prefix-range seek as children_count in qDocumentsOuterColumns.
 var qUnreferencedIndexIncomplete = `
-	WITH current_docs AS (` + currentDocumentGenerations + `)
 	SELECT EXISTS (
-		SELECT 1 FROM resources child
-		JOIN current_docs cdg ON cdg.resource = child.id
-		JOIN resources parent ON substr(child.iri, 1, length(parent.iri) + 1) = parent.iri || '/'
-			AND instr(substr(child.iri, length(parent.iri) + 2), '/') = 0
-		JOIN current_docs pdg ON pdg.resource = parent.id
+		SELECT 1 FROM resources parent
+		JOIN document_generations pdg ON pdg.resource = parent.id
+			AND pdg.generation = (SELECT MAX(g.generation) FROM document_generations g WHERE g.resource = parent.id)
+			AND pdg.is_deleted = 0 AND json_array_length(pdg.heads) > 0
 		LEFT JOIN document_reference_summaries summary ON summary.resource = parent.id
 			AND summary.generation = pdg.generation AND summary.genesis = pdg.genesis
 			AND json(summary.heads) = json(pdg.heads)
-		WHERE child.iri >= ? AND child.iri < ?
-		%s
+		WHERE parent.iri >= ? AND parent.iri < ?
 		AND (summary.resource IS NULL OR summary.status != 1)
+		AND EXISTS (
+			SELECT 1 FROM resources child
+			JOIN document_generations cdg ON cdg.resource = child.id
+				AND cdg.generation = (SELECT MAX(g.generation) FROM document_generations g WHERE g.resource = child.id)
+				AND cdg.is_deleted = 0 AND json_array_length(cdg.heads) > 0
+			WHERE child.iri > parent.iri || '/' AND child.iri < parent.iri || '0'
+			AND instr(substr(child.iri, length(parent.iri) + 2), '/') = 0
+			%s
+		)
 	)
 `
 
