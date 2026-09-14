@@ -166,7 +166,6 @@ export function blockToNode<BSchema extends BlockSchema>(block: PartialBlock<BSc
       // @ts-ignore
       const text: string | undefined = block.content[0]?.text
       if (text) {
-        // @ts-ignore
         const textNode = schema.text(text)
         nodes.push(textNode)
       }
@@ -665,7 +664,6 @@ function tableBlockToNode<BSchema extends BlockSchema>(block: PartialBlock<BSche
           }
         }
       }
-      // @ts-ignore
       const paragraphNode = paragraphType.create(cellBlock ? paragraphProps : null, inlineNodes)
 
       const cellAttrs: Record<string, any> = {

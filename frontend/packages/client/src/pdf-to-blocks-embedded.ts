@@ -646,7 +646,6 @@ export async function embeddedPdfToBlocks(pdfData: ArrayBuffer): Promise<Embedde
   // pdfjs-dist is an optional peer dependency; types are defined locally above.
   let pdfjsLib: {getDocument: (params: {data: Uint8Array}) => {promise: Promise<unknown>}}
   try {
-    // @ts-ignore — optional peer dependency, may not be installed
     pdfjsLib = await import('pdfjs-dist')
   } catch {
     throw new Error(

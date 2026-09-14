@@ -479,10 +479,7 @@ const FeatureText = ({className, ...props}: TextProps) => {
 function versionToInt(version: string): number | null {
   const parts = version.split('.')
   if (parts.length !== 3) return null
-  return (
-    // @ts-ignore
-    parseInt(parts[0]) * 10_000 + parseInt(parts[1]) * 1000 + parseInt(parts[2])
-  )
+  return parseInt(parts[0]) * 10_000 + parseInt(parts[1]) * 1000 + parseInt(parts[2])
 }
 
 function isAppVersionEqualOrAbove(version: string) {
@@ -981,7 +978,6 @@ function SeedHostRegisterCustomDomain({
   }
   const pendingDomain = useHostSession().pendingDomains?.find((pending) => pending.siteUid === id.uid)
   const pendingDomainId = localPendingDomain?.domainId
-  // @ts-ignore
   useEffect(() => {
     if (pendingDomainId) {
       activelyWatchedDomainIds.add(pendingDomainId)

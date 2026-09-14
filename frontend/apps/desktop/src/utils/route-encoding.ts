@@ -11,7 +11,6 @@ export function encodeRouteToPath(route: NavRoute): string {
 
 export function decodeRouteFromPath(initRoute: string): NavRoute {
   return JSON.parse(
-    // @ts-ignore
     Buffer.from(
       // @ts-expect-error
       initRoute.replaceAll('_', '+').replaceAll('-', '='),

@@ -85,6 +85,7 @@ const activityPanelSchema = z.object({
   id: unpackedHmIdSchema.optional(),
   autoFocus: z.boolean().optional(),
   filterEventType: z.array(z.string()).optional(),
+  targetBlockId: z.string().optional(),
 })
 
 const commentsPanelSchema = z.object({
@@ -176,6 +177,7 @@ export const activityRouteSchema = z.object({
   width: z.number().optional(),
   autoFocus: z.boolean().optional(),
   filterEventType: z.array(z.string()).optional(),
+  targetBlockId: z.string().optional(),
   panel: activityPagePanelSchema.nullable().optional(),
 })
 export type ActivityRoute = z.infer<typeof activityRouteSchema>

@@ -11,10 +11,10 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {AlertCircle} from 'lucide-react'
 import {ChangeEvent, FunctionComponent, useEffect, useState} from 'react'
+import {BlockSelectionWrapper} from './block-selection-wrapper'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {HMBlockSchema} from './schema'
-import {BlockSelectionWrapper} from './block-selection-wrapper'
 
 export type MediaType = {
   id: string
@@ -97,9 +97,6 @@ export const MediaRender: React.FC<RenderProps> = ({
 
   useEffect(() => {
     if (!uploading && hasSrc && editor.importWebFile && block.props.src) {
-      // @ts-ignore
-      // These updates are the editor finishing a paste, not a user action: keep them out of the
-      // undo history so Cmd-Z undoes the paste itself instead of reverting the import.
       if (block.props.src.startsWith('ipfs')) {
         editor.updateBlock(block, {props: {url: block.props.src, src: ''}}, undefined, {addToHistory: false})
         return

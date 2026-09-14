@@ -226,7 +226,9 @@ export function AccountSearchInput({
         onValuesChange={onValuesChange}
         placeholder={placeholder}
       >
-        {mentionResults.isFetching ? <div className="text-muted-foreground px-4 py-2 text-sm">Searching…</div> : null}
+        {mentionResults.isFetching && !matches.length ? (
+          <div className="text-muted-foreground px-4 py-2 text-sm">Searching…</div>
+        ) : null}
         {mentionResults.isError ? (
           <div className="px-4 py-2 text-sm" role="alert">
             Unable to load accounts.{' '}

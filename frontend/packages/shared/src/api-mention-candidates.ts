@@ -10,6 +10,7 @@ import {hmId, unpackHmId} from './utils/entity-id-url'
 import {entityQueryPathToHmIdPath, hmIdPathToEntityQueryPath} from './utils/path-api'
 
 const LIMIT = 100
+const RESOLUTION_LIMIT = 20
 const caches = new WeakMap<GRPCClient, Map<string, {expires: number; value: Promise<unknown>}>>()
 
 // Public metadata and graph lookups are reused across queries, but never across daemon clients.
@@ -56,9 +57,12 @@ export const MentionCandidates: HMRequestImplementation<HMMentionCandidatesReque
           })
         : undefined,
       input.perspectiveAccountUid
-        ? client.documents
-            .listContacts({filter: {case: 'account', value: input.perspectiveAccountUid}, pageSize: LIMIT})
-            .catch(() => undefined)
+        ? cached(client, `contacts:${input.perspectiveAccountUid}`, () =>
+            client.documents.listContacts({
+              filter: {case: 'account', value: input.perspectiveAccountUid!},
+              pageSize: LIMIT,
+            }),
+          ).catch(() => undefined)
         : undefined,
       input.siteUid
         ? cached(client, `members:${input.siteUid}`, () =>
@@ -187,7 +191,15 @@ export const MentionCandidates: HMRequestImplementation<HMMentionCandidatesReque
         if (id && selected.size < LIMIT) selected.set(input.mode === 'account' ? id.uid : id.id, id)
       }
     }
-    const pending = Array.from(selected.values())
+    // Resolve only the first page the picker can display. Resolving every discovered
+    // entity made opening the menu proportional to the user's entire contact graph.
+    const matches = groups[0] || []
+    const contactsByName = groups[2] || []
+    const pending = (
+      query
+        ? Array.from(new Set([...contactsByName, ...matches, ...Array.from(selected.values())]))
+        : Array.from(selected.values())
+    ).slice(0, RESOLUTION_LIMIT)
     const results: HMMentionCandidate[] = []
     let index = 0
     await Promise.all(
@@ -201,20 +213,6 @@ export const MentionCandidates: HMRequestImplementation<HMMentionCandidatesReque
               const uid = account.id.uid
               const metadata = account.metadata || {}
               const petname = contactNames.get(uid) ?? contactNames.get(id.uid)
-              const recentActivity = await cached(client, `mention-activity:${uid}`, () =>
-                client.activityFeed.listEvents({
-                  pageSize: 1,
-                  filterAuthors: [uid],
-                  filterEventType: ['Ref', 'Comment'],
-                  order: FeedOrder.CLAIMED_TIME,
-                }),
-              ).catch(() => undefined)
-              const recentEvent = recentActivity?.events[0]
-              if (recentEvent?.eventTime && recentEvent.data.case === 'newBlob')
-                activity.set(uid, {
-                  time: recentEvent.eventTime.toDate().getTime(),
-                  type: recentEvent.data.value.blobType === 'Comment' ? 'comment' : 'publication',
-                })
               results.push({
                 id: hmId(uid),
                 type: 'account',

@@ -26,6 +26,8 @@ export interface PanelLayoutProps {
   onPanelClose: () => void
   /** True when the activity panel is being used as the shared versions panel. */
   isVersionsPanel?: boolean
+  /** True when the activity panel is scoped to one block's citations. */
+  isCitationsPanel?: boolean
   /** For activity panel: current filter state */
   filterEventType?: string[]
   /** For activity panel: filter change handler */
@@ -60,12 +62,25 @@ function getPanelTitle(panelKey: PanelSelectionOptions | null): string {
   }
 }
 
+/** Resolves the title and filter visibility for a document side panel. */
+export function getPanelHeaderState(
+  panelKey: PanelSelectionOptions | null,
+  isVersionsPanel: boolean,
+  isCitationsPanel: boolean,
+): {title: string; showActivityFilters: boolean} {
+  return {
+    title: isVersionsPanel ? 'Versions history' : isCitationsPanel ? 'Citations' : getPanelTitle(panelKey),
+    showActivityFilters: panelKey === 'activity' && !isVersionsPanel && !isCitationsPanel,
+  }
+}
+
 export function PanelLayout({
   children,
   panelContent,
   panelKey,
   onPanelClose,
   isVersionsPanel = false,
+  isCitationsPanel = false,
   filterEventType,
   onFilterChange,
   widthStorage,
@@ -99,7 +114,7 @@ export function PanelLayout({
     prevPanelKey.current = panelKey
   }, [panelKey, onPanelWidthChange])
 
-  const title = isVersionsPanel ? 'Versions history' : getPanelTitle(panelKey)
+  const {title, showActivityFilters} = getPanelHeaderState(panelKey, isVersionsPanel, isCitationsPanel)
 
   return (
     <div ref={containerRef} className="flex h-full flex-1">
@@ -137,7 +152,7 @@ export function PanelLayout({
                         <X className="size-4" />
                       </Button>
                     </div>
-                    {panelKey === 'activity' && !isVersionsPanel && onFilterChange && (
+                    {showActivityFilters && onFilterChange && (
                       <FeedFilters filterEventType={filterEventType} onFilterChange={onFilterChange} />
                     )}
                   </div>

@@ -94,6 +94,7 @@ import {getRoutePanel} from '@shm/shared/routes'
 import {useOpenUrl, useUniversalClient} from '@shm/shared/routing'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {
+  activitySlugToFilter,
   activityFilterToSlug,
   getCommentTargetId,
   getVersionHeads,
@@ -102,6 +103,19 @@ import {
   parseFragment,
   routeToUrl,
 } from '@shm/shared/utils/entity-id-url'
+
+/** Creates a right-panel route showing citations to one block. */
+export function getBlockCitationsPanelRoute(
+  docId: UnpackedHypermediaId,
+  targetBlockId: string,
+): Extract<DocumentPanelRoute, {key: 'activity'}> {
+  return {
+    key: 'activity',
+    id: docId,
+    filterEventType: activitySlugToFilter('citations'),
+    targetBlockId,
+  }
+}
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 import {getReservedLazyDraftBreadcrumbName} from '@shm/shared/utils/reserved-draft-ids'
@@ -2405,13 +2419,7 @@ function DocumentBody({
           // and highlights the whole block (not just a text range).
           blockRange: blockId ? {expanded: true} : null,
         },
-        panel: {
-          key: 'comments',
-          id: route.id,
-          // DiscussionsPanel reads `targetBlockId` to scope the panel to a
-          // single block's discussions; `blockId` was the wrong field.
-          targetBlockId: blockId || undefined,
-        } as any,
+        panel: blockId ? getBlockCitationsPanelRoute(route.id, blockId) : undefined,
       })
       if (blockId) scrollToBlock(blockId)
     },
@@ -2946,7 +2954,11 @@ function DocumentBody({
         </div>
 
         {mobilePanelOpen && (
-          <MobilePanelSheet isOpen={mobilePanelOpen} title={getPanelTitle(panelKey)} onClose={handlePanelClose}>
+          <MobilePanelSheet
+            isOpen={mobilePanelOpen}
+            title={panelRoute?.key === 'activity' && panelRoute.targetBlockId ? 'Citations' : getPanelTitle(panelKey)}
+            onClose={handlePanelClose}
+          >
             <DiscussionsPageContent
               docId={commentsPanelTarget.docId}
               showTitle={false}
@@ -3019,6 +3031,7 @@ function DocumentBody({
         panelContent={panelContent}
         onPanelClose={handlePanelClose}
         isVersionsPanel={isDocumentVersionsPanelRoute(panelRoute)}
+        isCitationsPanel={panelRoute?.key === 'activity' && !!panelRoute.targetBlockId}
         filterEventType={panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined}
         onFilterChange={handleFilterChange}
       >
@@ -3197,6 +3210,7 @@ function PanelContentRenderer({
           filterEventType={panelRoute.filterEventType}
           targetDomain={siteUrl}
           draftVersionEntry={draftVersionEntry}
+          targetBlockId={panelRoute.targetBlockId}
         />
       )
     case 'comments':

@@ -46,10 +46,7 @@ export function useCommentGroupAuthors(commentGroups: HMCommentGroup[]): HMListD
   const commentGroupAuthorsList = Array.from(commentGroupAuthors)
   const authorEntities = useContacts(commentGroupAuthorsList)
   return Object.fromEntries(
-    commentGroupAuthorsList
-      // @ts-ignore
-      .map((uid, index) => [uid, authorEntities[index].data])
-      .filter(([k, v]) => !!v),
+    commentGroupAuthorsList.map((uid, index) => [uid, authorEntities[index].data]).filter(([k, v]) => !!v),
   )
 }
 

@@ -36,7 +36,6 @@ export const ButtonBlock = createReactBlockSpec({
   // the invisible-content merge/caret traps.
   containsInlineContent: false,
   selectable: true,
-  // @ts-ignore
   render: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) => (
     <ButtonBlockView block={block} editor={editor} />
   ),

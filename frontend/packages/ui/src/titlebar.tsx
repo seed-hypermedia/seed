@@ -1,4 +1,3 @@
-// @ts-nocheck
 import * as React from 'react'
 import {SizableText} from './text'
 import {cn} from './utils'
@@ -30,7 +29,7 @@ export const TitlebarSection = ({className, children, ...props}: React.HTMLAttri
 const titleTextClasses =
   'text-foreground m-0 max-w-full cursor-default w-full rounded-sm text-sm font-bold truncate whitespace-nowrap normal-case select-none hover:underline hover:decoration-current truncate'
 
-export const TitleText = (props) => (
+export const TitleText = (props: React.ComponentProps<typeof SizableText>) => (
   <SizableText size="sm" className={cn(titleTextClasses, props.className)} {...props} />
 )
 

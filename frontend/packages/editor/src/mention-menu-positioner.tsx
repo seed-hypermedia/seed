@@ -27,6 +27,23 @@ export function MentionMenuPositioner<BSchema extends BlockSchema>({
   mentionThread?: MentionThreadContext
 }) {
   const search = useInlineMentionsSearch(mentionThread)
+  useEffect(() => {
+    let warmed = false
+    const warm = () => {
+      if (warmed) return
+      warmed = true
+      void Promise.allSettled([
+        search('', perspectiveAccountUid, {mode: 'account', siteUid, documentId}),
+        search('', perspectiveAccountUid, {mode: 'document', siteUid, documentId}),
+      ])
+    }
+    editor.domElement.addEventListener('focusin', warm, {once: true})
+    const idle = window.requestIdleCallback?.(warm)
+    return () => {
+      editor.domElement.removeEventListener('focusin', warm)
+      if (idle !== undefined) window.cancelIdleCallback(idle)
+    }
+  }, [editor, search, perspectiveAccountUid, siteUid, documentId])
   const actor = useActorRef(mentionMenuMachine, {input: {editor, search, perspectiveAccountUid, siteUid, documentId}})
   const snapshot = useSelector(actor, (s) => s)
   const show = snapshot.matches('open')
@@ -99,7 +116,7 @@ export function MentionMenuPositioner<BSchema extends BlockSchema>({
       aria-busy={loading}
       className="border-border bg-background flex max-h-64 w-80 flex-col overflow-y-auto rounded border shadow-lg"
     >
-      {loading && (
+      {loading && !suggestions.length && (
         <p role="status" className="text-muted-foreground px-4 py-2">
           Searching…
         </p>

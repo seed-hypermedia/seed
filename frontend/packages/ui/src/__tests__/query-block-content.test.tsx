@@ -366,6 +366,22 @@ describe('QueryBlockContent card view navigation', () => {
     expect(container.querySelector('img')?.getAttribute('src')).toContain('/icon-cid')
     expect(container.querySelector('img')?.getAttribute('src')).not.toContain('/content-image-cid')
   })
+
+  it('renders the first result as a larger banner card when enabled', () => {
+    const items = makeItems(2)
+    items[0].metadata.cover = 'ipfs://banner-cover-cid'
+
+    act(() => {
+      root.render(<QueryBlockContent items={items} style="Card" banner accountsMetadata={{}} />)
+    })
+
+    const titles = Array.from(container.querySelectorAll('p')).filter(
+      (element) => element.textContent?.startsWith('Item '),
+    )
+    expect(titles[0]?.className).toContain('text-2xl')
+    expect(titles[1]?.className).toContain('text-lg')
+    expect(titles[0]?.closest('.group\\/item')?.className).toContain('md:min-h-[240px]')
+  })
 })
 
 describe('QueryBlockContent progressive list rendering', () => {

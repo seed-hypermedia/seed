@@ -110,7 +110,6 @@ function openRouteInExistingWindow(browserWindow: BrowserWindow, route: NavRoute
   browserWindow.webContents.send('open_route', route)
 }
 
-// @ts-ignore
 export function closeAppWindow(windowId: string) {
   const window = allWindows.get(windowId)
   if (!window) return null
@@ -664,7 +663,6 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
       accessoryWidth: accessoryWidth || 20,
       selectedIdentity: selectedIdentity || null,
     }))
-    // @ts-ignore
     updateRecentRoute(routes[routeIndex])
   }
 

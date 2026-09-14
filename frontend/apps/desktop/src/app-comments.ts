@@ -14,7 +14,6 @@ import {t} from './app-trpc'
 import {error} from './logger'
 
 // Define interface for the electron store instance
-// @ts-ignore
 interface CommentStore extends Store<Record<string, any>> {
   get: (key: string) => any
   set: (key: string, value: any) => void

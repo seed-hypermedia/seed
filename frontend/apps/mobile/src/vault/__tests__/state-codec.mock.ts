@@ -15,7 +15,6 @@
 
 import type {Account, State} from '@seed-hypermedia/client/vault'
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const vault = jest.requireActual('@seed-hypermedia/client/vault') as typeof import('@seed-hypermedia/client/vault') & {
   serializeState?: (data: State) => Promise<Uint8Array>
   deserializeState?: (compressed: Uint8Array) => Promise<State>

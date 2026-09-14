@@ -155,7 +155,6 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
   highlightHyperlink() {}
 
   resetHyperlink() {
-    // @ts-ignore
     if (!this.hyperlinkToolbarState) return
     this.hyperlinkToolbarState = {
       ...this.hyperlinkToolbarState,

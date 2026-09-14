@@ -90,12 +90,16 @@ function renderPositioner({
   onStartComment = () => {},
   isBlockReferenceable,
   getCommentCount,
+  getCitationCount,
+  onOpenCitations,
   doc,
 }: {
   onCopyBlockLink?: (blockId: string) => void
   onStartComment?: (blockId: string) => void
   isBlockReferenceable?: (blockId: string) => boolean
   getCommentCount?: (blockId: string) => number | undefined
+  getCitationCount?: (blockId: string) => number | undefined
+  onOpenCitations?: (blockId: string) => void
   doc?: {descendants: (callback: (node: any) => void | false) => void}
 } = {}) {
   const plugin = {
@@ -121,6 +125,8 @@ function renderPositioner({
         onStartComment={onStartComment}
         isBlockReferenceable={isBlockReferenceable}
         getCommentCount={getCommentCount}
+        getCitationCount={getCitationCount}
+        onOpenCitations={onOpenCitations}
       />,
     )
   })
@@ -363,6 +369,30 @@ describe('BlockHoverActionsPositioner', () => {
 
     expect(container.querySelector('[aria-label="Start comment"]')).not.toBeNull()
     expect(container.querySelector('[aria-label="147 comments"]')?.textContent).toBe('147')
+  })
+
+  it('renders a citation action with the hovered block citation count', () => {
+    const block = document.createElement('div')
+    block.dataset.id = 'block-1'
+    appendPublishedContent(block)
+    editorDom.appendChild(block)
+    const onOpenCitations = vi.fn()
+
+    renderPositioner({
+      getCitationCount: (blockId) => (blockId === 'block-1' ? 14 : 0),
+      onOpenCitations,
+    })
+
+    act(() => {
+      listeners[0]({show: true, blockId: 'block-1', referenceRect: rect(30, 100)})
+    })
+
+    const button = container.querySelector('[aria-label="Open 14 citations"]') as HTMLElement
+    expect(button).not.toBeNull()
+    expect(button.textContent).toContain('14')
+
+    button.click()
+    expect(onOpenCitations).toHaveBeenCalledWith('block-1')
   })
 
   it('stops pointer down on the card so touch taps do not propagate to the editor surface', () => {

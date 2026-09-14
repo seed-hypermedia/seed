@@ -1,4 +1,4 @@
-import {Link, MessageSquare} from 'lucide-react'
+import {Link, MessageSquare, Share2} from 'lucide-react'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 import {BlockNoteEditor} from '../../core/BlockNoteEditor'
 import {
@@ -38,6 +38,10 @@ export type BlockHoverActionsPositionerProps<BSchema extends BlockSchema = Block
   isBlockReferenceable?: (blockId: string) => boolean
   /** Optional lookup for the number of comments that reference a block. */
   getCommentCount?: (blockId: string) => number | undefined
+  /** Optional lookup for the number of documents that cite a block. */
+  getCitationCount?: (blockId: string) => number | undefined
+  /** Opens the citations panel scoped to the selected block. */
+  onOpenCitations?: (blockId: string) => void
 } & BlockHoverActionsCallbacks
 
 // ---------------------------------------------------------------------------
@@ -78,8 +82,10 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
   onStartComment,
   isBlockReferenceable,
   getCommentCount,
+  getCitationCount,
+  onOpenCitations,
 }: BlockHoverActionsPositionerProps<BSchema>): React.ReactElement | null {
-  const hasActions = !!(onCopyBlockLink || onStartComment)
+  const hasActions = !!(onCopyBlockLink || onStartComment || onOpenCitations)
   const [hoverState, setHoverState] = useState<BlockHoverActionsState>({
     show: false,
     blockId: null,
@@ -187,6 +193,7 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
     return null
   }
   const commentCount = getCommentCount?.(blockId) ?? 0
+  const citationCount = getCitationCount?.(blockId) ?? 0
 
   const hasSupernumberBadge = !!supernumberBadge?.isConnected
   const anchorRect = hasSupernumberBadge ? supernumberBadge.getBoundingClientRect() : rect
@@ -269,6 +276,21 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
             ) : null}
           </div>
         )}
+        {onOpenCitations && citationCount > 0 ? (
+          <button
+            type="button"
+            aria-label={`Open ${citationCount} citations`}
+            title="Open citations"
+            className="text-muted-foreground hover:bg-accent hover:text-foreground flex flex-col items-center gap-0.5 rounded p-1"
+            onClick={(e) => {
+              e.stopPropagation()
+              onOpenCitations(blockId)
+            }}
+          >
+            <Share2 size={14} />
+            <span className="text-xs leading-none">{citationCount}</span>
+          </button>
+        ) : null}
       </div>
     </div>
   )

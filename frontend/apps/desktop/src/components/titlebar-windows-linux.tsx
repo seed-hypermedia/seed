@@ -18,9 +18,7 @@ export default function TitleBarWindows(props: TitleBarProps) {
       <TitlebarWrapper className="min-h-0">
         <div className="window-drag flex px-2">
           <div className="window-drag flex flex-1 items-center justify-center">
-            <TitleText marginHorizontal="$4" fontWeight="bold">
-              {props.cleanTitle}
-            </TitleText>
+            <TitleText className="mx-4 font-bold">{props.cleanTitle}</TitleText>
           </div>
           <div className="no-window-drag flex">
             <CloseButton />

@@ -148,7 +148,6 @@ function processMedia(file: File, view: any, insertPos: number, blockNoteEditor:
         nodeProps.displaySrc = URL.createObjectURL(file)
       }
 
-      // @ts-ignore
       const node = schema.nodes[mediaType].create(nodeProps)
       view.dispatch(view.state.tr.insert(insertPos, node))
     }
@@ -173,7 +172,6 @@ function processMedia(file: File, view: any, insertPos: number, blockNoteEditor:
           nodeProps.size = size
         }
 
-        // @ts-ignore
         const node = schema.nodes[mediaType].create(nodeProps)
         view.dispatch(view.state.tr.insert(insertPos, node))
       })

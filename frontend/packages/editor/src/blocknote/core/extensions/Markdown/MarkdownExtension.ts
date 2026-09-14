@@ -60,13 +60,11 @@ function checkMarkdownSymbols(text: string) {
 //     // or add a child group to the previous block.
 //     if (prevBlockInfo) {
 //       const {block, childContainer} = prevBlockInfo
-//       // @ts-ignore
 //       const newBlock = state.schema.nodes['blockContainer'].create(
 //         block.node.attrs,
 //         childContainer
 //           ? [
 //               block.node.firstChild!,
-//               // @ts-ignore
 //               state.schema.nodes['blockGroup'].create(
 //                 childContainer.node.attrs,
 //                 [
@@ -97,7 +95,6 @@ function checkMarkdownSymbols(text: string) {
 //         state.selection.$from.start() - 4,
 //       )
 //       const {block, childContainer} = parentBlockInfo
-//       // @ts-ignore
 //       const newBlock = state.schema.nodes['blockContainer'].create(
 //         block.node.attrs,
 //         [block.node.firstChild!, group],
@@ -125,7 +122,6 @@ function checkMarkdownSymbols(text: string) {
 //     if (node.type.name === 'blockGroup') {
 //       const prevContainer = nodes.pop()
 //       if (prevContainer) {
-//         // @ts-ignore
 //         const container = editor.schema.nodes['blockContainer'].create(
 //           prevContainer.attrs,
 //           prevContainer.content.addToEnd(node),
@@ -135,10 +131,8 @@ function checkMarkdownSymbols(text: string) {
 //     } else if (node.type.name !== 'blockContainer') {
 //       let nodeToInsert = node
 //       if (node.type.name === 'text') {
-//         // @ts-ignore
 //         nodeToInsert = editor.schema.nodes.paragraph.create({}, node)
 //       }
-//       // @ts-ignore
 //       const container = editor.schema.nodes['blockContainer'].create(
 //         null,
 //         nodeToInsert,
@@ -147,7 +141,6 @@ function checkMarkdownSymbols(text: string) {
 //     } else if (node.firstChild?.type.name === 'blockGroup') {
 //       const prevContainer = nodes.pop()
 //       if (prevContainer) {
-//         // @ts-ignore
 //         const container = editor.schema.nodes['blockContainer'].create(
 //           prevContainer.attrs,
 //           prevContainer.content.addToEnd(node.firstChild!),

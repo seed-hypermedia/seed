@@ -296,7 +296,6 @@ function normalizeUrl(baseUrl: string, url: string): string {
   } else if (url.startsWith('/')) {
     url = `${baseUrl}${url}`
   }
-  // @ts-ignore
   return url.split('#')[0]
 }
 
