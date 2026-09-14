@@ -1,7 +1,7 @@
 ---
 name: Document Metadata
 summary: "Resolved document metadata (merged from Change ops): known keys plus arbitrary extras."
-schemaDefinition: ipfs://bafyreiegh55aibiyvxbuxjxadl34jtaijaf5owd4asgdbv3mfsct5qp5eq
+schemaDefinition: ipfs://bafyreifexrmqsneuc6hmisftr42zmjm6j6p7sykcuugy4n7afrmauccqe4
 ---
 This document describes the **metadata** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:LCMEm3AK -->
 
@@ -13,8 +13,8 @@ A map with these fields: <!-- id:L2SJyGsk -->
   - `icon` — [string](./string.md) <!-- id:6dGrRIdx -->
   - `cover` — [string](./string.md) <!-- id:zjUSdmH1 -->
   - `siteUrl` — [string](./string.md) <!-- id:PyLw_CMi -->
-  - `schema` — [string](./string.md) <!-- id:ADiIVpjJ -->
-  - `childrenSchema` — [string](./string.md) <!-- id:UONmILsQ -->
+  - `attributesSchema` — [string](./string.md) <!-- id:ADiIVpjJ -->
+  - `childAttributesSchema` — [string](./string.md) <!-- id:UONmILsQ -->
   - `schemaDefinition` — [string](./string.md) <!-- id:ZUbSthmD -->
   - `layout` — `"Seed/Experimental/Newspaper"` <!-- id:I-9Xt4-i -->
   - `displayPublishTime` — [string](./string.md) <!-- id:t_InI3WT -->

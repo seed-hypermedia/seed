@@ -842,6 +842,10 @@ export interface ResourcePageProps {
   /** Platform handler for "Extend Schema": opens a flow that creates an extending document draft.
    * Absent (web), extend falls back to the raw blob-draft route. */
   onExtendSchema?: (baseSchemaCid: string) => void
+  /** Platform handler for "New Document" on a schema page: a draft whose `attributesSchema` is the page. */
+  onNewTypedDocument?: (schemaUrl: string) => void
+  /** Platform handler for "New Collection" on a schema page: a draft whose `childAttributesSchema` is the page. */
+  onNewTypedCollection?: (schemaUrl: string) => void
   /** @deprecated use optionsMenuItems */
   extraMenuItems?: MenuItemType[]
   /** Existing draft info for showing draft indicator in toolbar */
@@ -947,6 +951,8 @@ export function ResourcePage({
   CommentEditor,
   optionsMenuItems,
   onExtendSchema,
+  onNewTypedDocument,
+  onNewTypedCollection,
   fileBrowserCreateMenuItem,
   fileBrowserOnIncludeDocument,
   fileBrowserGetIncludeDocumentState,
@@ -1441,6 +1447,8 @@ export function ResourcePage({
             CommentEditor={CommentEditor}
             optionsMenuItems={optionsMenuItems}
             onExtendSchema={onExtendSchema}
+            onNewTypedDocument={onNewTypedDocument}
+            onNewTypedCollection={onNewTypedCollection}
             extraMenuItems={extraMenuItems}
             existingDraft={existingDraft}
             reservedDraftId={reservedDraftId}
@@ -1770,6 +1778,8 @@ function DocumentBody({
   docId,
   document,
   onExtendSchema,
+  onNewTypedDocument,
+  onNewTypedCollection,
   documentSyncRouteKey,
   documentIsPlaceholderData,
   activeView,
@@ -1825,6 +1835,10 @@ function DocumentBody({
   optionsMenuItems?: MenuItemType[]
   /** Platform handler for "Extend Schema" (see {@link ResourcePageProps.onExtendSchema}). */
   onExtendSchema?: (baseSchemaCid: string) => void
+  /** See {@link ResourcePageProps.onNewTypedDocument}. */
+  onNewTypedDocument?: (schemaUrl: string) => void
+  /** See {@link ResourcePageProps.onNewTypedCollection}. */
+  onNewTypedCollection?: (schemaUrl: string) => void
   extraMenuItems?: MenuItemType[]
   existingDraft?: HMExistingDraft | false
   reservedDraftId?: string | null
@@ -2640,9 +2654,14 @@ function DocumentBody({
     }
   }, [canEditCurrentRoute, isCollection])
 
-  // The schema actions (New <Type> / Extend) ride in the regular options menu; the list is
-  // empty unless the document defines a schema.
-  const schemaMenuItems = useSchemaMenuItems(document?.metadata, {onExtendSchema})
+  // The schema actions (New Document / New Collection / Extend / New Raw Value) ride in the
+  // regular options menu; the list is empty unless the document defines a schema.
+  const schemaMenuItems = useSchemaMenuItems(document?.metadata, {
+    docUrl: docId.id,
+    onExtendSchema,
+    onNewTypedDocument,
+    onNewTypedCollection,
+  })
   const allMenuItems = useMemo(() => {
     let unorderedItems: MenuItemType[] = [...(optionsMenuItems ?? extraMenuItems ?? [])]
     unorderedItems.push(citationFragmentToggleMenuItem)
@@ -2723,12 +2742,17 @@ function DocumentBody({
     allMenuItems,
   })
   // A document that DEFINES a type (carries a `schemaDefinition`) gets header
-  // actions: a tag that opens the schema, and a button to create a value of it.
+  // actions: New Document / New Collection typed by it (or Create, for a signed type).
   // Use draft-merged metadata so an unpublished schemaDefinition still surfaces
   // (same source the Attributes tab reads).
   const headerMetadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
   const schemaDocActions = schemaDefinitionCid(headerMetadata) ? (
-    <SchemaDocumentHeaderActions metadata={headerMetadata} />
+    <SchemaDocumentHeaderActions
+      metadata={headerMetadata}
+      docUrl={docId.id}
+      onNewTypedDocument={onNewTypedDocument}
+      onNewTypedCollection={onNewTypedCollection}
+    />
   ) : null
   const topBarActions =
     schemaDocActions || documentContentAction ? (
@@ -3591,8 +3615,8 @@ function DocumentMetadataPage({
 
   // Draft metadata (partial) overrides published metadata, same as the options panel.
   const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
-  // The schema this document conforms to (own `schema`, else parent's
-  // `childrenSchema`) — drives required-field rows + advisory validation.
+  // The schema this document conforms to (own `attributesSchema`, else parent's
+  // `childAttributesSchema`) — drives required-field rows + advisory validation.
   const {metadataSchema: conformanceSchema} = useEffectiveDocSchema(docId, metadata)
 
   // Open an uploaded IPFS file reference in its own dedicated viewer window/tab.
@@ -4197,8 +4221,8 @@ function ContentViewWithOutline({
     () => ({...document.metadata, ...ctx.metadata}),
     [document.metadata, ctx.metadata],
   )
-  // The schema this document must conform to (own `schema`, else parent's
-  // `childrenSchema`) — drives the always-visible required attributes.
+  // The schema this document must conform to (own `attributesSchema`, else parent's
+  // `childAttributesSchema`) — drives the always-visible required attributes.
   const {metadataSchema: conformanceSchema} = useEffectiveDocSchema(resourceId, requiredAttrMetadata)
   // existingDraftContent may arrive in HMBlockNode[] or
   // EditorBlock[] shape. Pick the outline builder that matches.

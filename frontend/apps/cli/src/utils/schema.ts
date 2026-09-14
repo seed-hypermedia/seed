@@ -113,9 +113,13 @@ export function violations(schema: HypermediaSchema, value: unknown, registry: S
 /**
  * The violations of a document's metadata against its type — checked as the app does: the base
  * document metadata extended by the type's fields, open to extra keys, so the binding keys
- * (`schema`, `childrenSchema`, `schemaDefinition`) and standard fields never count as strays.
+ * (`attributesSchema`, `childAttributesSchema`, `schemaDefinition`) and standard fields never count as strays.
  */
-export function metadataViolations(schema: HypermediaSchema, metadata: unknown, registry: SchemaRegistry = {}): string[] {
+export function metadataViolations(
+  schema: HypermediaSchema,
+  metadata: unknown,
+  registry: SchemaRegistry = {},
+): string[] {
   return validate(documentMetadataSchema(metadataSchemaOf(schema, registry), {}, registry), metadata, '$', {}, registry)
 }
 

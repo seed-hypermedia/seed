@@ -107,7 +107,7 @@ declare global {
 }
 
 /** Inner editor — inside the providers so it can resolve the conformance schema
- * (from `metadata.schema`) exactly like the real app does. */
+ * (from `metadata.attributesSchema`) exactly like the real app does. */
 function MetadataEditor({
   meta,
   onMetadata,

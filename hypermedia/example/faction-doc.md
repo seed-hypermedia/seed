@@ -1,17 +1,15 @@
 ---
 name: Faction
-summary: "A world-builder kit type: a page about a faction, order, house, or guild. Requires a `founded` date; links to its seat (a Place) and leader (a Character), and a"
-schemaDefinition: ipfs://bafyreic7tckfiaeiodccchwjzdyq3ixx2qqijzdizz63sznnz4winmjxyu
+summary: "A world-builder kit type: a page about a faction, order, house, or guild. Its attributes require a `founded` date; they link to its seat (a Place) and"
+schemaDefinition: ipfs://bafyreicwhnquabyy4ye2yhoaoqsyjcyccwqmj3ciha27waiwzhah5mn4km
 ---
-A world-builder kit type: a page about a faction, order, house, or guild. Requires a `founded` date; links to its seat (a Place) and leader (a Character), and a banner image. <!-- id:RvItBHZN -->
+A world-builder kit type: a page about a faction, order, house, or guild. Its attributes require a `founded` date; they link to its seat (a Place) and leader (a Character), and a banner image. <!-- id:RvItBHZN -->
 
 This document describes the **example/faction-doc** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:Q-lkJuXw -->
 
 # Shape <!-- id:5EsVMAhL -->
 
-**Extends** [document](../document.md) with these added fields: <!-- id:-hXTuVju -->
-  - `metadata` — [metadata](../metadata.md) <!-- id:tGO7Z_Te -->
-  - _adds to [metadata](../metadata.md):_ <!-- id:JFmr_1Iy -->
+A **closed struct** with these fields: <!-- id:-hXTuVju -->
   - `founded` _(required)_ — [date](../date.md) <!-- id:IKQ8ylg_ -->
   - `dissolved` — [date](../date.md) <!-- id:goqd0e_j -->
   - `seat` — [hm-url](../hm-url.md) (→ must conform to [example/place-doc](./place-doc.md)) <!-- id:ii5ONvHX -->
@@ -20,8 +18,6 @@ This document describes the **example/faction-doc** type — an example schema. 
 
 # Depends on <!-- id:FhzqPOgw -->
 
-- [document](../document.md) <!-- id:ykhnuylE -->
 - [hm-url](../hm-url.md) <!-- id:-qmfs1ee -->
 - [ipfs-url](../ipfs-url.md) <!-- id:niUF-Oyt -->
-- [metadata](../metadata.md) <!-- id:AisaIh3L -->
 - [date](../date.md) <!-- id:CiiSksy4 -->

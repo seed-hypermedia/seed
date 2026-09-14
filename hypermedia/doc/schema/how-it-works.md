@@ -17,7 +17,7 @@ A schema is written as a small JSON file. A publisher hashes it to its DAG-CBOR 
               ┌─────────────────────────────┼──────────────────────────┐
               ▼                             ▼                          ▼
    bundled registry in the app     resolved over the network     typegen.mjs
-   (tour, editors, inspector)      (schema / childrenSchema)     (TS types)
+   (tour, editors, inspector)  (attributesSchema / childAttributesSchema)  (TS types)
 ```
 
 # Layer 1 — Values and the codec <!-- id:yNp--FS1 -->
@@ -62,7 +62,7 @@ A schema reference can arrive in three forms, and the app resolves each differen
 | IPFS CID | `ipfs://bafy…` | fetch the blob directly (bundled if known, otherwise from the daemon) <!-- id:0XLNPaVl --> |
 | any Hypermedia document URL | `hm://acme/person` | fetch the document, read its `metadata.schemaDefinition`, then fetch that blob <!-- id:a2Tm8pMr --> |
 
-The third form is what makes types extensible by anyone: a schema published under any account is as resolvable as one from the library. Because network resolution is asynchronous, the app exposes it through hooks — one that resolves a single reference, and one that computes a document's _effective_ schema (its own `schema`, or its parent's `childrenSchema`). See [typed documents](../../schema/typed-documents.md). <!-- id:abCKIpn0 -->
+The third form is what makes types extensible by anyone: a schema published under any account is as resolvable as one from the library. Because network resolution is asynchronous, the app exposes it through hooks — one that resolves a single reference, and one that computes a document's _effective_ attributes schema (its own `attributesSchema`, or its parent's `childAttributesSchema`). See [typed documents](../../schema/typed-documents.md). <!-- id:abCKIpn0 -->
 
 # Layer 6 — The engine and the app <!-- id:_2KVPjV5 -->
 

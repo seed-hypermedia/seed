@@ -12,9 +12,9 @@ describe('hypermedia-metadata semantic field formats', () => {
     const meta = resolveSchema(HM_SCHEMAS['metadata']).schema
     return resolveSchema(fieldSchema(meta, key)!).schema.format
   }
-  it('schema and childrenSchema are HM links (hm-url)', () => {
-    expect(fieldFormat('schema')).toBe('hm-url')
-    expect(fieldFormat('childrenSchema')).toBe('hm-url')
+  it('attributesSchema and childAttributesSchema are HM links (hm-url)', () => {
+    expect(fieldFormat('attributesSchema')).toBe('hm-url')
+    expect(fieldFormat('childAttributesSchema')).toBe('hm-url')
   })
   it('icon, cover, and schemaDefinition are IPFS files (ipfs-url)', () => {
     expect(fieldFormat('icon')).toBe('ipfs-url')
@@ -70,16 +70,15 @@ describe('classifyRef', () => {
 })
 
 describe('metadataSchemaOf', () => {
-  it('document-shaped: returns the nested metadata sub-schema (required surname)', () => {
+  it('an attributes schema is the struct itself (required surname)', () => {
     const meta = metadataSchemaOf(HM_SCHEMAS['example/person-doc'])
     expect(meta).toBeTruthy()
     expect(requiredFieldNames(meta)).toContain('surname')
-    // it is the extended base metadata: standard fields inherited
-    expect(meta!.properties).toHaveProperty('name')
     expect(meta!.properties).toHaveProperty('surname')
-    // and it validates as a metadata map
-    expect(validate(meta!, {surname: 'Vicenti', name: 'x'})).toEqual([])
-    expect(validate(meta!, {name: 'x'}).length).toBeGreaterThan(0) // missing surname
+    expect(meta!.properties).toHaveProperty('givenName')
+    // it validates the attributes alone; the base metadata fields are folded in by documentMetadataSchema
+    expect(validate(meta!, {surname: 'Vicenti'})).toEqual([])
+    expect(validate(meta!, {givenName: 'x'}).length).toBeGreaterThan(0) // missing surname
   })
   it('flat schema: is its own metadata schema', () => {
     const meta = metadataSchemaOf(HM_SCHEMAS['example/person'])

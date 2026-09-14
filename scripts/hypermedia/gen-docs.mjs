@@ -44,7 +44,7 @@ function refToName(ref) {
   const m = /^hm:\/\/([^/]+)\/(.+)$/.exec(ref)
   if (!m) return ref.replace(/\.schema\.json$/, '')
   const [, auth, name] = m
-  if (auth === HYPERMEDIA_UID) return resolveName(url, (n) => !!schemas[n])
+  if (auth === HYPERMEDIA_UID) return resolveName(ref, (n) => !!schemas[n])
   const prefix = AUTHORITY.find(([, a]) => a === auth)?.[0]
   return prefix ? `${prefix}${name}` : name
 }
@@ -142,20 +142,14 @@ function category(name, s) {
 /** One bullet per field; a field that is itself a refinement (a nested struct
  * or an extension adding properties — e.g. a typed document's `metadata`) lists
  * its own fields indented beneath it. */
-const isPropertyEntry = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && 'value' in v
-/** A struct's fields: `properties[name] = {value, required?, description?}`, or the older shape. */
+/** A struct's fields: `properties[name] = {value, required?, description?}`. */
 function structFields(node) {
-  const legacyRequired = new Set(node.required || [])
-  return Object.entries(node.properties || {}).map(([name, entry]) =>
-    isPropertyEntry(entry)
-      ? {
-          name,
-          schema: entry.value === undefined ? {} : entry.value,
-          required: entry.required === true,
-          description: entry.description,
-        }
-      : {name, schema: entry ?? {}, required: legacyRequired.has(name), description: entry?.description},
-  )
+  return Object.entries(node.properties || {}).map(([name, entry]) => ({
+    name,
+    schema: entry?.value === undefined ? {} : entry.value,
+    required: entry?.required === true,
+    description: entry?.description,
+  }))
 }
 function fieldLines(node, indent = '') {
   const out = []
@@ -183,7 +177,7 @@ function shapeSection(name, s) {
     }.\n\n\`\`\`json\n${JSON.stringify(s.value, null, 2)}\n\`\`\``
   }
   const lines = []
-  const hasExt = s.ref && !s.type && ['properties', 'required', 'values', 'items'].some((k) => s[k] !== undefined)
+  const hasExt = s.ref && !s.type && ['properties', 'values', 'items'].some((k) => s[k] !== undefined)
   if (s.anyOf) {
     lines.push('A **union** — a value matches one of these variants:\n')
     for (const v of s.anyOf) lines.push(`- ${summarize(v)}`)

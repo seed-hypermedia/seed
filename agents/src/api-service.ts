@@ -13818,8 +13818,8 @@ async function writeDocumentCreate(
 }
 
 /**
- * How a document fares against its effective schema (its own `schema`, else the parent's
- * `childrenSchema`) and whether a `schemaDefinition` it carries is a valid Hypermedia schema — reported
+ * How a document fares against its effective attributes schema (its own `attributesSchema`, else the
+ * parent's `childAttributesSchema`) and whether a `schemaDefinition` it carries is a valid Hypermedia schema — reported
  * beside the published id as `schema` and `warnings`, never as a refusal: conformance is advisory
  * (typed-documents.md), and a person may well build the type and its documents together.
  */
@@ -15749,8 +15749,8 @@ export async function readHypermedia(input: unknown): Promise<Record<string, unk
     result.title = resource.document.metadata?.name
     result.version = resource.document.version
     result.metadata = resource.document.metadata
-    // A typed document says so: the schema it conforms to (its own `schema`, else the parent's
-    // `childrenSchema`), the metadata fields the type requires, the ones it lacks, and every
+    // A typed document says so: the schema it conforms to (its own `attributesSchema`, else the parent's
+    // `childAttributesSchema`), the metadata fields the type requires, the ones it lacks, and every
     // violation — advisory, exactly what the app's editor and the CLI's `document validate` show.
     const typed = await checkDocumentSchema(
       client,

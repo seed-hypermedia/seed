@@ -521,7 +521,7 @@ export type HMDateTime = string
 
 /**
  * Document
- * The base Hypermedia document — resolved metadata (including the schema-binding fields `schema`, `childrenSchema`, `schemaDefinition`) plus the content block tre
+ * The base Hypermedia document — resolved metadata (including the schema-binding fields `attributesSchema`, `childAttributesSchema`, `schemaDefinition`) plus the content block tre
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/document
  */
 export type HMDocument = {
@@ -591,25 +591,23 @@ export type ExampleBlob = {
  * A world-builder kit type: a page about a character. Extends the base document; its metadata requires a `born` date and a `role`, and links the character to a ho
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/character-doc
  */
-export type ExampleCharacterDoc = HMDocument & {
-  metadata?: HMMetadata & {
-    /** Birth date (ISO 8601 `YYYY-MM-DD`) — rendered as a date picker. */
-    born: HMDate
-    /** Death date, if any. */
-    died?: HMDate
-    /** Narrative role. */
-    role: 'hero' | 'villain' | 'ally' | 'neutral'
-    /** The place this character calls home — a page conforming to the Place type. */
-    home?: HMHmUrl
-    /** The faction this character belongs to. */
-    faction?: HMHmUrl
-    /** A portrait image file on IPFS. */
-    portrait?: HMIpfs
-    /** An `ipfs://` object that must conform to Character stats (a required target schema). */
-    stats?: HMIpfs
-    /** An `ipfs://` object with no declared schema — free-form data. */
-    notes?: HMIpfs
-  }
+export type ExampleCharacterDoc = {
+  /** Birth date (ISO 8601 `YYYY-MM-DD`) — rendered as a date picker. */
+  born: HMDate
+  /** Death date, if any. */
+  died?: HMDate
+  /** Narrative role. */
+  role: 'hero' | 'villain' | 'ally' | 'neutral'
+  /** The place this character calls home — a page conforming to the Place type. */
+  home?: HMHmUrl
+  /** The faction this character belongs to. */
+  faction?: HMHmUrl
+  /** A portrait image file on IPFS. */
+  portrait?: HMIpfs
+  /** An `ipfs://` object that must conform to Character stats (a required target schema). */
+  stats?: HMIpfs
+  /** An `ipfs://` object with no declared schema — free-form data. */
+  notes?: HMIpfs
 }
 
 /**
@@ -674,43 +672,39 @@ export type ExampleEntry = ExampleFolder | ExampleFile
 
 /**
  * Event
- * A world-builder kit type: a page about something that happened. Requires a `date` and links the event to a location (a Place), a protagonist (a Character), and
+ * A world-builder kit type: a page about something that happened. Its attributes require a `date` and link the event to a location (a Place), a protagon
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/event-doc
  */
-export type ExampleEventDoc = HMDocument & {
-  metadata?: HMMetadata & {
-    /** When it happened (or began). */
-    date: HMDate
-    /** When it ended, for a span. */
-    ends?: HMDate
-    /** Where it happened. */
-    location?: HMHmUrl
-    /** The central character. */
-    protagonist?: HMHmUrl
-    /** The faction chiefly involved. */
-    faction?: HMHmUrl
-    outcome?: 'victory' | 'defeat' | 'stalemate' | 'unknown'
-  }
+export type ExampleEventDoc = {
+  /** When it happened (or began). */
+  date: HMDate
+  /** When it ended, for a span. */
+  ends?: HMDate
+  /** Where it happened. */
+  location?: HMHmUrl
+  /** The central character. */
+  protagonist?: HMHmUrl
+  /** The faction chiefly involved. */
+  faction?: HMHmUrl
+  outcome?: 'victory' | 'defeat' | 'stalemate' | 'unknown'
 }
 
 /**
  * Faction
- * A world-builder kit type: a page about a faction, order, house, or guild. Requires a `founded` date; links to its seat (a Place) and leader (a Character), and a
+ * A world-builder kit type: a page about a faction, order, house, or guild. Its attributes require a `founded` date; they link to its seat (a Place) and
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/faction-doc
  */
-export type ExampleFactionDoc = HMDocument & {
-  metadata?: HMMetadata & {
-    /** Founding date. */
-    founded: HMDate
-    /** Dissolution date, if any. */
-    dissolved?: HMDate
-    /** Where the faction is based. */
-    seat?: HMHmUrl
-    /** Who leads it. */
-    leader?: HMHmUrl
-    /** A banner or crest image file on IPFS. */
-    banner?: HMIpfs
-  }
+export type ExampleFactionDoc = {
+  /** Founding date. */
+  founded: HMDate
+  /** Dissolution date, if any. */
+  dissolved?: HMDate
+  /** Where the faction is based. */
+  seat?: HMHmUrl
+  /** Who leads it. */
+  leader?: HMHmUrl
+  /** A banner or crest image file on IPFS. */
+  banner?: HMIpfs
 }
 
 /**
@@ -788,35 +782,31 @@ export type ExamplePerson = {
 
 /**
  * Example: Person Document
- * A document that describes a person — the base document, refined so its metadata requires a `surname`. Illustrates the corrected model: a typed document schema e
+ * A document that describes a person: an attributes schema requiring a `surname`, with an optional `givenName`. A page whose `attributesSchema` names th
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/person-doc
  */
-export type ExamplePersonDoc = HMDocument & {
-  metadata?: HMMetadata & {
-    surname: string
-    givenName?: string
-  }
+export type ExamplePersonDoc = {
+  surname: string
+  givenName?: string
 }
 
 /**
  * Place
- * A world-builder kit type: a page about a place. Its metadata requires a `kind`, may carry a `founded` date, nests inside a `region` (another Place), and links t
+ * A world-builder kit type: a page about a place. Its attributes require a `kind`, may carry a `founded` date, nest inside a `region` (another Place), a
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/place-doc
  */
-export type ExamplePlaceDoc = HMDocument & {
-  metadata?: HMMetadata & {
-    kind: 'city' | 'town' | 'village' | 'fortress' | 'ruin' | 'wilderness' | 'realm'
-    /** Founding date. */
-    founded?: HMDate
-    /** The larger place this one lies within. */
-    region?: HMHmUrl
-    /** The faction that holds this place. */
-    ruler?: HMHmUrl
-    /** An `ipfs://` object conforming to Geo point. */
-    coordinates?: HMIpfs
-    /** A map image file on IPFS. */
-    map?: HMIpfs
-  }
+export type ExamplePlaceDoc = {
+  kind: 'city' | 'town' | 'village' | 'fortress' | 'ruin' | 'wilderness' | 'realm'
+  /** Founding date. */
+  founded?: HMDate
+  /** The larger place this one lies within. */
+  region?: HMHmUrl
+  /** The faction that holds this place. */
+  ruler?: HMHmUrl
+  /** An `ipfs://` object conforming to Geo point. */
+  coordinates?: HMIpfs
+  /** A map image file on IPFS. */
+  map?: HMIpfs
 }
 
 /**
@@ -892,16 +882,14 @@ export type ExampleValue = string | number | boolean | null
 
 /**
  * World
- * A world-builder kit type: the root page of a fictional world. Its children are the type definitions and the folders of characters, places, factions, and events;
+ * A world-builder kit type: the root page of a fictional world. Its children are the type definitions and the folders of characters, places, factions, a
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/world-doc
  */
-export type ExampleWorldDoc = HMDocument & {
-  metadata?: HMMetadata & {
-    genre: 'fantasy' | 'science-fiction' | 'historical' | 'contemporary' | 'mythic'
-    /** The in-world date the chronicle begins. */
-    epoch?: HMDate
-    tagline?: string
-  }
+export type ExampleWorldDoc = {
+  genre: 'fantasy' | 'science-fiction' | 'historical' | 'contemporary' | 'mythic'
+  /** The in-world date the chronicle begins. */
+  epoch?: HMDate
+  tagline?: string
 }
 
 /**
@@ -939,11 +927,11 @@ export type HMMetadata = {
   icon?: HMIpfs
   cover?: HMIpfs
   siteUrl?: HMUrl
-  /** The schema THIS document conforms to (a schema-definition document's hm:// URL, or ipfs://<cid>). Must descend from the base document. */
-  schema?: HMHmUrl
-  /** The schema this document's CHILDREN must conform to (hm:// URL or ipfs://<cid>). Children may declare their own `schema` if it descends from this one. */
-  childrenSchema?: HMHmUrl
-  /** This document DEFINES a schema: ipfs://<cid> of the schema blob it describes. Its target is the meta-schema, so an editor creates and validates the blob as a Hypermedia schema (the struct form, rooted at Struct by default). Other documents reference this document's URL as their `schema`/`childrenSchema`. */
+  /** The attributes schema THIS document conforms to: the hm:// URL of a schema document (or ipfs://<cid> of a schema blob) whose struct describes the document's attributes. */
+  attributesSchema?: HMHmUrl
+  /** The attributes schema this document's direct CHILDREN conform to (hm:// URL or ipfs://<cid>). A child may declare its own `attributesSchema` instead. */
+  childAttributesSchema?: HMHmUrl
+  /** This document DEFINES a schema: ipfs://<cid> of the schema blob it describes. Its target is the meta-schema, so an editor creates and validates the blob as a Hypermedia schema (the struct form, rooted at Struct by default). Other documents reference this document's URL as their `attributesSchema`/`childAttributesSchema`. */
   schemaDefinition?: HMIpfs
   layout?: 'Seed/Experimental/Newspaper' | ''
   displayPublishTime?: string

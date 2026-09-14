@@ -26,24 +26,24 @@
         "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/url"
       }
     },
-    "schema": {
+    "attributesSchema": {
       "value": {
         "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hm-url"
       },
-      "description": "The schema THIS document conforms to (a schema-definition document's hm:// URL, or ipfs://<cid>). Must descend from the base document."
+      "description": "The attributes schema THIS document conforms to: the hm:// URL of a schema document (or ipfs://<cid> of a schema blob) whose struct describes the document's attributes."
     },
-    "childrenSchema": {
+    "childAttributesSchema": {
       "value": {
         "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hm-url"
       },
-      "description": "The schema this document's CHILDREN must conform to (hm:// URL or ipfs://<cid>). Children may declare their own `schema` if it descends from this one."
+      "description": "The attributes schema this document's direct CHILDREN conform to (hm:// URL or ipfs://<cid>). A child may declare its own `attributesSchema` instead."
     },
     "schemaDefinition": {
       "value": {
         "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/ipfs-url",
         "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema"
       },
-      "description": "This document DEFINES a schema: ipfs://<cid> of the schema blob it describes. Its target is the meta-schema, so an editor creates and validates the blob as a Hypermedia schema (the struct form, rooted at Struct by default). Other documents reference this document's URL as their `schema`/`childrenSchema`."
+      "description": "This document DEFINES a schema: ipfs://<cid> of the schema blob it describes. Its target is the meta-schema, so an editor creates and validates the blob as a Hypermedia schema (the struct form, rooted at Struct by default). Other documents reference this document's URL as their `attributesSchema`/`childAttributesSchema`."
     },
     "layout": {
       "value": {

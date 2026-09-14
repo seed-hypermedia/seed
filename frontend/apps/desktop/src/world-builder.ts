@@ -6,7 +6,7 @@
 //     reference fields `target` the OTHER new type documents — hm:// URLs that
 //     resolve once the tree is published, so a type can point at a type that
 //     doesn't exist yet);
-//   - each folder carries `childrenSchema` pointing at its type, so every page
+//   - each folder carries `childAttributesSchema` pointing at its type, so every page
 //     created inside is typed by inheritance;
 //   - folders render a live Query block (a table of their children);
 //   - a starter page per type shows dates (date pickers), cross-links (title
@@ -191,7 +191,7 @@ export async function buildWorldPlan(spec: WorldSpec): Promise<WorldPlan> {
   const worldMeta: Record<string, string> = {
     name: spec.name,
     genre: spec.genre,
-    schema: nameToUrl('example/world-doc')!,
+    attributesSchema: nameToUrl('example/world-doc')!,
   }
   if (spec.tagline) worldMeta.tagline = spec.tagline
   if (epoch) worldMeta.epoch = epoch
@@ -202,7 +202,7 @@ export async function buildWorldPlan(spec: WorldSpec): Promise<WorldPlan> {
     blocks: [
       paragraph(
         `${spec.name} is a ${spec.genre} world built with the World Builder. Its types live under "types"; ` +
-          `each folder below only accepts pages of its type (childrenSchema), so every new page gets the right ` +
+          `each folder below only accepts pages of its type (childAttributesSchema), so every new page gets the right ` +
           `fields — dates, links to other pages, and linked objects — with validation as a guardrail.`,
       ),
       paragraph('Open a type page and press Create to add a page of that type, or add a page inside a folder.'),
@@ -238,7 +238,7 @@ export async function buildWorldPlan(spec: WorldSpec): Promise<WorldPlan> {
       path: folderPath(t),
       metadata: {
         name: kit.plural,
-        childrenSchema: typeUrls[t]!,
+        childAttributesSchema: typeUrls[t]!,
       },
       blocks: [
         paragraph(`All the ${kit.plural.toLowerCase()} of ${spec.name}. New pages here are typed as ${kit.singular}.`),
