@@ -57,6 +57,54 @@ func TestRbsrIndex_BuildMatchesLoadRBSRStore(t *testing.T) {
 	require.Equal(t, fingerprintOf(t, want), fingerprintOf(t, got), "fingerprints must match")
 }
 
+func TestDeleteEmptyScope(t *testing.T) {
+	t.Parallel()
+	db, base := oracleFixture(t)
+	ctx := t.Context()
+	dkey := DiscoveryKey{IRI: blob.IRI(base + "/missing")}
+
+	require.NoError(t, loadAndSealIndexedScope(ctx, db, dkey))
+	require.Equal(t, 1, countScopeRows(t, db, dkey))
+
+	require.NoError(t, deleteEmptyScope(ctx, db, dkey))
+	require.Zero(t, countScopeRows(t, db, dkey), "an empty failed discovery scope must not persist")
+}
+
+func TestDeleteEmptyScopeRetainsPopulatedScope(t *testing.T) {
+	t.Parallel()
+	db, base := oracleFixture(t)
+	ctx := t.Context()
+	dkey := DiscoveryKey{IRI: blob.IRI(base), Recursive: true}
+
+	require.NoError(t, loadAndSealIndexedScope(ctx, db, dkey))
+	require.NotEmpty(t, itemSetForScope(t, db, scopeIDFor(t, db, dkey)))
+
+	require.NoError(t, deleteEmptyScope(ctx, db, dkey))
+	require.Equal(t, 1, countScopeRows(t, db, dkey), "a populated scope must remain maintained")
+}
+
+func loadAndSealIndexedScope(ctx context.Context, db *sqlitex.Pool, dkey DiscoveryKey) error {
+	store := newAuthorizedTreeStore()
+	if _, err := loadIndexedScopes(ctx, db, colx.HashSet[DiscoveryKey]{dkey: {}}, store); err != nil {
+		return err
+	}
+	return store.Seal()
+}
+
+func countScopeRows(t *testing.T, db *sqlitex.Pool, dkey DiscoveryKey) int {
+	t.Helper()
+	kind, err := scopeKindFor(dkey)
+	require.NoError(t, err)
+	var count int
+	require.NoError(t, db.WithSave(t.Context(), func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, `SELECT COUNT(*) FROM rbsr_scope WHERE iri = ? AND kind = ?`, func(stmt *sqlite.Stmt) error {
+			count = stmt.ColumnInt(0)
+			return nil
+		}, string(dkey.IRI), int64(kind))
+	}))
+	return count
+}
+
 func itemSetForScope(t *testing.T, db *sqlitex.Pool, scopeID int64) map[int64]struct{} {
 	t.Helper()
 	out := map[int64]struct{}{}

@@ -317,6 +317,47 @@ const qMaterializeReplace = `
 	JOIN blobs b INDEXED BY blobs_metadata ON b.id = rb.id
 	WHERE b.size >= 0;`
 
+var qEmptyScopeExists = dqb.Str(`
+	SELECT 1 FROM rbsr_scope s
+	WHERE s.iri = :iri
+	AND s.kind = :kind
+	AND NOT EXISTS (SELECT 1 FROM rbsr_item WHERE scope = s.id);`)
+
+var qDeleteEmptyScope = dqb.Str(`
+	DELETE FROM rbsr_scope
+	WHERE iri = :iri
+	AND kind = :kind
+	AND NOT EXISTS (SELECT 1 FROM rbsr_item WHERE scope = rbsr_scope.id);`)
+
+// deleteEmptyScope removes a maintained scope that discovered no blobs. It is
+// called after a discovery wave, so the scope remains available to incremental
+// maintenance while blocks are arriving but nonexistent arbitrary paths do not
+// become durable registry rows.
+func deleteEmptyScope(ctx context.Context, db *sqlitex.Pool, dkey DiscoveryKey) error {
+	kind, err := scopeKindFor(dkey)
+	if err != nil {
+		if errors.Is(err, errScopeNotRepresentable) {
+			return nil
+		}
+		return err
+	}
+
+	args := []any{string(dkey.IRI), int64(kind)}
+	var empty bool
+	if err := db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, qEmptyScopeExists(), func(*sqlite.Stmt) error {
+			empty = true
+			return nil
+		}, args...)
+	}); err != nil || !empty {
+		return err
+	}
+
+	return db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, qDeleteEmptyScope(), nil, args...)
+	})
+}
+
 var qMaterializeClear = dqb.Str(`DELETE FROM rbsr_item WHERE scope = :scope;`)
 
 var qMarkMaterialized = dqb.Str(`
