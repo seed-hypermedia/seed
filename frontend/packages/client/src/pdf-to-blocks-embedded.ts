@@ -643,10 +643,15 @@ async function extractTitle(doc: PdfDocument): Promise<string | undefined> {
  */
 export async function embeddedPdfToBlocks(pdfData: ArrayBuffer): Promise<EmbeddedPdfResult> {
   // Dynamic import — only loaded when this function is called.
-  // pdfjs-dist is an optional peer dependency; types are defined locally above.
+  // pdfjs-dist is an optional peer dependency; types are defined locally above. The specifier is
+  // deliberately not a string literal: a literal makes TypeScript resolve the module at check time,
+  // which fails in consumers that link this package's sources without installing the optional peer
+  // (agents/ does, via `file:`, and its typecheck broke on this line). A non-literal import types as
+  // Promise<any>, assigned to the local shape above; runtime behavior is unchanged.
   let pdfjsLib: {getDocument: (params: {data: Uint8Array}) => {promise: Promise<unknown>}}
+  const pdfjsSpecifier = 'pdfjs-dist'
   try {
-    pdfjsLib = await import('pdfjs-dist')
+    pdfjsLib = await import(/* @vite-ignore */ pdfjsSpecifier)
   } catch {
     throw new Error(
       'pdfjs-dist is not installed. Install it for embedded PDF extraction:\n' +
