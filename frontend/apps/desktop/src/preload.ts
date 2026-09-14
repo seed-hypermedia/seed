@@ -7,11 +7,16 @@ import {eventStream, writeableStateStream} from '@shm/shared/utils/stream'
 import type {OnboardingFormData, OnboardingState, OnboardingStep} from './app-onboarding'
 import {GoDaemonState} from './daemon'
 import {UpdateStatus} from './types/updater-types'
+import type {BrowserCommand} from '@seed-hypermedia/agents-protocol'
 
 // Declare global window extension for TypeScript
 declare global {
   interface Window {
     isWindowMaximized?: boolean
+    browserAgent: {
+      access: (input: {connectionId: string; browserId: number; accountUid: string; enabled: boolean}) => Promise<void>
+      execute: (connectionId: string, command: BrowserCommand) => Promise<Record<string, unknown>>
+    }
   }
 }
 
@@ -36,6 +41,11 @@ export type AppInfoType = typeof AppInfo
 contextBridge.exposeInMainWorld('appInfo', AppInfo)
 
 const windowInfo = ipcRenderer.sendSync('initWindow')
+contextBridge.exposeInMainWorld('browserAgent', {
+  access: (input: unknown) => ipcRenderer.invoke('browser-agent-access', input),
+  execute: (connectionId: string, command: BrowserCommand) =>
+    ipcRenderer.invoke('browser-agent-execute', {connectionId, command}),
+})
 
 contextBridge.exposeInMainWorld('windowId', windowInfo.windowId)
 contextBridge.exposeInMainWorld('windowType', windowInfo.windowType)

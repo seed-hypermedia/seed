@@ -79,6 +79,56 @@ function makeContext(overrides: Partial<AgentServicePiToolContext> = {}): AgentS
   }
 }
 
+describe('browser callable', () => {
+  test('discovers the contract through the normal tool documents', async () => {
+    const context = makeContext({callableTools: ['browser']})
+    const listing = await executeReadVerb(context, {address: '~/tools/'})
+    expect(JSON.stringify(listing)).toContain('browser')
+    const contract = await executeReadVerb(context, {address: '~/tools/browser'})
+    expect(JSON.stringify(contract)).toContain('editable local Seed draft')
+  })
+
+  test('archives privately without requiring or invoking publication', async () => {
+    const context = makeContext({
+      callableTools: ['browser'],
+      publishEnabled: false,
+      browser: async () => ({
+        draftId: 'desktop-draft',
+        markdown: '---\nname: Article\nsourceUrl: https://example.com\n---\nArchived content.',
+      }),
+    })
+    const output = await executeCallVerb(
+      context,
+      {tool: 'browser', input: {action: 'archive', document: 'observed'}},
+      'call-1',
+    )
+    expect(output.draftId).toBe('desktop-draft')
+    expect(output.markdown).toBeUndefined()
+    expect(output.memoryPath).toMatch(/^~\/memory\/browser\/archive-/)
+    const saved = await executeReadVerb(context, {address: output.memoryPath})
+    expect(JSON.stringify(saved)).toContain('Archived content.')
+    expect(JSON.stringify(saved)).toContain('sourceUrl')
+    expect(output.publishInstructions).toContain('nothing was published')
+  })
+
+  test('delivers private screenshots as model image content and respects tool grants', async () => {
+    const browser = mock(async () => ({
+      summary: 'Captured page',
+      screenshot: {mimeType: 'image/jpeg', data: 'image-base64'},
+    }))
+    const context = makeContext({callableTools: ['browser'], browser, modelAcceptsImages: true})
+    const output = await executeCallVerb(
+      context,
+      {tool: 'browser', input: {action: 'screenshot', document: 'observed'}},
+      'call-1',
+    )
+    expect(output.screenshot).toBeUndefined()
+    expect(output.piContent).toContainEqual({type: 'image', mimeType: 'image/jpeg', data: 'image-base64'})
+    await executeCallVerb({...context, callableTools: []}, {tool: 'browser', input: {action: 'snapshot'}}, 'call-2')
+    expect(browser).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('read verb', () => {
   test('reads and lists memory addresses, including dir fallback without trailing slash', async () => {
     const context = makeContext()

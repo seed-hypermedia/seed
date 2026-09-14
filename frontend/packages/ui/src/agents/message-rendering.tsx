@@ -64,6 +64,7 @@ import {
   Clock3,
   Compass,
   Info,
+  Globe,
   ListChecks,
   Loader2,
   PackageCheck,
@@ -726,6 +727,8 @@ function substituteAttachmentLinks(blocks: HMBlockNode[], srcById: Record<string
  * popover with the verbatim lines.
  */
 function MessageContextInfo({lines}: {lines: string[]}) {
+  const isBrowser = lines.includes('View: web')
+  const pageUrl = isBrowser ? lines.find((line) => line.startsWith('URL: '))?.slice(5) : undefined
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -734,12 +737,13 @@ function MessageContextInfo({lines}: {lines: string[]}) {
           className="text-muted-foreground hover:text-foreground mt-1.5 flex items-center gap-1 rounded-full border border-current/20 px-1.5 py-0.5 text-[10px] opacity-80"
           title="What the agent was told about your current window"
         >
-          <Info className="size-3" />
-          Context
+          {isBrowser ? <Globe className="size-3" /> : <Info className="size-3" />}
+          {isBrowser ? 'Browser context' : 'Context'}
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-96 max-w-[90vw] p-3">
         <div className="text-muted-foreground mb-2 text-xs font-medium">Context shared with the agent</div>
+        {pageUrl ? <div className="mb-2 text-xs break-all">{pageUrl}</div> : null}
         <pre className="bg-muted max-h-64 overflow-auto rounded-md p-2 font-mono text-[11px] whitespace-pre-wrap">
           {lines.join('\n')}
         </pre>

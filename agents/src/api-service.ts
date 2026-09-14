@@ -33,6 +33,7 @@ import * as protocol from '@seed-hypermedia/agents-protocol'
 import * as activityTriggers from '@/activity-triggers'
 import {resolveDocsLinks, resolveDocsUrl} from '@/docs-space'
 import * as agentMemory from '@/agent-memory'
+import {BrowserTools} from '@/browser-tools'
 import * as sessionAttachments from '@/session-attachments'
 import {
   buildLambdaProgram,
@@ -918,6 +919,7 @@ export type WebhookDeliveryResult = {
 
 /** Server-side implementation of the signed Agents action API. */
 export class Service {
+  readonly #browserTools = new BrowserTools()
   readonly #db: Database
   readonly #dataDir: string
   readonly #onEvent?: (event: ServiceEvent) => void
@@ -1074,6 +1076,7 @@ export class Service {
   /** Stops queue timers so tests and graceful shutdown do not leak intervals. */
   stopRunQueue(): void {
     this.#runQueue.stop()
+    this.#browserTools.close()
   }
 
   /** The Seed HM server this agent publishes to and reads from. Surfaced via health so desktop clients can
@@ -1163,6 +1166,34 @@ export class Service {
     }
 
     switch (envelope.action._) {
+      case 'ConnectSessionBrowser':
+      case 'PollSessionBrowser':
+      case 'ResolveSessionBrowser':
+      case 'DisconnectSessionBrowser': {
+        const action = envelope.action
+        const scope = JSON.stringify([accountId, action.sessionId])
+        const actor = JSON.stringify([verified.accountId, verified.signerId])
+        try {
+          switch (action._) {
+            case 'ConnectSessionBrowser':
+              this.#browserTools.connect(scope, actor, action.connectionId)
+              break
+            case 'PollSessionBrowser': {
+              const request = await this.#browserTools.poll(scope, actor, action.connectionId)
+              return {_: 'SessionBrowserResponse', ...(request ? {request} : {})}
+            }
+            case 'ResolveSessionBrowser':
+              this.#browserTools.resolve(scope, actor, action)
+              break
+            case 'DisconnectSessionBrowser':
+              this.#browserTools.disconnect(scope, actor, action.connectionId)
+              break
+          }
+          return {_: 'SessionBrowserResponse'}
+        } catch (error) {
+          throw new APIError(400, errorMessage(error))
+        }
+      }
       case 'RegisterSigner':
         return this.#registerSigner(envelope.signer, envelope.action.capability)
       case 'ListAgents':
@@ -1516,6 +1547,10 @@ export class Service {
         return fromSession(action.sessionId, 'writer')
       case 'MessageSession':
       case 'UploadSessionAttachment':
+      case 'ConnectSessionBrowser':
+      case 'PollSessionBrowser':
+      case 'ResolveSessionBrowser':
+      case 'DisconnectSessionBrowser':
       case 'StopSession':
       case 'RetrySession':
         return fromSession(action.sessionId, 'chat')
@@ -4697,6 +4732,7 @@ export class Service {
     this.#syncAgentMcpTools(accountId, session.agentId, definition)
     const mcpPool = this.#createMcpPool(accountId)
     const context: AgentServicePiToolContext = {
+      browser: (command) => this.#browserTools.execute(JSON.stringify([accountId, sessionId]), command),
       db: this.#db,
       accountId,
       agentId: session.agentId,
@@ -7252,6 +7288,7 @@ export class Service {
       modelRegistry,
       resourceLoader,
       customTools: createAgentServicePiTools({
+        browser: (command) => this.#browserTools.execute(JSON.stringify([accountId, sessionId]), command),
         db: this.#db,
         accountId,
         agentId: session.agentId,
@@ -11541,6 +11578,8 @@ type WriteToolContext = {
 }
 
 export type AgentServicePiToolContext = WriteToolContext & {
+  /** Executes commands only in this session's explicitly connected desktop window. */
+  browser?: (command: api.BrowserCommand) => Promise<Record<string, unknown>>
   web: WebToolsConfig
   /** Called after a write mutates the agent's triggers, so clients watching the Triggers tab refresh. */
   onTriggersChange?: () => void
@@ -14058,6 +14097,38 @@ export async function executeCallVerb(
     }
   }
   switch (toolName) {
+    case 'browser': {
+      if (!context.browser) throw new APIError(400, 'Browser access is unavailable in this execution context')
+      if (toolInput.action === 'screenshot' && !context.modelAcceptsImages) {
+        throw new APIError(400, 'This model cannot view screenshots. Use snapshot or select a vision-capable model.')
+      }
+      const output = await context.browser(toolInput as api.BrowserCommand)
+      if (toolInput.action === 'archive' && typeof output.markdown === 'string') {
+        const entry = agentMemory.writeMemoryFile(
+          context.stateDir,
+          `browser/archive-${crypto.randomUUID()}.md`,
+          output.markdown,
+        )
+        context.onMemoryChange()
+        delete output.markdown
+        output.memoryPath = `~/memory/${entry.path}`
+        output.publishInstructions =
+          'An editable desktop draft was created; nothing was published. Read memoryPath to review or revise the archive. To publish with your available write keys, read ~/tools/write/documents and use write with options.fromPath, preserving the source metadata.'
+      }
+      if (
+        isRecord(output.screenshot) &&
+        typeof output.screenshot.data === 'string' &&
+        output.screenshot.mimeType === 'image/jpeg'
+      ) {
+        const screenshot = output.screenshot
+        delete output.screenshot
+        output.piContent = [
+          {type: 'text', text: JSON.stringify(output)},
+          {type: 'image', data: screenshot.data, mimeType: screenshot.mimeType},
+        ]
+      }
+      return output
+    }
     case 'search':
       return executeAgentServiceSearch(context, toolInput)
     case 'query':
