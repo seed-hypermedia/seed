@@ -34,8 +34,9 @@ Two distinct wins, one mechanism: fast single calls (boot removed) and fast dev 
   call in flight): an over-age VM finishes its call, is disposed at park time (`exec.pool_recycled`), and the next call
   boots fresh — bounding zombie-corpse and memory drift in long sessions without any mid-use kill. The SDK's own
   `maxDuration` is a distant 24h backstop against pool-bookkeeping bugs, not a policy clock. **Caps**: 1 VM per session,
-  `SEED_AGENTS_EXEC_MAX_VMS` host-wide (start at 3 on the current prod box; scale with vCPUs). LRU eviction on cap
-  pressure.
+  `SEED_AGENTS_EXEC_MAX_VMS` host-wide (start at 3 on the current prod box; scale with vCPUs). This bounds _retained_
+  entries only; sandboxes on loan at once are capped separately by `SEED_AGENTS_EXEC_MAX_CONCURRENT` (default vCPUs − 2;
+  see `withConcurrencyCap` in code-exec.ts). LRU eviction on cap pressure.
 - Eviction is always safe: `/workspace` is a bind mount, so durable state survives; only guest RAM is lost — which is
   today's behavior on **every** call.
 

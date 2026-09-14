@@ -1,4 +1,5 @@
 import {describe, expect, test} from 'bun:test'
+import {availableParallelism} from 'node:os'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -12,12 +13,14 @@ import {
   MAX_EXEC_OUTPUT_BYTES,
   createCodeExecutor,
   defaultCodeExecConfig,
+  withConcurrencyCap,
   type CodeExecProgress,
   type ExecOutputLike,
   type ExecStreamEventLike,
   type SandboxSdk,
   type SandboxLease,
   type SandboxLike,
+  type SandboxSource,
   type SandboxSourceFactory,
   type SandboxSpec,
 } from '@/code-exec'
@@ -666,5 +669,134 @@ describe('sandbox source seam', () => {
     const executor = createCodeExecutor(defaultCodeExecConfig(), unusedSdk, factory)
     await executor.drain()
     expect(drained).toBe(true)
+  })
+})
+
+// ------------------------------------------------------------------------------------------------
+// Host-wide sandbox concurrency cap (withConcurrencyCap)
+// ------------------------------------------------------------------------------------------------
+
+/** A sandbox whose exec blocks until `open()` is called, so a lease can be held "in use" on purpose. */
+function gatedSandbox() {
+  let open!: () => void
+  const gate = new Promise<void>((resolve) => {
+    open = resolve
+  })
+  const optionsBuilder = {args: () => optionsBuilder, timeout: () => optionsBuilder} as never
+  const sandbox: SandboxLike = {
+    async execWith(_cmd, configure) {
+      configure(optionsBuilder)
+      await gate
+      return {code: 0, success: true, stdout: () => 'out', stderr: () => ''}
+    },
+    stop: async () => {},
+    kill: async () => {},
+  }
+  return {sandbox, open}
+}
+
+const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 15))
+
+describe('sandbox concurrency cap', () => {
+  test('the default leaves two vCPUs to the control plane and is never below one', () => {
+    expect(defaultCodeExecConfig().maxConcurrent).toBe(Math.max(1, availableParallelism() - 2))
+    expect(defaultCodeExecConfig().maxConcurrent).toBeGreaterThanOrEqual(1)
+  })
+
+  test('past the cap, the next acquire waits for a release instead of booting an overflow VM', async () => {
+    await withStateDir(async (stateDir) => {
+      const {sandbox, open} = gatedSandbox()
+      const {factory, releases, specs} = fakeSource(sandbox)
+      const executor = createCodeExecutor({...defaultCodeExecConfig(), maxConcurrent: 1}, unusedSdk, factory)
+      const first = executor.execute({principal, stateDir, runtime: 'shell', code: 'a'})
+      await tick()
+      const second = executor.execute({principal, stateDir, runtime: 'shell', code: 'b'})
+      await tick()
+      // The second call is parked in the cap; the source has not been asked for a second sandbox.
+      expect(specs).toHaveLength(1)
+      expect(releases).toHaveLength(0)
+      open()
+      const results = await Promise.all([first, second])
+      expect(results.map((r) => r.exitCode)).toEqual([0, 0])
+      expect(specs).toHaveLength(2)
+      expect(releases).toEqual([{healthy: true}, {healthy: true}])
+    })
+  })
+
+  test('a waiter that outlives acquireWaitMs fails with a retryable 503 and the slot is not lost', async () => {
+    await withStateDir(async (stateDir) => {
+      const {sandbox, open} = gatedSandbox()
+      const {factory, specs} = fakeSource(sandbox)
+      const executor = createCodeExecutor(
+        {...defaultCodeExecConfig(), maxConcurrent: 1, acquireWaitMs: 40},
+        unusedSdk,
+        factory,
+      )
+      const first = executor.execute({principal, stateDir, runtime: 'shell', code: 'a'})
+      await tick()
+      const error = await executor
+        .execute({principal, stateDir, runtime: 'shell', code: 'b'})
+        .catch((thrown: unknown) => thrown)
+      expect(error).toBeInstanceOf(CodeExecError)
+      expect((error as CodeExecError).status).toBe(503)
+      expect((error as CodeExecError).message).toContain('at capacity')
+      expect(specs).toHaveLength(1)
+      open()
+      expect((await first).exitCode).toBe(0)
+      // The slot came back with the first release: a fresh call proceeds without waiting.
+      const third = await executor.execute({principal, stateDir, runtime: 'shell', code: 'c'})
+      expect(third.exitCode).toBe(0)
+      expect(specs).toHaveLength(2)
+    })
+  })
+
+  test('a boot that throws hands its slot back', async () => {
+    await withStateDir(async (stateDir) => {
+      let boots = 0
+      const factory: SandboxSourceFactory = () => ({
+        drain: async () => {},
+        async acquire() {
+          boots += 1
+          if (boots === 1) throw new Error('boot failed')
+          return {sandbox: fakeSandbox({code: 0}), bootMs: 0, reused: false, release: async () => {}}
+        },
+      })
+      const executor = createCodeExecutor(
+        {...defaultCodeExecConfig(), maxConcurrent: 1, acquireWaitMs: 40},
+        unusedSdk,
+        factory,
+      )
+      await expect(executor.execute({principal, stateDir, runtime: 'shell', code: 'a'})).rejects.toThrow('boot failed')
+      // If the failed boot had kept its slot, this would time out at 40 ms with a 503 instead.
+      const result = await executor.execute({principal, stateDir, runtime: 'shell', code: 'b'})
+      expect(result.exitCode).toBe(0)
+    })
+  })
+
+  test('a release whose teardown throws still frees the slot, and a second release is a no-op', async () => {
+    let releases = 0
+    const inner: SandboxSource = {
+      drain: async () => {},
+      async acquire() {
+        return {
+          sandbox: fakeSandbox({code: 0}),
+          bootMs: 0,
+          reused: false,
+          release: async () => {
+            releases += 1
+            throw new Error('teardown exploded')
+          },
+        }
+      },
+    }
+    const capped = withConcurrencyCap(inner, {maxConcurrent: 1, acquireWaitMs: 40})
+    const spec = {principal, image: 'python', memoryRoot: '/tmp', timeoutSecs: 1}
+    const first = await capped.acquire(spec)
+    await expect(first.release({healthy: true})).rejects.toThrow('teardown exploded')
+    await first.release({healthy: true}) // second release: swallowed, frees nothing twice
+    expect(releases).toBe(1)
+    // The slot is free despite the throwing teardown; this would 503 at 40 ms otherwise.
+    const second = await capped.acquire(spec)
+    expect(second.reused).toBe(false)
   })
 })
