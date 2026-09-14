@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import {act} from 'react-dom/test-utils'
 import {createRoot, type Root} from 'react-dom/client'
-import {afterEach, beforeEach, describe, expect, it} from 'vitest'
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {useBlockScroll} from '../use-block-scroll'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -47,6 +47,47 @@ describe('useBlockScroll', () => {
     act(() => root.unmount())
     host.remove()
     scrollContainer.remove()
+  })
+
+  it('waits for the two-frame editor handoff before scrolling on initial load', () => {
+    vi.useFakeTimers()
+    const originalRequestAnimationFrame = window.requestAnimationFrame
+    const originalCancelAnimationFrame = window.cancelAnimationFrame
+    const originalWindowScrollTo = window.scrollTo
+    const animationFrames: FrameRequestCallback[] = []
+    const windowScrollCalls: ScrollToOptions[] = []
+    window.requestAnimationFrame = (callback) => {
+      animationFrames.push(callback)
+      return animationFrames.length
+    }
+    window.cancelAnimationFrame = () => {}
+    window.scrollTo = ((options: ScrollToOptions) => windowScrollCalls.push(options)) as typeof window.scrollTo
+    Object.defineProperty(scrollContainer, 'scrollHeight', {value: 800, configurable: true})
+
+    function Harness() {
+      useBlockScroll('block-1')
+      return null
+    }
+
+    try {
+      act(() => root.render(<Harness />))
+      act(() => animationFrames.shift()?.(0))
+      act(() => vi.advanceTimersByTime(0))
+      expect(scrollCalls).toEqual([])
+      expect(windowScrollCalls).toEqual([])
+
+      Object.defineProperty(scrollContainer, 'scrollHeight', {value: 5000, configurable: true})
+      act(() => animationFrames.shift()?.(16))
+      act(() => vi.advanceTimersByTime(0))
+
+      expect(scrollCalls).toEqual([{top: 1284, behavior: 'smooth'}])
+      expect(windowScrollCalls).toEqual([])
+    } finally {
+      window.requestAnimationFrame = originalRequestAnimationFrame
+      window.cancelAnimationFrame = originalCancelAnimationFrame
+      window.scrollTo = originalWindowScrollTo
+      vi.useRealTimers()
+    }
   })
 
   it('leaves only a small margin above the target block', () => {
