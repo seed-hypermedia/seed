@@ -18,7 +18,7 @@ import {OnyxSchemaProvider} from '../onyx-schema-context'
 import {metadataSchemaOf} from '../onyx-schema-resolve'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
 
-const characterMeta = metadataSchemaOf(ONYX_SCHEMAS['example-character-doc'])!
+const characterMeta = metadataSchemaOf(ONYX_SCHEMAS['example/character-doc'])!
 
 function Field({metadata, field}: {metadata: Record<string, unknown>; field: string}) {
   return (
@@ -79,6 +79,6 @@ describe('value editor formats', () => {
   })
 
   it('the kit exposes the target on the stats field', () => {
-    expect(nameToUrl('example-stats')).toBe('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-stats')
+    expect(nameToUrl('example/stats')).toBe('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/stats')
   })
 })

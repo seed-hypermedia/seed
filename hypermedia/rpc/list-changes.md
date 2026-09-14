@@ -1,0 +1,21 @@
+---
+name: "RPC: ListChanges"
+summary: "Lists a document's change history. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output`"
+schemaDefinition: ipfs://bafyreicf6udbdeja2zapqovt6on7hl5gxdqwxkocubev2a7gshje6jhrwe
+---
+Lists a document's change history. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:ihAmEwiL -->
+
+This document describes the **rpc/list-changes** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:TM8oraL9 -->
+
+# Shape <!-- id:i0mfuAmP -->
+
+A **closed struct** with these fields: <!-- id:CpilCY5t -->
+  - `key` _(required)_ — `"ListChanges"` <!-- id:NrggjHy1 -->
+  - `input` _(required)_ — map { 1 fields } <!-- id:SM1Ak_h_ -->
+  - `output` _(required)_ — map { 2 fields } <!-- id:zbAgJ_cH -->
+
+# Depends on <!-- id:xbUuATMI -->
+
+- [string](../schema/string.md) <!-- id:CR9fgC3y -->
+- [rpc/type/id](./type/id.md) <!-- id:5kkwJiCD -->
+- [rpc/type/raw-document-change](./type/raw-document-change.md) <!-- id:3-1Dl14U -->

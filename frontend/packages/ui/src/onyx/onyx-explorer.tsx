@@ -46,14 +46,13 @@ const KINDS = [
   'link',
   'any',
 ] as const
-const isPrimitive = (name: string) =>
-  KINDS.includes(name.replace(/^hypermedia-/, '') as any) && name.startsWith('hypermedia-')
-const primitiveKind = (name: string) => name.replace(/^hypermedia-/, '')
-const META_VARIANTS = ['hypermedia-anyof', 'hypermedia-property']
+const isPrimitive = (name: string) => KINDS.includes(name.replace(/^schema\//, '') as any) && name.startsWith('schema/')
+const primitiveKind = (name: string) => name.replace(/^schema\//, '')
+const META_VARIANTS = ['schema/anyof', 'schema/property']
 const isMetaVariant = (name: string) =>
   META_VARIANTS.includes(name) ||
-  (name.startsWith('hypermedia-') && name.endsWith('-schema') && name !== 'hypermedia-schema')
-const kindPrimitive = (kind: string) => (ONYX_SCHEMAS[`hypermedia-${kind}`] ? `hypermedia-${kind}` : null)
+  (name.startsWith('schema/') && name.endsWith('-schema') && name !== 'schema/meta-schema')
+const kindPrimitive = (kind: string) => (ONYX_SCHEMAS[`schema/${kind}`] ? `schema/${kind}` : null)
 
 // --- small pieces ----------------------------------------------------------
 
@@ -419,7 +418,7 @@ export function OnyxSchemaPage({
 
   const url = nameToUrl(slug)
   const cid = schemaCid(slug)
-  const isMeta = slug === 'hypermedia-schema'
+  const isMeta = slug === 'schema/meta-schema'
   const instance = isInstance(schema)
 
   // Instance page: validate the value against its declared $type.
@@ -467,7 +466,7 @@ export function OnyxSchemaPage({
   } else if (isUnion) {
     lead = (
       <p className="text-sm" data-testid="schema-union-lead">
-        <Chip label="Union" onClick={() => nav('hypermedia-anyof')} />{' '}
+        <Chip label="Union" onClick={() => nav('schema/anyof')} />{' '}
         <span className="text-muted-foreground">
           · {isMeta ? `${schema.anyOf.length} variants, tagged on type` : `one of ${schema.anyOf.length} alternatives`}
         </span>
@@ -533,7 +532,7 @@ export function OnyxSchemaPage({
       </p>
     )
   } else if ((kindOf(schema.type) === 'struct' || kindOf(schema.type) === 'map') && schema.properties) {
-    const base = kindOf(schema.type) === 'struct' ? 'hypermedia-struct' : 'hypermedia-map'
+    const base = kindOf(schema.type) === 'struct' ? 'schema/struct' : 'schema/map'
     lead = (
       <ExtendsLine slug={base} onClick={() => nav(base)}>
         <span className="text-muted-foreground">
@@ -546,7 +545,7 @@ export function OnyxSchemaPage({
   } else {
     {
       const k = kindOf(schema.type) || 'any'
-      lead = <ExtendsLine slug={`hypermedia-${k}`} onClick={() => nav(`hypermedia-${k}`)} />
+      lead = <ExtendsLine slug={`schema/${k}`} onClick={() => nav(`schema/${k}`)} />
     }
     if ((kindOf(schema.type) === 'map' || kindOf(schema.type) === 'struct') && schema.values)
       main = (
@@ -584,7 +583,7 @@ export function OnyxSchemaPage({
       {isMetaVariant(slug) && (
         <Callout>
           A <strong>variant</strong> of the{' '}
-          <button className="text-primary cursor-pointer underline" onClick={() => nav('hypermedia-schema')}>
+          <button className="text-primary cursor-pointer underline" onClick={() => nav('schema/meta-schema')}>
             meta-schema union
           </button>{' '}
           — one of the shapes a schema is allowed to take.
@@ -691,7 +690,7 @@ export function OnyxSchemaView({
           )}
         </ExtendsLine>
       ) : kind ? (
-        <ExtendsLine slug={`hypermedia-${kind}`} onClick={() => nav(`hypermedia-${kind}`)} />
+        <ExtendsLine slug={`schema/${kind}`} onClick={() => nav(`schema/${kind}`)} />
       ) : null}
       {schema.params && (
         <p className="text-sm" data-testid="schema-params">
@@ -712,7 +711,7 @@ export function OnyxSchemaView({
         // phrasing SchemaRef uses for nested unions) wraps into an unreadable clutter here.
         <div className="flex flex-col gap-1.5" data-testid="schema-union-variants">
           <p className="text-sm">
-            <Chip label="Union" onClick={() => nav('hypermedia-anyof')} />{' '}
+            <Chip label="Union" onClick={() => nav('schema/anyof')} />{' '}
             <span className="text-muted-foreground">
               · one of {schema.anyOf.length} variant{schema.anyOf.length === 1 ? '' : 's'}:
             </span>

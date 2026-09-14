@@ -17,11 +17,11 @@ const CUSTOM_CID = 'bafyreicustomschemaxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 const CUSTOM = {
   name: 'Vote',
   description: 'A vote on a document.',
-  ref: nameToUrl('hypermedia-blob'),
+  ref: nameToUrl('blob'),
   required: ['type', 'target'],
   properties: {
     type: 'Vote',
-    target: {ref: nameToUrl('hypermedia-hm-url'), target: 'hm://acme/proposal'},
+    target: {ref: nameToUrl('hm-url'), target: 'hm://acme/proposal'},
   },
 }
 
@@ -56,8 +56,8 @@ describe('OnyxSchemaByCid', () => {
 
   it('renders a bundled schema by its CID without fetching', async () => {
     const request = vi.fn(async () => ({}))
-    await mount(schemaCid('example-person')!, request)
-    expect(container.textContent).toContain('example-person')
+    await mount(schemaCid('example/person')!, request)
+    expect(container.textContent).toContain('example/person')
     expect(container.textContent).toContain('nicknames')
     expect(request).not.toHaveBeenCalled()
   })
@@ -82,7 +82,7 @@ describe('OnyxSchemaByCid', () => {
   it('the page header offers New <type>, which starts a blob draft pre-filled with this schema', async () => {
     const navigate = vi.fn()
     const openUrl = vi.fn()
-    const cid = schemaCid('example-person')!
+    const cid = schemaCid('example/person')!
     await act(() =>
       root.render(
         <QueryClientProvider client={new QueryClient({defaultOptions: {queries: {retry: false}}})}>
@@ -101,7 +101,7 @@ describe('OnyxSchemaByCid', () => {
     // No back button; New starts the raw-blob draft seeded with this schema.
     expect(container.textContent).not.toContain('Back')
     const newButton = container.querySelector('[data-testid="schema-browser-new"]') as HTMLButtonElement
-    expect(newButton.textContent).toContain('New example-person')
+    expect(newButton.textContent).toContain('New example/person')
     act(() => newButton.click())
     expect(navigate).toHaveBeenCalledWith({key: 'inspect-ipfs', ipfsPath: `new/${cid}`})
     expect(container.textContent).not.toContain('browse the library')
@@ -114,7 +114,7 @@ describe('OnyxSchemaByCid', () => {
         <QueryClientProvider client={new QueryClient({defaultOptions: {queries: {retry: false}}})}>
           <UniversalAppProvider openUrl={() => {}} openRoute={null} universalClient={{request: vi.fn()} as any}>
             <TooltipProvider>
-              <OnyxSchemaBrowserPage cid={schemaCid('hypermedia-any-blob')!} navigate={navigate} openUrl={vi.fn()} />
+              <OnyxSchemaBrowserPage cid={schemaCid('schema/any-blob')!} navigate={navigate} openUrl={vi.fn()} />
             </TooltipProvider>
           </UniversalAppProvider>
         </QueryClientProvider>,

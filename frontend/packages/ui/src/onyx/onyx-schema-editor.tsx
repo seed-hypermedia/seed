@@ -65,11 +65,11 @@ const CUSTOM_KIND = 'custom'
 function propKind(ps: any): string {
   if (typeof ps?.var === 'string') return varKind(ps.var)
   const refName = typeof ps?.ref === 'string' ? refToName(ps.ref) : null
-  if (ps?.format === 'hm-url' || refName === 'hypermedia-hm-url') return 'hm-url'
-  if (ps?.format === 'ipfs' || refName === 'hypermedia-ipfs') return 'ipfs'
-  if (ps?.format === 'date' || refName === 'hypermedia-date') return 'date'
-  if (ps?.format === 'date-time' || refName === 'hypermedia-date-time') return 'date-time'
-  if (refName === 'hypermedia-any') return 'any'
+  if (ps?.format === 'hm-url' || refName === 'hm-url') return 'hm-url'
+  if (ps?.format === 'ipfs' || refName === 'schema/ipfs') return 'ipfs'
+  if (ps?.format === 'date' || refName === 'schema/date') return 'date'
+  if (ps?.format === 'date-time' || refName === 'schema/date-time') return 'date-time'
+  if (refName === 'schema/any') return 'any'
   if (isLiteralSchema(ps) || ps?.anyOf || ps?.args) return CUSTOM_KIND
   if (ps?.type) return kindOf(ps.type)
   if (refName && KINDS.includes(refName.replace(/^hypermedia-/, ''))) return refName.replace(/^hypermedia-/, '')
@@ -134,8 +134,8 @@ function kindSchema(kind: string): OnyxSchema {
   if (kind === 'ipfs') return {type: kindUrl('string'), format: 'ipfs'}
   // The built-in date types are includes of the library schemas, which carry
   // the format (→ a date picker) and the pattern (→ validation).
-  if (kind === 'date') return {ref: nameToUrl('hypermedia-date')!}
-  if (kind === 'date-time') return {ref: nameToUrl('hypermedia-date-time')!}
+  if (kind === 'date') return {ref: nameToUrl('schema/date')!}
+  if (kind === 'date-time') return {ref: nameToUrl('schema/date-time')!}
   if (kind === 'list') return {type: kindUrl('list'), items: {ref: ANY_URL}}
   if (kind === 'struct') return {type: STRUCT_URL, properties: {}}
   if (kind === 'map') return {type: MAP_URL, values: {ref: ANY_URL}}
@@ -143,9 +143,9 @@ function kindSchema(kind: string): OnyxSchema {
 }
 
 /** The `any` schema: what a type parameter defaults to when nothing narrower is given. */
-const ANY_URL = nameToUrl('hypermedia-any')!
+const ANY_URL = nameToUrl('schema/any')!
 /** The signed-blob envelope every Hypermedia blob extends. */
-const SIGNED_BLOB_URL = nameToUrl('hypermedia-blob')!
+const SIGNED_BLOB_URL = nameToUrl('blob')!
 /** True when the schema extends the signed-blob envelope. */
 export const isSignedBlobType = (schema: OnyxSchema) => !schema.type && schema.ref === SIGNED_BLOB_URL
 /** The pinned `type` tag of a signed-blob schema ('' when none). */
@@ -197,7 +197,7 @@ function RawSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSchema: (s: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schema])
   const warnings = useMemo(() => {
-    const meta = ONYX_SCHEMAS['hypermedia-schema']
+    const meta = ONYX_SCHEMAS['schema/meta-schema']
     return meta ? validate(meta, schema).slice(0, 5) : []
   }, [schema])
   return (
@@ -519,7 +519,7 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
     // A core kind applies its canonical property schema (a list gets `items`, a
     // struct `properties`, a date its library ref) — not a bare type URL.
     ...FIELD_KINDS.filter(({kind}) => !isReferenceKind(kind)).map(({kind, label}) => ({
-      label: ONYX_PAGES[`hypermedia-${kind}`]?.name ?? label,
+      label: ONYX_PAGES[`schema/${kind}`]?.name ?? label,
       hint: 'core type',
       schema: kindSchema(kind),
     })),
@@ -544,7 +544,7 @@ function StructSchemaForm({schema, onSchema}: {schema: OnyxSchema; onSchema: (s:
   const rootTypeOptions: TypeOption[] = [
     unionOption(),
     ...FIELD_KINDS.filter(({kind}) => !isReferenceKind(kind)).map(({kind, label}) => ({
-      label: ONYX_PAGES[`hypermedia-${kind}`]?.name ?? label,
+      label: ONYX_PAGES[`schema/${kind}`]?.name ?? label,
       hint: 'core type',
       url: kindUrl(kind),
     })),

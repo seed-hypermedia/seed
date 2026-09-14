@@ -25,7 +25,7 @@ describe('metadata direct edit', () => {
     container.remove()
   })
 
-  const stats = schemaCid('example-stats')!
+  const stats = schemaCid('example/stats')!
   const mount = (directEdit?: {isFieldEditable: (k: string) => boolean; onEditField: (k: string, c: string) => void}) =>
     act(() =>
       root.render(

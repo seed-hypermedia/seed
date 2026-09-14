@@ -1,7 +1,7 @@
 // Resolving schema references: what a `schema`, `childrenSchema`, `ref` or `target` points at.
 //
-// A reference is one of three things (see hypermedia/typed-documents.md):
-//   - a bundled library URL (`hm://<onyx>/hypermedia-string`)     → resolved locally, no fetch
+// A reference is one of three things (see hypermedia/schema/typed-documents.md):
+//   - a bundled library URL (`hm://<onyx>/schema/string`)     → resolved locally, no fetch
 //   - an ipfs CID (`ipfs://bafy…`)                                 → the blob, bundled if known
 //   - any Hypermedia document URL (`hm://acct/types/person`)       → that document's `schemaDefinition`
 // The synchronous parts classify and shape schemas; the async parts fetch through a Seed client
@@ -100,7 +100,7 @@ export async function fetchSchemaBlob(client: SchemaFetchClient, cid: string): P
 
 /**
  * The schema a document's metadata is checked against: the base document metadata
- * (`hypermedia-metadata` — name, summary, icon, the schema-binding keys, …) extended by the
+ * (`metadata` — name, summary, icon, the schema-binding keys, …) extended by the
  * type's metadata fields, kept OPEN (`values: {}`) so the binding keys and arbitrary extras are
  * allowed. Standard fields keep their semantic types; the type's required fields stay required.
  * The one rule every surface shares: the app's Attributes editor, the CLI's `document validate`
@@ -112,7 +112,7 @@ export function documentMetadataSchema(
   extraProps: Record<string, OnyxSchema> = {},
   registry: OnyxRegistry = {},
 ): OnyxSchema {
-  const base = resolveSchema(ONYX_SCHEMAS['hypermedia-metadata']!).schema
+  const base = resolveSchema(ONYX_SCHEMAS['metadata']!).schema
   const doc = typeMetadataSchema ? resolveSchema(typeMetadataSchema, {}, registry).schema : {}
   const byName = new Map<string, StructField>()
   for (const f of structFields(base)) byName.set(f.name, f)
@@ -257,13 +257,20 @@ export async function loadSchemaRef(client: SchemaFetchClient, ref: string | Ony
   }
   if (ONYX_SCHEMAS[ref]) return {schema: ONYX_SCHEMAS[ref], cid: schemaCid(ref), registry: {}}
   const resolved = await resolveSchemaRef(client, ref)
-  if (resolved.kind === 'none') throw new Error(`Not a schema reference: ${ref} (expected an ipfs:// CID or an hm:// URL)`)
+  if (resolved.kind === 'none')
+    throw new Error(`Not a schema reference: ${ref} (expected an ipfs:// CID or an hm:// URL)`)
   if (!resolved.schema) {
     if (resolved.kind === 'hm-doc')
-      throw new Error(`${ref} does not define a schema (no schemaDefinition on the document, or the document was not found)`)
+      throw new Error(
+        `${ref} does not define a schema (no schemaDefinition on the document, or the document was not found)`,
+      )
     throw new Error(`Could not fetch the schema at ${ref}`)
   }
-  return {schema: resolved.schema, cid: resolved.cid, registry: await hydrateSchemaRegistry(client, resolved.schema, {})}
+  return {
+    schema: resolved.schema,
+    cid: resolved.cid,
+    registry: await hydrateSchemaRegistry(client, resolved.schema, {}),
+  }
 }
 
 export type DocumentSchemaCheck = {
@@ -346,7 +353,7 @@ export function withoutSchemaLink(value: unknown): unknown {
  * violations of the meta-schema, or the reason the reference could not be loaded. Empty when fine.
  */
 export async function checkSchemaDefinition(client: SchemaFetchClient, ref: string): Promise<string[]> {
-  const meta = ONYX_SCHEMAS['hypermedia-schema']!
+  const meta = ONYX_SCHEMAS['schema/meta-schema']!
   try {
     const loaded = await loadSchemaRef(client, ref)
     return validate(meta, loaded.schema, '$', {}, loaded.registry)

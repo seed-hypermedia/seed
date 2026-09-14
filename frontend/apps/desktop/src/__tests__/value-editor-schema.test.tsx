@@ -8,12 +8,12 @@ import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 
 const ARTICLE_SCHEMA: OnyxSchema = {
-  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct',
+  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct',
   required: ['title', 'status'],
   properties: {
-    title: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string', minLength: 1},
+    title: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string', minLength: 1},
     status: {anyOf: ['draft', 'published']},
-    count: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-integer'},
+    count: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/integer'},
   },
 }
 
@@ -93,7 +93,7 @@ describe('schema-aware value editor rendering', () => {
     // Onyx attributes the "unexpected key" warning to the containing map's path,
     // so nest the closed map under a field to get a rendered row to badge.
     const schema: OnyxSchema = {
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map',
       values: {},
       properties: {article: ARTICLE_SCHEMA},
     }
@@ -105,7 +105,7 @@ describe('schema-aware value editor rendering', () => {
 
   it('a union of literals containing "" renders safely (labels are JSON-quoted, so Radix never sees value="")', () => {
     const schema: OnyxSchema = {
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map',
       values: {},
       properties: {
         status: {anyOf: ['', 'draft']},
@@ -119,7 +119,7 @@ describe('schema-aware value editor rendering', () => {
 
   it('mixed-type literal unions render number members as a dropdown too', () => {
     const schema: OnyxSchema = {
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map',
       values: {},
       properties: {level: {anyOf: ['low', 1, 2, true]}},
     }
@@ -135,7 +135,7 @@ describe('schema-aware value editor rendering', () => {
 
   it('a union of literals with duplicate members falls back to free text', () => {
     const schema: OnyxSchema = {
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map',
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map',
       values: {},
       properties: {
         status: {anyOf: ['draft', 'draft']},

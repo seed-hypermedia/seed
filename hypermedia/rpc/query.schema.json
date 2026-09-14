@@ -1,0 +1,28 @@
+{
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct",
+  "properties": {
+    "key": {
+      "value": "Query",
+      "required": true
+    },
+    "input": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/query"
+      },
+      "required": true
+    },
+    "output": {
+      "value": {
+        "anyOf": [
+          {
+            "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/query-result"
+          },
+          {
+            "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/null"
+          }
+        ]
+      },
+      "required": true
+    }
+  }
+}

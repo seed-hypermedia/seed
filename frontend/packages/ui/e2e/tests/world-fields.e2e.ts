@@ -54,7 +54,7 @@ async function addSchemaField(page: Page, name: string) {
 test.describe('world-builder field types', () => {
   test('a date field is a date picker that writes an ISO date', async ({page}) => {
     // A character page: `born` (date) and `role` (enum) are required rows.
-    await openHarness(page, {name: 'The Wanderer', schema: `${ONYX}/example-character-doc`})
+    await openHarness(page, {name: 'The Wanderer', schema: `${ONYX}/example/character-doc`})
     const born = page.getByRole('treeitem', {name: /born/}).first()
     await expect(born).toBeVisible()
     const picker = born.getByTestId('date-field')
@@ -78,7 +78,7 @@ test.describe('world-builder field types', () => {
   }) => {
     await openHarness(page, {
       name: 'The Wanderer',
-      schema: `${ONYX}/example-character-doc`,
+      schema: `${ONYX}/example/character-doc`,
       born: '0969-01-01',
       role: 'hero',
     })
@@ -122,7 +122,7 @@ test.describe('world-builder field types', () => {
   test('an untyped object field creates free-form data', async ({page}) => {
     await openHarness(page, {
       name: 'The Wanderer',
-      schema: `${ONYX}/example-character-doc`,
+      schema: `${ONYX}/example/character-doc`,
       born: '0969-01-01',
       role: 'hero',
     })
@@ -144,7 +144,8 @@ test.describe('world-builder field types', () => {
   test('the schema editor offers Date fields and a target type for references', async ({page}) => {
     await openHarness(page, {name: 'X', schemaDefinition: ''})
     const dialog = await openDefineDialog(page)
-    const option = (label: string) => page.getByTestId('schema-type-option').filter({has: page.getByText(label, {exact: true})})
+    const option = (label: string) =>
+      page.getByTestId('schema-type-option').filter({has: page.getByText(label, {exact: true})})
 
     // A Date field: the type input opens its options on click.
     await dialog.getByRole('button', {name: 'Add field'}).click()
@@ -158,14 +159,14 @@ test.describe('world-builder field types', () => {
     await dialog.getByRole('textbox', {name: 'Field name'}).nth(1).fill('giver')
     await dialog.getByRole('textbox', {name: 'Type of giver'}).click()
     await option('HM link').click()
-    await dialog.getByLabel('Target type for giver').fill(`${ONYX}/example-character-doc`)
+    await dialog.getByLabel('Target type for giver').fill(`${ONYX}/example/character-doc`)
 
     await dialog.getByTestId('linked-object-publish').click()
     await expect(dialog).toBeHidden()
     const published: any = await page.evaluate(() => (window as any).__lastPublishedSchema)
-    expect(published.properties.due).toEqual({value: {ref: `${ONYX}/hypermedia-date`}})
+    expect(published.properties.due).toEqual({value: {ref: `${ONYX}/schema/date`}})
     expect(published.properties.giver).toMatchObject({
-      value: {format: 'hm-url', target: `${ONYX}/example-character-doc`},
+      value: {format: 'hm-url', target: `${ONYX}/example/character-doc`},
     })
   })
 
@@ -176,7 +177,7 @@ test.describe('world-builder field types', () => {
     const rootType = dialog.getByRole('textbox', {name: 'Root type'})
     await rootType.click()
     await rootType.press('ControlOrMeta+a')
-    await rootType.fill(`${ONYX}/hypermedia-blob`)
+    await rootType.fill(`${ONYX}/blob`)
     await rootType.press('Enter')
     await expect(rootType).toHaveValue('Hypermedia Blob')
     await expect(dialog.getByLabel('Type tag')).toHaveValue('Custom')
@@ -188,7 +189,7 @@ test.describe('world-builder field types', () => {
     await expect(dialog).toBeHidden()
 
     const published: any = await page.evaluate(() => (window as any).__lastPublishedSchema)
-    expect(published.ref).toBe(`${ONYX}/hypermedia-blob`)
+    expect(published.ref).toBe(`${ONYX}/blob`)
     expect(published.type).toBeUndefined()
     expect(published.properties.type).toEqual({value: 'DocVote', required: true})
     expect(Object.keys(published.properties)).toEqual(['type', 'choice'])

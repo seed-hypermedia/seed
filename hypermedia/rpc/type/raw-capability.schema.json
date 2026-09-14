@@ -1,0 +1,50 @@
+{
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct",
+  "properties": {
+    "id": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+      }
+    },
+    "issuer": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+      }
+    },
+    "delegate": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+      }
+    },
+    "account": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+      }
+    },
+    "path": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+      }
+    },
+    "role": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+      }
+    },
+    "noRecursive": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/boolean"
+      }
+    },
+    "label": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+      }
+    },
+    "createTime": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+      }
+    }
+  }
+}

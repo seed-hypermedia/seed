@@ -3467,7 +3467,7 @@ function DocumentSchemaSection({document, canEdit}: {document: HMDocument; canEd
  */
 /**
  * The bundled library schema a document IS, by its path (`/timestamp` → onyx-timestamp,
- * `/hypermedia-timestamp` → hypermedia-timestamp), whatever version of the blob it currently
+ * `/schema/timestamp` → hypermedia-timestamp), whatever version of the blob it currently
  * points at. Dependencies are computed over the bundled library, so this is what names them.
  */
 function bundledSlugForDocument(document: HMDocument): string | null {
