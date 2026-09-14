@@ -1284,6 +1284,12 @@ export default function DesktopResourcePage() {
                     onExtendSchema={(baseSchemaCid) =>
                       destinationDialog.open({id: docId, mode: 'extend-schema', extendSchema: {baseSchemaCid}})
                     }
+                    onNewTypedDocument={(schemaUrl) =>
+                      destinationDialog.open({id: docId, mode: 'new-typed-document', typed: {schemaUrl}})
+                    }
+                    onNewTypedCollection={(schemaUrl) =>
+                      destinationDialog.open({id: docId, mode: 'new-typed-collection', typed: {schemaUrl}})
+                    }
                     fileBrowserCreateMenuItem={fileBrowserCreateMenuItem}
                     fileBrowserOnIncludeDocument={fileBrowserOnIncludeDocument}
                     fileBrowserGetIncludeDocumentState={fileBrowserGetIncludeDocumentState}

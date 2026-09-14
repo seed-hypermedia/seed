@@ -1,6 +1,6 @@
 // The required *custom* attributes declared by a document's CONFORMANCE schema,
 // rendered above the body content in the Content tab. When a document conforms to
-// a schema (via its `schema` metadata field, or a parent's `childrenSchema`), the
+// a schema (via its `attributesSchema` metadata field, or a parent's `childAttributesSchema`), the
 // schema's mandatory metadata fields (beyond the standard name/summary header
 // fields and the schema-binding fields) are shown here as always-visible editable
 // rows — so an author fills them in-place instead of hunting for the Attributes

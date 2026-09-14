@@ -156,12 +156,12 @@ describe('CLI · 2. Give a document custom metadata', () => {
       const file = path.join(dir, 'notes.md')
       const before = readFileSync(file, 'utf8')
       expect(before.startsWith('---\n')).toBe(true)
-      writeFileSync(file, before.replace(/^---\n/, `---\nsurname: Smith\nschema: ${url('types/person')}\n`))
+      writeFileSync(file, before.replace(/^---\n/, `---\nsurname: Smith\nattributesSchema: ${url('types/person')}\n`))
       const imported = await cli(['space', 'import', 'self', '-d', dir])
       expect(imported.exitCode, imported.stderr).toBe(0)
       const doc = await cliJson(['document', 'get', url('notes')])
       expect(doc.metadata.surname).toBe('Smith')
-      expect(doc.metadata.schema).toBe(url('types/person'))
+      expect(doc.metadata.attributesSchema).toBe(url('types/person'))
     },
     TIMEOUT,
   )
@@ -199,14 +199,17 @@ describe('CLI · 2. Give a document custom metadata', () => {
 
 describe('CLI · 3. Give the direct children of a document a type', () => {
   it(
-    'childrenSchema on a folder, published through space import, is read back on the folder',
+    'childAttributesSchema on a folder, published through space import, is read back on the folder',
     async () => {
       const dir = path.join(workDir, 'site')
-      write('site/people.md', `---\nname: People\nchildrenSchema: ${url('types/person')}\n---\nEveryone we know.\n`)
+      write(
+        'site/people.md',
+        `---\nname: People\nchildAttributesSchema: ${url('types/person')}\n---\nEveryone we know.\n`,
+      )
       const imported = await cli(['space', 'import', 'self', '-d', dir])
       expect(imported.exitCode, imported.stderr).toBe(0)
       const folder = await cliJson(['document', 'get', url('people')])
-      expect(folder.metadata.childrenSchema).toBe(url('types/person'))
+      expect(folder.metadata.childAttributesSchema).toBe(url('types/person'))
     },
     TIMEOUT,
   )
@@ -224,7 +227,7 @@ describe('CLI · 3. Give the direct children of a document a type', () => {
   )
 
   it(
-    'document update --children-schema types a folder',
+    'document update --child-attributes-schema types a folder',
     async () => {
       const created = await cli([
         'document',
@@ -235,10 +238,10 @@ describe('CLI · 3. Give the direct children of a document a type', () => {
         'team',
       ])
       expect(created.exitCode, created.stderr).toBe(0)
-      const updated = await cli(['document', 'update', url('team'), '--children-schema', url('types/person')])
+      const updated = await cli(['document', 'update', url('team'), '--child-attributes-schema', url('types/person')])
       expect(updated.exitCode, updated.stderr).toBe(0)
       const doc = await cliJson(['document', 'get', url('team')])
-      expect(doc.metadata.childrenSchema).toBe(url('types/person'))
+      expect(doc.metadata.childAttributesSchema).toBe(url('types/person'))
     },
     TIMEOUT,
   )
@@ -539,8 +542,8 @@ describe('Agent', () => {
       passed('write with options.metadata sets custom keys and the schema field'))
   })
   describe('3. Give the direct children of a document a type', () => {
-    it('write childrenSchema on a folder; a child written under it carries no schema of its own', () =>
-      passed('write childrenSchema on a folder; a child written under it carries no schema of its own'))
+    it('write childAttributesSchema on a folder; a child written under it carries no schema of its own', () =>
+      passed('write childAttributesSchema on a folder; a child written under it carries no schema of its own'))
   })
   describe('4. See whether a document respects its schema', () => {
     it('a write to a typed document returns schema violations as warnings beside the published id', () =>

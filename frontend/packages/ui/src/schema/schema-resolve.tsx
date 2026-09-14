@@ -1,16 +1,15 @@
 // Resolve a document's CONFORMANCE schema — the corrected model's core lookup.
 //
-// A schema reference (the value of a `schema` / `childrenSchema` metadata field,
+// A schema reference (the value of an `attributesSchema` / `childAttributesSchema` metadata field,
 // or an `extends` ref) is one of:
 //   - an ipfs CID (`ipfs://<cid>` or bare)        -> resolve the blob directly
 //   - a bundled library URL (`hm://…/<basename>`)  -> the bundled Hypermedia schema (sync)
 //   - a Hypermedia document URL (`hm://acct/path`) -> fetch that document, read its
 //        `schemaDefinition` metadata (the schema it DEFINES), then resolve that CID
 //
-// A document's EFFECTIVE conformance schema is its own metadata `schema`, or —
-// when absent — its parent's `childrenSchema`. From the resolved schema we derive
-// the METADATA sub-schema (document-shaped schemas nest it under `metadata`; flat
-// schemas are the metadata schema themselves), which drives required-field UI.
+// A document's EFFECTIVE attributes schema is its own metadata `attributesSchema`,
+// or — when absent — its parent's `childAttributesSchema`. The resolved schema is a
+// struct of attributes, which drives required-field UI.
 import {useMemo} from 'react'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, unpackHmId} from '@shm/shared'
@@ -57,9 +56,9 @@ export function useResolvedSchema(ref: string | null | undefined): {
 }
 
 /**
- * The document's EFFECTIVE conformance schema: its own metadata `schema`, else
- * its parent's `childrenSchema`. Returns the resolved schema, its metadata
- * sub-schema (for required-field UI), and which source supplied it.
+ * The document's EFFECTIVE attributes schema: its own metadata `attributesSchema`,
+ * else its parent's `childAttributesSchema`. Returns the resolved schema (also as
+ * `metadataSchema`, for required-field UI) and which source supplied it.
  */
 export function useEffectiveDocSchema(
   id: UnpackedHypermediaId | null | undefined,
@@ -70,9 +69,10 @@ export function useEffectiveDocSchema(
   source: 'own' | 'inherited' | 'none'
   isLoading: boolean
 } {
-  const ownRef = typeof (metadata as any)?.schema === 'string' ? ((metadata as any).schema as string) : null
+  const ownRef =
+    typeof (metadata as any)?.attributesSchema === 'string' ? ((metadata as any).attributesSchema as string) : null
 
-  // Only look up the parent when this doc declares no `schema` of its own.
+  // Only look up the parent when this doc declares no `attributesSchema` of its own.
   const parentId = useMemo(() => {
     if (ownRef || !id || !id.path || id.path.length === 0) return null
     return hmId(id.uid, {path: id.path.slice(0, -1)})
@@ -82,7 +82,7 @@ export function useEffectiveDocSchema(
     if (ownRef) return null
     const data = parent.data
     if (data?.type !== 'document') return null
-    const cs = (data.document.metadata as any)?.childrenSchema
+    const cs = (data.document.metadata as any)?.childAttributesSchema
     return typeof cs === 'string' ? cs : null
   }, [ownRef, parent.data])
 
