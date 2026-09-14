@@ -1181,7 +1181,7 @@ export function ValueEditor({
         : resolvedSchema?.format === 'hm-url'
           ? ('document' as const)
           : undefined
-    const ipfsMode = resolvedSchema?.format === 'ipfs'
+    const ipfsMode = resolvedSchema?.format === 'ipfs-url' || resolvedSchema?.format === 'ipfs'
     const dateMode: DateFieldMode | undefined =
       resolvedSchema?.format === 'date' || resolvedSchema?.format === 'date-time' ? resolvedSchema.format : undefined
     const ipfsTarget = ipfsMode && typeof resolvedSchema?.target === 'string' ? resolvedSchema.target : undefined

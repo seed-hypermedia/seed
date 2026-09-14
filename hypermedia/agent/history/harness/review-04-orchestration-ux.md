@@ -1,5 +1,5 @@
 ---
-name: "Checkmark review — M4-UX: elegant orchestration UI (harness/04-orchestration-ux)"
+name: "Checkmark Review — M4-UX: Elegant Orchestration UI (harness/04-orchestration-ux)"
 summary: "Status: draft — adversarial review in flight. Eric's feedback package, implemented verbatim."
 ---
 Status: **draft — adversarial review in flight.** Eric's feedback package, implemented verbatim. <!-- id:PtBCb4Tk -->

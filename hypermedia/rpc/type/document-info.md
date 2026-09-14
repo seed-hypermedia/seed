@@ -1,5 +1,5 @@
 ---
-name: Document info
+name: Document Info
 summary: "One document in a listing (query results, directories): identity, authorship, timestamps, breadcrumbs, and its activity summary — without the full content. A de"
 schemaDefinition: ipfs://bafyreif5xegdynuam64pswo37cr4nxe6whqchzhhnks2idu5ggx5ejnheu
 ---

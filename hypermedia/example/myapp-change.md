@@ -1,5 +1,5 @@
 ---
-name: "Example: MyApp change"
+name: "Example: MyApp Change"
 summary: A Change instantiated with this app's block type — Change<example/app-block>. Because Block is bound, its ReplaceBlock ops are validated strictly against the ap
 schemaDefinition: ipfs://bafyreiet3m7qt7jrnumi7oytj7mumpzxhweog33heeynjktse6lzspftii
 ---

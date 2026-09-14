@@ -1,5 +1,5 @@
 ---
-name: Accounts metadata
+name: Accounts Metadata
 summary: Account uid -> resolved metadata payload, sent alongside listings so clients can render authors without extra requests. A derived read model computed by the See
 schemaDefinition: ipfs://bafyreia3yvkl36mbcjg7krn56lrqs2gssh2fd4f52zcfpgugo7xtef6mjy
 ---

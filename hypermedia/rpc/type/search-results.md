@@ -1,5 +1,5 @@
 ---
-name: Search results
+name: Search Results
 summary: A page of search results with the query echoed back and a pagination token. A derived read model computed by the Seed daemon/API for clients — not a signed netw
 schemaDefinition: ipfs://bafyreic5uk6vemtosfask5lwtvlv43b5f4ac65vwlu66vgt4dy6jjjeseq
 ---

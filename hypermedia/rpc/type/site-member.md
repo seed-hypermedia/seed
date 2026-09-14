@@ -1,5 +1,5 @@
 ---
-name: Site member
+name: Site Member
 summary: One member of a site with their effective role. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
 schemaDefinition: ipfs://bafyreigqf3f4qpwb7oomg2mxey4gjicwns3zmi4dccdophd63nldcyf5v4
 ---

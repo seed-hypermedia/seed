@@ -1,5 +1,5 @@
 ---
-name: "Resource: document"
+name: "Resource: Document"
 summary: A resolved resource that is a document. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
 schemaDefinition: ipfs://bafyreiftymlzsuu2wsglg7nppi33zb6eqajkzwuukrlnwx2ojtebd3jnr4
 ---

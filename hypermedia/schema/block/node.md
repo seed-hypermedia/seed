@@ -1,5 +1,5 @@
 ---
-name: Block node
+name: Block Node
 summary: "A node of the document content tree: a Block plus its ordered child Block nodes. The recursion (children of the same type) expresses arbitrary nesting; a leaf s"
 schemaDefinition: ipfs://bafyreiasfkk43xkgnuq6cdhjvjpegegoxaethj45lytpsepxy4m6dsauxq
 ---

@@ -1,5 +1,5 @@
 ---
-name: Math block
+name: Math Block
 summary: A block of LaTeX/KaTeX math.
 schemaDefinition: ipfs://bafyreic7c7zfgzxwwsz32ykzs5bb3g3ubmf62pxqfyka6jtok2vr4g7oeq
 ---

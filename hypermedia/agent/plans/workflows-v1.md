@@ -1,5 +1,5 @@
 ---
-name: "Workflows: agent-authored scripts, sub-sessions, and visible progress"
+name: "Workflows: Agent-Authored Scripts, Sub-Sessions, and Visible Progress"
 summary: "Implementation planning document (2026-08-02). Self-contained: everything needed to build the feature is specified here, grounded in the code as it was…"
 ---
 <!-- id:Yu1v1EdL -->

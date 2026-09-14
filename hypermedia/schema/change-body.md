@@ -1,5 +1,5 @@
 ---
-name: Change body
+name: Change Body
 summary: "The operations payload of a Change: an operation count hint and the list of ops."
 schemaDefinition: ipfs://bafyreihojco3hvjdjpyujyb4p2jgrnvujyia2za3ns2kth3ujeysejomge
 ---

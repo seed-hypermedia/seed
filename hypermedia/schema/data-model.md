@@ -1,5 +1,5 @@
 ---
-name: The Data Model
+name: Data Model
 summary: The nine IPLD kinds every Hypermedia value is built from — including link and bytes as first-class primitives.
 ---
 # The data model <!-- id:1K3uAm_K -->

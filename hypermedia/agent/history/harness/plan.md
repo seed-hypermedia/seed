@@ -1,5 +1,5 @@
 ---
-name: The Harness — implementation plan
+name: The Harness — Implementation Plan
 summary: 'Status: M1–M5 built; M6 partially built (started 2026-08-11, status recorded 2026-08-13). Architecture source: the "Three nouns, five verbs" deck (claude.ai…'
 ---
 Status: **M1–M5 built; M6 partially built** (started 2026-08-11, status recorded 2026-08-13). Architecture source: the "Three nouns, five verbs" deck (claude.ai artifact `7ec78c32`), superseding the five-collapses deck; grounded in workflows v1 as built on `feat/agent-workflows` (PR #920) and `agents/docs/research/` (branch `agents-planning`). <!-- id:BphNaGBQ -->

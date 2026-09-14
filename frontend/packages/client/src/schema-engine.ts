@@ -22,7 +22,7 @@ export type SchemaRegistry = Record<string, HypermediaSchema>
 
 // The Hypermedia account under which every schema is PUBLISHED as a document. A schema
 // reference is its published-doc URL: hm://<library>/<name>, where the name is the
-// bundled key: its path in hypermedia/ (schema/string, schema/meta-schema, example/person, …). Legacy
+// bundled key: its path in hypermedia/ (schema/string, schema — the meta-schema —, example/person, …). Legacy
 // forms — the dev authorities (hyper.media / seed.hyper.media / example.com) and
 // the prefixed names from before the folder reorganization (hypermedia-string), and
 // the bare primitive names published before the `hypermedia-` rename
@@ -49,7 +49,7 @@ export const LIBRARY_CORE: ReadonlySet<string> = new Set(
     'link-schema',
     'include-schema',
     'var-schema',
-  ].map((k) => (k === 'schema' ? 'schema/meta-schema' : `schema/${k}`)),
+  ].map((k) => (k === 'schema' ? 'schema' : `schema/${k}`)), // the meta-schema is /schema itself,
 )
 export const isLibraryCore = (name: string): boolean => LIBRARY_CORE.has(name)
 const KIND_URL = new RegExp(`^hm://(?:hyper\\.media|${HYPERMEDIA_UID})/(?:schema/|hypermedia-)?([a-z]+)$`)
@@ -474,12 +474,12 @@ export const validateAdvisory = validate
 
 /**
  * True when a value is itself a Hypermedia schema — i.e. it validates against the
- * meta-schema (`schema/meta-schema`). Replaces v1's `isSchemaBlob` (which matched a
+ * meta-schema (`schema`). Replaces v1's `isSchemaBlob` (which matched a
  * reserved `schema` link to a fixed meta-schema CID); here a blob IS a schema
  * iff it conforms to the discriminated-union meta-schema.
  */
 export function isHypermediaSchema(value: unknown, reg: SchemaRegistry = {}): boolean {
-  const meta = HM_SCHEMAS['schema/meta-schema']
+  const meta = HM_SCHEMAS['schema']
   if (!meta || !value || typeof value !== 'object') return false
   return validate(meta, value, '$', {}, reg).length === 0
 }

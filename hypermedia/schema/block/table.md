@@ -1,5 +1,5 @@
 ---
-name: Table block
+name: Table Block
 summary: "A table container. Its children are TableColumn blocks (childless; their sibling order defines column display order) followed by TableRow blocks whose children "
 schemaDefinition: ipfs://bafyreiaddxteuvdalgz24venjvunhdvonao5vmfz74zgg33iivgzwvg7w4
 ---

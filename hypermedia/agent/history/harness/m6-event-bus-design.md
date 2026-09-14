@@ -1,5 +1,5 @@
 ---
-name: "M6 — The event bus: implementation design"
+name: "M6 — The Event Bus: Implementation Design"
 summary: "Status: the night slice landed; the day package is still design. Written while holding for F4, from the M6 section of plan.md and from the M5 machinery that…"
 ---
 Status: **the night slice landed; the day package is still design.** Written while holding for F4, from the M6 section of `plan.md` and from the M5 machinery that M6 should reuse rather than reinvent. <!-- id:rkd_rsAm -->

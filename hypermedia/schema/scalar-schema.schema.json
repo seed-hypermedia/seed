@@ -33,13 +33,13 @@
       "value": {
         "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
       },
-      "description": "A semantic hint for editors/renderers — the value is still a plain string. Known: `hm-url` (a Hypermedia document reference), `hm-profile` (an account reference), `ipfs` (an ipfs://<cid> reference to a file or DAG-CBOR object), `date` (an ISO 8601 `YYYY-MM-DD` calendar date), `date-time` (an RFC 3339 instant)."
+      "description": "A semantic hint for editors/renderers — the value is still a plain string. Known: `hm-url` (a Hypermedia document reference), `hm-profile` (an account reference), `ipfs-url` (an ipfs://<cid> reference to a file or DAG-CBOR object), `url` (a URL of any scheme), `date` (an ISO 8601 `YYYY-MM-DD` calendar date), `date-time` (an RFC 3339 instant)."
     },
     "target": {
       "value": {
         "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
       },
-      "description": "For a reference-valued string (`format: hm-url` or `format: ipfs`): the schema the referenced document or object is expected to conform to — an `hm://` schema-document URL or `ipfs://<cid>`. Advisory: an editor pre-seeds and validates the target against it; a validator does not dereference the reference."
+      "description": "For a reference-valued string (`format: hm-url` or `format: ipfs-url`): the schema the referenced document or object is expected to conform to — an `hm://` schema-document URL or `ipfs://<cid>`. Advisory: an editor pre-seeds and validates the target against it; a validator does not dereference the reference."
     },
     "minimum": {
       "value": {
@@ -60,7 +60,7 @@
       "value": {
         "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map",
         "values": {
-          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/meta-schema"
+          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema"
         }
       }
     },

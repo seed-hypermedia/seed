@@ -1,5 +1,5 @@
 ---
-name: Why Hypermedia Schemas
+name: Why Schemas
 summary: The purpose of Hypermedia Schemas — what problem a self-describing type system solves for content-addressed hypermedia, who it serves, and what it deliberately is not.
 ---
 # The problem <!-- id:hdD9n48L -->

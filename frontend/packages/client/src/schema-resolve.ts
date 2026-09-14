@@ -359,7 +359,7 @@ export function withoutSchemaLink(value: unknown): unknown {
  * violations of the meta-schema, or the reason the reference could not be loaded. Empty when fine.
  */
 export async function checkSchemaDefinition(client: SchemaFetchClient, ref: string): Promise<string[]> {
-  const meta = HM_SCHEMAS['schema/meta-schema']!
+  const meta = HM_SCHEMAS['schema']!
   try {
     const loaded = await loadSchemaRef(client, ref)
     return validate(meta, loaded.schema, '$', {}, loaded.registry)

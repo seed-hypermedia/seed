@@ -66,7 +66,7 @@ function propKind(ps: any): string {
   if (typeof ps?.var === 'string') return varKind(ps.var)
   const refName = typeof ps?.ref === 'string' ? refToName(ps.ref) : null
   if (ps?.format === 'hm-url' || refName === 'hm-url') return 'hm-url'
-  if (ps?.format === 'ipfs' || refName === 'schema/ipfs') return 'ipfs'
+  if (ps?.format === 'ipfs-url' || ps?.format === 'ipfs' || refName === 'ipfs-url') return 'ipfs'
   if (ps?.format === 'date' || refName === 'schema/date') return 'date'
   if (ps?.format === 'date-time' || refName === 'schema/date-time') return 'date-time'
   if (refName === 'schema/any') return 'any'
@@ -131,7 +131,7 @@ function kindSchema(kind: string): HypermediaSchema {
   if (kind.startsWith('var:')) return {var: kind.slice(4)}
   if (kind === 'any') return {ref: ANY_URL}
   if (kind === 'hm-url') return {type: kindUrl('string'), format: 'hm-url'}
-  if (kind === 'ipfs') return {type: kindUrl('string'), format: 'ipfs'}
+  if (kind === 'ipfs') return {type: kindUrl('string'), format: 'ipfs-url'}
   // The built-in date types are includes of the library schemas, which carry
   // the format (→ a date picker) and the pattern (→ validation).
   if (kind === 'date') return {ref: nameToUrl('schema/date')!}
@@ -197,7 +197,7 @@ function RawSchemaEditor({schema, onSchema}: {schema: HypermediaSchema; onSchema
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schema])
   const warnings = useMemo(() => {
-    const meta = HM_SCHEMAS['schema/meta-schema']
+    const meta = HM_SCHEMAS['schema']
     return meta ? validate(meta, schema).slice(0, 5) : []
   }, [schema])
   return (

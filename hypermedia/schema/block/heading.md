@@ -1,5 +1,5 @@
 ---
-name: Heading block
+name: Heading Block
 summary: A section heading.
 schemaDefinition: ipfs://bafyreid7zlrslpjmj42maprzubq2k5dx2ast47apw2yco37k5sb27z4254
 ---

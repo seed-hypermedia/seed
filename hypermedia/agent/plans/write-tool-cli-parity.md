@@ -1,5 +1,5 @@
 ---
-name: Agent write tool CLI-parity plan
+name: Agent Write Tool CLI-Parity Plan
 summary: This document plans a unified model-facing Seed write tool for Agents. The tool should expose the complete Seed write surface in a way that is easy for a…
 ---
 <!-- id:iyEGJoWJ -->

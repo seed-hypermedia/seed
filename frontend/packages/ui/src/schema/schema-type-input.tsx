@@ -1,5 +1,5 @@
 // A type reference input. The current type shows by the name of the page that
-// defines it (Map, Hypermedia Blob, Character stats…); typing searches every
+// defines it (Map, Blob, Character Stats…); typing searches every
 // document that carries a `schemaDefinition` — the explore document filter
 // `has:schemaDefinition` — and picking one sets its hm:// URL. A pasted hm:// or
 // ipfs:// URL is taken as is on Enter.

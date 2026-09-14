@@ -1,5 +1,5 @@
 ---
-name: Query style
+name: Query Style
 summary: "How a Query block presents its results: a card grid, a compact list, or a table."
 schemaDefinition: ipfs://bafyreigkm5bnmn5webo2daamcgvko46ppha6rrisprx3ddzqnmdiphwyta
 ---

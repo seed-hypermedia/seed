@@ -51,7 +51,7 @@ const primitiveKind = (name: string) => name.replace(/^schema\//, '')
 const META_VARIANTS = ['schema/anyof', 'schema/property']
 const isMetaVariant = (name: string) =>
   META_VARIANTS.includes(name) ||
-  (name.startsWith('schema/') && name.endsWith('-schema') && name !== 'schema/meta-schema')
+  (name.startsWith('schema/') && name.endsWith('-schema') && name !== 'schema')
 const kindPrimitive = (kind: string) => (HM_SCHEMAS[`schema/${kind}`] ? `schema/${kind}` : null)
 
 // --- small pieces ----------------------------------------------------------
@@ -418,7 +418,7 @@ export function SchemaDocPage({
 
   const url = nameToUrl(slug)
   const cid = schemaCid(slug)
-  const isMeta = slug === 'schema/meta-schema'
+  const isMeta = slug === 'schema'
   const instance = isInstance(schema)
 
   // Instance page: validate the value against its declared $type.
@@ -583,7 +583,7 @@ export function SchemaDocPage({
       {isMetaVariant(slug) && (
         <Callout>
           A <strong>variant</strong> of the{' '}
-          <button className="text-primary cursor-pointer underline" onClick={() => nav('schema/meta-schema')}>
+          <button className="text-primary cursor-pointer underline" onClick={() => nav('schema')}>
             meta-schema union
           </button>{' '}
           — one of the shapes a schema is allowed to take.

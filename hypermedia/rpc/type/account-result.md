@@ -1,5 +1,5 @@
 ---
-name: Account result
+name: Account Result
 summary: "The result of resolving an account: its metadata payload, or an explicit not-found. A derived read model computed by the Seed daemon/API for clients — not a sig"
 schemaDefinition: ipfs://bafyreiboqfndgauvtszjcv5nx47auwk5335z7ezkwpmz5ic3yyttmnub2q
 ---

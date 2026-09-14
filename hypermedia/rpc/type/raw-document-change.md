@@ -1,5 +1,5 @@
 ---
-name: Raw document change
+name: Raw Document Change
 summary: "One change of a document's history in raw listing form: CID, author, dependency edges, time. A derived read model computed by the Seed daemon/API for clients — "
 schemaDefinition: ipfs://bafyreibcfnysinjhkc2osslyejslbzr7akv76lacntmnamapbntpc7k72y
 ---

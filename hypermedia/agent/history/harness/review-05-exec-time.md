@@ -1,5 +1,5 @@
 ---
-name: Checkmark review — M4-exec, M5-time, answerable parks, and the event bus underneath (harness/05-exec)
+name: Checkmark Review — M4-Exec, M5-Time, Answerable Parks, and the Event Bus Underneath (harness/05-exec)
 summary: "Status: implemented, gates green, not live-verified. :3051 runs harness/01-verbs, which has none of this; everything below is driven headless against this…"
 ---
 Status: **implemented, gates green, not live-verified.** `:3051` runs `harness/01-verbs`, which has none of this; everything below is driven headless against this branch. Cases for Eric are in `~/Code/Seed/HARNESS-TESTING.html` under **M4 · Execution** and **M5 · Time** — which cover the first three packages, including how to answer a parked run. The event-bus slice has no case there yet; its steps are in the test script below. <!-- id:W-Ui0Wq3 -->

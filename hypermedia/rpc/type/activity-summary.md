@@ -1,5 +1,5 @@
 ---
-name: Activity summary
+name: Activity Summary
 summary: "Latest-activity digest carried on document listings: newest comment/change and unread state. A derived read model computed by the Seed daemon/API for clients — "
 schemaDefinition: ipfs://bafyreiax3trluk2i6pmy2vvfkgs35ljhlzm5awbixjvxrkicmvnysf7t64
 ---

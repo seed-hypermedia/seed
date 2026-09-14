@@ -1,5 +1,5 @@
 ---
-name: Future projects
+name: Future Projects
 summary: This document collects larger projects that are referenced throughout the Agents docs. Use Roadmap for current priority order; use this file for project…
 ---
 This document collects larger projects that are referenced throughout the Agents docs. Use [Roadmap](./roadmap.md) for current priority order; use this file for project scope and implementation notes. Statuses last reconciled against the code on **2026-08-13**. <!-- id:lQzTk4mi -->

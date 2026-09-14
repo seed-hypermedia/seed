@@ -1,5 +1,5 @@
 ---
-name: Hypermedia ID (parsed)
+name: Parsed ID
 summary: "A parsed hm:// identifier as clients pass it around: account uid, path segments, pinned version, block reference, and origin hints. Fields the URL does not carr"
 schemaDefinition: ipfs://bafyreidjgdi5pftafjvwszptxl4d4zs5wfuh7jq63uyaio37on7ef74hum
 ---

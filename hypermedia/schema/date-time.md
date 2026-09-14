@@ -1,5 +1,5 @@
 ---
-name: Date-time
+name: Date-Time
 summary: An instant as an RFC 3339 / ISO 8601 string, `YYYY-MM-DDTHH:MM:SS[.sss]Z` or with a numeric offset (e.g. `2026-08-26T14:30:00Z`). A refinement of string with `f
 schemaDefinition: ipfs://bafyreiedrfjh7mmdqd2vwjatzxac2op3jxiberuhqp5rewjmf5lmyvpj2i
 ---

@@ -233,7 +233,7 @@ export function InspectIpfsPage({
   const isMetaSeed = seedSchemaCid === META_SCHEMA_CID
   const seedRegistry = useSchemaRegistry(seedSchemaCid && !isMetaSeed ? [seedSchemaCid] : [])
   const seedSchema = isMetaSeed
-    ? HM_SCHEMAS['schema/meta-schema']
+    ? HM_SCHEMAS['schema']
     : seedSchemaCid
       ? seedRegistry.byCid[seedSchemaCid]
       : undefined
@@ -304,7 +304,7 @@ export function InspectIpfsPage({
   }, [advisoryTarget, valueIsSchema])
   const schemaRegistry = useSchemaRegistry(attachedSchemaCid ? [attachedSchemaCid] : [])
   const schema = valueIsSchema
-    ? HM_SCHEMAS['schema/meta-schema']
+    ? HM_SCHEMAS['schema']
     : attachedSchemaCid
       ? schemaRegistry.byCid[attachedSchemaCid]
       : undefined
@@ -488,7 +488,7 @@ export function InspectIpfsPage({
               ) : valueIsSchema ? (
                 // The blob IS a schema: the struct form (name, fields, kinds, targets,
                 // signed-blob toggle) — "Edit raw" is the JSON escape hatch.
-                <SchemaAwareEditor schema={HM_SCHEMAS['schema/meta-schema']!} value={editJson} onValue={update} />
+                <SchemaAwareEditor schema={HM_SCHEMAS['schema']!} value={editJson} onValue={update} />
               ) : (
                 <ValueEditor value={editJson} onValue={update} rules={CBOR_VALUE_RULES} />
               )}
