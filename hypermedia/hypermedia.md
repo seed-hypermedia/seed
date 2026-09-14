@@ -1,10 +1,10 @@
 ---
-name: Onyx on the Hypermedia Network
-summary: How the Hypermedia Network's real DAG-CBOR blobs — Change, Ref, Profile, Comment, Capability, Contact — are schemafied with Onyx.
+name: Schemas on the Hypermedia Network
+summary: How the Hypermedia Network's real DAG-CBOR blobs — Change, Ref, Profile, Comment, Capability, Contact — are schemafied with Hypermedia Schemas.
 ---
-# Hypermedia blobs — Onyx on real data <!-- id:MZbfGNFo -->
+# Hypermedia blobs — schemas on real data <!-- id:MZbfGNFo -->
 
-The Hypermedia Network stores its data as **DAG-CBOR blobs** in IPFS. There are six signed blob types — Change, Ref, Profile, Comment, Capability, Contact — and they are _related_: every one embeds the same signed envelope. This is a real, production schemafication built entirely from the Onyx features in this repo, and it is published under the Onyx account: the blob schemas at the root (`change`, `ref`, …) and the block model under `schema/block/`. <!-- id:mIEsrB_H -->
+The Hypermedia Network stores its data as **DAG-CBOR blobs** in IPFS. There are six signed blob types — Change, Ref, Profile, Comment, Capability, Contact — and they are _related_: every one embeds the same signed envelope. This is a real, production schemafication built entirely from the schema features in this repo, and it is published under the Hypermedia account: the blob schemas at the root (`change`, `ref`, …) and the block model under `schema/block/`. <!-- id:mIEsrB_H -->
 
 ## The shared base — extension in action <!-- id:5NuFY-Ul -->
 
@@ -18,7 +18,7 @@ Every blob embeds a base envelope, [Signed blob](./blob.md): <!-- id:iAwaugHT --
 | `sig` | `signature` (bytes) | signature over the blob <!-- id:lD2RIqxm --> |
 | `ts` | `timestamp` (integer) | Unix-millisecond time <!-- id:nFpKKNpd --> |
 
-Each concrete type **extends** it (Onyx extension — [the schema language](./schema/schema-language.md)), inheriting those four fields and pinning `type` to a literal: <!-- id:zUkl9LQZ -->
+Each concrete type **extends** it (schema extension — [the schema language](./schema/schema-language.md)), inheriting those four fields and pinning `type` to a literal: <!-- id:zUkl9LQZ -->
   - `change` — an append-only document change, linked into a causal DAG by `deps`; carries a `change-body` of ops. <!-- id:XNtWFQFG -->
   - `ref` — a signed pointer from a space/path to the current head Changes. <!-- id:z0t8cH-b -->
   - `profile` — an account's name / avatar / description (or an alias). <!-- id:kuRmAvLb -->
@@ -75,10 +75,10 @@ To make _Change itself_ strict over an app's block set — not just the wire blo
 
 ## CBOR value shapes <!-- id:IMRnqrVW -->
 
-The wire types map onto Onyx primitives, wrapped as self-explanatory aliases: <!-- id:LTD8_m45 -->
+The wire types map onto primitive schemas, wrapped as self-explanatory aliases: <!-- id:LTD8_m45 -->
 
 <!-- id:vu31Ab-i -->
-| Hypermedia <!-- col:qw20V0RJ --> | CBOR <!-- col:sFcNjdqi --> | Onyx <!-- col:sw0Ibvi3 --> <!-- id:G6__5qUK --> |
+| Hypermedia <!-- col:qw20V0RJ --> | CBOR <!-- col:sFcNjdqi --> | schema <!-- col:sw0Ibvi3 --> <!-- id:G6__5qUK --> |
 | --- | --- | --- |
 | `principal`, `signature` | byte string | `bytes` <!-- id:WvSCivUk --> |
 | `cid` | CBOR tag-42 link | `link` <!-- id:aAp0ivQG --> |

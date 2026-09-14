@@ -41,7 +41,7 @@ function pressKey(input: HTMLInputElement, key: string) {
 }
 
 function render(metadata: Record<string, unknown>, autocomplete: AttributeAutocomplete, onMetadata = vi.fn()) {
-  // The metadata view resolves onyx schema references via react-query.
+  // The metadata view resolves schema references via react-query.
   const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
   act(() => {
     root.render(

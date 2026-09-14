@@ -33,7 +33,7 @@ import {documentToMarkdown} from '../markdown'
 import {keyOptions, resolveSigningKey} from '../utils/keys'
 import {resolveIdWithClient} from '../utils/resolve-id'
 import {createSignerFromKey} from '../utils/signer'
-import {META_SCHEMA, encodeBlob, loadEffectiveSchema, metadataViolations, readJsonFile, violations} from '../utils/onyx'
+import {META_SCHEMA, encodeBlob, loadEffectiveSchema, metadataViolations, readJsonFile, violations} from '../utils/schema'
 import {resolveDocumentState} from '../utils/depth'
 import {parseMarkdown, flattenToOperations, type BlockNode} from '../utils/markdown'
 import {parseBlocksJson, hmBlockNodesToOperations} from '../utils/blocks-json'
@@ -1203,7 +1203,7 @@ function parseMetadataOption(raw: unknown): Record<string, unknown> {
 /**
  * `--schema-definition <file>`: encode the schema file to its DAG-CBOR blob, bind it to the
  * document as `schemaDefinition: ipfs://<cid>`, and return the blob to publish alongside the
- * change. The file must be a valid Onyx schema.
+ * change. The file must be a valid Hypermedia schema.
  */
 async function applySchemaDefinition(
   metadata: HMMetadata,
@@ -1213,7 +1213,7 @@ async function applySchemaDefinition(
   const schema = readJsonFile(file)
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) throw new Error(`${file} does not hold a schema`)
   const errors = violations(META_SCHEMA, schema)
-  if (errors.length) throw new Error(`${file} is not a valid Onyx schema:\n${errors.map((e) => `  ✗ ${e}`).join('\n')}`)
+  if (errors.length) throw new Error(`${file} is not a valid Hypermedia schema:\n${errors.map((e) => `  ✗ ${e}`).join('\n')}`)
   const blob = await encodeBlob(schema)
   ;(metadata as Record<string, unknown>).schemaDefinition = `ipfs://${blob.cid}`
   return blob

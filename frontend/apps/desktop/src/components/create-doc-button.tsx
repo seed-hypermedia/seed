@@ -24,7 +24,7 @@ import {
 } from '@shm/ui/components/dropdown-menu'
 import {Add} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
-import {emptyStructSchema} from '@shm/ui/onyx/onyx-schema-editor'
+import {emptyStructSchema} from '@shm/ui/schema/schema-editor'
 import {FileCode2, FilePlus2, Grid3X3, Import} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'

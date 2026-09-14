@@ -1,11 +1,11 @@
 # Hypermedia round-trip: edit `hypermedia/` in the Seed app, keep git as the source of truth
 
-Status: Phases 1–3 done (branch `feat/onyx-roundtrip`, based on `feat/onyx`). Started 2026-09-02, dev loop verified 2026-09-03 against the desktop dev daemon. Phase 4 is the existing `push`.
+Status: Phases 1–3 done (branch `feat/hypermedia-roundtrip`, based on `feat/hypermedia`). Started 2026-09-02, dev loop verified 2026-09-03 against the desktop dev daemon. Phase 4 is the existing `push`.
 
 ## The problem
 
-`hypermedia/*.md` and `hypermedia/*.schema.json` are the source of truth for the Onyx type library and its docs, and
-`frontend/apps/cli/src/sync-hypermedia.ts` publishes them to the onyx site. Editing markdown and JSON by hand is not how we
+`hypermedia/*.md` and `hypermedia/*.schema.json` are the source of truth for the Hypermedia Schemas type library and its docs, and
+`frontend/apps/cli/src/sync-hypermedia.ts` publishes them to the hypermedia site. Editing markdown and JSON by hand is not how we
 want to author this content. We want to edit it in the real Seed app, and have the result land back in the folder as
 markdown and JSON, so git stays the source of truth and the network stays a publication of it.
 
@@ -15,7 +15,7 @@ Nothing in the app changes. A script owns the folder and talks to the daemon the
 
 1. **Lossless converters.** `@seed-hypermedia/client`'s `blocksToMarkdown` / `parseMarkdown` become a lossless pair:
    every block type, annotation, attribute and every metadata key exports and re-imports to an identical document. This
-   is a general capability (lossless export/import of any HM site), not an onyx feature.
+   is a general capability (lossless export/import of any HM site), not an hypermedia feature.
 2. **Pull.** For each path in a space, fetch the latest version and write the markdown file. For a document whose
    metadata carries `schemaDefinition`, decode the schema blob and write the co-located `*.schema.json` with a fixed key
    order so unchanged schemas produce no diff.
@@ -25,7 +25,7 @@ Nothing in the app changes. A script owns the folder and talks to the daemon the
    the local daemon (`RegisterKey` / `ImportKey` over gRPC), pushes the folder as that account, opens the site in the
    desktop app, and polls the feed (`ListEvents`, `order: 'observed'`, filtered to the dev account) to write files back
    as documents are published locally. Publishing to the local daemon is, in effect, "save".
-5. **Publishing to hyper.media** stays a separate, git-driven push signed with the onyx key.
+5. **Publishing to hyper.media** stays a separate, git-driven push signed with the hypermedia key.
 
 ## Work breakdown
 
@@ -68,8 +68,8 @@ desktop's markdown draft write path (which is gated on exactly this work).
 
 ### Phase 2: pull and update-push (CLI)
 
-- Generic commands on the CLI: export a space to a directory, import a directory into a space as an update. The onyx
-  naming layer (public name ↔ file basename, `onyx-` prefix stripping) sits on top.
+- Generic commands on the CLI: export a space to a directory, import a directory into a space as an update. The hypermedia
+  naming layer (public name ↔ file basename, `hypermedia-` prefix stripping) sits on top.
 - Schema JSON writer with fixed key order; `schemas.lock.json` stays the CID check.
 - Fix the desktop publish path so a `schemaDraft` is frozen into a `schemaDefinition` blob on publish (currently
   imported but unwired in `desktop-resource.tsx`). Without this a pull cannot recover the schema.

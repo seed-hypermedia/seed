@@ -8,7 +8,7 @@ import {useUniversalClient} from '@shm/shared'
 import {Button} from '@shm/ui/button'
 import {Checkbox} from '@shm/ui/components/checkbox'
 import {Input} from '@shm/ui/components/input'
-import {DateValueField} from '@shm/ui/onyx/date-field'
+import {DateValueField} from '@shm/ui/schema/date-field'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
 import {toast} from '@shm/ui/toast'
 import {

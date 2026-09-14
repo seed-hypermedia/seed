@@ -1,6 +1,6 @@
 /**
  * Blob commands — the low-level half of the Hypermedia protocol: content-addressed DAG-CBOR
- * objects, typed by Onyx schemas, optionally signed with the hypermedia-blob envelope.
+ * objects, typed by Hypermedia schemas, optionally signed with the hypermedia-blob envelope.
  *
  *   blob get <cid>                       read a blob back as dag-json
  *   blob validate -f value.json          check a value against a schema (no network write)
@@ -11,7 +11,7 @@
  * A schema reference is a file, an ipfs:// CID, a library name or a type document's hm:// URL.
  */
 import type {Command} from 'commander'
-import {publishSignedBlob, signBlob, signedBlobTypeTag} from '@seed-hypermedia/client/onyx-signed-blob'
+import {publishSignedBlob, signBlob, signedBlobTypeTag} from '@seed-hypermedia/client/signed-blob'
 import {getClient, getOutputFormat, isPretty} from '../index'
 import {formatOutput, printError, printInfo, printSuccess, printWarning} from '../output'
 import {keyOptions, resolveSigningKey} from '../utils/keys'
@@ -28,7 +28,7 @@ import {
   verifySignedBlob,
   violations,
   withoutSchemaLink,
-} from '../utils/onyx'
+} from '../utils/schema'
 import * as cbor from '@seed-hypermedia/client/cbor'
 
 const fail: (message: string) => never = (message) => {

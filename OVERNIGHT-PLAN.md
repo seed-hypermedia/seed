@@ -22,7 +22,7 @@ Queue (in order):
    HARNESS-TESTING.html (cumulative: M1 guide + M2 + M3 + UX + live results, each with exact
    prompt + expected outcome).
 3. M4 exec: execute {runtime: 'ts'|'python'|'shell', code} (TS via Bun runner image; keep shell),
-   callable lambda tool documents (call → execute stored source, Onyx/JSON validated both edges),
+   callable lambda tool documents (call → execute stored source, Hypermedia Schemas/JSON validated both edges),
    minimal exec config. Branch harness/05-exec stacked.
 4. M5 time: ctx.waitForEvent as ephemeral trigger + budget-pause wait + continueAsNew + parked
    copy. 5. M6 event bus if night allows.

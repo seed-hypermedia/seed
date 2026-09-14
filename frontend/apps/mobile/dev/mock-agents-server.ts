@@ -207,11 +207,11 @@ async function runTurn(session: MockSession, userText: string, account: string):
         id: `${runId}-call-1`,
         name: 'read',
         input: {address: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'},
-        output: {title: 'Onyx', type: 'hypermedia_document', markdown: '# Onyx\n\nA self-describing type system.'},
+        output: {title: 'Hypermedia Schemas', type: 'hypermedia_document', markdown: '# Hypermedia Schemas\n\nA self-describing type system.'},
       })
       await streamAssistant(
         session,
-        'That resolves to **Onyx**, a self-describing IPLD type system. The `read` verb took the `hm://` address directly — no separate fetch tool.',
+        'That resolves to **Hypermedia Schemas**, a self-describing IPLD type system. The `read` verb took the `hm://` address directly — no separate fetch tool.',
         runId,
       )
     } else if (script === 'park') {

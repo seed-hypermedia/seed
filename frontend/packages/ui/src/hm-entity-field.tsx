@@ -6,8 +6,8 @@ import {FileCode2, FileText, User, X} from 'lucide-react'
 import {useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
-import {ONYX_SCHEMAS, refToName} from './onyx/onyx-engine'
-import {ONYX_PAGES} from './onyx/onyx-schemas.generated'
+import {HM_SCHEMAS, refToName} from './schema/engine'
+import {HM_SCHEMA_PAGES} from './schema/schema-registry.generated'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
@@ -106,11 +106,11 @@ export function HMEntityLink({
   // A reference to a library type (a `type` or `ref` in a schema) is named by
   // its bundled page even when the site does not carry that page (yet).
   const slug = url.startsWith('hm://') ? refToName(url) : ''
-  const library = slug && ONYX_SCHEMAS[slug] ? slug : null
+  const library = slug && HM_SCHEMAS[slug] ? slug : null
   const title = document
     ? getMetadataName(document.metadata)
     : library
-      ? ONYX_PAGES[library]?.name ?? library
+      ? HM_SCHEMA_PAGES[library]?.name ?? library
       : undefined
   const isProfile = mode === 'profile' || (!!id && !id.path?.length)
   const Icon = library ? FileCode2 : isProfile ? User : FileText

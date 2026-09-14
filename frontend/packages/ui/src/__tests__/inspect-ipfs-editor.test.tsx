@@ -11,8 +11,8 @@ import {act} from 'react-dom/test-utils'
 import {createRoot, type Root} from 'react-dom/client'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {InspectIpfsPage} from '../inspect-ipfs-page'
-import {META_SCHEMA_CID} from '../onyx/blob-menu-items'
-import {schemaCid} from '../onyx/onyx-engine'
+import {META_SCHEMA_CID} from '../schema/blob-menu-items'
+import {schemaCid} from '../schema/engine'
 import {TooltipProvider} from '../tooltip'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
 

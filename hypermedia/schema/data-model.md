@@ -1,10 +1,10 @@
 ---
-name: The Onyx Data Model
-summary: The nine IPLD kinds every Onyx value is built from — including link and bytes as first-class primitives.
+name: The Data Model
+summary: The nine IPLD kinds every Hypermedia value is built from — including link and bytes as first-class primitives.
 ---
-# The Onyx data model <!-- id:1K3uAm_K -->
+# The data model <!-- id:1K3uAm_K -->
 
-Onyx types values drawn from the **IPLD data model** — the same set of kinds DAG-CBOR can encode. There are **nine kinds**. Every value is exactly one of them; there is nothing else. <!-- id:geSDK1S_ -->
+Hypermedia Schemas type values drawn from the **IPLD data model** — the same set of kinds DAG-CBOR can encode. There are **nine kinds**. Every value is exactly one of them; there is nothing else. <!-- id:geSDK1S_ -->
 
 <!-- id:a8BD2izY -->
 | kind <!-- col:HbgVvtTb --> | JSON / dag-json form <!-- col:FqheG8jM --> | notes <!-- col:bWMpxxLR --> <!-- id:OvMqcdvO --> |
@@ -23,19 +23,19 @@ Onyx types values drawn from the **IPLD data model** — the same set of kinds D
 
 A recurring question when adopting IPLD: are `link` and `bytes` special types we define in the schema language, or primitives? **Primitives.** And this is not a new decision — it is the _same_ status `string` and `integer` already have. <!-- id:vRNfqKAc -->
 
-Nothing in Onyx defines what a string _is_; the codec does. Onyx only **names** the kind so a schema can constrain a field to it. `link` and `bytes` are identical in standing: the codec (DAG-CBOR) owns their existence and their wire form, and Onyx simply names them in the `type` vocabulary. The schema language has _always_ been a set of names for codec-defined kinds. Two more names changes nothing structural. <!-- id:UiBqR_i_ -->
+Nothing in the schema language defines what a string _is_; the codec does. The schema language only **names** the kind so a schema can constrain a field to it. `link` and `bytes` are identical in standing: the codec (DAG-CBOR) owns their existence and their wire form, and the schema language simply names them in the `type` vocabulary. The schema language has _always_ been a set of names for codec-defined kinds. Two more names changes nothing structural. <!-- id:UiBqR_i_ -->
 
 The practical consequence, spelled out in [the schema language](./schema-language.md) and [encoding](./encoding.md): **never model the `{"/":…}` representation as a map inside a schema.** A link is not "a map with a `/` key" — it is its own kind that merely _renders_ that way in JSON. Treat it as atomic and opaque, exactly like a string. <!-- id:GVUZP-3T -->
 
 ## `integer` vs `float` <!-- id:3q3MXiRQ -->
 
-JSON has one number type; DAG-CBOR has two, encoded with different major types. If you collapse them into one Onyx kind you lose round-trip fidelity: a value authored as `1.0` might re-encode as the integer `1`. So Onyx keeps them distinct. <!-- id:RwgxMcHi -->
+JSON has one number type; DAG-CBOR has two, encoded with different major types. If you collapse them into one kind you lose round-trip fidelity: a value authored as `1.0` might re-encode as the integer `1`. So the data model keeps them distinct. <!-- id:RwgxMcHi -->
 
 The seam is JavaScript/JSON, which cannot tell `3.0` from `3`. The reference validator therefore treats `integer` strictly (`Number.isInteger`) and `float` permissively (any number). A real DAG-CBOR pipeline preserves the distinction in the bytes, where it is unambiguous. <!-- id:clWBjXCZ -->
 
 ## `map` vs `struct` — one kind of data, two types <!-- id:MQy2plVQ -->
 
-At the **data-model** level there is only `map`: DAG-CBOR has no separate object or struct kind. Onyx gives that one kind two types, because the two ways of using a map are different things: <!-- id:N8qkl2B3 -->
+At the **data-model** level there is only `map`: DAG-CBOR has no separate object or struct kind. The schema language gives that one kind two types, because the two ways of using a map are different things: <!-- id:N8qkl2B3 -->
   - [`struct`](./struct.md) — the keys are known field names, each with its own schema (`properties`, `required`); closed unless `values` opens it to extra keys <!-- id:ubG-u-aL -->
   - [`map`](./map.md) — the keys are data; every value matches one schema (`values`) <!-- id:dFwJHUze -->
 
@@ -43,13 +43,13 @@ Both validate the same bytes. The type tells a form which fields to show, a vali
 
 ## `link` is the whole point <!-- id:vq_2Quam -->
 
-A `link` is a CID: a hash that names another block by its content. Links are what make Onyx data a **DAG** (directed acyclic graph) spanning many blocks rather than one document. A schema field typed `link` says "here is a pointer to another block," and — optionally — "whose value should itself match schema X" (a _typed link_; see [references](./references.md)). See `example/document` (`author` links to a person, `previous` to another document) and the mutually-linked `example/folder` / `example/file`. <!-- id:iUJyyn7s -->
+A `link` is a CID: a hash that names another block by its content. Links are what make Hypermedia data a **DAG** (directed acyclic graph) spanning many blocks rather than one document. A schema field typed `link` says "here is a pointer to another block," and — optionally — "whose value should itself match schema X" (a _typed link_; see [references](./references.md)). See `example/document` (`author` links to a person, `previous` to another document) and the mutually-linked `example/folder` / `example/file`. <!-- id:iUJyyn7s -->
 
-Onyx uses this same machinery on itself: schemas link to other schemas, so the type definitions form their own DAG, addressed and resolved exactly like the data they describe. <!-- id:0a8cB8Tw -->
+The schema language uses this same machinery on itself: schemas link to other schemas, so the type definitions form their own DAG, addressed and resolved exactly like the data they describe. <!-- id:0a8cB8Tw -->
 
 ## The primitive schemas — `schema/<kind>` <!-- id:QPx8_TmX -->
 
-A kind like `string` is a _name in the vocabulary_; `{"type":"string"}` is the _schema_ for a string value. Onyx ships that schema as a canonical, named block — one per kind: <!-- id:bmWAAKox -->
+A kind like `string` is a _name in the vocabulary_; `{"type":"string"}` is the _schema_ for a string value. The library ships that schema as a canonical, named block — one per kind: <!-- id:bmWAAKox -->
 
 <!-- id:IRoeKmq3 -->
 | primitive <!-- col:Khg0aF44 --> | is exactly <!-- col:y6M-JfyQ --> | typed by <!-- col:AADEz9yl --> <!-- id:5Ox6LZWF --> |

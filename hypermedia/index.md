@@ -11,12 +11,12 @@ The folder is also an example of a workflow: the markdown is the source of truth
 - [Repo HM sync](./doc/repo-hm-sync.md) — the lossless markdown dialect and the export, import and dev commands. <!-- id:m2GuhDRm -->
 - [CLI](./doc/cli.md) — the `seed-cli` commands this folder is published with. <!-- id:4Fo9jG63 -->
 
-# Onyx <!-- id:G9c9jn03 -->
+# Hypermedia Schemas <!-- id:G9c9jn03 -->
 
-[Onyx](./schema.md) is the self-describing type system for content-addressed data that Hypermedia documents are built from. Every schema in the library is a page here, with its formal definition attached, and the reference chapters explain the system from the top down: <!-- id:lsYfVMeq -->
-  - [Why Onyx](./doc/schema/why.md), [How Onyx works](./doc/schema/how-it-works.md), [Typed documents](./schema/typed-documents.md), [The World Builder](./example/world-builder.md), [The typed API](./rpc.md) <!-- id:u75glGr1 -->
+[Hypermedia Schemas](./schema.md) is the self-describing type system for content-addressed data that Hypermedia documents are built from. Every schema in the library is a page here, with its formal definition attached, and the reference chapters explain the system from the top down: <!-- id:lsYfVMeq -->
+  - [Why Hypermedia Schemas](./doc/schema/why.md), [How Hypermedia Schemas work](./doc/schema/how-it-works.md), [Typed documents](./schema/typed-documents.md), [The World Builder](./example/world-builder.md), [The typed API](./rpc.md) <!-- id:u75glGr1 -->
   - [User stories](./doc/schema/user-stories.md) — what a person should be able to do with schemas through the app, the CLI, and an agent: the steps, and where each surface stands. <!-- id:pSOZzOrZ -->
-  - [The data model](./schema/data-model.md), [The schema language](./schema/schema-language.md), [References & naming](./schema/references.md), [Encoding](./schema/encoding.md), [Examples](./example.md), [Onyx on the Hypermedia Network](./hypermedia.md), [Design rationale](./doc/schema/design.md), [Glossary](./schema.md) <!-- id:CEaJilu0 -->
+  - [The data model](./schema/data-model.md), [The schema language](./schema/schema-language.md), [References & naming](./schema/references.md), [Encoding](./schema/encoding.md), [Examples](./example.md), [Schemas on the Hypermedia Network](./hypermedia.md), [Design rationale](./doc/schema/design.md), [Glossary](./schema.md) <!-- id:CEaJilu0 -->
   - [Hypermedia Permissions System](./doc/permissions.md) — a design investigation into permissions and privacy for Hypermedia content. <!-- id:SIUblIDE -->
 
 # Agents <!-- id:v3ihjVoi -->

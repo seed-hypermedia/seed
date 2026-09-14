@@ -1,10 +1,10 @@
 ---
-name: The Onyx Schema Language
-summary: The full Onyx vocabulary — closed maps, unions, generics, extension, and how the meta-schema describes itself.
+name: The Schema Language
+summary: The full schema vocabulary — closed maps, unions, generics, extension, and how the meta-schema describes itself.
 ---
-# The Onyx schema language <!-- id:yngrdImL -->
+# The schema language <!-- id:yngrdImL -->
 
-An Onyx schema is a value of kind `map` built from **twelve core keys**, all optional, plus a handful of optional value constraints (below) — or it is a **literal**: a bare `null`, boolean, integer, or string, which accepts exactly that value. That is the entire language. <!-- id:EXSoVP3S -->
+A Hypermedia schema is a value of kind `map` built from **twelve core keys**, all optional, plus a handful of optional value constraints (below) — or it is a **literal**: a bare `null`, boolean, integer, or string, which accepts exactly that value. That is the entire language. <!-- id:EXSoVP3S -->
 
 <!-- id:7guJrYQy -->
 | key <!-- col:PPQxsZds --> | applies to <!-- col:arAp45HF --> | meaning <!-- col:OMQjDwG3 --> <!-- id:lyC-RqMi --> |
@@ -121,7 +121,7 @@ These are the value constraints folded in from the "Seed Blob Schema v1" dialect
 
 ## Unions <!-- id:4Zeb0ssB -->
 
-`anyOf` lists alternative schemas; a value is valid if it matches **any** of them. This is Onyx's one composite construct, and it is what makes the meta-schema a _discriminated union_ — a value is one of a fixed set of shapes, told apart by a discriminant (here, the `type` tag). <!-- id:vsWv7IZH -->
+`anyOf` lists alternative schemas; a value is valid if it matches **any** of them. This is the schema language's one composite construct, and it is what makes the meta-schema a _discriminated union_ — a value is one of a fixed set of shapes, told apart by a discriminant (here, the `type` tag). <!-- id:vsWv7IZH -->
 
 ```json <!-- id:DmjMbc7m -->
 { "anyOf": [ { "ref": "schema/map-schema" }, { "ref": "schema/link-schema" } ] }
@@ -129,7 +129,7 @@ These are the value constraints folded in from the "Seed Blob Schema v1" dialect
 
 ## Generics <!-- id:Any3hnDc -->
 
-Onyx has both flavours of generic. <!-- id:GUz2-s2k -->
+The schema language has both flavours of generic. <!-- id:GUz2-s2k -->
 
 **Applied generics** — supplying a type parameter concretely — come for free from `items` and `values`: <!-- id:wY_2EAUG -->
   - `list` + `items` = `List<T>` — `items` is `T` <!-- id:aZPTtuab -->
@@ -148,7 +148,7 @@ So `{"Apples":5,"Oranges":3}` is `Map<Integer>`, written `example/counts`: `{ "t
 
 The parameter threads through references (each level passes it down with `args`), so binding it at the top substitutes it everywhere. The worked example is `change` — a `Change<Block>` whose `Block` parameter flows through `change → change-body → op → op-replace-block` — and its instantiation `example/myapp-change` = `Change<example/app-block>`, which validates blocks _strictly_ deep inside the op stack (see the `Generics: Change<Block>` checks in `validate.mjs`). Used bare, a generic falls back to its parameter defaults, so the common case needs no `args`. <!-- id:DcFRFUv9 -->
 
-## How Onyx describes itself <!-- id:zWshFjlg -->
+## How the language describes itself <!-- id:zWshFjlg -->
 
 This is the crux, and with unions it is sharper than "a loose map with optional keys." `schema/meta-schema` is a **discriminated union of nine variants** — the nine map shapes a schema can take — plus the four bare kinds a literal can be: <!-- id:lI_lySSK -->
 

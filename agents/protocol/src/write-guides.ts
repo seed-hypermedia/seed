@@ -99,7 +99,7 @@ A JSON object in \`content\` publishes as one content-addressed DAG-CBOR blob (d
 Define a type: publish its schema as an object that follows \`hypermedia-schema\`, then bind it to a page with a document write whose \`options.metadata.schemaDefinition\` is the schema's \`ipfs://<cid>\`. The page's \`hm://\` URL is the type's name from then on.
 
 \`\`\`json
-{"address":"ipfs://","content":"{\\"type\\":\\"hm://ONYX_UID/hypermedia-struct\\",\\"properties\\":{\\"name\\":{\\"value\\":{\\"type\\":\\"hm://ONYX_UID/hypermedia-string\\"},\\"required\\":true}}}","options":{"schema":"hypermedia-schema"}}
+{"address":"ipfs://","content":"{\\"type\\":\\"hm://HYPERMEDIA_UID/hypermedia-struct\\",\\"properties\\":{\\"name\\":{\\"value\\":{\\"type\\":\\"hm://HYPERMEDIA_UID/hypermedia-string\\"},\\"required\\":true}}}","options":{"schema":"hypermedia-schema"}}
 \`\`\`
 
 Publish an instance of a type, validated against it:
@@ -114,7 +114,7 @@ Sign an instance of a signed type (a schema that extends \`hypermedia-blob\`):
 {"address":"ipfs://","content":"{\\"target\\":\\"hm://ACCOUNT_UID/notes\\",\\"choice\\":\\"yes\\"}","options":{"schema":"hm://ACCOUNT_UID/types/vote","sign":true}}
 \`\`\`
 
-The Onyx library — every kind, the meta-schema, and the built-in types — is readable at \`hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb\` (ONYX_UID above); \`read hm://ONYX_UID/hypermedia-schema\` explains how schemas are written.`,
+The Hypermedia schema library — every kind, the meta-schema, and the built-in types — is readable at \`hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb\` (HYPERMEDIA_UID above); \`read hm://HYPERMEDIA_UID/hypermedia-schema\` explains how schemas are written.`,
   },
   documents: {
     summary: 'Create, update, move, redirect, fork, delete, and publish Seed documents.',
@@ -150,7 +150,7 @@ Use \`options.action: "update"\` at the existing document address. Supplying \`c
 
 ## Typed documents
 
-Any metadata key is allowed: \`options.metadata\` is merged into the document's metadata as given (\`{surname: "Smith"}\` becomes a \`surname\` attribute). Three keys bind documents to Onyx schemas:
+Any metadata key is allowed: \`options.metadata\` is merged into the document's metadata as given (\`{surname: "Smith"}\` becomes a \`surname\` attribute). Three keys bind documents to Hypermedia schemas:
 
 - \`schema\` — the type this document conforms to: the \`hm://\` URL of a type document (or an \`ipfs://\` schema CID).
 - \`childrenSchema\` — the type every direct child of this document conforms to, unless a child sets its own \`schema\`.

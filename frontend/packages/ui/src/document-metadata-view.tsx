@@ -1,19 +1,19 @@
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
-import {fieldSchema, requiredFieldNames, structFields} from './onyx/onyx-engine'
+import {fieldSchema, requiredFieldNames, structFields} from './schema/engine'
 import {Braces, Check, FileCode2} from 'lucide-react'
 import {useEffect, useMemo, useState} from 'react'
-import {seedValue} from './onyx/onyx-data-editor'
-import {OnyxSchemaProvider} from './onyx/onyx-schema-context'
-import {SchemaErrorSummary} from './onyx/onyx-value-editor-schema'
-import {RESERVED_METADATA_KEYS} from './onyx/schema-document'
+import {seedValue} from './schema/data-editor'
+import {SchemaRegistryProvider} from './schema/schema-context'
+import {SchemaErrorSummary} from './schema/value-editor-schema'
+import {RESERVED_METADATA_KEYS} from './schema/schema-document'
 import {
   buildSchemaKeyRoot,
   collectSchemaKeyCids,
   documentMetadataSchema,
   schemaKeyCid,
-} from './onyx/onyx-metadata-schema-keys'
-import {useOnyxSchemaRegistry} from './onyx/onyx-schema-registry-cid'
-import type {OnyxSchema} from './onyx/onyx-engine'
+} from './schema/metadata-schema-keys'
+import {useSchemaRegistry} from './schema/schema-registry-cid'
+import type {HypermediaSchema} from './schema/engine'
 import {Button} from './button'
 import {Input} from './components/input'
 import {Textarea} from './components/textarea'
@@ -121,7 +121,7 @@ export function DocumentMetadataView({
    * advisory validation. Resolved by the caller (see useEffectiveDocSchema);
    * distinct from `schemaDefinition`, which is a schema this document DEFINES.
    */
-  conformanceSchema?: OnyxSchema
+  conformanceSchema?: HypermediaSchema
   /** Uploads a file dropped onto a string field to IPFS, returning its CID. */
   fileUpload?: (file: File) => Promise<string>
   /** Opens an uploaded IPFS file (by CID) in its own dedicated viewer window. */
@@ -159,7 +159,7 @@ export function DocumentMetadataView({
     if (pendingSchemaCid && !cids.includes(pendingSchemaCid)) cids.push(pendingSchemaCid)
     return cids
   }, [keysDep, pendingSchemaCid])
-  const {byCid} = useOnyxSchemaRegistry(seedCids)
+  const {byCid} = useSchemaRegistry(seedCids)
   // The metadata schema that drives field suggestions + advisory validation is
   // the document's CONFORMANCE schema (its `schema`, or a parent's
   // `childrenSchema`), resolved by the caller and passed as `conformanceSchema`.
@@ -229,7 +229,7 @@ export function DocumentMetadataView({
       onCreateBlob={editable ? onCreateBlob : undefined}
     >
       <MetadataDirectEditContext.Provider value={directEdit ?? null}>
-        <OnyxSchemaProvider schema={schemaRoot} registry={{}} value={validationValue}>
+        <SchemaRegistryProvider schema={schemaRoot} registry={{}} value={validationValue}>
           <div className="flex flex-col gap-4 py-6">
             {/* No title here — the tab/breadcrumb (main view) and the panel header
               already label this "Attributes". */}
@@ -351,7 +351,7 @@ export function DocumentMetadataView({
               </dl>
             )}
           </div>
-        </OnyxSchemaProvider>
+        </SchemaRegistryProvider>
       </MetadataDirectEditContext.Provider>
     </ValueEditorProvider>
   )
@@ -404,7 +404,7 @@ function AttachSchemaFieldBar({
     // rejects them) falls back to an empty object; the advisory warnings
     // then guide the user within what metadata supports.
     const schema = registry[cidText]
-    const starter = schema ? seedValue(schema as OnyxSchema) : undefined
+    const starter = schema ? seedValue(schema as HypermediaSchema) : undefined
     const usable = starter !== undefined && findInvalidValue(starter, METADATA_VALUE_RULES) === null
     onAttach(key, usable ? starter : {})
   }

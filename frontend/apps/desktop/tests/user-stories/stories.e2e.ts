@@ -6,7 +6,7 @@
  *
  * Coverage: stories 1 (the document model) and 2 (custom metadata) run here, offline, against the
  * tester's own space. The remaining app stories are guided manual tests in user-stories.md — they
- * either browse the public Onyx library (story 1's base-type page, story 7's signed-blob base),
+ * either browse the public Hypermedia schema library (story 1's base-type page, story 7's signed-blob base),
  * which this isolated daemon cannot reach offline, or drive the multi-step schema/blob editors,
  * whose components are covered by the desktop unit tests. The CLI and agent columns of every
  * story are fully automated in tests/user-stories.integration.test.ts.
@@ -14,14 +14,14 @@
 import {expect, test} from './fixtures'
 import {openAddress} from './harness'
 
-const ONYX = 'z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
+const HYPERMEDIA_UID = 'z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
 
 test.describe.configure({mode: 'serial'})
 
 test('1. Understand the document model — a document has Attributes and Content', async ({story}) => {
   test.setTimeout(120_000)
   const {win, shot, state} = story
-  // Reading the base type page (hm://<onyx>/hypermedia-document) needs the public library and is
+  // Reading the base type page (hm://<library>/hypermedia-document) needs the public library and is
   // covered by the CLI/agent suites; offline, the model is visible on the tester's own document:
   // its metadata (the Attributes tab) and its block tree (the Content tab).
   await openAddress(win, `hm://${state.account}`)
