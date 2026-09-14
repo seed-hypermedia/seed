@@ -1,6 +1,6 @@
 /**
  * User stories, on the CLI and through an agent — the executable form of the CLI and agent
- * columns in hypermedia/user-stories.md. (The app column is the desktop e2e suite,
+ * columns in hypermedia/doc/schema/user-stories.md. (The app column is the desktop e2e suite,
  * frontend/apps/desktop/tests/user-stories/.)
  *
  * One real environment for both: a daemon and the built web app, which serves the HM API the

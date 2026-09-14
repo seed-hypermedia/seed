@@ -29,7 +29,7 @@ async function openHarness(page: Page, initialMeta?: Meta) {
 
 const meta = (page: Page) => page.evaluate(() => (window as any).__meta() as Meta)
 const bundledEmployeeCid = (page: Page) =>
-  page.evaluate(() => (window as any).__schemaCid('example-employee') as string)
+  page.evaluate(() => (window as any).__schemaCid('example/employee') as string)
 
 /** The object dialog for a `schemaDefinition` field: locked to the meta-schema, it shows the struct schema form. */
 const defineDialog = (page: Page) => page.getByRole('dialog', {name: /New object/})
@@ -103,8 +103,10 @@ test.describe('schema editor', () => {
     // The published schema carried the field, kind, and required flag.
     const published = await page.evaluate(() => (window as any).__lastPublishedSchema)
     expect(published).toMatchObject({
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct',
-      properties: {width: {value: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-integer'}, required: true}},
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct',
+      properties: {
+        width: {value: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/integer'}, required: true},
+      },
     })
   })
 
@@ -118,7 +120,7 @@ test.describe('schema editor', () => {
     await dialog.getByTestId('linked-object-publish').click()
     await expect(dialog).toBeHidden()
     const published: any = await page.evaluate(() => (window as any).__lastPublishedSchema)
-    expect(published.type).toBe('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct')
+    expect(published.type).toBe('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct')
     expect(published.properties).toEqual({})
     expect(published.name).toBeUndefined()
   })
@@ -229,13 +231,13 @@ test.describe('schema editor', () => {
     // A document that conforms to the person document schema (via `schema`, not
     // schemaDefinition) requires `surname` in its metadata.
     const ONYX = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
-    await openHarness(page, {name: 'X', schema: `${ONYX}/example-person-doc`})
+    await openHarness(page, {name: 'X', schema: `${ONYX}/example/person-doc`})
 
     // `surname` (required by the person document) renders as an always-visible
     // required row (seeded if absent), so it never has to be "added".
     await expect(page.getByRole('treeitem', {name: /surname/}).first()).toBeVisible()
     // The seeded value is shown but NOT written to the draft (no auto-pollution).
-    expect(await meta(page)).toEqual({name: 'X', schema: `${ONYX}/example-person-doc`})
+    expect(await meta(page)).toEqual({name: 'X', schema: `${ONYX}/example/person-doc`})
 
     // A required field cannot be removed: its actions menu has no Remove item.
     await page.getByRole('button', {name: 'Actions for surname'}).click()
@@ -321,7 +323,7 @@ test.describe('schema editor', () => {
     const ONYX = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
     // Conforms to the person document (requires metadata.surname), which is
     // absent; `icon: null` is a deletion tombstone, not a real value.
-    await openHarness(page, {name: 'X', schema: `${ONYX}/example-person-doc`, icon: null})
+    await openHarness(page, {name: 'X', schema: `${ONYX}/example/person-doc`, icon: null})
 
     const alert = page.getByRole('alert')
     await expect(alert).toBeVisible()
@@ -335,7 +337,7 @@ test.describe('schema editor', () => {
 
   test('an HM-link field renders a clickable pill that navigates to the reference', async ({page}) => {
     const ONYX = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
-    const target = `${ONYX}/example-employee`
+    const target = `${ONYX}/example/employee`
     // `schema` is an HM link (format hm-url) — a resolvable value shows as a pill.
     await openHarness(page, {name: 'X', schema: target})
 

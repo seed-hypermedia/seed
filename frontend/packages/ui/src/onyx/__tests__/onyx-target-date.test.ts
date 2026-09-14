@@ -11,18 +11,18 @@ import {literalMembers, literalSchema, nameToUrl, ONYX_SCHEMAS, resolveSchema, v
 import {onyxSubschema} from '../onyx-schema-context'
 import {metadataSchemaOf} from '../onyx-schema-resolve'
 
-const PLACE = nameToUrl('example-place-doc')!
-const STATS = nameToUrl('example-stats')!
+const PLACE = nameToUrl('example/place-doc')!
+const STATS = nameToUrl('example/stats')!
 
 describe('target references', () => {
   it('a bare include with a target keeps the format and carries the target', () => {
-    const {schema} = resolveSchema({ref: nameToUrl('hypermedia-ipfs')!, target: 'hm://acme/stats'})
+    const {schema} = resolveSchema({ref: nameToUrl('schema/ipfs')!, target: 'hm://acme/stats'})
     expect(schema.format).toBe('ipfs')
     expect(schema.target).toBe('hm://acme/stats')
   })
 
   it('an include of a refined primitive keeps its leaf refinements and can add a target', () => {
-    const {schema} = resolveSchema({ref: nameToUrl('hypermedia-date')!, target: 'hm://x'})
+    const {schema} = resolveSchema({ref: nameToUrl('schema/date')!, target: 'hm://x'})
     expect(schema.format).toBe('date')
     expect(schema.pattern).toMatch(/^\^/)
     expect(schema.target).toBe('hm://x')
@@ -38,11 +38,11 @@ describe('target references', () => {
       {value: 'a', description: undefined},
       {value: 'b', description: 'bee'},
     ])
-    expect(literalMembers({ref: nameToUrl('hypermedia-string')!})).toBeNull()
+    expect(literalMembers({ref: nameToUrl('schema/string')!})).toBeNull()
   })
 
   it('a character document exposes date, link and object fields with targets', () => {
-    const meta = metadataSchemaOf(ONYX_SCHEMAS['example-character-doc'])!
+    const meta = metadataSchemaOf(ONYX_SCHEMAS['example/character-doc'])!
     const at = (key: string) => onyxSubschema(meta, [key], {}) as Record<string, any>
     expect(at('born').format).toBe('date')
     expect(at('born').pattern).toBeTruthy()
@@ -54,15 +54,15 @@ describe('target references', () => {
   })
 
   it('a target does not change what values are valid', () => {
-    const field = {ref: nameToUrl('hypermedia-ipfs')!, target: STATS}
+    const field = {ref: nameToUrl('schema/ipfs')!, target: STATS}
     expect(validate(field, 'ipfs://bafyfoo')).toEqual([])
     expect(validate(field, 42)).toHaveLength(1)
   })
 })
 
 describe('date types', () => {
-  const date = ONYX_SCHEMAS['hypermedia-date']!
-  const dateTime = ONYX_SCHEMAS['hypermedia-date-time']!
+  const date = ONYX_SCHEMAS['schema/date']!
+  const dateTime = ONYX_SCHEMAS['schema/date-time']!
 
   it('accepts ISO calendar dates and rejects other shapes with a format message', () => {
     expect(validate(date, '2026-08-26')).toEqual([])
@@ -78,7 +78,7 @@ describe('date types', () => {
   })
 
   it('the character kit requires a born date and validates it', () => {
-    const meta = metadataSchemaOf(ONYX_SCHEMAS['example-character-doc'])!
+    const meta = metadataSchemaOf(ONYX_SCHEMAS['example/character-doc'])!
     expect(validate(meta, {name: 'X', role: 'hero'})).toContain('$: missing required "born"')
     expect(validate(meta, {name: 'X', role: 'hero', born: 'yesterday'})).toContain(
       '$.born: does not match pattern for format "date"',
@@ -89,9 +89,9 @@ describe('date types', () => {
 
 describe('kit schemas', () => {
   it('every kit type is a document schema and its blob has a stable CID', async () => {
-    for (const name of ['example-character-doc', 'example-place-doc', 'example-faction-doc', 'example-event-doc']) {
+    for (const name of ['example/character-doc', 'example/place-doc', 'example/faction-doc', 'example/event-doc']) {
       const s = ONYX_SCHEMAS[name]!
-      expect(s.ref).toBe(nameToUrl('hypermedia-document'))
+      expect(s.ref).toBe(nameToUrl('document'))
       const data = cbor.encode(s)
       const cid = CID.createV1(0x71, await sha256.digest(data)).toString()
       expect(cid).toMatch(/^bafyrei/)

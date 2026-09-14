@@ -4,10 +4,10 @@ import {dependencies, dependents, isInstance, ONYX_SCHEMAS, schemaCid, validate}
 // dag-json constructors for test data (mirror schemas/validate.mjs)
 const cid = (s: string) => ({'/': s})
 const bytes = (b: string) => ({'/': {bytes: b}})
-const K = (k: string) => `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-${k}`
+const K = (k: string) => `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/${k}`
 const S = (name: string) => ONYX_SCHEMAS[name]
 
-const meta = S('hypermedia-schema')
+const meta = S('schema/meta-schema')
 
 describe('Onyx engine — parity with the reference validator (schemas/validate.mjs)', () => {
   it('1. self-description: the meta-schema is a valid instance of itself', () => {
@@ -37,7 +37,7 @@ describe('Onyx engine — parity with the reference validator (schemas/validate.
   describe('4. data validates against its schema', () => {
     const CASES: {schema: string; valid: any[]; invalid: [string, any][]}[] = [
       {
-        schema: 'example-geo',
+        schema: 'example/geo',
         valid: [
           {lat: 51.5, lng: -0.12, altitude: 35},
           {lat: 0, lng: 0},
@@ -50,7 +50,7 @@ describe('Onyx engine — parity with the reference validator (schemas/validate.
         ],
       },
       {
-        schema: 'example-status',
+        schema: 'example/status',
         valid: ['draft', 'published', 'archived'],
         invalid: [
           ['not in enum', 'deleted'],
@@ -59,7 +59,7 @@ describe('Onyx engine — parity with the reference validator (schemas/validate.
         ],
       },
       {
-        schema: 'example-tags',
+        schema: 'example/tags',
         valid: [[], ['a', 'b', 'c']],
         invalid: [
           ['element not string', ['a', 2]],
@@ -67,7 +67,7 @@ describe('Onyx engine — parity with the reference validator (schemas/validate.
         ],
       },
       {
-        schema: 'example-matrix',
+        schema: 'example/matrix',
         valid: [[], [[1, 2], [3]], [[]]],
         invalid: [
           ['inner element not integer', [[1, 'x']]],
@@ -75,12 +75,12 @@ describe('Onyx engine — parity with the reference validator (schemas/validate.
         ],
       },
       {
-        schema: 'example-metadata',
+        schema: 'example/metadata',
         valid: [{}, {lang: 'en', tone: 'formal'}],
         invalid: [['value not string', {lang: 1}]],
       },
       {
-        schema: 'example-registry',
+        schema: 'example/registry',
         valid: [{}, {u1: cid('bafyu1'), u2: cid('bafyu2')}],
         invalid: [
           ['value not a link', {u1: 'bafyu1'}],
@@ -88,7 +88,7 @@ describe('Onyx engine — parity with the reference validator (schemas/validate.
         ],
       },
       {
-        schema: 'example-blob',
+        schema: 'example/blob',
         valid: [
           {mime: 'image/png', data: bytes('aGVsbG8'), size: 5},
           {mime: 'text/plain', data: bytes('QQ')},
@@ -101,7 +101,7 @@ describe('Onyx engine — parity with the reference validator (schemas/validate.
         ],
       },
       {
-        schema: 'example-value',
+        schema: 'example/value',
         valid: ['hi', 42, true, null],
         invalid: [
           ['float not in the union', 3.14],
@@ -110,7 +110,7 @@ describe('Onyx engine — parity with the reference validator (schemas/validate.
         ],
       },
       {
-        schema: 'example-json',
+        schema: 'example/json',
         valid: [null, true, 42, 3.14, 'hi', [1, 'two', true, null], {a: [1, 2], b: {c: 'd'}}, {}],
         invalid: [
           ['a link is not JSON', cid('bafy')],
@@ -119,7 +119,7 @@ describe('Onyx engine — parity with the reference validator (schemas/validate.
         ],
       },
       {
-        schema: 'example-comment',
+        schema: 'example/comment',
         valid: [{text: 'hi'}, {text: 'hi', author: cid('bafyp'), replies: [cid('bafyc1'), cid('bafyc2')]}],
         invalid: [['missing text', {author: cid('bafyp')}]],
       },
@@ -135,7 +135,7 @@ describe('Onyx engine — parity with the reference validator (schemas/validate.
   })
 
   it('5. value constraints (example-constrained) enforce min/max/pattern', () => {
-    const s = S('example-constrained')
+    const s = S('example/constrained')
     if (!s) return // tolerate if not bundled
     // exercised structurally by case 2; here just confirm a too-short string is caught somewhere
     const errs = validate(s, {})
@@ -144,13 +144,13 @@ describe('Onyx engine — parity with the reference validator (schemas/validate.
 
   it('6. dependency graph: deps/dependents resolve and the manifest has CIDs', () => {
     // hypermedia-schema (the meta) depends on its variant schemas
-    const deps = dependencies('hypermedia-schema')
-    expect(deps).toContain('hypermedia-map-schema')
-    expect(deps).toContain('hypermedia-var-schema')
+    const deps = dependencies('schema/meta-schema')
+    expect(deps).toContain('schema/map-schema')
+    expect(deps).toContain('schema/var-schema')
     // the map-schema variant is depended-on by the meta union
-    expect(dependents('hypermedia-map-schema')).toContain('hypermedia-schema')
+    expect(dependents('schema/map-schema')).toContain('schema/meta-schema')
     // published CIDs exist
-    expect(schemaCid('hypermedia-schema')).toMatch(/^bafy/)
-    expect(schemaCid('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map-schema')).toMatch(/^bafy/)
+    expect(schemaCid('schema/meta-schema')).toMatch(/^bafy/)
+    expect(schemaCid('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map-schema')).toMatch(/^bafy/)
   })
 })

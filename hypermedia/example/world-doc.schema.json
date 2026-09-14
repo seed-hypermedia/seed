@@ -1,0 +1,35 @@
+{
+  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/document",
+  "properties": {
+    "metadata": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/metadata",
+        "properties": {
+          "genre": {
+            "value": {
+              "anyOf": [
+                "fantasy",
+                "science-fiction",
+                "historical",
+                "contemporary",
+                "mythic"
+              ]
+            },
+            "required": true
+          },
+          "epoch": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/date"
+            },
+            "description": "The in-world date the chronicle begins."
+          },
+          "tagline": {
+            "value": {
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

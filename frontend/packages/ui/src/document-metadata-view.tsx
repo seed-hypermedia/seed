@@ -163,7 +163,7 @@ export function DocumentMetadataView({
   // The metadata schema that drives field suggestions + advisory validation is
   // the document's CONFORMANCE schema (its `schema`, or a parent's
   // `childrenSchema`), resolved by the caller and passed as `conformanceSchema`.
-  // Its metadata EXTENDS the base document-metadata schema (`hypermedia-metadata`):
+  // Its metadata EXTENDS the base document-metadata schema (`metadata`):
   // standard fields (name/summary/…) are inherited and the type's own fields
   // added — required ones surface as always-visible rows. Kept OPEN (`values:{}`)
   // so the binding fields and any arbitrary key are still allowed. Without a

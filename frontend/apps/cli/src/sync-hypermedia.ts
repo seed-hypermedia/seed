@@ -7,9 +7,10 @@
  *   bun run src/sync-hypermedia.ts dev  [--api <url>] [--daemon <url>] [--interval <ms>] [--no-push] [--no-watch] [--keep-stale]
  *
  * This is `seed-cli space import / export / dev` (utils/space-sync.ts) with the
- * folder's own layout on top (see `layout` below): one flat directory holding
- * the developer docs, the Onyx schema library and the agents docs, where
- * every page publishes at its file name.
+ * folder's own layout on top (see `layout` below): a tree of folders holding
+ * the Hypermedia concepts at the root, the schema library (schema/), the API
+ * (rpc/), the examples (example/), docs (doc/) and the agents docs (agent/),
+ * where every page publishes at its path.
  *
  * Schema files are handled by the generic import: a type file becomes the
  * document's `schemaDefinition` blob, a `{$type, value}` file makes the
@@ -25,8 +26,8 @@
  */
 
 import {spawnSync} from 'node:child_process'
-import {existsSync, readdirSync, readFileSync} from 'node:fs'
-import {dirname, resolve} from 'node:path'
+import {existsSync, readdirSync, readFileSync, statSync} from 'node:fs'
+import {dirname, join, relative, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 
 import {createSeedClient, type HMSigner, type SeedClient} from '@seed-hypermedia/client'
@@ -42,16 +43,33 @@ const REPO_ROOT = resolve(DIR, '../../../..')
 const SCHEMAS_DIR = resolve(REPO_ROOT, 'hypermedia')
 const LOCK_PATH = resolve(SCHEMAS_DIR, 'schemas.lock.json')
 
+/** Every schema file under `dir`, relative to it (`schema/block/image.schema.json`), sorted. */
+function listSchemaFiles(dir: string): string[] {
+  const out: string[] = []
+  const walk = (d: string) => {
+    for (const entry of readdirSync(d).sort()) {
+      const full = join(d, entry)
+      if (statSync(full).isDirectory()) {
+        if (!entry.startsWith('.') && entry !== 'node_modules') walk(full)
+      } else if (entry.endsWith('.schema.json')) {
+        out.push(relative(dir, full))
+      }
+    }
+  }
+  walk(dir)
+  return out.sort()
+}
+
 // ── Naming ────────────────────────────────────────────────────────────────────
 
 /** The space the library is published under. */
 const SITE = 'z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
 
 /**
- * How documents of the space map onto hypermedia/: one flat directory.
+ * How documents of the space map onto hypermedia/: every page publishes at its path.
  *   index.md      → the home document
  *   README.md     → not published (it describes the folder on GitHub)
- *   <x>.md        → /<x>
+ *   <x>.md        → /<x>         (schema/block/image.md → /schema/block/image)
  * A schema file sits beside its document as <basename>.schema.json.
  */
 export const layout: SpaceLayout = {
@@ -76,9 +94,7 @@ export const layout: SpaceLayout = {
 /** Encode every schema file and verify it against the lockfile; the blobs to publish. */
 async function loadSchemaBlobs(): Promise<Array<{data: Uint8Array; cid: string}>> {
   const lock = JSON.parse(readFileSync(LOCK_PATH, 'utf8')) as {schemas: Record<string, string>}
-  const files = readdirSync(SCHEMAS_DIR)
-    .filter((f) => f.endsWith('.schema.json'))
-    .sort()
+  const files = listSchemaFiles(SCHEMAS_DIR)
   const blobs: Array<{data: Uint8Array; cid: string}> = []
   let mismatches = 0
   for (const file of files) {
@@ -97,7 +113,7 @@ async function loadSchemaBlobs(): Promise<Array<{data: Uint8Array; cid: string}>
     blobs.push({data, cid})
   }
   if (mismatches > 0) {
-    console.error(`\nFAILED: ${mismatches} schema CID mismatch(es). Run \`node hypermedia/publish.mjs\` and retry.`)
+    console.error(`\nFAILED: ${mismatches} schema CID mismatch(es). Run \`node scripts/hypermedia/publish.mjs\` and retry.`)
     process.exit(1)
   }
   return blobs
@@ -105,7 +121,7 @@ async function loadSchemaBlobs(): Promise<Array<{data: Uint8Array; cid: string}>
 
 /** Refresh the lockfile and the bundled registry after schema files changed. */
 function refreshSchemaArtifacts() {
-  for (const script of ['hypermedia/publish.mjs', 'scripts/gen-onyx.mjs']) {
+  for (const script of ['scripts/hypermedia/publish.mjs', 'scripts/gen-onyx.mjs', 'scripts/hypermedia/typegen.mjs']) {
     const run = spawnSync('node', [script], {cwd: REPO_ROOT, stdio: 'inherit'})
     if (run.status !== 0) throw new Error(`${script} failed`)
   }

@@ -16,7 +16,7 @@ import {
 } from '../signed-blob'
 ;(ed as any).etc.sha512Sync = (...m: Uint8Array[]) => sha512((ed as any).etc.concatBytes(...m))
 
-const ENVELOPE = nameToUrl('hypermedia-blob')!
+const ENVELOPE = nameToUrl('blob')!
 /** A user-defined signed type: a Vote on a document. */
 const VOTE = {
   name: 'Vote',
@@ -24,7 +24,7 @@ const VOTE = {
   required: ['type', 'target', 'choice'],
   properties: {
     type: 'Vote',
-    target: {ref: nameToUrl('hypermedia-hm-url')!},
+    target: {ref: nameToUrl('hm-url')!},
     choice: {anyOf: ['yes', 'no']},
   },
 }
@@ -42,16 +42,16 @@ function testSigner() {
 
 describe('signed-blob schemas', () => {
   it('recognizes the built-in blob types and a user-defined extension', () => {
-    expect(isSignedBlobSchema(ONYX_SCHEMAS['hypermedia-change'])).toBe(true)
-    expect(isSignedBlobSchema(ONYX_SCHEMAS['hypermedia-capability'])).toBe(true)
+    expect(isSignedBlobSchema(ONYX_SCHEMAS['change'])).toBe(true)
+    expect(isSignedBlobSchema(ONYX_SCHEMAS['capability'])).toBe(true)
     expect(isSignedBlobSchema(VOTE)).toBe(true)
-    expect(isSignedBlobSchema(ONYX_SCHEMAS['example-person'])).toBe(false)
-    expect(isSignedBlobSchema(ONYX_SCHEMAS['example-character-doc'])).toBe(false)
+    expect(isSignedBlobSchema(ONYX_SCHEMAS['example/person'])).toBe(false)
+    expect(isSignedBlobSchema(ONYX_SCHEMAS['example/character-doc'])).toBe(false)
   })
   it('reads the pinned type tag', () => {
     expect(signedBlobTypeTag(VOTE)).toBe('Vote')
-    expect(signedBlobTypeTag(ONYX_SCHEMAS['hypermedia-comment'])).toBe('Comment')
-    expect(signedBlobTypeTag(ONYX_SCHEMAS['hypermedia-blob'])).toBeUndefined()
+    expect(signedBlobTypeTag(ONYX_SCHEMAS['comment'])).toBe('Comment')
+    expect(signedBlobTypeTag(ONYX_SCHEMAS['blob'])).toBeUndefined()
   })
   it('strips the envelope and the pinned type from the form schema', () => {
     const body = stripSignedBlobEnvelope(VOTE)

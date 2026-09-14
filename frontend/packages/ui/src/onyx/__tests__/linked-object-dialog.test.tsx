@@ -58,12 +58,12 @@ describe('LinkedObjectDialog', () => {
 
   it('a target locks the schema and gates publish on validity', async () => {
     const client = mockClient()
-    await mount(client, {target: nameToUrl('example-stats')!, fieldLabel: 'stats'})
+    await mount(client, {target: nameToUrl('example/stats')!, fieldLabel: 'stats'})
     await flush()
     const lock = document.querySelector('[data-testid="linked-object-target"]')! as HTMLElement
     // The lock reads by the type's page name; the URL rides on the tooltip.
     expect(lock.textContent).toContain('Character stats')
-    expect(lock.title).toBe(nameToUrl('example-stats'))
+    expect(lock.title).toBe(nameToUrl('example/stats'))
     expect(lock.textContent).toContain('required')
     expect(document.querySelector('[aria-label="Object schema"]')).toBeNull()
     // The seeded stats (0s) violate minimum 1 → the form shows issues and publish is disabled.
@@ -93,7 +93,7 @@ describe('LinkedObjectDialog', () => {
 describe('publishObject', () => {
   it('links a typed object to its schema blob and returns a DAG-CBOR CID', async () => {
     const client = mockClient()
-    const cidOfStats = schemaCid('example-stats')!
+    const cidOfStats = schemaCid('example/stats')!
     const cid = await publishObject(client as any, {strength: 5, intellect: 5, charisma: 5}, cidOfStats)
     expect(cid).toMatch(/^bafyrei/)
     const decoded = cbor.decode(client.published[0]!.data) as any

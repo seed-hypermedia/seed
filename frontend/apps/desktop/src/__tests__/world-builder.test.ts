@@ -36,7 +36,7 @@ describe('buildWorldPlan', () => {
 
     const world = byPath.get('notes/test-world')!
     expect(world.metadata).toMatchObject({name: 'Test World', genre: 'fantasy', epoch: '1000-01-01'})
-    expect(world.metadata.schema).toBe(nameToUrl('example-world-doc'))
+    expect(world.metadata.schema).toBe(nameToUrl('example/world-doc'))
 
     // Each type document DEFINES its schema; each folder's children CONFORM to it.
     const place = byPath.get('notes/test-world/types/place')!
@@ -65,7 +65,7 @@ describe('buildWorldPlan', () => {
       `hm://${UID}/notes/test-world/types/faction`,
     )
     // …while an object target stays on the library type it was defined against.
-    expect(schema.properties.metadata.value.properties.stats.value.target).toBe(nameToUrl('example-stats'))
+    expect(schema.properties.metadata.value.properties.stats.value.target).toBe(nameToUrl('example/stats'))
 
     // Starters cross-reference each other and carry ISO dates.
     const wanderer = byPath.get('notes/test-world/characters/the-wanderer')!
@@ -103,17 +103,17 @@ describe('buildWorldPlan', () => {
     const character = plan.docs.find((d) => d.path.join('/') === 'small/types/character')!
     const blob = plan.blobs.find((b) => b.cid === character.metadata.schemaDefinition!.replace('ipfs://', ''))!
     const schema = cbor.decode(blob.data) as any
-    expect(schema.properties.metadata.value.properties.faction.value.target).toBe(nameToUrl('example-faction-doc'))
+    expect(schema.properties.metadata.value.properties.faction.value.target).toBe(nameToUrl('example/faction-doc'))
     expect(schema.properties.metadata.value.properties.home.value.target).toBe(`hm://${UID}/small/types/place`)
   })
 
   it('retargetSchema only rewrites target keys', () => {
     const out = retargetSchema(
-      {properties: {a: {ref: 'x', target: nameToUrl('example-place-doc')!}, b: {ref: nameToUrl('example-place-doc')!}}},
+      {properties: {a: {ref: 'x', target: nameToUrl('example/place-doc')!}, b: {ref: nameToUrl('example/place-doc')!}}},
       {place: 'hm://me/w/types/place'},
     ) as any
     expect(out.properties.a.target).toBe('hm://me/w/types/place')
-    expect(out.properties.b.ref).toBe(nameToUrl('example-place-doc'))
+    expect(out.properties.b.ref).toBe(nameToUrl('example/place-doc'))
   })
 })
 

@@ -30,10 +30,10 @@ export type WorldKitType = (typeof WORLD_KIT_TYPES)[number]
 
 /** Per type: the library schema it starts from, its folder, and labels. */
 export const WORLD_KIT: Record<WorldKitType, {library: string; folder: string; singular: string; plural: string}> = {
-  character: {library: 'example-character-doc', folder: 'characters', singular: 'Character', plural: 'Characters'},
-  place: {library: 'example-place-doc', folder: 'places', singular: 'Place', plural: 'Places'},
-  faction: {library: 'example-faction-doc', folder: 'factions', singular: 'Faction', plural: 'Factions'},
-  event: {library: 'example-event-doc', folder: 'events', singular: 'Event', plural: 'Events'},
+  character: {library: 'example/character-doc', folder: 'characters', singular: 'Character', plural: 'Characters'},
+  place: {library: 'example/place-doc', folder: 'places', singular: 'Place', plural: 'Places'},
+  faction: {library: 'example/faction-doc', folder: 'factions', singular: 'Faction', plural: 'Factions'},
+  event: {library: 'example/event-doc', folder: 'events', singular: 'Event', plural: 'Events'},
 }
 
 export const WORLD_GENRES = ['fantasy', 'science-fiction', 'historical', 'contemporary', 'mythic'] as const
@@ -188,7 +188,7 @@ export async function buildWorldPlan(spec: WorldSpec): Promise<WorldPlan> {
   const worldMeta: Record<string, string> = {
     name: spec.name,
     genre: spec.genre,
-    schema: nameToUrl('example-world-doc')!,
+    schema: nameToUrl('example/world-doc')!,
   }
   if (spec.tagline) worldMeta.tagline = spec.tagline
   if (epoch) worldMeta.epoch = epoch
