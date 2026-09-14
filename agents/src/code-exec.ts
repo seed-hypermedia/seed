@@ -15,6 +15,7 @@
 import {listMemory, memoryRootPath} from '@/agent-memory'
 import {recordPerf, recordPerfCount} from '@/perf'
 import * as fs from 'node:fs'
+import {availableParallelism} from 'node:os'
 
 /** Guest path where the agent's memory directory is mounted. */
 export const EXEC_WORKSPACE_GUEST_PATH = '/workspace'
@@ -81,6 +82,15 @@ export type CodeExecConfig = {
    * at the cost of one invisible re-boot per this interval of continuous use.
    */
   poolVmMaxAgeMs: number
+  /**
+   * Hard cap on sandboxes on loan at once, host-wide, across every source. Unlike `poolMaxVms`
+   * this is a real limit: the (max+1)th acquire waits for a slot rather than booting an overflow
+   * VM. Each guest is a vCPU taken from the event loop every other tenant shares — on
+   * 2026-09-14 three concurrent guests on a 4-vCPU host took /api/health from ~1 ms to ~1 s.
+   */
+  maxConcurrent: number
+  /** How long an acquire may wait for a slot before failing with a clear, retryable error. */
+  acquireWaitMs: number
   /** Override for EXEC_TIMEOUT_GRACE_MS, so tests can exercise the watchdog without real waits. */
   timeoutGraceMs?: number
   /** Override for EXEC_TEARDOWN_TIMEOUT_MS, so tests can exercise stop→kill escalation quickly. */
@@ -307,6 +317,8 @@ export function defaultCodeExecConfig(): CodeExecConfig {
     poolMaxVms: 3,
     poolIdleTtlMs: 3 * 60_000,
     poolVmMaxAgeMs: 30 * 60_000,
+    maxConcurrent: defaultExecMaxConcurrent(),
+    acquireWaitMs: 30_000,
   }
 }
 
@@ -810,6 +822,103 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
 }
 
 /** Selects the sandbox source the configuration asks for. */
+/**
+ * Default sandbox concurrency: leave two vCPUs to the control plane (API, WebSocket fan-out,
+ * queue, SQLite) so a burst of guests cannot starve it. Never below one.
+ */
+export function defaultExecMaxConcurrent(): number {
+  return Math.max(1, availableParallelism() - 2)
+}
+
+/**
+ * Bounds how many sandboxes are on loan at once, host-wide. Wraps any source, so the warm pool
+ * and boot-per-call get the same limit without either changing.
+ *
+ * Semantics: `maxConcurrent` slots; an acquire past the cap queues FIFO and either inherits a
+ * slot when a lease is released or fails after `acquireWaitMs` with a 503 the model can act on.
+ * A slot is freed in `finally` — a boot that throws, or a release whose teardown throws, still
+ * hands the slot back, so a wedged guest can never leak capacity for good.
+ */
+export function withConcurrencyCap(
+  source: SandboxSource,
+  config: Pick<CodeExecConfig, 'maxConcurrent' | 'acquireWaitMs'>,
+): SandboxSource {
+  const max = Math.max(1, Math.floor(config.maxConcurrent))
+  let inUse = 0
+  type Waiter = {grant: () => void; timer: ReturnType<typeof setTimeout>}
+  const waiters: Waiter[] = []
+
+  const free = () => {
+    const next = waiters.shift()
+    if (next) {
+      // Hand the slot straight to the next waiter; inUse stays the same.
+      clearTimeout(next.timer)
+      next.grant()
+      return
+    }
+    inUse -= 1
+  }
+
+  const take = (): Promise<void> => {
+    if (inUse < max) {
+      inUse += 1
+      return Promise.resolve()
+    }
+    recordPerfCount('exec.cap_wait')
+    const waitStartedAt = Date.now()
+    return new Promise<void>((resolve, reject) => {
+      const waiter: Waiter = {
+        grant: () => {
+          recordPerf('exec.cap_wait_ms', Date.now() - waitStartedAt)
+          resolve()
+        },
+        timer: setTimeout(() => {
+          const at = waiters.indexOf(waiter)
+          if (at >= 0) waiters.splice(at, 1)
+          recordPerfCount('exec.cap_rejected')
+          reject(
+            new CodeExecError(
+              503,
+              `Code execution is at capacity on this server (${max} sandbox${
+                max === 1 ? '' : 'es'
+              } in use; waited ${Math.round(config.acquireWaitMs / 1000)}s). Retry with fewer parallel execute calls.`,
+            ),
+          )
+        }, config.acquireWaitMs),
+      }
+      waiters.push(waiter)
+    })
+  }
+
+  return {
+    drain: () => source.drain(),
+    async acquire(spec) {
+      await take()
+      let lease: SandboxLease
+      try {
+        lease = await source.acquire(spec)
+      } catch (error) {
+        free()
+        throw error
+      }
+      let released = false
+      return {
+        ...lease,
+        async release(opts) {
+          // The executor releases exactly once; a second call must not free a second slot.
+          if (released) return
+          released = true
+          try {
+            await lease.release(opts)
+          } finally {
+            free()
+          }
+        },
+      }
+    },
+  }
+}
+
 export const createConfiguredSandboxSource: SandboxSourceFactory = (config, getSdk) =>
   config.warmPool ? createWarmPoolSource(config, getSdk) : createBootPerCallSource(config, getSdk)
 
@@ -836,7 +945,7 @@ export function createCodeExecutor(
     return sdkPromise
   }
 
-  const source = createSource(config, getSdk)
+  const source = withConcurrencyCap(createSource(config, getSdk), config)
 
   // Availability cannot change during the process lifetime (platform, staged runtime, config are
   // all fixed at startup), so the probe result is memoized including failures.

@@ -13,6 +13,7 @@ export type Server = {
 }
 
 import {parseLogLevel, type LogLevel} from '@/log'
+import {defaultExecMaxConcurrent} from './code-exec'
 
 /** Runtime configuration for the Agents service. */
 export type Config = {
@@ -70,6 +71,10 @@ export type Config = {
     poolIdleTtlMs: number
     /** Maximum age of a pooled VM, enforced only between calls (never mid-use). */
     poolVmMaxAgeMs: number
+    /** Hard cap on sandboxes on loan at once, host-wide (a real limit, unlike poolMaxVms). */
+    maxConcurrent: number
+    /** How long an acquire may wait for a slot before failing with a retryable error. */
+    acquireWaitMs: number
   }
   runQueue: {
     /** Model-backed runs executed concurrently. Everything shares one event loop, so size this to the host. */
@@ -107,6 +112,8 @@ export type Flags = {
   'exec-max-vms': number
   'exec-pool-idle-ttl-secs': number
   'exec-pool-max-age-secs': number
+  'exec-max-concurrent': number
+  'exec-acquire-wait-secs': number
   'max-concurrent-model-runs': number
   'max-concurrent-workflows': number
   'log-level': string
@@ -141,6 +148,8 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'exec-max-vms': Number(env.SEED_AGENTS_EXEC_MAX_VMS) || 3,
     'exec-pool-idle-ttl-secs': Number(env.SEED_AGENTS_EXEC_POOL_IDLE_TTL_SECS) || 180,
     'exec-pool-max-age-secs': Number(env.SEED_AGENTS_EXEC_POOL_MAX_AGE_SECS) || 1800,
+    'exec-max-concurrent': Number(env.SEED_AGENTS_EXEC_MAX_CONCURRENT) || defaultExecMaxConcurrent(),
+    'exec-acquire-wait-secs': Number(env.SEED_AGENTS_EXEC_ACQUIRE_WAIT_SECS) || 30,
     'max-concurrent-model-runs': Number(env.SEED_AGENTS_MAX_CONCURRENT_MODEL_RUNS) || 8,
     'max-concurrent-workflows': Number(env.SEED_AGENTS_MAX_CONCURRENT_WORKFLOWS) || 32,
     'log-level': env.SEED_AGENTS_LOG_LEVEL || 'info',
@@ -233,6 +242,8 @@ export function create(pflags: Flags): Config {
       poolMaxVms: parsePositiveInteger(String(pflags['exec-max-vms']), 'exec-max-vms'),
       poolIdleTtlMs: parsePositiveInteger(String(pflags['exec-pool-idle-ttl-secs']), 'exec-pool-idle-ttl-secs') * 1000,
       poolVmMaxAgeMs: parsePositiveInteger(String(pflags['exec-pool-max-age-secs']), 'exec-pool-max-age-secs') * 1000,
+      maxConcurrent: parsePositiveInteger(String(pflags['exec-max-concurrent']), 'exec-max-concurrent'),
+      acquireWaitMs: parsePositiveInteger(String(pflags['exec-acquire-wait-secs']), 'exec-acquire-wait-secs') * 1000,
     },
     runQueue: {
       maxConcurrentModelRuns: parsePositiveInteger(
