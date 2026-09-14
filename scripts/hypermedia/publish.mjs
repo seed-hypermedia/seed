@@ -28,7 +28,7 @@ const DIR = HM_DIR;
 const LOCK = LOCK_PATH;
 
 // Canonical URL = the schema's published-doc URL under the Hypermedia account; the name
-// is its path inside hypermedia/ (schema/string, example/person, …), see names.mjs.
+// is its path inside hypermedia/ (string, example/person, …), see names.mjs.
 const HYPERMEDIA_UID = "z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb";
 const fileToUrl = (file) => nameToUrl(nameOfFile(file));
 

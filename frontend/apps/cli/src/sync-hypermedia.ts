@@ -43,7 +43,7 @@ const REPO_ROOT = resolve(DIR, '../../../..')
 const SCHEMAS_DIR = resolve(REPO_ROOT, 'hypermedia')
 const LOCK_PATH = resolve(SCHEMAS_DIR, 'schemas.lock.json')
 
-/** Every schema file under `dir`, relative to it (`schema/block/image.schema.json`), sorted. */
+/** Every schema file under `dir`, relative to it (`block/image.schema.json`), sorted. */
 function listSchemaFiles(dir: string): string[] {
   const out: string[] = []
   const walk = (d: string) => {
@@ -69,7 +69,7 @@ const SITE = 'z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
  * How documents of the space map onto hypermedia/: every page publishes at its path.
  *   index.md      → the home document
  *   README.md     → not published (it describes the folder on GitHub)
- *   <x>.md        → /<x>         (schema/block/image.md → /schema/block/image)
+ *   <x>.md        → /<x>         (block/image.md → /schema/block/image)
  * A schema file sits beside its document as <basename>.schema.json.
  */
 export const layout: SpaceLayout = {

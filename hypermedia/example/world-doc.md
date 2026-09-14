@@ -1,7 +1,7 @@
 ---
 name: World
 summary: "A world-builder kit type: the root page of a fictional world. Its children are the type definitions and the folders of characters, places, factions, and events;"
-schemaDefinition: ipfs://bafyreih3zktvjm5tylsg4ldmqetnl43s3jyg6goaehfgshbqgwntuscxtm
+schemaDefinition: ipfs://bafyreiciqrbjw2yqd6mbqkxmumgcrr67gg65rbmvym2uuill2mq72yeb6u
 ---
 A world-builder kit type: the root page of a fictional world. Its children are the type definitions and the folders of characters, places, factions, and events; its metadata names the genre and the date the chronicle begins. <!-- id:tWJgX3A2 -->
 
@@ -12,13 +12,13 @@ This document describes the **example/world-doc** type — an example schema. It
 **Extends** [document](../document.md) with these added fields: <!-- id:qfyt9Gtj -->
   - `metadata` — [metadata](../metadata.md) <!-- id:0iNrXaS0 -->
   - _adds to [metadata](../metadata.md):_ <!-- id:r0KTtnBZ -->
-  - `genre` _(required)_ — [string](../schema/string.md) (one of `fantasy`, `science-fiction`, `historical`, `contemporary`, `mythic`) <!-- id:0ujhBQvU -->
-  - `epoch` — [date](../schema/date.md) <!-- id:U_Ww1oVZ -->
-  - `tagline` — [string](../schema/string.md) <!-- id:JSSPut80 -->
+  - `genre` _(required)_ — [string](../string.md) (one of `fantasy`, `science-fiction`, `historical`, `contemporary`, `mythic`) <!-- id:0ujhBQvU -->
+  - `epoch` — [date](../date.md) <!-- id:U_Ww1oVZ -->
+  - `tagline` — [string](../string.md) <!-- id:JSSPut80 -->
 
 # Depends on <!-- id:isqmdDcM -->
 
 - [document](../document.md) <!-- id:HZ4iDpUw -->
 - [metadata](../metadata.md) <!-- id:w3N25OWp -->
-- [date](../schema/date.md) <!-- id:vd6ctMNl -->
-- [string](../schema/string.md) <!-- id:3hGaivVk -->
+- [date](../date.md) <!-- id:vd6ctMNl -->
+- [string](../string.md) <!-- id:3hGaivVk -->

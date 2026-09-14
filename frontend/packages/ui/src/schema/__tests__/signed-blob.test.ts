@@ -21,11 +21,10 @@ const ENVELOPE = nameToUrl('blob')!
 const VOTE = {
   name: 'Vote',
   ref: ENVELOPE,
-  required: ['type', 'target', 'choice'],
   properties: {
-    type: 'Vote',
-    target: {ref: nameToUrl('hm-url')!},
-    choice: {anyOf: ['yes', 'no']},
+    type: {value: 'Vote', required: true},
+    target: {value: {ref: nameToUrl('hm-url')!}, required: true},
+    choice: {value: {anyOf: ['yes', 'no']}, required: true},
   },
 }
 

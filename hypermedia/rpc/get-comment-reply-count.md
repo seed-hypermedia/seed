@@ -1,7 +1,7 @@
 ---
 name: "RPC: GetCommentReplyCount"
 summary: "Counts the replies under a comment. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output"
-schemaDefinition: ipfs://bafyreigkspdosypqqfptkdeich7fahfysdf44okrq6bgxbakewo3jtpwni
+schemaDefinition: ipfs://bafyreif65v6mwhbd2d7iwn77ax6tpyhlpz3wrcwg3kuzohscvuhzaouqaa
 ---
 Counts the replies under a comment. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:POuk7vni -->
 
@@ -16,4 +16,4 @@ A **closed struct** with these fields: <!-- id:YNWk_gey -->
 
 # Depends on <!-- id:ruuwrb5M -->
 
-- [string](../schema/string.md) <!-- id:L1b4cqBz -->
+- [string](../string.md) <!-- id:L1b4cqBz -->

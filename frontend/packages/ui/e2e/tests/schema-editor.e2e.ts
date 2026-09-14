@@ -103,9 +103,9 @@ test.describe('schema editor', () => {
     // The published schema carried the field, kind, and required flag.
     const published = await page.evaluate(() => (window as any).__lastPublishedSchema)
     expect(published).toMatchObject({
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct',
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct',
       properties: {
-        width: {value: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/integer'}, required: true},
+        width: {value: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer'}, required: true},
       },
     })
   })
@@ -120,7 +120,7 @@ test.describe('schema editor', () => {
     await dialog.getByTestId('linked-object-publish').click()
     await expect(dialog).toBeHidden()
     const published: any = await page.evaluate(() => (window as any).__lastPublishedSchema)
-    expect(published.type).toBe('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct')
+    expect(published.type).toBe('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct')
     expect(published.properties).toEqual({})
     expect(published.name).toBeUndefined()
   })

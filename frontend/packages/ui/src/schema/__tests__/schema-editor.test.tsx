@@ -88,9 +88,7 @@ describe('SchemaEditor (struct form)', () => {
   it('required is derived from the per-field checkbox, not authored as an array', () => {
     act(() =>
       root.render(
-        <Harness
-          initial={{type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct', properties: {}}}
-        />,
+        <Harness initial={{type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct', properties: {}}} />,
       ),
     )
     click(findButton('Add field'))
@@ -110,11 +108,11 @@ describe('SchemaEditor (struct form)', () => {
       root.render(
         <Harness
           initial={{
-            type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct',
+            type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct',
             name: 'T',
             properties: {
               a: {
-                value: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string'},
+                value: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string'},
                 required: true,
               },
             },
@@ -129,8 +127,8 @@ describe('SchemaEditor (struct form)', () => {
 })
 
 describe('SchemaEditor (generics and JSON mode)', () => {
-  const MAP = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map'
-  const STRUCT = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct'
+  const MAP = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map'
+  const STRUCT = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct'
   const BLOCK = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block'
 
   it('shows a generic schema’s type parameters and offers them as field kinds', () => {
@@ -157,7 +155,7 @@ describe('SchemaEditor (generics and JSON mode)', () => {
       root.render(<Harness initial={emptyStructSchema()} />)
     })
     click(findButton('Make generic'))
-    expect(latest.params).toEqual({T: {ref: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/any'}})
+    expect(latest.params).toEqual({T: {ref: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any'}})
     expect(isHypermediaSchema(latest)).toBe(true)
     click(findButton('Add field'))
     // Point the new field at the parameter, then drop the parameter.
@@ -168,7 +166,7 @@ describe('SchemaEditor (generics and JSON mode)', () => {
     click(remove)
     expect(latest.params).toBeUndefined()
     expect(fieldSchema(latest, 'field')).toEqual({
-      ref: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/any',
+      ref: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any',
     })
     expect(isHypermediaSchema(latest)).toBe(true)
   })
@@ -192,9 +190,7 @@ describe('SchemaEditor (generics and JSON mode)', () => {
   it('a list root edits its item type', () => {
     act(() => {
       root.render(
-        <Harness
-          initial={{type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/list', items: {ref: BLOCK}}}
-        />,
+        <Harness initial={{type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list', items: {ref: BLOCK}}} />,
       )
     })
     expect(container.querySelector('[data-testid="schema-list-items"] input')).toBeTruthy()
@@ -221,7 +217,7 @@ describe('SchemaEditor (generics and JSON mode)', () => {
   })
 
   it('a struct with open extra values edits as fields; unchecking closes it', () => {
-    const VALUE = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/value'
+    const VALUE = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/value'
     act(() => {
       root.render(<Harness initial={{type: STRUCT, properties: {type: {value: {ref: MAP}}}, values: {ref: VALUE}}} />)
     })

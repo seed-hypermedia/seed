@@ -19,11 +19,13 @@ const LITERAL_KEY = `ipfs://${LITERAL_CID}`
 
 const ARTICLE_SCHEMA: HypermediaSchema = {
   name: 'Article',
-  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct',
-  required: ['headline', 'status'],
+  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct',
   properties: {
-    headline: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string', minLength: 1},
-    status: {anyOf: ['draft', 'published']},
+    headline: {
+      value: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string', minLength: 1},
+      required: true,
+    },
+    status: {value: {anyOf: ['draft', 'published']}, required: true},
   },
 }
 

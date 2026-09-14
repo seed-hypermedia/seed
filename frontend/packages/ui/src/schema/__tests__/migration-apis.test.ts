@@ -9,7 +9,7 @@ const S = (n: string) => HM_SCHEMAS[n]
 describe('isHypermediaSchema', () => {
   it('true for a real Hypermedia schema, false for data and for v1-dialect shapes', () => {
     expect(isHypermediaSchema(S('example/person'))).toBe(true)
-    expect(isHypermediaSchema(S('schema/string'))).toBe(true)
+    expect(isHypermediaSchema(S('string'))).toBe(true)
     expect(isHypermediaSchema({name: 'Alice', age: 30})).toBe(false) // plain data
     expect(isHypermediaSchema({type: 'object', properties: {}})).toBe(false) // v1 JSON-Schema dialect
     expect(isHypermediaSchema(null)).toBe(false)
@@ -50,15 +50,15 @@ describe('subschemaAt', () => {
 
 describe('suggestedFieldType', () => {
   it('maps kinds to add-form field types', () => {
-    expect(suggestedFieldType(S('schema/string'))).toBe('text')
-    expect(suggestedFieldType(S('schema/integer'))).toBe('number')
-    expect(suggestedFieldType(S('schema/float'))).toBe('number')
-    expect(suggestedFieldType(S('schema/boolean'))).toBe('toggle')
-    expect(suggestedFieldType(S('schema/map'))).toBe('object')
-    expect(suggestedFieldType(S('schema/list'))).toBe('list')
-    expect(suggestedFieldType(S('schema/null'))).toBe('null')
-    expect(suggestedFieldType(S('schema/link'))).toBe('link')
-    expect(suggestedFieldType(S('schema/bytes'))).toBe('bytes')
+    expect(suggestedFieldType(S('string'))).toBe('text')
+    expect(suggestedFieldType(S('integer'))).toBe('number')
+    expect(suggestedFieldType(S('float'))).toBe('number')
+    expect(suggestedFieldType(S('boolean'))).toBe('toggle')
+    expect(suggestedFieldType(S('map'))).toBe('object')
+    expect(suggestedFieldType(S('list'))).toBe('list')
+    expect(suggestedFieldType(S('null'))).toBe('null')
+    expect(suggestedFieldType(S('link'))).toBe('link')
+    expect(suggestedFieldType(S('bytes'))).toBe('bytes')
   })
 })
 
@@ -82,7 +82,7 @@ describe('documentMetadataSchema (document-schema extension)', () => {
   })
 
   it('folds in schema-keyed extra properties', () => {
-    const merged = documentMetadataSchema(S('example/geo'), {'ipfs://cidkey': S('schema/string')})
+    const merged = documentMetadataSchema(S('example/geo'), {'ipfs://cidkey': S('string')})
     expect(merged.properties).toHaveProperty('ipfs://cidkey')
   })
 })
@@ -93,6 +93,6 @@ describe('literalOptions', () => {
     expect(opts?.map((o) => o.value)).toEqual(['draft', 'published', 'archived'])
   })
   it('null when the schema is not a union of literals', () => {
-    expect(literalOptions(S('schema/string'))).toBeNull()
+    expect(literalOptions(S('string'))).toBeNull()
   })
 })

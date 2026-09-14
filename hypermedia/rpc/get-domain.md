@@ -1,7 +1,7 @@
 ---
 name: "RPC: GetDomain"
 summary: "Checks a site domain's registration and health. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you p"
-schemaDefinition: ipfs://bafyreifogoye63gmejgvo5t3bd3j23afgx4tlyt72bplsohvayvxqfha5a
+schemaDefinition: ipfs://bafyreicnltj6fytzv3lcj23vx2wwqkmnoeovjp627x2el6zi7ykpgaemku
 ---
 Checks a site domain's registration and health. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:2l4-eCts -->
 
@@ -16,6 +16,6 @@ A **closed struct** with these fields: <!-- id:SzX-JA_i -->
 
 # Depends on <!-- id:bs3kYXsk -->
 
-- [boolean](../schema/boolean.md) <!-- id:SUvr718b -->
-- [string](../schema/string.md) <!-- id:tc1K4yXu -->
+- [boolean](../boolean.md) <!-- id:SUvr718b -->
+- [string](../string.md) <!-- id:tc1K4yXu -->
 - [rpc/type/domain-info](./type/domain-info.md) <!-- id:R5YpTEY6 -->

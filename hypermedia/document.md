@@ -1,7 +1,7 @@
 ---
 name: Document
 summary: The base Hypermedia document — resolved metadata (including the schema-binding fields `schema`, `childrenSchema`, `schemaDefinition`) plus the content block tre
-schemaDefinition: ipfs://bafyreid3sv3p4fidfnf5jy3iz2iewk5fvp7cnrt3nte3sli7qrhlz6brq4
+schemaDefinition: ipfs://bafyreicft3cwhaivwmfsmyqrufv4hywbs2w6nifx6crxtpn34h6fa62uyu
 ---
 The base Hypermedia document — resolved metadata (including the schema-binding fields `schema`, `childrenSchema`, `schemaDefinition`) plus the content block tree. Every typed document schema EXTENDS this via `ref: hm://seed.hyper.media/document`, refining `metadata` (e.g. requiring an extra field) and/or `content`. A document's effective conformance schema is its metadata's `schema`, or — for a child — its parent's `childrenSchema`. <!-- id:qIPS3d4t -->
 
@@ -11,9 +11,9 @@ This document describes the **document** type — a Hypermedia Network blob sche
 
 A **closed struct** with these fields: <!-- id:3x9xTU5x -->
   - `metadata` — [metadata](./metadata.md) <!-- id:JqWmcBXD -->
-  - `content` — list of [schema/block/node](./schema/block/node.md) <!-- id:7I3IBxKI -->
+  - `content` — list of [block/node](./block/node.md) <!-- id:7I3IBxKI -->
 
 # Depends on <!-- id:S3YgMiYc -->
 
-- [schema/block/node](./schema/block/node.md) <!-- id:4_ANAoOp -->
+- [block/node](./block/node.md) <!-- id:4_ANAoOp -->
 - [metadata](./metadata.md) <!-- id:ZuflGkc7 -->

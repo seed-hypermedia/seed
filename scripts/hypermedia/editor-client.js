@@ -18,7 +18,7 @@
 
   const ALIASES = DATA.aliases || {};
   const HYPERMEDIA_UID = "z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb";
-  // Schema keys are paths inside hypermedia/ (schema/string.schema.json); old names resolve through the aliases.
+  // Schema keys are paths inside hypermedia/ (string.schema.json); old names resolve through the aliases.
   const urlToFile = (ref) => {
     const m = /^hm:\/\/([^/]+)\/(.+)$/.exec(ref);
     let name;

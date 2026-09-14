@@ -1,19 +1,19 @@
 ---
 name: "Example: Blob"
 summary: A binary payload tagged with a MIME type and optional size.
-schemaDefinition: ipfs://bafyreibvqqlkywdlxunxcydbleyhyzdzc2tvfoy5fsf4yxdw2mqim3arqu
+schemaDefinition: ipfs://bafyreiaog4tmvvzeyn7abaqzgyuu4hbvuym4sftziuj6k6snhal4qvbwkq
 ---
 This document describes the **example/blob** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:_Qxmk6wX -->
 
 # Shape <!-- id:vesnh_LB -->
 
 A **closed struct** with these fields: <!-- id:v5doVNjp -->
-  - `mime` _(required)_ — [string](../schema/string.md) <!-- id:MN-579Cf -->
-  - `size` — [integer](../schema/integer.md) <!-- id:tB72shxZ -->
-  - `data` _(required)_ — [bytes](../schema/bytes.md) <!-- id:Q_T-l5Cr -->
+  - `mime` _(required)_ — [string](../string.md) <!-- id:MN-579Cf -->
+  - `size` — [integer](../integer.md) <!-- id:tB72shxZ -->
+  - `data` _(required)_ — [bytes](../bytes.md) <!-- id:Q_T-l5Cr -->
 
 # Depends on <!-- id:CyOF5f4t -->
 
-- [bytes](../schema/bytes.md) <!-- id:X1u_H1kI -->
-- [integer](../schema/integer.md) <!-- id:v3gQbJMy -->
-- [string](../schema/string.md) <!-- id:P1GB2FQT -->
+- [bytes](../bytes.md) <!-- id:X1u_H1kI -->
+- [integer](../integer.md) <!-- id:v3gQbJMy -->
+- [string](../string.md) <!-- id:P1GB2FQT -->

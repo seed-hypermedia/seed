@@ -31,7 +31,7 @@ describe('SchemaDocPage renders every schema shape without crashing', () => {
   })
 
   it('a primitive (self-grounding axiom)', () => {
-    renderPage('schema/string')
+    renderPage('string')
     expect(container.textContent).toContain('Core Type')
   })
 

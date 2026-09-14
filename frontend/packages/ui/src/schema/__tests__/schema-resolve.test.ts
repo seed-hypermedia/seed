@@ -45,9 +45,9 @@ describe('classifyRef', () => {
     expect(classifyRef(`${HYPERMEDIA_UID}/document`)).toEqual({kind: 'hm-bundled', name: 'document'})
   })
   it('a primitive kind URL resolves to its bundled schema', () => {
-    expect(classifyRef('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string')).toEqual({
+    expect(classifyRef('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string')).toEqual({
       kind: 'hm-bundled',
-      name: 'schema/string',
+      name: 'string',
     })
   })
   it('an unknown hm:// document URL needs a fetch (hm-doc)', () => {
