@@ -1614,6 +1614,32 @@ describe('CLI Full Integration Tests', () => {
       TEST_TIMEOUT,
     )
 
+    test(
+      'document move rejects an unauthorized source before publishing the destination (issue #901)',
+      async () => {
+        const destinationId = `hm://${writeAccount.accountId}/unauthorized-move-${Date.now()}`
+        const moveResult = await runCli(
+          ['document', 'move', FIXTURE_HIERARCHY_HM_ID, destinationId, '--key', TEST_KEY_NAME],
+          {server: ctx.webServerUrl},
+        )
+
+        expect(moveResult.exitCode).toBe(1)
+        expect(moveResult.stderr).toContain('No WRITER or AGENT capability')
+        expect(moveResult.stderr + moveResult.stdout).not.toContain('Document moved')
+
+        const sourceResult = await runCli(['document', 'get', FIXTURE_HIERARCHY_HM_ID, '--json'], {
+          server: ctx.webServerUrl,
+        })
+        expect(sourceResult.exitCode).toBe(0)
+
+        const destinationResult = await runCli(['document', 'get', destinationId, '--json'], {
+          server: ctx.webServerUrl,
+        })
+        expect(destinationResult.exitCode).toBe(1)
+      },
+      TEST_TIMEOUT,
+    )
+
     // --- Document Redirect Tests ---
 
     test(
