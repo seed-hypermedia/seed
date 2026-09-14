@@ -59,6 +59,15 @@ describe('query block table model', () => {
     expect(columns.some(({id}) => id === 'metadata:type')).toBe(false)
   })
 
+  it('disambiguates custom metadata labels that differ only by presentation casing', () => {
+    const columns = buildQueryTableColumns([item('One', {Status: 'Ready', status: 'Draft'})])
+
+    expect(columns.slice(-2).map(({id, label}) => ({id, label}))).toEqual([
+      {id: 'metadata:Status', label: 'Status'},
+      {id: 'metadata:status', label: 'status'},
+    ])
+  })
+
   it('does not turn unrelated metadata attributes into tags', () => {
     expect(getDocumentTags(item('One', {type: 'Collection', status: 'Ready'}))).toEqual([])
     expect(getDocumentTags(item('Two', {tags: ['one', 'two'], type: 'Collection'}))).toEqual(['one', 'two'])

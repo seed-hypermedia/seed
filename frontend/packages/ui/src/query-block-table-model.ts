@@ -68,13 +68,19 @@ export function buildQueryTableColumns(items: HMDocumentInfo[] = []): QueryTable
     new Set(items.flatMap((item) => Object.keys(item.metadata).filter((key) => !RESERVED_METADATA_KEYS.has(key)))),
   ).sort()
 
+  const metadataLabels = metadataKeys.map((key) =>
+    key
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/[_-]+/g, ' ')
+      .replace(/^./, (character) => character.toUpperCase()),
+  )
+  const labelCounts = new Map<string, number>()
+  metadataLabels.forEach((label) => labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1))
+
   return coreColumns.concat(
-    metadataKeys.map((key) => ({
+    metadataKeys.map((key, index) => ({
       id: `metadata:${key}`,
-      label: key
-        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-        .replace(/[_-]+/g, ' ')
-        .replace(/^./, (character) => character.toUpperCase()),
+      label: labelCounts.get(metadataLabels[index]) === 1 ? metadataLabels[index] : key,
       type: inferAttributeType(items.map((item) => item.metadata[key])),
       defaultVisible: false,
     })),
