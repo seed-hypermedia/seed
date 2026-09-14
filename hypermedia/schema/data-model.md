@@ -36,8 +36,8 @@ The seam is JavaScript/JSON, which cannot tell `3.0` from `3`. The reference val
 ## `map` vs `struct` — one kind of data, two types <!-- id:MQy2plVQ -->
 
 At the **data-model** level there is only `map`: DAG-CBOR has no separate object or struct kind. The schema language gives that one kind two types, because the two ways of using a map are different things: <!-- id:N8qkl2B3 -->
-  - [`struct`](./struct.md) — the keys are known field names, each with its own schema (`properties`, `required`); closed unless `values` opens it to extra keys <!-- id:ubG-u-aL -->
-  - [`map`](./map.md) — the keys are data; every value matches one schema (`values`) <!-- id:dFwJHUze -->
+  - [`struct`](../struct.md) — the keys are known field names, each with its own schema (`properties`); closed unless `values` opens it to extra keys <!-- id:ubG-u-aL -->
+  - [`map`](../map.md) — the keys are data; every value matches one schema (`values`) <!-- id:dFwJHUze -->
 
 Both validate the same bytes. The type tells a form which fields to show, a validator which keys are stray, and a generated type whether to emit named members or an index signature. See [the schema language](./schema-language.md). <!-- id:Ig-D69Z- -->
 
@@ -47,19 +47,19 @@ A `link` is a CID: a hash that names another block by its content. Links are wha
 
 The schema language uses this same machinery on itself: schemas link to other schemas, so the type definitions form their own DAG, addressed and resolved exactly like the data they describe. <!-- id:0a8cB8Tw -->
 
-## The primitive schemas — `schema/<kind>` <!-- id:QPx8_TmX -->
+## The primitive schemas — `/<kind>` <!-- id:QPx8_TmX -->
 
 A kind like `string` is a _name in the vocabulary_; `{"type":"string"}` is the _schema_ for a string value. The library ships that schema as a canonical, named block — one per kind: <!-- id:bmWAAKox -->
 
 <!-- id:IRoeKmq3 -->
 | primitive <!-- col:Khg0aF44 --> | is exactly <!-- col:y6M-JfyQ --> | typed by <!-- col:AADEz9yl --> <!-- id:5Ox6LZWF --> |
 | --- | --- | --- |
-| `schema/null`, `schema/boolean`, `schema/integer`, `schema/float`, `schema/string`, `schema/bytes` | `{ "type": "<kind>" }` | `schema/scalar-schema` <!-- id:idSfV3A2 --> |
-| `schema/link` | `{ "type": "link" }` | `schema/link-schema` <!-- id:VcOv81bN --> |
-| `schema/struct`, `schema/map`, `schema/list` | `{ "type": "<kind>" }` | `schema/struct-schema` / `schema/map-schema` / `schema/list-schema` <!-- id:zNbu4gjL --> |
+| `null`, `boolean`, `integer`, `float`, `string`, `bytes` | `{ "type": "<kind>" }` | `schema/scalar-schema` <!-- id:idSfV3A2 --> |
+| `link` | `{ "type": "link" }` | `schema/link-schema` <!-- id:VcOv81bN --> |
+| `struct`, `map`, `list` | `{ "type": "<kind>" }` | `schema/struct-schema` / `schema/map-schema` / `schema/list-schema` <!-- id:zNbu4gjL --> |
 
 These are the **standard library**. Two layers, not to be confused: <!-- id:zEmQScRC -->
-  - `schema/scalar-schema` (a meta-schema _variant_) describes the _shape_ `{type:<scalar>, …constraints}` — it is the **type of** `schema/string`. <!-- id:FBr8EANM -->
-  - `schema/string` (a _primitive_) is `{"type":"string"}` — an _instance_ of that shape, and the block you actually reference. <!-- id:3j_Fqm8i -->
+  - `schema/scalar-schema` (a meta-schema _variant_) describes the _shape_ `{type:<scalar>, …constraints}` — it is the **type of** `string`. <!-- id:FBr8EANM -->
+  - `string` (a _primitive_) is `{"type":"string"}` — an _instance_ of that shape, and the block you actually reference. <!-- id:3j_Fqm8i -->
 
-Instead of inlining `{"type":"string"}` in every schema, reference the primitive: `{ "ref": "schema/string" }`. On IPFS that `ref` becomes the CID of the `schema/string` block, so **a field's type is itself a content-addressed link** — the same mechanism as any other reference ([references](./references.md)). The example schemas do exactly this; open `example/person` and every field is a `ref` to a primitive or another schema. <!-- id:TvpKD4MG -->
+Instead of inlining `{"type":"string"}` in every schema, reference the primitive: `{ "ref": "string" }`. On IPFS that `ref` becomes the CID of the `string` block, so **a field's type is itself a content-addressed link** — the same mechanism as any other reference ([references](./references.md)). The example schemas do exactly this; open `example/person` and every field is a `ref` to a primitive or another schema. <!-- id:TvpKD4MG -->

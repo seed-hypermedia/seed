@@ -67,9 +67,9 @@ function propKind(ps: any): string {
   const refName = typeof ps?.ref === 'string' ? refToName(ps.ref) : null
   if (ps?.format === 'hm-url' || refName === 'hm-url') return 'hm-url'
   if (ps?.format === 'ipfs-url' || ps?.format === 'ipfs' || refName === 'ipfs-url') return 'ipfs'
-  if (ps?.format === 'date' || refName === 'schema/date') return 'date'
-  if (ps?.format === 'date-time' || refName === 'schema/date-time') return 'date-time'
-  if (refName === 'schema/any') return 'any'
+  if (ps?.format === 'date' || refName === 'date') return 'date'
+  if (ps?.format === 'date-time' || refName === 'date-time') return 'date-time'
+  if (refName === 'any') return 'any'
   if (isLiteralSchema(ps) || ps?.anyOf || ps?.args) return CUSTOM_KIND
   if (ps?.type) return kindOf(ps.type)
   if (refName && KINDS.includes(refName.replace(/^hypermedia-/, ''))) return refName.replace(/^hypermedia-/, '')
@@ -134,8 +134,8 @@ function kindSchema(kind: string): HypermediaSchema {
   if (kind === 'ipfs') return {type: kindUrl('string'), format: 'ipfs-url'}
   // The built-in date types are includes of the library schemas, which carry
   // the format (→ a date picker) and the pattern (→ validation).
-  if (kind === 'date') return {ref: nameToUrl('schema/date')!}
-  if (kind === 'date-time') return {ref: nameToUrl('schema/date-time')!}
+  if (kind === 'date') return {ref: nameToUrl('date')!}
+  if (kind === 'date-time') return {ref: nameToUrl('date-time')!}
   if (kind === 'list') return {type: kindUrl('list'), items: {ref: ANY_URL}}
   if (kind === 'struct') return {type: STRUCT_URL, properties: {}}
   if (kind === 'map') return {type: MAP_URL, values: {ref: ANY_URL}}
@@ -143,7 +143,7 @@ function kindSchema(kind: string): HypermediaSchema {
 }
 
 /** The `any` schema: what a type parameter defaults to when nothing narrower is given. */
-const ANY_URL = nameToUrl('schema/any')!
+const ANY_URL = nameToUrl('any')!
 /** The signed-blob envelope every Hypermedia blob extends. */
 const SIGNED_BLOB_URL = nameToUrl('blob')!
 /** True when the schema extends the signed-blob envelope. */
@@ -171,7 +171,7 @@ export type SchemaRootKind = 'struct' | 'signed' | 'extends'
  */
 export function withRootKind(schema: HypermediaSchema, kind: SchemaRootKind): HypermediaSchema {
   const fields = structFields(schema).filter((f) => !(isSignedBlobType(schema) && f.name === 'type'))
-  const {type: _t, ref: _r, required: _legacy, ...rest} = schema
+  const {type: _t, ref: _r, ...rest} = schema
   if (kind === 'signed') {
     const tag = signedTypeTag(schema) || 'Custom'
     const withTag = [{name: 'type', schema: literalSchema(tag), required: true}, ...fields]
@@ -432,7 +432,7 @@ function StructSchemaForm({schema, onSchema}: {schema: HypermediaSchema; onSchem
       !schema.type && typeof schema.ref === 'string'
         ? {ref: schema.ref}
         : {type: kindOf(schema.type) === 'map' && next.length === 0 ? MAP_URL : STRUCT_URL}
-    const {type: _t, ref: _r, required: _legacy, ...rest} = schema
+    const {type: _t, ref: _r, ...rest} = schema
     onSchema({...rest, ...root, properties: fieldsToProperties(next)})
   }
   const field = (name: string) => fields.find((f) => f.name === name)
@@ -519,7 +519,7 @@ function StructSchemaForm({schema, onSchema}: {schema: HypermediaSchema; onSchem
     // A core kind applies its canonical property schema (a list gets `items`, a
     // struct `properties`, a date its library ref) — not a bare type URL.
     ...FIELD_KINDS.filter(({kind}) => !isReferenceKind(kind)).map(({kind, label}) => ({
-      label: HM_SCHEMA_PAGES[`schema/${kind}`]?.name ?? label,
+      label: HM_SCHEMA_PAGES[kind]?.name ?? label,
       hint: 'core type',
       schema: kindSchema(kind),
     })),
@@ -544,14 +544,14 @@ function StructSchemaForm({schema, onSchema}: {schema: HypermediaSchema; onSchem
   const rootTypeOptions: TypeOption[] = [
     unionOption(),
     ...FIELD_KINDS.filter(({kind}) => !isReferenceKind(kind)).map(({kind, label}) => ({
-      label: HM_SCHEMA_PAGES[`schema/${kind}`]?.name ?? label,
+      label: HM_SCHEMA_PAGES[kind]?.name ?? label,
       hint: 'core type',
       url: kindUrl(kind),
     })),
   ]
   const setRootType = (url: string) => {
     if (url === SIGNED_BLOB_URL) return onSchema(withRootKind(schema, 'signed'))
-    const {type: _t, ref: _r, anyOf: _a, required: _legacy, ...rest} = schema
+    const {type: _t, ref: _r, anyOf: _a, ...rest} = schema
     const kind = kindOf(url)
     if (kind !== url && kind !== 'struct' && kind !== 'map') {
       // A leaf or list root has no fields.

@@ -1,7 +1,7 @@
 ---
 name: "RPC: Query"
 summary: "Runs a document query (the same shape a Query block embeds). One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field typ"
-schemaDefinition: ipfs://bafyreif5aa7rf3tj7hhduuadkogfeejc3tbuphgpgblgql6chb77vemk2a
+schemaDefinition: ipfs://bafyreibal6pdobwrsnfza4c2fhv3erkjtykcusw7tmmio2ufc2si73zyxy
 ---
 Runs a document query (the same shape a Query block embeds). One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:ikOICZ5G -->
 
@@ -11,11 +11,11 @@ This document describes the **rpc/query** type — a Seed API read-model schema 
 
 A **closed struct** with these fields: <!-- id:BqgxY2nD -->
   - `key` _(required)_ — `"Query"` <!-- id:LqFcY9h4 -->
-  - `input` _(required)_ — [schema/query](../schema/query.md) <!-- id:3CteGWBj -->
-  - `output` _(required)_ — one of [rpc/type/query-result](./type/query-result.md) | [null](../schema/null.md) <!-- id:e3b637gr -->
+  - `input` _(required)_ — [query](../query.md) <!-- id:3CteGWBj -->
+  - `output` _(required)_ — one of [rpc/type/query-result](./type/query-result.md) | [null](../null.md) <!-- id:e3b637gr -->
 
 # Depends on <!-- id:6QyI0lnv -->
 
-- [schema/query](../schema/query.md) <!-- id:vBboMmrJ -->
-- [null](../schema/null.md) <!-- id:BVB9w3KD -->
+- [query](../query.md) <!-- id:vBboMmrJ -->
+- [null](../null.md) <!-- id:BVB9w3KD -->
 - [rpc/type/query-result](./type/query-result.md) <!-- id:_MQGXI7B -->

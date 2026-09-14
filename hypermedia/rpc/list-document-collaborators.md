@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListDocumentCollaborators"
 summary: "Resolves a document's full collaboration picture. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you"
-schemaDefinition: ipfs://bafyreib46msx2wiumayhexui5vdjsmepfn7rpmgdd6zqs5iqphl6gnvwpi
+schemaDefinition: ipfs://bafyreihavvgfm6had7iqofhlqwb3ewvzfsxqutkjdlj36plexuylwzcwiq
 ---
 Resolves a document's full collaboration picture. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:SpxLa0Jx -->
 

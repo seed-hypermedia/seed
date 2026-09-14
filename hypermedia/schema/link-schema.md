@@ -1,7 +1,7 @@
 ---
 name: Link schema
 summary: The variant for a link (CID), optionally naming the expected target type.
-schemaDefinition: ipfs://bafyreihm7jvrumy5ma65swc4bp6mo3eezfpjvdcccsgv5qxcnf5d3t4r2u
+schemaDefinition: ipfs://bafyreib5dmxdxp3cfptqdrutp7x5wn3kgwhxkixmqk7nz3p5jtrxscmegi
 ---
 This document describes the **schema/link-schema** type — a meta-schema variant. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:QZ0YT6sU -->
 

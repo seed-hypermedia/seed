@@ -40,7 +40,7 @@ export function DocumentDestinationDialog({
         location: {locationUid: submitInput.to.uid, locationPath: submitInput.to.path?.slice(0, -1) ?? []},
         initialMetadata: {
           name: submitInput.name || 'Extended Schema',
-          schemaDraft: {ref: `ipfs://${baseCid}`, properties: {}, required: []},
+          schemaDraft: {ref: `ipfs://${baseCid}`, properties: {}},
         },
       })
       return

@@ -1,7 +1,7 @@
 ---
 name: Raw Document Change
 summary: "One change of a document's history in raw listing form: CID, author, dependency edges, time. A derived read model computed by the Seed daemon/API for clients — "
-schemaDefinition: ipfs://bafyreibcfnysinjhkc2osslyejslbzr7akv76lacntmnamapbntpc7k72y
+schemaDefinition: ipfs://bafyreigulaj66u6kadth33mgon6bgwhimeg6vc6qzq2cfkidi5k3kwtxh4
 ---
 One change of a document's history in raw listing form: CID, author, dependency edges, time. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:eHAssQwO -->
 
@@ -10,11 +10,11 @@ This document describes the **rpc/type/raw-document-change** type — a Seed API
 # Shape <!-- id:FxmCqSQ7 -->
 
 A **closed struct** with these fields: <!-- id:mWeaUv6g -->
-  - `id` — [string](../../schema/string.md) <!-- id:Agokfkd5 -->
-  - `author` — [string](../../schema/string.md) <!-- id:YpaiMQ30 -->
-  - `deps` — list of [string](../../schema/string.md) <!-- id:-2iRqM1r -->
-  - `createTime` — [string](../../schema/string.md) <!-- id:TEUlsbe8 -->
+  - `id` — [string](../../string.md) <!-- id:Agokfkd5 -->
+  - `author` — [string](../../string.md) <!-- id:YpaiMQ30 -->
+  - `deps` — list of [string](../../string.md) <!-- id:-2iRqM1r -->
+  - `createTime` — [string](../../string.md) <!-- id:TEUlsbe8 -->
 
 # Depends on <!-- id:x-YC6YOj -->
 
-- [string](../../schema/string.md) <!-- id:NePRTnJk -->
+- [string](../../string.md) <!-- id:NePRTnJk -->

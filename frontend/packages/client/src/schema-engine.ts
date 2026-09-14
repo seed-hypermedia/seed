@@ -16,13 +16,13 @@ import {
 } from './schema-registry.generated'
 
 export type HypermediaSchema = Record<string, any>
-/** basename (no .json) -> schema, e.g. "schema/map-schema". A caller may pass a
+/** schema name (its path in hypermedia/) -> schema, e.g. "string", "schema/map-schema", "block/image". A caller may pass a
  * custom registry to resolve refs that aren't in the bundled standard library. */
 export type SchemaRegistry = Record<string, HypermediaSchema>
 
 // The Hypermedia account under which every schema is PUBLISHED as a document. A schema
 // reference is its published-doc URL: hm://<library>/<name>, where the name is the
-// bundled key: its path in hypermedia/ (schema/string, schema — the meta-schema —, example/person, …). Legacy
+// bundled key: its path in hypermedia/ (string, schema — the meta-schema —, example/person, …). Legacy
 // forms — the dev authorities (hyper.media / seed.hyper.media / example.com) and
 // the prefixed names from before the folder reorganization (hypermedia-string), and
 // the bare primitive names published before the `hypermedia-` rename
@@ -49,7 +49,7 @@ export const LIBRARY_CORE: ReadonlySet<string> = new Set(
     'link-schema',
     'include-schema',
     'var-schema',
-  ].map((k) => (k === 'schema' ? 'schema' : `schema/${k}`)), // the meta-schema is /schema itself,
+  ].map((k) => (KINDS.includes(k) || k === 'schema' ? k : `schema/${k}`)), // kinds and the meta-schema live at the root,
 )
 export const isLibraryCore = (name: string): boolean => LIBRARY_CORE.has(name)
 const KIND_URL = new RegExp(`^hm://(?:hyper\\.media|${HYPERMEDIA_UID})/(?:schema/|hypermedia-)?([a-z]+)$`)
@@ -81,7 +81,7 @@ export function nameToUrl(name: string): string | null {
 /** The canonical kind URL for a primitive kind (map, list, string, …). Schemas
  * authored in-app must use this so they validate against the meta-schema. */
 export function kindUrl(kind: string): string {
-  return `hm://${HYPERMEDIA_UID}/schema/${kind}`
+  return `hm://${HYPERMEDIA_UID}/${kind}`
 }
 
 /** The map kind URL (the shape every struct/metadata schema declares). */
@@ -247,43 +247,26 @@ export function literalMembers(schema: HypermediaSchema, reg: SchemaRegistry = {
 
 /** A struct field entry: the field's schema, whether a value must include it, what it is for. */
 export type PropertyEntry = {value: HypermediaSchema; required?: boolean; description?: string}
-/** A struct field, whichever shape the schema wrote it in. */
+/** A struct field. */
 export type StructField = {name: string; schema: HypermediaSchema; required: boolean; description?: string}
 
-/** True for a `properties` entry in the current shape ({value, …}). A literal
- * schema is also spelled `{value}`, but a `properties` entry always wraps its
- * field's schema, so in that position `value` is the field's schema — and a
- * field whose schema is the literal `"x"` is simply `{value: "x"}`. */
-export function isPropertyEntry(v: any): v is PropertyEntry {
-  return !!v && typeof v === 'object' && !Array.isArray(v) && 'value' in v
-}
-
-/** A struct's fields, in declaration order. */
+/** A struct's fields, in declaration order. A `properties` entry always wraps its
+ * field's schema in `value` (a field whose schema is the literal `"x"` is `{value: "x"}`). */
 export function structFields(schema: HypermediaSchema | undefined): StructField[] {
   if (!schema || !schema.properties || typeof schema.properties !== 'object') return []
-  const legacyRequired = new Set<string>(Array.isArray(schema.required) ? schema.required : [])
-  return Object.entries(schema.properties as Record<string, any>).map(([name, entry]) =>
-    isPropertyEntry(entry)
-      ? {
-          name,
-          schema: entry.value === undefined ? {} : entry.value,
-          required: entry.required === true,
-          description: typeof entry.description === 'string' ? entry.description : undefined,
-        }
-      : {
-          name,
-          schema: entry ?? {},
-          required: legacyRequired.has(name),
-          description: typeof entry?.description === 'string' ? entry.description : undefined,
-        },
-  )
+  return Object.entries(schema.properties as Record<string, any>).map(([name, entry]) => ({
+    name,
+    schema: entry?.value === undefined ? {} : entry.value,
+    required: entry?.required === true,
+    description: typeof entry?.description === 'string' ? entry.description : undefined,
+  }))
 }
 
 /** The schema of one field, or undefined when the struct has no such field. */
 export function fieldSchema(schema: HypermediaSchema | undefined, name: string): HypermediaSchema | undefined {
   const entry = schema?.properties?.[name]
   if (entry === undefined) return undefined
-  return isPropertyEntry(entry) ? entry.value : entry
+  return entry?.value === undefined ? {} : entry.value
 }
 
 /** The names of the fields a value must include. */
@@ -496,7 +479,7 @@ export function schemaShape(schema: HypermediaSchema | undefined): {label: strin
   if (typeof schema.var === 'string') return {label: `⟨${schema.var}⟩`, slug: 'schema/var-schema'}
   if (typeof schema.type === 'string') {
     const kind = kindOf(schema.type)
-    const slug = kind !== schema.type ? `schema/${kind}` : refToName(schema.type)
+    const slug = kind !== schema.type ? kind : refToName(schema.type)
     if (HM_SCHEMAS[slug]) return {label: HM_SCHEMA_PAGES[slug]?.name ?? slug, slug}
     return null
   }
@@ -523,7 +506,7 @@ export function collectRefs(schema: any, acc = new Set<string>()): Set<string> {
   if (typeof schema.ref === 'string') acc.add(refToName(schema.ref))
   if (typeof schema.type === 'string') {
     const kind = kindOf(schema.type)
-    if (kind !== schema.type && HM_SCHEMAS[`schema/${kind}`]) acc.add(`schema/${kind}`)
+    if (kind !== schema.type && HM_SCHEMAS[kind]) acc.add(kind)
   }
   for (const [k, v] of Object.entries(schema)) {
     if (k === 'ref' || k === 'type') continue

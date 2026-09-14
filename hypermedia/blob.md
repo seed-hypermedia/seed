@@ -1,7 +1,7 @@
 ---
 name: Blob
 summary: "The signed base envelope every Hypermedia CBOR blob extends: a `type` tag (the discriminator the network dispatches on), the signer's public key, an Ed25519 sig"
-schemaDefinition: ipfs://bafyreibnvz2v2isxtg74vvrnuzrljgibhb7h6skd455u5vojxfww7vxk3u
+schemaDefinition: ipfs://bafyreicmcbizte6unjajybr6u4nexsemoubuwida55ty5d52xlvdxsbsqu
 ---
 The signed base envelope every Hypermedia CBOR blob extends: a `type` tag (the discriminator the network dispatches on), the signer's public key, an Ed25519 signature over the canonical CBOR with the signature zeroed, and a unix-millisecond timestamp. Change, Ref, Profile, Comment, Capability and Contact all extend it — and so can your own types: extend this schema, pin a `type` tag, and the app signs values with your account. <!-- id:9OHHE4tm -->
 
@@ -13,10 +13,10 @@ A **closed struct** with these fields: <!-- id:bQI8hkFy -->
   - `type` _(required)_ — `string` <!-- id:LQdoRLZZ -->
   - `signer` _(required)_ — [principal](./principal.md) <!-- id:CtQVur6r -->
   - `sig` _(required)_ — [signature](./signature.md) <!-- id:enu99wz8 -->
-  - `ts` _(required)_ — [schema/timestamp](./schema/timestamp.md) <!-- id:kWIJ7his -->
+  - `ts` _(required)_ — [timestamp](./timestamp.md) <!-- id:kWIJ7his -->
 
 # Depends on <!-- id:jpOci9E7 -->
 
 - [principal](./principal.md) <!-- id:y9c8QnRC -->
 - [signature](./signature.md) <!-- id:dsCKf5iI -->
-- [schema/timestamp](./schema/timestamp.md) <!-- id:OFc0RrUw -->
+- [timestamp](./timestamp.md) <!-- id:OFc0RrUw -->

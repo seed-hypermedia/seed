@@ -1,7 +1,7 @@
 ---
 name: Reference schema
 summary: "The variant for a reference: a bare include, or an extension when it carries refinements."
-schemaDefinition: ipfs://bafyreibw7dbsnebxlujejhfbu7r7gxqbazdhiqvh5nhtbw565slv5u45ue
+schemaDefinition: ipfs://bafyreif35obpue7dkog6cevdbjiteqe7wfloawfz6s2gcfnw6ph3xjgyy4
 ---
 **Include** — a bare reference `{ "ref": "hm://…" }` (no `type`, no refinements). Becomes exactly the referenced schema. ([references](./references.md)) <!-- id:NgjaircK -->
 
@@ -11,8 +11,7 @@ This document describes the **schema/include-schema** type — a meta-schema var
 
 A **closed struct** with these fields: <!-- id:tVGElzcp -->
   - `ref` _(required)_ — `string` <!-- id:D463dhQz -->
-  - `properties` — map ⟨ \* : [schema](../schema.md) ⟩ <!-- id:oQTdp-P8 -->
-  - `required` — list of `string` <!-- id:AZCwRyR0 -->
+  - `properties` — map ⟨ \* : [property](./property.md) ⟩ <!-- id:oQTdp-P8 -->
   - `values` — [schema](../schema.md) <!-- id:MVaaagll -->
   - `items` — [schema](../schema.md) <!-- id:lNTdBWuJ -->
   - `name` — `string` <!-- id:ZtRPGk76 -->

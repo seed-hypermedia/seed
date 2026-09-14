@@ -1,7 +1,7 @@
 ---
 name: "RPC: GetCID"
 summary: "Fetches a raw IPFS block by CID and decodes it. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you p"
-schemaDefinition: ipfs://bafyreih6f4ucbuaa4t2wihxw72nvvmjezfnpa3r2kq75dbt6cmmcwdmcwy
+schemaDefinition: ipfs://bafyreie2larcshknelvltds2uoe7jxj55xap3neibsxi3ywifw3o3snxxq
 ---
 Fetches a raw IPFS block by CID and decodes it. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:KrdeFkDA -->
 
@@ -16,5 +16,5 @@ A **closed struct** with these fields: <!-- id:HzFHBpWO -->
 
 # Depends on <!-- id:ardnz0nd -->
 
-- [any](../schema/any.md) <!-- id:xxcRpn4k -->
-- [string](../schema/string.md) <!-- id:rLVe6evY -->
+- [any](../any.md) <!-- id:xxcRpn4k -->
+- [string](../string.md) <!-- id:rLVe6evY -->

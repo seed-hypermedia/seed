@@ -3467,7 +3467,7 @@ function DocumentSchemaSection({document, canEdit}: {document: HMDocument; canEd
  * saved onto the draft like any metadata change, and frozen into an IPFS blob at publish.
  */
 /**
- * The bundled library schema a document IS, by its path (`/schema/timestamp` → schema/timestamp,
+ * The bundled library schema a document IS, by its path (`/timestamp` → timestamp,
  * or a name the schema had before the folder reorganization), whatever version of the blob it
  * currently points at. Dependencies are computed over the bundled library, so this is what names them.
  */

@@ -17,15 +17,16 @@ they work on GitHub and become `hm://` links when published. Start at
 ## Layout
 
 Every page publishes at its path: `<path>.md` (with an optional
-`<path>.schema.json` beside it) is `/<path>`, so `schema/block/image.md` is
+`<path>.schema.json` beside it) is `/<path>`, so `block/image.md` is
 `/schema/block/image`. A folder's landing page sits beside the folder
 (`schema.md` is `/schema`, the meta-schema and the home of `schema/`).
 
 | path | what lives there |
 | --- | --- |
 | `index.md` | the home document |
-| root pages | the essential Hypermedia concepts (`change`, `ref`, `document`, `cid`, `url`, `hm-url`, `ipfs-url`, `authority`, …), and `schema`, the meta-schema, which is also the landing of `schema/`, plus the landings `schema`, `rpc`, `example` and `agent` |
-| `schema/` | the type system: its chapters, one page per term, the primitives and meta-schema variants, and the model's detail types (`block/`, `op/`, `query/`) |
+| root pages | the essential Hypermedia concepts (`change`, `ref`, `document`, `block`, `cid`, `authority`, …), the value types (`string`, `map`, `link`, `any`, `date`, `url`, `hm-url`, `ipfs-url`, …), and `schema`, the meta-schema, which is also the landing of `schema/`, plus the landings `schema`, `rpc`, `example` and `agent` |
+| `schema/` | the schema language: the meta-schema variants, its chapters, one page per term |
+| `block/`, `change/`, `query/`, `ref/`, `blob/`, `metadata/`, `contact/` | the detail types of a concept live beside it: the block model in `block/`, the ops in `change/op/`, the query language in `query/`, … |
 | `rpc/` | the Seed read API: one page per method, `rpc/method` (the union of them), and the read models in `rpc/type/` |
 | `example/` | the example schemas and instances, flat |
 | `doc/` | developer docs: publishing, the schema project's narrative (`doc/schema/`), the permissions investigation (`doc/permissions/`) |
@@ -111,7 +112,7 @@ actual schema. A **value** (an employee record like "bob") is not a type: it set
 
 **Base document.** Every typed document schema **extends**
 `hm://z6MkmZUb…/document` — a map of `{ metadata, content }` where
-`content` is the block-node tree ([`schema/block/node.json`](./schema/block/node.schema.json))
+`content` is the block-node tree ([`block/node.json`](./block/node.schema.json))
 and `metadata` is [`metadata.json`](./metadata.schema.json) (which
 carries the three fields above). A typed schema refines the nested `metadata`
 (e.g. requires an extra field) — see [`example/person-doc.json`](./example/person-doc.schema.json),

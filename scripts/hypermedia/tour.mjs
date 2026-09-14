@@ -67,7 +67,7 @@ const META_FILES = ["schema.schema.json", ...VARIANT_FILES];
 const isVariant = (f) => VARIANT_FILES.includes(f);
 
 // The primitive standard library: schema/<kind>.schema.json, each just { "type": <kind> }.
-const PRIMITIVE_FILES = KINDS.map((k) => fileOfName(`schema/${k}`)).filter((f) => SCHEMA_FILES.includes(f));
+const PRIMITIVE_FILES = KINDS.map((k) => fileOfName(k)).filter((f) => SCHEMA_FILES.includes(f));
 const isPrimitive = (f) => PRIMITIVE_FILES.includes(f);
 
 // Instances are data typed by a schema ({ $type, value }) — e.g. bob : employee.
@@ -76,9 +76,9 @@ const isInstance = (f) => INSTANCE_FILES.includes(f);
 
 // The Hypermedia Network's CBOR schemas (hm://seed.hyper.media/*), split into
 // document-content block types and everything else (the signed blobs).
-const isHypermedia = (f) => !f.includes("/") || f.startsWith("schema/");
-const BLOCK_EXTRA = new Set(["schema/block/children-type.schema.json", "schema/block/button-alignment.schema.json", "schema/block/embed-view.schema.json", "schema/block/annotation.schema.json"]);
-const isHypermediaBlock = (f) => f.startsWith("schema/block/") || BLOCK_EXTRA.has(f);
+const isHypermedia = (f) => !f.includes("/") || /^(block|change|ref|blob|metadata|contact|query)\//.test(f);
+const BLOCK_EXTRA = new Set(["block/children-type.schema.json", "block/button-alignment.schema.json", "block/embed-view.schema.json", "block/annotation.schema.json"]);
+const isHypermediaBlock = (f) => f.startsWith("block/") || BLOCK_EXTRA.has(f);
 // library types beyond the meta-schema and the nine kind primitives (e.g. hypermedia-any).
 const isLibrarySchema = (f) => f.startsWith("schema/") && !META_FILES.includes(f) && !isPrimitive(f);
 const primitiveKind = (f) => {
@@ -101,7 +101,7 @@ const metaTitle = (slug) => {
 // Wire each kind to its canonical primitive schema (schema/<kind>), so a kind
 // badge like `string` links to hypermedia-string. This is what the user browses to.
 const KIND_SCHEMA = {};
-for (const k of KINDS) if (SCHEMA_FILES.includes(`schema/${k}.schema.json`)) KIND_SCHEMA[k] = `schema/${k}`;
+for (const k of KINDS) if (SCHEMA_FILES.includes(`${k}.schema.json`)) KIND_SCHEMA[k] = k;
 
 // And each kind to the meta variant that *types* it (scalar/map/list/link-schema).
 const KIND_VARIANT = {};
@@ -346,7 +346,7 @@ const GRAPH = buildGraph();
 
 function graphSvg() {
   // Keep the home DAG to the meta-schema + examples: primitives (every schema
-  // refs schema/string), instances, and the ~29 hypermedia blobs are excluded
+  // refs string), instances, and the ~29 hypermedia blobs are excluded
   // here — their relationships show on each schema's Dependencies/Dependents.
   const nodes = GRAPH.nodes.filter((n) => !isPrimitive(fileOfName(n)) && !isInstance(fileOfName(n)) && !isHypermedia(fileOfName(n)) && !isLibrarySchema(fileOfName(n)));
   const edges = GRAPH.edges.filter((e) => nodes.includes(e.from) && nodes.includes(e.to));
@@ -569,7 +569,7 @@ function schemaPage(name) {
   const metaNote = isMeta
     ? `<div class="callout">This is the <strong>meta-schema</strong> — the discriminated union that describes what every Hypermedia schema is, <em>including itself</em>. It validates against its own <code>union</code> variant, whose <code>anyOf</code> items validate against its <code>include</code> variant. The loop closes. See <a href="/doc/references">the fixpoint discussion</a>.</div>`
     : isVariant(file)
-    ? `<div class="callout variant-note">A <strong>variant</strong> of the <a href="/schema/hypermedia-schema">meta-schema union</a> — one of the shapes a schema is allowed to take.</div>`
+    ? `<div class="callout variant-note">A <strong>variant</strong> of the <a href="/schema/schema">meta-schema union</a> — one of the shapes a schema is allowed to take.</div>`
     : "";
 
   const genericNote = schema.params
@@ -671,7 +671,7 @@ function docPage(slug) {
   const next = idx < TOUR.length - 1 ? TOUR[idx + 1] : null;
   const nav = `<div class="pager">
     ${prev ? `<a class="pg prev" href="/doc/${prev.slug}"><span>← previous</span>${esc(prev.title)}</a>` : `<a class="pg prev" href="/"><span>← back</span>Overview</a>`}
-    ${next ? `<a class="pg next" href="/doc/${next.slug}"><span>next →</span>${esc(next.title)}</a>` : `<a class="pg next" href="/schema/hypermedia-schema"><span>explore →</span>The meta-schema</a>`}
+    ${next ? `<a class="pg next" href="/doc/${next.slug}"><span>next →</span>${esc(next.title)}</a>` : `<a class="pg next" href="/schema/schema"><span>explore →</span>The meta-schema</a>`}
   </div>`;
   return { title: d.title, body: `<article class="doc">${html}</article>${nav}` };
 }
