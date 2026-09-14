@@ -1,5 +1,5 @@
 ---
-name: "Example: App block (extended core)"
+name: "Example: App Block (Extended Core)"
 summary: "How a third party extends the block model: the union of Hypermedia's core blocks PLUS their own custom blocks (here, a Poll). Strict — it accepts core blocks an"
 schemaDefinition: ipfs://bafyreibnagvumgasfvnvqruqgtcpfsib6iq5bckxionzh77ypoq2qxl5eu
 ---

@@ -1,7 +1,7 @@
 ---
 name: Character
 summary: "A world-builder kit type: a page about a character. Extends the base document; its metadata requires a `born` date and a `role`, and links the character to a ho"
-schemaDefinition: ipfs://bafyreid44lmzbik26yebmodjueha3g3ex26a2pu3xgatawisyy5m5aiql4
+schemaDefinition: ipfs://bafyreiggijaqnnl5gc2r5sofyjifv2k72axfq63jwumuvsx46hyh3ztp3m
 ---
 A world-builder kit type: a page about a character. Extends the base document; its metadata requires a `born` date and a `role`, and links the character to a home place, a faction, a portrait file, and a stats object (an `ipfs://` object that must conform to `example/stats`). `notes` is an untyped object link — any DAG-CBOR value. <!-- id:QPklbVhv -->
 
@@ -17,15 +17,15 @@ This document describes the **example/character-doc** type — an example schema
   - `role` _(required)_ — [string](../schema/string.md) (one of `hero`, `villain`, `ally`, `neutral`) <!-- id:T6HNkFTq -->
   - `home` — [hm-url](../hm-url.md) (→ must conform to [example/place-doc](./place-doc.md)) <!-- id:JXWL2Q9D -->
   - `faction` — [hm-url](../hm-url.md) (→ must conform to [example/faction-doc](./faction-doc.md)) <!-- id:zCsjF9s1 -->
-  - `portrait` — [schema/ipfs](../schema/ipfs.md) <!-- id:m1jXdIZe -->
-  - `stats` — [schema/ipfs](../schema/ipfs.md) (→ must conform to [example/stats](./stats.md)) <!-- id:DersQtST -->
-  - `notes` — [schema/ipfs](../schema/ipfs.md) <!-- id:6MxBywUM -->
+  - `portrait` — [ipfs-url](../ipfs-url.md) <!-- id:m1jXdIZe -->
+  - `stats` — [ipfs-url](../ipfs-url.md) (→ must conform to [example/stats](./stats.md)) <!-- id:DersQtST -->
+  - `notes` — [ipfs-url](../ipfs-url.md) <!-- id:6MxBywUM -->
 
 # Depends on <!-- id:wfF6wZQt -->
 
 - [document](../document.md) <!-- id:W6EghLGO -->
 - [hm-url](../hm-url.md) <!-- id:pjGd9151 -->
-- [schema/ipfs](../schema/ipfs.md) <!-- id:_5Lorpsh -->
+- [ipfs-url](../ipfs-url.md) <!-- id:_5Lorpsh -->
 - [metadata](../metadata.md) <!-- id:JXfDl0-Y -->
 - [date](../schema/date.md) <!-- id:d2oM-6Id -->
 - [string](../schema/string.md) <!-- id:eAML1B3O -->

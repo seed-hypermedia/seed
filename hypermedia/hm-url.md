@@ -1,5 +1,5 @@
 ---
-name: HM link
+name: Resource URL
 summary: "A reference to a Hypermedia document, held as an `hm://` URL string. `format: hm-url` tells an editor to render it as a searchable reference that displays the t"
 schemaDefinition: ipfs://bafyreicnzwaxpptqcxkqdfibs6sxjztqbmo3acukiblv47ugmjumva7cee
 ---

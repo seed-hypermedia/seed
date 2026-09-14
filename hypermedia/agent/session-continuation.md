@@ -1,5 +1,5 @@
 ---
-name: Session continuation
+name: Session Continuation
 summary: Seed never compacts a conversation by replacing its early history with a summary. When a transcript stops being the right working context — the user changed…
 ---
 <!-- id:dZ2yQFiR -->

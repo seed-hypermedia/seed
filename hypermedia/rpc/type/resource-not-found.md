@@ -1,5 +1,5 @@
 ---
-name: "Resource: not-found"
+name: "Resource: Not Found"
 summary: A resource id that resolved to nothing. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
 schemaDefinition: ipfs://bafyreih7dbmpjpfnv6cxefo4vpbqxtozb7keel4wzawqhh5tllswb6q35m
 ---

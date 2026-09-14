@@ -1,5 +1,5 @@
 ---
-name: Implementation history
+name: Implementation History
 summary: This document summarizes the recent commits that built the Agents feature. Keep it updated when a new milestone lands so future agents can reconstruct why…
 ---
 This document summarizes the recent commits that built the Agents feature. Keep it updated when a new milestone lands so future agents can reconstruct why the system looks the way it does. <!-- id:FZZdraTx -->

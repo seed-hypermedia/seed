@@ -1,5 +1,5 @@
 ---
-name: "User stories: typed documents and blobs"
+name: "User Stories: Typed Documents and Blobs"
 summary: What a person should be able to do with schemas through the Seed app, the CLI, and an agent — the precise steps to do and test each story on every surface.
 ---
 These are the things a person should be able to do with the type system, stated as stories. Each story says what the person wants, then the exact steps on each of the three surfaces: the **Seed app** (desktop and web), the **CLI** (`seed-cli`, run from source with `bun run src/index.ts` in `frontend/apps/cli`, or `npx -y @seed-hypermedia/cli`), and an **agent** (the `read` and `write` tools of [Seed Agents](../../agent.md)). Each set of steps is also the test for that surface: follow it and check the stated result. Every story ends with where each surface stands (all now **works**), and a closing section says which steps are automated and which are guided manual tests. The model underneath is explained in [typed documents](../../schema/typed-documents.md); the vocabulary in [the schema language](../../schema/schema-language.md). <!-- id:0uMy7lU9 -->
@@ -109,7 +109,7 @@ These are the things a person should be able to do with the type system, stated 
   3. `document create -f person.md -p types/person --schema-definition person.schema.json` publishes the page and the schema blob together, in one command, and binds them; `document update … --schema-definition` rebinds an existing page. <!-- id:gQHfxmM2 -->
 
 **Through an agent** <!-- id:t6nL0N72 -->
-  1. `write ipfs://` with the schema as JSON `content` and `options: {schema: "schema/meta-schema"}` validates it against the meta-schema and publishes the schema blob, returning its CID. Then `write hm://<acct>/types/person` with `options: {name: "Person", metadata: {schemaDefinition: "ipfs://<cid>"}}` binds the blob to a type page. A `schemaDefinition` that is not a valid schema comes back as a `warning`. <!-- id:sC-PJ9DS -->
+  1. `write ipfs://` with the schema as JSON `content` and `options: {schema: "schema"}` validates it against the meta-schema and publishes the schema blob, returning its CID. Then `write hm://<acct>/types/person` with `options: {name: "Person", metadata: {schemaDefinition: "ipfs://<cid>"}}` binds the blob to a type page. A `schemaDefinition` that is not a valid schema comes back as a `warning`. <!-- id:sC-PJ9DS -->
 
 **Status.** App: works. CLI: works. Agent: works. <!-- id:aqx-CCxc -->
 
@@ -146,7 +146,7 @@ These are the things a person should be able to do with the type system, stated 
   1. A schema whose root is `{"ref": "hm://<library>/hypermedia-blob", "properties": {"type": {"value": "Vote", "required": true}, …}}`, published as a type page with `document create --schema-definition vote.schema.json` or beside its page with `space import`, as in story 5. <!-- id:SsUIQT9- -->
 
 **Through an agent** <!-- id:2OweK2rk -->
-  1. Same as story 5, with a schema whose root is `{"ref": "hm://<library>/hypermedia-blob", "properties": {"type": {"value": "Vote", "required": true}, …}}`: `write ipfs://` with `options: {schema: "schema/meta-schema"}` publishes the signed type's schema blob, then a `write hm://…/types/vote` with `metadata.schemaDefinition` binds it. <!-- id:21O_MRe- -->
+  1. Same as story 5, with a schema whose root is `{"ref": "hm://<library>/hypermedia-blob", "properties": {"type": {"value": "Vote", "required": true}, …}}`: `write ipfs://` with `options: {schema: "schema"}` publishes the signed type's schema blob, then a `write hm://…/types/vote` with `metadata.schemaDefinition` binds it. <!-- id:21O_MRe- -->
 
 **Status.** App: works. CLI: works. Agent: works. <!-- id:wJjSs4ZM -->
 

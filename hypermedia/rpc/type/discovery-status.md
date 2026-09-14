@@ -1,5 +1,5 @@
 ---
-name: Discovery status
+name: Discovery Status
 summary: "The state of a background discovery task for a resource: pending, found (with the resolved version), or failed (with the error). A derived read model computed b"
 schemaDefinition: ipfs://bafyreiemlh7smxwfxspq3wsscbsvpxpvcwd7xaglcclfyxhoydagamqpiy
 ---

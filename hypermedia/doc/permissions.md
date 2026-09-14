@@ -1,5 +1,5 @@
 ---
-name: Hypermedia Permissions System
+name: Permissions System
 summary: A permissions redesign taken seriously - the original idea, its adversarial review against the real codebase, and the rebuilt design where everything is a grant.
 displayAuthor: Eric Vicenti
 ---

@@ -1,5 +1,5 @@
 ---
-name: External comment group
+name: External Comment Group
 summary: A comment thread from ANOTHER document that cites this one, with its target's metadata payload. A derived read model computed by the Seed daemon/API for clients
 schemaDefinition: ipfs://bafyreifw3yvzjthoakutxf57ix4mhgiiwkefkkyckmpo2bqp3xv7syyl7u
 ---

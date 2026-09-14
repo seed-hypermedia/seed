@@ -1,5 +1,5 @@
 ---
-name: "Checkmark review — M2: tools as documents (harness/02-tools-as-docs)"
+name: "Checkmark Review — M2: Tools as Documents (harness/02-tools-as-docs)"
 summary: "Status: verified — ready for Eric's review. (Local commits only; not pushed.)"
 ---
 Status: **verified — ready for Eric's review.** (Local commits only; not pushed.) <!-- id:UqD2Stme -->

@@ -287,7 +287,7 @@ if (schemaArg && dataArg) {
 }
 
 let failed = 0;
-const meta = load("schema/meta-schema.schema.json");
+const meta = load("schema.schema.json");
 
 // dag-json constructors for test data
 const cid = (s) => ({ "/": s });

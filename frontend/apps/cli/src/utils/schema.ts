@@ -42,7 +42,7 @@ export {hasSignedEnvelope, principalToPublicKey, verifySignedBlob}
 export type {SignatureCheck}
 
 /** The meta-schema: what every schema must validate against. */
-export const META_SCHEMA: HypermediaSchema = HM_SCHEMAS['hypermedia-schema']!
+export const META_SCHEMA: HypermediaSchema = HM_SCHEMAS['schema']!
 
 export type LoadedSchema = {
   schema: HypermediaSchema

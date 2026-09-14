@@ -34,7 +34,7 @@
           },
           "banner": {
             "value": {
-              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/ipfs"
+              "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/ipfs-url"
             },
             "description": "A banner or crest image file on IPFS."
           }

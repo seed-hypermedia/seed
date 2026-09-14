@@ -1,5 +1,5 @@
 ---
-name: Paragraph block
+name: Paragraph Block
 summary: A paragraph of rich text with annotations.
 schemaDefinition: ipfs://bafyreic6atyk6x2tnsbg67vcih5srjy5audlc6izyizkzgyi2qt2kw7jcu
 ---

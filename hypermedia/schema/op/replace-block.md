@@ -1,5 +1,5 @@
 ---
-name: ReplaceBlock op
+name: ReplaceBlock Op
 summary: Replace the content of a block.
 schemaDefinition: ipfs://bafyreibbtsmff4i7pyqxu3iyhzycez26rsy36f6vgkl22uvpn4gkahzmhq
 ---

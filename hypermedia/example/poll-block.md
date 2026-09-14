@@ -1,5 +1,5 @@
 ---
-name: "Example: Poll block (custom)"
+name: "Example: Poll Block (Custom)"
 summary: "An example third-party block type: a poll with a question and options. It extends the shared block base, exactly like a core block."
 schemaDefinition: ipfs://bafyreia6ia32bkvhwluizoefq5u665apisom6qdpehf4cfnm2t73bgvxpi
 ---

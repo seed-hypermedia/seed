@@ -39,7 +39,7 @@ In this repo, references are **file names** because humans edit files. When sche
 
 ## The beautifully meta part — and its fixpoint <!-- id:NqDWNSWI -->
 
-Here is the twist that makes the meta-schema fold in on itself. The meta-schema refers back to itself — now through its variants. `schema/meta-schema` is `{ anyOf: [ …refs to the variants… ] }`, and each variant (e.g. `schema/map-schema`) contains `{ "ref": "schema/meta-schema" }`. So `schema/meta-schema` → variant → `schema/meta-schema` is a **cycle**, and after the transform some `ref` in that cycle must become the CID _of a block whose bytes are still being determined_. <!-- id:21u8uWpR -->
+Here is the twist that makes the meta-schema fold in on itself. The meta-schema refers back to itself — now through its variants. `schema` is `{ anyOf: [ …refs to the variants… ] }`, and each variant (e.g. `schema/map-schema`) contains `{ "ref": "schema" }`. So `schema` → variant → `schema` is a **cycle**, and after the transform some `ref` in that cycle must become the CID _of a block whose bytes are still being determined_. <!-- id:21u8uWpR -->
 
 But a CID is the hash of the block's bytes — and those bytes now have to contain that same CID. **You cannot compute it.** Finding content whose hash appears inside that very content is finding a hash preimage; it is computationally infeasible by design. A block genuinely cannot embed its own CID, and a reference cycle cannot be content-addressed in any order — no block in the cycle can be encoded first. <!-- id:HnmaGrbq -->
 

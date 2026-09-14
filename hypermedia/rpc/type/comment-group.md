@@ -1,5 +1,5 @@
 ---
-name: Comment group
+name: Comment Group
 summary: A thread of comments grouped for display, with a count of elided replies. A derived read model computed by the Seed daemon/API for clients — not a signed networ
 schemaDefinition: ipfs://bafyreiflj7w3knk5ppd7yiwvxvk4jihuqgjfsmf3a3efff2ot45skm6x7i
 ---

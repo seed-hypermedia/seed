@@ -1,5 +1,5 @@
 ---
-name: Capability (payload)
+name: Capability (Payload)
 summary: "A capability as the API returns it: who was granted which role on which grant id. A derived read model computed by the Seed daemon/API for clients — not a signe"
 schemaDefinition: ipfs://bafyreidwgka2oud4gz7pwgk4vgkdc7mw3tlv7eklmw462vjshruen4sf7e
 ---

@@ -1,5 +1,5 @@
 ---
-name: "Example: JSON value"
+name: "Example: JSON Value"
 summary: "A recursive JSON value: null, boolean, number, string, list, or map. References itself."
 schemaDefinition: ipfs://bafyreiazv5ertjl7wdky3kuh5aat7kihwcri4vh7kvm3rtvmnn3oaegjg4
 ---

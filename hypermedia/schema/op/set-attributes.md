@@ -1,5 +1,5 @@
 ---
-name: SetAttributes op
+name: SetAttributes Op
 summary: Set attributes on a block, or document-level metadata when block is empty.
 schemaDefinition: ipfs://bafyreihl6zkgyyfhyes7hyk6qj7vxivbcmqecl2rjtnpx33sxwxjdok7mq
 ---

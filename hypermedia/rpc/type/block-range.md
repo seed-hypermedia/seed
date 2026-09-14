@@ -1,5 +1,5 @@
 ---
-name: Block range
+name: Block Range
 summary: "A selection within a block: either character offsets (start/end) or the whole block expanded. A derived read model computed by the Seed daemon/API for clients —"
 schemaDefinition: ipfs://bafyreicoh2wkegmbtyd3hv7yr6oc6ndkbzh76fzuqudd7whmmpahexrmay
 ---

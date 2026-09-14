@@ -1,8 +1,13 @@
 ---
-name: Hypermedia Schemas
-summary: A self-describing type system for content-addressed data — how to browse, author, and validate schemas in the Seed app, plus the full reference documentation.
+name: Schema
+summary: "The meta-schema: a discriminated union of the shapes a schema can take, and a valid instance of itself — how to browse, author and validate schemas in the Seed app, plus the full reference documentation."
+schemaDefinition: ipfs://bafyreieroepmqw34dvcpgcusakgkl7c2rh4pyrfdfnyuofor3snuk5aiku
 ---
-**Hypermedia Schemas** — the self-describing type system defined in this directory. <!-- id:KM38ltwU -->
+**Schema** — a value of kind `map` that constrains other values, written with the twelve-key vocabulary — or a bare literal (`"draft"`, `1`, `true`, `null`) that accepts exactly one value. Every schema is itself typed by the meta-schema, and is one of the meta-schema's variants. <!-- id:OzcV9e2b -->
+
+**Meta-schema** — `schema`: the schema that describes what a schema is. A **discriminated union** of nine map variants and the four literal kinds; a valid instance of itself, and the system's axiom — the one block whose type is known out of band. <!-- id:bXl0LFcD -->
+
+This document describes the **schema** type — the meta-schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:y93xpe-t -->
 
 **A self-describing type system for content-addressed data.** Hypermedia Schemas type the IPLD / DAG-CBOR values that Hypermedia blocks are built from. A schema is itself a DAG-CBOR block on IPFS, so schemas reference other schemas the same way data references data — and the schema that describes what a schema is validates as an instance of itself. <!-- id:YSBcigax -->
 
@@ -31,7 +36,7 @@ The schema features live behind **Developer Mode** (Settings → Developers on d
 
 ## Browse the schemas <!-- id:aRoEaieX -->
 
-Every schema is a page of this site (start at [the meta-schema](./schema/meta-schema.md)), and in the app any schema blob opens in the schema browser at `/hm/schema/<cid>`. For the whole library on one local site, `node scripts/hypermedia/tour.mjs` serves the tour, a browsable view of the whole type system: <!-- id:vbG_WGq1 -->
+Every schema is a page of this site (start at [the meta-schema](./schema.md)), and in the app any schema blob opens in the schema browser at `/hm/schema/<cid>`. For the whole library on one local site, `node scripts/hypermedia/tour.mjs` serves the tour, a browsable view of the whole type system: <!-- id:vbG_WGq1 -->
   - A catalog of every schema, grouped into the meta-schema, primitives, examples, and the Hypermedia network's real blob schemas. <!-- id:Ic9Qwwbd -->
   - Each schema renders as a page: its fields (with kinds and required/optional), union variants, extension (inherited vs added fields), generic parameters, its published `hm://` URL and CID, and its source `dag-json`. <!-- id:K_Hww_2j -->
   - **Every reference is a link.** Types are documents: click a field's type, a dependency, or an `hm://` value in the source to navigate to that schema. Each page also lists what it _depends on_ and what _depends on it_. <!-- id:U8TGynZc -->
@@ -73,11 +78,40 @@ The concepts, in reading order: <!-- id:MLxtm7My -->
 
 The library ships a dependency-free reference validator that proves the meta-schema describes itself, validates every schema against it, and confirms the union _rejects_ malformed schemas; a deterministic publisher that hashes each schema to its DAG-CBOR CID; a TypeScript generator that turns every schema into a TS type (maps become interfaces, enums become literal unions, extension becomes intersection, and `Change<Block>` becomes a real TS generic); and a schema explorer that renders every schema as a page. That same validator is ported into the Seed app, so the in-app tour and editors can never disagree with the reference oracle. <!-- id:-VNyXPT9 -->
 
+# Shape <!-- id:4QWuviLU -->
+
+A **union** — a value matches one of these variants: <!-- id:r_pDx306 -->
+  - [map-schema](./schema/map-schema.md) <!-- id:8o35KJdz -->
+  - [list-schema](./schema/list-schema.md) <!-- id:Q3vpoo1- -->
+  - [scalar-schema](./schema/scalar-schema.md) <!-- id:XcNAJyGU -->
+  - [link-schema](./schema/link-schema.md) <!-- id:vq_S_Dm7 -->
+  - [include-schema](./schema/include-schema.md) <!-- id:ZjHtnpFj -->
+  - [union-schema](./schema/anyof.md) <!-- id:n9qz4ea3 -->
+  - [var-schema](./schema/var-schema.md) <!-- id:VY7nFwdc -->
+  - [literal-schema](./schema/literal-schema.md) <!-- id:KZ3BNjsi -->
+  - [string](./schema/string.md) — a bare string is a literal schema <!-- id:yqpTFSKq -->
+  - [integer](./schema/integer.md) — a bare integer is a literal schema <!-- id:c3PPOXHO -->
+  - [boolean](./schema/boolean.md) — a bare boolean is a literal schema <!-- id:-cxXCWv7 -->
+  - [null](./schema/null.md) — null is a literal schema <!-- id:6_sGlZ9l -->
+
+# Depends on <!-- id:_7aiQPhA -->
+
+- [boolean](./schema/boolean.md) <!-- id:ReFegJmw -->
+- [include-schema](./schema/include-schema.md) <!-- id:sgBDWijw -->
+- [integer](./schema/integer.md) <!-- id:xEEWZo_C -->
+- [link-schema](./schema/link-schema.md) <!-- id:A4p8bq5A -->
+- [list-schema](./schema/list-schema.md) <!-- id:wC1FNIlK -->
+- [literal-schema](./schema/literal-schema.md) <!-- id:7GZkoLpS -->
+- [map-schema](./schema/map-schema.md) <!-- id:G0zPLoYK -->
+- [null](./schema/null.md) <!-- id:DOl7wGGz -->
+- [scalar-schema](./schema/scalar-schema.md) <!-- id:6GlNvB4Q -->
+- [string](./schema/string.md) <!-- id:wRRFFgG5 -->
+- [union-schema](./schema/anyof.md) <!-- id:GFJNvn_u -->
+- [var-schema](./schema/var-schema.md) <!-- id:hRHhpE13 -->
+
 # Terms <!-- id:g0hNqX_Z -->
 
 - [Kind](./schema/kind.md) <!-- id:jAaKSJhR -->
-- [Schema](./schema/schema.md) <!-- id:61YrsfMv -->
-- [Meta-schema](./schema/meta-schema.md) <!-- id:C1_LEUzS -->
 - [Discriminated union](./schema/discriminated-union.md) <!-- id:J59mZ_xm -->
 - [Variant](./schema/variant.md) <!-- id:U_8ZZLK1 -->
 - [`anyOf`](./schema/anyof.md) <!-- id:OEIBJ8uy -->

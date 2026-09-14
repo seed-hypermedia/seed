@@ -66,7 +66,7 @@ const isInstance = (s) => !!(s && s.$type && 'value' in s)
 const isPrimitive = (name) => [...KINDS, 'any'].map((k) => `schema/${k}`).includes(name)
 const META_VARIANTS = ['schema/anyof', 'schema/literal-schema', 'schema/property']
 const isMeta = (name) =>
-  name === 'schema/meta-schema' ||
+  name === 'schema' ||
   META_VARIANTS.includes(name) ||
   (name.startsWith('schema/') && name.endsWith('-schema'))
 
@@ -126,7 +126,7 @@ function refinements(node) {
 
 function category(name, s) {
   if (isInstance(s)) return 'instance'
-  if (name === 'schema/meta-schema') return 'the meta-schema'
+  if (name === 'schema') return 'the meta-schema'
   if (isMeta(name)) return 'a meta-schema variant'
   if (isPrimitive(name)) return 'a primitive'
   if (name.startsWith('rpc/'))

@@ -1,5 +1,5 @@
 ---
-name: Embed view
+name: Embed View
 summary: "How an Embed block renders its target: Content, Card, Comments, or Link."
 schemaDefinition: ipfs://bafyreiakvbosqv7cyvhaetqpcdgjok3tr2fabqov3kl42f2vdiqvc75e2e
 ---

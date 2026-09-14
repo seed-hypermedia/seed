@@ -1,5 +1,5 @@
 ---
-name: The Schema Language
+name: Schema Language
 summary: The full schema vocabulary — closed maps, unions, generics, extension, and how the meta-schema describes itself.
 ---
 # The schema language <!-- id:yngrdImL -->
@@ -150,7 +150,7 @@ The parameter threads through references (each level passes it down with `args`)
 
 ## How the language describes itself <!-- id:zWshFjlg -->
 
-This is the crux, and with unions it is sharper than "a loose map with optional keys." `schema/meta-schema` is a **discriminated union of nine variants** — the nine map shapes a schema can take — plus the four bare kinds a literal can be: <!-- id:lI_lySSK -->
+This is the crux, and with unions it is sharper than "a loose map with optional keys." `schema` is a **discriminated union of nine variants** — the nine map shapes a schema can take — plus the four bare kinds a literal can be: <!-- id:lI_lySSK -->
 
 <!-- id:yZg8-sNO -->
 | variant <!-- col:kO3_qHrQ --> | matches <!-- col:rCN3fgm3 --> | discriminant <!-- col:zzQn7svL --> <!-- id:4VFkvrKJ --> |
@@ -175,7 +175,7 @@ node validate.mjs
 
 ### Why it still closes the loop — and deepens it <!-- id:cAg3Oszt -->
 
-`schema/meta-schema` is `{ "anyOf": [ …thirteen refs… ] }`. Validate it against itself: <!-- id:Gjr5KNDl -->
+`schema` is `{ "anyOf": [ …thirteen refs… ] }`. Validate it against itself: <!-- id:Gjr5KNDl -->
   1. It matches the **`schema/anyof`** variant (it has an `anyOf` that is a list of schemas). <!-- id:deE1RQMk -->
   2. Each item in that `anyOf` is a bare `{ref: …}`, which matches the **`schema/include-schema`** variant. <!-- id:yYBUIRiY -->
   3. Each variant file (e.g. `schema/map-schema`) is itself a `{type:"struct", …}`, which matches the **`schema/struct-schema`** variant. <!-- id:3RbdlEZc -->
@@ -186,11 +186,11 @@ Note the standing of `type`. Nothing defines the string `"map"`; a variant just 
 
 ## The proof is executable <!-- id:pnI1No8b -->
 
-`validate.mjs` validates `schema/meta-schema` against itself, every variant against the union, and confirms the union _rejects_ malformed schemas. It is not prose; it is a check you can run: <!-- id:R4Z6LPtc -->
+`validate.mjs` validates `schema` against itself, every variant against the union, and confirms the union _rejects_ malformed schemas. It is not prose; it is a check you can run: <!-- id:R4Z6LPtc -->
 
 ```sh <!-- id:PxteeEDG -->
 node validate.mjs
-#   ok   schema/meta-schema.json describes itself
+#   ok   schema.json describes itself
 #   ok   schema/map-schema.json is a valid schema
 #   ...
 #   ok   rejects a string-that-is-also-a-list-and-struct (rejected)

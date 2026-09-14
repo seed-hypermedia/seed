@@ -1,5 +1,5 @@
 ---
-name: "Resource: comment"
+name: "Resource: Comment"
 summary: A resolved resource that is a comment. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
 schemaDefinition: ipfs://bafyreigzozebkskomdqqxtyrrythr2ixui4rn77eqopfqst4cukqnnj5nm
 ---

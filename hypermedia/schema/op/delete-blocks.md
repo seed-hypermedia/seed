@@ -1,5 +1,5 @@
 ---
-name: DeleteBlocks op
+name: DeleteBlocks Op
 summary: Delete blocks by id.
 schemaDefinition: ipfs://bafyreid2bb3pv6dtrydwwbi76lk6slqvth6krgzc6fo2w2k3zud7abpv5m
 ---

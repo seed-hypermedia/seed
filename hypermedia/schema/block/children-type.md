@@ -1,5 +1,5 @@
 ---
-name: Children type
+name: Children Type
 summary: "How a block's children are laid out: Group (default), Ordered, Unordered, Blockquote, or Grid."
 schemaDefinition: ipfs://bafyreicwrtydbhkkkoun5ynp4a3mzkmy6ma7svg4zgtmqajivqvw33ohoa
 ---
