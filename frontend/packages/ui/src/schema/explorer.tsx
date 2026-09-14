@@ -7,7 +7,7 @@
 // documents: clicking a reference navigates to that schema.
 
 import {ChevronRight} from 'lucide-react'
-import {createContext, useContext, useState} from 'react'
+import {createContext, Fragment, useContext, useState} from 'react'
 import {HM_SCHEMA_PAGES} from './schema-registry.generated'
 import {useSchemaRegistry} from './schema-registry-cid'
 import {isSignedBlobSchema} from './signed-blob'
@@ -238,7 +238,7 @@ function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React
           <SchemaRef node={node.values} nav={nav} /> <span className="text-muted-foreground">⟩</span>
         </span>
       )
-    return <KindBadge kind="map" nav={nav} />
+    return <KindBadge kind={k} nav={nav} />
   }
   if (k)
     return (
@@ -334,21 +334,33 @@ export function DepLists({name, nav}: {name: string; nav: (slug: string) => void
   )
 }
 
+/**
+ * The inline struct a field's schema spells out — its own `properties`, directly or as the items
+ * of a list — so the fields table can expand it in place. A named type (a `ref`) is a link instead.
+ */
+function inlineStruct(node: any): HypermediaSchema | null {
+  if (!node || typeof node !== 'object' || node.anyOf) return null
+  if (node.type && kindOf(node.type) === 'list') return inlineStruct(node.items)
+  const k = node.type ? kindOf(node.type) : null
+  if ((k === 'struct' || k === 'map') && node.properties && typeof node.properties === 'object') return node
+  return null
+}
+
 function FieldsTable({
   fields,
   origins,
   nav,
+  nested,
 }: {
   fields: StructField[]
   origins?: Record<string, 'added' | 'inherited'>
   nav: (slug: string) => void
+  /** Rendered beneath a parent field: no header row of its own. */
+  nested?: boolean
 }) {
-  const required = new Set(fields.filter((f) => f.required).map((f) => f.name))
-  const properties = Object.fromEntries(fields.map((f) => [f.name, f.schema]))
-  const descriptions = Object.fromEntries(fields.filter((f) => f.description).map((f) => [f.name, f.description!]))
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+  const table = (
+    <table className="w-full text-sm">
+      {!nested && (
         <thead>
           <tr className="border-border text-muted-foreground border-b text-left text-xs">
             <th className="py-1 pr-4 font-medium">field</th>
@@ -356,36 +368,58 @@ function FieldsTable({
             <th className="py-1 font-medium">{origins ? 'origin' : ''}</th>
           </tr>
         </thead>
-        <tbody>
-          {Object.entries(properties).map(([k, v]) => (
-            <tr key={k} className="border-border/50 border-b last:border-0">
-              <td className="py-1.5 pr-4 font-mono">
-                {k}
-                {descriptions[k] && (
-                  <div className="text-muted-foreground max-w-md font-sans text-xs font-normal">{descriptions[k]}</div>
-                )}
-              </td>
-              <td className="py-1.5 pr-4">
-                <SchemaRef node={v} nav={nav} />
-              </td>
-              <td className="py-1.5 text-xs">
-                {origins ? (
-                  <span className={origins[k] === 'added' ? 'text-primary font-medium' : 'text-muted-foreground'}>
-                    {origins[k]}
-                    {required.has(k) ? ' ·req' : ''}
-                  </span>
-                ) : required.has(k) ? (
-                  <span className="text-primary font-medium">required</span>
-                ) : (
-                  <span className="text-muted-foreground">optional</span>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+      )}
+      <tbody>
+        {fields.map((f) => {
+          const sub = inlineStruct(f.schema)
+          return (
+            <Fragment key={f.name}>
+              <tr className={cn('border-border/50', !sub && 'border-b last:border-0')}>
+                <td className="py-1.5 pr-4 align-top font-mono">
+                  {f.name}
+                  {f.description && (
+                    <div className="text-muted-foreground max-w-md font-sans text-xs font-normal">{f.description}</div>
+                  )}
+                </td>
+                <td className="py-1.5 pr-4 align-top">
+                  <SchemaRef node={f.schema} nav={nav} />
+                </td>
+                <td className="py-1.5 align-top text-xs">
+                  {origins ? (
+                    <span
+                      className={origins[f.name] === 'added' ? 'text-primary font-medium' : 'text-muted-foreground'}
+                    >
+                      {origins[f.name]}
+                      {f.required ? ' ·req' : ''}
+                    </span>
+                  ) : f.required ? (
+                    <span className="text-primary font-medium">required</span>
+                  ) : (
+                    <span className="text-muted-foreground">optional</span>
+                  )}
+                </td>
+              </tr>
+              {sub && (
+                <tr className="border-border/50 border-b last:border-0" data-testid={`schema-nested-fields-${f.name}`}>
+                  <td colSpan={3} className="pb-2 pl-4">
+                    <div className="border-border border-l pl-3">
+                      <FieldsTable fields={structFields(sub)} nav={nav} nested />
+                      {sub.values !== undefined && (
+                        <p className="text-muted-foreground py-1 text-xs">
+                          other fields: <SchemaRef node={sub.values} nav={nav} />
+                        </p>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </Fragment>
+          )
+        })}
+      </tbody>
+    </table>
   )
+  return nested ? table : <div className="overflow-x-auto">{table}</div>
 }
 
 function Callout({tone = 'note', children}: {tone?: 'note' | 'meta'; children: React.ReactNode}) {
