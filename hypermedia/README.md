@@ -72,7 +72,7 @@ documents bind to it.** [schema.md](./schema.md) is the published guide; the
 reference chapters are [data-model.md](./schema/data-model.md),
 [schema-language.md](./schema/schema-language.md), [references.md](./schema/references.md),
 [encoding.md](./schema/encoding.md), [example.md](./example.md),
-[hypermedia.md](./hypermedia.md) and [design.md](./doc/schema/design.md), and
+[blobs.md](./schema/blobs.md) and [design.md](./doc/schema/design.md), and
 every term has its own page (listed under Terms in [schema.md](./schema.md)).
 What follows is the engineering detail behind them.
 
