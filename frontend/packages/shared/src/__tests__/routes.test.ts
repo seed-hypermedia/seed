@@ -371,6 +371,10 @@ describe('navRouteSchema', () => {
     expect(navRouteSchema.parse({key: 'query-documents'})).toEqual({key: 'query-documents'})
   })
 
+  test('rejects the removed deleted-content route', () => {
+    expect(navRouteSchema.safeParse({key: 'deleted-content'}).success).toBe(false)
+  })
+
   test('parses the graph inspector tab', () => {
     expect(navRouteSchema.parse({key: 'inspect', id: testDocId, inspectTab: 'graph'})).toEqual({
       key: 'inspect',

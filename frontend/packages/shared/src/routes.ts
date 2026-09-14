@@ -330,11 +330,6 @@ export const siteSettingsEmailsRouteSchema = z.object({
 })
 export type SiteSettingsEmailsRoute = z.infer<typeof siteSettingsEmailsRouteSchema>
 
-export const deletedContentRouteSchema = z.object({
-  key: z.literal('deleted-content'),
-})
-export type DeletedContentRoute = z.infer<typeof deletedContentRouteSchema>
-
 /** Route schema for the desktop Agents page. */
 export const agentsRouteSchema = z.object({
   key: z.literal('agents'),
@@ -442,7 +437,6 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   draftRebaseRouteSchema,
   bookmarksSchema,
   draftsSchema,
-  deletedContentRouteSchema,
   agentsRouteSchema,
   agentServerRouteSchema,
   agentRouteSchema,

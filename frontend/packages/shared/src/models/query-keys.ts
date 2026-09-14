@@ -75,7 +75,6 @@ export const queryKeys = {
   SEARCH: 'SEARCH', //, perspectiveAccountUid: string|null, accountUid: string|null, query: string
 
   // deleted content
-  DELETED: 'deleted',
 
   // subscriptions
   SUBSCRIPTIONS: 'SUBSCRIPTIONS',

@@ -51,7 +51,6 @@ var Document = lazy(() => import('./desktop-resource'))
 var Feed = lazy(() => import('./desktop-feed'))
 var InspectResource = lazy(() => import('./inspect-resource'))
 var InspectIpfs = lazy(() => import('./inspect-ipfs'))
-var DeletedContent = lazy(() => import('./deleted-content'))
 var ApiInspector = lazy(() => import('./api-inspector'))
 var QueryDocuments = lazy(() => import('./query-documents'))
 var Explore = lazy(() => import('./explore'))
@@ -228,15 +227,6 @@ export default function Main({className}: {className?: string}) {
           </Suspense>
         </ErrorBoundary>
       </div>
-    )
-  } else if (windowType === 'deleted-content') {
-    titlebar = (
-      <TitlebarWrapper className="bg-background h-6 min-h-6 dark:bg-black">
-        <div className="window-drag flex w-full items-center justify-center">
-          <TitleText className="text-center font-bold">Review Deleted Content</TitleText>
-          {platform !== 'darwin' && <WindowClose />}
-        </div>
-      </TitlebarWrapper>
     )
   }
 
@@ -421,11 +411,6 @@ function getPageComponent(navRoute: NavRoute) {
     case 'site-settings':
       return {
         PageComponent: SiteSettings,
-        Fallback: BaseLoading,
-      }
-    case 'deleted-content':
-      return {
-        PageComponent: DeletedContent,
         Fallback: BaseLoading,
       }
     case 'api-inspector':

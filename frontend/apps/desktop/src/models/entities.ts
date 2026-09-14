@@ -1,7 +1,6 @@
 import {toast} from '@shm/ui/toast'
 import {grpcClient} from '@/grpc-client'
 import {client} from '@/trpc'
-import {toPlainMessage} from '@bufbuild/protobuf'
 import {createTombstoneRef, followToDocument, type SeedClient} from '@seed-hypermedia/client'
 import {DiscoveryState, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {createQueryResolver} from '@shm/shared/models/directory'
@@ -11,10 +10,10 @@ import {useDeleteRecent} from '@shm/shared/models/recents'
 import {createResourceFetcher} from '@shm/shared/resource-loader'
 import {useUniversalClient} from '@shm/shared/routing'
 import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
-import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
-import {useMutation, UseMutationOptions, useQuery} from '@tanstack/react-query'
+import {useMutation, UseMutationOptions} from '@tanstack/react-query'
 import {usePushResource} from './documents'
 
 type DeleteEntitiesInput = {
@@ -123,47 +122,6 @@ export function useDeleteEntities(opts: UseMutationOptions<void, unknown, Delete
         })
       })
       opts?.onSuccess?.(result, input, context)
-    },
-  })
-}
-
-export function useDeletedContent() {
-  return useQuery({
-    queryFn: async () => {
-      const deleted = (await grpcClient.entities.listDeletedEntities({})).deletedEntities.map((d) => toPlainMessage(d))
-      return deleted
-    },
-    queryKey: [queryKeys.DELETED],
-  })
-}
-
-export function useUndeleteEntity(opts?: UseMutationOptions<void, unknown, {id: string}>) {
-  const deleteRecent = useDeleteRecent()
-
-  return useMutation({
-    ...opts,
-    mutationFn: async ({id}: {id: string}) => {
-      await deleteRecent.mutateAsync(id)
-      await grpcClient.entities.undeleteEntity({id})
-    },
-    onSuccess: (result: void, variables: {id: string}, context) => {
-      const hmId = unpackHmId(variables.id)
-      if (hmId) {
-        invalidateQueries([queryKeys.ENTITY, variables.id])
-        invalidateQueries([queryKeys.ACCOUNT, hmId.uid])
-        invalidateQueries([queryKeys.RESOLVED_ENTITY, variables.id])
-        invalidateQueries([queryKeys.ACCOUNT_DOCUMENTS])
-        invalidateQueries([queryKeys.LIST_ACCOUNTS])
-        invalidateQueries([queryKeys.ACCOUNT, hmId.uid])
-        // for comments
-        invalidateQueries([queryKeys.COMMENT, variables.id])
-        invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
-      }
-      invalidateQueries([queryKeys.FEED])
-      invalidateQueries([queryKeys.DOC_CITATIONS])
-      invalidateQueries([queryKeys.SEARCH])
-      invalidateQueries([queryKeys.DELETED])
-      opts?.onSuccess?.(result, variables, context)
     },
   })
 }
