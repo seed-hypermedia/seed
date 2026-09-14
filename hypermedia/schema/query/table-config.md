@@ -1,5 +1,5 @@
 ---
-name: Query table config
+name: Query Table Config
 summary: "Persisted presentation settings for a Query block's Table view: which columns are visible and how wide they are."
 schemaDefinition: ipfs://bafyreifhakk6usjmolfchyjblmmwucosbcroxgeujltoryt4wo66qcgrh4
 ---

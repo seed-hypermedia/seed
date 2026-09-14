@@ -1,5 +1,5 @@
 ---
-name: write implementation notes
+name: Write Implementation Notes
 summary: These notes describe the first implementation slice of the Agents write tool. They are intended to help the next engineer understand what was built, how it…
 ---
 <!-- id:6ZpxBUcm -->

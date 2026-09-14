@@ -1,5 +1,5 @@
 ---
-name: The V1 Proposal (Archived)
+name: V1 Proposal (Archived)
 summary: The original permissions proposal, preserved unchanged as the subject of the critique. Superseded by the grants synthesis.
 displayAuthor: Eric Vicenti
 ---

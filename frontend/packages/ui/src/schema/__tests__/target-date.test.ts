@@ -16,8 +16,8 @@ const STATS = nameToUrl('example/stats')!
 
 describe('target references', () => {
   it('a bare include with a target keeps the format and carries the target', () => {
-    const {schema} = resolveSchema({ref: nameToUrl('schema/ipfs')!, target: 'hm://acme/stats'})
-    expect(schema.format).toBe('ipfs')
+    const {schema} = resolveSchema({ref: nameToUrl('ipfs-url')!, target: 'hm://acme/stats'})
+    expect(schema.format).toBe('ipfs-url')
     expect(schema.target).toBe('hm://acme/stats')
   })
 
@@ -47,14 +47,14 @@ describe('target references', () => {
     expect(at('born').format).toBe('date')
     expect(at('born').pattern).toBeTruthy()
     expect(at('home')).toMatchObject({format: 'hm-url', target: PLACE})
-    expect(at('stats')).toMatchObject({format: 'ipfs', target: STATS})
-    expect(at('notes').format).toBe('ipfs')
+    expect(at('stats')).toMatchObject({format: 'ipfs-url', target: STATS})
+    expect(at('notes').format).toBe('ipfs-url')
     expect(at('notes').target).toBeUndefined()
     expect(literalMembers(at('role'))?.map((m) => m.value)).toContain('hero')
   })
 
   it('a target does not change what values are valid', () => {
-    const field = {ref: nameToUrl('schema/ipfs')!, target: STATS}
+    const field = {ref: nameToUrl('ipfs-url')!, target: STATS}
     expect(validate(field, 'ipfs://bafyfoo')).toEqual([])
     expect(validate(field, 42)).toHaveLength(1)
   })

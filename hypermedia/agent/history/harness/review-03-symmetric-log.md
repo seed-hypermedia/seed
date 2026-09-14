@@ -1,5 +1,5 @@
 ---
-name: "Checkmark review — M3: the symmetric log (harness/03-symmetric-log)"
+name: "Checkmark Review — M3: The Symmetric Log (harness/03-symmetric-log)"
 summary: "Status: verified — ready for Eric's review. (Local commits only; not pushed.)"
 ---
 Status: **verified — ready for Eric's review.** (Local commits only; not pushed.) <!-- id:8PtY7a5r -->

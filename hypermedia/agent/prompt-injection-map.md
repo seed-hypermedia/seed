@@ -1,5 +1,5 @@
 ---
-name: Prompt injection map
+name: Prompt Injection Map
 summary: Every place model-facing text is defined, assembled, or handed to a provider. Use it when changing agent behavior, and when reviewing anything that puts…
 ---
 Every place model-facing text is defined, assembled, or handed to a provider. Use it when changing agent behavior, and when reviewing anything that puts untrusted content in front of the model. <!-- id:aKrz9t71 -->

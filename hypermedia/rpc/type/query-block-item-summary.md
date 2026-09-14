@@ -1,5 +1,5 @@
 ---
-name: Query block item summary
+name: Query Block Item Summary
 summary: Per-result interaction counts a Query block shows on its cards. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
 schemaDefinition: ipfs://bafyreid35rkqpilajvne7qe5u5yhmezgaxymztvou36rsauxb544koyqqi
 ---

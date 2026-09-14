@@ -55,7 +55,8 @@ const PRIMITIVES = new Set(KINDS.map((k) => `schema/${k}`))
 function tsName(name) {
   // Type names come from the name a schema had before the folder reorganization, so
   // app code keeps importing HMBlockImage, SeedDocument, ExamplePerson, ...
-  const basename = LEGACY_NAME[name] ?? name.replace(/\//g, '-')
+  // A root type added after the reorganization (url, ipfs-url) is HM<Name> like its neighbours.
+  const basename = LEGACY_NAME[name] ?? (name.includes('/') ? name.replace(/\//g, '-') : `hypermedia-${name}`)
   const prefixes = [
     ['hypermedia-', 'HM'],
     ['seed-', 'Seed'],

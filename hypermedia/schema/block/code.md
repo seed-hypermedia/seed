@@ -1,5 +1,5 @@
 ---
-name: Code block
+name: Code Block
 summary: A code block, optionally tagged with a language.
 schemaDefinition: ipfs://bafyreibcuhrfcbvzeuw7h5caniw5eumfl6pobr6qdcemc4k4vlklpmv52i
 ---

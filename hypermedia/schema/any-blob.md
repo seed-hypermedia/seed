@@ -1,5 +1,5 @@
 ---
-name: Any blob
+name: Any Blob
 summary: Any Hypermedia CBOR blob — the discriminated union of the six blob types, tagged on the type field.
 schemaDefinition: ipfs://bafyreicc764ssni7c77whny66rzlz2w2md4mvmxmw5ekggo2s2vnak2y5e
 ---

@@ -1,5 +1,5 @@
 ---
-name: Desktop agent unification
+name: Desktop Agent Unification
 summary: Replacing the desktop's separate assistant runtime with the Agents service, running locally as a subprocess of the desktop app. One agent runtime, one…
 ---
 <!-- id:3ZxMXYLE -->

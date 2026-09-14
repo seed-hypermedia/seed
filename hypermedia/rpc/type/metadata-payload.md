@@ -1,5 +1,5 @@
 ---
-name: Metadata payload
+name: Metadata Payload
 summary: A resource id with its resolved metadata (null when the document has none). A derived read model computed by the Seed daemon/API for clients — not a signed netw
 schemaDefinition: ipfs://bafyreibf7de5symybvpuv5ucdexrtextccgj76kytdrpargfjwdpmjvikm
 ---

@@ -51,7 +51,7 @@ describe('ipfs object pills', () => {
   it('a bundled schema blob is named by its schema, without fetching', async () => {
     mount({schemaDefinition: `ipfs://${schemaCid('example/stats')}`})
     await flush()
-    expect(pill().textContent).toContain('Character stats')
+    expect(pill().textContent).toContain('Character Stats')
     expect(pill().getAttribute('data-object-kind')).toBe('schema')
   })
 
@@ -76,7 +76,7 @@ describe('ipfs object pills', () => {
     mount({stats: `ipfs://${cid}`}, {[cid]: instance})
     await flush()
     await flush()
-    expect(pill().textContent).toContain('Character stats')
+    expect(pill().textContent).toContain('Character Stats')
     expect(pill().getAttribute('data-object-kind')).toBe('instance')
   })
 

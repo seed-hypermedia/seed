@@ -1,5 +1,5 @@
 ---
-name: The World Builder
+name: World Builder
 summary: A worked demonstration of typed documents — one menu action scaffolds a small ontology of Characters, Places, Factions, and Events whose types reference each other, with dates, links, and linked objects in every page.
 ---
 # What it builds <!-- id:4n7xPiA6 -->

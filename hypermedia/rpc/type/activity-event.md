@@ -1,5 +1,5 @@
 ---
-name: Activity event
+name: Activity Event
 summary: "One event of the activity feed. The event union is not yet pinned down schema-side, so this is an open map — tightening it is tracked follow-up work. A derived "
 schemaDefinition: ipfs://bafyreicszri6hoypdval3oanrsoevdmmebsbd22geobw573umukfr5ymlu
 ---

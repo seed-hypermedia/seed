@@ -1,5 +1,5 @@
 ---
-name: Table row block
+name: Table Row Block
 summary: One row of a Table block. Its children are Paragraph cell blocks, each carrying a columnId attribute referencing a TableColumn id.
 schemaDefinition: ipfs://bafyreidx4wfuogyykei77pxfwt5d4kbf3onqht5w5eqqf2v3mo4qdduh5e
 ---

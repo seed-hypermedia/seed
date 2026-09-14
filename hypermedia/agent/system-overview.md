@@ -1,5 +1,5 @@
 ---
-name: System overview
+name: System Overview
 summary: Seed Agents is a local-first, account-scoped agent system. It lets the desktop app configure an agent server, store provider secrets, create agents, work in…
 ---
 Seed Agents is a local-first, account-scoped agent system. It lets the desktop app configure an agent server, store provider secrets, create agents, work in durable sessions, stream model responses, delegate work to children, and inspect everything that executed. <!-- id:j6gFhd29 -->

@@ -61,9 +61,9 @@ const kindOf = (t) => (typeof t === "string" ? KIND_URL.exec(t)?.[1] ?? t : t);
 const KINDS = ["null", "boolean", "integer", "float", "string", "bytes", "list", "map", "link"];
 
 // The meta-schema is a discriminated union; its variants are the anyOf refs.
-const META_ROOT = loadJson("schema/meta-schema.schema.json");
+const META_ROOT = loadJson("schema.schema.json");
 const VARIANT_FILES = (META_ROOT.anyOf || []).map((r) => urlToFile(r.ref)).filter(Boolean);
-const META_FILES = ["schema/meta-schema.schema.json", ...VARIANT_FILES];
+const META_FILES = ["schema.schema.json", ...VARIANT_FILES];
 const isVariant = (f) => VARIANT_FILES.includes(f);
 
 // The primitive standard library: schema/<kind>.schema.json, each just { "type": <kind> }.
@@ -396,7 +396,7 @@ function graphSvg() {
   const nodeSvg = nodes
     .map((n) => {
       const p = pos[n];
-      const meta = n === "schema/meta-schema" ? " meta" : "";
+      const meta = n === "schema" ? " meta" : "";
       return `<a href="/schema/${n}"><rect class="node${meta}" x="${p.cx - nW / 2}" y="${p.cy - nH / 2}" width="${nW}" height="${nH}" rx="9"/><text class="node-label" x="${p.cx}" y="${p.cy}">${n}</text></a>`;
     })
     .join("");
@@ -477,7 +477,7 @@ function schemaPage(name) {
   if (!SCHEMA_FILES.includes(file)) return null;
   const schema = loadJson(file);
   if (isInstanceDoc(schema)) return instancePage(name, file, schema);
-  const isMeta = name === "schema/meta-schema";
+  const isMeta = name === "schema";
 
   const isUnion = Array.isArray(schema.anyOf);
   const govKinds = schema.properties?.type?.enum || null; // kinds this variant governs
@@ -624,7 +624,7 @@ function sidebar(active) {
   const schemaLink = (f) => {
     const s = base(f);
     const on = active.section === "schema" && active.slug === s ? " on" : "";
-    const tag = s === "schema/meta-schema" ? ` <span class="tag">union</span>` : "";
+    const tag = s === "schema" ? ` <span class="tag">union</span>` : "";
     const indent = isVariant(f) ? " sub" : "";
     const tip = metaTitle(s);
     return `<a class="nav-item${on}${indent}" href="/schema/${s}"${tip ? ` title="${tip}"` : ""}><code>${f}</code>${tag}</a>`;

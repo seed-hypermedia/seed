@@ -1,5 +1,5 @@
 ---
-name: How Hypermedia Schemas Work
+name: How Schemas Work
 summary: The system end to end — from a schema file in the repository to a signed blob on the network, a browsable document, a resolved reference in the app, a generated TypeScript type, and a typed API call.
 ---
 # The tour in one paragraph <!-- id:7s8eFKqO -->
@@ -35,7 +35,7 @@ The library is a folder of pairs: `<name>.schema.json` (the schema, in dag-json)
 <!-- id:QKRHc2jO -->
 | prefix <!-- col:PpnISgiK --> | family <!-- col:u7IW2VGz --> | examples <!-- col:UvNmWoqE --> <!-- id:rMJt-Vv8 --> |
 | --- | --- | --- |
-| root and `schema/` | the Hypermedia Network's real blobs at the root; under `schema/`, the type language — the meta-schema, its variants, one canonical primitive per kind — and the full block model | `schema/meta-schema`, `schema/anyof`, `schema/string`, `change`, `schema/block/table` <!-- id:bPX-_f4P --> |
+| root and `schema/` | the Hypermedia Network's real blobs at the root; under `schema/`, the type language — the meta-schema, its variants, one canonical primitive per kind — and the full block model | `schema`, `schema/anyof`, `schema/string`, `change`, `schema/block/table` <!-- id:bPX-_f4P --> |
 | `rpc/` | the Seed API's RPC catalog, with its read models in `rpc/type/` | `rpc/type/resource`, `rpc/type/search-results`, `rpc/query` <!-- id:uMrZ9ndC --> |
 | `example/` | teaching schemas covering every feature, plus live instances | `example/person`, `example/folder`, `example/bob` <!-- id:uU6GnKnu --> |
 

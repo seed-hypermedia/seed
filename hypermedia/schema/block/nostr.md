@@ -1,7 +1,7 @@
 ---
-name: Nostr block
+name: Nostr Block
 summary: "An embed of a Nostr event (a nostr: URL)."
-schemaDefinition: ipfs://bafyreidx3jtc2pxsc2t6gt4xpi5stxjezby4kcejlcbum2qvkk5sim63sm
+schemaDefinition: ipfs://bafyreiaa5rk4evvysaaxq5unfhhb7r6qikoomenmjoflaqwqolqgkh2mdq
 ---
 This document describes the **schema/block/nostr** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:H3trKSWw -->
 

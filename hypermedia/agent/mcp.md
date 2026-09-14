@@ -1,5 +1,5 @@
 ---
-name: MCP servers
+name: MCP Servers
 summary: Agents can call tools from remote Model Context Protocol (MCP) servers. An account connects servers the way it configures model providers; each agent…
 ---
 **MCP server** — a remote Model Context Protocol server connected per account, like a model provider, and enabled per agent (`definition.mcpServers`). Its tools appear as `<server>__<tool>` documents; connections open lazily per run. <!-- id:ICrwRs3q -->

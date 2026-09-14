@@ -62,7 +62,7 @@ describe('LinkedObjectDialog', () => {
     await flush()
     const lock = document.querySelector('[data-testid="linked-object-target"]')! as HTMLElement
     // The lock reads by the type's page name; the URL rides on the tooltip.
-    expect(lock.textContent).toContain('Character stats')
+    expect(lock.textContent).toContain('Character Stats')
     expect(lock.title).toBe(nameToUrl('example/stats'))
     expect(lock.textContent).toContain('required')
     expect(document.querySelector('[aria-label="Object schema"]')).toBeNull()

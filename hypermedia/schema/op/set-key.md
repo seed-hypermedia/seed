@@ -1,5 +1,5 @@
 ---
-name: SetKey op
+name: SetKey Op
 summary: "Deprecated: set a single flat metadata key to a value."
 schemaDefinition: ipfs://bafyreiaqnwyf6g3en2sqhu5pbxx5fq56hihehry53bggwiq7wlo5unsdoy
 ---

@@ -1,5 +1,5 @@
 ---
-name: Interaction summary
+name: Interaction Summary
 summary: Aggregate interaction counts for a document — citations, comments, changes, child documents, distinct authors — plus per-block citation/comment counts. A derive
 schemaDefinition: ipfs://bafyreifwnhtvp34iwi6kwsjna3fu6fkciucijj3zdbtipssba37lpbwkty
 ---

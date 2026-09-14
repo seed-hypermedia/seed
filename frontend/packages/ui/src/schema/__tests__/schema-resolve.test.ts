@@ -16,14 +16,14 @@ describe('hypermedia-metadata semantic field formats', () => {
     expect(fieldFormat('schema')).toBe('hm-url')
     expect(fieldFormat('childrenSchema')).toBe('hm-url')
   })
-  it('icon, cover, and schemaDefinition are IPFS files (ipfs)', () => {
-    expect(fieldFormat('icon')).toBe('ipfs')
-    expect(fieldFormat('cover')).toBe('ipfs')
-    expect(fieldFormat('schemaDefinition')).toBe('ipfs')
+  it('icon, cover, and schemaDefinition are IPFS files (ipfs-url)', () => {
+    expect(fieldFormat('icon')).toBe('ipfs-url')
+    expect(fieldFormat('cover')).toBe('ipfs-url')
+    expect(fieldFormat('schemaDefinition')).toBe('ipfs-url')
   })
   it('the format-typed reference schemas are valid Hypermedia schemas', () => {
-    expect(validate(HM_SCHEMAS['schema/meta-schema'], HM_SCHEMAS['hm-url'])).toEqual([])
-    expect(validate(HM_SCHEMAS['schema/meta-schema'], HM_SCHEMAS['schema/ipfs'])).toEqual([])
+    expect(validate(HM_SCHEMAS['schema'], HM_SCHEMAS['hm-url'])).toEqual([])
+    expect(validate(HM_SCHEMAS['schema'], HM_SCHEMAS['ipfs-url'])).toEqual([])
   })
 })
 

@@ -7,7 +7,7 @@ const bytes = (b: string) => ({'/': {bytes: b}})
 const K = (k: string) => `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/${k}`
 const S = (name: string) => HM_SCHEMAS[name]
 
-const meta = S('schema/meta-schema')
+const meta = S('schema')
 
 describe('schema engine — parity with the reference validator (schemas/validate.mjs)', () => {
   it('1. self-description: the meta-schema is a valid instance of itself', () => {
@@ -144,13 +144,13 @@ describe('schema engine — parity with the reference validator (schemas/validat
 
   it('6. dependency graph: deps/dependents resolve and the manifest has CIDs', () => {
     // hypermedia-schema (the meta) depends on its variant schemas
-    const deps = dependencies('schema/meta-schema')
+    const deps = dependencies('schema')
     expect(deps).toContain('schema/map-schema')
     expect(deps).toContain('schema/var-schema')
     // the map-schema variant is depended-on by the meta union
-    expect(dependents('schema/map-schema')).toContain('schema/meta-schema')
+    expect(dependents('schema/map-schema')).toContain('schema')
     // published CIDs exist
-    expect(schemaCid('schema/meta-schema')).toMatch(/^bafy/)
+    expect(schemaCid('schema')).toMatch(/^bafy/)
     expect(schemaCid('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map-schema')).toMatch(/^bafy/)
   })
 })

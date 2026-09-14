@@ -1,5 +1,5 @@
 ---
-name: Comment block
+name: Comment Block
 summary: "A comment content block: a Block extended with a recursive list of child comment blocks."
 schemaDefinition: ipfs://bafyreid5n56bhfizpswcc6n5cc4myfdaechr24rzcbk7ojh7qzhlh7ek4q
 ---

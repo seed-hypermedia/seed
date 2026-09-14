@@ -1,5 +1,5 @@
 ---
-name: Query sort
+name: Query Sort
 summary: One sort term for a Query block's results, optionally reversed.
 schemaDefinition: ipfs://bafyreie3wtotyt5knfuc5ug5a3c7dph2atp5y7oesga2lmdooesbfussuq
 ---

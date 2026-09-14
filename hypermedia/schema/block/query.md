@@ -1,5 +1,5 @@
 ---
-name: Query block
+name: Query Block
 summary: "A block that embeds a live query: its results (documents from the queried spaces) render in place, styled as cards, a list, or a table."
 schemaDefinition: ipfs://bafyreib4frdd2pwoiprdiqjlbl7fxkpcljcimgz4j2tuxcskiku43ngrqy
 ---

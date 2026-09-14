@@ -1,5 +1,5 @@
 ---
-name: Contact subscription
+name: Contact Subscription
 summary: "Subscription preferences for a contact: subscribe to the subject's site and/or profile."
 schemaDefinition: ipfs://bafyreidq3suyrm7do3whzqtuwom6vmuuxwxlum7ovo7ccw4caxadxofhdu
 ---

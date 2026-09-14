@@ -41,7 +41,7 @@ describe('schema publish path', () => {
   it('a new-schema starter runs the publish pipeline to a stable content-addressed CID', async () => {
     // Exactly what BlobEditor.publish() runs when storing a New Schema blob:
     // encode the seeded meta-schema instance and content-address it.
-    const starter = seedValue(HM_SCHEMAS['schema/meta-schema'])
+    const starter = seedValue(HM_SCHEMAS['schema'])
     const data = cbor.encode(dagJsonToIpld(starter))
     const digest = await sha256.digest(data)
     expect(CID.createV1(0x71, digest).toString()).toBe('bafyreihtkjwhxofcfzjs3b3nufl263l3xf3bzbtxaxspljwokklidswzti')
@@ -49,7 +49,7 @@ describe('schema publish path', () => {
 
   it('a new-schema starter value is itself recognized as a Hypermedia schema', () => {
     // Mirrors NewInstanceEditor seeding with schemaCid = meta-schema CID.
-    const starter = seedValue(HM_SCHEMAS['schema/meta-schema'])
+    const starter = seedValue(HM_SCHEMAS['schema'])
     expect(isHypermediaSchema(starter)).toBe(true)
   })
 
