@@ -34,7 +34,7 @@ The envelope is not reserved for the six built-in types. Any schema that extends
 
 ## The union — one of six <!-- id:TePpgQkJ -->
 
-`schema/any-blob` is the discriminated union of all six, tagged on `type` — so "any Hypermedia blob" is a first-class type you can validate against. <!-- id:HYLU7eY7 -->
+`blob/any` is the discriminated union of all six, tagged on `type` — so "any Hypermedia blob" is a first-class type you can validate against. <!-- id:HYLU7eY7 -->
 
 ## Nested structure <!-- id:dM0xRByE -->
 
@@ -48,18 +48,18 @@ Document content is made of **blocks**. We want two things that pull in opposite
 | workflow <!-- col:SJYqm_FR --> | needs <!-- col:zZHghcu8 --> | use <!-- col:rop7Xg0X --> <!-- id:vpbDuOwM --> |
 | --- | --- | --- |
 | rendering / dispatch | strict per-type shapes + graceful fallback | concrete types + `block` <!-- id:2Rqie-wF --> |
-| authoring / editing | strict validation | `schema/block/core` <!-- id:ZTfLAdj0 --> |
+| authoring / editing | strict validation | `block/core` <!-- id:ZTfLAdj0 --> |
 | sync / storage (forward-compat) | never reject unknown | `block` <!-- id:23bmRunT --> |
-| codegen | the enumerable set | `schema/block/core` <!-- id:L8JGoNbX --> |
+| codegen | the enumerable set | `block/core` <!-- id:L8JGoNbX --> |
 
 <!-- id:nNN-eoL8 -->
-- The fifteen **concrete blocks** — `schema/block/paragraph`, `schema/block/heading`, `schema/block/code`, `schema/block/math`, `schema/block/image`, `schema/block/video`, `schema/block/file`, `schema/block/button`, `schema/block/embed`, `schema/block/web-embed`, `schema/block/nostr`, `schema/block/table`, `schema/block/table-row`, `schema/block/table-column`, `schema/block/query` — each **extends** `schema/block/base`, closed, with a `type` literal and typed attributes. <!-- id:85wzIKeC -->
-- `schema/block/core` — the **core union** we define (the fifteen). Strict: rejects anything else. <!-- id:Tp6vmRo8 -->
-- `block` — the **open** block: `id` + `type` + arbitrary fields (via `schema/any`). The forward-compatible wire type — a block type this client has _no schema for_ (future or third-party) is still a valid Block, so a document is never rejected over it. This is _not_ "your custom block type" (that's just extension + union, below); it's the open fallback for the _unknown_. <!-- id:idnijeex -->
+- The fifteen **concrete blocks** — `block/paragraph`, `block/heading`, `block/code`, `block/math`, `block/image`, `block/video`, `block/file`, `block/button`, `block/embed`, `block/web-embed`, `block/nostr`, `block/table`, `block/table-row`, `block/table-column`, `block/query` — each **extends** `block/base`, closed, with a `type` literal and typed attributes. <!-- id:85wzIKeC -->
+- `block/core` — the **core union** we define (the fifteen). Strict: rejects anything else. <!-- id:Tp6vmRo8 -->
+- `block` — the **open** block: `id` + `type` + arbitrary fields (via `any`). The forward-compatible wire type — a block type this client has _no schema for_ (future or third-party) is still a valid Block, so a document is never rejected over it. This is _not_ "your custom block type" (that's just extension + union, below); it's the open fallback for the _unknown_. <!-- id:idnijeex -->
 
 ### Adding a block type <!-- id:YUxiFSMb -->
 
-To add a block type, do exactly what the core blocks do — **extend `schema/block/base`** — then **union** it with the core. No new machinery: <!-- id:moIAnCWY -->
+To add a block type, do exactly what the core blocks do — **extend `block/base`** — then **union** it with the core. No new machinery: <!-- id:moIAnCWY -->
 
 ```json <!-- id:TQDZHz8Q -->
 // example/app-block: the core, PLUS this app's custom Poll block

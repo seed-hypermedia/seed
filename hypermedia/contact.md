@@ -1,7 +1,7 @@
 ---
 name: Contact
 summary: "A contact record: one account's named reference to another account (the subject), with subscription preferences."
-schemaDefinition: ipfs://bafyreibqdfkipjuekupzlsg5slpxlp5zde4z3m5c3ej3bclukm4zh325nq
+schemaDefinition: ipfs://bafyreieqfrmciljdqcbslutq4gtpc3iyhwqrv4rosum7fhzxcjjyrbxsji
 ---
 This document describes the **contact** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:LPwoGs-L -->
 
@@ -9,15 +9,15 @@ This document describes the **contact** type — a Hypermedia Network blob schem
 
 **Extends** [blob](./blob.md) with these added fields: <!-- id:WjOZXUDV -->
   - `type` — `"Contact"` <!-- id:NIqiWA2a -->
-  - `id` — [string](./schema/string.md) <!-- id:3n_-393R -->
+  - `id` — [string](./string.md) <!-- id:3n_-393R -->
   - `account` — [principal](./principal.md) <!-- id:zI4HdIy8 -->
   - `subject` — [principal](./principal.md) <!-- id:bkt0fx8L -->
-  - `name` — [string](./schema/string.md) <!-- id:SQCjgwlt -->
-  - `subscribe` — [schema/contact-subscribe](./schema/contact-subscribe.md) <!-- id:EtgdYE7E -->
+  - `name` — [string](./string.md) <!-- id:SQCjgwlt -->
+  - `subscribe` — [contact/subscribe](./contact/subscribe.md) <!-- id:EtgdYE7E -->
 
 # Depends on <!-- id:5LiFHG4S -->
 
 - [blob](./blob.md) <!-- id:WeX8VjDl -->
-- [schema/contact-subscribe](./schema/contact-subscribe.md) <!-- id:id0JfSFv -->
+- [contact/subscribe](./contact/subscribe.md) <!-- id:id0JfSFv -->
 - [principal](./principal.md) <!-- id:x0-Ea1K- -->
-- [string](./schema/string.md) <!-- id:BjAJTc65 -->
+- [string](./string.md) <!-- id:BjAJTc65 -->

@@ -164,7 +164,7 @@ test.describe('world-builder field types', () => {
     await dialog.getByTestId('linked-object-publish').click()
     await expect(dialog).toBeHidden()
     const published: any = await page.evaluate(() => (window as any).__lastPublishedSchema)
-    expect(published.properties.due).toEqual({value: {ref: `${HYPERMEDIA_UID}/schema/date`}})
+    expect(published.properties.due).toEqual({value: {ref: `${HYPERMEDIA_UID}/date`}})
     expect(published.properties.giver).toMatchObject({
       value: {format: 'hm-url', target: `${HYPERMEDIA_UID}/example/character-doc`},
     })

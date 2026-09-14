@@ -1,20 +1,20 @@
 ---
 name: "Example: Document"
 summary: example/document — an example schema.
-schemaDefinition: ipfs://bafyreif75bbjni3spbhhkvb6tfdneh5fwp556zstakr4kj4cmexfyevkle
+schemaDefinition: ipfs://bafyreiavi6sxdqh3pw2aejkluyjmphrrjjuhdct2eq6wiv6ew5ufh7iiv4
 ---
 This document describes the **example/document** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:llTZrE7Q -->
 
 # Shape <!-- id:yS4WhWFT -->
 
 A **closed struct** with these fields: <!-- id:fuIZuu-D -->
-  - `title` _(required)_ — [string](../schema/string.md) <!-- id:idLG8YKz -->
+  - `title` _(required)_ — [string](../string.md) <!-- id:idLG8YKz -->
   - `author` — `link` → [example/person](./person.md) <!-- id:ja_Lj9E4 -->
-  - `body` — [bytes](../schema/bytes.md) <!-- id:VeUW9ia0 -->
+  - `body` — [bytes](../bytes.md) <!-- id:VeUW9ia0 -->
   - `previous` — `link` → [example/document](./document.md) <!-- id:Zlm4QYLV -->
 
 # Depends on <!-- id:WgGKV3_j -->
 
 - [example/person](./person.md) <!-- id:1pB09QSc -->
-- [bytes](../schema/bytes.md) <!-- id:WFEB7HHQ -->
-- [string](../schema/string.md) <!-- id:NfuhhcxV -->
+- [bytes](../bytes.md) <!-- id:WFEB7HHQ -->
+- [string](../string.md) <!-- id:NfuhhcxV -->

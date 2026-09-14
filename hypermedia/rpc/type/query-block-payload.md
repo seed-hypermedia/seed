@@ -1,7 +1,7 @@
 ---
 name: Query Block Payload
 summary: "Everything a rendered Query block needs: the results plus per-item interaction summaries and author metadata. A derived read model computed by the Seed daemon/A"
-schemaDefinition: ipfs://bafyreidzbpl4r424w5xcauf3cfx2f3i3pigdtd43q7j65tkq6il34ztjzu
+schemaDefinition: ipfs://bafyreidc4hop5ukml477ppyjhuqfmbjcmmo27jxdhjubs7otb6rf53cxi4
 ---
 Everything a rendered Query block needs: the results plus per-item interaction summaries and author metadata. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:VzSZH5xA -->
 
@@ -10,7 +10,7 @@ This document describes the **rpc/type/query-block-payload** type — a Seed API
 # Shape <!-- id:a4jQ1u0u -->
 
 A **closed struct** with these fields: <!-- id:DyS_qKTz -->
-  - `queryTargetName` _(required)_ — [string](../../schema/string.md) <!-- id:lpgzgCDx -->
+  - `queryTargetName` _(required)_ — [string](../../string.md) <!-- id:lpgzgCDx -->
   - `in` _(required)_ — [rpc/type/id](./id.md) <!-- id:PaNXccq8 -->
   - `results` _(required)_ — list of [rpc/type/document-info](./document-info.md) <!-- id:pqVQymXu -->
   - `mode` — one of `"Children"` | `"AllDescendants"` <!-- id:HKi67-Wj -->
@@ -19,7 +19,7 @@ A **closed struct** with these fields: <!-- id:DyS_qKTz -->
 
 # Depends on <!-- id:ooVpqrDK -->
 
-- [string](../../schema/string.md) <!-- id:z5cuCUEY -->
+- [string](../../string.md) <!-- id:z5cuCUEY -->
 - [rpc/type/accounts-metadata](./accounts-metadata.md) <!-- id:J1qY7Tl5 -->
 - [rpc/type/document-info](./document-info.md) <!-- id:IBffstpK -->
 - [rpc/type/id](./id.md) <!-- id:VjUau-KS -->

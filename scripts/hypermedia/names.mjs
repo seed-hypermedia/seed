@@ -1,7 +1,7 @@
 // Schema names for the hypermedia/ library, shared by the scripts beside this file.
 //
 // A schema's name is its path inside hypermedia/ without `.schema.json`
-// (`schema/string`, `schema/block/image`, `rpc/type/document`, `example/person`),
+// (`string`, `block/image`, `rpc/type/document`, `example/person`),
 // which is also the path its document publishes at: hm://<library>/<name>.
 // Names from before the folder reorganization (`hypermedia-string`, the bare
 // primitive `string`, the dev authorities) resolve through schemas.aliases.json.
@@ -26,14 +26,14 @@ export const LEGACY_AUTHORITY = [
 /** Old name -> current name. */
 export const ALIASES = JSON.parse(readFileSync(resolve(HM_DIR, 'schemas.aliases.json'), 'utf8')).aliases
 
-/** Current name -> the prefixed name it had before (e.g. schema/block/image -> hypermedia-block-image). */
+/** Current name -> the prefixed name it had before (e.g. block/image -> hypermedia-block-image). */
 export const LEGACY_NAME = Object.fromEntries(
   Object.entries(ALIASES)
     .filter(([old]) => /^(hypermedia|seed|example)-/.test(old))
     .map(([old, name]) => [name, old]),
 )
 
-/** Every schema file under hypermedia/, relative to it (`schema/block/image.schema.json`), sorted. */
+/** Every schema file under hypermedia/, relative to it (`block/image.schema.json`), sorted. */
 export function listSchemaFiles() {
   const out = []
   const walk = (dir) => {

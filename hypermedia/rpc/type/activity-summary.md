@@ -1,7 +1,7 @@
 ---
 name: Activity Summary
 summary: "Latest-activity digest carried on document listings: newest comment/change and unread state. A derived read model computed by the Seed daemon/API for clients — "
-schemaDefinition: ipfs://bafyreiax3trluk2i6pmy2vvfkgs35ljhlzm5awbixjvxrkicmvnysf7t64
+schemaDefinition: ipfs://bafyreid3xwmeriqlv6h72si5a47ce56f3r7flnrmfyr5tzhgx2472esczu
 ---
 Latest-activity digest carried on document listings: newest comment/change and unread state. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:tbPPJsiv -->
 
@@ -10,15 +10,15 @@ This document describes the **rpc/type/activity-summary** type — a Seed API re
 # Shape <!-- id:OZXG0Zh7 -->
 
 A **closed struct** with these fields: <!-- id:Vs4HGtDy -->
-  - `latestCommentTime` — [schema/timestamp](../../schema/timestamp.md) <!-- id:1gqusC11 -->
-  - `latestCommentId` _(required)_ — [string](../../schema/string.md) <!-- id:41uUwCp8 -->
+  - `latestCommentTime` — [timestamp](../../timestamp.md) <!-- id:1gqusC11 -->
+  - `latestCommentId` _(required)_ — [string](../../string.md) <!-- id:41uUwCp8 -->
   - `commentCount` _(required)_ — `integer` <!-- id:qpnT9nNY -->
-  - `latestChangeTime` _(required)_ — [schema/timestamp](../../schema/timestamp.md) <!-- id:yf7D_UC5 -->
-  - `isUnread` _(required)_ — [boolean](../../schema/boolean.md) <!-- id:9uyBbD00 -->
+  - `latestChangeTime` _(required)_ — [timestamp](../../timestamp.md) <!-- id:yf7D_UC5 -->
+  - `isUnread` _(required)_ — [boolean](../../boolean.md) <!-- id:9uyBbD00 -->
   - `childrenCount` — `integer` <!-- id:def8jVg8 -->
 
 # Depends on <!-- id:TszmmNHn -->
 
-- [schema/timestamp](../../schema/timestamp.md) <!-- id:ggrj6Ddw -->
-- [boolean](../../schema/boolean.md) <!-- id:oHJaYRhQ -->
-- [string](../../schema/string.md) <!-- id:qCF6yVV1 -->
+- [timestamp](../../timestamp.md) <!-- id:ggrj6Ddw -->
+- [boolean](../../boolean.md) <!-- id:oHJaYRhQ -->
+- [string](../../string.md) <!-- id:qCF6yVV1 -->

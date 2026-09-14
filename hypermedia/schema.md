@@ -1,7 +1,7 @@
 ---
 name: Schema
 summary: "The meta-schema: a discriminated union of the shapes a schema can take, and a valid instance of itself — how to browse, author and validate schemas in the Seed app, plus the full reference documentation."
-schemaDefinition: ipfs://bafyreieroepmqw34dvcpgcusakgkl7c2rh4pyrfdfnyuofor3snuk5aiku
+schemaDefinition: ipfs://bafyreia2kgsnffznghwjh5gtdhh4qn4zqznm7qc7n3f6xb4ftupmtmsjmi
 ---
 **Schema** — a value of kind `map` that constrains other values, written with the twelve-key vocabulary — or a bare literal (`"draft"`, `1`, `true`, `null`) that accepts exactly one value. Every schema is itself typed by the meta-schema, and is one of the meta-schema's variants. <!-- id:OzcV9e2b -->
 
@@ -70,7 +70,7 @@ The concepts, in reading order: <!-- id:MLxtm7My -->
   3. [References & naming](./schema/references.md) — include / typed link / extend, `hm://` names, and why names (not hashes) make recursion possible. <!-- id:W-7l34pY -->
   4. [Encoding](./schema/encoding.md) — DAG-CBOR, the `dag-json` human form, canonical encoding, and the reserved-key envelopes. <!-- id:zc8wCFCX -->
   5. [Examples](./example.md) — a catalog of every example schema, grouped by feature. <!-- id:nslzTd6Z -->
-  6. [Schemas on the Hypermedia Network](./schema/blobs.md) — schemas for the network's real DAG-CBOR blobs (Change, Ref, Profile, …), the full block model including [tables](./schema/block/table.md) and [live queries](./schema/block/query.md), and the `rpc/type/*` read models — the derived data the daemon computes for clients (resources, [citations](./rpc/type/citation.md), [search results](./rpc/type/search-results.md), …). <!-- id:SZlHsPnT -->
+  6. [Schemas on the Hypermedia Network](./schema/blobs.md) — schemas for the network's real DAG-CBOR blobs (Change, Ref, Profile, …), the full block model including [tables](./block/table.md) and [live queries](./block/query.md), and the `rpc/type/*` read models — the derived data the daemon computes for clients (resources, [citations](./rpc/type/citation.md), [search results](./rpc/type/search-results.md), …). <!-- id:SZlHsPnT -->
   7. [Design rationale](./doc/schema/design.md) — why the system is shaped this way, the decisions taken, and the open questions. <!-- id:ZHSf8L5M -->
   8. Terms — one page per definition, listed at the end of this page. <!-- id:lZdOYrQc -->
 
@@ -89,23 +89,23 @@ A **union** — a value matches one of these variants: <!-- id:r_pDx306 -->
   - [union-schema](./schema/anyof.md) <!-- id:n9qz4ea3 -->
   - [var-schema](./schema/var-schema.md) <!-- id:VY7nFwdc -->
   - [literal-schema](./schema/literal-schema.md) <!-- id:KZ3BNjsi -->
-  - [string](./schema/string.md) — a bare string is a literal schema <!-- id:yqpTFSKq -->
-  - [integer](./schema/integer.md) — a bare integer is a literal schema <!-- id:c3PPOXHO -->
-  - [boolean](./schema/boolean.md) — a bare boolean is a literal schema <!-- id:-cxXCWv7 -->
-  - [null](./schema/null.md) — null is a literal schema <!-- id:6_sGlZ9l -->
+  - [string](./string.md) — a bare string is a literal schema <!-- id:yqpTFSKq -->
+  - [integer](./integer.md) — a bare integer is a literal schema <!-- id:c3PPOXHO -->
+  - [boolean](./boolean.md) — a bare boolean is a literal schema <!-- id:-cxXCWv7 -->
+  - [null](./null.md) — null is a literal schema <!-- id:6_sGlZ9l -->
 
 # Depends on <!-- id:_7aiQPhA -->
 
-- [boolean](./schema/boolean.md) <!-- id:ReFegJmw -->
+- [boolean](./boolean.md) <!-- id:ReFegJmw -->
 - [include-schema](./schema/include-schema.md) <!-- id:sgBDWijw -->
-- [integer](./schema/integer.md) <!-- id:xEEWZo_C -->
+- [integer](./integer.md) <!-- id:xEEWZo_C -->
 - [link-schema](./schema/link-schema.md) <!-- id:A4p8bq5A -->
 - [list-schema](./schema/list-schema.md) <!-- id:wC1FNIlK -->
 - [literal-schema](./schema/literal-schema.md) <!-- id:7GZkoLpS -->
 - [map-schema](./schema/map-schema.md) <!-- id:G0zPLoYK -->
-- [null](./schema/null.md) <!-- id:DOl7wGGz -->
+- [null](./null.md) <!-- id:DOl7wGGz -->
 - [scalar-schema](./schema/scalar-schema.md) <!-- id:6GlNvB4Q -->
-- [string](./schema/string.md) <!-- id:wRRFFgG5 -->
+- [string](./string.md) <!-- id:wRRFFgG5 -->
 - [union-schema](./schema/anyof.md) <!-- id:GFJNvn_u -->
 - [var-schema](./schema/var-schema.md) <!-- id:hRHhpE13 -->
 
@@ -122,7 +122,7 @@ A **union** — a value matches one of these variants: <!-- id:r_pDx306 -->
 - [Self-description](./schema/self-description.md) <!-- id:ZbJSiz4A -->
 - [Include](./schema/include-schema.md) <!-- id:EpvyP-7m -->
 - [Extension](./schema/extension.md) <!-- id:i1lLDrLX -->
-- [Link](./schema/link.md) <!-- id:4KhfYjTN -->
+- [Link](./link.md) <!-- id:4KhfYjTN -->
 - [CID](./cid.md) <!-- id:bNc7y4MR -->
 - [IPLD](./schema/ipld.md) <!-- id:krhXfVp5 -->
 - [DAG-CBOR](./schema/dag-cbor.md) <!-- id:A-K8gv95 -->
@@ -132,4 +132,4 @@ A **union** — a value matches one of these variants: <!-- id:r_pDx306 -->
 - [Authority](./authority.md) <!-- id:lYfyQQFk -->
 - [Fixpoint problem](./schema/fixpoint-problem.md) <!-- id:RrdTbHMw -->
 - [Canonical encoding](./schema/canonical-encoding.md) <!-- id:usb9xHLx -->
-- [Struct](./schema/struct.md) <!-- id:GKgCZDN3 -->
+- [Struct](./struct.md) <!-- id:GKgCZDN3 -->

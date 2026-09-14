@@ -46,13 +46,12 @@ const KINDS = [
   'link',
   'any',
 ] as const
-const isPrimitive = (name: string) => KINDS.includes(name.replace(/^schema\//, '') as any) && name.startsWith('schema/')
-const primitiveKind = (name: string) => name.replace(/^schema\//, '')
+const isPrimitive = (name: string) => KINDS.includes(name as any)
+const primitiveKind = (name: string) => name
 const META_VARIANTS = ['schema/anyof', 'schema/property']
 const isMetaVariant = (name: string) =>
-  META_VARIANTS.includes(name) ||
-  (name.startsWith('schema/') && name.endsWith('-schema') && name !== 'schema')
-const kindPrimitive = (kind: string) => (HM_SCHEMAS[`schema/${kind}`] ? `schema/${kind}` : null)
+  META_VARIANTS.includes(name) || (name.startsWith('schema/') && name.endsWith('-schema') && name !== 'schema')
+const kindPrimitive = (kind: string) => (HM_SCHEMAS[kind] ? kind : null)
 
 // --- small pieces ----------------------------------------------------------
 
@@ -532,7 +531,7 @@ export function SchemaDocPage({
       </p>
     )
   } else if ((kindOf(schema.type) === 'struct' || kindOf(schema.type) === 'map') && schema.properties) {
-    const base = kindOf(schema.type) === 'struct' ? 'schema/struct' : 'schema/map'
+    const base = kindOf(schema.type) === 'struct' ? 'struct' : 'map'
     lead = (
       <ExtendsLine slug={base} onClick={() => nav(base)}>
         <span className="text-muted-foreground">
@@ -545,7 +544,7 @@ export function SchemaDocPage({
   } else {
     {
       const k = kindOf(schema.type) || 'any'
-      lead = <ExtendsLine slug={`schema/${k}`} onClick={() => nav(`schema/${k}`)} />
+      lead = <ExtendsLine slug={k} onClick={() => nav(k)} />
     }
     if ((kindOf(schema.type) === 'map' || kindOf(schema.type) === 'struct') && schema.values)
       main = (
@@ -690,7 +689,7 @@ export function SchemaView({
           )}
         </ExtendsLine>
       ) : kind ? (
-        <ExtendsLine slug={`schema/${kind}`} onClick={() => nav(`schema/${kind}`)} />
+        <ExtendsLine slug={kind} onClick={() => nav(kind)} />
       ) : null}
       {schema.params && (
         <p className="text-sm" data-testid="schema-params">

@@ -22,7 +22,7 @@
 //   name/descr.  -> JSDoc
 //
 // Instances ({$type, value} files) are data, not types: skipped.
-// Primitive schemas (schema/string, schema/map, ...) inline to TS primitives.
+// Primitive schemas (string, map, ...) inline to TS primitives.
 
 import {readFileSync, writeFileSync} from 'node:fs'
 import {HM_DIR, LEGACY_NAME, listSchemaFiles, nameOfFile, refToName} from './names.mjs'
@@ -49,9 +49,9 @@ const isInstance = (s) => s && typeof s === 'object' && typeof s.$type === 'stri
 // ── Names ────────────────────────────────────────────────────────────────────
 
 const KINDS = ['null', 'boolean', 'integer', 'float', 'string', 'bytes', 'list', 'map', 'struct', 'link', 'any']
-const PRIMITIVES = new Set(KINDS.map((k) => `schema/${k}`))
+const PRIMITIVES = new Set(KINDS)
 
-/** schema name -> exported TS type name (schema/block/image, formerly hypermedia-block-image -> HMBlockImage). */
+/** schema name -> exported TS type name (block/image, formerly hypermedia-block-image -> HMBlockImage). */
 function tsName(name) {
   // Type names come from the name a schema had before the folder reorganization, so
   // app code keeps importing HMBlockImage, SeedDocument, ExamplePerson, ...
@@ -186,22 +186,15 @@ function emit(node, env, pad = '') {
   return 'unknown'
 }
 
-/** A struct's fields: `properties[name] = {value, required?, description?}`, or the older
- * `properties[name] = <schema>` plus a `required` list. (In that position `value` is
- * always the field's schema, even when that schema is itself a literal.) */
-const isPropertyEntry = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && 'value' in v
+/** A struct's fields: `properties[name] = {value, required?, description?}`. (In that
+ * position `value` is always the field's schema, even when that schema is itself a literal.) */
 function structFields(node) {
-  const legacyRequired = new Set(node.required || [])
-  return Object.entries(node.properties || {}).map(([name, entry]) =>
-    isPropertyEntry(entry)
-      ? {
-          name,
-          schema: entry.value === undefined ? {} : entry.value,
-          required: entry.required === true,
-          description: entry.description,
-        }
-      : {name, schema: entry ?? {}, required: legacyRequired.has(name), description: entry?.description},
-  )
+  return Object.entries(node.properties || {}).map(([name, entry]) => ({
+    name,
+    schema: entry?.value === undefined ? {} : entry.value,
+    required: entry?.required === true,
+    description: entry?.description,
+  }))
 }
 
 /** Emit an object-type body from a struct node's fields and `values`. */

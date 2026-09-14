@@ -1,7 +1,7 @@
 ---
 name: "RPC: SubjectContacts"
 summary: "Lists the contact records that name a subject. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pa"
-schemaDefinition: ipfs://bafyreigmw4fkyxzo4mijcrhtfvlmfewqlbw7t5cdqxuhqy6fy5xsp4dpay
+schemaDefinition: ipfs://bafyreidl725ngditequ6nf4gfzwiprs3jugfn3dslq47jyb6p2z2qafc3y
 ---
 Lists the contact records that name a subject. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:pML1FZCM -->
 
@@ -11,10 +11,10 @@ This document describes the **rpc/subject-contacts** type — a Seed API read-mo
 
 A **closed struct** with these fields: <!-- id:TWMScgo6 -->
   - `key` _(required)_ — `"SubjectContacts"` <!-- id:-1wXTkPY -->
-  - `input` _(required)_ — [string](../schema/string.md) <!-- id:R9qGvh5m -->
+  - `input` _(required)_ — [string](../string.md) <!-- id:R9qGvh5m -->
   - `output` _(required)_ — list of [rpc/type/contact-record](./type/contact-record.md) <!-- id:eCIUnOxN -->
 
 # Depends on <!-- id:IiL36UeS -->
 
-- [string](../schema/string.md) <!-- id:5-UmYe9_ -->
+- [string](../string.md) <!-- id:5-UmYe9_ -->
 - [rpc/type/contact-record](./type/contact-record.md) <!-- id:G6s5kROB -->

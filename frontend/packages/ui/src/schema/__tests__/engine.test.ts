@@ -4,7 +4,7 @@ import {dependencies, dependents, isInstance, HM_SCHEMAS, schemaCid, validate} f
 // dag-json constructors for test data (mirror schemas/validate.mjs)
 const cid = (s: string) => ({'/': s})
 const bytes = (b: string) => ({'/': {bytes: b}})
-const K = (k: string) => `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/${k}`
+const K = (k: string) => `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/${k}`
 const S = (name: string) => HM_SCHEMAS[name]
 
 const meta = S('schema')

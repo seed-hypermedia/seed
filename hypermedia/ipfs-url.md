@@ -1,7 +1,7 @@
 ---
 name: IPFS URL
 summary: "A reference to a content-addressed file on IPFS, held as an `ipfs://<cid>` string. `format: ipfs-url` tells an editor to render it as a file reference — a pill you "
-schemaDefinition: ipfs://bafyreih7rl3zdhkcevr2fz3n4wolr5rnk67hp5puvnwqkirareve6z7lxi
+schemaDefinition: ipfs://bafyreial6bhshluybr2gmrxusva4ksfznmwnznqyephhhrjrpuhzjhphoe
 ---
 A reference to a content-addressed file on IPFS, held as an `ipfs://<cid>` string. `format: ipfs-url` tells an editor to render it as a file reference — a pill you can open, with upload/paste to set it — not a plain text box. <!-- id:NOsddoMm -->
 

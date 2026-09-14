@@ -63,7 +63,7 @@ function collectRefs(node, acc = new Set()) {
 const dependencies = (name) => [...collectRefs(schemas[name])].filter((n) => n !== name && schemas[n]).sort()
 
 const isInstance = (s) => !!(s && s.$type && 'value' in s)
-const isPrimitive = (name) => [...KINDS, 'any'].map((k) => `schema/${k}`).includes(name)
+const isPrimitive = (name) => [...KINDS, 'any'].includes(name)
 const META_VARIANTS = ['schema/anyof', 'schema/literal-schema', 'schema/property']
 const isMeta = (name) =>
   name === 'schema' ||
@@ -132,7 +132,8 @@ function category(name, s) {
   if (name.startsWith('rpc/'))
     return 'a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob)'
   if (name.startsWith('example/')) return 'an example schema'
-  if (!name.includes('/') || name.startsWith('schema/')) return 'a Hypermedia Network blob schema'
+  if (name.startsWith('schema/')) return 'a schema-language schema'
+  if (!name.includes('/') || /^(block|change|ref|blob|metadata|contact|query)\//.test(name)) return 'a Hypermedia Network blob schema'
   if (false)
     return 'a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob)'
   return 'a schema'
