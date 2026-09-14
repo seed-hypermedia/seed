@@ -227,17 +227,19 @@ test.describe('schema editor', () => {
     await expect(dialog.getByRole('button', {name: 'JSON'})).toBeVisible()
   })
 
-  test('required field of the CONFORMANCE schema (metadata.schema) is an always-visible row', async ({page}) => {
-    // A document that conforms to the person document schema (via `schema`, not
+  test('required field of the CONFORMANCE schema (metadata.attributesSchema) is an always-visible row', async ({
+    page,
+  }) => {
+    // A document that conforms to the person attributes schema (via `attributesSchema`, not
     // schemaDefinition) requires `surname` in its metadata.
     const HYPERMEDIA_UID = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
-    await openHarness(page, {name: 'X', schema: `${HYPERMEDIA_UID}/example/person-doc`})
+    await openHarness(page, {name: 'X', attributesSchema: `${HYPERMEDIA_UID}/example/person-doc`})
 
     // `surname` (required by the person document) renders as an always-visible
     // required row (seeded if absent), so it never has to be "added".
     await expect(page.getByRole('treeitem', {name: /surname/}).first()).toBeVisible()
     // The seeded value is shown but NOT written to the draft (no auto-pollution).
-    expect(await meta(page)).toEqual({name: 'X', schema: `${HYPERMEDIA_UID}/example/person-doc`})
+    expect(await meta(page)).toEqual({name: 'X', attributesSchema: `${HYPERMEDIA_UID}/example/person-doc`})
 
     // A required field cannot be removed: its actions menu has no Remove item.
     await page.getByRole('button', {name: 'Actions for surname'}).click()
@@ -306,12 +308,12 @@ test.describe('schema editor', () => {
     expect(await meta(page)).toEqual({name: 'Renamed', count: 3})
   })
 
-  test('semantic field types: schema is an HM-link search, icon is an IPFS file input', async ({page}) => {
+  test('semantic field types: attributesSchema is an HM-link search, icon is an IPFS file input', async ({page}) => {
     // Even without a conformance schema, the base metadata schema types these
-    // fields — `schema` as an HM link, `icon` as an IPFS file.
-    await openHarness(page, {name: 'X', schema: '', icon: ''})
+    // fields — `attributesSchema` as an HM link, `icon` as an IPFS file.
+    await openHarness(page, {name: 'X', attributesSchema: '', icon: ''})
 
-    // schema (format hm-url) → search-assisted hypermedia reference input.
+    // attributesSchema (format hm-url) → search-assisted hypermedia reference input.
     await expect(page.getByPlaceholder('Search documents or paste hm:// URL')).toBeVisible()
 
     // icon (format ipfs) → file picker + ipfs-aware paste input (not a plain box).
@@ -323,7 +325,7 @@ test.describe('schema editor', () => {
     const HYPERMEDIA_UID = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
     // Conforms to the person document (requires metadata.surname), which is
     // absent; `icon: null` is a deletion tombstone, not a real value.
-    await openHarness(page, {name: 'X', schema: `${HYPERMEDIA_UID}/example/person-doc`, icon: null})
+    await openHarness(page, {name: 'X', attributesSchema: `${HYPERMEDIA_UID}/example/person-doc`, icon: null})
 
     const alert = page.getByRole('alert')
     await expect(alert).toBeVisible()
@@ -338,10 +340,10 @@ test.describe('schema editor', () => {
   test('an HM-link field renders a clickable pill that navigates to the reference', async ({page}) => {
     const HYPERMEDIA_UID = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
     const target = `${HYPERMEDIA_UID}/example/employee`
-    // `schema` is an HM link (format hm-url) — a resolvable value shows as a pill.
-    await openHarness(page, {name: 'X', schema: target})
+    // `attributesSchema` is an HM link (format hm-url) — a resolvable value shows as a pill.
+    await openHarness(page, {name: 'X', attributesSchema: target})
 
-    const row = page.getByRole('treeitem', {name: /^schema/})
+    const row = page.getByRole('treeitem', {name: /^attributesSchema/})
     // The value renders as a pill (rounded-full), NOT the raw URL text box.
     await expect(row.locator('.rounded-full')).toBeVisible()
 

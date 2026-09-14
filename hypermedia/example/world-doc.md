@@ -1,24 +1,20 @@
 ---
 name: World
-summary: "A world-builder kit type: the root page of a fictional world. Its children are the type definitions and the folders of characters, places, factions, and events;"
-schemaDefinition: ipfs://bafyreiciqrbjw2yqd6mbqkxmumgcrr67gg65rbmvym2uuill2mq72yeb6u
+summary: "A world-builder kit type: the root page of a fictional world. Its children are the type definitions and the folders of characters, places, factions, a"
+schemaDefinition: ipfs://bafyreichn656cwlntnpfjhipwsxticubhaker5qsp3nwjuxsn6t2scblpu
 ---
-A world-builder kit type: the root page of a fictional world. Its children are the type definitions and the folders of characters, places, factions, and events; its metadata names the genre and the date the chronicle begins. <!-- id:tWJgX3A2 -->
+A world-builder kit type: the root page of a fictional world. Its children are the type definitions and the folders of characters, places, factions, and events; its attributes name the genre and the date the chronicle begins. <!-- id:tWJgX3A2 -->
 
 This document describes the **example/world-doc** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:afUtpf0w -->
 
 # Shape <!-- id:f1KbJ2ci -->
 
-**Extends** [document](../document.md) with these added fields: <!-- id:qfyt9Gtj -->
-  - `metadata` — [metadata](../metadata.md) <!-- id:0iNrXaS0 -->
-  - _adds to [metadata](../metadata.md):_ <!-- id:r0KTtnBZ -->
+A **closed struct** with these fields: <!-- id:qfyt9Gtj -->
   - `genre` _(required)_ — [string](../string.md) (one of `fantasy`, `science-fiction`, `historical`, `contemporary`, `mythic`) <!-- id:0ujhBQvU -->
   - `epoch` — [date](../date.md) <!-- id:U_Ww1oVZ -->
   - `tagline` — [string](../string.md) <!-- id:JSSPut80 -->
 
 # Depends on <!-- id:isqmdDcM -->
 
-- [document](../document.md) <!-- id:HZ4iDpUw -->
-- [metadata](../metadata.md) <!-- id:w3N25OWp -->
 - [date](../date.md) <!-- id:vd6ctMNl -->
 - [string](../string.md) <!-- id:3hGaivVk -->

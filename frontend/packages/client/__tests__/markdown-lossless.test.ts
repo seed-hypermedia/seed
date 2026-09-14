@@ -344,8 +344,8 @@ describe('lossless: metadata', () => {
   it('schema binding keys', () =>
     expectLossless([p('a1', 'x')], {
       name: 'Person',
-      schema: 'hm://z6Mkabc/person',
-      childrenSchema: 'ipfs://bafyschema',
+      attributesSchema: 'hm://z6Mkabc/person',
+      childAttributesSchema: 'ipfs://bafyschema',
       schemaDefinition: 'ipfs://bafyschema2',
     } as HMMetadata))
   it('nested object metadata (spaceAgents, agentServerUrl)', () =>

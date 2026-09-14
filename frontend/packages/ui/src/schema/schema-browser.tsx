@@ -128,7 +128,7 @@ export function SchemaBrowserPage({
                   canCreate
                     ? {
                         key: 'new-instance',
-                        label: `New ${typeName}`,
+                        label: 'New Raw Value',
                         icon: <Plus className="size-4" />,
                         onClick: () => navigate(newInstanceRoute(cid)),
                       }

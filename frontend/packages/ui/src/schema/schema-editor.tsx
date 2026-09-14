@@ -460,7 +460,7 @@ function StructSchemaForm({schema, onSchema}: {schema: HypermediaSchema; onSchem
     const typeField: StructField = {
       ...fields.find((f) => f.name === 'type'),
       name: 'type',
-      schema: tag.trim() || 'Custom',
+      schema: literalSchema(tag.trim() || 'Custom'),
       required: true,
     }
     const next = fields.some((f) => f.name === 'type')

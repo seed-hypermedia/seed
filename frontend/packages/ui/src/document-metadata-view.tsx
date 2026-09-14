@@ -117,7 +117,7 @@ export function DocumentMetadataView({
   onMetadata?: (patch: MetadataPatch) => void
   /**
    * The resolved metadata schema this document must CONFORM to (from its own
-   * `schema` field, or a parent's `childrenSchema`) — drives required fields and
+   * `attributesSchema` field, or a parent's `childAttributesSchema`) — drives required fields and
    * advisory validation. Resolved by the caller (see useEffectiveDocSchema);
    * distinct from `schemaDefinition`, which is a schema this document DEFINES.
    */
@@ -161,8 +161,8 @@ export function DocumentMetadataView({
   }, [keysDep, pendingSchemaCid])
   const {byCid} = useSchemaRegistry(seedCids)
   // The metadata schema that drives field suggestions + advisory validation is
-  // the document's CONFORMANCE schema (its `schema`, or a parent's
-  // `childrenSchema`), resolved by the caller and passed as `conformanceSchema`.
+  // the document's CONFORMANCE schema (its `attributesSchema`, or a parent's
+  // `childAttributesSchema`), resolved by the caller and passed as `conformanceSchema`.
   // Its metadata EXTENDS the base document-metadata schema (`metadata`):
   // standard fields (name/summary/…) are inherited and the type's own fields
   // added — required ones surface as always-visible rows. Kept OPEN (`values:{}`)
@@ -174,7 +174,7 @@ export function DocumentMetadataView({
     const keys = pendingSchemaCid ? [...visibleKeys, `ipfs://${pendingSchemaCid}`] : visibleKeys
     const keyRoot = buildSchemaKeyRoot(keys, byCid)
     // Always fold in the base document-metadata schema so standard fields keep
-    // their semantic types (e.g. `schema`/`childrenSchema` render as HM-link
+    // their semantic types (e.g. `attributesSchema`/`childAttributesSchema` render as HM-link
     // pills, `icon`/`cover` as IPFS files) even without a conformance schema; the
     // conformance schema (if any) adds/refines on top.
     return documentMetadataSchema(

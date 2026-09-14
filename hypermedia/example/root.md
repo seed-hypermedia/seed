@@ -2,6 +2,7 @@
 name: "Example: Root"
 summary: example/root — instance.
 schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/admin
+attributesSchema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/admin
 ---
 # Shape <!-- id:CKgHCGIO -->
 

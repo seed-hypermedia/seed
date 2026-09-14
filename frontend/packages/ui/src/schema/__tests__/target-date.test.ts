@@ -79,19 +79,20 @@ describe('date types', () => {
 
   it('the character kit requires a born date and validates it', () => {
     const meta = metadataSchemaOf(HM_SCHEMAS['example/character-doc'])!
-    expect(validate(meta, {name: 'X', role: 'hero'})).toContain('$: missing required "born"')
-    expect(validate(meta, {name: 'X', role: 'hero', born: 'yesterday'})).toContain(
+    expect(validate(meta, {role: 'hero'})).toContain('$: missing required "born"')
+    expect(validate(meta, {role: 'hero', born: 'yesterday'})).toContain(
       '$.born: does not match pattern for format "date"',
     )
-    expect(validate(meta, {name: 'X', role: 'hero', born: '0990-04-01'})).toEqual([])
+    expect(validate(meta, {role: 'hero', born: '0990-04-01'})).toEqual([])
   })
 })
 
 describe('kit schemas', () => {
-  it('every kit type is a document schema and its blob has a stable CID', async () => {
+  it('every kit type is an attributes struct and its blob has a stable CID', async () => {
     for (const name of ['example/character-doc', 'example/place-doc', 'example/faction-doc', 'example/event-doc']) {
       const s = HM_SCHEMAS[name]!
-      expect(s.ref).toBe(nameToUrl('document'))
+      expect(s.type).toBe(nameToUrl('struct'))
+      expect(s.ref).toBeUndefined()
       const data = cbor.encode(s)
       const cid = CID.createV1(0x71, await sha256.digest(data)).toString()
       expect(cid).toMatch(/^bafyrei/)

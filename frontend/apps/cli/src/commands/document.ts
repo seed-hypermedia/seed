@@ -33,7 +33,14 @@ import {documentToMarkdown} from '../markdown'
 import {keyOptions, resolveSigningKey} from '../utils/keys'
 import {resolveIdWithClient} from '../utils/resolve-id'
 import {createSignerFromKey} from '../utils/signer'
-import {META_SCHEMA, encodeBlob, loadEffectiveSchema, metadataViolations, readJsonFile, violations} from '../utils/schema'
+import {
+  META_SCHEMA,
+  encodeBlob,
+  loadEffectiveSchema,
+  metadataViolations,
+  readJsonFile,
+  violations,
+} from '../utils/schema'
 import {resolveDocumentState} from '../utils/depth'
 import {parseMarkdown, flattenToOperations, type BlockNode} from '../utils/markdown'
 import {parseBlocksJson, hmBlockNodesToOperations} from '../utils/blocks-json'
@@ -392,8 +399,11 @@ export function registerDocumentCommands(program: Command) {
       '--metadata <json>',
       'Any metadata attributes, as a JSON object (custom keys included); merged over frontmatter and flags',
     )
-    .option('--schema <ref>', 'The schema this document conforms to (a type document hm:// URL or ipfs://<cid>)')
-    .option('--children-schema <ref>', 'The schema this document’s direct children conform to')
+    .option(
+      '--attributes-schema <ref>',
+      'The attributes schema this document conforms to (a schema document hm:// URL or ipfs://<cid>)',
+    )
+    .option('--child-attributes-schema <ref>', 'The attributes schema this document’s direct children conform to')
     .option(
       '--schema-definition <file>',
       'Publish this dag-json schema file as a blob and bind it as the document’s schemaDefinition',
@@ -562,8 +572,11 @@ export function registerDocumentCommands(program: Command) {
       '--metadata <json>',
       'Any metadata attributes, as a JSON object (custom keys included); merged over frontmatter and flags',
     )
-    .option('--schema <ref>', 'The schema this document conforms to (a type document hm:// URL or ipfs://<cid>)')
-    .option('--children-schema <ref>', 'The schema this document’s direct children conform to')
+    .option(
+      '--attributes-schema <ref>',
+      'The attributes schema this document conforms to (a schema document hm:// URL or ipfs://<cid>)',
+    )
+    .option('--child-attributes-schema <ref>', 'The attributes schema this document’s direct children conform to')
     .option(
       '--schema-definition <file>',
       'Publish this dag-json schema file as a blob and bind it as the document’s schemaDefinition',
@@ -1025,7 +1038,7 @@ export function registerDocumentCommands(program: Command) {
   doc
     .command('validate <id>')
     .description(
-      'Check a document against its effective schema (its own `schema`, else the parent’s `childrenSchema`); exit 1 on violations',
+      'Check a document against its effective attributes schema (its own `attributesSchema`, else the parent’s `childAttributesSchema`); exit 1 on violations',
     )
     .option('--content', 'Validate the whole document ({metadata, content}), not only the metadata')
     .action(async (id: string, options, cmd) => {
@@ -1044,7 +1057,10 @@ export function registerDocumentCommands(program: Command) {
         if (!effective) {
           const report = {id, schema: null, violations: []}
           if (structured) console.log(formatOutput(report, getOutputFormat(globalOpts), isPretty(globalOpts)))
-          else printInfo(`${id} has no schema (no \`schema\` of its own and no \`childrenSchema\` on its parent)`)
+          else
+            printInfo(
+              `${id} has no schema (no \`attributesSchema\` of its own and no \`childAttributesSchema\` on its parent)`,
+            )
           return
         }
         let errors: string[]
@@ -1170,16 +1186,17 @@ export function mergeMetadata(
   if (inputMeta.theme) result.theme = inputMeta.theme
 
   // Every other frontmatter key is a custom attribute and travels as-is (a typed document's
-  // `surname`, its `schema`, a folder's `childrenSchema`, …); the built-in keys above win.
+  // `surname`, its `attributesSchema`, a folder's `childAttributesSchema`, …); the built-in keys above win.
   for (const [key, value] of Object.entries(inputMeta as Record<string, unknown>)) {
     if (value === undefined || key in result || (METADATA_KEYS as string[]).includes(key) || key === 'theme') continue
     ;(result as Record<string, unknown>)[key] = value
   }
 
   // The schema-binding fields, and any attribute at all, from the command line.
-  if (typeof options.schema === 'string') (result as Record<string, unknown>).schema = options.schema
-  if (typeof options.childrenSchema === 'string')
-    (result as Record<string, unknown>).childrenSchema = options.childrenSchema
+  if (typeof options.attributesSchema === 'string')
+    (result as Record<string, unknown>).attributesSchema = options.attributesSchema
+  if (typeof options.childAttributesSchema === 'string')
+    (result as Record<string, unknown>).childAttributesSchema = options.childAttributesSchema
   if (options.metadata !== undefined)
     Object.assign(result as Record<string, unknown>, parseMetadataOption(options.metadata))
 
@@ -1213,7 +1230,8 @@ async function applySchemaDefinition(
   const schema = readJsonFile(file)
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) throw new Error(`${file} does not hold a schema`)
   const errors = violations(META_SCHEMA, schema)
-  if (errors.length) throw new Error(`${file} is not a valid Hypermedia schema:\n${errors.map((e) => `  ✗ ${e}`).join('\n')}`)
+  if (errors.length)
+    throw new Error(`${file} is not a valid Hypermedia schema:\n${errors.map((e) => `  ✗ ${e}`).join('\n')}`)
   const blob = await encodeBlob(schema)
   ;(metadata as Record<string, unknown>).schemaDefinition = `ipfs://${blob.cid}`
   return blob
