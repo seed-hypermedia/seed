@@ -196,7 +196,9 @@ export const MentionCandidates: HMRequestImplementation<HMMentionCandidatesReque
     const matches = groups[0] || []
     const contactsByName = groups[2] || []
     const pending = (
-      query ? Array.from(new Set([...contactsByName, ...matches, ...selected.values()])) : Array.from(selected.values())
+      query
+        ? Array.from(new Set([...contactsByName, ...matches, ...Array.from(selected.values())]))
+        : Array.from(selected.values())
     ).slice(0, RESOLUTION_LIMIT)
     const results: HMMentionCandidate[] = []
     let index = 0

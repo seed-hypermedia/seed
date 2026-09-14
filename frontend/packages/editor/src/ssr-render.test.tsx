@@ -207,7 +207,7 @@ describe('renderDocumentToHTML', () => {
 
     const html = render([{block: hmBlock, children: []}] as any, queryClient)
 
-    expect(html).toContain('Search table')
+    expect(html).toContain('Search documents')
     expect(html).toContain('Table Note')
     expect(html).not.toContain('data-ssr-error')
   })

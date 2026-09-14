@@ -13,7 +13,6 @@ const mocks = vi.hoisted(() => {
     editor,
     useBlockNote: vi.fn(() => editor),
     openUrl: vi.fn(),
-    overlayProps: [] as Array<{editor: typeof editor; resolveImageUrl?: (url: string) => string}>,
   }
 })
 
@@ -32,10 +31,6 @@ vi.mock('@shm/shared', async () => {
   }
 })
 
-vi.mock('@shm/ui/get-file-url', () => ({
-  useImageUrl: () => (url: string) => `resolved:${url}`,
-}))
-
 vi.mock('./blocknote', () => ({
   useBlockNote: mocks.useBlockNote,
 }))
@@ -53,13 +48,6 @@ vi.mock('./readonly-blocknote-view', async () => {
   }
 })
 
-vi.mock('./blocknote/react', () => ({
-  ImageGalleryOverlay: (props: {editor: typeof mocks.editor; resolveImageUrl?: (url: string) => string}) => {
-    mocks.overlayProps.push(props)
-    return <div data-testid="image-gallery-overlay" data-resolved-src={props.resolveImageUrl?.('ipfs://image-cid')} />
-  },
-}))
-
 import {ReadOnlyViewer} from './readonly-viewer'
 
 let container: HTMLDivElement
@@ -68,7 +56,6 @@ let root: Root
 beforeEach(() => {
   mocks.useBlockNote.mockClear()
   mocks.openUrl.mockClear()
-  mocks.overlayProps.length = 0
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -81,16 +68,17 @@ afterEach(() => {
   container.remove()
 })
 
-describe('ReadOnlyViewer image gallery', () => {
-  it('mounts the image gallery overlay with the viewer editor and resolved image URLs', () => {
+describe('ReadOnlyViewer', () => {
+  it('mounts the read-only editor with comment styling', () => {
     act(() => {
       root.render(<ReadOnlyViewer blocks={[]} commentStyle />)
     })
 
-    const overlay = container.querySelector('[data-testid="image-gallery-overlay"]') as HTMLElement | null
-    expect(overlay).not.toBeNull()
-    expect(overlay?.dataset.resolvedSrc).toBe('resolved:ipfs://image-cid')
-    expect(mocks.overlayProps).toHaveLength(1)
-    expect(mocks.overlayProps[0]?.editor).toBe(mocks.editor)
+    expect(container.querySelector('[data-testid="readonly-blocknote-view"]')).not.toBeNull()
+    expect(container.querySelector('.comment-editor.is-comment')).not.toBeNull()
+    expect(mocks.useBlockNote).toHaveBeenCalledWith(
+      expect.objectContaining({editable: false, renderType: 'viewer'}),
+      expect.any(Array),
+    )
   })
 })
