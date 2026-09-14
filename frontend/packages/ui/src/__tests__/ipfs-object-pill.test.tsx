@@ -49,7 +49,7 @@ describe('ipfs object pills', () => {
   const pill = () => container.querySelector('[data-testid="ipfs-object-pill"], [data-testid="ipfs-file-pill"]')!
 
   it('a bundled schema blob is named by its schema, without fetching', async () => {
-    mount({schemaDefinition: `ipfs://${schemaCid('example-stats')}`})
+    mount({schemaDefinition: `ipfs://${schemaCid('example/stats')}`})
     await flush()
     expect(pill().textContent).toContain('Character stats')
     expect(pill().getAttribute('data-object-kind')).toBe('schema')
@@ -58,7 +58,7 @@ describe('ipfs object pills', () => {
   it('a published schema blob is fetched and named', async () => {
     const schema = {
       name: 'Vote',
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct',
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct',
       properties: {},
     }
     const cid = CID.createV1(0x71, await sha256.digest(cbor.encode(schema))).toString()
@@ -70,7 +70,7 @@ describe('ipfs object pills', () => {
   })
 
   it('an instance that links its schema is named by its type', async () => {
-    const stats = schemaCid('example-stats')!
+    const stats = schemaCid('example/stats')!
     const instance = {strength: 5, intellect: 5, charisma: 5, schema: {'/': stats}}
     const cid = CID.createV1(0x71, await sha256.digest(cbor.encode(instance))).toString()
     mount({stats: `ipfs://${cid}`}, {[cid]: instance})

@@ -41,7 +41,7 @@ describe('schema publish path', () => {
   it('a new-schema starter runs the publish pipeline to a stable content-addressed CID', async () => {
     // Exactly what BlobEditor.publish() runs when storing a New Schema blob:
     // encode the seeded meta-schema instance and content-address it.
-    const starter = seedValue(ONYX_SCHEMAS['hypermedia-schema'])
+    const starter = seedValue(ONYX_SCHEMAS['schema/meta-schema'])
     const data = cbor.encode(dagJsonToIpld(starter))
     const digest = await sha256.digest(data)
     expect(CID.createV1(0x71, digest).toString()).toBe('bafyreie44p6ice4lihyt2qeea6ceqphiegqr5zjw3pilzgqqkva7n6eace')
@@ -49,7 +49,7 @@ describe('schema publish path', () => {
 
   it('a new-schema starter value is itself recognized as an Onyx schema', () => {
     // Mirrors NewInstanceEditor seeding with schemaCid = meta-schema CID.
-    const starter = seedValue(ONYX_SCHEMAS['hypermedia-schema'])
+    const starter = seedValue(ONYX_SCHEMAS['schema/meta-schema'])
     expect(isOnyxSchema(starter)).toBe(true)
   })
 

@@ -1,0 +1,87 @@
+{
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct",
+  "properties": {
+    "source": {
+      "value": {
+        "anyOf": [
+          {
+            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct",
+            "properties": {
+              "type": {
+                "value": "c",
+                "required": true
+              },
+              "id": {
+                "value": {
+                  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/id"
+                },
+                "required": true
+              },
+              "author": {
+                "value": {
+                  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+                }
+              },
+              "time": {
+                "value": {
+                  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/timestamp"
+                }
+              }
+            }
+          },
+          {
+            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct",
+            "properties": {
+              "type": {
+                "value": "d",
+                "required": true
+              },
+              "id": {
+                "value": {
+                  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/id"
+                },
+                "required": true
+              },
+              "author": {
+                "value": {
+                  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string"
+                }
+              },
+              "time": {
+                "value": {
+                  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/timestamp"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "required": true
+    },
+    "isExactVersion": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/boolean"
+      },
+      "required": true
+    },
+    "targetFragment": {
+      "value": {
+        "anyOf": [
+          {
+            "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/parsed-fragment"
+          },
+          {
+            "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/null"
+          }
+        ]
+      },
+      "required": true
+    },
+    "targetId": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/id"
+      },
+      "required": true
+    }
+  }
+}

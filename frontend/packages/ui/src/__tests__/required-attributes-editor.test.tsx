@@ -42,7 +42,7 @@ function Harness({schema, initial}: {schema?: OnyxSchema; initial: Record<string
 
 // The person document requires metadata.surname; its metadata sub-schema is the
 // conformance schema the caller resolves and passes down.
-const personMetaSchema = () => metadataSchemaOf(ONYX_SCHEMAS['example-person-doc'])!
+const personMetaSchema = () => metadataSchemaOf(ONYX_SCHEMAS['example/person-doc'])!
 
 describe('RequiredAttributesEditor', () => {
   beforeEach(() => {
@@ -56,7 +56,7 @@ describe('RequiredAttributesEditor', () => {
 
   it('renders nothing when the schema declares no required custom fields', () => {
     // A schema requiring only standard/header fields yields no required rows.
-    act(() => root.render(<Harness schema={ONYX_SCHEMAS['hypermedia-metadata']} initial={{name: 'X'}} />))
+    act(() => root.render(<Harness schema={ONYX_SCHEMAS['metadata']} initial={{name: 'X'}} />))
     expect(container.textContent).toBe('')
   })
 

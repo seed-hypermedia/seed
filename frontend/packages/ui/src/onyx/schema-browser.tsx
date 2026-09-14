@@ -29,7 +29,7 @@ export function libraryPageUrl(space: string, slug: string): string {
 
 /** Under a bundled API schema, the live call panel (the union page is the whole console). */
 function RpcSection({slug}: {slug: string}) {
-  if (slug === 'seed-rpc')
+  if (slug === 'rpc/method')
     return (
       <section className="border-border mt-6 border-t pt-4">
         <h2 className="mb-2 text-sm font-semibold">API console · call any method of this union</h2>

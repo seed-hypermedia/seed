@@ -57,7 +57,7 @@ describe('schema root kind', () => {
     let schema: any = emptyStructSchema()
     schema = withRootKind(schema, 'signed')
     expect(isSignedBlobType(schema)).toBe(true)
-    expect(schema.ref).toBe(nameToUrl('hypermedia-blob'))
+    expect(schema.ref).toBe(nameToUrl('blob'))
     expect(schema.type).toBeUndefined()
     // Schemas carry no name, so the pinned tag starts as the editable default.
     expect(fieldSchema(schema, 'type')).toBe('Custom')

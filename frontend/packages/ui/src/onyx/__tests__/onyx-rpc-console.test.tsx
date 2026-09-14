@@ -7,10 +7,10 @@ import {ONYX_SCHEMAS, validate} from '../onyx-engine'
 import {seedValue} from '../onyx-data-editor'
 import {RpcCallPanel, rpcMethodForSlug, rpcMethods} from '../onyx-rpc-console'
 
-describe('rpc catalog (derived from the seed-rpc union schema)', () => {
+describe('rpc catalog (derived from the rpc/method union schema)', () => {
   it('exposes every method of the union with key, input, and output', () => {
     const methods = rpcMethods()
-    expect(methods.length).toBe(ONYX_SCHEMAS['seed-rpc'].anyOf.length)
+    expect(methods.length).toBe(ONYX_SCHEMAS['rpc/method'].anyOf.length)
     const keys = methods.map((m) => m.key)
     expect(keys).toContain('Search')
     expect(keys).toContain('Resource')
@@ -28,8 +28,8 @@ describe('rpc catalog (derived from the seed-rpc union schema)', () => {
   })
 
   it('resolves a method from its schema slug', () => {
-    expect(rpcMethodForSlug('seed-rpc-search')?.key).toBe('Search')
-    expect(rpcMethodForSlug('seed-citation')).toBeUndefined()
+    expect(rpcMethodForSlug('rpc/search')?.key).toBe('Search')
+    expect(rpcMethodForSlug('rpc/type/citation')).toBeUndefined()
   })
 })
 
@@ -51,7 +51,7 @@ describe('RpcCallPanel', () => {
 
   it('calls the universal client with the edited input and validates the response', async () => {
     const request = vi.fn(async (_method: string, _input: unknown) => ({state: 'found', version: 'bafyv1'}))
-    const method = rpcMethodForSlug('seed-rpc-discovery-status')!
+    const method = rpcMethodForSlug('rpc/discovery-status')!
     act(() => {
       root.render(
         <UniversalAppProvider openUrl={() => {}} openRoute={null} universalClient={{request} as any}>
@@ -78,7 +78,7 @@ describe('RpcCallPanel', () => {
 
   it('surfaces schema warnings when the response does not conform', async () => {
     const request = vi.fn(async (_method: string, _input: unknown) => ({state: 'exploded'}))
-    const method = rpcMethodForSlug('seed-rpc-discovery-status')!
+    const method = rpcMethodForSlug('rpc/discovery-status')!
     act(() => {
       root.render(
         <UniversalAppProvider openUrl={() => {}} openRoute={null} universalClient={{request} as any}>

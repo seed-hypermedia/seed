@@ -82,7 +82,7 @@ describe('OnyxSchemaEditor (struct form)', () => {
     act(() =>
       root.render(
         <Harness
-          initial={{type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct', properties: {}}}
+          initial={{type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct', properties: {}}}
         />,
       ),
     )
@@ -103,11 +103,11 @@ describe('OnyxSchemaEditor (struct form)', () => {
       root.render(
         <Harness
           initial={{
-            type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct',
+            type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct',
             name: 'T',
             properties: {
               a: {
-                value: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-string'},
+                value: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/string'},
                 required: true,
               },
             },
@@ -122,14 +122,16 @@ describe('OnyxSchemaEditor (struct form)', () => {
 })
 
 describe('OnyxSchemaEditor (generics and JSON mode)', () => {
-  const MAP = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-map'
-  const STRUCT = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-struct'
-  const BLOCK = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block'
+  const MAP = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map'
+  const STRUCT = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct'
+  const BLOCK = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block'
 
   it('shows a generic schema’s type parameters and offers them as field kinds', () => {
     act(() => {
       root.render(
-        <Harness initial={{type: STRUCT, params: {Block: {ref: BLOCK}}, properties: {body: {value: {var: 'Block'}}}}} />,
+        <Harness
+          initial={{type: STRUCT, params: {Block: {ref: BLOCK}}, properties: {body: {value: {var: 'Block'}}}}}
+        />,
       )
     })
     const params = container.querySelector('[data-testid="schema-params"]')!
@@ -148,7 +150,7 @@ describe('OnyxSchemaEditor (generics and JSON mode)', () => {
       root.render(<Harness initial={emptyStructSchema()} />)
     })
     click(findButton('Make generic'))
-    expect(latest.params).toEqual({T: {ref: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-any'}})
+    expect(latest.params).toEqual({T: {ref: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/any'}})
     expect(isOnyxSchema(latest)).toBe(true)
     click(findButton('Add field'))
     // Point the new field at the parameter, then drop the parameter.
@@ -159,7 +161,7 @@ describe('OnyxSchemaEditor (generics and JSON mode)', () => {
     click(remove)
     expect(latest.params).toBeUndefined()
     expect(fieldSchema(latest, 'field')).toEqual({
-      ref: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-any',
+      ref: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/any',
     })
     expect(isOnyxSchema(latest)).toBe(true)
   })
@@ -184,7 +186,7 @@ describe('OnyxSchemaEditor (generics and JSON mode)', () => {
     act(() => {
       root.render(
         <Harness
-          initial={{type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-list', items: {ref: BLOCK}}}
+          initial={{type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/list', items: {ref: BLOCK}}}
         />,
       )
     })
@@ -212,7 +214,7 @@ describe('OnyxSchemaEditor (generics and JSON mode)', () => {
   })
 
   it('a struct with open extra values edits as fields; unchecking closes it', () => {
-    const VALUE = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-value'
+    const VALUE = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/value'
     act(() => {
       root.render(<Harness initial={{type: STRUCT, properties: {type: {value: {ref: MAP}}}, values: {ref: VALUE}}} />)
     })
