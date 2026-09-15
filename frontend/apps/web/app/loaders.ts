@@ -403,13 +403,16 @@ async function loadResourcePayload(
     latestDocument?: HMDocument | null
     comment?: HMComment
     commentId?: UnpackedHypermediaId
+    // Set when `docId` is a republish redirect and `document` is the content of its
+    // target. The route keeps the republish's own address, not the target's.
+    republish?: boolean
   },
   ctx?: InstrumentationContext,
   options?: {
     originHomeId?: UnpackedHypermediaId
   },
 ): Promise<WebResourcePayload> {
-  const {document, latestDocument, comment, commentId} = payload
+  const {document, latestDocument, comment, commentId, republish} = payload
   const prefetchCtx = createPrefetchContext()
   const homeId = hmId(docId.uid, {latest: true})
 
@@ -417,7 +420,24 @@ async function loadResourcePayload(
   // Clear `latest` when pinning to a specific version — otherwise the client's
   // REST fetch includes both `?v=...&l`, the handler drops the version, and the
   // daemon may return a stale "latest" pointer (overwriting correct SSR data).
-  const finalId: UnpackedHypermediaId = {...docId, version: document.version, latest: false}
+  //
+  // A republish route is the exception: `document.version` belongs to the TARGET
+  // document, so pinning it onto the republish's address asks the daemon for a
+  // version that does not exist there and every lookup (the SSR prefetch and each
+  // client refetch) resolves as not-found. Keep the route's own unpinned id.
+  const finalId: UnpackedHypermediaId = republish ? docId : {...docId, version: document.version, latest: false}
+
+  if (republish) {
+    // Seed the route's resource query with the followed target content — the same
+    // shape queryResource produces when it follows a republish on the client (target
+    // document under the republish's id) — so the prefetch below does not resolve the
+    // redirect chain a second time.
+    prefetchCtx.queryClient.setQueryData(queryResource(serverUniversalClient, finalId).queryKey, {
+      type: 'document',
+      id: finalId,
+      document,
+    } satisfies HMResource)
+  }
 
   // Single prefetch phase - use finalId so query keys match on client
   await prefetchResourceData(finalId, document, prefetchCtx, ctx)
@@ -542,6 +562,7 @@ export async function loadResource(
         {
           document: followed.document,
           latestDocument,
+          republish: true,
         },
         ctx,
         options,
