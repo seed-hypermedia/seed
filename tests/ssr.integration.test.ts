@@ -161,14 +161,15 @@ describe("SSR Redirect Routes", () => {
     );
   }
 
+  const titled = (name: string, body: string) => [
+    {
+      type: "SetAttributes" as const,
+      attrs: [{ key: ["name"], value: name }],
+    },
+    ...flattenToOperations(parseMarkdown(body).tree),
+  ];
+
   beforeAll(async () => {
-    const titled = (name: string, body: string) => [
-      {
-        type: "SetAttributes" as const,
-        attrs: [{ key: ["name"], value: name }],
-      },
-      ...flattenToOperations(parseMarkdown(body).tree),
-    ];
     await createDocumentUpdate(
       env.web.baseUrl,
       FIXTURE_ACCOUNT,
@@ -234,6 +235,81 @@ describe("SSR Redirect Routes", () => {
       expect(entity.queryKey[2] ?? null).toBeNull();
       expect(entity.state.data.type).toBe("document");
       expect(entity.state.data.document.metadata.name).toBe(targetTitle);
+    },
+    TEST_TIMEOUT,
+  );
+
+  it(
+    "lists a republished child under its target's title, in the loader data and on the parent page",
+    async () => {
+      // Regression guard for the listing half of the republish bug: the daemon's list row for a
+      // republish carried empty metadata, so the web/desktop file browser showed the path
+      // segment and collection views showed "Untitled" (ht26.hyper.media/pro, 2026-09-15).
+      const parentPath = `republish-parent-${runId}`;
+      const childPath = `${parentPath}/paper`;
+      // The parent mirrors ht26/pro: a Query block listing its own children.
+      await createDocumentUpdate(env.web.baseUrl, FIXTURE_ACCOUNT, parentPath, [
+        {
+          type: "SetAttributes" as const,
+          attrs: [{ key: ["name"], value: `Proceedings ${runId}` }],
+        },
+        {
+          type: "ReplaceBlock" as const,
+          block: {
+            id: "q1",
+            type: "Query",
+            style: "Card",
+            columnCount: 3,
+            banner: false,
+            query: {
+              includes: [{ space: "", path: "", mode: "Children" }],
+              sort: [{ term: "updated", reverse: true }],
+            },
+          },
+        },
+        { type: "MoveBlocks" as const, blocks: ["q1"], parent: "" },
+      ]);
+      await createDocumentUpdate(
+        env.web.baseUrl,
+        FIXTURE_ACCOUNT,
+        childPath,
+        titled(`Child Source ${runId}`, "Replaced by the republish"),
+      );
+      await createRedirectDocument(env.web.baseUrl, FIXTURE_ACCOUNT, childPath, {
+        path: targetPath,
+        republish: true,
+      });
+
+      const data = await loaderData(parentPath);
+      const parentId = `hm://${FIXTURE_ACCOUNT_ID}/${parentPath}`;
+      const directory = data.dehydratedState?.queries.find(
+        (q: any) => q.queryKey[0] === "DOC_LIST_DIRECTORY" && q.queryKey[1] === parentId,
+      );
+      expect(directory, "dehydrated directory listing for the parent").toBeDefined();
+      const child = directory.state.data.find((d: any) => d.path.join("/") === childPath);
+      expect(child, "republished child in the parent's listing").toBeDefined();
+      expect(child.redirectInfo?.republish).toBe(true);
+      expect(child.metadata?.name).toBe(targetTitle);
+      expect(child.authors?.length).toBeGreaterThan(0);
+      // Identity stays the republish's own address: no target version on the list item.
+      expect(child.version || "").toBe("");
+
+      // The Query block cards (the "collection view") are fetched by the client through the
+      // QueryBlock API — SSR skips a query scoped to its own document — so ask it the same way
+      // the page does and check the card title source.
+      const query = {
+        includes: [{ space: FIXTURE_ACCOUNT_ID, path: `/${parentPath}`, mode: "Children" }],
+        sort: [{ term: "updated", reverse: true }],
+      };
+      const queryResponse = await fetch(
+        `${env.web.baseUrl}/api/QueryBlock?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+      expect(queryResponse.status).toBe(200);
+      const queryBody = (await queryResponse.json()) as { json: any };
+      const card = queryBody.json.results.find((r: any) => r.path.join("/") === childPath);
+      expect(card, "republished child among the query-block results").toBeDefined();
+      expect(card.metadata?.name).toBe(targetTitle);
+      expect(card.redirectInfo?.republish).toBe(true);
     },
     TEST_TIMEOUT,
   );

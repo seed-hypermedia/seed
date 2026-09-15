@@ -3903,3 +3903,117 @@ func TestBackfillDerivesIsCollection(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, n, "a drained backfill must report nothing pending, so the worker can stop")
 }
+
+func TestListingRepublishedDocumentPresentsTargetDisplayFields(t *testing.T) {
+	t.Parallel()
+
+	// A republish Ref has no content of its own. Before this test, every listing returned its
+	// bare row — empty metadata, no authors, zero timestamps — so the web and desktop file
+	// browsers showed the path segment and collection views showed "Untitled" for a republished
+	// document (ht26.hyper.media/pro, 2026-09-15).
+	alice := newTestDocsAPI(t, "alice")
+	ctx := t.Context()
+	account := alice.me.Account.PublicKey.String()
+
+	original, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/2026/paper",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "name", Value: "Link-Traced Amplification"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "paragraph", Text: "Abstract."},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/pro",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "name", Value: "Proceedings"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	republish := func(path, targetPath string) {
+		t.Helper()
+		_, err := alice.CreateRef(ctx, &documents.CreateRefRequest{
+			SigningKeyName: "main",
+			Account:        account,
+			Path:           path,
+			Target: &documents.RefTarget{
+				Target: &documents.RefTarget_Redirect_{
+					Redirect: &documents.RefTarget_Redirect{Account: account, Path: targetPath, Republish: true},
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
+	republish("/pro/paper", original.Path)
+	// A republish of the republish must still show the document that has content.
+	republish("/pro/paper-again", "/pro/paper")
+
+	// A private document republished into a public listing must not leak its fields.
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/secret",
+		Visibility:     documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "name", Value: "Secret Document"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	republish("/pro/leak", "/secret")
+
+	list, err := alice.ListDirectory(ctx, &documents.ListDirectoryRequest{Account: account, DirectoryPath: "/pro"})
+	require.NoError(t, err)
+	byPath := map[string]*documents.DocumentInfo{}
+	for _, d := range list.Documents {
+		byPath[d.Path] = d
+	}
+	// ListDirectory includes the directory document itself.
+	require.Len(t, byPath, 4, "the directory and all three republishes must be listed: %v", list.Documents)
+	require.Equal(t, "Proceedings", byPath["/pro"].Metadata.GetFields()["name"].GetStringValue())
+
+	for _, path := range []string{"/pro/paper", "/pro/paper-again"} {
+		got := byPath[path]
+		require.True(t, got.RedirectInfo.GetRepublish(), "%s must still be reported as a republish", path)
+		require.Equal(t, "Link-Traced Amplification", got.Metadata.GetFields()["name"].GetStringValue(), "%s must present the target's name", path)
+		require.Equal(t, original.Authors, got.Authors, "%s must present the target's authors", path)
+		require.Equal(t, original.CreateTime.AsTime(), got.CreateTime.AsTime(), "%s must present the target's create time", path)
+		// Identity stays the redirect's own: pinning the target's version onto this address made
+		// republished pages resolve as not-found (#1120).
+		require.Equal(t, "", got.Version, "%s must not carry the target's version", path)
+		require.Equal(t, account, got.Account)
+	}
+
+	leak := byPath["/pro/leak"]
+	require.True(t, leak.RedirectInfo.GetRepublish())
+	require.Empty(t, leak.Metadata.GetFields(), "a private target's metadata must not leak through the listing")
+	require.Empty(t, leak.Authors)
+
+	// Single-item lookups agree with the listing.
+	info, err := alice.GetDocumentInfo(ctx, &documents.GetDocumentInfoRequest{Account: account, Path: "/pro/paper"})
+	require.NoError(t, err)
+	testutil.StructsEqual(byPath["/pro/paper"], info).Compare(t, "GetDocumentInfo must match the listed republish")
+
+	// Documents with content are untouched.
+	root, err := alice.ListDirectory(ctx, &documents.ListDirectoryRequest{Account: account, DirectoryPath: "/2026"})
+	require.NoError(t, err)
+	require.Len(t, root.Documents, 1)
+	require.Nil(t, root.Documents[0].RedirectInfo)
+	require.Equal(t, "Link-Traced Amplification", root.Documents[0].Metadata.GetFields()["name"].GetStringValue())
+}
