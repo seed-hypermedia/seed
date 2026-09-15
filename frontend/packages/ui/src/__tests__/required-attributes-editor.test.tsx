@@ -75,4 +75,22 @@ describe('RequiredAttributesEditor', () => {
     // The seeded required field renders an editable input wired to onMetadata.
     expect(container.querySelector('input')).not.toBeNull()
   })
+
+  it('shows readers the required fields read-only: the value, or "not set"', () => {
+    const employee = metadataSchemaOf(HM_SCHEMAS['example/admin'])!
+    act(() =>
+      root.render(
+        <TooltipProvider>
+          <RequiredAttributesEditor conformanceSchema={employee} metadata={{name: 'X', employeeId: 'E-42'} as any} />
+        </TooltipProvider>,
+      ),
+    )
+    const block = container.querySelector('[data-testid="required-attributes"]')!
+    expect(block.textContent).toContain('employeeId')
+    expect(block.textContent).toContain('E-42')
+    expect(block.textContent).toContain('permissions')
+    expect(block.textContent).toContain('not set')
+    // no editing affordances
+    expect(block.querySelector('input')).toBeNull()
+  })
 })
