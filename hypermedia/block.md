@@ -1,0 +1,25 @@
+---
+name: Block
+summary: "The open block: the common fields (id, type, text, link, annotations, attributes) plus arbitrary extra fields of any type, requiring only id and type. This is t"
+schemaDefinition: ipfs://bafyreiddb3zunn7qmifzpcgpimsu5g4ebmjmntx4b34qbmklxprelpzsn4
+---
+The open block: the common fields (id, type, text, link, annotations, attributes) plus arbitrary extra fields of any type, requiring only id and type. This is the forward-compatible wire type Change ops and comment bodies reference — a block type this client has no schema for (a future or third-party type) is still a valid Block, so a document is never rejected over an unrecognized block. Every concrete block is a subtype; the strict recognized set is block/core. To ADD a block type, extend block/base and union it with the core (see example/poll-block / example/app-block). <!-- id:oDU4AtVK -->
+
+This document describes the **block** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:Je0ODJIV -->
+
+# Shape <!-- id:QiFjidUz -->
+
+A map with these fields: <!-- id:fsTkb0Vo -->
+  - `id` _(required)_ — [string](./string.md) <!-- id:JojT7-nZ -->
+  - `revision` — [string](./string.md) <!-- id:lffsHj-T -->
+  - `type` _(required)_ — [string](./string.md) <!-- id:cLTKblZl -->
+  - `text` — [string](./string.md) <!-- id:Vp36I-vY -->
+  - `link` — [string](./string.md) <!-- id:C8thhIEg -->
+  - `annotations` — list of [block/annotation](./block/annotation.md) <!-- id:9JbkXwGl -->
+  - `attributes` — map { 0 fields } <!-- id:wLVIaOrw -->
+
+# Depends on <!-- id:EltAo080 -->
+
+- [block/annotation](./block/annotation.md) <!-- id:g8o6nDyl -->
+- [any](./any.md) <!-- id:ehYTDbOa -->
+- [string](./string.md) <!-- id:xj1lJl3u -->

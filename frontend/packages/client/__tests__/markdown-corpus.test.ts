@@ -1,5 +1,5 @@
 /**
- * Corpus check over the repo's `seed-docs/` folder (published to a Hypermedia
+ * Corpus check over the repo's `hypermedia/` folder (published to a Hypermedia
  * site from CI): every markdown file must be a fixed point of the converter
  * pair — export(import(export(md))) equals export(import(md)) with block ids
  * masked. Skipped when the corpus is not present (e.g. the published npm
@@ -12,7 +12,7 @@ import {blocksToMarkdown} from '../src/blocks-to-markdown'
 import type {HMDocument} from '../src/hm-types'
 import {markdownBlockNodesToHMBlockNodes, parseMarkdown} from '../src/markdown-to-blocks'
 
-const CORPUS = resolve(__dirname, '../../../../seed-docs')
+const CORPUS = resolve(__dirname, '../../../../hypermedia')
 
 function toDoc(md: string): HMDocument {
   const {tree, metadata} = parseMarkdown(md)
@@ -35,7 +35,7 @@ function markdownFiles(dir: string): string[] {
   return out
 }
 
-describe.skipIf(!existsSync(CORPUS))('seed-docs/ corpus round-trip', () => {
+describe.skipIf(!existsSync(CORPUS))('hypermedia/ corpus round-trip', () => {
   const files = existsSync(CORPUS) ? markdownFiles(CORPUS) : []
   it.each(files)('%s is a fixed point', (file) => {
     const src = readFileSync(resolve(CORPUS, file), 'utf8')

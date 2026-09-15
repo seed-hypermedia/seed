@@ -30,7 +30,7 @@ import (
 	"github.com/fullstorydev/grpcui"
 	"github.com/fullstorydev/grpcui/standalone"
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
-	"github.com/ipfs/boxo/blockstore"
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/codec/dagjson"
@@ -58,7 +58,6 @@ func initHTTP(
 	rpc *grpc.Server,
 	clean *cleanup.Stack,
 	g *errgroup.Group,
-	blobs blockstore.Blockstore,
 	ipfsHandler *hmnet.FileManager,
 	p2pnet *hmnet.Node,
 	apiServer *daemonapi.Server,
@@ -77,7 +76,7 @@ func initHTTP(
 	{
 		router.HandleFunc("POST /ipfs/file-upload", ipfsHandler.UploadFile)
 		router.HandleFunc("POST /ipfs/{cid}", ipfsHandler.PutBlob)
-		router.HandleFunc("GET /ipfs/{cid}", ipfsGetHandler(ipfsHandler.GetFile, makeBlobDAGJSONHandler(blobs)))
+		router.HandleFunc("GET /ipfs/{cid}", ipfsGetHandler(ipfsHandler.GetFile, makeBlobDAGJSONHandler(ipfsHandler)))
 
 		loopback := router.With(loopbackOnly)
 		loopback.HandleNav("GET /debug/metrics", promhttp.Handler())
@@ -512,7 +511,13 @@ func ipfsGetHandler(fileHandler http.HandlerFunc, dagJSONHandler http.HandlerFun
 	}
 }
 
-func makeBlobDAGJSONHandler(bs blockstore.Blockstore) http.HandlerFunc {
+// blockGetter fetches a raw block by CID, discovering it on the IPFS network
+// when it's not available locally (see hmnet.FileManager.GetBlock).
+type blockGetter interface {
+	GetBlock(ctx context.Context, c cid.Cid) (blocks.Block, error)
+}
+
+func makeBlobDAGJSONHandler(bg blockGetter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cs := r.PathValue("cid")
 		if cs == "" {
@@ -526,8 +531,17 @@ func makeBlobDAGJSONHandler(bs blockstore.Blockstore) http.HandlerFunc {
 			return
 		}
 
-		blk, err := bs.Get(r.Context(), c)
+		// Search locally first, then the IPFS network, like the raw
+		// /ipfs/{cid} file endpoint does.
+		ctx, cancel := context.WithTimeout(r.Context(), hmnet.SearchTimeout)
+		defer cancel()
+
+		blk, err := bg.GetBlock(ctx, c)
 		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				http.Error(w, "timed out searching the network for "+c.String(), http.StatusRequestTimeout)
+				return
+			}
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}

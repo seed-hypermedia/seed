@@ -1,0 +1,9 @@
+{
+  "anyOf": [
+    "Group",
+    "Ordered",
+    "Unordered",
+    "Blockquote",
+    "Grid"
+  ]
+}

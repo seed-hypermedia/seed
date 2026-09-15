@@ -39,6 +39,9 @@ export const Container = ({
 
 export const windowContainerStyles = cn('flex flex-col w-screen h-screen min-h-svh bg-panel-background p-2')
 
+/** The rounded, bordered frame a page puts around itself inside the main window. */
+export const pageFrameStyles = cn('relative h-full max-h-full overflow-hidden rounded-lg border bg-white dark:bg-black')
+
 export const panelContainerStyles = cn(
   'flex flex-col w-full h-full min-h-0 rounded-md overflow-hidden bg-panel border border-border',
 )

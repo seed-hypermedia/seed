@@ -1,0 +1,7 @@
+{
+  "anyOf": [
+    "draft",
+    "published",
+    "archived"
+  ]
+}

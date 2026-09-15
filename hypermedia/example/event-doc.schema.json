@@ -1,0 +1,49 @@
+{
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+  "properties": {
+    "date": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date"
+      },
+      "required": true,
+      "description": "When it happened (or began)."
+    },
+    "ends": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date"
+      },
+      "description": "When it ended, for a span."
+    },
+    "location": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hm-url",
+        "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/place-doc"
+      },
+      "description": "Where it happened."
+    },
+    "protagonist": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hm-url",
+        "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/character-doc"
+      },
+      "description": "The central character."
+    },
+    "faction": {
+      "value": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hm-url",
+        "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/faction-doc"
+      },
+      "description": "The faction chiefly involved."
+    },
+    "outcome": {
+      "value": {
+        "anyOf": [
+          "victory",
+          "defeat",
+          "stalemate",
+          "unknown"
+        ]
+      }
+    }
+  }
+}
