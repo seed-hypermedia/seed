@@ -1,6 +1,6 @@
 import {useAssistantAutoOpen} from '@/assistant-panel-state'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client'
-import type {HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {HMDocument, HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
   createInspectNavRouteFromRoute,
   hmId,
@@ -10,13 +10,16 @@ import {
   useUniversalAppContext,
   useUniversalClient,
 } from '@shm/shared'
+import {documentCreationMachine, inferDocumentSchema} from '@shm/shared'
 import {buildCollectionDraftSeed} from '@shm/shared/collection'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useIsSiteOwner} from '@shm/shared/models/capabilities'
-import {createDefaultCollectionQueryBlock} from '@shm/shared/models/document-machine'
-import {useAccount} from '@shm/shared/models/entity'
+import {createDefaultCollectionQueryBlock, deriveDocumentType} from '@shm/shared/models/document-machine'
+import {useAccount, useResource} from '@shm/shared/models/entity'
+import {queryQueryBlock} from '@shm/shared/models/queries'
+import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
-import {hmIdToURL} from '@shm/shared/utils/entity-id-url'
+import {hmIdToURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 import {useSiteAgents} from '@shm/ui/assistant-panel-toggle'
@@ -32,6 +35,7 @@ import {createCopyLinkMenuItem} from '@shm/ui/copy-link-menu'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {useDocumentMaintenance} from '@shm/ui/document-maintenance'
 import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
+import {DocumentCreateButton} from '@shm/ui/document-create-button'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Add} from '@shm/ui/icons'
@@ -63,9 +67,13 @@ import {
   UserCog,
 } from 'lucide-react'
 import {nanoid} from 'nanoid'
-import {ReactNode, useCallback, useMemo, useRef, useState} from 'react'
+import {ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {useActorRef, useSelector} from '@xstate/react'
+import {useQuery} from '@tanstack/react-query'
 import {LogoutDialog, useCreateAccount, useLocalKeyPair} from './auth'
 import {createWebDocumentDraft, createWebDocumentDraftFromMarkdownFile} from './document-edit/web-create-draft'
+import {listWebDocChildDrafts} from './document-edit/web-draft-db'
+import {useWebCanEdit} from './document-edit/use-web-can-edit'
 import {getVaultAccountSettingsUrl} from './vault-links'
 import {useCreateSpaceDialog, useHasExistingSpace} from './web-create-space-dialog'
 import {useWebNotificationInbox, useWebNotificationReadState} from './web-notifications'
@@ -268,6 +276,198 @@ export function useWebCreateDocumentMenuItem({
         />
       ) : null,
   }
+}
+
+function WebActorCreateButton({
+  locationId,
+  signingAccountId,
+  currentIsCollection,
+  parentId,
+  parentIsCollection,
+  canEditParent,
+  capabilityCid,
+  schema,
+  onFinished,
+}: {
+  locationId: UnpackedHypermediaId
+  signingAccountId: string
+  currentIsCollection: boolean
+  parentId?: UnpackedHypermediaId
+  parentIsCollection: boolean
+  canEditParent: boolean
+  capabilityCid?: string
+  schema?: ReturnType<typeof inferDocumentSchema>
+  onFinished: () => void
+}) {
+  const navigate = useNavigate()
+  const client = useUniversalClient()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const destination = parentIsCollection && canEditParent && parentId ? parentId : locationId
+  const actor = useActorRef(documentCreationMachine, {
+    input: {
+      currentId: locationId,
+      resolve: async () => ({
+        canEditCurrent: true,
+        currentIsCollection,
+        parentId,
+        parentIsCollection,
+        canEditParent,
+        capabilityCid,
+        schema,
+      }),
+      create: async (request) => {
+        const seed = request.kind === 'collection' ? buildCollectionDraftSeed(crypto.randomUUID()) : null
+        const result = await createWebDocumentDraft({
+          client,
+          locationId: request.destination,
+          signingAccountId,
+          visibility: 'PUBLIC',
+          metadata: {...seed?.metadata, ...request.metadata},
+          content: seed ? editorBlocksToHMBlockNodes([createDefaultCollectionQueryBlock(nanoid(8))]) : undefined,
+          capabilityCid,
+          persist: request.kind === 'collection',
+          navigate: (route) => navigate(route),
+        })
+        return result.routeId
+      },
+    },
+  })
+  const snapshot = useSelector(actor, (state) => state)
+
+  useEffect(() => {
+    if (snapshot.value !== 'failedCreation') return
+    toast.error(snapshot.context.error instanceof Error ? snapshot.context.error.message : 'Could not create document')
+    actor.send({type: 'retry.requested'})
+  }, [actor, snapshot.context.error, snapshot.value])
+
+  useEffect(() => {
+    const input = inputRef.current
+    if (!input) return
+    input.addEventListener('cancel', onFinished)
+    return () => input.removeEventListener('cancel', onFinished)
+  }, [onFinished])
+
+  return (
+    <>
+      <DocumentCreateButton
+        disabled={JSON.stringify(snapshot.value) !== JSON.stringify({resolved: 'ready'})}
+        showSubdocument={snapshot.can({type: 'create.requested', kind: 'subdocument'})}
+        importLabel="Import Markdown File"
+        onCreate={(kind) => actor.send({type: 'create.requested', kind})}
+        onImport={() => {
+          actor.send({type: 'import.requested'})
+          if (actor.getSnapshot().output?.type === 'import') inputRef.current?.click()
+        }}
+      />
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".md,.markdown,text/markdown,text/plain"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0]
+          event.currentTarget.value = ''
+          if (!file) return
+          toast.promise(
+            createWebDocumentDraftFromMarkdownFile({
+              client,
+              file,
+              locationId: destination,
+              signingAccountId,
+              capabilityCid,
+              schema,
+              navigate: (route) => navigate(route),
+            }),
+            {loading: 'Importing Markdown…', success: 'Markdown imported.', error: 'Failed to import Markdown.'},
+          )
+          onFinished()
+        }}
+      />
+    </>
+  )
+}
+
+/** Deferred actor-backed document creation control for the web document toolbar. */
+export function WebDocumentCreateButton({
+  locationId,
+  currentDocument,
+  canEdit,
+  signingAccountId,
+  capabilityCid,
+}: {
+  locationId: UnpackedHypermediaId
+  currentDocument?: HMDocument
+  canEdit: boolean
+  signingAccountId?: string
+  capabilityCid?: string
+}) {
+  const client = useUniversalClient()
+  const parentId = locationId.path?.length ? hmId(locationId.uid, {path: locationId.path.slice(0, -1)}) : undefined
+  const parent = useResource(currentDocument ? parentId : undefined)
+  const parentDocument = parent.data?.type === 'document' ? parent.data.document : undefined
+  const parentAccess = useWebCanEdit(currentDocument ? parentId : undefined)
+  const currentIsCollection =
+    !!currentDocument && deriveDocumentType(currentDocument.content, locationId) === 'collection'
+  const parentIsCollection =
+    !!parentDocument && !!parentId && deriveDocumentType(parentDocument.content, parentId) === 'collection'
+  const schemaId = currentIsCollection ? locationId : parentIsCollection && parentAccess.canEdit ? parentId : undefined
+  const children = useQuery(
+    queryQueryBlock(
+      client,
+      schemaId
+        ? {query: {includes: [{space: schemaId.uid, path: hmIdPathToEntityQueryPath(schemaId.path), mode: 'Children'}]}}
+        : null,
+    ),
+  )
+  const draftChildren = useQuery({
+    queryKey: ['web-document-creation-drafts', schemaId?.id],
+    queryFn: () => listWebDocChildDrafts(schemaId!.uid, schemaId!.path ?? []),
+    enabled: !!schemaId,
+  })
+  const schema = useMemo(
+    () =>
+      schemaId
+        ? inferDocumentSchema({
+            collectionId: schemaId,
+            publishedChildren: children.data?.results ?? [],
+            draftChildren: (draftChildren.data ?? []).flatMap((draft) => {
+              const id = unpackHmId(draft.docId)
+              return id ? [{id, metadata: draft.metadata}] : []
+            }),
+          })
+        : undefined,
+    [children.data?.results, draftChildren.data, schemaId],
+  )
+  const [generation, setGeneration] = useState(0)
+  const loading =
+    !currentDocument ||
+    (!!parentId && parent.isLoading) ||
+    (!!parentId && parentAccess.capabilitiesLoading) ||
+    (!!schemaId && (children.isLoading || draftChildren.isLoading))
+
+  if (loading) return <DocumentCreateButton disabled onCreate={() => {}} onImport={() => {}} />
+  if (!canEdit || !signingAccountId) return null
+
+  return (
+    <WebActorCreateButton
+      key={generation}
+      locationId={locationId}
+      signingAccountId={signingAccountId}
+      currentIsCollection={currentIsCollection}
+      parentId={parentId}
+      parentIsCollection={parentIsCollection}
+      canEditParent={parentAccess.canEdit}
+      capabilityCid={
+        parentIsCollection && parentAccess.canEdit
+          ? parentAccess.capability?.id === '_owner'
+            ? undefined
+            : parentAccess.capability?.id
+          : capabilityCid
+      }
+      schema={schema}
+      onFinished={() => setGeneration((value) => value + 1)}
+    />
+  )
 }
 
 function PlaceholderAvatar({onClick}: {onClick: () => void}) {

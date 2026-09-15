@@ -19,6 +19,7 @@ import {
 } from '@shm/editor/blocknote/core/extensions/Markdown/MarkdownToBlocks'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
 import {useUniversalClient} from '@shm/shared'
+import {applySchemaToMetadata, type DocumentSchema} from '@shm/shared/models/document-creation-schema'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -44,8 +45,8 @@ import {z} from 'zod'
 import {ImportedDocument, useImportConfirmDialog} from './import-doc-dialog'
 import {useWXRImportDialog} from './wxr-import-dialog'
 
-export function useImportDialog() {
-  return useAppDialog(ImportDialog)
+export function useImportDialog(onClose?: () => void) {
+  return useAppDialog(ImportDialog, {onClose})
 }
 
 export function ImportDialog({
@@ -72,8 +73,8 @@ export function ImportDialog({
           className="border-border border"
           variant="ghost"
           onClick={() => {
-            onClose()
             input.onImportFile()
+            onClose()
           }}
         >
           <File className="size-3" />
@@ -83,8 +84,8 @@ export function ImportDialog({
           className="border-border border"
           variant="ghost"
           onClick={() => {
-            onClose()
             input.onImportDirectory()
+            onClose()
           }}
         >
           <Folder className="size-3" />
@@ -94,8 +95,8 @@ export function ImportDialog({
           className="border-border border"
           variant="ghost"
           onClick={() => {
-            onClose()
             input.onImportLatexFile()
+            onClose()
           }}
         >
           <File className="size-3" />
@@ -105,8 +106,8 @@ export function ImportDialog({
           className="border-border border"
           variant="ghost"
           onClick={() => {
-            onClose()
             input.onImportLatexDirectory()
+            onClose()
           }}
         >
           <Folder className="size-3" />
@@ -116,8 +117,8 @@ export function ImportDialog({
           className="border-border border"
           variant="ghost"
           onClick={() => {
-            onClose()
             input.onImportWebSite()
+            onClose()
           }}
         >
           <Globe className="size-3" />
@@ -128,8 +129,8 @@ export function ImportDialog({
             className="border-border border"
             variant="ghost"
             onClick={() => {
-              onClose()
               input.onImportWordPress?.()
+              onClose()
             }}
           >
             <File className="size-3" />
@@ -194,7 +195,7 @@ export function ImportDropdownButton({id, button}: {id: UnpackedHypermediaId; bu
   )
 }
 
-export function useImporting(parentId: UnpackedHypermediaId) {
+export function useImporting(parentId: UnpackedHypermediaId, schema?: DocumentSchema, onFinished?: () => void) {
   const {openMarkdownDirectories, openMarkdownFiles, openLatexDirectories, openLatexFiles} = useAppContext()
   const accts = useMyAccountsWithWriteAccess(parentId)
   const navigate = useNavigate()
@@ -211,7 +212,7 @@ export function useImporting(parentId: UnpackedHypermediaId) {
     mutationFn: (url: string) => client.webImporting.checkWebUrl.mutate(url),
   })
 
-  const importDialog = useImportConfirmDialog()
+  const importDialog = useImportConfirmDialog(onFinished)
 
   function startImport(
     importFunction: (id: string) => Promise<{
@@ -231,11 +232,13 @@ export function useImporting(parentId: UnpackedHypermediaId) {
           })
         } else {
           toast.error('No documents found inside the selected directory.')
+          onFinished?.()
         }
       })
       .catch((error) => {
         console.error('Error importing documents:', error)
         toast.error(`Import error: ${error.message || error}`)
+        onFinished?.()
       })
   }
 
@@ -272,22 +275,29 @@ export function useImporting(parentId: UnpackedHypermediaId) {
     // const subDirs: string[] = []
 
     toast.promise(
-      ImportDocumentsWithFeedback(parentId, createDraft, signingAccount, documents, docMap, editor, visibility).then(
-        async (draftIds) => {
-          if (draftIds.draftIds.length === 1) {
-            const importedDraftId = draftIds.draftIds[0]
-            const draft = await client.drafts.get.query(importedDraftId)
-            const targetId = draft ? draftDocumentRouteId(draft) : undefined
-            if (targetId) {
-              navigate({
-                key: 'document',
-                id: targetId,
-              })
-            }
+      ImportDocumentsWithFeedback(
+        parentId,
+        createDraft,
+        signingAccount,
+        documents,
+        docMap,
+        editor,
+        visibility,
+        schema,
+      ).then(async (draftIds) => {
+        if (draftIds.draftIds.length === 1) {
+          const importedDraftId = draftIds.draftIds[0]
+          const draft = await client.drafts.get.query(importedDraftId)
+          const targetId = draft ? draftDocumentRouteId(draft) : undefined
+          if (targetId) {
+            navigate({
+              key: 'document',
+              id: targetId,
+            })
           }
-          return draftIds.draftIds.length
-        },
-      ),
+        }
+        return draftIds.draftIds.length
+      }),
       {
         loading: 'Importing documents…',
         success: `Imported ${documents.length} documents.`,
@@ -323,11 +333,13 @@ export function useImporting(parentId: UnpackedHypermediaId) {
           })
         } else {
           toast.error('No documents found inside the selected directory.')
+          onFinished?.()
         }
       })
       .catch((error) => {
         console.error('Error importing LaTeX documents:', error)
         toast.error(`Import error: ${error.message || error}`)
+        onFinished?.()
       })
   }
 
@@ -568,6 +580,7 @@ const ImportDocumentsWithFeedback = (
   docMap: Map<string, {name: string; path: string}>,
   editor: BlockNoteEditor,
   visibility: HMResourceVisibility = 'PUBLIC',
+  schema?: DocumentSchema,
 ) => {
   const pathCounter: {[key: string]: number} = {}
   return new Promise<{draftIds: string[]}>(async (resolve, reject) => {
@@ -672,11 +685,14 @@ const ImportDocumentsWithFeedback = (
           editPath,
           content: blocks,
           deps: [],
-          metadata: {
-            name: documentTitle,
-            icon: icon ?? undefined,
-            cover: cover ?? undefined,
-          },
+          metadata: applySchemaToMetadata(
+            {
+              name: documentTitle,
+              icon: icon ?? undefined,
+              cover: cover ?? undefined,
+            },
+            schema ?? {attributes: []},
+          ),
           signingAccount: signingAccount?.document?.account || undefined,
           visibility,
         })

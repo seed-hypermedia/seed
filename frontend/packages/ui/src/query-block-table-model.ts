@@ -31,7 +31,7 @@ export type QueryTableValueContext = {
   citationCounts?: Record<string, number>
 }
 
-const RESERVED_METADATA_KEYS = new Set(Array.from(BUILTIN_METADATA_KEYS).concat('type'))
+const RESERVED_METADATA_KEYS = BUILTIN_METADATA_KEYS
 
 /** Infers one simple table type from the non-empty values of an attribute. */
 export function inferAttributeType(values: unknown[]): QueryTableAttributeType {

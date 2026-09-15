@@ -217,4 +217,23 @@ describe('createWebDocumentDraft', () => {
     })
     expect((draft?.content[0]?.block as any)?.text).toBe('Body text')
   })
+
+  it('adds missing collection schema attributes without replacing imported values', async () => {
+    const {routeId} = await createWebDocumentDraftFromMarkdownFile({
+      client: publishedParentClient,
+      file: new File(['---\nstatus: imported\n---\n\nBody'], 'fallback.md', {type: 'text/markdown'}),
+      locationId: makeDocId('site', []),
+      signingAccountId: 'author',
+      schema: {
+        attributes: [
+          {key: 'priority', type: 'number'},
+          {key: 'status', type: 'text'},
+        ],
+      },
+      navigate: vi.fn(),
+    })
+
+    const draft = await getWebDocDraft(routeId.path?.at(-1)?.replace(/^-/, '') || '')
+    expect(draft?.metadata).toMatchObject({status: 'imported', priority: 0})
+  })
 })
