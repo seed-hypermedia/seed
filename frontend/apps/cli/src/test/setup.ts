@@ -137,7 +137,10 @@ export async function startDaemon(config: TestConfig = {}): Promise<TestContext>
     '/bin/sh',
     [
       '-c',
-      `cd "${daemonPath}" && "${goBinary}" run . -data-dir="${dataDir}" -http.port=${httpPort} -grpc.port=${grpcPort} -p2p.port=${p2pPort} -log-level=warn${
+      // -keystore-dir: the file keystore, as tests/integration/daemon.ts uses. Without it the
+      // daemon opens the OS keyring, which a Linux CI runner does not have
+      // ("org.freedesktop.secrets was not provided by any .service files").
+      `cd "${daemonPath}" && "${goBinary}" run . -data-dir="${dataDir}" -keystore-dir="${dataDir}/keystore" -http.port=${httpPort} -grpc.port=${grpcPort} -p2p.port=${p2pPort} -log-level=warn${
         config.bootstrapPeers ? ` -p2p.bootstrap-peers="${config.bootstrapPeers}"` : ''
       }`,
     ],

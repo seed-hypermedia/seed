@@ -208,7 +208,9 @@ jobs:
         with:
           go-version: '1.26.2'
       - name: Install native build dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential cmake lsof
+        # gnome-keyring + libsecret-tools + dbus-x11: a Secret Service for the CLI fixture
+        # suite below, whose `key import` stores keys through `secret-tool`.
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake lsof gnome-keyring libsecret-tools dbus-x11
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
       # The mobile integration tests boot a vault server with bun and an Expo
@@ -290,6 +292,36 @@ jobs:
         env:
           # Mobile e2e has never gone green on a GitHub runner; see tests/vitest.config.ts.
           SKIP_MOBILE_E2E: 'true'
+      # The CLI fixture suite boots its own daemon (`go run` from backend/cmd/seed-daemon,
+      # so it needs the same cgo/llama environment as the daemon build above) and a web dev
+      # server, then drives the CLI end to end. It ran in no workflow until 2026-09-15 and
+      # had rotted: three assertions were stale for three weeks.
+      - name: Run CLI fixture suite
+        # The CLI keeps signing keys in the OS keyring (`secret-tool` on Linux), so the suite
+        # runs inside a D-Bus session with an unlocked gnome-keyring providing the Secret
+        # Service. `--unlock` reads the (empty) password from stdin and prints the control
+        # variables the daemon needs exported.
+        run: |
+          dbus-run-session -- bash -c '
+            set -e
+            # A non-empty password: with an empty one this gnome-keyring creates no default
+            # collection and every store falls back to a GUI prompt (SystemPrompter), which
+            # fails headless. --unlock creates+unlocks the login keyring; --start then
+            # publishes the Secret Service on the session bus.
+            eval "$(printf "ci-keyring\n" | gnome-keyring-daemon --unlock --components=secrets)"
+            eval "$(printf "ci-keyring\n" | gnome-keyring-daemon --start --components=secrets)"
+            export GNOME_KEYRING_CONTROL
+            # Smoke-test the Secret Service the CLI will use, so a keyring problem fails here
+            # with a clear message instead of inside the suite.
+            printf "smoke" | secret-tool store --label "ci smoke" service seed-ci-smoke username smoke
+            test "$(secret-tool lookup service seed-ci-smoke username smoke)" = "smoke"
+            cd frontend/apps/cli && bun test src/test/cli-fixture.test.ts
+          '
+        env:
+          CGO_ENABLED: '1'
+          GOFLAGS: -tags=cpu
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
 
   # Job 3: E2E tests. The `desktop` suite is currently a no-op (see the
   # commented-out commands below) — keeping it in the matrix just burned a

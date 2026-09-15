@@ -10,7 +10,9 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {getErrorMessage, HMError, HMNotFoundError, HMRedirectError, HMResourceTombstoneError} from './models/entity'
-import {MAX_REDIRECT_HOPS} from './redirects'
+import {followRedirects, MAX_REDIRECT_HOPS} from './redirects'
+
+export {followRedirects, type RedirectWalk} from './redirects'
 import {packHmId} from './utils'
 
 /**
@@ -103,30 +105,26 @@ export function createResourceResolver(grpcClient: GRPCClient) {
   const fetchResource = createResourceFetcher(grpcClient)
 
   async function resolveResource(id: UnpackedHypermediaId): Promise<HMResolvedResource> {
-    const visited = new Set<string>()
-    let current = id
-    while (true) {
-      const key = packHmId(current)
-      if (visited.has(key)) {
-        throw new HMRedirectCycleError(Array.from(visited).concat(key))
-      }
-      if (visited.size > MAX_REDIRECT_HOPS) {
-        throw new HMRedirectCycleError(Array.from(visited), {limitExceeded: true})
-      }
-      visited.add(key)
-      const resource = await fetchResource(current)
-      if (resource.type === 'redirect') {
-        current = resource.redirectTarget
-        continue
-      }
-      if (resource.type === 'not-found') {
-        throw new HMNotFoundError()
-      }
-      if (resource.type === 'error') {
-        throw new Error(resource.message)
-      }
-      return resource
+    const walk = await followRedirects(fetchResource, id)
+    if (walk.stopped === 'cycle') {
+      throw new HMRedirectCycleError(walk.visited)
     }
+    if (walk.stopped === 'limit') {
+      // The last address was never fetched.
+      throw new HMRedirectCycleError(walk.visited.slice(0, -1), {limitExceeded: true})
+    }
+    const {resource} = walk
+    if (resource.type === 'not-found') {
+      throw new HMNotFoundError()
+    }
+    if (resource.type === 'error') {
+      throw new Error(resource.message)
+    }
+    if (resource.type === 'redirect') {
+      // Unreachable: the walk never returns a redirect unless asked to stop at a move.
+      throw new Error('Unresolved redirect')
+    }
+    return resource
   }
   return resolveResource
 }
