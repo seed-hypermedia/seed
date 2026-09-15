@@ -695,7 +695,8 @@ function StructFieldsEditor({
     let n = 1
     let name = 'field'
     while (field(name)) name = `field${++n}`
-    commitFields([...fields, {name, schema: kindSchema('string'), required: false}])
+    // A new field is required until unchecked: most fields a type names are ones every value has.
+    commitFields([...fields, {name, schema: kindSchema('string'), required: true}])
   }
 
   // `values`: the schema every field NOT listed above must satisfy. Present, the
