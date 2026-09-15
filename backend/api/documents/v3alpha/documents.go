@@ -2122,6 +2122,11 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 
 // ListUnreferencedDocuments implements Documents API v3.
 func (srv *Server) ListUnreferencedDocuments(ctx context.Context, in *documents.ListUnreferencedDocumentsRequest) (*documents.ListUnreferencedDocumentsResponse, error) {
+	const enabled = false
+	if !enabled {
+		return nil, status.Error(codes.Unavailable, "unreferenced documents are temporarily disabled")
+	}
+
 	if in.Account == "" {
 		return nil, status.Error(codes.InvalidArgument, "account is required")
 	}

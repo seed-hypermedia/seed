@@ -187,9 +187,7 @@ func (idx *Index) BackfillDocFields(ctx context.Context, limit int) (processed i
 // pendingDocFieldGenerations lists generations whose derived fields haven't been
 // computed, cheapest-to-probe first.
 //
-// Collection and reference-summary completion are independent. A generation is
-// pending when either marker is absent for its current heads. Failed reference
-// derivations have an explicit summary status, so they are not retried forever.
+// The IsCollectionAttr row is the bookkeeping marker for completion.
 //
 // Restricted to each resource's latest generation because that is the only one
 // whose attributes documentGeneration.save persists; scanning older generations
@@ -242,17 +240,10 @@ var qPendingDocFieldGenerations = dqb.Str(`
 	AND dg.generation = (
 		SELECT MAX(generation) FROM document_generations g WHERE g.resource = dg.resource
 	)
-	AND (NOT EXISTS (
+	AND NOT EXISTS (
 		SELECT 1 FROM document_attributes da
 		WHERE da.resource = dg.resource AND da.key = ?
 	)
-	OR NOT EXISTS (
-		SELECT 1 FROM document_reference_summaries drs
-		WHERE drs.resource = dg.resource
-		AND drs.generation = dg.generation
-		AND drs.genesis = dg.genesis
-		AND json(drs.heads) = json(dg.heads)
-	))
 	ORDER BY dg.resource
 	LIMIT ?;
 `)

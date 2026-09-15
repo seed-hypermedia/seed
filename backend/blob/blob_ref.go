@@ -1123,6 +1123,14 @@ func deriveDocFieldsForGeneration(conn *sqlite.Conn, bs *blockStore, log *zap.Lo
 }
 
 func replaceDocumentReferenceSummary(conn *sqlite.Conn, resource, generation int64, genesis string, heads map[int64]struct{}, targets []string, hasSelfQuery, success bool) error {
+	// Temporarily keep the unreferenced-document index dormant while its issues
+	// are addressed. The schema remains in place so this can be re-enabled
+	// without another migration.
+	const enabled = false
+	if !enabled {
+		return nil
+	}
+
 	headIDs := slices.Collect(maps.Keys(heads))
 	slices.Sort(headIDs)
 	headsJSON, err := json.Marshal(headIDs)

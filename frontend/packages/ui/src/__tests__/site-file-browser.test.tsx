@@ -52,136 +52,15 @@ afterEach(() => {
 })
 
 describe('SiteFileBrowser', () => {
-  it('appends compact unreferenced rows with parent context in a tooltip', () => {
-    const guide = makeDoc(['guides'], 'Guides')
+  it('does not load or render unreferenced documents', () => {
     const install = makeDoc(['guides', 'install'], 'Install Seed', 'PRIVATE')
-    useDirectoryWithDraftsMock.mockReturnValue({directory: [guide, install], drafts: [], isLoading: false})
-    useUnreferencedDocumentsMock.mockReturnValue({documents: [install], isLoading: false, indexIncomplete: false})
-
-    act(() => root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />))
-
-    act(() => (container.querySelector('[aria-label="Expand Guides"]') as HTMLButtonElement).click())
-    expect(container.textContent?.match(/Install Seed/g)).toHaveLength(2)
-    expect(container.textContent).toContain('Unreferenced documents')
-    const section = container.querySelector('[aria-label="Unreferenced documents"]')!
-    expect(section.textContent).not.toContain('Guides')
-    expect(section.querySelector('[data-tooltip-content="guides"]')).toBeTruthy()
-    expect(section.className).not.toContain('border-t')
-    expect(section.querySelector('h2')?.className).toContain('text-muted-foreground')
-    expect(section.querySelector('h2')?.className).toContain('text-xs')
-    expect(section.querySelector('[role="listitem"] button')?.className).toContain('h-6')
-    expect(section.querySelector('[role="listitem"] > span.size-6')).toBeNull()
-    expect(
-      container.querySelector('[aria-label="Unreferenced documents"] [aria-label="Private document"]'),
-    ).toBeTruthy()
-  })
-
-  it('filters the unreferenced section with the shared title search', () => {
-    const install = makeDoc(['guides', 'install'], 'Install Seed')
-    const overview = makeDoc(['guides', 'overview'], 'Overview')
-    useDirectoryWithDraftsMock.mockReturnValue({directory: [install, overview], drafts: [], isLoading: false})
-    useUnreferencedDocumentsMock.mockReturnValue({
-      documents: [install, overview],
-      isLoading: false,
-      indexIncomplete: false,
-    })
-    act(() =>
-      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} searchVisible />),
-    )
-
-    const input = container.querySelector<HTMLInputElement>('[aria-label="Filter documents"]')!
-    act(() => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, 'install')
-      input.dispatchEvent(new Event('input', {bubbles: true}))
-    })
-
-    const section = container.querySelector('[aria-label="Unreferenced documents"]')!
-    expect(section.textContent).toContain('Install Seed')
-    expect(section.textContent).not.toContain('Overview')
-  })
-
-  it('hides the entire unreferenced section whenever it has no documents', () => {
-    useDirectoryWithDraftsMock.mockReturnValue({directory: [], drafts: [], isLoading: false})
-    useUnreferencedDocumentsMock.mockReturnValue({documents: [], isLoading: true, indexIncomplete: false})
-    act(() => root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />))
-    expect(container.querySelector('[aria-label="Unreferenced documents"]')).toBeNull()
-
-    useUnreferencedDocumentsMock.mockReturnValue({documents: [], isLoading: false, indexIncomplete: true})
-    act(() => root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />))
-    expect(container.querySelector('[aria-label="Unreferenced documents"]')).toBeNull()
-
-    const refetch = vi.fn()
-    useUnreferencedDocumentsMock.mockReturnValue({
-      documents: [],
-      isLoading: false,
-      indexIncomplete: false,
-      error: Error('no'),
-      refetch,
-    })
-    act(() => root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />))
-    expect(container.querySelector('[aria-label="Unreferenced documents"]')).toBeNull()
-
-    useUnreferencedDocumentsMock.mockReturnValue({documents: [], isLoading: false, indexIncomplete: false})
-    act(() => root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />))
-    expect(container.textContent).not.toContain('Unreferenced documents')
-  })
-
-  it('offers Include document only in the unreferenced section and reports disabled state', () => {
-    const install = makeDoc(['guides', 'install'], 'Install Seed')
     useDirectoryWithDraftsMock.mockReturnValue({directory: [install], drafts: [], isLoading: false})
     useUnreferencedDocumentsMock.mockReturnValue({documents: [install], isLoading: false, indexIncomplete: false})
-    const onIncludeDocument = vi.fn()
-    act(() =>
-      root.render(
-        <SiteFileBrowser
-          siteId={hmId('site')}
-          activeDocumentId={null}
-          onNavigate={vi.fn()}
-          onIncludeDocument={onIncludeDocument}
-          getIncludeDocumentState={() => ({disabled: true, reason: 'Publishing access is required', pending: false})}
-        />,
-      ),
-    )
 
-    expect(container.querySelectorAll('[aria-label="Actions for Install Seed"]')).toHaveLength(1)
-    expect(container.querySelector('[aria-label="Space documents"] [aria-label="Actions for Install Seed"]')).toBeNull()
-    act(() =>
-      (container.querySelector('[aria-label="Actions for Install Seed"]') as HTMLButtonElement).dispatchEvent(
-        new MouseEvent('pointerdown', {bubbles: true, cancelable: true, button: 0, ctrlKey: false}),
-      ),
-    )
-    expect(document.body.textContent).toContain('Publishing access is required')
-  })
+    act(() => root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />))
 
-  it('optimistically removes an included document from the unreferenced section', () => {
-    const install = makeDoc(['guides', 'install'], 'Install Seed')
-    useDirectoryWithDraftsMock.mockReturnValue({directory: [install], drafts: [], isLoading: false})
-    useUnreferencedDocumentsMock.mockReturnValue({documents: [install], isLoading: false, indexIncomplete: false})
-    const onIncludeDocument = vi.fn(() => new Promise<void>(() => {}))
-    act(() =>
-      root.render(
-        <SiteFileBrowser
-          siteId={hmId('site')}
-          activeDocumentId={null}
-          onNavigate={vi.fn()}
-          onIncludeDocument={onIncludeDocument}
-        />,
-      ),
-    )
-
-    act(() =>
-      (container.querySelector('[aria-label="Actions for Install Seed"]') as HTMLButtonElement).dispatchEvent(
-        new MouseEvent('pointerdown', {bubbles: true, cancelable: true, button: 0}),
-      ),
-    )
-    const includeItem = Array.from(document.body.querySelectorAll('[role="menuitem"]')).find(
-      (item) => item.textContent?.includes('Include document'),
-    ) as HTMLElement
-    act(() => includeItem.click())
-
-    expect(onIncludeDocument).toHaveBeenCalledOnce()
+    expect(useUnreferencedDocumentsMock).not.toHaveBeenCalled()
     expect(container.querySelector('[aria-label="Unreferenced documents"]')).toBeNull()
-    expect(container.querySelector('[aria-label="Space documents"]')?.textContent).toContain('Install Seed')
   })
   it('keeps published metadata when an editing draft has no title override', () => {
     const published = makeDoc(['guides'], 'Published guide')
