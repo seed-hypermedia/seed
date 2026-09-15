@@ -55,6 +55,8 @@ var vaultMergeLog = logging.New("seed/vault-merge", "debug")
 type Vault struct {
 	mu           sync.RWMutex
 	remoteSyncMu sync.Mutex
+	// Fire-and-forget remote syncs in flight (see goSyncRemote). Close waits for them.
+	background sync.WaitGroup
 
 	store *fileStore
 
@@ -456,7 +458,27 @@ func validateLocalKeyName(name string, kp *core.KeyPair) error {
 
 // ResumeRemoteConnection refreshes remote sync state for an already-connected vault.
 func (ks *Vault) ResumeRemoteConnection() {
-	go ks.syncRemoteMaybe(context.Background())
+	ks.goSyncRemote(context.Background())
+}
+
+// goSyncRemote runs one remote sync in the background, tracked so that Close can wait for it.
+func (ks *Vault) goSyncRemote(ctx context.Context) {
+	ks.background.Add(1)
+	go func() {
+		defer ks.background.Done()
+		ks.syncRemoteMaybe(ctx)
+	}()
+}
+
+// Close waits for the background remote syncs started by local mutations and by
+// ResumeRemoteConnection to finish. A sync that fails records the failure in the vault file,
+// so anything that tears down the data directory afterwards must wait for it; the test
+// suite's TempDir cleanup raced exactly that write ("directory not empty", CI 2026-09-15).
+// The periodic sync from StartPeriodicRemoteSync is bound to its context instead and is not
+// waited for here.
+func (ks *Vault) Close() error {
+	ks.background.Wait()
+	return nil
 }
 
 // StartPeriodicRemoteSync runs a background sync on the given interval until ctx
@@ -1529,7 +1551,7 @@ func (ks *Vault) syncRemoteMaybe(ctx context.Context) {
 }
 
 func (ks *Vault) scheduleRemoteSync() {
-	go ks.syncRemoteMaybe(context.Background())
+	ks.goSyncRemote(context.Background())
 }
 
 func (ks *Vault) syncRemote(ctx context.Context) error {
