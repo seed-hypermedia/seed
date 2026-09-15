@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'bun:test'
-import {findMovedFrom, metadataDiffOp} from './space-sync'
+import {applySchemaMetadata, findMovedFrom, metadataDiffOp} from './space-sync'
 
 describe('findMovedFrom', () => {
   const byBlock = new Map<string, string>([
@@ -52,6 +52,34 @@ describe('metadataDiffOp', () => {
         {key: ['summary'], value: null},
         {key: ['theme', 'headerLayout'], value: null},
       ],
+    })
+  })
+})
+
+describe('applySchemaMetadata', () => {
+  const TYPE = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/employee'
+
+  test('an instance file binds its document through attributesSchema, dropping the old `schema` key', () => {
+    const out = applySchemaMetadata({name: 'Bob', schema: TYPE, schemaDefinition: 'ipfs://x'} as any, {
+      kind: 'instance',
+      type: TYPE,
+    })
+    expect(out).toEqual({name: 'Bob', attributesSchema: TYPE} as any)
+  })
+
+  test('a type file points schemaDefinition at its blob', () => {
+    expect(applySchemaMetadata({name: 'Person'}, {kind: 'type', cid: 'bafyabc', data: new Uint8Array()})).toEqual({
+      name: 'Person',
+      schemaDefinition: 'ipfs://bafyabc',
+    } as any)
+  })
+
+  test('the next import nulls the dropped `schema` attribute on the published document', () => {
+    const published = {name: 'Bob', schema: TYPE, attributesSchema: TYPE}
+    const next = applySchemaMetadata(published as any, {kind: 'instance', type: TYPE})
+    expect(metadataDiffOp(published, next as any)).toEqual({
+      type: 'SetAttributes',
+      attrs: [{key: ['schema'], value: null}],
     })
   })
 })

@@ -19,7 +19,7 @@
  * import encodes that file back to canonical DAG-CBOR, publishes the blob with
  * the document, and sets `schemaDefinition: ipfs://<cid>` (the file is the
  * truth, whatever the frontmatter says). A `{$type, value}` file is an
- * instance, not a type: its document conforms to `$type` (`metadata.schema`).
+ * instance, not a type: its document conforms to `$type` (`metadata.attributesSchema`).
  */
 import {effectiveSchemaRef, loadSchema, metadataViolations} from './schema'
 import {existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
@@ -414,7 +414,7 @@ export async function grantWriters(
 export type SchemaFile =
   /** A type: the document DEFINES this schema (`schemaDefinition: ipfs://<cid>`). */
   | {kind: 'type'; cid: string; data: Uint8Array}
-  /** An instance (`{$type, value}`): the document CONFORMS to `$type` (`schema`). */
+  /** An instance (`{$type, value}`): the document CONFORMS to `$type` (`attributesSchema`). */
   | {kind: 'instance'; type: string}
 
 /** Canonical DAG-CBOR encoding of a schema object and its CID (v1, sha2-256, dag-cbor). */
@@ -443,7 +443,9 @@ export function applySchemaMetadata(metadata: HMMetadata, schema: SchemaFile | n
   if (!schema) return metadata
   const out = {...(metadata as Record<string, unknown>)}
   if (schema.kind === 'instance') {
-    out.schema = schema.type
+    out.attributesSchema = schema.type
+    // `schema` is the binding's old name; a document still carrying it loses it on the next import.
+    delete out.schema
     delete out.schemaDefinition
   } else {
     out.schemaDefinition = `ipfs://${schema.cid}`
@@ -506,14 +508,14 @@ export async function checkSchemas(
     const path = layout.pathForFile(file)
     if (path === null) continue
     const metadata = metadataOf.get(file) ?? {}
-    let ref: string | null = typeof metadata.schema === 'string' ? metadata.schema : null
+    let ref: string | null = typeof metadata.attributesSchema === 'string' ? metadata.attributesSchema : null
     let via: 'own' | 'inherited' = 'own'
     if (!ref && path) {
       const parentPath = path.replace(/\/[^/]+$/, '')
       const parentFile = fileOfPath.get(parentPath)
       const parentMeta = parentFile ? metadataOf.get(parentFile) : undefined
-      if (parentMeta && typeof parentMeta.childrenSchema === 'string') {
-        ref = parentMeta.childrenSchema
+      if (parentMeta && typeof parentMeta.childAttributesSchema === 'string') {
+        ref = parentMeta.childAttributesSchema
         via = 'inherited'
       } else {
         const id = hmId(opts.account, {path: path.replace(/^\//, '').split('/')})

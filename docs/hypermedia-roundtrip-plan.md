@@ -44,7 +44,7 @@ Inventory to cover:
 | reference blocks | Embed (`view`), WebEmbed, Button (`name`, `alignment`, text), Nostr, Query (`style`, `columnCount`, `query`, `banner`, `table`)                            |
 | structure        | Table / TableRow (`isHeader`) / TableColumn (`width`, `isHeader`), Slot, `childrenType` (Group, Ordered, Unordered, Blockquote), `columnCount`, `columnId` |
 | annotations      | Bold, Italic, Underline, Strike, Code, Link, Embed, Range, TextColor, BackgroundColor, TextSize, TextFamily                                                |
-| metadata         | every key of `HMDocumentMetadataSchema` including nested `theme`, `spaceAgents`, `schema`, `childrenSchema`, `schemaDefinition`, and passthrough keys      |
+| metadata         | every key of `HMDocumentMetadataSchema` including nested `theme`, `spaceAgents`, `attributesSchema`, `childAttributesSchema`, `schemaDefinition`, and passthrough keys |
 
 Representation rules (proposed, applied in this phase):
 
