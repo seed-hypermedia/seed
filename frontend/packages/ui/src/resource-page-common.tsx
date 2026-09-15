@@ -4221,6 +4221,7 @@ function ContentViewWithOutline({
   const canEdit = useDocumentSelector(selectCanEdit)
   const isEditing = useDocumentSelector(selectIsEditing)
   const send = useDocumentSend()
+  const openUrl = useOpenUrl()
   const requiredAttrMetadata = useMemo(
     () => ({...document.metadata, ...ctx.metadata}),
     [document.metadata, ctx.metadata],
@@ -4275,18 +4276,22 @@ function ContentViewWithOutline({
 
       <div {...mainContentProps} className={cn(mainContentProps.className, 'px-4 pt-8')}>
         <DocumentSchemaSection document={document} canEdit={canEdit} />
-        {canEdit && (
-          <RequiredAttributesEditor
-            conformanceSchema={conformanceSchema}
-            metadata={requiredAttrMetadata}
-            onMetadata={(patch) => {
-              // A published doc isn't editing yet — enter editing first so the
-              // `change` is accepted (drafts are already in the editing state).
-              if (!isEditing) send({type: 'edit.start'})
-              send({type: 'change', metadata: patch})
-            }}
-          />
-        )}
+        {/* Everyone sees the required attributes; writers edit them in place. */}
+        <RequiredAttributesEditor
+          conformanceSchema={conformanceSchema}
+          metadata={requiredAttrMetadata}
+          openUrl={openUrl}
+          onMetadata={
+            canEdit
+              ? (patch) => {
+                  // A published doc isn't editing yet — enter editing first so the
+                  // `change` is accepted (drafts are already in the editing state).
+                  if (!isEditing) send({type: 'edit.start'})
+                  send({type: 'change', metadata: patch})
+                }
+              : undefined
+          }
+        />
         <DocumentContentHandoff ssrContentHTML={ssrContentHTML} editorMounted={!!DocumentContentComponent}>
           {DocumentContentComponent ? (
             <DocumentContentComponent
