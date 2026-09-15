@@ -386,12 +386,11 @@ function FieldsTable({
                   <SchemaRef node={f.schema} nav={nav} />
                 </td>
                 <td className="py-1.5 align-top text-xs">
-                  {f.required ? (
-                    <span className="text-primary font-medium">required</span>
-                  ) : (
-                    <span className="text-muted-foreground">optional</span>
+                  {/* Required is the default, so only optional is spelled out. */}
+                  {!f.required && <span className="text-muted-foreground">optional</span>}
+                  {origins?.[f.name] === 'inherited' && (
+                    <span className="text-muted-foreground">{f.required ? 'inherited' : ' · inherited'}</span>
                   )}
-                  {origins?.[f.name] === 'inherited' && <span className="text-muted-foreground"> · inherited</span>}
                 </td>
               </tr>
               {sub && (
