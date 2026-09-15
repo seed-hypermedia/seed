@@ -87,7 +87,7 @@ describe('createSeedClient', () => {
   })
 
   it('serializes Search query options without dropping zero enum values', async () => {
-    const fetchFn = mockFetchOk({entities: [], searchQuery: 'slow'})
+    const fetchFn = mockFetchOk({entities: [], searchQuery: 'slow', nextPageToken: ''})
     const client = createSeedClient('https://example.com', {fetch: fetchFn})
 
     await client.request('Search', {

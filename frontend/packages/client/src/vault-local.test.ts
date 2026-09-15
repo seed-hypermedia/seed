@@ -1,6 +1,6 @@
 import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {dirname, join} from 'node:path'
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest'
 import './base64'
 import * as encryption from './encryption'
@@ -83,7 +83,11 @@ describe('resolveVaultPath', () => {
   test('falls back to the first existing well-known location', async () => {
     vi.stubEnv('SEED_VAULT_PATH', '')
     vi.stubEnv('XDG_CONFIG_HOME', tempDir)
-    const desktopDir = join(tempDir, 'Seed', 'daemon')
+    // Isolate the home-based well-known paths too, or a real vault on the developer's machine
+    // wins over the fixture; and put the fixture where the resolver looks on THIS platform
+    // (macOS ignores XDG_CONFIG_HOME and uses ~/Library/Application Support).
+    vi.stubEnv('HOME', tempDir)
+    const desktopDir = dirname(wellKnownVaultPaths(false)[0]!)
     mkdirSync(desktopDir, {recursive: true})
     const fixture = await writeVaultFixture(desktopDir)
     expect(resolveVaultPath({})).toEqual({path: fixture, explicit: false})
