@@ -93,7 +93,7 @@ export function useCreateDocumentMenuItem({
                 onClick: () => {
                   // A real (public) document draft carrying a working schema: the Schema tab
                   // edits it in place; publish freezes it into a blob via schemaDefinition.
-                  void createDraft({initialMetadata: {schemaDraft: emptyStructSchema()}})
+                  void createDraft({initialSchemaDraft: emptyStructSchema()})
                 },
               },
             ]

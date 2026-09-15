@@ -603,10 +603,6 @@ export const HMDocumentMetadataSchema = z
     importTags: z.string().optional(),
     // JSON-stringified schema definition; present iff this document describes a schema (see notes/schema-as-document.md).
     schemaDefinition: z.string().optional(),
-    // The WORKING schema object a draft carries while its schema is being authored. Publish
-    // freezes it into a DAG-CBOR blob and replaces it with `schemaDefinition: ipfs://<cid>`;
-    // it must never reach a published document as-is.
-    schemaDraft: z.unknown().optional(),
   })
   // Metadata is an open/extensible attribute map: the document data model
   // supports arbitrary keys (custom fields, schema-keyed `ipfs://…` fields).
@@ -1371,6 +1367,12 @@ export const HMDraftContentSchema = z.object({
    * and is honored at publish time instead of the title-derived slug.
    */
   publishPath: z.array(z.string()).optional(),
+  /**
+   * The working schema object of a draft whose document defines a type, while it is being
+   * authored. Not metadata: publish freezes it into a DAG-CBOR blob and writes the document's
+   * `schemaDefinition: ipfs://<cid>` attribute.
+   */
+  schemaDraft: z.record(z.string(), z.any()).optional(),
 })
 
 export type HMDraftContent = z.infer<typeof HMDraftContentSchema>

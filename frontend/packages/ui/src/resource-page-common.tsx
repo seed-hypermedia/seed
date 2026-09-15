@@ -151,13 +151,7 @@ import {
 } from './document-metadata-affordances'
 import {DocumentMetadataView} from './document-metadata-view'
 import {RequiredAttributesEditor} from './required-attributes-editor'
-import {
-  SCHEMA_DRAFT_KEY,
-  schemaDefinitionCid,
-  schemaDraftValue,
-  SchemaDocumentHeaderActions,
-  useSchemaMenuItems,
-} from './schema/schema-document'
+import {schemaDefinitionCid, SchemaDocumentHeaderActions, useSchemaMenuItems} from './schema/schema-document'
 import {SchemaEditor} from './schema/schema-editor'
 import {SchemaBrowserPage} from './schema/schema-browser'
 import {useEffectiveDocSchema} from './schema/schema-resolve'
@@ -867,6 +861,8 @@ export interface ResourcePageProps {
   existingDraftBaseBlocks?: HMBlockNode[]
   /** Rename path persisted on the draft via the publish-popover rename affordance. */
   existingDraftPublishPath?: string[]
+  /** The working schema persisted on the draft, when its document defines a type. */
+  existingDraftSchemaDraft?: Record<string, any>
   /** Base deps captured for the draft. Used by platform wrappers and tests. */
   existingDraftDeps?: string[]
   /** Platform-specific confirm workflow for discarding the synthetic versions-panel draft row. */
@@ -967,6 +963,7 @@ export function ResourcePage({
   existingDraftMineTouchedIds,
   existingDraftBaseBlocks,
   existingDraftPublishPath,
+  existingDraftSchemaDraft,
   existingDraftDeps,
   draftVersionOnDiscardConfirm,
   floatingButtons,
@@ -1460,6 +1457,7 @@ export function ResourcePage({
             existingDraftMineTouchedIds={existingDraftMineTouchedIds}
             existingDraftBaseBlocks={existingDraftBaseBlocks}
             existingDraftPublishPath={existingDraftPublishPath}
+            existingDraftSchemaDraft={existingDraftSchemaDraft}
             existingDraftDeps={existingDraftDeps}
             draftVersionEntry={draftVersionEntry}
             floatingButtons={floatingButtons}
@@ -1799,6 +1797,7 @@ function DocumentBody({
   existingDraftMineTouchedIds,
   existingDraftBaseBlocks,
   existingDraftPublishPath,
+  existingDraftSchemaDraft,
   existingDraftDeps,
   draftVersionEntry,
   floatingButtons,
@@ -1851,6 +1850,7 @@ function DocumentBody({
   existingDraftMineTouchedIds?: string[]
   existingDraftBaseBlocks?: HMBlockNode[]
   existingDraftPublishPath?: string[]
+  existingDraftSchemaDraft?: Record<string, any>
   existingDraftDeps?: string[]
   draftVersionEntry?: DraftVersionEntry
   floatingButtons?: ReactNode
@@ -1911,6 +1911,7 @@ function DocumentBody({
           mineTouchedIds?: string[] | null
           baseBlocks?: HMBlockNode[] | null
           publishPath?: string[] | null
+          schemaDraft?: Record<string, any> | null
         }
       | undefined
     if (existingDraft === undefined) {
@@ -1929,6 +1930,7 @@ function DocumentBody({
         mineTouchedIds: existingDraftMineTouchedIds ?? null,
         baseBlocks: existingDraftBaseBlocks ?? null,
         publishPath: existingDraftPublishPath ?? null,
+        schemaDraft: existingDraftSchemaDraft ?? null,
       }
     } else {
       result = undefined // draft found but content not loaded yet
@@ -1944,6 +1946,7 @@ function DocumentBody({
     existingDraftMineTouchedIds,
     existingDraftBaseBlocks,
     existingDraftPublishPath,
+    existingDraftSchemaDraft,
   ])
   useDraftResolutionSync(draftResolution)
   const publishedVersion = useDocumentSelector(selectPublishedVersion)
@@ -3475,7 +3478,7 @@ function HomeDocumentMetadataControls({
 function DocumentSchemaSection({document, canEdit}: {document: HMDocument; canEdit: boolean}) {
   const ctx = useDocumentSelector(selectContext)
   const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
-  const hasDraft = !!schemaDraftValue(metadata) && canEdit
+  const hasDraft = !!ctx.schemaDraft && canEdit
   if (!hasDraft && !schemaDefinitionCid(metadata)) return null
   return (
     <section className="border-border/60 bg-muted/20 mb-6 rounded-lg border p-4" data-testid="document-schema-section">
@@ -3519,7 +3522,7 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
   const openUrl = useOpenUrl()
   // Draft metadata (partial) overrides published metadata, same as the Attributes tab.
   const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
-  const draftSchema = schemaDraftValue(metadata)
+  const draftSchema = ctx.schemaDraft
   const cid = schemaDefinitionCid(metadata)
   const [schemaDialogOpen, setSchemaDialogOpen] = useState(false)
   // Write access to the document is write access to its schema: the published schema seeds the
@@ -3538,7 +3541,7 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
   const published = cid ? (bundled ? HM_SCHEMAS[bundled] : byCid[cid]) : undefined
   const edit = (next: Record<string, any>) => {
     beginEditIfNeeded()
-    send({type: 'change', metadata: {[SCHEMA_DRAFT_KEY]: next} as any})
+    send({type: 'change', schemaDraft: next})
   }
   // Writers see the schema read-only too, with an Edit button that opens the editor in a dialog;
   // the view follows the draft as it is edited.
