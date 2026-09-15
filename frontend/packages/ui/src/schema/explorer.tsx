@@ -8,6 +8,7 @@
 
 import {ChevronRight} from 'lucide-react'
 import {createContext, Fragment, useContext, useState} from 'react'
+import {kindColor} from './schema-colors'
 import {HM_SCHEMA_PAGES} from './schema-registry.generated'
 import {useSchemaRegistry} from './schema-registry-cid'
 import {isSignedBlobSchema} from './signed-blob'
@@ -54,23 +55,6 @@ const isMetaVariant = (name: string) =>
 const kindPrimitive = (kind: string) => (HM_SCHEMAS[kind] ? kind : null)
 
 // --- small pieces ----------------------------------------------------------
-
-const kindColor: Record<string, string> = {
-  map: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300',
-  struct: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
-  list: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
-  string: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
-  integer: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300',
-  float: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300',
-  boolean: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
-  link: 'bg-pink-100 text-pink-700 dark:bg-pink-950 dark:text-pink-300',
-  bytes: 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
-  null: 'bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400',
-  union: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300',
-  var: 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-950 dark:text-fuchsia-300',
-  instance: 'bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300',
-  any: 'bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400',
-}
 
 /** The display name of a library schema: its page's name, else its slug. */
 const pageName = (slug: string) => HM_SCHEMA_PAGES[slug]?.name ?? slug
@@ -224,13 +208,7 @@ function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React
       </span>
     )
   if (k === 'map' || k === 'struct') {
-    if (node.properties)
-      return (
-        <span>
-          <KindBadge kind={k} nav={nav} />{' '}
-          <span className="text-muted-foreground">{`{ ${structFields(node).length} fields }`}</span>
-        </span>
-      )
+    if (node.properties) return <KindBadge kind={k} nav={nav} />
     if (node.values)
       return (
         <span>
@@ -355,21 +333,11 @@ function FieldsTable({
   fields: StructField[]
   origins?: Record<string, 'added' | 'inherited'>
   nav: (slug: string) => void
-  /** Rendered beneath a parent field: no header row of its own. */
+  /** Rendered beneath a parent field: no scroll container of its own. */
   nested?: boolean
 }) {
   const table = (
     <table className="w-full text-sm">
-      {!nested && (
-        <thead>
-          <tr className="border-border text-muted-foreground border-b text-left text-xs">
-            <th className="py-1 pr-4 font-medium">field</th>
-            <th className="py-1 pr-4 font-medium">type</th>
-            {/* Accessory information (required/optional, inheritance): no heading. */}
-            <th className="py-1 font-medium" />
-          </tr>
-        </thead>
-      )}
       <tbody>
         {fields.map((f) => {
           const sub = inlineStruct(f.schema)
@@ -529,11 +497,7 @@ export function SchemaDocPage({
     const effFields = structFields(eff)
     const origins: Record<string, 'added' | 'inherited'> = {}
     for (const f of effFields) origins[f.name] = added.has(f.name) ? 'added' : 'inherited'
-    lead = (
-      <ExtendsLine slug={parent} onClick={() => nav(parent)}>
-        <span className="text-muted-foreground"> · +{added.size} field(s)</span>
-      </ExtendsLine>
-    )
+    lead = <ExtendsLine slug={parent} onClick={() => nav(parent)} />
     main = <FieldsTable fields={effFields} origins={origins} nav={nav} />
   } else if (hasRef && schema.args) {
     const parent = refToName(schema.ref)
@@ -562,10 +526,7 @@ export function SchemaDocPage({
     const base = kindOf(schema.type) === 'struct' ? 'struct' : 'map'
     lead = (
       <ExtendsLine slug={base} onClick={() => nav(base)}>
-        <span className="text-muted-foreground">
-          {' '}
-          · {schema.values ? 'open' : 'closed'}, {structFields(schema).length} fields
-        </span>
+        <span className="text-muted-foreground"> · {schema.values ? 'open' : 'closed'}</span>
       </ExtendsLine>
     )
     main = <FieldsTable fields={structFields(schema)} nav={nav} />

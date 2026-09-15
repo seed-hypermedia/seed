@@ -42,6 +42,7 @@ export function SchemaTypeInput({
   ariaLabel,
   placeholder = 'type',
   className,
+  chip,
 }: {
   value: string
   onChange: (url: string) => void
@@ -54,6 +55,9 @@ export function SchemaTypeInput({
   ariaLabel: string
   placeholder?: string
   className?: string
+  /** Show the current type as a compact chip sized to its name (the reading view's look); it becomes
+   * a search field while typing. Pass the chip's colors in `className`. */
+  chip?: boolean
 }) {
   // `text` is the query while the user types; null shows the current type's name.
   const [text, setText] = useState<string | null>(null)
@@ -94,7 +98,15 @@ export function SchemaTypeInput({
           aria-label={ariaLabel}
           placeholder={placeholder}
           title={value || undefined}
-          className={cn('min-w-40 text-sm', text === null && value && 'font-medium', className)}
+          className={cn(
+            chip
+              ? '[field-sizing:content] h-6 w-auto min-w-8 cursor-pointer rounded-md border-transparent px-1.5 py-0 font-mono text-xs shadow-none focus-visible:ring-2 md:text-xs'
+              : 'min-w-40 text-sm',
+            text === null && value && 'font-medium',
+            className,
+            // While searching, a chip is a plain field again.
+            chip && text !== null && 'bg-background text-foreground border-border min-w-40 cursor-text',
+          )}
           onFocus={() => setOpen(true)}
           // A click on an already-focused input (e.g. after Escape) reopens the list.
           onPointerDown={() => setOpen(true)}
