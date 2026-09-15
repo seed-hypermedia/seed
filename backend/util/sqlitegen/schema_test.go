@@ -43,6 +43,8 @@ func TestIntrospectSchema(t *testing.T) {
 CREATE TABLE wallets (id TEXT, name TEXT, user_id INTEGER);
 
 CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, age INTEGER, avatar BLOB);
+
+CREATE VIEW users_view AS SELECT id, name FROM users;
 `)
 	require.NoError(t, err)
 
@@ -55,6 +57,8 @@ CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, age INTEGER, avatar BLOB)
 			"users.name":      {Table: "users", SQLType: "TEXT"},
 			"users.age":       {Table: "users", SQLType: "INTEGER"},
 			"users.avatar":    {Table: "users", SQLType: "BLOB"},
+			"users_view.id":   {Table: "users_view", SQLType: "INTEGER"},
+			"users_view.name": {Table: "users_view", SQLType: "TEXT"},
 			"wallets.id":      {Table: "wallets", SQLType: "TEXT"},
 			"wallets.name":    {Table: "wallets", SQLType: "TEXT"},
 			"wallets.user_id": {Table: "wallets", SQLType: "INTEGER"},

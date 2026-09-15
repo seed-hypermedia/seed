@@ -1,3 +1,7 @@
+-- After changing the schema here make sure to run:
+-- `./dev gen //backend/...` from the repository root.
+-- Ensure every table is assigned a kind in `schema_table_specs.go` file.
+
 -- Stores arbitrary key/value data that didn't deserve its own table.
 CREATE TABLE kv (
     key TEXT PRIMARY KEY,

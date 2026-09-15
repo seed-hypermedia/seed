@@ -15,37 +15,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// Order is important to ensure foreign key constraints are not violated.
-var derivedTables = []string{
-	storage.T_BlobLinks,
-	storage.T_ResourceLinks,
-	storage.T_StructuralBlobs,
-	storage.T_DocumentAttributes,
-	storage.T_DocumentAttributeKeys,
-	// Comment activity is derived from Comment blobs, so it's rebuilt by the blob
-	// loop below. comment_live has an FK to resources with ON DELETE CASCADE, but
-	// reindex deletes in list order, so list it before resources rather than
-	// relying on the cascade (same reasoning as the RBSR tables at the end of
-	// this list).
-	storage.T_CommentLive,
-	storage.T_DocumentCommentStats,
-	storage.T_Resources,
-	storage.T_Spaces,
-	storage.T_DocumentGenerations,
-	storage.T_StashedBlobs,
-	storage.T_Embeddings,
-	storage.T_EmbeddingsIndex,
-	storage.T_Fts,
-	storage.T_FtsIndex,
-	storage.T_BlobVisibility,
-	// The maintained RBSR index is derived: drop it on reindex and let it
-	// re-materialize lazily on the next reconcile. rbsr_item has an FK to
-	// rbsr_scope with ON DELETE CASCADE, but reindex deletes tables in list
-	// order, so list rbsr_item before rbsr_scope to avoid relying on cascade.
-	storage.T_RbsrItem,
-	storage.T_RbsrScope,
-}
-
 // ReindexState represents the state of the initial re-indexing process.
 type ReindexState byte
 
@@ -133,8 +102,11 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 
 	if err := sqlitex.WithTx(conn, func() error {
 		truncateStart := time.Now()
-		for _, table := range derivedTables {
-			if err := sqlitex.ExecTransient(conn, "DELETE FROM "+table, nil); err != nil {
+		for _, table := range storage.TableSpecs() {
+			if table.Kind != storage.TableKindDerived {
+				continue
+			}
+			if err := sqlitex.ExecTransient(conn, "DELETE FROM "+table.Name, nil); err != nil {
 				return err
 			}
 		}
