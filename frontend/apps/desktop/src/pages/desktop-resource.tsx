@@ -66,6 +66,7 @@ import type {LinkExtensionOptions} from '@shm/shared/document-content-props'
 import {canCreateChildDocuments} from '@shm/shared/document-utils'
 import {useIsSiteOwner} from '@shm/shared/models/capabilities'
 import {isDocumentCardCleanupJobActive} from '@shm/shared/models/document-card-cleanup-machine'
+import {draftSchemaDraft, splitLegacySchemaDraft} from '@shm/shared/models/schema-draft'
 import {createEmailSubscribersMenuItem} from '@shm/ui/site-email-subscribers'
 // import {hasQueryBlockTargetingSelf, hasSelfQueryBlockInEditorContent} from '@shm/shared/content'
 import {
@@ -588,7 +589,9 @@ export default function DesktopResourcePage() {
           // populates it (e.g. a home draft pre-written with metadata values by
           // the create space form), and a full replace would wipe those
           // fields on the first autosave.
-          metadata: {...existingDraft?.metadata, ...input.metadata},
+          // The working schema is saved beside the metadata; an older draft's metadata copy is dropped.
+          metadata: splitLegacySchemaDraft({...existingDraft?.metadata, ...input.metadata}).metadata,
+          schemaDraft: input.schemaDraft ?? draftSchemaDraft(existingDraft) ?? undefined,
           signingAccount: input.signingAccountId || undefined,
           content,
           cursorPosition,
@@ -1302,6 +1305,7 @@ export default function DesktopResourcePage() {
                     existingDraftMineTouchedIds={draftData?.mineTouchedIds}
                     existingDraftBaseBlocks={draftData?.baseBlocks}
                     existingDraftPublishPath={draftData?.publishPath}
+                    existingDraftSchemaDraft={draftSchemaDraft(draftData) ?? undefined}
                     existingDraftDeps={draftData?.deps}
                     draftVersionOnDiscardConfirm={draftVersionToolbarCallbacks.onDiscardConfirm}
                     rightActions={<JoinButton siteUid={docId.uid} />}

@@ -10,6 +10,7 @@ import {canCreateChildDocuments} from '@shm/shared/document-utils'
 import {HomeDraftProvider} from '@shm/shared/home-draft-context'
 import {type EditorAccessor} from '@shm/shared/models/document-machine'
 import {useResource} from '@shm/shared/models/entity'
+import {draftSchemaDraft} from '@shm/shared/models/schema-draft'
 import {isDocumentCardCleanupJobActive} from '@shm/shared/models/document-card-cleanup-machine'
 import {selectContext, useDocumentMachineRef, useOnDocumentRenamed} from '@shm/shared/models/use-document-machine'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
@@ -375,6 +376,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const existingDraftContent = isDraftStale ? undefined : draftData?.content ?? undefined
   const existingDraftCursorPosition = isDraftStale ? undefined : draftData?.cursorPosition ?? undefined
   const existingDraftPublishPath = isDraftStale ? undefined : draftData?.publishPath ?? undefined
+  const existingDraftSchemaDraft = isDraftStale ? undefined : draftSchemaDraft(draftData) ?? undefined
 
   // Garbage-collect old IDB drafts once per session.
   useEffect(() => {
@@ -798,6 +800,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                           existingDraftContent={existingDraftContent}
                           existingDraftCursorPosition={existingDraftCursorPosition}
                           existingDraftPublishPath={existingDraftPublishPath}
+                          existingDraftSchemaDraft={existingDraftSchemaDraft}
                           existingDraftDeps={draftData?.deps}
                           existingDraftBaseBlocks={draftData?.baseBlocks ?? undefined}
                           existingDraftMaintenanceRevision={draftData?.maintenanceRevision}

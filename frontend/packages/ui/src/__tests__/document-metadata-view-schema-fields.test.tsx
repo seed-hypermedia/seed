@@ -38,10 +38,6 @@ function AppShell({children}: {children: ReactNode}) {
 
 // example/character-doc: born + role required; died, home, faction (…) optional.
 const character = () => metadataSchemaOf(HM_SCHEMAS['example/character-doc'])!
-const rowKeys = () =>
-  [...container.querySelectorAll('[title], dt')]
-    .map((el) => (el.tagName === 'DT' ? el.textContent : el.getAttribute('title')))
-    .filter(Boolean)
 
 describe('DocumentMetadataView: fields the attributes schema declares', () => {
   it('shows the optional schema fields to a writer without adding them, and stages nothing', () => {

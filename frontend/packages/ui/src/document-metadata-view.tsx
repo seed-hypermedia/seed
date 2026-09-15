@@ -337,7 +337,7 @@ export function DocumentMetadataView({
                 <AddFieldForm
                   rules={METADATA_VALUE_RULES}
                   path={[]}
-                  existingKeys={[...entries.map(([key]) => key), ...schemaKeySet]}
+                  existingKeys={[...entries.map(([key]) => key), ...Array.from(schemaKeySet)]}
                   onKeyTextChange={(keyText) => {
                     const cidText = keyText.trim().replace(/^ipfs:\/\//, '')
                     setPendingSchemaCid(schemaKeyCid(`ipfs://${cidText}`))

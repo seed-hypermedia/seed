@@ -51,6 +51,7 @@ import {
 } from '@shm/shared/models/document-machine'
 import {invalidateAfterPublish} from '@shm/shared/models/post-publish-cache'
 import {invalidateQueries, queryClient, refetchQueriesByKey} from '@shm/shared/models/query-client'
+import {draftSchemaDraft, splitLegacySchemaDraft} from '@shm/shared/models/schema-draft'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {queryDirectory} from '@shm/shared/models/queries'
 import type {UniversalClient} from '@shm/shared/universal-client'
@@ -201,7 +202,9 @@ export async function writeWebDraft(
     // Merge over the stored metadata rather than replacing it. The session
     // overlay (input.metadata) can be empty/partial before the draft resolves,
     // and a full replace would wipe those fields on the first autosave.
-    metadata: {...(existingDraft?.metadata ?? {}), ...(input.metadata ?? {})},
+    // The working schema is saved beside the metadata; an older draft's metadata copy is dropped.
+    metadata: splitLegacySchemaDraft({...(existingDraft?.metadata ?? {}), ...(input.metadata ?? {})}).metadata,
+    schemaDraft: input.schemaDraft ?? draftSchemaDraft(existingDraft),
     deps: input.deps,
     baseBlocks: input.baseBlocks,
     mineTouchedIds: input.mineTouchedIds,
@@ -352,9 +355,8 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
     editDocument?.detachedBlocks?.navigation ?? null,
   )
 
-  // A draft's working schema is frozen into a blob here; the published
-  // metadata carries `schemaDefinition`, never `schemaDraft`.
-  const publishMetadata = await freezeSchemaDraft(deps.client, draft.metadata as HMMetadata)
+  // A draft's working schema is frozen into a blob here and becomes the document's `schemaDefinition`.
+  const publishMetadata = await freezeSchemaDraft(deps.client, draft.metadata as HMMetadata, draftSchemaDraft(draft))
   const metadataChanges = getDocAttributeChanges(expandObjectRemovals(publishMetadata, editDocument?.metadata))
 
   const allChanges = [...navChanges, ...metadataChanges, ...blockDiff.changes, ...deleteChanges]
