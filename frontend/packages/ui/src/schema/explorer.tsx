@@ -365,7 +365,8 @@ function FieldsTable({
           <tr className="border-border text-muted-foreground border-b text-left text-xs">
             <th className="py-1 pr-4 font-medium">field</th>
             <th className="py-1 pr-4 font-medium">type</th>
-            <th className="py-1 font-medium">{origins ? 'origin' : ''}</th>
+            {/* Accessory information (required/optional, inheritance): no heading. */}
+            <th className="py-1 font-medium" />
           </tr>
         </thead>
       )}
@@ -385,18 +386,12 @@ function FieldsTable({
                   <SchemaRef node={f.schema} nav={nav} />
                 </td>
                 <td className="py-1.5 align-top text-xs">
-                  {origins ? (
-                    <span
-                      className={origins[f.name] === 'added' ? 'text-primary font-medium' : 'text-muted-foreground'}
-                    >
-                      {origins[f.name]}
-                      {f.required ? ' ·req' : ''}
-                    </span>
-                  ) : f.required ? (
+                  {f.required ? (
                     <span className="text-primary font-medium">required</span>
                   ) : (
                     <span className="text-muted-foreground">optional</span>
                   )}
+                  {origins?.[f.name] === 'inherited' && <span className="text-muted-foreground"> · inherited</span>}
                 </td>
               </tr>
               {sub && (
