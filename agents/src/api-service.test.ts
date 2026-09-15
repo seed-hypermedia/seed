@@ -2606,8 +2606,22 @@ describe('api service', () => {
       expect(created.identity).toMatchObject({label: 'Agent publisher', serverUrl: 'https://hm.test'})
       expect(created.identity.accountId).toMatch(/^z/)
       expect(publishedBodies).toHaveLength(1)
-      expect(cbor.decode<{blobs: unknown[]}>(publishedBodies[0]!).blobs.length).toBeGreaterThan(1)
+      const homeBlobs = cbor.decode<{blobs: Array<{cid: string; data: Uint8Array}>}>(publishedBodies[0]!).blobs
+      expect(homeBlobs.length).toBeGreaterThan(1)
       expect(new TextDecoder().decode(publishedBodies[0])).toContain('This is an agentic account.')
+      // The HOME document is the one place the deterministic genesis belongs: an empty Change
+      // with ts 0 (exactly ts, sig, type, signer), which the daemon's own bootstrap also
+      // produces, and the home Ref (path '') points its genesis at it.
+      const decodedBlobs = homeBlobs.map((b) => ({cid: b.cid, value: cbor.decode<Record<string, unknown>>(b.data)}))
+      const homeGenesis = decodedBlobs.find(
+        (b) => b.value['type'] === 'Change' && BigInt((b.value['ts'] as bigint | number) ?? 1) === 0n,
+      )
+      expect(homeGenesis, 'home genesis change').toBeDefined()
+      expect(Object.keys(homeGenesis!.value).sort()).toEqual(['sig', 'signer', 'ts', 'type'])
+      // An empty path is omitted from the encoded Ref.
+      const homeRef = decodedBlobs.find((b) => b.value['type'] === 'Ref' && !b.value['path'])
+      expect(homeRef, 'home ref').toBeDefined()
+      expect(String(homeRef!.value['genesisBlob'])).toBe(homeGenesis!.cid)
 
       const replayed = await svc.message(
         await apisvc.createSignedEnvelope(account, {
@@ -5737,7 +5751,19 @@ describe('api service', () => {
       // Published blobs hold genesis + change + ref + the image's UnixFS blob, with the
       // image link rewritten from file:// to ipfs://.
       const createBody = publishedBodies.at(-1)!
-      expect(cbor.decode<{blobs: unknown[]}>(createBody).blobs.length).toBeGreaterThanOrEqual(4)
+      const createBlobs = cbor.decode<{blobs: Array<{cid: string; data: Uint8Array}>}>(createBody).blobs
+      expect(createBlobs.length).toBeGreaterThanOrEqual(3)
+      // The first blob is the document's first content Change, which is its genesis: no
+      // `genesis` field and a real timestamp. A zero-timestamp empty genesis would be the
+      // account's deterministic HOME genesis, and a document created on it shares the home
+      // document's identity (comments, activity) with every other such document.
+      const first = cbor.decode<{type: string; ts: bigint | number; genesis?: unknown; body?: {opCount?: number}}>(
+        createBlobs[0]!.data,
+      )
+      expect(first.type).toBe('Change')
+      expect(first.genesis).toBeUndefined()
+      expect(first.body?.opCount ?? 0).toBeGreaterThan(0)
+      expect(BigInt(first.ts)).toBeGreaterThan(0n)
       const createBodyText = new TextDecoder('utf-8', {fatal: false}).decode(createBody)
       expect(createBodyText).toContain('Hello world from memory.')
       expect(createBodyText).toContain('ipfs://')

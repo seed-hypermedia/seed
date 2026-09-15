@@ -29,6 +29,7 @@ import (
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/multiformats/go-multicodec"
+	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -4016,4 +4017,78 @@ func TestListingRepublishedDocumentPresentsTargetDisplayFields(t *testing.T) {
 	require.Len(t, root.Documents, 1)
 	require.Nil(t, root.Documents[0].RedirectInfo)
 	require.Equal(t, "Link-Traced Amplification", root.Documents[0].Metadata.GetFields()["name"].GetStringValue())
+}
+
+// TestHomeGenesisBootstrap pins the two sides of the home-document genesis contract:
+//
+//   - The daemon's own bootstrap (ensureProfileGenesis) creates the deterministic empty genesis
+//     the SDK also produces (same bytes; see backend/blob/home_genesis_test.go), so a home
+//     created on desktop and one created through the SDK are the same document.
+//   - When a client already published the home with that genesis under the SDK's sha256
+//     address, the daemon's bootstrap (generation 0, ts 0) must not replace it: the home keeps
+//     the client's genesis and its content history.
+func TestHomeGenesisBootstrap(t *testing.T) {
+	t.Parallel()
+
+	t.Run("daemon bootstrap equals the SDK home genesis bytes", func(t *testing.T) {
+		alice := newTestDocsAPI(t, "alice")
+		ctx := context.Background()
+		kp := alice.me.Account
+
+		want, err := blob.NewChange(kp, cid.Undef, nil, 0, blob.ChangeBody{}, blob.ZeroUnixTime())
+		require.NoError(t, err)
+
+		home, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+			SigningKeyName: "main",
+			Account:        kp.Principal().String(),
+			Path:           "",
+			Changes: []*documents.DocumentChange{{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "name", Value: "Alice"}}}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, want.CID.String(), home.Genesis, "the home genesis must be the deterministic empty change")
+	})
+
+	t.Run("a client-published home survives the daemon bootstrap", func(t *testing.T) {
+		alice := newTestDocsAPI(t, "alice")
+		ctx := context.Background()
+		kp := alice.me.Account
+		space := kp.Principal()
+
+		// The SDK publishes the same bytes under a sha256 address.
+		genesis, err := blob.NewChange(kp, cid.Undef, nil, 0, blob.ChangeBody{}, blob.ZeroUnixTime())
+		require.NoError(t, err)
+		sha, err := multihash.Sum(genesis.Data, multihash.SHA2_256, -1)
+		require.NoError(t, err)
+		sdkGenesisCID := cid.NewCidV1(uint64(multicodec.DagCbor), sha)
+		sdkGenesis, err := blocks.NewBlockWithCid(genesis.Data, sdkGenesisCID)
+		require.NoError(t, err)
+		require.NotEqual(t, genesis.CID.String(), sdkGenesisCID.String(), "precondition: daemon and SDK address the same bytes differently")
+
+		// A client-signed home Ref at generation 1, as the SDK's publishDocument writes.
+		ref, err := blob.NewRef(kp, 1, sdkGenesisCID, space, "", []cid.Cid{sdkGenesisCID}, time.Now().UTC().Round(blob.ClockPrecision), blob.VisibilityPublic)
+		require.NoError(t, err)
+		require.NoError(t, alice.idx.PutMany(ctx, []blocks.Block{sdkGenesis, ref}))
+
+		before, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: space.String(), Path: ""})
+		require.NoError(t, err)
+		require.Equal(t, sdkGenesisCID.String(), before.Genesis)
+
+		// Editing the home through the daemon triggers ensureProfileGenesis (generation 0).
+		after, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+			SigningKeyName: "main",
+			Account:        space.String(),
+			Path:           "",
+			BaseVersion:    before.Version,
+			Changes: []*documents.DocumentChange{{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "name", Value: "Alice, edited on the daemon"}}}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, sdkGenesisCID.String(), after.Genesis, "the daemon's bootstrap must not replace a client-published home")
+		require.Equal(t, "Alice, edited on the daemon", after.Metadata.Fields["name"].GetStringValue())
+
+		got, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: space.String(), Path: ""})
+		require.NoError(t, err)
+		require.Equal(t, sdkGenesisCID.String(), got.Genesis)
+	})
 }

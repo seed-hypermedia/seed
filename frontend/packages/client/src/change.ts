@@ -102,7 +102,21 @@ export const signPreparedChange = async (
  * Create a signed genesis Change blob (empty, ts=0).
  * This deterministic sentinel is only intended for home documents.
  */
-export async function createGenesisChange(signer: AnySigner): Promise<{bytes: Uint8Array; cid: CID}> {
+/**
+ * The genesis Change of an account's HOME document (path ''), and of nothing else.
+ *
+ * It is deterministic on purpose: signer key plus a zero timestamp, and Ed25519 signatures
+ * are deterministic, so every device of an account derives the same home genesis and the
+ * daemon (`ensureProfileGenesis`) agrees with it. A document's identity is its genesis, so
+ * any OTHER document created on this genesis becomes the home document as far as the daemon
+ * is concerned: comments, activity and moves all merge. That is what happened to sixty
+ * papers created through document.create on 2026-09-15.
+ *
+ * A non-home document needs no genesis blob of its own: its first content Change IS its
+ * genesis. Build it with {@link createChangeOps} without `genesisCid`, and point the Version
+ * Ref's `genesis` and `version` at that Change's CID (what the CLI's `document create` does).
+ */
+export async function createHomeGenesisChange(signer: AnySigner): Promise<{bytes: Uint8Array; cid: CID}> {
   const pubKey = await signerPublicKey(signer)
   const unsigned: Record<string, unknown> = {
     type: 'Change',
@@ -113,6 +127,16 @@ export async function createGenesisChange(signer: AnySigner): Promise<{bytes: Ui
   unsigned.sig = await signer.sign(cborEncode(unsigned))
   const block = await Block.encode({value: unsigned, codec: cborCodec, hasher: sha256})
   return {bytes: block.bytes, cid: block.cid}
+}
+
+/**
+ * @deprecated This is the HOME document's deterministic genesis; call
+ * {@link createHomeGenesisChange} when you mean that. For any other document do not create a
+ * genesis at all: its first content Change is its genesis (see createHomeGenesisChange).
+ * Using this for an ordinary document merges it with the home document.
+ */
+export function createGenesisChange(signer: AnySigner): Promise<{bytes: Uint8Array; cid: CID}> {
+  return createHomeGenesisChange(signer)
 }
 
 /** @deprecated Use CreateChangeOpsInput instead */

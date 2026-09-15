@@ -73,7 +73,8 @@ import {
   createComment,
   commentRecordIdFromBlob,
   createContact,
-  createGenesisChange,
+  createDocumentBlobs,
+  createHomeGenesisChange,
   createBlocksMap,
   createRedirectRef,
   createSeedClient,
@@ -9550,7 +9551,7 @@ async function publishSigningIdentityProfileAndHome(
   const profile = await blobs.createProfile(keyPair, {name}, now)
   const {tree} = parseMarkdown('This is an agentic account.')
   const ops = metadataToWriteSetAttributes({name}).concat(flattenToOperations(tree))
-  const genesisBlock = await createGenesisChange(signer)
+  const genesisBlock = await createHomeGenesisChange(signer)
   const {unsignedBytes, ts} = createChangeOps({ops, genesisCid: genesisBlock.cid, deps: [genesisBlock.cid], depth: 1})
   const changeBlock = await createChange(unsignedBytes, signer)
   const refInput = await createVersionRef(
@@ -13530,31 +13531,17 @@ async function writeDocumentCreate(
       blockCount: parsed.blocks.length,
       dryRun: true,
     })
-  const genesisBlock = await createGenesisChange(signer.signer)
-  const {unsignedBytes, ts} = createChangeOps({ops, genesisCid: genesisBlock.cid, deps: [genesisBlock.cid], depth: 1})
-  const changeBlock = await createChange(unsignedBytes, signer.signer)
-  const refInput = await createVersionRef(
-    {
-      space: account,
-      path,
-      genesis: genesisBlock.cid.toString(),
-      version: changeBlock.cid.toString(),
-      generation: Number(ts),
-      capability,
-    },
-    signer.signer,
-  )
+  // The SDK decides which genesis a new document gets, the way the daemon does: the
+  // deterministic home genesis only for the signer's own home (path ''), otherwise the first
+  // content Change is the genesis. Every document created here used to share the home genesis
+  // (sixty papers, one comment thread, 2026-09-15).
+  const created = await createDocumentBlobs(signer.signer, {space: account, path, ops, capability})
   const published = await client.publish({
-    blobs: [
-      {data: new Uint8Array(genesisBlock.bytes), cid: genesisBlock.cid.toString()},
-      {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
-      ...refInput.blobs,
-      ...extraBlobs,
-    ],
+    blobs: [...created.blobs, ...extraBlobs],
   })
   return writeToolResult(request.command, signer, {
     id: `hm://${account}${path}`,
-    version: changeBlock.cid.toString(),
+    version: created.version,
     cids: published.cids,
   })
 }

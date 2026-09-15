@@ -10,7 +10,6 @@ import {
   createVersionRef,
   createTombstoneRef,
   createRedirectRef,
-  createGenesisChange,
   autoLinkChildToParent,
   createChangeOps,
   createChange,

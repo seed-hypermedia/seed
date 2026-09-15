@@ -2,7 +2,7 @@ import {beforeEach, describe, it, expect, vi} from 'vitest'
 import {serialize} from 'superjson'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {createSeedClient} from '../src/client'
-import {createDocumentChange, createGenesisChange, signDocumentChange} from '../src/change'
+import {createDocumentChange, createHomeGenesisChange, signDocumentChange} from '../src/change'
 import {SeedClientError, SeedNetworkError, SeedValidationError} from '../src/errors'
 import {createVersionRef} from '../src/ref'
 
@@ -10,7 +10,7 @@ vi.mock('../src/change', async () => {
   const actual = await vi.importActual<typeof import('../src/change')>('../src/change')
   return {
     ...actual,
-    createGenesisChange: vi.fn(),
+    createHomeGenesisChange: vi.fn(),
     createDocumentChange: vi.fn(),
     signDocumentChange: vi.fn(),
   }
@@ -87,7 +87,7 @@ describe('createSeedClient', () => {
   })
 
   it('serializes Search query options without dropping zero enum values', async () => {
-    const fetchFn = mockFetchOk({entities: [], searchQuery: 'slow'})
+    const fetchFn = mockFetchOk({entities: [], searchQuery: 'slow', nextPageToken: ''})
     const client = createSeedClient('https://example.com', {fetch: fetchFn})
 
     await client.request('Search', {
@@ -265,7 +265,7 @@ describe('createSeedClient', () => {
   })
 
   it('publishes new documents through PrepareDocumentChange before PublishBlobs', async () => {
-    const mockedCreateGenesisChange = vi.mocked(createGenesisChange)
+    const mockedCreateGenesisChange = vi.mocked(createHomeGenesisChange)
     const mockedSignDocumentChange = vi.mocked(signDocumentChange)
     mockedSignDocumentChange.mockResolvedValueOnce({
       changeCid: {toString: () => 'signed-change'} as any,
@@ -334,7 +334,7 @@ describe('createSeedClient', () => {
   })
 
   it('publishes brand-new home documents with blocks by bootstrapping genesis before PrepareDocumentChange', async () => {
-    const mockedCreateGenesisChange = vi.mocked(createGenesisChange)
+    const mockedCreateGenesisChange = vi.mocked(createHomeGenesisChange)
     const mockedCreateDocumentChange = vi.mocked(createDocumentChange)
     const mockedCreateVersionRef = vi.mocked(createVersionRef)
     const mockedSignDocumentChange = vi.mocked(signDocumentChange)
@@ -418,7 +418,7 @@ describe('createSeedClient', () => {
   })
 
   it('publishes brand-new home documents without PrepareDocumentChange', async () => {
-    const mockedCreateGenesisChange = vi.mocked(createGenesisChange)
+    const mockedCreateGenesisChange = vi.mocked(createHomeGenesisChange)
     const mockedCreateDocumentChange = vi.mocked(createDocumentChange)
     const mockedCreateVersionRef = vi.mocked(createVersionRef)
     const mockedSignDocumentChange = vi.mocked(signDocumentChange)

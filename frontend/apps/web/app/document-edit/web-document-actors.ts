@@ -18,7 +18,7 @@ import {toast} from '@shm/ui/toast'
  */
 
 import {
-  createGenesisChange,
+  createHomeGenesisChange,
   createVersionRef,
   followToDocument,
   signDocumentChange,
@@ -387,7 +387,7 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
   let effectiveBaseVersion = baseVersion
   let effectiveGenesis: string | undefined = editDocument?.genesis
   if (!editDocument && publishPath.length === 0) {
-    const genesisChange = await createGenesisChange(signer)
+    const genesisChange = await createHomeGenesisChange(signer)
     const genesisRef = await createVersionRef(
       {
         space: deps.docId.uid,

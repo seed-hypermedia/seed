@@ -1,4 +1,9 @@
-import {createDocumentChange, createGenesisChange, createVersionRef, signDocumentChange} from '@seed-hypermedia/client'
+import {
+  createDocumentChange,
+  createHomeGenesisChange,
+  createVersionRef,
+  signDocumentChange,
+} from '@seed-hypermedia/client'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {createWebUniversalClient} from '../create-web-universal-client'
 
@@ -6,7 +11,7 @@ vi.mock('@seed-hypermedia/client', async () => {
   const actual = await vi.importActual<typeof import('@seed-hypermedia/client')>('@seed-hypermedia/client')
   return {
     ...actual,
-    createGenesisChange: vi.fn(),
+    createHomeGenesisChange: vi.fn(),
     createDocumentChange: vi.fn(),
     createVersionRef: vi.fn(),
     signDocumentChange: vi.fn(),
@@ -19,7 +24,7 @@ describe('createWebUniversalClient publishDocument', () => {
   })
 
   it('creates brand-new site home metadata without PrepareDocumentChange', async () => {
-    const mockedCreateGenesisChange = vi.mocked(createGenesisChange)
+    const mockedCreateGenesisChange = vi.mocked(createHomeGenesisChange)
     const mockedCreateDocumentChange = vi.mocked(createDocumentChange)
     const mockedCreateVersionRef = vi.mocked(createVersionRef)
     const mockedSignDocumentChange = vi.mocked(signDocumentChange)
@@ -77,7 +82,7 @@ describe('createWebUniversalClient publishDocument', () => {
   })
 
   it('bootstraps brand-new home documents with blocks before PrepareDocumentChange', async () => {
-    const mockedCreateGenesisChange = vi.mocked(createGenesisChange)
+    const mockedCreateGenesisChange = vi.mocked(createHomeGenesisChange)
     const mockedCreateDocumentChange = vi.mocked(createDocumentChange)
     const mockedCreateVersionRef = vi.mocked(createVersionRef)
     const mockedSignDocumentChange = vi.mocked(signDocumentChange)
@@ -141,7 +146,7 @@ describe('createWebUniversalClient publishDocument', () => {
   })
 
   it('creates brand-new subdocuments through PrepareDocumentChange', async () => {
-    const mockedCreateGenesisChange = vi.mocked(createGenesisChange)
+    const mockedCreateGenesisChange = vi.mocked(createHomeGenesisChange)
     const mockedCreateDocumentChange = vi.mocked(createDocumentChange)
     const mockedSignDocumentChange = vi.mocked(signDocumentChange)
 

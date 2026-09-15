@@ -123,6 +123,11 @@ jobs:
           - suite: shared
             filter: '@shm/shared'
             command: 'test'
+          # The published SDK. Never ran in CI before 2026-09-15; its home-genesis goldens
+          # are the client half of a wire-format contract with the daemon.
+          - suite: client
+            filter: '@seed-hypermedia/client'
+            command: 'test'
           - suite: desktop
             filter: '@shm/desktop'
             command: 'test:unit'

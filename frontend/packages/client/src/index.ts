@@ -6,6 +6,7 @@ export {
   createDocumentChange,
   createDocumentChangeFromOps,
   createGenesisChange,
+  createHomeGenesisChange,
   signDocumentChange,
   signPreparedChange,
 } from './change'
@@ -30,6 +31,7 @@ export {contactRecordIdFromBlob, createContact, deleteContact, updateContact} fr
 export type {CreateContactInput, CreateContactResult, DeleteContactInput, UpdateContactInput} from './contact'
 export {SeedClientError, SeedNetworkError, SeedValidationError} from './errors'
 export {createRedirectRef, createTombstoneRef, createVersionRef} from './ref'
+export {createDocumentBlobs, type CreateDocumentBlobs, type CreateDocumentBlobsInput} from './create-document'
 export type {CreateRedirectRefInput, CreateTombstoneRefInput, CreateVersionRefInput} from './ref'
 export {teiToBlocks} from './tei-to-blocks'
 export type {TeiToBlocksOptions, TeiToBlocksResult, TeiFigure, FigureCoords} from './tei-to-blocks'

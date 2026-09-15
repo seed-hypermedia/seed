@@ -5,7 +5,8 @@
 
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {
-  createGenesisChange,
+  createDocumentBlobs,
+  createHomeGenesisChange,
   createChangeOps,
   createChange,
   createRedirectRef,
@@ -53,8 +54,8 @@ export async function registerAccount(
   const signer = createSignerFromKey(account.keyPair)
   const homeBody = options.homeBody ?? `Welcome to ${accountName}'s space`
 
-  // Create genesis change
-  const genesisBlock = await createGenesisChange(signer)
+  // The home document's deterministic genesis.
+  const genesisBlock = await createHomeGenesisChange(signer)
 
   // Create home document change
   const blockId = generateBlockId()
@@ -142,49 +143,19 @@ export async function createDocumentUpdate(
   const doc = resource.json || resource
 
   if (doc.type === 'not-found') {
-    // New document — create genesis + change + ref
-    const genesisBlock = await createGenesisChange(signer)
-
-    const {unsignedBytes, ts} = createChangeOps({
-      ops: operations,
-      genesisCid: genesisBlock.cid,
-      deps: [genesisBlock.cid],
-      depth: 1,
-    })
-    const changeBlock = await createChange(unsignedBytes, signer)
-
-    const refInput = await createVersionRef(
-      {
-        space: accountId,
-        path: normalizedPath,
-        genesis: genesisBlock.cid.toString(),
-        version: changeBlock.cid.toString(),
-        generation: Number(ts),
-      },
-      signer,
-    )
-
-    const toRef = (block: {bytes: Uint8Array; cid: {toString(): string}}) => ({
-      data: block.bytes,
-      cid: block.cid.toString(),
-    })
-
-    const payload = {
-      change: toRef(changeBlock),
-      ref: refInput.blobs[0],
-      blobs: [toRef(genesisBlock)],
-    }
-
-    const cborData = cborEncode(payload)
-    const response = await fetch(`${serverUrl}/hm/api/document-update`, {
+    // New document. The SDK decides the genesis the way the daemon does: the deterministic
+    // home genesis only for the account's own home (path ''), otherwise the first content
+    // change is the genesis. Published together, in dependency order.
+    const created = await createDocumentBlobs(signer, {space: accountId, path: normalizedPath, ops: operations})
+    const response = await fetch(`${serverUrl}/api/PublishBlobs`, {
       method: 'POST',
       headers: {'Content-Type': 'application/cbor'},
-      body: new Uint8Array(cborData) as unknown as BodyInit,
+      body: new Uint8Array(cborEncode({blobs: created.blobs})) as unknown as BodyInit,
     })
 
     if (!response.ok) {
       const text = await response.text()
-      throw new Error(`Failed to update document: ${response.status} - ${text}`)
+      throw new Error(`Failed to create document: ${response.status} - ${text}`)
     }
   } else {
     // Existing document - depend on its current heads

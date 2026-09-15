@@ -11,7 +11,9 @@ import {tmpdir} from 'os'
 import {join} from 'path'
 import {startFullIntegrationWithFixture, runCli, type FullTestContext} from './setup'
 import {FIXTURE_ACCOUNT_ID, FIXTURE_ACCOUNT, FIXTURE_HIERARCHY_HM_ID} from './fixture-seed'
-import {generateTestAccount, registerAccount, type TestAccount} from './account-helpers'
+import {createDocumentUpdate, generateTestAccount, registerAccount, type TestAccount} from './account-helpers'
+import {createHomeGenesisChange} from '@seed-hypermedia/client'
+import {createSignerFromKey} from '../utils/signer'
 import {getCliVersion} from '../version'
 
 let ctx: FullTestContext
@@ -92,6 +94,61 @@ describe('CLI Full Integration Tests', () => {
         const result = await runCli(['--version'])
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toBe(CLI_VERSION)
+      },
+      TEST_TIMEOUT,
+    )
+  })
+
+  describe('Genesis contract against the real daemon', () => {
+    // The fixture account's home was published by the SDK (registerAccount). Its genesis must
+    // be the deterministic empty change under the SDK's sha256 address, byte-for-byte what the
+    // daemon's own bootstrap produces (pinned as goldens in backend/blob/home_genesis_test.go
+    // and frontend/packages/client/src/home-genesis.test.ts).
+    const HOME_GENESIS_SDK_CID = 'bafyreibhn2gdntqwdbxbc57nkoyi67zhsmiu4sgwxenfcfucqe2mljn5w4'
+
+    test(
+      'the home document carries the deterministic SDK genesis the daemon agrees with',
+      async () => {
+        const home = JSON.parse(
+          (await runCli(['document', 'get', `hm://${FIXTURE_ACCOUNT_ID}`, '--json'], {server: ctx.webServerUrl}))
+            .stdout,
+        )
+        expect(home.document.genesis).toBe(HOME_GENESIS_SDK_CID)
+        const local = await createHomeGenesisChange(createSignerFromKey(FIXTURE_ACCOUNT.keyPair))
+        expect(local.cid.toString()).toBe(HOME_GENESIS_SDK_CID)
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'creating an account home through the SDK yields the deterministic genesis the daemon agrees with',
+      async () => {
+        // createDocumentUpdate at path '' takes the SDK's home branch: deterministic genesis,
+        // then the content change, then the Ref, published together.
+        const fresh = generateTestAccount()
+        await createDocumentUpdate(ctx.webServerUrl, fresh, '', [
+          {type: 'SetAttributes', attrs: [{key: ['name'], value: 'Fresh Home'}]},
+        ])
+        await new Promise((r) => setTimeout(r, 1500))
+        const home = JSON.parse(
+          (await runCli(['document', 'get', `hm://${fresh.accountId}`, '--json'], {server: ctx.webServerUrl})).stdout,
+        )
+        const expected = await createHomeGenesisChange(createSignerFromKey(fresh.keyPair))
+        expect(home.document.genesis).toBe(expected.cid.toString())
+        expect(home.document.version).not.toBe(home.document.genesis)
+        expect(home.document.metadata.name).toBe('Fresh Home')
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'a non-home document has no genesis blob of its own: its first change is its genesis',
+      async () => {
+        const doc = JSON.parse(
+          (await runCli(['document', 'get', FIXTURE_HIERARCHY_HM_ID, '--json'], {server: ctx.webServerUrl})).stdout,
+        )
+        expect(doc.document.genesis).not.toBe(HOME_GENESIS_SDK_CID)
+        expect(doc.document.genesis).toBe(doc.document.version)
       },
       TEST_TIMEOUT,
     )
