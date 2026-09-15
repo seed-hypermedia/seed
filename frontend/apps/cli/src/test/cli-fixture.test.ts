@@ -11,7 +11,7 @@ import {tmpdir} from 'os'
 import {join} from 'path'
 import {startFullIntegrationWithFixture, runCli, type FullTestContext} from './setup'
 import {FIXTURE_ACCOUNT_ID, FIXTURE_ACCOUNT, FIXTURE_HIERARCHY_HM_ID} from './fixture-seed'
-import {generateTestAccount, registerAccount, type TestAccount} from './account-helpers'
+import {createDocumentUpdate, generateTestAccount, registerAccount, type TestAccount} from './account-helpers'
 import {getCliVersion} from '../version'
 
 let ctx: FullTestContext
@@ -2109,6 +2109,50 @@ describe('CLI Full Integration Tests', () => {
         })
         expect(result.exitCode).toBe(1)
         expect(result.stderr).toContain('not found')
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'documents that share a genesis keep separate comment threads',
+      async () => {
+        // createDocumentUpdate builds every new document on the deterministic (home-document)
+        // genesis, the SDK misuse that gave sixty distinct papers one genesis and one comment
+        // thread on 2026-09-15. Comments must follow the location, not the genesis.
+        const runId = Date.now()
+        const pathA = `shared-genesis-a-${runId}`
+        const pathB = `shared-genesis-b-${runId}`
+        for (const [path, name] of [
+          [pathA, 'Paper A'],
+          [pathB, 'Paper B'],
+        ] as const) {
+          await createDocumentUpdate(ctx.webServerUrl, writeAccount, path, [
+            {type: 'SetAttributes', attrs: [{key: ['name'], value: name}]},
+          ])
+        }
+        await new Promise((r) => setTimeout(r, 1500))
+        const idA = `${writeAccountHmId}/${pathA}`
+        const idB = `${writeAccountHmId}/${pathB}`
+
+        const infoA = JSON.parse((await runCli(['document', 'get', idA, '--json'], {server: ctx.webServerUrl})).stdout)
+        const infoB = JSON.parse((await runCli(['document', 'get', idB, '--json'], {server: ctx.webServerUrl})).stdout)
+        expect(infoA.document.genesis).toBe(infoB.document.genesis)
+
+        const text = `Only about paper A ${runId}`
+        const created = await runCli(['comment', 'create', idA, '--body', text, '--key', TEST_KEY_NAME], {
+          server: ctx.webServerUrl,
+        })
+        expect(created.exitCode).toBe(0)
+        await new Promise((r) => setTimeout(r, 1500))
+
+        const onA = await runCli(['comment', 'list', idA], {server: ctx.webServerUrl})
+        expect(onA.exitCode).toBe(0)
+        expect(onA.stdout).toContain(text)
+
+        const onB = await runCli(['comment', 'list', idB], {server: ctx.webServerUrl})
+        expect(onB.exitCode).toBe(0)
+        expect(onB.stdout).not.toContain(text)
+        expect(JSON.parse(onB.stdout).comments || []).toEqual([])
       },
       TEST_TIMEOUT,
     )

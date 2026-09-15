@@ -2417,7 +2417,7 @@ func baseDocumentsQuery() *dqb.SelectQuery {
 // the rows that survive the inner query's LIMIT. They reference the inner
 // query's alias `i`, and they must stay the LAST columns of the statement,
 // in this order, because [documentInfoFromRow] reads columns by position.
-const qDocumentsOuterColumns = `    (SELECT 1 FROM unread_resources WHERE iri = i.iri) AS is_unread,
+var qDocumentsOuterColumns = `    (SELECT 1 FROM unread_resources WHERE iri = i.iri) AS is_unread,
     -- Alive direct children of the document, so listing cards can show
     -- the subdocument count without a per-document interaction-summary
     -- request. The prefix-range comparison (everything between
@@ -2430,7 +2430,30 @@ const qDocumentsOuterColumns = `    (SELECT 1 FROM unread_resources WHERE iri = 
       WHERE cr.iri > i.iri || '/' AND cr.iri < i.iri || '0'
         AND instr(substr(cr.iri, length(i.iri) + 2), '/') = 0
         AND (SELECT cdg.is_deleted FROM document_generations cdg WHERE cdg.resource = cr.id ORDER BY cdg.generation DESC LIMIT 1) = 0
-    ) AS children_count`
+    ) AS children_count,
+    -- Comment activity by location lineage (commentLineageCTE in comments.go): the
+    -- comments targeting this path plus those targeting paths moved into it. Not keyed
+    -- by genesis, so documents that share a genesis, and a republish and its target,
+    -- keep separate threads. Evaluated here so only the final page pays for the walk.
+    (` + qLineageCommentCount + `) AS lineage_comment_count,
+    (` + qLineageLastComment + `) AS lineage_last_comment,
+    (` + qLineageLastCommentTime + `) AS lineage_last_comment_time`
+
+// qLineageBody is the comment lineage (commentLineageSQL in comments.go) rooted at the
+// outer documents-query row (alias i), for the correlated scalar subqueries above; the
+// predicates are commentsInLineage with comment_live aliased l.
+var qLineageBody = commentLineageSQL("i.iri")
+
+var qLineageCommentCount = qLineageBody + `
+	SELECT COUNT(*) FROM comment_live l WHERE ` + commentsInLineage
+
+var qLineageLastComment = qLineageBody + `
+	SELECT l.blob_id FROM comment_live l WHERE ` + commentsInLineage + `
+	ORDER BY l.ts DESC, l.blob_id DESC LIMIT 1`
+
+var qLineageLastCommentTime = qLineageBody + `
+	SELECT COALESCE(MAX(l.ts), 0) FROM comment_live l WHERE ` + commentsInLineage + `
+`
 
 // wrapDocumentsQuery wraps a query built by [baseDocumentsQuery] into an outer
 // SELECT that appends [qDocumentsOuterColumns]. The inner query keeps all the
@@ -2480,7 +2503,14 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		visibility        = blob.Visibility(row.ColumnText(inc()))
 		isUnread          = row.ColumnInt64(inc()) > 0
 		childrenCount     = row.ColumnInt64(inc())
+		// Location-lineage comment activity (outer columns). The genesis-keyed
+		// comment_count / last_comment* read above feed activity_time only.
+		lineageCommentCount    = row.ColumnInt64(inc())
+		lineageLastCommentID   = row.ColumnInt64(inc())
+		lineageLastCommentTime = row.ColumnInt64(inc())
 	)
+	_, _, _ = commentCount, lastCommentID, lastCommentTime
+	commentCount, lastCommentID, lastCommentTime = lineageCommentCount, lineageLastCommentID, lineageLastCommentTime
 
 	iri := blob.IRI(iriRaw)
 	space, path, err := iri.SpacePath()

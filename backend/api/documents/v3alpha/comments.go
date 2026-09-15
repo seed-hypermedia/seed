@@ -287,32 +287,84 @@ func (srv *Server) commentDBMapper() sqlitex.MapperFunc[indexedComment] {
 	}
 }
 
-// targetGenesisCTE resolves :iri to the genesis of the document that currently
-// lives there -- its identity rather than its location.
+// commentLineageSQL returns the WITH clause that computes, for the document at the IRI
+// given by rootIRI (an SQL expression), the resources whose comments belong to it:
+// comment_lineage(resource, genesis, depth), where genesis is the root document's genesis.
 //
-// This replaces a recursive walk that collected every path transitively redirecting
-// to :iri. That walk had no way to tell a move from a redirect between two
-// unrelated documents, so it merged their comments: on a 6.2 GB production database
-// it credited 293 comments written against /tech-talks onto /tech, which has a
-// different genesis. Matching on genesis keeps a moved document's comments (the
-// genesis doesn't change when the path does) and drops the ones that never belonged.
+// A comment belongs to the location it was written at, and a move carries a document's
+// conversation along. So the walk first follows move redirects FORWARD from the root to
+// the document's current location (a query by a path the document has moved away from
+// still finds its whole thread), then gathers BACKWARD every path that was moved into that
+// location, transitively and bounded. A move is a redirect whose latest generation is a
+// tombstone; two things are deliberately not a move:
 //
-// Querying by a path the document has moved away from still works, because that
-// path's own latest generation carries the same genesis.
-const targetGenesisCTE = `
-	WITH target_genesis AS (
-		SELECT dg.genesis AS genesis
+//   - A republish. Its redirect is alive. It presents another document's content at a new
+//     address, and that address starts its own thread.
+//   - A plain redirect between two unrelated documents. The earlier location walk merged
+//     those: on a 6.2 GB production database it credited 293 comments written against
+//     /tech-talks onto /tech. A comment records the genesis of the document it was written
+//     against, and a moved document keeps its genesis while an unrelated one has another,
+//     so readers keep only comments carrying the root's genesis (commentsInLineage). The
+//     hop itself cannot tell: the daemon stamps every redirect Ref with its target's genesis.
+//
+// Genesis alone is not the identity either, which is what this replaces: on 2026-09-15
+// sixty distinct papers created through an SDK bug shared one genesis and therefore one
+// comment thread, and a republish borrows its target's genesis. Location plus move-following
+// keeps every one of those threads apart while a real move still carries its comments.
+//
+// The reverse lookup "which paths redirect into this one" seeks document_attributes_by_key
+// on the '$db.redirect' attribute.
+func commentLineageSQL(rootIRI string) string {
+	return `
+	WITH RECURSIVE forward(resource, iri, genesis, depth) AS (
+		SELECT r.id, r.iri, dg.genesis, 0
 		FROM resources r
 		JOIN document_generations dg ON dg.resource = r.id
-		WHERE r.iri = :iri
+		WHERE r.iri = ` + rootIRI + `
 		GROUP BY dg.resource
 		HAVING dg.generation = MAX(dg.generation)
+		UNION
+		SELECT nr.id, nr.iri, f.genesis, f.depth + 1
+		FROM forward f
+		JOIN document_generations src ON src.resource = f.resource
+			AND src.generation = (SELECT MAX(g.generation) FROM document_generations g WHERE g.resource = f.resource)
+		JOIN document_attributes da ON da.resource = f.resource
+			AND da.key = (SELECT id FROM document_attribute_keys WHERE key = '$db.redirect')
+			AND da.kind = 's'
+		JOIN resources nr ON nr.iri = da.value
+		WHERE f.depth < 16
+		AND src.is_deleted = 1
+	),
+	comment_lineage(resource, genesis, depth) AS (
+		SELECT resource, genesis, 0
+		FROM (SELECT resource, genesis FROM forward ORDER BY depth DESC LIMIT 1)
+		UNION
+		SELECT da.resource, cl.genesis, cl.depth + 1
+		FROM comment_lineage cl
+		JOIN resources tgt ON tgt.id = cl.resource
+		JOIN document_attributes da
+			ON da.key = (SELECT id FROM document_attribute_keys WHERE key = '$db.redirect')
+			AND da.kind = 's'
+			AND da.value = tgt.iri
+		JOIN document_generations src ON src.resource = da.resource
+			AND src.generation = (SELECT MAX(g.generation) FROM document_generations g WHERE g.resource = da.resource)
+		WHERE cl.depth < 16
+		AND src.is_deleted = 1
 	)
 `
+}
+
+// commentsInLineage restricts comment_live (aliased l) to the live comments that belong
+// to the lineage's root document: written at a lineage location, against the root's genesis.
+const commentsInLineage = `l.resource IN (SELECT resource FROM comment_lineage)
+	AND l.genesis = (SELECT genesis FROM comment_lineage WHERE depth = 0)`
+
+// commentLineageCTE is the lineage rooted at the :iri parameter.
+var commentLineageCTE = commentLineageSQL(":iri")
 
 // The live-version dedup that used to be a ROW_NUMBER() window here is already
 // settled in comment_live, so this just reads it.
-var qIterComments = dqb.Str(targetGenesisCTE + `
+var qIterComments = dqb.Str(commentLineageCTE + `
 	SELECT
 		sb.id,
 		b.codec,
@@ -322,11 +374,11 @@ var qIterComments = dqb.Str(targetGenesisCTE + `
 	FROM comment_live l
 	JOIN structural_blobs sb ON sb.id = l.blob_id
 	JOIN blobs b ON b.id = l.blob_id
-	WHERE l.genesis IN (SELECT genesis FROM target_genesis)
+	WHERE ` + commentsInLineage + `
 	ORDER BY sb.ts
 `)
 
-var qIterCommentsPublicOnly = dqb.Str(targetGenesisCTE + `
+var qIterCommentsPublicOnly = dqb.Str(commentLineageCTE + `
 	SELECT
 		sb.id,
 		b.codec,
@@ -336,7 +388,7 @@ var qIterCommentsPublicOnly = dqb.Str(targetGenesisCTE + `
 	FROM comment_live l
 	JOIN structural_blobs sb ON sb.id = l.blob_id
 	JOIN blobs b ON b.id = l.blob_id
-	WHERE l.genesis IN (SELECT genesis FROM target_genesis)
+	WHERE ` + commentsInLineage + `
 	AND sb.extra_attrs->>'visibility' IS NOT 'Private'
 	ORDER BY sb.ts
 `)

@@ -1560,17 +1560,141 @@ func TestCommentCount_RepublishRedirect(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	list, err := alice.ListDirectory(ctx, &pb.ListDirectoryRequest{
-		Account:       aliceSpace,
-		DirectoryPath: "",
-		Recursive:     true,
+	// A republish is not a move: the address that republishes starts its own comment
+	// thread, and the comment written at /old-path stays at /old-path.
+	countsByPath := func() map[string]*pb.ActivitySummary {
+		list, err := alice.ListDirectory(ctx, &pb.ListDirectoryRequest{
+			Account:       aliceSpace,
+			DirectoryPath: "",
+			Recursive:     true,
+		})
+		require.NoError(t, err)
+		require.Len(t, list.Documents, 2, "republished doc must be listed at both paths")
+		out := map[string]*pb.ActivitySummary{}
+		for _, d := range list.Documents {
+			out[d.Path] = d.ActivitySummary
+		}
+		return out
+	}
+	counts := countsByPath()
+	require.Equal(t, int32(1), counts["/old-path"].CommentCount, "the republishing path keeps the comment written at it")
+	require.Equal(t, cmt.Id, counts["/old-path"].LatestCommentId)
+	require.Equal(t, int32(0), counts["/new-path"].CommentCount, "the republished document does not inherit the republisher's thread")
+
+	listed, err := alice.ListComments(ctx, &pb.ListCommentsRequest{TargetAccount: aliceSpace, TargetPath: "/new-path"})
+	require.NoError(t, err)
+	require.Empty(t, listed.Comments, "ListComments must agree with the count")
+
+	// A comment on the republished document belongs to it alone.
+	cmt2, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  aliceSpace,
+		TargetPath:     "/new-path",
+		TargetVersion:  doc.Version,
+		Content: []*pb.BlockNode{
+			{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "Comment on the republished document"}},
+		},
 	})
 	require.NoError(t, err)
-	require.Len(t, list.Documents, 2, "republished doc must be listed at both paths")
+	counts = countsByPath()
+	require.Equal(t, int32(1), counts["/new-path"].CommentCount)
+	require.Equal(t, cmt2.Id, counts["/new-path"].LatestCommentId)
+	require.Equal(t, int32(1), counts["/old-path"].CommentCount, "the republishing path is unaffected")
+	require.Equal(t, cmt.Id, counts["/old-path"].LatestCommentId)
+}
 
+// TestCommentCount_DocumentsSharingAGenesisKeepSeparateThreads pins comment identity to the
+// location, not the genesis. On 2026-09-15 sixty distinct papers created through an SDK bug
+// shared one genesis, and every one of them showed the same comments; a republish borrows
+// its target's genesis, which merged threads the same way.
+func TestCommentCount_DocumentsSharingAGenesisKeepSeparateThreads(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+	space := alice.me.Account.PublicKey.String()
+
+	paperA, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        space,
+		Path:           "/2026/paper-a",
+		Changes: []*pb.DocumentChange{
+			{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Paper A"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Paper B is a distinct document that happens to share A's genesis (a fork with its own
+	// content), which is what the SDK bug produced for every document one account created.
+	_, err = alice.CreateRef(ctx, &pb.CreateRefRequest{
+		SigningKeyName: "main",
+		Account:        space,
+		Path:           "/2026/paper-b",
+		Target: &pb.RefTarget{Target: &pb.RefTarget_Version_{
+			Version: &pb.RefTarget_Version{Genesis: paperA.Genesis, Version: paperA.Version},
+		}},
+	})
+	require.NoError(t, err)
+	paperB, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        space,
+		Path:           "/2026/paper-b",
+		BaseVersion:    paperA.Version,
+		Changes: []*pb.DocumentChange{
+			{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Paper B"}}},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, paperA.Genesis, paperB.Genesis, "precondition: the two papers share a genesis")
+
+	// A republish of paper A on another path, as a proceedings site would do.
+	_, err = alice.CreateRef(ctx, &pb.CreateRefRequest{
+		SigningKeyName: "main",
+		Account:        space,
+		Path:           "/pro/paper-a",
+		Target: &pb.RefTarget{Target: &pb.RefTarget_Redirect_{
+			Redirect: &pb.RefTarget_Redirect{Account: space, Path: "/2026/paper-a", Republish: true},
+		}},
+	})
+	require.NoError(t, err)
+
+	comment := func(path, version, text string) *pb.Comment {
+		c, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
+			SigningKeyName: "main",
+			TargetAccount:  space,
+			TargetPath:     path,
+			TargetVersion:  version,
+			Content:        []*pb.BlockNode{{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: text}}},
+		})
+		require.NoError(t, err)
+		return c
+	}
+	onA := comment("/2026/paper-a", paperA.Version, "About paper A")
+	onB := comment("/2026/paper-b", paperB.Version, "About paper B")
+	onRepublish := comment("/pro/paper-a", paperA.Version, "About the republished paper A")
+
+	listComments := func(path string) []string {
+		res, err := alice.ListComments(ctx, &pb.ListCommentsRequest{TargetAccount: space, TargetPath: path})
+		require.NoError(t, err)
+		ids := make([]string, 0, len(res.Comments))
+		for _, c := range res.Comments {
+			ids = append(ids, c.Id)
+		}
+		return ids
+	}
+	require.Equal(t, []string{onA.Id}, listComments("/2026/paper-a"), "paper A shows only its own comment")
+	require.Equal(t, []string{onB.Id}, listComments("/2026/paper-b"), "paper B shows only its own comment despite the shared genesis")
+	require.Equal(t, []string{onRepublish.Id}, listComments("/pro/paper-a"), "the republish has its own thread")
+
+	list, err := alice.ListDirectory(ctx, &pb.ListDirectoryRequest{Account: space, DirectoryPath: "", Recursive: true})
+	require.NoError(t, err)
+	counts := map[string]*pb.ActivitySummary{}
 	for _, d := range list.Documents {
-		require.Equal(t, int32(1), d.ActivitySummary.CommentCount, "path %s must count the comment", d.Path)
-		require.Equal(t, cmt.Id, d.ActivitySummary.LatestCommentId, "path %s must expose the latest comment", d.Path)
+		counts[d.Path] = d.ActivitySummary
+	}
+	for path, want := range map[string]string{"/2026/paper-a": onA.Id, "/2026/paper-b": onB.Id, "/pro/paper-a": onRepublish.Id} {
+		require.Equal(t, int32(1), counts[path].CommentCount, "%s counts only its own comment", path)
+		require.Equal(t, want, counts[path].LatestCommentId, "%s exposes its own latest comment", path)
 	}
 }
 
