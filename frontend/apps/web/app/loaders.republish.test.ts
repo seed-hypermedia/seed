@@ -48,6 +48,12 @@ function daemonResource(id: UnpackedHypermediaId): HMResource {
 }
 
 vi.mock('./client.server', () => ({grpcClient: {}, transport: {}, domainResolver: {}}))
+// site-config.server reads DATA_DIR/config.json at import time and throws without one (CI).
+vi.mock('./site-config.server', () => ({
+  getConfig: async () => ({registeredAccountUid: SITE_UID}),
+  getServiceConfig: async () => null,
+  getHostnames: () => [],
+}))
 vi.mock('@shm/editor/ssr-render', () => ({renderDocumentToHTML: () => ''}))
 vi.mock('@shm/editor/comment-editor', () => ({CommentEditor: () => null, HypermediaCommentEditor: () => null}))
 vi.mock('@shm/shared/resource-loader', async (importOriginal) => {
