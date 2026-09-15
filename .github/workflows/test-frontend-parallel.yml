@@ -13,6 +13,8 @@ on:
     paths:
       - '.github/workflows/test-frontend-parallel.yml'
       - 'frontend/**'
+      # The integration job runs the suites in tests/ against a daemon built from backend/.
+      - 'tests/**'
     branches-ignore:
       - 'renovate/**'
 
