@@ -82,6 +82,9 @@ export function HMEntityField({
         setEditing(false)
       }}
       onCancel={conforms ? () => setEditing(false) : undefined}
+      // Focus only when the user asked to change the reference — an empty field mounting on a
+      // page (several of them, say) must not steal focus and blur-commit its neighbours.
+      autoFocus={editing}
     />
   )
 }
@@ -137,11 +140,13 @@ function HMEntitySearchInput({
   mode,
   onCommit,
   onCancel,
+  autoFocus,
 }: {
   initialText: string
   mode: 'document' | 'profile'
   onCommit: (value: string) => void
   onCancel?: () => void
+  autoFocus?: boolean
 }) {
   const [text, setText] = useState(initialText)
   const isUrlInput = text.trim().startsWith('hm://')
@@ -158,8 +163,9 @@ function HMEntitySearchInput({
   const commitText = () => {
     // Commit whatever was typed — validation stays advisory (a warning badge,
     // never a block). A pasted hm:// URL that fits the mode just conforms.
-    if (text !== initialText || !onCancel) onCommit(text)
-    else onCancel()
+    // Unchanged text commits nothing: blurring an untouched empty field must not write it.
+    if (text !== initialText) onCommit(text)
+    else onCancel?.()
   }
 
   return (
@@ -167,7 +173,7 @@ function HMEntitySearchInput({
       <div className="flex items-center gap-1">
         <Input
           value={text}
-          autoFocus
+          autoFocus={autoFocus}
           placeholder={
             mode === 'profile' ? 'Search accounts or paste hm:// URL' : 'Search documents or paste hm:// URL'
           }

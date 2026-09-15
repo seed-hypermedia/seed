@@ -184,24 +184,36 @@ export function DocumentMetadataView({
     )
   }, [keysDep, pendingSchemaCid, byCid, conformanceSchema])
 
-  // Custom required fields declared by the conformance schema are ALWAYS shown
-  // (seeded if absent), so the user never has to "add" a mandatory field. Header
-  // fields (name/summary) and the schema-binding fields live elsewhere / are
-  // authored specially, so they're excluded from the required rows.
+  // The fields the conformance schema declares are ALWAYS shown (seeded if absent), so the user
+  // never has to "add" a field the type already names: required ones first, then the optional ones
+  // in schema order. A seeded value is only written once edited. Header fields (name/summary) and
+  // the schema-binding fields live elsewhere / are authored specially, so they're excluded.
   const requiredKeys = useMemo(
     () => requiredFieldNames(schemaRoot).filter((k) => !RESERVED_METADATA_KEYS.has(k)),
     [schemaRoot],
   )
-  const requiredRows = useMemo(
+  const optionalSchemaKeys = useMemo(
     () =>
-      requiredKeys.map((key) => ({
-        key,
-        value: key in current && current[key] != null ? current[key] : seedValue(fieldSchema(schemaRoot, key) ?? {}),
-      })),
-    [requiredKeys, current, schemaRoot],
+      structFields(conformanceSchema)
+        .map((f) => f.name)
+        .filter((k) => !RESERVED_METADATA_KEYS.has(k) && !requiredKeys.includes(k)),
+    [conformanceSchema, requiredKeys],
   )
-  const requiredSet = useMemo(() => new Set(requiredKeys), [requiredKeys])
-  const otherEntries = useMemo(() => entries.filter(([k]) => !requiredSet.has(k)), [entries, requiredSet])
+  const schemaRows = useMemo(
+    () =>
+      [...requiredKeys, ...optionalSchemaKeys].map((key) => {
+        const present = key in current && current[key] != null
+        return {
+          key,
+          required: requiredKeys.includes(key),
+          present,
+          value: present ? current[key] : seedValue(fieldSchema(schemaRoot, key) ?? {}),
+        }
+      }),
+    [requiredKeys, optionalSchemaKeys, current, schemaRoot],
+  )
+  const schemaKeySet = useMemo(() => new Set(schemaRows.map((r) => r.key)), [schemaRows])
+  const otherEntries = useMemo(() => entries.filter(([k]) => !schemaKeySet.has(k)), [entries, schemaKeySet])
 
   // Undo/redo over snapshots of the merged metadata: `record()` before each
   // staged patch; undo/redo apply the diff back to the snapshot.
@@ -280,26 +292,26 @@ export function DocumentMetadataView({
               <MetadataJsonEditor metadata={current} editable={editable} onMetadata={editable ? stage : undefined} />
             ) : editable ? (
               <>
-                {requiredRows.length === 0 && otherEntries.length === 0 ? (
+                {schemaRows.length === 0 && otherEntries.length === 0 ? (
                   <p className="text-muted-foreground text-sm">This document has no metadata.</p>
                 ) : (
                   <div className="flex flex-col">
-                    {/* Required fields declared by the schema come first and are
-                      ALWAYS shown (seeded if the value is absent), so a mandatory
-                      field never has to be "added" by hand. */}
-                    {requiredRows.map(({key, value}) => (
+                    {/* The schema's fields come first and are ALWAYS shown (seeded if the
+                      value is absent), so a field the type declares never has to be
+                      "added" by hand. */}
+                    {schemaRows.map(({key, value, required, present}) => (
                       <FieldRow
                         key={key}
                         className="border-border border-b py-3 last:border-b-0"
                         fieldKey={key}
                         value={value}
-                        // Schema-required fields are always present and cannot be
-                        // removed; their name is fixed by the schema.
-                        canRemove={false}
+                        // Schema fields keep the name the schema gives them. A required one
+                        // cannot be removed; an optional one can be cleared once set.
+                        canRemove={!required && present}
                         siblingKeys={entries.map(([k]) => k).filter((k) => k !== key)}
                         onValue={(newValue) => stage({[key]: newValue})}
                         onEditField={(_newKey, newValue) => stage({[key]: newValue})}
-                        onRemove={() => {}}
+                        onRemove={() => stage({[key]: null})}
                         rules={METADATA_VALUE_RULES}
                         path={[key]}
                       />
@@ -325,7 +337,7 @@ export function DocumentMetadataView({
                 <AddFieldForm
                   rules={METADATA_VALUE_RULES}
                   path={[]}
-                  existingKeys={[...entries.map(([key]) => key), ...requiredKeys]}
+                  existingKeys={[...entries.map(([key]) => key), ...schemaKeySet]}
                   onKeyTextChange={(keyText) => {
                     const cidText = keyText.trim().replace(/^ipfs:\/\//, '')
                     setPendingSchemaCid(schemaKeyCid(`ipfs://${cidText}`))
@@ -336,11 +348,23 @@ export function DocumentMetadataView({
                   }}
                 />
               </>
-            ) : entries.length === 0 ? (
+            ) : schemaRows.length === 0 && entries.length === 0 ? (
               <p className="text-muted-foreground text-sm">This document has no metadata.</p>
             ) : (
               <dl className="flex flex-col">
-                {entries.map(([key, value]) => (
+                {schemaRows.map(({key, value, present}) => (
+                  <div key={key} className="border-border flex flex-col gap-1 border-b py-3 last:border-b-0">
+                    <dt className={FIELD_LABEL_CLASS}>{key}</dt>
+                    <dd>
+                      {present ? (
+                        <ValueDisplay value={value} rules={METADATA_VALUE_RULES} />
+                      ) : (
+                        <span className="text-muted-foreground text-sm italic">not set</span>
+                      )}
+                    </dd>
+                  </div>
+                ))}
+                {otherEntries.map(([key, value]) => (
                   <div key={key} className="border-border flex flex-col gap-1 border-b py-3 last:border-b-0">
                     <dt className={FIELD_LABEL_CLASS}>{key}</dt>
                     <dd>
