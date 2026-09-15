@@ -13,6 +13,7 @@ import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
 import {useMemo, useState} from 'react'
 import {useUniversalClient, type UniversalClient} from '@shm/shared'
+import {splitLegacySchemaDraft, type SchemaDraft} from '@shm/shared/models/schema-draft'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {Button} from '../button'
 import {Tooltip} from '../tooltip'
@@ -34,9 +35,6 @@ export const ATTRIBUTES_SCHEMA_KEY = 'attributesSchema'
 export const CHILD_ATTRIBUTES_SCHEMA_KEY = 'childAttributesSchema'
 /** The metadata field pointing at a schema blob this document DEFINES. */
 export const SCHEMA_DEFINITION_KEY = 'schemaDefinition'
-/** The WORKING schema object a draft carries while being authored; frozen into a blob at publish. */
-export const SCHEMA_DRAFT_KEY = 'schemaDraft'
-
 /**
  * Metadata keys that are NOT ordinary content fields: the standard header fields
  * and the three schema-binding fields. Excluded from schema-required rows and
@@ -48,37 +46,30 @@ export const RESERVED_METADATA_KEYS = new Set<string>([
   ATTRIBUTES_SCHEMA_KEY,
   CHILD_ATTRIBUTES_SCHEMA_KEY,
   SCHEMA_DEFINITION_KEY,
-  SCHEMA_DRAFT_KEY,
 ])
-
-/** The draft's working schema object, when the metadata carries one. */
-export function schemaDraftValue(metadata: unknown): Record<string, any> | null {
-  if (!metadata || typeof metadata !== 'object') return null
-  const raw = (metadata as Record<string, unknown>)[SCHEMA_DRAFT_KEY]
-  return raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, any>) : null
-}
 
 /**
  * Freeze a draft's working schema into a DAG-CBOR blob for publish.
  *
- * Returns the metadata to publish: `schemaDraft` removed and
- * `schemaDefinition` pointing at the published blob. Metadata without a
- * working schema passes through untouched. Both the desktop and the web
- * publish paths call this, so a `schemaDraft` never reaches a published
- * document.
+ * Returns the metadata to publish, with `schemaDefinition` pointing at the published blob. The
+ * working schema lives on the draft (`draft.schemaDraft`), not in its metadata; an older draft that
+ * still carries it as a `schemaDraft` metadata key is handled too, and that key never reaches a
+ * published document. Without a working schema the metadata passes through untouched. Both the
+ * desktop and the web publish paths call this.
  */
 export async function freezeSchemaDraft<M extends Record<string, unknown> | undefined | null>(
   client: {request: UniversalClient['request']},
   metadata: M,
+  schemaDraft?: SchemaDraft,
 ): Promise<M> {
-  const draft = schemaDraftValue(metadata)
-  if (!draft) return metadata
+  const legacy = splitLegacySchemaDraft(metadata)
+  const draft = schemaDraft ?? legacy.schemaDraft
+  if (!draft) return legacy.metadata
   const data = cbor.encode(dagJsonToIpld(draft) as any)
   const digest = await sha256.digest(data)
   const cid = CID.createV1(DAG_CBOR_CODE, digest).toString()
   await client.request('PublishBlobs', {blobs: [{cid, data}]})
-  const {[SCHEMA_DRAFT_KEY]: _omit, ...rest} = metadata as Record<string, unknown>
-  return {...rest, [SCHEMA_DEFINITION_KEY]: `ipfs://${cid}`} as unknown as M
+  return {...legacy.metadata, [SCHEMA_DEFINITION_KEY]: `ipfs://${cid}`} as unknown as M
 }
 
 /** The bare schema CID a document points at via its `schemaDefinition` metadata, or null. */

@@ -369,12 +369,13 @@ export function usePublishResource(
           const changes = compareBlocksWithMap(blocksMap, newContent, '')
           const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
 
-          // A draft's working schema is frozen into a blob here; the published
-          // metadata carries `schemaDefinition`, never `schemaDraft`.
-          const publishMetadata = await freezeSchemaDraft(desktopUniversalClient, {
-            ...editDocument?.metadata,
-            ...draft.metadata,
-          })
+          // A draft's working schema is frozen into a blob here and becomes the
+          // document's `schemaDefinition`.
+          const publishMetadata = await freezeSchemaDraft(
+            desktopUniversalClient,
+            {...editDocument?.metadata, ...draft.metadata},
+            draft.schemaDraft,
+          )
           const allChanges = [
             ...navigationChanges,
             ...getDocAttributeChanges(expandObjectRemovals(publishMetadata, editDocument?.metadata)),
@@ -1136,15 +1137,19 @@ export function useCreateDraft(
     visibility,
     initialMetadata,
     initialContent,
+    initialSchemaDraft,
     location,
   }: {
     visibility?: HMResourceVisibility
     initialMetadata?: HMDraft['metadata']
     initialContent?: EditorBlock[]
+    /** A working schema for a draft whose document defines a type (New Schema, Extend Schema). */
+    initialSchemaDraft?: Record<string, any>
     /** Call-time location override, for flows that pick the destination in a dialog. */
     location?: {locationUid?: HMDraftMeta['locationUid']; locationPath?: HMDraftMeta['locationPath']}
   } = {}) => {
-    const hasInitialData = initialMetadata !== undefined || initialContent !== undefined
+    const hasInitialData =
+      initialMetadata !== undefined || initialContent !== undefined || initialSchemaDraft !== undefined
     const plan = computeNewDraftParams(
       visibility,
       location ? {...draftParams, ...location} : draftParams,
@@ -1169,6 +1174,7 @@ export function useCreateDraft(
         signingAccount: selectedAccountId ?? undefined,
         metadata: initialMetadata ?? {},
         content: initialContent ?? [],
+        schemaDraft: initialSchemaDraft,
         deps: plan.writeParams.deps ?? [],
       })
       invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, plan.routeId.uid])
