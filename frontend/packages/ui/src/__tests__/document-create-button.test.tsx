@@ -29,6 +29,17 @@ describe('DocumentCreateButton', () => {
     expect(Array.from(buttons).every((button) => button.disabled)).toBe(true)
   })
 
+  it('renders both actions inside one bordered, rounded button', () => {
+    act(() => root.render(<DocumentCreateButton onCreate={vi.fn()} onImport={vi.fn()} />))
+
+    const group = container.firstElementChild as HTMLDivElement
+    expect(group.className).toContain('rounded-md')
+    expect(group.className).toContain('border')
+    expect(group.className).toContain('overflow-hidden')
+    expect(container.querySelectorAll('button')[1]?.className).toContain('border-l')
+    expect(container.querySelectorAll('button')[1]?.className).toContain('w-7')
+  })
+
   it('sends a document request from the primary action', () => {
     const onCreate = vi.fn()
     act(() => root.render(<DocumentCreateButton onCreate={onCreate} onImport={vi.fn()} />))

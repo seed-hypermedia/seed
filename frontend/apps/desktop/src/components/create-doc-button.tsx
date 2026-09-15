@@ -25,7 +25,7 @@ import {Add} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {FilePlus2, Grid3X3, Import} from 'lucide-react'
 import {nanoid} from 'nanoid'
-import {ReactNode, useCallback, useEffect, useMemo, useState} from 'react'
+import {ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useActorRef, useSelector} from '@xstate/react'
 import {useQuery} from '@tanstack/react-query'
 import {useImportDialog, useImporting} from './import-doc-button'
@@ -170,8 +170,11 @@ function DesktopActorButton({
     locationPath: destination.path ?? undefined,
   })
   const createSubdocument = useCreateDraft({locationUid: locationId.uid, locationPath: locationId.path ?? undefined})
-  const importing = useImporting(destination, schema)
-  const importDialog = useImportDialog(onImportFinished)
+  const importStarted = useRef(false)
+  const importing = useImporting(destination, schema, onImportFinished)
+  const importDialog = useImportDialog(() => {
+    if (!importStarted.current) onImportFinished()
+  })
   const actor = useActorRef(documentCreationMachine, {
     input: {
       currentId: locationId,
@@ -203,25 +206,6 @@ function DesktopActorButton({
     actor.send({type: 'retry.requested'})
   }, [actor, snapshot.context.error, snapshot.value])
 
-  useEffect(
-    () =>
-      actor.subscribe({
-        complete: () => {
-          const output = actor.getSnapshot().output
-          if (output?.type !== 'import') return
-          importDialog.open({
-            onImportFile: importing.importFile,
-            onImportDirectory: importing.importDirectory,
-            onImportLatexFile: importing.importLatexFile,
-            onImportLatexDirectory: importing.importLatexDirectory,
-            onImportWebSite: importing.importWebSite,
-            onImportWordPress: importing.importWordPress,
-          })
-        },
-      }).unsubscribe,
-    [actor, importDialog, importing, onImportFinished],
-  )
-
   return (
     <>
       <DocumentCreateButton
@@ -229,7 +213,36 @@ function DesktopActorButton({
         disabled={JSON.stringify(snapshot.value) !== JSON.stringify({resolved: 'ready'})}
         showSubdocument={snapshot.can({type: 'create.requested', kind: 'subdocument'})}
         onCreate={(kind) => actor.send({type: 'create.requested', kind})}
-        onImport={() => actor.send({type: 'import.requested'})}
+        onImport={() => {
+          actor.send({type: 'import.requested'})
+          if (actor.getSnapshot().output?.type !== 'import') return
+          importDialog.open({
+            onImportFile: () => {
+              importStarted.current = true
+              importing.importFile()
+            },
+            onImportDirectory: () => {
+              importStarted.current = true
+              importing.importDirectory()
+            },
+            onImportLatexFile: () => {
+              importStarted.current = true
+              importing.importLatexFile()
+            },
+            onImportLatexDirectory: () => {
+              importStarted.current = true
+              importing.importLatexDirectory()
+            },
+            onImportWebSite: () => {
+              importStarted.current = true
+              importing.importWebSite()
+            },
+            onImportWordPress: () => {
+              importStarted.current = true
+              importing.importWordPress()
+            },
+          })
+        }}
       />
       {importDialog.content}
       {importing.content}

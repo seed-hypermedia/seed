@@ -73,8 +73,8 @@ export function ImportDialog({
           className="border-border border"
           variant="ghost"
           onClick={() => {
-            onClose()
             input.onImportFile()
+            onClose()
           }}
         >
           <File className="size-3" />
@@ -84,8 +84,8 @@ export function ImportDialog({
           className="border-border border"
           variant="ghost"
           onClick={() => {
-            onClose()
             input.onImportDirectory()
+            onClose()
           }}
         >
           <Folder className="size-3" />
@@ -95,8 +95,8 @@ export function ImportDialog({
           className="border-border border"
           variant="ghost"
           onClick={() => {
-            onClose()
             input.onImportLatexFile()
+            onClose()
           }}
         >
           <File className="size-3" />
@@ -106,8 +106,8 @@ export function ImportDialog({
           className="border-border border"
           variant="ghost"
           onClick={() => {
-            onClose()
             input.onImportLatexDirectory()
+            onClose()
           }}
         >
           <Folder className="size-3" />
@@ -117,8 +117,8 @@ export function ImportDialog({
           className="border-border border"
           variant="ghost"
           onClick={() => {
-            onClose()
             input.onImportWebSite()
+            onClose()
           }}
         >
           <Globe className="size-3" />
@@ -129,8 +129,8 @@ export function ImportDialog({
             className="border-border border"
             variant="ghost"
             onClick={() => {
-              onClose()
               input.onImportWordPress?.()
+              onClose()
             }}
           >
             <File className="size-3" />
@@ -195,7 +195,7 @@ export function ImportDropdownButton({id, button}: {id: UnpackedHypermediaId; bu
   )
 }
 
-export function useImporting(parentId: UnpackedHypermediaId, schema?: DocumentSchema) {
+export function useImporting(parentId: UnpackedHypermediaId, schema?: DocumentSchema, onFinished?: () => void) {
   const {openMarkdownDirectories, openMarkdownFiles, openLatexDirectories, openLatexFiles} = useAppContext()
   const accts = useMyAccountsWithWriteAccess(parentId)
   const navigate = useNavigate()
@@ -212,7 +212,7 @@ export function useImporting(parentId: UnpackedHypermediaId, schema?: DocumentSc
     mutationFn: (url: string) => client.webImporting.checkWebUrl.mutate(url),
   })
 
-  const importDialog = useImportConfirmDialog()
+  const importDialog = useImportConfirmDialog(onFinished)
 
   function startImport(
     importFunction: (id: string) => Promise<{
@@ -232,11 +232,13 @@ export function useImporting(parentId: UnpackedHypermediaId, schema?: DocumentSc
           })
         } else {
           toast.error('No documents found inside the selected directory.')
+          onFinished?.()
         }
       })
       .catch((error) => {
         console.error('Error importing documents:', error)
         toast.error(`Import error: ${error.message || error}`)
+        onFinished?.()
       })
   }
 
@@ -331,11 +333,13 @@ export function useImporting(parentId: UnpackedHypermediaId, schema?: DocumentSc
           })
         } else {
           toast.error('No documents found inside the selected directory.')
+          onFinished?.()
         }
       })
       .catch((error) => {
         console.error('Error importing LaTeX documents:', error)
         toast.error(`Import error: ${error.message || error}`)
+        onFinished?.()
       })
   }
 

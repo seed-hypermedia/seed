@@ -340,16 +340,6 @@ function WebActorCreateButton({
     actor.send({type: 'retry.requested'})
   }, [actor, snapshot.context.error, snapshot.value])
 
-  useEffect(
-    () =>
-      actor.subscribe({
-        complete: () => {
-          if (actor.getSnapshot().output?.type === 'import') inputRef.current?.click()
-        },
-      }).unsubscribe,
-    [actor],
-  )
-
   useEffect(() => {
     const input = inputRef.current
     if (!input) return
@@ -364,7 +354,10 @@ function WebActorCreateButton({
         showSubdocument={snapshot.can({type: 'create.requested', kind: 'subdocument'})}
         importLabel="Import Markdown File"
         onCreate={(kind) => actor.send({type: 'create.requested', kind})}
-        onImport={() => actor.send({type: 'import.requested'})}
+        onImport={() => {
+          actor.send({type: 'import.requested'})
+          if (actor.getSnapshot().output?.type === 'import') inputRef.current?.click()
+        }}
       />
       <input
         ref={inputRef}

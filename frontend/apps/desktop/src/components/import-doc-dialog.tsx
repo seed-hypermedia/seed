@@ -10,8 +10,8 @@ export type ImportedDocument = {
   directoryPath: string
 }
 
-export function useImportConfirmDialog() {
-  return useAppDialog(ImportConfirmDialog, {isAlert: true})
+export function useImportConfirmDialog(onClose?: () => void) {
+  return useAppDialog(ImportConfirmDialog, {isAlert: true, onClose})
 }
 
 function ImportConfirmDialog({

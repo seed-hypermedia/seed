@@ -491,7 +491,7 @@ export function EditingDocToolsRight({
   beforePublish?: React.ReactNode
 } & EditingToolbarCallbacks) {
   return (
-    <div className="relative flex items-center gap-1">
+    <div className="relative flex items-center gap-2">
       <div className="pointer-events-none absolute right-full mr-2">
         <SaveIndicator />
       </div>
