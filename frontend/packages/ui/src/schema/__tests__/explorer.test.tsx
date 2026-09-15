@@ -51,9 +51,9 @@ describe('SchemaDocPage renders every schema shape without crashing', () => {
   it('an extension (inherited/added origins)', () => {
     renderPage('example/employee')
     expect(container.textContent?.toLowerCase()).toContain('extends')
-    // The accessory column has no heading and spells out required/optional; only inheritance is noted.
-    const headings = [...container.querySelectorAll('th')].map((th) => th.textContent)
-    expect(headings).toEqual(['field', 'type', ''])
+    // No column headings and no field count; only optional and inheritance are noted.
+    expect(container.querySelectorAll('th')).toHaveLength(0)
+    expect(container.textContent).not.toMatch(/\d+ fields?|field\(s\)/)
     const text = container.textContent ?? ''
     expect(text).toContain('optional')
     expect(text).toContain('inherited')

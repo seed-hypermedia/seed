@@ -41,7 +41,7 @@ async function openDefineDialog(page: Page) {
     .getByRole('button', {name: 'Create linked object'})
     .click()
   await expect(defineDialog(page)).toBeVisible()
-  await expect(defineDialog(page).getByTestId('linked-object-target')).toContainText('Hypermedia schema')
+  await expect(defineDialog(page).getByTestId('linked-object-target')).toContainText('Schema')
 }
 
 /** Open the "Add field" dialog from the DocumentMetadataView add-field form. */
@@ -87,8 +87,8 @@ test.describe('schema editor', () => {
     await page.getByTestId('schema-type-option').filter({hasText: 'Integer'}).click()
     await expect(fieldType).toHaveValue('Integer')
 
+    // A new field starts required.
     const required = dialog.getByRole('checkbox', {name: 'required'})
-    await required.click()
     await expect(required).toHaveAttribute('aria-checked', 'true')
 
     await expect(dialog.getByText('✓ conforms to schema')).toBeVisible()
@@ -164,8 +164,9 @@ test.describe('schema editor', () => {
     await expect(dialog.getByRole('textbox', {name: 'Field name'})).toHaveCount(2)
     await dialog.getByRole('textbox', {name: 'Field name'}).nth(1).fill('y')
 
-    // Mark "x" required.
-    await dialog.getByRole('checkbox').first().click()
+    // New fields start required; make "y" optional, then remove it.
+    await dialog.getByRole('checkbox', {name: 'Required y'}).click()
+    await expect(dialog.getByRole('checkbox', {name: 'Required y'})).toHaveAttribute('aria-checked', 'false')
 
     // Remove "y".
     await dialog.getByRole('button', {name: 'Remove y'}).click()
@@ -249,13 +250,9 @@ test.describe('schema editor', () => {
     // The menu must be fully closed (it blocks pointer events while open) before the next click.
     await expect(page.getByRole('menu')).toHaveCount(0)
 
-    // Optional declared fields are offered as add-field suggestions, and the
-    // required one is NOT re-offered (it's already shown as a row).
-    await openAddFieldDialog(page)
-    const dialog = page.getByRole('dialog', {name: 'Add field'})
-    await expect(dialog.getByText('Schema fields')).toBeVisible()
-    await expect(dialog.getByRole('button', {name: 'givenName', exact: true})).toBeVisible()
-    await expect(dialog.getByRole('button', {name: 'surname *'})).toHaveCount(0)
+    // Optional declared fields are rows too (not add-field suggestions), and nothing is written.
+    await expect(page.getByRole('treeitem', {name: /givenName/}).first()).toBeVisible()
+    expect(await meta(page)).toEqual({name: 'X', attributesSchema: `${HYPERMEDIA_UID}/example/person-doc`})
   })
 
   // --- extra coverage: metadata field add / rename / remove ------------------
