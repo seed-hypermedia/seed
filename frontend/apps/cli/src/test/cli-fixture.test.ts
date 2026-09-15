@@ -2116,23 +2116,22 @@ describe('CLI Full Integration Tests', () => {
     test(
       'documents that share a genesis keep separate comment threads',
       async () => {
-        // createDocumentUpdate builds every new document on the deterministic (home-document)
-        // genesis, the SDK misuse that gave sixty distinct papers one genesis and one comment
-        // thread on 2026-09-15. Comments must follow the location, not the genesis.
+        // Two distinct documents on one genesis: a fork keeps the source's genesis. That is
+        // also the shape the SDK misuse fixed in #1126 produced for every document an
+        // account created (sixty papers, one comment thread, 2026-09-15). Comments must
+        // follow the location, not the genesis.
         const runId = Date.now()
         const pathA = `shared-genesis-a-${runId}`
         const pathB = `shared-genesis-b-${runId}`
-        for (const [path, name] of [
-          [pathA, 'Paper A'],
-          [pathB, 'Paper B'],
-        ] as const) {
-          await createDocumentUpdate(ctx.webServerUrl, writeAccount, path, [
-            {type: 'SetAttributes', attrs: [{key: ['name'], value: name}]},
-          ])
-        }
-        await new Promise((r) => setTimeout(r, 1500))
         const idA = `${writeAccountHmId}/${pathA}`
         const idB = `${writeAccountHmId}/${pathB}`
+        await createDocumentUpdate(ctx.webServerUrl, writeAccount, pathA, [
+          {type: 'SetAttributes', attrs: [{key: ['name'], value: 'Paper A'}]},
+        ])
+        await new Promise((r) => setTimeout(r, 1500))
+        const forked = await runCli(['document', 'fork', idA, idB, '--key', TEST_KEY_NAME], {server: ctx.webServerUrl})
+        expect(forked.exitCode).toBe(0)
+        await new Promise((r) => setTimeout(r, 1500))
 
         const infoA = JSON.parse((await runCli(['document', 'get', idA, '--json'], {server: ctx.webServerUrl})).stdout)
         const infoB = JSON.parse((await runCli(['document', 'get', idB, '--json'], {server: ctx.webServerUrl})).stdout)
