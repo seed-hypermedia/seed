@@ -121,6 +121,27 @@ describe('CLI Full Integration Tests', () => {
     )
 
     test(
+      'creating an account home through the SDK yields the deterministic genesis the daemon agrees with',
+      async () => {
+        // createDocumentUpdate at path '' takes the SDK's home branch: deterministic genesis,
+        // then the content change, then the Ref, published together.
+        const fresh = generateTestAccount()
+        await createDocumentUpdate(ctx.webServerUrl, fresh, '', [
+          {type: 'SetAttributes', attrs: [{key: ['name'], value: 'Fresh Home'}]},
+        ])
+        await new Promise((r) => setTimeout(r, 1500))
+        const home = JSON.parse(
+          (await runCli(['document', 'get', `hm://${fresh.accountId}`, '--json'], {server: ctx.webServerUrl})).stdout,
+        )
+        const expected = await createHomeGenesisChange(createSignerFromKey(fresh.keyPair))
+        expect(home.document.genesis).toBe(expected.cid.toString())
+        expect(home.document.version).not.toBe(home.document.genesis)
+        expect(home.document.metadata.name).toBe('Fresh Home')
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
       'a non-home document has no genesis blob of its own: its first change is its genesis',
       async () => {
         const doc = JSON.parse(

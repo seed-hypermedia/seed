@@ -5,6 +5,7 @@
 
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {
+  createDocumentBlobs,
   createHomeGenesisChange,
   createChangeOps,
   createChange,
@@ -142,31 +143,14 @@ export async function createDocumentUpdate(
   const doc = resource.json || resource
 
   if (doc.type === 'not-found') {
-    // New document — its first content change is its genesis (never the home document's
-    // deterministic genesis, which would merge it with every other such document).
-    const {unsignedBytes, ts} = createChangeOps({ops: operations})
-    const changeBlock = await createChange(unsignedBytes, signer)
-
-    const refInput = await createVersionRef(
-      {
-        space: accountId,
-        path: normalizedPath,
-        genesis: changeBlock.cid.toString(),
-        version: changeBlock.cid.toString(),
-        generation: Number(ts),
-      },
-      signer,
-    )
-
-    const payload = {
-      change: {data: changeBlock.bytes, cid: changeBlock.cid.toString()},
-      ref: refInput.blobs[0],
-    }
-
-    const response = await fetch(`${serverUrl}/hm/api/document-update`, {
+    // New document. The SDK decides the genesis the way the daemon does: the deterministic
+    // home genesis only for the account's own home (path ''), otherwise the first content
+    // change is the genesis. Published together, in dependency order.
+    const created = await createDocumentBlobs(signer, {space: accountId, path: normalizedPath, ops: operations})
+    const response = await fetch(`${serverUrl}/api/PublishBlobs`, {
       method: 'POST',
       headers: {'Content-Type': 'application/cbor'},
-      body: new Uint8Array(cborEncode(payload)) as unknown as BodyInit,
+      body: new Uint8Array(cborEncode({blobs: created.blobs})) as unknown as BodyInit,
     })
 
     if (!response.ok) {

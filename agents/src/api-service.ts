@@ -73,6 +73,7 @@ import {
   createComment,
   commentRecordIdFromBlob,
   createContact,
+  createDocumentBlobs,
   createHomeGenesisChange,
   createBlocksMap,
   createRedirectRef,
@@ -13530,32 +13531,17 @@ async function writeDocumentCreate(
       blockCount: parsed.blocks.length,
       dryRun: true,
     })
-  // The document's first content Change is its genesis. Never the SDK's deterministic
-  // home-document genesis: every document an account created that way shared one identity
+  // The SDK decides which genesis a new document gets, the way the daemon does: the
+  // deterministic home genesis only for the signer's own home (path ''), otherwise the first
+  // content Change is the genesis. Every document created here used to share the home genesis
   // (sixty papers, one comment thread, 2026-09-15).
-  const {unsignedBytes, ts} = createChangeOps({ops})
-  const changeBlock = await createChange(unsignedBytes, signer.signer)
-  const refInput = await createVersionRef(
-    {
-      space: account,
-      path,
-      genesis: changeBlock.cid.toString(),
-      version: changeBlock.cid.toString(),
-      generation: Number(ts),
-      capability,
-    },
-    signer.signer,
-  )
+  const created = await createDocumentBlobs(signer.signer, {space: account, path, ops, capability})
   const published = await client.publish({
-    blobs: [
-      {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
-      ...refInput.blobs,
-      ...extraBlobs,
-    ],
+    blobs: [...created.blobs, ...extraBlobs],
   })
   return writeToolResult(request.command, signer, {
     id: `hm://${account}${path}`,
-    version: changeBlock.cid.toString(),
+    version: created.version,
     cids: published.cids,
   })
 }
