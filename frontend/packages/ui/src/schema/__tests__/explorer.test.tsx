@@ -43,7 +43,9 @@ describe('SchemaDocPage renders every schema shape without crashing', () => {
   it('a closed struct with a fields table', () => {
     renderPage('example/person')
     expect(container.querySelector('table')).toBeTruthy()
-    expect(container.textContent?.toLowerCase()).toContain('required')
+    // Required is implied; only optional fields are marked.
+    expect(container.textContent).toContain('optional')
+    expect(container.textContent).not.toContain('required')
   })
 
   it('an extension (inherited/added origins)', () => {
