@@ -8,19 +8,15 @@
 
 import {ChevronRight} from 'lucide-react'
 import {createContext, Fragment, useContext, useState} from 'react'
-import {kindColor} from './schema-colors'
-import {HM_SCHEMA_PAGES} from './schema-registry.generated'
-import {useSchemaRegistry} from './schema-registry-cid'
-import {isSignedBlobSchema} from './signed-blob'
 import {cn} from '../utils'
 import {
-  HM_SCHEMAS,
-  type HypermediaSchema,
-  type StructField,
   dependencies,
   dependents,
+  HM_SCHEMAS,
   isInstance,
+  isLiteralSchema,
   kindOf,
+  literalValue,
   nameForCid,
   nameToUrl,
   refToName,
@@ -28,9 +24,13 @@ import {
   schemaCid,
   structFields,
   validate,
-  isLiteralSchema,
-  literalValue,
+  type HypermediaSchema,
+  type StructField,
 } from './engine'
+import {useSchemaRegistry} from './schema-registry-cid'
+import {kindColor} from './schema-colors'
+import {HM_SCHEMA_PAGES} from './schema-registry.generated'
+import {isSignedBlobSchema} from './signed-blob'
 
 // --- classification --------------------------------------------------------
 
@@ -413,7 +413,6 @@ export function SchemaDocPage({
 
   const url = nameToUrl(slug)
   const cid = schemaCid(slug)
-  const isMeta = slug === 'schema'
   const instance = isInstance(schema)
 
   // Instance page: validate the value against its declared $type.
@@ -463,7 +462,7 @@ export function SchemaDocPage({
       <p className="text-sm" data-testid="schema-union-lead">
         <Chip label="Union" onClick={() => nav('schema/anyof')} />{' '}
         <span className="text-muted-foreground">
-          · {isMeta ? `${schema.anyOf.length} variants, tagged on type` : `one of ${schema.anyOf.length} alternatives`}
+          · one of {schema.anyOf.length} variant{schema.anyOf.length === 1 ? '' : 's'}:
         </span>
       </p>
     )
@@ -561,13 +560,6 @@ export function SchemaDocPage({
         </>
       )}
       {lead}
-      {isMeta && (
-        <Callout tone="meta">
-          This is the <strong>meta-schema</strong> — the union describing what every Hypermedia schema is,{' '}
-          <em>including itself</em>. It validates against its own <code>union</code> variant, whose <code>anyOf</code>{' '}
-          items validate against its <code>include</code> variant. The loop closes.
-        </Callout>
-      )}
       {isMetaVariant(slug) && (
         <Callout>
           A <strong>variant</strong> of the{' '}
