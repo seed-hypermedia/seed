@@ -138,6 +138,11 @@ export class FakeDaemon {
   /** The universal client surface the loader prefetches through. */
   async request(name: string, input: unknown): Promise<unknown> {
     if (name === 'Resource') return this.fetch(input as UnpackedHypermediaId)
+    if (name === 'Account') {
+      // Authors' accounts back the byline; an unanswered one renders as a loading spinner.
+      const uid = input as string
+      return {type: 'account', id: hmId(uid), metadata: {name: `Account ${uid.slice(-6)}`}}
+    }
     return null
   }
 
