@@ -73,7 +73,7 @@ import {
   createComment,
   commentRecordIdFromBlob,
   createContact,
-  createGenesisChange,
+  createHomeGenesisChange,
   createBlocksMap,
   createRedirectRef,
   createSeedClient,
@@ -9550,7 +9550,7 @@ async function publishSigningIdentityProfileAndHome(
   const profile = await blobs.createProfile(keyPair, {name}, now)
   const {tree} = parseMarkdown('This is an agentic account.')
   const ops = metadataToWriteSetAttributes({name}).concat(flattenToOperations(tree))
-  const genesisBlock = await createGenesisChange(signer)
+  const genesisBlock = await createHomeGenesisChange(signer)
   const {unsignedBytes, ts} = createChangeOps({ops, genesisCid: genesisBlock.cid, deps: [genesisBlock.cid], depth: 1})
   const changeBlock = await createChange(unsignedBytes, signer)
   const refInput = await createVersionRef(
@@ -13530,14 +13530,16 @@ async function writeDocumentCreate(
       blockCount: parsed.blocks.length,
       dryRun: true,
     })
-  const genesisBlock = await createGenesisChange(signer.signer)
-  const {unsignedBytes, ts} = createChangeOps({ops, genesisCid: genesisBlock.cid, deps: [genesisBlock.cid], depth: 1})
+  // The document's first content Change is its genesis. Never the SDK's deterministic
+  // home-document genesis: every document an account created that way shared one identity
+  // (sixty papers, one comment thread, 2026-09-15).
+  const {unsignedBytes, ts} = createChangeOps({ops})
   const changeBlock = await createChange(unsignedBytes, signer.signer)
   const refInput = await createVersionRef(
     {
       space: account,
       path,
-      genesis: genesisBlock.cid.toString(),
+      genesis: changeBlock.cid.toString(),
       version: changeBlock.cid.toString(),
       generation: Number(ts),
       capability,
@@ -13546,7 +13548,6 @@ async function writeDocumentCreate(
   )
   const published = await client.publish({
     blobs: [
-      {data: new Uint8Array(genesisBlock.bytes), cid: genesisBlock.cid.toString()},
       {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
       ...refInput.blobs,
       ...extraBlobs,

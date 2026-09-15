@@ -4,7 +4,7 @@ import {encode as cborEncode} from '@ipld/dag-cbor'
 import {deserialize} from 'superjson'
 import {SeedClientError, SeedNetworkError, SeedValidationError} from './errors'
 import type {AnySigner} from './signer'
-import {createDocumentChange, createGenesisChange, signDocumentChange} from './change'
+import {createDocumentChange, createHomeGenesisChange, signDocumentChange} from './change'
 import {createVersionRef} from './ref'
 
 // ─── Query string serialization ─────────────────────────────────────────────
@@ -262,7 +262,7 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
     // signed client-side — the server's PrepareChange cannot bootstrap it (it has no
     // signing key, and requires the genesis to already exist).
     if (!input.genesis && !input.baseVersion && !input.path) {
-      const genesisChange = await createGenesisChange(signer)
+      const genesisChange = await createHomeGenesisChange(signer)
       const generation = input.generation != null ? Number(input.generation) : 1
 
       // Client-side change construction only supports setMetadata ops. When the home

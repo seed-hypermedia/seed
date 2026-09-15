@@ -6,6 +6,7 @@ import {
   createChange,
   createChangeOps,
   createGenesisChange,
+  createHomeGenesisChange,
   signPreparedChange,
   signDocumentChange,
   visibilityToCbor,
@@ -148,6 +149,13 @@ describe('createGenesisChange', () => {
 
     const decoded = cborDecode(result.bytes) as Record<string, unknown>
     expect(BigInt(decoded['ts'] as number | bigint)).toBe(0n)
+  })
+
+  it('is the home genesis: the same CID every time for the same signer', async () => {
+    const signer = createMockSigner()
+    const a = await createGenesisChange(signer)
+    const b = await createHomeGenesisChange(signer)
+    expect(a.cid.toString()).toBe(b.cid.toString())
   })
 })
 

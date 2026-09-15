@@ -1,4 +1,9 @@
-import {createDocumentChange, createGenesisChange, createVersionRef, signDocumentChange} from '@seed-hypermedia/client'
+import {
+  createDocumentChange,
+  createHomeGenesisChange,
+  createVersionRef,
+  signDocumentChange,
+} from '@seed-hypermedia/client'
 import type {HMRequest, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {PublishDocumentInput, UniversalClient} from './universal-client'
 import type {
@@ -40,7 +45,7 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
     // the first content change locally; content blocks still go through
     // PrepareDocumentChange after publishing an initial resolvable genesis ref.
     if (!input.genesis && !input.baseVersion && !input.path) {
-      const genesisChange = await createGenesisChange(signer)
+      const genesisChange = await createHomeGenesisChange(signer)
       const generation = input.generation != null ? Number(input.generation) : 1
 
       if (input.changes.every((change) => change.op?.case === 'setMetadata')) {

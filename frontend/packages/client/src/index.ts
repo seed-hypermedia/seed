@@ -6,6 +6,7 @@ export {
   createDocumentChange,
   createDocumentChangeFromOps,
   createGenesisChange,
+  createHomeGenesisChange,
   signDocumentChange,
   signPreparedChange,
 } from './change'

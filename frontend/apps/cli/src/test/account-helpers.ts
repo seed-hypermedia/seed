@@ -5,7 +5,7 @@
 
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {
-  createGenesisChange,
+  createHomeGenesisChange,
   createChangeOps,
   createChange,
   createRedirectRef,
@@ -53,8 +53,8 @@ export async function registerAccount(
   const signer = createSignerFromKey(account.keyPair)
   const homeBody = options.homeBody ?? `Welcome to ${accountName}'s space`
 
-  // Create genesis change
-  const genesisBlock = await createGenesisChange(signer)
+  // The home document's deterministic genesis.
+  const genesisBlock = await createHomeGenesisChange(signer)
 
   // Create home document change
   const blockId = generateBlockId()
@@ -142,49 +142,36 @@ export async function createDocumentUpdate(
   const doc = resource.json || resource
 
   if (doc.type === 'not-found') {
-    // New document — create genesis + change + ref
-    const genesisBlock = await createGenesisChange(signer)
-
-    const {unsignedBytes, ts} = createChangeOps({
-      ops: operations,
-      genesisCid: genesisBlock.cid,
-      deps: [genesisBlock.cid],
-      depth: 1,
-    })
+    // New document — its first content change is its genesis (never the home document's
+    // deterministic genesis, which would merge it with every other such document).
+    const {unsignedBytes, ts} = createChangeOps({ops: operations})
     const changeBlock = await createChange(unsignedBytes, signer)
 
     const refInput = await createVersionRef(
       {
         space: accountId,
         path: normalizedPath,
-        genesis: genesisBlock.cid.toString(),
+        genesis: changeBlock.cid.toString(),
         version: changeBlock.cid.toString(),
         generation: Number(ts),
       },
       signer,
     )
 
-    const toRef = (block: {bytes: Uint8Array; cid: {toString(): string}}) => ({
-      data: block.bytes,
-      cid: block.cid.toString(),
-    })
-
     const payload = {
-      change: toRef(changeBlock),
+      change: {data: changeBlock.bytes, cid: changeBlock.cid.toString()},
       ref: refInput.blobs[0],
-      blobs: [toRef(genesisBlock)],
     }
 
-    const cborData = cborEncode(payload)
     const response = await fetch(`${serverUrl}/hm/api/document-update`, {
       method: 'POST',
       headers: {'Content-Type': 'application/cbor'},
-      body: new Uint8Array(cborData) as unknown as BodyInit,
+      body: new Uint8Array(cborEncode(payload)) as unknown as BodyInit,
     })
 
     if (!response.ok) {
       const text = await response.text()
-      throw new Error(`Failed to update document: ${response.status} - ${text}`)
+      throw new Error(`Failed to create document: ${response.status} - ${text}`)
     }
   } else {
     // Existing document - depend on its current heads
