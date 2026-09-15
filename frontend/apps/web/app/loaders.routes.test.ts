@@ -252,3 +252,35 @@ describe('loadResourceWithDiscovery', () => {
     expect(payload.document.metadata.name).toBe('Arrived')
   })
 })
+
+describe('hydration invariant', () => {
+  it('logs loudly when the route resource would hydrate as something other than the loaded document', async () => {
+    daemon.putDocument(makeDocument({uid: SITE_UID, path: ['guide'], version: 'v1'}))
+    // The gRPC fetch serves the document, but the universal client (what the prefetch and the
+    // browser use) reports the pinned id as not-found — the two surfaces disagree, which is
+    // exactly the #1120 shape.
+    daemon.request = async (name, input) =>
+      name === 'Resource' ? {type: 'not-found', id: input as UnpackedHypermediaId} : null
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const payload = await load(hmId(SITE_UID, {path: ['guide'], latest: true}))
+
+    // The page still gets its document; the log line is the signal.
+    expect(payload.document.version).toBe('v1')
+    const invariant = consoleError.mock.calls.find(([msg]) => typeof msg === 'string' && msg.includes('INVARIANT'))
+    expect(invariant, 'invariant log line').toBeDefined()
+    expect(invariant![0]).toContain('would hydrate as "not-found"')
+    expect(invariant![1]).toMatchObject({route: expect.stringContaining('/guide'), version: 'v1'})
+    consoleError.mockRestore()
+  })
+
+  it('stays silent when the route resource hydrates as the loaded document', async () => {
+    daemon.putDocument(makeDocument({uid: SITE_UID, path: ['guide'], version: 'v1'}))
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await load(hmId(SITE_UID, {path: ['guide'], latest: true}))
+
+    expect(consoleError.mock.calls.filter(([msg]) => typeof msg === 'string' && msg.includes('INVARIANT'))).toEqual([])
+    consoleError.mockRestore()
+  })
+})
