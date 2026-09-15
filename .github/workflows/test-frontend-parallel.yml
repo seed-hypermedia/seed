@@ -164,9 +164,12 @@ jobs:
           fi
           echo "✅ Desktop tests passed (vitest hung after completion — known jsdom issue)"
 
-  # Job 2: Integration tests (only for docker workflows)
+  # Job 2: Integration tests (real daemon + built web server). Run on every frontend
+  # pull request and whenever a calling workflow asks for them. They were PR-gated
+  # from 2026-08-28 to 2026-09-15, during which the republish SSR regression (#1120)
+  # shipped in seven releases with no CI signal.
   integration-tests:
-    if: inputs.run-integration-tests
+    if: inputs.run-integration-tests || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -378,7 +381,7 @@ jobs:
           fi
 
           # Check integration tests (only if they were supposed to run)
-          if [ "${{ inputs.run-integration-tests }}" == "true" ]; then
+          if [ "${{ inputs.run-integration-tests }}" == "true" ] || [ "${{ github.event_name }}" == "pull_request" ]; then
             if [ "${{ needs.integration-tests.result }}" != "success" ]; then
               echo "Integration tests failed!"
               exit 1

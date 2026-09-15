@@ -12,6 +12,15 @@
 import * as cheerio from "cheerio";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { FIXTURE_ACCOUNT_ID } from "../test-fixtures/minimal-fixtures";
+import {
+  createDocumentUpdate,
+  createRedirectDocument,
+} from "../frontend/apps/cli/src/test/account-helpers";
+import { FIXTURE_ACCOUNT } from "../frontend/apps/cli/src/test/fixture-seed";
+import {
+  flattenToOperations,
+  parseMarkdown,
+} from "../frontend/apps/cli/src/utils/markdown";
 import { setupTestEnv, TestEnv } from "./integration";
 
 // Increase test timeout for integration tests
@@ -115,6 +124,130 @@ describe("SSR Integration", () => {
       // Check that we don't have obvious error markers in the HTML
       expect(html).not.toContain("Error:");
       expect(html).not.toContain("throw new Error");
+    },
+    TEST_TIMEOUT,
+  );
+});
+
+/**
+ * Every kind of address the site loader distinguishes must render the right thing under SSR.
+ *
+ * Regression guard for #1120: a republished path (a redirect Ref with `republish: true`) rendered
+ * "Document Not Found" for three weeks because the loader pinned the TARGET document's version
+ * onto the republish's own address, an id the daemon cannot serve. The unit tests in
+ * frontend/apps/web/app/loaders.republish.test.ts mock the daemon; this suite exercises the same
+ * route against a real daemon and the built web server.
+ */
+describe("SSR Redirect Routes", () => {
+  const runId = Date.now();
+  const targetPath = `redirect-target-${runId}`;
+  const targetTitle = `Redirect Target ${runId}`;
+  const targetBody = `Body of the redirect target ${runId}`;
+  const republishedPath = `republished-${runId}`;
+  const movedPath = `moved-${runId}`;
+
+  async function loaderData(path: string) {
+    const response = await fetch(
+      `${env.web.baseUrl}/${path}?_data=${encodeURIComponent("routes/$")}`,
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { json: any };
+    return body.json;
+  }
+
+  function entityQueryFor(data: any, hmId: string) {
+    return data.dehydratedState?.queries.find(
+      (q: any) => q.queryKey[0] === "ENTITY" && q.queryKey[1] === hmId,
+    );
+  }
+
+  beforeAll(async () => {
+    const titled = (name: string, body: string) => [
+      {
+        type: "SetAttributes" as const,
+        attrs: [{ key: ["name"], value: name }],
+      },
+      ...flattenToOperations(parseMarkdown(body).tree),
+    ];
+    await createDocumentUpdate(
+      env.web.baseUrl,
+      FIXTURE_ACCOUNT,
+      targetPath,
+      titled(targetTitle, targetBody),
+    );
+    // Both redirect sources start as ordinary documents, then get redirected — the same
+    // sequence the CLI's `document redirect` and the web republish dialog produce.
+    await createDocumentUpdate(
+      env.web.baseUrl,
+      FIXTURE_ACCOUNT,
+      republishedPath,
+      titled(`Republish Source ${runId}`, "Replaced by the republish"),
+    );
+    await createRedirectDocument(env.web.baseUrl, FIXTURE_ACCOUNT, republishedPath, {
+      path: targetPath,
+      republish: true,
+    });
+    await createDocumentUpdate(
+      env.web.baseUrl,
+      FIXTURE_ACCOUNT,
+      movedPath,
+      titled(`Moved Source ${runId}`, "Moved away"),
+    );
+    await createRedirectDocument(env.web.baseUrl, FIXTURE_ACCOUNT, movedPath, {
+      path: targetPath,
+    });
+  }, TEST_TIMEOUT);
+
+  it(
+    "server-renders the redirect target itself",
+    async () => {
+      const response = await fetch(`${env.web.baseUrl}/${targetPath}`);
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain(targetTitle);
+      expect(html).not.toContain("Document Not Found");
+    },
+    TEST_TIMEOUT,
+  );
+
+  it(
+    "server-renders a republished path with the target's content at the republish's own address",
+    async () => {
+      const response = await fetch(`${env.web.baseUrl}/${republishedPath}`);
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain(targetTitle);
+      expect(html).toContain(targetBody);
+      expect(html).not.toContain("Document Not Found");
+
+      const data = await loaderData(republishedPath);
+      const republishedId = `hm://${FIXTURE_ACCOUNT_ID}/${republishedPath}`;
+      // The route keeps the republish's address and never pins the target's version onto it.
+      expect(data.id.id).toBe(republishedId);
+      expect(data.id.version).toBeFalsy();
+      expect(data.document.metadata.name).toBe(targetTitle);
+
+      // The resource query the client hydrates for this route holds the target document.
+      const entity = entityQueryFor(data, republishedId);
+      expect(entity, "dehydrated ENTITY query for the republished route").toBeDefined();
+      // Query keys serialize through JSON, so an unpinned version arrives as null.
+      expect(entity.queryKey[2] ?? null).toBeNull();
+      expect(entity.state.data.type).toBe("document");
+      expect(entity.state.data.document.metadata.name).toBe(targetTitle);
+    },
+    TEST_TIMEOUT,
+  );
+
+  it(
+    "redirects a moved path to its target",
+    async () => {
+      const response = await fetch(`${env.web.baseUrl}/${movedPath}`, {
+        redirect: "manual",
+      });
+      expect([301, 302, 307, 308]).toContain(response.status);
+      const location = response.headers.get("location") ?? "";
+      expect(location).toContain(targetPath);
+      expect(location).not.toContain(movedPath);
     },
     TEST_TIMEOUT,
   );
