@@ -64,6 +64,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {useQuery} from '@tanstack/react-query'
 import {
+  Activity,
   Bell,
   Bot,
   ChevronDown,
@@ -542,8 +543,41 @@ export function PageActionButtons(props: TitleBarProps) {
       <AssistantChatButton assistantOpen={props.assistantOpen} onToggleAssistant={props.onToggleAssistant} />
       <BookmarksPopover />
       <NotificationButton />
+      <ActivityFeedButton />
       <AccountProfileButton />
     </TitlebarSection>
+  )
+}
+
+/**
+ * Titlebar Activity Feed button. Inside a space it opens that space's feed.
+ * With no space in the route it opens the node wide feed.
+ */
+function ActivityFeedButton() {
+  const route = useNavRoute()
+  const navigate = useNavigate()
+  const isActive = route.key === 'feed' || route.key === 'node-feed'
+  const routeId = route && 'id' in route && typeof route.id !== 'string' ? route.id : null
+  const siteId = routeId?.uid ? hmId(routeId.uid) : null
+  return (
+    <Tooltip content="Activity Feed" asChild>
+      <Button
+        className={cn(
+          'window-no-drag h-8 w-8 rounded-full border p-0',
+          isActive
+            ? 'border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
+            : 'border-transparent',
+        )}
+        aria-current={isActive ? 'page' : undefined}
+        aria-label="Activity Feed"
+        onMouseEnter={() => {
+          import('@shm/ui/feed').catch(() => {})
+        }}
+        onClick={() => navigate(siteId ? {key: 'feed', id: siteId} : {key: 'node-feed'})}
+      >
+        <Activity className="size-4" />
+      </Button>
+    </Tooltip>
   )
 }
 
@@ -719,6 +753,8 @@ function getRouteLabel(route: NavRoute): string | null {
       return 'Query Documents'
     case 'explore':
       return 'Explore'
+    case 'node-feed':
+      return 'Activity Feed'
     case 'notifications':
       return 'Notifications'
     case 'draft':

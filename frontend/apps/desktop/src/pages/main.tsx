@@ -49,6 +49,7 @@ var Contacts = lazy(() => import('./contacts-page'))
 var Contact = lazy(() => import('./contact-page'))
 var Document = lazy(() => import('./desktop-resource'))
 var Feed = lazy(() => import('./desktop-feed'))
+var NodeFeed = lazy(() => import('./desktop-node-feed'))
 var InspectResource = lazy(() => import('./inspect-resource'))
 var InspectIpfs = lazy(() => import('./inspect-ipfs'))
 var ApiInspector = lazy(() => import('./api-inspector'))
@@ -457,6 +458,11 @@ function getPageComponent(navRoute: NavRoute) {
       return {
         PageComponent: Feed,
         Fallback: DocumentPlaceholder,
+      }
+    case 'node-feed':
+      return {
+        PageComponent: NodeFeed,
+        Fallback: BaseLoading,
       }
     case 'directory':
       return {

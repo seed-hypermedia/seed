@@ -99,6 +99,35 @@ function ExploreHeaderButton({siteHomeId}: {siteHomeId: UnpackedHypermediaId}) {
   )
 }
 
+// Site header entry point to the space Activity Feed.
+function FeedHeaderButton({siteHomeId, isActive}: {siteHomeId: UnpackedHypermediaId; isActive: boolean}) {
+  const linkProps = useRouteLink({
+    key: 'feed',
+    id: {...siteHomeId, latest: true, version: null},
+  })
+  return (
+    <Tooltip content="Activity Feed">
+      <Button
+        asChild
+        variant="ghost"
+        size="icon"
+        className={cn('h-8 rounded-full border-1 border-transparent p-0', isActive && 'dark:bg-muted bg-black/5')}
+      >
+        <a
+          aria-label="Activity Feed"
+          aria-current={isActive ? 'page' : undefined}
+          onMouseEnter={() => {
+            import('./feed').catch(() => {})
+          }}
+          {...linkProps}
+        >
+          <Activity className="size-4" />
+        </a>
+      </Button>
+    </Tooltip>
+  )
+}
+
 export function SiteHeader({
   siteHomeId,
   docId,
@@ -175,6 +204,7 @@ export function SiteHeader({
       {siteHomeId && !IS_DESKTOP ? (
         <div className="hidden items-center gap-1 md:flex">
           <ExploreHeaderButton siteHomeId={siteHomeId} />
+          <FeedHeaderButton siteHomeId={siteHomeId} isActive={isMainFeedVisible} />
           <AssistantPanelHeaderButton siteUid={siteHomeId.uid} />
           <DocumentMaintenanceTrigger compact />
         </div>
@@ -255,7 +285,6 @@ export function SiteHeader({
           isCenterLayout={isCenterLayout}
           editNavPane={editNavPane}
           editNavPanePortalRef={editNavPanePortalRef}
-          isMainFeedVisible={isMainFeedVisible}
           siteHomeId={siteHomeId}
         />
       </div>
@@ -489,11 +518,10 @@ function HeaderLinkItem({
 export function SiteHeaderMenu({
   items,
   docId,
-  siteHomeId,
+  siteHomeId: _siteHomeId,
   isCenterLayout = false,
   editNavPane,
   editNavPanePortalRef,
-  isMainFeedVisible = false,
 }: {
   items?: DocNavigationItem[] | null
   docId: UnpackedHypermediaId | null
@@ -501,16 +529,13 @@ export function SiteHeaderMenu({
   isCenterLayout?: boolean
   editNavPane?: React.ReactNode
   editNavPanePortalRef?: (node: HTMLDivElement | null) => void
-  isMainFeedVisible?: boolean
 }) {
   const editNavPaneRef = useRef<HTMLDivElement | null>(null)
-  const feedLinkButtonRef = useRef<HTMLAnchorElement>(null)
 
-  // Calculate reserved width for the edit pane and feed button. The responsive
-  // hook reserves the overflow trigger only when it is needed.
+  // Calculate reserved width for the edit pane. The responsive hook reserves the
+  // overflow trigger only when it is needed.
   const editNavPaneWidth = editNavPaneRef.current?.getBoundingClientRect().width || 0
-  const feedLinkButtonWidth = feedLinkButtonRef.current?.getBoundingClientRect().width || 0
-  const reservedWidth = editNavPaneWidth + feedLinkButtonWidth + 48
+  const reservedWidth = editNavPaneWidth + 48
 
   const activeKey = useMemo(() => getActiveSiteHeaderItemKey(items ?? [], docId), [docId, items])
 
@@ -520,11 +545,6 @@ export function SiteHeaderMenu({
     getItemWidth: getNavItemWidth,
     reservedWidth,
     gapWidth: 20,
-  })
-
-  const feedLinkProps = useRouteLink({
-    key: 'feed',
-    id: {...siteHomeId, latest: true, version: null},
   })
 
   return (
@@ -606,27 +626,6 @@ export function SiteHeaderMenu({
           {editNavPane}
         </div>
       )}
-      <Tooltip content="Activity Feed">
-        <Button
-          asChild
-          variant="ghost"
-          size="icon"
-          className={cn(
-            'h-8 rounded-full border-1 border-transparent p-0',
-            isMainFeedVisible && 'dark:bg-muted bg-black/5',
-          )}
-        >
-          <a
-            ref={feedLinkButtonRef}
-            onMouseEnter={() => {
-              import('./feed').catch(() => {})
-            }}
-            {...feedLinkProps}
-          >
-            <Activity className="size-4" />
-          </a>
-        </Button>
-      </Tooltip>
     </div>
   )
 }

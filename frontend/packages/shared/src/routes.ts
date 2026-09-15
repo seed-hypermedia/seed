@@ -252,6 +252,12 @@ export const feedRouteSchema = z.object({
 export type DocumentRoute = z.infer<typeof documentRouteSchema>
 export type FeedRoute = z.infer<typeof feedRouteSchema>
 
+// Activity feed across every space this node has synced.
+export const nodeFeedRouteSchema = z.object({
+  key: z.literal('node-feed'),
+})
+export type NodeFeedRoute = z.infer<typeof nodeFeedRouteSchema>
+
 export const draftRouteSchema = z.object({
   key: z.literal('draft'),
   id: z.string(),
@@ -448,6 +454,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   queryDocumentsRouteSchema,
   exploreRouteSchema,
   feedRouteSchema,
+  nodeFeedRouteSchema,
   allDocumentsRouteSchema,
   inspectRouteSchema,
   inspectIpfsRouteSchema,
