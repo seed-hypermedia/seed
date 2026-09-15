@@ -392,6 +392,38 @@ function createNoopInstrumentationContext(): InstrumentationContext {
 }
 
 /**
+ * The resource query the client hydrates for a route must hold the document the loader just
+ * loaded for it. The loader had `document` in hand for this very request, so a not-found, an
+ * error or a missing entry here means the id it dehydrates is one the daemon cannot serve —
+ * the #1120 shape, where the response is a 200 yet the page shows "Document Not Found". Such a
+ * bug is invisible in server logs otherwise, so say it loudly. The page still renders whatever
+ * it can; the log line is the signal to alert on.
+ */
+function assertRouteResourceHydrates(
+  prefetchCtx: PrefetchContext,
+  routeId: UnpackedHypermediaId,
+  document: HMDocument,
+) {
+  const cached = prefetchCtx.queryClient.getQueryData(queryResource(serverUniversalClient, routeId).queryKey) as
+    | HMResource
+    | null
+    | undefined
+  if (cached?.type === 'document') return
+  console.error(
+    `[web-loader] INVARIANT: route resource would hydrate as "${
+      cached?.type ?? 'missing'
+    }" although its document loaded`,
+    {
+      route: packHmId(routeId),
+      version: routeId.version ?? null,
+      latest: routeId.latest ?? null,
+      loadedDocument: `${document.account}${document.path} @ ${document.version}`,
+      cachedMessage: cached && cached.type === 'error' ? cached.message : undefined,
+    },
+  )
+}
+
+/**
  * Load resource payload using prefetch-only architecture.
  * React Query handles deduplication automatically.
  */
@@ -441,6 +473,7 @@ async function loadResourcePayload(
 
   // Single prefetch phase - use finalId so query keys match on client
   await prefetchResourceData(finalId, document, prefetchCtx, ctx)
+  assertRouteResourceHydrates(prefetchCtx, finalId, document)
 
   // For comments, also prefetch the comment resource so useResource(commentId) has data
   if (commentId) {
