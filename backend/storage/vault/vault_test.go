@@ -1566,6 +1566,10 @@ func saveRemoteWrappedTestEnvelope(dataDir string, remoteURL string, userID stri
 func connectTestRemoteVault(t *testing.T, ks *Vault, remoteURL string, remoteVersion int, syncTime time.Time) {
 	t.Helper()
 
+	// A connected vault syncs in the background after every mutation and records a failed sync
+	// in its data directory. Wait for those before t.TempDir removes that directory.
+	t.Cleanup(func() { require.NoError(t, ks.Close()) })
+
 	remoteCredential, err := base64.RawURLEncoding.DecodeString(testEncodedRemoteCredential())
 	require.NoError(t, err)
 	remoteKey, err := remoteVaultKEKName(remoteURL, testRemoteUserID)
