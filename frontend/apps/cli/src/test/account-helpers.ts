@@ -8,6 +8,7 @@ import {
   createGenesisChange,
   createChangeOps,
   createChange,
+  createRedirectRef,
   createSeedClient,
   createVersionRef,
   resolveDocumentState,
@@ -227,6 +228,49 @@ export async function createDocumentUpdate(
       const text = await response.text()
       throw new Error(`Failed to update document: ${response.status} - ${text}`)
     }
+  }
+}
+
+/**
+ * Publish a redirect Ref at `path` so it points at `target.path` (same account unless
+ * `target.space` is given). With `republish: true` the path presents the target's content in
+ * place (a republish); without it the path is a plain move redirect. Mirrors the CLI's
+ * `document redirect`: the Ref borrows the document currently at `path` for its genesis and
+ * mints a fresh generation so it supersedes whatever Ref sits there.
+ */
+export async function createRedirectDocument(
+  serverUrl: string,
+  account: TestAccount,
+  path: string,
+  target: {path: string; space?: string; republish?: boolean},
+): Promise<void> {
+  const signer = createSignerFromKey(account.keyPair)
+  const normalize = (p: string) => (p ? (p.startsWith('/') ? p : `/${p}`) : '')
+  const client = createSeedClient(serverUrl)
+  const state = await resolveDocumentState(client, `hm://${account.accountId}${normalize(path)}`)
+
+  const refInput = await createRedirectRef(
+    {
+      space: account.accountId,
+      path: normalize(path),
+      genesis: state.genesis,
+      generation: Date.now(),
+      targetSpace: target.space,
+      targetPath: normalize(target.path),
+      republish: target.republish,
+    },
+    signer,
+  )
+
+  const response = await fetch(`${serverUrl}/api/PublishBlobs`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/cbor'},
+    body: new Uint8Array(cborEncode({blobs: refInput.blobs})) as unknown as BodyInit,
+  })
+
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(`Failed to publish redirect: ${response.status} - ${text}`)
   }
 }
 
