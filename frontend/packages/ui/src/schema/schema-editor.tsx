@@ -8,11 +8,8 @@
 // instantiations): it is the default there, and the form is unavailable so it
 // cannot mangle them. Kept visually minimal and consistent with the value
 // editor that renders the forms this schema defines.
-import {Plus, X} from 'lucide-react'
-import {useEffect, useMemo, useRef, useState} from 'react'
-import {Button} from '../button'
-import {Checkbox} from '../components/checkbox'
-import {Input} from '../components/input'
+import {ArrowRight, Braces, Lock, LockOpen, Plus, Rows3, Variable, X} from 'lucide-react'
+import {forwardRef, useEffect, useMemo, useRef, useState} from 'react'
 import {Textarea} from '../components/textarea'
 import {Tooltip} from '../tooltip'
 import {cn} from '../utils'
@@ -35,6 +32,7 @@ import {
   structFields,
   validate,
 } from './engine'
+import {kindColor, refChipColor} from './schema-colors'
 import {HM_SCHEMA_PAGES} from './schema-registry.generated'
 import {SchemaTypeInput, type TypeOption} from './schema-type-input'
 
@@ -294,42 +292,183 @@ export function SchemaEditor({
   const [mode, setMode] = useState<'form' | 'json'>(fits ? 'form' : 'json')
   const showForm = mode === 'form' && fits
   const modeToggle = (
-    <div className="flex items-center gap-1 self-end" role="tablist" aria-label="Schema editor mode">
-      {(['form', 'json'] as const).map((m) => (
-        <button
-          key={m}
-          type="button"
-          role="tab"
-          aria-selected={showForm ? m === 'form' : m === 'json'}
-          disabled={m === 'form' && !fits}
-          title={
-            m === 'form' && !fits ? 'This shape (union, list, open map, instantiation) is edited as JSON' : undefined
-          }
-          onClick={() => setMode(m)}
-          className={cn(
-            'rounded px-2 py-0.5 text-xs',
-            (showForm ? m === 'form' : m === 'json') ? 'bg-muted text-foreground' : 'text-muted-foreground',
-            m === 'form' && !fits ? 'cursor-not-allowed opacity-50' : 'hover:text-foreground cursor-pointer',
-          )}
-        >
-          {m === 'form' ? 'Form' : 'JSON'}
-        </button>
-      ))}
+    <div className="bg-muted/60 flex items-center rounded-md p-0.5" role="tablist" aria-label="Schema editor mode">
+      {(['form', 'json'] as const).map((m) => {
+        const selected = showForm ? m === 'form' : m === 'json'
+        const Icon = m === 'form' ? Rows3 : Braces
+        return (
+          <Tooltip
+            key={m}
+            content={
+              m === 'form'
+                ? fits
+                  ? 'Edit as fields'
+                  : 'This shape (union, list, open map, instantiation) is edited as JSON'
+                : 'Edit the raw schema JSON'
+            }
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              disabled={m === 'form' && !fits}
+              onClick={() => setMode(m)}
+              className={cn(
+                'flex items-center gap-1 rounded px-1.5 py-0.5 text-xs',
+                selected ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground',
+                m === 'form' && !fits ? 'cursor-not-allowed opacity-50' : 'hover:text-foreground cursor-pointer',
+              )}
+            >
+              <Icon className="size-3" />
+              {m === 'form' ? 'Form' : 'JSON'}
+            </button>
+          </Tooltip>
+        )
+      })}
     </div>
   )
   return (
     <div className="flex flex-col gap-2" onKeyDown={onKeyDown} data-testid="schema-editor-root">
-      {!hideModeToggle && modeToggle}
       {showForm ? (
-        <StructSchemaForm schema={schema} onSchema={onSchema} />
+        <StructSchemaForm schema={schema} onSchema={onSchema} toolbar={hideModeToggle ? null : modeToggle} />
       ) : (
-        <RawSchemaEditor schema={schema} onSchema={onSchema} />
+        <>
+          {!hideModeToggle && <div className="flex justify-end">{modeToggle}</div>}
+          <RawSchemaEditor schema={schema} onSchema={onSchema} />
+        </>
       )}
     </div>
   )
 }
 
-/** The alternatives of a union, each a type of its own. */
+// --- presentation ----------------------------------------------------------------------------
+// The editor mirrors the reading view (explorer.tsx): a sentence for the root, a field / type
+// table, colored type chips. Controls look like the text they edit and reveal their frame, and the
+// secondary actions (optional, target type, remove), only on hover or focus.
+
+/** The chip colors for a type node: its kind's color, or the reference chip for a named schema. */
+function chipColor(ps: any): string {
+  if (Array.isArray(ps?.anyOf)) return kindColor.union!
+  const k = propKind(ps)
+  if (k.startsWith('var:')) return kindColor.var!
+  if (k === 'hm-url' || k === 'ipfs' || k === 'date' || k === 'date-time') return kindColor.string!
+  if (k === CUSTOM_KIND) return isLiteralSchema(ps) ? kindColor.string! : refChipColor
+  return kindColor[k] ?? refChipColor
+}
+
+/** Text that reads as text and edits in place: the frame appears on hover and focus. */
+const InlineInput = forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(function InlineInput(
+  {className, ...props},
+  ref,
+) {
+  return (
+    <input
+      ref={ref}
+      spellCheck={false}
+      className={cn(
+        'placeholder:text-muted-foreground/60 hover:bg-muted/70 focus:bg-background focus:ring-ring/40 -mx-1 [field-sizing:content] min-w-0 rounded bg-transparent px-1 outline-none focus:ring-2',
+        className,
+      )}
+      {...props}
+    />
+  )
+})
+
+/** A quiet icon action with a tooltip; `reveal` keeps it hidden until its row is hovered or focused. */
+function IconAction({
+  label,
+  tooltip,
+  onClick,
+  children,
+  reveal,
+  className,
+}: {
+  label: string
+  tooltip: string
+  onClick: () => void
+  children: React.ReactNode
+  reveal?: boolean
+  className?: string
+}) {
+  return (
+    <Tooltip content={tooltip}>
+      <button
+        type="button"
+        aria-label={label}
+        onClick={onClick}
+        className={cn(
+          'text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring/40 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded outline-none focus-visible:ring-2',
+          reveal &&
+            'opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100 focus-visible:opacity-100',
+          className,
+        )}
+      >
+        {children}
+      </button>
+    </Tooltip>
+  )
+}
+
+/** A quiet text-link action (+ Add field, + variant). */
+function AddAction({label, onClick, children}: {label?: string; onClick: () => void; children: React.ReactNode}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      className="text-muted-foreground hover:text-foreground hover:bg-muted/70 inline-flex w-fit cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-xs"
+    >
+      <Plus className="size-3" />
+      {children}
+    </button>
+  )
+}
+
+/** The type chip of a node: a picker styled like the reading view's type chip. */
+function TypeChip({
+  node,
+  options,
+  onNode,
+  ariaLabel,
+}: {
+  node: any
+  options: TypeOption[]
+  onNode: (next: HypermediaSchema) => void
+  ariaLabel: string
+}) {
+  const args = node && typeof node.args === 'object' ? Object.entries(node.args as Record<string, any>) : []
+  const chip = (
+    <SchemaTypeInput
+      chip
+      value={nodeUrl(node)}
+      label={nodeLabel(node)}
+      options={options}
+      onChange={(url) => onNode(typeSchemaFor(url))}
+      onPick={onNode}
+      ariaLabel={ariaLabel}
+      className={chipColor(node)}
+    />
+  )
+  if (!args.length) return chip
+  // An instantiation of a generic type names its bindings, as the reading view does (edited as JSON).
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      {chip}
+      <span className="text-muted-foreground font-mono text-xs">
+        ⟨
+        {args
+          .map(
+            ([param, v]) =>
+              `${param} = ${typeof v?.var === 'string' ? `⟨${v.var}⟩` : nodeLabel(v) ?? refToName(nodeUrl(v))}`,
+          )
+          .join(', ')}
+        ⟩
+      </span>
+    </span>
+  )
+}
+
+/** The alternatives of a union, as chips in a row: "one of [a] | [b] | [+]". */
 function UnionOptionsEditor({
   schema,
   onSchema,
@@ -344,48 +483,43 @@ function UnionOptionsEditor({
   const arms: HypermediaSchema[] = Array.isArray(schema.anyOf) ? schema.anyOf : []
   const set = (next: HypermediaSchema[]) => onSchema({...schema, anyOf: next})
   return (
-    <div className="flex basis-full flex-col gap-1.5 pl-4" data-testid="schema-union-options">
-      <label className="text-muted-foreground text-xs font-medium">One of</label>
+    <span className="contents" data-testid="schema-union-options">
+      <span className="text-muted-foreground text-xs">one of</span>
       {arms.map((arm, i) => (
-        <div key={i} className="flex flex-wrap items-center gap-2">
-          <SchemaTypeInput
-            value={nodeUrl(arm)}
-            label={nodeLabel(arm)}
+        <span key={i} className="group/arm inline-flex items-center">
+          {i > 0 && <span className="text-muted-foreground/60 mr-1 text-xs">|</span>}
+          <TypeChip
+            node={arm}
             options={options}
-            onChange={(url) => set(arms.map((a, j) => (j === i ? typeSchemaFor(url) : a)))}
-            onPick={(next) => set(arms.map((a, j) => (j === i ? next : a)))}
+            onNode={(next) => set(arms.map((a, j) => (j === i ? next : a)))}
             ariaLabel={`${ariaPrefix} option ${i + 1}`}
-            className="w-56"
           />
-          <Button
-            variant="ghost"
-            size="iconSm"
-            aria-label={`Remove ${ariaPrefix} option ${i + 1}`}
-            onClick={() => set(arms.filter((_, j) => j !== i))}
-          >
-            <X className="size-4" />
-          </Button>
-          <NestedSchemaEditor
+          <InlineShape
             node={arm}
             onNode={(next) => set(arms.map((a, j) => (j === i ? next : a)))}
             options={options}
             ariaPrefix={`${ariaPrefix} option ${i + 1}`}
           />
-        </div>
+          <Tooltip content="Remove this option">
+            <button
+              type="button"
+              aria-label={`Remove ${ariaPrefix} option ${i + 1}`}
+              onClick={() => set(arms.filter((_, j) => j !== i))}
+              className="text-muted-foreground hover:text-foreground w-0 cursor-pointer overflow-hidden opacity-0 transition-[width] group-focus-within/arm:w-4 group-focus-within/arm:opacity-100 group-hover/arm:w-4 group-hover/arm:opacity-100"
+            >
+              <X className="size-3" />
+            </button>
+          </Tooltip>
+        </span>
       ))}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="text-muted-foreground w-fit gap-1 text-xs"
-        onClick={() => set([...arms, {ref: ANY_URL}])}
-      >
-        <Plus className="size-3.5" /> Add option
-      </Button>
-    </div>
+      <IconAction label="Add option" tooltip="Add an option" onClick={() => set([...arms, {ref: ANY_URL}])}>
+        <Plus className="size-3.5" />
+      </IconAction>
+    </span>
   )
 }
 
-/** What a list holds. */
+/** What a list holds: "of [item]". */
 function ListItemsEditor({
   schema,
   onSchema,
@@ -398,25 +532,13 @@ function ListItemsEditor({
   ariaPrefix: string
 }) {
   const items: HypermediaSchema = schema.items ?? {ref: ANY_URL}
+  const setItems = (next: HypermediaSchema) => onSchema({...schema, items: next})
   return (
-    <div className="flex basis-full flex-wrap items-center gap-2 pl-4" data-testid="schema-list-items">
+    <span className="contents" data-testid="schema-list-items">
       <span className="text-muted-foreground text-xs">of</span>
-      <SchemaTypeInput
-        value={nodeUrl(items)}
-        label={nodeLabel(items)}
-        options={options}
-        onChange={(url) => onSchema({...schema, items: typeSchemaFor(url)})}
-        onPick={(next) => onSchema({...schema, items: next})}
-        ariaLabel={`${ariaPrefix} item type`}
-        className="w-56"
-      />
-      <NestedSchemaEditor
-        node={items}
-        onNode={(next) => onSchema({...schema, items: next})}
-        options={options}
-        ariaPrefix={`${ariaPrefix} item`}
-      />
-    </div>
+      <TypeChip node={items} options={options} onNode={setItems} ariaLabel={`${ariaPrefix} item type`} />
+      <InlineShape node={items} onNode={setItems} options={options} ariaPrefix={`${ariaPrefix} item`} />
+    </span>
   )
 }
 
@@ -424,11 +546,8 @@ function ListItemsEditor({
 const isInlineStruct = (ps: any) =>
   !!ps && typeof ps === 'object' && !ps.anyOf && ['struct', 'map'].includes(kindOf(ps.type))
 
-/**
- * What a type node spells out beneath its type picker: a union's options, a list's item type, or an
- * inline struct's fields — each recursing, so a struct inside a struct (inside a list…) is editable.
- */
-function NestedSchemaEditor({
+/** What follows a type chip on its own line: a union's options or a list's item type (recursively). */
+function InlineShape({
   node,
   onNode,
   options,
@@ -443,16 +562,70 @@ function NestedSchemaEditor({
     return <UnionOptionsEditor schema={node} onSchema={onNode} options={options} ariaPrefix={ariaPrefix} />
   if (kindOf(node?.type) === 'list')
     return <ListItemsEditor schema={node} onSchema={onNode} options={options} ariaPrefix={ariaPrefix} />
+  return null
+}
+
+/**
+ * The inline structs a type node spells out, as indented field tables beneath its row: the node
+ * itself, a list's items, a union's options — each recursing, so a struct inside a struct (inside a
+ * list…) is editable. Rendered outside the row's hover group, so a nested row reveals only its own
+ * controls.
+ */
+function NestedSchemaEditor({
+  node,
+  onNode,
+  options,
+  ariaPrefix,
+}: {
+  node: any
+  onNode: (s: HypermediaSchema) => void
+  options: TypeOption[]
+  ariaPrefix: string
+}) {
+  if (Array.isArray(node?.anyOf)) {
+    const arms: HypermediaSchema[] = node.anyOf
+    return (
+      <>
+        {arms.map((arm, i) => (
+          <NestedSchemaEditor
+            key={i}
+            node={arm}
+            onNode={(next) => onNode({...node, anyOf: arms.map((a, j) => (j === i ? next : a))})}
+            options={options}
+            ariaPrefix={`${ariaPrefix} option ${i + 1}`}
+          />
+        ))}
+      </>
+    )
+  }
+  if (kindOf(node?.type) === 'list')
+    return (
+      <NestedSchemaEditor
+        node={node.items ?? {ref: ANY_URL}}
+        onNode={(next) => onNode({...node, items: next})}
+        options={options}
+        ariaPrefix={`${ariaPrefix} item`}
+      />
+    )
   if (isInlineStruct(node))
     return (
-      <div className="border-border flex basis-full flex-col gap-1 border-l pl-3" data-testid="schema-nested-struct">
+      <div className="border-border mt-1 mb-1 ml-1 border-l pl-3" data-testid="schema-nested-struct">
         <StructFieldsEditor schema={node} onSchema={onNode} options={options} path={ariaPrefix} />
       </div>
     )
   return null
 }
 
-function StructSchemaForm({schema, onSchema}: {schema: HypermediaSchema; onSchema: (s: HypermediaSchema) => void}) {
+function StructSchemaForm({
+  schema,
+  onSchema,
+  toolbar,
+}: {
+  schema: HypermediaSchema
+  onSchema: (s: HypermediaSchema) => void
+  /** The Form/JSON switch, placed on the root sentence's line. */
+  toolbar?: React.ReactNode
+}) {
   const fields = structFields(schema)
   const signed = isSignedBlobType(schema)
 
@@ -555,88 +728,115 @@ function StructSchemaForm({schema, onSchema}: {schema: HypermediaSchema; onSchem
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1" data-testid="schema-root-type">
-        <label className="text-muted-foreground text-xs font-medium">Type</label>
-        <div className="flex flex-wrap items-center gap-2">
-          <SchemaTypeInput
-            value={rootUrl}
-            label={rootIsUnion ? 'Union' : undefined}
-            options={rootTypeOptions}
-            onChange={setRootType}
-            onPick={setRootSchema}
-            ariaLabel="Root type"
-            className="w-56"
-          />
-          {rootIsList && (
-            <ListItemsEditor schema={schema} onSchema={onSchema} options={fieldTypeOptions} ariaPrefix="list" />
+    <div className="flex flex-col gap-3">
+      {/* The root, as the reading view says it: "Extends [Struct]". */}
+      <div className="flex flex-wrap items-start justify-between gap-2" data-testid="schema-root-type">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <p className="flex flex-wrap items-center gap-1.5 text-sm">
+            {!rootIsUnion && <span className="text-muted-foreground">Extends</span>}
+            <SchemaTypeInput
+              chip
+              value={rootUrl}
+              label={rootIsUnion ? 'Union' : undefined}
+              options={rootTypeOptions}
+              onChange={setRootType}
+              onPick={setRootSchema}
+              ariaLabel="Root type"
+              placeholder="any type"
+              className={rootIsUnion ? kindColor.union : chipColor(schema)}
+            />
+            {rootIsList && (
+              <ListItemsEditor schema={schema} onSchema={onSchema} options={fieldTypeOptions} ariaPrefix="list" />
+            )}
+            {rootIsUnion && (
+              <UnionOptionsEditor schema={schema} onSchema={onSchema} options={fieldTypeOptions} ariaPrefix="union" />
+            )}
+            {signed && (
+              <>
+                <span className="text-muted-foreground">· type tag</span>
+                <Tooltip content="The tag every blob of this type carries in its `type` field">
+                  <InlineInput
+                    value={signedTypeTag(schema)}
+                    aria-label="Type tag"
+                    placeholder="e.g. Vote"
+                    className="font-mono text-sm font-medium"
+                    onChange={(e) => setTypeTag(e.target.value)}
+                  />
+                </Tooltip>
+              </>
+            )}
+          </p>
+          {(rootIsUnion || rootIsList) && (
+            <NestedSchemaEditor
+              node={schema}
+              onNode={onSchema}
+              options={fieldTypeOptions}
+              ariaPrefix={rootIsList ? 'list' : 'union'}
+            />
           )}
-          {signed && (
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground text-xs">type tag</span>
-              <Input
-                value={signedTypeTag(schema)}
-                aria-label="Type tag"
-                placeholder="e.g. Vote"
-                className="w-48 font-mono text-sm"
-                onChange={(e) => setTypeTag(e.target.value)}
-              />
-            </div>
-          )}
+          <div className="flex flex-wrap items-center gap-1.5 text-sm" data-testid="schema-params">
+            {paramEntries.length > 0 && <span className="text-muted-foreground">Generic over</span>}
+            {paramEntries.map(([name, def], index) => (
+              <span
+                key={index}
+                className="group/row bg-muted/40 inline-flex items-center gap-1 rounded-md py-0.5 pr-0.5 pl-2"
+              >
+                <span className={cn('inline-flex items-center rounded px-1 font-mono text-xs', kindColor.var)}>
+                  ⟨
+                  <InlineInput
+                    value={name}
+                    aria-label="Type parameter name"
+                    className="mx-0 px-0.5 font-mono text-xs"
+                    onChange={(e) => renameParam(name, e.target.value)}
+                  />
+                  ⟩
+                </span>
+                <span className="text-muted-foreground text-xs">default</span>
+                <SchemaTypeInput
+                  chip
+                  value={typeof def?.ref === 'string' ? def.ref : ANY_URL}
+                  options={FIELD_KINDS.filter(({kind}) => !isReferenceKind(kind)).map(({kind, label}) => ({
+                    label: HM_SCHEMA_PAGES[kind]?.name ?? label,
+                    hint: 'core type',
+                    url: kindUrl(kind),
+                  }))}
+                  onChange={(url) => setParamDefault(name, url)}
+                  ariaLabel={`Default type for ${name}`}
+                  className={chipColor(def ?? {ref: ANY_URL})}
+                />
+                <IconAction
+                  label={`Remove type parameter ${name}`}
+                  tooltip="Remove this type parameter"
+                  onClick={() => removeParam(name)}
+                  reveal
+                >
+                  <X className="size-3" />
+                </IconAction>
+              </span>
+            ))}
+            {paramEntries.length > 0 && (
+              <IconAction label="Add type parameter" tooltip="Add a type parameter" onClick={addParam}>
+                <Plus className="size-3.5" />
+              </IconAction>
+            )}
+          </div>
         </div>
-        {rootIsUnion && (
-          <UnionOptionsEditor schema={schema} onSchema={onSchema} options={fieldTypeOptions} ariaPrefix="union" />
-        )}
+        <div className="flex items-center gap-1">
+          {paramEntries.length === 0 && (
+            <IconAction
+              label="Make generic (add a type parameter)"
+              tooltip="Make generic — add a type parameter fields can use as their type"
+              onClick={addParam}
+            >
+              <Variable className="size-3.5" />
+            </IconAction>
+          )}
+          {toolbar}
+        </div>
       </div>
 
-      {
-        <div className="flex flex-col gap-1" data-testid="schema-params">
-          {paramEntries.length > 0 && (
-            <>
-              <label className="text-muted-foreground text-xs font-medium">Type parameters</label>
-              <div className="flex flex-col gap-1.5">
-                {paramEntries.map(([name, def], index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <span className="text-muted-foreground text-xs">⟨</span>
-                    <Input
-                      value={name}
-                      aria-label="Type parameter name"
-                      className="w-32 font-mono text-sm"
-                      onChange={(e) => renameParam(name, e.target.value)}
-                    />
-                    <span className="text-muted-foreground text-xs">⟩ default</span>
-                    <Input
-                      value={typeof def?.ref === 'string' && def.ref !== ANY_URL ? def.ref : ''}
-                      aria-label={`Default type for ${name}`}
-                      placeholder="any (or an hm:// / ipfs:// type)"
-                      className="min-w-64 flex-1 font-mono text-xs"
-                      onChange={(e) => setParamDefault(name, e.target.value)}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="iconSm"
-                      aria-label={`Remove type parameter ${name}`}
-                      onClick={() => removeParam(name)}
-                    >
-                      <X className="size-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-          <Button variant="ghost" size="sm" className="text-muted-foreground w-fit gap-1 text-xs" onClick={addParam}>
-            <Plus className="size-3.5" />{' '}
-            {paramEntries.length ? 'Add type parameter' : 'Make generic (add a type parameter)'}
-          </Button>
-        </div>
-      }
-
       {!rootIsUnion && !rootIsList && (
-        <div className="flex flex-col gap-1">
-          <label className="text-muted-foreground text-xs font-medium">Fields</label>
-          <StructFieldsEditor schema={schema} onSchema={onSchema} options={fieldTypeOptions} />
-        </div>
+        <StructFieldsEditor schema={schema} onSchema={onSchema} options={fieldTypeOptions} />
       )}
     </div>
   )
@@ -653,11 +853,66 @@ function withFields(schema: HypermediaSchema, next: StructField[]): HypermediaSc
   return {...rest, ...root, properties: fieldsToProperties(next)}
 }
 
+/** The shared column layout of a field row: name + description | type | accessory. */
+const FIELD_ROW_GRID = 'grid grid-cols-[minmax(7rem,1fr)_minmax(0,1fr)_auto] items-start gap-x-3'
+
+/** A reference field's target type: a "→ type" chip once set (click to edit); until then a hover action. */
+function TargetTypeInput({
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  value: string
+  onChange: (next: string) => void
+  ariaLabel: string
+}) {
+  const [editing, setEditing] = useState(false)
+  const tooltip =
+    'Target type — the schema the referenced document or object should conform to (an hm:// type document or ipfs:// schema)'
+  if (!value && !editing)
+    return (
+      <IconAction label={`Set ${ariaLabel.toLowerCase()}`} tooltip={tooltip} onClick={() => setEditing(true)} reveal>
+        <ArrowRight className="size-3.5" />
+      </IconAction>
+    )
+  if (!editing)
+    return (
+      <Tooltip content={`${tooltip}. Click to change.`}>
+        <button
+          type="button"
+          aria-label={ariaLabel}
+          onClick={() => setEditing(true)}
+          className="border-border text-muted-foreground hover:bg-muted inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border px-1.5 font-mono text-xs"
+        >
+          <ArrowRight className="size-3" />
+          {refToName(value)}
+        </button>
+      </Tooltip>
+    )
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1">
+      <ArrowRight className="text-muted-foreground size-3 shrink-0" />
+      <InlineInput
+        value={value}
+        autoFocus
+        placeholder="hm:// or ipfs:// type"
+        aria-label={ariaLabel}
+        className="text-muted-foreground min-w-40 font-mono text-xs"
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={() => setEditing(false)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === 'Escape') setEditing(false)
+        }}
+      />
+    </span>
+  )
+}
+
 /**
- * The field rows of a struct — name, type, target, required, description, and whatever the type
- * spells out beneath (see {@link NestedSchemaEditor}) — plus Add field and the open-struct toggle.
- * Used for the root and, recursively, for every inline struct a field declares. `path` names a
- * nested struct (e.g. `sourceBlob`) so its controls stay distinguishable; absent at the root.
+ * The field rows of a struct — name, description, type, target, optional/required, and whatever the
+ * type spells out beneath (see {@link NestedSchemaEditor}) — plus Add field and the open/closed
+ * toggle. Used for the root and, recursively, for every inline struct a field declares. `path`
+ * names a nested struct (e.g. `sourceBlob`) so its controls stay distinguishable; absent at the root.
  */
 function StructFieldsEditor({
   schema,
@@ -711,107 +966,132 @@ function StructFieldsEditor({
   const visible = fields.filter((f) => !(signed && f.name === 'type'))
 
   return (
-    <>
-      <div className="flex flex-col gap-1.5">
-        {visible.length === 0 && <p className="text-muted-foreground text-sm">No fields yet.</p>}
-        {visible.map(({name, schema: ps, required, description}, index) => (
-          // Stable index key: renaming changes the property name but not the
-          // row's identity, so the (controlled) name input never remounts and
-          // keeps focus while typing.
-          <div key={index} className="flex flex-wrap items-center gap-2">
-            <Input
-              value={name}
-              className="flex-1 font-mono text-sm"
-              aria-label={path ? `Field name in ${path}` : 'Field name'}
-              onChange={(e) => renameField(name, e.target.value)}
-            />
-            <SchemaTypeInput
-              value={nodeUrl(ps)}
-              label={nodeLabel(ps)}
-              options={options}
-              onChange={(url) => update(name, {schema: typeSchemaFor(url)})}
-              onPick={(next) => update(name, {schema: next})}
-              ariaLabel={`Type of ${q(name)}`}
-              className="w-44 shrink-0"
-            />
-            {isReferenceKind(propKind(ps)) && (
-              <Tooltip content="Target type — the schema the referenced document or object should conform to (an hm:// type document or ipfs:// schema). Optional.">
-                <Input
+    <div className="flex flex-col">
+      {visible.length === 0 && <p className="text-muted-foreground py-2 text-sm">No fields yet.</p>}
+      {visible.map(({name, schema: ps, required, description}, index) => (
+        // Stable index key: renaming changes the property name but not the
+        // row's identity, so the (controlled) name input never remounts and
+        // keeps focus while typing.
+        <div key={index} className="border-border/50 border-b py-1.5 last:border-0">
+          <div className={cn(FIELD_ROW_GRID, 'group/row')}>
+            <div className="flex min-w-0 flex-col">
+              <InlineInput
+                value={name}
+                className="font-mono text-sm"
+                aria-label={path ? `Field name in ${path}` : 'Field name'}
+                onChange={(e) => renameField(name, e.target.value)}
+              />
+              <textarea
+                rows={1}
+                spellCheck={false}
+                value={description ?? ''}
+                placeholder="Add a description"
+                aria-label={`Description of ${q(name)}`}
+                className={cn(
+                  'placeholder:text-muted-foreground/60 hover:bg-muted/70 focus:bg-background focus:ring-ring/40 text-muted-foreground -mx-1 [field-sizing:content] resize-none rounded bg-transparent px-1 text-xs outline-none focus:ring-2',
+                )}
+                // Not trimmed while typing: a controlled input would swallow every trailing space.
+                onChange={(e) => update(name, {description: e.target.value.trim() ? e.target.value : undefined})}
+              />
+            </div>
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
+              <TypeChip
+                node={ps}
+                options={options}
+                onNode={(next) => update(name, {schema: next})}
+                ariaLabel={`Type of ${q(name)}`}
+              />
+              {isReferenceKind(propKind(ps)) && (
+                <TargetTypeInput
                   value={typeof ps?.target === 'string' ? ps.target : ''}
-                  placeholder="target type (hm:// or ipfs://)"
-                  aria-label={`Target type for ${q(name)}`}
-                  className="w-52 shrink-0 font-mono text-xs"
-                  onChange={(e) => setFieldTarget(name, e.target.value)}
+                  onChange={(t) => setFieldTarget(name, t)}
+                  ariaLabel={`Target type for ${q(name)}`}
                 />
+              )}
+              <InlineShape
+                node={ps}
+                onNode={(next) => update(name, {schema: next})}
+                options={options}
+                ariaPrefix={q(name)}
+              />
+            </div>
+            <div className="flex items-center gap-0.5">
+              <Tooltip
+                content={
+                  required
+                    ? 'Required — every value includes this field. Click to make it optional.'
+                    : 'Optional — a value may leave this field out. Click to require it.'
+                }
+              >
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={required}
+                  aria-label={`Required ${q(name)}`}
+                  onClick={() => update(name, {required: !required})}
+                  className={cn(
+                    'hover:bg-muted focus-visible:ring-ring/40 cursor-pointer rounded px-1 py-0.5 text-xs outline-none focus-visible:ring-2',
+                    required
+                      ? 'text-muted-foreground/70 opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100'
+                      : 'text-muted-foreground',
+                  )}
+                >
+                  {required ? 'required' : 'optional'}
+                </button>
               </Tooltip>
-            )}
-            <Tooltip content="Required — a value of this type must include this field">
-              <label className="text-muted-foreground flex shrink-0 cursor-pointer items-center gap-1 text-xs">
-                <Checkbox
-                  checked={required}
-                  aria-label={path ? `Required ${q(name)}` : undefined}
-                  onCheckedChange={(on) => update(name, {required: on === true})}
-                />
-                required
-              </label>
-            </Tooltip>
-            <Button
-              variant="ghost"
-              size="iconSm"
-              aria-label={`Remove ${q(name)}`}
-              onClick={() => commitFields(withField(name, null))}
-            >
-              <X className="size-4" />
-            </Button>
-            <Input
-              value={description ?? ''}
-              placeholder="description"
-              aria-label={`Description of ${q(name)}`}
-              className="text-muted-foreground basis-full text-xs"
-              // Not trimmed while typing: a controlled input would swallow every trailing space.
-              onChange={(e) => update(name, {description: e.target.value.trim() ? e.target.value : undefined})}
-            />
-            <NestedSchemaEditor
-              node={ps}
-              onNode={(next) => update(name, {schema: next})}
-              options={options}
-              ariaPrefix={q(name)}
-            />
+              <IconAction
+                label={`Remove ${q(name)}`}
+                tooltip="Remove this field"
+                onClick={() => commitFields(withField(name, null))}
+                reveal
+              >
+                <X className="size-3.5" />
+              </IconAction>
+            </div>
           </div>
-        ))}
-      </div>
-      <Button
-        variant="outline"
-        size="sm"
-        className="mt-1 w-fit gap-1"
-        aria-label={path ? `Add field to ${path}` : undefined}
-        onClick={addField}
-      >
-        <Plus className="size-4" /> Add field
-      </Button>
-      <div className="mt-2 flex flex-wrap items-center gap-2" data-testid="schema-values">
-        <Tooltip content="Open struct — fields other than the ones above are allowed, and must have this kind">
-          <label className="text-muted-foreground flex cursor-pointer items-center gap-1 text-xs">
-            <Checkbox
-              checked={values !== undefined}
-              aria-label={path ? `Other fields allowed in ${path}` : undefined}
-              onCheckedChange={(on) => setValues(on === true ? {ref: ANY_URL} : null)}
-            />
-            other fields allowed
-          </label>
+          <NestedSchemaEditor
+            node={ps}
+            onNode={(next) => update(name, {schema: next})}
+            options={options}
+            ariaPrefix={q(name)}
+          />
+        </div>
+      ))}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1.5" data-testid="schema-values">
+        <AddAction label={path ? `Add field to ${path}` : undefined} onClick={addField}>
+          Add field
+        </AddAction>
+        <span className="text-muted-foreground/50 text-xs">·</span>
+        <Tooltip
+          content={
+            values !== undefined
+              ? 'Open — fields other than these are allowed, with the type given. Click to close.'
+              : 'Closed — only these fields are allowed. Click to allow other fields.'
+          }
+        >
+          <button
+            type="button"
+            aria-pressed={values !== undefined}
+            aria-label={path ? `Other fields allowed in ${path}` : 'Other fields allowed'}
+            onClick={() => setValues(values !== undefined ? null : {ref: ANY_URL})}
+            className="text-muted-foreground hover:text-foreground hover:bg-muted/70 inline-flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-xs"
+          >
+            {values !== undefined ? <LockOpen className="size-3" /> : <Lock className="size-3" />}
+            {values !== undefined ? 'open' : 'closed'}
+          </button>
         </Tooltip>
         {values !== undefined && (
-          <SchemaTypeInput
-            value={nodeUrl(values)}
-            label={nodeLabel(values)}
-            options={options}
-            onChange={(url) => setValues(typeSchemaFor(url))}
-            onPick={(next) => setValues(next)}
-            ariaLabel={path ? `Type of other fields in ${path}` : 'Type of other fields'}
-            className="w-44 shrink-0"
-          />
+          <span className="inline-flex items-center gap-1">
+            <span className="text-muted-foreground text-xs">other fields are</span>
+            <TypeChip
+              node={values}
+              options={options}
+              onNode={setValues}
+              ariaLabel={path ? `Type of other fields in ${path}` : 'Type of other fields'}
+            />
+          </span>
         )}
       </div>
-    </>
+    </div>
   )
 }

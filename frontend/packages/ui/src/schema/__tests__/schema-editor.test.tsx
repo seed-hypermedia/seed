@@ -138,9 +138,10 @@ describe('SchemaEditor (nested structs)', () => {
       sourceBlob: {value: {type: STRUCT, properties: {cid: {value: {ref: STRING}}}}},
     },
   }
-  const setInput = (el: HTMLInputElement, value: string) =>
+  const setInput = (el: HTMLInputElement | HTMLTextAreaElement, value: string) =>
     act(() => {
-      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+      const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
+      const setter = Object.getOwnPropertyDescriptor(proto, 'value')!.set!
       setter.call(el, value)
       el.dispatchEvent(new Event('input', {bubbles: true}))
     })
@@ -159,7 +160,7 @@ describe('SchemaEditor (nested structs)', () => {
     click(container.querySelector('[aria-label="Required sourceBlob.hash"]')!)
     expect(requiredFieldNames(inner())).toEqual(['hash'])
     const description = () =>
-      container.querySelector('input[aria-label="Description of sourceBlob.hash"]') as HTMLInputElement
+      container.querySelector('[aria-label="Description of sourceBlob.hash"]') as HTMLTextAreaElement
     // A space typed at the end survives (the input is controlled; trimming per keystroke ate it).
     setInput(description(), 'the ')
     expect(description().value).toBe('the ')
@@ -218,11 +219,12 @@ describe('SchemaEditor (generics and JSON mode)', () => {
       )
     })
     const params = container.querySelector('[data-testid="schema-params"]')!
-    expect(params.textContent).toContain('Type parameters')
+    expect(params.textContent).toContain('Generic over')
     const nameInput = params.querySelector('input[aria-label="Type parameter name"]') as HTMLInputElement
     expect(nameInput.value).toBe('Block')
     const defInput = params.querySelector('input[aria-label="Default type for Block"]') as HTMLInputElement
-    expect(defInput.value).toBe(BLOCK)
+    // The default reads as the type's name; the URL is its title.
+    expect(defInput.getAttribute('title')).toBe(BLOCK)
     // The field typed by the parameter reads as ⟨Block⟩, not as text.
     const typeInput = container.querySelector('input[aria-label="Type of body"]') as HTMLInputElement
     expect(typeInput.value).toBe('⟨Block⟩')
@@ -232,7 +234,7 @@ describe('SchemaEditor (generics and JSON mode)', () => {
     act(() => {
       root.render(<Harness initial={emptyStructSchema()} />)
     })
-    click(findButton('Make generic'))
+    click(container.querySelector('button[aria-label^="Make generic"]')!)
     expect(latest.params).toEqual({T: {ref: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any'}})
     expect(isHypermediaSchema(latest)).toBe(true)
     click(findButton('Add field'))
@@ -258,7 +260,7 @@ describe('SchemaEditor (generics and JSON mode)', () => {
     expect(rootType.value).toBe('Union')
     const options = container.querySelector('[data-testid="schema-union-options"]')!
     expect(options.querySelectorAll('input[aria-label^="union option"]')).toHaveLength(2)
-    click(findButton('Add option'))
+    click(container.querySelector('button[aria-label="Add option"]')!)
     expect(latest.anyOf).toHaveLength(3)
     click(container.querySelector('button[aria-label="Remove union option 1"]')!)
     expect(latest.anyOf).toHaveLength(2)
@@ -301,8 +303,11 @@ describe('SchemaEditor (generics and JSON mode)', () => {
     })
     expect(container.querySelector('[data-testid="schema-json-editor"]')).toBeNull()
     const values = container.querySelector('[data-testid="schema-values"]')!
-    expect(values.textContent).toContain('other fields allowed')
-    click(values.querySelector('button[role="checkbox"]')!)
+    // An open struct says so, and names the type other fields must have.
+    expect(values.textContent).toContain('open')
+    const toggle = values.querySelector('button[aria-label="Other fields allowed"]')!
+    expect(toggle.getAttribute('aria-pressed')).toBe('true')
+    click(toggle)
     expect(latest.values).toBeUndefined()
     expect(fieldSchema(latest, 'type')).toEqual({ref: MAP})
   })
