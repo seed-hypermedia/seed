@@ -92,15 +92,17 @@ describe('SchemaEditor (struct form)', () => {
       ),
     )
     click(findButton('Add field'))
-    // toggle the required checkbox for the new field
-    const checkbox = container.querySelector('[role="checkbox"]') as HTMLElement
-    expect(checkbox).toBeTruthy()
-    click(checkbox)
+    // a new field starts required
     const fieldName = Object.keys(latest.properties ?? {})[0]!
     expect(requiredFieldNames(latest)).toContain(fieldName)
+    const checkbox = container.querySelector('[role="checkbox"]') as HTMLElement
+    expect(checkbox.getAttribute('aria-checked')).toBe('true')
     // untoggle → removed from required
-    click(container.querySelector('[role="checkbox"]') as HTMLElement)
+    click(checkbox)
     expect(requiredFieldNames(latest)).not.toContain(fieldName)
+    // toggle back → required again
+    click(container.querySelector('[role="checkbox"]') as HTMLElement)
+    expect(requiredFieldNames(latest)).toContain(fieldName)
   })
 
   it('removing a field also clears it from required', () => {
