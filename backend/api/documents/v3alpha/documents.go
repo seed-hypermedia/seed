@@ -237,7 +237,7 @@ func (srv *Server) QueryDocuments(ctx context.Context, in *documents.QueryDocume
 			}{Offset: cursor.Offset + len(out.Documents)}, nil)
 			return nil
 		}
-		item, _, err := documentInfoFromRow(lookup, row)
+		item, _, err := listedDocumentInfoFromRow(conn, lookup, row)
 		if err != nil {
 			return err
 		}
@@ -1389,7 +1389,7 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 			break
 		}
 
-		item, activityTime, err := documentInfoFromRow(lookup, row)
+		item, activityTime, err := listedDocumentInfoFromRow(conn, lookup, row)
 		if err != nil {
 			return nil, err
 		}
@@ -1573,7 +1573,7 @@ func getRootDocumentInfos(conn *sqlite.Conn, lookup *blob.LookupCache, iris []bl
 	rows, discard, check := sqlitex.Query(conn, wrapDocumentsQuery(qb, ""), args...).All()
 	defer discard(&err)
 	for row := range rows {
-		info, _, err := documentInfoFromRow(lookup, row)
+		info, _, err := listedDocumentInfoFromRow(conn, lookup, row)
 		if err != nil {
 			return nil, err
 		}
@@ -1988,7 +1988,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 			break
 		}
 
-		item, activityTime, err := documentInfoFromRow(lookup, row)
+		item, activityTime, err := listedDocumentInfoFromRow(conn, lookup, row)
 		if err != nil {
 			return nil, err
 		}
@@ -2099,7 +2099,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 			break
 		}
 
-		item, activityTime, err := documentInfoFromRow(lookup, row)
+		item, activityTime, err := listedDocumentInfoFromRow(conn, lookup, row)
 		if err != nil {
 			return nil, err
 		}
@@ -2262,7 +2262,21 @@ var qUnreferencedIndexIncomplete = `
 	)
 `
 
-func getDocumentInfo(conn *sqlite.Conn, lookup *blob.LookupCache, iri blob.IRI) (info *documents.DocumentInfo, err error) {
+func getDocumentInfo(conn *sqlite.Conn, lookup *blob.LookupCache, iri blob.IRI) (*documents.DocumentInfo, error) {
+	info, err := getDocumentInfoRaw(conn, lookup, iri)
+	if err != nil {
+		return nil, err
+	}
+	if err := fillRepublishDisplayFields(conn, lookup, info); err != nil {
+		return nil, err
+	}
+	return info, nil
+}
+
+// getDocumentInfoRaw loads the list row of a single document exactly as stored, without
+// following a republish for its display fields. Use [getDocumentInfo] unless you are the code
+// doing that following.
+func getDocumentInfoRaw(conn *sqlite.Conn, lookup *blob.LookupCache, iri blob.IRI) (info *documents.DocumentInfo, err error) {
 	q := wrapDocumentsQuery(baseDocumentsQuery().Where("r.iri = ?"), "")
 	// 0 is the page size parameter.
 	rows, discard, check := sqlitex.Query(conn, q, iri, 0).All()
@@ -2278,6 +2292,78 @@ func getDocumentInfo(conn *sqlite.Conn, lookup *blob.LookupCache, iri blob.IRI) 
 	}
 
 	return nil, status.Errorf(codes.NotFound, "document with IRI %s is not found", iri)
+}
+
+// listedDocumentInfoFromRow decodes a list row like [documentInfoFromRow] and then makes a
+// republished document present its target's display fields. Every listing must use it: a
+// republish Ref has no content of its own, so its bare row carries the redirect target but empty
+// metadata, no authors and zero timestamps, and every client labelled a republished document by
+// its path segment or "Untitled".
+func listedDocumentInfoFromRow(conn *sqlite.Conn, lookup *blob.LookupCache, row *sqlite.Stmt) (*documents.DocumentInfo, int64, error) {
+	info, activityTime, err := documentInfoFromRow(lookup, row)
+	if err != nil {
+		return nil, 0, err
+	}
+	if err := fillRepublishDisplayFields(conn, lookup, info); err != nil {
+		return nil, 0, err
+	}
+	return info, activityTime, nil
+}
+
+// fillRepublishDisplayFields copies the display fields of a republish's target onto the
+// republish's own list row, following chained republishes up to maxRedirectHops.
+//
+// Only presentation moves over: metadata, cover image, collection shape, authors and the
+// create/update times. Identity stays the redirect's own — path, genesis, generation and the
+// (empty) version — because clients resolve the content by following the redirect from this
+// address, and stamping the target's version onto this address is exactly what made republished
+// pages resolve as not-found (#1120).
+//
+// A target the node does not hold yet leaves the row as it is. A private target never leaks
+// through a public listing: the row keeps its empty fields, the same as an unsynced target.
+func fillRepublishDisplayFields(conn *sqlite.Conn, lookup *blob.LookupCache, info *documents.DocumentInfo) error {
+	current := info
+	for hop := 0; hop < maxRedirectHops; hop++ {
+		redirect := current.RedirectInfo
+		if redirect == nil || !redirect.Republish {
+			return nil
+		}
+
+		targetSpace, err := core.DecodePrincipal(redirect.Account)
+		if err != nil {
+			return fmt.Errorf("republish %s/%s has an invalid target account %q: %w", info.Account, info.Path, redirect.Account, err)
+		}
+		targetIRI, err := makeIRI(targetSpace, redirect.Path)
+		if err != nil {
+			return fmt.Errorf("republish %s/%s has an invalid target path %q: %w", info.Account, info.Path, redirect.Path, err)
+		}
+
+		target, err := getDocumentInfoRaw(conn, lookup, targetIRI)
+		if err != nil {
+			if status.Code(err) == codes.NotFound {
+				return nil
+			}
+			return err
+		}
+		if target.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+			return nil
+		}
+
+		if target.RedirectInfo != nil && target.RedirectInfo.Republish {
+			// The target is itself a republish: keep walking to the document that has content.
+			current = target
+			continue
+		}
+
+		info.Metadata = target.Metadata
+		info.FirstImageInContent = target.FirstImageInContent
+		info.IsCollection = target.IsCollection
+		info.Authors = target.Authors
+		info.CreateTime = target.CreateTime
+		info.UpdateTime = target.UpdateTime
+		return nil
+	}
+	return nil
 }
 
 func baseDocumentsQuery() *dqb.SelectQuery {
