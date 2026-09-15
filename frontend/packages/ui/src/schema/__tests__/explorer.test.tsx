@@ -26,8 +26,7 @@ const renderPage = (slug: string) => {
 describe('SchemaDocPage renders every schema shape without crashing', () => {
   it('the meta-schema (discriminated union)', () => {
     renderPage('schema')
-    expect(container.textContent).toContain('Hypermedia schema')
-    expect(container.textContent).toContain('meta-schema')
+    expect(container.querySelector('[data-testid="schema-union-lead"]')?.textContent).toMatch(/one of \d+ variants/)
   })
 
   it('a primitive (self-grounding axiom)', () => {

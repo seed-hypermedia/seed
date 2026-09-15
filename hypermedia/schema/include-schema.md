@@ -1,5 +1,5 @@
 ---
-name: Reference schema
+name: Reference Schema
 summary: "The variant for a reference: a bare include, or an extension when it carries refinements."
 schemaDefinition: ipfs://bafyreif35obpue7dkog6cevdbjiteqe7wfloawfz6s2gcfnw6ph3xjgyy4
 ---
