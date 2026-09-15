@@ -246,7 +246,7 @@ type OpSetAttributes struct {
 type KeyValue struct {
 	Key []string `refmt:"key,omitempty"`
 	// Value is any because CBOR has no scalar union. The document attribute
-	// index ignores values it cannot represent as a scalar.
+	// index flattens object values into scalar dotted paths; other structured values are ignored.
 	Value any `refmt:"value"`
 }
 
@@ -427,14 +427,15 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 		}
 		switch op := op.(type) {
 		case OpSetKey:
-			k, v := op.Key, op.Value
-			if _, _, err := documentAttributeValue(v); err != nil {
+			k, value := op.Key, op.Value
+			walkDocumentAttribute(k, value, func(flatKey string, scalar any) {
+				extra.Attributes = append(extra.Attributes, indexedAttributeChange{Key: flatKey, Value: scalar, Operation: opIndex})
+			})
+			if _, _, err := documentAttributeValue(value); err != nil {
 				continue
 			}
 
-			extra.Attributes = append(extra.Attributes, indexedAttributeChange{Key: k, Value: v, Operation: opIndex})
-
-			vs, ok := v.(string)
+			vs, ok := value.(string)
 			if !ok {
 				continue
 			}
@@ -451,16 +452,13 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 			if err != nil {
 				continue
 			}
-
 			if u.Scheme != "ipfs" {
 				continue
 			}
-
 			c, err := cid.Decode(u.Host)
 			if err != nil {
 				continue
 			}
-
 			sb.AddBlobLink("metadata/"+k, c)
 		case OpSetAttributes:
 			if op.Block != "" {
@@ -470,10 +468,12 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 			for i, kv := range op.Attrs {
 				opIndex += i
 				k := strings.Join(kv.Key, ".")
+				walkDocumentAttribute(k, kv.Value, func(flatKey string, scalar any) {
+					extra.Attributes = append(extra.Attributes, indexedAttributeChange{Key: flatKey, Value: scalar, Operation: opIndex})
+				})
 				if _, _, err := documentAttributeValue(kv.Value); err != nil {
 					continue
 				}
-				extra.Attributes = append(extra.Attributes, indexedAttributeChange{Key: k, Value: kv.Value, Operation: opIndex})
 
 				vs, isStr := kv.Value.(string)
 				ftsKey := "meta"
@@ -493,16 +493,13 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 				if err != nil {
 					continue
 				}
-
 				if u.Scheme != "ipfs" {
 					continue
 				}
-
 				c, err := cid.Decode(u.Host)
 				if err != nil {
 					continue
 				}
-
 				sb.AddBlobLink("metadata/"+k, c)
 			}
 		case OpReplaceBlock:

@@ -946,6 +946,31 @@ func documentAttributeValue(value any) (kind string, out any, err error) {
 	}
 }
 
+// walkDocumentAttribute converts a document attribute into the scalar dotted
+// paths supported by document_attributes. Objects start with a tombstone for
+// their parent path so replacing an object also removes leaves omitted by the
+// replacement. Descendant values at the same CRDT order supersede that parent
+// tombstone in setOrdered.
+func walkDocumentAttribute(key string, value any, yield func(string, any)) {
+	object, ok := value.(map[string]any)
+	if !ok {
+		if _, _, err := documentAttributeValue(value); err == nil {
+			yield(key, value)
+		}
+		return
+	}
+
+	yield(key, nil)
+	keys := make([]string, 0, len(object))
+	for child := range object {
+		keys = append(keys, child)
+	}
+	slices.Sort(keys)
+	for _, child := range keys {
+		walkDocumentAttribute(key+"."+child, object[child], yield)
+	}
+}
+
 func (dg *documentGeneration) containsAllChanges(changes []int64) bool {
 	for _, c := range changes {
 		if !dg.Changes.Contains(uint64(c)) {
@@ -995,12 +1020,9 @@ func (dg *documentGeneration) setAttribute(key string, value any, ts int64) {
 }
 
 func (dg *documentGeneration) setAttributeOrdered(key string, value any, ts int64, operation int, actor uint64) {
-	// Changes indexed by older versions may contain structured values. They are
-	// valid document data but cannot be represented in document_attributes.
-	if _, _, err := documentAttributeValue(value); err != nil {
-		return
-	}
-	dg.Metadata.setOrdered(key, value, ts, operation, actor)
+	walkDocumentAttribute(key, value, func(flatKey string, scalar any) {
+		dg.Metadata.setOrdered(flatKey, scalar, ts, operation, actor)
+	})
 }
 
 // IndexedValue is a attributes with timestamp for CRDT metadata.
