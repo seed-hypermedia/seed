@@ -157,7 +157,7 @@ import {
 import {DocumentMetadataView} from './document-metadata-view'
 import {RequiredAttributesEditor} from './required-attributes-editor'
 import {schemaDefinitionCid, SchemaDocumentHeaderActions, useSchemaMenuItems} from './schema/schema-document'
-import {HMEntityField} from './hm-entity-field'
+import {HMEntityField, HMEntityLink} from './hm-entity-field'
 import {emptyStructSchema, SchemaEditor} from './schema/schema-editor'
 import {SizableText} from './text'
 import {SchemaBrowserPage} from './schema/schema-browser'
@@ -3645,7 +3645,15 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
  * `bindingSchemaDrafts`, and publishing freezes them into a new object the key then points at.
  * **Clear** removes the binding. Arriving with the route's `focus` on this key opens Define.
  */
-function BindingSchemaSection({document, bindingKey}: {document: HMDocument; bindingKey: BindingSchemaKey}) {
+function BindingSchemaSection({
+  docId,
+  document,
+  bindingKey,
+}: {
+  docId: UnpackedHypermediaId
+  document: HMDocument
+  bindingKey: BindingSchemaKey
+}) {
   const ctx = useDocumentSelector(selectContext)
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
@@ -3659,6 +3667,11 @@ function BindingSchemaSection({document, bindingKey}: {document: HMDocument; bin
   const cls = classifyRef(ref)
   const owned = cls.kind === 'cid'
   const {schema: published, isLoading} = useResolvedSchema(draft ? null : ref)
+  // With no attributes schema of its own, a document's fields follow its parent's children
+  // attributes schema — shown here, since it is what shapes the rows, with Define as the override.
+  const effective = useEffectiveDocSchema(bindingKey === 'attributesSchema' ? docId : null, metadata)
+  const inherited = bindingKey === 'attributesSchema' && !draft && !ref && effective.source === 'inherited'
+  const parentId = docId.path?.length ? hmId(docId.uid, {path: docId.path.slice(0, -1)}) : null
   const focused = route.key === 'metadata' && route.focus === bindingKey
   const label = bindingKey === 'attributesSchema' ? 'Attributes schema' : 'Children attributes schema'
   const blurb =
@@ -3713,7 +3726,7 @@ function BindingSchemaSection({document, bindingKey}: {document: HMDocument; bin
     </Button>
   )
   if (!draft && !ref) {
-    if (!canEditCurrentRoute) return null
+    if (!canEditCurrentRoute && !inherited) return null
     return (
       <section
         ref={sectionRef}
@@ -3722,13 +3735,13 @@ function BindingSchemaSection({document, bindingKey}: {document: HMDocument; bin
       >
         <div className="flex items-center justify-between gap-3">
           {header}
-          {defining ? (
+          {!canEditCurrentRoute ? null : defining ? (
             <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setDefining(false)}>
               Cancel
             </Button>
           ) : (
             <Button variant="outline" size="sm" onClick={() => setDefining(true)}>
-              <Plus className="mr-1 size-4" /> Define
+              <Plus className="mr-1 size-4" /> {inherited ? 'Override' : 'Define'}
             </Button>
           )}
         </div>
@@ -3741,6 +3754,32 @@ function BindingSchemaSection({document, bindingKey}: {document: HMDocument; bin
               or
             </SizableText>
             {customStructButton()}
+          </div>
+        ) : null}
+        {inherited && !defining ? (
+          <div className="flex flex-col gap-2" data-testid="binding-schema-inherited">
+            <div className="flex flex-wrap items-center gap-2">
+              <SizableText size="xs" className="text-muted-foreground">
+                Inherited from the parent's children attributes schema
+              </SizableText>
+              {parentId ? <HMEntityLink url={parentId.id} mode="document" onOpen={openUrl} /> : null}
+            </div>
+            {effective.schema ? (
+              <SchemaNavContext.Provider value={{openRef: (r) => openUrl(r)}}>
+                <SchemaView
+                  schema={effective.schema}
+                  nav={(slug) => {
+                    const url = nameToUrl(slug)
+                    if (url) openUrl(url)
+                  }}
+                  hideIdentity
+                />
+              </SchemaNavContext.Provider>
+            ) : (
+              <SizableText size="sm" className="text-muted-foreground">
+                {effective.isLoading ? 'Fetching schema…' : 'Could not resolve the parent’s schema.'}
+              </SizableText>
+            )}
           </div>
         ) : null}
       </section>
@@ -3877,7 +3916,7 @@ function DocumentMetadataPage({
         directEdit={directEdit}
       />
       {BINDING_SCHEMA_KEYS.map((bindingKey) => (
-        <BindingSchemaSection key={bindingKey} document={document} bindingKey={bindingKey} />
+        <BindingSchemaSection key={bindingKey} docId={docId} document={document} bindingKey={bindingKey} />
       ))}
     </>
   )
