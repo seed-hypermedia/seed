@@ -16,6 +16,7 @@
 //   5. generated     the bundled registry and TS types match the files
 //   6. conformance   a page's own attributes satisfy the schema its `attributesSchema` names
 //   7. bindings      `attributesSchema` / `childAttributesSchema` / `schemaDefinition` resolve
+//   8. frontmatter   every page has a name and a whole one-sentence summary
 
 import {execFileSync} from 'node:child_process'
 import {existsSync, readdirSync, readFileSync} from 'node:fs'
@@ -181,6 +182,35 @@ function resolves(ref) {
     return false
   }
 }
+
+
+// 8. Frontmatter ─────────────────────────────────────────────────────────────
+// A page publishes with `name` as its title and `summary` as its subtitle and card blurb, so both must exist,
+// and a summary must be a sentence rather than a byte-cut of the first paragraph.
+section('Every page has a name and a whole summary')
+{
+  let bad = 0
+  for (const page of pages) {
+    const {name, summary} = page.frontmatter
+    if (typeof name !== 'string' || !name.trim()) {
+      fail(page.file, 'frontmatter has no `name`')
+      bad++
+    }
+    if (typeof summary !== 'string' || !summary.trim()) {
+      fail(page.file, 'frontmatter has no `summary`')
+      bad++
+      continue
+    }
+    const trimmed = summary.trim()
+    const cutMidWord = trimmed.length >= 150 && /[A-Za-z0-9]$/.test(trimmed)
+    if (cutMidWord || trimmed.endsWith('…') || trimmed.endsWith('...')) {
+      fail(page.file, `summary looks truncated: "…${trimmed.slice(-40)}"`)
+      bad++
+    }
+  }
+  if (!bad) ok(`${pages.length} pages have a name and a whole summary`)
+}
+
 
 if (failures.length) {
   console.error(`\nFAILED: ${failures.length} problem(s) in hypermedia/`)
