@@ -1,4 +1,5 @@
 import {desktopUniversalClient} from '@/desktop-universal-client'
+import {domainResolver} from '@/grpc-client'
 import {ipc} from '@/ipc'
 import {SelectedAccountContactsProvider} from '@shm/shared/models/contacts'
 import {useGatewayUrl} from '@/models/gateway-settings'
@@ -86,6 +87,7 @@ export function NavigationContainer({children}: {children: ReactNode}) {
   return (
     <UniversalAppProvider
       ipfsFileUrl={DAEMON_FILE_URL}
+      domainResolver={domainResolver}
       openRoute={(route: NavRoute, replace?: boolean) => {
         if (replace) {
           navigation.dispatch({type: 'replace', route})

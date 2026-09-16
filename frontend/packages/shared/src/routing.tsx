@@ -1,4 +1,5 @@
 import type {HMContactRecord, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {DomainResolverFn} from '@seed-hypermedia/client'
 import {createContext, useContext} from 'react'
 import z from 'zod'
 import {DAEMON_FILE_URL} from './constants'
@@ -91,6 +92,9 @@ type UniversalAppContextValue = {
   contacts?: HMContactRecord[]
   broadcastEvent?: (event: AppEvent) => void
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
+  /** Resolves a site's hostname to the account it serves, from a platform store (the desktop's
+   * domain store: cached, works offline). Pasted web links resolve through it first. */
+  domainResolver?: DomainResolverFn
 }
 
 export const UniversalAppContext = createContext<UniversalAppContextValue>({
@@ -144,6 +148,7 @@ export function UniversalAppProvider(props: {
   contacts?: HMContactRecord[]
   broadcastEvent?: (event: AppEvent) => void
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
+  domainResolver?: DomainResolverFn
 }) {
   return (
     <UniversalAppContext.Provider
@@ -168,6 +173,7 @@ export function UniversalAppProvider(props: {
         contacts: props.contacts,
         broadcastEvent: props.broadcastEvent,
         saveCidAsFile: props.saveCidAsFile,
+        domainResolver: props.domainResolver,
       }}
     >
       {props.children as any}
