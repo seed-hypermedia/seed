@@ -43,4 +43,4 @@ None of that is hand-wired. The console reads the `rpc/method` union at runtime,
 
 # Adding a method <!-- id:bViEZFh5 -->
 
-Add an `rpc/<method>.schema.json` with its `key` literal, `input`, and `output`; add a companion `.md`; reference it from the `rpc/method` union; run the publisher to update the lockfile and the generators to refresh the bundled registry and TypeScript types; sync. The method then appears in the console, in the tour, and as a typed call in the client — from one schema. The pipeline is described in [how Hypermedia Schemas work](./doc/schema/how-it-works.md). <!-- id:J_7p0r19 -->
+Add an `rpc/<method>.schema.json` with its `key` literal, `input`, and `output`; add a companion `.md`; reference it from the `rpc/method` union; run the publisher to update the lockfile and the generators to refresh the bundled registry and TypeScript types; sync. The method then appears in the console, in the tour, and as a typed call in the client — from one schema. The pipeline is described in [how Hypermedia Schemas work](./schema/how-it-works.md). <!-- id:J_7p0r19 -->
