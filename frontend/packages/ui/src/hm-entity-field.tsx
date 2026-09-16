@@ -13,31 +13,39 @@ import {cn} from './utils'
 
 /**
  * Editor for schema fields holding hypermedia references as `hm://` URL
- * strings — `format: "hm-url"` (any document) and `format: "hm-profile"`
- * (a bare account URL, no path). A resolvable value displays as the
+ * strings — `format: "hm-url"` (any document), `format: "hm-profile"`
+ * (a bare account URL, no path), and the `schema` mode for a document's
+ * attributes-schema bindings: a schema page's `hm://` URL (its
+ * `schemaDefinition` is the schema) or an `ipfs://` schema object. A resolvable value displays as the
  * document/profile TITLE, not the raw URL; editing offers live search over
  * documents (or accounts only, for profiles) alongside direct URL pasting.
  * Advisory like everything schema-driven: any text can be committed — a
  * non-conforming value simply keeps the plain input and its warning badge.
  */
+export type HMEntityFieldMode = 'document' | 'profile' | 'schema'
+
 export function HMEntityField({
   value,
   mode,
   onValue,
   onOpen,
   onClear,
+  autoFocus,
 }: {
   value: string
-  mode: 'document' | 'profile'
+  mode: HMEntityFieldMode
   onValue: (value: unknown) => void
   /** Navigate to the referenced document/account when the pill is clicked. */
   onOpen?: (url: string) => void
   /** Offer an ✕ that removes the reference (the field becomes editable text again). */
   onClear?: () => void
+  /** Focus the search input when it first mounts empty (a field the user just asked for). */
+  autoFocus?: boolean
 }) {
   const [editing, setEditing] = useState(false)
   const unpacked = value ? unpackHmId(value) : null
-  const conforms = !!unpacked && (mode === 'document' || !unpacked.path?.length)
+  const conforms =
+    (!!unpacked && (mode !== 'profile' || !unpacked.path?.length)) || (mode === 'schema' && /^ipfs:\/\//i.test(value))
 
   if (conforms && !editing) {
     return (
@@ -58,7 +66,7 @@ export function HMEntityField({
             </Button>
           </Tooltip>
         ) : (
-          <Tooltip content={`Change (${unpacked.id})`}>
+          <Tooltip content={`Change (${unpacked?.id ?? value})`}>
             <Button
               variant="ghost"
               size="iconSm"
@@ -84,7 +92,7 @@ export function HMEntityField({
       onCancel={conforms ? () => setEditing(false) : undefined}
       // Focus only when the user asked to change the reference — an empty field mounting on a
       // page (several of them, say) must not steal focus and blur-commit its neighbours.
-      autoFocus={editing}
+      autoFocus={editing || !!autoFocus}
     />
   )
 }
@@ -100,7 +108,7 @@ export function HMEntityLink({
   onOpen,
 }: {
   url: string
-  mode?: 'document' | 'profile'
+  mode?: HMEntityFieldMode
   onOpen?: (url: string) => void
 }) {
   const id = url ? unpackHmId(url) : null
@@ -116,7 +124,7 @@ export function HMEntityLink({
       ? HM_SCHEMA_PAGES[library]?.name ?? library
       : undefined
   const isProfile = mode === 'profile' || (!!id && !id.path?.length)
-  const Icon = library ? FileCode2 : isProfile ? User : FileText
+  const Icon = library || mode === 'schema' ? FileCode2 : isProfile ? User : FileText
   const label = title ?? (resource.isLoading ? 'Loading…' : id?.id ?? url)
 
   const pill = (
@@ -143,22 +151,24 @@ function HMEntitySearchInput({
   autoFocus,
 }: {
   initialText: string
-  mode: 'document' | 'profile'
+  mode: HMEntityFieldMode
   onCommit: (value: string) => void
   onCancel?: () => void
   autoFocus?: boolean
 }) {
   const [text, setText] = useState(initialText)
-  const isUrlInput = text.trim().startsWith('hm://')
+  const isUrlInput = /^(hm|ipfs):\/\//i.test(text.trim())
   const search = useSearch(text.trim(), {enabled: text.trim().length > 0 && !isUrlInput})
-  const results = (search.data?.entities ?? [])
-    .filter((entity) => {
-      if (entity.type === 'comment') return false
-      // Profiles are account-root documents: a uid with no path.
-      if (mode === 'profile') return !entity.id.path?.length
-      return true
-    })
-    .slice(0, 6)
+  const documents = (search.data?.entities ?? []).filter((entity) => {
+    if (entity.type === 'comment') return false
+    // Profiles are account-root documents: a uid with no path.
+    if (mode === 'profile') return !entity.id.path?.length
+    return true
+  })
+  // Schema mode wants pages that DEFINE a schema. Search results carry metadata when the
+  // index has it; keep the defining pages when any result says so, else show every document.
+  const defining = mode === 'schema' ? documents.filter((entity) => !!entity.metadata?.schemaDefinition) : []
+  const results = (defining.length ? defining : documents).slice(0, 6)
 
   const commitText = () => {
     // Commit whatever was typed — validation stays advisory (a warning badge,
@@ -175,7 +185,11 @@ function HMEntitySearchInput({
           value={text}
           autoFocus={autoFocus}
           placeholder={
-            mode === 'profile' ? 'Search accounts or paste hm:// URL' : 'Search documents or paste hm:// URL'
+            mode === 'profile'
+              ? 'Search accounts or paste hm:// URL'
+              : mode === 'schema'
+                ? 'Search schema pages, or paste an hm:// or ipfs:// reference'
+                : 'Search documents or paste hm:// URL'
           }
           className="h-8 min-w-52"
           onChange={(e) => setText(e.target.value)}
@@ -219,6 +233,8 @@ function HMEntitySearchInput({
             >
               {mode === 'profile' ? (
                 <User className="text-muted-foreground size-3.5 shrink-0" />
+              ) : mode === 'schema' ? (
+                <FileCode2 className="text-muted-foreground size-3.5 shrink-0" />
               ) : (
                 <FileText className="text-muted-foreground size-3.5 shrink-0" />
               )}
