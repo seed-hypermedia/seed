@@ -3639,8 +3639,8 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
  * document's own (`attributesSchema`: the fields it carries) or its children's
  * (`childAttributesSchema`: the fields every document created inside it carries). Nothing bound:
  * a **Define** button; pressing it offers a search over schema pages (or a pasted `hm://` /
- * `ipfs://` reference) and a **Custom struct** button. Bound to a schema page: the page's pill, its
- * schema read-only, and **Custom struct** to take a copy over. Bound to an object this document
+ * `ipfs://` reference) and a **Custom struct** button. Bound to a schema page: the page's pill and
+ * its schema read-only (clear it to define a custom one). Bound to an object this document
  * owns (`ipfs://`, or a draft): the full schema editor in place — edits go to the draft's
  * `bindingSchemaDrafts`, and publishing freezes them into a new object the key then points at.
  * **Clear** removes the binding. Arriving with the route's `focus` on this key opens Define.
@@ -3769,7 +3769,6 @@ function BindingSchemaSection({document, bindingKey}: {document: HMDocument; bin
               onClear={canEditCurrentRoute ? clear : undefined}
             />
           ) : null}
-          {ref && !owned && !draft && canEditCurrentRoute ? customStructButton(published) : null}
           {canEditCurrentRoute && draft ? (
             <Button variant="ghost" size="sm" className="text-muted-foreground gap-1" onClick={clear}>
               <Trash className="size-3.5" /> Clear
