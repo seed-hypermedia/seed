@@ -114,6 +114,7 @@ export function HMEntityLink({
   onOpen?: (url: string) => void
 }) {
   const id = url ? unpackHmId(url) : null
+  // Only an hm:// document has a title to fetch; an ipfs:// or other reference shows as it is.
   const resource = useResource(id)
   const document = resource.data && 'document' in resource.data ? resource.data.document : undefined
   // A reference to a library type (a `type` or `ref` in a schema) is named by
@@ -127,7 +128,7 @@ export function HMEntityLink({
       : undefined
   const isProfile = mode === 'profile' || (!!id && !id.path?.length)
   const Icon = library || mode === 'schema' ? FileCode2 : isProfile ? User : FileText
-  const label = title ?? (resource.isLoading ? 'Loading…' : id?.id ?? url)
+  const label = title ?? (id && resource.isLoading ? 'Loading…' : id?.id ?? url)
 
   const pill = (
     <span className="bg-accent text-accent-foreground inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full py-0.5 pr-2 pl-2 text-sm">
