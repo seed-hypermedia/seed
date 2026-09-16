@@ -665,8 +665,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     }
   }, [docId, effectiveCanEdit, isHomeTarget, onDeleteDocument, replaceRoute, signingAccountId])
   const optionsMenuItems = useMemo(
-    () =>
-      [...webMenuItems, moveMenuItem, deleteMenuItem, ...schemaBuilderMenuItems].filter(Boolean) as MenuItemType[],
+    () => [...webMenuItems, moveMenuItem, deleteMenuItem, ...schemaBuilderMenuItems].filter(Boolean) as MenuItemType[],
     [deleteMenuItem, moveMenuItem, webMenuItems, schemaBuilderMenuItems],
   )
 
