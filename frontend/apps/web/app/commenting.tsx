@@ -26,7 +26,7 @@ import {
 import type {InlineEditCommentProps} from '@shm/shared/comments-service-provider'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {getMentionThreadContext, useDocumentComments} from '@shm/shared/models/comments'
-import {useAccount} from '@shm/shared/models/entity'
+import {useAccount, useResource} from '@shm/shared/models/entity'
 import {invalidateQueries, useQueryClient} from '@shm/shared/models/query-client'
 import {applyOptimisticComment, buildOptimisticComment, navigateToComment} from '@shm/shared/optimistic-comment'
 import {useTxString} from '@shm/shared/translation'
@@ -43,6 +43,7 @@ import {useMutation} from '@tanstack/react-query'
 import {Check, SendHorizontal, X} from 'lucide-react'
 import {ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useCommentDraftPersistence} from './comment-draft-utils'
+import {resolveCommentTargetVersion} from './comment-target-version'
 import {EmailNotificationsForm} from './email-notifications'
 import {hasPromptedEmailNotifications, setHasPromptedEmailNotifications, setPendingIntent} from './local-db'
 import {processPendingIntent} from './pending-intent'
@@ -219,7 +220,10 @@ export default function WebCommenting({
     },
   })
 
-  const docVersion = docId.version
+  // A republish route keeps its own unpinned id while rendering the target
+  // document, so the version comes from the resolved resource (see helper).
+  const targetResource = useResource(docId)
+  const docVersion = resolveCommentTargetVersion(docId, targetResource.data)
   const remixNavigate = useRemixNavigate()
 
   const {
@@ -419,9 +423,10 @@ export default function WebCommenting({
     }, [])
   }
 
-  // Don't render until draft is loaded or doc version is missing
+  // Don't render until the draft and the target version are known. A version
+  // that never resolves means there is nothing to comment on.
   if (isDraftLoading || !docVersion) {
-    return !docVersion ? null : <div className="w-full">Loading…</div>
+    return !docVersion && !targetResource.isLoading ? null : <div className="w-full">Loading…</div>
   }
 
   return (
