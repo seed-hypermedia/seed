@@ -11,6 +11,10 @@
 // or — when absent — its parent's `childAttributesSchema`. The resolved schema is a
 // struct of attributes, which drives required-field UI.
 import {useMemo} from 'react'
+import {useQuery} from '@tanstack/react-query'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {useUniversalClient} from '@shm/shared/routing'
+import {draftBindingSchemaDrafts} from '@shm/shared/models/schema-draft'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, unpackHmId} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
@@ -92,4 +96,40 @@ export function useEffectiveDocSchema(
   const source: 'own' | 'inherited' | 'none' = ownRef ? 'own' : parentChildrenRef ? 'inherited' : 'none'
 
   return {schema, metadataSchema, source, isLoading: isLoading || (!!parentId && parent.isLoading)}
+}
+
+const samePath = (a: readonly string[] | null | undefined, b: readonly string[]) =>
+  (a ?? []).length === b.length && b.every((segment, index) => (a ?? [])[index] === segment)
+
+/**
+ * The children attributes schema a document's PARENT is drafting but has not published — the
+ * platform's own drafts, when it exposes them (desktop). While a folder's children schema is only
+ * a draft, its children can still show the rows it will give them.
+ */
+export function useParentDraftChildAttributesSchema(id: UnpackedHypermediaId | null | undefined): {
+  schema?: HypermediaSchema
+  isLoading: boolean
+} {
+  const client = useUniversalClient()
+  const parentPath = id?.path?.length ? id.path.slice(0, -1) : null
+  const drafts = useQuery({
+    queryKey: [queryKeys.DRAFTS_LIST_ACCOUNT, id?.uid],
+    queryFn: () => client.drafts!.listAccountDrafts(id!.uid),
+    enabled: !!id && !!parentPath && !!client.drafts,
+  })
+  const parentDraftId = useMemo(() => {
+    if (!id || !parentPath) return undefined
+    return drafts.data?.find((draft) => draft.editUid === id.uid && samePath(draft.editPath, parentPath))?.id
+  }, [drafts.data, id, parentPath])
+  const parentDraft = useQuery({
+    queryKey: [queryKeys.DRAFT, parentDraftId],
+    queryFn: () => client.drafts!.getDraft!(parentDraftId!),
+    enabled: !!parentDraftId && !!client.drafts?.getDraft,
+  })
+  const drafted = draftBindingSchemaDrafts(parentDraft.data)?.childAttributesSchema ?? null
+  const draftedRef = parentDraft.data?.metadata?.childAttributesSchema
+  const {schema: referenced, isLoading} = useResolvedSchema(
+    drafted ? null : typeof draftedRef === 'string' ? draftedRef : null,
+  )
+  return {schema: drafted ?? referenced, isLoading: drafts.isLoading || parentDraft.isLoading || isLoading}
 }
