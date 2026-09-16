@@ -5,6 +5,10 @@
 // Run by CI and before a sync. Every check is cheap and offline; anything needing the network
 // belongs in the sync itself. Failures print the offending file and exit 1.
 //
+// The rest of the toolchain beside this file: names.mjs (the name<->file<->URL mapping every script
+// shares), validate.mjs (the reference validator), publish.mjs (CIDs -> schemas.lock.json),
+// gen-registry.mjs and typegen.mjs (the bundled registry and TS types).
+//
 //   1. spelling      a schema node names what it is with `type`; `ref` and `$type` are retired
 //   2. pairing       every schema file has a page, and every page that defines a type has a schema
 //   3. meta-schema   validate.mjs: each schema is a valid Hypermedia schema, self-description holds
@@ -138,7 +142,7 @@ for (const [script, generated] of [
   const out = run(script)
   const after = readFileSync(path, 'utf8')
   if (out) fail(script, `failed:\n${out}`)
-  else if (before !== after) fail(generated, `out of date — run \`node scripts/hypermedia/${script}\` and commit`)
+  else if (before !== after) fail(generated, `was out of date; ${script} has just regenerated it — commit the change`)
   else ok(`${generated.split('/').pop()} matches the schema files`)
 }
 
