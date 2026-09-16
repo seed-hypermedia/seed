@@ -123,6 +123,7 @@ import {
   Search,
   Table as TableIcon,
   Tags,
+  Trash,
 } from 'lucide-react'
 import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
@@ -156,6 +157,7 @@ import {
 import {DocumentMetadataView} from './document-metadata-view'
 import {RequiredAttributesEditor} from './required-attributes-editor'
 import {schemaDefinitionCid, SchemaDocumentHeaderActions, useSchemaMenuItems} from './schema/schema-document'
+import {Input} from './components/input'
 import {emptyStructSchema, SchemaEditor} from './schema/schema-editor'
 import {SizableText} from './text'
 import {SchemaBrowserPage} from './schema/schema-browser'
@@ -3669,6 +3671,40 @@ function BindingSchemaSection({document, bindingKey}: {document: HMDocument; bin
     },
     [beginEditIfNeeded, send, bindingKey],
   )
+  // Point the binding at a reference by hand (a type page's hm:// URL, or an ipfs:// schema CID),
+  // dropping any draft; an empty reference clears the binding (a null tombstone removes the key).
+  const setReference = useCallback(
+    (value: string) => {
+      const next = value.trim()
+      if (next === (ref ?? '')) return
+      beginEditIfNeeded()
+      send({
+        type: 'change',
+        metadata: {[bindingKey]: next || null} as any,
+        bindingSchemaDrafts: {[bindingKey]: null},
+      })
+    },
+    [beginEditIfNeeded, send, bindingKey, ref],
+  )
+  const clear = useCallback(() => {
+    beginEditIfNeeded()
+    send({type: 'change', metadata: {[bindingKey]: null} as any, bindingSchemaDrafts: {[bindingKey]: null}})
+  }, [beginEditIfNeeded, send, bindingKey])
+  const [refText, setRefText] = useState(ref ?? '')
+  useEffect(() => setRefText(ref ?? ''), [ref])
+  const referenceField = canEditCurrentRoute ? (
+    <Input
+      className="h-8 min-w-64 font-mono text-xs"
+      value={refText}
+      placeholder="hm://type-page or ipfs://schema-cid"
+      onChange={(event) => setRefText(event.target.value)}
+      onBlur={() => setReference(refText)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') (event.target as HTMLInputElement).blur()
+      }}
+      data-testid={`binding-schema-${bindingKey}-ref`}
+    />
+  ) : null
   // Opened from the options menu with nothing bound: start an empty struct so a field can be added.
   const seededRef = useRef(false)
   useEffect(() => {
@@ -3700,9 +3736,12 @@ function BindingSchemaSection({document, bindingKey}: {document: HMDocument; bin
         data-testid={`binding-schema-${bindingKey}`}
       >
         {header}
-        <Button variant="outline" size="sm" onClick={() => edit(emptyStructSchema())}>
-          <Plus className="mr-1 size-4" /> Define
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          {referenceField}
+          <Button variant="outline" size="sm" onClick={() => edit(emptyStructSchema())}>
+            <Plus className="mr-1 size-4" /> Define
+          </Button>
+        </div>
       </section>
     )
   }
@@ -3714,25 +3753,35 @@ function BindingSchemaSection({document, bindingKey}: {document: HMDocument; bin
       className="border-border/60 bg-muted/20 mb-4 flex flex-col gap-3 rounded-lg border p-3"
       data-testid={`binding-schema-${bindingKey}`}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         {header}
-        {ref && !owned && !draft ? (
-          <div className="flex shrink-0 items-center gap-2">
-            <Button variant="ghost" size="sm" className="text-muted-foreground gap-1" onClick={() => openUrl(ref)}>
-              Defined by {cls.kind === 'hm-bundled' ? cls.name : 'a type page'}
-              <ExternalLink className="size-3.5" />
-            </Button>
-            {canEditCurrentRoute && published ? (
-              <Button variant="outline" size="sm" onClick={() => edit(stripLegacyLabels(published))}>
-                <Pencil className="mr-1 size-3.5" /> Edit a copy here
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {draft ? (
+            <SizableText size="xs" className="text-muted-foreground">
+              Publishing the document publishes this schema.
+            </SizableText>
+          ) : (
+            referenceField
+          )}
+          {ref && !owned && !draft ? (
+            <>
+              <Button variant="ghost" size="sm" className="text-muted-foreground gap-1" onClick={() => openUrl(ref)}>
+                Defined by {cls.kind === 'hm-bundled' ? cls.name : 'a type page'}
+                <ExternalLink className="size-3.5" />
               </Button>
-            ) : null}
-          </div>
-        ) : draft ? (
-          <SizableText size="xs" className="text-muted-foreground shrink-0">
-            Publishing the document publishes this schema.
-          </SizableText>
-        ) : null}
+              {canEditCurrentRoute && published ? (
+                <Button variant="outline" size="sm" onClick={() => edit(stripLegacyLabels(published))}>
+                  <Pencil className="mr-1 size-3.5" /> Edit a copy here
+                </Button>
+              ) : null}
+            </>
+          ) : null}
+          {canEditCurrentRoute ? (
+            <Button variant="ghost" size="sm" className="text-muted-foreground gap-1" onClick={clear}>
+              <Trash className="size-3.5" /> Clear
+            </Button>
+          ) : null}
+        </div>
       </div>
       {editable && current ? (
         <SchemaEditor schema={current} onSchema={edit} />
