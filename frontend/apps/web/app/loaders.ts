@@ -41,7 +41,7 @@ import {
   queryQueryBlock,
   queryResource,
 } from '@shm/shared/models/queries'
-import {createResourceFetcher, createResourceResolver} from '@shm/shared/resource-loader'
+import {createResourceFetcher, createResourceResolver, followRedirects} from '@shm/shared/resource-loader'
 import {DehydratedState} from '@tanstack/react-query'
 import {grpcClient} from './client.server'
 import {instrument, InstrumentationContext} from './instrumentation.server'
@@ -392,6 +392,38 @@ function createNoopInstrumentationContext(): InstrumentationContext {
 }
 
 /**
+ * The resource query the client hydrates for a route must hold the document the loader just
+ * loaded for it. The loader had `document` in hand for this very request, so a not-found, an
+ * error or a missing entry here means the id it dehydrates is one the daemon cannot serve —
+ * the #1120 shape, where the response is a 200 yet the page shows "Document Not Found". Such a
+ * bug is invisible in server logs otherwise, so say it loudly. The page still renders whatever
+ * it can; the log line is the signal to alert on.
+ */
+function assertRouteResourceHydrates(
+  prefetchCtx: PrefetchContext,
+  routeId: UnpackedHypermediaId,
+  document: HMDocument,
+) {
+  const cached = prefetchCtx.queryClient.getQueryData(queryResource(serverUniversalClient, routeId).queryKey) as
+    | HMResource
+    | null
+    | undefined
+  if (cached?.type === 'document') return
+  console.error(
+    `[web-loader] INVARIANT: route resource would hydrate as "${
+      cached?.type ?? 'missing'
+    }" although its document loaded`,
+    {
+      route: packHmId(routeId),
+      version: routeId.version ?? null,
+      latest: routeId.latest ?? null,
+      loadedDocument: `${document.account}${document.path} @ ${document.version}`,
+      cachedMessage: cached && cached.type === 'error' ? cached.message : undefined,
+    },
+  )
+}
+
+/**
  * Load resource payload using prefetch-only architecture.
  * React Query handles deduplication automatically.
  */
@@ -403,35 +435,39 @@ async function loadResourcePayload(
     latestDocument?: HMDocument | null
     comment?: HMComment
     commentId?: UnpackedHypermediaId
-    // Set when `docId` is a republish redirect and `document` is the content of its
-    // target. The route keeps the republish's own address, not the target's.
-    republish?: boolean
   },
   ctx?: InstrumentationContext,
   options?: {
     originHomeId?: UnpackedHypermediaId
   },
 ): Promise<WebResourcePayload> {
-  const {document, latestDocument, comment, commentId, republish} = payload
+  const {document, latestDocument, comment, commentId} = payload
   const prefetchCtx = createPrefetchContext()
   const homeId = hmId(docId.uid, {latest: true})
 
-  // Create the final ID that will be returned to the client.
+  // Create the final ID that will be returned to the client. Whether a version can be
+  // pinned onto it is derived from the resolved resource, not from how we got here: a
+  // version belongs to the address the document lives at, and only there.
+  //
   // Clear `latest` when pinning to a specific version — otherwise the client's
   // REST fetch includes both `?v=...&l`, the handler drops the version, and the
   // daemon may return a stale "latest" pointer (overwriting correct SSR data).
   //
-  // A republish route is the exception: `document.version` belongs to the TARGET
-  // document, so pinning it onto the republish's address asks the daemon for a
+  // A document reached through a republish lives elsewhere: `document.version` belongs
+  // to the TARGET, so pinning it onto the republish's address asks the daemon for a
   // version that does not exist there and every lookup (the SSR prefetch and each
-  // client refetch) resolves as not-found. Keep the route's own unpinned id.
-  const finalId: UnpackedHypermediaId = republish ? docId : {...docId, version: document.version, latest: false}
+  // client refetch) resolves as not-found (#1120). Keep the route's own unpinned id.
+  const documentLivesAtRoute =
+    document.account === docId.uid && (document.path || '') === hmIdPathToEntityQueryPath(docId.path)
+  const finalId: UnpackedHypermediaId = documentLivesAtRoute
+    ? {...docId, version: document.version, latest: false}
+    : docId
 
-  if (republish) {
-    // Seed the route's resource query with the followed target content — the same
-    // shape queryResource produces when it follows a republish on the client (target
-    // document under the republish's id) — so the prefetch below does not resolve the
-    // redirect chain a second time.
+  if (!documentLivesAtRoute) {
+    // Seed the route's resource query with the content reached through the redirect — the
+    // same shape queryResource produces when it follows a republish on the client (target
+    // document under the republish's id) — so the prefetch below does not walk the chain
+    // a second time.
     prefetchCtx.queryClient.setQueryData(queryResource(serverUniversalClient, finalId).queryKey, {
       type: 'document',
       id: finalId,
@@ -441,6 +477,7 @@ async function loadResourcePayload(
 
   // Single prefetch phase - use finalId so query keys match on client
   await prefetchResourceData(finalId, document, prefetchCtx, ctx)
+  assertRouteResourceHydrates(prefetchCtx, finalId, document)
 
   // For comments, also prefetch the comment resource so useResource(commentId) has data
   if (commentId) {
@@ -545,31 +582,14 @@ export async function loadResource(
     current: {name: '', start: 0, children: []},
   } as InstrumentationContext
 
-  const resource = await instrument(ctx || noopCtx, `fetchResource(${packHmId(id)})`, () => fetchResource(id))
-  if (resource.type === 'redirect' && resource.republish) {
-    // A republish redirect renders the target's latest content at THIS route — matching the
-    // client-side queryResource behavior — instead of bouncing the browser to the target URL.
-    const followed = await instrument(ctx || noopCtx, `followRepublish(${packHmId(resource.redirectTarget)})`, () =>
-      resolveResource(resource.redirectTarget),
-    )
-    if (followed.type === 'document') {
-      const latestDocument = await instrument(ctx || noopCtx, `getLatestDocument(${packHmId(followed.id)})`, () =>
-        getLatestDocument(followed.id),
-      )
-      return await loadResourcePayload(
-        id,
-        parsedRequest,
-        {
-          document: followed.document,
-          latestDocument,
-          republish: true,
-        },
-        ctx,
-        options,
-      )
-    }
-    // The chain does not end at a live document — fall through to the plain-redirect handling.
-  }
+  // One walk through redirects, shared with the client query and the shared resolver
+  // (resource-loader.ts). A move redirect on the first hop is returned as-is so the route
+  // can answer with a 302; a republish is followed to its content, which the route then
+  // renders at the republish's own address.
+  const walk = await instrument(ctx || noopCtx, `fetchResource(${packHmId(id)})`, () =>
+    followRedirects(fetchResource, id, {stopAtMove: true}),
+  )
+  const resource = walk.resource
   if (resource.type === 'redirect') {
     // The destination URL is built in loadSiteResource, which has the route
     // context (view term, open comment, panel) that must survive the redirect.
@@ -612,11 +632,14 @@ export async function loadResource(
   }
   // resource.type === 'document'
   const document = resource.document
-  const latestDocument = await instrument(ctx || noopCtx, `getLatestDocument(${packHmId(id)})`, () =>
-    getLatestDocument(id),
+  // The route keeps the address it was asked for: a republish's own address presents the
+  // target's content (queryResource does the same on the client); otherwise the document's.
+  const routeId = walk.republishSourceId ?? id
+  const latestDocument = await instrument(ctx || noopCtx, `getLatestDocument(${packHmId(resource.id)})`, () =>
+    getLatestDocument(resource.id),
   )
   return await loadResourcePayload(
-    id,
+    routeId,
     parsedRequest,
     {
       document,

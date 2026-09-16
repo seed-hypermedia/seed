@@ -5,7 +5,9 @@
   "scripts": {
     "test": "vitest --run --no-file-parallelism",
     "test:skip-build": "SKIP_BUILD=true vitest --run",
-    "test:install-browsers": "npx playwright install chromium"
+    "test:install-browsers": "npx playwright install chromium",
+    "format:check": "prettier --check .",
+    "format:write": "prettier --write ."
   },
   "devDependencies": {
     "@bufbuild/protobuf": "1.10.0",

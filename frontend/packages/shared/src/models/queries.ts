@@ -26,7 +26,7 @@ import type {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {HMQueryBlockPayloadSchema, HMQueryResultSchema, HMResourceSchema} from '@seed-hypermedia/client/hm-types'
-import {MAX_REDIRECT_HOPS} from '../redirects'
+import {followRedirects as walkRedirects} from '../redirects'
 import type {UniversalClient} from '../universal-client'
 import {hmIdPathToEntityQueryPath} from '../utils'
 import {hmId} from '../utils/entity-id-url'
@@ -80,38 +80,22 @@ export function queryResource(
     queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMResource | null> => {
       if (!id) return null
       try {
-        let res = await client.request('Resource', id, {signal})
-        if (!followRedirects) return HMResourceSchema.parse(res)
-        let republishSourceId: UnpackedHypermediaId | null = null
-        // Follow redirects automatically so consumers never see {type: 'redirect'}.
-        // Republish refs are special: they should render the target content while
-        // preserving the source route/ID, so the omnibar and navigation stay on
-        // the republished path instead of being treated like a move redirect.
-        // Redirects are daemon-served data, so the chain can be cyclic — stop on a
-        // revisited address instead of burning hops on a loop that cannot resolve.
-        const visited = new Set<string>([id.id])
-        while (res?.type === 'redirect' && visited.size <= MAX_REDIRECT_HOPS) {
-          const nextTarget = {
-            ...res.redirectTarget,
-            hostname: res.redirectTarget.hostname || res.id.hostname || id.hostname,
-          }
-          if (visited.has(nextTarget.id)) {
-            return {type: 'error', id, message: 'Redirect cycle detected while resolving resource'}
-          }
-          visited.add(nextTarget.id)
-          if (res.republish && !republishSourceId) {
-            republishSourceId = res.id
-          }
-          res = await client.request('Resource', nextTarget, {signal})
+        if (!followRedirects) {
+          const res = await client.request('Resource', id, {signal})
+          return HMResourceSchema.parse(res)
         }
-        if (res?.type === 'redirect') {
-          return {type: 'error', id, message: 'Too many redirects while resolving resource'}
-        }
-        const parsed = HMResourceSchema.parse(res)
-        if (republishSourceId && (parsed.type === 'document' || parsed.type === 'comment') && !id.hostname) {
+        // Follow redirects so consumers never see {type: 'redirect'}. The walk is the same
+        // one the SSR loader and the shared resolver use (resource-loader.ts): a republished
+        // path presents the target's content under its own id, so the omnibar and navigation
+        // stay on the republished address instead of treating it like a move; a cyclic or
+        // over-long chain comes back as an error resource instead of spinning.
+        const walk = await walkRedirects((next) => client.request('Resource', next, {signal}), id)
+        if (walk.resource.type === 'error') return walk.resource
+        const parsed = HMResourceSchema.parse(walk.resource)
+        if (walk.republishSourceId && (parsed.type === 'document' || parsed.type === 'comment') && !id.hostname) {
           return {
             ...parsed,
-            id: republishSourceId,
+            id: walk.republishSourceId,
           }
         }
         return parsed

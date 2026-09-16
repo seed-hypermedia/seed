@@ -104,9 +104,7 @@ export async function startNotifyServer(config: NotifyServerConfig): Promise<Not
       ).trim()
       return out || null
     } catch (error) {
-      console.log(
-        `[Notify] readVerificationToken failed: ${error instanceof Error ? error.message : String(error)}`,
-      )
+      console.log(`[Notify] readVerificationToken failed: ${error instanceof Error ? error.message : String(error)}`)
       return null
     }
   }
