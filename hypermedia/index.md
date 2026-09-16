@@ -4,24 +4,24 @@ summary: Documentation that lives next to the code, in this repository, and is p
 ---
 These pages are markdown files checked into the Seed repository under `hypermedia/`. A commit to `main` publishes them to this site, so what you read here is exactly what the code ships with. Very cool, right?! <!-- id:-gK0HbNj -->
 
-The folder is also an example of a workflow: the markdown is the source of truth, but the Seed app can be the editor. See [Repo HM sync](./doc/repo-hm-sync.md) for how a directory of markdown files in a repository and a Hypermedia space mirror each other, and [CLI](./doc/cli.md) for the commands. <!-- id:_G1k0qF- -->
+The folder is also an example of a workflow: the markdown is the source of truth, but the Seed app can be the editor. See [Repo HM sync](./build/publish-a-folder.md) for how a directory of markdown files in a repository and a Hypermedia space mirror each other, and [CLI](./build/cli.md) for the commands. <!-- id:_G1k0qF- -->
 
 # Developer docs <!-- id:Bv7m2S0v -->
 
-Everything that is not a concept, a schema, an API method or an example is collected under [Developer docs](./doc.md). <!-- id:qpnAtzl2 -->
+Everything that is not a concept, a schema, an API method or an example is collected under [Developer docs](./build.md). <!-- id:qpnAtzl2 -->
 
 # Publishing <!-- id:qquyu_Qe -->
 
-- [Repo HM sync](./doc/repo-hm-sync.md) — the lossless markdown dialect and the export, import and dev commands. <!-- id:m2GuhDRm -->
-- [CLI](./doc/cli.md) — the `seed-cli` commands this folder is published with. <!-- id:4Fo9jG63 -->
+- [Repo HM sync](./build/publish-a-folder.md) — the lossless markdown dialect and the export, import and dev commands. <!-- id:m2GuhDRm -->
+- [CLI](./build/cli.md) — the `seed-cli` commands this folder is published with. <!-- id:4Fo9jG63 -->
 
 # Hypermedia Schemas <!-- id:G9c9jn03 -->
 
 [Hypermedia Schemas](./schema.md) is the self-describing type system for content-addressed data that Hypermedia documents are built from. Every schema in the library is a page here, with its formal definition attached, and the reference chapters explain the system from the top down: <!-- id:lsYfVMeq -->
-  - [Why Hypermedia Schemas](./doc/schema/why.md), [How Hypermedia Schemas work](./doc/schema/how-it-works.md), [Typed documents](./schema/typed-documents.md), [The World Builder](./doc/world-builder.md), [The typed API](./rpc.md) <!-- id:u75glGr1 -->
-  - [User stories](./doc/schema/user-stories.md) — what a person should be able to do with schemas through the app, the CLI, and an agent: the steps, and where each surface stands. <!-- id:pSOZzOrZ -->
-  - [The data model](./schema/data-model.md), [The schema language](./schema/schema-language.md), [References & naming](./schema/references.md), [Encoding](./schema/encoding.md), [Examples](./example.md), [Schemas on the Hypermedia Network](./schema/blobs.md), [Design rationale](./doc/schema/design.md), [Glossary](./schema.md) <!-- id:CEaJilu0 -->
-  - [Hypermedia Permissions System](./doc/permissions.md) — a design investigation into permissions and privacy for Hypermedia content. <!-- id:SIUblIDE -->
+  - [Why Hypermedia Schemas](./schema/why.md), [How Hypermedia Schemas work](./schema/how-it-works.md), [Typed documents](./schema/typed-documents.md), [The World Builder](./schema/world-builder.md), [The typed API](./rpc.md) <!-- id:u75glGr1 -->
+  - [User stories](./schema/user-stories.md) — what a person should be able to do with schemas through the app, the CLI, and an agent: the steps, and where each surface stands. <!-- id:pSOZzOrZ -->
+  - [The data model](./schema/data-model.md), [The schema language](./schema/schema-language.md), [References & naming](./schema/references.md), [Encoding](./schema/encoding.md), [Examples](./example.md), [Schemas on the Hypermedia Network](./schema/blobs.md), [Design rationale](./schema/design.md), [Glossary](./schema.md) <!-- id:CEaJilu0 -->
+  - [Hypermedia Permissions System](./history/permissions.md) — a design investigation into permissions and privacy for Hypermedia content. <!-- id:SIUblIDE -->
 
 # Agents <!-- id:v3ihjVoi -->
 

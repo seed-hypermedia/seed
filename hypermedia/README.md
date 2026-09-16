@@ -64,7 +64,7 @@ publishes the folder into the desktop dev app's daemon under a throwaway key
 (`hypermedia/.dev/`, gitignored), opens the site in the dev app, and writes
 every document you publish there straight back, so `git diff` shows your edit
 within seconds. While it runs the app is the writer and git is where you
-commit. See [repo-hm-sync.md](./doc/repo-hm-sync.md) and [cli.md](./doc/cli.md).
+commit. See [repo-hm-sync.md](./build/publish-a-folder.md) and [cli.md](./build/cli.md).
 
 ---
 
@@ -75,7 +75,7 @@ documents bind to it.** [schema.md](./schema.md) is the published guide; the
 reference chapters are [data-model.md](./schema/data-model.md),
 [schema-language.md](./schema/schema-language.md), [references.md](./schema/references.md),
 [encoding.md](./schema/encoding.md), [example.md](./example.md),
-[blobs.md](./schema/blobs.md) and [design.md](./doc/schema/design.md), and
+[blobs.md](./schema/blobs.md) and [design.md](./schema/design.md), and
 every term has its own page (listed under Terms in [schema.md](./schema.md)).
 What follows is the engineering detail behind them.
 
@@ -165,8 +165,8 @@ disagree with the reference validator or with each other:
   (canonical CBOR with `sig` zeroed), publishing.
 - **CLI** (`frontend/apps/cli`) — `schema get|validate`, `blob get|validate|create|sign|verify`,
   `document validate`, `document create|update --metadata|--attributes-schema|--child-attributes-schema|--schema-definition`,
-  `space import --check`; see [user stories](./doc/schema/user-stories.md) and
-  [the one-page reference](./doc/schema/quick-reference.md) for every surface's commands and checks.
+  `space import --check`; see [user stories](./schema/user-stories.md) and
+  [the one-page reference](./schema/quick-reference.md) for every surface's commands and checks.
 
 In the app (`frontend/packages/ui/src/schema/`):
 - **Resolution** (`schema-resolve.tsx`) — `useResolvedSchema` (CID /

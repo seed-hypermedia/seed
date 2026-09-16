@@ -28,7 +28,7 @@ Publishes the directory into the space, updating existing documents block by blo
 seed-cli space dev --dir ./hypermedia
 ```
 
-Edit the directory in the desktop dev app. See [Repo HM sync](./repo-hm-sync.md). <!-- id:K0HAprxr -->
+Edit the directory in the desktop dev app. See [Repo HM sync](./publish-a-folder.md). <!-- id:K0HAprxr -->
 
 # In this repository <!-- id:S9sJBMK0 -->
 

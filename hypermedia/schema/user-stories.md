@@ -2,15 +2,15 @@
 name: "User Stories: Typed Documents and Blobs"
 summary: What a person should be able to do with schemas through the Seed app, the CLI, and an agent — the precise steps to do and test each story on every surface.
 ---
-These are the things a person should be able to do with the type system, stated as stories. Each story says what the person wants, then the exact steps on each of the three surfaces: the **Seed app** (desktop and web), the **CLI** (`seed-cli`, run from source with `bun run src/index.ts` in `frontend/apps/cli`, or `npx -y @seed-hypermedia/cli`), and an **agent** (the `read` and `write` tools of [Seed Agents](../../agent.md)). Each set of steps is also the test for that surface: follow it and check the stated result. Every story ends with where each surface stands (all now **works**), and a closing section says which steps are automated and which are guided manual tests. The model underneath is explained in [typed documents](../../schema/typed-documents.md); the vocabulary in [the schema language](../../schema/schema-language.md). <!-- id:0uMy7lU9 -->
+These are the things a person should be able to do with the type system, stated as stories. Each story says what the person wants, then the exact steps on each of the three surfaces: the **Seed app** (desktop and web), the **CLI** (`seed-cli`, run from source with `bun run src/index.ts` in `frontend/apps/cli`, or `npx -y @seed-hypermedia/cli`), and an **agent** (the `read` and `write` tools of [Seed Agents](../agent.md)). Each set of steps is also the test for that surface: follow it and check the stated result. Every story ends with where each surface stands (all now **works**), and a closing section says which steps are automated and which are guided manual tests. The model underneath is explained in [typed documents](./typed-documents.md); the vocabulary in [the schema language](./schema-language.md). <!-- id:0uMy7lU9 -->
 
 # Before you start <!-- id:aNQZP66c -->
 
 **The app.** On desktop the schema features sit behind a switch: Settings → Developers → **Enable Debug Tools**, then **Hypermedia Schemas**. With it on, the **New** menu gains **Schema**, and a document's options menu gains **New Blob**, **New Schema**, and **New World…**. On the web the same features are on by default. Validation is advisory everywhere: a value that breaks its schema is marked in red, never refused. See [why Hypermedia Schemas](./why.md). <!-- id:5iiI8U-W -->
 
-**The CLI.** Point it at the node you are working with and sign with a key it holds: `--server http://localhost:58004` for the desktop dev app's API, `--server https://hyper.media` (the default) for the public gateway, and `--key <name>` for the signing key (`key list` shows them). `--dev` selects the development keyring. The command reference is [CLI](../cli.md). <!-- id:l0yc6wyb -->
+**The CLI.** Point it at the node you are working with and sign with a key it holds: `--server http://localhost:58004` for the desktop dev app's API, `--server https://hyper.media` (the default) for the public gateway, and `--key <name>` for the signing key (`key list` shows them). `--dev` selects the development keyring. The command reference is [CLI](../build/cli.md). <!-- id:l0yc6wyb -->
 
-**An agent.** An agent reads hypermedia with `read <address>` and publishes with `write <address>`; publishing needs the **publish** grant on the agent. The contracts are in [tools](../../agent/tools.md). <!-- id:jCZEzRiL -->
+**An agent.** An agent reads hypermedia with `read <address>` and publishes with `write <address>`; publishing needs the **publish** grant on the agent. The contracts are in [tools](../agent/tools.md). <!-- id:jCZEzRiL -->
 
 **Running the automated tests.** The CLI and agent steps of every story run against a real daemon and the built web app: from `tests/`, `SKIP_BUILD=true pnpm exec vitest --run user-stories` (drop `SKIP_BUILD` for the first run, which builds the web app). The two automated app stories run against a packaged desktop app: from `frontend/apps/desktop`, `pnpm package:e2e` once, then `pnpm e2e:stories`. The desktop suite uses its own account, appdata (`Seed-e2e`) and ports (58100–58106), so it never touches a dev or installed app. <!-- id:4wHdEdfA -->
 
@@ -22,8 +22,8 @@ These are the things a person should be able to do with the type system, stated 
 
 **In the app** <!-- id:nnKMNDW8 -->
   1. Open any document. The **Attributes** tab lists its metadata as editable fields; the **Content** tab is the block tree. <!-- id:6ySwBrba -->
-  2. Open `hm://<library>/hypermedia-document`. The page explains the type in prose and shows its schema above the body: `metadata` and `content`, each a link. Follow `metadata` to [metadata](../../metadata.md) for every built-in key including `attributesSchema`, `childAttributesSchema` and `schemaDefinition`; follow `content` to [block/node](../../block/node.md) and on to the block types. <!-- id:0daJUHUr -->
-  3. Every type name on those pages is a link, down to the nine kinds in [the data model](../../schema/data-model.md). **Inspect Schema** in a type page's menu opens the same schema by CID at `/hm/schema/<cid>`, with dependencies and dependents. <!-- id:jRqwN-xe -->
+  2. Open `hm://<library>/hypermedia-document`. The page explains the type in prose and shows its schema above the body: `metadata` and `content`, each a link. Follow `metadata` to [metadata](../metadata.md) for every built-in key including `attributesSchema`, `childAttributesSchema` and `schemaDefinition`; follow `content` to [block/node](../block/node.md) and on to the block types. <!-- id:0daJUHUr -->
+  3. Every type name on those pages is a link, down to the nine kinds in [the data model](./data-model.md). **Inspect Schema** in a type page's menu opens the same schema by CID at `/hm/schema/<cid>`, with dependencies and dependents. <!-- id:jRqwN-xe -->
 
 **With the CLI** <!-- id:fOPHu9gf -->
   1. `document get --md hm://<acct>/<path>` prints the document as markdown: the metadata as YAML frontmatter, the blocks with their ids in trailing comments. <!-- id:ZTyY0oGQ -->
@@ -63,7 +63,7 @@ These are the things a person should be able to do with the type system, stated 
 **In the app** <!-- id:iqobHnqn -->
   1. Open the folder document's **Attributes** tab. <!-- id:KK8Er4JX -->
   2. Add the field `childAttributesSchema` and point it at the type document (`hm://<acct>/types/person`), the same search pill as `attributesSchema`. <!-- id:FC5f_ip4 -->
-  3. Create a page under the folder: its required attributes are already there as fixed rows, and its Attributes tab says which type it inherits. A child that sets its own `attributesSchema` uses that instead. See [typed documents](../../schema/typed-documents.md) for the inheritance rule. <!-- id:pHOiP3Yo -->
+  3. Create a page under the folder: its required attributes are already there as fixed rows, and its Attributes tab says which type it inherits. A child that sets its own `attributesSchema` uses that instead. See [typed documents](./typed-documents.md) for the inheritance rule. <!-- id:pHOiP3Yo -->
 
 **With the CLI** <!-- id:9R7QXi7j -->
   1. `document update hm://<acct>/people --child-attributes-schema hm://<acct>/types/person` — or `childAttributesSchema: hm://<acct>/types/person` in the folder's frontmatter, then `document create -f` or `space import`. <!-- id:cjn_V23c -->
@@ -101,10 +101,10 @@ These are the things a person should be able to do with the type system, stated 
   2. Give the document a name and a description in the body — the schema itself carries neither; the page does. <!-- id:RIVfC-ds -->
   3. Press **Edit** on the schema section. In the editor, **Add field** for each property: its **Field name**, its type (picked from every type document, plus the built-ins — text, number, date, HM link, IPFS…), whether it is required, a description. A union or a list is edited in the same form; **Schema JSON** switches to editing the schema as text. <!-- id:lq5g88L3 -->
   4. Publish. The working schema is frozen into a DAG-CBOR blob, and the document's `schemaDefinition` points at it. The page now shows a schema tag in its header and a **Create** button. <!-- id:JwxifnQe -->
-  5. To build on an existing type instead, open its page and choose **Extend Schema**: the new draft starts as `{type: <that type>}` plus your fields. A typed _document_ schema extends `hm://<library>/hypermedia-document` and refines `metadata` — see [typed documents](../../schema/typed-documents.md). <!-- id:H3Lkwivi -->
+  5. To build on an existing type instead, open its page and choose **Extend Schema**: the new draft starts as `{type: <that type>}` plus your fields. A typed _document_ schema extends `hm://<library>/hypermedia-document` and refines `metadata` — see [typed documents](./typed-documents.md). <!-- id:H3Lkwivi -->
 
 **With the CLI** <!-- id:U6i9oiV8 -->
-  1. Write the schema as dag-json next to the page: `types/person.md` and `types/person.schema.json`. `space import hm://<acct> ./site --key <name>` encodes the schema to its CID, publishes the blob, and binds it to the document as `schemaDefinition`. This is how this library itself is published — see [Repo HM sync](../repo-hm-sync.md). <!-- id:PwwtiTUC -->
+  1. Write the schema as dag-json next to the page: `types/person.md` and `types/person.schema.json`. `space import hm://<acct> ./site --key <name>` encodes the schema to its CID, publishes the blob, and binds it to the document as `schemaDefinition`. This is how this library itself is published — see [Repo HM sync](../build/publish-a-folder.md). <!-- id:PwwtiTUC -->
   2. `schema validate person.schema.json` checks the file against the meta-schema first; it also takes an `ipfs://` CID or a type document's URL. <!-- id:Eb_yjidc -->
   3. `document create -f person.md -p types/person --schema-definition person.schema.json` publishes the page and the schema blob together, in one command, and binds them; `document update … --schema-definition` rebinds an existing page. <!-- id:gQHfxmM2 -->
 
@@ -138,7 +138,7 @@ These are the things a person should be able to do with the type system, stated 
 **Goal.** A person defines a new kind of signed record — a Vote, an Attestation — that carries `signer`, `sig` and `ts` like every built-in blob, plus its own fields and its own `type` tag. <!-- id:hGYD00FY -->
 
 **In the app** <!-- id:Pf8uuizb -->
-  1. **New → Schema**, then in the editor set the schema's root type to **Signed blob** ([blob](../../blob.md), found with the type search) and enter the **Type tag** (e.g. `Vote`). The schema becomes an extension of the envelope with `type` pinned to the literal `"Vote"`; the envelope fields are inherited and shown as such. <!-- id:fRYgz98q -->
+  1. **New → Schema**, then in the editor set the schema's root type to **Signed blob** ([blob](../blob.md), found with the type search) and enter the **Type tag** (e.g. `Vote`). The schema becomes an extension of the envelope with `type` pinned to the literal `"Vote"`; the envelope fields are inherited and shown as such. <!-- id:fRYgz98q -->
   2. Add the type's own fields (`target` as an HM link, `choice` as a union of literals). Publish. The page carries the schema and is now a signed type: its **Create** button reads **Sign & publish** (story 8). <!-- id:mwAGRQPu -->
   3. Or open the blob page and choose **Extend Schema** to start from the envelope directly. <!-- id:B4BhWu7g -->
 

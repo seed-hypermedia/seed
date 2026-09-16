@@ -22,11 +22,11 @@ A schema is written as a small JSON file. A publisher hashes it to its DAG-CBOR 
 
 # Layer 1 — Values and the codec <!-- id:yNp--FS1 -->
 
-Everything a schema types is an IPLD value: one of nine kinds — `null`, `boolean`, `integer`, `float`, `string`, `bytes`, `list`, `map`, `link`. The canonical form is DAG-CBOR, a deterministic binary encoding with first-class links (CIDs). The human form is dag-json, a lossless JSON projection that spells a link as `{"/": "bafy…"}` and bytes as `{"/": {"bytes": "…"}}`. Everything in the repository is written in dag-json; everything on the network is DAG-CBOR. The two are projections of one graph, and the transform between them is mechanical. See [the data model](../../schema/data-model.md) and [encoding](../../schema/encoding.md). <!-- id:zh579VQH -->
+Everything a schema types is an IPLD value: one of nine kinds — `null`, `boolean`, `integer`, `float`, `string`, `bytes`, `list`, `map`, `link`. The canonical form is DAG-CBOR, a deterministic binary encoding with first-class links (CIDs). The human form is dag-json, a lossless JSON projection that spells a link as `{"/": "bafy…"}` and bytes as `{"/": {"bytes": "…"}}`. Everything in the repository is written in dag-json; everything on the network is DAG-CBOR. The two are projections of one graph, and the transform between them is mechanical. See [the data model](./data-model.md) and [encoding](./encoding.md). <!-- id:zh579VQH -->
 
 # Layer 2 — Schemas and the meta-schema <!-- id:oOZsaLa6 -->
 
-A schema is a `map` value that constrains other values. It takes one of nine shapes: a `struct` schema (named fields), a `map` schema (an open map via `values`), a `list` schema, a `scalar` schema (with value constraints), a `link` schema (a typed CID), an `include` (a `type` that names another schema), a `union` (`anyOf`), a `var` (a type variable for generics), or a `literal` (`{value, description}`) — and a bare string, integer, boolean, or null is a literal too, accepting exactly that value. The meta-schema — the schema of schemas — is the discriminated union of those shapes, and it validates as an instance of itself. That loop is checked on every run of the reference validator. See [the schema language](../../schema/schema-language.md). <!-- id:wjogEwsM -->
+A schema is a `map` value that constrains other values. It takes one of nine shapes: a `struct` schema (named fields), a `map` schema (an open map via `values`), a `list` schema, a `scalar` schema (with value constraints), a `link` schema (a typed CID), an `include` (a `type` that names another schema), a `union` (`anyOf`), a `var` (a type variable for generics), or a `literal` (`{value, description}`) — and a bare string, integer, boolean, or null is a literal too, accepting exactly that value. The meta-schema — the schema of schemas — is the discriminated union of those shapes, and it validates as an instance of itself. That loop is checked on every run of the reference validator. See [the schema language](./schema-language.md). <!-- id:wjogEwsM -->
 
 # Layer 3 — The library <!-- id:JEnxb06S -->
 
@@ -62,7 +62,7 @@ A schema reference can arrive in three forms, and the app resolves each differen
 | IPFS CID | `ipfs://bafy…` | fetch the blob directly (bundled if known, otherwise from the daemon) <!-- id:0XLNPaVl --> |
 | any Hypermedia document URL | `hm://acme/person` | fetch the document, read its `metadata.schemaDefinition`, then fetch that blob <!-- id:a2Tm8pMr --> |
 
-The third form is what makes types extensible by anyone: a schema published under any account is as resolvable as one from the library. Because network resolution is asynchronous, the app exposes it through hooks — one that resolves a single reference, and one that computes a document's _effective_ attributes schema (its own `attributesSchema`, or its parent's `childAttributesSchema`). See [typed documents](../../schema/typed-documents.md). <!-- id:abCKIpn0 -->
+The third form is what makes types extensible by anyone: a schema published under any account is as resolvable as one from the library. Because network resolution is asynchronous, the app exposes it through hooks — one that resolves a single reference, and one that computes a document's _effective_ attributes schema (its own `attributesSchema`, or its parent's `childAttributesSchema`). See [typed documents](./typed-documents.md). <!-- id:abCKIpn0 -->
 
 # Layer 6 — The engine and the app <!-- id:_2KVPjV5 -->
 
@@ -73,7 +73,7 @@ There is one validation engine. The dependency-free reference validator proves t
   - the **document integration** — required attributes as fixed rows, red non-blocking validation, and the header actions on a schema-definition document; <!-- id:tvgeEE11 -->
   - the **inspector** — recognizes the signed blob types, detects when a blob _is_ a schema, and validates a blob against its attached schema. <!-- id:Ig_ARwrI -->
 
-These live behind Developer Mode in the Seed app (on by default on the web) ; any schema blob, bundled or published, has a full page at `/hm/schema/<cid>` where every reference — a library type, an `hm://` type document, an `ipfs://` schema — is a link, so a schema graph is browsed by clicking. Signed-blob schemas (anything extending [Signed blob](../../blob.md)) get a signing form instead of a plain editor: the envelope is filled and signed with the selected account at publish time. <!-- id:3fjjdA74 -->
+These live behind Developer Mode in the Seed app (on by default on the web) ; any schema blob, bundled or published, has a full page at `/hm/schema/<cid>` where every reference — a library type, an `hm://` type document, an `ipfs://` schema — is a link, so a schema graph is browsed by clicking. Signed-blob schemas (anything extending [Signed blob](../blob.md)) get a signing form instead of a plain editor: the envelope is filled and signed with the selected account at publish time. <!-- id:3fjjdA74 -->
 
 # Layer 7 — Generated code <!-- id:jpRr0H4N -->
 
@@ -81,7 +81,7 @@ These live behind Developer Mode in the Seed app (on by default on the web) ; an
 
 # Layer 8 — The typed API <!-- id:tHk1te8z -->
 
-The last layer turns the machinery on the API itself. Every read method of the Seed universal client — `request(key, input) → output` — is an `rpc/<method>` schema that pins its method key to a literal and types `input` and `output` by reference to the read-model schemas. `rpc/method` is the union of all of them. The in-app API console reads that union to build its method picker, uses the value editor for inputs, and validates both directions advisorily. Adding a method to the catalog is adding a schema. See [the typed API](../../rpc.md). <!-- id:ygRqUJXw -->
+The last layer turns the machinery on the API itself. Every read method of the Seed universal client — `request(key, input) → output` — is an `rpc/<method>` schema that pins its method key to a literal and types `input` and `output` by reference to the read-model schemas. `rpc/method` is the union of all of them. The in-app API console reads that union to build its method picker, uses the value editor for inputs, and validates both directions advisorily. Adding a method to the catalog is adding a schema. See [the typed API](../rpc.md). <!-- id:ygRqUJXw -->
 
 # The invariants <!-- id:4g92-jwm -->
 

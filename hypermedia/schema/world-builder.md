@@ -28,4 +28,4 @@ A type page is a document like any other, so the ontology is edited the way docu
 3. Open the Character type, edit its schema, and add a `title` Date field. Go back to the Wanderer: the new field is there. <!-- id:mrZB1SVL -->
 4. Open the world root's Attributes: **genre** is a dropdown and **epoch** is a date, because the root conforms to the World type. <!-- id:U2jIiOZP -->
 
-The whole tree is ordinary Hypermedia: sync it, share it, comment on it, query it from another space. See [typed documents](../schema/typed-documents.md) for the model underneath. <!-- id:OMoeBJCw -->
+The whole tree is ordinary Hypermedia: sync it, share it, comment on it, query it from another space. See [typed documents](./typed-documents.md) for the model underneath. <!-- id:OMoeBJCw -->
