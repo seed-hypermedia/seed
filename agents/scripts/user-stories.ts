@@ -187,7 +187,7 @@ try {
       // A schema that is not a schema is refused, with the violations spelled out.
       const refused = await verb('write', {
         address: 'ipfs://',
-        content: JSON.stringify({type: `${LIBRARY}/hypermedia-struct`, properties: 'not a map'}),
+        content: JSON.stringify({type: `${LIBRARY}/struct`, properties: 'not a map'}),
         options: {schema: 'hypermedia-schema'},
       }).then(
         () => null,
