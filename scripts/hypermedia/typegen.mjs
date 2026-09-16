@@ -3,10 +3,9 @@
 //   node typegen.mjs            -> write frontend/packages/client/src/schema-types.generated.ts
 //   node typegen.mjs --check    -> fail if the generated file is out of date (for CI)
 //
-// Phase 2 of the schema integration plan (notes/schemas-integration-plan.md): every
-// schema under hypermedia/ (**/*.schema.json) becomes a TS type, so app code can type values by the
-// SAME content-addressed schemas the data references — instead of hand-written
-// Zod duplicating them in hm-types.ts.
+// Every schema under hypermedia/ (**/*.schema.json) becomes a TS type, so app code can type values
+// by the SAME content-addressed schemas the data references — instead of hand-written Zod
+// duplicating them in hm-types.ts.
 //
 // Mapping:
 //   map          -> object type ({props} & {[key: string]: V} when open via `values`)
@@ -21,7 +20,6 @@
 //   generics     -> params -> <T = Default>, var -> T, args -> Name<Arg> (1:1 with TS)
 //   name/descr.  -> JSDoc
 //
-// Instances ({$type, value} files) are data, not types: skipped.
 // Primitive schemas (string, map, ...) inline to TS primitives.
 
 import {readFileSync, writeFileSync} from 'node:fs'

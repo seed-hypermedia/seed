@@ -1,5 +1,5 @@
 // The Hypermedia schema validation engine — a TypeScript port of the reference validator
-// (schemas/validate.mjs), resolving schema references from the bundled
+// (scripts/hypermedia/validate.mjs), resolving schema references from the bundled
 // HM_SCHEMAS instead of the filesystem. Kept behaviorally identical so the
 // in-app schema explorer/editor can never disagree with the reference oracle.
 //
@@ -100,7 +100,7 @@ export function schemaCid(nameOrUrl: string): string | undefined {
 // Reverse of the manifest: a published DAG-CBOR CID -> the bundled schema's
 // basename. Lets a document's `schemaDefinition` (ipfs://<cid>) resolve to a
 // bundled Hypermedia schema without a network fetch — the bundled schemas encode to
-// the same CIDs as the published ones (see schemas/publish.mjs).
+// the same CIDs as the published ones (see scripts/hypermedia/publish.mjs).
 const CID_TO_NAME: Record<string, string> = (() => {
   const out: Record<string, string> = {}
   for (const [url, cid] of Object.entries(HM_SCHEMA_MANIFEST)) {
