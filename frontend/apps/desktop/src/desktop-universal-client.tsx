@@ -65,6 +65,7 @@ export const desktopUniversalClient: UniversalClient = {
 
   drafts: {
     listAccountDrafts: (accountUid) => trpcClient.drafts.listAccount.query(accountUid),
+    getDraft: (draftId) => trpcClient.drafts.get.query(draftId),
   },
 
   getSigner,

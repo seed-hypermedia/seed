@@ -115,14 +115,12 @@ import {
   FileText,
   Grid3X3,
   List as ListIcon,
-  ListTree,
   MoreHorizontal,
   Pencil,
   Plus,
   Quote,
   Search,
   Table as TableIcon,
-  Tags,
   Trash,
 } from 'lucide-react'
 import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
@@ -161,7 +159,13 @@ import {HMEntityField, HMEntityLink} from './hm-entity-field'
 import {emptyStructSchema, SchemaEditor} from './schema/schema-editor'
 import {SizableText} from './text'
 import {SchemaBrowserPage} from './schema/schema-browser'
-import {classifyRef, metadataSchemaOf, useEffectiveDocSchema, useResolvedSchema} from './schema/schema-resolve'
+import {
+  classifyRef,
+  metadataSchemaOf,
+  useEffectiveDocSchema,
+  useParentDraftChildAttributesSchema,
+  useResolvedSchema,
+} from './schema/schema-resolve'
 import {BINDING_SCHEMA_KEYS, type BindingSchemaKey} from '@shm/shared/models/schema-draft'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from './components/dialog'
 import {DocumentTools} from './document-tools'
@@ -419,8 +423,6 @@ export function orderDocumentMenuItems(items: MenuItemType[]): MenuItemType[] {
   const itemOrder = [
     'new',
     'options',
-    'binding-schema-attributesSchema',
-    'binding-schema-childAttributesSchema',
     'versions',
     'convert-to-collection',
     'convert-to-document',
@@ -2642,19 +2644,6 @@ function DocumentBody({
       },
     }
   }, [canEditCurrentRoute, panelKey, route, replaceRoute])
-  // The two attributes-schema bindings, edited in place on the Attributes tab: "Attributes Schema"
-  // (this document's own fields) and "Children Attributes Schema" (the fields of every document
-  // created inside it). Each opens the tab focused on that binding, drafting an empty struct when
-  // nothing is bound yet, so adding a field is one step away.
-  const bindingSchemaMenuItems = useMemo<MenuItemType[]>(() => {
-    if (!canEditCurrentRoute) return []
-    return BINDING_SCHEMA_KEYS.map((bindingKey) => ({
-      key: `binding-schema-${bindingKey}`,
-      label: bindingKey === 'attributesSchema' ? 'Attributes Schema' : 'Children Attributes Schema',
-      icon: bindingKey === 'attributesSchema' ? <Tags className="size-4" /> : <ListTree className="size-4" />,
-      onClick: () => navigate({key: 'metadata', id: docId, focus: bindingKey}),
-    }))
-  }, [canEditCurrentRoute, navigate, docId])
   const citationFragmentToggleMenuItem = useMemo<MenuItemType>(
     () => ({
       key: 'citation-fragments-toggle',
@@ -2701,7 +2690,6 @@ function DocumentBody({
     unorderedItems.push(citationFragmentToggleMenuItem)
     if (inspectMenuItem) unorderedItems.push(inspectMenuItem)
     if (documentOptionsMenuItem) unorderedItems.push(documentOptionsMenuItem)
-    unorderedItems.push(...bindingSchemaMenuItems)
     unorderedItems.push(...schemaMenuItems)
     if (convertToCollectionMenuItem) unorderedItems.push(convertToCollectionMenuItem)
     if (convertToDocumentMenuItem) unorderedItems.push(convertToDocumentMenuItem)
@@ -2720,7 +2708,6 @@ function DocumentBody({
     documentOptionsMenuItem,
     convertToCollectionMenuItem,
     convertToDocumentMenuItem,
-    bindingSchemaMenuItems,
     schemaMenuItems,
     isUnpublishedDraft,
   ])
@@ -3670,7 +3657,14 @@ function BindingSchemaSection({
   // With no attributes schema of its own, a document's fields follow its parent's children
   // attributes schema — shown here, since it is what shapes the rows, with Define as the override.
   const effective = useEffectiveDocSchema(bindingKey === 'attributesSchema' ? docId : null, metadata)
-  const inherited = bindingKey === 'attributesSchema' && !draft && !ref && effective.source === 'inherited'
+  // The parent's children schema may still be a draft on this device; the rows already follow it.
+  const parentDraft = useParentDraftChildAttributesSchema(
+    bindingKey === 'attributesSchema' && !draft && !ref ? docId : null,
+  )
+  const inheritedSchema = parentDraft.schema ?? effective.schema
+  const inheritedIsDraft = !!parentDraft.schema
+  const inherited =
+    bindingKey === 'attributesSchema' && !draft && !ref && (inheritedIsDraft || effective.source === 'inherited')
   const parentId = docId.path?.length ? hmId(docId.uid, {path: docId.path.slice(0, -1)}) : null
   const focused = route.key === 'metadata' && route.focus === bindingKey
   const label = bindingKey === 'attributesSchema' ? 'Attributes schema' : 'Children attributes schema'
@@ -3760,14 +3754,16 @@ function BindingSchemaSection({
           <div className="flex flex-col gap-2" data-testid="binding-schema-inherited">
             <div className="flex flex-wrap items-center gap-2">
               <SizableText size="xs" className="text-muted-foreground">
-                Inherited from the parent's children attributes schema
+                {inheritedIsDraft
+                  ? "Inherited from the parent's children attributes schema (an unpublished draft)"
+                  : "Inherited from the parent's children attributes schema"}
               </SizableText>
               {parentId ? <HMEntityLink url={parentId.id} mode="document" onOpen={openUrl} /> : null}
             </div>
-            {effective.schema ? (
+            {inheritedSchema ? (
               <SchemaNavContext.Provider value={{openRef: (r) => openUrl(r)}}>
                 <SchemaView
-                  schema={effective.schema}
+                  schema={inheritedSchema}
                   nav={(slug) => {
                     const url = nameToUrl(slug)
                     if (url) openUrl(url)
@@ -3777,7 +3773,9 @@ function BindingSchemaSection({
               </SchemaNavContext.Provider>
             ) : (
               <SizableText size="sm" className="text-muted-foreground">
-                {effective.isLoading ? 'Fetching schema…' : 'Could not resolve the parent’s schema.'}
+                {effective.isLoading || parentDraft.isLoading
+                  ? 'Fetching schema…'
+                  : 'Could not resolve the parent’s schema.'}
               </SizableText>
             )}
           </div>
@@ -3868,9 +3866,17 @@ function DocumentMetadataPage({
   // to it reshapes the rows and their validation at once, before anything is published.
   const {metadataSchema: effectiveSchema} = useEffectiveDocSchema(docId, metadata)
   const draftedAttributesSchema = ctx.bindingSchemaDrafts?.attributesSchema
+  // …and with no schema of its own, the parent's DRAFTED children schema counts too (desktop).
+  const ownRef = typeof (metadata as Record<string, unknown>).attributesSchema === 'string'
+  const parentDraft = useParentDraftChildAttributesSchema(ownRef || draftedAttributesSchema ? null : docId)
   const conformanceSchema = useMemo(
-    () => (draftedAttributesSchema ? metadataSchemaOf(draftedAttributesSchema) : effectiveSchema),
-    [draftedAttributesSchema, effectiveSchema],
+    () =>
+      draftedAttributesSchema
+        ? metadataSchemaOf(draftedAttributesSchema)
+        : !ownRef && parentDraft.schema
+          ? metadataSchemaOf(parentDraft.schema)
+          : effectiveSchema,
+    [draftedAttributesSchema, ownRef, parentDraft.schema, effectiveSchema],
   )
 
   // Open an uploaded IPFS file reference in its own dedicated viewer window/tab.
@@ -4490,9 +4496,18 @@ function ContentViewWithOutline({
   // attributes schema (Attributes tab) takes precedence, so the rows follow it live.
   const {metadataSchema: effectiveSchema} = useEffectiveDocSchema(resourceId, requiredAttrMetadata)
   const draftedAttributesSchema = ctx.bindingSchemaDrafts?.attributesSchema
+  const ownAttributesRef = typeof (requiredAttrMetadata as Record<string, unknown>).attributesSchema === 'string'
+  const parentDraft = useParentDraftChildAttributesSchema(
+    ownAttributesRef || draftedAttributesSchema ? null : resourceId,
+  )
   const conformanceSchema = useMemo(
-    () => (draftedAttributesSchema ? metadataSchemaOf(draftedAttributesSchema) : effectiveSchema),
-    [draftedAttributesSchema, effectiveSchema],
+    () =>
+      draftedAttributesSchema
+        ? metadataSchemaOf(draftedAttributesSchema)
+        : !ownAttributesRef && parentDraft.schema
+          ? metadataSchemaOf(parentDraft.schema)
+          : effectiveSchema,
+    [draftedAttributesSchema, ownAttributesRef, parentDraft.schema, effectiveSchema],
   )
   // existingDraftContent may arrive in HMBlockNode[] or
   // EditorBlock[] shape. Pick the outline builder that matches.
