@@ -6,6 +6,7 @@ import {seedValue} from './schema/data-editor'
 import {SchemaRegistryProvider} from './schema/schema-context'
 import {SchemaErrorSummary} from './schema/value-editor-schema'
 import {RESERVED_METADATA_KEYS} from './schema/schema-document'
+import {BINDING_SCHEMA_KEYS} from '@shm/shared/models/schema-draft'
 import {
   buildSchemaKeyRoot,
   collectSchemaKeyCids,
@@ -143,7 +144,10 @@ export function DocumentMetadataView({
   const current = useMemo(() => (metadata ?? {}) as Record<string, unknown>, [metadata])
   // Null tombstones = absent, so validate against a null-stripped copy.
   const validationValue = useMemo(() => stripNullsDeep(current), [current])
-  const entries = canonicalEntries(current, {hideNull: true})
+  // The two schema bindings are shown and edited by their own sections above the rows.
+  const entries = canonicalEntries(current, {hideNull: true}).filter(
+    ([key]) => !(BINDING_SCHEMA_KEYS as readonly string[]).includes(key),
+  )
   const editable = canEdit && !!onMetadata
 
   // Schema-keyed fields: a key in the `ipfs://<schemaCid>` form means the

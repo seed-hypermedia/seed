@@ -2364,6 +2364,9 @@ describe('working schema (schemaDraft) is draft state beside the metadata', () =
     })
     expect(saved.metadata).not.toHaveProperty('schemaDraft')
     expect(saved.metadata).not.toHaveProperty('bindingSchemaDrafts')
+    // A null drops that key's draft; the last one gone leaves no map at all.
+    actor.send({type: 'change', bindingSchemaDrafts: {childAttributesSchema: null}})
+    expect(actor.getSnapshot().context.bindingSchemaDrafts).toBeNull()
     actor.stop()
   })
 
