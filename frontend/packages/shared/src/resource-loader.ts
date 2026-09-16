@@ -10,7 +10,7 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {getErrorMessage, HMError, HMNotFoundError, HMRedirectError, HMResourceTombstoneError} from './models/entity'
-import {MAX_REDIRECT_HOPS} from './redirects'
+import {MAX_REDIRECT_HOPS, republishVersionCarry} from './redirects'
 import {packHmId} from './utils'
 
 /**
@@ -116,7 +116,7 @@ export function createResourceResolver(grpcClient: GRPCClient) {
       visited.add(key)
       const resource = await fetchResource(current)
       if (resource.type === 'redirect') {
-        current = resource.redirectTarget
+        current = {...resource.redirectTarget, ...republishVersionCarry(resource, current)}
         continue
       }
       if (resource.type === 'not-found') {

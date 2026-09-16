@@ -41,6 +41,7 @@ import {
   queryQueryBlock,
   queryResource,
 } from '@shm/shared/models/queries'
+import {republishVersionCarry} from '@shm/shared/redirects'
 import {createResourceFetcher, createResourceResolver} from '@shm/shared/resource-loader'
 import {DehydratedState} from '@tanstack/react-query'
 import {grpcClient} from './client.server'
@@ -547,10 +548,12 @@ export async function loadResource(
 
   const resource = await instrument(ctx || noopCtx, `fetchResource(${packHmId(id)})`, () => fetchResource(id))
   if (resource.type === 'redirect' && resource.republish) {
-    // A republish redirect renders the target's latest content at THIS route — matching the
+    // A republish redirect renders the target's content at THIS route — matching the
     // client-side queryResource behavior — instead of bouncing the browser to the target URL.
-    const followed = await instrument(ctx || noopCtx, `followRepublish(${packHmId(resource.redirectTarget)})`, () =>
-      resolveResource(resource.redirectTarget),
+    // A version pinned on the republish route is the target's version: follow the hop with it.
+    const followTarget = {...resource.redirectTarget, ...republishVersionCarry(resource, id)}
+    const followed = await instrument(ctx || noopCtx, `followRepublish(${packHmId(followTarget)})`, () =>
+      resolveResource(followTarget),
     )
     if (followed.type === 'document') {
       const latestDocument = await instrument(ctx || noopCtx, `getLatestDocument(${packHmId(followed.id)})`, () =>

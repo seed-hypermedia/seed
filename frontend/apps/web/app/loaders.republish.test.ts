@@ -1,11 +1,12 @@
 /**
- * Regression test for republished documents on web.
+ * Regression tests for republished documents on web.
  *
  * A republish is a redirect record at the site's own address that points at a document on
- * another site. The loader renders the target's content at the republish's address. The
- * target's version must NOT be pinned onto the republish's id: that address has no such
- * version, so the daemon reports not-found for the SSR prefetch and for every client refetch,
- * and the page shows "Document Not Found" even though the document is listed on the site.
+ * another site. The loader renders the target's content at the republish's address, and keeps
+ * the route on the republish's own unpinned id rather than pinning the target's version onto it.
+ * When the route itself arrives version-pinned (the republish's page advertises the target's
+ * version under the republish's address, so shared links and embeds carry it), the daemon
+ * reports the redirect for that lookup and the loader follows it to that version of the target.
  */
 import type {HMDocument, HMResource, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, packHmId} from '@shm/shared'
@@ -32,13 +33,11 @@ const targetDocument = {
   generationInfo: {generator: 'test', genesis: 'bafygenesis', version: TARGET_VERSION},
 } as unknown as HMDocument
 
-// The daemon's answers: the site address is a republish redirect; the target is a document.
+// The daemon's answers: the site address is a republish redirect (also for a version-pinned
+// lookup, which finds no such version there and reports the redirect instead); the target is
+// a document.
 function daemonResource(id: UnpackedHypermediaId): HMResource {
   if (id.uid === SITE_UID && id.path?.join('/') === '3800935.3830834') {
-    if (id.version) {
-      // The target's version does not exist at the republish's address.
-      return {type: 'not-found', id}
-    }
     return {type: 'redirect', id, redirectTarget: targetId, republish: true}
   }
   if (id.uid === SOURCE_UID) {
@@ -47,7 +46,16 @@ function daemonResource(id: UnpackedHypermediaId): HMResource {
   return {type: 'not-found', id}
 }
 
-vi.mock('./client.server', () => ({grpcClient: {}, transport: {}, domainResolver: {}}))
+vi.mock('./client.server', () => ({
+  grpcClient: {
+    documents: {
+      // The loader's latest-document lookup for a version-pinned route; the target is its own latest.
+      getDocument: async () => ({toJson: () => targetDocument}),
+    },
+  },
+  transport: {},
+  domainResolver: {},
+}))
 // site-config.server reads DATA_DIR/config.json at import time and throws without one (CI).
 vi.mock('./site-config.server', () => ({
   getConfig: async () => ({registeredAccountUid: SITE_UID}),
@@ -56,12 +64,14 @@ vi.mock('./site-config.server', () => ({
 }))
 vi.mock('@shm/editor/ssr-render', () => ({renderDocumentToHTML: () => ''}))
 vi.mock('@shm/editor/comment-editor', () => ({CommentEditor: () => null, HypermediaCommentEditor: () => null}))
+const resolverCalls = vi.hoisted(() => [] as UnpackedHypermediaId[])
 vi.mock('@shm/shared/resource-loader', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,
     createResourceFetcher: () => async (id: UnpackedHypermediaId) => daemonResource(id),
     createResourceResolver: () => async (id: UnpackedHypermediaId) => {
+      resolverCalls.push(id)
       let current = id
       for (let hop = 0; hop < 5; hop++) {
         const res = daemonResource(current)
@@ -86,6 +96,7 @@ vi.mock('./server-universal-client', () => ({
 
 describe('loadResource for a republished document', () => {
   beforeEach(() => {
+    resolverCalls.length = 0
     universalRequest.mockReset()
     universalRequest.mockImplementation(async (name: string, id: UnpackedHypermediaId) => {
       if (name === 'Resource') return daemonResource(id)
@@ -129,5 +140,19 @@ describe('loadResource for a republished document', () => {
       ([name, id]) => name === 'Resource' && id.uid === SITE_UID && id.version === TARGET_VERSION,
     )
     expect(pinnedRequests).toEqual([])
+  })
+
+  it('follows a version-pinned republish route to that version of the target', async () => {
+    const {loadResource} = await import('./loaders')
+    const {parseRequest} = await import('./request')
+    const parsedRequest = parseRequest(new Request(`https://ht26.hyper.media/3800935.3830834?v=${TARGET_VERSION}`))
+    const pinnedId = hmId(SITE_UID, {path: ['3800935.3830834'], version: TARGET_VERSION, latest: false})
+
+    const payload = await loadResource(pinnedId, parsedRequest)
+
+    expect(payload.document.version).toBe(TARGET_VERSION)
+    // The route keeps the republish's address, and the hop asked the target for the pinned version.
+    expect(payload.id.uid).toBe(SITE_UID)
+    expect(resolverCalls).toContainEqual(expect.objectContaining({uid: SOURCE_UID, version: TARGET_VERSION}))
   })
 })

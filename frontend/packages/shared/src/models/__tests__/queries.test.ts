@@ -216,6 +216,28 @@ describe('queryResource', () => {
     expect(client.request).toHaveBeenNthCalledWith(2, 'Resource', docB, {signal: undefined})
   })
 
+  test('carries a pinned version across a republish redirect to the target it belongs to', async () => {
+    // A version-pinned embed of a republish stores the target's version under the republish's
+    // address; the daemon reports the redirect for it, and the hop must ask the target for
+    // that version rather than its latest.
+    const pinnedDocA = hmId('uid1', {path: ['old-name'], version: 'v123', latest: false})
+    const client = createMockClient((_key, input) => {
+      if (input.id === docA.id) return redirectResponse(pinnedDocA, docB, {republish: true})
+      if (input.id === docB.id) return documentResponse(input)
+      throw new Error(`Unexpected request: ${input.id}`)
+    })
+
+    const result = await queryResource(client, pinnedDocA).queryFn!()
+
+    expect(client.request).toHaveBeenNthCalledWith(
+      2,
+      'Resource',
+      {...docB, version: 'v123', latest: false},
+      {signal: undefined},
+    )
+    expect(result).toMatchObject({type: 'document', id: pinnedDocA})
+  })
+
   test('returns null for null id', async () => {
     const client = createMockClient(() => {
       throw new Error('Should not be called')
