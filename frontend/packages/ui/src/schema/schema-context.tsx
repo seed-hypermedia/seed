@@ -90,6 +90,11 @@ export function SchemaRegistryProvider({
       if (attachmentKey && warning.path.length === 1 && warning.path[0] === attachmentKey) continue
       if (attachmentKey && warning.path.length === 0 && warning.message.includes(`unexpected key "${attachmentKey}"`))
         continue
+      // A missing required field is reported on the map that lacks it; the row that shows the
+      // field (seeded, waiting to be filled) lives one level down, so the warning is homed there —
+      // that is where "is required" has to read.
+      const missing = /^missing required "(.+)"$/.exec(warning.message)
+      if (missing) warning.path = [...warning.path, missing[1]!]
       const key = warningKey(warning.path)
       const existing = warningsByPath.get(key)
       if (existing) existing.push(warning)
