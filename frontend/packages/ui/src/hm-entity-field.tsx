@@ -1,6 +1,8 @@
 import {resolveHypermediaUrl} from '@seed-hypermedia/client'
+import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {getMetadataName} from '@shm/shared/content'
 import {useResource} from '@shm/shared/models/entity'
+import {useSchemaDocumentSearch} from '@shm/shared/models/schema-documents'
 import {useSearch} from '@shm/shared/models/search'
 import {useUniversalAppContext} from '@shm/shared/routing'
 import {packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -164,17 +166,23 @@ function HMEntitySearchInput({
   // The platform's domain store answers first (cached, offline); the site's own answer is the fallback.
   const {domainResolver} = useUniversalAppContext()
   const isUrlInput = /^(hm|ipfs|https?):\/\//i.test(text.trim())
-  const search = useSearch(text.trim(), {enabled: text.trim().length > 0 && !isUrlInput})
-  const documents = (search.data?.entities ?? []).filter((entity) => {
-    if (entity.type === 'comment') return false
-    // Profiles are account-root documents: a uid with no path.
-    if (mode === 'profile') return !entity.id.path?.length
-    return true
-  })
-  // Schema mode wants pages that DEFINE a schema. Search results carry metadata when the
-  // index has it; keep the defining pages when any result says so, else show every document.
-  const defining = mode === 'schema' ? documents.filter((entity) => !!entity.metadata?.schemaDefinition) : []
-  const results = (defining.length ? defining : documents).slice(0, 6)
+  const search = useSearch(text.trim(), {enabled: mode !== 'schema' && text.trim().length > 0 && !isUrlInput})
+  // Schema mode offers only pages that DEFINE a schema (carry `schemaDefinition`), through the
+  // attribute query — by name when text is typed, the latest ones when the field is empty — so
+  // whatever is picked resolves to a schema. Text and profile modes use full-text search.
+  const schemaPages = useSchemaDocumentSearch(text, {enabled: mode === 'schema' && !isUrlInput})
+  const results: Array<{id: UnpackedHypermediaId; title: string}> =
+    mode === 'schema'
+      ? (schemaPages.data ?? []).map((info) => ({id: info.id, title: getMetadataName(info.metadata) || info.id.id}))
+      : (search.data?.entities ?? [])
+          .filter((entity) => {
+            if (entity.type === 'comment') return false
+            // Profiles are account-root documents: a uid with no path.
+            if (mode === 'profile') return !entity.id.path?.length
+            return true
+          })
+          .slice(0, 6)
+          .map((entity) => ({id: entity.id, title: entity.title || entity.id.id}))
 
   const commitText = async () => {
     // Commit whatever was typed — validation stays advisory (a warning badge,
@@ -267,7 +275,7 @@ function HMEntitySearchInput({
               ) : (
                 <FileText className="text-muted-foreground size-3.5 shrink-0" />
               )}
-              <span className="truncate">{entity.title || entity.id.id}</span>
+              <span className="truncate">{entity.title}</span>
             </button>
           ))}
         </div>
