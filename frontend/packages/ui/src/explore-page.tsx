@@ -226,7 +226,7 @@ function ExploreDocumentCard({document, spaceName}: {document: HMDocumentInfo; s
     .slice(1, -1)
     .map((crumb) => crumb.name)
     .filter(Boolean)
-  const updated = document.activitySummary?.latestChangeTime ?? document.updateTime
+  const updated = document.updateTime
   const citations = interactions.data?.citations ?? 0
   const comments = interactions.data?.comments ?? 0
   return (
@@ -298,19 +298,19 @@ function ExploreDocumentCard({document, spaceName}: {document: HMDocumentInfo; s
 function ExploreSpaceCard({space}: {space: HMDocumentInfo}) {
   const id = hmId(space.id.uid)
   const capability = useSelectedAccountCapability(id)
+  // Every card here is a space this identity joined, so show member if no capability.
+  const role = exploreRoleLabel(capability?.role) ?? 'Member'
   const linkProps = useRouteLink({key: 'document', id})
   const name = getMetadataName(space.metadata) || space.id.uid.slice(0, 8)
-  const updated = space.activitySummary?.latestChangeTime ?? space.updateTime
+  const updated = space.updateTime
   return (
     <a {...linkProps} className={exploreCardClassName}>
       <div className="flex items-center gap-2">
         <HMIcon size={24} id={id} name={name} icon={space.metadata?.icon} />
         <span className="min-w-0 flex-1 truncate font-semibold">{name}</span>
-        {capability?.role ? (
-          <span className="bg-muted text-muted-foreground shrink-0 rounded px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase">
-            {capability.role}
-          </span>
-        ) : null}
+        <span className="bg-muted text-muted-foreground shrink-0 rounded px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase">
+          {role}
+        </span>
       </div>
       {updated ? <span className="text-muted-foreground text-xs">Updated {formattedDateMedium(updated)}</span> : null}
     </a>

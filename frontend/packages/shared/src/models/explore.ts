@@ -508,7 +508,7 @@ export function useExploreRecentDocuments(
               : scopeFilters.length === 1
                 ? scopeFilters[0]
                 : new DocumentFilter({filter: {case: 'and', value: new DocumentFilter_And({filters: scopeFilters})}}),
-          sort: [new DocumentSort({attribute: BuiltinSortAttribute.ACTIVITY_TIME, descending: true})],
+          sort: [new DocumentSort({attribute: BuiltinSortAttribute.UPDATE_TIME, descending: true})],
           pageSize,
         }),
         {signal},

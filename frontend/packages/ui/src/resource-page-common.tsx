@@ -1,4 +1,3 @@
-import {ChildDeletionPublishDialog} from './child-deletion-publish-dialog'
 import type {EditorBlock, EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
 import {
   BlockRange,
@@ -94,8 +93,8 @@ import {getRoutePanel} from '@shm/shared/routes'
 import {useOpenUrl, useUniversalClient} from '@shm/shared/routing'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {
-  activitySlugToFilter,
   activityFilterToSlug,
+  activitySlugToFilter,
   getCommentTargetId,
   getVersionHeads,
   hmIdToURL,
@@ -103,19 +102,6 @@ import {
   parseFragment,
   routeToUrl,
 } from '@shm/shared/utils/entity-id-url'
-
-/** Creates a right-panel route showing citations to one block. */
-export function getBlockCitationsPanelRoute(
-  docId: UnpackedHypermediaId,
-  targetBlockId: string,
-): Extract<DocumentPanelRoute, {key: 'activity'}> {
-  return {
-    key: 'activity',
-    id: docId,
-    filterEventType: activitySlugToFilter('citations'),
-    targetBlockId,
-  }
-}
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 import {getReservedLazyDraftBreadcrumbName} from '@shm/shared/utils/reserved-draft-ids'
@@ -137,6 +123,7 @@ import {createPortal} from 'react-dom'
 import {AccountPage} from './account-page'
 import {AllDocumentsPage} from './all-documents-page'
 import {Button} from './button'
+import {ChildDeletionPublishDialog} from './child-deletion-publish-dialog'
 import {CollaboratorsPage, getRenderedCollaboratorsCount} from './collaborators-page'
 import {
   AlertDialog,
@@ -191,6 +178,19 @@ import {useCopyHmLink} from './use-copy-hm-link'
 import {useMedia} from './use-media'
 import {cn} from './utils'
 import {AttributeAutocomplete, AttributeAutocompleteProvider} from './value-editor'
+
+/** Creates a right-panel route showing citations to one block. */
+export function getBlockCitationsPanelRoute(
+  docId: UnpackedHypermediaId,
+  targetBlockId: string,
+): Extract<DocumentPanelRoute, {key: 'activity'}> {
+  return {
+    key: 'activity',
+    id: docId,
+    filterEventType: activitySlugToFilter('citations'),
+    targetBlockId,
+  }
+}
 
 const LazyDocumentMachineDebugDrawer = lazy(() =>
   import('@shm/shared/models/document-machine-debug-drawer').then((m) => ({default: m.DocumentMachineDebugDrawer})),
@@ -2045,6 +2045,10 @@ function DocumentBody({
   // Respect the showActivity metadata toggle to hide the document tools bar.
   const showActivity = metadata?.showActivity !== false
 
+  // Explore searches the whole space rather than presenting a document,
+  // so it drops the document's chrome.
+  const showDocumentChrome = activeView !== 'explore'
+
   // Extract blockRef from route for scroll-to-block and highlighting
   const routeBlockRef = 'id' in route && typeof route.id === 'object' ? route.id.blockRef : null
   const {scrollToBlock} = useBlockScroll(routeBlockRef)
@@ -2102,6 +2106,12 @@ function DocumentBody({
     () => getRenderedCollaboratorsCount(collaborators.data, isHomeDoc),
     [collaborators.data, isHomeDoc],
   )
+  const showMembersFacepile =
+    isHomeDoc &&
+    showDocumentChrome &&
+    activeView !== 'all-documents' &&
+    !siteMembers.isInitialLoading &&
+    siteMembers.members.length > 0
   const citationsTargetId = useMemo(
     () => getCitationsTargetId({docId, documentVersion: document.version}),
     [docId, document.version],
@@ -2732,14 +2742,11 @@ function DocumentBody({
             className={cn(mainContentProps.className, 'flex flex-col', isCollection && '!w-full !max-w-none')}
             style={isCollection ? {...mainContentProps.style, maxWidth: undefined} : mainContentProps.style}
           >
-            {isHomeDoc &&
-              activeView !== 'all-documents' &&
-              !siteMembers.isInitialLoading &&
-              siteMembers.members.length > 0 && (
-                <div className="pt-4">
-                  <MembersFacepile members={siteMembers.members} siteId={siteId} />
-                </div>
-              )}
+            {showMembersFacepile && (
+              <div className="pt-4">
+                <MembersFacepile members={siteMembers.members} siteId={siteId} />
+              </div>
+            )}
             {!isHomeDoc &&
               (canEditCurrentRoute ? (
                 <EditableDocumentHeader
@@ -2771,14 +2778,11 @@ function DocumentBody({
           className={cn('mx-auto flex w-full flex-col px-4')}
           style={{maxWidth: isCollection ? undefined : contentMaxWidth}}
         >
-          {isHomeDoc &&
-            activeView !== 'all-documents' &&
-            !siteMembers.isInitialLoading &&
-            siteMembers.members.length > 0 && (
-              <div className="pt-4">
-                <MembersFacepile members={siteMembers.members} siteId={siteId} />
-              </div>
-            )}
+          {showMembersFacepile && (
+            <div className="pt-4">
+              <MembersFacepile members={siteMembers.members} siteId={siteId} />
+            </div>
+          )}
           {!isHomeDoc &&
             (canEditCurrentRoute ? (
               <EditableDocumentHeader
@@ -2807,7 +2811,7 @@ function DocumentBody({
 
       {/* DocumentTools - scrolls with the page; the border separates document
           identity above from document body below. Hidden when showActivity is false. */}
-      {showActivity && (
+      {showActivity && showDocumentChrome && (
         <div className="px-5 py-1">
           <DocumentTools
             id={docId}
@@ -2818,8 +2822,7 @@ function DocumentBody({
                 : activeView === 'activity' ||
                     activeView === 'directory' ||
                     activeView === 'site-profile' ||
-                    activeView === 'all-documents' ||
-                    activeView === 'explore'
+                    activeView === 'all-documents'
                   ? undefined
                   : activeView
             }
@@ -2840,10 +2843,7 @@ function DocumentBody({
                   }
             }
             activeTabAction={
-              activeView !== 'content' &&
-              activeView !== 'site-profile' &&
-              activeView !== 'all-documents' &&
-              activeView !== 'explore' ? (
+              activeView !== 'content' && activeView !== 'site-profile' && activeView !== 'all-documents' ? (
                 <OpenInPanelButton
                   id={docId}
                   panelRoute={
