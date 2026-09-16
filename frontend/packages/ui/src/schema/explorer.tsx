@@ -13,17 +13,16 @@ import {
   dependencies,
   dependents,
   HM_SCHEMAS,
-  isInstance,
   isLiteralSchema,
   kindOf,
   literalValue,
   nameForCid,
+  namedSchemaUrl,
   nameToUrl,
   refToName,
   resolveSchema,
   schemaCid,
   structFields,
-  validate,
   type HypermediaSchema,
   type StructField,
 } from './engine'
@@ -154,8 +153,9 @@ function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React
         ))}
       </span>
     )
-  if (node.ref && !node.type) {
-    const b = refToName(node.ref)
+  const named = namedSchemaUrl(node)
+  if (named) {
+    const b = refToName(named)
     if (node.args) {
       return (
         <span>
@@ -182,7 +182,7 @@ function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React
       )
     return (
       <span>
-        <Chip label={`↳ ${b}`} onClick={() => open(node.ref)} />
+        <Chip label={`↳ ${b}`} onClick={() => open(named)} />
         {target}
       </span>
     )
@@ -192,10 +192,10 @@ function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React
     return (
       <span>
         <KindBadge kind="link" nav={nav} />
-        {node.ref && (
+        {typeof node.target === 'string' && (
           <>
             {' '}
-            <Chip label={`→ ${refToName(node.ref)}`} onClick={() => nav(refToName(node.ref))} variant="dep" />
+            <Chip label={`→ ${refToName(node.target)}`} onClick={() => open(node.target)} variant="dep" />
           </>
         )}
       </span>
@@ -227,37 +227,6 @@ function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React
       </span>
     )
   return <span className="text-muted-foreground">any</span>
-}
-
-// --- source JSON with clickable hm:// refs ---------------------------------
-
-function SourceJson({schema, nav}: {schema: any; nav: (slug: string) => void}) {
-  const openRef = useSchemaOpenRef()
-  const text = JSON.stringify(schema, null, 2)
-  // Split on hm:// / ipfs:// URLs so each becomes a clickable link to its page.
-  const parts = text.split(/("(?:hm|ipfs):\/\/[^"]+")/g)
-  return (
-    <pre className="bg-muted/50 overflow-x-auto rounded-md border p-3 font-mono text-xs">
-      {parts.map((p, i) => {
-        const m = /^"((?:hm|ipfs):\/\/[^"]+)"$/.exec(p)
-        if (m) {
-          const name = refToName(m[1]!)
-          const known = !!HM_SCHEMAS[name]
-          const onClick = known ? () => nav(name) : openRef ? () => openRef(m[1]!) : undefined
-          return (
-            <span
-              key={i}
-              className={onClick ? 'text-primary cursor-pointer underline decoration-dotted' : 'text-primary'}
-              onClick={onClick}
-            >
-              "{m[1]}"
-            </span>
-          )
-        }
-        return <span key={i}>{p}</span>
-      })}
-    </pre>
-  )
 }
 
 // --- the schema page -------------------------------------------------------
@@ -413,39 +382,15 @@ export function SchemaDocPage({
 
   const url = nameToUrl(slug)
   const cid = schemaCid(slug)
-  const instance = isInstance(schema)
-
-  // Instance page: validate the value against its declared $type.
-  if (instance) {
-    const typeName = refToName(schema.$type)
-    const typeSchema = HM_SCHEMAS[typeName]
-    const errs = typeSchema ? validate(typeSchema, schema.value) : ['unknown $type']
-    return (
-      <div className="flex flex-col gap-3">
-        <h1 className="font-mono text-xl font-bold">{slug}</h1>
-        <p className="text-sm">
-          <Tag kind="instance">instance</Tag> <span className="text-muted-foreground">· of</span>{' '}
-          <Chip label={typeName} onClick={() => nav(typeName)} />
-        </p>
-        <Callout>
-          {errs.length === 0 ? (
-            <span className="font-medium text-emerald-600">✓ a valid instance of {typeName}</span>
-          ) : (
-            <span className="font-medium text-amber-600">
-              ⚠ does not match {typeName}: {errs[0]}
-            </span>
-          )}
-        </Callout>
-        <h2 className="mt-2 text-sm font-semibold">Value</h2>
-        <SourceJson schema={schema.value} nav={nav} />
-      </div>
-    )
-  }
-
   const isUnion = Array.isArray(schema.anyOf)
   const isPrim = isPrimitive(slug)
-  const hasRef = schema.ref && !schema.type
-  const hasExt = hasRef && ['properties', 'required', 'values', 'items'].some((k) => schema[k] !== undefined)
+  // A schema that NAMES another (rather than a kind) includes it; with any refinement it is a subtype.
+  const base = namedSchemaUrl(schema)
+  const hasExt =
+    !!base &&
+    ['properties', 'required', 'values', 'items', 'format', 'pattern', 'minimum', 'maximum', 'target'].some(
+      (k) => schema[k] !== undefined,
+    )
 
   let lead: React.ReactNode = null
   let main: React.ReactNode = null
@@ -469,7 +414,7 @@ export function SchemaDocPage({
     main = (
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {schema.anyOf.map((v: any, i: number) => {
-          const b = v.ref && !v.type ? refToName(v.ref) : null
+          const b = namedSchemaUrl(v) ? refToName(namedSchemaUrl(v)!) : null
           return (
             <button
               key={i}
@@ -490,7 +435,7 @@ export function SchemaDocPage({
       </div>
     )
   } else if (hasExt) {
-    const parent = refToName(schema.ref)
+    const parent = refToName(base!)
     const eff = resolveSchema(schema).schema
     const added = new Set(structFields(schema).map((f) => f.name))
     const effFields = structFields(eff)
@@ -498,8 +443,8 @@ export function SchemaDocPage({
     for (const f of effFields) origins[f.name] = added.has(f.name) ? 'added' : 'inherited'
     lead = <ExtendsLine slug={parent} onClick={() => nav(parent)} />
     main = <FieldsTable fields={effFields} origins={origins} nav={nav} />
-  } else if (hasRef && schema.args) {
-    const parent = refToName(schema.ref)
+  } else if (base && schema.args) {
+    const parent = refToName(base)
     lead = (
       <p className="text-sm">
         <Tag kind="var">instantiation</Tag> <span className="text-muted-foreground">of</span>{' '}
@@ -514,8 +459,8 @@ export function SchemaDocPage({
         <span className="text-muted-foreground">⟩</span>
       </p>
     )
-  } else if (hasRef) {
-    const parent = refToName(schema.ref)
+  } else if (base) {
+    const parent = refToName(base)
     lead = (
       <p className="text-sm">
         <span className="text-muted-foreground">alias of</span> <Chip label={parent} onClick={() => nav(parent)} />
@@ -646,8 +591,8 @@ export function SchemaView({
   cid?: string
 }) {
   const open = useRefClick(nav)
-  const isExt = !!schema.ref && !schema.type
-  const parentName = isExt ? baseRefLabel(schema.ref) : null
+  const base = namedSchemaUrl(schema)
+  const parentName = base ? baseRefLabel(base) : null
   const kind = schema.type ? kindOf(schema.type) : null
   const isSigned = isSignedBlobSchema(schema)
   return (
@@ -663,8 +608,8 @@ export function SchemaView({
           {schema.description && <p className="text-sm">{schema.description}</p>}
         </>
       )}
-      {isExt && parentName ? (
-        <ExtendsLine slug={parentName} onClick={() => open(schema.ref)}>
+      {base && parentName ? (
+        <ExtendsLine slug={parentName} onClick={() => open(base)}>
           {isSigned && (
             <span className="text-muted-foreground"> — a signed blob: the envelope (signer, sig, ts) is inherited</span>
           )}

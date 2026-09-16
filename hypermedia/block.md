@@ -1,7 +1,7 @@
 ---
 name: Block
 summary: "The open block: the common fields (id, type, text, link, annotations, attributes) plus arbitrary extra fields of any type, requiring only id and type. This is t"
-schemaDefinition: ipfs://bafyreiddb3zunn7qmifzpcgpimsu5g4ebmjmntx4b34qbmklxprelpzsn4
+schemaDefinition: ipfs://bafyreib6nls3poisfp73rbwvcey7o7ybef5w5rboq5yfsus4xqxksks26i
 ---
 The open block: the common fields (id, type, text, link, annotations, attributes) plus arbitrary extra fields of any type, requiring only id and type. This is the forward-compatible wire type Change ops and comment bodies reference — a block type this client has no schema for (a future or third-party type) is still a valid Block, so a document is never rejected over an unrecognized block. Every concrete block is a subtype; the strict recognized set is block/core. To ADD a block type, extend block/base and union it with the core (see example/poll-block / example/app-block). <!-- id:oDU4AtVK -->
 

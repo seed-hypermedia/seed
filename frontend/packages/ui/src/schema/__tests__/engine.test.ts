@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {dependencies, dependents, isInstance, HM_SCHEMAS, schemaCid, validate} from '../engine'
+import {dependencies, dependents, HM_SCHEMAS, schemaCid, validate} from '../engine'
 
 // dag-json constructors for test data (mirror schemas/validate.mjs)
 const cid = (s: string) => ({'/': s})
@@ -17,7 +17,6 @@ describe('schema engine — parity with the reference validator (schemas/validat
   it('2. every bundled schema block is a valid Hypermedia schema', () => {
     const failures: string[] = []
     for (const [name, schema] of Object.entries(HM_SCHEMAS)) {
-      if (isInstance(schema)) continue // instances are data, not schemas
       const errs = validate(meta, schema)
       if (errs.length) failures.push(`${name}: ${errs[0]}`)
     }

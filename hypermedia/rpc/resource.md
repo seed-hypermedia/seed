@@ -1,7 +1,7 @@
 ---
 name: "RPC: Resource"
 summary: "Fetches a resource (document, comment, redirect, …) by parsed id. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` fiel"
-schemaDefinition: ipfs://bafyreib3cs6knxlcmtrj2rv7ri5gqexkvew4zfpimn2j3qyk2rj2wymp74
+schemaDefinition: ipfs://bafyreifkdekhx2khdpw74hg65kisb7xprznasxhzx6ewbmozdpj7c4u5zq
 ---
 Fetches a resource (document, comment, redirect, …) by parsed id. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:0FgdDO0r -->
 

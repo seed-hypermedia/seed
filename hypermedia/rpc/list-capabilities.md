@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListCapabilities"
 summary: "Lists raw capabilities granted on a target. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass;"
-schemaDefinition: ipfs://bafyreiciehynsh4tudar6wjuarxzdnsv2lb3blg3kkrcjvmcjprokrgawq
+schemaDefinition: ipfs://bafyreidhif2mdldha6ybmqqc3dlt4wssfrdx42eqxyfu326rn6cjkf22sm
 ---
 Lists raw capabilities granted on a target. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:L8_yo2Q9 -->
 

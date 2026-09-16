@@ -1,16 +1,8 @@
 ---
-name: "Example: Carol"
-summary: example/carol — instance.
+name: Carol
+summary: An example person — a document whose attributes follow example/person.
 attributesSchema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/person
+active: false
+age: 42
 ---
-# Shape <!-- id:xMmbIroK -->
-
-This is example **data** — an instance of [example/person](./person.md). <!-- id:2-ygKgRM -->
-
-```json <!-- id:UbVXGsfP -->
-{
-  "name": "Carol",
-  "age": 42,
-  "active": false
-}
-```
+An example **person**: this page's own attributes are the data, and they follow [example/person](./person.md). Open the Attributes tab to see them. <!-- id:2-ygKgRM -->

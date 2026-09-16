@@ -1,7 +1,7 @@
 ---
 name: "Example: Tree"
 summary: A node holding an integer value and links to child nodes.
-schemaDefinition: ipfs://bafyreihzxsr5bydqi6kytxhjyqa5tdwngzljqhmxf6b4ugkkvd62dwxwla
+schemaDefinition: ipfs://bafyreihszrccmx2r3wpb4whra6n7uajwlfjkjcni3rq5wifuarloevrnby
 ---
 This document describes the **example/tree** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:iIAXUuqT -->
 

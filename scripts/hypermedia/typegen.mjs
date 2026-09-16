@@ -44,7 +44,12 @@ for (const f of files.sort()) {
   schemas[basename] = JSON.parse(readFileSync(resolve(DIR, f), 'utf8'))
 }
 
-const isInstance = (s) => s && typeof s === 'object' && typeof s.$type === 'string' && 'value' in s
+/** The schema a node names rather than grounding in a kind (`ref` is the older spelling). */
+const namedSchemaUrl = (node) => {
+  // kindOf() is null for anything that is not one of the nine kinds — those URLs name a schema.
+  if (typeof node?.type === 'string') return kindOf(node.type) === null ? node.type : null
+  return typeof node?.ref === 'string' ? node.ref : null
+}
 
 // ── Names ────────────────────────────────────────────────────────────────────
 
@@ -140,8 +145,9 @@ function emit(node, env, pad = '') {
     return parts.join(' | ')
   }
 
-  if (node.ref) {
-    const basename = urlToBasename(node.ref)
+  const named = namedSchemaUrl(node)
+  if (named) {
+    const basename = urlToBasename(named)
     if (!basename) return 'unknown'
     if (PRIMITIVES.has(basename) || (KINDS.includes(basename.replace(/^schema\//, '')) && !schemas[basename])) {
       const bare = basename.replace(/^schema\//, '')
@@ -167,7 +173,7 @@ function emit(node, env, pad = '') {
     return base
   }
 
-  const kind = node.type ? kindOf(node.type) : null
+  const kind = node.type && !named ? kindOf(node.type) : null
 
   if (kind === 'map' || kind === 'struct' || (!kind && (node.properties || node.values))) {
     return emitMapBody(node, env, pad)
@@ -178,10 +184,6 @@ function emit(node, env, pad = '') {
   }
   if (kind) {
     return KIND_TS[kind]
-  }
-  if (node.type) {
-    // `type:` pointing at a non-kind schema behaves like a ref for typing.
-    return emit({ref: node.type, properties: node.properties, args: node.args}, env, pad)
   }
   return 'unknown'
 }
@@ -296,7 +298,7 @@ export type HMBytes = Uint8Array | {'/': {bytes: string}}
 `)
 
 const generated = Object.keys(schemas)
-  .filter((b) => !isInstance(schemas[b]) && !PRIMITIVES.has(b))
+  .filter((b) => !PRIMITIVES.has(b))
   .sort()
 for (const basename of generated) {
   out.push(emitSchema(basename))

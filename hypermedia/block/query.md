@@ -1,7 +1,7 @@
 ---
 name: Query Block
 summary: "A block that embeds a live query: its results (documents from the queried spaces) render in place, styled as cards, a list, or a table."
-schemaDefinition: ipfs://bafyreiaucauu6guw7c3wbgti2mpdzyh2pyaabdxx5zkrlfoiz4mti7zzsi
+schemaDefinition: ipfs://bafyreiaqt22lnsis4rkqlmeemaqjsw43tmxgfg2tpdewlahncjngqaoipq
 ---
 This document describes the **block/query** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:F-SfTMKY -->
 

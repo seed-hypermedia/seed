@@ -40,7 +40,7 @@ The upshot for authoring: **key order and formatting in these JSON files are cos
 ## The publish pipeline <!-- id:xI7XePTO -->
 
 `publish.mjs` turns this repo into live Hypermedia types: <!-- id:ilHK6ydh -->
-  1. Parse each `.json` file (dag-json). `ref`s are already **`hm://` URLs** — names, _not_ CIDs — so recursive and mutually-recursive schemas keep working (see [references](./references.md)). They are **not** rewritten. <!-- id:3NjmpKsi -->
+  1. Parse each `.json` file (dag-json). References are already **`hm://` URLs** — names, _not_ CIDs — so recursive and mutually-recursive schemas keep working (see [references](./references.md)). They are **not** rewritten. <!-- id:3NjmpKsi -->
   2. Canonically encode each schema to DAG-CBOR and content-address it: a CIDv1, sha2-256, `dag-cbor` (0x71) — the same codec the backend uses for its blobs. <!-- id:aqTbhvIL -->
   3. Write `schemas.lock.json`: the manifest mapping each `hm://` URL → its CID. Publish/pin the blocks under their authority at their `hm://` paths (signed by the authority's key). <!-- id:hVW1Ddfl -->
 

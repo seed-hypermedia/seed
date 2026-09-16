@@ -134,8 +134,8 @@ describe('SchemaEditor (nested structs)', () => {
   const initial: HypermediaSchema = {
     type: STRUCT,
     properties: {
-      source: {value: {ref: STRING}, required: true},
-      sourceBlob: {value: {type: STRUCT, properties: {cid: {value: {ref: STRING}}}}},
+      source: {value: {type: STRING}, required: true},
+      sourceBlob: {value: {type: STRUCT, properties: {cid: {value: {type: STRING}}}}},
     },
   }
   const setInput = (el: HTMLInputElement | HTMLTextAreaElement, value: string) =>
@@ -189,7 +189,7 @@ describe('SchemaEditor (nested structs)', () => {
         a: {
           value: {
             type: STRUCT,
-            properties: {b: {value: {type: LIST, items: {type: STRUCT, properties: {c: {value: {ref: STRING}}}}}}},
+            properties: {b: {value: {type: LIST, items: {type: STRUCT, properties: {c: {value: {type: STRING}}}}}}},
           },
         },
       },
@@ -214,7 +214,7 @@ describe('SchemaEditor (generics and JSON mode)', () => {
     act(() => {
       root.render(
         <Harness
-          initial={{type: STRUCT, params: {Block: {ref: BLOCK}}, properties: {body: {value: {var: 'Block'}}}}}
+          initial={{type: STRUCT, params: {Block: {type: BLOCK}}, properties: {body: {value: {var: 'Block'}}}}}
         />,
       )
     })
@@ -235,7 +235,7 @@ describe('SchemaEditor (generics and JSON mode)', () => {
       root.render(<Harness initial={emptyStructSchema()} />)
     })
     click(container.querySelector('button[aria-label^="Make generic"]')!)
-    expect(latest.params).toEqual({T: {ref: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any'}})
+    expect(latest.params).toEqual({T: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any'}})
     expect(isHypermediaSchema(latest)).toBe(true)
     click(findButton('Add field'))
     // Point the new field at the parameter, then drop the parameter.
@@ -246,14 +246,14 @@ describe('SchemaEditor (generics and JSON mode)', () => {
     click(remove)
     expect(latest.params).toBeUndefined()
     expect(fieldSchema(latest, 'field')).toEqual({
-      ref: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any',
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any',
     })
     expect(isHypermediaSchema(latest)).toBe(true)
   })
 
   it('a union edits its options in the form: each option a type, add and remove', () => {
     act(() => {
-      root.render(<Harness initial={{anyOf: [{ref: BLOCK}, {type: STRUCT, properties: {}}]}} />)
+      root.render(<Harness initial={{anyOf: [{type: BLOCK}, {type: STRUCT, properties: {}}]}} />)
     })
     expect(container.querySelector('[data-testid="schema-json-editor"]')).toBeNull()
     const rootType = container.querySelector('input[aria-label="Root type"]') as HTMLInputElement
@@ -270,7 +270,9 @@ describe('SchemaEditor (generics and JSON mode)', () => {
   it('a list root edits its item type', () => {
     act(() => {
       root.render(
-        <Harness initial={{type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list', items: {ref: BLOCK}}} />,
+        <Harness
+          initial={{type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list', items: {type: BLOCK}}}
+        />,
       )
     })
     expect(container.querySelector('[data-testid="schema-list-items"] input')).toBeTruthy()
@@ -279,7 +281,7 @@ describe('SchemaEditor (generics and JSON mode)', () => {
 
   it('valid JSON commits; a syntax error does not', () => {
     act(() => {
-      root.render(<Harness initial={{anyOf: [{ref: BLOCK}]}} />)
+      root.render(<Harness initial={{anyOf: [{type: BLOCK}]}} />)
     })
     click([...container.querySelectorAll('button[role="tab"]')].find((b) => b.textContent === 'JSON')!)
     const json = container.querySelector('[data-testid="schema-json-editor"] textarea') as HTMLTextAreaElement
@@ -292,14 +294,14 @@ describe('SchemaEditor (generics and JSON mode)', () => {
     setValue('{"anyOf": [')
     expect(latest.anyOf).toHaveLength(1)
     expect(container.textContent).toMatch(/JSON|Unexpected|Expected/i)
-    setValue(JSON.stringify({anyOf: [{ref: BLOCK}, {ref: MAP}]}))
+    setValue(JSON.stringify({anyOf: [{type: BLOCK}, {type: MAP}]}))
     expect(latest.anyOf).toHaveLength(2)
   })
 
   it('a struct with open extra values edits as fields; unchecking closes it', () => {
     const VALUE = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/value'
     act(() => {
-      root.render(<Harness initial={{type: STRUCT, properties: {type: {value: {ref: MAP}}}, values: {ref: VALUE}}} />)
+      root.render(<Harness initial={{type: STRUCT, properties: {type: {value: {type: MAP}}}, values: {type: VALUE}}} />)
     })
     expect(container.querySelector('[data-testid="schema-json-editor"]')).toBeNull()
     const values = container.querySelector('[data-testid="schema-values"]')!
@@ -309,7 +311,7 @@ describe('SchemaEditor (generics and JSON mode)', () => {
     expect(toggle.getAttribute('aria-pressed')).toBe('true')
     click(toggle)
     expect(latest.values).toBeUndefined()
-    expect(fieldSchema(latest, 'type')).toEqual({ref: MAP})
+    expect(fieldSchema(latest, 'type')).toEqual({type: MAP})
   })
 
   it('Cmd+Z undoes the last edit and Shift+Cmd+Z redoes it', () => {

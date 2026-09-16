@@ -1,7 +1,7 @@
 ---
 name: Document (Payload)
 summary: "A document as the API returns it to clients: the signed document's metadata and content plus derived fields (resolved version, authors, timestamps, visibility)."
-schemaDefinition: ipfs://bafyreiebo37mivya3mqz6qik3zcucr7lx22dm3k4qx2sr775xnwb734jzq
+schemaDefinition: ipfs://bafyreie3ylin72g7b6tphntqkrzhube33rfwwruvb4a7672lrirgvmniqq
 ---
 A document as the API returns it to clients: the signed document's metadata and content plus derived fields (resolved version, authors, timestamps, visibility). A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:rHH1177g -->
 

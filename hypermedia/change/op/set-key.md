@@ -1,7 +1,7 @@
 ---
 name: SetKey Op
 summary: "Deprecated: set a single flat metadata key to a value."
-schemaDefinition: ipfs://bafyreib5adpk3yb5f4ifrgc7z7utslwn2dodu5gpdcgtkqain6wgporvki
+schemaDefinition: ipfs://bafyreihl3tsfpri4hahwsok4dbcb5qwvhwi2akqmehpjtyzx2ncidmxn54
 ---
 This document describes the **change/op/set-key** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:FCBip3cB -->
 

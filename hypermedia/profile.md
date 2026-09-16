@@ -1,7 +1,7 @@
 ---
 name: Profile
 summary: "A snapshot describing an account: display name, avatar, and description — or an alias redirecting to another key."
-schemaDefinition: ipfs://bafyreiacosxtyvlv2wzxvgrn3jwwanea4h27l7rx3rhvzijur2iuqedm7q
+schemaDefinition: ipfs://bafyreich65btvsm2ibqgtjkd7ydk444wd56bi5qz2nrjvpwmlofplql2p4
 ---
 This document describes the **profile** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:cZeSgsmH -->
 

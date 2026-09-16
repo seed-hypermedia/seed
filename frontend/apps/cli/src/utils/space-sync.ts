@@ -18,8 +18,8 @@
  * document's `metadata.schemaDefinition` points at as `<file>.schema.json`;
  * import encodes that file back to canonical DAG-CBOR, publishes the blob with
  * the document, and sets `schemaDefinition: ipfs://<cid>` (the file is the
- * truth, whatever the frontmatter says). A `{$type, value}` file is an
- * instance, not a type: its document conforms to `$type` (`metadata.attributesSchema`).
+ * truth, whatever the frontmatter says). A document that CONFORMS to a type says so in its
+ * frontmatter (`attributesSchema`), like any other typed document.
  */
 import {effectiveSchemaRef, loadSchema, metadataViolations} from './schema'
 import {existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
@@ -419,11 +419,8 @@ export async function grantWriters(
 
 // ─── Schemas ─────────────────────────────────────────────────────────────────
 
-export type SchemaFile =
-  /** A type: the document DEFINES this schema (`schemaDefinition: ipfs://<cid>`). */
-  | {kind: 'type'; cid: string; data: Uint8Array}
-  /** An instance (`{$type, value}`): the document CONFORMS to `$type` (`attributesSchema`). */
-  | {kind: 'instance'; type: string}
+/** A schema file beside a document: the type that document DEFINES (`schemaDefinition: ipfs://<cid>`). */
+export type SchemaFile = {kind: 'type'; cid: string; data: Uint8Array}
 
 /** Canonical DAG-CBOR encoding of a schema object and its CID (v1, sha2-256, dag-cbor). */
 export async function encodeSchemaBlob(obj: unknown): Promise<{data: Uint8Array; cid: string}> {
@@ -439,25 +436,18 @@ export async function readSchemaFile(dir: string, mdFile: string, layout: SpaceL
   const full = resolve(dir, schemaFile)
   if (!existsSync(full)) return null
   const obj = JSON.parse(readFileSync(full, 'utf8')) as Record<string, unknown> | null
-  if (obj && typeof obj === 'object' && typeof obj.$type === 'string' && 'value' in obj) {
-    return {kind: 'instance', type: obj.$type}
-  }
   const {data, cid} = await encodeSchemaBlob(obj)
   return {kind: 'type', cid, data}
 }
 
 /** The metadata a schema file implies for its document. */
 export function applySchemaMetadata(metadata: HMMetadata, schema: SchemaFile | null): HMMetadata {
-  if (!schema) return metadata
-  const out = {...(metadata as Record<string, unknown>)}
-  if (schema.kind === 'instance') {
-    out.attributesSchema = schema.type
-    // `schema` is the binding's old name; a document still carrying it loses it on the next import.
-    delete out.schema
-    delete out.schemaDefinition
-  } else {
-    out.schemaDefinition = `ipfs://${schema.cid}`
-  }
+  const raw = metadata as Record<string, unknown>
+  // `schema` is the old name of the attributes binding; a document still carrying it loses it here.
+  if (!schema && !('schema' in raw)) return metadata
+  const out = {...raw}
+  delete out.schema
+  if (schema) out.schemaDefinition = `ipfs://${schema.cid}`
   return out as HMMetadata
 }
 
@@ -777,7 +767,7 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     const schema = await readSchemaFile(opts.dir, file, layout)
     const metadata = applySchemaMetadata(opts.metadataFor ? opts.metadataFor(file, fileMetadata) : fileMetadata, schema)
     // The schema blob rides along with the change that binds it.
-    const schemaBlobs = schema?.kind === 'type' ? [{data: schema.data, cid: schema.cid}] : []
+    const schemaBlobs = schema ? [{data: schema.data, cid: schema.cid}] : []
     const resolved = await resolveFileLinks(nodes)
     const newTree = resolved.nodes.map(hmBlockNodeToBlockNode)
     const id = hmId(opts.account, {path: path ? path.replace(/^\//, '').split('/') : []})

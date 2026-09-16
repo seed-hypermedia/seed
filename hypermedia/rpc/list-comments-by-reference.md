@@ -1,7 +1,7 @@
 ---
 name: "RPC: ListCommentsByReference"
 summary: "Lists comments that reference a specific block (the target id carries the blockRef). One method of the Seed universal-client API: `request(key, input) -> output"
-schemaDefinition: ipfs://bafyreid5qxbgvyvgnxtw6xnn2eil23wzjjxcu7xlc52lr44sgqkshpdqiy
+schemaDefinition: ipfs://bafyreifxlq7hat24yrsyhhkbr355q6tsxku6hkuaezkamh2kzwah2wmyva
 ---
 Lists comments that reference a specific block (the target id carries the blockRef). One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:Zqcrf57v -->
 

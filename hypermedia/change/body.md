@@ -1,7 +1,7 @@
 ---
 name: Change Body
 summary: "The operations payload of a Change: an operation count hint and the list of ops."
-schemaDefinition: ipfs://bafyreigfjf3dz7nywvpnafvyqmxinjq2xptl2vyjtlwqtc7car4pnax4ta
+schemaDefinition: ipfs://bafyreicjyyazofi3ntnkfu4hhwvu4lbgtbmqi6l4uehry3i54g366qawfq
 ---
 This document describes the **change/body** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:c8Da_qa9 -->
 

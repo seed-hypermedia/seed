@@ -1,7 +1,7 @@
 ---
 name: List schema
 summary: The variant for a list value; items types the elements.
-schemaDefinition: ipfs://bafyreiamzca5wxtomu75uywuk4z2c7mlq2vvnd7sib6polp56kx42f3iyi
+schemaDefinition: ipfs://bafyreih2646ketpvmsvcve7pi2cmxfpjdviw5bbcd2wtxkizqb7ukkt4bm
 ---
 This document describes the **schema/list-schema** type — a meta-schema variant. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:HEpps2w- -->
 

@@ -1,7 +1,7 @@
 ---
 name: Event
 summary: "A world-builder kit type: a page about something that happened. Its attributes require a `date` and link the event to a location (a Place), a protagon"
-schemaDefinition: ipfs://bafyreihzicyszw7fapbltsohia4bxn5lnjn544imsdojymt242ffrts3xq
+schemaDefinition: ipfs://bafyreifl3hbrvjn4xtsnzkxatspsqq2hyarrfsp4hjxe34je7f5fclvtxy
 ---
 A world-builder kit type: a page about something that happened. Its attributes require a `date` and link the event to a location (a Place), a protagonist (a Character), and optionally an `ends` date for spans. <!-- id:1OgsTNBq -->
 

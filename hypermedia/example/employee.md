@@ -1,7 +1,7 @@
 ---
 name: "Example: Employee"
 summary: A person, extended with an employee id and department.
-schemaDefinition: ipfs://bafyreiepgqpbixcre23rwviccjdmfdl42vhmox4ifinyurlaumogabf4sa
+schemaDefinition: ipfs://bafyreietsimil5brwt54ynqqk6uzjxiojkrbl5ubtd5o3lqmqv4p7siftu
 ---
 This document describes the **example/employee** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:xqJ2JASC -->
 

@@ -1,7 +1,7 @@
 ---
 name: "RPC: AccountContacts"
 summary: "Lists the contacts an account has named. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `o"
-schemaDefinition: ipfs://bafyreiaki4tfkdsgvotjqhkoyfoinicseaaxjdqrbblcxcbbxojk3rgtjm
+schemaDefinition: ipfs://bafyreifecpqr2l4wpryx33wvsjjpwjdnz7jofg4mioq2djp2tb2pf7byfa
 ---
 Lists the contacts an account has named. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:cWeHZkGM -->
 

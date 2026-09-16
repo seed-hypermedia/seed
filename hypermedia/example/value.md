@@ -1,7 +1,7 @@
 ---
 name: "Example: Value"
 summary: "A primitive value: string, integer, boolean, or null."
-schemaDefinition: ipfs://bafyreiftf7u5653uxirt47dbv3ir4h6dcmmpkc63a3jcfdkkgpdk7xhupi
+schemaDefinition: ipfs://bafyreieg4ddcrqezij6pymoqtm7tex6i3c6nsl7qkhmj5trfboz534k4qi
 ---
 This document describes the **example/value** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:U1Ak7_KO -->
 

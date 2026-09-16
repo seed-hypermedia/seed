@@ -1,7 +1,7 @@
 ---
 name: Document
 summary: The base Hypermedia document — resolved metadata (including the schema-binding fields `attributesSchema`, `childAttributesSchema`, `schemaDefinition`) plus the content block tre
-schemaDefinition: ipfs://bafyreicft3cwhaivwmfsmyqrufv4hywbs2w6nifx6crxtpn34h6fa62uyu
+schemaDefinition: ipfs://bafyreib5e75e5btubdpbkpn7iifyxcnh2ekphhm4bq4wr3vsoeom6dbz6e
 ---
 The base Hypermedia document — resolved metadata (including the schema-binding fields `attributesSchema`, `childAttributesSchema`, `schemaDefinition`) plus the content block tree. A typed document does not extend this: it names an attributes schema — a struct describing its metadata fields — through `attributesSchema`, or inherits one from its parent's `childAttributesSchema`. <!-- id:qIPS3d4t -->
 

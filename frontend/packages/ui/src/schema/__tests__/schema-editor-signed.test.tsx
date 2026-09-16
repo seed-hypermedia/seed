@@ -57,8 +57,7 @@ describe('schema root kind', () => {
     let schema: any = emptyStructSchema()
     schema = withRootKind(schema, 'signed')
     expect(isSignedBlobType(schema)).toBe(true)
-    expect(schema.ref).toBe(nameToUrl('blob'))
-    expect(schema.type).toBeUndefined()
+    expect(schema.type).toBe(nameToUrl('blob'))
     // Schemas carry no name, so the pinned tag starts as the editable default.
     expect(fieldSchema(schema, 'type')).toBe('Custom')
     expect(requiredFieldNames(schema)).toContain('type')
@@ -86,8 +85,7 @@ describe('schema root kind', () => {
       properties: {permissions: {value: {type: MAP_URL}, required: true}},
     }
     schema = withRootKind(schema, 'extends')
-    expect(schema.type).toBeUndefined()
-    expect(schema.ref).toBe('')
+    expect(schema.type).toBe('')
     expect(fieldSchema(schema, 'permissions')).toBeTruthy()
     expect(requiredFieldNames(schema)).toContain('permissions')
 
@@ -104,13 +102,12 @@ describe('schema root kind', () => {
     act(() => {
       refInput.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}))
     })
-    expect(latest.ref).toBe('ipfs://bafyBase')
-    expect(latest.type).toBeUndefined()
+    expect(latest.type).toBe('ipfs://bafyBase')
 
     // Leaving signed for extends keeps a non-envelope base; envelope refs never leak into it.
     const signed = withRootKind(emptyStructSchema(), 'signed')
     const extended = withRootKind(signed, 'extends')
-    expect(extended.ref).toBe('')
+    expect(extended.type).toBe('')
     expect(fieldSchema(extended, 'type')).toBeUndefined()
     expect(requiredFieldNames(extended)).not.toContain('type')
   })

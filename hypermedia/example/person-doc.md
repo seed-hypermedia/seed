@@ -1,7 +1,7 @@
 ---
 name: "Example: Person Document"
 summary: "A document that describes a person: an attributes schema requiring a `surname`, with an optional `givenName`. A page whose `attributesSchema` names th"
-schemaDefinition: ipfs://bafyreib37phzmkr5gyqeng37keyfcqnpg2nqyimmgkvte42zj5a7ae5w2m
+schemaDefinition: ipfs://bafyreid3u27vuo2wr5aqmb6ozb6vnoxd7hcxg4r7pd47wdcbtoo35hubgu
 ---
 A document that describes a person: an attributes schema requiring a `surname`, with an optional `givenName`. A page whose `attributesSchema` names this document must carry a surname; a folder whose `childAttributesSchema` names it types every page beneath it. <!-- id:axdEuJ33 -->
 

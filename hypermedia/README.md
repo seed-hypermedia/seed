@@ -36,8 +36,10 @@ Every page publishes at its path: `<path>.md` (with an optional
 
 A `*.schema.json` beside a page is the schema that page **defines**: it is
 encoded to canonical DAG-CBOR, published as a blob, and bound to the document
-as `schemaDefinition: ipfs://<cid>`. A `{$type, value}` file is an instance
-instead: its document conforms to `$type`. `schemas.lock.json` pins every
+as `schemaDefinition: ipfs://<cid>`. A page with no schema beside it can still be
+an *instance* of a type: it binds to one with `attributesSchema` in its
+frontmatter, and its own attributes are the data (see `example/bob`).
+`schemas.lock.json` pins every
 schema's CID (`node scripts/hypermedia/publish.mjs --check`),
 `schemas.aliases.json` keeps references to a schema's old name resolving, and
 `scripts/hypermedia/gen-registry.mjs` bundles the schemas into the app. The schema tools
@@ -124,7 +126,7 @@ that declares its own `attributesSchema` is expected to satisfy the parent's
 `childAttributesSchema` as well.
 
 **References everywhere.** A schema reference (`attributesSchema`,
-`childAttributesSchema`, an `extends` ref, a map-property or list-item subschema)
+`childAttributesSchema`, an extension's `type`, a map-property or list-item subschema)
 can be an ipfs CID, a bundled library URL (`hm://z6MkmZUb…/schema/map`, resolved
 locally), or an arbitrary Hypermedia document URL (`hm://acct/path`, fetched →
 that doc's `schemaDefinition` → the blob).

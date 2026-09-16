@@ -1,0 +1,36 @@
+name: Check hypermedia
+
+# The Hypermedia schema library and its pages: every schema is a valid Hypermedia schema, the
+# generated registry/types/lockfile match the files, and every page satisfies the type it binds to.
+# Same check the sync runs before publishing (see scripts/hypermedia/check.mjs).
+
+on:
+  pull_request:
+    paths:
+      - 'hypermedia/**'
+      - 'scripts/hypermedia/**'
+      - 'frontend/packages/client/src/schema-*.ts'
+      - '.github/workflows/check-hypermedia.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'hypermedia/**'
+      - 'scripts/hypermedia/**'
+      - 'frontend/packages/client/src/schema-*.ts'
+      - '.github/workflows/check-hypermedia.yml'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check hypermedia/
+        run: node scripts/hypermedia/check.mjs

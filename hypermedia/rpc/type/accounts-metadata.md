@@ -1,7 +1,7 @@
 ---
 name: Accounts Metadata
 summary: Account uid -> resolved metadata payload, sent alongside listings so clients can render authors without extra requests. A derived read model computed by the See
-schemaDefinition: ipfs://bafyreicdg4vjvaxirb2zgda7rtpobss6eh4owzwqlvs3rnnl3dlpkyvyia
+schemaDefinition: ipfs://bafyreibeenkjw3vbnedisiwx3l6gex4kbh2ddbi5x7a2kjdq2rbjap7khm
 ---
 Account uid -> resolved metadata payload, sent alongside listings so clients can render authors without extra requests. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:ytAJ6HkR -->
 

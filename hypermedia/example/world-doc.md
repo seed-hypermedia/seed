@@ -1,7 +1,7 @@
 ---
 name: World
 summary: "A world-builder kit type: the root page of a fictional world. Its children are the type definitions and the folders of characters, places, factions, a"
-schemaDefinition: ipfs://bafyreichn656cwlntnpfjhipwsxticubhaker5qsp3nwjuxsn6t2scblpu
+schemaDefinition: ipfs://bafyreihszwaw2sq3ujjsrjqqrwo2lasp3qml3y5gj5byo3iuyzuhnrkh4e
 ---
 A world-builder kit type: the root page of a fictional world. Its children are the type definitions and the folders of characters, places, factions, and events; its attributes name the genre and the date the chronicle begins. <!-- id:tWJgX3A2 -->
 

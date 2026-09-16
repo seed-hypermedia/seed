@@ -50,7 +50,7 @@ Only possible because references are **names**, not content hashes: <!-- id:yZkC
 
 ## Instances — actual data <!-- id:xxv3d5ho -->
 
-An **instance** is a data value typed by a schema: `{ "$type": <schema>, "value": … }`. Each is validated live against its type, and each page shows **Dependencies** (its type) and **Dependents**. They form a dependency chain — `bob` → `employee` → `person`: <!-- id:QS_X-Qc7 -->
+An **instance** is an ordinary typed document: its own attributes _are_ the data, and its `attributesSchema` names the type they follow. Each is validated live against its type, and each page shows **Dependencies** (its type) and **Dependents**. They form a dependency chain — `bob` → `employee` → `person`: <!-- id:QS_X-Qc7 -->
   - `example/alice`, `example/carol` — people (instances of `example/person`). <!-- id:s7bGoabh -->
   - `example/bob`, `example/dave` — employees (instances of `example/employee`). <!-- id:i37qO0Qw -->
   - `example/root` — an admin (instance of `example/admin`, which is itself two levels of extension). <!-- id:9HYSH6eG -->

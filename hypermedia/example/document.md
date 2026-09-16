@@ -1,7 +1,7 @@
 ---
 name: "Example: Document"
 summary: example/document — an example schema.
-schemaDefinition: ipfs://bafyreiavi6sxdqh3pw2aejkluyjmphrrjjuhdct2eq6wiv6ew5ufh7iiv4
+schemaDefinition: ipfs://bafyreida7qlurvn3pe22cgolfnlw2hqncgq2e6qkx6jgzctpquhsngptfu
 ---
 This document describes the **example/document** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:llTZrE7Q -->
 

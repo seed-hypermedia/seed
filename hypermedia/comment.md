@@ -1,7 +1,7 @@
 ---
 name: Comment
 summary: A comment on a document version, threaded via threadRoot and replyParent. Its body is a tree of comment blocks.
-schemaDefinition: ipfs://bafyreifpsxruyrwj2wkqrpcxwuk5lsjv4wd7ok4d4psn2k7ej6nq5723la
+schemaDefinition: ipfs://bafyreih2ik7yfwmwklamuzz5mg6wcdejxffdhflf6jagvia2ia562dmqpi
 ---
 This document describes the **comment** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:fJpitbt3 -->
 

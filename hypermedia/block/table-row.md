@@ -1,7 +1,7 @@
 ---
 name: Table Row Block
 summary: One row of a Table block. Its children are Paragraph cell blocks, each carrying a columnId attribute referencing a TableColumn id.
-schemaDefinition: ipfs://bafyreiannhsuskymizpluknylp6uc6uxeszgll46mezbk7mxjayy6ufucm
+schemaDefinition: ipfs://bafyreiabl53reqzfvdhyio2vbhocupxb3kzhgakd7p7ji53pgyxpc4gwpa
 ---
 This document describes the **block/table-row** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:BjIgY6_L -->
 

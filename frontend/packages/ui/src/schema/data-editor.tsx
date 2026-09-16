@@ -18,15 +18,16 @@ import {Input} from '../components/input'
 import {Switch} from '../components/switch'
 import {cn} from '../utils'
 import {
-  type SchemaRegistry,
   type HypermediaSchema,
   type LiteralMember,
+  type SchemaRegistry,
   fieldSchema,
   isLiteralSchema,
   kindOf,
   literalMembers,
   literalValue,
   loadFrom,
+  namedSchemaUrl,
   refToName,
   resolveSchema,
   structFields,
@@ -96,13 +97,15 @@ const omit = (obj: Record<string, unknown>, key: string): Record<string, unknown
 function variantLabel(v: HypermediaSchema, reg: SchemaRegistry): string {
   if (v.var !== undefined) return '⟨' + v.var + '⟩'
   if (v.anyOf) return 'one of ' + v.anyOf.length
-  if (v.ref && v.type === undefined) {
-    const t = loadFrom(reg, v.ref)
+  const named = namedSchemaUrl(v)
+  if (named) {
+    const t = loadFrom(reg, named)
     const kinds = literalMembers(fieldSchema(t, 'type') ?? {}, reg)
     if (kinds && kinds.length > 1) return kinds.map((m) => kindOf(String(m.value))).join(' · ')
-    const b = refToName(v.ref)
+    const b = refToName(named)
     const structural = t ? Object.keys(t).filter((k) => k !== 'name' && k !== 'description') : []
-    if (t && structural.length === 1 && structural[0] === 'type') return kindOf(t.type)
+    // A schema whose only key is `type` naming a kind IS that kind.
+    if (t && structural.length === 1 && structural[0] === 'type' && !namedSchemaUrl(t)) return kindOf(t.type)
     return b + (v.args ? '⟨…⟩' : '')
   }
   if (isLiteralSchema(v)) return JSON.stringify(literalValue(v))

@@ -1,7 +1,7 @@
 ---
 name: Capability
 summary: A delegation granting a role (WRITER or AGENT) from a space owner (the signer) to a delegate key, optionally scoped to a path.
-schemaDefinition: ipfs://bafyreibdhdt76ojj6z7w4a3txo34jrvmo75mhhlvejp5bv3jv3kqzwpnni
+schemaDefinition: ipfs://bafyreic6t7cjpkoib3hc6cy53it2x6al4xd6evwgq6trzco3uoq2eygmbe
 ---
 This document describes the **capability** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:EoJZUC30 -->
 

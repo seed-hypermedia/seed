@@ -27,6 +27,7 @@ import {
   fieldsToProperties,
   kindOf,
   kindUrl,
+  namedSchemaUrl,
   nameToUrl,
   refToName,
   structFields,
@@ -62,14 +63,15 @@ const CUSTOM_KIND = 'custom'
 /** The kind a property schema declares (best-effort; defaults to text). */
 function propKind(ps: any): string {
   if (typeof ps?.var === 'string') return varKind(ps.var)
-  const refName = typeof ps?.ref === 'string' ? refToName(ps.ref) : null
+  const named = namedSchemaUrl(ps)
+  const refName = named ? refToName(named) : null
   if (ps?.format === 'hm-url' || refName === 'hm-url') return 'hm-url'
   if (ps?.format === 'ipfs-url' || ps?.format === 'ipfs' || refName === 'ipfs-url') return 'ipfs'
   if (ps?.format === 'date' || refName === 'date') return 'date'
   if (ps?.format === 'date-time' || refName === 'date-time') return 'date-time'
   if (refName === 'any') return 'any'
   if (isLiteralSchema(ps) || ps?.anyOf || ps?.args) return CUSTOM_KIND
-  if (ps?.type) return kindOf(ps.type)
+  if (ps?.type && !named) return kindOf(ps.type)
   if (refName && KINDS.includes(refName.replace(/^hypermedia-/, ''))) return refName.replace(/^hypermedia-/, '')
   if (refName) return CUSTOM_KIND
   return 'string'
@@ -78,7 +80,8 @@ function propKind(ps: any): string {
 /** What to call a custom field's type: its ref's name, or its shape. */
 function customLabel(ps: any): string {
   if (isLiteralSchema(ps)) return JSON.stringify(literalValue(ps))
-  if (typeof ps?.ref === 'string') return refToName(ps.ref)
+  const named = namedSchemaUrl(ps)
+  if (named) return refToName(named)
   if (ps?.anyOf) return `one of ${ps.anyOf.length}`
   return 'custom'
 }
@@ -87,22 +90,25 @@ function customLabel(ps: any): string {
 export function structFormFits(schema: HypermediaSchema): boolean {
   if (isLiteralSchema(schema) || schema.args) return false
   if (Array.isArray(schema.anyOf)) return true
+  // A base not chosen yet (the Extend flow starts blank) is still a struct to fill in.
+  if (schema.type === '') return true
+  if (namedSchemaUrl(schema)) return true
   if (schema.type) return ['struct', 'map', 'list'].includes(kindOf(schema.type))
-  return typeof schema.ref === 'string'
+  return false
 }
 
 /** A union, offered to fields and to the root alike; the picked entry starts with one open option. */
 const unionOption = (): TypeOption => ({
   label: 'Union',
   hint: 'one of several types',
-  schema: {anyOf: [{ref: ANY_URL}]},
+  schema: {anyOf: [{type: ANY_URL}]},
 })
 
-/** The schema a picked type URL stands for: a core type is `type`, any other schema document `ref`. */
-const typeSchemaFor = (url: string): HypermediaSchema => (kindOf(url) !== url ? {type: url} : {ref: url})
-/** The type URL a schema node names (its ref or type), '' for a union, a format or a parameter. */
+/** The schema a picked type URL stands for: `type` names it, whether it is a kind or another schema. */
+const typeSchemaFor = (url: string): HypermediaSchema => ({type: url})
+/** The type URL a schema node names, '' for a union, a format or a parameter. */
 const nodeUrl = (ps: any): string =>
-  typeof ps?.ref === 'string' ? ps.ref : typeof ps?.type === 'string' ? ps.type : ''
+  typeof ps?.type === 'string' ? ps.type : typeof ps?.ref === 'string' ? ps.ref : ''
 /** A label for the shapes a URL does not name: a union, a parameter, a string format… */
 function nodeLabel(ps: any): string | undefined {
   if (Array.isArray(ps?.anyOf)) return 'Union'
@@ -127,16 +133,16 @@ function replaceVar(node: any, from: string, to: string | HypermediaSchema): any
 /** The property schema for a chosen kind. */
 function kindSchema(kind: string): HypermediaSchema {
   if (kind.startsWith('var:')) return {var: kind.slice(4)}
-  if (kind === 'any') return {ref: ANY_URL}
+  if (kind === 'any') return {type: ANY_URL}
   if (kind === 'hm-url') return {type: kindUrl('string'), format: 'hm-url'}
   if (kind === 'ipfs') return {type: kindUrl('string'), format: 'ipfs-url'}
   // The built-in date types are includes of the library schemas, which carry
   // the format (→ a date picker) and the pattern (→ validation).
-  if (kind === 'date') return {ref: nameToUrl('date')!}
-  if (kind === 'date-time') return {ref: nameToUrl('date-time')!}
-  if (kind === 'list') return {type: kindUrl('list'), items: {ref: ANY_URL}}
+  if (kind === 'date') return {type: nameToUrl('date')!}
+  if (kind === 'date-time') return {type: nameToUrl('date-time')!}
+  if (kind === 'list') return {type: kindUrl('list'), items: {type: ANY_URL}}
   if (kind === 'struct') return {type: STRUCT_URL, properties: {}}
-  if (kind === 'map') return {type: MAP_URL, values: {ref: ANY_URL}}
+  if (kind === 'map') return {type: MAP_URL, values: {type: ANY_URL}}
   return {type: kindUrl(kind)}
 }
 
@@ -145,7 +151,7 @@ const ANY_URL = nameToUrl('any')!
 /** The signed-blob envelope every Hypermedia blob extends. */
 const SIGNED_BLOB_URL = nameToUrl('blob')!
 /** True when the schema extends the signed-blob envelope. */
-export const isSignedBlobType = (schema: HypermediaSchema) => !schema.type && schema.ref === SIGNED_BLOB_URL
+export const isSignedBlobType = (schema: HypermediaSchema) => namedSchemaUrl(schema) === SIGNED_BLOB_URL
 /** The pinned `type` tag of a signed-blob schema ('' when none). */
 const signedTypeTag = (schema: HypermediaSchema): string => {
   const t = fieldSchema(schema, 'type')
@@ -173,11 +179,11 @@ export function withRootKind(schema: HypermediaSchema, kind: SchemaRootKind): Hy
   if (kind === 'signed') {
     const tag = signedTypeTag(schema) || 'Custom'
     const withTag = [{name: 'type', schema: literalSchema(tag), required: true}, ...fields]
-    return {...rest, ref: SIGNED_BLOB_URL, properties: fieldsToProperties(withTag)}
+    return {...rest, type: SIGNED_BLOB_URL, properties: fieldsToProperties(withTag)}
   }
   if (kind === 'struct') return {...rest, type: STRUCT_URL, properties: fieldsToProperties(fields)}
-  const baseRef = !schema.type && typeof schema.ref === 'string' && schema.ref !== SIGNED_BLOB_URL ? schema.ref : ''
-  return {...rest, ref: baseRef, properties: fieldsToProperties(fields)}
+  const base = namedSchemaUrl(schema)
+  return {...rest, type: base && base !== SIGNED_BLOB_URL ? base : '', properties: fieldsToProperties(fields)}
 }
 
 /** The raw schema as JSON, for shapes the form does not cover. Syntax errors block the commit;
@@ -512,7 +518,7 @@ function UnionOptionsEditor({
           </Tooltip>
         </span>
       ))}
-      <IconAction label="Add option" tooltip="Add an option" onClick={() => set([...arms, {ref: ANY_URL}])}>
+      <IconAction label="Add option" tooltip="Add an option" onClick={() => set([...arms, {type: ANY_URL}])}>
         <Plus className="size-3.5" />
       </IconAction>
     </span>
@@ -531,7 +537,7 @@ function ListItemsEditor({
   options: TypeOption[]
   ariaPrefix: string
 }) {
-  const items: HypermediaSchema = schema.items ?? {ref: ANY_URL}
+  const items: HypermediaSchema = schema.items ?? {type: ANY_URL}
   const setItems = (next: HypermediaSchema) => onSchema({...schema, items: next})
   return (
     <span className="contents" data-testid="schema-list-items">
@@ -601,7 +607,7 @@ function NestedSchemaEditor({
   if (kindOf(node?.type) === 'list')
     return (
       <NestedSchemaEditor
-        node={node.items ?? {ref: ANY_URL}}
+        node={node.items ?? {type: ANY_URL}}
         onNode={(next) => onNode({...node, items: next})}
         options={options}
         ariaPrefix={`${ariaPrefix} item`}
@@ -655,7 +661,7 @@ function StructSchemaForm({
     let name = 'T'
     let n = 1
     while (name in params) name = `T${++n}`
-    setParams({...params, [name]: {ref: ANY_URL}})
+    setParams({...params, [name]: {type: ANY_URL}})
   }
   const renameParam = (from: string, to: string) => {
     const name = to.trim()
@@ -665,13 +671,13 @@ function StructSchemaForm({
     setParams(next, replaceVar(schema, from, name))
   }
   const setParamDefault = (name: string, ref: string) => {
-    setParams({...params, [name]: {ref: ref.trim() || ANY_URL}})
+    setParams({...params, [name]: {type: ref.trim() || ANY_URL}})
   }
   const removeParam = (name: string) => {
     const next = {...params}
     delete next[name]
     // Fields typed by the parameter fall back to its default.
-    setParams(next, replaceVar(schema, name, params[name] ?? {ref: ANY_URL}))
+    setParams(next, replaceVar(schema, name, params[name] ?? {type: ANY_URL}))
   }
   // What a field can be typed as, offered before the search over every schema
   // document: the type parameters, the two string formats (a kind of string
@@ -712,12 +718,12 @@ function StructSchemaForm({
       // A leaf or list root has no fields.
       const {properties: _p, values: _v, ...leaf} = rest
       return onSchema(
-        kind === 'list' ? {...leaf, type: url, items: schema.items ?? {ref: ANY_URL}} : {...leaf, type: url},
+        kind === 'list' ? {...leaf, type: url, items: schema.items ?? {type: ANY_URL}} : {...leaf, type: url},
       )
     }
     const kept = structFields(schema).filter((f) => !(signed && f.name === 'type'))
     const base = {...rest, properties: fieldsToProperties(kept)}
-    onSchema(kind !== url ? {...base, type: url} : {...base, ref: url})
+    onSchema({...base, type: url})
   }
   /** A picked option carrying a schema (Union): the root becomes that shape, keeping generics and description. */
   const setRootSchema = (next: HypermediaSchema) => {
@@ -794,7 +800,7 @@ function StructSchemaForm({
                 <span className="text-muted-foreground text-xs">default</span>
                 <SchemaTypeInput
                   chip
-                  value={typeof def?.ref === 'string' ? def.ref : ANY_URL}
+                  value={namedSchemaUrl(def ?? {}) ?? ANY_URL}
                   options={FIELD_KINDS.filter(({kind}) => !isReferenceKind(kind)).map(({kind, label}) => ({
                     label: HM_SCHEMA_PAGES[kind]?.name ?? label,
                     hint: 'core type',
@@ -802,7 +808,7 @@ function StructSchemaForm({
                   }))}
                   onChange={(url) => setParamDefault(name, url)}
                   ariaLabel={`Default type for ${name}`}
-                  className={chipColor(def ?? {ref: ANY_URL})}
+                  className={chipColor(def ?? {type: ANY_URL})}
                 />
                 <IconAction
                   label={`Remove type parameter ${name}`}
@@ -845,10 +851,8 @@ function StructSchemaForm({
 /** A schema with its fields replaced, keeping its root: a ref-rooted schema (the signed-blob envelope
  * or any base) keeps extending it; a map that gains named fields becomes a struct. */
 function withFields(schema: HypermediaSchema, next: StructField[]): HypermediaSchema {
-  const root =
-    !schema.type && typeof schema.ref === 'string'
-      ? {ref: schema.ref}
-      : {type: kindOf(schema.type) === 'map' && next.length === 0 ? MAP_URL : STRUCT_URL}
+  const base = namedSchemaUrl(schema)
+  const root = base ? {type: base} : {type: kindOf(schema.type) === 'map' && next.length === 0 ? MAP_URL : STRUCT_URL}
   const {type: _t, ref: _r, ...rest} = schema
   return {...rest, ...root, properties: fieldsToProperties(next)}
 }
@@ -1057,7 +1061,10 @@ function StructFieldsEditor({
           />
         </div>
       ))}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1.5" data-testid="schema-values">
+      <div
+        className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1.5"
+        data-testid={path ? `schema-values-${path}` : 'schema-values'}
+      >
         <AddAction label={path ? `Add field to ${path}` : undefined} onClick={addField}>
           Add field
         </AddAction>
@@ -1073,7 +1080,7 @@ function StructFieldsEditor({
             type="button"
             aria-pressed={values !== undefined}
             aria-label={path ? `Other fields allowed in ${path}` : 'Other fields allowed'}
-            onClick={() => setValues(values !== undefined ? null : {ref: ANY_URL})}
+            onClick={() => setValues(values !== undefined ? null : {type: ANY_URL})}
             className="text-muted-foreground hover:text-foreground hover:bg-muted/70 inline-flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-xs"
           >
             {values !== undefined ? <LockOpen className="size-3" /> : <Lock className="size-3" />}

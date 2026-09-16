@@ -63,8 +63,8 @@ To add a block type, do exactly what the core blocks do — **extend `block/base
 
 ```json <!-- id:TQDZHz8Q -->
 // example/app-block: the core, PLUS this app's custom Poll block
-{ "anyOf": [ { "ref": "hm://z6MkmZUb…/hypermedia-block-core" },
-             { "ref": "hm://z6MkmZUb…/example-poll-block" } ] }
+{ "anyOf": [ { "type": "hm://z6MkmZUb…/block/core" },
+             { "type": "hm://z6MkmZUb…/example/poll-block" } ] }
 ```
 
 See `example/poll-block` (a custom block extending the same base) and `example/app-block`. That union is **strict for its app** — it accepts core blocks and Polls but rejects a block type it doesn't know — while the wire's `block` stays open. <!-- id:uKNf26fA -->

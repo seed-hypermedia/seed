@@ -1,7 +1,7 @@
 ---
 name: "Example: Geo Point"
 summary: A latitude/longitude coordinate with an optional altitude.
-schemaDefinition: ipfs://bafyreigtzsj6xj5mqaicp35luz2sqjgqb4qlegg65lhrcj73tqhry76kc4
+schemaDefinition: ipfs://bafyreifbx3soi6px5xh4jdtkd3pqlglqe6uvpatnl6vkheedr7pv3bgkxq
 ---
 This document describes the **example/geo** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:mS5UKnHt -->
 

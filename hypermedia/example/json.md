@@ -1,7 +1,7 @@
 ---
 name: "Example: JSON Value"
 summary: "A recursive JSON value: null, boolean, number, string, list, or map. References itself."
-schemaDefinition: ipfs://bafyreid5g6mzeabh5uww3puoakkqdfanyg5j3nfzqd34vwwy7dhayv2jy4
+schemaDefinition: ipfs://bafyreibx2s7qud2cc7miwkswlp3egvtbh5ok6z7eijirwune6zflpud6x4
 ---
 This document describes the **example/json** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:3z3l-Qim -->
 

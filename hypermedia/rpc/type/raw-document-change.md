@@ -1,7 +1,7 @@
 ---
 name: Raw Document Change
 summary: "One change of a document's history in raw listing form: CID, author, dependency edges, time. A derived read model computed by the Seed daemon/API for clients — "
-schemaDefinition: ipfs://bafyreigulaj66u6kadth33mgon6bgwhimeg6vc6qzq2cfkidi5k3kwtxh4
+schemaDefinition: ipfs://bafyreidkk2w4e4lsqqysqhinznab6exkeus36evown7f5szqhziar24igq
 ---
 One change of a document's history in raw listing form: CID, author, dependency edges, time. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:eHAssQwO -->
 
