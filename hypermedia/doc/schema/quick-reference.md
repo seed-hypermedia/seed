@@ -43,6 +43,7 @@ The worked demo is [the World Builder](../world-builder.md): a world page typed 
 ## In the app <!-- id:XRBTxA4Y -->
 
 - A type's home page (any document with `schemaDefinition`) shows **New Document** — a draft whose `attributesSchema` is the page — and **New Collection** — a draft whose `childAttributesSchema` is the page. The options menu adds **Extend Schema**, **New Raw Value** (a bare IPFS blob of the type, for developers), and **Inspect Schema**. **New Schema** (Developer Mode) opens the editor pointed at the meta-schema. <!-- id:Jf-V7RjD -->
+- Any document's **Attributes** tab opens with its two schema bindings — **Attributes schema** and **Children attributes schema** — each with the full schema editor in place when the document owns the schema (the options menu's **Attributes Schema** / **Children Attributes Schema** entries jump there and draft an empty struct when nothing is bound). Publishing freezes edits into IPFS objects the binding keys point at. <!-- id:MxDZu2Xj -->
 - A typed document's **Attributes** tab shows the type's required fields as fixed rows, the optional ones as chips, the right control per field (date picker, title pill, file picker, dropdown), and violations in red — never blocking a save. <!-- id:7I4iLDes -->
 
 ## With the CLI <!-- id:fOfjpD4m -->

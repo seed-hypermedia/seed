@@ -13,7 +13,12 @@ import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
 import {useMemo, useState} from 'react'
 import {useUniversalClient, type UniversalClient} from '@shm/shared'
-import {splitLegacySchemaDraft, type SchemaDraft} from '@shm/shared/models/schema-draft'
+import {
+  BINDING_SCHEMA_KEYS,
+  splitLegacySchemaDraft,
+  type BindingSchemaDrafts,
+  type SchemaDraft,
+} from '@shm/shared/models/schema-draft'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {Button} from '../button'
 import {Tooltip} from '../tooltip'
@@ -61,15 +66,27 @@ export async function freezeSchemaDraft<M extends Record<string, unknown> | unde
   client: {request: UniversalClient['request']},
   metadata: M,
   schemaDraft?: SchemaDraft,
+  /** The draft's working binding schemas, frozen the same way: each key then points at its object. */
+  bindingSchemaDrafts?: BindingSchemaDrafts,
 ): Promise<M> {
   const legacy = splitLegacySchemaDraft(metadata)
   const draft = schemaDraft ?? legacy.schemaDraft
-  if (!draft) return legacy.metadata
-  const data = cbor.encode(dagJsonToIpld(draft) as any)
+  const bindings = BINDING_SCHEMA_KEYS.filter((key) => !!bindingSchemaDrafts?.[key])
+  if (!draft && !bindings.length) return legacy.metadata
+  let out = legacy.metadata as Record<string, unknown>
+  if (draft) out = {...out, [SCHEMA_DEFINITION_KEY]: `ipfs://${await publishSchemaObject(client, draft)}`}
+  for (const key of bindings)
+    out = {...out, [key]: `ipfs://${await publishSchemaObject(client, bindingSchemaDrafts![key]!)}`}
+  return out as unknown as M
+}
+
+/** Publish a schema object as a DAG-CBOR blob; its CID. */
+async function publishSchemaObject(client: {request: UniversalClient['request']}, schema: Record<string, any>) {
+  const data = cbor.encode(dagJsonToIpld(schema) as any)
   const digest = await sha256.digest(data)
   const cid = CID.createV1(DAG_CBOR_CODE, digest).toString()
   await client.request('PublishBlobs', {blobs: [{cid, data}]})
-  return {...legacy.metadata, [SCHEMA_DEFINITION_KEY]: `ipfs://${cid}`} as unknown as M
+  return cid
 }
 
 /** The bare schema CID a document points at via its `schemaDefinition` metadata, or null. */

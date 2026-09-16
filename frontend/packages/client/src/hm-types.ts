@@ -1373,6 +1373,8 @@ export const HMDraftContentSchema = z.object({
    * `schemaDefinition: ipfs://<cid>` attribute.
    */
   schemaDraft: z.record(z.string(), z.any()).optional(),
+  /** The working attributes schemas behind `attributesSchema` / `childAttributesSchema`, by key; frozen into IPFS objects at publish. */
+  bindingSchemaDrafts: z.record(z.string(), z.record(z.string(), z.any())).optional(),
 })
 
 export type HMDraftContent = z.infer<typeof HMDraftContentSchema>
