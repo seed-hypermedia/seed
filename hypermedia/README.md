@@ -165,7 +165,8 @@ disagree with the reference validator or with each other:
   (canonical CBOR with `sig` zeroed), publishing.
 - **CLI** (`frontend/apps/cli`) — `schema get|validate`, `blob get|validate|create|sign|verify`,
   `document validate`, `document create|update --metadata|--attributes-schema|--child-attributes-schema|--schema-definition`,
-  `space import --check`; see [user stories](./doc/schema/user-stories.md).
+  `space import --check`; see [user stories](./doc/schema/user-stories.md) and
+  [the one-page reference](./doc/schema/quick-reference.md) for every surface's commands and checks.
 
 In the app (`frontend/packages/ui/src/schema/`):
 - **Resolution** (`schema-resolve.tsx`) — `useResolvedSchema` (CID /

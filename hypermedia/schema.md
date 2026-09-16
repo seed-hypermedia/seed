@@ -16,6 +16,7 @@ This page is a practical guide to _using_ Hypermedia Schemas inside the Seed app
 # Start here <!-- id:jYC5B4_d -->
 
 New to Hypermedia Schemas? These four pages explain the system from the top down before the reference chapters go deep: <!-- id:XwK2BBFL -->
+  - [Hypermedia Schemas in one page](./doc/schema/quick-reference.md) — the condensed reference: the model, the library by link, the three document-typing keys, and the exact CLI commands, SDK calls, and agent verbs that read, write, and check them. <!-- id:tk4m-_Cj -->
   - [Why Hypermedia Schemas](./doc/schema/why.md) — the problem it solves, what it makes possible, and what it deliberately is not. <!-- id:ASDj0A2q -->
   - [How Hypermedia Schemas work](./doc/schema/how-it-works.md) — the whole pipeline, from a schema file to a signed blob, a browsable document, a resolved reference, a generated type, and a typed API call. <!-- id:JnOo7Tmo -->
   - [Typed documents](./schema/typed-documents.md) — how a document declares what it is with `attributesSchema`, `childAttributesSchema`, and `schemaDefinition`, and what the editor does about it. <!-- id:ejnPERZF -->
@@ -26,7 +27,7 @@ New to Hypermedia Schemas? These four pages explain the system from the top down
 # In one minute <!-- id:sPmTq8Rq -->
 
 - Every value is one of **nine kinds**: `null`, `boolean`, `integer`, `float`, `string`, `bytes`, `list`, `map`, `link`. <!-- id:Zyqnpby8 -->
-- A **schema** is a `map` that constrains a value — `type` (naming a kind, or another schema to include or extend), `properties`, `required`, `items`, `values`, `target`, `anyOf`, generics (`params` / `var` / `args`), and value constraints (`minLength`, `pattern`, `minimum`, …) — or a bare **literal** (`"draft"`, `1`, `true`, `null`) that accepts exactly that value; a fixed set of choices is a union of literals. <!-- id:Jb3Yvg3p -->
+- A **schema** is a `map` that constrains a value — `type` (naming a kind, or another schema to include or extend), `properties` (each field a property carrying its own `required` flag), `items`, `values`, `target`, `anyOf`, generics (`params` / `var` / `args`), and value constraints (`minLength`, `pattern`, `minimum`, …) — or a bare **literal** (`"draft"`, `1`, `true`, `null`) that accepts exactly that value; a fixed set of choices is a union of literals. <!-- id:Jb3Yvg3p -->
 - Schemas reference each other by **`hm://` name**, not by content hash — that is what lets types recurse and form cycles. <!-- id:KVkmtla5 -->
 - Validation is **advisory** in the editors (warn, don't block) and **strict** in the reference validator. <!-- id:4a6RPK0p -->
 
