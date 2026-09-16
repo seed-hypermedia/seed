@@ -22,7 +22,7 @@ const REPO = path.resolve(__dirname, '..')
 const CLI = path.join(REPO, 'frontend/apps/cli')
 const AGENTS = path.join(REPO, 'agents')
 const HYPERMEDIA_UID = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
-const KIND = (k: string) => `${HYPERMEDIA_UID}/hypermedia-${k}`
+const KIND = (k: string) => `${HYPERMEDIA_UID}/${k}`
 const TIMEOUT = 180_000
 
 let env: TestEnv
