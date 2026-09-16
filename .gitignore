@@ -155,3 +155,7 @@ __pycache__/
 
 # Repo HM sync: throwaway dev keys (space dev / hm-sync)
 hypermedia/.dev/
+
+# Playwright output from the @shm/ui e2e harness
+frontend/packages/ui/e2e/test-results/
+frontend/packages/ui/e2e/playwright-report/
