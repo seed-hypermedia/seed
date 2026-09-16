@@ -8,12 +8,12 @@ An agent's entire model-facing tool surface is **five verbs**: `read`, `write`, 
 
 The canonical registry lives at `agents/protocol/src/tool-registry.ts`. The Agents service executes from it and the desktop renders from it, so a tool's prompt text, schemas, chat bubble, and HM-reference extraction can never drift apart. It exports three tables: <!-- id:5JGudaAa -->
   - `seedVerbRegistry` — the five verbs plus the hidden `return_result` mechanism. This is the **only** provider-facing toolset (`agents/protocol/src/tool-registry.ts:398`). <!-- id:cpDWf5e4 -->
-  - `callableToolRegistry` — `search`, `web_search`, `navigate`, `execute`. These are never handed to the provider as tools by default; `call` dispatches them (`tool-registry.ts:613`). <!-- id:Z3ye-2G4 -->
+  - `callableToolRegistry` — `search`, `query`, `attributes`, `web_search`, `navigate`, `execute`. These are never handed to the provider as tools by default; `call` dispatches them (`tool-registry.ts:613`). <!-- id:Z3ye-2G4 -->
   - `seedToolRegistry` — both, merged, for renderers and validation lookups (`tool-registry.ts:630`). <!-- id:lnALDCIy -->
 
 Each entry owns the model-facing name, label, prompt description, JSON input schema, optional output schema, runtime availability (`assistant` / `agent-service`), rendering metadata, and an optional `getReferencedUrls` extractor used to sync `hm://` resources a call touched. Write results include document versions and comment/target URLs in this extraction so an open desktop session can keep newly published content subscribed on its local node before the user follows the result link. Server runtimes add only execution functions around registry entries; chat UIs pick their bubble renderer from the same metadata. <!-- id:Io_jNF7p -->
 
-`navigate` is marked `runtimes: ['assistant']`, so the agent service never offers it: `serviceCallableNames()` (`agents/src/api-service.ts:285`) filters on `runtimes.includes('agent-service')`, leaving the service's callable set as `search`, `web_search`, `execute`. Nothing on this branch runs the `assistant` runtime, so `navigate` is currently inert — it is kept as the registry entry a desktop-side executor would bind to. <!-- id:hZYGek_X -->
+`navigate` is marked `runtimes: ['assistant']`, so the agent service never offers it: `serviceCallableNames()` (`agents/src/api-service.ts:285`) filters on `runtimes.includes('agent-service')`, leaving the service's callable set as `search`, `query`, `attributes`, `web_search`, `execute`. Nothing on this branch runs the `assistant` runtime, so `navigate` is currently inert — it is kept as the registry entry a desktop-side executor would bind to. <!-- id:hZYGek_X -->
 
 ## Legacy names <!-- id:xGuoC4hF -->
 

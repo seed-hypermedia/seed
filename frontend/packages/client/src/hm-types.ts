@@ -1552,6 +1552,206 @@ export const HMSearchRequestSchema = z.object({
 })
 export type HMSearchRequest = z.infer<typeof HMSearchRequestSchema>
 
+// ── Attribute queries: QueryDocuments, ListDocumentAttributeNames, ListDocumentAttributeValues ──
+// These three POST the protobuf JSON form of the daemon's documents.v3alpha requests (the web API
+// decodes the CBOR body with `Request.fromJson`), so field names are the proto's lowerCamelCase and
+// enums are their proto names. Shared by the CLI's `query --where` / `attributes`, the agent's
+// `query` / `attributes` tools, and the app's Explore surface (which builds the same messages).
+
+/** A typed scalar attribute value in protobuf JSON form: exactly one of the four. */
+export const HMAttributeValueSchema = z
+  .object({
+    stringValue: z.string().optional(),
+    intValue: z.union([z.number(), z.string()]).optional(),
+    boolValue: z.boolean().optional(),
+    nullValue: z.union([z.object({}), z.null()]).optional(),
+  })
+  .strict()
+export type HMAttributeValue = z.infer<typeof HMAttributeValueSchema>
+
+export const HMDocumentFilterComparisonOperatorSchema = z.enum([
+  'EQUAL',
+  'NOT_EQUAL',
+  'LESS_THAN',
+  'LESS_THAN_OR_EQUAL',
+  'GREATER_THAN',
+  'GREATER_THAN_OR_EQUAL',
+])
+export type HMDocumentFilterComparisonOperator = z.infer<typeof HMDocumentFilterComparisonOperatorSchema>
+
+/**
+ * A recursive predicate over document attributes and built-in fields (proto `DocumentFilter`):
+ * exactly one of `and`, `or`, `not`, `comparison`, `exists`, `missing`, `stringMatch`, `urlMatch`,
+ * `spaceMatch`, `pathMatch`. Attribute keys are dotted paths into the document's metadata
+ * (`status`, `address.city`, `attributesSchema`).
+ */
+export type HMDocumentFilter = {
+  and?: {filters: HMDocumentFilter[]}
+  or?: {filters: HMDocumentFilter[]}
+  not?: {filter: HMDocumentFilter}
+  comparison?: {key: string; operator: HMDocumentFilterComparisonOperator; value: HMAttributeValue}
+  exists?: {key: string}
+  missing?: {key: string}
+  stringMatch?: {key: string; value: string; caseSensitive?: boolean; prefix?: boolean}
+  urlMatch?: {url: string; prefix?: boolean}
+  spaceMatch?: {space: string}
+  pathMatch?: {path: string; prefix?: boolean}
+}
+export const HMDocumentFilterSchema: z.ZodType<HMDocumentFilter> = z.lazy(() =>
+  z
+    .object({
+      and: z.object({filters: z.array(HMDocumentFilterSchema)}).optional(),
+      or: z.object({filters: z.array(HMDocumentFilterSchema)}).optional(),
+      not: z.object({filter: HMDocumentFilterSchema}).optional(),
+      comparison: z
+        .object({key: z.string(), operator: HMDocumentFilterComparisonOperatorSchema, value: HMAttributeValueSchema})
+        .optional(),
+      exists: z.object({key: z.string()}).optional(),
+      missing: z.object({key: z.string()}).optional(),
+      stringMatch: z
+        .object({
+          key: z.string(),
+          value: z.string(),
+          caseSensitive: z.boolean().optional(),
+          prefix: z.boolean().optional(),
+        })
+        .optional(),
+      urlMatch: z.object({url: z.string(), prefix: z.boolean().optional()}).optional(),
+      spaceMatch: z.object({space: z.string()}).optional(),
+      pathMatch: z.object({path: z.string(), prefix: z.boolean().optional()}).optional(),
+    })
+    .strict(),
+)
+
+export const HMBuiltinSortAttributeSchema = z.enum([
+  'BUILTIN_SORT_ATTRIBUTE_NAME',
+  'BUILTIN_SORT_ATTRIBUTE_PATH',
+  'BUILTIN_SORT_ATTRIBUTE_CREATE_TIME',
+  'BUILTIN_SORT_ATTRIBUTE_UPDATE_TIME',
+  'BUILTIN_SORT_ATTRIBUTE_ACTIVITY_TIME',
+  'BUILTIN_SORT_ATTRIBUTE_COMMENT_COUNT',
+])
+export type HMBuiltinSortAttribute = z.infer<typeof HMBuiltinSortAttributeSchema>
+
+/** One sort rule: an attribute `key` OR a built-in `attribute`, optionally descending. */
+export const HMDocumentSortSchema = z
+  .object({
+    key: z.string().optional(),
+    attribute: HMBuiltinSortAttributeSchema.optional(),
+    descending: z.boolean().optional(),
+  })
+  .strict()
+export type HMDocumentSort = z.infer<typeof HMDocumentSortSchema>
+
+export const HMQueryDocumentsInputSchema = z
+  .object({
+    filter: HMDocumentFilterSchema.optional(),
+    sort: z.array(HMDocumentSortSchema).optional(),
+    pageSize: z.number().int().positive().optional(),
+    pageToken: z.string().optional(),
+  })
+  .strict()
+export type HMQueryDocumentsInput = z.infer<typeof HMQueryDocumentsInputSchema>
+
+/** A document as QueryDocuments returns it: the daemon's DocumentInfo in protobuf JSON form. */
+export const HMRawDocumentInfoSchema = z
+  .object({
+    account: z.string(),
+    /** The document path, `/`-prefixed; empty for the space's home document. */
+    path: z.string().optional(),
+    metadata: z.record(z.unknown()).optional(),
+    authors: z.array(z.string()).optional(),
+    createTime: z.string().optional(),
+    updateTime: z.string().optional(),
+    genesis: z.string().optional(),
+    version: z.string().optional(),
+  })
+  .passthrough()
+export type HMRawDocumentInfo = z.infer<typeof HMRawDocumentInfoSchema>
+
+export const HMQueryDocumentsOutputSchema = z
+  .object({
+    documents: z.array(HMRawDocumentInfoSchema).optional(),
+    nextPageToken: z.string().optional(),
+  })
+  .passthrough()
+export type HMQueryDocumentsOutput = z.infer<typeof HMQueryDocumentsOutputSchema>
+
+export const HMQueryDocumentsRequestSchema = z.object({
+  key: z.literal('QueryDocuments'),
+  input: HMQueryDocumentsInputSchema,
+  output: HMQueryDocumentsOutputSchema,
+})
+export type HMQueryDocumentsRequest = z.infer<typeof HMQueryDocumentsRequestSchema>
+
+export const HMDocumentAttributeKindSchema = z.enum([
+  'DOCUMENT_ATTRIBUTE_KIND_UNSPECIFIED',
+  'DOCUMENT_ATTRIBUTE_KIND_OBJECT',
+  'DOCUMENT_ATTRIBUTE_KIND_STRING',
+  'DOCUMENT_ATTRIBUTE_KIND_INT',
+  'DOCUMENT_ATTRIBUTE_KIND_BOOL',
+])
+export type HMDocumentAttributeKind = z.infer<typeof HMDocumentAttributeKindSchema>
+
+export const HMListDocumentAttributeNamesInputSchema = z
+  .object({
+    /** Space whose attribute names come first; omitted = ordered globally. */
+    account: z.string().optional(),
+    /** Parent object path; results are its direct children. */
+    parentPath: z.array(z.string()).optional(),
+    prefix: z.string().optional(),
+    pageSize: z.number().int().positive().optional(),
+    pageToken: z.string().optional(),
+    /** Complete dotted scalar paths instead of direct children. */
+    recursive: z.boolean().optional(),
+  })
+  .strict()
+export const HMListDocumentAttributeNamesOutputSchema = z
+  .object({
+    names: z
+      .array(
+        z
+          .object({
+            name: z.string(),
+            kinds: z.array(z.object({kind: HMDocumentAttributeKindSchema.optional()}).passthrough()).optional(),
+          })
+          .passthrough(),
+      )
+      .optional(),
+    nextPageToken: z.string().optional(),
+  })
+  .passthrough()
+export const HMListDocumentAttributeNamesRequestSchema = z.object({
+  key: z.literal('ListDocumentAttributeNames'),
+  input: HMListDocumentAttributeNamesInputSchema,
+  output: HMListDocumentAttributeNamesOutputSchema,
+})
+export type HMListDocumentAttributeNamesRequest = z.infer<typeof HMListDocumentAttributeNamesRequestSchema>
+
+export const HMListDocumentAttributeValuesInputSchema = z
+  .object({
+    /** Exact nested path of the attribute. */
+    path: z.array(z.string()),
+    kind: HMDocumentAttributeKindSchema,
+    account: z.string().optional(),
+    prefix: z.string().optional(),
+    pageSize: z.number().int().positive().optional(),
+    pageToken: z.string().optional(),
+  })
+  .strict()
+export const HMListDocumentAttributeValuesOutputSchema = z
+  .object({
+    values: z.array(z.object({value: HMAttributeValueSchema.optional()}).passthrough()).optional(),
+    nextPageToken: z.string().optional(),
+  })
+  .passthrough()
+export const HMListDocumentAttributeValuesRequestSchema = z.object({
+  key: z.literal('ListDocumentAttributeValues'),
+  input: HMListDocumentAttributeValuesInputSchema,
+  output: HMListDocumentAttributeValuesOutputSchema,
+})
+export type HMListDocumentAttributeValuesRequest = z.infer<typeof HMListDocumentAttributeValuesRequestSchema>
+
 /** A published entity eligible for the account or document mention picker. */
 export const HMMentionCandidateSchema = z.object({
   id: unpackedHmIdSchema,
@@ -2179,12 +2379,18 @@ export type HMGetRequest = z.infer<typeof HMGetRequestSchema>
 export const HMActionSchema = z.discriminatedUnion('key', [
   HMPublishBlobsRequestSchema,
   HMPrepareDocumentChangeRequestSchema,
+  HMQueryDocumentsRequestSchema,
+  HMListDocumentAttributeNamesRequestSchema,
+  HMListDocumentAttributeValuesRequestSchema,
 ])
 export type HMAction = z.infer<typeof HMActionSchema>
 
 // Combined schema — kept for backward compatibility
 export const HMRequestSchema = z.discriminatedUnion('key', [
   HMResourceRequestSchema,
+  HMQueryDocumentsRequestSchema,
+  HMListDocumentAttributeNamesRequestSchema,
+  HMListDocumentAttributeValuesRequestSchema,
   HMResourceMetadataRequestSchema,
   HMAccountRequestSchema,
   HMCommentRequestSchema,
