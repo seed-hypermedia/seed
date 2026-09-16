@@ -772,6 +772,20 @@ function StructSchemaForm({
               </>
             )}
           </p>
+          {/* What the schema is for — carried on the object itself, so an attributes schema a
+              document owns (no page of its own) still explains itself wherever it is shown. */}
+          <Textarea
+            value={schema.description ?? ''}
+            aria-label="Schema description"
+            placeholder="Describe what this schema is for"
+            rows={1}
+            className="min-h-8 resize-none text-sm"
+            data-testid="schema-description"
+            onChange={(e) => {
+              const {description: _d, ...rest} = schema
+              onSchema(e.target.value.trim() ? {...rest, description: e.target.value} : rest)
+            }}
+          />
           {(rootIsUnion || rootIsList) && (
             <NestedSchemaEditor
               node={schema}
