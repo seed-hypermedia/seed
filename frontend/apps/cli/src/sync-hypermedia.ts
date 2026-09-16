@@ -2,14 +2,14 @@
  * sync-hypermedia.ts — hypermedia/ (developer docs, Hypermedia schema library, agents docs) ⇄ its Hypermedia site.
  *
  *   cd frontend/apps/cli
- *   bun run src/sync-hypermedia.ts push [--dry-run] [--server <url>] [--key <name>]
+ *   bun run src/sync-hypermedia.ts push [--dry-run] [--server <url>] [--key <name>] [--keep-stale]
  *   bun run src/sync-hypermedia.ts pull [--server <url>] [--space <uid>]
  *   bun run src/sync-hypermedia.ts dev  [--api <url>] [--daemon <url>] [--interval <ms>] [--no-push] [--no-watch] [--keep-stale]
  *
  * This is `seed-cli space import / export / dev` (utils/space-sync.ts) with the
  * folder's own layout on top (see `layout` below): a tree of folders holding
  * the Hypermedia concepts at the root, the schema library (schema/), the API
- * (rpc/), the examples (example/), docs (doc/) and the agents docs (agent/),
+ * (rpc/), the examples (example/), the guides (build/) and the agents docs (agent/),
  * where every page publishes at its path.
  *
  * Schema files are handled by the generic import: a type file becomes the
@@ -30,11 +30,19 @@ import {existsSync, readdirSync, readFileSync, statSync} from 'node:fs'
 import {dirname, join, relative, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 
-import {createSeedClient, type HMSigner, type SeedClient} from '@seed-hypermedia/client'
+import {createSeedClient, type HMSigner, type SeedClient, createTombstoneRef} from '@seed-hypermedia/client'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {runDevLoop} from './utils/dev-loop'
 import {resolveSigningKey} from './utils/keys'
 import {createSignerFromKey} from './utils/signer'
-import {encodeSchemaBlob, exportSpace, importSpace, type SpaceLayout} from './utils/space-sync'
+import {
+  encodeSchemaBlob,
+  exportSpace,
+  importSpace,
+  type SpaceLayout,
+  listMarkdownFiles,
+  listSpaceVersions,
+} from './utils/space-sync'
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
@@ -113,7 +121,9 @@ async function loadSchemaBlobs(): Promise<Array<{data: Uint8Array; cid: string}>
     blobs.push({data, cid})
   }
   if (mismatches > 0) {
-    console.error(`\nFAILED: ${mismatches} schema CID mismatch(es). Run \`node scripts/hypermedia/publish.mjs\` and retry.`)
+    console.error(
+      `\nFAILED: ${mismatches} schema CID mismatch(es). Run \`node scripts/hypermedia/publish.mjs\` and retry.`,
+    )
     process.exit(1)
   }
   return blobs
@@ -121,7 +131,11 @@ async function loadSchemaBlobs(): Promise<Array<{data: Uint8Array; cid: string}>
 
 /** Refresh the lockfile and the bundled registry after schema files changed. */
 function refreshSchemaArtifacts() {
-  for (const script of ['scripts/hypermedia/publish.mjs', 'scripts/hypermedia/gen-registry.mjs', 'scripts/hypermedia/typegen.mjs']) {
+  for (const script of [
+    'scripts/hypermedia/publish.mjs',
+    'scripts/hypermedia/gen-registry.mjs',
+    'scripts/hypermedia/typegen.mjs',
+  ]) {
     const run = spawnSync('node', [script], {cwd: REPO_ROOT, stdio: 'inherit'})
     if (run.status !== 0) throw new Error(`${script} failed`)
   }
@@ -134,8 +148,40 @@ function argValue(args: string[], flag: string): string | undefined {
   return idx >= 0 ? args[idx + 1] : undefined
 }
 
+/**
+ * Retire the documents of the site whose file is gone from the folder: the folder is the truth about
+ * what the site publishes, so a page deleted in git is tombstoned on the site. Redirects left behind
+ * by moves are kept (they are not documents), and the home document is never retired.
+ */
+async function retireStale(client: SeedClient, signer: HMSigner, account: string, dryRun: boolean): Promise<string[]> {
+  const published = new Set(
+    listMarkdownFiles(SCHEMAS_DIR)
+      .map((file) => layout.pathForFile(file))
+      .filter((p): p is string => p !== null),
+  )
+  const versions = await listSpaceVersions(client, account)
+  const stale = [...versions.keys()].filter((path) => path !== '' && !published.has(path)).sort()
+  for (const path of stale) {
+    console.log(`  retire  ${path}`)
+    if (dryRun) continue
+    const resource = await client.request('Resource', hmId(account, {path: path.replace(/^\//, '').split('/')}))
+    if (resource.type !== 'document') continue
+    const ref = await createTombstoneRef(
+      {
+        space: account,
+        path,
+        genesis: resource.document.genesis,
+        generation: resource.document.generationInfo ? Number(resource.document.generationInfo.generation) : 0,
+      },
+      signer,
+    )
+    await client.publish(ref)
+  }
+  return stale
+}
+
 /** Publish the schema blobs, then import hypermedia/ into `account` on `client`. */
-async function pushTo(client: SeedClient, signer: HMSigner, account: string, dryRun: boolean) {
+async function pushTo(client: SeedClient, signer: HMSigner, account: string, dryRun: boolean, keepStale = false) {
   const blobs = await loadSchemaBlobs()
   console.log(`Schema blobs: ${blobs.length} encoded, all CIDs match the lockfile.`)
   if (!dryRun) {
@@ -152,10 +198,11 @@ async function pushTo(client: SeedClient, signer: HMSigner, account: string, dry
     dryRun,
     log: (line) => console.log('  ' + line),
   })
+  const retired = keepStale ? [] : await retireStale(client, signer, account, dryRun)
   console.log(
     `\n${dryRun ? 'DRY RUN' : 'DONE'}: ${result.created.length} created, ${result.moved.length} moved, ${
       result.updated.length
-    } updated, ${result.unchanged.length} unchanged.`,
+    } updated, ${result.unchanged.length} unchanged, ${retired.length} retired.`,
   )
   return result
 }
@@ -185,7 +232,7 @@ async function push(args: string[]) {
   console.log(`Server:  ${serverUrl}`)
   console.log(`Mode:    ${dryRun ? 'DRY RUN' : 'PUBLISH'}\n`)
 
-  await pushTo(createSeedClient(serverUrl), signer, account, dryRun)
+  await pushTo(createSeedClient(serverUrl), signer, account, dryRun, args.includes('--keep-stale'))
   console.log(`Root: hm://${account}`)
 }
 
