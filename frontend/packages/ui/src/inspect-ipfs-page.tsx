@@ -31,6 +31,7 @@ import {
 } from './schema/blob-menu-items'
 import {seedValue} from './schema/data-editor'
 import {emptyStructSchema} from './schema/schema-editor'
+import {SchemaNavContext, SchemaView} from './schema/explorer'
 import {SchemaAwareEditor} from './schema/schema-aware-editor'
 import {HM_SCHEMAS, isHypermediaSchema, nameToUrl, schemaCid, schemaShape} from './schema/engine'
 import {useResolvedSchema} from './schema/schema-resolve'
@@ -550,7 +551,23 @@ export function InspectIpfsPage({
               schemaLoading={!!attachedSchemaCid && schemaRegistry.isLoading && !schema}
               onOpenSchema={attachedSchemaCid ? () => navigate({key: 'schema', cid: attachedSchemaCid}) : undefined}
             />
-            <ValueDisplay value={preparedData} rules={CBOR_VALUE_RULES} />
+            {valueIsSchema && isPlainObject(preparedData) ? (
+              // A schema reads as a schema: the explorer's view of its fields, kinds, and
+              // references — the same presentation as the schema tools everywhere else — not a
+              // generic value tree. Edit opens the schema form.
+              <SchemaNavContext.Provider value={{openRef: (ref) => openHmUrl(ref)}}>
+                <SchemaView
+                  schema={preparedData as Record<string, any>}
+                  nav={(slug) => {
+                    const url = nameToUrl(slug)
+                    if (url) openHmUrl(url)
+                  }}
+                  hideIdentity
+                />
+              </SchemaNavContext.Provider>
+            ) : (
+              <ValueDisplay value={preparedData} rules={CBOR_VALUE_RULES} />
+            )}
           </div>
         </SchemaRegistryProvider>
       </ValueEditorProvider>
