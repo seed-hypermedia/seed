@@ -110,7 +110,7 @@ import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout
 import {useQuery} from '@tanstack/react-query'
 import {
   ArrowUp,
-  ExternalLink,
+  Braces,
   FilePen,
   FileText,
   Grid3X3,
@@ -157,7 +157,7 @@ import {
 import {DocumentMetadataView} from './document-metadata-view'
 import {RequiredAttributesEditor} from './required-attributes-editor'
 import {schemaDefinitionCid, SchemaDocumentHeaderActions, useSchemaMenuItems} from './schema/schema-document'
-import {Input} from './components/input'
+import {HMEntityField} from './hm-entity-field'
 import {emptyStructSchema, SchemaEditor} from './schema/schema-editor'
 import {SizableText} from './text'
 import {SchemaBrowserPage} from './schema/schema-browser'
@@ -3635,14 +3635,15 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
 }
 
 /**
- * One of the two attributes-schema bindings, at the top of the Attributes tab — this document's own
- * (`attributesSchema`: the fields it carries) or its children's (`childAttributesSchema`: the fields
- * every document created inside it carries) — with the full schema editor in place. A binding this
- * document OWNS (an `ipfs://` object, or a draft) is edited here: edits go to the draft's
- * `bindingSchemaDrafts`, and publishing freezes them into a new object the key then points at. A
- * binding to a type page (`hm://`) is shown read-only with a link to the page, and can be copied
- * here to edit. Arriving with the route's `focus` on this key drafts an empty struct when nothing is
- * bound yet, so the editor is ready to take a field.
+ * One of the two attributes-schema bindings, below the attribute rows on the Attributes tab — this
+ * document's own (`attributesSchema`: the fields it carries) or its children's
+ * (`childAttributesSchema`: the fields every document created inside it carries). Nothing bound:
+ * a **Define** button; pressing it offers a search over schema pages (or a pasted `hm://` /
+ * `ipfs://` reference) and a **Custom struct** button. Bound to a schema page: the page's pill, its
+ * schema read-only, and **Custom struct** to take a copy over. Bound to an object this document
+ * owns (`ipfs://`, or a draft): the full schema editor in place — edits go to the draft's
+ * `bindingSchemaDrafts`, and publishing freezes them into a new object the key then points at.
+ * **Clear** removes the binding. Arriving with the route's `focus` on this key opens Define.
  */
 function BindingSchemaSection({document, bindingKey}: {document: HMDocument; bindingKey: BindingSchemaKey}) {
   const ctx = useDocumentSelector(selectContext)
@@ -3671,47 +3672,25 @@ function BindingSchemaSection({document, bindingKey}: {document: HMDocument; bin
     },
     [beginEditIfNeeded, send, bindingKey],
   )
-  // Point the binding at a reference by hand (a type page's hm:// URL, or an ipfs:// schema CID),
-  // dropping any draft; an empty reference clears the binding (a null tombstone removes the key).
+  // Point the binding at a reference (a schema page's hm:// URL, or an ipfs:// schema object),
+  // dropping any draft. An empty reference clears the binding: a null tombstone removes the key.
   const setReference = useCallback(
-    (value: string) => {
-      const next = value.trim()
-      if (next === (ref ?? '')) return
+    (value: unknown) => {
+      const next = typeof value === 'string' ? value.trim() : ''
       beginEditIfNeeded()
-      send({
-        type: 'change',
-        metadata: {[bindingKey]: next || null} as any,
-        bindingSchemaDrafts: {[bindingKey]: null},
-      })
+      send({type: 'change', metadata: {[bindingKey]: next || null} as any, bindingSchemaDrafts: {[bindingKey]: null}})
     },
-    [beginEditIfNeeded, send, bindingKey, ref],
+    [beginEditIfNeeded, send, bindingKey],
   )
-  const clear = useCallback(() => {
-    beginEditIfNeeded()
-    send({type: 'change', metadata: {[bindingKey]: null} as any, bindingSchemaDrafts: {[bindingKey]: null}})
-  }, [beginEditIfNeeded, send, bindingKey])
-  const [refText, setRefText] = useState(ref ?? '')
-  useEffect(() => setRefText(ref ?? ''), [ref])
-  const referenceField = canEditCurrentRoute ? (
-    <Input
-      className="h-8 min-w-64 font-mono text-xs"
-      value={refText}
-      placeholder="hm://type-page or ipfs://schema-cid"
-      onChange={(event) => setRefText(event.target.value)}
-      onBlur={() => setReference(refText)}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') (event.target as HTMLInputElement).blur()
-      }}
-      data-testid={`binding-schema-${bindingKey}-ref`}
-    />
-  ) : null
-  // Opened from the options menu with nothing bound: start an empty struct so a field can be added.
-  const seededRef = useRef(false)
+  const clear = useCallback(() => setReference(''), [setReference])
+  // Define: the search-or-custom choice, open until something is bound or it is cancelled.
+  const [defining, setDefining] = useState(false)
   useEffect(() => {
-    if (!focused || seededRef.current || !canEditCurrentRoute || draft || ref) return
-    seededRef.current = true
-    edit(emptyStructSchema())
-  }, [focused, canEditCurrentRoute, draft, ref, edit])
+    if (focused && canEditCurrentRoute && !draft && !ref) setDefining(true)
+  }, [focused, canEditCurrentRoute, draft, ref])
+  useEffect(() => {
+    if (draft || ref) setDefining(false)
+  }, [draft, ref])
   const sectionRef = useRef<HTMLElement>(null)
   useEffect(() => {
     if (focused) sectionRef.current?.scrollIntoView({block: 'start'})
@@ -3727,21 +3706,42 @@ function BindingSchemaSection({document, bindingKey}: {document: HMDocument; bin
       </SizableText>
     </div>
   )
+  const customStructButton = (seed?: Record<string, any>) => (
+    <Button variant="outline" size="sm" onClick={() => edit(seed ? stripLegacyLabels(seed) : emptyStructSchema())}>
+      <Braces className="mr-1 size-3.5" /> Custom struct
+    </Button>
+  )
   if (!draft && !ref) {
     if (!canEditCurrentRoute) return null
     return (
       <section
         ref={sectionRef}
-        className="border-border/60 mb-4 flex items-center justify-between gap-3 rounded-lg border border-dashed p-3"
+        className="border-border/60 mt-4 flex flex-col gap-3 rounded-lg border border-dashed p-3"
         data-testid={`binding-schema-${bindingKey}`}
       >
-        {header}
-        <div className="flex shrink-0 items-center gap-2">
-          {referenceField}
-          <Button variant="outline" size="sm" onClick={() => edit(emptyStructSchema())}>
-            <Plus className="mr-1 size-4" /> Define
-          </Button>
+        <div className="flex items-center justify-between gap-3">
+          {header}
+          {defining ? (
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setDefining(false)}>
+              Cancel
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => setDefining(true)}>
+              <Plus className="mr-1 size-4" /> Define
+            </Button>
+          )}
         </div>
+        {defining ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="min-w-64 flex-1">
+              <HMEntityField mode="schema" value="" onValue={setReference} onOpen={openUrl} autoFocus />
+            </div>
+            <SizableText size="xs" className="text-muted-foreground">
+              or
+            </SizableText>
+            {customStructButton()}
+          </div>
+        ) : null}
       </section>
     )
   }
@@ -3750,7 +3750,7 @@ function BindingSchemaSection({document, bindingKey}: {document: HMDocument; bin
   return (
     <section
       ref={sectionRef}
-      className="border-border/60 bg-muted/20 mb-4 flex flex-col gap-3 rounded-lg border p-3"
+      className="border-border/60 bg-muted/20 mt-4 flex flex-col gap-3 rounded-lg border p-3"
       data-testid={`binding-schema-${bindingKey}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -3760,23 +3760,17 @@ function BindingSchemaSection({document, bindingKey}: {document: HMDocument; bin
             <SizableText size="xs" className="text-muted-foreground">
               Publishing the document publishes this schema.
             </SizableText>
-          ) : (
-            referenceField
-          )}
-          {ref && !owned && !draft ? (
-            <>
-              <Button variant="ghost" size="sm" className="text-muted-foreground gap-1" onClick={() => openUrl(ref)}>
-                Defined by {cls.kind === 'hm-bundled' ? cls.name : 'a type page'}
-                <ExternalLink className="size-3.5" />
-              </Button>
-              {canEditCurrentRoute && published ? (
-                <Button variant="outline" size="sm" onClick={() => edit(stripLegacyLabels(published))}>
-                  <Pencil className="mr-1 size-3.5" /> Edit a copy here
-                </Button>
-              ) : null}
-            </>
+          ) : ref ? (
+            <HMEntityField
+              mode="schema"
+              value={ref}
+              onValue={setReference}
+              onOpen={openUrl}
+              onClear={canEditCurrentRoute ? clear : undefined}
+            />
           ) : null}
-          {canEditCurrentRoute ? (
+          {ref && !owned && !draft && canEditCurrentRoute ? customStructButton(published) : null}
+          {canEditCurrentRoute && draft ? (
             <Button variant="ghost" size="sm" className="text-muted-foreground gap-1" onClick={clear}>
               <Trash className="size-3.5" /> Clear
             </Button>
@@ -3853,9 +3847,6 @@ function DocumentMetadataPage({
 
   return (
     <>
-      {BINDING_SCHEMA_KEYS.map((bindingKey) => (
-        <BindingSchemaSection key={bindingKey} document={document} bindingKey={bindingKey} />
-      ))}
       <DocumentMetadataView
         metadata={metadata as any}
         canEdit={canEditCurrentRoute}
@@ -3871,6 +3862,9 @@ function DocumentMetadataPage({
         onCreateBlob={onCreateBlob}
         directEdit={directEdit}
       />
+      {BINDING_SCHEMA_KEYS.map((bindingKey) => (
+        <BindingSchemaSection key={bindingKey} document={document} bindingKey={bindingKey} />
+      ))}
     </>
   )
 }
