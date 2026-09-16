@@ -3639,7 +3639,7 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
  * document's own (`attributesSchema`: the fields it carries) or its children's
  * (`childAttributesSchema`: the fields every document created inside it carries). Nothing bound:
  * a **Define** button; pressing it offers a search over schema pages (or a pasted `hm://` /
- * `ipfs://` reference) and a **Custom struct** button. Bound to a schema page: the page's pill and
+ * `ipfs://` reference) and a **Custom Attributes** / **Custom Children Attributes** button. Bound to a schema page: the page's pill and
  * its schema read-only (clear it to define a custom one). Bound to an object this document
  * owns (`ipfs://`, or a draft): the full schema editor in place — edits go to the draft's
  * `bindingSchemaDrafts`, and publishing freezes them into a new object the key then points at.
@@ -3708,7 +3708,8 @@ function BindingSchemaSection({document, bindingKey}: {document: HMDocument; bin
   )
   const customStructButton = (seed?: Record<string, any>) => (
     <Button variant="outline" size="sm" onClick={() => edit(seed ? stripLegacyLabels(seed) : emptyStructSchema())}>
-      <Braces className="mr-1 size-3.5" /> Custom struct
+      <Braces className="mr-1 size-3.5" />{' '}
+      {bindingKey === 'attributesSchema' ? 'Custom Attributes' : 'Custom Children Attributes'}
     </Button>
   )
   if (!draft && !ref) {
