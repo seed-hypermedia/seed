@@ -16,6 +16,12 @@
         "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/ipfs-url"
       }
     },
+    "thumbnail": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/ipfs-url"
+      },
+      "description": "Deprecated image field kept for old documents; use `icon` or `cover`."
+    },
     "cover": {
       "value": {
         "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/ipfs-url"
@@ -25,6 +31,21 @@
       "value": {
         "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/url"
       }
+    },
+    "agentServerUrl": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/url"
+      },
+      "description": "The agents server this space advertises to its readers (an http(s) origin); clients connect to it beside their own servers."
+    },
+    "spaceAgents": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+        "values": {
+          "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/value"
+        }
+      },
+      "description": "Agents this space publishes to its readers: `{[agentId]: order}`, each id an agent on `agentServerUrl`; a removed agent leaves a null behind."
     },
     "attributesSchema": {
       "value": {
@@ -52,6 +73,21 @@
           ""
         ]
       }
+    },
+    "seedExperimentalLogo": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/ipfs-url"
+      },
+      "description": "Space header logo image."
+    },
+    "seedExperimentalHomeOrder": {
+      "value": {
+        "anyOf": [
+          "UpdatedFirst",
+          "CreatedFirst"
+        ]
+      },
+      "description": "Legacy ordering of a space home listing."
     },
     "displayPublishTime": {
       "value": {
@@ -101,6 +137,18 @@
           }
         }
       }
+    },
+    "importCategories": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+      },
+      "description": "Comma-separated categories kept from an external import (e.g. WordPress)."
+    },
+    "importTags": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+      },
+      "description": "Comma-separated tags kept from an external import (e.g. WordPress)."
     }
   },
   "values": {

@@ -926,8 +926,14 @@ export type HMMetadata = {
   name?: string
   summary?: string
   icon?: HMIpfs
+  /** Deprecated image field kept for old documents; use `icon` or `cover`. */
+  thumbnail?: HMIpfs
   cover?: HMIpfs
   siteUrl?: HMUrl
+  /** The agents server this space advertises to its readers (an http(s) origin); clients connect to it beside their own servers. */
+  agentServerUrl?: HMUrl
+  /** Agents this space publishes to its readers: `{[agentId]: order}`, each id an agent on `agentServerUrl`; a removed agent leaves a null behind. */
+  spaceAgents?: {[key: string]: HMValue}
   /** The attributes schema THIS document conforms to: the hm:// URL of a schema document (or ipfs://<cid> of a schema blob) whose struct describes the document's attributes. */
   attributesSchema?: HMHmUrl
   /** The attributes schema this document's direct CHILDREN conform to (hm:// URL or ipfs://<cid>). A child may declare its own `attributesSchema` instead. */
@@ -935,6 +941,10 @@ export type HMMetadata = {
   /** This document DEFINES a schema: ipfs://<cid> of the schema blob it describes. Its target is the meta-schema, so an editor creates and validates the blob as a Hypermedia schema (the struct form, rooted at Struct by default). Other documents reference this document's URL as their `attributesSchema`/`childAttributesSchema`. */
   schemaDefinition?: HMIpfs
   layout?: 'Seed/Experimental/Newspaper' | ''
+  /** Space header logo image. */
+  seedExperimentalLogo?: HMIpfs
+  /** Legacy ordering of a space home listing. */
+  seedExperimentalHomeOrder?: 'UpdatedFirst' | 'CreatedFirst'
   displayPublishTime?: string
   displayAuthor?: string
   showOutline?: boolean
@@ -944,6 +954,10 @@ export type HMMetadata = {
   theme?: {
     headerLayout?: 'Center' | ''
   }
+  /** Comma-separated categories kept from an external import (e.g. WordPress). */
+  importCategories?: string
+  /** Comma-separated tags kept from an external import (e.g. WordPress). */
+  importTags?: string
 } & {[key: string]: HMValue}
 
 /**
