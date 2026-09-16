@@ -3761,7 +3761,9 @@ function BindingSchemaSection({document, bindingKey}: {document: HMDocument; bin
             <SizableText size="xs" className="text-muted-foreground">
               Publishing the document publishes this schema.
             </SizableText>
-          ) : ref ? (
+          ) : ref && !owned ? (
+            // A schema page: its pill (✕ clears). An object this document owns has no page to name;
+            // the schema itself is shown below, and Clear removes it.
             <HMEntityField
               mode="schema"
               value={ref}
@@ -3769,6 +3771,11 @@ function BindingSchemaSection({document, bindingKey}: {document: HMDocument; bin
               onOpen={openUrl}
               onClear={canEditCurrentRoute ? clear : undefined}
             />
+          ) : null}
+          {ref && owned && !draft && canEditCurrentRoute ? (
+            <Button variant="ghost" size="sm" className="text-muted-foreground gap-1" onClick={clear}>
+              <Trash className="size-3.5" /> Clear
+            </Button>
           ) : null}
           {canEditCurrentRoute && draft ? (
             <Button variant="ghost" size="sm" className="text-muted-foreground gap-1" onClick={clear}>
