@@ -1,7 +1,7 @@
 ---
 name: Core Block
 summary: The union of the fifteen built-in block types (Paragraph, Heading, Code, Math, Image, Video, File, Button, Embed, WebEmbed, Nostr, Table, TableRow, TableColumn,
-schemaDefinition: ipfs://bafyreihgw4nkzdyw2gihycgvwofrq4ki5t4fkmtvrzc5ti7kij5bcm4zwe
+schemaDefinition: ipfs://bafyreidjmvkidd6iorhrdnavyqfnhdzoaxfemx56fwlzqtbo5rebqnbbry
 ---
 The union of the fifteen built-in block types (Paragraph, Heading, Code, Math, Image, Video, File, Button, Embed, WebEmbed, Nostr, Table, TableRow, TableColumn, Query). This is the strict core Hypermedia defines; anyone can extend it by making a larger union that includes it plus their own block types. <!-- id:38pY0Ovx -->
 

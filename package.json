@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "test": "pnpm web:test && pnpm shared:test && pnpm desktop:test:unit",
+    "hypermedia:check": "node scripts/hypermedia/check.mjs",
     "hypermedia:dev": "cd frontend/apps/cli && bun run src/sync-hypermedia.ts dev",
     "hypermedia:push": "cd frontend/apps/cli && bun run src/sync-hypermedia.ts push",
     "hypermedia:pull": "cd frontend/apps/cli && bun run src/sync-hypermedia.ts pull",

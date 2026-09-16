@@ -4,25 +4,25 @@ summary: Include vs link, the hm:// naming layer, and why names — not content 
 ---
 # References: include, link, and the self-reference fixpoint <!-- id:5IJDwtlR -->
 
-The schema language has **two** ways one schema can point at another. They look similar in the human form but mean different things, and the distinction becomes load-bearing once everything is content-addressed. <!-- id:X8rzkWzP -->
+The schema language has **two** ways one schema can point at another. They look similar in the human form but mean different things, and the distinction becomes load-bearing once everything is content-addressed. (Both are spelled with `type` and `target`; schemas published before that change spell a reference `ref`, which still resolves.) <!-- id:X8rzkWzP -->
 
 ## Two kinds of reference <!-- id:JOeoh-SP -->
 
-### Include — `ref` alone <!-- id:a_wnChSK -->
+### Include — `type` naming another schema <!-- id:a_wnChSK -->
 
 ```json <!-- id:vnLDG4nN -->
-{ "ref": "example/address" }
+{ "type": "example/address" }
 ```
 
-An **include** substitutes the referenced schema in place. In `example/person`, `home` is `{ "ref": "example/address" }`: a person's `home` value is an address, stored **inline** in the person's own block. Includes are an author-time convenience for composing schemas — like `#include` or importing a type. They say nothing about _where the data lives_; the composed value is right there. <!-- id:P5Vw9KYe -->
+An **include** substitutes the named schema in place. In `example/person`, `home` is `{ "type": "example/address" }`: a person's `home` value is an address, stored **inline** in the person's own block. It is the same key that names a kind — naming `string` grounds the node, naming `example/address` includes that schema — and adding any other key turns the include into an [extension](./extension.md). Includes are an author-time convenience for composing schemas — like `#include` or importing a type. They say nothing about _where the data lives_; the composed value is right there. <!-- id:P5Vw9KYe -->
 
-### Link — `type:"link"` (optionally with `ref`) <!-- id:BHFi5HjZ -->
+### Link — `type:"link"` (optionally with `target`) <!-- id:BHFi5HjZ -->
 
 ```json <!-- id:eJIRZitT -->
-{ "type": "link", "ref": "example/person" }
+{ "type": "link", "target": "example/person" }
 ```
 
-A **link** types a value that is a **CID** — a pointer to a _separate_ block. In `example/document`, `author` is a typed link to `example/person`: the document block does not contain the person; it contains a hash naming a different block that does. The optional `ref` records the _expected type of the target_ (a "typed link", like IPLD's `&Person`). <!-- id:s1SSoVeN -->
+A **link** types a value that is a **CID** — a pointer to a _separate_ block. In `example/document`, `author` is a typed link to `example/person`: the document block does not contain the person; it contains a hash naming a different block that does. The optional `target` records the _expected type of what it points at_ (a "typed link", like IPLD's `&Person`). `target` is the general "what this reference points at" key: a string field whose `format` is `hm-url` or `ipfs-url` carries one too, naming the schema the referenced document or object should conform to. <!-- id:s1SSoVeN -->
 
 The contrast in one sentence: **include embeds a shape; link points across blocks.** `person.home` carries an address with it; `document.author` points at a person stored elsewhere. <!-- id:UnPOGtlL -->
 
@@ -33,17 +33,17 @@ Target-type checking on a typed link is necessarily **lazy**: the validator cann
 In this repo, references are **file names** because humans edit files. When schemas are published to IPFS, a build step: <!-- id:XDQnu6gS -->
   1. encodes each schema to DAG-CBOR (see [encoding](./encoding.md)), <!-- id:yi-3JoZG -->
   2. computes its CID, <!-- id:xfljZeXh -->
-  3. rewrites every `ref` that named that file into the file's CID. <!-- id:GF9F_NmT -->
+  3. rewrites every reference that named that file into the file's CID. <!-- id:GF9F_NmT -->
 
-`{ "ref": "example/address" }` becomes `{ "ref": <cid-of-address-block> }`. Same graph, resolved by content hash instead of by path. For an **acyclic** set of schemas this is a clean bottom-up pass: encode the leaves, get their CIDs, then their parents, and so on to the root. <!-- id:s9WK8Gv8 -->
+`{ "type": "example/address" }` becomes `{ "type": <cid-of-address-block> }`. Same graph, resolved by content hash instead of by path. For an **acyclic** set of schemas this is a clean bottom-up pass: encode the leaves, get their CIDs, then their parents, and so on to the root. <!-- id:s9WK8Gv8 -->
 
 ## The beautifully meta part — and its fixpoint <!-- id:NqDWNSWI -->
 
-Here is the twist that makes the meta-schema fold in on itself. The meta-schema refers back to itself — now through its variants. `schema` is `{ anyOf: [ …refs to the variants… ] }`, and each variant (e.g. `schema/map-schema`) contains `{ "ref": "schema" }`. So `schema` → variant → `schema` is a **cycle**, and after the transform some `ref` in that cycle must become the CID _of a block whose bytes are still being determined_. <!-- id:21u8uWpR -->
+Here is the twist that makes the meta-schema fold in on itself. The meta-schema refers back to itself — now through its variants. `schema` is `{ anyOf: [ …the variants, each named… ] }`, and each variant (e.g. `schema/map-schema`) contains `{ "type": "schema" }`. So `schema` → variant → `schema` is a **cycle**, and after the transform some reference in that cycle must become the CID _of a block whose bytes are still being determined_. <!-- id:21u8uWpR -->
 
 But a CID is the hash of the block's bytes — and those bytes now have to contain that same CID. **You cannot compute it.** Finding content whose hash appears inside that very content is finding a hash preimage; it is computationally infeasible by design. A block genuinely cannot embed its own CID, and a reference cycle cannot be content-addressed in any order — no block in the cycle can be encoded first. <!-- id:HnmaGrbq -->
 
-This is not a quirk of the meta-schema. **Any self-referential schema hits it.** `example/document` has `previous: { type: link, ref: "example/document" }` — a document links to a previous document of the same type. That `ref` → CID rewrite is the identical fixpoint. And **mutually** recursive schemas (A refs B, B refs A) form a cycle that cannot be content-addressed in any order at all: neither CID can be computed first. <!-- id:jQ2u072L -->
+This is not a quirk of the meta-schema. **Any self-referential schema hits it.** `example/document` has `previous: { type: link, target: "example/document" }` — a document links to a previous document of the same type. That reference → CID rewrite is the identical fixpoint. And **mutually** recursive schemas (A refs B, B refs A) form a cycle that cannot be content-addressed in any order at all: neither CID can be computed first. <!-- id:jQ2u072L -->
 
 ### The way out: reference by _name_, not by hash <!-- id:fVw9uG3N -->
 

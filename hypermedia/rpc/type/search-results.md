@@ -1,7 +1,7 @@
 ---
 name: Search Results
 summary: A page of search results with the query echoed back and a pagination token. A derived read model computed by the Seed daemon/API for clients — not a signed netw
-schemaDefinition: ipfs://bafyreibs2l53e4d3scih23cxm2b566buums3arfjhoneypfgp6hwtjol7a
+schemaDefinition: ipfs://bafyreigmfkfowfjqtpcj3zoisufdjekcd3oui47v3vke3zmydsggk2y7xm
 ---
 A page of search results with the query echoed back and a pagination token. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:1JEeVGHU -->
 

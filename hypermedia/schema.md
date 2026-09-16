@@ -1,7 +1,7 @@
 ---
 name: Schema
 summary: "The meta-schema: a discriminated union of the shapes a schema can take, and a valid instance of itself — how to browse, author and validate schemas in the Seed app, plus the full reference documentation."
-schemaDefinition: ipfs://bafyreia2kgsnffznghwjh5gtdhh4qn4zqznm7qc7n3f6xb4ftupmtmsjmi
+schemaDefinition: ipfs://bafyreiblucqpfoylug6ex3anrhm66lvep4uyjd4ukh2d4iqolfeucc3gre
 ---
 **Schema** — a value of kind `map` that constrains other values, written with the twelve-key vocabulary — or a bare literal (`"draft"`, `1`, `true`, `null`) that accepts exactly one value. Every schema is itself typed by the meta-schema, and is one of the meta-schema's variants. <!-- id:OzcV9e2b -->
 
@@ -26,7 +26,7 @@ New to Hypermedia Schemas? These four pages explain the system from the top down
 # In one minute <!-- id:sPmTq8Rq -->
 
 - Every value is one of **nine kinds**: `null`, `boolean`, `integer`, `float`, `string`, `bytes`, `list`, `map`, `link`. <!-- id:Zyqnpby8 -->
-- A **schema** is a `map` that constrains a value — `type`, `properties`, `required`, `items`, `values`, `ref`, `anyOf`, generics (`params` / `var` / `args`), and value constraints (`minLength`, `pattern`, `minimum`, …) — or a bare **literal** (`"draft"`, `1`, `true`, `null`) that accepts exactly that value; a fixed set of choices is a union of literals. <!-- id:Jb3Yvg3p -->
+- A **schema** is a `map` that constrains a value — `type` (naming a kind, or another schema to include or extend), `properties`, `required`, `items`, `values`, `target`, `anyOf`, generics (`params` / `var` / `args`), and value constraints (`minLength`, `pattern`, `minimum`, …) — or a bare **literal** (`"draft"`, `1`, `true`, `null`) that accepts exactly that value; a fixed set of choices is a union of literals. <!-- id:Jb3Yvg3p -->
 - Schemas reference each other by **`hm://` name**, not by content hash — that is what lets types recurse and form cycles. <!-- id:KVkmtla5 -->
 - Validation is **advisory** in the editors (warn, don't block) and **strict** in the reference validator. <!-- id:4a6RPK0p -->
 

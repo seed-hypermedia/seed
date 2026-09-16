@@ -1,7 +1,7 @@
 ---
 name: File Block
 summary: A file attachment, referenced by a URL.
-schemaDefinition: ipfs://bafyreigp5y7uvooijtkyml2uogwlf6lsmdoje22sp6gnas2nfmjhwvdxru
+schemaDefinition: ipfs://bafyreicb4mgprxbxjdu7x37w5o6vjdlinmtayrep5j6fmdipp3x7vqvqzy
 ---
 This document describes the **block/file** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:NBx9Tnq9 -->
 

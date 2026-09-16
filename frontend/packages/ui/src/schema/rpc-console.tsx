@@ -19,6 +19,7 @@ import {
   fieldSchema,
   isLiteralSchema,
   literalValue,
+  namedSchemaUrl,
   refToName,
   validate,
 } from './engine'
@@ -39,8 +40,9 @@ export function rpcMethods(): RpcMethod[] {
   if (!union?.anyOf) return []
   const methods: RpcMethod[] = []
   for (const variant of union.anyOf) {
-    if (!variant.ref) continue
-    const slug = refToName(variant.ref)
+    const named = namedSchemaUrl(variant)
+    if (!named) continue
+    const slug = refToName(named)
     const schema = HM_SCHEMAS[slug]
     const keyNode = fieldSchema(schema, 'key')
     const key = keyNode !== undefined && isLiteralSchema(keyNode) ? literalValue(keyNode) : undefined

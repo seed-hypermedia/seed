@@ -1,7 +1,7 @@
 ---
 name: CID
 summary: "A content identifier: a link (CBOR tag 42) referencing another IPFS block by its hash."
-schemaDefinition: ipfs://bafyreibqrnhgy5fxu7gg7j5nikqbyq575v4cit3gwypk7cweydelhcv4su
+schemaDefinition: ipfs://bafyreif7e4777snpct3iqfq2fdayahrt22t5rkodphhgbb4mrr6fawd2eq
 ---
 **CID** — Content IDentifier: a self-describing hash that names a block by its content. The canonical form of a reference. <!-- id:jGQjdjiu -->
 

@@ -1,7 +1,7 @@
 ---
 name: "Example: Registry"
 summary: A map from ids to person links — Map<Link<Person>>.
-schemaDefinition: ipfs://bafyreifx5rsrd3iub4wyvi2rfitwsaa2gdpd2ri5z44jkca5ksmyyidfty
+schemaDefinition: ipfs://bafyreib3njsnmqlbllaiphcvhke4zqxme6gzl75afztprvbrggbdltee5q
 ---
 This document describes the **example/registry** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:cW-WMC_r -->
 

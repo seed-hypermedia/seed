@@ -1,7 +1,7 @@
 ---
 name: "Example: Constrained Record"
 summary: "Exercises the value constraints: string length + pattern, numeric bounds, and list size."
-schemaDefinition: ipfs://bafyreibplh33onijghkuc62djn6xhbtvuzr3rbaukhadmveuticq26vnlm
+schemaDefinition: ipfs://bafyreidkkiy5evkn5tm37vdg5zfr6dnmt45a5nc2w6bydfd6znwpeavayu
 ---
 This document describes the **example/constrained** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:7mil43v3 -->
 

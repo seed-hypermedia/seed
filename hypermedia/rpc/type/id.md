@@ -1,7 +1,7 @@
 ---
 name: Parsed ID
 summary: "A parsed hm:// identifier as clients pass it around: account uid, path segments, pinned version, block reference, and origin hints. Fields the URL does not carr"
-schemaDefinition: ipfs://bafyreie5ynr6gtamqajsttyzkm3dz5y6tt3uicd4bfqnoccbpwksf4zu6u
+schemaDefinition: ipfs://bafyreibv4covkpgd4zadhkuvepzdec4h43ra2x2mjkhatmfxjj7atrnmym
 ---
 A parsed hm:// identifier as clients pass it around: account uid, path segments, pinned version, block reference, and origin hints. Fields the URL does not carry are null. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:_G2YLDZ8 -->
 

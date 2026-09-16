@@ -1,7 +1,7 @@
 ---
 name: Navigation item
 summary: "One entry of a site's navigation menu, stored in document metadata: a link with display text."
-schemaDefinition: ipfs://bafyreiclxxcsv75hjgfmb7n4g3h5ts7qu3un4imnzpfbe2uxgztgvkmscu
+schemaDefinition: ipfs://bafyreiexmspnzsukur3eskmrf7e6t7rxaeky6xf67ikcoysjtz4dcrp4ia
 ---
 This document describes the **metadata/navigation-item** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:qG6VHGQm -->
 

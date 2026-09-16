@@ -1,7 +1,7 @@
 ---
 name: Redirect Target
 summary: A redirect from one document to another space and/or path.
-schemaDefinition: ipfs://bafyreig6nilobgu6hpbepn6uixtducdfkxv6lfebn6dsfnrdcpemh3h3gu
+schemaDefinition: ipfs://bafyreihqm4tl6kvexfsed2gohvvzg3qhthcdxhwo7k3xdmd5i26xqqam3y
 ---
 This document describes the **ref/redirect-target** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:BDVJInYn -->
 

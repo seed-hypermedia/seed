@@ -1,7 +1,7 @@
 ---
 name: Operation
 summary: A single CRDT operation inside a Change body — a discriminated union tagged on type.
-schemaDefinition: ipfs://bafyreibbltghnzolwxrv7qrputb6coi2gt2bp2eussog7o6tdbj4io5lgy
+schemaDefinition: ipfs://bafyreidwovzt73cwk6yypirkavyd65pwdo2ogbuyd2iugpueq4lwuqkwau
 ---
 This document describes the **change/op** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:JsOLI17h -->
 

@@ -53,7 +53,7 @@ describe('freezeSchemaDraft', () => {
 
   it('freezes an older draft’s metadata copy too, and never publishes the key', async () => {
     const {client, published} = recordingClient()
-    const out = await freezeSchemaDraft(client, {name: 'Place', schemaDraft: SCHEMA})
+    const out = await freezeSchemaDraft(client, {name: 'Place', schemaDraft: SCHEMA} as Record<string, unknown>)
     expect(published).toHaveLength(1)
     expect(out).not.toHaveProperty('schemaDraft')
     expect(out?.[SCHEMA_DEFINITION_KEY]).toBe(`ipfs://${published[0].cid}`)

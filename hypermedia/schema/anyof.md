@@ -1,7 +1,7 @@
 ---
 name: Union schema
 summary: The variant for a union — a value matching any one of several alternatives (anyOf).
-schemaDefinition: ipfs://bafyreidiqtrgnittnlts6yej43zqygp6y4bvb33str6t3sfu5a6gyp4iky
+schemaDefinition: ipfs://bafyreiawraamq64cfpdznnomzl3rsbf35s4zpgb3gcijvlgdhlx2qkug3u
 ---
 **`anyOf`** — the union keyword: a list of schemas; a value is valid if it matches any of them. the schema language's one composite construct. A union whose arms are all literals is a fixed set of choices (`{anyOf: ["draft", "published"]}`), which the editors show as a dropdown. <!-- id:ppR9ujjo -->
 

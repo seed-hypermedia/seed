@@ -1,7 +1,7 @@
 ---
 name: Document Metadata
 summary: "Resolved document metadata (merged from Change ops): known keys plus arbitrary extras."
-schemaDefinition: ipfs://bafyreifexrmqsneuc6hmisftr42zmjm6j6p7sykcuugy4n7afrmauccqe4
+schemaDefinition: ipfs://bafyreidu5sqfsasub4k4ibdscd3xnfle4w6lzwfpr2yjfjmpcdgj55wpju
 ---
 This document describes the **metadata** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:LCMEm3AK -->
 

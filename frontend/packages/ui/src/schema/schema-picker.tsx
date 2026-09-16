@@ -4,7 +4,7 @@
 import {useMemo, useState} from 'react'
 import {Input} from '../components/input'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '../select-dropdown'
-import {isLibraryCore, kindOf, nameToUrl, HM_SCHEMAS} from './engine'
+import {HM_SCHEMAS, isLibraryCore, kindOf, nameToUrl, namedSchemaUrl} from './engine'
 
 const NONE = ' none'
 const CUSTOM = ' custom'
@@ -15,9 +15,9 @@ export function instantiableLibrarySchemas(): {name: string; label: string; ref:
     .filter(([name, s]) => {
       // API methods (rpc/<method>, the rpc/method union) are calls, not types to fill in; rpc/type/* are.
       if (isLibraryCore(name) || (name.startsWith('rpc/') && !name.startsWith('rpc/type/'))) return false
-      if (s.$type !== undefined) return false // an instance file, not a schema
       if (s.anyOf) return false
-      const kind = s.type ? kindOf(s.type) : s.ref ? 'struct' : null
+      // A schema naming another is struct-shaped when what it names is.
+      const kind = namedSchemaUrl(s) ? 'struct' : s.type ? kindOf(s.type) : null
       return (kind === 'map' || kind === 'struct') && (s.properties || s.values)
     })
     .map(([name]) => ({

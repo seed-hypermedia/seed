@@ -1,7 +1,7 @@
 ---
 name: "Resource: Comment"
 summary: A resolved resource that is a comment. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
-schemaDefinition: ipfs://bafyreiescibnbj6j43sqcepqzclnn4i2fl6wun3vd4b67g742rekaoi3oe
+schemaDefinition: ipfs://bafyreifh4ympsbhu6enq2voev5zysuaneaasbtfxql3vuvxdxots2qnadu
 ---
 This document describes the **rpc/type/resource-comment** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:WM00tRcd -->
 

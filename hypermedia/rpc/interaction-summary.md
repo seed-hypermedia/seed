@@ -1,7 +1,7 @@
 ---
 name: "RPC: InteractionSummary"
 summary: "Aggregates interaction counts for a document, per block included. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` fiel"
-schemaDefinition: ipfs://bafyreif3bxjww6ybwiup6bw6j32a4brukpjfwtfbm5pnc32nayhmcmigdi
+schemaDefinition: ipfs://bafyreidvcyspkzgvc3ceo43cukt7xtjfk7pjkgrkmxtsbn3joytya2uuqu
 ---
 Aggregates interaction counts for a document, per block included. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:o5tltrJQ -->
 

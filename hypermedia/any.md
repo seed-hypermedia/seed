@@ -1,7 +1,7 @@
 ---
 name: Any
 summary: "The top type — matches any Hypermedia value: null, boolean, number, string, bytes, link, or a (recursively any) list or map. Use it for open, forward-compatible data."
-schemaDefinition: ipfs://bafyreia5kfqzd4ssw2w23rqvglbau7zbn72hprhneswojii5zdah3mhy4q
+schemaDefinition: ipfs://bafyreibpjj4gpwndtgzy4wxrv4jpbh3yngqoocmmdpb63deg4rbegzltea
 ---
 This document describes the **any** type — a primitive. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:oO6eJaVw -->
 

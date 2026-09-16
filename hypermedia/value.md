@@ -1,7 +1,7 @@
 ---
 name: Value
 summary: "A metadata / attribute value: string, integer, boolean, or null."
-schemaDefinition: ipfs://bafyreiftf7u5653uxirt47dbv3ir4h6dcmmpkc63a3jcfdkkgpdk7xhupi
+schemaDefinition: ipfs://bafyreieg4ddcrqezij6pymoqtm7tex6i3c6nsl7qkhmj5trfboz534k4qi
 ---
 This document describes the **value** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. It is also the type of a [literal](./schema/literal-schema.md) schema's `value`: only these four kinds can be literals. <!-- id:8zx2Wxx- -->
 
