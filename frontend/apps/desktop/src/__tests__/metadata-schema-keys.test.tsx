@@ -101,29 +101,6 @@ describe('schema-keyed metadata fields', () => {
     expect(container.textContent).not.toContain('(required)')
   })
 
-  it('the attach bar stages a schema-keyed field with an instantiated value', () => {
-    render({})
-    const attachToggle = container.querySelector('button[aria-label="Attach schema field"]') as HTMLButtonElement
-    expect(attachToggle).toBeTruthy()
-    act(() => attachToggle.click())
-    const input = Array.from(container.querySelectorAll('input')).find((el) =>
-      el.placeholder.includes('Schema CID'),
-    ) as HTMLInputElement
-    expect(input).toBeTruthy()
-    act(() => {
-      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
-      setter.call(input, SCHEMA_KEY)
-      input.dispatchEvent(new Event('input', {bubbles: true}))
-    })
-    const attach = Array.from(container.querySelectorAll('button')).find(
-      (el) => el.textContent?.trim() === 'Attach',
-    ) as HTMLButtonElement
-    act(() => attach.click())
-    expect(patches).toHaveLength(1)
-    // instantiated from the schema: required fields seeded, enum head chosen
-    expect(patches[0]).toEqual({[SCHEMA_KEY]: {headline: '', status: 'draft'}})
-  })
-
   it('typing a schema URL as the field NAME seeds the enum head under it', () => {
     render({})
     // open the add-field dialog (portals to document.body) and type the schema
@@ -158,24 +135,5 @@ describe('schema-keyed metadata fields', () => {
     expect(combo).not.toBeNull()
     expect(combo!.textContent).toContain('doing')
     expect(container.querySelector('.lucide-triangle-alert')).toBeNull()
-  })
-
-  it('rejects attaching a non-schema key', () => {
-    render({})
-    act(() => (container.querySelector('button[aria-label="Attach schema field"]') as HTMLButtonElement).click())
-    const input = Array.from(container.querySelectorAll('input')).find((el) =>
-      el.placeholder.includes('Schema CID'),
-    ) as HTMLInputElement
-    act(() => {
-      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
-      setter.call(input, 'not-a-cid')
-      input.dispatchEvent(new Event('input', {bubbles: true}))
-    })
-    const attach = Array.from(container.querySelectorAll('button')).find(
-      (el) => el.textContent?.trim() === 'Attach',
-    ) as HTMLButtonElement
-    act(() => attach.click())
-    expect(patches).toHaveLength(0)
-    expect(container.textContent).toContain('Enter a schema CID')
   })
 })

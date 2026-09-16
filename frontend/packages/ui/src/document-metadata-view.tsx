@@ -1,6 +1,6 @@
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {fieldSchema, requiredFieldNames, structFields} from './schema/engine'
-import {Braces, Check, FileCode2} from 'lucide-react'
+import {Braces, Check} from 'lucide-react'
 import {useEffect, useMemo, useState} from 'react'
 import {seedValue} from './schema/data-editor'
 import {SchemaRegistryProvider} from './schema/schema-context'
@@ -16,9 +16,7 @@ import {
 import {useSchemaRegistry} from './schema/schema-registry-cid'
 import type {HypermediaSchema} from './schema/engine'
 import {Button} from './button'
-import {Input} from './components/input'
 import {Textarea} from './components/textarea'
-import {parseCidString} from './dag-json'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 import {
@@ -140,7 +138,6 @@ export function DocumentMetadataView({
   directEdit?: MetadataDirectEdit
 }) {
   const [jsonMode, setJsonMode] = useState(false)
-  const [attachMode, setAttachMode] = useState(false)
   const current = useMemo(() => (metadata ?? {}) as Record<string, unknown>, [metadata])
   // Null tombstones = absent, so validate against a null-stripped copy.
   const validationValue = useMemo(() => stripNullsDeep(current), [current])
@@ -252,18 +249,6 @@ export function DocumentMetadataView({
             {editable && <SchemaErrorSummary />}
             <div className="flex items-center justify-end">
               <div className="flex items-center gap-1">
-                {editable && !jsonMode && (
-                  <Tooltip content="Attach a schema as a metadata field (the field key is the schema's ipfs:// URL)">
-                    <Button
-                      variant={attachMode ? 'secondary' : 'ghost'}
-                      size="icon"
-                      aria-label="Attach schema field"
-                      onClick={() => setAttachMode((mode) => !mode)}
-                    >
-                      <FileCode2 className="size-4" />
-                    </Button>
-                  </Tooltip>
-                )}
                 <Tooltip content={jsonMode ? 'Edit as fields' : 'Edit as JSON'}>
                   <Button
                     variant={jsonMode ? 'secondary' : 'ghost'}
@@ -276,22 +261,6 @@ export function DocumentMetadataView({
                 </Tooltip>
               </div>
             </div>
-            {editable && attachMode && !jsonMode && (
-              <AttachSchemaFieldBar
-                existingKeys={visibleKeys}
-                registry={byCid}
-                onPendingCid={setPendingSchemaCid}
-                onCancel={() => {
-                  setPendingSchemaCid(null)
-                  setAttachMode(false)
-                }}
-                onAttach={(key, value) => {
-                  stage({[key]: value})
-                  setPendingSchemaCid(null)
-                  setAttachMode(false)
-                }}
-              />
-            )}
             {jsonMode ? (
               <MetadataJsonEditor metadata={current} editable={editable} onMetadata={editable ? stage : undefined} />
             ) : editable ? (
@@ -390,84 +359,6 @@ export function DocumentMetadataView({
  * describes a type. Instead of a raw ipfs:// string input, it names the type and
  * offers to edit its schema (in the schema editor) or detach it.
  */
-
-/**
- * Inline bar for attaching a schema-typed metadata field: paste a schema's
- * ipfs:// URL, and the field is created with that URL as its KEY and a
- * schema-instantiated starter value (or an empty object until the schema
- * loads — the field's hints fill in as it arrives).
- */
-function AttachSchemaFieldBar({
-  existingKeys,
-  registry,
-  onPendingCid,
-  onAttach,
-  onCancel,
-}: {
-  existingKeys: string[]
-  registry: Record<string, unknown>
-  /** Reports a valid schema CID as it's typed, so the parent can prefetch it. */
-  onPendingCid: (cid: string | null) => void
-  onAttach: (key: string, value: unknown) => void
-  onCancel: () => void
-}) {
-  const [text, setText] = useState('')
-  const [error, setError] = useState<string | null>(null)
-
-  const submit = () => {
-    const cidText = text.trim().replace(/^ipfs:\/\//, '')
-    const parsed = parseCidString(cidText)
-    if (!parsed || !schemaKeyCid(`ipfs://${cidText}`)) {
-      setError('Enter a schema CID or ipfs:// URL (schemas are DAG-CBOR blobs)')
-      return
-    }
-    const key = `ipfs://${cidText}`
-    if (existingKeys.includes(key)) {
-      setError('This schema is already attached — edit its field below')
-      return
-    }
-    // Seed from the schema when it's already fetched; otherwise start with an
-    // empty object and let the hints populate once the schema loads. A
-    // starter that metadata can't hold (lists/floats — the publish API
-    // rejects them) falls back to an empty object; the advisory warnings
-    // then guide the user within what metadata supports.
-    const schema = registry[cidText]
-    const starter = schema ? seedValue(schema as HypermediaSchema) : undefined
-    const usable = starter !== undefined && findInvalidValue(starter, METADATA_VALUE_RULES) === null
-    onAttach(key, usable ? starter : {})
-  }
-
-  return (
-    <div className="border-border flex flex-col gap-2 rounded-md border border-dashed p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          value={text}
-          placeholder="Schema CID or ipfs:// URL"
-          className="min-w-64 flex-1 font-mono text-xs"
-          autoFocus
-          onChange={(e) => {
-            setText(e.target.value)
-            setError(null)
-            const cidText = e.target.value.trim().replace(/^ipfs:\/\//, '')
-            onPendingCid(schemaKeyCid(`ipfs://${cidText}`))
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') submit()
-            if (e.key === 'Escape') onCancel()
-          }}
-        />
-        <Button size="sm" onClick={submit}>
-          <Check className="size-4" />
-          Attach
-        </Button>
-        <Button variant="ghost" size="sm" onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
-      {error && <p className="text-destructive text-xs">{error}</p>}
-    </div>
-  )
-}
 
 /** Whole-metadata JSON editor: full editing in one textarea, applied as a diff. */
 function MetadataJsonEditor({
