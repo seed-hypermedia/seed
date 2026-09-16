@@ -22,6 +22,9 @@ vi.mock('@shm/shared/models/entity', () => ({
 const searchState = vi.hoisted(() => ({
   entities: [] as unknown[],
 }))
+vi.mock('@shm/shared/models/schema-documents', () => ({
+  useSchemaDocumentSearch: () => ({data: [], isLoading: false}),
+}))
 vi.mock('@shm/shared/models/search', () => ({
   useSearch: () => ({data: {entities: searchState.entities}}),
 }))
