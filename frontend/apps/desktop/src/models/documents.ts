@@ -369,12 +369,13 @@ export function usePublishResource(
           const changes = compareBlocksWithMap(blocksMap, newContent, '')
           const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
 
-          // A draft's working schema is frozen into a blob here and becomes the
-          // document's `schemaDefinition`.
+          // A draft's working schemas are frozen into blobs here: the document's own
+          // (`schemaDefinition`) and its children's (`childAttributesSchema`).
           const publishMetadata = await freezeSchemaDraft(
             desktopUniversalClient,
             {...editDocument?.metadata, ...draft.metadata},
             draft.schemaDraft,
+            draft.bindingSchemaDrafts,
           )
           const allChanges = [
             ...navigationChanges,
