@@ -467,6 +467,7 @@ export function useDraftResolutionSync(
         baseBlocks?: HMBlockNode[] | null
         publishPath?: string[] | null
         schemaDraft?: Record<string, any> | null
+        bindingSchemaDrafts?: Record<string, Record<string, any>> | null
       }
     | undefined,
 ) {
@@ -498,6 +499,7 @@ export function useDraftResolutionSync(
         baseBlocks: resolved.baseBlocks ?? null,
         publishPath: resolved.publishPath ?? null,
         schemaDraft: resolved.schemaDraft ?? null,
+        bindingSchemaDrafts: resolved.bindingSchemaDrafts ?? null,
       })
     } else if (resolved !== undefined && sentRef.current) {
       documentEmbedCleanupInfo(

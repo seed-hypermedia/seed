@@ -2352,10 +2352,18 @@ describe('working schema (schemaDraft) is draft state beside the metadata', () =
     actor.send({type: 'draft.resolved', draftId: null, content: null, cursorPosition: null})
     actor.send({type: 'edit.start'})
     actor.send({type: 'change', schemaDraft: SCHEMA})
+    actor.send({
+      type: 'change',
+      bindingSchemaDrafts: {childAttributesSchema: {...SCHEMA, properties: {height: {value: {type: 'x'}}}}},
+    })
     await new Promise((r) => setTimeout(r, 100))
     expect(actor.getSnapshot().context.schemaDraft).toEqual(SCHEMA)
     expect(saved.schemaDraft).toEqual(SCHEMA)
+    expect(saved.bindingSchemaDrafts).toEqual({
+      childAttributesSchema: {...SCHEMA, properties: {height: {value: {type: 'x'}}}},
+    })
     expect(saved.metadata).not.toHaveProperty('schemaDraft')
+    expect(saved.metadata).not.toHaveProperty('bindingSchemaDrafts')
     actor.stop()
   })
 

@@ -243,6 +243,8 @@ export const metadataRouteSchema = z.object({
   key: z.literal('metadata'),
   id: unpackedHmIdSchema,
   panel: metadataPagePanelSchema.nullable().optional(),
+  /** Open the tab with this binding schema ready to edit (drafting an empty struct when there is none). */
+  focus: z.enum(['attributesSchema', 'childAttributesSchema']).optional(),
 })
 export type MetadataRoute = z.infer<typeof metadataRouteSchema>
 

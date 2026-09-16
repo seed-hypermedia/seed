@@ -110,15 +110,19 @@ import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout
 import {useQuery} from '@tanstack/react-query'
 import {
   ArrowUp,
+  ExternalLink,
   FilePen,
   FileText,
   Grid3X3,
   List as ListIcon,
+  ListTree,
   MoreHorizontal,
+  Pencil,
+  Plus,
   Quote,
   Search,
   Table as TableIcon,
-  Pencil,
+  Tags,
 } from 'lucide-react'
 import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
@@ -152,9 +156,11 @@ import {
 import {DocumentMetadataView} from './document-metadata-view'
 import {RequiredAttributesEditor} from './required-attributes-editor'
 import {schemaDefinitionCid, SchemaDocumentHeaderActions, useSchemaMenuItems} from './schema/schema-document'
-import {SchemaEditor} from './schema/schema-editor'
+import {emptyStructSchema, SchemaEditor} from './schema/schema-editor'
+import {SizableText} from './text'
 import {SchemaBrowserPage} from './schema/schema-browser'
-import {useEffectiveDocSchema} from './schema/schema-resolve'
+import {classifyRef, useEffectiveDocSchema, useResolvedSchema} from './schema/schema-resolve'
+import {BINDING_SCHEMA_KEYS, type BindingSchemaKey} from '@shm/shared/models/schema-draft'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from './components/dialog'
 import {DocumentTools} from './document-tools'
 import {nameForCid, nameToUrl, HM_SCHEMAS} from './schema/engine'
@@ -411,6 +417,8 @@ export function orderDocumentMenuItems(items: MenuItemType[]): MenuItemType[] {
   const itemOrder = [
     'new',
     'options',
+    'binding-schema-attributesSchema',
+    'binding-schema-childAttributesSchema',
     'versions',
     'convert-to-collection',
     'convert-to-document',
@@ -863,6 +871,7 @@ export interface ResourcePageProps {
   existingDraftPublishPath?: string[]
   /** The working schema persisted on the draft, when its document defines a type. */
   existingDraftSchemaDraft?: Record<string, any>
+  existingDraftBindingSchemaDrafts?: Record<string, Record<string, any>>
   /** Base deps captured for the draft. Used by platform wrappers and tests. */
   existingDraftDeps?: string[]
   /** Platform-specific confirm workflow for discarding the synthetic versions-panel draft row. */
@@ -964,6 +973,7 @@ export function ResourcePage({
   existingDraftBaseBlocks,
   existingDraftPublishPath,
   existingDraftSchemaDraft,
+  existingDraftBindingSchemaDrafts,
   existingDraftDeps,
   draftVersionOnDiscardConfirm,
   floatingButtons,
@@ -1458,6 +1468,7 @@ export function ResourcePage({
             existingDraftBaseBlocks={existingDraftBaseBlocks}
             existingDraftPublishPath={existingDraftPublishPath}
             existingDraftSchemaDraft={existingDraftSchemaDraft}
+            existingDraftBindingSchemaDrafts={existingDraftBindingSchemaDrafts}
             existingDraftDeps={existingDraftDeps}
             draftVersionEntry={draftVersionEntry}
             floatingButtons={floatingButtons}
@@ -1798,6 +1809,7 @@ function DocumentBody({
   existingDraftBaseBlocks,
   existingDraftPublishPath,
   existingDraftSchemaDraft,
+  existingDraftBindingSchemaDrafts,
   existingDraftDeps,
   draftVersionEntry,
   floatingButtons,
@@ -1851,6 +1863,7 @@ function DocumentBody({
   existingDraftBaseBlocks?: HMBlockNode[]
   existingDraftPublishPath?: string[]
   existingDraftSchemaDraft?: Record<string, any>
+  existingDraftBindingSchemaDrafts?: Record<string, Record<string, any>>
   existingDraftDeps?: string[]
   draftVersionEntry?: DraftVersionEntry
   floatingButtons?: ReactNode
@@ -1912,6 +1925,7 @@ function DocumentBody({
           baseBlocks?: HMBlockNode[] | null
           publishPath?: string[] | null
           schemaDraft?: Record<string, any> | null
+          bindingSchemaDrafts?: Record<string, Record<string, any>> | null
         }
       | undefined
     if (existingDraft === undefined) {
@@ -1931,6 +1945,7 @@ function DocumentBody({
         baseBlocks: existingDraftBaseBlocks ?? null,
         publishPath: existingDraftPublishPath ?? null,
         schemaDraft: existingDraftSchemaDraft ?? null,
+        bindingSchemaDrafts: existingDraftBindingSchemaDrafts ?? null,
       }
     } else {
       result = undefined // draft found but content not loaded yet
@@ -1947,6 +1962,7 @@ function DocumentBody({
     existingDraftBaseBlocks,
     existingDraftPublishPath,
     existingDraftSchemaDraft,
+    existingDraftBindingSchemaDrafts,
   ])
   useDraftResolutionSync(draftResolution)
   const publishedVersion = useDocumentSelector(selectPublishedVersion)
@@ -2624,6 +2640,19 @@ function DocumentBody({
       },
     }
   }, [canEditCurrentRoute, panelKey, route, replaceRoute])
+  // The two attributes-schema bindings, edited in place on the Attributes tab: "Attributes Schema"
+  // (this document's own fields) and "Children Attributes Schema" (the fields of every document
+  // created inside it). Each opens the tab focused on that binding, drafting an empty struct when
+  // nothing is bound yet, so adding a field is one step away.
+  const bindingSchemaMenuItems = useMemo<MenuItemType[]>(() => {
+    if (!canEditCurrentRoute) return []
+    return BINDING_SCHEMA_KEYS.map((bindingKey) => ({
+      key: `binding-schema-${bindingKey}`,
+      label: bindingKey === 'attributesSchema' ? 'Attributes Schema' : 'Children Attributes Schema',
+      icon: bindingKey === 'attributesSchema' ? <Tags className="size-4" /> : <ListTree className="size-4" />,
+      onClick: () => navigate({key: 'metadata', id: docId, focus: bindingKey}),
+    }))
+  }, [canEditCurrentRoute, navigate, docId])
   const citationFragmentToggleMenuItem = useMemo<MenuItemType>(
     () => ({
       key: 'citation-fragments-toggle',
@@ -2670,6 +2699,7 @@ function DocumentBody({
     unorderedItems.push(citationFragmentToggleMenuItem)
     if (inspectMenuItem) unorderedItems.push(inspectMenuItem)
     if (documentOptionsMenuItem) unorderedItems.push(documentOptionsMenuItem)
+    unorderedItems.push(...bindingSchemaMenuItems)
     unorderedItems.push(...schemaMenuItems)
     if (convertToCollectionMenuItem) unorderedItems.push(convertToCollectionMenuItem)
     if (convertToDocumentMenuItem) unorderedItems.push(convertToDocumentMenuItem)
@@ -2688,6 +2718,7 @@ function DocumentBody({
     documentOptionsMenuItem,
     convertToCollectionMenuItem,
     convertToDocumentMenuItem,
+    bindingSchemaMenuItems,
     schemaMenuItems,
     isUnpublishedDraft,
   ])
@@ -3601,6 +3632,130 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
   )
 }
 
+/**
+ * One of the two attributes-schema bindings, at the top of the Attributes tab — this document's own
+ * (`attributesSchema`: the fields it carries) or its children's (`childAttributesSchema`: the fields
+ * every document created inside it carries) — with the full schema editor in place. A binding this
+ * document OWNS (an `ipfs://` object, or a draft) is edited here: edits go to the draft's
+ * `bindingSchemaDrafts`, and publishing freezes them into a new object the key then points at. A
+ * binding to a type page (`hm://`) is shown read-only with a link to the page, and can be copied
+ * here to edit. Arriving with the route's `focus` on this key drafts an empty struct when nothing is
+ * bound yet, so the editor is ready to take a field.
+ */
+function BindingSchemaSection({document, bindingKey}: {document: HMDocument; bindingKey: BindingSchemaKey}) {
+  const ctx = useDocumentSelector(selectContext)
+  const send = useDocumentSend()
+  const {beginEditIfNeeded} = useEditorGate()
+  const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
+  const route = useNavRoute()
+  const openUrl = useOpenUrl()
+  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  const raw = (metadata as Record<string, unknown>)[bindingKey]
+  const ref = typeof raw === 'string' && raw ? raw : null
+  const draft = ctx.bindingSchemaDrafts?.[bindingKey] ?? null
+  const cls = classifyRef(ref)
+  const owned = cls.kind === 'cid'
+  const {schema: published, isLoading} = useResolvedSchema(draft ? null : ref)
+  const focused = route.key === 'metadata' && route.focus === bindingKey
+  const label = bindingKey === 'attributesSchema' ? 'Attributes schema' : 'Children attributes schema'
+  const blurb =
+    bindingKey === 'attributesSchema'
+      ? 'The fields this document carries.'
+      : 'The fields every document created inside this one carries.'
+  const edit = useCallback(
+    (next: Record<string, any>) => {
+      beginEditIfNeeded()
+      send({type: 'change', bindingSchemaDrafts: {[bindingKey]: next}})
+    },
+    [beginEditIfNeeded, send, bindingKey],
+  )
+  // Opened from the options menu with nothing bound: start an empty struct so a field can be added.
+  const seededRef = useRef(false)
+  useEffect(() => {
+    if (!focused || seededRef.current || !canEditCurrentRoute || draft || ref) return
+    seededRef.current = true
+    edit(emptyStructSchema())
+  }, [focused, canEditCurrentRoute, draft, ref, edit])
+  const sectionRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (focused) sectionRef.current?.scrollIntoView({block: 'start'})
+  }, [focused])
+
+  const header = (
+    <div className="flex flex-col gap-0.5">
+      <SizableText weight="semibold" size="sm">
+        {label}
+      </SizableText>
+      <SizableText size="xs" className="text-muted-foreground">
+        {blurb}
+      </SizableText>
+    </div>
+  )
+  if (!draft && !ref) {
+    if (!canEditCurrentRoute) return null
+    return (
+      <section
+        ref={sectionRef}
+        className="border-border/60 mb-4 flex items-center justify-between gap-3 rounded-lg border border-dashed p-3"
+        data-testid={`binding-schema-${bindingKey}`}
+      >
+        {header}
+        <Button variant="outline" size="sm" onClick={() => edit(emptyStructSchema())}>
+          <Plus className="mr-1 size-4" /> Define
+        </Button>
+      </section>
+    )
+  }
+  const editable = canEditCurrentRoute && (!!draft || owned)
+  const current = draft ?? published
+  return (
+    <section
+      ref={sectionRef}
+      className="border-border/60 bg-muted/20 mb-4 flex flex-col gap-3 rounded-lg border p-3"
+      data-testid={`binding-schema-${bindingKey}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        {header}
+        {ref && !owned && !draft ? (
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="ghost" size="sm" className="text-muted-foreground gap-1" onClick={() => openUrl(ref)}>
+              Defined by {cls.kind === 'hm-bundled' ? cls.name : 'a type page'}
+              <ExternalLink className="size-3.5" />
+            </Button>
+            {canEditCurrentRoute && published ? (
+              <Button variant="outline" size="sm" onClick={() => edit(stripLegacyLabels(published))}>
+                <Pencil className="mr-1 size-3.5" /> Edit a copy here
+              </Button>
+            ) : null}
+          </div>
+        ) : draft ? (
+          <SizableText size="xs" className="text-muted-foreground shrink-0">
+            Publishing the document publishes this schema.
+          </SizableText>
+        ) : null}
+      </div>
+      {editable && current ? (
+        <SchemaEditor schema={current} onSchema={edit} />
+      ) : current ? (
+        <SchemaNavContext.Provider value={{openRef: (r) => openUrl(r)}}>
+          <SchemaView
+            schema={current}
+            nav={(slug) => {
+              const url = nameToUrl(slug)
+              if (url) openUrl(url)
+            }}
+            hideIdentity
+          />
+        </SchemaNavContext.Provider>
+      ) : (
+        <SizableText size="sm" className="text-muted-foreground">
+          {isLoading ? 'Fetching schema…' : `Could not resolve ${ref}.`}
+        </SizableText>
+      )}
+    </section>
+  )
+}
+
 function DocumentMetadataPage({
   docId,
   document,
@@ -3648,21 +3803,26 @@ function DocumentMetadataPage({
   )
 
   return (
-    <DocumentMetadataView
-      metadata={metadata as any}
-      canEdit={canEditCurrentRoute}
-      conformanceSchema={conformanceSchema}
-      onMetadata={(patch) => {
-        if (!canEditCurrentRoute) return
-        beginEditIfNeeded()
-        send({type: 'change', metadata: patch as any})
-      }}
-      fileUpload={fileUpload}
-      openFile={openFile}
-      openUrl={openUrl}
-      onCreateBlob={onCreateBlob}
-      directEdit={directEdit}
-    />
+    <>
+      {BINDING_SCHEMA_KEYS.map((bindingKey) => (
+        <BindingSchemaSection key={bindingKey} document={document} bindingKey={bindingKey} />
+      ))}
+      <DocumentMetadataView
+        metadata={metadata as any}
+        canEdit={canEditCurrentRoute}
+        conformanceSchema={conformanceSchema}
+        onMetadata={(patch) => {
+          if (!canEditCurrentRoute) return
+          beginEditIfNeeded()
+          send({type: 'change', metadata: patch as any})
+        }}
+        fileUpload={fileUpload}
+        openFile={openFile}
+        openUrl={openUrl}
+        onCreateBlob={onCreateBlob}
+        directEdit={directEdit}
+      />
+    </>
   )
 }
 

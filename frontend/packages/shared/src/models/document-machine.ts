@@ -1,4 +1,10 @@
-import {draftSchemaDraft, splitLegacySchemaDraft, type SchemaDraft} from './schema-draft'
+import {
+  draftBindingSchemaDrafts,
+  draftSchemaDraft,
+  splitLegacySchemaDraft,
+  type BindingSchemaDrafts,
+  type SchemaDraft,
+} from './schema-draft'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {EditorBlock, EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
 import {
@@ -388,6 +394,12 @@ export type DocumentMachineContext = {
    * into the document's `schemaDefinition` at publish.
    */
   schemaDraft: SchemaDraft
+  /**
+   * The working attributes schemas behind this document's `attributesSchema` and its children's
+   * `childAttributesSchema`, by key (see `schema-draft.ts`). Same lifecycle as `schemaDraft`: beside
+   * the metadata, persisted via `writeDraft`, frozen into IPFS objects at publish.
+   */
+  bindingSchemaDrafts: BindingSchemaDrafts
   /** Error from the most recent rename attempt, surfaced in the publish popover. */
   renameError: string | null
   /** Transient path captured from `rename.commit`/`rename.retry` while the rename actor runs. */
@@ -438,7 +450,12 @@ export type DocumentMachineEvent =
   | {type: 'document.retry'}
   | {type: 'edit.start'; cursorPosition?: EditCursorPosition | null}
   | {type: 'edit.cancel'}
-  | {type: 'change'; metadata?: HMDraft['metadata']; schemaDraft?: Record<string, any>}
+  | {
+      type: 'change'
+      metadata?: HMDraft['metadata']
+      schemaDraft?: Record<string, any>
+      bindingSchemaDrafts?: NonNullable<BindingSchemaDrafts>
+    }
   | {type: 'rootChildrenType.change'; childrenType: HMBlockChildrenType}
   | {type: 'change.navigation'; navigation: HMNavigationItem[]}
   | {type: 'reset.content'}
@@ -480,6 +497,8 @@ export type DocumentMachineEvent =
       publishPath?: string[] | null
       /** The working schema persisted on the draft. */
       schemaDraft?: Record<string, any> | null
+      /** The working binding schemas persisted on the draft. */
+      bindingSchemaDrafts?: BindingSchemaDrafts
     }
   | {
       type: 'draft.externallyModified'
@@ -543,6 +562,8 @@ export type WriteDraftInput = {
   publishPath?: string[] | null
   /** The draft's working schema, when its document defines a type. */
   schemaDraft?: SchemaDraft
+  /** The draft's working binding schemas, by key. */
+  bindingSchemaDrafts?: BindingSchemaDrafts
   /** Explicit editor content for machine-owned repairs when no editor is mounted. */
   contentOverride?: EditorBlock[]
 }
@@ -744,6 +765,11 @@ export const documentMachine = setup({
       // A `change` may also carry the working schema, which is draft state beside the metadata.
       schemaDraft: ({context, event}) =>
         event.type === 'change' && event.schemaDraft ? event.schemaDraft : context.schemaDraft,
+      // A `change` may carry one or more binding schemas; they merge over the ones already drafted.
+      bindingSchemaDrafts: ({context, event}) =>
+        event.type === 'change' && event.bindingSchemaDrafts
+          ? {...(context.bindingSchemaDrafts ?? {}), ...event.bindingSchemaDrafts}
+          : context.bindingSchemaDrafts,
     }),
     updateCollectionQuery: assign({
       draftContent: ({context, event}) => {
@@ -864,6 +890,7 @@ export const documentMachine = setup({
       pendingDeletedChildDraftIds: [],
       publishPath: null,
       schemaDraft: null,
+      bindingSchemaDrafts: null,
       renameError: null,
       renameTargetPath: null,
     }),
@@ -1121,6 +1148,10 @@ export const documentMachine = setup({
       schemaDraft: ({event, context}) => {
         if (event.type !== 'draft.resolved') return context.schemaDraft
         return draftSchemaDraft(event) ?? context.schemaDraft
+      },
+      bindingSchemaDrafts: ({event, context}) => {
+        if (event.type !== 'draft.resolved') return context.bindingSchemaDrafts
+        return draftBindingSchemaDrafts(event) ?? context.bindingSchemaDrafts
       },
       deps: ({event, context}) => {
         if (event.type === 'draft.resolved' && event.deps && event.deps.length) return event.deps
@@ -1442,6 +1473,7 @@ export const documentMachine = setup({
     oldVersionEditNoticeShown: false,
     publishPath: null,
     schemaDraft: null,
+    bindingSchemaDrafts: null,
     renameError: null,
     renameTargetPath: null,
   }),
@@ -1826,6 +1858,7 @@ export const documentMachine = setup({
                   baseBlocks: context.baseBlocks ?? context.document?.content ?? null,
                   publishPath: context.publishPath,
                   schemaDraft: context.schemaDraft,
+                  bindingSchemaDrafts: context.bindingSchemaDrafts,
                   contentOverride: getMachineOwnedContentOverride(context),
                 }),
                 onDone: [
@@ -1954,6 +1987,7 @@ export const documentMachine = setup({
                   baseBlocks: context.baseBlocks ?? context.document?.content ?? null,
                   publishPath: context.publishPath,
                   schemaDraft: context.schemaDraft,
+                  bindingSchemaDrafts: context.bindingSchemaDrafts,
                   contentOverride: getMachineOwnedContentOverride(context),
                 }),
                 onDone: [
