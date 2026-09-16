@@ -1,7 +1,7 @@
 ---
 name: Query Table Config
 summary: "Persisted presentation settings for a Query block's Table view: which columns are visible and how wide they are."
-schemaDefinition: ipfs://bafyreieoii5miiyut667nwz3xmkdr6ruqgfcwiemfkzonek4a7femv3kta
+schemaDefinition: ipfs://bafyreicgsh5jy23fplg662gpijjhjjdmhnvckaeexfryz7egm3m77dvyv4
 ---
 This document describes the **query/table-config** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:qcdiG9pw -->
 

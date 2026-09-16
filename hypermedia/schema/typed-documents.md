@@ -39,8 +39,8 @@ An attributes schema is an ordinary struct: one [property](./property.md) per at
 {
   "type": "hm://z6MkmZUb…/struct",
   "properties": {
-    "surname":   {"value": {"ref": "hm://z6MkmZUb…/string"}, "required": true},
-    "givenName": {"value": {"ref": "hm://z6MkmZUb…/string"}}
+    "surname":   {"value": {"type": "hm://z6MkmZUb…/string"}, "required": true},
+    "givenName": {"value": {"type": "hm://z6MkmZUb…/string"}}
   }
 }
 ```

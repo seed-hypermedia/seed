@@ -1,7 +1,7 @@
 ---
 name: Paragraph Block
 summary: A paragraph of rich text with annotations.
-schemaDefinition: ipfs://bafyreiau7jicd3vrcvgbn6cdhehsigibjpowd4dbs5e3jj4oukfda76e5y
+schemaDefinition: ipfs://bafyreifjzaopfo4ugenflaf52bmubt25wagkxxqb5miasjb3yazzhbayvu
 ---
 This document describes the **block/paragraph** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:Vou7cbhc -->
 

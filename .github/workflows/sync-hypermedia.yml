@@ -34,6 +34,8 @@ jobs:
           bun-version: '1.3.10'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Check hypermedia/ is consistent
+        run: node scripts/hypermedia/check.mjs
       - name: Publish hypermedia/ to hyper.media
         working-directory: frontend/apps/cli
         env:

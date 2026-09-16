@@ -1,7 +1,7 @@
 ---
 name: Comment (Payload)
 summary: "A comment as the API returns it to clients: the signed comment's content plus derived fields (stable id, version CID, thread links, timestamps, visibility). A d"
-schemaDefinition: ipfs://bafyreicc2kuq64wcbgml534hdjrrryjjrg34sadiawpldniaymgdnd3lye
+schemaDefinition: ipfs://bafyreigopzzymjrehpqrv747uygm4njri6gvbfvuhlsasnwtaxb4lrwdou
 ---
 A comment as the API returns it to clients: the signed comment's content plus derived fields (stable id, version CID, thread links, timestamps, visibility). A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:3cDEwf1- -->
 

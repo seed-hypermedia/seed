@@ -1,7 +1,7 @@
 ---
 name: Comment Group
 summary: A thread of comments grouped for display, with a count of elided replies. A derived read model computed by the Seed daemon/API for clients — not a signed networ
-schemaDefinition: ipfs://bafyreihplsnosg7q4bd3i7fgw7fswgmipxicbyxc6relldopewzmvylwte
+schemaDefinition: ipfs://bafyreie4js3bfbqu6gk6hyn2houaoxcadbmevayoxjrj7tcpbsmi6ccxaa
 ---
 A thread of comments grouped for display, with a count of elided replies. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:kfaho3GA -->
 

@@ -1,7 +1,7 @@
 ---
 name: Collaborators Payload
 summary: "A document's collaboration picture: the publisher, inherited and directly granted capabilities, effective members, and their metadata. A derived read model comp"
-schemaDefinition: ipfs://bafyreiezakrqudlyhovbdrkx3tepcr5pqxqrueydmtfjo5oybiqf3mdvcy
+schemaDefinition: ipfs://bafyreidqlgamlbt2kga4eba2pfp3rmaat5urwgt2wucbr4tw4p7dogenva
 ---
 A document's collaboration picture: the publisher, inherited and directly granted capabilities, effective members, and their metadata. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:qppfw6ji -->
 

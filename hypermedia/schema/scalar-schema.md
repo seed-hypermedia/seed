@@ -1,7 +1,7 @@
 ---
 name: Scalar schema
 summary: The variant for a scalar value (null, boolean, integer, float, string, bytes), optionally narrowed by value constraints. To pin a scalar to one value, use a literal.
-schemaDefinition: ipfs://bafyreiaemdbathaj2wyjvorg3ior7fn3gyfdnp7orxsviba4asji5quqhe
+schemaDefinition: ipfs://bafyreidw7cbrno7c2vuralbpuj2a5d6xi4iu2oczcggp5rvqcotz4cgql4
 ---
 This document describes the **schema/scalar-schema** type — a meta-schema variant. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:_2uzPk_g -->
 

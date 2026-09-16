@@ -1,7 +1,7 @@
 ---
 name: Search Result Item
 summary: "One hit of a network search: the matched id with display info (title, icon, breadcrumb parent names) and what kind of entity matched. A derived read model compu"
-schemaDefinition: ipfs://bafyreicop5e5nk6s2335f2gpquaa2ozqihd3rzufvy6ej2vqlibjrgbr7e
+schemaDefinition: ipfs://bafyreicjanyuetbb2mtgtkyrmom25ybitikvme6suyx3phww4cmxajbcaq
 ---
 One hit of a network search: the matched id with display info (title, icon, breadcrumb parent names) and what kind of entity matched. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:qXiY7SqP -->
 

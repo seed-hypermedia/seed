@@ -13,7 +13,7 @@ import { ALIASES, HM_DIR, LEGACY_AUTHORITY, HYPERMEDIA_UID, fileOfName, listSche
 import { execFileSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { validate as validateData, load as vload, isInstance as isInstanceDoc } from "./validate.mjs";
+import { validate as validateData, load as vload } from "./validate.mjs";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const DIR = HM_DIR;
@@ -57,12 +57,24 @@ const refIsSchema = (ref) => SCHEMA_FILES.includes(urlToFile(ref));
 // `type` values are kind URLs (hm://hyper.media/<kind>); read the kind locally.
 const KIND_URL = new RegExp(`^hm://(?:hyper\\.media|${HYPERMEDIA_UID})/(?:schema/|hypermedia-)?([a-z]+)$`);
 const kindOf = (t) => (typeof t === "string" ? KIND_URL.exec(t)?.[1] ?? t : t);
+// The schema a node NAMES rather than grounding in a kind (`ref` is the older spelling).
+const namedSchemaUrl = (node) => {
+  if (typeof node?.type === "string") {
+    const k = KIND_URL.exec(node.type)?.[1];
+    return k && [...KINDS, "struct"].includes(k) ? null : node.type;
+  }
+  return typeof node?.ref === "string" ? node.ref : null;
+};
 
 const KINDS = ["null", "boolean", "integer", "float", "string", "bytes", "list", "map", "link"];
 
 // The meta-schema is a discriminated union; its variants are the anyOf refs.
 const META_ROOT = loadJson("schema.schema.json");
-const VARIANT_FILES = (META_ROOT.anyOf || []).map((r) => urlToFile(r.ref)).filter(Boolean);
+const VARIANT_FILES = (META_ROOT.anyOf || [])
+  .map((r) => namedSchemaUrl(r))
+  .filter(Boolean)
+  .map((url) => urlToFile(url))
+  .filter(Boolean);
 const META_FILES = ["schema.schema.json", ...VARIANT_FILES];
 const isVariant = (f) => VARIANT_FILES.includes(f);
 
@@ -71,8 +83,6 @@ const PRIMITIVE_FILES = KINDS.map((k) => fileOfName(k)).filter((f) => SCHEMA_FIL
 const isPrimitive = (f) => PRIMITIVE_FILES.includes(f);
 
 // Instances are data typed by a schema ({ $type, value }) — e.g. bob : employee.
-const INSTANCE_FILES = SCHEMA_FILES.filter((f) => isInstanceDoc(loadJson(f)));
-const isInstance = (f) => INSTANCE_FILES.includes(f);
 
 // The Hypermedia Network's CBOR schemas (hm://seed.hyper.media/*), split into
 // document-content block types and everything else (the signed blobs).
@@ -251,10 +261,11 @@ const kindBadge = (k) =>
 // Resolve a reference node into its concrete schema (mirrors validate.mjs):
 // bare {ref} = include; {ref, refinements} = extend (merge parent + refinements).
 function concrete(schema, seen = new Set()) {
-  if (!schema.ref || schema.type || schema.anyOf) return schema;
-  if (seen.has(schema.ref)) return schema;
-  seen.add(schema.ref);
-  const parent = concrete(loadJson(urlToFile(schema.ref)), seen);
+  const named = namedSchemaUrl(schema);
+  if (!named || schema.anyOf) return schema;
+  if (seen.has(named)) return schema;
+  seen.add(named);
+  const parent = concrete(loadJson(urlToFile(named)), seen);
   if (parent.anyOf) return parent;
   const ext = ["properties", "required", "values", "items"].some((k) => schema[k] !== undefined);
   if (!ext) return parent;
@@ -275,9 +286,10 @@ function summarize(node) {
   if (node.var !== undefined) return `<span class="kind kind-var">⟨${esc(node.var)}⟩</span>`; // a type parameter
   if (node.anyOf)
     return `<span class="muted">one of</span> ${node.anyOf.map(summarize).join(` <span class="muted">|</span> `)}`;
-  if (node.ref && !node.type) {
-    const b = refToSlug(node.ref);
-    const file = urlToFile(node.ref);
+  const named = namedSchemaUrl(node);
+  if (named) {
+    const b = refToSlug(named);
+    const file = urlToFile(named);
     // An application: target<args> (a generic instantiated with concrete types).
     if (node.args) {
       const bindings = Object.entries(node.args).map(([p, v]) => `${esc(p)} = ${summarize(v)}`).join(", ");
@@ -292,7 +304,7 @@ function summarize(node) {
   }
   const k = kindOf(node.type);
   if (k === "link") {
-    const t = node.ref ? ` <a class="chip link-chip" href="/schema/${refToSlug(node.ref)}">→ ${refToSlug(node.ref)}</a>` : "";
+    const t = node.target ? ` <a class="chip link-chip" href="/schema/${refToSlug(node.target)}">→ ${refToSlug(node.target)}</a>` : "";
     return kindBadge("link") + t;
   }
   if (k === "list")
@@ -316,7 +328,9 @@ function summarize(node) {
 function collectRefs(node, acc) {
   if (Array.isArray(node)) return node.forEach((n) => collectRefs(n, acc));
   if (node && typeof node === "object") {
-    if (typeof node.ref === "string") acc.add(refToSlug(node.ref));
+    const named = namedSchemaUrl(node);
+    if (named) acc.add(refToSlug(named));
+    if (typeof node.target === "string") acc.add(refToSlug(node.target));
     for (const v of Object.values(node)) collectRefs(v, acc);
   }
 }
@@ -332,10 +346,6 @@ function buildGraph() {
   for (const f of SCHEMA_FILES) {
     const self = base(f);
     const doc = loadJson(f);
-    if (isInstanceDoc(doc)) {
-      add(self, refToSlug(doc.$type)); // an instance depends on its type
-      continue;
-    }
     const acc = new Set();
     collectRefs(doc, acc);
     for (const t of acc) add(self, t);
@@ -348,7 +358,7 @@ function graphSvg() {
   // Keep the home DAG to the meta-schema + examples: primitives (every schema
   // refs string), instances, and the ~29 hypermedia blobs are excluded
   // here — their relationships show on each schema's Dependencies/Dependents.
-  const nodes = GRAPH.nodes.filter((n) => !isPrimitive(fileOfName(n)) && !isInstance(fileOfName(n)) && !isHypermedia(fileOfName(n)) && !isLibrarySchema(fileOfName(n)));
+  const nodes = GRAPH.nodes.filter((n) => !isPrimitive(fileOfName(n)) && !isHypermedia(fileOfName(n)) && !isLibrarySchema(fileOfName(n)));
   const edges = GRAPH.edges.filter((e) => nodes.includes(e.from) && nodes.includes(e.to));
   const selfLoops = GRAPH.selfLoops;
   // layer(n) = 1 + max(layer of things n depends on); leaves = 0
@@ -447,36 +457,10 @@ function depLists(name) {
   return row("Dependencies", out, self ? ` <span class="chip self">↻ itself</span>` : "") + row("Dependents", inc);
 }
 
-// An instance page: the data, its type, and a live validation result.
-function instancePage(name, file, doc) {
-  const typeSlug = refToSlug(doc.$type);
-  const errors = validateData(vload(doc.$type), doc.value);
-  const status = errors.length
-    ? `<div class="callout bad-callout">✗ does not match <a href="/schema/${typeSlug}">${typeSlug}</a>:<ul>${errors.map((e) => `<li><code>${esc(e)}</code></li>`).join("")}</ul></div>`
-    : `<div class="callout variant-note">✓ a valid instance of <a href="/schema/${typeSlug}">${typeSlug}</a> — validated live by <code>validate.mjs</code>.</div>`;
-  const body = `
-    <div class="crumb"><a href="/">Hypermedia Schemas</a> / <a href="#" class="muted">instances</a> / ${name}</div>
-    <h1><code class="filename">${file}</code></h1>
-    <p class="hm-url"><span class="muted">published at</span> <code>${fileToUrl(file)}</code></p>
-    <p class="lead"><span class="kind kind-instance">instance</span> <span class="muted">· of</span> <a href="/schema/${typeSlug}">${typeSlug}</a></p>
-    ${status}
-    ${depLists(name)}
-    <section class="editor-wrap">
-      <h2>Data editor <span class="muted">· seeded from this instance</span></h2>
-      <p class="muted">Edit <code>${name}</code> as a live value of <a href="/schema/${typeSlug}">${typeSlug}</a> — validated on every keystroke.</p>
-      <div id="schema-editor" data-schema="${typeSlug}" data-seed="${attr(JSON.stringify(doc.value))}"></div>
-    </section>
-    <h2>Value <span class="muted">(the data, typed by <code>${esc(doc.$type)}</code>)</span></h2>
-    <pre class="json">${highlightJson(doc.value)}</pre>
-  `;
-  return { title: file, section: "schema", slug: name, body };
-}
-
 function schemaPage(name) {
   const file = fileOfName(name);
   if (!SCHEMA_FILES.includes(file)) return null;
   const schema = loadJson(file);
-  if (isInstanceDoc(schema)) return instancePage(name, file, schema);
   const isMeta = name === "schema";
 
   const isUnion = Array.isArray(schema.anyOf);
@@ -502,16 +486,17 @@ function schemaPage(name) {
       .map((v) => {
         // An arm can be a bare ref (to a variant / primitive / example) or an inline schema.
         // Card is an <a>, so inner tags must be PLAIN (no nested <a> from kindBadge).
-        if (v.ref && !v.type) {
-          const b = refToSlug(v.ref);
-          const file = urlToFile(v.ref);
+        const armNamed = namedSchemaUrl(v);
+        if (armNamed) {
+          const b = refToSlug(armNamed);
+          const file = urlToFile(armNamed);
           const kinds = loadJson(file).properties?.type?.enum;
           const tag = kinds
             ? kinds.map((u) => kindTag(kindOf(u))).join(" ")
             : isPrimitive(file)
             ? kindTag(primitiveKind(file))
             : b === "schema/include-schema"
-            ? `<span class="muted">a bare</span> <code>ref</code>`
+            ? `<span class="muted">a bare</span> <code>type</code>`
             : b === "schema/anyof"
             ? `<span class="muted">nested</span> <code>anyOf</code>`
             : "";
@@ -521,9 +506,9 @@ function schemaPage(name) {
       })
       .join("");
     main = `<div class="variants">${cards}</div>`;
-  } else if (schema.ref && !schema.type) {
-    // A reference node: pure include, or an EXTENSION (ref + refinements).
-    const parentSlug = refToSlug(schema.ref);
+  } else if (namedSchemaUrl(schema)) {
+    // A node naming another schema: a pure include, or an EXTENSION (naming + refinements).
+    const parentSlug = refToSlug(namedSchemaUrl(schema));
     const hasExt = ["properties", "required", "values", "items"].some((k) => schema[k] !== undefined);
     if (hasExt) {
       const eff = concrete(schema);
@@ -633,7 +618,7 @@ function sidebar(active) {
   const primitiveLinks = [...PRIMITIVE_FILES, ...SCHEMA_FILES.filter(isLibrarySchema)].map(schemaLink).join("");
   const hmBlobLinks = SCHEMA_FILES.filter((f) => isHypermedia(f) && !isHypermediaBlock(f)).map(schemaLink).join("");
   const hmBlockLinks = SCHEMA_FILES.filter((f) => isHypermedia(f) && isHypermediaBlock(f)).map(schemaLink).join("");
-  const exampleLinks = SCHEMA_FILES.filter((f) => f.startsWith("example-") && !isInstance(f)).map(schemaLink).join("");
+  const exampleLinks = SCHEMA_FILES.filter((f) => f.startsWith("example-")).map(schemaLink).join("");
   const instanceLinks = INSTANCE_FILES.map(schemaLink).join("");
   const homeOn = active.section === "home" ? " on" : "";
   return `<nav class="side">

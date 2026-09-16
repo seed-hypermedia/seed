@@ -1,7 +1,7 @@
 ---
 name: Activity Event
 summary: "One event of the activity feed. The event union is not yet pinned down schema-side, so this is an open map — tightening it is tracked follow-up work. A derived "
-schemaDefinition: ipfs://bafyreiajty6y6tu2qchtf3rmktx3qxj47velulumbnyrcghav77qfwwsmy
+schemaDefinition: ipfs://bafyreighcdnpfewr2gho4l3rw5z6qiabsj4pex3dx3vcbmumj7yodigpsu
 ---
 One event of the activity feed. The event union is not yet pinned down schema-side, so this is an open map — tightening it is tracked follow-up work. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:ohvGePiV -->
 

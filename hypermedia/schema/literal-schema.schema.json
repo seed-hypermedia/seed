@@ -3,7 +3,7 @@
   "properties": {
     "value": {
       "value": {
-        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/value"
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/value"
       },
       "required": true,
       "description": "The one value this schema accepts: a string, integer, boolean, or null."

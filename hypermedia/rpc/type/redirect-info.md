@@ -1,7 +1,7 @@
 ---
 name: Redirect Info
 summary: Marks a listed document as a redirect to another target. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
-schemaDefinition: ipfs://bafyreigngyqbs5y5k7pjag5p72vhvan3i4zbjdggtkibzdyhiynppfs2zu
+schemaDefinition: ipfs://bafyreiaski2t4sdupe4p6q5mzjqkaecgwwnwwl5epvjtlpwp4wnngnbtby
 ---
 This document describes the **rpc/type/redirect-info** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:2gKj4ehA -->
 

@@ -48,8 +48,14 @@
     if (typeof d === "number") return Number.isInteger(d) ? "integer" : "float";
     return typeof d;
   }
-  const KIND_URL = /^hm:\/\/hyper\.media\/([a-z]+)$/;
+  const KINDS = ["null", "boolean", "integer", "float", "string", "bytes", "list", "map", "struct", "link"];
+  const KIND_URL = /^hm:\/\/(?:hyper\.media|z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb)\/(?:schema\/|hypermedia-)?([a-z-]+)$/;
   const kindOf = (t) => (typeof t === "string" ? (KIND_URL.exec(t)?.[1] ?? t) : t);
+  // The schema a node NAMES rather than grounding in a kind (`ref` is the older spelling).
+  const namedSchemaUrl = (node) => {
+    if (typeof node?.type === "string") return KINDS.includes(kindOf(node.type)) ? null : node.type;
+    return typeof node?.ref === "string" ? node.ref : null;
+  };
 
   function typeMatches(type, d) {
     switch (type) {
@@ -95,9 +101,10 @@
       if (bound === undefined) return { schema: { __unbound: schema.var }, env: {} };
       return resolveSchema(bound, {});
     }
-    if (schema.ref && schema.type === undefined && schema.anyOf === undefined) {
-      const target = load(schema.ref);
-      if (!target) return { schema: { __missing: schema.ref }, env };
+    const named = namedSchemaUrl(schema);
+    if (named && schema.anyOf === undefined) {
+      const target = load(named);
+      if (!target) return { schema: { __missing: named }, env };
       if (schema.args) {
         const argsEnv = {};
         for (const [k, v] of Object.entries(schema.args)) argsEnv[k] = v && v.var !== undefined ? env[v.var] : v;
@@ -208,13 +215,15 @@
   function variantLabel(v) {
     if (v.var !== undefined) return "⟨" + v.var + "⟩";
     if (v.anyOf) return "one of " + v.anyOf.length;
-    if (v.ref && v.type === undefined) {
-      const t = load(v.ref);
+    const named = namedSchemaUrl(v);
+    if (named) {
+      const t = load(named);
       const kinds = t?.properties?.type?.enum;
       if (kinds) return kinds.map((u) => kindOf(u)).join(" · ");
-      const b = urlToFile(v.ref).replace(/\.json$/, "");
+      const b = urlToFile(named).replace(/\.json$/, "");
       const structural = t ? Object.keys(t).filter((k) => k !== "name" && k !== "description") : [];
-      if (t && structural.length === 1 && structural[0] === "type") return kindOf(t.type);
+      // A schema whose only key is `type` naming a kind IS that kind.
+      if (t && structural.length === 1 && structural[0] === "type" && !namedSchemaUrl(t)) return kindOf(t.type);
       return b + (v.args ? "⟨…⟩" : "");
     }
     const k = kindOf(v.type);
@@ -240,7 +249,7 @@
     const { schema, env: e } = resolveSchema(schema0, env);
 
     if (schema.__unbound || schema.__missing)
-      return jsonFallback(value, onChange, schema.__missing ? "unresolved ref" : "unbound type var");
+      return jsonFallback(value, onChange, schema.__missing ? "unresolved type" : "unbound type var");
     if (depth > MAX_DEPTH) return jsonFallback(value, onChange, "deeply nested");
 
     // union — variant picker + sub-form

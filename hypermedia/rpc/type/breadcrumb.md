@@ -1,7 +1,7 @@
 ---
 name: Breadcrumb
 summary: One ancestor entry of a document's path, resolved to a display name. A derived read model computed by the Seed daemon/API for clients — not a signed network blo
-schemaDefinition: ipfs://bafyreiatqf7szlkribfh7l7aw5em3tahrlqvc27mgqim5emlsyrenpad7q
+schemaDefinition: ipfs://bafyreifxhft5lto4yecrnypy2db7tfqfx36l4jelbs5vwmmvider2qhnue
 ---
 One ancestor entry of a document's path, resolved to a display name. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:Hx0g4ljG -->
 

@@ -1,7 +1,7 @@
 ---
 name: RPC
 summary: The union of every read-only method of the Seed universal-client API. Each variant pins a method key and types its input and output — the machine-readable catal
-schemaDefinition: ipfs://bafyreieb3ptathkb36d4s6cfm27a2ubfj7b3ny2obljmrguactthg2qzbm
+schemaDefinition: ipfs://bafyreihceqkz5ertrc6mrnefoj4b5ink2nczuogohthdbanucs26aeackm
 ---
 The union of every read-only method of the Seed universal-client API. Each variant pins a method key and types its input and output — the machine-readable catalog the in-app API console is driven by. <!-- id:IKHnPUjW -->
 

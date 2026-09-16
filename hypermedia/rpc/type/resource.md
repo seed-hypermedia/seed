@@ -1,7 +1,7 @@
 ---
 name: Resource
 summary: "The union of every state a fetched resource can be in: a document, a comment, a redirect, not found, a tombstone, or an error. A derived read model computed by "
-schemaDefinition: ipfs://bafyreiebvm6evln7nhxnccpajl3eqic32yxbf7u7tkhd5wc7kvoo6yqdve
+schemaDefinition: ipfs://bafyreifrbbw4hsotmyhhozjgy5ujnn33izocem7irfayjryihnyaoqaxui
 ---
 The union of every state a fetched resource can be in: a document, a comment, a redirect, not found, a tombstone, or an error. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:DKrlmk-b -->
 

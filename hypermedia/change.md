@@ -1,7 +1,7 @@
 ---
 name: Change
 summary: An append-only change to a document, linked into a causal DAG via deps. Carries the operations that mutate document content and metadata.
-schemaDefinition: ipfs://bafyreiaaeumf73xzdabzwhjaeavptygh5crmeagwdtwkg5wiwcel2ey2bq
+schemaDefinition: ipfs://bafyreie3extkcrek4pduyrezyrad3aqddw3tcaijeveeectku5zih3qrgi
 ---
 This document describes the **change** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:v0dbkIbB -->
 

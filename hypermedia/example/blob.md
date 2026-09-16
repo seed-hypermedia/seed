@@ -1,7 +1,7 @@
 ---
 name: "Example: Blob"
 summary: A binary payload tagged with a MIME type and optional size.
-schemaDefinition: ipfs://bafyreiaog4tmvvzeyn7abaqzgyuu4hbvuym4sftziuj6k6snhal4qvbwkq
+schemaDefinition: ipfs://bafyreighpalkczawiueg2ms7c2zx4bwes66eh6nosid32iqs6sih4wbwvi
 ---
 This document describes the **example/blob** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:_Qxmk6wX -->
 

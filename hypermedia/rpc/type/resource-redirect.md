@@ -1,7 +1,7 @@
 ---
 name: "Resource: Redirect"
 summary: A resource that redirects to another id (optionally republishing its content in place). A derived read model computed by the Seed daemon/API for clients — not a
-schemaDefinition: ipfs://bafyreihcx6g3vhuktpjnyfgptpl5fy42jashud6n3dvixqgq7hvwqznsdy
+schemaDefinition: ipfs://bafyreiesad52jom3u2rikyc2y4kbangshn7zulnv6ft7hwhz5rxwsknq5y
 ---
 A resource that redirects to another id (optionally republishing its content in place). A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:nq0tvFEY -->
 

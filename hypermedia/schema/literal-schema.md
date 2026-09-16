@@ -1,7 +1,7 @@
 ---
 name: Literal Schema
 summary: The variant for a literal — a schema that accepts exactly one value, with a description of what that value means.
-schemaDefinition: ipfs://bafyreiernphs7c72g6tz26yj6znwyirmbq4ltamlupikxshi7fpuv2xuay
+schemaDefinition: ipfs://bafyreibe2fpmh33ylvqxu2wwvzk6pltjmk27xczrxmeoh6bgerkmouwesi
 ---
 **Literal** — a schema that accepts exactly one value, written as the value itself (`"Change"`, `1`, `true`, `null`) or as `{value, description}` when the value deserves an explanation. Only a string, integer, boolean, or null can be a literal. ([the schema language](./schema-language.md)) <!-- id:--m2-2zx -->
 

@@ -1,7 +1,7 @@
 ---
 name: "Example: Person"
 summary: A person with a name, age, active flag, home address, and nicknames.
-schemaDefinition: ipfs://bafyreihjzxrvlfeebu6dqpri4xnil3u5xiazug3dut7ggdxw72nihxchte
+schemaDefinition: ipfs://bafyreifwi3fgnkhklay3yxae5trvpz2n6yr3eyomurprjnl2ex4upj7k54
 ---
 This document describes the **example/person** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:kz18rr1h -->
 

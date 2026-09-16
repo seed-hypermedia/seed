@@ -56,13 +56,20 @@ function collectRefs(node, acc = new Set()) {
     for (const s of node) collectRefs(s, acc)
     return acc
   }
-  if (typeof node.ref === 'string') acc.add(refToName(node.ref))
-  for (const [k, v] of Object.entries(node)) if (k !== 'ref' && v && typeof v === 'object') collectRefs(v, acc)
+  const named = namedSchemaUrl(node)
+  if (named) acc.add(refToName(named))
+  if (typeof node.target === 'string') acc.add(refToName(node.target))
+  for (const [k, v] of Object.entries(node))
+    if (k !== 'ref' && k !== 'type' && k !== 'target' && v && typeof v === 'object') collectRefs(v, acc)
   return acc
 }
 const dependencies = (name) => [...collectRefs(schemas[name])].filter((n) => n !== name && schemas[n]).sort()
 
-const isInstance = (s) => !!(s && s.$type && 'value' in s)
+/** The schema a node names rather than grounding in a kind (`ref` is the older spelling). */
+const namedSchemaUrl = (node) => {
+  if (typeof node?.type === 'string') return kindOf(node.type) === node.type ? node.type : null
+  return typeof node?.ref === 'string' ? node.ref : null
+}
 const isPrimitive = (name) => [...KINDS, 'any'].includes(name)
 const META_VARIANTS = ['schema/anyof', 'schema/literal-schema', 'schema/property']
 const isMeta = (name) =>
@@ -87,8 +94,9 @@ function summarize(node) {
   if (isLiteralSchema(node)) return literalText(literalValue(node))
   if (node.var !== undefined) return `type variable \`⟨${node.var}⟩\``
   if (node.anyOf) return 'one of ' + node.anyOf.map(summarize).join(' | ')
-  if (node.ref && !node.type) {
-    const b = refToName(node.ref)
+  const named = namedSchemaUrl(node)
+  if (named) {
+    const b = refToName(named)
     if (node.args)
       return `${link(b)}⟨${Object.entries(node.args)
         .map(([p, v]) => `${p} = ${summarize(v)}`)
@@ -99,7 +107,9 @@ function summarize(node) {
   if (k === 'link')
     return (
       '`link`' +
-      (node.ref ? ` → ${schemas[refToName(node.ref)] ? link(refToName(node.ref)) : refToName(node.ref)}` : '')
+      (node.target
+        ? ` → ${schemas[refToName(node.target)] ? link(refToName(node.target)) : refToName(node.target)}`
+        : '')
     )
   if (k === 'list') return `list of ${summarize(node.items)}`
   if (k === 'map') {
@@ -125,7 +135,6 @@ function refinements(node) {
 }
 
 function category(name, s) {
-  if (isInstance(s)) return 'instance'
   if (name === 'schema') return 'the meta-schema'
   if (isMeta(name)) return 'a meta-schema variant'
   if (isPrimitive(name)) return 'a primitive'
@@ -161,7 +170,8 @@ function fieldLines(node, indent = '') {
       }`,
     )
     if (v && typeof v === 'object' && v.properties && !v.anyOf) {
-      const head = v.ref && !v.type ? `${indent}  - *adds to ${summarize({ref: v.ref})}:*` : null
+      const base = namedSchemaUrl(v)
+      const head = base ? `${indent}  - *adds to ${summarize({type: base})}:*` : null
       if (head) out.push(head)
       out.push(...fieldLines(v, indent + (head ? '    ' : '  ')))
     }
@@ -170,23 +180,22 @@ function fieldLines(node, indent = '') {
 }
 
 function shapeSection(name, s) {
-  if (isInstance(s)) {
-    const t = refToName(s.$type)
-    return `This is example **data** — an instance of ${
-      schemas[t] ? link(t) : '`' + t + '`'
-    }.\n\n\`\`\`json\n${JSON.stringify(s.value, null, 2)}\n\`\`\``
-  }
   const lines = []
-  const hasExt = s.ref && !s.type && ['properties', 'values', 'items'].some((k) => s[k] !== undefined)
+  const base = namedSchemaUrl(s)
+  const hasExt =
+    base &&
+    ['properties', 'values', 'items', 'format', 'pattern', 'minimum', 'maximum', 'target'].some(
+      (k) => s[k] !== undefined,
+    )
   if (s.anyOf) {
     lines.push('A **union** — a value matches one of these variants:\n')
     for (const v of s.anyOf) lines.push(`- ${summarize(v)}`)
   } else if (hasExt) {
-    const parent = refToName(s.ref)
+    const parent = refToName(base)
     lines.push(`**Extends** ${schemas[parent] ? link(parent) : '`' + parent + '`'} with these added fields:\n`)
     lines.push(...fieldLines(s))
-  } else if (s.ref && !s.type && s.args) {
-    const parent = refToName(s.ref)
+  } else if (base && s.args) {
+    const parent = refToName(base)
     lines.push(
       `An **instantiation** of the generic ${schemas[parent] ? link(parent) : '`' + parent + '`'}, binding: ` +
         Object.entries(s.args)
@@ -194,8 +203,8 @@ function shapeSection(name, s) {
           .join(', ') +
         '.',
     )
-  } else if (s.ref && !s.type) {
-    const parent = refToName(s.ref)
+  } else if (base) {
+    const parent = refToName(base)
     lines.push(`An **alias** of ${schemas[parent] ? link(parent) : '`' + parent + '`'}.`)
   } else if ((kindOf(s.type) === 'struct' || kindOf(s.type) === 'map') && s.properties) {
     lines.push(`A ${s.values ? 'map' : '**closed struct**'} with these fields:\n`)
@@ -228,16 +237,12 @@ for (const [name, s] of Object.entries(schemas).sort(([a], [b]) => a.localeCompa
   const summary = (s.description || `${title} — ${cat}.`).replace(/\n/g, ' ').slice(0, 160)
   // The schema itself (shape, dependencies) is not repeated in prose: the app
   // renders it live from the document's schemaDefinition in the Schema tab.
-  const instanceNote = isInstance(s)
-    ? `This is example **data** — an instance of ${
-        schemas[refToName(s.$type)] ? link(refToName(s.$type)) : '`' + refToName(s.$type) + '`'
-      }.\n`
-    : `This document describes the **${name}** type — ${cat}. Its formal schema is attached (the \`schemaDefinition\` in this document's metadata), so the app can show it and create values of this type.\n`
+  const typeNote = `This document describes the **${name}** type — ${cat}. Its formal schema is attached (the \`schemaDefinition\` in this document's metadata), so the app can show it and create values of this type.\n`
   const md = `---
 name: ${JSON.stringify(title)}
 summary: ${JSON.stringify(summary)}
 ---
-${desc}${instanceNote}`
+${desc}${typeNote}`
   const out = join(OUT, `${name}.md`)
   mkdirSync(dirname(out), {recursive: true})
   if (!FORCE && existsSync(out)) continue // never clobber a hand-authored doc

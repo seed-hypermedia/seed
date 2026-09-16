@@ -1,7 +1,7 @@
 ---
 name: Ref
 summary: A signed pointer (like a Git ref) claiming that a path in a space points at the current head Changes of a document.
-schemaDefinition: ipfs://bafyreifrinf7gzy76pbnmcpb34yebp63pvi2lhcbscm3hsknoc4ytrazf4
+schemaDefinition: ipfs://bafyreiduqxxs33cs7fat6cnc426whpk6jdrl5ayrg5ov6iwn3xioyoutde
 ---
 This document describes the **ref** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:5X7JPVaE -->
 

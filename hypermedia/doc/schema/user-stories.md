@@ -101,7 +101,7 @@ These are the things a person should be able to do with the type system, stated 
   2. Give the document a name and a description in the body — the schema itself carries neither; the page does. <!-- id:RIVfC-ds -->
   3. Press **Edit** on the schema section. In the editor, **Add field** for each property: its **Field name**, its type (picked from every type document, plus the built-ins — text, number, date, HM link, IPFS…), whether it is required, a description. A union or a list is edited in the same form; **Schema JSON** switches to editing the schema as text. <!-- id:lq5g88L3 -->
   4. Publish. The working schema is frozen into a DAG-CBOR blob, and the document's `schemaDefinition` points at it. The page now shows a schema tag in its header and a **Create** button. <!-- id:JwxifnQe -->
-  5. To build on an existing type instead, open its page and choose **Extend Schema**: the new draft starts as `{ref: <that type>}` plus your fields. A typed _document_ schema extends `hm://<library>/hypermedia-document` and refines `metadata` — see [typed documents](../../schema/typed-documents.md). <!-- id:H3Lkwivi -->
+  5. To build on an existing type instead, open its page and choose **Extend Schema**: the new draft starts as `{type: <that type>}` plus your fields. A typed _document_ schema extends `hm://<library>/hypermedia-document` and refines `metadata` — see [typed documents](../../schema/typed-documents.md). <!-- id:H3Lkwivi -->
 
 **With the CLI** <!-- id:U6i9oiV8 -->
   1. Write the schema as dag-json next to the page: `types/person.md` and `types/person.schema.json`. `space import hm://<acct> ./site --key <name>` encodes the schema to its CID, publishes the blob, and binds it to the document as `schemaDefinition`. This is how this library itself is published — see [Repo HM sync](../repo-hm-sync.md). <!-- id:PwwtiTUC -->
@@ -143,10 +143,10 @@ These are the things a person should be able to do with the type system, stated 
   3. Or open the blob page and choose **Extend Schema** to start from the envelope directly. <!-- id:B4BhWu7g -->
 
 **With the CLI** <!-- id:jdh8RNzv -->
-  1. A schema whose root is `{"ref": "hm://<library>/hypermedia-blob", "properties": {"type": {"value": "Vote", "required": true}, …}}`, published as a type page with `document create --schema-definition vote.schema.json` or beside its page with `space import`, as in story 5. <!-- id:SsUIQT9- -->
+  1. A schema whose root is `{"type": "hm://<library>/blob", "properties": {"type": {"value": "Vote", "required": true}, …}}`, published as a type page with `document create --schema-definition vote.schema.json` or beside its page with `space import`, as in story 5. <!-- id:SsUIQT9- -->
 
 **Through an agent** <!-- id:2OweK2rk -->
-  1. Same as story 5, with a schema whose root is `{"ref": "hm://<library>/hypermedia-blob", "properties": {"type": {"value": "Vote", "required": true}, …}}`: `write ipfs://` with `options: {schema: "schema"}` publishes the signed type's schema blob, then a `write hm://…/types/vote` with `metadata.schemaDefinition` binds it. <!-- id:21O_MRe- -->
+  1. Same as story 5, with a schema whose root is `{"type": "hm://<library>/blob", "properties": {"type": {"value": "Vote", "required": true}, …}}`: `write ipfs://` with `options: {schema: "schema"}` publishes the signed type's schema blob, then a `write hm://…/types/vote` with `metadata.schemaDefinition` binds it. <!-- id:21O_MRe- -->
 
 **Status.** App: works. CLI: works. Agent: works. <!-- id:wJjSs4ZM -->
 

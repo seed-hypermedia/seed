@@ -7,12 +7,12 @@
 // list, map, link. In human/dag-json form, a link is {"/":"<cid>"} and bytes
 // is {"/":{"bytes":"<base64>"}} -- both are distinct kinds, NOT maps.
 //
-// Schema vocabulary: type, properties, items, values, ref, anyOf, and
+// Schema vocabulary: type, properties, items, values, target, anyOf, and
 // literals (a bare scalar, or {value, description}).
 //   - a literal                 -> the value must equal it; {anyOf: ["a","b"]} is a fixed set.
 //   - `anyOf`                   -> union: value must match one of the variants.
-//   - `ref` with no `type`      -> include: defer entirely to that schema file.
-//   - `type:"link"` with `ref`  -> typed link: target should match that schema
+//   - `type` naming a schema    -> include: defer to that schema file; other keys refine it.
+//   - `type:"link"` + `target`  -> typed link: the linked block should match that schema
 //                                  (checked lazily, not here).
 //   - a `map` with `properties` and no `values` is CLOSED: unknown keys are
 //     rejected. With `values`, extra keys must match the `values` schema.
@@ -39,9 +39,6 @@ export const load = (ref) => {
   if (!cache.has(file)) cache.set(file, JSON.parse(readFileSync(resolve(DIR, file), "utf8")));
   return cache.get(file);
 };
-
-// An instance is data typed by a schema: { "$type": <schema-url>, "value": … }.
-export const isInstance = (doc) => !!(doc && typeof doc === "object" && doc.$type && "value" in doc);
 
 // --- kind detection (dag-json envelopes are their own kinds) -----------
 
@@ -87,7 +84,30 @@ function typeMatches(type, d) {
   }
 }
 
-const REFINE = ["properties", "values", "items"];
+// A node refines the schema it names when it carries any of these: structural keys and leaf
+// refinements alike, so `{type: <url>, format: "ipfs-url"}` narrows a leaf exactly as
+// `{type: <url>, properties: {…}}` extends a struct.
+const REFINE = [
+  "properties",
+  "values",
+  "items",
+  "format",
+  "pattern",
+  "minLength",
+  "maxLength",
+  "minimum",
+  "maximum",
+  "minItems",
+  "maxItems",
+  "target",
+];
+
+// The schema a node NAMES rather than grounding in a kind: `type` holding any schema URL that is
+// not one of the nine kinds. `ref` is the older spelling of the same thing and still resolves.
+export const namedSchemaUrl = (schema) => {
+  if (typeof schema.type === "string") return kindOf(schema.type) === schema.type ? schema.type : null;
+  return typeof schema.ref === "string" ? schema.ref : null;
+};
 
 // A literal schema accepts exactly one value: a bare scalar (null, boolean,
 // integer, float, string) or, with a description, {value, description}.
@@ -140,8 +160,8 @@ export function mergeExtend(parent, ext) {
   if (values) merged.values = values;
   const items = ext.items ?? parent.items;
   if (items) merged.items = items;
-  // Leaf refinements are inherited by a subtype (a `{ref: date, …}` stays a
-  // date; `{ref: ipfs, target}` keeps its format and gains a target).
+  // Leaf refinements are inherited by a subtype (a `{type: date, …}` stays a
+  // date; `{type: ipfs-url, target}` keeps its format and gains a target).
   for (const k of LEAF_KEYS) {
     const v = ext[k] ?? parent[k];
     if (v !== undefined) merged[k] = v;
@@ -155,9 +175,9 @@ const LEAF_KEYS = ["format", "pattern", "minLength", "maxLength", "minimum", "ma
 // Resolve a node to a concrete schema (map/list/scalar/link/union), following:
 //   var    -> the schema bound to a type parameter        {var:"B"}
 //   params -> a generic definition; binds defaults        {params:{B:default}, …}
-//   ref+args    -> APPLICATION: instantiate a generic     {ref:X, args:{B:…}}
-//   ref+refine  -> EXTENSION: subtype of X                {ref:X, properties:…}
-//   ref (bare)  -> include                                {ref:X}
+//   type+args   -> APPLICATION: instantiate a generic     {type:X, args:{B:…}}
+//   type+refine -> EXTENSION: subtype of X                {type:X, properties:…}
+//   type (bare) -> include: conforms to X                 {type:X}
 // `env` binds type variables. Returns { schema, env } for the resolved node.
 export function resolveSchema(schema, env = {}) {
   if (isLiteralSchema(schema)) return { schema: literalNode(schema), env };
@@ -172,8 +192,9 @@ export function resolveSchema(schema, env = {}) {
     if (bound === undefined) return { schema: { __unbound: schema.var }, env: {} };
     return resolveSchema(bound, {});
   }
-  if (schema.ref && schema.type === undefined && schema.anyOf === undefined) {
-    const target = load(schema.ref);
+  const named = namedSchemaUrl(schema);
+  if (named && schema.anyOf === undefined) {
+    const target = load(named);
     if (schema.args) {
       const argsEnv = {};
       for (const [k, v] of Object.entries(schema.args)) argsEnv[k] = v && v.var !== undefined ? env[v.var] : v;
@@ -184,10 +205,6 @@ export function resolveSchema(schema, env = {}) {
       if (parent.schema.anyOf || parent.schema.__unbound) return parent; // can't extend a union/var
       return { schema: mergeExtend(parent.schema, schema), env: parent.env };
     }
-    // A bare include — but an include may still name the schema its
-    // reference should point at (`{ref: hm-url, target: place}`); carry it.
-    if (schema.target !== undefined && !parent.schema.anyOf)
-      return { schema: { ...parent.schema, target: schema.target }, env: parent.env };
     return parent;
   }
   return { schema, env };
@@ -304,7 +321,6 @@ failed += report("hypermedia-schema.schema.json describes itself", validate(meta
 section("Every schema block is a valid Hypermedia schema");
 const jsonFiles = listSchemaFiles();
 for (const f of jsonFiles) {
-  if (isInstance(load(f))) continue; // instances are data, not schemas
   failed += report(`${f}`, validate(meta, load(f)));
 }
 
@@ -323,7 +339,7 @@ failed += reportReject("a struct field must be a property ({value, …}), not a 
 failed += report("a map of values is a valid schema", validate(meta, { type: U("map"), values: { type: U("integer") } }));
 failed += reportReject("a map with named fields (that is a struct)", validate(meta, { type: U("map"), properties: { a: { value: { type: U("string") } } } }));
 failed += reportReject("a struct with a `required` list (fields carry their own flag)", validate(meta, { type: U("struct"), required: ["a"], properties: { a: { value: { type: U("string") } } } }));
-failed += reportReject("node with neither type nor ref nor anyOf", validate(meta, { properties: {} }));
+failed += reportReject("node with neither type nor anyOf", validate(meta, { properties: {} }));
 failed += reportReject("union with a non-schema arm", validate(meta, { anyOf: [{ nope: 1 }] }));
 failed += reportReject("bare kind name instead of a URL", validate(meta, { type: "string" }));
 
@@ -355,7 +371,7 @@ const tagged = { type: U("struct"), properties: { type: { value: "Change", requi
 failed += report("a pinned tag field accepts the tag", validate(tagged, { type: "Change", n: 1 }));
 failed += reportReject("a pinned tag field rejects another tag", validate(tagged, { type: "Comment", n: 1 }));
 failed += reportReject("a pinned integer field rejects another integer", validate(tagged, { type: "Change", n: 2 }));
-const pinned = { ref: `hm://${HYPERMEDIA_UID}/schema/block/base`, properties: { type: { value: "Poll", required: true } } };
+const pinned = { type: `hm://${HYPERMEDIA_UID}/schema/block/base`, properties: { type: { value: "Poll", required: true } } };
 failed += report("an extension can pin a field to a literal", validate(pinned, { id: "b1", type: "Poll" }));
 failed += reportReject("…and then rejects the base's other tags", validate(pinned, { id: "b1", type: "Paragraph" }));
 
@@ -456,14 +472,14 @@ const CASES = [
   {
     schema: "example/admin.schema.json",
     valid: [
-      { name: "Root", employeeId: "E-0", permissions: ["all"] },
-      { name: "Root", employeeId: "E-0", permissions: [], age: 40, department: "IT" },
+      { name: "Root", employeeId: "E-0", permissions: { all: true } },
+      { name: "Root", employeeId: "E-0", permissions: {}, age: 40, department: "IT" },
     ],
     invalid: [
       ["missing permissions (own required)", { name: "Root", employeeId: "E-0" }],
-      ["missing employeeId (from employee)", { name: "Root", permissions: [] }],
-      ["missing name (from person)", { employeeId: "E", permissions: [] }],
-      ["unknown key (closed through the chain)", { name: "R", employeeId: "E", permissions: [], ghost: 1 }],
+      ["missing employeeId (from employee)", { name: "Root", permissions: {} }],
+      ["missing name (from person)", { employeeId: "E", permissions: {} }],
+      ["unknown key (closed through the chain)", { name: "R", employeeId: "E", permissions: {}, ghost: 1 }],
     ],
   },
   {
@@ -688,7 +704,7 @@ failed += reportReject("date-time: bare date", validate(dateTimeT, "2026-08-26")
 // conform to. Allowed on the scalar and include variants (advisory; never
 // dereferenced), rejected elsewhere because the variants are closed maps.
 failed += report("target on a scalar reference", validate(meta, { type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", format: "ipfs", target: "hm://acme/stats" }));
-failed += report("target on an include reference", validate(meta, { ref: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hm-url", target: "hm://acme/place" }));
+failed += report("target on an include reference", validate(meta, { type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hm-url", target: "hm://acme/place" }));
 failed += reportReject("target on a map schema", validate(meta, { type: K("map"), properties: {}, target: "hm://acme/x" }));
 failed += reportReject("target on a list schema", validate(meta, { type: K("list"), target: "hm://acme/x" }));
 failed += report("target does not affect the value", validate({ type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", format: "ipfs", target: "hm://acme/stats" }, "ipfs://bafyfoo"));
@@ -706,7 +722,7 @@ failed += report("float within bounds", validate(floatRange, 0.5));
 failed += reportReject("float below minimum", validate(floatRange, -0.5));
 
 // list minItems / maxItems
-const listSize = S("list", { minItems: 1, maxItems: 3, items: { ref: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string" } });
+const listSize = S("list", { minItems: 1, maxItems: 3, items: { type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string" } });
 failed += report("list within size bounds", validate(listSize, ["a", "b"]));
 failed += reportReject("list too short", validate(listSize, []));
 failed += reportReject("list too long", validate(listSize, ["a", "b", "c", "d"]));
@@ -740,16 +756,8 @@ failed += report("Change<app-block> accepts a core Paragraph block", validate(lo
 failed += reportReject("Change<app-block> REJECTS the Widget block (strict, deep in the op)", validate(load("example/myapp-change.schema.json"), blockChange(widgetBlock)));
 failed += assertPath("the rejection points inside the op stack", validate(load("example/myapp-change.schema.json"), blockChange(widgetBlock)), "body.ops[0].block");
 
-// =====================================================================
-// 6. Example instances are valid data for their declared type.
-//    (bob : employee, alice : person, root : admin, …)
-// =====================================================================
-section("Example instances validate against their type");
-for (const f of jsonFiles) {
-  const doc = load(f);
-  if (!isInstance(doc)) continue;
-  failed += report(`${f} is a valid ${doc.$type.split("/").pop()}`, validate(load(doc.$type), doc.value));
-}
+// (The example documents — bob : employee, alice : person, root : admin — are checked against
+// their `attributesSchema` by check.mjs, which reads their frontmatter.)
 
 process.exit(failed ? 1 : 0);
 } // end if (RUN)

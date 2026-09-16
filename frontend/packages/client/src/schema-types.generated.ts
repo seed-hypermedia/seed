@@ -546,7 +546,8 @@ export type ExampleAddress = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/admin
  */
 export type ExampleAdmin = ExampleEmployee & {
-  permissions: string[]
+  /** The permissions this admin holds, as flags. A set of flags is a map rather than a list because a document's attributes hold scalars and nested maps, so this type describes a document as well as a blob. */
+  permissions: {[key: string]: boolean}
 }
 
 /**
@@ -565,13 +566,13 @@ export type ExampleArticle = {
   title: string
   slug: string
   status: ExampleStatus
-  author: ExamplePerson
+  author: HMLink
   tags?: ExampleTags
   body?: HMBytes
   wordCount?: number
   featured?: boolean
-  cover?: ExampleBlob
-  comments?: ExampleComment[]
+  cover?: HMLink
+  comments?: HMLink[]
   meta?: ExampleMetadata
 }
 
@@ -617,8 +618,8 @@ export type ExampleCharacterDoc = {
  */
 export type ExampleComment = {
   text: string
-  author?: ExamplePerson
-  replies?: ExampleComment[]
+  author?: HMLink
+  replies?: HMLink[]
 }
 
 /**
@@ -648,9 +649,9 @@ export type ExampleCounts = {[key: string]: number}
  */
 export type ExampleDocument = {
   title: string
-  author?: ExamplePerson
+  author?: HMLink
   body?: HMBytes
-  previous?: ExampleDocument
+  previous?: HMLink
 }
 
 /**
@@ -714,7 +715,7 @@ export type ExampleFactionDoc = {
  */
 export type ExampleFile = {
   name: string
-  parent?: ExampleFolder
+  parent?: HMLink
 }
 
 /**
@@ -724,8 +725,8 @@ export type ExampleFile = {
  */
 export type ExampleFolder = {
   name: string
-  files?: ExampleFile[]
-  subfolders?: ExampleFolder[]
+  files?: HMLink[]
+  subfolders?: HMLink[]
 }
 
 /**
@@ -830,7 +831,7 @@ export type ExamplePollBlock = HMBlockBase & {
  * A map from ids to person links — Map<Link<Person>>.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/registry
  */
-export type ExampleRegistry = {[key: string]: ExamplePerson}
+export type ExampleRegistry = {[key: string]: HMLink}
 
 /**
  * Character Stats
@@ -870,7 +871,7 @@ export type ExampleTags = string[]
  */
 export type ExampleTree = {
   value: number
-  children?: ExampleTree[]
+  children?: HMLink[]
 }
 
 /**
@@ -2063,12 +2064,13 @@ export type HMAnyof = {
 }
 
 /**
- * Reference schema
+ * Reference Schema
  * The variant for a reference: a bare include, or an extension when it carries refinements.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/include-schema
  */
 export type HMIncludeSchema = {
-  ref: string
+  /** The schema this one names: a schema document's URL (`hm://…` or `ipfs://<cid>`). Naming one of the nine kinds grounds a schema instead (see the kind-rooted variants), so a kind URL does not belong here. The other keys refine what is named. · pattern: "^(?!hm://(?:hyper\\.media|z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb)/(?:schema/|hypermedia-)?(?:null|boolean|integer|float|string|bytes|list|map|struct|link)$)(?:hm|ipfs)://.+$" */
+  type: string
   /** Fields the extension adds to (or overrides in) the base struct, as properties. */
   properties?: {[key: string]: HMProperty}
   values?: HMSchema
@@ -2088,7 +2090,8 @@ export type HMIncludeSchema = {
  */
 export type HMLinkSchema = {
   type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/link'
-  ref?: string
+  /** The schema the linked block is expected to conform to. Advisory: a validator does not dereference the link. */
+  target?: string
   description?: string
   params?: {[key: string]: HMSchema}
   name?: string

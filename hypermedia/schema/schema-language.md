@@ -9,12 +9,12 @@ A Hypermedia schema is a value of kind `map` built from **twelve core keys**, al
 <!-- id:7guJrYQy -->
 | key <!-- col:PPQxsZds --> | applies to <!-- col:arAp45HF --> | meaning <!-- col:OMQjDwG3 --> <!-- id:lyC-RqMi --> |
 | --- | --- | --- |
-| `type` | any | the kind — an `hm://` URL naming one of the nine (see [the data model](./data-model.md)) <!-- id:hwpC2KX7 --> |
+| `type` | any | what this node **is** — an `hm://` URL naming one of the nine kinds (see [the data model](./data-model.md)) or naming another schema (see [references](./references.md)) <!-- id:hwpC2KX7 --> |
 | `properties` | `map` | a map of known field name → schema <!-- id:InbInGwv --> |
 | `items` | `list` | schema every element must match <!-- id:GxgxLBO8 --> |
 | `values` | `map` | schema every _value_ must match (open map / record) <!-- id:lBxL68T_ --> |
 | `value` | literal | the one value a literal schema accepts, when the literal needs a `description` (see below) <!-- id:Jh3SOAp5 --> |
-| `ref` | any | a reference to another schema — an `hm://` URL (see [references](./references.md)) <!-- id:8kpIEN7j --> |
+| `target` | `link`, reference string | the schema the pointed-at block or document is expected to conform to (see [references](./references.md)) <!-- id:8kpIEN7j --> |
 | `anyOf` | any | a **union**: the value must match one of the listed schemas <!-- id:Ww-tAztO --> |
 | `params` | any | declares type parameters (generics), each with a default <!-- id:LmVM4b91 --> |
 | `var` | any | a reference to a type parameter — `{ "var": "B" }` <!-- id:MeJc4pL2 --> |
@@ -24,7 +24,7 @@ A Hypermedia schema is a value of kind `map` built from **twelve core keys**, al
 
 `name` and `description` are **metadata** — they annotate the schema, not the data, so the validator ignores them when checking a value, and the schema explorer renders them as each schema's title and blurb. (A schema's `name` is unrelated to a field named `name` inside its `properties` — different levels.) <!-- id:GROkvj0R -->
 
-Both `type` and `ref` values are `hm://` URLs, so they are clickable and self-explanatory: `type` is `"hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map"`, not a bare `"map"`. **For readability these docs abbreviate `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map` as just `map`** — but the real value is always the URL. <!-- id:SZ-BjsVR -->
+A `type` value is always an `hm://` URL, so it is clickable and self-explanatory — whether it names a kind or another schema: `type` is `"hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map"`, not a bare `"map"`. **For readability these docs abbreviate `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map` as just `map`** — but the real value is always the URL. <!-- id:SZ-BjsVR -->
 
 ## Literals <!-- id:Lit1eral -->
 
@@ -44,19 +44,19 @@ A **literal** schema accepts exactly one value, and is written as that value: `"
 
 Every signed blob type pins its `type` this way, and every RPC method schema pins its `key`; in TypeScript they become literal types (`type: 'Change'`, `'draft' | 'published' | 'archived'`). <!-- id:Lit4eral -->
 
-A node with only `ref` (and no `type`) is an **include**: it becomes whatever the referenced schema says. Add refinement keys and it becomes an **extension** (below). A node with `type:"link"` _and_ `ref` is a **typed link**: a link whose target should match the referenced schema. <!-- id:wxGU9ndD -->
+One rule governs the whole language: **`type` names what a node is, and every other key refines what it names.** Name one of the nine kinds and the schema is grounded there. Name _another schema_ and the node is an **include** — with nothing else, it becomes whatever that schema says; add any refinement and it becomes an **extension** (below). The refinement can be structural (`properties`, `values`, `items`) or a leaf constraint (`format`, `pattern`, `minLength`, `target`, …) — the same rule either way. A node with `type:"link"` and a `target` is a **typed link**: a link whose target should match the named schema. <!-- id:wxGU9ndD -->
 
 ## Extension (subtyping) <!-- id:go7Qda14 -->
 
-A reference node that _also_ carries refinements **extends** the schema it points at — a subtype with the parent's fields plus new ones. The worked example is `example/employee`, which extends `example/person`: <!-- id:c6VcyJfa -->
+A node whose `type` names another schema and that _also_ carries refinements **extends** what it names — a subtype with the parent's fields plus new ones. The worked example is `example/employee`, which extends `example/person`: <!-- id:c6VcyJfa -->
 
 ```json <!-- id:fnvdYhmQ -->
 // example/employee = example/person, plus employeeId and department
 {
-  "ref": "hm://example.com/person",
+  "type": "hm://example.com/person",
   "properties": {
-    "employeeId": { "value": { "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string" }, "required": true },
-    "department": { "value": { "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string" } }
+    "employeeId": { "value": { "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string" }, "required": true },
+    "department": { "value": { "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string" } }
   }
 }
 ```
@@ -68,7 +68,7 @@ The rules, all reusing existing keywords — no `extends` keyword needed: <!-- i
   - `values` / `items` on the extension override the parent's. <!-- id:jK0_muct -->
   - the result keeps the parent's kind and closedness — so an employee must have `name` (required on the parent) **and** `employeeId` (required on the extension), may use any inherited field, and still rejects unknown keys. <!-- id:jmFaI8J0 -->
 
-A **bare** `{ "ref": X }` (no refinements) is a pure include, not an extension. The distinction is exactly whether refinements are present. This is validated by `validate.mjs` (see the `employee data` / `extension …` checks). <!-- id:QzURq80i -->
+A **bare** `{ "type": X }` — X naming another schema, and nothing else on the node — is a pure include, not an extension. The distinction is exactly whether a refinement is present. This is validated by `validate.mjs` (see the `employee data` / `extension …` checks). <!-- id:QzURq80i -->
 
 ## Structs and maps <!-- id:SFVk1Mph -->
 
@@ -121,7 +121,7 @@ These are the value constraints folded in from the "Seed Blob Schema v1" dialect
 `anyOf` lists alternative schemas; a value is valid if it matches **any** of them. This is the schema language's one composite construct, and it is what makes the meta-schema a _discriminated union_ — a value is one of a fixed set of shapes, told apart by a discriminant (here, the `type` tag). <!-- id:vsWv7IZH -->
 
 ```json <!-- id:DmjMbc7m -->
-{ "anyOf": [ { "ref": "schema/map-schema" }, { "ref": "schema/link-schema" } ] }
+{ "anyOf": [ { "type": "schema/map-schema" }, { "type": "schema/link-schema" } ] }
 ```
 
 ## Generics <!-- id:Any3hnDc -->
@@ -132,7 +132,7 @@ The schema language has both flavours of generic. <!-- id:GUz2-s2k -->
   - `list` + `items` = `List<T>` — `items` is `T` <!-- id:aZPTtuab -->
   - `map` + `values` = `Map<V>` — `values` is `V` <!-- id:aY249UNO -->
 
-So `{"Apples":5,"Oranges":3}` is `Map<Integer>`, written `example/counts`: `{ "type":"map", "values":{ "ref":"integer" } }`. It nests all the way down. <!-- id:-Yhf7y6_ -->
+So `{"Apples":5,"Oranges":3}` is `Map<Integer>`, written `example/counts`: `{ "type":"map", "values":{ "type":"integer" } }`. It nests all the way down. <!-- id:-Yhf7y6_ -->
 
 **Generic abstraction** — defining a reusable parameterized type and instantiating it later — is expressed with three keys: <!-- id:s5ZsDksV -->
 
@@ -141,7 +141,7 @@ So `{"Apples":5,"Oranges":3}` is `Map<Integer>`, written `example/counts`: `{ "t
 | --- | --- |
 | `params` | declares type parameters, each with a default: `{ "params": { "B": <default> }, … }` <!-- id:lIs7tAVg --> |
 | `var` | a **type-variable reference**: `{ "var": "B" }` matches whatever `B` is bound to <!-- id:5aEIR885 --> |
-| `args` | **applies** a generic, binding its params: `{ "ref": X, "args": { "B": <schema> } }` <!-- id:4XYh4mx3 --> |
+| `args` | **applies** a generic, binding its params: `{ "type": X, "args": { "B": <schema> } }` <!-- id:4XYh4mx3 --> |
 
 The parameter threads through references (each level passes it down with `args`), so binding it at the top substitutes it everywhere. The worked example is `change` — a `Change<Block>` whose `Block` parameter flows through `change → change-body → op → op-replace-block` — and its instantiation `example/myapp-change` = `Change<example/app-block>`, which validates blocks _strictly_ deep inside the op stack (see the `Generics: Change<Block>` checks in `validate.mjs`). Used bare, a generic falls back to its parameter defaults, so the common case needs no `args`. <!-- id:DcFRFUv9 -->
 
@@ -156,8 +156,8 @@ This is the crux, and with unions it is sharper than "a loose map with optional 
 | `schema/map-schema` | `{type:"map", values?}` | `type` = `map` <!-- id:bCtL9MQx --> |
 | `schema/list-schema` | `{type:"list", items?}` | `type` = `list` <!-- id:Y2gJAANc --> |
 | `schema/scalar-schema` | `{type: null\|boolean\|integer\|float\|string\|bytes, …constraints}` | `type` = a scalar kind <!-- id:wkuOsUIy --> |
-| `schema/link-schema` | `{type:"link", ref?}` | `type` = `link` <!-- id:GXuPWZG4 --> |
-| `schema/include-schema` | `{ref}` | no `type` <!-- id:sBVesN99 --> |
+| `schema/link-schema` | `{type:"link", target?}` | `type` = `link` <!-- id:GXuPWZG4 --> |
+| `schema/include-schema` | `{type: <another schema's URL>, …refinements?}` | `type` names a schema, not a kind <!-- id:sBVesN99 --> |
 | `schema/anyof` | `{anyOf:[schema, …]}` | has `anyOf` <!-- id:uRuXGK92 --> |
 | `schema/var-schema` | `{var}` | has `var` <!-- id:nw86Dhqn --> |
 | `schema/literal-schema` | `{value, description?}` | has `value` <!-- id:Lit5eral --> |
@@ -172,9 +172,9 @@ node validate.mjs
 
 ### Why it still closes the loop — and deepens it <!-- id:cAg3Oszt -->
 
-`schema` is `{ "anyOf": [ …thirteen refs… ] }`. Validate it against itself: <!-- id:Gjr5KNDl -->
+`schema` is `{ "anyOf": [ …thirteen includes… ] }`. Validate it against itself: <!-- id:Gjr5KNDl -->
   1. It matches the **`schema/anyof`** variant (it has an `anyOf` that is a list of schemas). <!-- id:deE1RQMk -->
-  2. Each item in that `anyOf` is a bare `{ref: …}`, which matches the **`schema/include-schema`** variant. <!-- id:yYBUIRiY -->
+  2. Each item in that `anyOf` is a bare `{type: …}` naming a variant schema, which matches the **`schema/include-schema`** variant. <!-- id:yYBUIRiY -->
   3. Each variant file (e.g. `schema/map-schema`) is itself a `{type:"struct", …}`, which matches the **`schema/struct-schema`** variant. <!-- id:3RbdlEZc -->
 
 The meta-schema is a union whose variants _include a union variant_, and it validates as that variant. The fixed point holds one level richer than before. <!-- id:pUf5EFPl -->

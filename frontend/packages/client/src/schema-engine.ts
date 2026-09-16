@@ -130,9 +130,6 @@ export function loadFrom(registry: SchemaRegistry, ref: string): HypermediaSchem
 /** Resolve a ref against the bundled standard library. */
 export const load = (ref: string): HypermediaSchema | undefined => loadFrom(HM_SCHEMAS, ref)
 
-// An instance is data typed by a schema: { "$type": <schema-url>, "value": … }.
-export const isInstance = (doc: any): boolean => !!(doc && typeof doc === 'object' && doc.$type && 'value' in doc)
-
 // --- kind detection (dag-json envelopes are their own kinds) ---------------
 
 export const isLink = (d: any): boolean =>
@@ -188,7 +185,26 @@ function typeMatches(type: string, d: any): boolean {
   }
 }
 
-const REFINE = ['properties', 'required', 'values', 'items']
+/**
+ * A node refines the schema it names when it carries any of these. Structural keys and leaf
+ * refinements alike, so `{type: <url>, format: 'ipfs-url'}` narrows a leaf exactly as
+ * `{type: <url>, properties: {…}}` extends a struct.
+ */
+const REFINE = [
+  'properties',
+  'required',
+  'values',
+  'items',
+  'format',
+  'pattern',
+  'minLength',
+  'maxLength',
+  'minimum',
+  'maximum',
+  'minItems',
+  'maxItems',
+  'target',
+]
 
 // --- literals ---------------------------------------------------------------
 //
@@ -329,6 +345,16 @@ export type Resolved = {schema: HypermediaSchema; env: Record<string, any>}
  * (application) / ref+refinements (extension) / bare ref (include). `env` binds
  * type variables. `reg` supplies additional (non-bundled) schemas.
  */
+/**
+ * The schema a node NAMES, when it names one rather than grounding in a kind: `type` holding any
+ * schema URL that is not one of the nine kinds. `ref` is the older spelling of the same thing and
+ * still resolves, so schemas published before the two keys merged keep working.
+ */
+export function namedSchemaUrl(schema: HypermediaSchema): string | null {
+  if (typeof schema.type === 'string') return kindOf(schema.type) === schema.type ? schema.type : null
+  return typeof schema.ref === 'string' ? schema.ref : null
+}
+
 export function resolveSchema(
   schema: HypermediaSchema,
   env: Record<string, any> = {},
@@ -346,9 +372,10 @@ export function resolveSchema(
     if (bound === undefined) return {schema: {__unbound: schema.var}, env: {}}
     return resolveSchema(bound, {}, reg)
   }
-  if (schema.ref && schema.type === undefined && schema.anyOf === undefined) {
-    const target = loadFrom(reg, schema.ref)
-    if (!target) return {schema: {__missing: schema.ref}, env: {}}
+  const named = namedSchemaUrl(schema)
+  if (named && schema.anyOf === undefined) {
+    const target = loadFrom(reg, named)
+    if (!target) return {schema: {__missing: named}, env: {}}
     if (schema.args) {
       const argsEnv: Record<string, any> = {}
       for (const [k, v] of Object.entries<any>(schema.args)) argsEnv[k] = v && v.var !== undefined ? env[v.var] : v
@@ -359,10 +386,6 @@ export function resolveSchema(
       if (parent.schema.anyOf || parent.schema.__unbound) return parent // can't extend a union/var
       return {schema: mergeExtend(parent.schema, schema), env: parent.env}
     }
-    // A bare include — but an include may still name the schema its
-    // reference should point at (`{ref: hm-url, target: place}`); carry it.
-    if (schema.target !== undefined && !parent.schema.anyOf)
-      return {schema: {...parent.schema, target: schema.target}, env: parent.env}
     return parent
   }
   return {schema, env}
@@ -493,9 +516,9 @@ export function schemaShape(schema: HypermediaSchema | undefined): {label: strin
 // --- dependency graph (for the explorer) -----------------------------------
 
 /**
- * All schemas a schema node mentions (recursively), as basenames: every `ref`,
- * and every `type` naming a core type (a struct depends on `struct`, a map on
- * `map`), so a core type's page can list who builds on it.
+ * All schemas a schema node mentions (recursively), as basenames: every `type` — whether it names a
+ * core kind (a struct depends on `struct`, a map on `map`, so a kind's page lists who builds on it)
+ * or another schema — plus a reference's `target`, and the older `ref` spelling.
  */
 export function collectRefs(schema: any, acc = new Set<string>()): Set<string> {
   if (!schema || typeof schema !== 'object') return acc
@@ -506,10 +529,13 @@ export function collectRefs(schema: any, acc = new Set<string>()): Set<string> {
   if (typeof schema.ref === 'string') acc.add(refToName(schema.ref))
   if (typeof schema.type === 'string') {
     const kind = kindOf(schema.type)
-    if (kind !== schema.type && HM_SCHEMAS[kind]) acc.add(kind)
+    if (kind !== schema.type) {
+      if (HM_SCHEMAS[kind]) acc.add(kind)
+    } else acc.add(refToName(schema.type))
   }
+  if (typeof schema.target === 'string') acc.add(refToName(schema.target))
   for (const [k, v] of Object.entries(schema)) {
-    if (k === 'ref' || k === 'type') continue
+    if (k === 'ref' || k === 'type' || k === 'target') continue
     if (v && typeof v === 'object') collectRefs(v, acc)
   }
   return acc

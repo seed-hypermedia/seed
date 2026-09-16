@@ -5,10 +5,11 @@
       "value": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/link",
       "required": true
     },
-    "ref": {
+    "target": {
       "value": {
         "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
-      }
+      },
+      "description": "The schema the linked block is expected to conform to. Advisory: a validator does not dereference the link."
     },
     "description": {
       "value": {
@@ -19,7 +20,7 @@
       "value": {
         "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
         "values": {
-          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema"
+          "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema"
         }
       }
     },

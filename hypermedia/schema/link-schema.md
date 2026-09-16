@@ -1,7 +1,7 @@
 ---
 name: Link schema
 summary: The variant for a link (CID), optionally naming the expected target type.
-schemaDefinition: ipfs://bafyreib5dmxdxp3cfptqdrutp7x5wn3kgwhxkixmqk7nz3p5jtrxscmegi
+schemaDefinition: ipfs://bafyreiccfyymewyyabv7lkpwqli47wqzji4izbfvinb5rr64o7ovty3ebm
 ---
 This document describes the **schema/link-schema** type — a meta-schema variant. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:QZ0YT6sU -->
 
@@ -9,7 +9,7 @@ This document describes the **schema/link-schema** type — a meta-schema varian
 
 A **closed struct** with these fields: <!-- id:f0WtHHnG -->
   - `type` _(required)_ — `"link"` <!-- id:aINr0L9m -->
-  - `ref` — `string` <!-- id:9EpX2r1A -->
+  - `target` — `string` (the schema the linked block should conform to) <!-- id:9EpX2r1A -->
   - `name` — `string` <!-- id:l3kcRCy0 -->
   - `description` — `string` <!-- id:X1qTBkc0 -->
   - `params` — map ⟨ \* : [schema](../schema.md) ⟩ <!-- id:WvvPXIYj -->

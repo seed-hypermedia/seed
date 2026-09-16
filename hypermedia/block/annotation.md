@@ -1,7 +1,7 @@
 ---
 name: Annotation
 summary: An inline text annotation (bold, link, …) over character ranges, plus arbitrary inline attributes.
-schemaDefinition: ipfs://bafyreic7vkt2cnk7vf4ln37qt4ol2zgm4ar7w2xpifaa5jvbz4ccvnbxce
+schemaDefinition: ipfs://bafyreiacbskofr2t3bzpbrmsf265lh5oyhb6trmz3qbvflsbgpbmv74dw4
 ---
 This document describes the **block/annotation** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:G0vvOmGK -->
 

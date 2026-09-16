@@ -1,7 +1,7 @@
 ---
 name: "Example: Poll Block (Custom)"
 summary: "An example third-party block type: a poll with a question and options. It extends the shared block base, exactly like a core block."
-schemaDefinition: ipfs://bafyreichc47sddqirkxyzcjcuoedl4qsfcudsqwesbhi7ovbtidbjkicwi
+schemaDefinition: ipfs://bafyreif5zw6mkx4ioyhxg4ivsjgjviwhevvoe7j6u4twlfpyn662tun7wi
 ---
 This document describes the **example/poll-block** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:UMzXooSA -->
 

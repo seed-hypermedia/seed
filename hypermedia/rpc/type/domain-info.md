@@ -1,7 +1,7 @@
 ---
 name: Domain Info
 summary: "The daemon's view of a site domain: registration, gateway status, and health-check results. A derived read model computed by the Seed daemon/API for clients — n"
-schemaDefinition: ipfs://bafyreic4g2tqqjrq42lfwni656baujbv74dfw4h3yuxsh36vzgoaajmjfi
+schemaDefinition: ipfs://bafyreidbfhbfgvkr4rfoys5pclifv3lpgziqnlefrxqdufcrrnyso74gyu
 ---
 The daemon's view of a site domain: registration, gateway status, and health-check results. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:0-pCYFt2 -->
 

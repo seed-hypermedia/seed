@@ -61,9 +61,9 @@ describe('SchemaDocPage renders every schema shape without crashing', () => {
     expect(text).not.toContain('·req')
   })
 
-  it('an instance validates against its $type', () => {
-    renderPage('example/bob')
-    expect(container.textContent?.toLowerCase()).toContain('instance')
+  it('an extension names the type it refines', () => {
+    renderPage('example/employee')
+    expect(container.querySelector('[data-testid="schema-extends"]')?.textContent).toMatch(/person/i)
   })
 })
 
