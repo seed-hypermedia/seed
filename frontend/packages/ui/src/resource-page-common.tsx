@@ -3539,10 +3539,10 @@ function bundledSlugForDocument(document: HMDocument): string | null {
   return alias && HM_SCHEMAS[alias] ? alias : null
 }
 
-/** A published schema seeded into the editor sheds a legacy root `name`/`description`: the document
- * carries those, and the next publish writes a schema without them. */
+/** A published schema seeded into the editor sheds a legacy root `name`: the document carries it, and
+ * the next publish writes a schema without it. The `description` stays — it is the schema's own. */
 function stripLegacyLabels(schema: Record<string, any>): Record<string, any> {
-  const {name: _n, description: _d, ...rest} = schema
+  const {name: _n, ...rest} = schema
   return rest
 }
 
