@@ -161,7 +161,7 @@ import {HMEntityField} from './hm-entity-field'
 import {emptyStructSchema, SchemaEditor} from './schema/schema-editor'
 import {SizableText} from './text'
 import {SchemaBrowserPage} from './schema/schema-browser'
-import {classifyRef, useEffectiveDocSchema, useResolvedSchema} from './schema/schema-resolve'
+import {classifyRef, metadataSchemaOf, useEffectiveDocSchema, useResolvedSchema} from './schema/schema-resolve'
 import {BINDING_SCHEMA_KEYS, type BindingSchemaKey} from '@shm/shared/models/schema-draft'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from './components/dialog'
 import {DocumentTools} from './document-tools'
@@ -3817,8 +3817,15 @@ function DocumentMetadataPage({
   // Draft metadata (partial) overrides published metadata, same as the options panel.
   const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
   // The schema this document conforms to (own `attributesSchema`, else parent's
-  // `childAttributesSchema`) — drives required-field rows + advisory validation.
-  const {metadataSchema: conformanceSchema} = useEffectiveDocSchema(docId, metadata)
+  // `childAttributesSchema`) — drives required-field rows + advisory validation. While the
+  // document's own attributes schema is being drafted below, the draft is the schema: every edit
+  // to it reshapes the rows and their validation at once, before anything is published.
+  const {metadataSchema: effectiveSchema} = useEffectiveDocSchema(docId, metadata)
+  const draftedAttributesSchema = ctx.bindingSchemaDrafts?.attributesSchema
+  const conformanceSchema = useMemo(
+    () => (draftedAttributesSchema ? metadataSchemaOf(draftedAttributesSchema) : effectiveSchema),
+    [draftedAttributesSchema, effectiveSchema],
+  )
 
   // Open an uploaded IPFS file reference in its own dedicated viewer window/tab.
   const openFile = useCallback((cid: string) => openUrl(`hm://inspect/ipfs/${cid}`, true), [openUrl])
@@ -4429,8 +4436,14 @@ function ContentViewWithOutline({
     [document.metadata, ctx.metadata],
   )
   // The schema this document must conform to (own `attributesSchema`, else parent's
-  // `childAttributesSchema`) — drives the always-visible required attributes.
-  const {metadataSchema: conformanceSchema} = useEffectiveDocSchema(resourceId, requiredAttrMetadata)
+  // `childAttributesSchema`) — drives the always-visible required attributes. A drafted own
+  // attributes schema (Attributes tab) takes precedence, so the rows follow it live.
+  const {metadataSchema: effectiveSchema} = useEffectiveDocSchema(resourceId, requiredAttrMetadata)
+  const draftedAttributesSchema = ctx.bindingSchemaDrafts?.attributesSchema
+  const conformanceSchema = useMemo(
+    () => (draftedAttributesSchema ? metadataSchemaOf(draftedAttributesSchema) : effectiveSchema),
+    [draftedAttributesSchema, effectiveSchema],
+  )
   // existingDraftContent may arrive in HMBlockNode[] or
   // EditorBlock[] shape. Pick the outline builder that matches.
   const outlineSource = existingDraftContent ?? document.content ?? []
