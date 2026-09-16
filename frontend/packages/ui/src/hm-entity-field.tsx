@@ -2,6 +2,7 @@ import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import {getMetadataName} from '@shm/shared/content'
 import {useResource} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
+import {useUniversalAppContext} from '@shm/shared/routing'
 import {packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {FileCode2, FileText, User, X} from 'lucide-react'
 import {useState} from 'react'
@@ -159,6 +160,8 @@ function HMEntitySearchInput({
 }) {
   const [text, setText] = useState(initialText)
   const [resolving, setResolving] = useState(false)
+  // The platform's domain store answers first (cached, offline); the site's own answer is the fallback.
+  const {domainResolver} = useUniversalAppContext()
   const isUrlInput = /^(hm|ipfs|https?):\/\//i.test(text.trim())
   const search = useSearch(text.trim(), {enabled: text.trim().length > 0 && !isUrlInput})
   const documents = (search.data?.entities ?? []).filter((entity) => {
@@ -187,7 +190,7 @@ function HMEntitySearchInput({
     if (/^https?:\/\//i.test(trimmed)) {
       setResolving(true)
       try {
-        const resolved = await resolveHypermediaUrl(trimmed)
+        const resolved = await resolveHypermediaUrl(trimmed, {domainResolver})
         if (resolved?.hmId) {
           const id = mode === 'profile' ? {...resolved.hmId, path: null} : resolved.hmId
           onCommit(packHmId({...id, version: null, latest: null, blockRef: null, blockRange: null}))
