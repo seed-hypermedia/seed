@@ -898,7 +898,7 @@ func (srv *Server) GetDocument(ctx context.Context, in *documents.GetDocumentReq
 
 	doc, err := srv.loadDocument(ctx, ns, in.Path, heads, false)
 	if err != nil {
-		return nil, err
+		return nil, srv.redirectOrError(ctx, iri, heads, err)
 	}
 
 	if doc.Visibility() == blob.VisibilityPrivate {
@@ -908,6 +908,28 @@ func (srv *Server) GetDocument(ctx context.Context, in *documents.GetDocumentReq
 	}
 
 	return srv.hydrated.get(ctx, string(iri), doc)
+}
+
+// redirectOrError turns the not-found a version-pinned load reports at a redirect path into the
+// redirect error the unpinned load would have reported.
+//
+// A path holding a redirect Ref has no change DAG of its own, so replaying an explicit version
+// there finds nothing: the version-pinned load never consults the redirect, and a link like
+// hm://republish-site/doc?v=<target version> (which is exactly what the web page for a republish
+// advertises, and what a version-pinned embed of it stores) resolved as not-found while the
+// unpinned link resolved as a redirect. Reporting the redirect lets clients follow it, carrying
+// the version to the target it belongs to. Every other error, and every unpinned load, is left
+// untouched.
+func (srv *Server) redirectOrError(ctx context.Context, iri blob.IRI, heads []cid.Cid, err error) error {
+	if len(heads) == 0 || status.Code(err) != codes.NotFound {
+		return err
+	}
+
+	if _, rerr := srv.idx.ResolveLatest(ctx, iri); rerr != nil && redirectDetails(rerr) != nil {
+		return rerr
+	}
+
+	return err
 }
 
 // cachedDocument tries to answer a GetDocument for the current version straight

@@ -3,7 +3,7 @@ import {beforeEach, describe, expect, test, vi} from 'vitest'
 import {HMNotFoundError} from '../models/entity'
 import {MAX_REDIRECT_HOPS} from '../redirects'
 import {createResourceResolver, HMRedirectCycleError} from '../resource-loader'
-import {hmId} from '../utils/entity-id-url'
+import {hmId, packHmId} from '../utils/entity-id-url'
 
 const docA = hmId('uid1', {path: ['doc-a']})
 const docB = hmId('uid1', {path: ['doc-b']})
@@ -64,6 +64,32 @@ describe('createResourceResolver', () => {
 
     expect(result.type).toBe('document')
     expect(getResource).toHaveBeenCalledTimes(3)
+  })
+
+  test('carries a pinned version across a republish redirect', async () => {
+    const pinnedDocA = hmId('uid1', {path: ['doc-a'], version: 'v123', latest: false})
+    const {client, getResource} = createMockGrpcClient((iri) => {
+      if (iri.startsWith(docA.id)) throw redirectError(docA.id, docB, {republish: true})
+      return documentResponse()
+    })
+
+    const resolveResource = createResourceResolver(client)
+    const result = await resolveResource(pinnedDocA)
+
+    expect(result.type).toBe('document')
+    expect(getResource).toHaveBeenNthCalledWith(2, {iri: packHmId({...docB, version: 'v123', latest: false})})
+  })
+
+  test('does not carry a pinned version across a move redirect', async () => {
+    const pinnedDocA = hmId('uid1', {path: ['doc-a'], version: 'v123', latest: false})
+    const {client, getResource} = createMockGrpcClient((iri) => {
+      if (iri.startsWith(docA.id)) throw redirectError(docA.id, docB)
+      return documentResponse()
+    })
+
+    await createResourceResolver(client)(pinnedDocA)
+
+    expect(getResource).toHaveBeenNthCalledWith(2, {iri: packHmId(docB)})
   })
 
   test('propagates not-found at the end of a redirect chain', async () => {

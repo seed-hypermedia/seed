@@ -2914,6 +2914,51 @@ func TestRepublishDocument(t *testing.T) {
 		require.Equal(t, codes.FailedPrecondition, status.Code(err))
 	}
 
+	// The web page for a republish advertises the target's version under the republish's own
+	// address, so a version-pinned embed of the republish asks for exactly that. The path holds
+	// no such version, but it must still report the republish redirect, not a not-found.
+	wantRedirect := &documents.RedirectErrorDetails{
+		TargetAccount: originalDoc.Account,
+		TargetPath:    originalDoc.Path,
+		Republish:     true,
+	}
+	requireRepublishRedirect := func(t *testing.T, err error) {
+		t.Helper()
+		require.Error(t, err)
+		s, ok := status.FromError(err)
+		require.True(t, ok, "error must be grpc status")
+		require.Equal(t, codes.FailedPrecondition, s.Code(), "version-pinned republish must report the redirect: %v", s)
+		details := s.Details()
+		require.Lenf(t, details, 1, "redirect must have one detail object in the status error: %v", s)
+		testutil.StructsEqual(wantRedirect, details[0].(*documents.RedirectErrorDetails)).Compare(t, "redirect details must match")
+	}
+
+	{
+		_, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: bob.Account.PublicKey.String(),
+			Path:    "/research/physics",
+			Version: originalDoc.Version,
+		})
+		requireRepublishRedirect(t, err)
+	}
+
+	{
+		_, err := alice.GetResource(ctx, &documents.GetResourceRequest{
+			Iri: "hm://" + bob.Account.PublicKey.String() + "/research/physics?v=" + originalDoc.Version,
+		})
+		requireRepublishRedirect(t, err)
+	}
+
+	{
+		// A version that exists nowhere is still a plain not-found at a path without a redirect.
+		_, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: originalDoc.Account,
+			Path:    "/no-such-doc",
+			Version: originalDoc.Version,
+		})
+		require.Equal(t, codes.NotFound, status.Code(err), "unexpected error: %v", err)
+	}
+
 	// We test that we can delete the document correctly even if it's a republish.
 	_, err = alice.CreateRef(ctx, &documents.CreateRefRequest{
 		SigningKeyName: "bob",

@@ -453,20 +453,20 @@ func (srv *Server) GetResource(ctx context.Context, in *documents.GetResourceReq
 
 	// If we reach here, we assume the path is a document path.
 
-	doc, err := srv.loadDocument(ctx, acc, u.Path, heads, false)
+	iri, err := makeIRI(acc, u.Path)
 	if err != nil {
 		return nil, err
+	}
+
+	doc, err := srv.loadDocument(ctx, acc, u.Path, heads, false)
+	if err != nil {
+		return nil, srv.redirectOrError(ctx, iri, heads, err)
 	}
 
 	if doc.Visibility() == blob.VisibilityPrivate {
 		if err := srv.denyPrivateDocument(ctx, acc, u.Path); err != nil {
 			return nil, err
 		}
-	}
-
-	iri, err := makeIRI(acc, u.Path)
-	if err != nil {
-		return nil, err
 	}
 
 	docpb, err := srv.hydrated.get(ctx, string(iri), doc)
