@@ -824,9 +824,101 @@ const executeTool = {
   userConfigurable: true,
 } satisfies SeedToolMetadata
 
+const queryTool = {
+  name: 'query',
+  label: 'Query',
+  description: [
+    'Query documents by their attributes (metadata) — the structured complement to `search`. Finds every current document whose attributes match, across the whole network or scoped to a space or subtree, and returns each with its full attributes, so you can inspect custom fields and the schema-binding keys (`attributesSchema`, `childAttributesSchema`, `schemaDefinition`). Free text is NOT matched here: use `search` for words, then `query` for attributes.',
+    'Write `q` in the Explore grammar: `key=value`, `key="two words"`, `key!=value`, `key>=3`, `key<10` compare exactly (typed: string, integer, boolean); `key:text` or `key~text` contains (case-insensitive), `key^text` starts with; `has:key`, `missing:key`; `in:<space uid or hm:// URL>` scopes to a space or a document subtree; `path:/specs` or `path:/specs/*`; combine with AND, OR, NOT and parentheses (adjacency is AND). Nested keys are dotted (`address.city:Berlin`). Examples: `attributesSchema=hm://ACCOUNT_UID/types/person` (every page typed by that schema), `in:hm://ACCOUNT_UID/places kind=fortress`, `has:childAttributesSchema` (every typed folder), `status="In Progress" AND priority>=3`.',
+    'Or pass `filter`, a raw DocumentFilter in JSON — one of `{and:{filters:[…]}}`, `{or:{filters:[…]}}`, `{not:{filter}}`, `{comparison:{key, operator:"EQUAL"|"NOT_EQUAL"|"LESS_THAN"|"LESS_THAN_OR_EQUAL"|"GREATER_THAN"|"GREATER_THAN_OR_EQUAL", value:{stringValue}|{intValue}|{boolValue}}}`, `{exists:{key}}`, `{missing:{key}}`, `{stringMatch:{key, value, prefix?, caseSensitive?}}`, `{spaceMatch:{space}}`, `{pathMatch:{path, prefix?}}`, `{urlMatch:{url, prefix?}}`. `q` and `filter` are ANDed when both are given.',
+    '`sort`: `[{key:"status"}]` for an attribute or `[{attribute:"NAME"|"PATH"|"CREATE_TIME"|"UPDATE_TIME"|"ACTIVITY_TIME"|"COMMENT_COUNT"}]`, each with optional `descending:true`. Page with `pageSize` (default 25, max 100) and the returned `nextPageToken`. Use `attributes` first to learn which keys and values exist.',
+  ].join('\n'),
+  inputSchema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      q: {type: 'string', description: 'The query in the Explore grammar (attribute conditions, scopes, AND/OR/NOT).'},
+      filter: {type: 'object', description: 'A raw DocumentFilter in JSON, ANDed with `q`.'},
+      sort: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            key: {type: 'string', description: 'A user attribute key (dotted for nested).'},
+            attribute: {
+              type: 'string',
+              enum: ['NAME', 'PATH', 'CREATE_TIME', 'UPDATE_TIME', 'ACTIVITY_TIME', 'COMMENT_COUNT'],
+              description: 'A built-in field; mutually exclusive with `key`.',
+            },
+            descending: {type: 'boolean'},
+          },
+        },
+      },
+      pageSize: {type: 'integer', minimum: 1, maximum: 100},
+      pageToken: {type: 'string', description: 'The `nextPageToken` of the previous page.'},
+    },
+  },
+  render: {
+    kind: 'search',
+    label: 'Query',
+    color: 'sky',
+    primaryArg: 'q',
+    summaryOutputPath: 'summary',
+    links: [{source: 'output', path: 'results[].url', labelPath: 'results[].name'}],
+    details: [
+      {label: 'Results', source: 'output', path: 'markdown', format: 'markdown'},
+      {label: 'Input', source: 'input'},
+    ],
+  },
+  runtimes: ['assistant', 'agent-service'],
+  userConfigurable: true,
+} satisfies SeedToolMetadata
+
+const attributesTool = {
+  name: 'attributes',
+  label: 'Attributes',
+  description: [
+    "Discover which attribute (metadata) keys documents actually use, and the values a key takes — the way to learn what a type's documents carry before writing a `query`, or to see how a custom field is being filled in across a space.",
+    'Without `key`: lists attribute names with the kinds observed for each (string, int, bool, object). `parent` (dotted) lists the children of a nested object, e.g. `address`; `recursive: true` lists complete dotted scalar paths instead. With `key` (dotted): lists the distinct values seen for it, grouped by scalar kind; pass `kind` (`string`|`int`|`bool`) to ask for one kind only. `account` puts one space first (names) or restricts to it (values); `prefix` filters by name or value prefix. Page with `pageSize` and `pageToken`.',
+  ].join('\n'),
+  inputSchema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      key: {type: 'string', description: 'A dotted attribute path whose known values to list. Omit to list names.'},
+      kind: {type: 'string', enum: ['string', 'int', 'bool'], description: 'With `key`: only this scalar kind.'},
+      parent: {type: 'string', description: 'Without `key`: the dotted parent path whose direct child names to list.'},
+      recursive: {
+        type: 'boolean',
+        description: 'Without `key`: complete dotted scalar paths instead of direct children.',
+      },
+      account: {type: 'string', description: 'A space UID to prioritize (names) or restrict to (values).'},
+      prefix: {type: 'string', description: 'Case-insensitive prefix of the name or value.'},
+      pageSize: {type: 'integer', minimum: 1, maximum: 200},
+      pageToken: {type: 'string'},
+    },
+  },
+  render: {
+    kind: 'search',
+    label: 'Attributes',
+    color: 'sky',
+    primaryArg: 'key',
+    summaryOutputPath: 'summary',
+    details: [
+      {label: 'Results', source: 'output', path: 'markdown', format: 'markdown'},
+      {label: 'Input', source: 'input'},
+    ],
+  },
+  runtimes: ['assistant', 'agent-service'],
+  userConfigurable: true,
+} satisfies SeedToolMetadata
+
 /** Tools reachable through the `call` verb (and scripts' ctx.call), keyed by name. */
 export const callableToolRegistry = {
   search: searchTool,
+  query: queryTool,
+  attributes: attributesTool,
   web_search: webSearchTool,
   navigate: navigateTool,
   execute: executeTool,

@@ -115,6 +115,13 @@ import type {
 } from '@seed-hypermedia/client/hm-types'
 import {hmIdPathToEntityQueryPath, unpackHmId} from '@seed-hypermedia/client/hm-types'
 import * as clientCbor from '@seed-hypermedia/client/cbor'
+import type {
+  HMDocumentFilter,
+  HMDocumentSort,
+  HMDocumentAttributeKind,
+  HMRawDocumentInfo,
+} from '@seed-hypermedia/client/hm-types'
+import {compileExploreQuery, parseExploreQuery} from '@seed-hypermedia/client/explore-query'
 import {findSeedIndexerCollision, ipldToDagJson} from '@seed-hypermedia/client/dag-json'
 import {validate as validateSchema} from '@seed-hypermedia/client/schema-engine'
 import {
@@ -11439,6 +11446,266 @@ async function executeAgentServiceSearch(
   }
 }
 
+// ── query: documents by attribute (QueryDocuments) ──────────────────────────────────────────
+
+const AGENT_QUERY_BUILTIN_SORTS = [
+  'NAME',
+  'PATH',
+  'CREATE_TIME',
+  'UPDATE_TIME',
+  'ACTIVITY_TIME',
+  'COMMENT_COUNT',
+] as const
+
+/** The `hm://` URL of a QueryDocuments result (its DocumentInfo carries `account` + `/path`). */
+function rawDocumentUrl(info: HMRawDocumentInfo): string {
+  const path = typeof info.path === 'string' ? info.path.replace(/^\/+/, '') : ''
+  return path ? `hm://${info.account}/${path}` : `hm://${info.account}`
+}
+
+/** A one-line rendering of a document's attributes, standard header fields first, bounded. */
+function attributesLine(metadata: Record<string, unknown> | undefined, max = 400): string {
+  if (!metadata) return ''
+  const entries = Object.entries(metadata).filter(([key]) => key !== 'name')
+  const text = entries
+    .map(([key, value]) => `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`)
+    .join(' · ')
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text
+}
+
+/** Compile `q` (the Explore grammar) and/or a raw `filter` into one DocumentFilter, with warnings. */
+function compileAgentQueryFilter(
+  q: string,
+  rawFilter: unknown,
+): {filter: HMDocumentFilter | undefined; warnings: string[]} {
+  const warnings: string[] = []
+  const parts: HMDocumentFilter[] = []
+  if (q) {
+    const parsed = parseExploreQuery(q)
+    const compiled = compileExploreQuery(parsed, {type: 'node'})
+    for (const diagnostic of compiled.diagnostics) warnings.push(diagnostic.message)
+    if (compiled.textTerms.length) {
+      warnings.push(
+        `Free-text terms are not matched by query (${compiled.textTerms
+          .map((term) => (term.phrase ? `"${term.value}"` : term.value))
+          .join(', ')}); use the search tool for text.`,
+      )
+    }
+    if (compiled.requestedTypes.length || compiled.excludedTypes.length) {
+      warnings.push('`type:` predicates are ignored by query: it only returns documents.')
+    }
+    if (compiled.filter) parts.push(compiled.filter)
+  }
+  if (rawFilter !== undefined) {
+    if (!isRecord(rawFilter)) throw new APIError(400, 'query filter must be a DocumentFilter object')
+    parts.push(rawFilter as HMDocumentFilter)
+  }
+  const filter = parts.length === 0 ? undefined : parts.length === 1 ? parts[0] : {and: {filters: parts}}
+  return {filter, warnings}
+}
+
+function agentQuerySort(raw: unknown): HMDocumentSort[] | undefined {
+  if (raw === undefined) return undefined
+  if (!Array.isArray(raw)) throw new APIError(400, 'query sort must be an array of {key | attribute, descending?}')
+  return raw.map((rule): HMDocumentSort => {
+    if (!isRecord(rule)) throw new APIError(400, 'query sort rules must be objects')
+    const descending = rule.descending === true
+    if (typeof rule.key === 'string' && rule.key) return {key: rule.key, descending}
+    const attribute = typeof rule.attribute === 'string' ? rule.attribute.toUpperCase() : ''
+    if (!(AGENT_QUERY_BUILTIN_SORTS as readonly string[]).includes(attribute)) {
+      throw new APIError(400, `query sort needs a key or one of ${AGENT_QUERY_BUILTIN_SORTS.join(', ')}`)
+    }
+    return {attribute: `BUILTIN_SORT_ATTRIBUTE_${attribute}` as HMDocumentSort['attribute'], descending}
+  })
+}
+
+async function executeAgentServiceQuery(
+  context: AgentServicePiToolContext,
+  raw: unknown,
+): Promise<Record<string, unknown>> {
+  const input = isRecord(raw) ? raw : {}
+  const q = typeof input.q === 'string' ? input.q.trim() : ''
+  if (!q && input.filter === undefined) throw new APIError(400, 'query needs `q` (Explore grammar) or `filter`')
+  const {filter, warnings} = compileAgentQueryFilter(q, input.filter)
+  if (!filter) throw new APIError(400, `query has no attribute conditions: ${warnings.join(' ') || q}`)
+  const sort = agentQuerySort(input.sort)
+  const pageSize = boundedInteger(input.pageSize, 25, 1, 100)
+  const pageToken = typeof input.pageToken === 'string' && input.pageToken ? input.pageToken : undefined
+  const client = createSeedClient(context.hmServerUrl)
+  const output = await client.request('QueryDocuments', {filter, sort, pageSize, pageToken})
+  const results = (output.documents ?? []).map((info) => ({
+    url: rawDocumentUrl(info),
+    name: typeof info.metadata?.name === 'string' ? info.metadata.name : undefined,
+    account: info.account,
+    path: info.path ?? '',
+    attributes: info.metadata ?? {},
+    authors: info.authors ?? [],
+    updateTime: info.updateTime,
+    version: info.version,
+  }))
+  const nextPageToken = output.nextPageToken || undefined
+  const markdown = results.length
+    ? [
+        `Query results${q ? ` for \`${q}\`` : ''} (${results.length} document${results.length === 1 ? '' : 's'}${
+          nextPageToken ? ', more available' : ''
+        })`,
+        '',
+        ...results.flatMap((result, index) => [
+          `${index + 1}. [${result.name || result.url}](${result.url})`,
+          ...(result.updateTime ? [`   - Updated: ${result.updateTime}`] : []),
+          ...(Object.keys(result.attributes).length ? [`   - Attributes: ${attributesLine(result.attributes)}`] : []),
+          '',
+        ]),
+        ...(nextPageToken ? [`More results: call again with pageToken "${nextPageToken}".`] : []),
+        ...(warnings.length ? ['', ...warnings.map((warning) => `Note: ${warning}`)] : []),
+      ].join('\n')
+    : [`No documents match${q ? ` \`${q}\`` : ' the filter'}.`, ...warnings.map((warning) => `Note: ${warning}`)].join(
+        '\n',
+      )
+  return {
+    summary: results.length
+      ? `Found ${results.length}${nextPageToken ? '+' : ''} document${results.length === 1 ? '' : 's'}${
+          q ? ` for \`${q}\`` : ''
+        }.`
+      : `No documents match${q ? ` \`${q}\`` : ' the filter'}.`,
+    markdown,
+    q: q || undefined,
+    filter,
+    sort,
+    results,
+    nextPageToken,
+    ...(warnings.length ? {warnings} : {}),
+  }
+}
+
+// ── attributes: which keys exist, and their values (ListDocumentAttributeNames / Values) ────────
+
+const AGENT_ATTRIBUTE_KINDS: Record<string, HMDocumentAttributeKind> = {
+  string: 'DOCUMENT_ATTRIBUTE_KIND_STRING',
+  int: 'DOCUMENT_ATTRIBUTE_KIND_INT',
+  bool: 'DOCUMENT_ATTRIBUTE_KIND_BOOL',
+  object: 'DOCUMENT_ATTRIBUTE_KIND_OBJECT',
+}
+const shortAttributeKind = (kind: string | undefined): string =>
+  Object.entries(AGENT_ATTRIBUTE_KINDS).find(([, value]) => value === kind)?.[0] ??
+  (kind ? kind.toLowerCase() : 'unknown')
+
+async function executeAgentServiceAttributes(
+  context: AgentServicePiToolContext,
+  raw: unknown,
+): Promise<Record<string, unknown>> {
+  const input = isRecord(raw) ? raw : {}
+  const account = typeof input.account === 'string' && input.account.trim() ? input.account.trim() : undefined
+  const prefix = typeof input.prefix === 'string' && input.prefix ? input.prefix : undefined
+  const pageSize = boundedInteger(input.pageSize, 50, 1, 200)
+  const pageToken = typeof input.pageToken === 'string' && input.pageToken ? input.pageToken : undefined
+  const client = createSeedClient(context.hmServerUrl)
+  const key = typeof input.key === 'string' ? input.key.trim() : ''
+
+  if (!key) {
+    const parent = typeof input.parent === 'string' && input.parent.trim() ? input.parent.trim().split('.') : undefined
+    const recursive = input.recursive === true
+    const output = await client.request('ListDocumentAttributeNames', {
+      account,
+      parentPath: parent,
+      prefix,
+      pageSize,
+      pageToken,
+      recursive,
+    })
+    const names = (output.names ?? []).map((entry) => ({
+      name: parent && !recursive ? `${parent.join('.')}.${entry.name}` : entry.name,
+      kinds: (entry.kinds ?? []).map((usage) => shortAttributeKind(usage.kind)),
+    }))
+    const nextPageToken = output.nextPageToken || undefined
+    const markdown = names.length
+      ? [
+          `Attribute names${parent ? ` under \`${parent.join('.')}\`` : ''}${
+            account ? ` (space ${account} first)` : ''
+          }:`,
+          '',
+          ...names.map((entry) => `- \`${entry.name}\` — ${entry.kinds.join(', ') || 'unknown'}`),
+          ...(nextPageToken ? ['', `More names: call again with pageToken "${nextPageToken}".`] : []),
+        ].join('\n')
+      : 'No attribute names found.'
+    return {
+      summary: names.length
+        ? `${names.length}${nextPageToken ? '+' : ''} attribute names.`
+        : 'No attribute names found.',
+      markdown,
+      names,
+      nextPageToken,
+    }
+  }
+
+  const path = key.split('.')
+  const requested = typeof input.kind === 'string' ? AGENT_ATTRIBUTE_KINDS[input.kind.toLowerCase()] : undefined
+  if (typeof input.kind === 'string' && !requested)
+    throw new APIError(400, 'attributes kind must be string, int, or bool')
+  let kinds: HMDocumentAttributeKind[]
+  if (requested) kinds = [requested]
+  else {
+    // Which scalar kinds this path has been seen with; values are listed per kind.
+    const known = await client.request('ListDocumentAttributeNames', {
+      account,
+      parentPath: path.slice(0, -1),
+      prefix: path[path.length - 1],
+      pageSize: 50,
+    })
+    const observed = (known.names ?? [])
+      .filter((entry) => entry.name === path[path.length - 1])
+      .flatMap((entry) => (entry.kinds ?? []).map((usage) => usage.kind))
+    kinds = (
+      ['DOCUMENT_ATTRIBUTE_KIND_STRING', 'DOCUMENT_ATTRIBUTE_KIND_INT', 'DOCUMENT_ATTRIBUTE_KIND_BOOL'] as const
+    ).filter((kind) => observed.includes(kind))
+    if (!kinds.length) kinds = ['DOCUMENT_ATTRIBUTE_KIND_STRING']
+  }
+  const values: Array<{kind: string; value: string | number | boolean | null}> = []
+  let nextPageToken: string | undefined
+  for (const kind of kinds) {
+    const output = await client.request('ListDocumentAttributeValues', {
+      path,
+      kind,
+      account,
+      prefix,
+      pageSize,
+      pageToken: kinds.length === 1 ? pageToken : undefined,
+    })
+    for (const entry of output.values ?? []) {
+      const value = entry.value
+      values.push({
+        kind: shortAttributeKind(kind),
+        value:
+          value && typeof value.stringValue === 'string'
+            ? value.stringValue
+            : value && value.intValue !== undefined
+              ? Number(value.intValue)
+              : value && typeof value.boolValue === 'boolean'
+                ? value.boolValue
+                : null,
+      })
+    }
+    if (kinds.length === 1 && output.nextPageToken) nextPageToken = output.nextPageToken
+  }
+  const markdown = values.length
+    ? [
+        `Values of \`${key}\`${account ? ` in ${account}` : ''}:`,
+        '',
+        ...values.map((entry) => `- ${entry.value === null ? 'null' : String(entry.value)} (${entry.kind})`),
+        ...(nextPageToken ? ['', `More values: call again with pageToken "${nextPageToken}".`] : []),
+      ].join('\n')
+    : `No values recorded for \`${key}\`.`
+  return {
+    summary: values.length
+      ? `${values.length}${nextPageToken ? '+' : ''} values of \`${key}\`.`
+      : `No values recorded for \`${key}\`.`,
+    markdown,
+    key,
+    values,
+    nextPageToken,
+  }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Verb dispatch: address parsing shared by read and write
 // ---------------------------------------------------------------------------------------------
@@ -13193,6 +13460,10 @@ export async function executeCallVerb(
   switch (toolName) {
     case 'search':
       return executeAgentServiceSearch(context, toolInput)
+    case 'query':
+      return executeAgentServiceQuery(context, toolInput)
+    case 'attributes':
+      return executeAgentServiceAttributes(context, toolInput)
     case 'web_search':
       return executeWebSearch(context.web, toolInput)
     case 'execute': {

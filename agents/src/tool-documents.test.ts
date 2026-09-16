@@ -28,7 +28,7 @@ describe('tool documents', () => {
     const db = makeDb()
     toolDocs.ensureBuiltinToolDocuments(db, 'acct', 'agent')
     const first = toolDocs.listToolDocuments(db, 'acct', 'agent')
-    expect(first.map((row) => row.doc.name)).toEqual(['execute', 'search', 'web_search'])
+    expect(first.map((row) => row.doc.name)).toEqual(['attributes', 'execute', 'query', 'search', 'web_search'])
     expect(first.every((row) => row.doc.kind === 'builtin' && row.cid.startsWith('b'))).toBe(true)
 
     toolDocs.ensureBuiltinToolDocuments(db, 'acct', 'agent')

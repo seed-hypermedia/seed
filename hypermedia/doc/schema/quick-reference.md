@@ -61,6 +61,12 @@ seed-cli document validate hm://acme/people/bob          # effective schema, eac
 seed-cli document validate hm://acme/people/bob --content --json
 seed-cli space import self -d ./site --check              # every file against its schema; publishes nothing on a violation
 seed-cli schema get hm://acme/person --resolve            # the schema, references followed, extensions merged
+
+# find
+seed-cli query acme --where 'attributesSchema=hm://acme/person'   # every page typed by person (any attribute condition works)
+seed-cli query '*' --where 'has:childAttributesSchema'              # every typed folder, anywhere
+seed-cli attributes acme                                            # which attribute keys documents carry, with kinds
+seed-cli attributes acme --values status                            # the distinct values of one key
 seed-cli schema validate ipfs://<cid>                     # is this blob a valid Hypermedia schema?
 
 # raw objects
@@ -86,12 +92,16 @@ const person = await loadSchemaRef(client, 'hm://acme/person')            // {sc
 validate(person.schema, value, '$', {}, person.registry)
 await checkDocumentSchema(client, docId, doc.metadata)                    // {schema, via: 'own'|'inherited'|'none', required, missing, violations}
 await checkSchemaDefinition(client, 'ipfs://<cid>')                       // violations of the meta-schema, or why it failed to load
+await client.request('QueryDocuments', {filter: {comparison: {key: 'attributesSchema', operator: 'EQUAL', value: {stringValue: 'hm://acme/person'}}}})
+await client.request('ListDocumentAttributeNames', {account: 'acme'})    // keys documents carry, with kinds
+await client.request('ListDocumentAttributeValues', {path: ['status'], kind: 'DOCUMENT_ATTRIBUTE_KIND_STRING'})
 documentMetadataSchema(metadataSchemaOf(person.schema))                   // the open, base-folded metadata schema the editor uses
 ```
 
 <!-- id:OAh4Rwf9 -->
 - `classifyRef` sorts a reference into a bundled library name, a CID, or a document URL without fetching; `resolveSchemaRef` follows it (a document URL → its `schemaDefinition` → the blob). <!-- id:yXAkWi-5 -->
-- `effectiveSchemaRef` applies the own-else-parent rule; `hydrateSchemaRegistry` fetches every type a schema references so nested `ref`s validate. <!-- id:nanymnNJ -->
+- `effectiveSchemaRef` applies the own-else-parent rule; `hydrateSchemaRegistry` fetches every type a schema references so nested `ref`s validate. <!-- id:-xfW1N_s -->
+- `QueryDocuments` takes a recursive `DocumentFilter` (`and` / `or` / `not`, `comparison`, `exists` / `missing`, `stringMatch`, `spaceMatch`, `pathMatch`, `urlMatch`) in protobuf JSON, sorts by attribute or built-in field, and pages; the two attribute listings answer "which keys exist" and "which values does this key take". The Explore grammar compiles to the same filter: `compileExploreQuery(parseExploreQuery(q), {type: 'node'}).filter?.toJson()` from the shared package. <!-- id:nanymnNJ -->
 - Generated TypeScript for the whole library ships as `schema-types.generated.ts` (`HMDocument`, `HMMetadata`, `HMChange<B>`, …), from `scripts/hypermedia/typegen.mjs`. <!-- id:ZZ1mAdzM -->
 
 ## Through an agent <!-- id:Ey4TdXUX -->
@@ -100,7 +110,10 @@ The agent verbs ([read](../../agent/read.md), [write](../../agent/write.md)) exp
   - `read hm://acme/people/bob` — a typed document returns a `schema` block: `{schema, via, required, missing, violations}`. `/:attributes` reads only the metadata. <!-- id:RvJqxIgz -->
   - `read ipfs://<cid>` — a DAG-CBOR object decodes to `value`, `signature` (who signed, whether it verifies), and `schema` (violations against the schema it links to, or `options: {schema}`). <!-- id:aOFSWTfh -->
   - `write hm://acme/people/bob` with `options.metadata: {surname: "Smith", attributesSchema: "hm://acme/person"}` — any key is allowed; the result reports `schema` and `warnings` beside the published id. `options.metadata.childAttributesSchema` types a folder; `options.metadata.schemaDefinition` makes a page a type. `dryRun: true` returns the same report without publishing. <!-- id:jlfZ4SiX -->
-  - `write ipfs://` with JSON `content` and `options: {schema: "hm://acme/person"}` — validated, refused on a violation (`force: true` publishes anyway with `warnings`), published with a `schema` link; `options.schema: "hypermedia-schema"` publishes a schema blob after checking it against the meta-schema; `options.sign: true` signs a blob whose type extends [blob](../../blob.md). <!-- id:KvQdVNuh -->
+  - `call` tool `query` with `q` in the Explore grammar — `attributesSchema=hm://acme/person` (every page typed by person), `in:hm://acme/places kind=fortress`, `has:childAttributesSchema`, `status="In Progress" AND priority>=3` — or a raw `filter`; returns each document with its full attributes, sortable and paged. `call` tool `attributes` lists the attribute keys documents carry (with kinds) or, with `key`, the distinct values of one key. <!-- id:Y5C1myTU -->
+
+<!-- id:heOd2jXW -->
+- `write ipfs://` with JSON `content` and `options: {schema: "hm://acme/person"}` — validated, refused on a violation (`force: true` publishes anyway with `warnings`), published with a `schema` link; `options.schema: "hypermedia-schema"` publishes a schema blob after checking it against the meta-schema; `options.sign: true` signs a blob whose type extends [blob](../../blob.md). <!-- id:KvQdVNuh -->
 
 # Who can check what <!-- id:Emb84qw3 -->
 
@@ -112,3 +125,5 @@ The agent verbs ([read](../../agent/read.md), [write](../../agent/write.md)) exp
 | a raw object against a type | value editor, live | `blob validate`, `blob create` | `validate` + `loadSchemaRef` | `read ipfs://`, `write ipfs://` (refuses) <!-- id:TPh1S_Dr --> |
 | a signed blob's signature | inspector | `blob verify` | `verifySignedBlob` | `read ipfs://` → `signature` <!-- id:B-puiZbk --> |
 | resolve a type by URL, CID or name | schema browser | `schema get [--resolve]` | `resolveSchemaRef`, `loadSchemaRef` | `read hm://` (type page), `read ipfs://` (blob) <!-- id:ILY7c43w --> |
+| find documents by attribute, or typed by a schema | Explore (advanced search) | `query --where`, `query --filter` | `QueryDocuments` | `call` → `query` <!-- id:dC9EEwVd --> |
+| which attribute keys exist, and their values | Explore's attribute pickers | `attributes`, `attributes --values` | `ListDocumentAttributeNames`, `ListDocumentAttributeValues` | `call` → `attributes` <!-- id:p0-yKm3E --> |
