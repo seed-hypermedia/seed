@@ -1,3 +1,4 @@
+import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import {getMetadataName} from '@shm/shared/content'
 import {useResource} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
@@ -157,7 +158,8 @@ function HMEntitySearchInput({
   autoFocus?: boolean
 }) {
   const [text, setText] = useState(initialText)
-  const isUrlInput = /^(hm|ipfs):\/\//i.test(text.trim())
+  const [resolving, setResolving] = useState(false)
+  const isUrlInput = /^(hm|ipfs|https?):\/\//i.test(text.trim())
   const search = useSearch(text.trim(), {enabled: text.trim().length > 0 && !isUrlInput})
   const documents = (search.data?.entities ?? []).filter((entity) => {
     if (entity.type === 'comment') return false
@@ -170,12 +172,34 @@ function HMEntitySearchInput({
   const defining = mode === 'schema' ? documents.filter((entity) => !!entity.metadata?.schemaDefinition) : []
   const results = (defining.length ? defining : documents).slice(0, 6)
 
-  const commitText = () => {
+  const commitText = async () => {
     // Commit whatever was typed — validation stays advisory (a warning badge,
     // never a block). A pasted hm:// URL that fits the mode just conforms.
     // Unchanged text commits nothing: blurring an untouched empty field must not write it.
-    if (text !== initialText) onCommit(text)
-    else onCancel?.()
+    if (text === initialText) {
+      onCancel?.()
+      return
+    }
+    const trimmed = text.trim()
+    // A pasted web link (a site or gateway URL) names a document only once the site has been
+    // asked which account and path it serves: resolve it to the canonical hm:// URL, the same
+    // way the omnibar does. An unresolvable link commits as typed, so the warning can say so.
+    if (/^https?:\/\//i.test(trimmed)) {
+      setResolving(true)
+      try {
+        const resolved = await resolveHypermediaUrl(trimmed)
+        if (resolved?.hmId) {
+          const id = mode === 'profile' ? {...resolved.hmId, path: null} : resolved.hmId
+          onCommit(packHmId({...id, version: null, latest: null, blockRef: null, blockRange: null}))
+          return
+        }
+      } catch {
+        // fall through: commit the text as typed
+      } finally {
+        setResolving(false)
+      }
+    }
+    onCommit(text)
   }
 
   return (
@@ -192,16 +216,17 @@ function HMEntitySearchInput({
                 : 'Search documents or paste hm:// URL'
           }
           className="h-8 min-w-52"
+          disabled={resolving}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') commitText()
-            if (e.key === 'Escape') (onCancel ?? commitText)()
+            if (e.key === 'Enter') void commitText()
+            if (e.key === 'Escape') (onCancel ?? (() => void commitText()))()
           }}
           onBlur={(e) => {
             // Clicking a search result blurs the input; let the click win.
             const next = e.relatedTarget as HTMLElement | null
             if (next?.closest('[data-hm-search-results]')) return
-            commitText()
+            void commitText()
           }}
         />
         {onCancel && (
