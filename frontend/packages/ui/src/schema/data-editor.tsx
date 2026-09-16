@@ -1,11 +1,10 @@
-// Hypermedia data editor — a React port of schemas/editor-client.js. Given a schema
+// Hypermedia data editor. Given a schema
 // it renders a recursive, schema-driven form and (in the Panel variant) live-
 // validates the value against the SAME engine as the reference validator, so the
-// in-app tour editor and schemas/validate.mjs can never disagree.
+// editor and scripts/hypermedia/validate.mjs can never disagree.
 //
-// The imperative reference builds/tears down DOM nodes; here the tree is a set
-// of recursive controlled components. Values flow down as props and edits flow
-// back up through onChange, except for two places that need local UI state the
+// The tree is a set of recursive controlled components: values flow down as
+// props and edits flow back up through onChange, except for two places that need local UI state the
 // value alone can't express: a union's currently-selected arm, and an open
 // map's in-progress (possibly empty / duplicate) extra-key rows.
 //
@@ -509,7 +508,7 @@ export function SchemaDataEditor({
 
 /**
  * Convenience two-column panel: the form on the left, the live dag-json plus
- * validation status on the right (mirrors editor-client.js mount()). Manages its
+ * validation status on the right. Manages its
  * own value state, seeded from `initialValue` or seedValue(schema).
  */
 export function SchemaDataEditorPanel({

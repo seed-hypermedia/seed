@@ -1,5 +1,4 @@
-// The in-app Schema Explorer — a React port of the standalone tour's
-// schema page (schemas/tour.mjs). Given a schema name (slug), it renders the
+// The in-app Schema Explorer. Given a schema name (slug), it renders the
 // schema as a browsable page: title/description, kind/union/extension/generic
 // lead, a fields table (or variant cards / extension inherited-added table),
 // dependencies + dependents as clickable chips, the published hm:// URL + CID,
@@ -79,7 +78,7 @@ function Tag({kind, children}: {kind: string; children?: React.ReactNode}) {
 /**
  * How the explorer opens a reference that is NOT a bundled library schema —
  * an `hm://` type document or an `ipfs://` schema blob. Supplied by the page
- * hosting the explorer (route navigation); absent in the standalone tour.
+ * hosting the explorer (route navigation).
  */
 export const SchemaNavContext = createContext<{openRef?: (ref: string) => void}>({})
 export const useSchemaOpenRef = () => useContext(SchemaNavContext).openRef
@@ -120,7 +119,7 @@ function Chip({label, onClick, variant = 'ref'}: {label: string; onClick?: () =>
   )
 }
 
-/** Compact, clickable rendering of a schema reference node (the tour's `summarize`). */
+/** Compact, clickable rendering of a schema reference node. */
 function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React.ReactElement {
   const open = useRefClick(nav)
   if (node === undefined) return <span className="text-muted-foreground">any</span>
