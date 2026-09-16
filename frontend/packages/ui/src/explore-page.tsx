@@ -243,7 +243,8 @@ function ExploreDocumentCard({document, spaceName}: {document: HMDocumentInfo; s
 
       <div className="flex items-center gap-2">
         <a {...linkProps} className="min-w-0 flex-1 after:absolute after:inset-0 after:content-['']">
-          <SizableText weight="bold" className="truncate font-sans">
+          {/* block, because truncate cannot clip the inline span SizableText renders. */}
+          <SizableText weight="bold" className="block truncate font-sans">
             {getMetadataName(document.metadata) || id.path?.at(-1) || 'Untitled'}
           </SizableText>
         </a>
