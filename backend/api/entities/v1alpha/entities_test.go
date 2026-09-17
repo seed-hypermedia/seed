@@ -49,6 +49,7 @@ type testServices struct {
 	documents *documentsapi.Server
 	entities  *Server
 	me        coretest.Tester
+	idx       *blob.Index
 }
 
 func newTestServices(t *testing.T, name string) testServices {
@@ -65,6 +66,7 @@ func newTestServices(t *testing.T, name string) testServices {
 		documents: documentsapi.NewServer(config.Base{}, ks, idx, db, logging.New("seed/documents"+"/"+name, "debug"), nil),
 		entities:  NewServer(config.Base{}, db, nil, nil, logging.New("seed/entities"+"/"+name, "debug")),
 		me:        u,
+		idx:       idx,
 	}
 }
 
