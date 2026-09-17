@@ -1,10 +1,10 @@
 ---
 name: How Schemas Work
-summary: The system end to end — from a schema file in the repository to a signed blob on the network, a browsable document, a resolved reference in the app, a generated TypeScript type, and a typed API call.
+summary: The system end to end, from a schema file in the repository to a signed blob on the network, a browsable document, a resolved reference in the app, a generated TypeScript type and a typed API call.
 ---
 # The tour in one paragraph <!-- id:7s8eFKqO -->
 
-A schema is written as a small JSON file. A publisher hashes it to its DAG-CBOR CID and records that in a lockfile. A sync uploads the blob and publishes a companion document at an `hm://` URL under the Hypermedia account, whose metadata points at the blob. Apps bundle the library, resolve any other reference over the network, and run one validation engine — the same one the reference validator uses — to drive explorers, editors, forms, and warnings. A generator turns every schema into a TypeScript type. And the read API is itself described by schemas, so the API console is derived rather than written. Each of those is a layer below. <!-- id:UiSIhbqU -->
+A [schema](../schema.md) is a small JSON file. A publisher hashes it to its [DAG-CBOR](./dag-cbor.md) [CID](../protocol/blobs.md) and records the CID in a lockfile. A sync uploads the [blob](../protocol/blobs.md) and publishes a companion [document](../protocol/documents.md) at an [`hm://` URL](../protocol/urls.md) under the Hypermedia [account](../protocol/identity.md). That document's [metadata](../metadata.md) points at the blob. Apps bundle the library, resolve any other reference over the network, and run one validation engine to drive explorers, editors, forms and warnings. The reference validator uses the same engine. A generator turns every schema into a TypeScript type. The read API is also described by schemas, so the app derives its API console from them. The sections below take each layer in turn. <!-- id:UiSIhbqU -->
 
 ``` <!-- id:UwMwRuEn -->
   hypermedia/<name>.schema.json ──publish.mjs──▶ schemas.lock.json (name → CID)
@@ -20,17 +20,29 @@ A schema is written as a small JSON file. A publisher hashes it to its DAG-CBOR 
    (tour, editors, inspector)  (attributesSchema / childAttributesSchema)  (TS types)
 ```
 
-# Layer 1 — Values and the codec <!-- id:yNp--FS1 -->
+# Layer 1: values and the codec <!-- id:yNp--FS1 -->
 
-Everything a schema types is an IPLD value: one of nine kinds — `null`, `boolean`, `integer`, `float`, `string`, `bytes`, `list`, `map`, `link`. The canonical form is DAG-CBOR, a deterministic binary encoding with first-class links (CIDs). The human form is dag-json, a lossless JSON projection that spells a link as `{"/": "bafy…"}` and bytes as `{"/": {"bytes": "…"}}`. Everything in the repository is written in dag-json; everything on the network is DAG-CBOR. The two are projections of one graph, and the transform between them is mechanical. See [the data model](./data-model.md) and [encoding](./encoding.md). <!-- id:zh579VQH -->
+Everything a schema types is an [IPLD](./ipld.md) value. Each value is one of nine [kinds](./kind.md): `null`, `boolean`, `integer`, `float`, `string`, `bytes`, `list`, `map`, `link`. The canonical form is [DAG-CBOR](./dag-cbor.md), a deterministic binary encoding with a native link type for [CIDs](../cid.md). The human form is [dag-json](./dag-json.md), a lossless JSON projection. It spells a link as `{"/": "bafy…"}` and bytes as `{"/": {"bytes": "…"}}`. The repository holds dag-json, and the network holds DAG-CBOR. Both are projections of one graph, and converting between them is mechanical. See [the data model](./data-model.md) and [encoding](./encoding.md). <!-- id:zh579VQH -->
 
-# Layer 2 — Schemas and the meta-schema <!-- id:oOZsaLa6 -->
+# Layer 2: schemas and the meta-schema <!-- id:oOZsaLa6 -->
 
-A schema is a `map` value that constrains other values. It takes one of nine shapes: a `struct` schema (named fields), a `map` schema (an open map via `values`), a `list` schema, a `scalar` schema (with value constraints), a `link` schema (a typed CID), an `include` (a `type` that names another schema), a `union` (`anyOf`), a `var` (a type variable for generics), or a `literal` (`{value, description}`) — and a bare string, integer, boolean, or null is a literal too, accepting exactly that value. The meta-schema — the schema of schemas — is the discriminated union of those shapes, and it validates as an instance of itself. That loop is checked on every run of the reference validator. See [the schema language](./schema-language.md). <!-- id:wjogEwsM -->
+A schema is a `map` value that constrains other values. It takes one of nine shapes: <!-- id:wjogEwsM -->
 
-# Layer 3 — The library <!-- id:JEnxb06S -->
+- a [`struct` schema](./struct-schema.md) with named fields,
+- a [`map` schema](./map-schema.md), an open map typed by `values`,
+- a [`list` schema](./list-schema.md),
+- a [`scalar` schema](./scalar-schema.md) with value constraints,
+- a [`link` schema](./link-schema.md), a typed CID,
+- an [`include`](./include-schema.md), a `type` that names another schema,
+- a union with [`anyOf`](./anyof.md),
+- a [`var`](./var-schema.md), a type variable for [generics](./generic.md),
+- a [`literal`](./literal-schema.md) written `{value, description}`.
 
-The library is a folder of pairs: `<name>.schema.json` (the schema, in dag-json) and `<name>.md` (its human explanation). Three families live side by side, distinguished by prefix: <!-- id:aoVPGRff -->
+A bare string, integer, boolean or null is also a literal and accepts exactly that value. The [meta-schema](../schema.md) is the schema of schemas. It is the [discriminated union](./discriminated-union.md) of those shapes, and it validates as an instance of itself. The reference validator checks this [self-description](./self-description.md) on every run. See [the schema language](./schema-language.md).
+
+# Layer 3: the library <!-- id:JEnxb06S -->
+
+The library is a folder of pairs: `<name>.schema.json` holds the schema in dag-json, and `<name>.md` explains it. Three families live side by side, told apart by path prefix: <!-- id:aoVPGRff -->
 
 <!-- id:QKRHc2jO -->
 | prefix <!-- col:PpnISgiK --> | family <!-- col:u7IW2VGz --> | examples <!-- col:UvNmWoqE --> <!-- id:rMJt-Vv8 --> |
@@ -39,56 +51,66 @@ The library is a folder of pairs: `<name>.schema.json` (the schema, in dag-json)
 | `rpc/` | the Seed API's RPC catalog, with its read models in `rpc/type/` | `rpc/type/resource`, `rpc/type/search-results`, `rpc/query` <!-- id:uMrZ9ndC --> |
 | `example/` | teaching schemas covering every feature, plus live instances | `example/person`, `example/folder`, `example/bob` <!-- id:uU6GnKnu --> |
 
-Inside a schema, every reference is an `hm://` URL under the Hypermedia account, and the path is the file's path: `hm://z6MkmZUb…/schema/string`, `hm://z6MkmZUb…/metadata`, `hm://z6MkmZUb…/example/person`. A reference is therefore always a real, published, clickable document — never a dead placeholder. <!-- id:HVN-l5c6 -->
+Inside a schema, every reference is an `hm://` URL under the Hypermedia account, and the URL path is the file's path: `hm://z6MkmZUb…/string`, `hm://z6MkmZUb…/metadata`, `hm://z6MkmZUb…/example/person`. So every reference is a real, published document you can open. See [references and naming](./references.md). <!-- id:HVN-l5c6 -->
 
-# Layer 4 — Publishing <!-- id:tf74B4h5 -->
+# Layer 4: publishing <!-- id:tf74B4h5 -->
 
-Two scripts turn the folder into the network. <!-- id:A7RyUZrS -->
+Two scripts publish the folder to the network. <!-- id:A7RyUZrS -->
 
-**`publish.mjs`** encodes each schema to canonical DAG-CBOR, hashes it, and writes `schemas.lock.json`: a manifest from every `hm://` URL to its content CID. The lockfile is the contract between the repository and the network; a schema cannot silently change without the lockfile changing with it. <!-- id:9Dnutfyd -->
+**`publish.mjs`** encodes each schema to [canonical DAG-CBOR](./canonical-encoding.md), hashes it, and writes `schemas.lock.json`. The lockfile maps every `hm://` URL to its content CID. It is the contract between the repository and the network: a schema cannot change without the lockfile changing too. <!-- id:9Dnutfyd -->
 
-**`hypermedia:push`** signs in as the Hypermedia account and publishes three things. First, every schema blob, after re-computing each CID and refusing to continue if any disagrees with the lockfile. Second, one document per schema at its public name, whose content is the companion markdown: a **type** document carries `schemaDefinition = ipfs://<cid>` (this document defines a type), while an **instance** document — an ordinary page like `example/bob`, whose frontmatter holds the data — carries `attributesSchema = hm://<type>` (this document conforms to a type). Third, the narrative pages you are reading, from a `site/` folder, with `home` at the account root. <!-- id:nbEaMwcF -->
+**`hypermedia:push`** signs in as the Hypermedia account and publishes in two steps. First it recomputes every schema CID, stops if any differs from the lockfile, and uploads the schema blobs. Then it imports the whole `hypermedia/` folder as documents, and each page publishes at its path. `index.md` becomes the home document. A **type** page carries `schemaDefinition = ipfs://<cid>`, which says this document defines a type. An **instance** page, such as `example/bob`, holds its data in frontmatter and carries `attributesSchema = hm://<type>`, which says this document conforms to a type. The narrative pages you are reading publish the same way. See [publishing a folder](../build/publish-a-folder.md). <!-- id:nbEaMwcF -->
 
-The result is that the type system dogfoods the network it types: browse the account and you are browsing the library. <!-- id:Tq9j2_Wz -->
+So the type system lives on the network it types: browsing the account is browsing the library. <!-- id:Tq9j2_Wz -->
 
-# Layer 5 — Resolution <!-- id:Rb6zmKSF -->
+# Layer 5: resolution <!-- id:Rb6zmKSF -->
 
-A schema reference can arrive in three forms, and the app resolves each differently: <!-- id:ZVviNKyM -->
+A schema reference comes in three forms, and the app resolves each one differently: <!-- id:ZVviNKyM -->
 
 <!-- id:uSHoX7eZ -->
 | reference <!-- col:JXT6M672 --> | example <!-- col:lj87cEho --> | how it resolves <!-- col:FkwrUKdr --> <!-- id:DxBoBqwn --> |
 | --- | --- | --- |
-| bundled library URL | `hm://z6MkmZUb…/map` | locally, from the registry compiled into the app — no network <!-- id:_MyC7yOr --> |
+| bundled library URL | `hm://z6MkmZUb…/map` | locally, from the registry compiled into the app, with no network <!-- id:_MyC7yOr --> |
 | IPFS CID | `ipfs://bafy…` | fetch the blob directly (bundled if known, otherwise from the daemon) <!-- id:0XLNPaVl --> |
 | any Hypermedia document URL | `hm://acme/person` | fetch the document, read its `metadata.schemaDefinition`, then fetch that blob <!-- id:a2Tm8pMr --> |
 
-The third form is what makes types extensible by anyone: a schema published under any account is as resolvable as one from the library. Because network resolution is asynchronous, the app exposes it through hooks — one that resolves a single reference, and one that computes a document's _effective_ attributes schema (its own `attributesSchema`, or its parent's `childAttributesSchema`). See [typed documents](./typed-documents.md). <!-- id:abCKIpn0 -->
+The third form lets anyone add types: a schema published under any account resolves the same way as one from the library. Network resolution is asynchronous, so the app exposes it through two hooks. One resolves a single reference. The other computes a document's _effective_ attributes schema: its own `attributesSchema`, or else its parent's `childAttributesSchema`. See [typed documents](./typed-documents.md). <!-- id:abCKIpn0 -->
 
-# Layer 6 — The engine and the app <!-- id:_2KVPjV5 -->
+# Layer 6: the engine and the app <!-- id:_2KVPjV5 -->
 
-There is one validation engine. The dependency-free reference validator proves the meta-schema describes itself, validates every schema in the library against it, checks positive and negative data cases for the examples, and confirms the union rejects malformed schemas. That same engine is ported line-for-line into the app, so nothing the app shows can disagree with the reference oracle. On top of it sit: <!-- id:7XvEeHE4 -->
-  - the **schema tour and explorer** — every schema rendered as a page with fields, variants, inherited versus added properties, generic parameters, URL and CID, dependencies and dependents, and a live editor; <!-- id:JFNU8FGg -->
-  - the **schema editor** — a form driven by the meta-schema, so it can only produce valid schemas; <!-- id:QdeIRLDj -->
-  - the **value editor** — a schema-respecting form for building conforming data: dropdowns for unions of literals and pickers for union variants, the right controls for `link` and `bytes`, title pills for document references, file pickers for IPFS references; <!-- id:SKTxHaI7 -->
-  - the **document integration** — required attributes as fixed rows, red non-blocking validation, and the header actions on a schema-definition document; <!-- id:tvgeEE11 -->
-  - the **inspector** — recognizes the signed blob types, detects when a blob _is_ a schema, and validates a blob against its attached schema. <!-- id:Ig_ARwrI -->
+There is one validation engine. The reference validator has no dependencies. It proves the meta-schema describes itself, validates every schema in the library against it, checks positive and negative data cases for the examples, and confirms the union rejects malformed schemas. The app runs a line-for-line port of the same engine, so the app cannot disagree with the reference validator. The app builds these on top of it: <!-- id:7XvEeHE4 -->
+  - The **schema tour and explorer** render every schema as a page. The page shows fields, variants, inherited and added properties, generic parameters, URL and CID, dependencies and dependents, and a live editor. <!-- id:JFNU8FGg -->
+  - The **schema editor** is a form driven by the meta-schema, so it can only produce valid schemas. <!-- id:QdeIRLDj -->
+  - The **value editor** is a form that builds data matching a schema. It has dropdowns for unions of literals, pickers for union variants, the right controls for `link` and `bytes`, title pills for document references and file pickers for IPFS references. <!-- id:SKTxHaI7 -->
+  - The **document integration** shows required attributes as fixed rows, validation problems in red without blocking, and header actions on a schema-definition document. <!-- id:tvgeEE11 -->
+  - The **inspector** recognizes the signed blob types, detects when a blob _is_ a schema, and validates a blob against its attached schema. <!-- id:Ig_ARwrI -->
 
-These live behind Developer Mode in the Seed app (on by default on the web) ; any schema blob, bundled or published, has a full page at `/hm/schema/<cid>` where every reference — a library type, an `hm://` type document, an `ipfs://` schema — is a link, so a schema graph is browsed by clicking. Signed-blob schemas (anything extending [Signed blob](../blob.md)) get a signing form instead of a plain editor: the envelope is filled and signed with the selected account at publish time. <!-- id:3fjjdA74 -->
+These tools sit behind Developer Mode in the Seed app. Developer Mode is off by default in the [desktop app](../apps/desktop.md) and on by default in the [web app](../apps/web.md). Any schema blob, bundled or published, has a full page at `/hm/schema/<cid>`. On that page every reference is a link: a library type, an `hm://` type document or an `ipfs://` schema. You browse a schema graph by clicking. A schema that [extends](./extension.md) [Signed blob](../blob.md) gets a signing form instead of a plain editor. At publish time the form fills in the [envelope](./envelope.md) and signs it with the selected account. <!-- id:3fjjdA74 -->
 
-# Layer 7 — Generated code <!-- id:jpRr0H4N -->
+# Layer 7: generated code <!-- id:jpRr0H4N -->
 
-`typegen.mjs` walks the library and emits one TypeScript type per schema: maps become object types, a literal a literal type, `anyOf` a union, extension an intersection, open maps an index signature, and `params` / `var` / `args` real generics — so `Change<Block>` in the schema is `Change<Block>` in TypeScript. Self-referential schemas like a recursive JSON value come out as legal recursive types. A `--check` mode fails when the generated file is stale. The schemas, not hand-written type declarations, are the source of truth for the app's data types. <!-- id:e53sOros -->
+`typegen.mjs` walks the library and emits one TypeScript type per schema. A map becomes an object type, a literal becomes a literal type, `anyOf` becomes a union, extension becomes an intersection, and an open map becomes an index signature. `params`, `var` and `args` become real generics, so `Change<Block>` in the schema is `Change<Block>` in TypeScript. A self-referential schema, like a recursive JSON value, comes out as a legal recursive type. A `--check` mode fails when the generated file is stale. The schemas are the source of truth for the app's data types, and nobody writes those type declarations by hand. <!-- id:e53sOros -->
 
-# Layer 8 — The typed API <!-- id:tHk1te8z -->
+# Layer 8: the typed API <!-- id:tHk1te8z -->
 
-The last layer turns the machinery on the API itself. Every read method of the Seed universal client — `request(key, input) → output` — is an `rpc/<method>` schema that pins its method key to a literal and types `input` and `output` by reference to the read-model schemas. `rpc/method` is the union of all of them. The in-app API console reads that union to build its method picker, uses the value editor for inputs, and validates both directions advisorily. Adding a method to the catalog is adding a schema. See [the typed API](../rpc.md). <!-- id:ygRqUJXw -->
+The last layer describes the API with schemas. The Seed universal client exposes reads as `request(key, input) → output`. Every read method is an `rpc/<method>` schema. It pins the method key to a literal and types `input` and `output` by referencing the read-model schemas. `rpc/method` is the union of all of them. The in-app API console reads that union to build its method picker, uses the value editor for inputs, and validates inputs and outputs without blocking. To add a method to the catalog, you add a schema. See [the typed API](../rpc.md) and the [Seed API](../build/web-api.md). <!-- id:ygRqUJXw -->
 
 # The invariants <!-- id:4g92-jwm -->
 
-Everything above holds together because of a handful of properties that are checked, not assumed: <!-- id:TlR4ILmy -->
-  - **Same bytes, same CID.** Canonical DAG-CBOR encoding means any implementation hashing a schema gets the lockfile's CID; the sync refuses to publish otherwise. <!-- id:17JdAoWE -->
-  - **The meta-schema validates itself**, and rejects malformed schemas — verified on every validator run. <!-- id:v4RipaVL -->
+The system holds together because of a few properties that tooling checks: <!-- id:TlR4ILmy -->
+  - **Same bytes, same CID.** Canonical DAG-CBOR encoding means any implementation that hashes a schema gets the lockfile's CID. The sync refuses to publish otherwise. <!-- id:17JdAoWE -->
+  - **The meta-schema validates itself** and rejects malformed schemas. Every validator run checks this. <!-- id:v4RipaVL -->
   - **One engine.** The app's validation is a port of the reference validator, covered by the same cases. <!-- id:tEOXXBEn -->
-  - **Every reference is a document.** There are no placeholder names; each `hm://` in a schema resolves to a published page. <!-- id:K7oi_vA8 -->
+  - **Every reference is a document.** There are no placeholder names. Each `hm://` URL in a schema resolves to a published page. <!-- id:K7oi_vA8 -->
   - **Generated code matches the library.** `typegen --check` and the bundled-registry generator fail the build when out of date. <!-- id:qvFbt6RU -->
-  - **Warnings never block writes.** A document with out-of-spec data still saves; the mismatch is shown, not enforced. <!-- id:gl1Qu8GD -->
+  - **Warnings never block writes.** A document with out-of-spec data still saves. The app shows the mismatch and does not enforce it. <!-- id:gl1Qu8GD -->
+
+# See also
+
+- [Hypermedia Schemas in one page](./quick-reference.md): the model, the library and the tools in brief.
+- [The schema language](./schema-language.md): every schema shape and constraint.
+- [Typed documents](./typed-documents.md): the three binding keys and what the editor does with them.
+- [References and naming](./references.md): include, link and `hm://` names.
+- [Encoding](./encoding.md): DAG-CBOR, dag-json and canonical encoding.
+- [Publishing a folder](../build/publish-a-folder.md): how a folder of pages becomes a site.
+- [Blobs](../protocol/blobs.md): signed blobs and content addressing on the network.

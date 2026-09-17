@@ -1,47 +1,47 @@
 ---
 name: Why Schemas
-summary: The purpose of Hypermedia Schemas — what problem a self-describing type system solves for content-addressed hypermedia, who it serves, and what it deliberately is not.
+summary: The purpose of Hypermedia Schemas, the problem a self-describing type system solves for content-addressed hypermedia, who it serves, and what it does not try to be.
 ---
 # The problem <!-- id:hdD9n48L -->
 
-On a content-addressed network, a piece of data is a hash and some bytes. The hash proves _which_ bytes you have; it says nothing about _what they mean_. Every reader has to already know the shape of what it is looking at. <!-- id:jkCV8kpL -->
+On a content-addressed network, a piece of data is a hash and some bytes. The hash proves _which_ bytes you have. It says nothing about _what they mean_. Every reader has to know the shape of the data in advance. <!-- id:jkCV8kpL -->
 
-The Hypermedia Network grew up that way. Its signed blobs — Change, Ref, Profile, Comment, Capability, Contact — had shapes hardcoded twice, once in the Go daemon and once in the TypeScript apps. Introducing a new kind of resource meant a code change on both sides and a release. Document metadata was an untyped bag of keys, so a "person" page and a "product" page were indistinguishable to software. And the agent system had grown its own, separate schema world for tool inputs and outputs — one the hypermedia core knew nothing about, so a tool could not return a real document and a document could not be fed to a tool without a hand-written translation layer. <!-- id:yvfqtls7 -->
+The Hypermedia Network grew up that way. Its [signed blobs](../protocol/blobs.md) ([Change](../change.md), [Ref](../ref.md), [Profile](../profile.md), [Comment](../comment.md), [Capability](../capability.md), [Contact](../contact.md)) had shapes hardcoded twice: once in the Go [daemon](../apps/daemon.md) and once in the TypeScript apps. A new kind of resource needed a code change on both sides and a release. [Document metadata](../metadata.md) was an untyped bag of keys, so software could not tell a "person" page from a "product" page. The [agent system](../agent.md) had its own separate schema world for tool inputs and outputs. The hypermedia core knew nothing about it. A tool could not return a real [document](../protocol/documents.md), and a document could not be passed to a tool without a hand-written translation layer. <!-- id:yvfqtls7 -->
 
-Two fragmented schema worlds, and extensibility gated on releases. That is the problem Hypermedia Schemas exist to solve. <!-- id:lj7oo6SS -->
+So there were two separate schema worlds, and adding a type needed a release. Hypermedia Schemas solve that. <!-- id:lj7oo6SS -->
 
 # What Hypermedia Schemas are <!-- id:MEFQ9YNs -->
 
-Hypermedia Schemas is a small schema language for IPLD data — the values DAG-CBOR can encode — designed so that the type system lives _inside_ the network it describes rather than beside it. Three moves make that work. <!-- id:6gPvbn7m -->
+Hypermedia Schemas is a small schema language for [IPLD](./ipld.md) data, the values [DAG-CBOR](./dag-cbor.md) can encode. The type system lives inside the network it describes. Three design choices make that work. <!-- id:6gPvbn7m -->
 
-**Types are data.** A Hypermedia schema is itself a DAG-CBOR block: same encoding, same content addressing, same signing and syncing as the data it types. A schema has a CID. It can be pinned, fetched, and verified like any other blob. There is no separate registry service to run or trust. <!-- id:DQpYhLZV -->
+**Types are data.** A Hypermedia schema is itself a DAG-CBOR block. It uses the same encoding, content addressing, signing and syncing as the data it types. A schema has a [CID](../cid.md). You can pin, fetch and verify it like any other blob. There is no separate registry service to run or trust. <!-- id:DQpYhLZV -->
 
-**Types are documents.** Every schema is also published as a normal Hypermedia document, owned by an account and reachable at an `hm://` URL. That gives types names, versions, human descriptions, and a place in the same browsable graph as everything else. A document declares what it is by pointing at one of these URLs. Because references are names rather than hashes, types can refer to each other in cycles — a folder that contains files that live in folders — which a pure hash graph cannot express. See [references & naming](./references.md). <!-- id:o9b8CRI8 -->
+**Types are documents.** Every schema is also published as a normal Hypermedia document, owned by an [account](../protocol/identity.md) and reachable at an [`hm://` URL](../protocol/urls.md). That gives types names, versions, human descriptions, and a place in the same browsable graph as everything else. A document declares what it is by pointing at one of these URLs. References are names, so types can refer to each other in cycles, such as a folder that contains files that live in folders. A pure hash graph cannot express that. See [references and naming](./references.md). <!-- id:o9b8CRI8 -->
 
-**Types are minimal.** Nine kinds of value, nine shapes a schema can take, and one bar for every feature: the schema that defines what a schema is must remain a valid instance of itself. The meta-schema describes itself. That self-description is the design constraint, and it is what keeps the language from sprawling. See [the schema language](./schema-language.md) and [design rationale](./design.md). <!-- id:ejkukc5O -->
+**Types are minimal.** There are nine [kinds](./kind.md) of value and nine shapes a schema can take. Every feature has to pass one test: the schema that defines what a schema is must stay a valid instance of itself. The [meta-schema](../schema.md) describes itself. That [self-description](./self-description.md) is the design constraint, and it keeps the language small. See [the schema language](./schema-language.md) and [design rationale](./design.md). <!-- id:ejkukc5O -->
 
 # What it makes possible <!-- id:n8_sc-MO -->
 
-- **New resource types by publishing, not releasing.** To introduce a kind of thing, publish a schema document. Any app that can resolve the URL can validate, render forms for, and generate code for that kind — with no change to the core. <!-- id:Ku-kyWNg -->
-- **Typed documents.** A document can say which schema it conforms to, which schema its children must conform to, or which schema it _defines_. The editor turns required fields into always-present rows and flags out-of-spec data. See [typed documents](./typed-documents.md). <!-- id:5kYrfz-H -->
-- **One schema system for content and for tools.** A tool's contract is an input schema and an output schema; those are Hypermedia schemas, the same objects that type documents. A tool can emit a real document, and a document can be a tool's typed input, because both sides speak the same language. <!-- id:EWBxFyCH -->
-- **A typed, self-documenting API.** Every read method of the Seed API is published as a schema that pins its method key and types its input and output. The in-app API console is generated from that catalog rather than hand-wired. See [the typed API](../rpc.md). <!-- id:PQWGKvZO -->
-- **Generated code.** Every schema becomes a TypeScript type, so the app's types are derived from the published schemas instead of being a second, drifting source of truth. <!-- id:du8NMRdv -->
-- **Machine-readable meaning for agents.** An agent that lands on an `hm://` document can follow its `schema` link and learn, precisely, what fields to expect and what they mean — the same way it would read a tool's contract. Types are discoverable by URL, not by out-of-band convention. <!-- id:wnqV6OF- -->
+- **New resource types without a release.** To add a kind of thing, publish a schema document. Any app that can resolve the URL can validate that kind, render forms for it and generate code for it. The core does not change. <!-- id:Ku-kyWNg -->
+- **Typed documents.** A document can say which schema it conforms to, which schema its children must conform to, or which schema it _defines_. The editor shows required fields as rows that are always present and flags data that does not match. See [typed documents](./typed-documents.md). <!-- id:5kYrfz-H -->
+- **One schema system for content and for tools.** A tool's contract is an input schema and an output schema. Those are Hypermedia schemas, the same objects that type documents. A tool can emit a real document, and a document can be a tool's typed input, because both sides use the same language. <!-- id:EWBxFyCH -->
+- **A typed, self-documenting API.** Every read method of the [Seed API](../build/web-api.md) is published as a schema that pins its method key and types its input and output. The app builds its API console from that catalog. See [the typed API](../rpc.md). <!-- id:PQWGKvZO -->
+- **Generated code.** Every schema becomes a TypeScript type. The app's types come from the published schemas, so there is no second source of truth to drift. <!-- id:du8NMRdv -->
+- **Machine-readable meaning for agents.** An agent that lands on an `hm://` document can follow its `attributesSchema` link and learn which fields to expect and what they mean. It reads a tool's contract the same way. Types are found by URL, with no out-of-band convention. <!-- id:wnqV6OF- -->
 
 # Who it serves <!-- id:YPiEjlT9 -->
 
-**Readers** notice nothing, except that typed pages can render more richly — a person page can show a person, not a bag of keys. <!-- id:TAte4XSS -->
+**Readers** see no change, except that typed pages can render better. A person page can show a person instead of a bag of keys. <!-- id:TAte4XSS -->
 
-**Authors** get guardrails: the attributes form knows which fields a document of this kind needs, offers the right controls for each (a dropdown for a fixed set of choices, a searchable title pill for a document reference, a file picker for an IPFS reference), and points out what is out of spec — without ever refusing to save. <!-- id:mIlfg1bz -->
+**Authors** get guardrails. The attributes form knows which fields a document of this kind needs. It offers the right control for each: a dropdown for a fixed set of choices, a searchable title pill for a document reference, and a file picker for an IPFS reference. It points out what does not match the schema, and it never refuses to save. <!-- id:mIlfg1bz -->
 
-**Developers** get types in TypeScript, a browsable, linked reference for every schema, schema-driven forms for free, and a console for calling the API with validated inputs. <!-- id:U77YK0ax -->
+**Developers** get TypeScript types, a browsable linked reference for every schema, schema-driven forms, and a console for calling the API with validated inputs. <!-- id:U77YK0ax -->
 
-**Agents and tools** get contracts they can read and be checked against — the foundation for tools and agents that are themselves hypermedia resources. <!-- id:d4tnck1j -->
+**Agents and tools** get contracts they can read and be checked against. Tools and agents can then be hypermedia resources themselves. <!-- id:d4tnck1j -->
 
 # Guardrails, not gates <!-- id:IYcGoiB1 -->
 
-Validation in Hypermedia Schemas is deliberately two-speed. **At rest it is advisory**: a blob is a cryptographic fact, and you will routinely receive data whose schema you have not fetched or whose author used a newer version. The app stores it, renders what it can, and shows red, non-blocking warnings rather than refusing. **At a boundary it is strict**: the reference validator rejects malformed schemas outright, and a tool or API call is checked against its declared contract before it runs. Lenient where data lives, strict where it is acted on. <!-- id:VaWhKFCl -->
+Validation has two modes. **At rest it is advisory.** A blob is a cryptographic fact, and you will often receive data whose schema you have not fetched, or whose author used a newer version. The app stores it, renders what it can, and shows red warnings that do not block anything. **At a boundary it is strict.** The reference validator rejects malformed schemas, and a tool or API call is checked against its declared contract before it runs. Validation is lenient where data is stored and strict where it is acted on. <!-- id:VaWhKFCl -->
 
 # What Hypermedia Schemas are not <!-- id:h0dABmfh -->
 
@@ -51,9 +51,19 @@ Validation in Hypermedia Schemas is deliberately two-speed. **At rest it is advi
 | a re-implementation of JSON Schema | breadth is a non-goal; the language is intentionally tiny and must stay self-describing <!-- id:INWG0Cxy --> |
 | IPLD Schema | Hypermedia schemas are themselves IPLD data and hypermedia documents, and references are names that can recurse <!-- id:AMRqP6pA --> |
 | a query or transformation language | it types data, nothing more; queries live in the hypermedia layer <!-- id:MWHaO1Hx --> |
-| an abstraction over IPLD | links and content addressing are surfaced on purpose; they are the point <!-- id:X7KnF8E7 --> |
+| an abstraction over IPLD | links and content addressing are visible on purpose <!-- id:X7KnF8E7 --> |
 | a gate on writing | violations warn; they never block a save <!-- id:BMF06lQT --> |
 
 # Where to go next <!-- id:sHUHAcIF -->
 
-Read [how Hypermedia Schemas work](./how-it-works.md) for the system end to end, [typed documents](./typed-documents.md) for the document-binding model, or go straight to the reference chapters from the [home page](../schema.md). <!-- id:mdWI56L4 -->
+Read [how Hypermedia Schemas work](./how-it-works.md) for the whole system, [typed documents](./typed-documents.md) for how documents bind to schemas, or go to the reference chapters from the [schema home page](../schema.md). <!-- id:mdWI56L4 -->
+
+# See also
+
+- [How Hypermedia Schemas work](./how-it-works.md): the pipeline from schema file to signed blob and typed API call.
+- [Typed documents](./typed-documents.md): `attributesSchema`, `childAttributesSchema` and `schemaDefinition`.
+- [Design rationale](./design.md): the decisions behind the language.
+- [References and naming](./references.md): why names make recursive types possible.
+- [Blobs](../protocol/blobs.md): the signed data the schemas describe.
+- [Documents](../protocol/documents.md): the resources that carry and define schemas.
+- [Metadata](../metadata.md): the document attributes a schema types.

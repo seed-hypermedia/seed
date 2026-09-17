@@ -1,21 +1,21 @@
 ---
 name: Encoding
-summary: DAG-CBOR as the canonical wire form, the dag-json human projection, canonical encoding, and the publish pipeline.
+summary: How Hypermedia Schemas use DAG-CBOR as the canonical wire form and dag-json as the human form, why canonical encoding matters, and how the publish step hashes schemas.
 ---
 # Encoding: DAG-CBOR and the dag-json human form <!-- id:f2uoHc9L -->
 
-Hypermedia values — both schemas and the data they type — are **DAG-CBOR blocks** on IPFS. DAG-CBOR is a restricted, deterministic profile of CBOR (binary) with first-class support for links (CIDs). It is the canonical, on-the-wire form. <!-- id:xr_d_48R -->
+Hypermedia values, both schemas and the data they type, are [DAG-CBOR](./dag-cbor.md) blocks on IPFS. DAG-CBOR is a restricted, deterministic profile of binary CBOR with built-in support for links ([CIDs](../protocol/blobs.md)). It is the canonical wire form. The same encoding carries the network's signed [blobs](../protocol/blobs.md). <!-- id:xr_d_48R -->
 
-DAG-CBOR is not human-editable, so in this repo everything is written in **dag-json**: the JSON projection of the same data model. dag-json is a faithful, lossless-enough rendering that a person can read and diff, and that tools can convert to and from DAG-CBOR. <!-- id:hGuzUAVh -->
+People cannot edit DAG-CBOR directly, so this repo writes everything in [dag-json](./dag-json.md), the JSON projection of the same [data model](./data-model.md). A person can read and diff dag-json, and tools convert it to and from DAG-CBOR with no loss that matters here. <!-- id:hGuzUAVh -->
 
 ``` <!-- id:grYnFGUo -->
    dag-json  (this repo, human form)  <——>  DAG-CBOR  (IPFS, canonical form)
-   JSON text, filename refs                  binary, CID refs
+   JSON text, hm:// name refs                binary, hm:// name refs, CID links
 ```
 
 ## The reserved-key envelopes <!-- id:j0GQ_2TD -->
 
-JSON has no native way to write bytes or a link, so dag-json borrows the map syntax with **one reserved key, `/`**: <!-- id:YpcMmEMS -->
+JSON has no native way to write bytes or a link. dag-json borrows map syntax with **one reserved key, `/`**. These are the [envelopes](./envelope.md): <!-- id:YpcMmEMS -->
 
 <!-- id:gZfcUpHN -->
 | kind <!-- col:Lf10HYeS --> | dag-json <!-- col:M8I8Wqkg --> | DAG-CBOR <!-- col:7vTETkPd --> <!-- id:Je27na7i --> |
@@ -23,29 +23,38 @@ JSON has no native way to write bytes or a link, so dag-json borrows the map syn
 | link | `{"/":"bafy…"}` | CID (tag 42) <!-- id:WXOoojol --> |
 | bytes | `{"/":{"bytes":"aGVsbG8"}}` | byte string (major type 2), base64 in JSON <!-- id:FtMcyizZ --> |
 
-**These are not maps.** They are the JSON _spelling_ of two distinct kinds. In DAG-CBOR the ambiguity disappears — a link is a tagged CID, bytes are a byte string — but in dag-json they wear map syntax. This is the source of dag-json's one footgun: a genuine data map that happens to have a single `/` key is indistinguishable from a link. <!-- id:Bq6LLLsU -->
+**These are not maps.** They are the JSON spelling of two separate [kinds](./kind.md). In DAG-CBOR there is no ambiguity: a link is a tagged CID and bytes are a byte string. In dag-json they look like maps. This causes dag-json's one trap: a real data map with a single `/` key cannot be told apart from a link. <!-- id:Bq6LLLsU -->
 
-the schema language's rule keeps you clear of it (see [the data model](./data-model.md)): links and bytes are **atomic kinds**, never described as maps in a schema. A schema says `{"type":"link"}`, full stop — it never reaches inside the envelope. The reference validator (`validate.mjs`) enforces the distinction: `typeOf` recognizes the two envelopes and reports `link` / `bytes`, so a value typed `map` will _reject_ a `{"/":…}` shape, and vice versa. <!-- id:2x73pir3 -->
+The schema language's rule avoids the trap (see [the data model](./data-model.md)). Links and bytes are **atomic kinds**, and a schema never describes them as maps. A schema says `{"type":"link"}` and never reaches inside the envelope. The reference validator, `validate.mjs`, enforces this. Its `typeOf` recognizes the two envelopes and reports `link` or `bytes`, so a value typed `map` rejects a `{"/":…}` shape, and the reverse also holds. <!-- id:2x73pir3 -->
 
-## Canonical encoding matters <!-- id:_xPmfmd5 -->
+## Canonical encoding <!-- id:_xPmfmd5 -->
 
-CIDs are content hashes, so **the same value must always encode to the same bytes** or its CID would change. DAG-CBOR mandates a canonical form: <!-- id:E8QsaeNL -->
+CIDs are content hashes, so **the same value must always encode to the same bytes**. Otherwise its CID would change. DAG-CBOR requires a [canonical encoding](./canonical-encoding.md): <!-- id:E8QsaeNL -->
   - map keys sorted by a defined ordering, <!-- id:l6YAoUHJ -->
   - shortest-form integer encodings, <!-- id:MJGGUCHC -->
   - no floating-point NaN/Infinity, <!-- id:D1qqS-Rb -->
   - exactly one way to encode any value. <!-- id:ADsShIXd -->
 
-The upshot for authoring: **key order and formatting in these JSON files are cosmetic.** Whitespace and the order you happen to write `properties` in do not affect the resulting block or its CID — the encoder normalizes everything. Two schemas that differ only in key order are the _same block_ with the _same CID_. <!-- id:1XV1UcRp -->
+For authors, **key order and formatting in these JSON files do not matter.** Whitespace and the order of `properties` do not change the resulting block or its CID, because the encoder normalizes them. Two schemas that differ only in key order are the same block with the same CID. <!-- id:1XV1UcRp -->
 
-## The publish pipeline <!-- id:xI7XePTO -->
+## The publish step <!-- id:xI7XePTO -->
 
-`publish.mjs` turns this repo into live Hypermedia types: <!-- id:ilHK6ydh -->
-  1. Parse each `.json` file (dag-json). References are already **`hm://` URLs** — names, _not_ CIDs — so recursive and mutually-recursive schemas keep working (see [references](./references.md)). They are **not** rewritten. <!-- id:3NjmpKsi -->
-  2. Canonically encode each schema to DAG-CBOR and content-address it: a CIDv1, sha2-256, `dag-cbor` (0x71) — the same codec the backend uses for its blobs. <!-- id:aqTbhvIL -->
-  3. Write `schemas.lock.json`: the manifest mapping each `hm://` URL → its CID. Publish/pin the blocks under their authority at their `hm://` paths (signed by the authority's key). <!-- id:hVW1Ddfl -->
+`publish.mjs` turns this repo into published Hypermedia types: <!-- id:ilHK6ydh -->
+  1. It parses each `.schema.json` file as dag-json. References are already **`hm://` URLs**, which are names. The step does not rewrite them into CIDs, so recursive and mutually recursive schemas keep working (see [references](./references.md)). <!-- id:3NjmpKsi -->
+  2. It encodes each schema to canonical DAG-CBOR and content-addresses it as a CIDv1 with sha2-256 and the `dag-cbor` codec (0x71). The backend uses the same codec for its blobs. <!-- id:aqTbhvIL -->
+  3. It writes `schemas.lock.json`, the manifest that maps each `hm://` URL to its CID. The blocks are published under their [authority](../authority.md) at their `hm://` paths, signed by the authority's key. <!-- id:hVW1Ddfl -->
 
-Because canonical DAG-CBOR is deterministic, **the CID is a pure function of a schema's content** — CI and any runtime that recomputes it reach the exact same CID. Two consequences worth calling out: <!-- id:m9tDS9Ms -->
-  - Run `node publish.mjs --check` in CI: it fails if the lockfile is stale, and a CID that changes in a diff is a schema that changed. <!-- id:wtUc5Kgv -->
-  - Because a schema links others by **name**, its CID depends only on its own bytes — editing `block` does **not** churn `change`'s CID (unlike a CID/Merkle graph, where any change propagates upward). Names give stable, independent content addresses; the manifest is the separate name → CID index a resolver uses. <!-- id:UfL2JB8v -->
+Canonical DAG-CBOR is deterministic, so **the CID is a pure function of a schema's content**. CI and any runtime that recomputes it get the same CID. This has two consequences: <!-- id:m9tDS9Ms -->
+  - `node publish.mjs --check` runs in CI. It fails if the lockfile is stale, and a CID that changes in a diff means the schema changed. <!-- id:wtUc5Kgv -->
+  - A schema links others by **name**, so its CID depends only on its own bytes. Editing `block` does **not** change the CID of `change`. In a CID or Merkle graph, any change would propagate upward. The manifest is the separate name-to-CID index a resolver uses. <!-- id:UfL2JB8v -->
 
-Anyone can then resolve a schema by its `hm://` name (via the manifest or the authority), or fetch an exact version by CID, DAG-CBOR-decode it, and type-check data against it — the same validation this repo runs locally. <!-- id:53nL6eHG -->
+Anyone can resolve a schema by its `hm://` name, through the manifest or the authority. They can also fetch an exact version by CID, decode the DAG-CBOR, and type-check data against it. That is the same validation this repo runs locally. <!-- id:53nL6eHG -->
+
+# See also
+
+- [References and naming](./references.md): why references are names and not CIDs.
+- [The data model](./data-model.md): the nine kinds, including link and bytes.
+- [DAG-CBOR](./dag-cbor.md), [dag-json](./dag-json.md), [Envelope](./envelope.md) and [Canonical encoding](./canonical-encoding.md): the term pages.
+- [Blobs](../protocol/blobs.md): how the network encodes and signs its data.
+- [CID](../cid.md): the CID type.
+- [Schemas for network blobs](./blobs.md): the blob schemas built on this encoding.

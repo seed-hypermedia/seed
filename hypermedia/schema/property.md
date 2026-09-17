@@ -1,6 +1,13 @@
 ---
 name: Property
-summary: One field of a struct — its value schema, whether a value must include it, and a description of what it is for.
+summary: One field of a struct, holding its value schema, whether a value must include it, and a description of what it is for.
 schemaDefinition: ipfs://bafyreiddimhjlsf7ba6idhzdt6h5bgna77merrs5msg4vscsauuc362u3q
 ---
-A struct lists its fields under `properties`, one property per field name. A property is not itself a schema: it wraps one. `value` is the schema the field's value must match, `required` says whether a value of the struct must include the field, and `description` says what the field is for, which the editors show next to it. <!-- id:kLdsYe2_ -->
+A [struct](./struct-schema.md) lists its fields under `properties`, one property per field name. A property wraps a [schema](../schema.md) and is not a schema itself. `value` is the schema the field's value must match. `required` says whether a value of the struct must include the field. `description` says what the field is for, and the editors show it next to the field. <!-- id:kLdsYe2_ -->
+
+# See also
+
+- [Struct schema](./struct-schema.md): the variant that holds properties.
+- [Closed map](./closed-map.md): a struct rejects keys it has no property for.
+- [Extension](./extension.md): adds properties to a parent schema.
+- [Typed documents](./typed-documents.md): how the editors turn properties into fields.

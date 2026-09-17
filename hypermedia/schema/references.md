@@ -1,63 +1,63 @@
 ---
 name: References & Naming
-summary: Include vs link, the hm:// naming layer, and why names — not content hashes — make recursive schemas possible.
+summary: How one schema points at another by include or by typed link, how schemas are named with hm:// URLs, and why names make recursive schemas possible where content hashes cannot.
 ---
-# References: include, link, and the self-reference fixpoint <!-- id:5IJDwtlR -->
+# References: include, link and the self-reference fixpoint <!-- id:5IJDwtlR -->
 
-The schema language has **two** ways one schema can point at another. They look similar in the human form but mean different things, and the distinction becomes load-bearing once everything is content-addressed. (Both are spelled with `type` and `target`; schemas published before that change spell a reference `ref`, which still resolves.) <!-- id:X8rzkWzP -->
+The [schema language](./schema-language.md) has **two** ways for one schema to point at another. They look similar in the human form but mean different things, and the difference matters once everything is content-addressed. Both are spelled with `type` and `target`. The retired keywords `ref` and `$type` fail the library's `check.mjs` spelling check. Schemas published before that change spell a reference `ref`, and those still resolve. <!-- id:X8rzkWzP -->
 
 ## Two kinds of reference <!-- id:JOeoh-SP -->
 
-### Include — `type` naming another schema <!-- id:a_wnChSK -->
+### Include: `type` names another schema <!-- id:a_wnChSK -->
 
 ```json <!-- id:vnLDG4nN -->
 { "type": "example/address" }
 ```
 
-An **include** substitutes the named schema in place. In `example/person`, `home` is `{ "type": "example/address" }`: a person's `home` value is an address, stored **inline** in the person's own block. It is the same key that names a kind — naming `string` grounds the node, naming `example/address` includes that schema — and adding any other key turns the include into an [extension](./extension.md). Includes are an author-time convenience for composing schemas — like `#include` or importing a type. They say nothing about _where the data lives_; the composed value is right there. <!-- id:P5Vw9KYe -->
+An [include](./include-schema.md) substitutes the named schema in place. In [`example/person`](../example/person.md), `home` is `{ "type": "example/address" }`. A person's `home` value is an address, stored **inline** in the person's own block. The same `type` key names a [kind](./kind.md): naming `string` grounds the node, and naming `example/address` includes that schema. Adding any other key turns the include into an [extension](./extension.md). Includes are an author-time convenience for composing schemas, like `#include` or importing a type. They say nothing about where the data lives, because the composed value is right there. <!-- id:P5Vw9KYe -->
 
-### Link — `type:"link"` (optionally with `target`) <!-- id:BHFi5HjZ -->
+### Link: `type: "link"`, optionally with `target` <!-- id:BHFi5HjZ -->
 
 ```json <!-- id:eJIRZitT -->
 { "type": "link", "target": "example/person" }
 ```
 
-A **link** types a value that is a **CID** — a pointer to a _separate_ block. In `example/document`, `author` is a typed link to `example/person`: the document block does not contain the person; it contains a hash naming a different block that does. The optional `target` records the _expected type of what it points at_ (a "typed link", like IPLD's `&Person`). `target` is the general "what this reference points at" key: a string field whose `format` is `hm-url` or `ipfs-url` carries one too, naming the schema the referenced document or object should conform to. <!-- id:s1SSoVeN -->
+A [link](./link-schema.md) types a value that is a [CID](../protocol/blobs.md): a pointer to a separate block. In [`example/document`](../example/document.md), `author` is a typed link to `example/person`. The document block does not contain the person. It contains a hash that names a different block, and that block holds the person. The optional `target` records the expected type of the block it points at. This is a "typed link", like IPLD's `&Person`. `target` is the general key for "what this reference points at". A string field whose `format` is `hm-url` or `ipfs-url` can carry one too, naming the schema the referenced document or object should conform to. <!-- id:s1SSoVeN -->
 
-The contrast in one sentence: **include embeds a shape; link points across blocks.** `person.home` carries an address with it; `document.author` points at a person stored elsewhere. <!-- id:UnPOGtlL -->
+In one sentence: **include embeds a shape, and link points across blocks.** `person.home` carries an address with it. `document.author` points at a person stored elsewhere. <!-- id:UnPOGtlL -->
 
-Target-type checking on a typed link is necessarily **lazy**: the validator cannot confirm the target matches `example/person` without fetching that block. So it verifies the link is well-formed now and defers the target check to resolution time. The reference validator does exactly this. <!-- id:LqRoXxvp -->
+Target-type checking on a typed link is **lazy**. The validator cannot confirm the target matches `example/person` without fetching that block. So it checks now that the link is well-formed, and it checks the target type at resolution time. The reference validator works this way. <!-- id:LqRoXxvp -->
 
-## The filename → CID transform <!-- id:f5ZpgAnC -->
+## Why references cannot be CIDs <!-- id:f5ZpgAnC -->
 
-In this repo, references are **file names** because humans edit files. When schemas are published to IPFS, a build step: <!-- id:XDQnu6gS -->
-  1. encodes each schema to DAG-CBOR (see [encoding](./encoding.md)), <!-- id:yi-3JoZG -->
-  2. computes its CID, <!-- id:xfljZeXh -->
-  3. rewrites every reference that named that file into the file's CID. <!-- id:GF9F_NmT -->
+One way to publish content-addressed schemas is to replace every reference with a CID. A build step would: <!-- id:XDQnu6gS -->
+  1. encode each schema to DAG-CBOR (see [encoding](./encoding.md)), <!-- id:yi-3JoZG -->
+  2. compute its CID, <!-- id:xfljZeXh -->
+  3. rewrite every reference to that schema into its CID. <!-- id:GF9F_NmT -->
 
-`{ "type": "example/address" }` becomes `{ "type": <cid-of-address-block> }`. Same graph, resolved by content hash instead of by path. For an **acyclic** set of schemas this is a clean bottom-up pass: encode the leaves, get their CIDs, then their parents, and so on to the root. <!-- id:s9WK8Gv8 -->
+`{ "type": "example/address" }` would become `{ "type": <cid-of-address-block> }`. The graph stays the same, but it resolves by content hash instead of by name. For an **acyclic** set of schemas this is a clean bottom-up pass: encode the leaves, get their CIDs, then encode their parents, and so on up to the root. Hypermedia Schemas do not use this approach, because it fails on cycles. <!-- id:s9WK8Gv8 -->
 
-## The beautifully meta part — and its fixpoint <!-- id:NqDWNSWI -->
+## The meta-schema's fixpoint <!-- id:NqDWNSWI -->
 
-Here is the twist that makes the meta-schema fold in on itself. The meta-schema refers back to itself — now through its variants. `schema` is `{ anyOf: [ …the variants, each named… ] }`, and each variant (e.g. `schema/map-schema`) contains `{ "type": "schema" }`. So `schema` → variant → `schema` is a **cycle**, and after the transform some reference in that cycle must become the CID _of a block whose bytes are still being determined_. <!-- id:21u8uWpR -->
+The [meta-schema](../schema.md) refers back to itself through its variants. `schema` is `{ anyOf: [ …the variants, each named… ] }`, and each [variant](./variant.md), such as `schema/map-schema`, contains `{ "type": "schema" }`. So `schema` to variant to `schema` is a **cycle**. After a CID rewrite, some reference in that cycle would have to hold the CID of a block whose bytes are not yet known. <!-- id:21u8uWpR -->
 
-But a CID is the hash of the block's bytes — and those bytes now have to contain that same CID. **You cannot compute it.** Finding content whose hash appears inside that very content is finding a hash preimage; it is computationally infeasible by design. A block genuinely cannot embed its own CID, and a reference cycle cannot be content-addressed in any order — no block in the cycle can be encoded first. <!-- id:HnmaGrbq -->
+A CID is the hash of a block's bytes, and those bytes would now have to contain that same CID. **You cannot compute it.** Finding content whose hash appears inside that content means finding a hash preimage, which is computationally infeasible by design. A block cannot embed its own CID. A reference cycle cannot be content-addressed in any order, because no block in the cycle can be encoded first. This is the [fixpoint problem](./fixpoint-problem.md). <!-- id:HnmaGrbq -->
 
-This is not a quirk of the meta-schema. **Any self-referential schema hits it.** `example/document` has `previous: { type: link, target: "example/document" }` — a document links to a previous document of the same type. That reference → CID rewrite is the identical fixpoint. And **mutually** recursive schemas (A refs B, B refs A) form a cycle that cannot be content-addressed in any order at all: neither CID can be computed first. <!-- id:jQ2u072L -->
+**Any self-referential schema hits it**, not only the meta-schema. `example/document` has `previous: { type: link, target: "example/document" }`: a document links to a previous document of the same type. Rewriting that reference to a CID is the same fixpoint. **Mutually** recursive schemas, where A references B and B references A, form a cycle that cannot be content-addressed in any order: neither CID can be computed first. <!-- id:jQ2u072L -->
 
-### The way out: reference by _name_, not by hash <!-- id:fVw9uG3N -->
+### The solution: reference by name <!-- id:fVw9uG3N -->
 
-A CID is derived from content, so a cycle of CIDs has no encoding order. A **name** is not — it is a stable identifier independent of the content it points to. So references cannot be CIDs; they must be **names**. The schema language uses `hm://` URLs: <!-- id:VLYzJQfm -->
+A CID is derived from content, so a cycle of CIDs has no encoding order. A **name** is a stable identifier that does not depend on the content it points to. So references are **names**, and the schema language uses [`hm://` URLs](../protocol/urls.md). A schema's name is its path inside the `hypermedia/` folder without `.schema.json` (`string`, `block/image`, `example/person`). That is also the path its document publishes at under the Hypermedia account, so the name `example/folder` is the URL `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/folder`. References in the schema files are these full URLs: <!-- id:VLYzJQfm -->
 
 ``` <!-- id:RTAR4FMH -->
-hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string        the string kind, owned by the Hypermedia account
-hm://example.com/folder        the example folder schema
-hm://example.com/file          the example file schema
+hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string          the string kind
+hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/folder  the example folder schema
+hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/file    the example file schema
 ```
 
-Now recursion just works. `example/folder` references `hm://example.com/file`, and `example/file` references `hm://example.com/folder` — a **mutual** cycle that no CID scheme could express. Because each side names the other, neither has to be encoded first; the names resolve lazily. (In the schema explorer you can click folder → file → folder in a circle.) <!-- id:FxLxMdnv -->
+With names, recursion works. [`example/folder`](../example/folder.md) references `…/example/file`, and [`example/file`](../example/file.md) references `…/example/folder`. That is a **mutual** cycle that no CID scheme can express. Each side names the other, so neither has to be encoded first, and the names resolve lazily. In the schema explorer you can click from folder to file to folder in a circle. <!-- id:FxLxMdnv -->
 
-This is the same split as **IPFS vs IPNS**, or a hash vs a domain name: <!-- id:37_9006m -->
+This is the same split as IPFS and IPNS, or a hash and a domain name: <!-- id:37_9006m -->
 
 <!-- id:b8lxpwqz -->
 | <!-- col:i64Tf63L --> | content ref (CID) <!-- col:QiR19bbP --> | name ref (`hm://` URL) <!-- col:cXmrifvD --> <!-- id:85oBMjqa --> |
@@ -67,14 +67,24 @@ This is the same split as **IPFS vs IPNS**, or a hash vs a domain name: <!-- id:
 | cycles | impossible | fine <!-- id:mcDC4EuJ --> |
 | use for | pinning an exact version | recursive / owned / evolving types <!-- id:X58GiMnr --> |
 
-An **authority** is a public key. A domain like `hyper.media` resolves to one, and that key signs everything published under it, so `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string` is a verifiable, owned name. Schemas reference each other across authorities freely — `example/person` (`hm://example.com/…`) references `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string` — and you can still pin any name to an exact CID when you want an immutable snapshot. Names for recursion and identity; CIDs for immutability. <!-- id:nsuDvsJA -->
+An [authority](../authority.md) is a public key. That key signs everything published under it, so `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string` is a verifiable name owned by the Hypermedia [account](../protocol/identity.md). A domain like `hyper.media` can resolve to an authority. Schemas can reference each other across authorities. You can still pin any name to an exact CID when you want an immutable snapshot. Use names for recursion and identity, and CIDs for immutability. <!-- id:nsuDvsJA -->
 
-In the repo, local filenames are the dev alias for these URLs (`string` ⇄ `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string`, `example/file` ⇄ `hm://example.com/file`). Unlike the old "filename → CID at publish" story, the _name persists into deployment_ — that is what keeps the loop clickable and the recursion expressible. <!-- id:Mk1UgX6F -->
+The publish step keeps references as names. `publish.mjs` encodes each schema to canonical DAG-CBOR and records its CID in `schemas.lock.json`, a separate index from `hm://` URL to CID. Because references stay names, a schema's CID depends only on its own bytes. Names from before the library moved under the Hypermedia account still resolve through `schemas.aliases.json`. That covers the old dev authorities (`hyper.media`, `seed.hyper.media`, `example.com`), the old prefixed names such as `example-person`, and the bare primitive names. <!-- id:Mk1UgX6F -->
 
-### Why the meta-schema is special anyway <!-- id:9gbAh4Ot -->
+### Why the meta-schema is special <!-- id:9gbAh4Ot -->
 
-Names make recursion resolvable, but one conceptual point remains. To type-check _any_ block, you validate it against its schema — another block. To type-check the _meta-schema_, you would validate it against... the meta-schema. There is no more-primitive block underneath to ground it on. <!-- id:7ZfeEAOB -->
+Names make recursion resolvable, but one conceptual point remains. To type-check any block, you validate it against its schema, which is another block. To type-check the meta-schema, you validate it against the meta-schema. There is no more primitive block underneath to ground it. <!-- id:7ZfeEAOB -->
 
-So the meta-schema is the system's **axiom**: the one block whose type is known a priori, out of band. Its self-reference is not a link you _resolve_ to discover its type — it is the type system asserting its own consistency. This is the same move as `type` being an instance of `type` in Python, or `Type : Type` in a dependent type theory: the tower of "what types this?" has to bottom out somewhere, and here it bottoms out at the schema that describes schemas. <!-- id:n2cjHc2v -->
+So the meta-schema is the system's **axiom**: the one block whose type is known in advance, out of band. Its self-reference is the type system asserting its own consistency. Nobody resolves it to discover the meta-schema's type. Python makes the same move with `type` as an instance of `type`, and dependent type theory with `Type : Type`. The chain of "what types this?" has to stop somewhere, and here it stops at the schema that describes schemas. This is [self-description](./self-description.md). <!-- id:n2cjHc2v -->
 
-Named references are the _mechanism_ that makes the self-reference resolvable; "the meta-schema is the axiom" is the _justification_ for why pointing it at itself is legitimate rather than circular-and-broken. <!-- id:o-jpn49c -->
+Named references are the mechanism that makes the self-reference resolvable. The meta-schema being the axiom is the reason pointing it at itself is sound. <!-- id:o-jpn49c -->
+
+# See also
+
+- [The schema language](./schema-language.md): every keyword, including `type`, `target`, `anyOf` and generics.
+- [Encoding](./encoding.md): canonical DAG-CBOR, dag-json and the publish step.
+- [Fixpoint problem](./fixpoint-problem.md): the term page for the cycle this page describes.
+- [Self-description](./self-description.md): how the meta-schema validates itself.
+- [`hm://` URL](../hm-url.md) and [Authority](../authority.md): the naming terms.
+- [URLs](../protocol/urls.md): Hypermedia URLs across the protocol.
+- [Examples](../example.md): the example schemas used on this page.
