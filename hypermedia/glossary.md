@@ -147,8 +147,8 @@ Hypermedia is the protocol and Seed is the software that implements it. When an 
 - **Primitive.** One of the standard-library schemas that is exactly one kind, such as [string](./string.md) or [integer](./integer.md). See [Primitive](./schema/primitive.md). <!-- id:oSnst34U -->
 - **Canonical encoding.** The single deterministic byte form of a value in DAG-CBOR, which is why a schema has exactly one CID. See [Canonical Encoding](./schema/canonical-encoding.md). <!-- id:paXKUcrW -->
 - **Fixpoint problem.** A blob cannot contain its own CID, so a cycle of CID links has no encoding order. Names break such cycles. See [Fixpoint Problem](./schema/fixpoint-problem.md) and [References and Naming](./schema/references.md). <!-- id:8gARS93M -->
-- **Library.** The schemas and pages in the `hypermedia/` folder of the Seed repository, which the Seed app and the SDK bundle. Each schema is named `hm://hyper.media/<path>`. See [How Schemas Work](./schema/how-it-works.md).
-- **Authority.** The key that owns an `hm://` URL and signs what is published under it. The library writes its authority as the domain `hyper.media`, which the SDK and the docs sync understand but the network does not resolve yet. See [Authority](./authority.md).
+- **Library.** The schemas and pages in the `hypermedia/` folder of the Seed repository, which the Seed app and the SDK bundle. Each schema is named `hm://hyper.media/<path>`. See [How Schemas Work](./schema/how-it-works.md). <!-- id:hekDu784 -->
+- **Authority.** The key that owns an `hm://` URL and signs what is published under it. The library writes its authority as the domain `hyper.media`, which the SDK and the docs sync understand but the network does not resolve yet. See [Authority](./authority.md). <!-- id:SyuFCHXP -->
 - **Lockfile.** `schemas.lock.json` in the repository, which pins every library schema's CID and is checked before publishing. See [How Schemas Work](./schema/how-it-works.md). <!-- id:255xCRyO -->
 
 # Seed Agents <!-- id:zTbkpg3w -->
