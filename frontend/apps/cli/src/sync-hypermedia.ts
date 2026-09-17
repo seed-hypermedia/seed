@@ -30,7 +30,13 @@ import {existsSync, readdirSync, readFileSync, statSync} from 'node:fs'
 import {dirname, join, relative, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 
-import {createSeedClient, type HMSigner, type SeedClient, createTombstoneRef} from '@seed-hypermedia/client'
+import {
+  createRedirectRef,
+  createSeedClient,
+  createTombstoneRef,
+  type HMSigner,
+  type SeedClient,
+} from '@seed-hypermedia/client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {runDevLoop} from './utils/dev-loop'
 import {resolveSigningKey} from './utils/keys'
@@ -149,32 +155,70 @@ function argValue(args: string[], flag: string): string | undefined {
 }
 
 /**
- * Retire the documents of the site whose file is gone from the folder: the folder is the truth about
- * what the site publishes, so a page deleted in git is tombstoned on the site. Redirects left behind
- * by moves are kept (they are not documents), and the home document is never retired.
+ * The current path of a page that used to live at `path`, from the two alias tables beside the folder:
+ * `schemas.aliases.json` (schema names before the reorganization) and `pages.aliases.json` (moved docs
+ * pages). Chains are followed, so an old alias of an old alias still lands on a live page.
  */
-async function retireStale(client: SeedClient, signer: HMSigner, account: string, dryRun: boolean): Promise<string[]> {
+function loadPageAliases(): (path: string) => string | null {
+  const table: Record<string, string> = {}
+  for (const file of ['schemas.aliases.json', 'pages.aliases.json']) {
+    const full = resolve(SCHEMAS_DIR, file)
+    if (!existsSync(full)) continue
+    Object.assign(table, (JSON.parse(readFileSync(full, 'utf8')) as {aliases?: Record<string, string>}).aliases ?? {})
+  }
+  return (path) => {
+    let key = path.replace(/^\//, '')
+    for (let hops = 0; hops < 8 && table[key] !== undefined; hops++) key = table[key]!
+    return key === path.replace(/^\//, '') ? null : '/' + key
+  }
+}
+
+/**
+ * Retire the documents of the site whose file is gone from the folder. A page that moved (it has an entry in
+ * `schemas.aliases.json` or `pages.aliases.json` pointing at a page that still exists) becomes a redirect, so
+ * links and schema references to the old address keep working. A page with no alias is deleted. The home
+ * document is never retired, and existing redirects are left alone.
+ */
+async function retireStale(
+  client: SeedClient,
+  signer: HMSigner,
+  account: string,
+  dryRun: boolean,
+  movedFrom: ReadonlySet<string> = new Set(),
+): Promise<string[]> {
   const published = new Set(
     listMarkdownFiles(SCHEMAS_DIR)
       .map((file) => layout.pathForFile(file))
       .filter((p): p is string => p !== null),
   )
+  const aliasOf = loadPageAliases()
   const versions = await listSpaceVersions(client, account)
-  const stale = [...versions.keys()].filter((path) => path !== '' && !published.has(path)).sort()
+  // A page the import just moved is already a redirect (or will be, in a dry run).
+  const stale = [...versions.keys()]
+    .filter((path) => path !== '' && !published.has(path) && !movedFrom.has(path))
+    .sort()
   for (const path of stale) {
-    console.log(`  retire  ${path}`)
+    const target = aliasOf(path)
+    const redirectTo = target !== null && published.has(target) ? target : null
+    console.log(redirectTo ? `  redirect ${path} -> ${redirectTo}` : `  retire  ${path}`)
     if (dryRun) continue
     const resource = await client.request('Resource', hmId(account, {path: path.replace(/^\//, '').split('/')}))
     if (resource.type !== 'document') continue
-    const ref = await createTombstoneRef(
-      {
-        space: account,
-        path,
-        genesis: resource.document.genesis,
-        generation: resource.document.generationInfo ? Number(resource.document.generationInfo.generation) : 0,
-      },
-      signer,
-    )
+    const genesis = resource.document.genesis
+    const ref = redirectTo
+      ? await createRedirectRef(
+          {space: account, path, genesis, generation: Date.now(), targetSpace: account, targetPath: redirectTo},
+          signer,
+        )
+      : await createTombstoneRef(
+          {
+            space: account,
+            path,
+            genesis,
+            generation: resource.document.generationInfo ? Number(resource.document.generationInfo.generation) : 0,
+          },
+          signer,
+        )
     await client.publish(ref)
   }
   return stale
@@ -198,7 +242,8 @@ async function pushTo(client: SeedClient, signer: HMSigner, account: string, dry
     dryRun,
     log: (line) => console.log('  ' + line),
   })
-  const retired = keepStale ? [] : await retireStale(client, signer, account, dryRun)
+  const movedFrom = new Set(result.moved.map((m) => m.split(' -> ')[0]!))
+  const retired = keepStale ? [] : await retireStale(client, signer, account, dryRun, movedFrom)
   console.log(
     `\n${dryRun ? 'DRY RUN' : 'DONE'}: ${result.created.length} created, ${result.moved.length} moved, ${
       result.updated.length
