@@ -263,6 +263,53 @@ describe('SchemaEditor (generics and JSON mode)', () => {
     expect(isHypermediaSchema(latest)).toBe(true)
   })
 
+  it('a union option accepts a typed literal: text, a number, true/false; the dropdown says what it is', () => {
+    act(() => {
+      root.render(
+        <Harness
+          initial={{
+            anyOf: [
+              {type: STRUCT, properties: {}},
+              {type: STRUCT, properties: {}},
+            ],
+          }}
+        />,
+      )
+    })
+    const typeInto = (label: string, text: string) => {
+      const input = container.querySelector(`input[aria-label="${label}"]`) as HTMLInputElement
+      act(() => input.focus())
+      act(() => {
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
+        setter.call(input, text)
+        input.dispatchEvent(new Event('input', {bubbles: true}))
+      })
+      return input
+    }
+    const enter = (input: HTMLInputElement) =>
+      act(() => input.dispatchEvent(new KeyboardEvent('keydown', {bubbles: true, key: 'Enter'})))
+
+    const first = typeInto('union option 1', 'draft')
+    const hint = document.querySelector('[data-testid="schema-type-literal"]')!
+    expect(hint.textContent).toContain('"draft"')
+    expect(hint.textContent).toContain('text literal')
+    enter(first)
+    expect(latest.anyOf[0]).toBe('draft')
+
+    enter(typeInto('union option 2', '3'))
+    expect(latest.anyOf[1]).toBe(3)
+
+    click(container.querySelector('button[aria-label="Add option"]')!)
+    enter(typeInto('union option 3', 'true'))
+    expect(latest.anyOf[2]).toBe(true)
+
+    // A quoted word that is also a type name stays text.
+    click(container.querySelector('button[aria-label="Add option"]')!)
+    enter(typeInto('union option 4', '"list"'))
+    expect(latest.anyOf[3]).toBe('list')
+    expect(isHypermediaSchema(latest)).toBe(true)
+  })
+
   it('a list root edits its item type', () => {
     act(() => {
       root.render(<Harness initial={{type: 'hm://hyper.media/list', items: {type: BLOCK}}} />)

@@ -16,6 +16,25 @@ import {HM_SCHEMA_PAGES} from './schema-registry.generated'
 
 const isTypeUrl = (text: string) => /^(hm|ipfs):\/\/\S+$/.test(text.trim())
 
+/** A literal a user typed: exactly one value a field may hold. */
+export type TypedLiteral = {value: string | number | boolean | null; kind: 'text' | 'number' | 'boolean' | 'null'}
+
+/**
+ * The literal a typed text stands for, or undefined when it is empty or a URL. `true`, `false` and
+ * `null` are those values; a whole number is a number; `"quoted"` text is exactly that text (the way to
+ * write a word that is also a type name, or `"true"` as text); anything else is the text as typed.
+ */
+export function literalFromText(text: string): TypedLiteral | undefined {
+  const t = text.trim()
+  if (!t || isTypeUrl(t)) return undefined
+  if (t === 'true' || t === 'false') return {value: t === 'true', kind: 'boolean'}
+  if (t === 'null') return {value: null, kind: 'null'}
+  if (/^-?\d+$/.test(t) && Number.isSafeInteger(Number(t))) return {value: Number(t), kind: 'number'}
+  const quoted = /^"(.*)"$/.exec(t)
+  if (quoted) return {value: quoted[1]!, kind: 'text'}
+  return {value: t, kind: 'text'}
+}
+
 /** An entry offered before the search results: a URL to set, or a schema to apply as is. */
 export type TypeOption = {label: string; hint?: string; url?: string; schema?: Record<string, any>}
 
@@ -43,11 +62,12 @@ export function SchemaTypeInput({
   placeholder = 'type',
   className,
   chip,
+  literals = false,
 }: {
   value: string
   onChange: (url: string) => void
-  /** Applies an option that carries a schema (a string format, a type parameter). */
-  onPick?: (schema: Record<string, any>) => void
+  /** Applies an option that carries a schema (a string format, a type parameter), or a typed literal. */
+  onPick?: (schema: any) => void
   /** Offered before the search results, filtered by the query. */
   options?: TypeOption[]
   /** What to show for the current value when it is not a URL (⟨T⟩, HM link). */
@@ -58,6 +78,9 @@ export function SchemaTypeInput({
   /** Show the current type as a compact chip sized to its name (the reading view's look); it becomes
    * a search field while typing. Pass the chip's colors in `className`. */
   chip?: boolean
+  /** Also accept a literal: typed text, a number, true/false or null becomes a schema that accepts
+   * exactly that value (offered first in the list, and what Enter picks unless a type name matches). */
+  literals?: boolean
 }) {
   // `text` is the query while the user types; null shows the current type's name.
   const [text, setText] = useState<string | null>(null)
@@ -87,6 +110,14 @@ export function SchemaTypeInput({
   }
   const q = query.trim().toLowerCase()
   const shownOptions = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options
+  const literal = literals && onPick ? literalFromText(query) : undefined
+  // A type whose name is exactly what was typed wins over the literal of the same word.
+  const exactOption = q ? options.find((o) => o.label.toLowerCase() === q) : undefined
+  const pickLiteral = (l: TypedLiteral) => {
+    onPick!(l.value)
+    setText(null)
+    setOpen(false)
+  }
   const optionNames = new Set(options.map((o) => (o.url ? publicName(o.url) : '')))
   const documents = results.documents.filter((r) => r.type === 'document' && !optionNames.has(r.id.path?.at(-1) ?? ''))
   return (
@@ -118,6 +149,12 @@ export function SchemaTypeInput({
             if (e.key === 'Enter' && text && isTypeUrl(text)) {
               e.preventDefault()
               commit(text.trim())
+            } else if (e.key === 'Enter' && text && exactOption) {
+              e.preventDefault()
+              pick(exactOption)
+            } else if (e.key === 'Enter' && literal) {
+              e.preventDefault()
+              pickLiteral(literal)
             } else if (e.key === 'Escape') {
               setText(null)
               setOpen(false)
@@ -141,6 +178,29 @@ export function SchemaTypeInput({
         }}
         data-testid="schema-type-results"
       >
+        {literal ? (
+          <>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => pickLiteral(literal)}
+              className="hover:bg-muted flex w-full items-baseline justify-between gap-2 rounded px-2 py-1 text-left"
+              data-testid="schema-type-literal"
+            >
+              <span className="min-w-0 truncate text-sm">
+                Exactly <code className="bg-muted rounded px-1 font-mono text-xs">{JSON.stringify(literal.value)}</code>
+              </span>
+              <span className="text-muted-foreground shrink-0 text-[10px]">{literal.kind} literal</span>
+            </button>
+            <p className="text-muted-foreground px-2 pb-1 text-[10px] leading-snug">
+              A literal accepts only this one value — in a union, one of the choices.
+              {exactOption
+                ? ` Enter picks the ${exactOption.label} type; quote it ("${query.trim()}") for the text instead.`
+                : ' Numbers, true, false and null are typed values; quote a word to keep it as text.'}
+            </p>
+            {(shownOptions.length > 0 || documents.length > 0) && <div className="border-border my-1 border-t" />}
+          </>
+        ) : null}
         {shownOptions.map((o) => (
           <button
             key={`opt:${o.label}`}
