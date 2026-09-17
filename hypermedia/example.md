@@ -4,11 +4,11 @@ summary: A catalog of all 37 example schemas and instances in the Hypermedia Sch
 ---
 # Examples <!-- id:HKSIPG2Z -->
 
-Every example here is built with Hypermedia Schemas and published as its own page under `example/`, with the schema beside it as `example/<name>.schema.json`. Each one demonstrates a specific feature and links to the types it uses. The groups follow [Hypermedia Schemas in one page](./schema/quick-reference.md). Thirty-two are schemas, and five are instances: documents whose attributes are the data. <!-- id:-wxYRM0Q -->
+Every example here is built with [Hypermedia Schemas](./schema.md) and published as its own page under `example/`, with the schema beside it as `example/<name>.schema.json`. Each one demonstrates a specific feature and links to the types it uses. The groups follow [Hypermedia Schemas in one page](./schema/quick-reference.md). Thirty-two are schemas, and five are instances: [documents](./protocol/documents.md) whose attributes are the data. <!-- id:-wxYRM0Q -->
 
 ## Structs <!-- id:oGPlvmvN -->
 
-A struct is a closed map with named fields, each marked required or optional. <!-- id:KEhxl7Mb -->
+A [struct](./struct.md) is a [closed map](./schema/closed-map.md) with named fields, each marked required or optional. <!-- id:KEhxl7Mb -->
   - [address](./example/address.md) is three strings, `street` and `city` required and `postalCode` optional. <!-- id:Nacs_YWm -->
   - [geo](./example/geo.md) is `float` latitude and longitude with an optional `integer` altitude. <!-- id:g8yBWfUc -->
   - [person](./example/person.md) has a required `name`, an `integer` age, a `boolean` flag, a home that [includes](./schema/references.md) address, and a list of nicknames. <!-- id:nVLVzwuR -->
@@ -32,28 +32,28 @@ A list constrains its `items`; an open map constrains its `values`. See [the sch
 
 ## Unions and literals <!-- id:TRiT5pPB -->
 
-A union accepts a value that matches any one of its variants. A bare literal accepts exactly one value, so a union of literals is a fixed set of choices. <!-- id:BIvxHvFy -->
+A [union](./schema/anyof.md) accepts a value that matches any one of its variants. A bare [literal](./schema/literal-schema.md) accepts exactly one value, so a union of literals is a fixed set of choices. <!-- id:BIvxHvFy -->
   - [status](./example/status.md) is the union of three literals, `draft`, `published` and `archived`. <!-- id:25xmLnuT -->
   - [value](./example/value.md) is `anyOf` string, integer, boolean or null. <!-- id:Ml4Hpn53 -->
   - [entry](./example/entry.md) is a filesystem entry: a folder or a file. <!-- id:SMzNJ2fD -->
 
 ## Recursion <!-- id:ngPnGEkV -->
 
-These are only possible because schemas reference each other by `hm://` name rather than by content hash. [References](./schema/references.md) and [the fixpoint problem](./schema/fixpoint-problem.md) explain why. <!-- id:yZkCj7Y4 -->
+These work because schemas reference each other by name, as an [hm:// URL](./protocol/urls.md). A content hash cannot point at itself, so a hash-based reference could not form a cycle. [References](./schema/references.md) and [the fixpoint problem](./schema/fixpoint-problem.md) explain why. <!-- id:yZkCj7Y4 -->
   - [document](./example/document.md) refers to itself: `previous` links to another document. <!-- id:ymvJqId7 -->
   - [comment](./example/comment.md) is a thread, because a comment's `replies` link to comments. <!-- id:aojXrSvY -->
   - [folder](./example/folder.md) and [file](./example/file.md) are mutually recursive: a folder lists files and subfolders, and a file links back to its parent folder. <!-- id:2ekiJzl0 -->
 
 ## A custom block and a custom Change <!-- id:_Zyt3Gct -->
 
-These show how an application adds its own block type and constrains the changes it accepts. <!-- id:Z-Hy4tVq -->
+These show how an application adds its own [block](./protocol/blocks.md) type and constrains the changes it accepts. <!-- id:Z-Hy4tVq -->
   - [poll-block](./example/poll-block.md) extends [block/base](./block/base.md) with the type literal `Poll`, a required question, a required list of options, and attributes such as `multiple`. <!-- id:pMVIhymw -->
   - [app-block](./example/app-block.md) is the union of the [core blocks](./block/core.md) and poll-block: every block this application understands. <!-- id:Rs7UzOC5 -->
-  - [myapp-change](./example/myapp-change.md) instantiates the generic [change](./change.md) with `Block` set to app-block, so a change carrying an unknown block type is rejected deep inside its ops. <!-- id:2H2Gp4Tg -->
+  - [myapp-change](./example/myapp-change.md) instantiates the [generic](./schema/generic.md) [change](./change.md) with `Block` set to app-block, so a change carrying an unknown block type is rejected deep inside its ops. <!-- id:2H2Gp4Tg -->
 
 ## Attributes schemas for typed documents <!-- id:5sNzM3wJ -->
 
-An attributes schema is a plain struct of the fields a document's metadata carries. A document names it with `attributesSchema`, and a folder names it for its children with `childAttributesSchema`. See [typed documents](./schema/typed-documents.md). <!-- id:Rj_hZP7M -->
+An attributes schema is a plain struct of the fields a document's [metadata](./metadata.md) carries. A document names it with `attributesSchema`, and a folder names it for its children with `childAttributesSchema`. See [typed documents](./schema/typed-documents.md). <!-- id:Rj_hZP7M -->
   - [person-doc](./example/person-doc.md) is a required `surname` and an optional `givenName`. <!-- id:0kQ0dPm5 -->
   - [world-doc](./example/world-doc.md) is a genre chosen from five literals, an epoch date and a tagline. It types the page at the root of [the World Builder](./schema/world-builder.md). <!-- id:-HbeKOjb -->
   - [character-doc](./example/character-doc.md) has birth and death dates, a role, `hm://` links to a home place and a faction, and `ipfs://` links to a portrait, stats and notes. <!-- id:mUSezYPg -->
@@ -78,7 +78,7 @@ From a checkout of the Seed repository, the reference validator checks every exa
 node scripts/hypermedia/validate.mjs
 ```
 
-To validate your own data file against one of these schemas, name the schema and the file. <!-- id:JNwDHyeL -->
+To check your own data file against one of these schemas, name the schema and the file. <!-- id:JNwDHyeL -->
 
 ```sh <!-- id:wqTx5NHe -->
 node scripts/hypermedia/validate.mjs example/article my-article.json

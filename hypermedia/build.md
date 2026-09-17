@@ -2,7 +2,7 @@
 name: Building on Hypermedia
 summary: Where to start building on Hypermedia, which surface to pick for your task, and a guide for each job from reading your first document to running your own site.
 ---
-You can build on Hypermedia without running any software of your own. Every Seed site answers plain HTTP requests, so a script, a web page or an agent can read documents from `https://hyper.media` today and publish signed content back to it. These guides are task-shaped: each one names a goal, lists what you need, and walks through real commands.
+You can build on Hypermedia without running any software of your own. Every Seed [site](./protocol/sites.md) answers plain HTTP requests, so a script, a web page or an agent can read [documents](./protocol/documents.md) from `https://hyper.media` today and publish signed [blobs](./protocol/blobs.md) back to it. These guides are task-shaped: each one names a goal, lists what you need, and walks through real commands.
 
 If you are new, start with [Getting started](./build/getting-started.md). In about fifteen minutes it reads a document three ways, creates a key and publishes a first page.
 
@@ -21,29 +21,29 @@ Seed exposes the protocol through several surfaces. They are layered, so what yo
 
 ## The canonical path: the Seed API and the SDK
 
-The **Seed API** is the typed request surface every Seed site serves. A request key such as `Resource`, `Search` or `ListComments` names one call with a declared input and output. Reads are `GET /api/<Key>` with the input in the query string. Writes are `POST /api/<Key>` with a [DAG-CBOR](https://ipld.io/specs/codecs/dag-cbor/spec/) body. Responses are JSON wrapped by superjson, so the payload sits under a top-level `json` member.
+The **Seed API** is the typed request surface every Seed [site](./protocol/sites.md) serves. A request key such as `Resource`, `Search` or `ListComments` names one call with a declared input and output. Reads are `GET /api/<Key>` with the input in the query string. Writes are `POST /api/<Key>` with a [DAG-CBOR](https://ipld.io/specs/codecs/dag-cbor/spec/) body. Responses are JSON wrapped by superjson, so the payload sits under a top-level `json` member.
 
 ```sh
 curl 'https://hyper.media/api/Resource?id=hm://z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS/resources/self-host-seed'
 ```
 
-The **SDK** speaks the same keys and adds what HTTP alone cannot do for you: key derivation, blob signing, content ids and the publish sequence. Every other Seed surface is built on it. The CLI bundles it, Seed Agents call it, and the Seed app shares its types. If your code must sign, use the SDK rather than hand-building blobs.
+The **SDK** speaks the same keys and adds what HTTP alone cannot do for you: key derivation, [blob](./protocol/blobs.md) signing, [CIDs](./protocol/blobs.md) and the publish sequence. Every other Seed surface is built on it. The CLI bundles it, Seed Agents call it, and the Seed app shares its types. If your code signs, use the SDK.
 
-Both work against any site. A site answers for its own space and for every account it has synced, so `https://hyper.media` is a good default base URL. The Seed desktop app serves the same keys on `http://localhost:56004` against your own daemon.
+Both work against any site. A site answers for its own [space](./protocol/identity.md) and for every [account](./protocol/identity.md) it has synced, so `https://hyper.media` is a good default base URL. The [Seed desktop app](./apps/desktop.md) serves the same keys on `http://localhost:56004` against your own daemon.
 
 ## Scripting: the CLI and agent skills
 
-The **Seed CLI** wraps the SDK in commands: read a document, create or update one from markdown, manage keys, comment, query by attribute, and mirror a folder to a space. It runs without installing:
+The **Seed CLI** wraps the SDK in commands: read a document, create or update one from markdown, manage [keys](./build/keys.md), [comment](./protocol/comments.md), query by attribute, and mirror a folder to a space. It runs without installing:
 
 ```sh
 npx -y @seed-hypermedia/cli --help
 ```
 
-The CLI is also how external agents act on Seed. The `seed-cli` skill teaches Claude Code the commands, the key setup and a draft-first workflow, where the agent prepares a draft for a person to review before anything is published. Seed does not ship a Model Context Protocol server of its own; external agents use the CLI, the skill or the Seed API. [Seed Agents](./agent.md), the hosted runtime, reads and writes `hm://` addresses through its own verbs and can connect to MCP servers as a client.
+The CLI is also how external agents act on Seed. The `seed-cli` skill teaches Claude Code the commands, the key setup and a draft-first workflow, where the agent prepares a draft for a person to review before anything is published. Seed has no Model Context Protocol server. External agents use the CLI, the skill or the Seed API. [Seed Agents](./agent.md), the hosted runtime, reads and writes `hm://` addresses through its own verbs and can connect to MCP servers as a client.
 
 ## Deep integration: gRPC and libp2p
 
-The **Seed daemon** holds the blobs, indexes them and syncs with peers. Its gRPC API is the widest surface, and the web server and desktop app are its clients. It has no authentication, so its ports must stay on localhost or behind a firewall. Use it when you run your own daemon and need something the Seed API does not expose.
+The **[Seed daemon](./apps/daemon.md)** holds the [blobs](./protocol/blobs.md), indexes them and [syncs](./protocol/network.md) with [peers](./protocol/network.md). Its gRPC API is the widest surface, and the web server and desktop app are its clients. It has no authentication, so its ports must stay on localhost or behind a firewall. Use it when you run your own daemon and need something the Seed API does not expose.
 
 The **peer protocol** is libp2p with the protocol id `/hypermedia/0.9.2`. You only need it to build another implementation of a node. Start from [the network](./protocol/network.md) and the [Protocol](./protocol.md) tour.
 
@@ -65,11 +65,11 @@ The **peer protocol** is libp2p with the protocol id `/hypermedia/0.9.2`. You on
 
 - [Seed CLI](./build/cli.md) covers every command group and flag.
 - [Publish a folder](./build/publish-a-folder.md) mirrors a directory of markdown files and a space in both directions, which is how this documentation publishes itself.
-- [Using Seed from your own agent](./build/agents.md) sets up a bot key with a delegated capability, the seed-cli skill and the draft-first workflow.
+- [Using Seed from your own agent](./build/agents.md) sets up a bot key with a delegated [capability](./protocol/permissions.md), the seed-cli skill and the draft-first workflow.
 
 ## Build for other people
 
-- [Sign in with Seed](./build/sign-in.md) lets a third-party website act as a visitor's account without ever holding their key.
+- [Sign in with Seed](./build/sign-in.md) lets a third-party website act as a visitor's [account](./protocol/identity.md) without ever holding their key.
 - [Extensions](./build/extensions.md) describes the experimental extension system and how to try it.
 
 ## Run and contribute
