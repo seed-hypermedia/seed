@@ -86,3 +86,7 @@ with `MIN_CLIENT_PROTOCOL <= 1`.
   with the newest 50 top-level sessions, as the viewer may see them, for protocol 1 clients. Protocol 1 answered every
   session unbounded; those clients filtered children themselves, so nothing is lost below 50, but on a busier agent
   their agent page shows a capped list and count. Remove the shim and the V1 type when `MIN_CLIENT_PROTOCOL` reaches 2.
+
+2026-09-17 (compatible, no bump): the `account/<id>` change hint gained the optional `references` field on
+`session-event` hints raised by a write tool result — the `hm://` resources that result produced, version-pinned. Older
+clients ignore it.

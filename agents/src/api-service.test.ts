@@ -5907,7 +5907,11 @@ describe('api service', () => {
         ])
       }) as unknown as typeof fetch
 
-      const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test'})
+      const events: apisvc.ServiceEvent[] = []
+      const svc = new apisvc.Service(db, dataDir, {
+        hmServerUrl: 'https://hm.test',
+        onEvent: (event) => events.push(event),
+      })
       await svc.message(
         await apisvc.createSignedEnvelope(account, {
           action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
@@ -5986,6 +5990,26 @@ describe('api service', () => {
         expect(result.error).toBeUndefined()
         expect(result.output?.command).toBe('document.update')
         expect(result.output?.id).toBe(`hm://${signerPublicKey}/test-doc`)
+      }
+
+      // Each real write raises an immediate account hint naming the published document pinned to its
+      // new version, so windows not showing this session can discover it; the dry run raises none.
+      const referenceHints = events.filter(
+        (event): event is Extract<apisvc.ServiceEvent, {type: 'account-change'}> =>
+          event.type === 'account-change' && Array.isArray(event.references),
+      )
+      const publishedVersions = writeResults
+        .filter((result) => result.output?.dryRun !== true)
+        .map((result) => result.output?.version)
+      expect(publishedVersions).toHaveLength(2)
+      expect(referenceHints.map((hint) => hint.references)).toEqual(
+        expect.arrayContaining(publishedVersions.map((version) => [`hm://${signerPublicKey}/test-doc?v=${version}`])),
+      )
+      expect(referenceHints).toHaveLength(2)
+      for (const hint of referenceHints) {
+        expect(hint.reason).toBe('session-event')
+        expect(hint.sessionId).toBe(createdSession.sessionId)
+        expect(hint.session?.id).toBe(createdSession.sessionId)
       }
 
       // The metadata-only and content updates publish; the dry run does not. Tool calls can

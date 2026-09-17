@@ -421,6 +421,7 @@ async function main(): Promise<void> {
             sessionId: event.sessionId,
             activity: event.activity,
             session: event.session,
+            references: event.references,
           },
         })
         // Agent-scoped account changes also reach the open agent page. This covers memory writes
@@ -436,6 +437,7 @@ async function main(): Promise<void> {
               sessionId: event.sessionId,
               activity: event.activity,
               session: event.session,
+              references: event.references,
             },
           })
         }
