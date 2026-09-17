@@ -1,9 +1,11 @@
 ---
 name: List schema
-summary: The variant for a list value; items types the elements.
+summary: The variant for a list value, where items types the elements.
 schemaDefinition: ipfs://bafyreih2646ketpvmsvcve7pi2cmxfpjdviw5bbcd2wtxkizqb7ukkt4bm
 ---
-This document describes the **schema/list-schema** type — a meta-schema variant. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:HEpps2w- -->
+A list schema types a [list](./kind.md). `items` is the schema every element must match, and `minItems` and `maxItems` bound the length.
+
+This document describes the **schema/list-schema** type, one [variant](./variant.md) of the [meta-schema](../schema.md). Its formal schema is attached as the `schemaDefinition` in this document's [metadata](../metadata.md), so the app can show it and create values of this type. [Typed documents](./typed-documents.md) explains how that works. <!-- id:HEpps2w- -->
 
 # Shape <!-- id:N5sZel-A -->
 
@@ -19,3 +21,10 @@ A **closed struct** with these fields: <!-- id:ToJn8dIq -->
 # Depends on <!-- id:pg22iU2j -->
 
 - [schema](../schema.md) <!-- id:6dFto7C5 -->
+
+# See also
+
+- [Map schema](./map-schema.md): the other collection variant.
+- [Struct schema](./struct-schema.md): a map with known fields.
+- [The data model](./data-model.md): the nine kinds, including `list`.
+- [Variant](./variant.md): the members of the meta-schema union.
