@@ -127,8 +127,14 @@ export type AgentsPlatform = {
   setSetting: (key: string, value: unknown) => Promise<void>
   /** URL of an app-managed local agents server, when the platform runs one (desktop only). */
   getLocalServerUrl?: () => Promise<string | null>
-  /** Asks the platform's local HM node to discover/sync a referenced hm:// resource (desktop only). */
-  discoverEntity?: (id: string) => Promise<{state?: string; version?: string}>
+  /**
+   * Asks the platform's local HM node to discover/sync a referenced hm:// resource (desktop only).
+   *
+   * With `version`, the node is asked for that exact version: the daemon's discovery scheduler re-runs
+   * immediately while its last result differs from the pinned version, instead of treating any locally
+   * known (possibly older) version of the document as done.
+   */
+  discoverEntity?: (id: string, version?: string) => Promise<{state?: string; version?: string}>
   /**
    * Keeps a referenced hm:// resource synced on the platform's local HM node until unsubscribed
    * (desktop only).
