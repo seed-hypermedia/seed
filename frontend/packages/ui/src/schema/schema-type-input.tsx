@@ -100,7 +100,7 @@ export function SchemaTypeInput({
           title={value || undefined}
           className={cn(
             chip
-              ? '[field-sizing:content] h-6 w-auto min-w-8 cursor-pointer rounded-md border-transparent px-1.5 py-0 font-mono text-xs shadow-none focus-visible:ring-2 md:text-xs'
+              ? '[field-sizing:content] h-6 w-auto max-w-full min-w-8 cursor-pointer truncate rounded-md border-transparent px-1.5 py-0 font-mono text-xs shadow-none focus-visible:ring-2 md:text-xs'
               : 'min-w-40 text-sm',
             text === null && value && 'font-medium',
             className,

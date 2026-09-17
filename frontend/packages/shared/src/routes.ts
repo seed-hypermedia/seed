@@ -245,6 +245,8 @@ export const metadataRouteSchema = z.object({
   panel: metadataPagePanelSchema.nullable().optional(),
   /** Open the tab with this binding schema ready to edit (drafting an empty struct when there is none). */
   focus: z.enum(['attributesSchema', 'childAttributesSchema']).optional(),
+  /** Open the Add Raw Field dialog (from the document options menu). */
+  addRawField: z.boolean().optional(),
 })
 export type MetadataRoute = z.infer<typeof metadataRouteSchema>
 
