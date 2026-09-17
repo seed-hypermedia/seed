@@ -12,7 +12,7 @@ Hypermedia content must be signed on the device that holds the key, and the [SDK
 
 An agents server does sign content, and that fits the same rule. The keys it signs with are the agent's own. `CreateSigningIdentity` generates a new key on that server, publishes a profile for it, and stores the key encrypted. Your account key stays on your device. For the agent to publish in your space, you delegate a `WRITER` or `AGENT` [capability](../capability.md) to the agent's key.
 
-One path breaks this rule. `ImportSigningIdentity`, the Import key button in the accounts dialog, sends the seed of an existing `.hmkey.json` key to the server. Only import a key that was made for the agent to use.
+Agent keys are less secure than your personal identity by design, because the agents server holds them. That is one reason to give an agent its own key instead of your personal one. `ImportSigningIdentity`, the Import key button in the accounts dialog, sends the seed of an existing `.hmkey.json` key to the server, so only import a key made for the agent. If you don't want a hosted server to hold your agent keys, [self-host the agents server](../apps/agents.md).
 
 # Scope and transports <!-- id:S2QKCy5- -->
 

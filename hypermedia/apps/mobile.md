@@ -31,7 +31,7 @@ The root pnpm workspace pins React 18 for the desktop and web apps, and React Na
 
 # How it talks to the network <!-- id:vp3jwNvF -->
 
-The app talks to one server at a time, chosen on the server screen and saved on the device. The default is `https://dev.hyper.media`; add `https://hyper.media` or any Seed [site](../protocol/sites.md) to use production data. <!-- id:6NAuJtfu -->
+The app talks to one server at a time, chosen on the server screen and saved on the device. The default is `https://dev.hyper.media` today and will switch to `https://hyper.media`. Add `https://hyper.media` or any Seed [site](../protocol/sites.md) to use production data now. <!-- id:6NAuJtfu -->
   - **Reads** use `createSeedClient(serverUrl)` from the [SDK](../build/sdk.md): `Resource`, `InteractionSummary` and the other typed `/api/<Key>` requests. The [documents](../protocol/documents.md) and [discussions](../protocol/comments.md) it renders are the same data the [web app](./web.md) shows. See [The web API](../build/web-api.md). <!-- id:TY75zC5p -->
   - **Writes** are signed on the phone. The comment composer builds a [comment](../comment.md) [blob](../protocol/blobs.md) with the SDK's `createComment` and sends it with `publish`, the `PublishBlobs` action. <!-- id:ERlOuHIt -->
   - **Site config** comes from the server's `/hm/api/config`, which is also how the app learns the site's [notify service](./notify.md). <!-- id:9cdxxreq -->
