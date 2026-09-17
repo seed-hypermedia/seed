@@ -10,7 +10,7 @@
 // gen-registry.mjs and typegen.mjs (the bundled registry and TS types).
 //
 //   1. spelling      a schema node names what it is with `type`; `ref` and `$type` are retired
-//   2. pairing       every schema file has a page, and every page that defines a type has a schema
+//   2. pairing       every schema file has a page, and no page carries schemaDefinition in its frontmatter
 //   3. meta-schema   validate.mjs: each schema is a valid Hypermedia schema, self-description holds
 //   4. lockfile      schemas.lock.json matches the files (publish.mjs --check)
 //   5. generated     the bundled registry and TS types match the files
@@ -102,7 +102,7 @@ function walkSchema(node, visit) {
 }
 
 // 2. Pairing ─────────────────────────────────────────────────────────────────
-section('Every schema has a page, and every page defining a type has a schema')
+section('Every schema has a page, and no page repeats its schemaDefinition')
 const pageFiles = new Set(pages.map((p) => p.file))
 for (const file of schemaFiles) {
   const page = `${nameOfFile(file)}.md`
@@ -110,10 +110,9 @@ for (const file of schemaFiles) {
 }
 for (const page of pages) {
   const schemaFile = `${page.file.replace(/\.md$/, '')}.schema.json`
-  const defines = typeof page.frontmatter.schemaDefinition === 'string'
-  const hasFile = existsSync(resolve(HM_DIR, schemaFile))
-  if (defines && !hasFile) fail(page.file, `declares schemaDefinition but ${schemaFile} is missing`)
-  if (hasFile && !defines) fail(page.file, `has ${schemaFile} but no schemaDefinition in its frontmatter`)
+  // The sync sets `schemaDefinition` from the schema file beside the page, so the frontmatter never carries it.
+  if ('schemaDefinition' in page.frontmatter)
+    fail(page.file, `frontmatter carries schemaDefinition; remove it, the sync sets it from ${schemaFile}`)
 }
 if (!failures.length) ok(`${schemaFiles.length} schemas paired with pages`)
 
