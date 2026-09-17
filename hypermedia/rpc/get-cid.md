@@ -5,7 +5,7 @@ schemaDefinition: ipfs://bafyreic5sb7xm2eidzvnu2ghffcybycqx5o6vynbfbtaboxlchiwhj
 ---
 Fetches a raw IPFS block by [CID](../protocol/blobs.md) and returns it decoded as a [DAG-JSON](../schema/dag-json.md) value. <!-- id:KrdeFkDA -->
 
-This page describes the **rpc/get-cid** method. It is one method of the [Seed API](../build/web-api.md), which clients call as `request(key, input) -> output`. `input` types what you send and `output` types what comes back. The output is a read model that the daemon computes for clients, separate from the signed blobs that travel the network. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it and run the method from its [API console](../rpc.md). <!-- id:rPC2zBYZ -->
+This page describes the **rpc/get-cid** method. It is one method of the [Seed API](../build/web-api.md), which clients call as `request(key, input) -> output`. `input` types what you send and `output` types what comes back. The output is the stored block itself, decoded, so it can be any blob on the network, signed or not. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it and run the method from its [API console](../rpc.md). <!-- id:rPC2zBYZ -->
 
 # Shape <!-- id:0EwBrMzm -->
 
