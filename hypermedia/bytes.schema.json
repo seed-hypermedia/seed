@@ -1,3 +1,4 @@
 {
-  "type": "hm://hyper.media/bytes"
+  "type": "hm://hyper.media/bytes",
+  "description": "Raw binary data (a byte string)."
 }

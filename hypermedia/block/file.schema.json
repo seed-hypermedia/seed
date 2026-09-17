@@ -2,13 +2,15 @@
   "type": "hm://hyper.media/block/base",
   "properties": {
     "type": {
-      "value": "File"
+      "value": "File",
+      "description": "Block type tag, always `File`."
     },
     "link": {
       "value": {
         "type": "hm://hyper.media/url"
       },
-      "required": true
+      "required": true,
+      "description": "The attached file — an `ipfs://<cid>` URL."
     },
     "attributes": {
       "value": {
@@ -17,28 +19,34 @@
           "childrenType": {
             "value": {
               "type": "hm://hyper.media/block/children-type"
-            }
+            },
+            "description": "How this block lays out its children — a children type such as `Unordered` or `Grid`."
           },
           "columnCount": {
             "value": {
               "type": "hm://hyper.media/float"
-            }
+            },
+            "description": "Number of columns the children occupy when `childrenType` is `Grid`."
           },
           "size": {
             "value": {
               "type": "hm://hyper.media/float"
-            }
+            },
+            "description": "File size in bytes."
           },
           "name": {
             "value": {
               "type": "hm://hyper.media/string"
-            }
+            },
+            "description": "File name shown to readers."
           }
         },
         "values": {
           "type": "hm://hyper.media/any"
         }
-      }
+      },
+      "description": "File details and parent-layout attributes."
     }
-  }
+  },
+  "description": "An attachment of any kind, referenced by an `ipfs://` link, with its file name and size."
 }

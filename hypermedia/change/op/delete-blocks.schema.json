@@ -3,7 +3,8 @@
   "properties": {
     "type": {
       "value": "DeleteBlocks",
-      "required": true
+      "required": true,
+      "description": "Operation tag, always `DeleteBlocks`."
     },
     "blocks": {
       "value": {
@@ -12,7 +13,9 @@
           "type": "hm://hyper.media/string"
         }
       },
-      "required": true
+      "required": true,
+      "description": "Ids of the blocks to delete."
     }
-  }
+  },
+  "description": "The operation that removes blocks by moving them, with their children, to the trash parent."
 }

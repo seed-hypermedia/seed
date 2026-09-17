@@ -4,7 +4,8 @@
     "opCount": {
       "value": {
         "type": "hm://hyper.media/integer"
-      }
+      },
+      "description": "Advisory count of logical operations, which can exceed the list length for run-length ops."
     },
     "ops": {
       "value": {
@@ -17,12 +18,14 @@
             }
           }
         }
-      }
+      },
+      "description": "Operations applied in order when the document is replayed."
     }
   },
   "params": {
     "Block": {
       "type": "hm://hyper.media/block"
     }
-  }
+  },
+  "description": "The operations payload of a Change: an ordered list of ops the daemon applies in turn."
 }

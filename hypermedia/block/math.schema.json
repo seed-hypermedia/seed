@@ -2,12 +2,14 @@
   "type": "hm://hyper.media/block/base",
   "properties": {
     "type": {
-      "value": "Math"
+      "value": "Math",
+      "description": "Block type tag, always `Math`."
     },
     "text": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "The LaTeX source."
     },
     "attributes": {
       "value": {
@@ -16,18 +18,22 @@
           "childrenType": {
             "value": {
               "type": "hm://hyper.media/block/children-type"
-            }
+            },
+            "description": "How this block lays out its children — a children type such as `Unordered` or `Grid`."
           },
           "columnCount": {
             "value": {
               "type": "hm://hyper.media/float"
-            }
+            },
+            "description": "Number of columns the children occupy when `childrenType` is `Grid`."
           }
         },
         "values": {
           "type": "hm://hyper.media/any"
         }
-      }
+      },
+      "description": "Parent-layout attributes."
     }
-  }
+  },
+  "description": "A block of LaTeX math, stored as text and rendered with KaTeX."
 }

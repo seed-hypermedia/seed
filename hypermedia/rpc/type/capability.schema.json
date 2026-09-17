@@ -5,41 +5,49 @@
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "Id of the capability."
     },
     "accountUid": {
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "Uid of the account the capability is delegated to."
     },
     "role": {
       "value": {
         "type": "hm://hyper.media/role"
       },
-      "required": true
+      "required": true,
+      "description": "Role the capability grants to the delegate."
     },
     "capabilityId": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "Optional capability id supplied separately from `id`; the collaborators listing leaves it unset."
     },
     "grantId": {
       "value": {
         "type": "hm://hyper.media/rpc/type/id"
       },
-      "required": true
+      "required": true,
+      "description": "The account and path the capability grants access to."
     },
     "label": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "Short, user-provided label identifying the capability."
     },
     "createTime": {
       "value": {
         "type": "hm://hyper.media/timestamp"
       },
-      "required": true
+      "required": true,
+      "description": "Time the capability was issued."
     }
-  }
+  },
+  "description": "A capability as the API returns it: which account was granted which role on which grant id."
 }

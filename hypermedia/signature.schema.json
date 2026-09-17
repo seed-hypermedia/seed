@@ -1,3 +1,4 @@
 {
-  "type": "hm://hyper.media/bytes"
+  "type": "hm://hyper.media/bytes",
+  "description": "The 64 raw bytes of an Ed25519 or P-256 signature over a blob's canonical CBOR, taken with this field zeroed."
 }

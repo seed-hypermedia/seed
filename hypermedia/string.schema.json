@@ -1,3 +1,4 @@
 {
-  "type": "hm://hyper.media/string"
+  "type": "hm://hyper.media/string",
+  "description": "UTF-8 text."
 }

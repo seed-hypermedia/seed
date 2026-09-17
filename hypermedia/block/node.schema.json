@@ -5,7 +5,8 @@
       "value": {
         "type": "hm://hyper.media/block"
       },
-      "required": true
+      "required": true,
+      "description": "The block at this node."
     },
     "children": {
       "value": {
@@ -13,7 +14,9 @@
         "items": {
           "type": "hm://hyper.media/block/node"
         }
-      }
+      },
+      "description": "Child nodes in display order; omitted on a leaf."
     }
-  }
+  },
+  "description": "One node of a document content tree: a block plus its ordered child nodes, recursively."
 }

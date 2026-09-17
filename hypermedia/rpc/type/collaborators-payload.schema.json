@@ -5,7 +5,8 @@
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "Uid of the account that publishes the document."
     },
     "parentCapabilities": {
       "value": {
@@ -14,7 +15,8 @@
           "type": "hm://hyper.media/rpc/type/capability"
         }
       },
-      "required": true
+      "required": true,
+      "description": "Capabilities inherited from ancestor paths, one per account."
     },
     "grantedCapabilities": {
       "value": {
@@ -23,7 +25,8 @@
           "type": "hm://hyper.media/rpc/type/capability"
         }
       },
-      "required": true
+      "required": true,
+      "description": "Capabilities granted directly on this document, one per account."
     },
     "grantedMembers": {
       "value": {
@@ -32,7 +35,8 @@
           "type": "hm://hyper.media/rpc/type/site-member"
         }
       },
-      "required": true
+      "required": true,
+      "description": "Accounts with a capability on the document, as `writer` or `member` rows, one per canonical account."
     },
     "members": {
       "value": {
@@ -41,13 +45,16 @@
           "type": "hm://hyper.media/rpc/type/site-member"
         }
       },
-      "required": true
+      "required": true,
+      "description": "Accounts that subscribed to the site through a contact, excluding those already in `grantedMembers`."
     },
     "accounts": {
       "value": {
         "type": "hm://hyper.media/rpc/type/accounts-metadata"
       },
-      "required": true
+      "required": true,
+      "description": "Metadata payloads for the publisher and every account listed above, keyed by uid."
     }
-  }
+  },
+  "description": "A document's collaboration picture: its publisher, inherited and direct capabilities, members, and their metadata."
 }

@@ -3,7 +3,8 @@
   "properties": {
     "key": {
       "value": "GetCommentReplyCount",
-      "required": true
+      "required": true,
+      "description": "Method key, always `GetCommentReplyCount`."
     },
     "input": {
       "value": {
@@ -13,18 +14,22 @@
             "value": {
               "type": "hm://hyper.media/string"
             },
-            "required": true
+            "required": true,
+            "description": "Record id of the comment (`{publicKey}/{tsid}`)."
           }
         }
       },
-      "required": true
+      "required": true,
+      "description": "The comment to count replies for."
     },
     "output": {
       "value": {
         "type": "hm://hyper.media/integer",
         "minimum": 0
       },
-      "required": true
+      "required": true,
+      "description": "Number of replies to the comment."
     }
-  }
+  },
+  "description": "Returns the number of replies under a comment, given the comment id."
 }

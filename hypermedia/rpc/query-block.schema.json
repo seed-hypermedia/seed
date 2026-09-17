@@ -3,7 +3,8 @@
   "properties": {
     "key": {
       "value": "QueryBlock",
-      "required": true
+      "required": true,
+      "description": "Method key, always `QueryBlock`."
     },
     "input": {
       "value": {
@@ -13,11 +14,13 @@
             "value": {
               "type": "hm://hyper.media/query"
             },
-            "required": true
+            "required": true,
+            "description": "The query as embedded in a Query block."
           }
         }
       },
-      "required": true
+      "required": true,
+      "description": "The Query block's query."
     },
     "output": {
       "value": {
@@ -30,7 +33,9 @@
           }
         ]
       },
-      "required": true
+      "required": true,
+      "description": "Results and rendering data for the block, or `null` when the query has no results."
     }
-  }
+  },
+  "description": "Runs a Query block's query and returns the results plus the per-item interaction summaries and author metadata its rendering needs, or null."
 }

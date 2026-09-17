@@ -2,5 +2,6 @@
   "anyOf": [
     "WRITER",
     "AGENT"
-  ]
+  ],
+  "description": "The kind of authority a capability grants: `WRITER` may publish under a path, `AGENT` may act as the issuing account."
 }

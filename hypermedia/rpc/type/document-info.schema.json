@@ -3,13 +3,15 @@
   "properties": {
     "type": {
       "value": "document",
-      "required": true
+      "required": true,
+      "description": "Discriminator: the listed entry is a document."
     },
     "id": {
       "value": {
         "type": "hm://hyper.media/rpc/type/id"
       },
-      "required": true
+      "required": true,
+      "description": "Parsed id of the document."
     },
     "path": {
       "value": {
@@ -18,7 +20,8 @@
           "type": "hm://hyper.media/string"
         }
       },
-      "required": true
+      "required": true,
+      "description": "Path segments of the document within its account; empty for the home document."
     },
     "authors": {
       "value": {
@@ -27,19 +30,22 @@
           "type": "hm://hyper.media/string"
         }
       },
-      "required": true
+      "required": true,
+      "description": "Uids of every account that has modified the document, including the original author."
     },
     "createTime": {
       "value": {
         "type": "hm://hyper.media/timestamp"
       },
-      "required": true
+      "required": true,
+      "description": "Time the document was created."
     },
     "updateTime": {
       "value": {
         "type": "hm://hyper.media/timestamp"
       },
-      "required": true
+      "required": true,
+      "description": "Time the document was last updated."
     },
     "sortTime": {
       "value": {
@@ -52,13 +58,15 @@
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "CID of the document's genesis change."
     },
     "version": {
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "Current version of the document."
     },
     "breadcrumbs": {
       "value": {
@@ -67,13 +75,15 @@
           "type": "hm://hyper.media/rpc/type/breadcrumb"
         }
       },
-      "required": true
+      "required": true,
+      "description": "Ancestor documents along the path, resolved to display names."
     },
     "activitySummary": {
       "value": {
         "type": "hm://hyper.media/rpc/type/activity-summary"
       },
-      "required": true
+      "required": true,
+      "description": "Latest comment and change activity on the document."
     },
     "generationInfo": {
       "value": {
@@ -83,39 +93,47 @@
             "value": {
               "type": "hm://hyper.media/string"
             },
-            "required": true
+            "required": true,
+            "description": "CID of the genesis change the generation starts from."
           },
           "generation": {
             "value": {
               "type": "hm://hyper.media/integer"
             },
-            "required": true
+            "required": true,
+            "description": "Opaque generation number; a higher generation supersedes earlier ones for the same genesis."
           }
         }
       },
-      "required": true
+      "required": true,
+      "description": "Generation of the document that this listing entry reflects."
     },
     "redirectInfo": {
       "value": {
         "type": "hm://hyper.media/rpc/type/redirect-info"
-      }
+      },
+      "description": "Present when the document is a redirect or republish of another document."
     },
     "metadata": {
       "value": {
         "type": "hm://hyper.media/metadata"
       },
-      "required": true
+      "required": true,
+      "description": "The document's metadata, such as name, icon, and cover."
     },
     "firstImageInContent": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "Link of the first image block in reading order; empty string when the document has no image, absent when not derived yet."
     },
     "visibility": {
       "value": {
         "type": "hm://hyper.media/visibility"
       },
-      "required": true
+      "required": true,
+      "description": "Visibility, `PUBLIC` or `PRIVATE`; unset or unspecified values read as `PUBLIC`."
     }
-  }
+  },
+  "description": "One document in a listing: identity, authorship, timestamps, breadcrumbs, and activity summary, without content."
 }

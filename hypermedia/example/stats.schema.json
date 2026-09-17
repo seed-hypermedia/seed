@@ -35,7 +35,8 @@
           "neutral",
           "chaotic"
         ]
-      }
+      },
+      "description": "Moral alignment: `lawful`, `neutral` or `chaotic`."
     },
     "traits": {
       "value": {
@@ -46,5 +47,6 @@
       },
       "description": "Free-form descriptors."
     }
-  }
+  },
+  "description": "A character's stats object, stored as its own DAG-CBOR blob so it can hold the integers and enums document metadata cannot."
 }

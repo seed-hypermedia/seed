@@ -2,12 +2,14 @@
   "type": "hm://hyper.media/block/base",
   "properties": {
     "type": {
-      "value": "Code"
+      "value": "Code",
+      "description": "Block type tag, always `Code`."
     },
     "text": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "The code, kept exactly as written."
     },
     "attributes": {
       "value": {
@@ -16,23 +18,28 @@
           "childrenType": {
             "value": {
               "type": "hm://hyper.media/block/children-type"
-            }
+            },
+            "description": "How this block lays out its children — a children type such as `Unordered` or `Grid`."
           },
           "columnCount": {
             "value": {
               "type": "hm://hyper.media/float"
-            }
+            },
+            "description": "Number of columns the children occupy when `childrenType` is `Grid`."
           },
           "language": {
             "value": {
               "type": "hm://hyper.media/string"
-            }
+            },
+            "description": "Programming language used for syntax highlighting."
           }
         },
         "values": {
           "type": "hm://hyper.media/any"
         }
-      }
+      },
+      "description": "Code settings and parent-layout attributes."
     }
-  }
+  },
+  "description": "A block of verbatim text, optionally tagged with a language for syntax highlighting."
 }

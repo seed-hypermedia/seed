@@ -8,7 +8,8 @@
           "type": "hm://hyper.media/rpc/type/comment"
         }
       },
-      "required": true
+      "required": true,
+      "description": "The comments returned."
     },
     "authors": {
       "value": {
@@ -17,7 +18,9 @@
           "type": "hm://hyper.media/rpc/type/metadata-payload"
         }
       },
-      "required": true
+      "required": true,
+      "description": "Metadata payloads of the comment authors, keyed by account uid."
     }
-  }
+  },
+  "description": "A list of comments plus the metadata payloads of every author involved."
 }

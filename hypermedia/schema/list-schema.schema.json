@@ -3,27 +3,32 @@
   "properties": {
     "type": {
       "value": "hm://hyper.media/list",
-      "required": true
+      "required": true,
+      "description": "Always the list core type."
     },
     "items": {
       "value": {
         "type": "hm://hyper.media/schema"
-      }
+      },
+      "description": "The schema every element of the list must match. Absent means elements of any kind."
     },
     "minItems": {
       "value": {
         "type": "hm://hyper.media/integer"
-      }
+      },
+      "description": "Minimum number of elements the list must have."
     },
     "maxItems": {
       "value": {
         "type": "hm://hyper.media/integer"
-      }
+      },
+      "description": "Maximum number of elements the list may have."
     },
     "description": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "What the list is for, when it is written inline; a published schema is described by its page."
     },
     "params": {
       "value": {
@@ -31,12 +36,15 @@
         "values": {
           "type": "hm://hyper.media/schema"
         }
-      }
+      },
+      "description": "Type parameters that make this schema generic, each with its default schema."
     },
     "name": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "Legacy: a name some published schemas still carry. New schemas are named by their page."
     }
-  }
+  },
+  "description": "A schema for a list, whose elements match `items` and whose length can be bounded."
 }

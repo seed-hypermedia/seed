@@ -1,3 +1,4 @@
 {
-  "type": "hm://hyper.media/struct"
+  "type": "hm://hyper.media/struct",
+  "description": "A map with known, named fields, closed to other keys unless a `values` tail is given."
 }

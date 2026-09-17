@@ -3,7 +3,8 @@
   "properties": {
     "key": {
       "value": "Comment",
-      "required": true
+      "required": true,
+      "description": "Method key, always `Comment`."
     },
     "input": {
       "value": {
@@ -16,7 +17,9 @@
       "value": {
         "type": "hm://hyper.media/rpc/type/comment"
       },
-      "required": true
+      "required": true,
+      "description": "The requested comment."
     }
-  }
+  },
+  "description": "Returns one comment as the API read model, given its id (`uid/tsid`) or a version CID."
 }

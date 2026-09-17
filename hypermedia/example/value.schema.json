@@ -12,5 +12,6 @@
     {
       "type": "hm://hyper.media/null"
     }
-  ]
+  ],
+  "description": "A primitive value: string, integer, boolean or null."
 }

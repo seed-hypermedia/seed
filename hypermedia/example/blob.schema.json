@@ -5,18 +5,22 @@
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "MIME type of the payload, such as `image/png`."
     },
     "size": {
       "value": {
         "type": "hm://hyper.media/integer"
-      }
+      },
+      "description": "Payload size in bytes."
     },
     "data": {
       "value": {
         "type": "hm://hyper.media/bytes"
       },
-      "required": true
+      "required": true,
+      "description": "The binary payload."
     }
-  }
+  },
+  "description": "A binary payload tagged with a MIME type and an optional size."
 }

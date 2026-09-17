@@ -3,5 +3,6 @@
     "flex-start",
     "center",
     "flex-end"
-  ]
+  ],
+  "description": "Horizontal position of a Button block in its column: `flex-start`, `center` or `flex-end`."
 }

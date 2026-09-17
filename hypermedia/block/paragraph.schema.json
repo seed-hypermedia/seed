@@ -2,12 +2,14 @@
   "type": "hm://hyper.media/block/base",
   "properties": {
     "type": {
-      "value": "Paragraph"
+      "value": "Paragraph",
+      "description": "Block type tag, always `Paragraph`."
     },
     "text": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "The paragraph text, without markup."
     },
     "annotations": {
       "value": {
@@ -15,7 +17,8 @@
         "items": {
           "type": "hm://hyper.media/block/annotation"
         }
-      }
+      },
+      "description": "Inline formatting, links and mentions over `text`."
     },
     "attributes": {
       "value": {
@@ -24,23 +27,28 @@
           "childrenType": {
             "value": {
               "type": "hm://hyper.media/block/children-type"
-            }
+            },
+            "description": "How this block lays out its children — a children type such as `Unordered` or `Grid`."
           },
           "columnCount": {
             "value": {
               "type": "hm://hyper.media/float"
-            }
+            },
+            "description": "Number of columns the children occupy when `childrenType` is `Grid`."
           },
           "columnId": {
             "value": {
               "type": "hm://hyper.media/string"
-            }
+            },
+            "description": "Id of the TableColumn block this cell belongs to; set only on cells inside a TableRow."
           }
         },
         "values": {
           "type": "hm://hyper.media/any"
         }
-      }
+      },
+      "description": "Parent-layout attributes and the table column id."
     }
-  }
+  },
+  "description": "The default block: a paragraph of rich text, which also serves as a table cell."
 }

@@ -5,7 +5,8 @@
       "value": {
         "type": "hm://hyper.media/rpc/type/id"
       },
-      "required": true
+      "required": true,
+      "description": "Parsed id of the resource."
     },
     "metadata": {
       "value": {
@@ -18,12 +19,15 @@
           }
         ]
       },
-      "required": true
+      "required": true,
+      "description": "The resource's metadata, or `null` when it has none."
     },
     "hasSite": {
       "value": {
         "type": "hm://hyper.media/boolean"
-      }
+      },
+      "description": "For an account, whether its home document has content, so the account has a site to show."
     }
-  }
+  },
+  "description": "A resource id with its resolved metadata, or `null` metadata when the document has none."
 }

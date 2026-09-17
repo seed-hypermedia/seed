@@ -3,7 +3,8 @@
   "properties": {
     "key": {
       "value": "ListCapabilities",
-      "required": true
+      "required": true,
+      "description": "Method key, always `ListCapabilities`."
     },
     "input": {
       "value": {
@@ -13,11 +14,13 @@
             "value": {
               "type": "hm://hyper.media/rpc/type/id"
             },
-            "required": true
+            "required": true,
+            "description": "Id of the document the capabilities are granted on."
           }
         }
       },
-      "required": true
+      "required": true,
+      "description": "The document whose capabilities to list."
     },
     "output": {
       "value": {
@@ -30,11 +33,14 @@
                 "type": "hm://hyper.media/rpc/type/raw-capability"
               }
             },
-            "required": true
+            "required": true,
+            "description": "Raw capability records for the target."
           }
         }
       },
-      "required": true
+      "required": true,
+      "description": "Capabilities granted on the target."
     }
-  }
+  },
+  "description": "Returns the raw capabilities granted on a target document, given its id."
 }

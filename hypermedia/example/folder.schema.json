@@ -5,7 +5,8 @@
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "Folder name."
     },
     "files": {
       "value": {
@@ -14,7 +15,8 @@
           "type": "hm://hyper.media/link",
           "target": "hm://hyper.media/example/file"
         }
-      }
+      },
+      "description": "Links to the files directly in this folder."
     },
     "subfolders": {
       "value": {
@@ -23,7 +25,9 @@
           "type": "hm://hyper.media/link",
           "target": "hm://hyper.media/example/folder"
         }
-      }
+      },
+      "description": "Links to the folders directly inside this folder."
     }
-  }
+  },
+  "description": "A folder with a name and links to its files and subfolders, showing mutually referencing types."
 }
