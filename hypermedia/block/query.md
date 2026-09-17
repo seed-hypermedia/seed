@@ -3,7 +3,7 @@ name: Query Block
 summary: "A block that embeds a live query: the matching documents render in place as cards, a list or a table."
 schemaDefinition: ipfs://bafyreiaqt22lnsis4rkqlmeemaqjsw43tmxgfg2tpdewlahncjngqaoipq
 ---
-A query block is a live listing: instead of a copied list of pages, the author stores a [query](../query.md) and every reader sees the current result. Attributes: `query` (required; the spaces and paths to include, the sort and the limit), `style` (a [query style](../query/style.md): `Card`, `List` or `Table`), `columnCount` (card columns, default 3), `banner` (show the first result as a banner), `table` (a [table config](../query/table-config.md) for the table view), and the parent-layout pair. A folder page is usually one query block over its own children. See [Blocks](../protocol/blocks.md) and [the query grammar](../build/query-grammar.md).
+A **query block** is a live listing. The author stores a [query](../query.md) in place of a copied list of pages, and every reader sees the current result. Attributes: `query` (required; the spaces and paths to include, the sort and the limit), `style` (a [query style](../query/style.md): `Card`, `List` or `Table`), `columnCount` (card columns, default 3), `banner` (show the first result as a banner), `table` (a [table config](../query/table-config.md) for the table view), and the parent-layout pair. A folder page is usually one query block over its own children. See [Blocks](../protocol/blocks.md) and [the query grammar](../build/query-grammar.md).
 
 # Shape <!-- id:qSgsFftP -->
 
@@ -20,3 +20,11 @@ A query block is a live listing: instead of a copied list of pages, the author s
 - [query/table-config](../query/table-config.md) <!-- id:erA6yksW -->
 - [boolean](../boolean.md) <!-- id:WWZ66KvH -->
 - [float](../float.md) <!-- id:e0CF_ISb -->
+
+# See also
+
+- [query](../query.md): the query object this block stores.
+- [query/style](../query/style.md) and [query/table-config](../query/table-config.md): how results are shown.
+- [QueryBlock](../rpc/query-block.md): the API request that runs a query block.
+- [Query grammar](../build/query-grammar.md): filtering by attributes.
+- [Blocks](../protocol/blocks.md): the block model.

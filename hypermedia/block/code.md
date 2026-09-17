@@ -3,7 +3,7 @@ name: Code Block
 summary: "A block of verbatim text, optionally tagged with a programming language for highlighting."
 schemaDefinition: ipfs://bafyreih6wdyfie74qafkzhl5ce6g2iagt52lwd22whfn7yuaaen4o3pn2e
 ---
-A code block: `text` is kept verbatim and has no annotations. `language` names the language for syntax highlighting; `childrenType` and `columnCount` are the usual parent-layout attributes.
+A **code block** holds verbatim text. `text` is kept exactly as written and has no annotations. `language` names the language for syntax highlighting. `childrenType` and `columnCount` are the usual parent-layout attributes, see [children type](./children-type.md).
 
 # Shape <!-- id:Wlv2TURN -->
 
@@ -19,3 +19,10 @@ A code block: `text` is kept verbatim and has no annotations. `language` names t
 - [any](../any.md) <!-- id:FPY-Yu6f -->
 - [float](../float.md) <!-- id:dPDYHZ7F -->
 - [string](../string.md) <!-- id:ui04XeY6 -->
+
+# See also
+
+- [block/math](./math.md): another verbatim-text block.
+- [block/paragraph](./paragraph.md): rich text with annotations.
+- [block/core](./core.md): all built-in block types.
+- [Blocks](../protocol/blocks.md): the block model.
