@@ -66,11 +66,16 @@ afterEach(() => {
   container.remove()
 })
 
-function render(metadata: Record<string, unknown>) {
+function render(metadata: Record<string, unknown>, opts: {addRawFieldOpen?: boolean} = {}) {
   act(() => {
     root.render(
       <TooltipProvider>
-        <DocumentMetadataView metadata={metadata} canEdit onMetadata={(patch) => patches.push(patch)} />
+        <DocumentMetadataView
+          metadata={metadata}
+          canEdit
+          onMetadata={(patch) => patches.push(patch)}
+          addRawFieldOpen={opts.addRawFieldOpen}
+        />
       </TooltipProvider>,
     )
   })
@@ -102,13 +107,9 @@ describe('schema-keyed metadata fields', () => {
   })
 
   it('typing a schema URL as the field NAME seeds the enum head under it', () => {
-    render({})
-    // open the add-field dialog (portals to document.body) and type the schema
-    // URL as the field name
-    const addButton = Array.from(container.querySelectorAll('button')).find(
-      (el) => el.textContent?.includes('Add field'),
-    ) as HTMLButtonElement
-    act(() => addButton.click())
+    // the add-field dialog opens from the options menu ("Add Raw Field"); it portals to
+    // document.body — type the schema URL as the field name
+    render({}, {addRawFieldOpen: true})
     const nameInput = Array.from(document.body.querySelectorAll('input')).find((el) =>
       el.placeholder.includes('Field name'),
     ) as HTMLInputElement

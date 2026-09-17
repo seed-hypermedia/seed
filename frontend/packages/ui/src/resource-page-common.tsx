@@ -422,6 +422,7 @@ export function orderDocumentMenuItems(items: MenuItemType[]): MenuItemType[] {
   const visibleItems = items.filter((item) => !hiddenKeys.has(item.key))
   const itemOrder = [
     'new',
+    'add-raw-field',
     'options',
     'versions',
     'convert-to-collection',
@@ -2644,6 +2645,16 @@ function DocumentBody({
       },
     }
   }, [canEditCurrentRoute, panelKey, route, replaceRoute])
+  // On the Attributes page, a field outside the attributes schema is added from the options menu.
+  const addRawFieldMenuItem = useMemo<MenuItemType | null>(() => {
+    if (!canEditCurrentRoute || route.key !== 'metadata') return null
+    return {
+      key: 'add-raw-field',
+      label: 'Add Raw Field',
+      icon: <Plus className="size-4" />,
+      onClick: () => replaceRoute({...route, addRawField: true}),
+    }
+  }, [canEditCurrentRoute, route, replaceRoute])
   const citationFragmentToggleMenuItem = useMemo<MenuItemType>(
     () => ({
       key: 'citation-fragments-toggle',
@@ -2690,6 +2701,7 @@ function DocumentBody({
     unorderedItems.push(citationFragmentToggleMenuItem)
     if (inspectMenuItem) unorderedItems.push(inspectMenuItem)
     if (documentOptionsMenuItem) unorderedItems.push(documentOptionsMenuItem)
+    if (addRawFieldMenuItem) unorderedItems.push(addRawFieldMenuItem)
     unorderedItems.push(...schemaMenuItems)
     if (convertToCollectionMenuItem) unorderedItems.push(convertToCollectionMenuItem)
     if (convertToDocumentMenuItem) unorderedItems.push(convertToDocumentMenuItem)
@@ -2706,6 +2718,7 @@ function DocumentBody({
     citationFragmentToggleMenuItem,
     inspectMenuItem,
     documentOptionsMenuItem,
+    addRawFieldMenuItem,
     convertToCollectionMenuItem,
     convertToDocumentMenuItem,
     schemaMenuItems,
@@ -3948,6 +3961,8 @@ function DocumentMetadataPage({
   document: HMDocument
   fileUpload?: (file: File) => Promise<string>
 }) {
+  const route = useNavRoute()
+  const replaceRoute = useNavigate('replace')
   const ctx = useDocumentSelector(selectContext)
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
@@ -4016,6 +4031,13 @@ function DocumentMetadataPage({
         openUrl={openUrl}
         onCreateBlob={onCreateBlob}
         directEdit={directEdit}
+        addRawFieldOpen={route.key === 'metadata' && !!route.addRawField}
+        onAddRawFieldOpenChange={(open) => {
+          if (!open && route.key === 'metadata' && route.addRawField) {
+            const {addRawField: _a, ...rest} = route
+            replaceRoute(rest)
+          }
+        }}
       />
       {BINDING_SCHEMA_KEYS.map((bindingKey) => (
         <BindingSchemaSection key={bindingKey} docId={docId} document={document} bindingKey={bindingKey} />

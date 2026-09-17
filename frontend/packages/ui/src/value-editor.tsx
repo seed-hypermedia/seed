@@ -2901,6 +2901,9 @@ export function AddFieldForm({
   path,
   onKeyTextChange,
   onAdd,
+  open: openProp,
+  onOpenChange,
+  hideTrigger = false,
 }: {
   existingKeys?: string[]
   itemMode?: boolean
@@ -2911,8 +2914,18 @@ export function AddFieldForm({
   /** Reports the field-name text as it's typed (e.g. to prefetch schema-URL keys). */
   onKeyTextChange?: (keyText: string) => void
   onAdd: (key: string, value: unknown) => void
+  /** Control the dialog from outside (e.g. an options-menu entry), instead of the inline button. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  /** Render no inline "Add field" button; the dialog opens only through `open`. */
+  hideTrigger?: boolean
 }) {
-  const [open, setOpen] = useState(false)
+  const [openState, setOpenState] = useState(false)
+  const open = openProp ?? openState
+  const setOpen = (next: boolean) => {
+    if (openProp === undefined) setOpenState(next)
+    onOpenChange?.(next)
+  }
   const createValue = useCreateFieldValue()
   // Pre-select the type a list's items schema calls for.
   const itemsSubschema = useSubschema(itemMode && path ? [...path, 0] : [])
@@ -2924,15 +2937,17 @@ export function AddFieldForm({
 
   return (
     <div>
-      <Button
-        variant="ghost"
-        size="sm"
-        className={cn('text-muted-foreground', compact && 'h-6 px-1 text-xs')}
-        onClick={() => setOpen(true)}
-      >
-        <Plus className={compact ? 'size-3' : 'size-4'} />
-        {itemMode ? 'Add item' : 'Add field'}
-      </Button>
+      {hideTrigger ? null : (
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn('text-muted-foreground', compact && 'h-6 px-1 text-xs')}
+          onClick={() => setOpen(true)}
+        >
+          <Plus className={compact ? 'size-3' : 'size-4'} />
+          {itemMode ? 'Add item' : 'Add field'}
+        </Button>
+      )}
       <FieldDialog
         open={open}
         onOpenChange={(next) => {

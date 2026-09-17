@@ -110,6 +110,8 @@ export function DocumentMetadataView({
   openUrl,
   onCreateBlob,
   directEdit,
+  addRawFieldOpen,
+  onAddRawFieldOpenChange,
 }: {
   metadata?: HMMetadata | null
   canEdit?: boolean
@@ -136,6 +138,13 @@ export function DocumentMetadataView({
    * Absent for unpublished documents.
    */
   directEdit?: MetadataDirectEdit
+  /**
+   * The "Add Raw Field" dialog, opened from the document options menu on the Attributes page.
+   * Fields normally come from the attributes schema; this adds one outside it. When the caller
+   * does not control it, no top-level add affordance is shown.
+   */
+  addRawFieldOpen?: boolean
+  onAddRawFieldOpenChange?: (open: boolean) => void
 }) {
   const [jsonMode, setJsonMode] = useState(false)
   const current = useMemo(() => (metadata ?? {}) as Record<string, unknown>, [metadata])
@@ -309,6 +318,9 @@ export function DocumentMetadataView({
                   </div>
                 )}
                 <AddFieldForm
+                  hideTrigger
+                  open={!!addRawFieldOpen}
+                  onOpenChange={(next) => onAddRawFieldOpenChange?.(next)}
                   rules={METADATA_VALUE_RULES}
                   path={[]}
                   existingKeys={[...entries.map(([key]) => key), ...Array.from(schemaKeySet)]}
