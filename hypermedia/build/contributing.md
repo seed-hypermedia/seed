@@ -4,7 +4,7 @@ summary: How to find your way around the Seed repository, run the development st
 ---
 Seed is one public repository, [github.com/seed-hypermedia/seed](https://github.com/seed-hypermedia/seed), holding the [Go daemon](../apps/daemon.md), the TypeScript apps and libraries, the [agent runtime](../agent.md), the [vault](../apps/vault.md), deployment tooling, and the markdown for this site. This page is for people who want to change any of it. It covers the layout, the one-command development stack, the checks each area expects before a pull request, and the rules for the changes that are hard to undo: storage migrations, protocol changes and releases. <!-- id:_zvH8SHk -->
 
-Every command below was checked against the repository on branch feat/onyx in September 2026. The repository also keeps instructions for coding agents in `AGENTS.md` at the root and in the subtrees listed below; they are written for humans too and are the authoritative version of the rules summarized here. <!-- id:vX8_MKKR -->
+Every command below was checked against the repository on branch feat/onyx in September 2026. The repository also keeps instructions for coding agents in `AGENTS.md` at the root and in the subtrees listed below. They are written for humans too, and they are the authoritative version of the rules summarized here. <!-- id:vX8_MKKR -->
 
 # The repository <!-- id:ml67ascN -->
 
@@ -29,7 +29,7 @@ Every command below was checked against the repository on branch feat/onyx in Se
 | `tests/` | cross-app integration tests | pnpm, Vitest, Playwright <!-- id:jLogi_RO --> |
 | `docs/` | internal design notes, decision records, runbooks and the security audit log; not published | markdown <!-- id:SH8-ft4T --> |
 
-`agents/` and `vault/` copy the frontend packages they use through `file:` dependencies, so a change to `frontend/packages/*` reaches them only after `bun install`; their dev servers re-sync automatically. The map pages under [The Seed software](../apps.md), such as [Daemon](../apps/daemon.md), [Desktop](../apps/desktop.md) and [Web](../apps/web.md), explain how the programs talk to each other. <!-- id:qypHor4G -->
+`agents/` and `vault/` copy the frontend packages they use through `file:` dependencies, so a change to `frontend/packages/*` reaches them only after `bun install`. Their dev servers re-sync automatically. The map pages under [The Seed software](../apps.md), such as [Daemon](../apps/daemon.md), [Desktop](../apps/desktop.md) and [Web](../apps/web.md), explain how the programs talk to each other. <!-- id:qypHor4G -->
 
 # Setting up <!-- id:mePBDhAD -->
 
@@ -81,7 +81,7 @@ Install Docker as well if you want the full stack, because the agents' web searc
 | `desktop` | the Electron app on mainnet with its daemon | daemon HTTP :58001 <!-- id:CnwE-4M0 --> |
 | `hm-sync` | the round trip between `hypermedia/` and the desktop app | <!-- id:glFq6Sx0 --> |
 
-In mprocs, `r` restarts the focused process, `s` stops it, `x` starts it and `q` quits everything. Quitting also runs `docker compose down` for the search containers. The development daemon uses ports 58000 to 58004; the full port table is on [Network](../protocol/network.md). <!-- id:yNq5NmzQ -->
+In mprocs, `r` restarts the focused process, `s` stops it, `x` starts it and `q` quits everything. Quitting also runs `docker compose down` for the search containers. The development daemon uses ports 58000 to 58004. The full port table is on [Network](../protocol/network.md). <!-- id:yNq5NmzQ -->
 
 Root `package.json` scripts start single apps: `pnpm web`, `pnpm desktop`, `pnpm notify`, `pnpm explore`, `pnpm mobile`, and `pnpm web:standalone`, which runs a web app against its own daemon. <!-- id:rgUFvjTw -->
 
@@ -106,9 +106,9 @@ Run the checks for every area you touched. CI runs the same ones, and a single u
 | Go | `go test ./backend/...` and `golangci-lint run --new-from-merge-base origin/main ./backend/...` <!-- id:y8N1xXkq --> |
 | Docs | `node scripts/hypermedia/check.mjs` <!-- id:n7uUGSnA --> |
 
-In `agents/` and `vault/`, `bun check` runs the type checker and rewrites formatting, so commit whatever it changes. Go tests need the submodule and model that `direnv allow` fetched; CI runs them with `go test -tags cpu --count 1 ./backend/...`. For backend bug fixes, add a failing test first when practical, and use `testify/require` in Go tests. <!-- id:Fo7jkVlG -->
+In `agents/` and `vault/`, `bun check` runs the type checker and rewrites formatting, so commit whatever it changes. Go tests need the submodule and model that `direnv allow` fetched. CI runs them with `go test -tags cpu --count 1 ./backend/...`. For backend bug fixes, add a failing test first when practical, and use `testify/require` in Go tests. <!-- id:Fo7jkVlG -->
 
-To reproduce CI locally before pushing, the repository uses [agent-ci](https://agent-ci.dev); `docs/local-ci-with-agent-ci.md` has the guide. <!-- id:eVnAHnXe -->
+To reproduce CI locally before pushing, use [agent-ci](https://agent-ci.dev). `docs/local-ci-with-agent-ci.md` has the guide. <!-- id:eVnAHnXe -->
 
 ```sh <!-- id:tVXkQuiV -->
 npx @redwoodjs/agent-ci run -w .github/workflows/test-frontend-parallel.yml -p --github-token
@@ -123,9 +123,9 @@ npx @redwoodjs/agent-ci run -w .github/workflows/test-go.yml -p
 The [daemon](../apps/daemon.md)'s SQLite schema lives in `backend/storage/schema.sql`, which is the source of truth, and migrations live in `backend/storage/storage_migrations.go`. Read the comment at the top of that file before adding one. The rules it sets: <!-- id:PBuNzSFX -->
   - A migration's version is a timestamp from `date +%Y-%m-%d.%H%M%S`, and the list is kept newest first. <!-- id:QnRf8-hL -->
   - Its run function executes in an immediate write transaction and must be as idempotent as possible. <!-- id:dMdOoxSo -->
-  - A migration runs only when its version is higher than the data directory's, so never run a feature branch with a migration against a data directory you care about. Back it up first; switching back to main afterwards fails on the unknown version. <!-- id:8uBgJSVC -->
+  - A migration runs only when its version is higher than the data directory's, so never run a feature branch with a migration against a data directory you care about. Back it up first. Switching back to main afterwards fails on the unknown version. <!-- id:8uBgJSVC -->
   - After changing the schema or migrations, run `./dev gen //backend/...`. <!-- id:7oHp9y6v -->
-  - Avoid migrations that force a full reindex or recompute embeddings unless you must: CPU-only servers take a long time to redo them. Prefer an additive column and a bounded background backfill. <!-- id:EJFyB_7G -->
+  - Avoid migrations that force a full reindex or recompute embeddings unless you must. CPU-only servers take a long time to redo them. Prefer an additive column and a bounded background backfill. <!-- id:EJFyB_7G -->
 
 When in doubt, ask the backend team before adding a migration. Tag the Go daemon maintainers on pull requests that touch `backend/`. <!-- id:1RS6C3Xu -->
 
@@ -135,7 +135,7 @@ Edit `.proto` files under `proto/`, then run `./dev gen //proto/...` from the ro
 
 ## Protocol changes <!-- id:Db7n9S4a -->
 
-A protocol change is any change to the structure or meaning of permanent data ([blobs](../protocol/blobs.md), changes, [the document graph](../protocol/documents.md), the CRDT rules), the [sync protocol](../protocol/network.md), the [capability model](../protocol/permissions.md), the [identity system](../protocol/identity.md), or any format another implementation must read on disk or over the wire. If a feature can be built purely in an application, it is not a protocol change, and the team's advice is to build it that way first. <!-- id:tPvbLW30 -->
+A protocol change is any change to the structure or meaning of permanent data ([blobs](../protocol/blobs.md), [changes](../change.md), [the document graph](../protocol/documents.md), the [CRDT](../protocol/documents.md) rules), the [sync protocol](../protocol/network.md), the [capability model](../protocol/permissions.md), the [identity system](../protocol/identity.md), or any format another implementation must read on disk or over the wire. A feature that can be built purely in an application is not a protocol change. The team's advice is to build it that way first. <!-- id:tPvbLW30 -->
 
 The team's process for a protocol change, as written in its internal methodology notes: <!-- id:xe8WbGn1 -->
   1. Write a proposal note describing the problem and the change. <!-- id:f0kCZNVa -->
@@ -143,7 +143,7 @@ The team's process for a protocol change, as written in its internal methodology
   3. Decide by working through the technical objections. Consensus does not decide. <!-- id:o-O2bJml -->
   4. Update the protocol documentation, which is now this site. <!-- id:YiDYgKHv -->
 
-The process is deliberately slow because published blobs are permanent: every node that holds old data must keep reading it. The dated records in [History](../history.md) and the direction on [Where this is going](../protocol/roadmap.md) show what this looks like in practice. <!-- id:-hDpm579 -->
+The process is slow on purpose because published blobs are permanent. Every node that holds old data must keep reading it. The dated records in [History](../history.md) and the direction on [Where this is going](../protocol/roadmap.md) show what this looks like in practice. <!-- id:-hDpm579 -->
 
 ## Deployment tooling <!-- id:v7shYIEe -->
 
@@ -158,11 +158,11 @@ Maintainers cut releases with the runbook in `docs/releasing.md`. <!-- id:NpvcWh
   4. Write short, user-facing release notes with Features and Bug Fixes sections and a full-changelog link, then publish them with `gh release edit <tag> --notes-file <file> --prerelease=false --latest`. <!-- id:gCPNyIIR -->
   5. Run the `Generate latest.json (prod)` workflow so desktop auto-update sees the new version. <!-- id:Q0rdarDk -->
 
-Two packages publish on their own: pushes to main that touch the [SDK](./sdk.md) or the [CLI](./cli.md) run the `publish-client` workflow, so there is no manual npm step. <!-- id:UCWfra3I -->
+Two packages publish on their own. Pushes to main that touch the [SDK](./sdk.md) or the [CLI](./cli.md) run the `publish-client` workflow, so there is no manual npm step. <!-- id:UCWfra3I -->
 
 # Contributing to these docs <!-- id:FUbEfrIK -->
 
-This site is the `hypermedia/` folder, and a commit to main publishes it through `.github/workflows/sync-hypermedia.yml`. Pages are plain markdown with a `name` and a one-sentence `summary` in the frontmatter, links between pages are relative `.md` links, and the dialect round-trips losslessly through the [Seed app](../apps/desktop.md). `hypermedia/README.md` explains the layout, and [Publish a folder](./publish-a-folder.md) explains the round trip. <!-- id:N8dBXosg -->
+This site is the `hypermedia/` folder, and a commit to main publishes it through `.github/workflows/sync-hypermedia.yml`. Pages are plain markdown with a `name` and a one-sentence `summary` in the frontmatter. Links between pages are relative `.md` links. The dialect round-trips losslessly through the [Seed app](../apps/desktop.md). `hypermedia/README.md` explains the layout, and [Publish a folder](./publish-a-folder.md) explains the round trip. <!-- id:N8dBXosg -->
 
 ```sh <!-- id:cKaIfLAn -->
 node scripts/hypermedia/check.mjs     # schemas, lockfile, generated types, bindings, frontmatter
@@ -175,9 +175,9 @@ Rules that matter when you edit: <!-- id:i7YPkwE2 -->
   - Renaming a file in git publishes a move with a [redirect](../protocol/documents.md) at the old address. <!-- id:Xz4P0KgA -->
   - Deleting a file retires its document on the next push unless the push runs with `--keep-stale`. <!-- id:n5piDq7x -->
   - A page with a `*.schema.json` beside it defines a [schema](../schema.md). Keep its path, and let `check.mjs` confirm the lockfile and generated types. <!-- id:NE-QyORm -->
-  - Keep the `<!-- id:… -->` comments on lines you keep; they are block ids. New pages need none. <!-- id:1y4a34hH -->
+  - Keep the `<!-- id:… -->` comments on lines you keep. They are [block](../protocol/blocks.md) ids. New pages need none. <!-- id:1y4a34hH -->
 
-Corrections are welcome as pull requests, or as comments on the published page. <!-- id:KCHxO4zQ -->
+Corrections are welcome as pull requests, or as [comments](../protocol/comments.md) on the published page. <!-- id:KCHxO4zQ -->
 
 # Reporting security issues <!-- id:bIIWptx2 -->
 
@@ -191,3 +191,5 @@ Once a vulnerability is fixed, the team discloses it as a GitHub issue closed by
 - [Getting started](./getting-started.md), for using Seed without changing it. <!-- id:h-8pj_T2 -->
 - [Self-hosting](./self-hosting.md), for running a site. <!-- id:A3x3u2MP -->
 - [History](../history.md) and [Where this is going](../protocol/roadmap.md), for the design context behind a protocol change. <!-- id:SMOpY2F6 -->
+- [Publish a folder](./publish-a-folder.md), for how these docs round-trip.
+- [Daemon gRPC](./grpc.md), for the services the protobuf files define.

@@ -2,9 +2,9 @@
 name: The notify service
 summary: The Seed service that watches a daemon's activity feed, keeps each account's notification inbox and read state, sends email, and answers signed requests from the web app, the desktop app, the vault and the mobile app.
 ---
-The notify service is how people hear about what happens on the network when they are not looking. It follows a [daemon](./daemon.md)'s activity feed, turns new [comments](../protocol/comments.md) and mentions into notifications, keeps an inbox and read state for each [account](../protocol/identity.md), and sends email for mentions, replies and discussions. The [web app](./web.md), the [desktop app](./desktop.md), the [vault](./vault.md) and the [mobile app](./mobile.md) all read their notification inbox from it. The hosted instance is `https://notify.seed.hyper.media`. <!-- id:Tf42QftB -->
+The notify service is how people hear about what happens on the network when they are not looking. It follows a [daemon](./daemon.md)'s activity feed, turns new [comments](../protocol/comments.md) and [mentions](../protocol/comments.md) into notifications, keeps an inbox and read state for each [account](../protocol/identity.md), and sends email for mentions, replies and discussions. The [web app](./web.md), the [desktop app](./desktop.md), the [vault](./vault.md) and the [mobile app](./mobile.md) all read their notification inbox from it. The hosted instance is `https://notify.seed.hyper.media`. <!-- id:Tf42QftB -->
 
-Notifications are centralized on purpose, for now. The desktop app no longer discovers its own notifications over peer-to-peer sync; the notify server is the one source, and read state syncs only when a client is online. The team treats this as temporary. The plan is private peer-to-peer sync of subscriptions and read state. <!-- id:qMcMuREL -->
+Notifications are centralized on purpose, for now. The desktop app no longer discovers its own notifications over peer-to-peer [sync](../protocol/network.md). The notify server is the one source, and read state syncs only when a client is online. The team treats this as temporary. The plan is private peer-to-peer sync of subscriptions and read state. <!-- id:qMcMuREL -->
 
 # Where the code is <!-- id:xPFu1LSJ -->
 
@@ -40,7 +40,7 @@ At startup the service processes once, then runs two loops. <!-- id:UlekGsdQ -->
 
 Each loop keeps a cursor in the `notifier_status` table. Event ids are derived from the [blob](../protocol/blobs.md), `blob-<cid>` or `mention-<cid>-<type>-<target>`, and the same id is the inbox row's key and the read-state key. A page loop is capped at 100 pages per pass. <!-- id:qVUSeN-v -->
 
-Some things are wired less far than their names suggest. `site-doc-update` exists in the payload schema and the `notifyOwnedDocChange` flag exists in the settings, but the notifier has a TODO where document-update delivery should be, so nobody gets document-change email today. Batch-only notifications are not clearly written to the inbox. <!-- id:f42bC6WP -->
+Some pieces exist only in name. `site-doc-update` exists in the payload schema and the `notifyOwnedDocChange` flag exists in the settings, but the notifier has a TODO where document-update delivery should be, so nobody gets document-change email today. Batch-only notifications are not clearly written to the inbox. <!-- id:f42bC6WP -->
 
 # Storage <!-- id:5tYConwM -->
 
@@ -60,7 +60,7 @@ The watermark design keeps "mark all as read" to one row and makes unread toggli
 
 # The HTTP API <!-- id:pJLQwr0D -->
 
-All routes live under `/hm/api` and `/hm` on the notify host. The signed routes take a POST body of [DAG-CBOR](https://ipld.io/specs/codecs/dag-cbor/spec/): the client builds `{action, signer, time, accountUid?}`, signs the CBOR encoding, and sends it with `sig`. The service re-encodes the unsigned payload to verify it. If `accountUid` differs from the signer, the signer must hold an `AGENT` [capability](../protocol/permissions.md) for that [account](../protocol/identity.md), which is how a browser [session key](../build/sign-in.md) acts for the account held in the [vault](./vault.md). Ed25519 and compressed P-256 signers are accepted. <!-- id:On90zZsQ -->
+All routes live under `/hm/api` and `/hm` on the notify host. The signed routes take a POST body of [DAG-CBOR](https://ipld.io/specs/codecs/dag-cbor/spec/): the client builds `{action, signer, time, accountUid?}`, signs the CBOR encoding, and sends it with `sig`. The service re-encodes the unsigned payload to verify the [signature](../signature.md). If `accountUid` differs from the signer, the signer must hold an `AGENT` [capability](../protocol/permissions.md) for that [account](../protocol/identity.md), which is how a browser [session key](../build/sign-in.md) acts for the account held in the [vault](./vault.md). The service accepts Ed25519 and compressed P-256 signers. <!-- id:On90zZsQ -->
 
 <!-- id:9K1PbjAc -->
 | Route <!-- col:lE0SQ0Xs --> | Kind <!-- col:mTERIR0z --> | Used by <!-- col:TKZRhITy --> <!-- id:vUKhNiUm --> |
@@ -98,31 +98,34 @@ pnpm notify:standalone   # its own daemon on 54000-54002 and notify on :3061
 pnpm --filter @shm/notify test
 ```
 
-`./dev up` starts it as the `notify` pane, and the [vault](./vault.md) pane is pointed at it. Images are `seedhypermedia/notify:dev` from `main` and `seedhypermedia/notify:latest` for releases; the hosted services are `notify.seed.hyper.media` and `notify-dev.seed.hyper.media`. <!-- id:wMID-eRV -->
+`./dev up` starts it as the `notify` pane and points the [vault](./vault.md) pane at it. Images are `seedhypermedia/notify:dev` from `main` and `seedhypermedia/notify:latest` for releases. The hosted services are `notify.seed.hyper.media` and `notify-dev.seed.hyper.media`. <!-- id:wMID-eRV -->
 
 # Working with it <!-- id:Hsac-gBO -->
 
 ## In the Seed app <!-- id:K-vWsB87 -->
 
-The [desktop app](./desktop.md) keeps a local optimistic notification store and syncs it with `/hm/api/notifications`, signing each request through the [daemon](./daemon.md)'s `SignData` RPC. The notify host comes from `VITE_NOTIFY_SERVICE_HOST`, `https://notify.seed.hyper.media` in release builds, and account settings can override it; the override is saved in the synced [vault](./vault.md) state. <!-- id:Mip7OfDa -->
+The [desktop app](./desktop.md) keeps a local optimistic notification store and syncs it with `/hm/api/notifications`, signing each request through the [daemon](./daemon.md)'s `SignData` RPC. The notify host comes from `VITE_NOTIFY_SERVICE_HOST`, `https://notify.seed.hyper.media` in release builds. Account settings can override it, and the override is saved in the synced [vault](./vault.md) state. <!-- id:Mip7OfDa -->
 
 ## Web API <!-- id:Pn8BiNdQ -->
 
-A [site](../protocol/sites.md) advertises its notify service as `notifyServiceHost` in `/hm/api/config`, set from `NOTIFY_SERVICE_HOST` on the [web app](./web.md). The web app's `/hm/notifications` page signs requests in the browser with the [session key](../build/sign-in.md) and stores the notify host it learned at sign-in. The [mobile app](./mobile.md) reads the same field and falls back to the hosted service. <!-- id:qiXEWgy5 -->
+A [site](../protocol/sites.md) advertises its notify service as `notifyServiceHost` in `/hm/api/config` (see [The web API](../build/web-api.md)), set from `NOTIFY_SERVICE_HOST` on the [web app](./web.md). The web app's `/hm/notifications` page signs requests in the browser with the [session key](../build/sign-in.md) and stores the notify host it learned at sign-in. The [mobile app](./mobile.md) reads the same field and falls back to the hosted service. <!-- id:qiXEWgy5 -->
 
 ## SDK <!-- id:yJl1ieUn -->
 
-The [SDK](../build/sdk.md) has no notify client. The transport lives in `@shm/shared` (`models/notification-service.ts`); a third party can reproduce it with the SDK's CBOR and signing helpers. <!-- id:eEWyZqRh -->
+The [SDK](../build/sdk.md) has no notify client. The transport lives in `@shm/shared` (`models/notification-service.ts`). A third party can reproduce it with the SDK's CBOR and signing helpers. <!-- id:eEWyZqRh -->
 
 ## Agents <!-- id:aLUTu-Ae -->
 
-[Seed Agents](../agent.md) do not use the notify service. They watch the network themselves through the activity feed; see [triggers](../agent/triggers.md). <!-- id:UEEYnLed -->
+[Seed Agents](../agent.md) do not use the notify service. They watch the network themselves through the activity feed. See [triggers](../agent/triggers.md). <!-- id:UEEYnLed -->
 
 # Where this is going <!-- id:yyVBTJBG -->
 
-As of September 2026, the team's direction is to move subscriptions and read state out of this central server into private peer-to-peer sync once [private documents](../protocol/privacy.md) mature, to restore the link between an email and the [account](../protocol/identity.md) that subscribes (dropped in 2025 and later called a mistake), and to replace the legacy [site](../protocol/sites.md) subscriptions with per-site options for document changes, [discussions](../protocol/comments.md), comments and mentions. None of that is built. <!-- id:D5odp_vC -->
+As of September 2026, the team plans three changes. None of them is built. <!-- id:D5odp_vC -->
+  - Move subscriptions and read state out of this central server into private peer-to-peer [sync](../protocol/network.md) once [private documents](../protocol/privacy.md) mature.
+  - Restore the link between an email and the [account](../protocol/identity.md) that subscribes. It was dropped in 2025 and later called a mistake.
+  - Replace the legacy [site](../protocol/sites.md) subscriptions with per-site options for document changes, [discussions](../protocol/comments.md), comments and mentions.
 
 # See also <!-- id:kO84rx1N -->
 
 - [The vault](./vault.md), [The web app](./web.md), [The desktop app](./desktop.md) <!-- id:SLRSsEZi -->
-- [Comments](../protocol/comments.md), [Capability](../capability.md), [Sign in with Seed](../build/sign-in.md) <!-- id:ktShPXtg -->
+- [Comments](../protocol/comments.md), [Capability](../capability.md), [Sign in with Seed](../build/sign-in.md), [The daemon](./daemon.md) <!-- id:ktShPXtg -->
