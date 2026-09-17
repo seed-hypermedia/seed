@@ -57,11 +57,20 @@ const kindPrimitive = (kind: string) => (HM_SCHEMAS[kind] ? kind : null)
 /** The display name of a library schema: its page's name, else its slug. */
 const pageName = (slug: string) => HM_SCHEMA_PAGES[slug]?.name ?? slug
 
+/** A short label for any schema reference: a library page's name, or the path of a document in some
+ * other space (never a whole hm:// URL, which would not fit a chip). */
+const refLabel = (ref: string) => {
+  const name = refToName(ref)
+  if (HM_SCHEMAS[name]) return pageName(name)
+  return name.startsWith('hm://') ? name.replace(/^hm:\/\/[^/]+\/?/, '') || name : name
+}
+
 /** "Extends <base>": the type a schema is built on, named by its page and linking to it. */
 function ExtendsLine({slug, onClick, children}: {slug: string; onClick?: () => void; children?: React.ReactNode}) {
   return (
     <p className="text-sm" data-testid="schema-extends">
-      <span className="text-muted-foreground">Extends</span> <Chip label={pageName(slug)} onClick={onClick} />
+      <span className="text-muted-foreground">Extends</span>{' '}
+      <Chip label={refLabel(slug)} title={slug} onClick={onClick} />
       {children}
     </p>
   )
@@ -109,18 +118,30 @@ function KindBadge({kind, nav}: {kind: string; nav: (slug: string) => void}) {
   )
 }
 
-function Chip({label, onClick, variant = 'ref'}: {label: string; onClick?: () => void; variant?: 'ref' | 'dep'}) {
+function Chip({
+  label,
+  title,
+  onClick,
+  variant = 'ref',
+}: {
+  label: string
+  /** The full reference, on hover. */
+  title?: string
+  onClick?: () => void
+  variant?: 'ref' | 'dep'
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
+      title={title}
       className={cn(
-        'inline-flex items-center rounded border px-1.5 py-0.5 font-mono text-xs',
+        'inline-flex max-w-full min-w-0 items-center rounded border px-1.5 py-0.5 align-middle font-mono text-xs',
         onClick && 'hover:bg-muted cursor-pointer',
         variant === 'dep' ? 'border-border text-muted-foreground' : 'border-primary/30 text-primary',
       )}
     >
-      {label}
+      <span className="truncate">{label}</span>
     </button>
   )
 }
@@ -142,7 +163,12 @@ function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React
     typeof node.target === 'string' ? (
       <>
         {' '}
-        <Chip label={`→ ${targetLabel(node.target)}`} onClick={() => open(node.target)} variant="dep" />
+        <Chip
+          label={`→ ${targetLabel(node.target)}`}
+          title={node.target}
+          onClick={() => open(node.target)}
+          variant="dep"
+        />
       </>
     ) : null
   if (node.var !== undefined) return <Tag kind="var">{`⟨${node.var}⟩`}</Tag>
@@ -164,7 +190,7 @@ function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React
     if (node.args) {
       return (
         <span>
-          <Chip label={b} onClick={() => nav(b)} />
+          <Chip label={refLabel(named)} title={named} onClick={() => nav(b)} />
           <span className="text-muted-foreground">
             ⟨
             {Object.entries(node.args).map(([p, v], i) => (
@@ -187,7 +213,7 @@ function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React
       )
     return (
       <span>
-        <Chip label={`↳ ${b}`} onClick={() => open(named)} />
+        <Chip label={`↳ ${refLabel(named)}`} title={named} onClick={() => open(named)} />
         {target}
       </span>
     )
@@ -200,7 +226,12 @@ function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React
         {typeof node.target === 'string' && (
           <>
             {' '}
-            <Chip label={`→ ${targetLabel(node.target)}`} onClick={() => open(node.target)} variant="dep" />
+            <Chip
+              label={`→ ${targetLabel(node.target)}`}
+              title={node.target}
+              onClick={() => open(node.target)}
+              variant="dep"
+            />
           </>
         )}
       </span>
@@ -324,10 +355,11 @@ function FieldsTable({
                     <div className="text-muted-foreground max-w-md font-sans text-xs font-normal">{f.description}</div>
                   )}
                 </td>
-                <td className="py-1.5 pr-4 align-top">
+                {/* The type column takes the remaining width (max-w-0 + w-full lets chips truncate). */}
+                <td className="w-full max-w-0 py-1.5 pr-4 align-top">
                   <SchemaRef node={f.schema} nav={nav} />
                 </td>
-                <td className="py-1.5 align-top text-xs">
+                <td className="py-1.5 align-top text-xs whitespace-nowrap">
                   {/* Required is the default, so only optional is spelled out. */}
                   {!f.required && <span className="text-muted-foreground">optional</span>}
                   {origins?.[f.name] === 'inherited' && (
