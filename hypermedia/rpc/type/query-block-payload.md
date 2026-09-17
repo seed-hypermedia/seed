@@ -10,12 +10,12 @@ This page describes the **rpc/type/query-block-payload** read model of the Seed 
 # Shape <!-- id:a4jQ1u0u -->
 
 A **closed struct** with these fields: <!-- id:DyS_qKTz -->
-  - `queryTargetName` _(required)_ — [string](../../string.md) <!-- id:lpgzgCDx -->
-  - `in` _(required)_ — [rpc/type/id](./id.md) <!-- id:PaNXccq8 -->
-  - `results` _(required)_ — list of [rpc/type/document-info](./document-info.md) <!-- id:pqVQymXu -->
-  - `mode` — one of `"Children"` | `"AllDescendants"` <!-- id:HKi67-Wj -->
-  - `interactionSummaries` _(required)_ — map ⟨ \* : [rpc/type/query-block-item-summary](./query-block-item-summary.md) ⟩ <!-- id:EqpWvaWn -->
-  - `accountsMetadata` _(required)_ — [rpc/type/accounts-metadata](./accounts-metadata.md) <!-- id:UpOdUnhj -->
+  - `queryTargetName` _(required)_: [string](../../string.md) <!-- id:lpgzgCDx -->
+  - `in` _(required)_: [rpc/type/id](./id.md) <!-- id:PaNXccq8 -->
+  - `results` _(required)_: list of [rpc/type/document-info](./document-info.md) <!-- id:pqVQymXu -->
+  - `mode`: one of `"Children"` | `"AllDescendants"` <!-- id:HKi67-Wj -->
+  - `interactionSummaries` _(required)_: map ⟨ \* : [rpc/type/query-block-item-summary](./query-block-item-summary.md) ⟩ <!-- id:EqpWvaWn -->
+  - `accountsMetadata` _(required)_: [rpc/type/accounts-metadata](./accounts-metadata.md) <!-- id:UpOdUnhj -->
 
 # Depends on <!-- id:ooVpqrDK -->
 

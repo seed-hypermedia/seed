@@ -10,9 +10,9 @@ This page describes the **rpc/type/search-results** read model of the Seed API �
 # Shape <!-- id:9ucgCNE3 -->
 
 A **closed struct** with these fields: <!-- id:YHpy0iy7 -->
-  - `entities` _(required)_ — list of [rpc/type/search-result-item](./search-result-item.md) <!-- id:KmQctIUf -->
-  - `searchQuery` _(required)_ — [string](../../string.md) <!-- id:DKVjSdy9 -->
-  - `nextPageToken` _(required)_ — [string](../../string.md) <!-- id:xIqVZi0C -->
+  - `entities` _(required)_: list of [rpc/type/search-result-item](./search-result-item.md) <!-- id:KmQctIUf -->
+  - `searchQuery` _(required)_: [string](../../string.md) <!-- id:DKVjSdy9 -->
+  - `nextPageToken` _(required)_: [string](../../string.md) <!-- id:xIqVZi0C -->
 
 # Depends on <!-- id:3XiUHP7C -->
 

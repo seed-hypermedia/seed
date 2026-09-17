@@ -10,9 +10,9 @@ This page describes the **rpc/search** method of the Seed API — a read model o
 # Shape <!-- id:rNtJKIpN -->
 
 A **closed struct** with these fields: <!-- id:xZHVDSnU -->
-  - `key` _(required)_ — `"Search"` <!-- id:jyBd_Pa7 -->
-  - `input` _(required)_ — map { 11 fields } <!-- id:ngg4oBL5 -->
-  - `output` _(required)_ — [rpc/type/search-results](./type/search-results.md) <!-- id:OlDlHyNJ -->
+  - `key` _(required)_: `"Search"` <!-- id:jyBd_Pa7 -->
+  - `input` _(required)_: map { 11 fields } <!-- id:ngg4oBL5 -->
+  - `output` _(required)_: [rpc/type/search-results](./type/search-results.md) <!-- id:OlDlHyNJ -->
 
 # Depends on <!-- id:OUtj28Fz -->
 

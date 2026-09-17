@@ -10,8 +10,8 @@ These flags are the whole of what "join" and "follow" mean on the network. The d
 # Shape <!-- id:u3UrzpQ1 -->
 
 A **closed struct** with these fields: <!-- id:_ytcLXM1 -->
-  - `site` — [boolean](../boolean.md) <!-- id:3ldQ_dA1 -->
-  - `profile` — [boolean](../boolean.md) <!-- id:_b3klfc7 -->
+  - `site`: [boolean](../boolean.md) <!-- id:3ldQ_dA1 -->
+  - `profile`: [boolean](../boolean.md) <!-- id:_b3klfc7 -->
 
 # Depends on <!-- id:4YYxJr-6 -->
 

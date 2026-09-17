@@ -8,9 +8,9 @@ This document describes the **example/address** type — an example schema. Its 
 # Shape <!-- id:lFNyvCCx -->
 
 A **closed struct** with these fields: <!-- id:XGrPnmSZ -->
-  - `street` _(required)_ — [string](../string.md) <!-- id:HT49CZz8 -->
-  - `city` _(required)_ — [string](../string.md) <!-- id:qzZ2rGQ3 -->
-  - `postalCode` — [string](../string.md) <!-- id:PeOlj5sn -->
+  - `street` _(required)_: [string](../string.md) <!-- id:HT49CZz8 -->
+  - `city` _(required)_: [string](../string.md) <!-- id:qzZ2rGQ3 -->
+  - `postalCode`: [string](../string.md) <!-- id:PeOlj5sn -->
 
 # Depends on <!-- id:Rd4ib7lU -->
 

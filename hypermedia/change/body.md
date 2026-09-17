@@ -14,8 +14,8 @@ A minimal body, which the daemon's `PrepareChange` emits for the Seed app, has m
 # Shape <!-- id:BpgwjtEP -->
 
 A **closed struct** with these fields: <!-- id:xndwO-1C -->
-  - `opCount` — [integer](../integer.md) <!-- id:cRrknZYz -->
-  - `ops` — list of [change/op](./op.md)⟨Block = type variable `⟨Block⟩`⟩ <!-- id:5HwZMPHJ -->
+  - `opCount`: [integer](../integer.md) <!-- id:cRrknZYz -->
+  - `ops`: list of [change/op](./op.md)⟨Block = type variable `⟨Block⟩`⟩ <!-- id:5HwZMPHJ -->
 
 **Generic** over `⟨Block⟩` (default [block](../block.md)). <!-- id:8rrUhiVB -->
 

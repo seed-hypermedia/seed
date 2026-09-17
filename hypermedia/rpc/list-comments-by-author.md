@@ -10,9 +10,9 @@ This page describes the **rpc/list-comments-by-author** method of the Seed API �
 # Shape <!-- id:SmqiIOrD -->
 
 A **closed struct** with these fields: <!-- id:LP2wLk4H -->
-  - `key` _(required)_ — `"ListCommentsByAuthor"` <!-- id:6ScncCpi -->
-  - `input` _(required)_ — map { 1 fields } <!-- id:NyEpluIW -->
-  - `output` _(required)_ — [rpc/type/comment-list](./type/comment-list.md) <!-- id:r5kRTsmu -->
+  - `key` _(required)_: `"ListCommentsByAuthor"` <!-- id:6ScncCpi -->
+  - `input` _(required)_: map { 1 fields } <!-- id:NyEpluIW -->
+  - `output` _(required)_: [rpc/type/comment-list](./type/comment-list.md) <!-- id:r5kRTsmu -->
 
 # Depends on <!-- id:OKsUfq8K -->
 

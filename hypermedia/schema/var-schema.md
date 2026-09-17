@@ -8,6 +8,6 @@ This document describes the **schema/var-schema** type — a meta-schema variant
 # Shape <!-- id:aYRvJlyo -->
 
 A **closed struct** with these fields: <!-- id:nS7130Ug -->
-  - `var` _(required)_ — `string` <!-- id:eV8nTuaJ -->
-  - `name` — `string` <!-- id:TQNdcXVo -->
-  - `description` — `string` <!-- id:ioaOYAr2 -->
+  - `var` _(required)_: `string` <!-- id:eV8nTuaJ -->
+  - `name`: `string` <!-- id:TQNdcXVo -->
+  - `description`: `string` <!-- id:ioaOYAr2 -->

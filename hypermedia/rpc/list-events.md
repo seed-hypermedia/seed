@@ -10,9 +10,9 @@ This page describes the **rpc/list-events** method of the Seed API — a read mo
 # Shape <!-- id:kghUGbcO -->
 
 A **closed struct** with these fields: <!-- id:1xYbf7OV -->
-  - `key` _(required)_ — `"ListEvents"` <!-- id:FW4audj7 -->
-  - `input` _(required)_ — map { 8 fields } <!-- id:OLNbt9vw -->
-  - `output` _(required)_ — map { 2 fields } <!-- id:MV2CZkha -->
+  - `key` _(required)_: `"ListEvents"` <!-- id:FW4audj7 -->
+  - `input` _(required)_: map { 8 fields } <!-- id:OLNbt9vw -->
+  - `output` _(required)_: map { 2 fields } <!-- id:MV2CZkha -->
 
 # Depends on <!-- id:y34ksrW0 -->
 

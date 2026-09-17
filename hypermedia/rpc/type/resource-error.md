@@ -8,9 +8,9 @@ This page describes the **rpc/type/resource-error** read model of the Seed API �
 # Shape <!-- id:oVrER2uX -->
 
 A **closed struct** with these fields: <!-- id:n1mrKLMs -->
-  - `type` _(required)_ — `"error"` <!-- id:1M3e2c10 -->
-  - `id` _(required)_ — [rpc/type/id](./id.md) <!-- id:5RWQ79uI -->
-  - `message` _(required)_ — [string](../../string.md) <!-- id:Oah0KuFe -->
+  - `type` _(required)_: `"error"` <!-- id:1M3e2c10 -->
+  - `id` _(required)_: [rpc/type/id](./id.md) <!-- id:5RWQ79uI -->
+  - `message` _(required)_: [string](../../string.md) <!-- id:Oah0KuFe -->
 
 # Depends on <!-- id:6Gi0Ro6z -->
 

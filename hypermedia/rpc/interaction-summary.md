@@ -10,9 +10,9 @@ This page describes the **rpc/interaction-summary** method of the Seed API — a
 # Shape <!-- id:_jdaQjrs -->
 
 A **closed struct** with these fields: <!-- id:C6ObWmqI -->
-  - `key` _(required)_ — `"InteractionSummary"` <!-- id:jeZVsYXW -->
-  - `input` _(required)_ — map { 1 fields } <!-- id:8lSMzs7Y -->
-  - `output` _(required)_ — [rpc/type/interaction-summary](./type/interaction-summary.md) <!-- id:atPqOBD3 -->
+  - `key` _(required)_: `"InteractionSummary"` <!-- id:jeZVsYXW -->
+  - `input` _(required)_: map { 1 fields } <!-- id:8lSMzs7Y -->
+  - `output` _(required)_: [rpc/type/interaction-summary](./type/interaction-summary.md) <!-- id:atPqOBD3 -->
 
 # Depends on <!-- id:UaUlHKko -->
 

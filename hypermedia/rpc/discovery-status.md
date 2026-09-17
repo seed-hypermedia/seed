@@ -10,9 +10,9 @@ This page describes the **rpc/discovery-status** method of the Seed API — a re
 # Shape <!-- id:pUBQx10M -->
 
 A **closed struct** with these fields: <!-- id:w4vuYwBh -->
-  - `key` _(required)_ — `"DiscoveryStatus"` <!-- id:zAkdae6f -->
-  - `input` _(required)_ — map { 4 fields } <!-- id:1DDf6AyS -->
-  - `output` _(required)_ — [rpc/type/discovery-status](./type/discovery-status.md) <!-- id:H5NLEiwZ -->
+  - `key` _(required)_: `"DiscoveryStatus"` <!-- id:zAkdae6f -->
+  - `input` _(required)_: map { 4 fields } <!-- id:1DDf6AyS -->
+  - `output` _(required)_: [rpc/type/discovery-status](./type/discovery-status.md) <!-- id:H5NLEiwZ -->
 
 # Depends on <!-- id:rIVmhfIF -->
 

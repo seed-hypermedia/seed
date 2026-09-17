@@ -12,10 +12,10 @@ This page defines the **change/op/move-blocks** operation inside a [Change body]
 # Shape <!-- id:IA76HbOX -->
 
 A **closed struct** with these fields: <!-- id:dhIYxPj9 -->
-  - `type` _(required)_ — `"MoveBlocks"` <!-- id:NTqXHSfq -->
-  - `parent` — [string](../../string.md) <!-- id:6ypREaYl -->
-  - `blocks` _(required)_ — list of [string](../../string.md) <!-- id:-kAVnOCA -->
-  - `ref` — list of [integer](../../integer.md) <!-- id:Iz-XiAnh -->
+  - `type` _(required)_: `"MoveBlocks"` <!-- id:NTqXHSfq -->
+  - `parent`: [string](../../string.md) <!-- id:6ypREaYl -->
+  - `blocks` _(required)_: list of [string](../../string.md) <!-- id:-kAVnOCA -->
+  - `ref`: list of [integer](../../integer.md) <!-- id:Iz-XiAnh -->
 
 # Depends on <!-- id:9VGfsEKn -->
 

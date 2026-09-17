@@ -14,11 +14,11 @@ A Change alone does not change what readers see. The document's current state at
 # Shape <!-- id:NQM1VhDF -->
 
 **Extends** [blob](./blob.md) with these added fields: <!-- id:WtuABanO -->
-  - `type` — `"Change"` <!-- id:vuVh1zRN -->
-  - `genesis` — [cid](./cid.md) <!-- id:OjyRoI0Z -->
-  - `deps` — list of [cid](./cid.md) <!-- id:14sUK5dG -->
-  - `depth` — [integer](./integer.md) <!-- id:WymiRSox -->
-  - `body` — [change/body](./change/body.md)⟨Block = type variable `⟨Block⟩`⟩ <!-- id:uBgg3XsN -->
+  - `type`: `"Change"` <!-- id:vuVh1zRN -->
+  - `genesis`: [cid](./cid.md) <!-- id:OjyRoI0Z -->
+  - `deps`: list of [cid](./cid.md) <!-- id:14sUK5dG -->
+  - `depth`: [integer](./integer.md) <!-- id:WymiRSox -->
+  - `body`: [change/body](./change/body.md)⟨Block = type variable `⟨Block⟩`⟩ <!-- id:uBgg3XsN -->
 
 **Generic** over `⟨Block⟩` (default [block](./block.md)). <!-- id:R7cLitDd -->
 

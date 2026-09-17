@@ -10,18 +10,18 @@ This page describes the **rpc/type/document** read model of the Seed API — der
 # Shape <!-- id:K1d3WkMR -->
 
 A **closed struct** with these fields: <!-- id:OhtHahKP -->
-  - `content` — list of [block/node](../../block/node.md) <!-- id:-PA1LHI- -->
-  - `version` — [string](../../string.md) <!-- id:PA6phMO_ -->
-  - `account` — [string](../../string.md) <!-- id:vwB-pjkc -->
-  - `authors` _(required)_ — list of [string](../../string.md) <!-- id:rv5pKRN_ -->
-  - `path` — [string](../../string.md) <!-- id:mwCn1Kvo -->
-  - `createTime` — one of [timestamp](../../timestamp.md) | [string](../../string.md) <!-- id:gLksy_CJ -->
-  - `updateTime` — one of [timestamp](../../timestamp.md) | [string](../../string.md) <!-- id:eDxwGcV- -->
-  - `metadata` _(required)_ — [metadata](../../metadata.md) <!-- id:1Y7BoAam -->
-  - `detachedBlocks` — map ⟨ \* : [block/node](../../block/node.md) ⟩ <!-- id:vxG3_Pnt -->
-  - `genesis` _(required)_ — [string](../../string.md) <!-- id:X1W8zxVF -->
-  - `generationInfo` — map { 2 fields } <!-- id:E5l0dJfG -->
-  - `visibility` _(required)_ — [visibility](../../visibility.md) <!-- id:kQ4F7_rH -->
+  - `content`: list of [block/node](../../block/node.md) <!-- id:-PA1LHI- -->
+  - `version`: [string](../../string.md) <!-- id:PA6phMO_ -->
+  - `account`: [string](../../string.md) <!-- id:vwB-pjkc -->
+  - `authors` _(required)_: list of [string](../../string.md) <!-- id:rv5pKRN_ -->
+  - `path`: [string](../../string.md) <!-- id:mwCn1Kvo -->
+  - `createTime`: one of [timestamp](../../timestamp.md) | [string](../../string.md) <!-- id:gLksy_CJ -->
+  - `updateTime`: one of [timestamp](../../timestamp.md) | [string](../../string.md) <!-- id:eDxwGcV- -->
+  - `metadata` _(required)_: [metadata](../../metadata.md) <!-- id:1Y7BoAam -->
+  - `detachedBlocks`: map ⟨ \* : [block/node](../../block/node.md) ⟩ <!-- id:vxG3_Pnt -->
+  - `genesis` _(required)_: [string](../../string.md) <!-- id:X1W8zxVF -->
+  - `generationInfo`: map { 2 fields } <!-- id:E5l0dJfG -->
+  - `visibility` _(required)_: [visibility](../../visibility.md) <!-- id:kQ4F7_rH -->
 
 # Depends on <!-- id:Kt0TNJmF -->
 

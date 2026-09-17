@@ -8,10 +8,10 @@ A button: `text` is the label and `link` (required) is where it goes, an `hm://`
 # Shape <!-- id:xGD5dY-c -->
 
 **Extends** [block/base](./base.md) with these added fields: <!-- id:CY2yoTm1 -->
-  - `type` — `"Button"` <!-- id:6Nvnbcfu -->
-  - `text` — [string](../string.md) <!-- id:1F063pXv -->
-  - `link` _(required)_ — [string](../string.md) <!-- id:EESTSjCi -->
-  - `attributes` — map { 4 fields } <!-- id:UxIYwOeL -->
+  - `type`: `"Button"` <!-- id:6Nvnbcfu -->
+  - `text`: [string](../string.md) <!-- id:1F063pXv -->
+  - `link` _(required)_: [string](../string.md) <!-- id:EESTSjCi -->
+  - `attributes`: map { 4 fields } <!-- id:UxIYwOeL -->
 
 # Depends on <!-- id:glOGR_U7 -->
 

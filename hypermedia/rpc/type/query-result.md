@@ -8,9 +8,9 @@ This page describes the **rpc/type/query-result** read model of the Seed API —
 # Shape <!-- id:IU9zCBCy -->
 
 A **closed struct** with these fields: <!-- id:EvmdoseV -->
-  - `in` _(required)_ — [rpc/type/id](./id.md) <!-- id:JZ6P9O4y -->
-  - `results` _(required)_ — list of [rpc/type/document-info](./document-info.md) <!-- id:eo8ia6we -->
-  - `mode` — one of `"Children"` | `"AllDescendants"` <!-- id:RePHCtTX -->
+  - `in` _(required)_: [rpc/type/id](./id.md) <!-- id:JZ6P9O4y -->
+  - `results` _(required)_: list of [rpc/type/document-info](./document-info.md) <!-- id:eo8ia6we -->
+  - `mode`: one of `"Children"` | `"AllDescendants"` <!-- id:RePHCtTX -->
 
 # Depends on <!-- id:uRtiQkyh -->
 

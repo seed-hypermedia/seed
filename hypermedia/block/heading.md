@@ -8,10 +8,10 @@ A heading with `text` and [annotations](./annotation.md). There is no level attr
 # Shape <!-- id:lCAihj5P -->
 
 **Extends** [block/base](./base.md) with these added fields: <!-- id:2v9m5JN5 -->
-  - `type` — `"Heading"` <!-- id:aPgD9CRs -->
-  - `text` — [string](../string.md) <!-- id:EA1orVgz -->
-  - `annotations` — list of [block/annotation](./annotation.md) <!-- id:VOJAwECN -->
-  - `attributes` — map { 2 fields } <!-- id:GvMoQ1bo -->
+  - `type`: `"Heading"` <!-- id:aPgD9CRs -->
+  - `text`: [string](../string.md) <!-- id:EA1orVgz -->
+  - `annotations`: list of [block/annotation](./annotation.md) <!-- id:VOJAwECN -->
+  - `attributes`: map { 2 fields } <!-- id:GvMoQ1bo -->
 
 # Depends on <!-- id:rJp_AZEn -->
 

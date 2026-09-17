@@ -8,9 +8,9 @@ This document describes the **example/comment** type — an example schema. Its 
 # Shape <!-- id:AXyKri0d -->
 
 A **closed struct** with these fields: <!-- id:3Otnxlec -->
-  - `text` _(required)_ — [string](../string.md) <!-- id:bu5Hac5I -->
-  - `author` — `link` → [example/person](./person.md) <!-- id:WYmBsELU -->
-  - `replies` — list of `link` → [example/comment](./comment.md) <!-- id:QBOcn3S2 -->
+  - `text` _(required)_: [string](../string.md) <!-- id:bu5Hac5I -->
+  - `author`: `link` → [example/person](./person.md) <!-- id:WYmBsELU -->
+  - `replies`: list of `link` → [example/comment](./comment.md) <!-- id:QBOcn3S2 -->
 
 # Depends on <!-- id:lneTxSMU -->
 

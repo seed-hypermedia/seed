@@ -10,9 +10,9 @@ This page describes the **rpc/account-contacts** method of the Seed API — a re
 # Shape <!-- id:iSm7ekda -->
 
 A **closed struct** with these fields: <!-- id:epckzhLV -->
-  - `key` _(required)_ — `"AccountContacts"` <!-- id:KXx30EJe -->
-  - `input` _(required)_ — [string](../string.md) <!-- id:6uKQDTTS -->
-  - `output` _(required)_ — list of [rpc/type/contact-record](./type/contact-record.md) <!-- id:rqQUbF0Q -->
+  - `key` _(required)_: `"AccountContacts"` <!-- id:KXx30EJe -->
+  - `input` _(required)_: [string](../string.md) <!-- id:6uKQDTTS -->
+  - `output` _(required)_: list of [rpc/type/contact-record](./type/contact-record.md) <!-- id:rqQUbF0Q -->
 
 # Depends on <!-- id:RyPlOCvq -->
 

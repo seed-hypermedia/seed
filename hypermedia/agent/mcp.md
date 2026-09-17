@@ -17,8 +17,8 @@ Agent keys are less secure than your personal identity by design, because the ag
 # Scope and transports <!-- id:S2QKCy5- -->
 
 Only **remote HTTP MCP servers** are supported. The hosted, multi-tenant Agents service never spawns local `stdio` subprocesses. Two transports are accepted: <!-- id:nVH6VoZU -->
-  - `http` — Streamable HTTP (the current MCP transport); <!-- id:Ef0YAJO- -->
-  - `sse` — legacy HTTP+SSE. <!-- id:b6zqDtTy -->
+  - `http`: Streamable HTTP (the current MCP transport); <!-- id:Ef0YAJO- -->
+  - `sse`: legacy HTTP+SSE. <!-- id:b6zqDtTy -->
 
 With `transport` unset, the service tries Streamable HTTP first and falls back to SSE on a connect failure, per the MCP backwards-compatibility guidance; the first error is the one reported. <!-- id:OWJU85Jp -->
 
@@ -106,7 +106,7 @@ A session calling a remote tool through `call`, and a later turn using the promo
 
 # Tests <!-- id:5L5OTGEm -->
 
-- `agents/src/mcp.test.ts` — naming, headers, result flattening, a real Streamable HTTP round trip (auth header included), discovery, and the pool (one handshake per server, shared by concurrent calls, closed together). `agents/src/mcp-test-server.ts` is the throwaway server the tests stand up. <!-- id:fWdWlKKb -->
-- `agents/src/tool-documents.test.ts` — the projection: sync, CID bump on a contract change, removal when disabled, lambda-name conflicts, refusal to delete or replace a remote tool. <!-- id:N1jdjOQv -->
-- `agents/src/verbs.test.ts` — `call` dispatch to a remote tool, touch-expand on a miss, thrown server/transport errors, the grant check, image content, index/listing tags and the per-server collapse. <!-- id:zF_OhFKt -->
-- `agents/src/api-service.test.ts` — the actions end to end against a live test server: discovery on save, invalid names/URLs/headers, a saved-but-unreachable server, projection onto agents through `CreateAgent`/`UpdateAgent`, delete scrubbing agents and secrets; and a full session in which the user calls a remote tool from the palette, the agent calls it through `call`, and the tool is promoted on the following turn. <!-- id:-mezCZ8h -->
+- `agents/src/mcp.test.ts`: naming, headers, result flattening, a real Streamable HTTP round trip (auth header included), discovery, and the pool (one handshake per server, shared by concurrent calls, closed together). `agents/src/mcp-test-server.ts` is the throwaway server the tests stand up. <!-- id:fWdWlKKb -->
+- `agents/src/tool-documents.test.ts`: the projection: sync, CID bump on a contract change, removal when disabled, lambda-name conflicts, refusal to delete or replace a remote tool. <!-- id:N1jdjOQv -->
+- `agents/src/verbs.test.ts`: `call` dispatch to a remote tool, touch-expand on a miss, thrown server/transport errors, the grant check, image content, index/listing tags and the per-server collapse. <!-- id:zF_OhFKt -->
+- `agents/src/api-service.test.ts`: the actions end to end against a live test server: discovery on save, invalid names/URLs/headers, a saved-but-unreachable server, projection onto agents through `CreateAgent`/`UpdateAgent`, delete scrubbing agents and secrets; and a full session in which the user calls a remote tool from the palette, the agent calls it through `call`, and the tool is promoted on the following turn. <!-- id:-mezCZ8h -->

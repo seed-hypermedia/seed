@@ -8,7 +8,7 @@ Presentation settings for the table view of a [query block](../block/query.md): 
 # Shape <!-- id:d84aVZ53 -->
 
 A **closed struct** with these fields: <!-- id:qLiRI5k4 -->
-  - `columns` _(required)_ — list of map { 3 fields } <!-- id:K_mebOSM -->
+  - `columns` _(required)_: list of map { 3 fields } <!-- id:K_mebOSM -->
 
 # Depends on <!-- id:DxO1nCj8 -->
 

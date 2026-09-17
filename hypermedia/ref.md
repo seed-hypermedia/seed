@@ -14,15 +14,15 @@ Three shapes are valid. A **version Ref** has `genesisBlob` and one or more `hea
 # Shape <!-- id:dpE2fWQB -->
 
 **Extends** [blob](./blob.md) with these added fields: <!-- id:6u-Qshey -->
-  - `type` — `"Ref"` <!-- id:4LKiQ2kT -->
-  - `space` — [principal](./principal.md) <!-- id:idNr9FJM -->
-  - `path` — [string](./string.md) <!-- id:8izgFQy0 -->
-  - `genesisBlob` — [cid](./cid.md) <!-- id:cob0_GUo -->
-  - `capability` — [cid](./cid.md) <!-- id:Wv5xpNAJ -->
-  - `heads` _(required)_ — list of [cid](./cid.md) <!-- id:_B1tM30h -->
-  - `redirect` — [ref/redirect-target](./ref/redirect-target.md) <!-- id:F5YoHwBj -->
-  - `generation` — [integer](./integer.md) <!-- id:tPhi-Hlj -->
-  - `visibility` — [visibility](./visibility.md) <!-- id:CgsyURu- -->
+  - `type`: `"Ref"` <!-- id:4LKiQ2kT -->
+  - `space`: [principal](./principal.md) <!-- id:idNr9FJM -->
+  - `path`: [string](./string.md) <!-- id:8izgFQy0 -->
+  - `genesisBlob`: [cid](./cid.md) <!-- id:cob0_GUo -->
+  - `capability`: [cid](./cid.md) <!-- id:Wv5xpNAJ -->
+  - `heads` _(required)_: list of [cid](./cid.md) <!-- id:_B1tM30h -->
+  - `redirect`: [ref/redirect-target](./ref/redirect-target.md) <!-- id:F5YoHwBj -->
+  - `generation`: [integer](./integer.md) <!-- id:tPhi-Hlj -->
+  - `visibility`: [visibility](./visibility.md) <!-- id:CgsyURu- -->
 
 # Depends on <!-- id:L4KMjf3U -->
 

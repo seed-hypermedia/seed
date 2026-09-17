@@ -14,8 +14,8 @@ The three schema-binding metadata keys make typing work without touching this sh
 # Shape <!-- id:2f5svJlU -->
 
 A **closed struct** with these fields: <!-- id:3x9xTU5x -->
-  - `metadata` — [metadata](./metadata.md) <!-- id:JqWmcBXD -->
-  - `content` — list of [block/node](./block/node.md) <!-- id:7I3IBxKI -->
+  - `metadata`: [metadata](./metadata.md) <!-- id:JqWmcBXD -->
+  - `content`: list of [block/node](./block/node.md) <!-- id:7I3IBxKI -->
 
 # Depends on <!-- id:S3YgMiYc -->
 

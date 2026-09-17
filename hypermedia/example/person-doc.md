@@ -10,8 +10,8 @@ This document describes the **example/person-doc** type — an example schema. I
 # Shape <!-- id:bStR0Oxc -->
 
 A **closed struct** with these fields: <!-- id:Zw6v2bIk -->
-  - `surname` _(required)_ — [string](../string.md) <!-- id:6xa2fWed -->
-  - `givenName` — [string](../string.md) <!-- id:D_qvqihl -->
+  - `surname` _(required)_: [string](../string.md) <!-- id:6xa2fWed -->
+  - `givenName`: [string](../string.md) <!-- id:D_qvqihl -->
 
 # Depends on <!-- id:ZbLY5eTj -->
 

@@ -10,9 +10,9 @@ A live document query: which spaces/paths to include, how to sort, and an option
 # Shape <!-- id:lq2339R1 -->
 
 A **closed struct** with these fields: <!-- id:2wTIZ4R0 -->
-  - `includes` _(required)_ — list of [query/inclusion](./query/inclusion.md) <!-- id:dsd-GXt3 -->
-  - `sort` — list of [query/sort](./query/sort.md) <!-- id:OV-3krlD -->
-  - `limit` — `integer` <!-- id:oioonYyE -->
+  - `includes` _(required)_: list of [query/inclusion](./query/inclusion.md) <!-- id:dsd-GXt3 -->
+  - `sort`: list of [query/sort](./query/sort.md) <!-- id:OV-3krlD -->
+  - `limit`: `integer` <!-- id:oioonYyE -->
 
 # Depends on <!-- id:pvslUZ8E -->
 

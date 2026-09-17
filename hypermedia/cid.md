@@ -3,7 +3,7 @@ name: CID
 summary: A content identifier, the self-describing hash that names a blob by its bytes, written in Hypermedia as CIDv1 with the dag-cbor codec and either a SHA-256 or a BLAKE2b-256 multihash.
 schemaDefinition: ipfs://bafyreif7e4777snpct3iqfq2fdayahrt22t5rkodphhgbb4mrr6fawd2eq
 ---
-**CID** — Content IDentifier: a self-describing hash that names a block by its content. The canonical form of a reference. <!-- id:jGQjdjiu -->
+**CID**: Content IDentifier: a self-describing hash that names a block by its content. The canonical form of a reference. <!-- id:jGQjdjiu -->
 
 This page defines the **cid** value type, an alias of [link](./link.md) used wherever a Hypermedia blob points at another blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:KgnNqp4m -->
 

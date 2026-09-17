@@ -14,12 +14,12 @@ Create one with `seed-cli capability create --delegate <uid> --role WRITER --pat
 # Shape <!-- id:Z4Q_8BDH -->
 
 **Extends** [blob](./blob.md) with these added fields: <!-- id:r1SXPido -->
-  - `type` — `"Capability"` <!-- id:SyOFox8W -->
-  - `delegate` _(required)_ — [principal](./principal.md) <!-- id:kjRR_hac -->
-  - `audience` — [principal](./principal.md) <!-- id:7U5hD2qS -->
-  - `path` — [string](./string.md) <!-- id:1kkgb2vD -->
-  - `role` — [role](./role.md) <!-- id:rR-UJPdL -->
-  - `label` — [string](./string.md) <!-- id:vvjLBzH9 -->
+  - `type`: `"Capability"` <!-- id:SyOFox8W -->
+  - `delegate` _(required)_: [principal](./principal.md) <!-- id:kjRR_hac -->
+  - `audience`: [principal](./principal.md) <!-- id:7U5hD2qS -->
+  - `path`: [string](./string.md) <!-- id:1kkgb2vD -->
+  - `role`: [role](./role.md) <!-- id:rR-UJPdL -->
+  - `label`: [string](./string.md) <!-- id:vvjLBzH9 -->
 
 # Depends on <!-- id:8jobVV8F -->
 

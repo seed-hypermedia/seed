@@ -10,12 +10,12 @@ This document describes the **example/event-doc** type — an example schema. It
 # Shape <!-- id:oTgPG0I0 -->
 
 A **closed struct** with these fields: <!-- id:APCz1dtU -->
-  - `date` _(required)_ — [date](../date.md) <!-- id:_Ag7fzQQ -->
-  - `ends` — [date](../date.md) <!-- id:VjLj8NPb -->
-  - `location` — [hm-url](../hm-url.md) (→ must conform to [example/place-doc](./place-doc.md)) <!-- id:GSv_Ii93 -->
-  - `protagonist` — [hm-url](../hm-url.md) (→ must conform to [example/character-doc](./character-doc.md)) <!-- id:DQNXz62n -->
-  - `faction` — [hm-url](../hm-url.md) (→ must conform to [example/faction-doc](./faction-doc.md)) <!-- id:PPo0M0q_ -->
-  - `outcome` — [string](../string.md) (one of `victory`, `defeat`, `stalemate`, `unknown`) <!-- id:29jEp_Bn -->
+  - `date` _(required)_: [date](../date.md) <!-- id:_Ag7fzQQ -->
+  - `ends`: [date](../date.md) <!-- id:VjLj8NPb -->
+  - `location`: [hm-url](../hm-url.md) (→ must conform to [example/place-doc](./place-doc.md)) <!-- id:GSv_Ii93 -->
+  - `protagonist`: [hm-url](../hm-url.md) (→ must conform to [example/character-doc](./character-doc.md)) <!-- id:DQNXz62n -->
+  - `faction`: [hm-url](../hm-url.md) (→ must conform to [example/faction-doc](./faction-doc.md)) <!-- id:PPo0M0q_ -->
+  - `outcome`: [string](../string.md) (one of `victory`, `defeat`, `stalemate`, `unknown`) <!-- id:29jEp_Bn -->
 
 # Depends on <!-- id:6bYy92Ql -->
 

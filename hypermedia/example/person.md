@@ -8,11 +8,11 @@ This document describes the **example/person** type — an example schema. Its f
 # Shape <!-- id:nO4ZbXuU -->
 
 A **closed struct** with these fields: <!-- id:51ZzX9mF -->
-  - `name` _(required)_ — [string](../string.md) <!-- id:YKA6rXKs -->
-  - `age` — [integer](../integer.md) <!-- id:6Bn2OXOQ -->
-  - `active` — [boolean](../boolean.md) <!-- id:IP0tRSYe -->
-  - `home` — [example/address](./address.md) <!-- id:unQF92CR -->
-  - `nicknames` — list of [string](../string.md) <!-- id:frbGcNPJ -->
+  - `name` _(required)_: [string](../string.md) <!-- id:YKA6rXKs -->
+  - `age`: [integer](../integer.md) <!-- id:6Bn2OXOQ -->
+  - `active`: [boolean](../boolean.md) <!-- id:IP0tRSYe -->
+  - `home`: [example/address](./address.md) <!-- id:unQF92CR -->
+  - `nicknames`: list of [string](../string.md) <!-- id:frbGcNPJ -->
 
 # Depends on <!-- id:m3wQHzN9 -->
 

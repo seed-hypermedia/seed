@@ -8,11 +8,11 @@ This document describes the **schema/map-schema** type — a meta-schema variant
 # Shape <!-- id:DIHvEvnR -->
 
 A **closed struct** with these fields: <!-- id:tobWRH1P -->
-  - `type` _(required)_ — `"map"` <!-- id:uoqTZgf3 -->
-  - `values` — [schema](../schema.md) <!-- id:orZ1de-U -->
-  - `name` — `string` <!-- id:mSTdLOPL -->
-  - `description` — `string` <!-- id:aWAzbwvR -->
-  - `params` — map ⟨ \* : [schema](../schema.md) ⟩ <!-- id:6fKAJWXB -->
+  - `type` _(required)_: `"map"` <!-- id:uoqTZgf3 -->
+  - `values`: [schema](../schema.md) <!-- id:orZ1de-U -->
+  - `name`: `string` <!-- id:mSTdLOPL -->
+  - `description`: `string` <!-- id:aWAzbwvR -->
+  - `params`: map ⟨ \* : [schema](../schema.md) ⟩ <!-- id:6fKAJWXB -->
 
 # Depends on <!-- id:VZpWi77O -->
 

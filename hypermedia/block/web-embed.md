@@ -8,8 +8,8 @@ An external embed: `link` is required and is an `http(s)://` URL. The app render
 # Shape <!-- id:Q5buqKEc -->
 
 **Extends** [block/base](./base.md) with these added fields: <!-- id:smg-tBbR -->
-  - `type` — `"WebEmbed"` <!-- id:c2wlVeW6 -->
-  - `link` _(required)_ — [string](../string.md) <!-- id:-den0FTt -->
+  - `type`: `"WebEmbed"` <!-- id:c2wlVeW6 -->
+  - `link` _(required)_: [string](../string.md) <!-- id:-den0FTt -->
 
 # Depends on <!-- id:U9-iiqv6 -->
 

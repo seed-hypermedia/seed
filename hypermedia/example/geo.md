@@ -8,9 +8,9 @@ This document describes the **example/geo** type — an example schema. Its form
 # Shape <!-- id:q-FnSm14 -->
 
 A **closed struct** with these fields: <!-- id:R0FMLE19 -->
-  - `lat` _(required)_ — [float](../float.md) <!-- id:5a0NrCBo -->
-  - `lng` _(required)_ — [float](../float.md) <!-- id:k9oKIATS -->
-  - `altitude` — [integer](../integer.md) <!-- id:-HE-U6Db -->
+  - `lat` _(required)_: [float](../float.md) <!-- id:5a0NrCBo -->
+  - `lng` _(required)_: [float](../float.md) <!-- id:k9oKIATS -->
+  - `altitude`: [integer](../integer.md) <!-- id:-HE-U6Db -->
 
 # Depends on <!-- id:7PVAW069 -->
 

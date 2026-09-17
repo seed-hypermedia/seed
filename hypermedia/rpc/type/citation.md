@@ -10,10 +10,10 @@ This page describes the **rpc/type/citation** read model of the Seed API — der
 # Shape <!-- id:rbyri4dZ -->
 
 A **closed struct** with these fields: <!-- id:VmqoRbRO -->
-  - `source` _(required)_ — one of map { 4 fields } | map { 4 fields } <!-- id:MdIAs04J -->
-  - `isExactVersion` _(required)_ — [boolean](../../boolean.md) <!-- id:UJZmjhTF -->
-  - `targetFragment` _(required)_ — one of [rpc/type/parsed-fragment](./parsed-fragment.md) | [null](../../null.md) <!-- id:wzdqS34J -->
-  - `targetId` _(required)_ — [rpc/type/id](./id.md) <!-- id:StfBx79G -->
+  - `source` _(required)_: one of map { 4 fields } | map { 4 fields } <!-- id:MdIAs04J -->
+  - `isExactVersion` _(required)_: [boolean](../../boolean.md) <!-- id:UJZmjhTF -->
+  - `targetFragment` _(required)_: one of [rpc/type/parsed-fragment](./parsed-fragment.md) | [null](../../null.md) <!-- id:wzdqS34J -->
+  - `targetId` _(required)_: [rpc/type/id](./id.md) <!-- id:StfBx79G -->
 
 # Depends on <!-- id:DfdIjFgi -->
 

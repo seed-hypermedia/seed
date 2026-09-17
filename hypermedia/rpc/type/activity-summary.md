@@ -10,12 +10,12 @@ This page describes the **rpc/type/activity-summary** read model of the Seed API
 # Shape <!-- id:OZXG0Zh7 -->
 
 A **closed struct** with these fields: <!-- id:Vs4HGtDy -->
-  - `latestCommentTime` — [timestamp](../../timestamp.md) <!-- id:1gqusC11 -->
-  - `latestCommentId` _(required)_ — [string](../../string.md) <!-- id:41uUwCp8 -->
-  - `commentCount` _(required)_ — `integer` <!-- id:qpnT9nNY -->
-  - `latestChangeTime` _(required)_ — [timestamp](../../timestamp.md) <!-- id:yf7D_UC5 -->
-  - `isUnread` _(required)_ — [boolean](../../boolean.md) <!-- id:9uyBbD00 -->
-  - `childrenCount` — `integer` <!-- id:def8jVg8 -->
+  - `latestCommentTime`: [timestamp](../../timestamp.md) <!-- id:1gqusC11 -->
+  - `latestCommentId` _(required)_: [string](../../string.md) <!-- id:41uUwCp8 -->
+  - `commentCount` _(required)_: `integer` <!-- id:qpnT9nNY -->
+  - `latestChangeTime` _(required)_: [timestamp](../../timestamp.md) <!-- id:yf7D_UC5 -->
+  - `isUnread` _(required)_: [boolean](../../boolean.md) <!-- id:9uyBbD00 -->
+  - `childrenCount`: `integer` <!-- id:def8jVg8 -->
 
 # Depends on <!-- id:TszmmNHn -->
 

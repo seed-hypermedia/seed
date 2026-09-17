@@ -8,13 +8,13 @@ This document describes the **schema/list-schema** type — a meta-schema varian
 # Shape <!-- id:N5sZel-A -->
 
 A **closed struct** with these fields: <!-- id:ToJn8dIq -->
-  - `type` _(required)_ — `"list"` <!-- id:wXiDx1hX -->
-  - `items` — [schema](../schema.md) <!-- id:YUFWpQYx -->
-  - `minItems` — `integer` <!-- id:UorggIMz -->
-  - `maxItems` — `integer` <!-- id:8Z5D87tc -->
-  - `name` — `string` <!-- id:uT4MH4xg -->
-  - `description` — `string` <!-- id:SOgZ0Enf -->
-  - `params` — map ⟨ \* : [schema](../schema.md) ⟩ <!-- id:pFgVtJ7z -->
+  - `type` _(required)_: `"list"` <!-- id:wXiDx1hX -->
+  - `items`: [schema](../schema.md) <!-- id:YUFWpQYx -->
+  - `minItems`: `integer` <!-- id:UorggIMz -->
+  - `maxItems`: `integer` <!-- id:8Z5D87tc -->
+  - `name`: `string` <!-- id:uT4MH4xg -->
+  - `description`: `string` <!-- id:SOgZ0Enf -->
+  - `params`: map ⟨ \* : [schema](../schema.md) ⟩ <!-- id:pFgVtJ7z -->
 
 # Depends on <!-- id:pg22iU2j -->
 

@@ -8,8 +8,8 @@ A Nostr embed: `link` is required and is a `nostr:` URL naming an event. The app
 # Shape <!-- id:DfGwDfS7 -->
 
 **Extends** [block/base](./base.md) with these added fields: <!-- id:SjE4B4KF -->
-  - `type` — `"Nostr"` <!-- id:MoC4GFpU -->
-  - `link` _(required)_ — [string](../string.md) <!-- id:SUQtq_Ry -->
+  - `type`: `"Nostr"` <!-- id:MoC4GFpU -->
+  - `link` _(required)_: [string](../string.md) <!-- id:SUQtq_Ry -->
 
 # Depends on <!-- id:pTk5fJAj -->
 

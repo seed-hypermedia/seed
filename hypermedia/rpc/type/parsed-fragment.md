@@ -10,7 +10,7 @@ This page describes the **rpc/type/parsed-fragment** read model of the Seed API 
 # Shape <!-- id:syZag7R2 -->
 
 **Extends** [rpc/type/block-range](./block-range.md) with these added fields: <!-- id:yEQ1-H8j -->
-  - `blockId` _(required)_ — [string](../../string.md) <!-- id:HheegK47 -->
+  - `blockId` _(required)_: [string](../../string.md) <!-- id:HheegK47 -->
 
 # Depends on <!-- id:iQNSAaXE -->
 

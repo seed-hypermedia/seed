@@ -8,11 +8,11 @@ An image: `link` is required and is normally an `ipfs://<cid>` [file](../protoco
 # Shape <!-- id:cbXa8mno -->
 
 **Extends** [block/base](./base.md) with these added fields: <!-- id:kPTX80QP -->
-  - `type` — `"Image"` <!-- id:_SNfeCgs -->
-  - `text` — [string](../string.md) <!-- id:DXG_XHw7 -->
-  - `annotations` — list of [block/annotation](./annotation.md) <!-- id:Q7w7I2Hz -->
-  - `link` _(required)_ — [string](../string.md) <!-- id:UYcsuvkH -->
-  - `attributes` — map { 4 fields } <!-- id:iqHIaSba -->
+  - `type`: `"Image"` <!-- id:_SNfeCgs -->
+  - `text`: [string](../string.md) <!-- id:DXG_XHw7 -->
+  - `annotations`: list of [block/annotation](./annotation.md) <!-- id:Q7w7I2Hz -->
+  - `link` _(required)_: [string](../string.md) <!-- id:UYcsuvkH -->
+  - `attributes`: map { 4 fields } <!-- id:iqHIaSba -->
 
 # Depends on <!-- id:YPRiA03F -->
 

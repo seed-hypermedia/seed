@@ -10,11 +10,11 @@ This document describes the **example/faction-doc** type — an example schema. 
 # Shape <!-- id:5EsVMAhL -->
 
 A **closed struct** with these fields: <!-- id:-hXTuVju -->
-  - `founded` _(required)_ — [date](../date.md) <!-- id:IKQ8ylg_ -->
-  - `dissolved` — [date](../date.md) <!-- id:goqd0e_j -->
-  - `seat` — [hm-url](../hm-url.md) (→ must conform to [example/place-doc](./place-doc.md)) <!-- id:ii5ONvHX -->
-  - `leader` — [hm-url](../hm-url.md) (→ must conform to [example/character-doc](./character-doc.md)) <!-- id:4wLuR37p -->
-  - `banner` — [ipfs-url](../ipfs-url.md) <!-- id:z9Hj7vQe -->
+  - `founded` _(required)_: [date](../date.md) <!-- id:IKQ8ylg_ -->
+  - `dissolved`: [date](../date.md) <!-- id:goqd0e_j -->
+  - `seat`: [hm-url](../hm-url.md) (→ must conform to [example/place-doc](./place-doc.md)) <!-- id:ii5ONvHX -->
+  - `leader`: [hm-url](../hm-url.md) (→ must conform to [example/character-doc](./character-doc.md)) <!-- id:4wLuR37p -->
+  - `banner`: [ipfs-url](../ipfs-url.md) <!-- id:z9Hj7vQe -->
 
 # Depends on <!-- id:FhzqPOgw -->
 

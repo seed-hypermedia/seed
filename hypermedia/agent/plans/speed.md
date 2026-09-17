@@ -20,12 +20,12 @@ Every stage is now measured (see Instrumentation), so "it feels slow" decomposes
 - **`src/perf.ts`** — process-wide rolling-window recorder: count, min/max/mean lifetime, p50/p95 over the last 256 samples per metric. One array write per sample; no config. <!-- id:WXEXlN_A -->
 - **`GET /api/perf`** (and `/agents/api/perf`) — the aggregate snapshot as JSON, served beside `/api/health`. Metric names and millisecond aggregates only — no ids, no accounts, no content. `curl https://<host>/api/perf` against staging/prod answers "slow where?" without a log dive. <!-- id:h_I86xGv -->
 - **Wired spans**: <!-- id:EK9XekOk -->
-  - `provider.request_gap` — turn dispatched → first provider request sent (pre-turn overhead) <!-- id:aHKgUKtz -->
-  - `provider.ttft` — provider request sent → first streamed event, logged per request as `provider first output` <!-- id:HyYtJqVD -->
-  - `provider.turn` — provider request sent → assistant turn complete <!-- id:gWcjq2tB -->
+  - `provider.request_gap`: turn dispatched → first provider request sent (pre-turn overhead) <!-- id:aHKgUKtz -->
+  - `provider.ttft`: provider request sent → first streamed event, logged per request as `provider first output` <!-- id:HyYtJqVD -->
+  - `provider.turn`: provider request sent → assistant turn complete <!-- id:gWcjq2tB -->
   - `exec.boot` / `exec.run` / `exec.teardown` / `exec.total` — the execute_code span, decomposed; `bootMs` is now also reported on every `CodeExecResult`_ <!-- id:Yd5pXIcs -->
-  - `run.dispatch_delay` — run dispatchable → executor started <!-- id:aw_TUCfu -->
-  - `tool.<name>` — every tool call span by tool name <!-- id:GgBg2IJ8 -->
+  - `run.dispatch_delay`: run dispatchable → executor started <!-- id:aw_TUCfu -->
+  - `tool.<name>`: every tool call span by tool name <!-- id:GgBg2IJ8 -->
 - **Counters** (occurrences, in the same snapshot so they correlate with the spans above): `provider.error.<provider>.<model>.<reason>` with reason normalized to {overloaded, rate_limited, timeout, other} — ion's ask, so provider overload is distinguishable from local queue/prep time — and `run.retry.<code>` for queue-level retries._ <!-- id:IU0Updlf -->
 - **`scripts/bench-exec.ts`** — standalone sandbox benchmark through the real executor (`bun scripts/bench-exec.ts --runs=6 --runtime=shell`), for before/after proof on any host. <!-- id:58eqX-3h -->
 

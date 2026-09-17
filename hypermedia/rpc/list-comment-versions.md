@@ -10,9 +10,9 @@ This page describes the **rpc/list-comment-versions** method of the Seed API —
 # Shape <!-- id:YHu300c6 -->
 
 A **closed struct** with these fields: <!-- id:SGcsRaoX -->
-  - `key` _(required)_ — `"ListCommentVersions"` <!-- id:dsAhSZXG -->
-  - `input` _(required)_ — map { 1 fields } <!-- id:M_W98ZGO -->
-  - `output` _(required)_ — map { 1 fields } <!-- id:ygWtmLNn -->
+  - `key` _(required)_: `"ListCommentVersions"` <!-- id:dsAhSZXG -->
+  - `input` _(required)_: map { 1 fields } <!-- id:M_W98ZGO -->
+  - `output` _(required)_: map { 1 fields } <!-- id:ygWtmLNn -->
 
 # Depends on <!-- id:WmdsrswR -->
 

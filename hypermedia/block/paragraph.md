@@ -8,10 +8,10 @@ A paragraph of rich text: `text` plus [annotations](./annotation.md) for formatt
 # Shape <!-- id:l0o5Tte_ -->
 
 **Extends** [block/base](./base.md) with these added fields: <!-- id:a3oACyxn -->
-  - `type` — `"Paragraph"` <!-- id:tHz4ynCQ -->
-  - `text` — [string](../string.md) <!-- id:_0H0S0T5 -->
-  - `annotations` — list of [block/annotation](./annotation.md) <!-- id:pXxDvrgh -->
-  - `attributes` — map { 3 fields } <!-- id:ohl09HNZ -->
+  - `type`: `"Paragraph"` <!-- id:tHz4ynCQ -->
+  - `text`: [string](../string.md) <!-- id:_0H0S0T5 -->
+  - `annotations`: list of [block/annotation](./annotation.md) <!-- id:pXxDvrgh -->
+  - `attributes`: map { 3 fields } <!-- id:ohl09HNZ -->
 
 # Depends on <!-- id:yL-NVw3Z -->
 

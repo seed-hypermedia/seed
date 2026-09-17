@@ -8,7 +8,7 @@ The body of a [comment](../comment.md) is a list of these: an open [block](../bl
 # Shape <!-- id:KpgzcxVT -->
 
 **Extends** [block](../block.md) with these added fields: <!-- id:tCclGqa- -->
-  - `children` — list of [block/comment](./comment.md) <!-- id:2Z5R3yQN -->
+  - `children`: list of [block/comment](./comment.md) <!-- id:2Z5R3yQN -->
 
 # Depends on <!-- id:vdGecCjq -->
 

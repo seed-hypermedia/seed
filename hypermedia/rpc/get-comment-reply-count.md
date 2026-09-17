@@ -10,9 +10,9 @@ This page describes the **rpc/get-comment-reply-count** method of the Seed API �
 # Shape <!-- id:sNw03qUK -->
 
 A **closed struct** with these fields: <!-- id:YNWk_gey -->
-  - `key` _(required)_ — `"GetCommentReplyCount"` <!-- id:tfs8yaTl -->
-  - `input` _(required)_ — map { 1 fields } <!-- id:k-2gNoga -->
-  - `output` _(required)_ — `integer` <!-- id:1Qwp8u7V -->
+  - `key` _(required)_: `"GetCommentReplyCount"` <!-- id:tfs8yaTl -->
+  - `input` _(required)_: map { 1 fields } <!-- id:k-2gNoga -->
+  - `output` _(required)_: `integer` <!-- id:1Qwp8u7V -->
 
 # Depends on <!-- id:ruuwrb5M -->
 

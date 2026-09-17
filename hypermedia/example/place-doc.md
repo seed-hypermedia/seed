@@ -10,12 +10,12 @@ This document describes the **example/place-doc** type — an example schema. It
 # Shape <!-- id:GLZCFflE -->
 
 A **closed struct** with these fields: <!-- id:Ow0yN6aL -->
-  - `kind` _(required)_ — [string](../string.md) (one of `city`, `town`, `village`, `fortress`, `ruin`, `wilderness`, `realm`) <!-- id:hAd13nXH -->
-  - `founded` — [date](../date.md) <!-- id:8wxCKl6h -->
-  - `region` — [hm-url](../hm-url.md) (→ must conform to [example/place-doc](./place-doc.md)) <!-- id:ATWV_Ckx -->
-  - `ruler` — [hm-url](../hm-url.md) (→ must conform to [example/faction-doc](./faction-doc.md)) <!-- id:-eI6xxf1 -->
-  - `coordinates` — [ipfs-url](../ipfs-url.md) (→ must conform to [example/geo](./geo.md)) <!-- id:nC4HPPfr -->
-  - `map` — [ipfs-url](../ipfs-url.md) <!-- id:BAH0mMmh -->
+  - `kind` _(required)_: [string](../string.md) (one of `city`, `town`, `village`, `fortress`, `ruin`, `wilderness`, `realm`) <!-- id:hAd13nXH -->
+  - `founded`: [date](../date.md) <!-- id:8wxCKl6h -->
+  - `region`: [hm-url](../hm-url.md) (→ must conform to [example/place-doc](./place-doc.md)) <!-- id:ATWV_Ckx -->
+  - `ruler`: [hm-url](../hm-url.md) (→ must conform to [example/faction-doc](./faction-doc.md)) <!-- id:-eI6xxf1 -->
+  - `coordinates`: [ipfs-url](../ipfs-url.md) (→ must conform to [example/geo](./geo.md)) <!-- id:nC4HPPfr -->
+  - `map`: [ipfs-url](../ipfs-url.md) <!-- id:BAH0mMmh -->
 
 # Depends on <!-- id:SfnIopYv -->
 

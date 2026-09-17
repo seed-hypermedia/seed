@@ -8,9 +8,9 @@ This document describes the **example/folder** type — an example schema. Its f
 # Shape <!-- id:eP9594Lr -->
 
 A **closed struct** with these fields: <!-- id:UieRV9uL -->
-  - `name` _(required)_ — [string](../string.md) <!-- id:c1M-6Hil -->
-  - `files` — list of `link` → [example/file](./file.md) <!-- id:si4UGoBD -->
-  - `subfolders` — list of `link` → [example/folder](./folder.md) <!-- id:Trt0r7XQ -->
+  - `name` _(required)_: [string](../string.md) <!-- id:c1M-6Hil -->
+  - `files`: list of `link` → [example/file](./file.md) <!-- id:si4UGoBD -->
+  - `subfolders`: list of `link` → [example/folder](./folder.md) <!-- id:Trt0r7XQ -->
 
 # Depends on <!-- id:mTz9ztYz -->
 

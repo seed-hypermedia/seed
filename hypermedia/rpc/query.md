@@ -10,9 +10,9 @@ This page describes the **rpc/query** method of the Seed API — a read model of
 # Shape <!-- id:iirT7bVv -->
 
 A **closed struct** with these fields: <!-- id:BqgxY2nD -->
-  - `key` _(required)_ — `"Query"` <!-- id:LqFcY9h4 -->
-  - `input` _(required)_ — [query](../query.md) <!-- id:3CteGWBj -->
-  - `output` _(required)_ — one of [rpc/type/query-result](./type/query-result.md) | [null](../null.md) <!-- id:e3b637gr -->
+  - `key` _(required)_: `"Query"` <!-- id:LqFcY9h4 -->
+  - `input` _(required)_: [query](../query.md) <!-- id:3CteGWBj -->
+  - `output` _(required)_: one of [rpc/type/query-result](./type/query-result.md) | [null](../null.md) <!-- id:e3b637gr -->
 
 # Depends on <!-- id:6QyI0lnv -->
 

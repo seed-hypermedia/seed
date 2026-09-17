@@ -10,9 +10,9 @@ This page describes the **rpc/list-document-collaborators** method of the Seed A
 # Shape <!-- id:QWP-bfOj -->
 
 A **closed struct** with these fields: <!-- id:EdUzp_Jx -->
-  - `key` _(required)_ — `"ListDocumentCollaborators"` <!-- id:p-hlomXS -->
-  - `input` _(required)_ — map { 1 fields } <!-- id:L0_8TywV -->
-  - `output` _(required)_ — [rpc/type/collaborators-payload](./type/collaborators-payload.md) <!-- id:YQbNwJ0I -->
+  - `key` _(required)_: `"ListDocumentCollaborators"` <!-- id:p-hlomXS -->
+  - `input` _(required)_: map { 1 fields } <!-- id:L0_8TywV -->
+  - `output` _(required)_: [rpc/type/collaborators-payload](./type/collaborators-payload.md) <!-- id:YQbNwJ0I -->
 
 # Depends on <!-- id:vUoviOBz -->
 

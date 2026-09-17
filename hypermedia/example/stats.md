@@ -10,11 +10,11 @@ This document describes the **example/stats** type — an example schema. Its fo
 # Shape <!-- id:F-O470TV -->
 
 A **closed struct** with these fields: <!-- id:G2YL1Yf3 -->
-  - `strength` _(required)_ — `integer` (1–10) <!-- id:Z9r2yevr -->
-  - `intellect` _(required)_ — `integer` (1–10) <!-- id:VbVkvo-D -->
-  - `charisma` _(required)_ — `integer` (1–10) <!-- id:RKip766b -->
-  - `alignment` — [string](../string.md) (one of `lawful`, `neutral`, `chaotic`) <!-- id:yokYx90K -->
-  - `traits` — list of [string](../string.md) <!-- id:g0sFEEZM -->
+  - `strength` _(required)_: `integer` (1–10) <!-- id:Z9r2yevr -->
+  - `intellect` _(required)_: `integer` (1–10) <!-- id:VbVkvo-D -->
+  - `charisma` _(required)_: `integer` (1–10) <!-- id:RKip766b -->
+  - `alignment`: [string](../string.md) (one of `lawful`, `neutral`, `chaotic`) <!-- id:yokYx90K -->
+  - `traits`: list of [string](../string.md) <!-- id:g0sFEEZM -->
 
 # Depends on <!-- id:gbkbOHZl -->
 

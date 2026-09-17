@@ -8,7 +8,7 @@ This document describes the **example/admin** type — an example schema. Its fo
 # Shape <!-- id:7bCLqs7s -->
 
 **Extends** [example/employee](./employee.md) with these added fields: <!-- id:tNotYurF -->
-  - `permissions` _(required)_ — list of [string](../string.md) <!-- id:lrACY6mq -->
+  - `permissions` _(required)_: list of [string](../string.md) <!-- id:lrACY6mq -->
 
 # Depends on <!-- id:rrJYZRvC -->
 

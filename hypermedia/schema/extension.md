@@ -2,7 +2,7 @@
 name: Extension
 summary: A Reference Schema that also carries refinements
 ---
-**Extension** — a [Reference Schema](./include-schema.md) that _also_ carries refinements. <!-- id:IoC_acS3 -->
+**Extension**: a [Reference Schema](./include-schema.md) that _also_ carries refinements. <!-- id:IoC_acS3 -->
 
 `{ "type": "hm://…/example/person", "properties": {…} }` <!-- id:vG52Mjgo -->
 

@@ -10,13 +10,13 @@ This is the shape a block has inside a signed [Change](./change.md) (in a [Repla
 # Shape <!-- id:QiFjidUz -->
 
 A map with these fields: <!-- id:fsTkb0Vo -->
-  - `id` _(required)_ — [string](./string.md) <!-- id:JojT7-nZ -->
-  - `revision` — [string](./string.md) <!-- id:lffsHj-T -->
-  - `type` _(required)_ — [string](./string.md) <!-- id:cLTKblZl -->
-  - `text` — [string](./string.md) <!-- id:Vp36I-vY -->
-  - `link` — [string](./string.md) <!-- id:C8thhIEg -->
-  - `annotations` — list of [block/annotation](./block/annotation.md) <!-- id:9JbkXwGl -->
-  - `attributes` — map { 0 fields } <!-- id:wLVIaOrw -->
+  - `id` _(required)_: [string](./string.md) <!-- id:JojT7-nZ -->
+  - `revision`: [string](./string.md) <!-- id:lffsHj-T -->
+  - `type` _(required)_: [string](./string.md) <!-- id:cLTKblZl -->
+  - `text`: [string](./string.md) <!-- id:Vp36I-vY -->
+  - `link`: [string](./string.md) <!-- id:C8thhIEg -->
+  - `annotations`: list of [block/annotation](./block/annotation.md) <!-- id:9JbkXwGl -->
+  - `attributes`: map { 0 fields } <!-- id:wLVIaOrw -->
 
 # Depends on <!-- id:EltAo080 -->
 

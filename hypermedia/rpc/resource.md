@@ -10,9 +10,9 @@ This page describes the **rpc/resource** method of the Seed API — a read model
 # Shape <!-- id:wRYJGS_e -->
 
 A **closed struct** with these fields: <!-- id:utly96z5 -->
-  - `key` _(required)_ — `"Resource"` <!-- id:UToawi30 -->
-  - `input` _(required)_ — [rpc/type/id](./type/id.md) <!-- id:FVQ72Tj4 -->
-  - `output` _(required)_ — [rpc/type/resource](./type/resource.md) <!-- id:-cmT97ah -->
+  - `key` _(required)_: `"Resource"` <!-- id:UToawi30 -->
+  - `input` _(required)_: [rpc/type/id](./type/id.md) <!-- id:FVQ72Tj4 -->
+  - `output` _(required)_: [rpc/type/resource](./type/resource.md) <!-- id:-cmT97ah -->
 
 # Depends on <!-- id:jnPQmqvS -->
 

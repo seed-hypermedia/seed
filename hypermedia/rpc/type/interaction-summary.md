@@ -10,12 +10,12 @@ This page describes the **rpc/type/interaction-summary** read model of the Seed 
 # Shape <!-- id:P_kmfRIz -->
 
 A **closed struct** with these fields: <!-- id:ErHfF34X -->
-  - `citations` _(required)_ — `integer` <!-- id:2_8ldqeJ -->
-  - `comments` _(required)_ — `integer` <!-- id:-x9xLFCo -->
-  - `changes` _(required)_ — `integer` <!-- id:Mi6241x6 -->
-  - `children` _(required)_ — `integer` <!-- id:trlRp_lK -->
-  - `authorUids` — list of [string](../../string.md) <!-- id:tQurr8ya -->
-  - `blocks` _(required)_ — map ⟨ \* : map { 2 fields } ⟩ <!-- id:-FgTqWtB -->
+  - `citations` _(required)_: `integer` <!-- id:2_8ldqeJ -->
+  - `comments` _(required)_: `integer` <!-- id:-x9xLFCo -->
+  - `changes` _(required)_: `integer` <!-- id:Mi6241x6 -->
+  - `children` _(required)_: `integer` <!-- id:trlRp_lK -->
+  - `authorUids`: list of [string](../../string.md) <!-- id:tQurr8ya -->
+  - `blocks` _(required)_: map ⟨ \* : map { 2 fields } ⟩ <!-- id:-FgTqWtB -->
 
 # Depends on <!-- id:a54ycyYA -->
 

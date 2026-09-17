@@ -10,9 +10,9 @@ This page describes the **rpc/query-block** method of the Seed API — a read mo
 # Shape <!-- id:rSSzXiwR -->
 
 A **closed struct** with these fields: <!-- id:MNSUcwUS -->
-  - `key` _(required)_ — `"QueryBlock"` <!-- id:tvvO2-wp -->
-  - `input` _(required)_ — map { 1 fields } <!-- id:tJWuR30d -->
-  - `output` _(required)_ — one of [rpc/type/query-block-payload](./type/query-block-payload.md) | [null](../null.md) <!-- id:VSpP7fZ1 -->
+  - `key` _(required)_: `"QueryBlock"` <!-- id:tvvO2-wp -->
+  - `input` _(required)_: map { 1 fields } <!-- id:tJWuR30d -->
+  - `output` _(required)_: one of [rpc/type/query-block-payload](./type/query-block-payload.md) | [null](../null.md) <!-- id:VSpP7fZ1 -->
 
 # Depends on <!-- id:I9m0maUM -->
 
