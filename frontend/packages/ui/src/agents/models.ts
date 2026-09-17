@@ -310,12 +310,76 @@ export function invalidateForAccountChange(
 // normal sync service. A one-shot discover is insufficient: it can race the peer connection or return a cached
 // result from before the agent published. The live subscription keeps touching discovery until the new content
 // arrives and stays active until the session closes.
+//
+// The subscription asks for "latest", so when the document already exists on the local node (the agent updated
+// it, or the user had opened it before), the node answers with the version it already has and the freshly
+// published one only arrives on the node's own slow refresh. References that carry the published version
+// (`hm://…?v=<version>`, which the write tool result always does) additionally pin that exact version for a
+// bounded time — see {@link pinAgentReferenceVersion}.
 const HM_REF_REGEX = /hm:\/\/[^\s)"'`\]<>]+/g
+
+/** How often the pinned-version probe re-asks the local node, and when it gives up (the live subscription stays). */
+const AGENT_REFERENCE_VERSION_PIN_POLL_MS = 5_000
+const AGENT_REFERENCE_VERSION_PIN_TIMEOUT_MS = 90_000
 
 type AgentReferenceSubscription = {
   url: string
   recursive: boolean
   unsubscribe: () => void
+}
+
+/**
+ * Asks the local node for the exact version an agent referenced, repeating every
+ * {@link AGENT_REFERENCE_VERSION_PIN_POLL_MS} until the node reports that version, the probe times out, or
+ * the caller cancels. Each call touches the daemon's discovery task for `(id, version)`; while the task's
+ * result differs from the pinned version the scheduler re-runs it immediately, which is what makes an agent's
+ * update to an already-local document show up in seconds rather than on the next periodic refresh.
+ *
+ * Best-effort: failures are logged under `[agents-discovery]` and leave the live subscription in place.
+ * Returns a cancel function.
+ */
+function pinAgentReferenceVersion(id: string, version: string): () => void {
+  const discoverEntity = getAgentsPlatform().discoverEntity
+  if (!discoverEntity) return () => {}
+  let cancelled = false
+  let timer: ReturnType<typeof setTimeout> | null = null
+  const startedAt = Date.now()
+  console.info('[agents-discovery] pinning agent-published version on local node', {id, version})
+
+  const probe = async () => {
+    if (cancelled) return
+    try {
+      const resp = await discoverEntity(id, version)
+      if (cancelled) return
+      if (resp.version === version) {
+        console.info('[agents-discovery] agent-published version is on the local node', {id, version})
+        return
+      }
+      if (Date.now() - startedAt >= AGENT_REFERENCE_VERSION_PIN_TIMEOUT_MS) {
+        console.warn('[agents-discovery] gave up pinning agent-published version; live subscription continues', {
+          id,
+          version,
+          state: resp.state,
+          localVersion: resp.version || '(none)',
+        })
+        return
+      }
+      timer = setTimeout(() => void probe(), AGENT_REFERENCE_VERSION_PIN_POLL_MS)
+    } catch (error) {
+      if (cancelled) return
+      console.warn('[agents-discovery] pinned version discovery failed; live subscription continues', {
+        id,
+        version,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  void probe()
+  return () => {
+    cancelled = true
+    if (timer) clearTimeout(timer)
+  }
 }
 
 type CanonicalAgentRef = {
@@ -391,10 +455,16 @@ function subscribeToAgentReferences(
         },
       },
     )
+    // The write tool result references `id?v=<version>`; ask the node for that exact version so an update
+    // to a document it already holds is fetched now instead of on the node's next periodic refresh.
+    const cancelVersionPin = id.version ? pinAgentReferenceVersion(key, id.version) : () => {}
     activeSubscriptions.set(key, {
       url: reference.url,
       recursive: reference.recursive,
-      unsubscribe: () => subscription.unsubscribe(),
+      unsubscribe: () => {
+        cancelVersionPin()
+        subscription.unsubscribe()
+      },
     })
   }
 }

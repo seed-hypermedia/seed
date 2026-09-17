@@ -74,8 +74,8 @@ const desktopAgentsPlatform: AgentsPlatform = {
     const result = await client.localAgentsServer.query()
     return result.url ?? null
   },
-  discoverEntity: async (id: string) => {
-    const resp = await grpcClient.entities.discoverEntity({id})
+  discoverEntity: async (id: string, version?: string) => {
+    const resp = await grpcClient.entities.discoverEntity({id, version: version || undefined})
     return {state: String(resp.state), version: resp.version}
   },
   subscribeToEntity: ({id, recursive}, {onError}) =>
