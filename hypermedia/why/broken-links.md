@@ -33,7 +33,7 @@ Each node chooses what to keep. There is no protocol-level pinning agreement, no
 
 # See also
 
-- [Signed content, not server trust](./signed-content.md)
+- [Signed content](./signed-content.md)
 - [Open editing](./open-editing.md)
 - [A network for thought](./network-for-thought.md)
 - [Blobs](../protocol/blobs.md) and [CID](../cid.md)

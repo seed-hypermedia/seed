@@ -38,7 +38,7 @@ Merging two concurrent Refs back into one, rebase, and revert do not exist as op
 
 # See also
 
-- [Signed content, not server trust](./signed-content.md)
+- [Signed content](./signed-content.md)
 - [The end of broken links](./broken-links.md)
 - [Documents](../protocol/documents.md)
 - [Change](../change.md)
