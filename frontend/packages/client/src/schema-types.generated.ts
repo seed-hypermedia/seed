@@ -23,7 +23,7 @@ export type HMBlob = {
 
 /**
  * Any Blob
- * Any Hypermedia CBOR blob — the discriminated union of the six blob types, tagged on the type field.
+ * Any Hypermedia CBOR blob: the discriminated union of the six blob types, tagged on the type field.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/blob/any
  */
 export type HMAnyBlob = HMChange<HMBlock> | HMRef | HMProfile | HMComment | HMCapability | HMContact
@@ -542,7 +542,7 @@ export type ExampleAddress = {
 
 /**
  * Example: Admin
- * An employee, extended with a list of permissions.
+ * An employee, extended with a map of boolean permission flags.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/admin
  */
 export type ExampleAdmin = ExampleEmployee & {
@@ -624,7 +624,7 @@ export type ExampleComment = {
 
 /**
  * Example: Constrained Record
- * Exercises the value constraints: string length + pattern, numeric bounds, and list size.
+ * A record that shows the value constraints: string length and pattern, numeric bounds, and list size.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/constrained
  */
 export type ExampleConstrained = {
@@ -637,14 +637,14 @@ export type ExampleConstrained = {
 
 /**
  * Example: Counts
- * example/counts — an example schema.
+ * A map from string keys to integers: Map<Integer>.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/counts
  */
 export type ExampleCounts = {[key: string]: number}
 
 /**
  * Example: Document
- * example/document — an example schema.
+ * A document with a title, an author, a body, and a link to a previous document.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/document
  */
 export type ExampleDocument = {
@@ -666,7 +666,7 @@ export type ExampleEmployee = ExamplePerson & {
 
 /**
  * Example: Filesystem Entry
- * Either a folder or a file (a union).
+ * Either a folder or a file, as a union.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/entry
  */
 export type ExampleEntry = ExampleFolder | ExampleFile
@@ -710,7 +710,7 @@ export type ExampleFactionDoc = {
 
 /**
  * Example: File
- * example/file — an example schema.
+ * A file with a name and a link to its parent folder.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/file
  */
 export type ExampleFile = {
@@ -720,7 +720,7 @@ export type ExampleFile = {
 
 /**
  * Example: Folder
- * example/folder — an example schema.
+ * A folder with a name and links to its files and subfolders.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/folder
  */
 export type ExampleFolder = {
@@ -731,7 +731,7 @@ export type ExampleFolder = {
 
 /**
  * Example: Geo Point
- * A latitude/longitude coordinate with an optional altitude.
+ * A latitude and longitude coordinate with an optional altitude.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/geo
  */
 export type ExampleGeo = {
@@ -742,21 +742,21 @@ export type ExampleGeo = {
 
 /**
  * Example: JSON Value
- * A recursive JSON value: null, boolean, number, string, list, or map. References itself.
+ * A recursive JSON value: null, boolean, number, string, list, or map.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/json
  */
 export type ExampleJson = null | boolean | number | string | ExampleJson[] | {[key: string]: ExampleJson}
 
 /**
  * Example: Matrix
- * A list of lists of integers — List<List<Integer>>.
+ * A list of lists of integers: List<List<Integer>>.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/matrix
  */
 export type ExampleMatrix = number[][]
 
 /**
  * Example: Metadata
- * Arbitrary string-to-string metadata — Map<String>.
+ * Arbitrary string-to-string metadata: Map<String>.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/metadata
  */
 export type ExampleMetadata = {[key: string]: string}
@@ -828,7 +828,7 @@ export type ExamplePollBlock = HMBlockBase & {
 
 /**
  * Example: Registry
- * A map from ids to person links — Map<Link<Person>>.
+ * A map from ids to person links: Map<Link<Person>>.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/registry
  */
 export type ExampleRegistry = {[key: string]: HMLink}
@@ -859,7 +859,7 @@ export type ExampleStatus = 'draft' | 'published' | 'archived'
 
 /**
  * Example: Tags
- * A list of string tags — List<String>.
+ * A list of string tags: List<String>.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/tags
  */
 export type ExampleTags = string[]
@@ -2047,7 +2047,7 @@ export type SeedSiteMember = {
 
 /**
  * Schema
- * The meta-schema, the union of every shape a schema can take and a valid instance of itself, with a guide to browsing, authoring and checking schemas in the Seed app and an index of the reference pages.
+ * The meta-schema, which is the union of every shape a schema can take and a valid instance of itself, with a guide to schemas in the Seed app and an index of the reference pages.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema
  */
 export type HMSchema =
@@ -2067,7 +2067,7 @@ export type HMSchema =
 
 /**
  * Union schema
- * The variant for a union — a value matching any one of several alternatives (anyOf).
+ * The variant for a union, which accepts a value that matches any one of the schemas listed under anyOf.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/anyof
  */
 export type HMAnyof = {
@@ -2079,7 +2079,7 @@ export type HMAnyof = {
 
 /**
  * Reference Schema
- * The variant for a reference: a bare include, or an extension when it carries refinements.
+ * The variant for a reference, which is a bare include or, when it carries refinements, an extension.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/include-schema
  */
 export type HMIncludeSchema = {
@@ -2099,7 +2099,7 @@ export type HMIncludeSchema = {
 
 /**
  * Link schema
- * The variant for a link (CID), optionally naming the expected target type.
+ * The variant for a link (a CID), which can name the type it expects to point at.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/link-schema
  */
 export type HMLinkSchema = {
@@ -2113,7 +2113,7 @@ export type HMLinkSchema = {
 
 /**
  * List schema
- * The variant for a list value; items types the elements.
+ * The variant for a list value, where items types the elements.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/list-schema
  */
 export type HMListSchema = {
@@ -2128,7 +2128,7 @@ export type HMListSchema = {
 
 /**
  * Literal Schema
- * The variant for a literal — a schema that accepts exactly one value, with a description of what that value means.
+ * The variant for a literal, which is a schema that accepts exactly one value and can describe what that value means.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/literal-schema
  */
 export type HMLiteralSchema = {
@@ -2140,7 +2140,7 @@ export type HMLiteralSchema = {
 
 /**
  * Map schema
- * The variant for a map — arbitrary keys whose values all match one schema (values). Known fields belong to a struct schema.
+ * The variant for a map whose keys are arbitrary and whose values all match the one schema under values, while known fields belong in a struct schema.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map-schema
  */
 export type HMMapSchema = {
@@ -2154,7 +2154,7 @@ export type HMMapSchema = {
 
 /**
  * Property
- * One field of a struct — its value schema, whether a value must include it, and a description of what it is for.
+ * One field of a struct, holding its value schema, whether a value must include it, and a description of what it is for.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/property
  */
 export type HMProperty = {
@@ -2168,7 +2168,7 @@ export type HMProperty = {
 
 /**
  * Scalar schema
- * The variant for a scalar value (null, boolean, integer, float, string, bytes), optionally narrowed by value constraints. To pin a scalar to one value, use a literal.
+ * The variant for a null, boolean, integer, float, string or bytes value, optionally narrowed by value constraints.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/scalar-schema
  */
 export type HMScalarSchema = {
@@ -2195,7 +2195,7 @@ export type HMScalarSchema = {
 
 /**
  * Struct schema
- * The variant for a struct — known fields via properties, optionally open to extra keys via values.
+ * The variant for a struct, with known fields under properties and optionally extra keys of one type under values.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/struct-schema
  */
 export type HMStructSchema = {
@@ -2214,7 +2214,7 @@ export type HMStructSchema = {
 
 /**
  * Variable Schema
- * A type-variable reference: matches whatever a generic's parameter is bound to. Written { "var": "<name>" }.
+ * A type-variable reference, written { "var": "<name>" }, that matches whatever a generic's parameter is bound to.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/var-schema
  */
 export type HMVarSchema = {

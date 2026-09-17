@@ -3,9 +3,9 @@ name: Event
 summary: "A world-builder page type for something that happened, whose attributes require a date and link the event to a place and a protagonist character."
 schemaDefinition: ipfs://bafyreifl3hbrvjn4xtsnzkxatspsqq2hyarrfsp4hjxe34je7f5fclvtxy
 ---
-A world-builder kit type: a page about something that happened. Its attributes require a `date` and link the event to a location (a Place), a protagonist (a Character), and optionally an `ends` date for spans. <!-- id:1OgsTNBq -->
+A [World Builder](../schema/world-builder.md) page type for something that happened. Its [attributes](../schema/typed-documents.md) require a `date`. They link the event to a location, which is a [place](./place-doc.md), and a protagonist, which is a [character](./character-doc.md). An optional `ends` date covers spans. <!-- id:1OgsTNBq -->
 
-This document describes the **example/event-doc** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:NmhbwjcE -->
+This page describes the **example/event-doc** type, one of the [example schemas](../example.md). The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it and create values of this type. <!-- id:NmhbwjcE -->
 
 # Shape <!-- id:oTgPG0I0 -->
 
@@ -22,3 +22,11 @@ A **closed struct** with these fields: <!-- id:APCz1dtU -->
 - [hm-url](../hm-url.md) <!-- id:rgdKlppM -->
 - [date](../date.md) <!-- id:-cgxdt72 -->
 - [string](../string.md) <!-- id:HeRKKPgt -->
+
+# See also
+
+- [World Builder](../schema/world-builder.md): the demo these types come from.
+- [character-doc](./character-doc.md): the protagonist type.
+- [faction-doc](./faction-doc.md): the faction type.
+- [Typed documents](../schema/typed-documents.md): how a page names its type.
+- [Examples](../example.md): every example, grouped by feature.

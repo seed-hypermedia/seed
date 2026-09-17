@@ -1,9 +1,11 @@
 ---
 name: "Example: Tags"
-summary: A list of string tags — List<String>.
+summary: "A list of string tags: List<String>."
 schemaDefinition: ipfs://bafyreibcmd2jpl6fnl6cdu543gemk5oqfvhzlne7gbgt3jct44rlaayrje
 ---
-This document describes the **example/tags** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:cATUti10 -->
+A [list](../list.md) of [strings](../string.md): `List<String>`. [article](./article.md) uses it.
+
+This page describes the **example/tags** type, one of the [example schemas](../example.md). The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it and create values of this type. <!-- id:cATUti10 -->
 
 # Shape <!-- id:TDDDsjPQ -->
 
@@ -12,3 +14,10 @@ A **list** of [string](../string.md). <!-- id:Ls_az06c -->
 # Depends on <!-- id:xCoOOesT -->
 
 - [string](../string.md) <!-- id:U3hUw9dR -->
+
+# See also
+
+- [matrix](./matrix.md): a nested list.
+- [List](../list.md): the list type.
+- [article](./article.md): uses this type.
+- [Examples](../example.md): every example, grouped by feature.

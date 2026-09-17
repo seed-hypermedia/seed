@@ -3,9 +3,9 @@ name: Domain Info
 summary: "The daemon’s view of a site domain: registration, gateway status, and health-check results."
 schemaDefinition: ipfs://bafyreidbfhbfgvkr4rfoys5pclifv3lpgziqnlefrxqdufcrrnyso74gyu
 ---
-The daemon's view of a site domain: registration, gateway status, and health-check results. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:0-pCYFt2 -->
+The daemon's view of a [site](../../protocol/sites.md) domain: registration, gateway status and health-check results. <!-- id:0-pCYFt2 -->
 
-This page describes the **rpc/type/domain-info** read model of the Seed API — derived data the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:DI-UIA2D -->
+This page describes the **rpc/type/domain-info** read model of the [Seed API](../../build/web-api.md). The daemon computes it for clients. It is separate from the signed [blobs](../../protocol/blobs.md) that travel the network. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it. <!-- id:DI-UIA2D -->
 
 # Shape <!-- id:ekpw-cCp -->
 
@@ -24,3 +24,10 @@ A **closed struct** with these fields: <!-- id:xuUlh0JO -->
 - [boolean](../../boolean.md) <!-- id:DyUUe03G -->
 - [null](../../null.md) <!-- id:QzHgJRnw -->
 - [string](../../string.md) <!-- id:UW_sdNOt -->
+
+# See also
+
+- [GetDomain](../get-domain.md): check one domain.
+- [ListDomains](../list-domains.md): every known domain.
+- [Sites](../../protocol/sites.md): domains and gateways.
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.

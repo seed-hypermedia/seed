@@ -3,9 +3,9 @@ name: "RPC: ListDomains"
 summary: "Returns every site domain the daemon knows, each with its registration and health info."
 schemaDefinition: ipfs://bafyreidlmqv7wr7wbybpocgdd2ok5yxgwyu74n35x63fcpjkbdquc3wqka
 ---
-Lists all site domains the daemon knows about. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:EU590VBL -->
+Lists every [site](../protocol/sites.md) domain the daemon knows, each with its registration and health info as [domain info](./type/domain-info.md). <!-- id:EU590VBL -->
 
-This page describes the **rpc/list-domains** method of the Seed API — a read model of what the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:EUFuDI5u -->
+This page describes the **rpc/list-domains** method. It is one method of the [Seed API](../build/web-api.md), which clients call as `request(key, input) -> output`. `input` types what you send and `output` types what comes back. The output is a read model that the daemon computes for clients, separate from the signed [blobs](../protocol/blobs.md) that travel the network. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it and run the method from its [API console](../rpc.md). <!-- id:EUFuDI5u -->
 
 # Shape <!-- id:FQW6uXz3 -->
 
@@ -17,3 +17,11 @@ A **closed struct** with these fields: <!-- id:9151imY0 -->
 # Depends on <!-- id:MHXgMWho -->
 
 - [rpc/type/domain-info](./type/domain-info.md) <!-- id:YRWfuQiw -->
+
+# See also
+
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
+- [RPC](./method.md): every method in one union.
+- [Sites](../protocol/sites.md): domains and gateways.
+- [GetDomain](./get-domain.md): check one domain.

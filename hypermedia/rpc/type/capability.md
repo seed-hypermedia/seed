@@ -3,9 +3,9 @@ name: Capability (Payload)
 summary: "A capability as the API returns it: who was granted which role on which grant id."
 schemaDefinition: ipfs://bafyreigizt5muz7rep5xyran5tbhzkj7ag563edhd6c73xrka5e76u4vfi
 ---
-A capability as the API returns it: who was granted which role on which grant id. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:07W6OLh9 -->
+A [capability](../../protocol/permissions.md) as the API returns it: who was granted which [role](../../role.md) on which grant id. The signed blob is [capability](../../capability.md). <!-- id:07W6OLh9 -->
 
-This page describes the **rpc/type/capability** read model of the Seed API — derived data the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:muCOPBV1 -->
+This page describes the **rpc/type/capability** read model of the [Seed API](../../build/web-api.md). The daemon computes it for clients. It is separate from the signed [blobs](../../protocol/blobs.md) that travel the network. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it. <!-- id:muCOPBV1 -->
 
 # Shape <!-- id:U635-Zyt -->
 
@@ -24,3 +24,10 @@ A **closed struct** with these fields: <!-- id:9qhgoTmA -->
 - [timestamp](../../timestamp.md) <!-- id:3XGFsdz3 -->
 - [string](../../string.md) <!-- id:6MwjyTWx -->
 - [rpc/type/id](./id.md) <!-- id:RiWTRYEb -->
+
+# See also
+
+- [Permissions](../../protocol/permissions.md): capabilities, roles and delegation.
+- [Raw Capability](./raw-capability.md): the indexed wire form.
+- [Collaborators Payload](./collaborators-payload.md): where the API returns these.
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.

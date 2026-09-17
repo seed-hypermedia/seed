@@ -3,9 +3,9 @@ name: "RPC: GetCID"
 summary: "Fetches a raw IPFS block by CID and returns it decoded as a DAG-JSON value."
 schemaDefinition: ipfs://bafyreic5sb7xm2eidzvnu2ghffcybycqx5o6vynbfbtaboxlchiwhjfrfm
 ---
-Fetches a raw IPFS block by CID and decodes it. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:KrdeFkDA -->
+Fetches a raw IPFS block by [CID](../protocol/blobs.md) and returns it decoded as a [DAG-JSON](../schema/dag-json.md) value. <!-- id:KrdeFkDA -->
 
-This page describes the **rpc/get-cid** method of the Seed API — a read model of what the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:rPC2zBYZ -->
+This page describes the **rpc/get-cid** method. It is one method of the [Seed API](../build/web-api.md), which clients call as `request(key, input) -> output`. `input` types what you send and `output` types what comes back. The output is a read model that the daemon computes for clients, separate from the signed blobs that travel the network. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it and run the method from its [API console](../rpc.md). <!-- id:rPC2zBYZ -->
 
 # Shape <!-- id:0EwBrMzm -->
 
@@ -18,3 +18,12 @@ A **closed struct** with these fields: <!-- id:HzFHBpWO -->
 
 - [any](../any.md) <!-- id:xxcRpn4k -->
 - [string](../string.md) <!-- id:rLVe6evY -->
+
+# See also
+
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
+- [RPC](./method.md): every method in one union.
+- [Signed Blobs](../protocol/blobs.md): encoding and content addressing.
+- [CID](../cid.md): the CID type.
+- [Files](../protocol/files.md): files and the `/ipfs/` endpoint.

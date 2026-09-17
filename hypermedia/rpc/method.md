@@ -3,13 +3,13 @@ name: RPC
 summary: "The union of every read-only method of the Seed API, each variant pinning a method key and typing its input and output."
 schemaDefinition: ipfs://bafyreihceqkz5ertrc6mrnefoj4b5ink2nczuogohthdbanucs26aeackm
 ---
-The union of every read-only method of the Seed universal-client API. Each variant pins a method key and types its input and output — the machine-readable catalog the in-app API console is driven by. <!-- id:IKHnPUjW -->
+The union of every read-only method of the [Seed API](../build/web-api.md). Each variant pins a method key and types its input and output. The app's [API console](../rpc.md) builds its method picker from this union. <!-- id:IKHnPUjW -->
 
-This page describes the **rpc/method** union of the Seed API — a read model of what the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:fcTIA-2I -->
+This page describes the **rpc/method** union. Each method's output is a read model that the daemon computes for clients, separate from the signed [blobs](../protocol/blobs.md) that travel the network. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it. <!-- id:fcTIA-2I -->
 
 # Shape <!-- id:s2nSHzDT -->
 
-A **union** — a value matches one of these variants: <!-- id:t3jRiLMY -->
+A **union**. A value matches one of these variants: <!-- id:t3jRiLMY -->
   - [rpc/account](./account.md) <!-- id:_zdwVhsO -->
   - [rpc/account-contacts](./account-contacts.md) <!-- id:IqFdeR_2 -->
   - [rpc/comment](./comment.md) <!-- id:5YXd9d3k -->
@@ -65,3 +65,11 @@ A **union** — a value matches one of these variants: <!-- id:t3jRiLMY -->
 - [rpc/resource-metadata](./resource-metadata.md) <!-- id:yndytQRG -->
 - [rpc/search](./search.md) <!-- id:fF0JDz5h -->
 - [rpc/subject-contacts](./subject-contacts.md) <!-- id:mpRvoduy -->
+
+# See also
+
+- [Seed API Schemas](../rpc.md): how the methods are published and the console.
+- [Seed API](../build/web-api.md): calling these keys over HTTP.
+- [SDK](../build/sdk.md): typed calls from TypeScript.
+- [Resource](./resource.md): the most common read.
+- [Search](./search.md): full-text search.

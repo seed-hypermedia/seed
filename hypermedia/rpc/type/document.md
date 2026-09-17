@@ -3,9 +3,9 @@ name: Document (Payload)
 summary: "A document as the API returns it: the signed document’s metadata and content plus derived fields such as resolved version, authors, timestamps, and visibility."
 schemaDefinition: ipfs://bafyreie3ylin72g7b6tphntqkrzhube33rfwwruvb4a7672lrirgvmniqq
 ---
-A document as the API returns it to clients: the signed document's metadata and content plus derived fields (resolved version, authors, timestamps, visibility). A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:rHH1177g -->
+A [document](../../protocol/documents.md) as the API returns it: the signed document's [metadata](../../metadata.md) and [content](../../protocol/blocks.md), plus derived fields such as the resolved version, authors, timestamps and [visibility](../../protocol/privacy.md). [rpc/resource](../resource.md) returns it inside a [document resource](./resource-document.md). <!-- id:rHH1177g -->
 
-This page describes the **rpc/type/document** read model of the Seed API — derived data the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:QZ19vXgV -->
+This page describes the **rpc/type/document** read model of the [Seed API](../../build/web-api.md). The daemon computes it for clients. It is separate from the signed [blobs](../../protocol/blobs.md) that travel the network. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it. <!-- id:QZ19vXgV -->
 
 # Shape <!-- id:K1d3WkMR -->
 
@@ -31,3 +31,11 @@ A **closed struct** with these fields: <!-- id:OhtHahKP -->
 - [visibility](../../visibility.md) <!-- id:mE3ezOcN -->
 - [integer](../../integer.md) <!-- id:lK3bWake -->
 - [string](../../string.md) <!-- id:qVYchjv5 -->
+
+# See also
+
+- [Document](../../document.md): the document term page.
+- [Documents](../../protocol/documents.md): changes, refs and versions.
+- [Document Info](./document-info.md): the listing form without content.
+- [Resource](../resource.md): the method that fetches documents.
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
