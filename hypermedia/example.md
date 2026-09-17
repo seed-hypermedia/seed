@@ -4,7 +4,7 @@ summary: A catalog of all 37 example schemas and instances in the Hypermedia Sch
 ---
 # Examples <!-- id:HKSIPG2Z -->
 
-Every example here is built with [Hypermedia Schemas](./schema.md) and published as its own page under `example/`, with the schema beside it as `example/<name>.schema.json`. Each one demonstrates a specific feature and links to the types it uses. The groups follow [Hypermedia Schemas in one page](./schema/quick-reference.md). Thirty-two are schemas, and five are instances: [documents](./protocol/documents.md) whose attributes are the data. <!-- id:-wxYRM0Q -->
+Every example here is built with [Hypermedia Schemas](./schema.md) and published as its own page under `example/`, with the schema beside it as `example/<name>.schema.json`. Each one shows one feature and links to the types it uses. The groups follow [Hypermedia Schemas in one page](./schema/quick-reference.md). Thirty-two are schemas, and five are instances: [documents](./protocol/documents.md) whose attributes are the data. <!-- id:-wxYRM0Q -->
 
 ## Structs <!-- id:oGPlvmvN -->
 
@@ -21,14 +21,14 @@ A [struct](./struct.md) is a [closed map](./schema/closed-map.md) with named fie
 
 ## Maps and lists <!-- id:Litrltyz -->
 
-A list constrains its `items`; an open map constrains its `values`. See [the schema language](./schema/schema-language.md). <!-- id:RJooBqNV -->
+A [list](./list.md) constrains its `items`. An open [map](./map.md) constrains its `values`. See [the schema language](./schema/schema-language.md). <!-- id:RJooBqNV -->
   - [counts](./example/counts.md) is `Map<Integer>`, the worked example. <!-- id:B35K3M5Y -->
   - [tags](./example/tags.md) is `List<String>`. <!-- id:ADxHncd4 -->
   - [matrix](./example/matrix.md) is `List<List<Integer>>`, a nested list. <!-- id:ZFp9DXan -->
   - [metadata](./example/metadata.md) is `Map<String>`, an open map of strings. <!-- id:37dvuu1i -->
-  - [registry](./example/registry.md) is `Map<Link<person>>`, a map whose values are typed links. <!-- id:pCrPxAmI -->
+  - [registry](./example/registry.md) is `Map<Link<person>>`, a map whose values are typed [links](./link.md). <!-- id:pCrPxAmI -->
   - [tree](./example/tree.md) is a node with an integer value and a list of links to child trees. <!-- id:XQAu127V -->
-  - [json](./example/json.md) is the classic recursive union: a JSON value is null, a boolean, an integer, a float, a string, a list of JSON values, or a map of JSON values. <!-- id:EUKbD7wt -->
+  - [json](./example/json.md) is a recursive union: a JSON value is null, a boolean, an integer, a float, a string, a list of JSON values, or a map of JSON values. <!-- id:EUKbD7wt -->
 
 ## Unions and literals <!-- id:TRiT5pPB -->
 
@@ -72,7 +72,7 @@ Every schema and instance page lists what it depends on and what depends on it. 
 
 # Checking the examples <!-- id:jzou-HMh -->
 
-From a checkout of the Seed repository, the reference validator checks every example schema against the meta-schema and runs accepting and rejecting data cases for many of them. <!-- id:yOWgEY01 -->
+From a checkout of the Seed repository, the reference validator checks every example schema against the [meta-schema](./schema.md) and runs accepting and rejecting data cases for many of them. <!-- id:yOWgEY01 -->
 
 ```sh <!-- id:mwZwb8nz -->
 node scripts/hypermedia/validate.mjs
@@ -84,4 +84,16 @@ To check your own data file against one of these schemas, name the schema and th
 node scripts/hypermedia/validate.mjs example/article my-article.json
 ```
 
-The [Seed CLI](./build/cli.md) checks data against a published type too, with `seed-cli blob validate -f value.json --schema <type URL>`. <!-- id:hE1GrTtd -->
+The [Seed CLI](./build/cli.md) also checks data against a published type: <!-- id:hE1GrTtd -->
+
+```sh
+seed-cli blob validate -f value.json --schema <type URL>
+```
+
+# See also
+
+- [Hypermedia Schemas](./schema.md): the schema system.
+- [Hypermedia Schemas in one page](./schema/quick-reference.md): the features these examples follow.
+- [Typed documents](./schema/typed-documents.md): attributes schemas on real pages.
+- [The World Builder](./schema/world-builder.md): the demo behind the world-builder types.
+- [Seed API Schemas](./rpc.md): real schemas for the Seed API.

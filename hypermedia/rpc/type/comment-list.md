@@ -3,9 +3,9 @@ name: Comment List
 summary: "A list of comments plus the metadata payloads of every author involved."
 schemaDefinition: ipfs://bafyreig3f4ozdxbg2tlctxfnt6pdd24nrmyhyurjimdddw5pjcbkcgtpq4
 ---
-A list of comments plus the metadata payloads of every author involved. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:YsLbrH3B -->
+A list of [comments](../../protocol/comments.md) plus the metadata payloads of every author involved. [rpc/list-comments](../list-comments.md) returns it, as do the by-author and by-reference variants. <!-- id:YsLbrH3B -->
 
-This page describes the **rpc/type/comment-list** read model of the Seed API — derived data the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:NORHzsPw -->
+This page describes the **rpc/type/comment-list** read model of the [Seed API](../../build/web-api.md). The daemon computes it for clients. It is separate from the signed [blobs](../../protocol/blobs.md) that travel the network. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it. <!-- id:NORHzsPw -->
 
 # Shape <!-- id:PppnBW7I -->
 
@@ -17,3 +17,11 @@ A **closed struct** with these fields: <!-- id:KZctBNHM -->
 
 - [rpc/type/comment](./comment.md) <!-- id:uEtChrVR -->
 - [rpc/type/metadata-payload](./metadata-payload.md) <!-- id:Dt3ONyxv -->
+
+# See also
+
+- [Comment (Payload)](./comment.md): each comment.
+- [Metadata Payload](./metadata-payload.md): each author.
+- [ListCommentsByAuthor](../list-comments-by-author.md): comments by one author.
+- [ListCommentsByReference](../list-comments-by-reference.md): comments on one block.
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.

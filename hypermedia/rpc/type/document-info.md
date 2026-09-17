@@ -3,9 +3,9 @@ name: Document Info
 summary: "One document in a listing: identity, authorship, timestamps, breadcrumbs, and activity summary, without the full content."
 schemaDefinition: ipfs://bafyreie5rclecbw2pqlbehohpvckb6h3zimyr7ssisluedfrrehz2axi2m
 ---
-One document in a listing (query results, directories): identity, authorship, timestamps, breadcrumbs, and its activity summary — without the full content. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:OgH907y3 -->
+One [document](../../protocol/documents.md) in a listing, such as query results or a directory. It carries identity, authorship, timestamps, [breadcrumbs](./breadcrumb.md) and an [activity summary](./activity-summary.md), without the full content. <!-- id:OgH907y3 -->
 
-This page describes the **rpc/type/document-info** read model of the Seed API — derived data the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:cNYjZmUW -->
+This page describes the **rpc/type/document-info** read model of the [Seed API](../../build/web-api.md). The daemon computes it for clients. It is separate from the signed [blobs](../../protocol/blobs.md) that travel the network. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it. <!-- id:cNYjZmUW -->
 
 # Shape <!-- id:lMYeC4DK -->
 
@@ -38,3 +38,10 @@ A **closed struct** with these fields: <!-- id:JQCMU3uI -->
 - [rpc/type/breadcrumb](./breadcrumb.md) <!-- id:pW674sZt -->
 - [rpc/type/id](./id.md) <!-- id:f-OIRb8y -->
 - [rpc/type/redirect-info](./redirect-info.md) <!-- id:9I8fkVGm -->
+
+# See also
+
+- [Document (Payload)](./document.md): the full document.
+- [Query Result](./query-result.md): a listing of document info.
+- [Redirect Info](./redirect-info.md): a listed document that redirects.
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.

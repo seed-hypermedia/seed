@@ -3,9 +3,9 @@ name: Discovery Status
 summary: "The state of a background discovery task for a resource: pending, found with the resolved version, or failed with the error."
 schemaDefinition: ipfs://bafyreig5qnttwnusga7cz46pf55yo53hjuzkcf2ssd6lxqo6darzfyj2ny
 ---
-The state of a background discovery task for a resource: pending, found (with the resolved version), or failed (with the error). A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:qgX0_Pnd -->
+The state of a background [discovery](../../protocol/network.md) task for a resource: pending, found with the resolved version, or failed with the error. <!-- id:qgX0_Pnd -->
 
-This page describes the **rpc/type/discovery-status** read model of the Seed API — derived data the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:Yrc4tz-K -->
+This page describes the **rpc/type/discovery-status** read model of the [Seed API](../../build/web-api.md). The daemon computes it for clients. It is separate from the signed [blobs](../../protocol/blobs.md) that travel the network. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it. <!-- id:Yrc4tz-K -->
 
 # Shape <!-- id:5S7wQzcJ -->
 
@@ -17,3 +17,9 @@ A **closed struct** with these fields: <!-- id:30yArQuX -->
 # Depends on <!-- id:2Ac_QMa3 -->
 
 - [string](../../string.md) <!-- id:mvuguHT_ -->
+
+# See also
+
+- [DiscoveryStatus](../discovery-status.md): the method that returns it.
+- [Network](../../protocol/network.md): discovery and sync.
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.

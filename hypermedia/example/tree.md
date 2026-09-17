@@ -3,7 +3,9 @@ name: "Example: Tree"
 summary: A node holding an integer value and links to child nodes.
 schemaDefinition: ipfs://bafyreihszrccmx2r3wpb4whra6n7uajwlfjkjcni3rq5wifuarloevrnby
 ---
-This document describes the **example/tree** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:iIAXUuqT -->
+A tree node: an [integer](../integer.md) value and a list of [links](../link.md) to child trees. The type refers to itself, which works because schemas [reference each other by name](../schema/references.md).
+
+This page describes the **example/tree** type, one of the [example schemas](../example.md). The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it and create values of this type. <!-- id:iIAXUuqT -->
 
 # Shape <!-- id:qHaa2ZeF -->
 
@@ -14,3 +16,10 @@ A **closed struct** with these fields: <!-- id:yQtqZKJv -->
 # Depends on <!-- id:j7V1B1aL -->
 
 - [integer](../integer.md) <!-- id:G7JqZKJV -->
+
+# See also
+
+- [comment](./comment.md): another self-referencing type.
+- [json](./json.md): a recursive union.
+- [References](../schema/references.md): why recursion works.
+- [Examples](../example.md): every example, grouped by feature.

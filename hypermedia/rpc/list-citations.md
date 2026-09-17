@@ -3,9 +3,9 @@ name: "RPC: ListCitations"
 summary: "Returns the raw citations that point at a target resource, given its id."
 schemaDefinition: ipfs://bafyreifzwfbmojtf5olopsupja2q5pbvavnjmbgakhsefyuyqcsnfiwyye
 ---
-Lists raw citations of a target resource. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:EWDwlcgM -->
+Lists the raw [citations](../protocol/comments.md) that point at a target resource, given its id. Each one is a [raw citation](./type/raw-citation.md). <!-- id:EWDwlcgM -->
 
-This page describes the **rpc/list-citations** method of the Seed API — a read model of what the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:4clN1Gbd -->
+This page describes the **rpc/list-citations** method. It is one method of the [Seed API](../build/web-api.md), which clients call as `request(key, input) -> output`. `input` types what you send and `output` types what comes back. The output is a read model that the daemon computes for clients, separate from the signed [blobs](../protocol/blobs.md) that travel the network. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it and run the method from its [API console](../rpc.md). <!-- id:4clN1Gbd -->
 
 # Shape <!-- id:z2qy10O8 -->
 
@@ -18,3 +18,12 @@ A **closed struct** with these fields: <!-- id:DCfHjHME -->
 
 - [rpc/type/id](./type/id.md) <!-- id:iS-6L-Uf -->
 - [rpc/type/raw-citation](./type/raw-citation.md) <!-- id:Umt7r3Gz -->
+
+# See also
+
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
+- [RPC](./method.md): every method in one union.
+- [Comments](../protocol/comments.md): citations, mentions and backlinks.
+- [Citation](./type/citation.md): the resolved citation shape.
+- [InteractionSummary](./interaction-summary.md): citation counts.

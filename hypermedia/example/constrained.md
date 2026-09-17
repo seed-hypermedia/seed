@@ -1,9 +1,11 @@
 ---
 name: "Example: Constrained Record"
-summary: "Exercises the value constraints: string length + pattern, numeric bounds, and list size."
+summary: "A record that shows the value constraints: string length and pattern, numeric bounds, and list size."
 schemaDefinition: ipfs://bafyreidkkiy5evkn5tm37vdg5zfr6dnmt45a5nc2w6bydfd6znwpeavayu
 ---
-This document describes the **example/constrained** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:7mil43v3 -->
+A record that shows value constraints: a `username` with `minLength`, `maxLength` and `pattern`, a `score` between 0 and 100, and a list of one to three `tags`. [Scalar schemas](../schema/scalar-schema.md) and [list schemas](../schema/list-schema.md) describe the constraint keywords.
+
+This page describes the **example/constrained** type, one of the [example schemas](../example.md). The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it and create values of this type. <!-- id:7mil43v3 -->
 
 # Shape <!-- id:u0bp8N-O -->
 
@@ -15,3 +17,10 @@ A **closed struct** with these fields: <!-- id:XZkJ0jr0 -->
 # Depends on <!-- id:OQmAkkji -->
 
 - [string](../string.md) <!-- id:iav6y69T -->
+
+# See also
+
+- [Scalar schema](../schema/scalar-schema.md): string and number constraints.
+- [List schema](../schema/list-schema.md): list size constraints.
+- [stats](./stats.md): bounded integers in a real type.
+- [Examples](../example.md): every example, grouped by feature.

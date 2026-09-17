@@ -3,9 +3,9 @@ name: Character
 summary: "A world-builder page type for a character, whose attributes require a birth date and a role and link to a home place, a faction, a portrait, and a stats object."
 schemaDefinition: ipfs://bafyreicvvxzsyz4y3brn4w7mf57zcy2oevhyoeuesvffqag5wdqqafw3oq
 ---
-A world-builder kit type: a page about a character. Its attributes require a `born` date and a `role`, and links the character to a home place, a faction, a portrait file, and a stats object (an `ipfs://` object that must conform to `example/stats`). `notes` is an untyped object link — any DAG-CBOR value. <!-- id:QPklbVhv -->
+A [World Builder](../schema/world-builder.md) page type for a character. Its [attributes](../schema/typed-documents.md) require a `born` [date](../date.md) and a `role`. They link the character to a home [place](./place-doc.md) and a [faction](./faction-doc.md) with [hm:// URLs](../hm-url.md), and to a portrait file and a [stats](./stats.md) object with [ipfs:// URLs](../ipfs-url.md). The stats object must conform to `example/stats`. `notes` is an untyped object link that holds any [DAG-CBOR](../schema/dag-cbor.md) value. <!-- id:QPklbVhv -->
 
-This document describes the **example/character-doc** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:r80voeuc -->
+This page describes the **example/character-doc** type, one of the [example schemas](../example.md). The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it and create values of this type. <!-- id:r80voeuc -->
 
 # Shape <!-- id:NsyiqGRx -->
 
@@ -25,3 +25,11 @@ A **closed struct** with these fields: <!-- id:dms8pLir -->
 - [ipfs-url](../ipfs-url.md) <!-- id:_5Lorpsh -->
 - [date](../date.md) <!-- id:d2oM-6Id -->
 - [string](../string.md) <!-- id:eAML1B3O -->
+
+# See also
+
+- [World Builder](../schema/world-builder.md): the demo these types come from.
+- [stats](./stats.md): the linked stats object.
+- [place-doc](./place-doc.md): the home place type.
+- [Typed documents](../schema/typed-documents.md): how a page names its type.
+- [Examples](../example.md): every example, grouped by feature.

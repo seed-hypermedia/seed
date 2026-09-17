@@ -3,9 +3,9 @@ name: "RPC: ListAccounts"
 summary: "Returns every account the daemon knows as a list of metadata payloads; it takes no meaningful input."
 schemaDefinition: ipfs://bafyreiczbl22fu5bjxblx5zacwi7fyoij35st5kwjlimhswfx4zqaf3irm
 ---
-Lists all known accounts as metadata payloads. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:5KM-97Ry -->
+Lists every [account](../protocol/identity.md) the daemon knows, as [metadata payloads](./type/metadata-payload.md). The input carries nothing the method uses. <!-- id:5KM-97Ry -->
 
-This page describes the **rpc/list-accounts** method of the Seed API — a read model of what the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:DiytFRat -->
+This page describes the **rpc/list-accounts** method. It is one method of the [Seed API](../build/web-api.md), which clients call as `request(key, input) -> output`. `input` types what you send and `output` types what comes back. The output is a read model that the daemon computes for clients, separate from the signed [blobs](../protocol/blobs.md) that travel the network. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it and run the method from its [API console](../rpc.md). <!-- id:DiytFRat -->
 
 # Shape <!-- id:1w2fkBth -->
 
@@ -18,3 +18,11 @@ A **closed struct** with these fields: <!-- id:HtDCnuN6 -->
 
 - [null](../null.md) <!-- id:QJ8U0HIB -->
 - [rpc/type/metadata-payload](./type/metadata-payload.md) <!-- id:_CB4100E -->
+
+# See also
+
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
+- [RPC](./method.md): every method in one union.
+- [Identity](../protocol/identity.md): accounts and keys.
+- [Account](./account.md): resolve one account.

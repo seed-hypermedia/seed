@@ -3,9 +3,9 @@ name: Comment (Payload)
 summary: "A comment as the API returns it: the signed comment’s content plus derived fields such as stable id, version CID, thread links, timestamps, and visibility."
 schemaDefinition: ipfs://bafyreigopzzymjrehpqrv747uygm4njri6gvbfvuhlsasnwtaxb4lrwdou
 ---
-A comment as the API returns it to clients: the signed comment's content plus derived fields (stable id, version CID, thread links, timestamps, visibility). A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:3cDEwf1- -->
+A [comment](../../protocol/comments.md) as the API returns it: the signed comment's content plus derived fields such as its stable id, version [CID](../../protocol/blobs.md), thread links, timestamps and [visibility](../../protocol/privacy.md). The signed blob is [comment](../../comment.md). <!-- id:3cDEwf1- -->
 
-This page describes the **rpc/type/comment** read model of the Seed API — derived data the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:dubklf6x -->
+This page describes the **rpc/type/comment** read model of the [Seed API](../../build/web-api.md). The daemon computes it for clients. It is separate from the signed blobs that travel the network. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it. <!-- id:dubklf6x -->
 
 # Shape <!-- id:IaBONBBP -->
 
@@ -32,3 +32,11 @@ A **closed struct** with these fields: <!-- id:hxnNqONe -->
 - [timestamp](../../timestamp.md) <!-- id:c1mHO1av -->
 - [visibility](../../visibility.md) <!-- id:cKpRsaIH -->
 - [string](../../string.md) <!-- id:KfWsCcfr -->
+
+# See also
+
+- [Comment](../../comment.md): the signed comment blob.
+- [Comment](../comment.md): the method that fetches one comment.
+- [Comment List](./comment-list.md): comments with author metadata.
+- [Comments](../../protocol/comments.md): threads and replies.
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.

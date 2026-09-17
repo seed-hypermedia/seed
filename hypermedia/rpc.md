@@ -4,11 +4,11 @@ summary: The read keys of the Seed API published as Hypermedia Schemas, one page
 ---
 # One call shape <!-- id:S_OZNfxS -->
 
-Seed apps read from the network through one call: `request(key, input) → output`. The `key` names a method, such as `Resource`, `Query`, `Search` or `ListComments`. Each method has its own input and output. Each read method is also published as a [schema](./schema.md), and this page describes that catalog. <!-- id:JoVBzIrS -->
+Seed apps read from the network through one call of the [Seed API](./build/web-api.md): `request(key, input) → output`. The `key` names a method, such as `Resource`, `Query`, `Search` or `ListComments`. Each method has its own input and output. Each read method is also published as a [schema](./schema.md), and this page describes that catalog. <!-- id:JoVBzIrS -->
 
 # Transport <!-- id:h0phrocI -->
 
-The same keys work over HTTP on every Seed [site](./protocol/sites.md), at `/api/<Key>`. This is the [Seed API](./build/web-api.md). Reads are `GET` requests with the input in the query string. Writes are `POST` requests with a [DAG-CBOR](./schema/dag-cbor.md) body. Responses are JSON wrapped by [superjson](https://github.com/flightcontrolhq/superjson), so the output sits under a top-level `json` member. A few pass-through keys, such as `QueryDocuments`, answer plain protobuf JSON. <!-- id:iyQoDYlt -->
+The same keys work over HTTP on every Seed [site](./protocol/sites.md), at `/api/<Key>`. Reads are `GET` requests with the input in the query string. Writes are `POST` requests with a [DAG-CBOR](./schema/dag-cbor.md) body. Responses are JSON wrapped by [superjson](https://github.com/flightcontrolhq/superjson), so the output sits under a top-level `json` member. A few pass-through keys, such as `QueryDocuments`, answer plain protobuf JSON. <!-- id:iyQoDYlt -->
 
 ```sh <!-- id:m6WWWHjT -->
 curl 'https://hyper.media/api/Resource?id=hm://z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS/resources/self-host-seed'
@@ -38,7 +38,7 @@ The union page has the full list. Every variant links to its own page with its e
 
 # The read models <!-- id:eNHwY8y6 -->
 
-The `output` side uses the read models under `rpc/type/`. A read model is data the daemon computes for clients. Signed [blobs](./protocol/blobs.md) are what travel the network. [rpc/type/document](./rpc/type/document.md) is a [document](./protocol/documents.md) with its versions, authors and timestamps already resolved. [rpc/type/id](./rpc/type/id.md) is the parsed form of an [hm:// URL](./protocol/urls.md). [rpc/type/interaction-summary](./rpc/type/interaction-summary.md) counts the [comments](./protocol/comments.md), citations and changes on a resource. The schemas for the signed blobs are in [Schemas on the Hypermedia Network](./schema/blobs.md). <!-- id:AqyRPHIN -->
+The `output` side uses the read models under `rpc/type/`. A read model is data the daemon computes for clients. Signed [blobs](./protocol/blobs.md) are what travel the network. [rpc/type/document](./rpc/type/document.md) is a [document](./protocol/documents.md) with its versions, authors and timestamps already resolved. [rpc/type/id](./rpc/type/id.md) is the parsed form of an [hm:// URL](./protocol/urls.md). [rpc/type/interaction-summary](./rpc/type/interaction-summary.md) counts the [comments](./protocol/comments.md), citations and [changes](./change.md) on a [resource](./glossary.md). The schemas for the signed blobs are in [Schemas on the Hypermedia Network](./schema/blobs.md). <!-- id:AqyRPHIN -->
 
 # The console <!-- id:pntyyyx_ -->
 
@@ -56,3 +56,12 @@ Nothing in the console is hand-wired. It reads the `rpc/method` union at runtime
 # Adding a method <!-- id:bViEZFh5 -->
 
 Add an `rpc/<method>.schema.json` with its `key` literal, `input` and `output`. Add a companion `.md` page and reference the schema from the `rpc/method` union. Run the publisher to update the lockfile, run the generators to refresh the bundled registry and TypeScript types, then sync the folder. The method then shows up in the console and as a typed call in the client. [How Hypermedia Schemas work](./schema/how-it-works.md) describes the pipeline. <!-- id:J_7p0r19 -->
+
+# See also
+
+- [Seed API](./build/web-api.md): HTTP transport, encodings, errors and write keys.
+- [RPC](./rpc/method.md): the union of every method.
+- [Resource](./rpc/resource.md): the most common read.
+- [SDK](./build/sdk.md): typed calls from TypeScript.
+- [Hypermedia Schemas](./schema.md): the schema system these pages use.
+- [Examples](./example.md): more schemas to read.
