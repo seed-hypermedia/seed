@@ -8,8 +8,8 @@ A query block is a live listing: instead of a copied list of pages, the author s
 # Shape <!-- id:qSgsFftP -->
 
 **Extends** [block/base](./base.md) with these added fields: <!-- id:7mILC7mx -->
-  - `type` — `"Query"` <!-- id:3yDTq8Co -->
-  - `attributes` _(required)_ — map { 6 fields } <!-- id:gtQYKj6o -->
+  - `type`: `"Query"` <!-- id:3yDTq8Co -->
+  - `attributes` _(required)_: map { 6 fields } <!-- id:gtQYKj6o -->
 
 # Depends on <!-- id:-mG573Pu -->
 

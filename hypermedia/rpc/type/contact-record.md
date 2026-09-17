@@ -10,14 +10,14 @@ This page describes the **rpc/type/contact-record** read model of the Seed API �
 # Shape <!-- id:OPcW0q1Y -->
 
 A **closed struct** with these fields: <!-- id:ugdqxq2C -->
-  - `id` _(required)_ — [string](../../string.md) <!-- id:aqCipWke -->
-  - `subject` _(required)_ — [string](../../string.md) <!-- id:bMulhxTe -->
-  - `name` _(required)_ — [string](../../string.md) <!-- id:KYAzDSpX -->
-  - `account` _(required)_ — [string](../../string.md) <!-- id:mkd9FU0y -->
-  - `signer` _(required)_ — [string](../../string.md) <!-- id:ayR30qBL -->
-  - `createTime` — [timestamp](../../timestamp.md) <!-- id:oIDm5uXY -->
-  - `updateTime` — [timestamp](../../timestamp.md) <!-- id:onjq-D5J -->
-  - `subscribe` — [contact/subscribe](../../contact/subscribe.md) <!-- id:sD_jerc- -->
+  - `id` _(required)_: [string](../../string.md) <!-- id:aqCipWke -->
+  - `subject` _(required)_: [string](../../string.md) <!-- id:bMulhxTe -->
+  - `name` _(required)_: [string](../../string.md) <!-- id:KYAzDSpX -->
+  - `account` _(required)_: [string](../../string.md) <!-- id:mkd9FU0y -->
+  - `signer` _(required)_: [string](../../string.md) <!-- id:ayR30qBL -->
+  - `createTime`: [timestamp](../../timestamp.md) <!-- id:oIDm5uXY -->
+  - `updateTime`: [timestamp](../../timestamp.md) <!-- id:onjq-D5J -->
+  - `subscribe`: [contact/subscribe](../../contact/subscribe.md) <!-- id:sD_jerc- -->
 
 # Depends on <!-- id:1vh3aSIz -->
 

@@ -10,9 +10,9 @@ This page describes the **rpc/list-changes** method of the Seed API — a read m
 # Shape <!-- id:i0mfuAmP -->
 
 A **closed struct** with these fields: <!-- id:CpilCY5t -->
-  - `key` _(required)_ — `"ListChanges"` <!-- id:NrggjHy1 -->
-  - `input` _(required)_ — map { 1 fields } <!-- id:SM1Ak_h_ -->
-  - `output` _(required)_ — map { 2 fields } <!-- id:zbAgJ_cH -->
+  - `key` _(required)_: `"ListChanges"` <!-- id:NrggjHy1 -->
+  - `input` _(required)_: map { 1 fields } <!-- id:SM1Ak_h_ -->
+  - `output` _(required)_: map { 2 fields } <!-- id:zbAgJ_cH -->
 
 # Depends on <!-- id:xbUuATMI -->
 

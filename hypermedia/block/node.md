@@ -10,8 +10,8 @@ A [document](../document.md)'s `content` and its detached blocks are lists of th
 # Shape <!-- id:RgXO3NxT -->
 
 A **closed struct** with these fields: <!-- id:LM850y9F -->
-  - `block` _(required)_ — [block](../block.md) <!-- id:SwY5yaNk -->
-  - `children` — list of [block/node](./node.md) <!-- id:5Kul9cSX -->
+  - `block` _(required)_: [block](../block.md) <!-- id:SwY5yaNk -->
+  - `children`: list of [block/node](./node.md) <!-- id:5Kul9cSX -->
 
 # Depends on <!-- id:sFTXQt8U -->
 

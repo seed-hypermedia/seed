@@ -8,9 +8,9 @@ This document describes the **example/blob** type — an example schema. Its for
 # Shape <!-- id:vesnh_LB -->
 
 A **closed struct** with these fields: <!-- id:v5doVNjp -->
-  - `mime` _(required)_ — [string](../string.md) <!-- id:MN-579Cf -->
-  - `size` — [integer](../integer.md) <!-- id:tB72shxZ -->
-  - `data` _(required)_ — [bytes](../bytes.md) <!-- id:Q_T-l5Cr -->
+  - `mime` _(required)_: [string](../string.md) <!-- id:MN-579Cf -->
+  - `size`: [integer](../integer.md) <!-- id:tB72shxZ -->
+  - `data` _(required)_: [bytes](../bytes.md) <!-- id:Q_T-l5Cr -->
 
 # Depends on <!-- id:CyOF5f4t -->
 

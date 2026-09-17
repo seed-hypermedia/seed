@@ -10,15 +10,15 @@ This page describes the **rpc/type/id** read model of the Seed API — derived d
 # Shape <!-- id:dv0g4WNA -->
 
 A **closed struct** with these fields: <!-- id:fh7Sxe0r -->
-  - `id` _(required)_ — [string](../../string.md) <!-- id:fskPAU7S -->
-  - `uid` _(required)_ — [string](../../string.md) <!-- id:XfHXweTr -->
-  - `path` _(required)_ — one of list of [string](../../string.md) | [null](../../null.md) <!-- id:B8EHAbPu -->
-  - `version` _(required)_ — one of [string](../../string.md) | [null](../../null.md) <!-- id:pib8La4i -->
-  - `blockRef` _(required)_ — one of [string](../../string.md) | [null](../../null.md) <!-- id:ZNfUNSa6 -->
-  - `blockRange` _(required)_ — one of [rpc/type/block-range](./block-range.md) | [null](../../null.md) <!-- id:g9HesrHj -->
-  - `hostname` _(required)_ — one of [string](../../string.md) | [null](../../null.md) <!-- id:-103U5pY -->
-  - `scheme` _(required)_ — one of [string](../../string.md) | [null](../../null.md) <!-- id:RXYVaFte -->
-  - `latest` — one of [boolean](../../boolean.md) | [null](../../null.md) <!-- id:Nxnyb22b -->
+  - `id` _(required)_: [string](../../string.md) <!-- id:fskPAU7S -->
+  - `uid` _(required)_: [string](../../string.md) <!-- id:XfHXweTr -->
+  - `path` _(required)_: one of list of [string](../../string.md) | [null](../../null.md) <!-- id:B8EHAbPu -->
+  - `version` _(required)_: one of [string](../../string.md) | [null](../../null.md) <!-- id:pib8La4i -->
+  - `blockRef` _(required)_: one of [string](../../string.md) | [null](../../null.md) <!-- id:ZNfUNSa6 -->
+  - `blockRange` _(required)_: one of [rpc/type/block-range](./block-range.md) | [null](../../null.md) <!-- id:g9HesrHj -->
+  - `hostname` _(required)_: one of [string](../../string.md) | [null](../../null.md) <!-- id:-103U5pY -->
+  - `scheme` _(required)_: one of [string](../../string.md) | [null](../../null.md) <!-- id:RXYVaFte -->
+  - `latest`: one of [boolean](../../boolean.md) | [null](../../null.md) <!-- id:Nxnyb22b -->
 
 # Depends on <!-- id:gwqKPqVh -->
 

@@ -50,9 +50,9 @@ Server validation: <!-- id:8LJhY3ZT -->
   6. action is valid for the transport. <!-- id:1BkfRowE -->
 
 Implementation: <!-- id:siTzEryg -->
-  - `agents/src/auth.ts` — shape/signature/authorization. <!-- id:ifLx8GI- -->
-  - `agents/src/api-service.ts` — action dispatch and ownership checks. <!-- id:KxS_yJfG -->
-  - `frontend/packages/ui/src/agents/client.ts` — `signAgentAction()` and `sendAgentAction()`, shared by both apps; the desktop's platform (`frontend/apps/desktop/src/agents-platform.ts`) supplies a daemon-backed signer. <!-- id:XxzGLFqk -->
+  - `agents/src/auth.ts`: shape/signature/authorization. <!-- id:ifLx8GI- -->
+  - `agents/src/api-service.ts`: action dispatch and ownership checks. <!-- id:KxS_yJfG -->
+  - `frontend/packages/ui/src/agents/client.ts`: `signAgentAction()` and `sendAgentAction()`, shared by both apps; the desktop's platform (`frontend/apps/desktop/src/agents-platform.ts`) supplies a daemon-backed signer. <!-- id:XxzGLFqk -->
 
 # Signing caveat: omit undefined <!-- id:asgFXeqf -->
 

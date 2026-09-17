@@ -8,9 +8,9 @@ A math block: `text` is the LaTeX source, rendered with KaTeX. It has no annotat
 # Shape <!-- id:aWWfkPD5 -->
 
 **Extends** [block/base](./base.md) with these added fields: <!-- id:SBltfmzC -->
-  - `type` — `"Math"` <!-- id:svQxxVDN -->
-  - `text` — [string](../string.md) <!-- id:Fn40dsDZ -->
-  - `attributes` — map { 2 fields } <!-- id:9xuaTSwI -->
+  - `type`: `"Math"` <!-- id:svQxxVDN -->
+  - `text`: [string](../string.md) <!-- id:Fn40dsDZ -->
+  - `attributes`: map { 2 fields } <!-- id:9xuaTSwI -->
 
 # Depends on <!-- id:2UNOf9xM -->
 

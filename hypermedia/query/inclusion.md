@@ -8,9 +8,9 @@ One source of a [query](../query.md): `space` is the account whose documents to 
 # Shape <!-- id:dNz8ygnf -->
 
 A **closed struct** with these fields: <!-- id:6nE0LZik -->
-  - `space` _(required)_ — [string](../string.md) <!-- id:_Oh8MBbr -->
-  - `path` — [string](../string.md) <!-- id:9WR91zo6 -->
-  - `mode` _(required)_ — one of `"Children"` | `"AllDescendants"` <!-- id:7v3c9tNP -->
+  - `space` _(required)_: [string](../string.md) <!-- id:_Oh8MBbr -->
+  - `path`: [string](../string.md) <!-- id:9WR91zo6 -->
+  - `mode` _(required)_: one of `"Children"` | `"AllDescendants"` <!-- id:7v3c9tNP -->
 
 # Depends on <!-- id:NBioyAez -->
 

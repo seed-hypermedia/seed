@@ -8,9 +8,9 @@ This page describes the **rpc/type/resource-comment** read model of the Seed API
 # Shape <!-- id:EAMFXFtn -->
 
 A **closed struct** with these fields: <!-- id:CTozbhjz -->
-  - `type` _(required)_ — `"comment"` <!-- id:ZLI-MfCl -->
-  - `id` _(required)_ — [rpc/type/id](./id.md) <!-- id:UInd1qiG -->
-  - `comment` _(required)_ — [rpc/type/comment](./comment.md) <!-- id:YUJFaUl6 -->
+  - `type` _(required)_: `"comment"` <!-- id:ZLI-MfCl -->
+  - `id` _(required)_: [rpc/type/id](./id.md) <!-- id:UInd1qiG -->
+  - `comment` _(required)_: [rpc/type/comment](./comment.md) <!-- id:YUJFaUl6 -->
 
 # Depends on <!-- id:Mg_oNLnv -->
 

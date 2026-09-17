@@ -34,7 +34,7 @@ Migrations live in the `migrations` array in `sqlite.ts` and are **prepend-only*
 Stores server-local config blobs. <!-- id:Wq6WHwVL -->
 
 Current key: <!-- id:KmXMNCOC -->
-  - `secret_encryption_key_v1` — AES-GCM key for encrypted secrets. <!-- id:yX_cmm70 -->
+  - `secret_encryption_key_v1`: AES-GCM key for encrypted secrets. <!-- id:yX_cmm70 -->
 
 Production caveat: storing encrypted secrets and the encryption key in the same DB is better than plaintext API responses/logs but not equivalent to KMS/keychain-backed storage. <!-- id:exECGDvm -->
 
@@ -118,9 +118,9 @@ Most runtime work currently operates at the session level; agent status is not y
 Stores pending invitations and accepted agent-level access grants, keyed by `(agent_id, account_id)`. The `account_id` is the invited/collaborating Seed account; the agent's owning account remains on `agents.account_id` and all agent content continues to be stored under that owner. <!-- id:4UrnT8a7 -->
 
 Important columns: <!-- id:UGC0f3j9 -->
-  - `role` — `reader` or `writer`; <!-- id:oAyBLzIa -->
-  - `status` — `pending` or `accepted`; <!-- id:m7czTs_k -->
-  - `accepted_at` — acceptance time, NULL while pending; <!-- id:5t_8TYy2 -->
+  - `role`: `reader` or `writer`; <!-- id:oAyBLzIa -->
+  - `status`: `pending` or `accepted`; <!-- id:m7czTs_k -->
+  - `accepted_at`: acceptance time, NULL while pending; <!-- id:5t_8TYy2 -->
   - `created_at`, `updated_at`. <!-- id:dS_KLpBe -->
 
 ## `agent_triggers` <!-- id:qcPEzEQt -->
@@ -157,12 +157,12 @@ Important columns: <!-- id:Ejf_lPGv -->
   - `title` <!-- id:xX5YWsNl -->
   - `title_source` (`system`, `agent`, or `user`) <!-- id:PLBjUJGo -->
   - `status` <!-- id:0MQePZ9f -->
-  - `parent_session_id` — set on sessions spawned by another session (model children of `delegate`, script children's `ctx.delegate`, and agent-started sessions); lineage-aware clients exclude rows with a parent from the top-level `ListSessions` view by passing `includeChildren: false` <!-- id:bxVGp7n4 -->
-  - `run_id` — the run this session is the transcript of, for sessions created as run children <!-- id:s4aSdsge -->
-  - `plan_cbor` — the live checklist written by the `plan` verb (a `RunPlan`) <!-- id:1ZMzBqx4 -->
-  - `model_override_cbor` — the session's quick-switched provider and model, when it differs from the agent's <!-- id:sjl2EKrl -->
-  - `description` — the live status the agent maintains with the `status` verb <!-- id:Shdo5e_p -->
-  - `thoroughness` — the session's delegation preset override (`quick`, `normal`, or `deep`) <!-- id:Qf3K5gBg -->
+  - `parent_session_id`: set on sessions spawned by another session (model children of `delegate`, script children's `ctx.delegate`, and agent-started sessions); lineage-aware clients exclude rows with a parent from the top-level `ListSessions` view by passing `includeChildren: false` <!-- id:bxVGp7n4 -->
+  - `run_id`: the run this session is the transcript of, for sessions created as run children <!-- id:s4aSdsge -->
+  - `plan_cbor`: the live checklist written by the `plan` verb (a `RunPlan`) <!-- id:1ZMzBqx4 -->
+  - `model_override_cbor`: the session's quick-switched provider and model, when it differs from the agent's <!-- id:sjl2EKrl -->
+  - `description`: the live status the agent maintains with the `status` verb <!-- id:Shdo5e_p -->
+  - `thoroughness`: the session's delegation preset override (`quick`, `normal`, or `deep`) <!-- id:Qf3K5gBg -->
 
 `title_source` protects a title the user typed. Rows start `system`; `UpdateSession` writes `user`, and every automatic titling path refuses to overwrite a `user` row. Today the automatic path is `#ensureSessionTitled`, a dedicated minimal model call made when a turn parks or finalizes with the session still untitled (enabled by `SEED_AGENTS_SESSION_TITLE_GENERATION`); it deliberately leaves `title_source` at `system`, so the user can still rename. The third value, `agent`, is written only by `#setSessionTitleFromAgent`, which no code path calls — the in-turn `set_session_title` tool it belonged to was deliberately deleted (`api-service.test.ts` asserts it never reappears in the tool list), and the function has outlived it. <!-- id:3-r89YEl -->
 
@@ -186,20 +186,20 @@ Every execution — an interactive turn, a trigger firing, an agent-started sess
 
 Important columns: <!-- id:KBSutS-f -->
   - `id`, `account_id`, `root_run_id`, `parent_run_id`, `depth` <!-- id:5EAmAwDS -->
-  - `parent_tool_call_id` — the parent's `delegate` call that spawned this run. It also rides in the run's input payload, but only a column can be read back without decoding every run: this is what lets a delegate row in a transcript find its child _while that child is still working_, before any result exists. <!-- id:ckmeLyT4 -->
-  - `continued_from_run_id` — the run this one continues. `ctx.continueAsNew` ends a run and starts a successor carrying only the state it declared, so a day-scale loop never grows an unbounded journal; the two rows are one piece of work. <!-- id:TYylRUY4 -->
-  - `kind` — `agent` (a model turn, with a transcript session) or `workflow` (a script child in the QuickJS engine) <!-- id:JqfAKDTg -->
+  - `parent_tool_call_id`: the parent's `delegate` call that spawned this run. It also rides in the run's input payload, but only a column can be read back without decoding every run: this is what lets a delegate row in a transcript find its child _while that child is still working_, before any result exists. <!-- id:ckmeLyT4 -->
+  - `continued_from_run_id`: the run this one continues. `ctx.continueAsNew` ends a run and starts a successor carrying only the state it declared, so a day-scale loop never grows an unbounded journal; the two rows are one piece of work. <!-- id:TYylRUY4 -->
+  - `kind`: `agent` (a model turn, with a transcript session) or `workflow` (a script child in the QuickJS engine) <!-- id:JqfAKDTg -->
   - `agent_id`, `session_id` (transcript session for agent runs; NULL for script runs), `trigger_firing_id` <!-- id:EklbAJZc -->
-  - `origin` — `user`, `trigger`, `agent`, `workflow`, or `system` <!-- id:zvRVgNFS -->
+  - `origin`: `user`, `trigger`, `agent`, `workflow`, or `system` <!-- id:zvRVgNFS -->
   - `title`, `model` <!-- id:hsCyN0Ht -->
   - `source_cid`, `source_text` — script runs: the JS module and its `sha256:` digest <!-- id:KJdGZTeX -->
   - `input_cbor`, `output_cbor`, `error_cbor` (`{code, message, retryable?, httpStatus?}`) <!-- id:2ap3z4qw -->
-  - `status` — `queued`, `claimed`, `running`, `waiting`, `succeeded`, `failed`, `canceled` <!-- id:-cdheKz4 -->
-  - `wait_cbor` — why a run is parked, one of four reasons: `children` (spawned children, with `toolCallIds`), `timer` (`wakeAt`), `event` (`ctx.waitForEvent`), `budget-pause` (it stopped rather than spend more). `RunWaitInfo.answerWith` names the signal that would answer the wait by hand, when one can. <!-- id:FE_KLF0y -->
+  - `status`: `queued`, `claimed`, `running`, `waiting`, `succeeded`, `failed`, `canceled` <!-- id:-cdheKz4 -->
+  - `wait_cbor`: why a run is parked, one of four reasons: `children` (spawned children, with `toolCallIds`), `timer` (`wakeAt`), `event` (`ctx.waitForEvent`), `budget-pause` (it stopped rather than spend more). `RunWaitInfo.answerWith` names the signal that would answer the wait by hand, when one can. <!-- id:FE_KLF0y -->
   - `attempt`, `max_attempts`, `not_before` (backoff/timer wake), `queue` (`interactive` or `background`) <!-- id:rbRG2Dva -->
   - `lease_owner`, `lease_expires_at` — crash recovery: the boot sweep requeues rows a dead process left claimed/running <!-- id:SEprW4Bh -->
   - `budget_cbor`, `usage_cbor` (persisted per turn boundary, child usage rolled up into the parent on finalize) <!-- id:H9i6CZmm -->
-  - `plan_cbor` — a workflow's own `ctx.step`/`ctx.plan` snapshot, or the immutable copy of a session plan written onto its owning agent run when that plan settles; the latter keeps completed checklist history after the session starts a new mutable plan <!-- id:SszS3VLK -->
+  - `plan_cbor`: a workflow's own `ctx.step`/`ctx.plan` snapshot, or the immutable copy of a session plan written onto its owning agent run when that plan settles; the latter keeps completed checklist history after the session starts a new mutable plan <!-- id:SszS3VLK -->
 
 A run's `output_cbor`/`error_cbor` may also carry `unmetObligations`: what the run committed to and had not delivered when it ended — an undelivered typed result (`{kind: 'typed-result'}`) or plan steps left neither finished nor written off (`{kind: 'plan', steps}`). Nearly every run keeps its word, so the presence of the field is the signal. A run with budget left is asked once to settle every open obligation at the same time; one that runs out leaves the notice on the log instead of quietly writing the debt off. <!-- id:0g9nHuH1 -->
 

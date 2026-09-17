@@ -10,9 +10,9 @@ This page describes the **rpc/list-discussions** method of the Seed API — a re
 # Shape <!-- id:14v3gfqr -->
 
 A **closed struct** with these fields: <!-- id:uJXPLY-q -->
-  - `key` _(required)_ — `"ListDiscussions"` <!-- id:p6d04XQy -->
-  - `input` _(required)_ — map { 2 fields } <!-- id:fybr3u6u -->
-  - `output` _(required)_ — map { 3 fields } <!-- id:FTUq7QAy -->
+  - `key` _(required)_: `"ListDiscussions"` <!-- id:p6d04XQy -->
+  - `input` _(required)_: map { 2 fields } <!-- id:fybr3u6u -->
+  - `output` _(required)_: map { 3 fields } <!-- id:FTUq7QAy -->
 
 # Depends on <!-- id:nX0aBcJ0 -->
 

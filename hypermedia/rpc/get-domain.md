@@ -10,9 +10,9 @@ This page describes the **rpc/get-domain** method of the Seed API — a read mod
 # Shape <!-- id:jPvtB3gH -->
 
 A **closed struct** with these fields: <!-- id:SzX-JA_i -->
-  - `key` _(required)_ — `"GetDomain"` <!-- id:0e_hZB9E -->
-  - `input` _(required)_ — map { 2 fields } <!-- id:qnrvoO3P -->
-  - `output` _(required)_ — [rpc/type/domain-info](./type/domain-info.md) <!-- id:2MN5naQ7 -->
+  - `key` _(required)_: `"GetDomain"` <!-- id:0e_hZB9E -->
+  - `input` _(required)_: map { 2 fields } <!-- id:qnrvoO3P -->
+  - `output` _(required)_: [rpc/type/domain-info](./type/domain-info.md) <!-- id:2MN5naQ7 -->
 
 # Depends on <!-- id:bs3kYXsk -->
 

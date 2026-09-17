@@ -8,9 +8,9 @@ This document describes the **example/constrained** type — an example schema. 
 # Shape <!-- id:u0bp8N-O -->
 
 A **closed struct** with these fields: <!-- id:XZkJ0jr0 -->
-  - `username` _(required)_ — `string` <!-- id:baxMEaLA -->
-  - `score` _(required)_ — `integer` <!-- id:MU1mTe3O -->
-  - `tags` — list of [string](../string.md) <!-- id:mA94BPqd -->
+  - `username` _(required)_: `string` <!-- id:baxMEaLA -->
+  - `score` _(required)_: `integer` <!-- id:MU1mTe3O -->
+  - `tags`: list of [string](../string.md) <!-- id:mA94BPqd -->
 
 # Depends on <!-- id:OQmAkkji -->
 

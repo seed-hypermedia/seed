@@ -10,9 +10,9 @@ This page describes the **rpc/type/metadata-payload** read model of the Seed API
 # Shape <!-- id:XIHou5Ec -->
 
 A **closed struct** with these fields: <!-- id:0j_x3TEg -->
-  - `id` _(required)_ — [rpc/type/id](./id.md) <!-- id:mHdVfkvN -->
-  - `metadata` _(required)_ — one of [metadata](../../metadata.md) | [null](../../null.md) <!-- id:l5DeUFH2 -->
-  - `hasSite` — [boolean](../../boolean.md) <!-- id:ElbUiqOU -->
+  - `id` _(required)_: [rpc/type/id](./id.md) <!-- id:mHdVfkvN -->
+  - `metadata` _(required)_: one of [metadata](../../metadata.md) | [null](../../null.md) <!-- id:l5DeUFH2 -->
+  - `hasSite`: [boolean](../../boolean.md) <!-- id:ElbUiqOU -->
 
 # Depends on <!-- id:jWMfRp8f -->
 

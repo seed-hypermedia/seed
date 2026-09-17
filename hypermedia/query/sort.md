@@ -8,8 +8,8 @@ One sort term of a [query](../query.md). The values this schema lists (`Path`, `
 # Shape <!-- id:P0EJDwNB -->
 
 A **closed struct** with these fields: <!-- id:9JJXnFXo -->
-  - `reverse` — [boolean](../boolean.md) <!-- id:d_agsTi8 -->
-  - `term` _(required)_ — one of `"Path"` | `"Title"` | `"CreateTime"` | `"UpdateTime"` | `"DisplayTime"` | `"ActivityTime"` <!-- id:GeGLwkRQ -->
+  - `reverse`: [boolean](../boolean.md) <!-- id:d_agsTi8 -->
+  - `term` _(required)_: one of `"Path"` | `"Title"` | `"CreateTime"` | `"UpdateTime"` | `"DisplayTime"` | `"ActivityTime"` <!-- id:GeGLwkRQ -->
 
 # Depends on <!-- id:qCmEO3j- -->
 

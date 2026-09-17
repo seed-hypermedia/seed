@@ -19,12 +19,12 @@ Every blob embeds a base envelope, [Signed blob](../blob.md): <!-- id:iAwaugHT -
 | `ts` | `timestamp` (integer) | Unix-millisecond time <!-- id:nFpKKNpd --> |
 
 Each concrete type **extends** it (schema extension — [the schema language](./schema-language.md)), inheriting those four fields and pinning `type` to a literal: <!-- id:zUkl9LQZ -->
-  - `change` — an append-only document change, linked into a causal DAG by `deps`; carries a `change-body` of ops. <!-- id:XNtWFQFG -->
-  - `ref` — a signed pointer from a space/path to the current head Changes. <!-- id:z0t8cH-b -->
-  - `profile` — an account's name / avatar / description (or an alias). <!-- id:kuRmAvLb -->
-  - `comment` — a threaded comment; body is a tree of `comment-block`s. <!-- id:4B_lboNh -->
-  - `capability` — a delegation of a `role` (WRITER / AGENT) to a key. <!-- id:04geSQaa -->
-  - `contact` — one account's named reference to another. <!-- id:A4ma4Edr -->
+  - `change`: an append-only document change, linked into a causal DAG by `deps`; carries a `change-body` of ops. <!-- id:XNtWFQFG -->
+  - `ref`: a signed pointer from a space/path to the current head Changes. <!-- id:z0t8cH-b -->
+  - `profile`: an account's name / avatar / description (or an alias). <!-- id:kuRmAvLb -->
+  - `comment`: a threaded comment; body is a tree of `comment-block`s. <!-- id:4B_lboNh -->
+  - `capability`: a delegation of a `role` (WRITER / AGENT) to a key. <!-- id:04geSQaa -->
+  - `contact`: one account's named reference to another. <!-- id:A4ma4Edr -->
 
 Open `change` in the schema explorer: `signer`/`sig`/`ts` show as **inherited**, the rest as **added**. That's the "block types are related" relationship, made visible — and `blob`'s **Dependents** list is exactly those six. <!-- id:S58y-fEh -->
 
@@ -54,8 +54,8 @@ Document content is made of **blocks**. We want two things that pull in opposite
 
 <!-- id:nNN-eoL8 -->
 - The fifteen **concrete blocks** — `block/paragraph`, `block/heading`, `block/code`, `block/math`, `block/image`, `block/video`, `block/file`, `block/button`, `block/embed`, `block/web-embed`, `block/nostr`, `block/table`, `block/table-row`, `block/table-column`, `block/query` — each **extends** `block/base`, closed, with a `type` literal and typed attributes. <!-- id:85wzIKeC -->
-- `block/core` — the **core union** we define (the fifteen). Strict: rejects anything else. <!-- id:Tp6vmRo8 -->
-- `block` — the **open** block: `id` + `type` + arbitrary fields (via `any`). The forward-compatible wire type — a block type this client has _no schema for_ (future or third-party) is still a valid Block, so a document is never rejected over it. This is _not_ "your custom block type" (that's just extension + union, below); it's the open fallback for the _unknown_. <!-- id:idnijeex -->
+- `block/core`: the **core union** we define (the fifteen). Strict: rejects anything else. <!-- id:Tp6vmRo8 -->
+- `block`: the **open** block: `id` + `type` + arbitrary fields (via `any`). The forward-compatible wire type — a block type this client has _no schema for_ (future or third-party) is still a valid Block, so a document is never rejected over it. This is _not_ "your custom block type" (that's just extension + union, below); it's the open fallback for the _unknown_. <!-- id:idnijeex -->
 
 ### Adding a block type <!-- id:YUxiFSMb -->
 

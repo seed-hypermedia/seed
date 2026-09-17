@@ -10,10 +10,10 @@ This page describes the **rpc/type/raw-document-change** read model of the Seed 
 # Shape <!-- id:FxmCqSQ7 -->
 
 A **closed struct** with these fields: <!-- id:mWeaUv6g -->
-  - `id` — [string](../../string.md) <!-- id:Agokfkd5 -->
-  - `author` — [string](../../string.md) <!-- id:YpaiMQ30 -->
-  - `deps` — list of [string](../../string.md) <!-- id:-2iRqM1r -->
-  - `createTime` — [string](../../string.md) <!-- id:TEUlsbe8 -->
+  - `id`: [string](../../string.md) <!-- id:Agokfkd5 -->
+  - `author`: [string](../../string.md) <!-- id:YpaiMQ30 -->
+  - `deps`: list of [string](../../string.md) <!-- id:-2iRqM1r -->
+  - `createTime`: [string](../../string.md) <!-- id:TEUlsbe8 -->
 
 # Depends on <!-- id:x-YC6YOj -->
 

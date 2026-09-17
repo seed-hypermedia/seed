@@ -10,9 +10,9 @@ This page describes the **rpc/type/discovery-status** read model of the Seed API
 # Shape <!-- id:5S7wQzcJ -->
 
 A **closed struct** with these fields: <!-- id:30yArQuX -->
-  - `state` _(required)_ — one of `"pending"` | `"found"` | `"failed"` <!-- id:9LZFnDbh -->
-  - `version` — [string](../../string.md) <!-- id:8vEiaWJC -->
-  - `error` — [string](../../string.md) <!-- id:7izs2ZlP -->
+  - `state` _(required)_: one of `"pending"` | `"found"` | `"failed"` <!-- id:9LZFnDbh -->
+  - `version`: [string](../../string.md) <!-- id:8vEiaWJC -->
+  - `error`: [string](../../string.md) <!-- id:7izs2ZlP -->
 
 # Depends on <!-- id:2Ac_QMa3 -->
 

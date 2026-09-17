@@ -10,9 +10,9 @@ This page describes the **rpc/list-comments** method of the Seed API — a read 
 # Shape <!-- id:c34xkjMP -->
 
 A **closed struct** with these fields: <!-- id:uftselk_ -->
-  - `key` _(required)_ — `"ListComments"` <!-- id:Ak291hhk -->
-  - `input` _(required)_ — map { 1 fields } <!-- id:vY6Hzd1z -->
-  - `output` _(required)_ — [rpc/type/comment-list](./type/comment-list.md) <!-- id:1RJBX7B9 -->
+  - `key` _(required)_: `"ListComments"` <!-- id:Ak291hhk -->
+  - `input` _(required)_: map { 1 fields } <!-- id:vY6Hzd1z -->
+  - `output` _(required)_: [rpc/type/comment-list](./type/comment-list.md) <!-- id:1RJBX7B9 -->
 
 # Depends on <!-- id:uWwOxPlK -->
 

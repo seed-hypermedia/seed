@@ -8,17 +8,17 @@ This document describes the **example/article** type — an example schema. Its 
 # Shape <!-- id:SskWA3Pk -->
 
 A **closed struct** with these fields: <!-- id:aJ1hAcGr -->
-  - `title` _(required)_ — [string](../string.md) <!-- id:BY5LvBFg -->
-  - `slug` _(required)_ — [string](../string.md) <!-- id:NI1tIswC -->
-  - `status` _(required)_ — [example/status](./status.md) <!-- id:QgfpWjHz -->
-  - `author` _(required)_ — `link` → [example/person](./person.md) <!-- id:aQup6rX1 -->
-  - `tags` — [example/tags](./tags.md) <!-- id:P7_H2EBV -->
-  - `body` — [bytes](../bytes.md) <!-- id:MqOD-GUa -->
-  - `wordCount` — [integer](../integer.md) <!-- id:yWTif4Fz -->
-  - `featured` — [boolean](../boolean.md) <!-- id:qOf4Flbd -->
-  - `cover` — `link` → [example/blob](./blob.md) <!-- id:EpmpW_6j -->
-  - `comments` — list of `link` → [example/comment](./comment.md) <!-- id:9KW911W2 -->
-  - `meta` — [example/metadata](./metadata.md) <!-- id:yXMv-9cW -->
+  - `title` _(required)_: [string](../string.md) <!-- id:BY5LvBFg -->
+  - `slug` _(required)_: [string](../string.md) <!-- id:NI1tIswC -->
+  - `status` _(required)_: [example/status](./status.md) <!-- id:QgfpWjHz -->
+  - `author` _(required)_: `link` → [example/person](./person.md) <!-- id:aQup6rX1 -->
+  - `tags`: [example/tags](./tags.md) <!-- id:P7_H2EBV -->
+  - `body`: [bytes](../bytes.md) <!-- id:MqOD-GUa -->
+  - `wordCount`: [integer](../integer.md) <!-- id:yWTif4Fz -->
+  - `featured`: [boolean](../boolean.md) <!-- id:qOf4Flbd -->
+  - `cover`: `link` → [example/blob](./blob.md) <!-- id:EpmpW_6j -->
+  - `comments`: list of `link` → [example/comment](./comment.md) <!-- id:9KW911W2 -->
+  - `meta`: [example/metadata](./metadata.md) <!-- id:yXMv-9cW -->
 
 # Depends on <!-- id:TN7ZVcxI -->
 

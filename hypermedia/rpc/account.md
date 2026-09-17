@@ -10,9 +10,9 @@ This page describes the **rpc/account** method of the Seed API — a read model 
 # Shape <!-- id:59ehBck9 -->
 
 A **closed struct** with these fields: <!-- id:GaSmj_z8 -->
-  - `key` _(required)_ — `"Account"` <!-- id:XtkZdN5R -->
-  - `input` _(required)_ — [string](../string.md) <!-- id:Hts3kMP5 -->
-  - `output` _(required)_ — [rpc/type/account-result](./type/account-result.md) <!-- id:mi5qviZs -->
+  - `key` _(required)_: `"Account"` <!-- id:XtkZdN5R -->
+  - `input` _(required)_: [string](../string.md) <!-- id:Hts3kMP5 -->
+  - `output` _(required)_: [rpc/type/account-result](./type/account-result.md) <!-- id:mi5qviZs -->
 
 # Depends on <!-- id:fl4WJGvJ -->
 

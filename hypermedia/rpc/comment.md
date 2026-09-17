@@ -10,9 +10,9 @@ This page describes the **rpc/comment** method of the Seed API — a read model 
 # Shape <!-- id:OHMUY0Pe -->
 
 A **closed struct** with these fields: <!-- id:gjgJsWAB -->
-  - `key` _(required)_ — `"Comment"` <!-- id:sgUIu7Zp -->
-  - `input` _(required)_ — [string](../string.md) <!-- id:TEXCgfQs -->
-  - `output` _(required)_ — [rpc/type/comment](./type/comment.md) <!-- id:9BhGxGzo -->
+  - `key` _(required)_: `"Comment"` <!-- id:sgUIu7Zp -->
+  - `input` _(required)_: [string](../string.md) <!-- id:TEXCgfQs -->
+  - `output` _(required)_: [rpc/type/comment](./type/comment.md) <!-- id:9BhGxGzo -->
 
 # Depends on <!-- id:xwY-oZ3c -->
 

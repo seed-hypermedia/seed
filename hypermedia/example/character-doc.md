@@ -10,14 +10,14 @@ This document describes the **example/character-doc** type — an example schema
 # Shape <!-- id:NsyiqGRx -->
 
 A **closed struct** with these fields: <!-- id:dms8pLir -->
-  - `born` _(required)_ — [date](../date.md) <!-- id:vp7r1oom -->
-  - `died` — [date](../date.md) <!-- id:FVu4DYEh -->
-  - `role` _(required)_ — [string](../string.md) (one of `hero`, `villain`, `ally`, `neutral`) <!-- id:T6HNkFTq -->
-  - `home` — [hm-url](../hm-url.md) (→ must conform to [example/place-doc](./place-doc.md)) <!-- id:JXWL2Q9D -->
-  - `faction` — [hm-url](../hm-url.md) (→ must conform to [example/faction-doc](./faction-doc.md)) <!-- id:zCsjF9s1 -->
-  - `portrait` — [ipfs-url](../ipfs-url.md) <!-- id:m1jXdIZe -->
-  - `stats` — [ipfs-url](../ipfs-url.md) (→ must conform to [example/stats](./stats.md)) <!-- id:DersQtST -->
-  - `notes` — [ipfs-url](../ipfs-url.md) <!-- id:6MxBywUM -->
+  - `born` _(required)_: [date](../date.md) <!-- id:vp7r1oom -->
+  - `died`: [date](../date.md) <!-- id:FVu4DYEh -->
+  - `role` _(required)_: [string](../string.md) (one of `hero`, `villain`, `ally`, `neutral`) <!-- id:T6HNkFTq -->
+  - `home`: [hm-url](../hm-url.md) (→ must conform to [example/place-doc](./place-doc.md)) <!-- id:JXWL2Q9D -->
+  - `faction`: [hm-url](../hm-url.md) (→ must conform to [example/faction-doc](./faction-doc.md)) <!-- id:zCsjF9s1 -->
+  - `portrait`: [ipfs-url](../ipfs-url.md) <!-- id:m1jXdIZe -->
+  - `stats`: [ipfs-url](../ipfs-url.md) (→ must conform to [example/stats](./stats.md)) <!-- id:DersQtST -->
+  - `notes`: [ipfs-url](../ipfs-url.md) <!-- id:6MxBywUM -->
 
 # Depends on <!-- id:wfF6wZQt -->
 

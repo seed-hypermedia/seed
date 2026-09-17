@@ -8,9 +8,9 @@ A file attachment: `link` is required and is an `ipfs://<cid>` [file](../protoco
 # Shape <!-- id:LvbrriHo -->
 
 **Extends** [block/base](./base.md) with these added fields: <!-- id:SuWQgFEy -->
-  - `type` — `"File"` <!-- id:F3pQOCmC -->
-  - `link` _(required)_ — [string](../string.md) <!-- id:64jUo2lD -->
-  - `attributes` — map { 4 fields } <!-- id:0Ah1D5v4 -->
+  - `type`: `"File"` <!-- id:F3pQOCmC -->
+  - `link` _(required)_: [string](../string.md) <!-- id:64jUo2lD -->
+  - `attributes`: map { 4 fields } <!-- id:0Ah1D5v4 -->
 
 # Depends on <!-- id:nEr--yZq -->
 

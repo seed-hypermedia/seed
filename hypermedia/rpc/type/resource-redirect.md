@@ -10,10 +10,10 @@ This page describes the **rpc/type/resource-redirect** read model of the Seed AP
 # Shape <!-- id:yALIXyEj -->
 
 A **closed struct** with these fields: <!-- id:gXsjb7Rl -->
-  - `type` _(required)_ — `"redirect"` <!-- id:74-eVXWJ -->
-  - `id` _(required)_ — [rpc/type/id](./id.md) <!-- id:KDi6IPw0 -->
-  - `redirectTarget` _(required)_ — [rpc/type/id](./id.md) <!-- id:Vwc2UeaH -->
-  - `republish` — [boolean](../../boolean.md) <!-- id:D60uDSWr -->
+  - `type` _(required)_: `"redirect"` <!-- id:74-eVXWJ -->
+  - `id` _(required)_: [rpc/type/id](./id.md) <!-- id:KDi6IPw0 -->
+  - `redirectTarget` _(required)_: [rpc/type/id](./id.md) <!-- id:Vwc2UeaH -->
+  - `republish`: [boolean](../../boolean.md) <!-- id:D60uDSWr -->
 
 # Depends on <!-- id:dIJpaWek -->
 

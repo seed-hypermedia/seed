@@ -8,8 +8,8 @@ A row of a [table](./table.md). Its children are the row's cells: [paragraph](./
 # Shape <!-- id:rU9d2YT4 -->
 
 **Extends** [block/base](./base.md) with these added fields: <!-- id:YSpWVasd -->
-  - `type` — `"TableRow"` <!-- id:35dzjlct -->
-  - `attributes` — map { 3 fields } <!-- id:isb0u9Q- -->
+  - `type`: `"TableRow"` <!-- id:35dzjlct -->
+  - `attributes`: map { 3 fields } <!-- id:isb0u9Q- -->
 
 # Depends on <!-- id:bJfnmYvm -->
 

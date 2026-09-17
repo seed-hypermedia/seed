@@ -8,8 +8,8 @@ A column of a [table](./table.md). The block is childless; its id is what cells 
 # Shape <!-- id:TfYjxpaq -->
 
 **Extends** [block/base](./base.md) with these added fields: <!-- id:Vc-3f7Au -->
-  - `type` — `"TableColumn"` <!-- id:lyKmvrCD -->
-  - `attributes` — map { 4 fields } <!-- id:a7O4P0xL -->
+  - `type`: `"TableColumn"` <!-- id:lyKmvrCD -->
+  - `attributes`: map { 4 fields } <!-- id:a7O4P0xL -->
 
 # Depends on <!-- id:xtBSktC5 -->
 

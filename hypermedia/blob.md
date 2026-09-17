@@ -16,10 +16,10 @@ The daemon computes CIDs with BLAKE2b-256, the SDK and the apps with SHA-256, an
 # Shape <!-- id:QOHOzNqJ -->
 
 A **closed struct** with these fields: <!-- id:bQI8hkFy -->
-  - `type` _(required)_ — `string` <!-- id:LQdoRLZZ -->
-  - `signer` _(required)_ — [principal](./principal.md) <!-- id:CtQVur6r -->
-  - `sig` _(required)_ — [signature](./signature.md) <!-- id:enu99wz8 -->
-  - `ts` _(required)_ — [timestamp](./timestamp.md) <!-- id:kWIJ7his -->
+  - `type` _(required)_: `string` <!-- id:LQdoRLZZ -->
+  - `signer` _(required)_: [principal](./principal.md) <!-- id:CtQVur6r -->
+  - `sig` _(required)_: [signature](./signature.md) <!-- id:enu99wz8 -->
+  - `ts` _(required)_: [timestamp](./timestamp.md) <!-- id:kWIJ7his -->
 
 # Depends on <!-- id:jpOci9E7 -->
 

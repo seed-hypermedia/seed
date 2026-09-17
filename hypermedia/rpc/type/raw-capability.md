@@ -10,15 +10,15 @@ This page describes the **rpc/type/raw-capability** read model of the Seed API �
 # Shape <!-- id:kxlkQVIw -->
 
 A **closed struct** with these fields: <!-- id:7_GLzvLR -->
-  - `id` — [string](../../string.md) <!-- id:U2Qviex5 -->
-  - `issuer` — [string](../../string.md) <!-- id:yOvtdkqY -->
-  - `delegate` — [string](../../string.md) <!-- id:TGDpUXn0 -->
-  - `account` — [string](../../string.md) <!-- id:4suz9Snp -->
-  - `path` — [string](../../string.md) <!-- id:eYzicjYG -->
-  - `role` — [string](../../string.md) <!-- id:d4nXy9NT -->
-  - `noRecursive` — [boolean](../../boolean.md) <!-- id:vSzBLiYk -->
-  - `label` — [string](../../string.md) <!-- id:YkFuZisn -->
-  - `createTime` — [string](../../string.md) <!-- id:naEyeK_O -->
+  - `id`: [string](../../string.md) <!-- id:U2Qviex5 -->
+  - `issuer`: [string](../../string.md) <!-- id:yOvtdkqY -->
+  - `delegate`: [string](../../string.md) <!-- id:TGDpUXn0 -->
+  - `account`: [string](../../string.md) <!-- id:4suz9Snp -->
+  - `path`: [string](../../string.md) <!-- id:eYzicjYG -->
+  - `role`: [string](../../string.md) <!-- id:d4nXy9NT -->
+  - `noRecursive`: [boolean](../../boolean.md) <!-- id:vSzBLiYk -->
+  - `label`: [string](../../string.md) <!-- id:YkFuZisn -->
+  - `createTime`: [string](../../string.md) <!-- id:naEyeK_O -->
 
 # Depends on <!-- id:kqu-NLeV -->
 

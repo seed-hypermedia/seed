@@ -10,10 +10,10 @@ The types the Seed app writes are `Bold`, `Italic`, `Underline`, `Strike`, `Code
 # Shape <!-- id:khrAA7LZ -->
 
 A map with these fields: <!-- id:bMk3d1tZ -->
-  - `type` — [string](../string.md) <!-- id:a1TPf35c -->
-  - `link` — [string](../string.md) <!-- id:rq09OGe_ -->
-  - `starts` — list of [integer](../integer.md) <!-- id:2e_csJ9j -->
-  - `ends` — list of [integer](../integer.md) <!-- id:FCMIb0ht -->
+  - `type`: [string](../string.md) <!-- id:a1TPf35c -->
+  - `link`: [string](../string.md) <!-- id:rq09OGe_ -->
+  - `starts`: list of [integer](../integer.md) <!-- id:2e_csJ9j -->
+  - `ends`: list of [integer](../integer.md) <!-- id:FCMIb0ht -->
 
 # Depends on <!-- id:e4_snnas -->
 

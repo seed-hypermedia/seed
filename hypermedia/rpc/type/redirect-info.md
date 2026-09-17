@@ -8,9 +8,9 @@ This page describes the **rpc/type/redirect-info** read model of the Seed API �
 # Shape <!-- id:kTlL78Cl -->
 
 A **closed struct** with these fields: <!-- id:H9UhYokL -->
-  - `type` _(required)_ — `"redirect"` <!-- id:BJPYeobL -->
-  - `target` _(required)_ — [string](../../string.md) <!-- id:yhCOxGRG -->
-  - `republish` — [boolean](../../boolean.md) <!-- id:jjdxxctm -->
+  - `type` _(required)_: `"redirect"` <!-- id:BJPYeobL -->
+  - `target` _(required)_: [string](../../string.md) <!-- id:yhCOxGRG -->
+  - `republish`: [boolean](../../boolean.md) <!-- id:jjdxxctm -->
 
 # Depends on <!-- id:uX4Hsf16 -->
 

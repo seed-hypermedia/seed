@@ -12,8 +12,8 @@ This page defines the **change/op/delete-blocks** operation inside a [Change bod
 # Shape <!-- id:ZBAbxMDE -->
 
 A **closed struct** with these fields: <!-- id:hVjHrQ0n -->
-  - `type` _(required)_ — `"DeleteBlocks"` <!-- id:zKHm9p4w -->
-  - `blocks` _(required)_ — list of [string](../../string.md) <!-- id:C3LbdbSU -->
+  - `type` _(required)_: `"DeleteBlocks"` <!-- id:zKHm9p4w -->
+  - `blocks` _(required)_: list of [string](../../string.md) <!-- id:C3LbdbSU -->
 
 # Depends on <!-- id:MskatxS8 -->
 

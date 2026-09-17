@@ -10,18 +10,18 @@ This page describes the **rpc/type/raw-citation** read model of the Seed API —
 # Shape <!-- id:Qooxep7h -->
 
 A **closed struct** with these fields: <!-- id:VSMoMOwV -->
-  - `source` _(required)_ — [string](../../string.md) <!-- id:xbMuwlRc -->
-  - `sourceType` — [string](../../string.md) <!-- id:QCGc8Mib -->
-  - `sourceContext` — [string](../../string.md) <!-- id:EB2X99HS -->
-  - `sourceBlob` — map { 3 fields } <!-- id:HWqmQC6t -->
-  - `sourceDocument` — [string](../../string.md) <!-- id:tGPuH7j_ -->
-  - `target` — [string](../../string.md) <!-- id:mcQ_zF31 -->
-  - `targetVersion` — [string](../../string.md) <!-- id:9r6v5-Jt -->
-  - `targetFragment` — [string](../../string.md) <!-- id:ETitOUBu -->
-  - `isExactVersion` — [boolean](../../boolean.md) <!-- id:JjU7xHVn -->
-  - `targetBlockRevision` — [string](../../string.md) <!-- id:5F30tb_v -->
-  - `mentionType` — [string](../../string.md) <!-- id:wQ9hjuTI -->
-  - `isExact` — [boolean](../../boolean.md) <!-- id:PmdMfCaq -->
+  - `source` _(required)_: [string](../../string.md) <!-- id:xbMuwlRc -->
+  - `sourceType`: [string](../../string.md) <!-- id:QCGc8Mib -->
+  - `sourceContext`: [string](../../string.md) <!-- id:EB2X99HS -->
+  - `sourceBlob`: map { 3 fields } <!-- id:HWqmQC6t -->
+  - `sourceDocument`: [string](../../string.md) <!-- id:tGPuH7j_ -->
+  - `target`: [string](../../string.md) <!-- id:mcQ_zF31 -->
+  - `targetVersion`: [string](../../string.md) <!-- id:9r6v5-Jt -->
+  - `targetFragment`: [string](../../string.md) <!-- id:ETitOUBu -->
+  - `isExactVersion`: [boolean](../../boolean.md) <!-- id:JjU7xHVn -->
+  - `targetBlockRevision`: [string](../../string.md) <!-- id:5F30tb_v -->
+  - `mentionType`: [string](../../string.md) <!-- id:wQ9hjuTI -->
+  - `isExact`: [boolean](../../boolean.md) <!-- id:PmdMfCaq -->
 
 # Depends on <!-- id:dPIrJcel -->
 

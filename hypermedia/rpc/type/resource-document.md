@@ -8,9 +8,9 @@ This page describes the **rpc/type/resource-document** read model of the Seed AP
 # Shape <!-- id:lpqlXCiW -->
 
 A **closed struct** with these fields: <!-- id:4vWhQD8X -->
-  - `type` _(required)_ — `"document"` <!-- id:-ZUj4U6x -->
-  - `id` _(required)_ — [rpc/type/id](./id.md) <!-- id:lPijxTTm -->
-  - `document` _(required)_ — [rpc/type/document](./document.md) <!-- id:HFUZ5Hqy -->
+  - `type` _(required)_: `"document"` <!-- id:-ZUj4U6x -->
+  - `id` _(required)_: [rpc/type/id](./id.md) <!-- id:lPijxTTm -->
+  - `document` _(required)_: [rpc/type/document](./document.md) <!-- id:HFUZ5Hqy -->
 
 # Depends on <!-- id:FEOuuSm1 -->
 

@@ -10,8 +10,8 @@ This page describes the **rpc/type/comment-list** read model of the Seed API —
 # Shape <!-- id:PppnBW7I -->
 
 A **closed struct** with these fields: <!-- id:KZctBNHM -->
-  - `comments` _(required)_ — list of [rpc/type/comment](./comment.md) <!-- id:kVFQBkzL -->
-  - `authors` _(required)_ — map ⟨ \* : [rpc/type/metadata-payload](./metadata-payload.md) ⟩ <!-- id:ZBgvETJb -->
+  - `comments` _(required)_: list of [rpc/type/comment](./comment.md) <!-- id:kVFQBkzL -->
+  - `authors` _(required)_: map ⟨ \* : [rpc/type/metadata-payload](./metadata-payload.md) ⟩ <!-- id:ZBgvETJb -->
 
 # Depends on <!-- id:Xlb8F54n -->
 

@@ -108,8 +108,8 @@ documentMetadataSchema(metadataSchemaOf(person.schema))                   // the
 ## Through an agent <!-- id:Ey4TdXUX -->
 
 The agent verbs ([read](../agent/read.md), [write](../agent/write.md)) expose the same checks; conformance is advisory for documents and a refusal for raw objects. <!-- id:Guzac8bT -->
-  - `read hm://acme/people/bob` — a typed document returns a `schema` block: `{schema, via, required, missing, violations}`. `/:attributes` reads only the metadata. <!-- id:RvJqxIgz -->
-  - `read ipfs://<cid>` — a DAG-CBOR object decodes to `value`, `signature` (who signed, whether it verifies), and `schema` (violations against the schema it links to, or `options: {schema}`). <!-- id:aOFSWTfh -->
+  - `read hm://acme/people/bob`: a typed document returns a `schema` block: `{schema, via, required, missing, violations}`. `/:attributes` reads only the metadata. <!-- id:RvJqxIgz -->
+  - `read ipfs://<cid>`: a DAG-CBOR object decodes to `value`, `signature` (who signed, whether it verifies), and `schema` (violations against the schema it links to, or `options: {schema}`). <!-- id:aOFSWTfh -->
   - `write hm://acme/people/bob` with `options.metadata: {surname: "Smith", attributesSchema: "hm://acme/person"}` — any key is allowed; the result reports `schema` and `warnings` beside the published id. `options.metadata.childAttributesSchema` types a folder; `options.metadata.schemaDefinition` makes a page a type. `dryRun: true` returns the same report without publishing. <!-- id:jlfZ4SiX -->
   - `call` tool `query` with `q` in the Explore grammar — `attributesSchema=hm://acme/person` (every page typed by person), `in:hm://acme/places kind=fortress`, `has:childAttributesSchema`, `status="In Progress" AND priority>=3` — or a raw `filter`; returns each document with its full attributes, sortable and paged. `call` tool `attributes` lists the attribute keys documents carry (with kinds) or, with `key`, the distinct values of one key. <!-- id:Y5C1myTU -->
 

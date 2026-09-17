@@ -10,9 +10,9 @@ This page describes the **rpc/get-cid** method of the Seed API — a read model 
 # Shape <!-- id:0EwBrMzm -->
 
 A **closed struct** with these fields: <!-- id:HzFHBpWO -->
-  - `key` _(required)_ — `"GetCID"` <!-- id:ZJCBLccu -->
-  - `input` _(required)_ — map { 1 fields } <!-- id:AF0I_I1D -->
-  - `output` _(required)_ — map { 1 fields } <!-- id:ERIh36-p -->
+  - `key` _(required)_: `"GetCID"` <!-- id:ZJCBLccu -->
+  - `input` _(required)_: map { 1 fields } <!-- id:AF0I_I1D -->
+  - `output` _(required)_: map { 1 fields } <!-- id:ERIh36-p -->
 
 # Depends on <!-- id:ardnz0nd -->
 

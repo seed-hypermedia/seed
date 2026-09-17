@@ -10,9 +10,9 @@ This page describes the **rpc/list-domains** method of the Seed API — a read m
 # Shape <!-- id:FQW6uXz3 -->
 
 A **closed struct** with these fields: <!-- id:9151imY0 -->
-  - `key` _(required)_ — `"ListDomains"` <!-- id:N6se43YX -->
-  - `input` _(required)_ — map <!-- id:bKAFDwFF -->
-  - `output` _(required)_ — map { 1 fields } <!-- id:VFyNONl3 -->
+  - `key` _(required)_: `"ListDomains"` <!-- id:N6se43YX -->
+  - `input` _(required)_: map <!-- id:bKAFDwFF -->
+  - `output` _(required)_: map { 1 fields } <!-- id:VFyNONl3 -->
 
 # Depends on <!-- id:MHXgMWho -->
 
