@@ -3,9 +3,9 @@ name: Block
 summary: "The open wire block: id and type plus text, link, annotations and any attributes, so a document with a block type you do not know still parses."
 schemaDefinition: ipfs://bafyreib6nls3poisfp73rbwvcey7o7ybef5w5rboq5yfsus4xqxksks26i
 ---
-The open block: the common fields (id, type, text, link, annotations, attributes) plus arbitrary extra fields of any type, requiring only id and type. This is the forward-compatible wire type Change ops and comment bodies reference — a block type this client has no schema for (a future or third-party type) is still a valid Block, so a document is never rejected over an unrecognized block. Every concrete block is a subtype; the strict recognized set is block/core. To ADD a block type, extend block/base and union it with the core (see example/poll-block / example/app-block). <!-- id:oDU4AtVK -->
+A **block** is one unit of document content, such as a paragraph, a heading or an image; see [Blocks](./protocol/blocks.md). This page defines the open block: the common fields (id, type, text, link, annotations, attributes) plus any extra fields of any type, with only id and type required. It is the forward-compatible wire type that [Change](./change.md) ops and [comment](./comment.md) bodies reference. A block type this client has no schema for, such as a future or third-party type, is still a valid Block, so a document is never rejected over an unrecognized block. Every concrete block is a subtype. The strict set of recognized types is [block/core](./block/core.md). To add a block type, extend [block/base](./block/base.md) and union it with the core, as [example/poll-block](./example/poll-block.md) and [example/app-block](./example/app-block.md) do. <!-- id:oDU4AtVK -->
 
-This is the shape a block has inside a signed [Change](./change.md) (in a [ReplaceBlock](./change/op/replace-block.md) op) and inside a [comment](./comment.md) body. The five named keys are reserved; on the wire every attribute sits beside them at the top level of the map, while the Seed API and the SDK nest attributes under `attributes`. `revision` is filled in by the daemon when it serves a document: the CID of the last Change that replaced the block. The full model, including annotations, layouts and every built-in type, is on [Blocks](./protocol/blocks.md).
+This is the shape a block has inside a signed Change, in a [ReplaceBlock](./change/op/replace-block.md) op, and inside a comment body. The five named keys are reserved. On the wire every attribute sits beside them at the top level of the map, while the [Seed API](./build/web-api.md) and the [SDK](./build/sdk.md) nest attributes under `attributes`. The daemon fills in `revision` when it serves a document: the CID of the last Change that replaced the block. [Blocks](./protocol/blocks.md) has the full model, including [annotations](./block/annotation.md), layouts and every built-in type.
 
 # Shape <!-- id:QiFjidUz -->
 
@@ -23,3 +23,12 @@ A map with these fields: <!-- id:fsTkb0Vo -->
 - [block/annotation](./block/annotation.md) <!-- id:g8o6nDyl -->
 - [any](./any.md) <!-- id:ehYTDbOa -->
 - [string](./string.md) <!-- id:xj1lJl3u -->
+
+# See also
+
+- [Blocks](./protocol/blocks.md): the block model and every built-in type.
+- [block/core](./block/core.md): the built-in block types.
+- [block/base](./block/base.md): the base to extend for a new type.
+- [block/node](./block/node.md): a block with its children.
+- [block/annotation](./block/annotation.md): inline formatting.
+- [ReplaceBlock](./change/op/replace-block.md): the op that writes a block.

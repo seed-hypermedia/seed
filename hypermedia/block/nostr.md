@@ -3,7 +3,7 @@ name: Nostr Block
 summary: "An embed of a Nostr event by nostr: URL."
 schemaDefinition: ipfs://bafyreiayvzq6jrzhuvd7o3iqackcomxgboi72ek2xkdwfcyokcub45n2um
 ---
-A Nostr embed: `link` is required and is a `nostr:` URL naming an event. The app fetches and renders the event; the block has no text and no attributes of its own.
+A **Nostr block** embeds a Nostr event. `link` is required and is a `nostr:` URL naming the event. The app fetches and renders the event. The block has no text and no attributes of its own.
 
 # Shape <!-- id:DfGwDfS7 -->
 
@@ -15,3 +15,10 @@ A Nostr embed: `link` is required and is a `nostr:` URL naming an event. The app
 
 - [block/base](./base.md) <!-- id:7wMfK90x -->
 - [string](../string.md) <!-- id:MfbwVRsn -->
+
+# See also
+
+- [block/web-embed](./web-embed.md): embeds of web pages and posts.
+- [block/embed](./embed.md): embeds of Hypermedia content.
+- [block/core](./core.md): all built-in block types.
+- [Blocks](../protocol/blocks.md): the block model.

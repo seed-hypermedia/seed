@@ -3,13 +3,13 @@ name: Core Block
 summary: "The strict union of the fifteen built-in block types; extend it with your own types by making a larger union that includes it."
 schemaDefinition: ipfs://bafyreidjmvkidd6iorhrdnavyqfnhdzoaxfemx56fwlzqtbo5rebqnbbry
 ---
-The union of the fifteen built-in block types (Paragraph, Heading, Code, Math, Image, Video, File, Button, Embed, WebEmbed, Nostr, Table, TableRow, TableColumn, Query). This is the strict core Hypermedia defines; anyone can extend it by making a larger union that includes it plus their own block types. <!-- id:38pY0Ovx -->
+**Core Block** is the union of the fifteen built-in [block](../block.md) types (Paragraph, Heading, Code, Math, Image, Video, File, Button, Embed, WebEmbed, Nostr, Table, TableRow, TableColumn, Query). It is the strict core Hypermedia defines. Anyone can extend it by making a larger union that includes it plus their own block types. <!-- id:38pY0Ovx -->
 
-The Seed app also knows `Slot` (an invisible container for top-level lists and grids), `Link` (a navigation menu item) and the legacy `Group`, which are not part of this union. Anything else still parses as the open [block](../block.md). One line per type, with its attributes, is on [Blocks](../protocol/blocks.md).
+The Seed app also knows `Slot` (an invisible container for top-level lists and grids), `Link` (a [navigation menu item](../metadata/navigation-item.md)) and the legacy `Group`, which are not part of this union. Anything else still parses as the open block. [Blocks](../protocol/blocks.md) has one line per type, with its attributes.
 
 # Shape <!-- id:3vJCYHye -->
 
-A **union** — a value matches one of these variants: <!-- id:k29A1dG- -->
+A **union**. A value matches one of these variants: <!-- id:k29A1dG- -->
   - [block/paragraph](./paragraph.md) <!-- id:fW1wQHLx -->
   - [block/heading](./heading.md) <!-- id:75e1rNp2 -->
   - [block/code](./code.md) <!-- id:7Ec0B_-v -->
@@ -43,3 +43,10 @@ A **union** — a value matches one of these variants: <!-- id:k29A1dG- -->
 - [block/table-row](./table-row.md) <!-- id:JeH5fZ83 -->
 - [block/video](./video.md) <!-- id:ZxfdkwxA -->
 - [block/web-embed](./web-embed.md) <!-- id:yFyvlYFu -->
+
+# See also
+
+- [Blocks](../protocol/blocks.md): every built-in type with its attributes.
+- [block](../block.md): the open block that accepts unknown types.
+- [block/base](./base.md): the base a new type extends.
+- [Example: app block](../example/app-block.md): a larger union that includes the core.

@@ -3,7 +3,7 @@ name: Paragraph Block
 summary: "The default block: a paragraph of text with inline annotations; inside a table row it is a cell and carries the column id."
 schemaDefinition: ipfs://bafyreifjzaopfo4ugenflaf52bmubt25wagkxxqb5miasjb3yazzhbayvu
 ---
-A paragraph of rich text: `text` plus [annotations](./annotation.md) for formatting, links and mentions. Attributes are the parent-layout pair `childrenType` and `columnCount`, and `columnId`, which is set only when the paragraph is a cell inside a [table row](./table-row.md) and names the [table column](./table-column.md) it belongs to.
+A **paragraph block** is the default block: rich text. It has `text` plus [annotations](./annotation.md) for formatting, links and mentions. Its attributes are the parent-layout pair `childrenType` and `columnCount`, and `columnId`. `columnId` is set only when the paragraph is a cell inside a [table row](./table-row.md), and it names the [table column](./table-column.md) the cell belongs to.
 
 # Shape <!-- id:l0o5Tte_ -->
 
@@ -21,3 +21,10 @@ A paragraph of rich text: `text` plus [annotations](./annotation.md) for formatt
 - [any](../any.md) <!-- id:Kyh6AeJj -->
 - [float](../float.md) <!-- id:MOYG_rHe -->
 - [string](../string.md) <!-- id:Pf_eLNrP -->
+
+# See also
+
+- [block/annotation](./annotation.md): inline formatting, links and mentions.
+- [block/heading](./heading.md): a section heading.
+- [block/table](./table.md): paragraphs as table cells.
+- [Blocks](../protocol/blocks.md): the block model.
