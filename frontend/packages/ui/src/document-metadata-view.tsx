@@ -5,7 +5,7 @@ import {useEffect, useMemo, useState} from 'react'
 import {seedValue} from './schema/data-editor'
 import {SchemaRegistryProvider} from './schema/schema-context'
 import {SchemaErrorSummary} from './schema/value-editor-schema'
-import {RESERVED_METADATA_KEYS} from './schema/schema-document'
+import {RESERVED_METADATA_KEYS, SCHEMA_DEFINITION_KEY} from './schema/schema-document'
 import {BINDING_SCHEMA_KEYS} from '@shm/shared/models/schema-draft'
 import {
   buildSchemaKeyRoot,
@@ -142,8 +142,9 @@ export function DocumentMetadataView({
   // Null tombstones = absent, so validate against a null-stripped copy.
   const validationValue = useMemo(() => stripNullsDeep(current), [current])
   // The two schema bindings are shown and edited by their own sections above the rows.
+  // The schema bindings and the schema definition are shown and edited by their own sections.
   const entries = canonicalEntries(current, {hideNull: true}).filter(
-    ([key]) => !(BINDING_SCHEMA_KEYS as readonly string[]).includes(key),
+    ([key]) => key !== SCHEMA_DEFINITION_KEY && !(BINDING_SCHEMA_KEYS as readonly string[]).includes(key),
   )
   const editable = canEdit && !!onMetadata
 

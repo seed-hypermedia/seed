@@ -3843,6 +3843,102 @@ function BindingSchemaSection({
   )
 }
 
+/**
+ * The schema this document DEFINES (`schemaDefinition`), at the bottom of the Attributes tab beside
+ * the attributes-schema bindings, with the full schema editor in place. Nothing defined: a Define
+ * button that starts an empty struct. Defined or drafting: the editor — edits go to the draft's
+ * working schema (`schemaDraft`), and publishing freezes it into a new IPFS object the key then
+ * points at. Clear removes the definition. Readers see the schema read-only.
+ */
+function SchemaDefinitionSection({document}: {document: HMDocument}) {
+  const ctx = useDocumentSelector(selectContext)
+  const send = useDocumentSend()
+  const {beginEditIfNeeded} = useEditorGate()
+  const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
+  const openUrl = useOpenUrl()
+  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  const cid = schemaDefinitionCid(metadata)
+  const draft = ctx.schemaDraft ?? null
+  const {schema: published, isLoading} = useResolvedSchema(draft || !cid ? null : `ipfs://${cid}`)
+  const edit = useCallback(
+    (next: Record<string, any>) => {
+      beginEditIfNeeded()
+      send({type: 'change', schemaDraft: next})
+    },
+    [beginEditIfNeeded, send],
+  )
+  const clear = useCallback(() => {
+    beginEditIfNeeded()
+    send({type: 'change', metadata: {schemaDefinition: null} as any, schemaDraft: null})
+  }, [beginEditIfNeeded, send])
+
+  const header = (
+    <div className="flex flex-col gap-0.5">
+      <SizableText weight="semibold" size="sm">
+        Schema definition
+      </SizableText>
+      <SizableText size="xs" className="text-muted-foreground">
+        The schema this document defines, for other documents to use.
+      </SizableText>
+    </div>
+  )
+  if (!draft && !cid) {
+    if (!canEditCurrentRoute) return null
+    return (
+      <section
+        className="border-border/60 mt-4 flex items-center justify-between gap-3 rounded-lg border border-dashed p-3"
+        data-testid="schema-definition-section"
+      >
+        {header}
+        <Button variant="outline" size="sm" onClick={() => edit(emptyStructSchema())}>
+          <Plus className="mr-1 size-4" /> Define
+        </Button>
+      </section>
+    )
+  }
+  const current = draft ?? (published ? stripLegacyLabels(published) : undefined)
+  return (
+    <section
+      className="border-border/60 bg-muted/20 mt-4 flex flex-col gap-3 rounded-lg border p-3"
+      data-testid="schema-definition-section"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        {header}
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {draft ? (
+            <SizableText size="xs" className="text-muted-foreground">
+              Publishing the document publishes this schema.
+            </SizableText>
+          ) : null}
+          {canEditCurrentRoute ? (
+            <Button variant="ghost" size="sm" className="text-muted-foreground gap-1" onClick={clear}>
+              <Trash className="size-3.5" /> Clear
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      {current && canEditCurrentRoute ? (
+        <SchemaEditor schema={current} onSchema={edit} />
+      ) : current ? (
+        <SchemaNavContext.Provider value={{openRef: (r) => openUrl(r)}}>
+          <SchemaView
+            schema={current}
+            nav={(slug) => {
+              const url = nameToUrl(slug)
+              if (url) openUrl(url)
+            }}
+            hideIdentity
+          />
+        </SchemaNavContext.Provider>
+      ) : (
+        <SizableText size="sm" className="text-muted-foreground">
+          {isLoading ? 'Fetching schema…' : `Could not resolve ipfs://${cid}.`}
+        </SizableText>
+      )}
+    </section>
+  )
+}
+
 function DocumentMetadataPage({
   docId,
   document,
@@ -3924,6 +4020,7 @@ function DocumentMetadataPage({
       {BINDING_SCHEMA_KEYS.map((bindingKey) => (
         <BindingSchemaSection key={bindingKey} docId={docId} document={document} bindingKey={bindingKey} />
       ))}
+      <SchemaDefinitionSection document={document} />
     </>
   )
 }

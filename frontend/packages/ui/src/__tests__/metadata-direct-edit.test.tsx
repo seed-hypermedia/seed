@@ -48,16 +48,16 @@ describe('metadata direct edit', () => {
       ),
     )
 
-  it('every ipfs object field — schemaDefinition included — gets the in-context pencil when editable', () => {
+  it('every ipfs object field gets the in-context pencil when editable; schemaDefinition is not a row', () => {
     const onEditField = vi.fn()
     mount({isFieldEditable: () => true, onEditField})
     const pencils = Array.from(
       container.querySelectorAll('[aria-label="Edit linked object"][data-direct-edit="true"]'),
     ) as HTMLButtonElement[]
-    expect(pencils).toHaveLength(2)
+    // schemaDefinition has its own section on the Attributes tab (the schema editor), not a row.
+    expect(pencils).toHaveLength(1)
     pencils.forEach((p) => act(() => p.click()))
-    expect(onEditField.mock.calls.map((c) => c[0]).sort()).toEqual(['schemaDefinition', 'stats'])
-    expect(onEditField).toHaveBeenCalledWith('schemaDefinition', stats)
+    expect(onEditField.mock.calls.map((c) => c[0])).toEqual(['stats'])
     // No hardcoded schema row.
     expect(container.textContent).not.toContain('Define schema')
     expect(container.textContent).not.toContain('Edit as form')
@@ -68,7 +68,7 @@ describe('metadata direct edit', () => {
     mount({isFieldEditable: (k) => k !== 'schemaDefinition' && k !== 'stats', onEditField})
     expect(container.querySelector('[aria-label="Edit linked object"]')).toBeNull()
     // The pills are still there (open + ✕), just no in-context pencil.
-    expect(container.querySelectorAll('[data-testid="ipfs-object-pill"]').length).toBe(2)
+    expect(container.querySelectorAll('[data-testid="ipfs-object-pill"]').length).toBe(1)
   })
 
   it('has no in-context editing without a provider (unpublished document)', () => {
