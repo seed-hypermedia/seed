@@ -8,14 +8,14 @@ import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 
 const ARTICLE_SCHEMA: HypermediaSchema = {
-  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct',
+  type: 'hm://hyper.media/struct',
   properties: {
     title: {
-      value: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string', minLength: 1},
+      value: {type: 'hm://hyper.media/string', minLength: 1},
       required: true,
     },
     status: {value: {anyOf: ['draft', 'published']}, required: true},
-    count: {value: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer'}},
+    count: {value: {type: 'hm://hyper.media/integer'}},
   },
 }
 
@@ -95,7 +95,7 @@ describe('schema-aware value editor rendering', () => {
     // The validator attributes the "unexpected key" warning to the containing map's path,
     // so nest the closed map under a field to get a rendered row to badge.
     const schema: HypermediaSchema = {
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct',
+      type: 'hm://hyper.media/struct',
       values: {},
       properties: {article: {value: ARTICLE_SCHEMA}},
     }
@@ -107,7 +107,7 @@ describe('schema-aware value editor rendering', () => {
 
   it('a union of literals containing "" renders safely (labels are JSON-quoted, so Radix never sees value="")', () => {
     const schema: HypermediaSchema = {
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct',
+      type: 'hm://hyper.media/struct',
       values: {},
       properties: {
         status: {value: {anyOf: ['', 'draft']}},
@@ -121,7 +121,7 @@ describe('schema-aware value editor rendering', () => {
 
   it('mixed-type literal unions render number members as a dropdown too', () => {
     const schema: HypermediaSchema = {
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct',
+      type: 'hm://hyper.media/struct',
       values: {},
       properties: {level: {value: {anyOf: ['low', 1, 2, true]}}},
     }
@@ -137,7 +137,7 @@ describe('schema-aware value editor rendering', () => {
 
   it('a union of literals with duplicate members falls back to free text', () => {
     const schema: HypermediaSchema = {
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct',
+      type: 'hm://hyper.media/struct',
       values: {},
       properties: {
         status: {value: {anyOf: ['draft', 'draft']}},

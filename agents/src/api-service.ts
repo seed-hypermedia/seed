@@ -12672,11 +12672,11 @@ const IPFS_WRITE_OPTION_KEYS = ['fromPath', 'fromAttachment', ...IPFS_OBJECT_OPT
  * Publishes a JSON object as a content-addressed DAG-CBOR blob — the typed-blob half of the
  * protocol, the same thing the CLI's `blob create` and `blob sign` do. The content is dag-json
  * (`{"/": "<cid>"}` is a link, `{"/": {"bytes": "…"}}` is bytes). With `options.schema` the
- * object is validated against that schema (a library name such as `hypermedia-schema`, an
+ * object is validated against that schema (a library name such as `schema`, an
  * `ipfs://<cid>`, or a type document's `hm://` URL) and linked to it through a `schema` key; a
  * violation refuses the publish unless `options.force`. With `options.sign: true` the object's
  * fields are wrapped in the Hypermedia signed-blob envelope (type, signer, ts, sig) and signed by
- * one of the agent's identities, so a schema that extends `hypermedia-blob` gets a real instance.
+ * one of the agent's identities, so a schema that extends `blob` gets a real instance.
  */
 async function writeIpfsObject(
   context: AgentServicePiToolContext,
@@ -12693,7 +12693,7 @@ async function writeIpfsObject(
   if (options.schema !== undefined && typeof options.schema !== 'string') {
     throw new APIError(
       400,
-      'write ipfs:// options.schema must be a schema reference: a library name (hypermedia-schema), ipfs://<cid>, or a type document hm:// URL',
+      'write ipfs:// options.schema must be a schema reference: a library name (schema), ipfs://<cid>, or a type document hm:// URL',
     )
   }
   for (const key of ['sign', 'link', 'force'] as const) {

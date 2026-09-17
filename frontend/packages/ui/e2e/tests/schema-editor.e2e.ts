@@ -103,9 +103,9 @@ test.describe('schema editor', () => {
     // The published schema carried the field, kind, and required flag.
     const published = await page.evaluate(() => (window as any).__lastPublishedSchema)
     expect(published).toMatchObject({
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct',
+      type: 'hm://hyper.media/struct',
       properties: {
-        width: {value: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer'}, required: true},
+        width: {value: {type: 'hm://hyper.media/integer'}, required: true},
       },
     })
   })
@@ -120,7 +120,7 @@ test.describe('schema editor', () => {
     await dialog.getByTestId('linked-object-publish').click()
     await expect(dialog).toBeHidden()
     const published: any = await page.evaluate(() => (window as any).__lastPublishedSchema)
-    expect(published.type).toBe('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct')
+    expect(published.type).toBe('hm://hyper.media/struct')
     expect(published.properties).toEqual({})
     expect(published.name).toBeUndefined()
   })
@@ -233,14 +233,14 @@ test.describe('schema editor', () => {
   }) => {
     // A document that conforms to the person attributes schema (via `attributesSchema`, not
     // schemaDefinition) requires `surname` in its metadata.
-    const HYPERMEDIA_UID = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
-    await openHarness(page, {name: 'X', attributesSchema: `${HYPERMEDIA_UID}/example/person-doc`})
+    const LIBRARY = 'hm://hyper.media'
+    await openHarness(page, {name: 'X', attributesSchema: `${LIBRARY}/example/person-doc`})
 
     // `surname` (required by the person document) renders as an always-visible
     // required row (seeded if absent), so it never has to be "added".
     await expect(page.getByRole('treeitem', {name: /surname/}).first()).toBeVisible()
     // The seeded value is shown but NOT written to the draft (no auto-pollution).
-    expect(await meta(page)).toEqual({name: 'X', attributesSchema: `${HYPERMEDIA_UID}/example/person-doc`})
+    expect(await meta(page)).toEqual({name: 'X', attributesSchema: `${LIBRARY}/example/person-doc`})
 
     // A required field cannot be removed: its actions menu has no Remove item.
     await page.getByRole('button', {name: 'Actions for surname'}).click()
@@ -252,7 +252,7 @@ test.describe('schema editor', () => {
 
     // Optional declared fields are rows too (not add-field suggestions), and nothing is written.
     await expect(page.getByRole('treeitem', {name: /givenName/}).first()).toBeVisible()
-    expect(await meta(page)).toEqual({name: 'X', attributesSchema: `${HYPERMEDIA_UID}/example/person-doc`})
+    expect(await meta(page)).toEqual({name: 'X', attributesSchema: `${LIBRARY}/example/person-doc`})
   })
 
   // --- extra coverage: metadata field add / rename / remove ------------------
@@ -319,10 +319,10 @@ test.describe('schema editor', () => {
   })
 
   test('validation summary lists the actual errors by field (and ignores null tombstones)', async ({page}) => {
-    const HYPERMEDIA_UID = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
+    const LIBRARY = 'hm://hyper.media'
     // Conforms to the person document (requires metadata.surname), which is
     // absent; `icon: null` is a deletion tombstone, not a real value.
-    await openHarness(page, {name: 'X', attributesSchema: `${HYPERMEDIA_UID}/example/person-doc`, icon: null})
+    await openHarness(page, {name: 'X', attributesSchema: `${LIBRARY}/example/person-doc`, icon: null})
 
     const alert = page.getByRole('alert')
     await expect(alert).toBeVisible()
@@ -335,8 +335,8 @@ test.describe('schema editor', () => {
   })
 
   test('an HM-link field renders a clickable pill that navigates to the reference', async ({page}) => {
-    const HYPERMEDIA_UID = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
-    const target = `${HYPERMEDIA_UID}/example/employee`
+    const LIBRARY = 'hm://hyper.media'
+    const target = `${LIBRARY}/example/employee`
     // `attributesSchema` is an HM link (format hm-url) — a resolvable value shows as a pill.
     await openHarness(page, {name: 'X', attributesSchema: target})
 

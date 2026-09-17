@@ -4,7 +4,7 @@ summary: How Hypermedia Schemas type the six signed DAG-CBOR blobs of the Hyperm
 ---
 # Schemas for network blobs <!-- id:MZbfGNFo -->
 
-The Hypermedia Network stores its data as [DAG-CBOR](./dag-cbor.md) [blobs](../protocol/blobs.md) in IPFS. There are six signed blob types: [Change](../change.md), [Ref](../ref.md), [Profile](../profile.md), [Comment](../comment.md), [Capability](../capability.md) and [Contact](../contact.md). They are related, because every one embeds the same signed [envelope](../blob.md). These schemas type production data, use only the features of the [schema language](./schema-language.md), and are published under the Hypermedia account: the blob schemas at the root (`change`, `ref`, …) and the block model under `block/`. <!-- id:mIEsrB_H -->
+The Hypermedia Network stores its data as [DAG-CBOR](./dag-cbor.md) [blobs](../protocol/blobs.md) in IPFS. There are six signed blob types: [Change](../change.md), [Ref](../ref.md), [Profile](../profile.md), [Comment](../comment.md), [Capability](../capability.md) and [Contact](../contact.md). They are related, because every one embeds the same signed [envelope](../blob.md). These schemas type production data, use only the features of the [schema language](./schema-language.md), and are named under the library's [authority](../authority.md), `hm://hyper.media`: the blob schemas at the root (`change`, `ref`, …) and the block model under `block/`. <!-- id:mIEsrB_H -->
 
 ## The shared envelope <!-- id:5NuFY-Ul -->
 
@@ -63,8 +63,8 @@ To add a block type, do what the core blocks do. **Extend `block/base`**, then p
 
 ```json <!-- id:TQDZHz8Q -->
 // example/app-block: the core, PLUS this app's custom Poll block
-{ "anyOf": [ { "type": "hm://z6MkmZUb…/block/core" },
-             { "type": "hm://z6MkmZUb…/example/poll-block" } ] }
+{ "anyOf": [ { "type": "hm://hyper.media/block/core" },
+             { "type": "hm://hyper.media/example/poll-block" } ] }
 ```
 
 See [`example/poll-block`](../example/poll-block.md), a custom block that extends the same base, and [`example/app-block`](../example/app-block.md). That union is **strict for its app**. It accepts core blocks and Polls and rejects any block type it does not know. The wire type `block` stays open. <!-- id:uKNf26fA -->

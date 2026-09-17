@@ -31,6 +31,7 @@ import {
   createChange,
   createChangeOps,
   createRedirectRef,
+  createTombstoneRef,
   createVersionRef,
   flattenToOperations,
   markdownBlockNodesToHMBlockNodes,
@@ -89,6 +90,25 @@ export type SpaceLayout = {
    * hm:// link as is.
    */
   fileForLinkPath?(path: string): string | null
+  /**
+   * A name the files use for this space's own documents instead of its key, e.g. `hyper.media` in
+   * `hm://hyper.media/protocol/documents`. Import resolves it to the publishing space's key in links
+   * and metadata, and export writes it back, so the files never name a key.
+   */
+  selfAuthority?: string
+}
+
+/** Every `hm://<from>` URL in a value (a string, or strings nested in lists and maps) with its authority set to `to`. */
+export function swapAuthority<T>(value: T, from: string, to: string): T {
+  const re = new RegExp(`^hm://${from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[/?#])`)
+  const walk = (v: unknown): unknown => {
+    if (typeof v === 'string') return v.replace(re, `hm://${to}`)
+    if (Array.isArray(v)) return v.map(walk)
+    if (v && typeof v === 'object' && !(v instanceof Uint8Array))
+      return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]))
+    return v
+  }
+  return walk(value) as T
 }
 
 export const defaultLayout: SpaceLayout = {
@@ -345,8 +365,11 @@ export async function exportDocument(
         Object.entries(doc.metadata || {}).filter(([key]) => key !== 'schemaDefinition'),
       ) as HMDocument['metadata'])
     : doc.metadata
-  const content = hmToRelativeLinks(doc.content || [], file, doc.account, layout)
-  const md = blocksToMarkdown({...doc, metadata, content}, {ipfsGateway: false})
+  const relative = hmToRelativeLinks(doc.content || [], file, doc.account, layout)
+  const self = layout.selfAuthority
+  const content = self ? rewriteLinks(relative, (link) => swapAuthority(link, doc.account, self)) : relative
+  const ownMetadata = self && metadata ? swapAuthority(metadata, doc.account, self) : metadata
+  const md = blocksToMarkdown({...doc, metadata: ownMetadata, content}, {ipfsGateway: false})
   const changed = writeIfChanged(resolve(opts.dir, file), md)
   ;(changed ? result.written : result.unchanged).push(file)
   log(`${changed ? 'wrote  ' : 'same   '} ${file}`)
@@ -449,6 +472,77 @@ export function applySchemaMetadata(metadata: HMMetadata, schema: SchemaFile | n
   delete out.schema
   if (schema) out.schemaDefinition = `ipfs://${schema.cid}`
   return out as HMMetadata
+}
+
+// ─── Retire ──────────────────────────────────────────────────────────────────
+
+export type RetireOptions = {
+  client: SeedClient
+  signer: HMSigner
+  account: string
+  dir: string
+  layout?: SpaceLayout
+  dryRun?: boolean
+  /** Only these document paths are candidates; by default every document of the space. */
+  paths?: string[]
+  /** Paths to leave alone (e.g. the sources of moves the import just published). */
+  skip?: ReadonlySet<string>
+  /** A live path a retired document should redirect to instead of being deleted. */
+  redirectFor?: (path: string, published: ReadonlySet<string>) => string | null
+  log?: (line: string) => void
+}
+
+/**
+ * Retire the documents of a space that no longer have a file in the directory: the directory is the truth about
+ * what the space publishes. A document becomes a redirect when `redirectFor` names a live path, and is
+ * tombstoned otherwise. The home document is never retired, and redirects are left alone. Returns the paths.
+ */
+export async function retireMissing(opts: RetireOptions): Promise<string[]> {
+  const layout = opts.layout || defaultLayout
+  const log = opts.log || (() => {})
+  const published = new Set(
+    listMarkdownFiles(opts.dir)
+      .map((file) => layout.pathForFile(file))
+      .filter((p): p is string => p !== null),
+  )
+  const candidates = opts.paths ?? [...(await listSpaceVersions(opts.client, opts.account)).keys()]
+  const stale = candidates.filter((path) => path !== '' && !published.has(path) && !opts.skip?.has(path)).sort()
+  const retired: string[] = []
+  for (const path of stale) {
+    const resource = await opts.client.request(
+      'Resource',
+      hmId(opts.account, {path: path.replace(/^\//, '').split('/')}),
+    )
+    if (resource.type !== 'document') continue
+    const redirectTo = opts.redirectFor?.(path, published) ?? null
+    log(redirectTo ? `redirect ${path} -> ${redirectTo}` : `retire  ${path}`)
+    retired.push(path)
+    if (opts.dryRun) continue
+    const genesis = resource.document.genesis
+    const ref = redirectTo
+      ? await createRedirectRef(
+          {
+            space: opts.account,
+            path,
+            genesis,
+            generation: Date.now(),
+            targetSpace: opts.account,
+            targetPath: redirectTo,
+          },
+          opts.signer,
+        )
+      : await createTombstoneRef(
+          {
+            space: opts.account,
+            path,
+            genesis,
+            generation: resource.document.generationInfo ? Number(resource.document.generationInfo.generation) : 0,
+          },
+          opts.signer,
+        )
+    await opts.client.publish(ref)
+  }
+  return retired
 }
 
 // ─── Import ──────────────────────────────────────────────────────────────────
@@ -695,11 +789,11 @@ export function metadataDiffOp(
 function prepareFile(opts: ImportOptions, layout: SpaceLayout, file: string) {
   const raw = readFileSync(resolve(opts.dir, file), 'utf8')
   const {tree, metadata} = parseMarkdown(raw)
-  const nodes = relativeAssetsToFileLinks(
-    relativeToHmLinks(markdownBlockNodesToHMBlockNodes(tree), file, opts.account, layout),
-    opts.dir,
-    file,
-  )
+  const blocks = markdownBlockNodesToHMBlockNodes(tree)
+  const own = layout.selfAuthority
+    ? rewriteLinks(blocks, (link) => swapAuthority(link, layout.selfAuthority!, opts.account))
+    : blocks
+  const nodes = relativeAssetsToFileLinks(relativeToHmLinks(own, file, opts.account, layout), opts.dir, file)
   return {raw, tree, metadata, nodes}
 }
 
@@ -773,7 +867,10 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     if (!prep) prepared.set(file, (prep = prepareFile(opts, layout, file)))
     const {raw, tree, metadata: fileMetadata, nodes} = prep
     const schema = await readSchemaFile(opts.dir, file, layout)
-    const metadata = applySchemaMetadata(opts.metadataFor ? opts.metadataFor(file, fileMetadata) : fileMetadata, schema)
+    const ownMetadata = layout.selfAuthority
+      ? swapAuthority(fileMetadata, layout.selfAuthority, opts.account)
+      : fileMetadata
+    const metadata = applySchemaMetadata(opts.metadataFor ? opts.metadataFor(file, ownMetadata) : ownMetadata, schema)
     // The schema blob rides along with the change that binds it.
     const schemaBlobs = schema ? [{data: schema.data, cid: schema.cid}] : []
     const resolved = await resolveFileLinks(nodes)

@@ -1,42 +1,42 @@
 {
-  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/base",
+  "type": "hm://hyper.media/block/base",
   "properties": {
     "type": {
       "value": "Query"
     },
     "attributes": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+        "type": "hm://hyper.media/struct",
         "properties": {
           "childrenType": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/children-type"
+              "type": "hm://hyper.media/block/children-type"
             }
           },
           "columnCount": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float"
+              "type": "hm://hyper.media/float"
             }
           },
           "style": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/query/style"
+              "type": "hm://hyper.media/query/style"
             }
           },
           "query": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/query"
+              "type": "hm://hyper.media/query"
             },
             "required": true
           },
           "banner": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean"
+              "type": "hm://hyper.media/boolean"
             }
           },
           "table": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/query/table-config"
+              "type": "hm://hyper.media/query/table-config"
             }
           }
         }

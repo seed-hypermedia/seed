@@ -2,7 +2,7 @@
 name: Resource URL
 summary: A reference to a Hypermedia document held as an `hm://` URL string, which editors render as a searchable pill showing the target’s title.
 ---
-An **`hm://` URL** is a [name reference](./schema/references.md): how one schema points at another (`hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string`). A name does not depend on content, so names can form cycles, which a [CID](./cid.md) cannot. That is what makes recursion expressible. Local filenames are the dev alias (`string` ⇄ `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string`). <!-- id:yKu5YAX1 -->
+An **`hm://` URL** is a [name reference](./schema/references.md): how one schema points at another (`hm://hyper.media/string`). A name does not depend on content, so names can form cycles, which a [CID](./cid.md) cannot. That is what makes recursion expressible. Local filenames are the dev alias (`string` ⇄ `hm://hyper.media/string`). `hyper.media` is a name the SDK and the docs sync understand. The network does not resolve domains in `hm://` URLs yet, so published documents carry the key of the space instead. <!-- id:yKu5YAX1 -->
 
 As a value type it is a reference to a Hypermedia [document](./protocol/documents.md), held as an `hm://` URL string. `format: hm-url` tells an editor to render it as a searchable reference that shows the target's title as a pill, instead of the raw URL. <!-- id:9OE_xwGa -->
 

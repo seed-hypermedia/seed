@@ -1,7 +1,7 @@
 ---
 name: Alice
 summary: An example person, a document whose attributes follow example/person.
-attributesSchema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/person
+attributesSchema: hm://hyper.media/example/person
 active: true
 age: 30
 home:

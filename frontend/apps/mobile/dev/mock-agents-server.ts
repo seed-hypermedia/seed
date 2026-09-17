@@ -206,7 +206,7 @@ async function runTurn(session: MockSession, userText: string, account: string):
       await runToolCall(session, {
         id: `${runId}-call-1`,
         name: 'read',
-        input: {address: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'},
+        input: {address: 'hm://hyper.media'},
         output: {title: 'Hypermedia Schemas', type: 'hypermedia_document', markdown: '# Hypermedia Schemas\n\nA self-describing type system.'},
       })
       await streamAssistant(
