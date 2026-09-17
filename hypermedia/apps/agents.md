@@ -2,9 +2,9 @@
 name: The agents service
 summary: The Seed Agents server as a program, a Bun process with one SQLite database that the desktop app bundles and hosted containers run, with its code map, ports, configuration, backends and deployments.
 ---
-The agents service is the program that runs Seed Agents. It stores agents, their sessions and every run in a SQLite database, calls language models, executes tools, watches the Hypermedia network for [triggers](../agent/triggers.md), and publishes signed [blobs](../protocol/blobs.md) through a Seed [site](../protocol/sites.md). It is a server with no web pages of its own: the [desktop app](./desktop.md), the [web app](./web.md) and the [mobile app](./mobile.md) are its clients. This page describes the software; what an agent is and how to use one is on [Seed Agents](../agent.md). <!-- id:XahmX6O- -->
+The agents service is the program that runs Seed Agents. It stores agents, their sessions and every run in a SQLite database, calls language models, executes tools, watches the Hypermedia network for [triggers](../agent/triggers.md), and publishes signed [blobs](../protocol/blobs.md) through a Seed [site](../protocol/sites.md). It is a server with no web pages of its own: the [desktop app](./desktop.md), the [web app](./web.md) and the [mobile app](./mobile.md) are its clients. This page describes the software. [Seed Agents](../agent.md) explains what an agent is and how to use one. <!-- id:XahmX6O- -->
 
-The same build runs in three places. The desktop app ships it as a compiled binary and starts one for you; the hosted servers run it as a Docker image; and you can self-host that image. <!-- id:7xiIpHiu -->
+The same build runs in three places. The desktop app ships it as a compiled binary and starts one for you. The hosted servers run it as a Docker image. You can also [self-host](../build/self-hosting.md) that image. <!-- id:7xiIpHiu -->
 
 # Where the code is <!-- id:m2SxIwMF -->
 
@@ -28,9 +28,9 @@ The same build runs in three places. The desktop app ships it as a compiled bina
 
 # How it talks to Hypermedia <!-- id:oU9tXlHs -->
 
-The service talks to a Seed [site](../protocol/sites.md) and never to a [daemon](./daemon.md) directly. `--hm-server-url` names the site, `https://hyper.media` by default. The service reads through `createSeedClient` against that site's `/api/<Key>` routes, publishes signed [blobs](../protocol/blobs.md) with `PublishBlobs`, and fetches media from `--ipfs-server-url`, which defaults to the same origin. <!-- id:QTtOcGPk -->
+The service talks to a Seed [site](../protocol/sites.md) and never to a [daemon](./daemon.md) directly. `--hm-server-url` names the site, `https://hyper.media` by default. The service reads through the [SDK](../build/sdk.md)'s `createSeedClient` against that site's `/api/<Key>` routes (the [Seed API](../build/web-api.md)), publishes signed [blobs](../protocol/blobs.md) with `PublishBlobs`, and fetches media from `--ipfs-server-url`, which defaults to the same origin. <!-- id:QTtOcGPk -->
 
-The activity monitor polls that site's activity feed every 5 seconds, 50 events a page and at most 5 pages a poll, to fire [comment](../protocol/comments.md), mention and site-update [triggers](../agent/triggers.md). Agents sign with their own keys, and a person lets an agent publish in their space by delegating a [capability](../protocol/permissions.md) to it; see [Seed Agents](../agent.md) and [security](../agent/security.md). <!-- id:ssdcQlwz -->
+The activity monitor polls that site's activity feed every 5 seconds, 50 events a page and at most 5 pages a poll, to fire [comment](../protocol/comments.md), mention and site-update [triggers](../agent/triggers.md). Agents sign with their own [keys](../protocol/identity.md). A person lets an agent publish in their space by delegating a [capability](../protocol/permissions.md) to it. See [Seed Agents](../agent.md) and [security](../agent/security.md). <!-- id:ssdcQlwz -->
 
 # How clients talk to it <!-- id:qkwY9-4k -->
 
@@ -43,19 +43,19 @@ The activity monitor polls that site's activity feed every 5 seconds, 50 events 
 | `GET /api/health`, `GET /api/version` | Status, build, protocol version, and which optional backends are enabled. <!-- id:X9ZH9iKU --> |
 | `GET /api/perf`, `GET /api/perf/sessions/:sessionId` | Timing diagnostics. <!-- id:7hcUlxhn --> |
 
-The message, health, version and perf routes answer both with and without the `/agents` prefix, so the service can share an origin with a [site](../protocol/sites.md); the WebSocket and webhook routes exist only under `/agents`. <!-- id:ThqayOc_ -->
+The message, health, version and perf routes answer both with and without the `/agents` prefix, so the service can share an origin with a [site](../protocol/sites.md). The WebSocket and webhook routes exist only under `/agents`. <!-- id:ThqayOc_ -->
 
-Clients and servers deploy separately; a desktop release keeps talking to hosted servers for weeks. The wire surface therefore carries a protocol version: clients send it in the envelope, servers answer in the `X-Agents-Protocol` header, and a server refuses clients older than its minimum with HTTP 426. CI runs `bun run protocol:check` to catch breaking changes that did not bump the version. <!-- id:dhf6WuQB -->
+Clients and servers deploy separately, and a desktop release keeps talking to hosted servers for weeks. So the wire surface carries a protocol version. Clients send it in the envelope, servers answer in the `X-Agents-Protocol` header, and a server refuses clients older than its minimum with HTTP 426. CI runs `bun run protocol:check` to catch breaking changes that did not bump the version. <!-- id:dhf6WuQB -->
 
 # Storage <!-- id:76le7B-O -->
 
-One SQLite database, `agents.sqlite`, plus a data directory for agent state files. The tables group into [accounts](../protocol/identity.md) and authorizations; model providers, [MCP servers](../agent/mcp.md) and secrets; agents, collaborators and [triggers](../agent/triggers.md); sessions, session events and continuations; runs, the run journal and event waits; trigger firings and activity watermarks; [tool documents](../agent/tool-document.md); and drafts. Session events are stored as [DAG-CBOR](../protocol/blobs.md), including full tool inputs. Secrets are encrypted with a key the server generates and keeps in its own `server_config` table, so a copy of the whole database includes what is needed to decrypt them. [Persistence](../agent/persistence.md) describes the tables. <!-- id:JgSR_DRZ -->
+One SQLite database, `agents.sqlite`, plus a data directory for agent state files. The tables fall into these groups: [accounts](../protocol/identity.md) and authorizations; model providers, [MCP servers](../agent/mcp.md) and secrets; agents, collaborators and [triggers](../agent/triggers.md); sessions, session events and continuations; runs, the run journal and event waits; trigger firings and activity watermarks; [tool documents](../agent/tool-document.md); and drafts. Session events are stored as [DAG-CBOR](../protocol/blobs.md), including full tool inputs. Secrets are encrypted with a key the server generates and keeps in its own `server_config` table. A copy of the whole database therefore holds everything needed to decrypt them. [Persistence](../agent/persistence.md) describes the tables. <!-- id:JgSR_DRZ -->
 
 If the stored schema version does not match the code, the server starts in a mode that answers every request with a schema-mismatch error. <!-- id:BRCVfx4n -->
 
 # Configuration <!-- id:bFuPQ4V_ -->
 
-Each flag has a `SEED_AGENTS_*` environment variable; flags win. The most used: <!-- id:bVVzP_Ph -->
+Each flag has a `SEED_AGENTS_*` environment variable. Flags win over variables. The most used: <!-- id:bVVzP_Ph -->
 
 <!-- id:FRc-vp7f -->
 | Flag <!-- col:Tri4QPRY --> | Default <!-- col:c7pawPMo --> | Meaning <!-- col:YdYKpJtF --> <!-- id:_NY3C04l --> |
@@ -82,7 +82,7 @@ cd agents && bun check && bun test
 cd agents && bun run test:build   # the compiled binary boots
 ```
 
-`./dev up` also starts the web backends from `agents/dev/web-backends/docker-compose.yml`: SearXNG on `127.0.0.1:8899` and Crawl4AI on `127.0.0.1:11235`. The dev script reinstalls and restarts the server when the copied `frontend/packages/*` change, so they do not go stale. <!-- id:V-wXKyUH -->
+`./dev up` also starts the web backends from `agents/dev/web-backends/docker-compose.yml`: SearXNG on `127.0.0.1:8899` and Crawl4AI on `127.0.0.1:11235`. When the copied `frontend/packages/*` change, the dev script reinstalls them and restarts the server, so they do not go stale. <!-- id:V-wXKyUH -->
 
 # Deployments <!-- id:MorvdtVJ -->
 
@@ -115,13 +115,13 @@ The [SDK](../build/sdk.md) builds the [blobs](../protocol/blobs.md) agents publi
 
 ## Web API <!-- id:0W7lmP96 -->
 
-The service's own API is the signed action API above. It is separate from the Seed API. For its Hypermedia reads and writes it is an ordinary client of a [site](../protocol/sites.md)'s `/api`. <!-- id:yyT1jLaL -->
+The service's own API is the signed action API above. It is separate from the [Seed API](../build/web-api.md). For Hypermedia reads and writes, the service is an ordinary client of a [site](../protocol/sites.md)'s `/api`. <!-- id:yyT1jLaL -->
 
 ## Agents <!-- id:pMxZdw1U -->
 
-This service is the runtime for [Seed Agents](../agent.md). External agents such as Claude Code do not run inside it; they use the CLI and the Seed API, described in [Building agents on Seed](../build/agents.md). <!-- id:F1tiOQ00 -->
+This service is the runtime for [Seed Agents](../agent.md). External agents such as Claude Code do not run inside it. They use the [CLI](./cli.md) and the [Seed API](../build/web-api.md), as described in [Building agents on Seed](../build/agents.md). <!-- id:F1tiOQ00 -->
 
 # See also <!-- id:uvu8f832 -->
 
 - [Seed Agents](../agent.md), [Operations](../agent/operations.md), [Environments](../agent/environments.md), [Development](../agent/development.md) <!-- id:6g-el_oN -->
-- [The desktop app](./desktop.md), [The web app](./web.md) <!-- id:t3VsoOoU -->
+- [The desktop app](./desktop.md), [The web app](./web.md), [The mobile app](./mobile.md) <!-- id:t3VsoOoU -->

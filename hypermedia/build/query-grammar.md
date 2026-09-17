@@ -2,9 +2,9 @@
 name: Query grammar
 summary: The one query language that Explore, the CLI, the SDK and Seed Agents share for finding documents by their attributes, the DocumentFilter it compiles to, and the attribute listings that tell you which keys exist.
 ---
-Every Hypermedia document carries attributes: its metadata, from `name` and `summary` to any key a schema or a person adds. The query grammar is one short string that says which documents you mean by those attributes, `status="In Progress" AND priority>=3`, and it is understood identically by the Explore surface in the Seed app, the Seed CLI's `query --where`, the SDK and the `query` tool of Seed Agents. Underneath, every surface compiles it to the same `DocumentFilter` that the daemon's `QueryDocuments` call evaluates. <!-- id:OYIudbfN -->
+Every Hypermedia [document](../protocol/documents.md) carries attributes: its [metadata](../metadata.md), from `name` and `summary` to any key a [schema](../schema.md) or a person adds. The query grammar is one short string that says which documents you mean by those attributes, such as `status="In Progress" AND priority>=3`. The Explore surface in the [Seed app](../apps/desktop.md), the [Seed CLI](./cli.md)'s `query --where`, the [SDK](./sdk.md) and the `query` tool of [Seed Agents](../agent.md) all read it the same way. Every surface compiles it to the same `DocumentFilter` that the [daemon](../apps/daemon.md)'s `QueryDocuments` call evaluates. <!-- id:OYIudbfN -->
 
-This page is the reference for the grammar, the filter and the attribute listings. Full-text search is a different tool: `Search` ranks words; a query matches attributes exactly. <!-- id:gCGe8JOf -->
+This page is the reference for the grammar, the filter and the attribute listings. Full-text search is a different tool. `Search` ranks words, and a query matches attributes exactly. <!-- id:gCGe8JOf -->
 
 # The grammar <!-- id:ves_HELe -->
 
@@ -21,7 +21,7 @@ free words   "quoted phrases"                                           full-tex
 view:table   cols:title,status   sort:status,-priority                  presentation directives
 ```
 
-Keys are attribute names; nested keys are dotted (`address.city:Berlin`). Values with spaces are quoted. A value made of digits compares as an integer and `true`/`false` as booleans, so `priority>=3` and `done=true` are typed comparisons. Quotes do not change the type: `priority="3"` is also an integer comparison. Parsing is forgiving: a malformed part becomes a diagnostic, never an error, and a query serializes back to a stable string. <!-- id:bSb7X1_H -->
+Keys are attribute names. Nested keys are dotted (`address.city:Berlin`). Values with spaces are quoted. A value made of digits compares as an integer and `true`/`false` as booleans, so `priority>=3` and `done=true` are typed comparisons. Quotes do not change the type: `priority="3"` is also an integer comparison. Parsing is forgiving. A malformed part becomes a diagnostic and never an error, and a query serializes back to a stable string. <!-- id:bSb7X1_H -->
 
 Examples: <!-- id:pcdMQ6vr -->
 
@@ -35,7 +35,7 @@ Examples: <!-- id:pcdMQ6vr -->
 | `path:/specs/* AND NOT has:reviewedBy` | specs nobody has reviewed <!-- id:k12JoC5u --> |
 | `name^Draft OR summary:draft` | drafts by name or by summary <!-- id:1XxFmi5z --> |
 
-Two parts of the grammar belong to Explore alone. `type:` chooses what kind of result to show, and bare words are full-text terms that Explore sends to search; the SDK compiler returns them separately as text terms, and the CLI and the agents tool warn about them and ignore them, because `QueryDocuments` matches attributes only. The `view:`, `cols:` and `sort:` directives are presentation: Explore renders a table with those columns and sorts by `sort:`, while the CLI and the agents tool ignore all three and take sorting from their own options (`--sort`, `--sort-by` and `--reverse`, or the `sort` input). <!-- id:2UmGW3On -->
+Two parts of the grammar belong to Explore alone. `type:` chooses what kind of result to show, and bare words are full-text terms that Explore sends to search. The SDK compiler returns them separately as text terms. The CLI and the agents tool warn about them and ignore them, because `QueryDocuments` matches attributes only. The `view:`, `cols:` and `sort:` directives are presentation. Explore renders a table with those columns and sorts by `sort:`. The CLI and the agents tool ignore all three and take sorting from their own options (`--sort`, `--sort-by` and `--reverse`, or the `sort` input). <!-- id:2UmGW3On -->
 
 # The filter it compiles to <!-- id:cvnAsOu2 -->
 
@@ -56,21 +56,21 @@ Two parts of the grammar belong to Explore alone. `type:` chooses what kind of r
 
 `sort` is a list of `{key, descending?}` for a user attribute or `{attribute, descending?}` for a built-in field: `NAME`, `PATH`, `CREATE_TIME`, `UPDATE_TIME`, `ACTIVITY_TIME`, `COMMENT_COUNT`. Pages are `pageSize` wide (the agents tool allows up to 100) and continue with the returned `nextPageToken`. <!-- id:tWlNXZJ7 -->
 
-The grammar maps onto this directly: `key=value` is a `comparison`, `key:text` a `stringMatch`, `key^text` a `stringMatch` with `prefix`, `has:` an `exists`, `in:` a `spaceMatch` or `urlMatch`, `path:` a `pathMatch`. When a query runs inside one site, the compiler adds that site's `urlMatch` so results stay within it. <!-- id:NkoYXfSa -->
+The grammar maps onto this directly. `key=value` is a `comparison`, `key:text` a `stringMatch`, `key^text` a `stringMatch` with `prefix`, `has:` an `exists`, `in:` a `spaceMatch` or `urlMatch`, `path:` a `pathMatch`. When a query runs inside one [site](../protocol/sites.md), the compiler adds that site's `urlMatch` so results stay within it. <!-- id:NkoYXfSa -->
 
-Over HTTP, `QueryDocuments` is a `POST /api/QueryDocuments` whose body is the request as protobuf JSON, and the answer is protobuf JSON too, not the superjson envelope the other keys use; the [Seed API](./web-api.md) page has the transport. The three query encodings matter only when you bypass the SDK. <!-- id:16VXvag6 -->
+Over HTTP, `QueryDocuments` is a `POST /api/QueryDocuments` whose body is the request as protobuf JSON. The answer is protobuf JSON too, unlike the superjson envelope the other keys use. The [Seed API](./web-api.md) page has the transport. The three query encodings matter only when you bypass the SDK. <!-- id:16VXvag6 -->
 
 # Attribute listings <!-- id:_42Wv7fB -->
 
 Before you query you usually want to know which keys exist and what values they take. Two calls answer that, and both are cheap: <!-- id:Ds06UUTK -->
-  - `ListDocumentAttributeNames{account?, parentPath?, prefix?, recursive?, pageSize?, pageToken?}` lists the attribute names in use, with the kinds seen for each (string, int, bool, object). `parentPath` lists the children of a nested object; `recursive` lists complete dotted scalar paths instead. `account` puts one space first. <!-- id:cJnLwzn0 -->
+  - `ListDocumentAttributeNames{account?, parentPath?, prefix?, recursive?, pageSize?, pageToken?}` lists the attribute names in use, with the kinds seen for each (string, int, bool, object). `parentPath` lists the children of a nested object. `recursive` lists complete dotted scalar paths instead. `account` puts one [space](../protocol/identity.md) first. <!-- id:cJnLwzn0 -->
   - `ListDocumentAttributeValues{path, kind, account?, prefix?, pageSize?, pageToken?}` lists the distinct values one key has been seen with, for one scalar kind. `account` restricts to a space. <!-- id:V8JW9oNO -->
 
 # Working with it <!-- id:g0eWbGIb -->
 
 ## In the Seed app <!-- id:jtk9GYwo -->
 
-Explore is the query grammar with a UI: type a query, get a list or a table, and the `view:`, `cols:` and `sort:` directives are what the table controls write back into the string. Query blocks inside documents use the older `Query` request (a directory listing with sort and limit), not this grammar; see [Query](../query.md). <!-- id:PwG5nSTD -->
+Explore is the query grammar with a UI. You type a query and get a list or a table. The table controls write the `view:`, `cols:` and `sort:` directives back into the string. [Query blocks](../protocol/blocks.md) inside documents use the older `Query` request (a directory listing with sort and limit) and do not use this grammar. See [Query](../query.md). <!-- id:PwG5nSTD -->
 
 ## CLI <!-- id:tiibHzPs -->
 
@@ -92,13 +92,17 @@ The grammar lives in `@seed-hypermedia/client/explore-query`: `parseExploreQuery
 
 ## Web API <!-- id:HReYtQEH -->
 
-`POST /api/QueryDocuments`, `POST /api/ListDocumentAttributeNames`, `POST /api/ListDocumentAttributeValues` with protobuf-JSON bodies; `GET /api/Query?…` for directory listings. See [Seed API](./web-api.md). <!-- id:-pLLMU5r -->
+`POST /api/QueryDocuments`, `POST /api/ListDocumentAttributeNames`, `POST /api/ListDocumentAttributeValues` with protobuf-JSON bodies. `GET /api/Query?…` serves directory listings. See [Seed API](./web-api.md). <!-- id:-pLLMU5r -->
 
 ## Agents <!-- id:PsKjae1a -->
 
-Seed Agents call `query` with `{q?, filter?, sort?, pageSize?, pageToken?}` and `attributes` with `{key?, kind?, parent?, recursive?, account?, prefix?, pageSize?, pageToken?}`, both through the `call` verb, with the same grammar and the same filter JSON. The tool descriptions tell the model to use `search` for words and `query` for attributes, and to run `attributes` first to learn the keys. An external agent uses the CLI lines above. See [call](../agent/call.md) and [Using Seed from your own agent](./agents.md). <!-- id:Q-PPApnx -->
+Seed Agents call `query` with `{q?, filter?, sort?, pageSize?, pageToken?}` and `attributes` with `{key?, kind?, parent?, recursive?, account?, prefix?, pageSize?, pageToken?}`, both through the [`call`](../agent/call.md) verb, with the same grammar and the same filter JSON. The tool descriptions tell the model to use `search` for words and `query` for attributes, and to run `attributes` first to learn the keys. An external agent uses the CLI lines above. See [call](../agent/call.md) and [Using Seed from your own agent](./agents.md). <!-- id:Q-PPApnx -->
 
 # See also <!-- id:UmFeD-YS -->
 
-- [Query](../query.md) and the query block, [Metadata](../metadata.md), [Typed documents](../schema/typed-documents.md) <!-- id:WuhrH0aB -->
+- [Query](../query.md) and the query block <!-- id:WuhrH0aB -->
 - [Search](../rpc/search.md) for full text <!-- id:gjdZoZRm -->
+- [Metadata](../metadata.md)
+- [Typed documents](../schema/typed-documents.md)
+- [Seed CLI](./cli.md)
+- [SDK](./sdk.md)
