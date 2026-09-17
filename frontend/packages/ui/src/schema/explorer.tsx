@@ -342,24 +342,30 @@ function FieldsTable({
   nested?: boolean
 }) {
   const table = (
-    <table className="w-full text-sm">
+    // Fixed columns: names get room for their descriptions, the flag column is narrow, and the type
+    // column takes the rest — long reference chips truncate inside it rather than widening the table.
+    <table className="w-full table-fixed text-sm">
+      <colgroup>
+        <col className="w-2/5" />
+        <col />
+        <col className="w-20" />
+      </colgroup>
       <tbody>
         {fields.map((f) => {
           const sub = inlineStruct(f.schema)
           return (
             <Fragment key={f.name}>
               <tr className={cn('border-border/50', !sub && 'border-b last:border-0')}>
-                <td className="py-1.5 pr-4 align-top font-mono">
+                <td className="py-1.5 pr-4 align-top font-mono break-words">
                   {f.name}
                   {f.description && (
-                    <div className="text-muted-foreground max-w-md font-sans text-xs font-normal">{f.description}</div>
+                    <div className="text-muted-foreground font-sans text-xs font-normal">{f.description}</div>
                   )}
                 </td>
-                {/* The type column takes the remaining width (max-w-0 + w-full lets chips truncate). */}
-                <td className="w-full max-w-0 py-1.5 pr-4 align-top">
+                <td className="py-1.5 pr-4 align-top">
                   <SchemaRef node={f.schema} nav={nav} />
                 </td>
-                <td className="py-1.5 align-top text-xs whitespace-nowrap">
+                <td className="py-1.5 text-right align-top text-xs whitespace-nowrap">
                   {/* Required is the default, so only optional is spelled out. */}
                   {!f.required && <span className="text-muted-foreground">optional</span>}
                   {origins?.[f.name] === 'inherited' && (
