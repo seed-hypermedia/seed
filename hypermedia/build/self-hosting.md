@@ -4,7 +4,7 @@ summary: Run your own Seed site on a Linux server with the deploy script, regist
 ---
 A Seed site is a Seed daemon and a Seed web app behind a reverse proxy, serving one space at a web domain. The hosted service runs sites for you under `*.hyper.media`; this guide runs the same three containers on a server you control. Your content and your key stay yours either way, so a hosted site can move to your own server later and back again. <!-- id:m5g9GCjF -->
 
-**Goal.** A site at `https://example.org` that publishes your space, gets TLS certificates by itself, updates itself nightly, and can be backed up in one command. <!-- id:BjaNX3tF -->
+**Goal.** A site at `https://example.org` that publishes your space, gets TLS certificates by itself, checks for updates every ten minutes, and can be backed up in one command. <!-- id:BjaNX3tF -->
 
 **Prerequisites.** <!-- id:DJRbdi8X -->
   - A Linux server with about 2 GB of RAM, a public IPv4 address, and ports 80 and 443 free. The deploy script needs `glibc` 2.25 or newer, which means Ubuntu 18.04, Debian 10, RHEL 8, Fedora 28 or Amazon Linux 2023 and later. It installs Docker and [Bun](https://bun.sh/) if they are missing. <!-- id:d7Tn8Tvy -->
@@ -54,9 +54,9 @@ Until a space is registered the site renders a "not registered" page. `seed-depl
 
 # 3. Register your space from the Seed app <!-- id:7NO6ywu_ -->
 
-In the desktop app, open the space, choose **Publish Site** from the options menu at the top right, paste the registration URL and confirm. The app fetches the site's `/hm/api/config`, sends its account id and peer addresses to `/hm/api/register` with the secret, and pushes the space's documents to the site's daemon. The site records the account, subscribes its daemon to the space, and from then on renders that account's home document at `https://example.org`. <!-- id:ojfgDQRq -->
+In the desktop app, open the space, choose **Publish Site** from the options menu at the top right, paste the registration URL and confirm. The app fetches the site's `/hm/api/config`, sends its account id and peer addresses to `/hm/api/register` with the secret, and pushes the space's home document with its related material to the site's daemon. The site records the account, subscribes its daemon to the space, and from then on renders that account's home document at `https://example.org`. <!-- id:ojfgDQRq -->
 
-The secret is consumed on registration. A registered site refuses a different account; to move a site to another space, remove `registeredAccountUid` from the web configuration file described below and register again. <!-- id:Kj_aBupp -->
+The secret is consumed on registration. A registered site refuses a different account; to move a site to another space, replace the web configuration file described below with `{"availableRegistrationSecret": "<secret>"}` (the secret from `seed-deploy secret` works), run `seed-deploy restart` so the web app rereads it, and register again. <!-- id:Kj_aBupp -->
 
 # What is running <!-- id:Tc2sHwL6 -->
 
@@ -106,7 +106,7 @@ The `seed-deploy` command manages the node. <!-- id:XqYfefmx -->
 | `seed-deploy upgrade` | update the deploy script itself <!-- id:h1DRBc9S --> |
 | `seed-deploy uninstall` | remove containers, data and configuration <!-- id:Xj7rMjuS --> |
 
-**Updates.** The wizard installs two cron jobs: at 02:00 daily, `upgrade` then `deploy`, so the node follows its release channel; every four hours, a prune of unused images older than an hour. The deploy script itself always tracks the `main` branch, independent of the image channel, so fixes to the orchestration reach every node. `SEED_DEPLOY_URL` and `SEED_REPO_URL` redirect the source for testing a branch. <!-- id:FQiu7j7S -->
+**Updates.** The wizard installs two cron jobs: every ten minutes, `upgrade` then `deploy`, so the node follows its release channel; every hour, a prune of unused images older than an hour. The deploy script itself always tracks the `main` branch, independent of the image channel, so fixes to the orchestration reach every node. `SEED_DEPLOY_URL` and `SEED_REPO_URL` redirect the source for testing a branch. <!-- id:FQiu7j7S -->
 
 **Which version is running.** `https://example.org/hm/api/version` returns the commit, branch and build date of both the web app and the daemon. <!-- id:ivRZzWHc -->
 
@@ -122,7 +122,7 @@ If your site is on the hosted service at `yoursite.hyper.media` rather than on y
 
 # The legacy script <!-- id:7nY6Bjnv -->
 
-`website_deployment.sh` at the repository root is the previous installer. It is deprecated and prints a notice; the deploy script detects installations it made, migrates their configuration, and removes the Watchtower auto-updater they used. Do not use it for new sites. <!-- id:sJgPjee4 -->
+`website_deployment.sh` at the repository root is the previous installer. It is deprecated, with a notice in its header; the deploy script detects installations it made, migrates their configuration, and removes the Watchtower auto-updater they used. Do not use it for new sites. <!-- id:sJgPjee4 -->
 
 # Where this is going <!-- id:0mQ2tb5Q -->
 
