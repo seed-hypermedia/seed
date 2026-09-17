@@ -367,6 +367,89 @@ describe('agent server models', () => {
     for (let i = 0; i < 10; i += 1) await Promise.resolve()
   }
 
+  it('runs bounded discovery for references on an account-level hint, without live subscriptions', async () => {
+    vi.resetModules()
+    const mod = await import('@shm/ui/agents/models')
+    const rendered = renderHook(() =>
+      mod.useAgentWebSocketSubscription('https://agents.test', 'account-1', 'account/account-1'),
+    )
+    const socket = FakeWebSocket.instances[0]!
+    // Probes stay in flight for the whole test so sharing between hints is observable; a settled
+    // probe is released, and a later hint for the same version may legitimately ask again.
+    discoverEntityMock.mockImplementation(() => new Promise(() => {}))
+
+    const hint = {
+      _: 'change',
+      key: 'account/account-1',
+      value: {
+        reason: 'session-event',
+        agentId: 'agent-1',
+        sessionId: 'background-session',
+        references: [
+          'hm://z6MkAgent/report?v=published-version',
+          'hm://z6MkOwner/notes/:comments/z6MkAgent/01ABC',
+          'https://example.com/not-hm',
+        ],
+      },
+    }
+    socket.emit('message', {data: JSON.stringify(hint)})
+    await waitForCondition(() => discoverEntityMock.mock.calls.length === 2)
+
+    // The produced document is pinned to its published version; the comment's target is discovered
+    // recursively once (a comment has no document version to pin).
+    expect(discoverEntityMock.mock.calls).toEqual(
+      expect.arrayContaining([['hm://z6MkAgent/report', 'published-version'], ['hm://z6MkOwner/notes/**']]),
+    )
+    expect(syncSubscribeMock).not.toHaveBeenCalled()
+
+    // The same hint reaching another socket in this window (or arriving twice) shares the probes.
+    socket.emit('message', {data: JSON.stringify(hint)})
+    await flushAsyncEvents()
+    expect(discoverEntityMock).toHaveBeenCalledTimes(2)
+
+    // A hint without references changes nothing.
+    socket.emit('message', {
+      data: JSON.stringify({_: 'change', key: 'account/account-1', value: {reason: 'session-updated'}}),
+    })
+    await flushAsyncEvents()
+    expect(discoverEntityMock).toHaveBeenCalledTimes(2)
+
+    cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
+    expect(syncUnsubscribeMock).not.toHaveBeenCalled()
+  })
+
+  it('cancels a still-running hint probe when the account-level hook unmounts', async () => {
+    vi.resetModules()
+    const mod = await import('@shm/ui/agents/models')
+    const rendered = renderHook(() =>
+      mod.useAgentWebSocketSubscription('https://agents.test', 'account-1', 'account/account-1'),
+    )
+    const socket = FakeWebSocket.instances[0]!
+    // The node keeps reporting an older version, so the pinned probe would keep polling.
+    discoverEntityMock.mockResolvedValue({state: 'DISCOVERY_TASK_COMPLETED', version: 'older-version'})
+
+    vi.useFakeTimers()
+    try {
+      socket.emit('message', {
+        data: JSON.stringify({
+          _: 'change',
+          key: 'account/account-1',
+          value: {reason: 'session-event', references: ['hm://z6MkAgent/report?v=new-version']},
+        }),
+      })
+      await flushMicrotasks()
+      expect(discoverEntityMock).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(discoverEntityMock).toHaveBeenCalledTimes(2)
+
+      cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(discoverEntityMock).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('pins the version from a write tool result until the local node reports it', async () => {
     vi.resetModules()
     const mod = await import('@shm/ui/agents/models')

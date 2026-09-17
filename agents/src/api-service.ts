@@ -4,6 +4,7 @@ import {
   AGENTS_PROTOCOL_VERSION,
   callableToolRegistry,
   getSeedTool,
+  getToolReferencedUrls,
   sessionEventActor,
   isReasoningLevel,
   REASONING_LEVELS,
@@ -234,6 +235,20 @@ const SESSION_DERIVED_CACHE_TTL_MS = 2_000
 const SESSION_DERIVED_CACHE_MAX = 5_000
 /** Coalescing window for the per-session "list may have reordered" signal (see #signalSessionListChange). */
 const SESSION_LIST_SIGNAL_WINDOW_MS = 1_500
+
+/**
+ * The hm:// resources a tool result created or changed, for the account hint that announces it: the
+ * registry's structured references over the result's output only (a write reports the document it
+ * produced, pinned to the new version; reads reference their input, so they yield nothing here).
+ */
+function toolResultReferences(event: api.SessionEventPayload): string[] | undefined {
+  const value = event as {type?: unknown; name?: unknown; output?: unknown}
+  if (value.type !== 'tool_result' || typeof value.name !== 'string') return undefined
+  // A dry run reports the address it would have written but publishes nothing.
+  if ((value.output as {dryRun?: unknown} | undefined)?.dryRun === true) return undefined
+  const references = getToolReferencedUrls(value.name, {output: value.output}).filter((url) => url.startsWith('hm://'))
+  return references.length ? references : undefined
+}
 /** Batching interval for streamed assistant text deltas before they are broadcast to subscribers. */
 const PARTIAL_FLUSH_INTERVAL_MS = 80
 const MAX_CONTEXT_LINES = 64
@@ -299,6 +314,11 @@ export type ServiceEvent =
       activity?: api.AgentActivity
       /** Fresh snapshot of `sessionId`, on the same hints. */
       session?: api.SessionInfo
+      /**
+       * `hm://` resources a just-appended tool result created or changed (version-pinned with `?v=`
+       * when known), on the session-event hint that result triggers. See {@link api.AgentWSEvent}.
+       */
+      references?: string[]
     }
   | {type: 'run-change'; accountId: string; run: api.RunInfo}
   | {type: 'run-append'; accountId: string; rootRunId: string; entry: api.RunJournalEntryInfo}
@@ -8111,7 +8131,10 @@ export class Service {
     // Content stream: every event reaches the open session view immediately.
     this.#emit({type: 'session-event', accountId, agentId, event: info})
     // List-reorder signal: coalesced so a burst of events collapses to ~one ListSessions refetch.
-    this.#signalSessionListChange(accountId, agentId, sessionId)
+    // A tool result that created or changed hm:// content (a write) instead signals right away and
+    // names those resources, so every window of the account — not only one showing this session —
+    // can ask its local node for them while the session is off screen or was run by a trigger.
+    this.#signalSessionListChange(accountId, agentId, sessionId, toolResultReferences(event))
     return info
   }
 
@@ -8183,12 +8206,17 @@ export class Service {
    * once per {@link SESSION_LIST_SIGNAL_WINDOW_MS} per session: the first event fires immediately,
    * and any further events within the window collapse into a single trailing emit. This keeps the
    * sidebar's ordering fresh without turning every appended event into a fleet-wide refetch.
+   *
+   * With `references` (the hm:// resources a write result produced) the hint is emitted immediately
+   * and carries them: a coalesced hint would drop them, and the account's other windows want to
+   * discover the published content now, not after the window. Writes are rare next to transcript
+   * events, so this does not reopen the refetch storm the window exists to prevent.
    */
-  #signalSessionListChange(accountId: string, agentId: string, sessionId: string): void {
+  #signalSessionListChange(accountId: string, agentId: string, sessionId: string, references?: string[]): void {
     const key = `${accountId} ${sessionId}`
     const now = Date.now()
     const last = this.#sessionListSignalAt.get(key) ?? 0
-    if (now - last >= SESSION_LIST_SIGNAL_WINDOW_MS) {
+    if (references?.length || now - last >= SESSION_LIST_SIGNAL_WINDOW_MS) {
       this.#sessionListSignalAt.set(key, now)
       this.#emit({
         type: 'account-change',
@@ -8198,6 +8226,7 @@ export class Service {
         sessionId,
         activity: this.#agentActivity(agentId),
         session: this.#sessionSnapshot(accountId, sessionId),
+        ...(references?.length ? {references} : {}),
       })
       return
     }

@@ -1727,6 +1727,14 @@ export type AgentWSEvent =
          * client that writes the snapshot into its session lists needs no ListSessions refetch.
          */
         session?: SessionInfo
+        /**
+         * On a `session-event` hint raised by a tool result that created or changed `hm://` content
+         * (a write): those resources, as the tool registry's `getReferencedUrls` reports them, the
+         * produced document pinned to its new version with `?v=`. Sent immediately, not coalesced,
+         * so a client with a local HM node can discover the content at once even when the session
+         * that published it is not on screen (a background or trigger session).
+         */
+        references?: string[]
       }
     }
   | {_: 'change'; key: `runs/${string}`; value: RunInfo}
