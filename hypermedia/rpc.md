@@ -4,25 +4,25 @@ summary: The read keys of the Seed API published as Hypermedia Schemas, one page
 ---
 # One call shape <!-- id:S_OZNfxS -->
 
-Seed apps talk to the network through a universal client with a single call shape: `request(key, input) → output`. The `key` names a method, such as `Resource`, `Query`, `Search` or `ListComments`, and each method has its own input and output. Those shapes used to live only in TypeScript. Now each read method is also a published schema, and this page explains the catalog they form. <!-- id:JoVBzIrS -->
+Seed apps read from the network through one call: `request(key, input) → output`. The `key` names a method, such as `Resource`, `Query`, `Search` or `ListComments`. Each method has its own input and output. Each read method is also published as a [schema](./schema.md), and this page describes that catalog. <!-- id:JoVBzIrS -->
 
 # Transport <!-- id:h0phrocI -->
 
-The same keys travel over HTTP on every Seed site, at `/api/<Key>`. Reads are `GET` requests with the input in the query string. Writes are `POST` requests with a [DAG-CBOR](./schema/dag-cbor.md) body. Responses are JSON wrapped by [superjson](https://github.com/flightcontrolhq/superjson), so the output sits under a top-level `json` member. A few pass-through keys, such as `QueryDocuments`, answer plain protobuf JSON instead. <!-- id:iyQoDYlt -->
+The same keys work over HTTP on every Seed [site](./protocol/sites.md), at `/api/<Key>`. This is the [Seed API](./build/web-api.md). Reads are `GET` requests with the input in the query string. Writes are `POST` requests with a [DAG-CBOR](./schema/dag-cbor.md) body. Responses are JSON wrapped by [superjson](https://github.com/flightcontrolhq/superjson), so the output sits under a top-level `json` member. A few pass-through keys, such as `QueryDocuments`, answer plain protobuf JSON. <!-- id:iyQoDYlt -->
 
 ```sh <!-- id:m6WWWHjT -->
 curl 'https://hyper.media/api/Resource?id=hm://z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS/resources/self-host-seed'
 ```
 
-The [Seed API reference](./build/web-api.md) has the details this page leaves out: the three query-string encodings, errors, CORS, authentication, `GET /api/schema`, and the write keys `PublishBlobs` and `PrepareDocumentChange`. The [SDK](./build/sdk.md) and the [Seed CLI](./build/cli.md) make these requests for you. <!-- id:xfryff8e -->
+The [Seed API reference](./build/web-api.md) covers the rest: the three query-string encodings, errors, CORS, authentication, `GET /api/schema`, and the write keys `PublishBlobs` and `PrepareDocumentChange`. The [SDK](./build/sdk.md) and the [Seed CLI](./build/cli.md) make these requests for you. <!-- id:xfryff8e -->
 
-The schema catalog below covers the read methods only. The write and pass-through keys are documented in the Seed API reference but have no `rpc/<method>` schema yet. <!-- id:TAHiMqXZ -->
+The catalog below covers the read methods only. The write and pass-through keys have no `rpc/<method>` schema yet. <!-- id:TAHiMqXZ -->
 
 # The catalog <!-- id:LJgSGvSR -->
 
-Each method is an `rpc/<method>` schema: a closed map with three properties. `key` is a literal — the one method name — so the schema is self-identifying. `input` references the schema of what you pass. `output` references the schema of what comes back — often a union with `null` for "not found". For example, [RPC: Query](./rpc/query.md) pins `key = "Query"`, takes a [query](./query.md) — the same shape a Query block embeds in a document — and returns a [rpc/type/query-result](./rpc/type/query-result.md) or `null`. <!-- id:yWqxCdaY -->
+Each method is an `rpc/<method>` schema: a closed map with three properties. `key` is a literal holding the method name, so the schema names itself. `input` points at the schema of what you send. `output` points at the schema of what comes back, often a union with `null` for "not found". For example, [RPC: Query](./rpc/query.md) pins `key = "Query"`, takes a [query](./query.md), and returns a [rpc/type/query-result](./rpc/type/query-result.md) or `null`. A query is the same object a [query block](./protocol/blocks.md) stores in a document. <!-- id:yWqxCdaY -->
 
-[rpc/method](./rpc/method.md) is the union of every method. That one schema is the machine-readable table of contents for the API. A few of its variants: <!-- id:r2qlHKeD -->
+[rpc/method](./rpc/method.md) is the union of every method. It is the machine-readable table of contents for the API. Some of its variants: <!-- id:r2qlHKeD -->
 
 <!-- id:J1dn7ZDd -->
 | method <!-- col:GL7yOaOJ --> | input <!-- col:Lxoa3SwM --> | output <!-- col:m7CHYxJc --> <!-- id:WsUSQtde --> |
@@ -34,25 +34,25 @@ Each method is an `rpc/<method>` schema: a closed map with three properties. `ke
 | [ListCitations](./rpc/list-citations.md) | a target [rpc/type/id](./rpc/type/id.md) | a `citations` list of [rpc/type/raw-citation](./rpc/type/raw-citation.md) <!-- id:HIm5QCor --> |
 | [DiscoveryStatus](./rpc/discovery-status.md) | an account `uid` and `path` (optionally a version) | a [rpc/type/discovery-status](./rpc/type/discovery-status.md) <!-- id:mh6Y_wZC --> |
 
-Open the union page for the full list; every variant links to its own page with its exact fields. <!-- id:1IPE6PFM -->
+The union page has the full list. Every variant links to its own page with its exact fields. <!-- id:1IPE6PFM -->
 
 # The read models <!-- id:eNHwY8y6 -->
 
-The `output` side is built from the read models under `rpc/type/`: the derived data the daemon computes for clients, as distinct from the signed blobs that travel the network. [rpc/type/document](./rpc/type/document.md) is a document with its versions, authors, and timestamps already resolved; [rpc/type/id](./rpc/type/id.md) is the parsed form of an `hm://` identifier; [rpc/type/interaction-summary](./rpc/type/interaction-summary.md) counts the comments, citations, and changes on a resource. The signed blobs are covered in [Schemas on the Hypermedia Network](./schema/blobs.md); the read models are the other half of the picture — what you actually receive. <!-- id:AqyRPHIN -->
+The `output` side uses the read models under `rpc/type/`. A read model is data the daemon computes for clients. Signed [blobs](./protocol/blobs.md) are what travel the network. [rpc/type/document](./rpc/type/document.md) is a [document](./protocol/documents.md) with its versions, authors and timestamps already resolved. [rpc/type/id](./rpc/type/id.md) is the parsed form of an [hm:// URL](./protocol/urls.md). [rpc/type/interaction-summary](./rpc/type/interaction-summary.md) counts the [comments](./protocol/comments.md), citations and changes on a resource. The schemas for the signed blobs are in [Schemas on the Hypermedia Network](./schema/blobs.md). <!-- id:AqyRPHIN -->
 
 # The console <!-- id:pntyyyx_ -->
 
-In the Seed app, open any `rpc/<method>` page of this library. The page's schema renders above its body, and below the schema is a live call section for that method. The input is edited with the same schema-respecting value editor used everywhere else — seeded with the method's required fields, with dropdowns and reference pickers where the schema calls for them. Press **Run** and the app sends the request through the real universal client, then validates the response against the declared `output` schema, showing **matches schema** or listing the fields that did not conform. The [rpc/method](./rpc/method.md) page renders the whole console, with a method picker built from the union. <!-- id:Me1tBVqs -->
+In the Seed app, open any `rpc/<method>` page of this library. The page's schema shows above its body, and under the schema is a live call section for that method. You edit the input with the same schema-aware value editor the app uses elsewhere. It starts with the method's required fields and offers dropdowns and reference pickers where the schema allows them. Press **Run** and the app sends the request through its universal client. It then checks the response against the `output` schema and shows **matches schema** or lists the fields that do not match. The [rpc/method](./rpc/method.md) page shows the whole console, with a method picker built from the union. <!-- id:Me1tBVqs -->
 
-None of that is hand-wired. The console reads the `rpc/method` union at runtime, so a method exists in the console exactly when its schema exists in the library. <!-- id:XJsp5ct- -->
+Nothing in the console is hand-wired. It reads the `rpc/method` union at runtime, so a method is in the console exactly when its schema is in the library. <!-- id:XJsp5ct- -->
 
 # Why type the API <!-- id:vBYhd6xH -->
 
-- **For people exploring:** the console is an executable reference. Every field is documented at the point you fill it in, and every response is checked against what was promised. <!-- id:fTzeqoVk -->
-- **For agents and tools:** a method's contract is a resolvable document. An agent can read [rpc/search](./rpc/search.md), construct a valid input, and know the shape it will get back — the same discipline a tool contract gives, applied to the platform itself. <!-- id:vWpJZXpp -->
-- **For the codebase:** the generated TypeScript types for each read model come from these schemas, so the client, the tests, and the documentation cannot drift from each other. <!-- id:qzV0XwRb -->
-- **For catching drift:** if the daemon's response ever stops matching its schema, the console shows it in red. The schema is a living assertion about the API, not a description written once. <!-- id:Ai7Pg1ST -->
+- **For people exploring:** the console is a reference you can run. Every field is documented where you fill it in, and every response is checked against its schema. <!-- id:fTzeqoVk -->
+- **For agents and tools:** a method's contract is a document you can fetch. An agent, such as one running on [Seed Agents](./agent.md), can read [rpc/search](./rpc/search.md), build a valid input, and know the shape of the answer. <!-- id:vWpJZXpp -->
+- **For the codebase:** the generated TypeScript types for the read models come from these schemas. The client, the tests and the documentation share one source. <!-- id:qzV0XwRb -->
+- **For catching drift:** if a daemon response stops matching its schema, the console shows the mismatch in red. <!-- id:Ai7Pg1ST -->
 
 # Adding a method <!-- id:bViEZFh5 -->
 
-Add an `rpc/<method>.schema.json` with its `key` literal, `input`, and `output`; add a companion `.md`; reference it from the `rpc/method` union; run the publisher to update the lockfile and the generators to refresh the bundled registry and TypeScript types; sync. The method then appears in the console, in the tour, and as a typed call in the client — from one schema. The pipeline is described in [how Hypermedia Schemas work](./schema/how-it-works.md). <!-- id:J_7p0r19 -->
+Add an `rpc/<method>.schema.json` with its `key` literal, `input` and `output`. Add a companion `.md` page and reference the schema from the `rpc/method` union. Run the publisher to update the lockfile, run the generators to refresh the bundled registry and TypeScript types, then sync the folder. The method then shows up in the console and as a typed call in the client. [How Hypermedia Schemas work](./schema/how-it-works.md) describes the pipeline. <!-- id:J_7p0r19 -->
