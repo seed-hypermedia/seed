@@ -292,9 +292,20 @@ SELECT
   AND sb.extra_attrs->>'redirect' != '';
 `)
 
+// qGetFTSByIDs resolves the FTS rows the search stage picked (by rowid) to the
+// resource they belong to, plus the metadata and heads the response needs.
+//
+// A title/body row lives on a Change blob, and a Change carries no resource of
+// its own, so the row is attributed to the document whose Ref lists that Change
+// as a head (the same ref/head edge the keyword stage resolved), following move
+// redirects to the address that currently serves the document. Resolving by
+// genesis instead would let any two documents that share a genesis (a republish
+// carries its target's genesis; a takeover keeps it; older agent releases put
+// whole batches of documents on the account's home genesis) claim each other's
+// hits, and would also cost a fan-out over every same-genesis resource per row.
 var qGetFTSByIDs = dqb.Str(`
 WITH RECURSIVE
-fts_data AS (
+fts_data AS MATERIALIZED (
   SELECT
     fts.raw_content,
     fts.type,
@@ -317,86 +328,84 @@ fts_data AS (
   WHERE fts.rowid IN (SELECT value FROM json_each(?))
 	AND blobs.size > 0
 ),
-latest_document_generations AS (
-  SELECT
-    dg.resource AS resource,
-    (SELECT da.value FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = dg.resource AND dak.key = '$db.redirect' AND da.kind = 's') AS redirect_iri,
-    COALESCE((SELECT json_group_object(dak.key, json_object('key', dak.key, 'v', da.value, 't', da.timestamp, 'o', da.operation, 'a', da.actor, 'k', da.kind)) FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = dg.resource), '{}') AS metadata,
-    dg.heads AS heads,
-    dg.is_deleted AS is_deleted
-  FROM document_generations dg
-  GROUP BY dg.resource
-  HAVING dg.generation = MAX(dg.generation)
-),
--- Only seed the recursive redirect walk with comments whose resource actually
--- has a known redirect. Other comments rely on the COALESCE(ecr.resource,
--- f.resource) fallback in the outer LEFT JOIN below, so they still resolve
--- correctly without paying the recursion+ROW_NUMBER cost.
-comment_resource_chain(origin_resource, resource, iri, depth) AS (
-  SELECT DISTINCT
-    f.resource,
-    f.resource,
-    resources.iri,
-    0
+-- Where each hit was published. A comment carries its resource on the blob.
+-- A title/body row lives on a Change, which has no resource of its own: the
+-- Ref that lists that Change as a head is the document that published it.
+-- This is the same ref/head edge the keyword stage already resolved, so two
+-- documents that happen to share a genesis (republish, takeover, the old
+-- home-genesis bug) can no longer claim each other's hits.
+-- Contacts and profiles resolve through structural_blobs below, unchanged.
+seed_resources (rowid, kind, resource, generation) AS (
+  SELECT f.rowid, 'c', f.resource, NULL
   FROM fts_data f
-  JOIN resources ON resources.id = f.resource
-  WHERE f.type = 'comment'
-  AND f.resource IS NOT NULL
-  AND f.resource IN (
-    SELECT resource FROM latest_document_generations
-    WHERE redirect_iri IS NOT NULL
-  )
+  WHERE f.type = 'comment' AND f.resource IS NOT NULL
 
   UNION ALL
 
-  SELECT
-    cr.origin_resource,
-    target.id,
-    target.iri,
-    cr.depth + 1
-  FROM comment_resource_chain cr
-  JOIN latest_document_generations dg ON dg.resource = cr.resource
-  JOIN resources target ON target.iri = dg.redirect_iri
-  WHERE dg.redirect_iri IS NOT NULL
-  AND target.id != cr.resource
-  AND cr.depth < 16
+  SELECT f.rowid, 'd', sb_ref.resource, sb_ref.extra_attrs->>'generation'
+  FROM fts_data f
+  JOIN blob_links bl ON bl.target = f.blob_id AND bl.type = 'ref/head'
+  JOIN structural_blobs sb_ref ON sb_ref.id = bl.source
+  WHERE f.type IN ('title', 'document') AND sb_ref.resource IS NOT NULL
 ),
-effective_comment_resources AS (
-  SELECT origin_resource, resource, iri
+-- Follow move redirects to the address that currently serves the document.
+-- Every hop is a primary-key probe on document_attributes and a unique-index
+-- probe on resources.iri, so a hit that was never moved costs one lookup.
+resource_chain (rowid, kind, resource, generation, depth) AS (
+  SELECT rowid, kind, resource, generation, 0 FROM seed_resources
+
+  UNION ALL
+
+  SELECT c.rowid, c.kind, target.id, NULL, c.depth + 1
+  FROM resource_chain c
+  CROSS JOIN document_attributes da
+    ON da.resource = c.resource
+    AND da.key = (SELECT id FROM document_attribute_keys WHERE key = '$db.redirect')
+    AND da.kind = 's'
+  CROSS JOIN resources target ON target.iri = da.value
+  WHERE target.id != c.resource
+    AND c.depth < 16
+),
+-- One resource per hit: the end of the redirect chain. A document hit must
+-- land on a live address that is not itself a redirect, and the generation
+-- its Ref published into must not be tombstoned, so the content of a deleted
+-- document does not surface under the one re-created at the same path.
+-- (Generation numbers are not compared: clients pick wall-clock values, so a
+-- long-lived document spans many of them.) A comment keeps the deepest
+-- address it reached, as before. When two Refs from different addresses head
+-- the same Change (a takeover), the most recently alive wins.
+resolved AS (
+  SELECT rowid, resource, heads, is_deleted
   FROM (
     SELECT
-      cr.*,
-      ROW_NUMBER() OVER (PARTITION BY cr.origin_resource ORDER BY cr.depth DESC) rn
-    FROM comment_resource_chain cr
-  )
-  WHERE rn = 1
-),
-current_document_resources AS (
-  SELECT rowid, resource, metadata, heads, is_deleted
-  FROM (
-    SELECT
-      f.rowid,
-      resources.id AS resource,
-      COALESCE((SELECT json_group_object(dak.key, json_object('key', dak.key, 'v', da.value, 't', da.timestamp, 'o', da.operation, 'a', da.actor, 'k', da.kind)) FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = dg.resource), '{}') AS metadata,
+      c.rowid,
+      c.resource,
       dg.heads,
       dg.is_deleted,
       ROW_NUMBER() OVER (
-        PARTITION BY f.rowid
-        ORDER BY dg.last_alive_ref_time DESC, resources.id DESC
+        PARTITION BY c.rowid
+        ORDER BY c.depth DESC, dg.last_alive_ref_time DESC, c.resource DESC
       ) AS rn
-    FROM fts_data f
-    CROSS JOIN resources INDEXED BY resources_by_genesis_blob
-    JOIN document_generations dg
-      ON dg.resource = resources.id
-    WHERE f.type IN ('title', 'document')
-    AND resources.genesis_blob = COALESCE(f.genesis_blob, f.blob_id)
-    AND dg.generation = (
-      SELECT MAX(dg2.generation)
-      FROM document_generations dg2
-      WHERE dg2.resource = resources.id
-    )
-    AND dg.is_deleted = False
-    AND NOT EXISTS (SELECT 1 FROM document_attributes da WHERE da.resource = dg.resource AND da.key = (SELECT id FROM document_attribute_keys WHERE key = '$db.redirect') AND da.kind = 's')
+    FROM resource_chain c
+    CROSS JOIN document_generations dg
+      ON dg.resource = c.resource
+      AND dg.generation = (SELECT MAX(g2.generation) FROM document_generations g2 WHERE g2.resource = c.resource)
+    WHERE c.kind = 'c'
+      OR (
+        dg.is_deleted = False
+        AND (c.generation IS NULL OR EXISTS (
+          SELECT 1 FROM document_generations g
+          WHERE g.resource = c.resource
+            AND g.generation = c.generation
+            AND g.is_deleted = False
+        ))
+        AND NOT EXISTS (
+          SELECT 1 FROM document_attributes da
+          WHERE da.resource = c.resource
+            AND da.key = (SELECT id FROM document_attribute_keys WHERE key = '$db.redirect')
+            AND da.kind = 's'
+        )
+      )
   )
   WHERE rn = 1
 )
@@ -413,7 +422,7 @@ SELECT
   pk_subject.principal AS contact_subject,
   blobs.codec,
   blobs.multihash,
-  COALESCE(current_document_resources.metadata, (SELECT json_group_object(dak.key, json_object('key', dak.key, 'v', da.value, 't', da.timestamp, 'o', da.operation, 'a', da.actor, 'k', da.kind)) FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = current_document_generation.resource), (SELECT json_group_object(dak.key, json_object('key', dak.key, 'v', da.value, 't', da.timestamp, 'o', da.operation, 'a', da.actor, 'k', da.kind)) FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = document_generations.resource), structural_blobs.extra_attrs, '{}'),
+  COALESCE((SELECT json_group_object(dak.key, json_object('key', dak.key, 'v', da.value, 't', da.timestamp, 'o', da.operation, 'a', da.actor, 'k', da.kind)) FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = resources.id), structural_blobs.extra_attrs, '{}'),
   (SELECT json_group_object(dak.key, json_object('key', dak.key, 'v', da.value, 't', da.timestamp, 'o', da.operation, 'a', da.actor, 'k', da.kind)) FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = dg_subject.resource) AS subject_metadata,
   COALESCE((
     SELECT json_group_array(
@@ -422,7 +431,7 @@ SELECT
                'multihash', hex(b2.multihash)
              )
            )
-    FROM json_each(COALESCE(current_document_resources.heads, current_document_generation.heads, document_generations.heads, '[]')) AS a
+    FROM json_each(COALESCE(resolved.heads, document_generations.heads, '[]')) AS a
       JOIN blobs AS b2
         ON b2.id = a.value
   ), '[]') AS heads,
@@ -441,19 +450,12 @@ FROM fts_data AS f
   JOIN public_keys
     ON public_keys.id = structural_blobs.author
 
-  LEFT JOIN effective_comment_resources ecr
-    ON ecr.origin_resource = f.resource
-
-  LEFT JOIN current_document_resources
-    ON current_document_resources.rowid = f.rowid
+  LEFT JOIN resolved
+    ON resolved.rowid = f.rowid
 
   LEFT JOIN resources
     ON resources.id = COALESCE(
-      -- For comments: prefer the redirected target from the CTE; fall back to
-      -- the comment's own resource for the 99%+ of comments whose resource
-      -- has no redirect entry (the CTE no longer seeds those).
-      CASE WHEN f.type = 'comment' THEN COALESCE(ecr.resource, f.resource) END,
-      CASE WHEN f.type IN ('title', 'document') THEN current_document_resources.resource END,
+      resolved.resource,
       CASE WHEN f.type NOT IN ('comment', 'title', 'document') THEN
       (SELECT resource from structural_blobs WHERE
 	     (f.blob_id       = structural_blobs.genesis_blob
@@ -474,17 +476,13 @@ FROM fts_data AS f
     ON document_generations.resource = resources.id
     AND f.type NOT IN ('comment', 'title', 'document')
 
-  LEFT JOIN latest_document_generations AS current_document_generation
-    ON current_document_generation.resource = resources.id
-    AND f.type = 'comment'
-
   LEFT JOIN document_generations dg_subject
 	ON dg_subject.resource = (select id from resources where owner in (select extra_attrs->>'subject' from structural_blobs where id = f.blob_id) order by id limit 1)
 
   LEFT JOIN public_keys pk_subject
     ON pk_subject.id = structural_blobs.extra_attrs->>'subject'
 
-WHERE (f.type = 'profile' OR COALESCE(current_document_resources.is_deleted, current_document_generation.is_deleted, document_generations.is_deleted) = False)
+WHERE (f.type = 'profile' OR COALESCE(resolved.is_deleted, document_generations.is_deleted) = False)
 `)
 
 // qKeywordSearch returns FTS5 hits for the given query, filtered to the supplied
@@ -1171,7 +1169,6 @@ type fullDataSearchResult struct {
 	latestVersion string
 	latestBlobCID string // CID of the latest blob (first head), used for version upgrade.
 	commentKey    commentIdentifier
-	isDeleted     bool
 	score         float32
 	parentTitles  []string
 	id            string
@@ -1200,6 +1197,23 @@ func sanitizeSearchQuery(raw string) string {
 	re := regexp.MustCompile(`[^A-Za-z0-9_ ]+`)
 	clean := re.ReplaceAllString(raw, " ")
 	return strings.Join(strings.Fields(clean), " ")
+}
+
+// dedupeContentType is the content type a result is deduplicated under. An
+// account's name is indexed twice, as its home document's title and as its
+// Profile blob, and both resolve to the same path-less IRI; folding them into
+// one group keeps the account from showing up twice with the same name.
+func dedupeContentType(res fullDataSearchResult) string {
+	if (res.contentType == "title" || res.contentType == "profile") && res.blockID == "" && isAccountIRI(res.iri) {
+		return "account"
+	}
+	return res.contentType
+}
+
+// isAccountIRI reports whether the IRI addresses an account itself (no path).
+func isAccountIRI(iri string) bool {
+	rest, ok := strings.CutPrefix(iri, "hm://")
+	return ok && rest != "" && !strings.Contains(rest, "/")
 }
 
 func searchEntityKind(result fullDataSearchResult) entpb.EntityKindFilter {
@@ -1553,9 +1567,19 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	var uniqueResults []fullDataSearchResult
 	var uniqueBodyMatches []fuzzy.Match
 	for i, res := range searchResults {
-		key := fmt.Sprintf("%s|%s|%s|%s", res.iri, res.blockID, res.rawContent, res.contentType)
+		key := fmt.Sprintf("%s|%s|%s|%s", res.iri, res.blockID, res.rawContent, dedupeContentType(res))
 		if idx, ok := seen[key]; ok {
-			// duplicate – compare blobID
+			// duplicate – prefer the profile row for an account, otherwise the newer one.
+			if res.contentType == "profile" && uniqueResults[idx].contentType != "profile" {
+				uniqueResults[idx] = res
+				bm := bodyMatches[i]
+				bm.Index = idx
+				uniqueBodyMatches[idx] = bm
+				continue
+			}
+			if uniqueResults[idx].contentType == "profile" && res.contentType != "profile" {
+				continue
+			}
 			if res.versionTime.AsTime().After(uniqueResults[idx].versionTime.AsTime()) {
 				uniqueResults[idx] = res
 				bm := bodyMatches[i]
@@ -1686,52 +1710,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		}
 		return parentTitles
 	}
-	genesisBlobIDs := make([]string, 0, len(searchResults))
-	for _, match := range bodyMatches {
-		genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(searchResults[match.Index].genesisBlobID, 10))
-	}
-
-	var movedResources []MovedResource
-	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
-	err = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
-			var heads []head
-			if err := json.Unmarshal(stmt.ColumnBytes(3), &heads); err != nil {
-				return err
-			}
-
-			cids := make([]cid.Cid, len(heads))
-			for i, h := range heads {
-				mhBinary, err := hex.DecodeString(h.Multihash)
-				if err != nil {
-					return err
-				}
-				cids[i] = cid.NewCidV1(h.Codec, mhBinary)
-			}
-			movedResources = append(movedResources, MovedResource{
-				NewIri:        stmt.ColumnText(0),
-				OldIri:        stmt.ColumnText(1),
-				IsDeleted:     stmt.ColumnInt(2) == 1,
-				LatestVersion: docmodel.NewVersion(cids...).String(),
-			})
-			return nil
-		}, genesisBlobJson)
-	})
-	if err != nil {
-		return nil, err
-	}
-	for _, movedResource := range movedResources {
-		for i, result := range searchResults {
-			if result.iri == movedResource.OldIri {
-				if movedResource.IsDeleted {
-					searchResults[i].isDeleted = true
-				} else {
-					searchResults[i].iri = movedResource.NewIri
-				}
-				searchResults[i].latestVersion = movedResource.LatestVersion
-			}
-		}
-	}
 	// Batch pre-fetch deletion status for all comments to avoid N+1 queries.
 	type commentBatchEntry struct {
 		AuthorID int64  `json:"author_id"`
@@ -1771,10 +1749,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 
 	finalResults := []fullDataSearchResult{}
 	for _, match := range bodyMatches {
-		if searchResults[match.Index].isDeleted {
-			// Skip deleted resources
-			continue
-		}
 		if searchResults[match.Index].contentType != "contact" {
 			searchResults[match.Index].parentTitles = getParentsFcn(match)
 		}
