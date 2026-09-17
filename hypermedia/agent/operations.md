@@ -122,8 +122,8 @@ Config source: `agents/src/config.ts`. <!-- id:Woltv7hS -->
 | `SEED_AGENTS_DATA_DIR` | `./data` | Data directory. <!-- id:oMgwJJep --> |
 | `SEED_AGENTS_HM_SERVER_URL` | `https://hyper.media` | Seed DAG-CBOR `/api/*` endpoint ([Seed API](../build/web-api.md)) used for activity and HM reads and writes. <!-- id:-U_3_rUb --> |
 | `SEED_AGENTS_IPFS_SERVER_URL` | HM server URL | Direct `/ipfs/*` [gateway](../protocol/files.md) origin for reads when it differs from the typed API endpoint. <!-- id:ltc8JHyj --> |
-| `SEED_AGENTS_DOCS_ACCOUNT` | _(unset)_ | The account of the knowledge base space. Reads of `hm://hyper.media/…`, including the default [Agent Guide](./guide.md), go to this account. |
-| `SEED_AGENTS_DOCS_ACCOUNT_FILE` | _(unset)_ | A file that names the knowledge base account, read on every use. Dev points it at the file `./dev hm-sync` writes. |
+| `SEED_AGENTS_DOCS_ACCOUNT` | _(unset)_ | The account of the knowledge base space. Reads of `hm://hyper.media/…`, including the default [Agent Guide](./guide.md), go to this account. <!-- id:dAKWdZ8N --> |
+| `SEED_AGENTS_DOCS_ACCOUNT_FILE` | _(unset)_ | A file that names the knowledge base account, read on every use. Dev points it at the file `./dev hm-sync` writes. <!-- id:yRzkV4si --> |
 | `SEED_AGENTS_ACTIVITY_POLL_INTERVAL_MS` | `5000` | Activity and schedule trigger monitor poll interval. <!-- id:O4k599Ev --> |
 | `SEED_AGENTS_ACTIVITY_PAGE_SIZE` | `50` | ActivityFeed page size. <!-- id:72cPVt59 --> |
 | `SEED_AGENTS_ACTIVITY_MAX_PAGES` | `5` | Max pages fetched per poll. <!-- id:AMt50Bbp --> |

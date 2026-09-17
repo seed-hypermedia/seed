@@ -36,7 +36,7 @@ The control plane is signed the same way. Every request to an agents server is a
 
 - To use an agent: open the Agents section of the Seed app, add a model provider, and create an agent. The [desktop and web UI](./agent/desktop-ui.md) page walks through the screens. A site can show its agents to visitors with the `agentServerUrl` and `spaceAgents` [metadata](./metadata.md) keys, explained under [environments](./agent/environments.md). <!-- id:_ol0QB9a -->
 - To build an agent that uses Seed without this runtime, such as a Claude Code session with the Seed CLI, read [Building agents on Seed](./build/agents.md). <!-- id:Ji7GrJSR -->
-- To see what every new agent is told: the [Agent Guide](./agent/guide.md), which is the default system prompt.
+- To see what every new agent is told: the [Agent Guide](./agent/guide.md), which is the default system prompt. <!-- id:jlqRDpAF -->
 - To understand the runtime: [system overview](./agent/system-overview.md), then [tools](./agent/tools.md), [triggers](./agent/triggers.md), [persistence](./agent/persistence.md), and [security](./agent/security.md). <!-- id:BvDmGUR0 -->
 - To talk to a server from your own code: [signed API](./agent/signed-api.md) and [WebSocket subscriptions](./agent/websocket-subscriptions.md). <!-- id:pfZb1MX5 -->
 - To run or deploy a server: [operations](./agent/operations.md), [environments](./agent/environments.md), [model providers](./agent/model-providers.md), and [troubleshooting](./agent/troubleshooting.md). <!-- id:WNPnKf7v -->
