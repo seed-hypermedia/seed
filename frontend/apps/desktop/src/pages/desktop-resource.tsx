@@ -591,8 +591,16 @@ export default function DesktopResourcePage() {
           // fields on the first autosave.
           // The working schema is saved beside the metadata; an older draft's metadata copy is dropped.
           metadata: splitLegacySchemaDraft({...existingDraft?.metadata, ...input.metadata}).metadata,
-          schemaDraft: input.schemaDraft ?? draftSchemaDraft(existingDraft) ?? undefined,
-          bindingSchemaDrafts: input.bindingSchemaDrafts ?? draftBindingSchemaDrafts(existingDraft) ?? undefined,
+          // The machine's working schemas are authoritative: null means cleared. Only an absent field
+          // (a caller that does not carry them) keeps what the draft already had.
+          schemaDraft:
+            input.schemaDraft === undefined
+              ? draftSchemaDraft(existingDraft) ?? undefined
+              : input.schemaDraft ?? undefined,
+          bindingSchemaDrafts:
+            input.bindingSchemaDrafts === undefined
+              ? draftBindingSchemaDrafts(existingDraft) ?? undefined
+              : input.bindingSchemaDrafts ?? undefined,
           signingAccount: input.signingAccountId || undefined,
           content,
           cursorPosition,
