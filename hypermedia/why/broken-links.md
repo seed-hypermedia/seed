@@ -1,38 +1,41 @@
 ---
 name: The end of broken links
-summary: Why Hypermedia addresses content by what it is rather than where it lives, and how that lets a community archive and redistribute the things it links to.
+summary: Why Hypermedia names content by a hash of its bytes, and how that lets a community archive and redistribute the things it links to.
 ---
-Old links break. Browse anything written more than a few years ago and a good share of its references now point at nothing. The web ties every address to a server, and servers move, get sold, run out of money, or outlive their owners. Cross-site knowledge degrades by default.
+Old links break. Browse anything written more than a few years ago and many of its references now point at nothing. The web ties every address to a server, and servers move, get sold, run out of money, or outlive their owners. Knowledge that spans many sites decays by default.
 
-Hypermedia takes a different starting point: a document's history is a set of signed pieces of data, each identified by a hash of its own bytes. Anyone who holds those bytes can serve them, and anyone who receives them can check that they are exactly what the author signed.
+Hypermedia starts somewhere else. A document's history is a set of signed pieces of data, and each piece is named by a hash of its own bytes. Anyone who holds those bytes can serve them. Anyone who receives them can check that they are exactly what the author signed.
 
 # Link rot is a protocol problem
 
-The web's address, a URL, names a location. The content at that location can change or vanish, and the address gives you no way to tell. Archives such as the Wayback Machine mitigate this from the outside, by being a trusted third party that copies what it can reach, when it can reach it.
+A web address, a URL, names a location. The content at that location can change or vanish, and the address gives you no way to tell. Archives such as the Wayback Machine work around this from the outside. They are trusted third parties that copy what they can reach, when they can reach it.
 
-Hypermedia addresses are different in two ways. A document's address, an [hm:// URL](../protocol/urls.md), names an [account](../glossary.md) and a path, and the account is a public key, not a hostname. And the data behind the address is a chain of [changes](../change.md), each stored as an immutable [blob](../blob.md) identified by its [CID](../cid.md), a content hash. Add a version to the URL and it names an exact state of the document forever.
+Hypermedia addresses differ in two ways. First, a document's address, an [hm:// URL](../protocol/urls.md), names an [account](../protocol/identity.md) and a path. The account is a public key, and no hostname appears in the address. Second, the data behind the address is a chain of [changes](../change.md). Each change is stored as an immutable [blob](../blob.md) named by its [CID](../cid.md), a content hash. Add a [version](../protocol/documents.md) to the URL and it names one exact state of the document forever.
 
-Because the address is a key and the data is content-addressed, the document does not depend on any one server. The author's own node has it. A site that publishes it has it. Every reader who opened it has a copy in their node. If the author's site goes offline, the document is still there for anyone who saved it, and still verifiable.
+The address is a key and the data is content-addressed, so the document does not depend on any one server. The author's own node has it. A [site](../protocol/sites.md) that publishes it has it. Every reader who opened it has a copy in their node. If the author's site goes offline, the document is still there for anyone who saved it, and it can still be verified.
 
 # Archival as a community act
 
-When you reference something on the Hypermedia network, your node is encouraged to download and keep the source data. That is what makes your reference robust: if the destination is offline or unwilling to share, you can redistribute what you hold, and your readers can validate it by checking signatures and content hashes rather than trusting you.
+When you reference something on the Hypermedia network, your node is encouraged to download and keep the source data. That keeps your reference working. If the destination is offline or will not share, you can redistribute what you hold. Your readers check the signatures and content hashes, so they do not have to trust you.
 
-This turns archival from a job for a small number of institutions into something a community does by default. Content that many people link becomes, in practice, permanent, because many nodes hold it. The flip side is stated plainly by the team: the only way to guarantee permanence is to save it yourself. Nothing in the protocol forces anyone else to host your data.
+So archival becomes something a community does by default, where today a few institutions do it. Content that many people link becomes permanent in practice, because many nodes hold it. The team is blunt about the limit: the only way to guarantee permanence is to save it yourself. Nothing in the protocol forces anyone else to host your data.
 
 # What ships today
 
-- Every signed blob on the network carries its own signature and is fetched by CID, so integrity does not depend on the peer that delivered it. See [Integrity](../protocol/integrity.md).
-- A node keeps what it has synced. Sync is scoped: your node fetches the sites you joined, the material they link, and the comments on them, not everything it hears about. See [Network](../protocol/network.md).
+- Every signed blob carries its own signature and is fetched by CID, so its integrity does not depend on the [peer](../protocol/network.md) that delivered it. See [Integrity](../protocol/integrity.md).
+- A node keeps what it has synced. Sync is scoped: your node fetches the sites you joined, the material they link, and the [comments](../protocol/comments.md) on them. It does not fetch everything it hears about. See [Network](../protocol/network.md).
 - Versioned links, `?v=` in the URL, name an exact set of change heads, so a citation cannot drift under you. See [Documents](../protocol/documents.md).
-- Files and media travel as IPFS blocks, fetched through any node's gateway. See [Files](../protocol/files.md).
+- Files and media travel as IPFS blocks, fetched through any node's [gateway](../protocol/sites.md). See [Files](../protocol/files.md).
 
 # What is still direction
 
-Retention policy is a node's own choice. There is no protocol-level pinning agreement, no incentive layer, and no guarantee that a peer will keep serving a blob. The team's stated design is that nodes choose what to broadcast, what to block, and what to archive without distributing, and that frequently linked content becomes effectively permanent through replication rather than through a rule.
+Each node chooses what to keep. There is no protocol-level pinning agreement, no incentive layer, and no guarantee that a peer will keep serving a blob. The team's stated design is that nodes choose what to broadcast, what to block, and what to archive without distributing. Content that is linked often becomes permanent in effect because many nodes copy it. No rule makes it permanent.
 
 # See also
 
 - [Signed content, not server trust](./signed-content.md)
+- [Open editing](./open-editing.md)
+- [A network for thought](./network-for-thought.md)
 - [Blobs](../protocol/blobs.md) and [CID](../cid.md)
-- [Version history and branching](./open-editing.md)
+- [URLs](../protocol/urls.md)
+- [Integrity](../protocol/integrity.md)

@@ -1,16 +1,16 @@
-# hypermedia/ — the Seed developer docs
+# hypermedia/: the Seed developer docs
 
 This folder is the source of truth for the documentation that Seed publishes to
-the Hypermedia network: the Hypermedia concepts, the **Hypermedia Schemas** schema library
+the Hypermedia network. It holds the Hypermedia concepts, the **Hypermedia Schemas** schema library
 (every `*.schema.json` with its co-located `*.md`), the API, the examples, the
 developer docs and the **Agents** docs. A commit to `main` publishes it
-(`.github/workflows/sync-hypermedia.yml`), and the Seed app is the editor (see
+(`.github/workflows/sync-hypermedia.yml`). The Seed app is the editor (see
 below).
 
 The markdown is the lossless dialect of `@seed-hypermedia/client`
-(`blocksToMarkdown` / `parseMarkdown`): every block type, annotation, attribute
-and metadata key survives a round trip, block ids ride in trailing
-`<!-- id:… -->` comments, and links between pages are relative file links, so
+(`blocksToMarkdown` / `parseMarkdown`). Every block type, annotation, attribute
+and metadata key survives a round trip. Block ids ride in trailing
+`<!-- id:… -->` comments. Links between pages are relative file links, so
 they work on GitHub and become `hm://` links when published. Start at
 [index.md](./index.md), the home page of the published site.
 
@@ -56,7 +56,7 @@ pnpm hypermedia:pull                # bring edits made in the Seed app back into
 
 `push` verifies every schema against the lockfile, publishes the schema blobs,
 then publishes each page as a document. A document that already exists is
-updated in place, block by block; unchanged documents publish nothing; a page
+updated in place, block by block. Unchanged documents publish nothing. A page
 renamed in git is published as a move. Nothing is published while a link in
 the folder would break. `pull` writes every document of the site back here,
 schema JSON included. The dev loop (`frontend/apps/cli/src/utils/dev-loop.ts`)
@@ -70,8 +70,8 @@ commit. See [repo-hm-sync.md](./build/publish-a-folder.md) and [cli.md](./build/
 
 # Hypermedia Schemas
 
-**A self-describing type system for content-addressed data — and how Seed
-documents bind to it.** [schema.md](./schema.md) is the published guide; the
+**A self-describing type system for content-addressed data, and how Seed
+documents bind to it.** [schema.md](./schema.md) is the published guide. The
 reference chapters are [data-model.md](./schema/data-model.md),
 [schema-language.md](./schema/schema-language.md), [references.md](./schema/references.md),
 [encoding.md](./schema/encoding.md), [example.md](./example.md),
@@ -85,8 +85,8 @@ What follows is the engineering detail behind them.
 (`frontend/packages/client/src/schema-types.generated.ts`): maps become object
 types, literals literal types, `anyOf` unions, extension intersection, and
 `params`/`var`/`args` real TS generics (`Change<Block>`). Regenerate with
-`node scripts/hypermedia/typegen.mjs`; `--check` fails if it's out of date. This is Phase 2 of
-the integration plan — the schemas, not hand-written Zod, become the source of
+`node scripts/hypermedia/typegen.mjs`. `--check` fails if it's out of date. This is Phase 2 of
+the integration plan: the schemas replace hand-written Zod as the source of
 the app's types.
 
 ---
@@ -94,7 +94,7 @@ the app's types.
 ## How a document binds to a schema
 
 Hypermedia Schemas type the *values*. This section is how a **Hypermedia document** declares
-what it is. A document may carry three distinct schema-related metadata fields —
+what it is. A document may carry three distinct schema-related metadata fields,
 all declared on the base document's [`metadata`](./metadata.schema.json):
 
 | field | meaning | value |
@@ -107,40 +107,40 @@ The last one was the biggest early misunderstanding: **`schemaDefinition` does
 NOT mean "this document conforms to a schema."** A document that *describes* a
 type (e.g. a "Person" doc at `hm://acme/person`) sets `schemaDefinition` to the
 person schema blob. Another document *conforms* by setting `attributesSchema:
-hm://acme/person` — which resolves through that doc's `schemaDefinition` to the
+hm://acme/person`, which resolves through that doc's `schemaDefinition` to the
 actual schema. A **value** (an employee record like "bob") is not a type: it sets
 `attributesSchema`, never `schemaDefinition`.
 
-**Attributes, not documents.** An attributes schema is a plain struct of the
-fields a document's metadata carries — see [`example/person-doc.json`](./example/person-doc.schema.json),
+**Attributes only.** An attributes schema is a plain struct of the
+fields a document's metadata carries. See [`example/person-doc.json`](./example/person-doc.schema.json),
 which requires `surname`. It does not extend the base document and does not
-mention `metadata` or `content`: a typed document is still a full document with a
-body; the schema only types its attributes. When a document is checked, the base
+mention `metadata` or `content`. A typed document is still a full document with a
+body, and the schema only types its attributes. When a document is checked, the base
 [`metadata.json`](./metadata.schema.json) fields (name, summary, icon, the three
 binding keys, …) are folded in beneath the type's fields, and the result stays
 open to extra keys.
 
 **Child inheritance.** A document's **effective** attributes schema is its own
-`attributesSchema`, or — if absent — its parent's `childAttributesSchema`. A child
+`attributesSchema`, or its parent's `childAttributesSchema` if it has none. A child
 that declares its own `attributesSchema` is expected to satisfy the parent's
 `childAttributesSchema` as well.
 
 **References everywhere.** A schema reference (`attributesSchema`,
 `childAttributesSchema`, an extension's `type`, a map-property or list-item subschema)
 can be an ipfs CID, a bundled library URL (`hm://z6MkmZUb…/schema/map`, resolved
-locally), or an arbitrary Hypermedia document URL (`hm://acct/path`, fetched →
-that doc's `schemaDefinition` → the blob).
+locally), or an arbitrary Hypermedia document URL (`hm://acct/path`: fetch the
+document, read its `schemaDefinition`, load the blob).
 
 **Worked example** (the model end-to-end):
 1. A schema blob is a struct that requires a `surname`.
 2. `hm://acme/person` describes what a person is and sets `schemaDefinition` to
-   that CID — now "person" has a URL.
+   that CID. Now "person" has a URL.
 3. `hm://acme/people` sets `childAttributesSchema: hm://acme/person`.
-4. Every child (`hm://acme/people/bob`) conforms; at the top of both the Content
+4. Every child (`hm://acme/people/bob`) conforms. At the top of both the Content
    and Attributes tabs, the required `surname` field is always visible.
 
-**Errors are guardrails, not gates.** Out-of-spec metadata/content surfaces as
-**red, non-blocking** UI (which field, what rule) — the user can always still
+**Errors never block saving.** Out-of-spec metadata or content shows as
+**red, non-blocking** UI (which field, what rule). The user can always
 save invalid content.
 
 The full design + phased implementation notes live in
@@ -155,30 +155,37 @@ The type system is ported into TypeScript in `@seed-hypermedia/client`
 agents service, so schema-authoring, browsing, validation and signing never
 disagree with the reference validator or with each other:
 
-- **Engine** (`schema-engine.ts`) — a TS port of [`validate.mjs`](../scripts/hypermedia/validate.mjs);
-  bundles every schema + the CID manifest; resolves a CID or `hm://` URL to a
-  schema with no fetch when it's bundled.
-- **Resolver** (`schema-resolve.ts`) — a reference (bundled URL, CID, or a type
+- **Engine** (`schema-engine.ts`): a TS port of [`validate.mjs`](../scripts/hypermedia/validate.mjs) that
+  bundles every schema and the CID manifest. It resolves a CID or `hm://` URL to a
+  schema with no fetch when the schema is bundled.
+- **Resolver** (`schema-resolve.ts`): resolves a reference (bundled URL, CID, or a type
   document's URL) to its schema, over the network when needed, with every
-  nested reference fetched into a registry; and a document's effective schema.
-- **Signed blobs** (`signed-blob.ts`) — the envelope, the signing rule
+  nested reference fetched into a registry. It also finds a document's effective schema.
+- **Signed blobs** (`signed-blob.ts`): the envelope, the signing rule
   (canonical CBOR with `sig` zeroed), publishing.
-- **CLI** (`frontend/apps/cli`) — `schema get|validate`, `blob get|validate|create|sign|verify`,
+- **CLI** (`frontend/apps/cli`): `schema get|validate`, `blob get|validate|create|sign|verify`,
   `document validate`, `document create|update --metadata|--attributes-schema|--child-attributes-schema|--schema-definition`,
-  `space import --check`; see [user stories](./schema/user-stories.md) and
+  `space import --check`. See [user stories](./schema/user-stories.md) and
   [the one-page reference](./schema/quick-reference.md) for every surface's commands and checks.
 
 In the app (`frontend/packages/ui/src/schema/`):
-- **Resolution** (`schema-resolve.tsx`) — `useResolvedSchema` (CID /
+- **Resolution** (`schema-resolve.tsx`): `useResolvedSchema` (CID /
   bundled URL / fetched document URL) and `useEffectiveDocSchema` (own `attributesSchema`
   else parent `childAttributesSchema`).
-- **Required attributes** — the conformance schema's required custom fields are
+- **Required attributes**: the conformance schema's required custom fields are
   always-visible editable rows, at the top of the **Attributes** tab and **above
-  the body** in the **Content** tab; they can't be removed.
-- **Red validation** — a per-field badge + a summary banner flag out-of-spec data.
+  the body** in the **Content** tab. They can't be removed.
+- **Red validation**: a per-field badge and a summary banner flag out-of-spec data.
 - **Schema-definition documents** get a header **tag** that opens the schema and
   a **Create** button that opens the schema-defined value editor and publishes a
   new IPFS blob.
-- **Explorer / data editor** — browse any schema and build a conforming value
-  (the published documents are the catalog; any schema opens at `/hm/schema/<cid>`).
+- **Explorer / data editor**: browse any schema and build a conforming value
+  (the published documents are the catalog, and any schema opens at `/hm/schema/<cid>`).
 
+
+## See also
+
+- [index.md](./index.md), the published home page.
+- [Publish a folder](./build/publish-a-folder.md), the sync round trip in detail.
+- [Hypermedia Schemas](./schema.md) and [Typed documents](./schema/typed-documents.md).
+- [Contributing](./build/contributing.md), the dev setup.
