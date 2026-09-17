@@ -57,8 +57,12 @@ import {ProviderIcon} from './provider-icons'
 import {isSubscriptionSignInAvailable, SubscriptionSignIn} from './provider-oauth'
 import {PROVIDER_METADATA, PROVIDER_TYPE_ORDER, providerLabel} from './provider-registry'
 
-/** The shared agent skill document that a new agent's system prompt embeds by default. */
-export const DEFAULT_AGENT_SKILL_URL = 'hm://z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS/resources/skill'
+/**
+ * The Agent Guide that a new agent's system prompt embeds by default. It lives in the Hypermedia knowledge base
+ * (`hypermedia/agent/guide.md` in the repo). The agents server resolves `hm://hyper.media` to the knowledge base
+ * space it is configured with: the `hm-sync` dev site locally, the published docs space in production.
+ */
+export const DEFAULT_AGENT_SKILL_URL = 'hm://hyper.media/agent/guide'
 
 /**
  * A new agent's default system prompt is a single Embed of the shared skill document rather than

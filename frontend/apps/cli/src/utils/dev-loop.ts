@@ -264,6 +264,9 @@ export async function runDevLoop(opts: DevLoopOptions) {
   const {keyPair, words, created} = loadOrCreateDevKey(opts.dir)
   const account = keyPair.accountId
   const ownAccounts = recordDevAccount(opts.dir, account)
+  // The account this directory publishes as right now. A local agents server reads it to resolve hm://hyper.media
+  // to the dev site (SEED_AGENTS_DOCS_ACCOUNT_FILE in .env.vars).
+  writeFileSync(resolve(opts.dir, '.dev', 'account'), account + '\n')
   printInfo(`Dev key: ${account}${created ? ' (new; saved under .dev/ in the directory)' : ''}`)
   printInfo(`Daemon:  ${opts.daemonUrl}`)
   printInfo(`API:     ${opts.apiUrl}`)
