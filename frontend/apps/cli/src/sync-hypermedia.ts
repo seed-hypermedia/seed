@@ -159,13 +159,30 @@ function argValue(args: string[], flag: string): string | undefined {
  * `schemas.aliases.json` (schema names before the reorganization) and `pages.aliases.json` (moved docs
  * pages). Chains are followed, so an old alias of an old alias still lands on a live page.
  */
-function loadPageAliases(): (path: string) => string | null {
+function loadAliasTable(): Record<string, string> {
   const table: Record<string, string> = {}
   for (const file of ['schemas.aliases.json', 'pages.aliases.json']) {
     const full = resolve(SCHEMAS_DIR, file)
     if (!existsSync(full)) continue
     Object.assign(table, (JSON.parse(readFileSync(full, 'utf8')) as {aliases?: Record<string, string>}).aliases ?? {})
   }
+  return table
+}
+
+/** The old paths that alias to `path` in this site, so the import can publish a move instead of a new document. */
+function loadMovedFrom(): (path: string) => string[] {
+  const aliasOf = loadPageAliases()
+  const reverse = new Map<string, string[]>()
+  for (const old of Object.keys(loadAliasTable())) {
+    const target = aliasOf('/' + old)
+    if (!target || target.startsWith('hm://')) continue
+    reverse.set(target, [...(reverse.get(target) ?? []), '/' + old])
+  }
+  return (path) => reverse.get(path) ?? []
+}
+
+function loadPageAliases(): (path: string) => string | null {
+  const table = loadAliasTable()
   return (path) => {
     let key = path.replace(/^\//, '')
     for (let hops = 0; hops < 8 && table[key] !== undefined; hops++) key = table[key]!
@@ -245,6 +262,7 @@ async function pushTo(client: SeedClient, signer: HMSigner, account: string, dry
     dir: SCHEMAS_DIR,
     layout,
     dryRun,
+    movedFromFor: loadMovedFrom(),
     log: (line) => console.log('  ' + line),
   })
   const movedFrom = new Set(result.moved.map((m) => m.split(' -> ')[0]!))
