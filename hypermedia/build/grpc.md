@@ -74,7 +74,7 @@ So the mitigations are deployment, not configuration. A desktop app's daemon is 
 
 **Addressing.** A space is named by its `account`, the principal string of its key. A document is `account` plus `path`, where the empty path is the home document. A `version` is one or more [Change](../change.md) ids joined by `.`; an empty version means latest. Comments and contacts are addressed as `<author>/<tsid>`. The proto files still say `account` where the rest of the documentation says space; a rename is on the backend team's list.
 
-**Pagination.** Requests take `page_size` and `page_token`; responses return `next_page_token`. Tokens are opaque cursors. A page size of zero means the handler's default, usually thirty; negative sizes are rejected. Some listings ignore paging and return everything; they are marked below.
+**Pagination.** Requests take `page_size` and `page_token`; responses return `next_page_token`. Tokens are opaque cursors. A page size of zero or less means the handler's default, which differs by RPC between 10 and 100; document listings cap larger requests at 2000. Some listings ignore paging and return everything; they are marked below.
 
 **Redirects.** `GetDocument` on a path that holds a redirect [Ref](../ref.md) fails with `FailedPrecondition` and attaches `RedirectErrorDetails {target_account, target_path, republish}` to the status. `GetDocumentInfo` returns the redirect as data instead of failing. Follow redirects with a cycle guard.
 
@@ -93,7 +93,7 @@ So the mitigations are deployment, not configuration. A desktop app's daemon is 
 
 # Service catalogue
 
-The daemon registers thirteen services. Each table lists every RPC with one line. Unimplemented RPCs still appear in the proto files and in reflection; calling them returns `Unimplemented`.
+The daemon registers fourteen services, plus gRPC reflection. Each table lists every RPC with one line. Unimplemented RPCs still appear in the proto files and in reflection; calling them returns `Unimplemented`.
 
 ## Daemon
 
@@ -228,21 +228,21 @@ Besides gRPC-Web, the HTTP port serves a few plain routes. Debug pages answer on
 | `GET /hm/api/config` | `{peerId, addrs, protocolId}`; the web server's version adds the registered account |
 | `GET /debug/version` | `{branch, commit, date}` |
 | `POST /vault-connect` | completes a browser-mediated vault connection with a short-lived token |
-| `/debug/metrics`, `/debug/pprof/`, `/debug/p2p`, `/debug/network`, `/debug/sqlite`, `/debug/grpcui/`, `/debug/journeys`, `/debug/logs`, `/debug/buildinfo` | operator pages, local only |
+| `/debug/metrics`, `/debug/pprof/`, `/debug/vars`, `/debug/requests`, `/debug/events`, `/debug/traces`, `/debug/p2p`, `/debug/network`, `/debug/sqlite`, `/debug/grpcui/`, `/debug/journeys`, `/debug/logs`, `/debug/buildinfo` | operator pages, local only |
 
 # Working with it
 
 ## In the Seed app
 
-The desktop app is a gRPC-Web client of its bundled daemon on port `56001`. With Developer Mode on you can open `http://localhost:56001/debug/grpcui/` in a browser on the same machine and call any RPC by hand.
+The desktop app is a gRPC-Web client of its bundled daemon on port `56001`. You can open `http://localhost:56001/debug/grpcui/` in a browser on the same machine and call any RPC by hand.
 
 ## CLI
 
-The Seed CLI does not speak gRPC. It signs locally and talks to a site's [Seed API](./web-api.md); `seed-cli space dev` publishes into the desktop app through the app's HTTP bridge. For raw daemon calls use `grpcurl` as above.
+The Seed CLI signs locally and talks to a site's [Seed API](./web-api.md). The one exception is `seed-cli space dev`, which registers its dev key in the desktop dev app's daemon over gRPC-Web (`--daemon`, default `http://localhost:58001`) and publishes through the app's HTTP bridge. For raw daemon calls use `grpcurl` as above.
 
 ## SDK
 
-`@seed-hypermedia/client` has no gRPC dependency by design, so it runs in browsers, Bun, Node and React Native. When you need the daemon, take the generated TypeScript clients from the shared package in the repository and a `@connectrpc/connect-web` transport pointed at the HTTP port; that is exactly what the desktop and web apps do.
+`@seed-hypermedia/client` has no gRPC dependency by design, so it runs in browsers, Bun, Node and React Native. When you need the daemon, take the generated TypeScript clients from the shared package in the repository and a gRPC-Web transport pointed at the HTTP port; the desktop app and `seed-cli space dev` use `@connectrpc/connect-web`, and the web server uses `@connectrpc/connect-node`.
 
 ## Agents
 

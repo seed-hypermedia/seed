@@ -2,35 +2,36 @@
 name: SDK
 summary: The @seed-hypermedia/client package reference, from installing it and reading a document to building, signing and publishing your own blobs.
 ---
-The SDK is the TypeScript package `@seed-hypermedia/client`. It is the one implementation of the Hypermedia data formats that the Seed app, the Seed web app, the Seed CLI, the vault and Seed Agents all share: how a blob is encoded and signed, how a document change is built, how markdown round-trips, how a schema is resolved. Nothing in it needs React, a daemon or a network beyond plain `fetch`, so it runs in Node, Bun, browsers and React Native.
+The SDK is the TypeScript package `@seed-hypermedia/client`. It is the one implementation of the Hypermedia data formats that the Seed app, the Seed web app, the Seed CLI, the vault and Seed Agents all share: how a blob is encoded and signed, how a document change is built, how markdown round-trips, how a schema is resolved. Nothing in it needs React, a daemon or a network beyond plain `fetch`, so it runs in Node, Bun, browsers and React Native. <!-- id:GKERgZSz -->
 
-This page is the reference. If you have never published anything yet, start with [Getting started](./getting-started.md); if you only need to read public data, the [Seed API](./web-api.md) over plain HTTP may be enough.
+This page is the reference. If you have never published anything yet, start with [Getting started](./getting-started.md); if you only need to read public data, the [Seed API](./web-api.md) over plain HTTP may be enough. <!-- id:uMFhMR5F -->
 
-# Install and import
+# Install and import <!-- id:abDQXJxO -->
 
-```sh
+```sh <!-- id:4E34K789 -->
 npm install @seed-hypermedia/client zod@^3
 ```
 
-| Fact | Value |
+<!-- id:Y-oJftG2 -->
+| Fact <!-- col:FQJZD8im --> | Value <!-- col:rd5Y0WyZ --> <!-- id:v6ok3yak --> |
 | --- | --- |
-| Package | `@seed-hypermedia/client` on npm, ESM only |
-| Peer dependencies | `zod` 3.x (required; zod 4 breaks the package at import time), `pdfjs-dist` (optional, only for `pdfToBlocks`) |
-| Entry points | the root barrel, plus every module as a subpath: `@seed-hypermedia/client/<module>` |
-| Runtime requirements | `fetch`; WebCrypto only for the browser sign-in module |
-| Versioning | CI publishes a new patch on every push to `main` that touches the package, so the npm version is always ahead of the repository's `package.json`; pin the version you tested against |
+| Package | `@seed-hypermedia/client` on npm, ESM only <!-- id:1mgZ2PJd --> |
+| Peer dependencies | `zod` 3.x (required; zod 4 breaks the package at import time), `pdfjs-dist` (optional, only for `pdfToBlocks`) <!-- id:90a1wpUr --> |
+| Entry points | the root barrel, plus every module as a subpath: `@seed-hypermedia/client/<module>` <!-- id:0gOFrB-S --> |
+| Runtime requirements | `fetch`; WebCrypto only for the browser sign-in module <!-- id:pjILNryS --> |
+| Versioning | CI publishes a new patch on every push to `main` that touches the package, so the npm version is always ahead of the repository's `package.json`; pin the version you tested against <!-- id:ubGO5w0Y --> |
 
-The root barrel exports the client, the blob builders, the markdown dialect, the id helpers and the document-state helpers. Some modules are subpath-only and are imported by name: `auth` (browser sign-in), `hmauth` (the sign-in protocol), `blobs` (key pairs, profiles, low-level capability and signing primitives), `signed-blob` (user-defined signed blobs), `hm-types` (the zod schemas of every type), `explore-query` (the query grammar), `schema-engine` and `schema-resolve` (Hypermedia Schemas), `keyfile`, `vault-local`, `cbor`, `dag-json`, `base64`.
+The root barrel exports the client, the blob builders, the markdown dialect, the id helpers and the document-state helpers. Some modules are subpath-only and are imported by name: `auth` (browser sign-in), `hmauth` (the sign-in protocol), `blobs` (key pairs, profiles, low-level capability and signing primitives), `signed-blob` (user-defined signed blobs), `hm-types` (the zod schemas of every type), `explore-query` (the query grammar), `schema-engine` and `schema-resolve` (Hypermedia Schemas), `keyfile`, `vault-local`, `cbor`, `dag-json`, `base64`. <!-- id:ipJVKiXp -->
 
-```ts
+```ts <!-- id:X9UdU4Q6 -->
 import {createSeedClient, createDocumentBlobs, unpackHmId} from '@seed-hypermedia/client'
 import {HMDocumentSchema} from '@seed-hypermedia/client/hm-types'
 import * as blobs from '@seed-hypermedia/client/blobs'
 ```
 
-# The client
+# The client <!-- id:G8_2Vjlf -->
 
-```ts
+```ts <!-- id:bjx-H8v5 -->
 createSeedClient(baseUrl: string, options?: {fetch?, headers?}): SeedClient
 
 type SeedClient = {
@@ -42,73 +43,73 @@ type SeedClient = {
 }
 ```
 
-`baseUrl` is the origin of any Seed web server: `https://hyper.media`, your own site, or the desktop app's local bridge (`http://localhost:56004` in the installed app, `58004` in a dev build). The client speaks the [Seed API](./web-api.md) at `/api/<Key>`: it never talks to the daemon's gRPC port.
+`baseUrl` is the origin of any Seed web server: `https://hyper.media`, your own site, or the desktop app's local bridge (`http://localhost:56004` in the installed app, `58004` in a dev build). The client speaks the [Seed API](./web-api.md) at `/api/<Key>`: it never talks to the daemon's gRPC port. <!-- id:PZyny0Lq -->
 
-`request(key, input)` validates the input against the zod schema for that key, sends it, and validates the output. Read keys go out as `GET /api/<Key>?…`; the five action keys (`PublishBlobs`, `PrepareDocumentChange`, `QueryDocuments`, `ListDocumentAttributeNames`, `ListDocumentAttributeValues`) go out as `POST /api/<Key>` with a DAG-CBOR body. Responses arrive superjson-wrapped and are unwrapped for you, except the three document passthroughs (`QueryDocuments` and the two attribute listings), which return the daemon's plain protobuf JSON.
+`request(key, input)` validates the input against the zod schema for that key, sends it, and validates the output. Read keys go out as `GET /api/<Key>?…`; the five action keys (`PublishBlobs`, `PrepareDocumentChange`, `QueryDocuments`, `ListDocumentAttributeNames`, `ListDocumentAttributeValues`) go out as `POST /api/<Key>` with a DAG-CBOR body. Responses arrive superjson-wrapped and are unwrapped for you, except the three document passthroughs (`QueryDocuments` and the two attribute listings), which return the daemon's plain protobuf JSON. <!-- id:XhGgqBm0 -->
 
-`headers` can be an object or a function returning one, which is how you attach `Authorization: Bearer <token>` for private reads. Errors are typed: `SeedValidationError` (bad input or unknown key), `SeedNetworkError` (fetch itself failed) and `SeedClientError` (a non-2xx status, with the server's `error` text folded into the message and the status and body kept on the error).
+`headers` can be an object or a function returning one, which is how you attach `Authorization: Bearer <token>` for private reads. Errors are typed: `SeedValidationError` (bad input or unknown key), `SeedNetworkError` (fetch itself failed) and `SeedClientError` (a non-2xx status, with the server's `error` text folded into the message and the status and body kept on the error). <!-- id:6IVkEoy5 -->
 
-# Identity and signing
+# Identity and signing <!-- id:aOnfRV6A -->
 
-Everything you publish is signed by an Ed25519 key. The SDK does not care where that key lives; it needs a signer:
+Everything you publish is signed by an Ed25519 key. The SDK does not care where that key lives; it needs a signer: <!-- id:zpT6PJkA -->
 
-```ts
+```ts <!-- id:FvwUSu0k -->
 type HMSigner = {getPublicKey(): Promise<Uint8Array>; sign(data: Uint8Array): Promise<Uint8Array>}
 type PrincipalSigner = {readonly principal: Uint8Array; sign(data: Uint8Array): Promise<Uint8Array>}
 type AnySigner = HMSigner | PrincipalSigner   // every builder accepts either
 ```
 
-`getPublicKey` returns the 34-byte principal: the bytes `0xed 0x01` followed by the 32-byte public key. Encoded as base58btc it is the `z6Mk…` account id. `toHMSigner` and `toPrincipalSigner` convert between the two shapes.
+`getPublicKey` returns the 34-byte principal: the bytes `0xed 0x01` followed by the 32-byte public key. Encoded as base58btc it is the `z6Mk…` account id. `toHMSigner` and `toPrincipalSigner` convert between the two shapes. <!-- id:sdXbBoO8 -->
 
-Ways to get a signer:
+Ways to get a signer: <!-- id:qpp5jevD -->
+  - **Generate a key** with `generateNobleKeyPair()` from the `blobs` module, or rebuild one from a 32-byte seed with `nobleKeyPairFromSeed(seed)`. A `NobleKeyPair` is a `PrincipalSigner`. <!-- id:qXOpzGb8 -->
+  - **Load a `.hmkey.json` file** exported by the Seed app or `seed-cli key export`: `keyfile.load(json, password?)` returns `{payload, seed, publicKey}`; pass the seed to `nobleKeyPairFromSeed`. See [Keys](./keys.md) for the file format. <!-- id:jCg6OIGr -->
+  - **Read a local vault** of the desktop app or daemon with `loadLocalVaultAccounts({path?, dev?})` from `vault-local`. It is read-only and unlocks with the OS keychain or the `SEED_VAULT_KEK` variable. <!-- id:xEo2w0p4 -->
+  - **A browser session key** delegated by the user's vault: `createSessionSigner(session)` from the `auth` module. See [Sign in with Seed](./sign-in.md). <!-- id:e3FZkPxH -->
 
-- **Generate a key** with `generateNobleKeyPair()` from the `blobs` module, or rebuild one from a 32-byte seed with `nobleKeyPairFromSeed(seed)`. A `NobleKeyPair` is a `PrincipalSigner`.
-- **Load a `.hmkey.json` file** exported by the Seed app or `seed-cli key export`: `keyfile.load(json, password?)` returns `{payload, seed, publicKey}`; pass the seed to `nobleKeyPairFromSeed`. See [Keys](./keys.md) for the file format.
-- **Read a local vault** of the desktop app or daemon with `loadLocalVaultAccounts({vaultPath?, dev?})` from `vault-local`. It is read-only and unlocks with the OS keychain or the `SEED_VAULT_KEK` variable.
-- **A browser session key** delegated by the user's vault: `createSessionSigner(session)` from the `auth` module. See [Sign in with Seed](./sign-in.md).
+Mnemonic derivation (BIP-39 words to a key) is not in the SDK. The Seed CLI and the apps do it with SLIP-10 at path `m/44'/104109'/0'`; [Keys](./keys.md) has the details. <!-- id:M-A1HFWn -->
 
-Mnemonic derivation (BIP-39 words to a key) is not in the SDK. The Seed CLI and the apps do it with SLIP-10 at path `m/44'/104109'/0'`; [Keys](./keys.md) has the details.
+Principal helpers live in `blobs`: `principalFromEd25519(raw32)`, `principalToString(p)`, `principalFromString(s)`, `principalEqual(a, b)`. <!-- id:-dYqRzow -->
 
-Principal helpers live in `blobs`: `principalFromEd25519(raw32)`, `principalToString(p)`, `principalFromString(s)`, `principalEqual(a, b)`.
+# Reading <!-- id:mMEuFgXG -->
 
-# Reading
+Ids first. `unpackHmId('hm://<uid>/<path>?v=<version>#<block>')` returns an `UnpackedHypermediaId` with `uid`, `path` (an array or null), `version`, `blockRef`, `blockRange` and `latest`; `packHmId` reverses it. `resolveHypermediaUrl(url)` turns a web URL into an id by asking the site with an `OPTIONS` request and reading its `X-Hypermedia-*` headers; `resolveId` accepts either form. `resolveIdWithClient(rawId, {client?, serverUrl?})` also returns a client for the URL's own origin, which is why a web URL argument to the CLI ignores `--server`. <!-- id:gTrS54tf -->
 
-Ids first. `unpackHmId('hm://<uid>/<path>?v=<version>#<block>')` returns an `UnpackedHypermediaId` with `uid`, `path` (an array or null), `version`, `blockRef`, `blockRange` and `latest`; `packHmId` reverses it. `resolveHypermediaUrl(url)` turns a web URL into an id by asking the site with an `OPTIONS` request and reading its `X-Hypermedia-*` headers; `resolveId` accepts either form. `resolveIdWithClient(rawId, {client?, serverUrl?})` also returns a client for the URL's own origin, which is why a web URL argument to the CLI ignores `--server`.
-
-```ts
+```ts <!-- id:QC9HsuXk -->
 const client = createSeedClient('https://hyper.media')
 const id = unpackHmId('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/build/sdk')!
 const resource = await client.request('Resource', id)
 if (resource.type === 'document') console.log(resource.document.metadata.name)
 ```
 
-The keys you will use most:
+The keys you will use most: <!-- id:SgBrNcQY -->
 
-| Key | Input | Gives you |
+<!-- id:-23opo3a -->
+| Key <!-- col:d7BKam6L --> | Input <!-- col:6ZeAVhqr --> | Gives you <!-- col:zCYxtb0w --> <!-- id:oTgoz8L8 --> |
 | --- | --- | --- |
-| `Resource` | an unpacked id | a document, comment, redirect, tombstone or `not-found` |
-| `ResourceMetadata` | an unpacked id | metadata only, cheap |
-| `Account` | a uid string | the account and its home document metadata |
-| `Query` | `{includes: [{space, path?, mode}], sort?, limit?}` | a directory listing (`Children` or `AllDescendants`) |
-| `QueryDocuments` | `{filter?, sort?, pageSize?, pageToken?}` | documents matched by attribute; see [Query grammar](./query-grammar.md) |
-| `Search` | `{query, accountUid?, includeBody?, searchType?, …}` | ranked hits |
-| `ListComments`, `ListDiscussions` | `{targetId}` | comments on a document |
-| `ListChanges` | `{targetId}` | the change DAG (used to build updates) |
-| `ListCitations` | `{targetId}` | who links here |
-| `ListCapabilities` | `{targetId}` | who may write here |
-| `ListEvents` | paging and filters | the activity feed |
-| `GetCID` | `{cid}` | a raw block |
-| `DiscoveryStatus` | `{uid, path, version?, latest?}` | whether the site has found a resource yet |
+| `Resource` | an unpacked id | a document, comment, redirect, tombstone or `not-found` <!-- id:zIGyryB_ --> |
+| `ResourceMetadata` | an unpacked id | metadata only, cheap <!-- id:_OLiFEiW --> |
+| `Account` | a uid string | the account and its home document metadata <!-- id:Jr9071Rh --> |
+| `Query` | `{includes: [{space, path?, mode}], sort?, limit?}` | a directory listing (`Children` or `AllDescendants`) <!-- id:YjdRd2zH --> |
+| `QueryDocuments` | `{filter?, sort?, pageSize?, pageToken?}` | documents matched by attribute; see [Query grammar](./query-grammar.md) <!-- id:ksiY2jWj --> |
+| `Search` | `{query, accountUid?, includeBody?, searchType?, …}` | ranked hits <!-- id:QbzoS6bQ --> |
+| `ListComments`, `ListDiscussions` | `{targetId}` | comments on a document <!-- id:tFas-lWK --> |
+| `ListChanges` | `{targetId}` | the change DAG (used to build updates) <!-- id:S0sAKPyD --> |
+| `ListCitations` | `{targetId}` | who links here <!-- id:De29a4uP --> |
+| `ListCapabilities` | `{targetId}` | who may write here <!-- id:FhpQy98b --> |
+| `ListEvents` | paging and filters | the activity feed <!-- id:xkvNNLJj --> |
+| `GetCID` | `{cid}` | `{value}`: a stored blob decoded to DAG-JSON <!-- id:r_m2eGVm --> |
+| `DiscoveryStatus` | `{uid, path, version?, latest?}` | whether the site has found a resource yet <!-- id:Ls9FCHT_ --> |
 
-`HMResource` is a union on `type`: `document`, `comment`, `redirect` (with `redirectTarget` and `republish`), `not-found`, `tombstone`, `error`. `HMDocument` carries `content` (a tree of `{block, children?}`), `metadata`, `version`, `genesis`, `authors`, `generationInfo` and `visibility`. Every key's exact input and output shape is a page under [the Seed API](../rpc.md).
+`HMResource` is a union on `type`: `document`, `comment`, `redirect` (with `redirectTarget` and `republish`), `not-found`, `tombstone`, `error`. `HMDocument` carries `content` (a tree of `{block, children?}`), `metadata`, `version`, `genesis`, `authors`, `generationInfo` and `visibility`. Every key's exact input and output shape is a page under [the Seed API](../rpc.md). <!-- id:UBN1iThC -->
 
-To follow moves and republishes, `followRedirects(client, id)` walks the redirect chain, `followToDocument` stops at the first document, and `resolveEditableDocument` returns what an editor should load together with the address that a new change must take over.
+To follow moves and republishes, `followRedirects(client, id)` walks the redirect chain, `followToDocument` stops at the first document, and `resolveEditableDocument` returns what an editor should load together with the address that a new change must take over. <!-- id:NY7ZIh68 -->
 
-# Writing documents
+# Writing documents <!-- id:msXJ2N75 -->
 
-A document is a DAG of signed Change blobs plus a Ref that names the current heads; [Documents](../protocol/documents.md) explains the model. The SDK gives you the operations, the builders and one rule you must not break.
+A document is a DAG of signed Change blobs plus a Ref that names the current heads; [Documents](../protocol/documents.md) explains the model. The SDK gives you the operations, the builders and one rule you must not break. <!-- id:xhWXVeM_ -->
 
-```ts
+```ts <!-- id:o5ss_SHV -->
 type DocumentOperation =
   | {type: 'SetAttributes'; attrs: {key: string[]; value: string | number | boolean | null}[]}
   | {type: 'ReplaceBlock'; block: unknown}
@@ -116,9 +117,9 @@ type DocumentOperation =
   | {type: 'DeleteBlocks'; blocks: string[]}
 ```
 
-**Create a document.** `createDocumentBlobs(signer, {space, path, ops, capability?, generation?, visibility?})` returns `{blobs, genesis, version, ts}` ready for `client.publish`. `path` is `''` for the account's home document and `/a/b` otherwise.
+**Create a document.** `createDocumentBlobs(signer, {space, path, ops, capability?, generation?, visibility?})` returns `{blobs, genesis, version, ts}` ready for `client.publish`. `path` is `''` for the account's home document and `/a/b` otherwise. <!-- id:Ne_vAKqX -->
 
-```ts
+```ts <!-- id:2cLGvPZP -->
 const {blobs} = await createDocumentBlobs(signer, {
   space: myUid,
   path: '/notes/first',
@@ -131,11 +132,11 @@ const {blobs} = await createDocumentBlobs(signer, {
 await client.publish({blobs})
 ```
 
-**The genesis rule.** A document's identity is its genesis Change. For the home document (path `''`) the genesis is deterministic: the signer's key and a zero timestamp, so every device of an account, and the daemon itself, derive the same one. Every other document has no genesis blob of its own: its first content Change is its genesis, with no `genesis` or `deps` fields, and the Ref points its `genesis` and its head at that same Change. Creating an ordinary document on the home genesis merges it with the home document as far as the daemon is concerned (comments, activity and moves all collapse into one), which is why `createDocumentBlobs` decides this for you and why `createGenesisChange` is deprecated in favour of the explicit `createHomeGenesisChange`. Only the owner can create a home; the builder refuses any other signer for path `''`.
+**The genesis rule.** A document's identity is its genesis Change. For the home document (path `''`) the genesis is deterministic: the signer's key and a zero timestamp, so every device of an account, and the daemon itself, derive the same one. Every other document has no genesis blob of its own: its first content Change is its genesis, with no `genesis` or `deps` fields, and the Ref points its `genesis` and its head at that same Change. Creating an ordinary document on the home genesis merges it with the home document as far as the daemon is concerned (comments, activity and moves all collapse into one), which is why `createDocumentBlobs` decides this for you and why `createGenesisChange` is deprecated in favour of the explicit `createHomeGenesisChange`. Only the owner can create a home; the builder refuses any other signer for path `''`. <!-- id:2HwrtkSZ -->
 
-**Update a document.** Fetch the current state, build a Change on the heads, and publish it with a fresh Ref:
+**Update a document.** Fetch the current state, build a Change on the heads, and publish it with a fresh Ref: <!-- id:7sbzYzez -->
 
-```ts
+```ts <!-- id:zrESMCQd -->
 const state = await resolveDocumentState(client, 'hm://' + myUid + '/notes/first')
 const {unsignedBytes, ts} = createChangeOps({
   ops,
@@ -151,21 +152,21 @@ const ref = await createVersionRef(
 await client.publish({blobs: [{data: change.bytes, cid: change.cid.toString()}, ...ref.blobs]})
 ```
 
-`resolveDocumentState` walks `ListChanges` to find the genesis, the heads and the head depth (depth is not in the read API, so it is recomputed). `createChangeOps` builds the unsigned CBOR; `createChange` signs it and returns `{bytes, cid, genesis, ts}`. Concurrent heads merge by listing several `deps`.
+`resolveDocumentState` walks `ListChanges` to find the genesis, the heads and the head depth (depth is not in the read API, so it is recomputed). `createChangeOps` builds the unsigned CBOR; `createChange` signs it and returns `{bytes, cid, genesis, ts}`. Concurrent heads merge by listing several `deps`. <!-- id:3p3tUyJA -->
 
-**Let the server build the ops.** `client.publishDocument({account, path?, changes, baseVersion?, genesis?, generation?, capability?, visibility?}, signer)` takes proto-style changes (the shape the app's editor produces), asks the site's `PrepareDocumentChange` to compute the CRDT ops, signs the result with `signDocumentChange` and publishes. It also bootstraps a brand-new home document client-side. This is the path the Seed web app uses; scripts that already have block-level ops can stay with the builders above.
+**Let the server build the ops.** `client.publishDocument({account, path?, changes, baseVersion?, genesis?, generation?, capability?, visibility?}, signer)` takes proto-style changes (the shape the app's editor produces), asks the site's `PrepareDocumentChange` to compute the CRDT ops, signs the result with `signDocumentChange` and publishes. It also bootstraps a brand-new home document client-side. This is the path the Seed web app uses; scripts that already have block-level ops can stay with the builders above. <!-- id:52j70u2p -->
 
-**Refs.** `createVersionRef` points a path at a version (this is also a fork: a new path on an existing genesis). `createTombstoneRef({space, path, genesis, generation, capability?})` deletes. `createRedirectRef({space, path, genesis, generation, targetSpace?, targetPath, republish?})` moves a path elsewhere, and with `republish: true` shows the target's content in place. A Ref with a higher `generation` supersedes the one at the path, so a takeover mints `Date.now()`.
+**Refs.** `createVersionRef` points a path at a version (this is also a fork: a new path on an existing genesis). `createTombstoneRef({space, path, genesis, generation, capability?})` deletes. `createRedirectRef({space, path, genesis, generation, targetSpace?, targetPath, republish?})` moves a path elsewhere, and with `republish: true` shows the target's content in place. A Ref with a higher `generation` supersedes the one at the path, so a takeover mints `Date.now()`. <!-- id:jhjnuaot -->
 
-**Writing into someone else's space.** Pass `capability: <cid>` on every Change-carrying Ref, tombstone and redirect. `resolveCapability(client, targetAccount, signerAccount, path?)` finds a WRITER or AGENT capability the space published for your key and returns its CID, or `undefined` when you are the owner. See [Permissions](../protocol/permissions.md).
+**Writing into someone else's space.** Pass `capability: <cid>` on every Change-carrying Ref, tombstone and redirect. `resolveCapability(client, targetAccount, signerAccount, path?)` finds a WRITER or AGENT capability the space published for your key and returns its CID, or `undefined` when you are the owner. See [Permissions](../protocol/permissions.md). <!-- id:83ddWDHQ -->
 
-**The CID rule.** Every blob you publish that another blob references by CID must be published with its `cid` set. The SDK computes CIDs with SHA-256; the daemon computes a BLAKE2b CID for any blob that arrives without one, and then the reference from the next blob points at nothing. The builders fill `cid` for you; keep it when you assemble your own `publish` payload.
+**The CID rule.** Every blob you publish that another blob references by CID must be published with its `cid` set. The SDK computes CIDs with SHA-256; the daemon computes a BLAKE2b CID for any blob that arrives without one, and then the reference from the next blob points at nothing. The builders fill `cid` for you; keep it when you assemble your own `publish` payload. <!-- id:0RkGAVtI -->
 
-# Comments, contacts, profiles, capabilities
+# Comments, contacts, profiles, capabilities <!-- id:ONoosCgT -->
 
-These are snapshot blobs, replaced whole on edit and addressed as `<author>/<tsid>`; see [Comments](../protocol/comments.md) and [Identity](../protocol/identity.md).
+These are snapshot blobs, replaced whole on edit and addressed as `<author>/<tsid>`; see [Comments](../protocol/comments.md) and [Identity](../protocol/identity.md). <!-- id:tIj1HebI -->
 
-```ts
+```ts <!-- id:I2aG-U6E -->
 createComment({docId, docVersion, content: HMBlockNode[], replyCommentVersion?, rootReplyCommentVersion?, quoting?, visibility?}, signer)
 updateComment({commentId, targetAccount, targetPath, targetVersion, content, replyParentVersion?, rootReplyCommentVersion?}, signer)
 deleteComment({commentId, targetAccount, targetPath, targetVersion}, signer)
@@ -181,55 +182,55 @@ blobs.createProfile(signer, {name, avatar?, description?}, ts)      // Encoded<P
 blobs.createProfileAlias(...)
 ```
 
-A comment pins the target `docVersion` it was written against. `quoting: {blockId, range?}` makes a block comment: the content is wrapped in an Embed of that block at that version. Replies carry the parent comment's version and the thread root's version. `docId` is an `UnpackedHypermediaId`.
+A comment pins the target `docVersion` it was written against. `quoting: {blockId, range?}` makes a block comment: the content is wrapped in an Embed of that block at that version. Replies carry the parent comment's version and the thread root's version. `docId` is an `UnpackedHypermediaId`. <!-- id:loumVdX9 -->
 
-# Files and media
+# Files and media <!-- id:x9aN7_BH -->
 
-`fileToIpfsBlobs(bytes)` chunks a file into UnixFS blocks and returns the blocks plus the root CID, so an image becomes `ipfs://<cid>` in a block's `link` or in `metadata.icon`; `filesToIpfsBlobs` does several at once. `resolveFileLinksInBlocks` replaces `file://` links in a block tree with published `ipfs://` links, and `hasFileLinks` tells you whether there is anything to upload. Publish the file blocks in the same `publish` call as the document that links them, or the gateway will report them as not public. [Files](../protocol/files.md) has the rules.
+`fileToIpfsBlobs(bytes)` chunks a file into UnixFS blocks and returns the blocks plus the root CID, so an image becomes `ipfs://<cid>` in a block's `link` or in `metadata.icon`; `filesToIpfsBlobs` does several at once. `resolveFileLinksInBlocks` replaces `file://` links in a block tree with published `ipfs://` links, and `hasFileLinks` tells you whether there is anything to upload. Publish the file blocks in the same `publish` call as the document that links them, or the gateway will report them as not public. [Files](../protocol/files.md) has the rules. <!-- id:aAxXX4-N -->
 
-# The markdown dialect
+# The markdown dialect <!-- id:ZwTWCrBr -->
 
-`blocksToMarkdown(doc)` and `parseMarkdown(md)` are a lossless pair: every block type, annotation, attribute and metadata key survives a round trip. The frontmatter is YAML with every metadata key; each block ends in an `<!-- id:X -->` comment, with `type:` and `attrs:` in the same comment for what markdown cannot express; nesting is indentation. `parseMarkdown` returns `{metadata, blocks}` and `flattenToOperations` turns the blocks into `DocumentOperation`s; `markdownBlockNodesToHMBlockNodes` converts the parsed tree to the API shape. [Publish a folder](./publish-a-folder.md) describes the dialect as a writer sees it.
+`blocksToMarkdown(doc)` and `parseMarkdown(md)` are a lossless pair: every block type, annotation, attribute and metadata key survives a round trip. The frontmatter is YAML with every metadata key; each block ends in an `<!-- id:X -->` comment, with `type:` and `attrs:` in the same comment for what markdown cannot express; nesting is indentation. `parseMarkdown` returns `{tree, metadata}` and `flattenToOperations` turns the tree into `DocumentOperation`s; `markdownBlockNodesToHMBlockNodes` converts the parsed tree to the API shape. [Publish a folder](./publish-a-folder.md) describes the dialect as a writer sees it. <!-- id:WvgA5VpZ -->
 
-For display rather than round-tripping, `documentToResolvedMarkdown(doc, {client, maxDepth?})`, `commentToResolvedMarkdown` and `contentToResolvedMarkdown` fetch embeds, mentions and query blocks over the network and inline them. That is what the web `.md` export and the agents' `read` verb return.
+For display rather than round-tripping, `documentToResolvedMarkdown(doc, {client, maxDepth?})`, `commentToResolvedMarkdown` and `contentToResolvedMarkdown` fetch embeds, mentions and query blocks over the network and inline them. That is what the web `.md` export and the agents' `read` verb return. <!-- id:60n-DBmo -->
 
-Drafts: `slugify(title)`, `draftFilename(slug, id)` (`<slug>_<id>.md`) and `parseDraftFilename` name draft files the way the CLI and the desktop app do.
+Drafts: `slugify(title)`, `draftFilename(slug, id)` (`<slug>_<id>.md`) and `parseDraftFilename` name draft files the way the CLI and the desktop app do. <!-- id:wxZ_H1P7 -->
 
-# Typed documents and your own blobs
+# Typed documents and your own blobs <!-- id:51hJgH0T -->
 
-The Hypermedia Schemas library ships inside the package. `schema-engine` bundles every schema and its published CID (`HM_SCHEMAS`, `HM_SCHEMA_MANIFEST`) and validates values offline: `load(ref)`, `validate(value, schema, registry)`, `structFields`, `requiredFieldNames`, `resolveSchema`. `schema-resolve` does the parts that need a client: `resolveSchemaRef(client, ref)` for a CID, a library URL or a type document's URL, `effectiveSchemaRef` (a document's own `attributesSchema`, else its parent's `childAttributesSchema`) and `checkDocumentSchema`. [Hypermedia Schemas](../schema.md) explains the model; [Typed documents](../schema/typed-documents.md) the binding keys.
+The Hypermedia Schemas library ships inside the package. `schema-engine` bundles every schema and its published CID (`HM_SCHEMAS`, `HM_SCHEMA_MANIFEST`) and validates values offline: `load(ref)`, `validate(value, schema, registry)`, `structFields`, `requiredFieldNames`, `resolveSchema`. `schema-resolve` does the parts that need a client: `resolveSchemaRef(client, ref)` for a CID, a library URL or a type document's URL, `effectiveSchemaRef` (a document's own `attributesSchema`, else its parent's `childAttributesSchema`) and `checkDocumentSchema`. [Hypermedia Schemas](../schema.md) explains the model; [Typed documents](../schema/typed-documents.md) the binding keys. <!-- id:XIWtKT9L -->
 
-`signed-blob` signs any value as a Hypermedia blob: `signBlob(signer, body, {typeTag?, ts?})` adds `signer`, `ts` and `sig`, encodes canonical DAG-CBOR and returns `{cid, data}`; `publishSignedBlob(client, signer, body, opts)` also publishes and refuses a `type` tag that collides with a built-in Seed type; `verifySignedBlob(value)` checks a signature the way the daemon does. The signing rule is the same everywhere: encode the blob with `sig` set to 64 zero bytes, sign those bytes, fill `sig`, encode again, hash with SHA-256. [Blobs](../protocol/blobs.md) has the envelope.
+`signed-blob` signs any value as a Hypermedia blob: `signBlob(signer, body, {typeTag?, ts?})` adds `signer`, `ts` and `sig`, encodes canonical DAG-CBOR and returns `{cid, data}`; `publishSignedBlob(client, signer, body, opts)` also publishes and refuses a `type` tag that collides with a built-in Seed type; `verifySignedBlob(value)` checks a signature the way the daemon does. The signing rule is the same everywhere: encode the blob with `sig` set to 64 zero bytes, sign those bytes, fill `sig`, encode again, hash with SHA-256. [Blobs](../protocol/blobs.md) has the envelope. <!-- id:aubbprT3 -->
 
-# Sign in with Seed
+# Sign in with Seed <!-- id:FqfZWgTO -->
 
-The `auth` module implements the browser half of third-party sign-in: `startAuth`, `handleCallback`, `getSession`, `createSessionSigner`, `clearSession`. It is browser-only (WebCrypto Ed25519, IndexedDB, `CompressionStream`). [Sign in with Seed](./sign-in.md) walks through it.
+The `auth` module implements the browser half of third-party sign-in: `startAuth`, `handleCallback`, `getSession`, `createSessionSigner`, `clearSession`. It is browser-only (WebCrypto Ed25519, IndexedDB, `CompressionStream`). [Sign in with Seed](./sign-in.md) walks through it. <!-- id:iDKOsNLF -->
 
-# Editor interop
+# Editor interop <!-- id:yFaFo2ti -->
 
-If you are building an editor, `hm-types` has the zod schemas for every block, annotation and metadata key (`HMBlockSchema`, `HMDocumentSchema`, `HMRequestSchema`, …), and the barrel exports the converters the Seed editor uses: `hmBlocksToEditorContent`, `editorBlocksToHMBlockNodes`, `hmBlockToEditorBlock`, `editorBlockToHMBlock`. The `block-diff` module (`createBlocksMap`, `matchBlockIds`, `computeReplaceOps`, `rebindTableIdentities`) is how the CLI's `document update` and folder sync turn an edited tree into the minimal set of operations.
+If you are building an editor, `hm-types` has the zod schemas for every block, annotation and metadata key (`HMBlockSchema`, `HMDocumentSchema`, `HMRequestSchema`, …), and the barrel exports the converters the Seed editor uses: `hmBlocksToEditorContent`, `editorBlocksToHMBlockNodes`, `hmBlockToEditorBlock`, `editorBlockToHMBlock`. The `block-diff` module (`createBlocksMap`, `matchBlockIds`, `computeReplaceOps`, `rebindTableIdentities`) is how the CLI's `document update` and folder sync turn an edited tree into the minimal set of operations. <!-- id:a0m_gFJG -->
 
-# Working with it
+# Working with it <!-- id:QbNk3cwH -->
 
-## In the Seed app
+## In the Seed app <!-- id:FomhsnuD -->
 
-The desktop and web apps use this same package underneath; the app is the reference client for what the builders produce.
+The desktop and web apps use this same package underneath; the app is the reference client for what the builders produce. <!-- id:fUX0pkdG -->
 
-## CLI
+## CLI <!-- id:eoNpl-XY -->
 
-Every write in the [Seed CLI](./cli.md) is one of the builders above followed by `client.publish`. Read the CLI's source when you want a worked example of a command.
+Every write in the [Seed CLI](./cli.md) is one of the builders above followed by `client.publish`. Read the CLI's source when you want a worked example of a command. <!-- id:KYsIMo9N -->
 
-## Web API
+## Web API <!-- id:OqhTTr_X -->
 
-The client is a thin layer over the [Seed API](./web-api.md); anything the SDK does you can do with `curl` and a CBOR encoder.
+The client is a thin layer over the [Seed API](./web-api.md); anything the SDK does you can do with `curl` and a CBOR encoder. <!-- id:vRTql5ol -->
 
-## Agents
+## Agents <!-- id:RZwid2d1 -->
 
-Seed Agents call these same functions when an agent's `write` verb publishes to an `hm://` address, signing with server-held identities, and its `read` verb returns resolved markdown from this package. An external agent that scripts against Seed (a Claude Code session, a bot) should prefer the CLI for one-off commands and this package for anything long-running; see [Using Seed from your own agent](./agents.md).
+Seed Agents call these same functions when an agent's `write` verb publishes to an `hm://` address, signing with server-held identities, and its `read` verb returns resolved markdown from this package. An external agent that scripts against Seed (a Claude Code session, a bot) should prefer the CLI for one-off commands and this package for anything long-running; see [Using Seed from your own agent](./agents.md). <!-- id:H20iogTF -->
 
-# See also
+# See also <!-- id:WLNqrO8T -->
 
-- [Getting started](./getting-started.md), [Seed API](./web-api.md), [Seed CLI](./cli.md)
-- [Keys](./keys.md), [Sign in with Seed](./sign-in.md), [Query grammar](./query-grammar.md)
-- [Blobs](../protocol/blobs.md), [Documents](../protocol/documents.md), [Permissions](../protocol/permissions.md)
-- The schema pages for [change](../change.md), [ref](../ref.md), [comment](../comment.md), [capability](../capability.md), [contact](../contact.md), [profile](../profile.md)
+- [Getting started](./getting-started.md), [Seed API](./web-api.md), [Seed CLI](./cli.md) <!-- id:oW9Seojf -->
+- [Keys](./keys.md), [Sign in with Seed](./sign-in.md), [Query grammar](./query-grammar.md) <!-- id:7ckPCJ6j -->
+- [Blobs](../protocol/blobs.md), [Documents](../protocol/documents.md), [Permissions](../protocol/permissions.md) <!-- id:HKj6dP4l -->
+- The schema pages for [change](../change.md), [ref](../ref.md), [comment](../comment.md), [capability](../capability.md), [contact](../contact.md), [profile](../profile.md) <!-- id:cysKeVxe -->

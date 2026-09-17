@@ -21,7 +21,7 @@ free words   "quoted phrases"                                           full-tex
 view:table   cols:title,status   sort:status,-priority                  presentation directives
 ```
 
-Keys are attribute names; nested keys are dotted (`address.city:Berlin`). Values with spaces are quoted. A number compares as an integer and `true`/`false` as booleans, so `priority>=3` and `done=true` are typed comparisons, while `priority="3"` compares a string. Parsing is forgiving: a malformed part becomes a diagnostic, never an error, and a query serializes back to a stable string. <!-- id:bSb7X1_H -->
+Keys are attribute names; nested keys are dotted (`address.city:Berlin`). Values with spaces are quoted. A value made of digits compares as an integer and `true`/`false` as booleans, so `priority>=3` and `done=true` are typed comparisons. Quotes do not change the type: `priority="3"` is also an integer comparison. Parsing is forgiving: a malformed part becomes a diagnostic, never an error, and a query serializes back to a stable string. <!-- id:bSb7X1_H -->
 
 Examples: <!-- id:pcdMQ6vr -->
 
@@ -33,9 +33,9 @@ Examples: <!-- id:pcdMQ6vr -->
 | `has:childAttributesSchema` | every typed folder, anywhere <!-- id:LHzMCyGu --> |
 | `status="In Progress" AND priority>=3` | open, important work <!-- id:0NVoBs46 --> |
 | `path:/specs/* AND NOT has:reviewedBy` | specs nobody has reviewed <!-- id:k12JoC5u --> |
-| `title^Draft OR summary:draft` | drafts by name or by summary <!-- id:1XxFmi5z --> |
+| `name^Draft OR summary:draft` | drafts by name or by summary <!-- id:1XxFmi5z --> |
 
-Two parts of the grammar belong to Explore alone. `type:` chooses what kind of result to show, and bare words are full-text terms that Explore sends to search; the CLI, the SDK compiler and the agents tool report them as diagnostics and ignore them, because `QueryDocuments` matches attributes only. The `view:`, `cols:` and `sort:` directives are presentation: Explore renders a table with those columns, and the CLI and agents map `sort:` onto the request's sort. <!-- id:2UmGW3On -->
+Two parts of the grammar belong to Explore alone. `type:` chooses what kind of result to show, and bare words are full-text terms that Explore sends to search; the SDK compiler returns them separately as text terms, and the CLI and the agents tool warn about them and ignore them, because `QueryDocuments` matches attributes only. The `view:`, `cols:` and `sort:` directives are presentation: Explore renders a table with those columns and sorts by `sort:`, while the CLI and the agents tool ignore all three and take sorting from their own options (`--sort`, `--sort-by` and `--reverse`, or the `sort` input). <!-- id:2UmGW3On -->
 
 # The filter it compiles to <!-- id:cvnAsOu2 -->
 
@@ -84,7 +84,7 @@ seed-cli attributes <space> --parent address --recursive
 seed-cli attributes <space> --values status --kind string --prefix In
 ```
 
-`query` without `-w`, `--filter` or `*` is a plain directory listing (`Children` or `AllDescendants`) through the `Query` request. `-q` prints one `hm://` id and name per line. See [Seed CLI](./cli.md). <!-- id:_In3_iNp -->
+`query` without `-w`, `--filter` or `*` is a plain directory listing (`Children` or `AllDescendants`) through the `Query` request. `-q` prints one `hm://` id and name per line. `--where`, `--filter` and `attributes` are newer than the npm release of mid-September 2026 (0.2.9), so for now they need a CLI built from source. See [Seed CLI](./cli.md). <!-- id:_In3_iNp -->
 
 ## SDK <!-- id:jJNUFZbC -->
 

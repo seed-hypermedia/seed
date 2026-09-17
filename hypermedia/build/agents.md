@@ -29,7 +29,7 @@ Any site answers over the [Seed API](./web-api.md) without a key. A document in 
 To turn a web page URL into an id, ask the site: any Seed page answers an `OPTIONS` request with `X-Hypermedia-Id`, `X-Hypermedia-Version`, `X-Hypermedia-Title`, `X-Hypermedia-Type` and `X-Hypermedia-Authors` headers. The CLI does this for you when you pass an `https://` URL. <!-- id:ENJu5RU4 -->
 
 ```sh <!-- id:riJaLZ9v -->
-curl -s -X OPTIONS -I https://hyper.media/some/page | grep -i x-hypermedia
+curl -s -X OPTIONS -I https://hyper.media/hm/<uid>/<path> | grep -i x-hypermedia
 ```
 
 Cite what you read with block links: `hm://<uid>/<path>#<blockId>` names one block, `?v=<version>` pins the version. [URLs](../protocol/urls.md) has the grammar. <!-- id:hhSta9ZL -->
@@ -39,7 +39,7 @@ Cite what you read with block links: `hm://<uid>/<path>#<blockId>` names one blo
 Do not give an agent a person's account key. Give it a key and a capability: <!-- id:c-f3j0jy -->
   1. `seed-cli key generate -n bot --show-mnemonic` on the agent's machine, or `seed-cli key export` a key from elsewhere and put the file's contents in `SEED_CLI_KEYFILE`. <!-- id:6XnRV2Af -->
   2. The owner of the space grants it: `seed-cli capability create --delegate <bot-uid> --role WRITER --path /drafts`. <!-- id:_WjkG8Na -->
-  3. The agent writes under the space with `-a <space-uid>`; the CLI finds the capability and cites it. <!-- id:sNl1onVm -->
+  3. The agent creates documents under the space with `-a <space-uid>`; the CLI finds the capability and cites it. `document update` and `document delete` look the capability up without the flag. <!-- id:sNl1onVm -->
 
 This is the same shape Seed Agents use internally: each hosted agent signs as its own identity and publishes into a shared space only through a capability that space issued. The `AGENT` role says "acts on behalf of"; `WRITER` says "may write". Capabilities are not revocable today, so scope them to a path and rotate the bot's key when in doubt. [Keys](./keys.md) and [Permissions](../protocol/permissions.md) have the details. <!-- id:Y75VPuLs -->
 
@@ -57,13 +57,13 @@ Comments are the low-risk write: `seed-cli comment create hm://<uid>/<path> --bo
 
 # The seed-cli skill for Claude Code <!-- id:4CUAb8Yz -->
 
-A skill is a folder with a `SKILL.md` that Claude Code loads when a task matches it. There is a `seed-cli` skill that teaches the CLI's install (`npx -y @seed-hypermedia/cli@latest …`), keys, drafts, the markdown and JSON input formats, and the draft-first workflow above. It is installed per user under `~/.claude/skills/seed-cli` (Claude Code also reads `~/.agents/skills`); it is not in the Seed repository, and the repository's own `docs/agent-setup.md` asks that shared team workflows live in the repo's `.agents/skills/` folder rather than in a home directory. The CLI package ships a second, older skill file as `docs/CLI-REFERENCE.md` (skill name `seed-hypermedia`) inside the npm tarball; nothing installs it for you. <!-- id:4IF1aiX5 -->
+A skill is a folder with a `SKILL.md` that Claude Code loads when a task matches it. There is a `seed-cli` skill that teaches the CLI's install (`npx -y @seed-hypermedia/cli@latest …`), keys, drafts, the markdown and JSON input formats, and the draft-first workflow above. It is installed per user. The skills installer puts it in `~/.agents/skills/seed-cli` and links `~/.claude/skills/seed-cli` to it, where Claude Code finds it. It is not in the Seed repository, and the repository's own `docs/agent-setup.md` asks that shared team workflows live in the repo's `.agents/skills/` folder rather than in a home directory. The CLI package ships a second, older skill file as `docs/CLI-REFERENCE.md` (skill name `seed-hypermedia`) inside the npm tarball; nothing installs it for you. <!-- id:4IF1aiX5 -->
 
 Both skills predate parts of the current CLI. When the skill and this documentation disagree, this documentation is right; in particular `--dev` means `https://dev.hyper.media` plus the dev keyring and cannot be combined with `--server`, keys come from the vault before the keyring, `-a, --account` exists, and there is no `seed-grpc` skill. <!-- id:sjsHvtl6 -->
 
 # Seed Agents, from the outside <!-- id:6GNyqSnP -->
 
-If what you want is an agent that lives on the network rather than on your laptop, that is [Seed Agents](../agent.md). Its agents address the same things this page does through five verbs: `read` and `write` take `hm://`, `ipfs://`, `https://` and the agent's own `~/memory/…` and `~/tools/…` addresses; `call` invokes `search`, `query`, `attributes`, `web_search`, `execute` or a tool projected from an MCP server; `delegate` spawns a child run; `plan` keeps a checklist. Writes to `hm://` go through the same SDK builders the CLI uses, with `options.action` choosing `document.create`, `update`, `comment`, `move`, `redirect`, `delete`, `fork`, `capability.grant`, `contact.create` and the rest. See [tools](../agent/tools.md), [read](../agent/read.md) and [write](../agent/write.md). <!-- id:FtnpXIEO -->
+If what you want is an agent that lives on the network rather than on your laptop, that is [Seed Agents](../agent.md). Its agents address the same things this page does through five verbs: `read` takes `hm://`, `ipfs://`, `https://` and the agent's own `~/memory/…`, `~/tools/…` and `~/triggers/…` addresses, and `write` takes the same except `https://`; `call` invokes `search`, `query`, `attributes`, `web_search`, `execute` or a tool projected from an MCP server; `delegate` spawns a child run; `plan` keeps a checklist. Writes to `hm://` go through the same SDK builders the CLI uses, with `options.action` choosing the operation: omitted for a new document, then `update`, `move`, `redirect`, `fork`, `delete`, `comment`, `capability.grant`, `contact.create` and the rest. See [tools](../agent/tools.md), [read](../agent/read.md) and [write](../agent/write.md). <!-- id:FtnpXIEO -->
 
 You can talk to a Seed Agents server from your own code through its signed API: a DAG-CBOR envelope signed by an account key or a delegated key, posted to `/api/message`. There is no standalone client library outside the Seed monorepo yet; the envelope and every action are documented in [the signed API](../agent/signed-api.md). A site advertises its agents to readers with the `agentServerUrl` and `spaceAgents` keys of its home document; see [Metadata](../metadata.md). <!-- id:vZNAJ4Hl -->
 
