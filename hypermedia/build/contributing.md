@@ -181,7 +181,7 @@ Corrections are welcome as pull requests, or as comments on the published page. 
 
 # Reporting security issues <!-- id:bIIWptx2 -->
 
-Do not open a public issue or pull request that describes an unfixed vulnerability; this repository is public. The repository has no `SECURITY.md`, and GitHub's private vulnerability reporting is turned off as of September 2026, so contact the maintainers privately first. <!-- id:c1G7qQ-T -->
+Report security issues by email to [security@hyper.media](mailto:security@hyper.media). Do not open a public issue or pull request about an unfixed vulnerability. This repository is public. <!-- id:c1G7qQ-T -->
 
 Once a vulnerability is fixed, the team discloses it as a GitHub issue closed by the fixing commit. The public record of what has been audited and which hypotheses were ruled out is `docs/security/audit-log.md`, and the audit procedure itself is `docs/security/auditor.md`. The known limits you should design around, such as the unauthenticated local [daemon API](./grpc.md) and non-revocable [capabilities](../protocol/permissions.md), are listed on [Integrity](../protocol/integrity.md). <!-- id:xbymaI9s -->
 
