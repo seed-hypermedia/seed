@@ -24,10 +24,10 @@ A **closed struct** with these fields: <!-- id:aPWcE-eZ -->
 - [rpc/type/capability](./capability.md) <!-- id:DNmDsWAi -->
 - [rpc/type/site-member](./site-member.md) <!-- id:0RjtWQQY -->
 
-# See also
+# See also <!-- id:uUQ40NTq -->
 
-- [ListDocumentCollaborators](../list-document-collaborators.md): the method that returns it.
-- [Capability (Payload)](./capability.md): each granted capability.
-- [Site Member](./site-member.md): each member.
-- [Permissions](../../protocol/permissions.md): how capabilities and roles work.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [ListDocumentCollaborators](../list-document-collaborators.md): the method that returns it. <!-- id:glNOoMy9 -->
+- [Capability (Payload)](./capability.md): each granted capability. <!-- id:abHkXd29 -->
+- [Site Member](./site-member.md): each member. <!-- id:_P3W7gBO -->
+- [Permissions](../../protocol/permissions.md): how capabilities and roles work. <!-- id:Vu92RQQ6 -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:701Kv6C9 -->

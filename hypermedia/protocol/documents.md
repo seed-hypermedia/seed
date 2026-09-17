@@ -13,12 +13,11 @@ build operations → create Change → sign Change → create Ref → sign Ref �
 ```
 
 A **[Change](../change.md)** is a [blob](./blobs.md) that describes the creation or edit of a document. Each change has three parts: <!-- id:6paxNCn4 -->
+  - **operations**: a list of additions, modifications or removals of document state. <!-- id:Do15h1uK -->
+  - **dependencies**: the other changes that must be applied before this one. <!-- id:zha2u5Ga -->
+  - **authorship**: the signer, the signature and the timestamp. <!-- id:XFwa2lFM -->
 
-- **operations**: a list of additions, modifications or removals of document state.
-- **dependencies**: the other changes that must be applied before this one.
-- **authorship**: the signer, the signature and the timestamp.
-
-Because a change links to its dependencies, the changes form a graph with no cycles, and a change usually represents a version of the document. The graph grows as the document evolves. A change may have several dependencies, so you can merge a branch back into the main line.
+Because a change links to its dependencies, the changes form a graph with no cycles, and a change usually represents a version of the document. The graph grows as the document evolves. A change may have several dependencies, so you can merge a branch back into the main line. <!-- id:fXamt7O- -->
 
 A change can exist without affecting what readers see. The **[Ref](../ref.md)** blob states the current version of a document at an address. It holds a location (space and path), authorship, and the active version (the change CIDs that are the current heads). To read a document, find the newest Ref for the address, check that its signer is [allowed to write](./permissions.md) there, and replay the changes it points at. A Ref makes a document appear at an [`hm://` address](./urls.md). Without an indexed Ref the changes exist as raw blobs, and no document is listed. <!-- id:zeAp63Rn -->
 
@@ -168,10 +167,10 @@ As of September 2026 the team is designing a successor blob layout (working name
 # See also <!-- id:4OidKq_I -->
 
 - [Signed Blobs](./blobs.md) for the envelope and CIDs. <!-- id:B_jDH2D4 -->
-- [URLs](./urls.md) for how versions and blocks appear in links.
+- [URLs](./urls.md) for how versions and blocks appear in links. <!-- id:CU4kqvBc -->
 - [Blocks](./blocks.md) for the content model inside a document. <!-- id:hR3FaiGM -->
 - [Permissions](./permissions.md) for who may publish a Ref. <!-- id:puNFPZjx -->
-- [Privacy](./privacy.md) for private documents.
-- [Comments](./comments.md) for discussion attached to a document.
+- [Privacy](./privacy.md) for private documents. <!-- id:-HzPh5hd -->
+- [Comments](./comments.md) for discussion attached to a document. <!-- id:33TzTk0U -->
 - Schema pages: [change](../change.md), [change/op](../change/op.md), [ref](../ref.md), [ref/redirect-target](../ref/redirect-target.md), [document](../document.md), [metadata](../metadata.md). <!-- id:Tl4S-9FB -->
 - Read models: [Resource](../rpc/resource.md), [ListChanges](../rpc/list-changes.md). <!-- id:CdT9G_e1 -->

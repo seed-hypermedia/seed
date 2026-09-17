@@ -212,10 +212,10 @@ Troubleshooting sequence: <!-- id:sttnj-Cy -->
 
 The planned WebSocket protocol v2 (heartbeat, explicit unsubscribe, subscription limits, backpressure, reconnect cursors, and metrics) is on the [roadmap](./roadmap.md). <!-- id:kEebyX8V -->
 
-# See also
+# See also <!-- id:RI2uEBnH -->
 
-- [Signed API](./signed-api.md)
-- [System overview](./system-overview.md)
-- [Persistence](./persistence.md)
-- [Desktop and web UI](./desktop-ui.md)
-- [Troubleshooting](./troubleshooting.md)
+- [Signed API](./signed-api.md) <!-- id:1ULln6ca -->
+- [System overview](./system-overview.md) <!-- id:ZFWBX-DI -->
+- [Persistence](./persistence.md) <!-- id:zIxVyd5y -->
+- [Desktop and web UI](./desktop-ui.md) <!-- id:xmPQke6b -->
+- [Troubleshooting](./troubleshooting.md) <!-- id:MaaIFsUE -->

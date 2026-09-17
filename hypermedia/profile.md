@@ -25,10 +25,10 @@ Set a profile with `seed-cli account profile set --name … --icon ipfs://… --
 - [principal](./principal.md) <!-- id:XELjiLjq -->
 - [string](./string.md) <!-- id:U1O1ayoB -->
 
-# See also
+# See also <!-- id:FtxIRJ-W -->
 
-- [Identity](./protocol/identity.md): accounts, aliases and linked keys.
-- [capability](./capability.md): the AGENT grant an alias needs.
-- [contact](./contact.md): the name one account gives another.
-- [principal](./principal.md): how the key is encoded.
-- [blob](./blob.md): the signed envelope.
+- [Identity](./protocol/identity.md): accounts, aliases and linked keys. <!-- id:iYdCP0GH -->
+- [capability](./capability.md): the AGENT grant an alias needs. <!-- id:BD3OW0In -->
+- [contact](./contact.md): the name one account gives another. <!-- id:Fse-CNlu -->
+- [principal](./principal.md): how the key is encoded. <!-- id:QrS5xiJl -->
+- [blob](./blob.md): the signed envelope. <!-- id:amrIq187 -->

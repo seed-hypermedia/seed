@@ -7,36 +7,34 @@ This is the only forward-looking page for [Seed Agents](../agent.md). It lists w
 # What exists today <!-- id:fuShc1t7 -->
 
 These parts are complete enough to build on: <!-- id:hpRRD8nC -->
-
-- a standalone Bun service with a signed CBOR HTTP API and signed WebSocket subscriptions ([signed API](./signed-api.md), [WebSocket subscriptions](./websocket-subscriptions.md));
-- SQLite persistence behind a schema gate, and encrypted provider secrets;
-- registry-driven [model providers](./model-providers.md) (OpenAI, Anthropic, Google, OpenRouter, DeepSeek, Groq, xAI, Ollama, custom) executing through the Pi SDK, with reasoning levels and ChatGPT subscription sign-in;
-- agents, sessions, collaborators, public read, and public chat;
-- the [runs](./runs.md) tree as dispatch queue, with leases, boot-sweep recovery, fair-share ordering across accounts, and cancellation over subtrees;
-- the five verbs ([read](./read.md), [write](./write.md), [call](./call.md), [delegate](./delegate.md), [plan](./plan.md)) as the whole model-facing surface;
-- tools as content-addressed [tool documents](./tool-document.md) with touch-expand and [promotion](./promotion.md);
-- remote [MCP servers](./mcp.md);
-- model and script [children](./child.md) with [typed results](./typed-result.md) and [journaled](./journal.md) replay;
-- budgeted delegation with thoroughness presets;
-- [parked](./park.md) runs and every [wake source](./wake-source.md);
-- six [trigger](./trigger.md) sources and four continuations;
-- the symmetric [log](./log.md) with the [wrench palette](./wrench-palette.md);
-- [session continuation](./session-continuation.md) in place of compaction;
-- per-agent memory, attachments, self-hosted web search and reading, and sandboxed execution with an opt-in warm microVM pool;
-- the shared desktop and web UI ([desktop UI](./desktop-ui.md)), and the local agents server embedded in the [desktop app](../apps/desktop.md);
-- delegated signers proven by a published [capability](../protocol/permissions.md) blob.
+  - a standalone Bun service with a signed CBOR HTTP API and signed WebSocket subscriptions ([signed API](./signed-api.md), [WebSocket subscriptions](./websocket-subscriptions.md)); <!-- id:mEkaxXr_ -->
+  - SQLite persistence behind a schema gate, and encrypted provider secrets; <!-- id:6cCtPCVH -->
+  - registry-driven [model providers](./model-providers.md) (OpenAI, Anthropic, Google, OpenRouter, DeepSeek, Groq, xAI, Ollama, custom) executing through the Pi SDK, with reasoning levels and ChatGPT subscription sign-in; <!-- id:52B0wkkI -->
+  - agents, sessions, collaborators, public read, and public chat; <!-- id:f5NzuVU6 -->
+  - the [runs](./runs.md) tree as dispatch queue, with leases, boot-sweep recovery, fair-share ordering across accounts, and cancellation over subtrees; <!-- id:wHKDBm26 -->
+  - the five verbs ([read](./read.md), [write](./write.md), [call](./call.md), [delegate](./delegate.md), [plan](./plan.md)) as the whole model-facing surface; <!-- id:90yBbi2T -->
+  - tools as content-addressed [tool documents](./tool-document.md) with touch-expand and [promotion](./promotion.md); <!-- id:XJrpYzG3 -->
+  - remote [MCP servers](./mcp.md); <!-- id:DLu5cN-t -->
+  - model and script [children](./child.md) with [typed results](./typed-result.md) and [journaled](./journal.md) replay; <!-- id:TP-J0KnR -->
+  - budgeted delegation with thoroughness presets; <!-- id:DZ2aFUYE -->
+  - [parked](./park.md) runs and every [wake source](./wake-source.md); <!-- id:hp7RdoOz -->
+  - six [trigger](./trigger.md) sources and four continuations; <!-- id:pVEOZGSI -->
+  - the symmetric [log](./log.md) with the [wrench palette](./wrench-palette.md); <!-- id:zXT4FBKY -->
+  - [session continuation](./session-continuation.md) in place of compaction; <!-- id:To2Kiz9e -->
+  - per-agent memory, attachments, self-hosted web search and reading, and sandboxed execution with an opt-in warm microVM pool; <!-- id:-0Ua771M -->
+  - the shared desktop and web UI ([desktop UI](./desktop-ui.md)), and the local agents server embedded in the [desktop app](../apps/desktop.md); <!-- id:AL5v7MlM -->
+  - delegated signers proven by a published [capability](../protocol/permissions.md) blob. <!-- id:JFhuHOFY -->
 
 # Highest priority <!-- id:kVLJTyIl -->
 
 ## 1. Trigger documents <!-- id:rvAwOYgb -->
 
-[Triggers](./triggers.md) are the one piece of standing authority an agent holds. They are still SQLite rows behind CRUD actions, plus the `~/triggers/` verb surface. The planned work:
-
-- content-addressed trigger documents versioned by [CID](../protocol/blobs.md), like `~/tools/`;
-- a migration off `agent_triggers` that carries [firing](./firing.md) keys forward so nothing re-fires;
-- a `document-change` source and an `appendTo` continuation;
-- deleting the CRUD actions;
-- a desktop editor that replaces the dialogs. The dialogs cannot create a `run-completed` trigger today, but the API and the agent's `write ~/triggers/<name>` can.
+[Triggers](./triggers.md) are the one piece of standing authority an agent holds. They are still SQLite rows behind CRUD actions, plus the `~/triggers/` verb surface. The planned work: <!-- id:il6D2VM6 -->
+  - content-addressed trigger documents versioned by [CID](../protocol/blobs.md), like `~/tools/`; <!-- id:yqdWXe3J -->
+  - a migration off `agent_triggers` that carries [firing](./firing.md) keys forward so nothing re-fires; <!-- id:kU1-wsll -->
+  - a `document-change` source and an `appendTo` continuation; <!-- id:GkpsnuwW -->
+  - deleting the CRUD actions; <!-- id:8C61c9Bx -->
+  - a desktop editor that replaces the dialogs. The dialogs cannot create a `run-completed` trigger today, but the API and the agent's `write ~/triggers/<name>` can. <!-- id:n4oF5Mc0 -->
 
 The earlier draft-then-activate consent proposal is not wanted. <!-- id:cB9oVnBU -->
 
@@ -93,20 +91,19 @@ Each of these was a plan page. The plan is in git, and the result is in the refe
 # Definition of done <!-- id:Kv6fICmJ -->
 
 A milestone is done when all of these hold: <!-- id:qlLug2wi -->
+  - the code is implemented; <!-- id:E0oHl03w -->
+  - tests pass for the touched areas; <!-- id:rBppSqlb -->
+  - the reference pages describe the result, and this roadmap no longer lists it; <!-- id:P3Ii-Poz -->
+  - security and logging implications are reviewed; <!-- id:aDf1uH9o -->
+  - the desktop smoke test has run, if UI or runtime behaviour changed. <!-- id:dNacfzLu -->
 
-- the code is implemented;
-- tests pass for the touched areas;
-- the reference pages describe the result, and this roadmap no longer lists it;
-- security and logging implications are reviewed;
-- the desktop smoke test has run, if UI or runtime behaviour changed.
+# See also <!-- id:QlZx5VP1 -->
 
-# See also
-
-- [Seed Agents](../agent.md)
-- [System overview](./system-overview.md)
-- [Delegation budgets](./plans/delegation-budgets.md)
-- [Speed](./plans/speed.md)
-- [Worker-isolated execution](./plans/worker-isolated-execution.md)
-- [Multi-server architecture](./plans/multi-server-architecture.md)
-- [Model comms latency](./plans/model-comms-latency.md)
-- [Security](./security.md)
+- [Seed Agents](../agent.md) <!-- id:QwtCJ9YU -->
+- [System overview](./system-overview.md) <!-- id:GQdcvCaO -->
+- [Delegation budgets](./plans/delegation-budgets.md) <!-- id:v3blYZON -->
+- [Speed](./plans/speed.md) <!-- id:DnY_j6h6 -->
+- [Worker-isolated execution](./plans/worker-isolated-execution.md) <!-- id:2iN_PR_6 -->
+- [Multi-server architecture](./plans/multi-server-architecture.md) <!-- id:Z2Wnk1Fs -->
+- [Model comms latency](./plans/model-comms-latency.md) <!-- id:Gj3UeQdG -->
+- [Security](./security.md) <!-- id:DEncMZXK -->

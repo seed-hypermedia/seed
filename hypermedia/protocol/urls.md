@@ -76,13 +76,12 @@ Add `.md` or `.json` to the document segment of a site URL to export it: `https:
 ## Reserved first segments <!-- id:mJl-MXsn -->
 
 On a web host: <!-- id:6pQNHaI1 -->
+  - `/hm/…` is the [gateway](./sites.md) namespace, and `/hm/api/…` holds its services. <!-- id:hhy1aPmM -->
+  - `/api/<Key>` is the [Seed API](../build/web-api.md). <!-- id:AB08SQb4 -->
+  - `/ipfs/<cid>` serves raw blobs ([Files](./files.md)). <!-- id:NJc-Zih1 -->
+  - `/robots.txt` and `/.well-known/` are the usual web reservations. <!-- id:tMrg73-4 -->
 
-- `/hm/…` is the [gateway](./sites.md) namespace, and `/hm/api/…` holds its services.
-- `/api/<Key>` is the [Seed API](../build/web-api.md).
-- `/ipfs/<cid>` serves raw blobs ([Files](./files.md)).
-- `/robots.txt` and `/.well-known/` are the usual web reservations.
-
-Under `/hm/`, the segments `download`, `connect`, `register`, `profile`, `contact`, `agents`, `auth`, `create-site`, `notifications`, `embed` and `inspect` are pages. None of them is a space. In the `hm://` scheme itself, `hm://connect/<payload>` carries a peer-connection invitation and `hm://inspect/<uid>/<path>` opens the app's blob inspector. Neither is a document address.
+Under `/hm/`, the segments `download`, `connect`, `register`, `profile`, `contact`, `agents`, `auth`, `create-site`, `notifications`, `embed` and `inspect` are pages. None of them is a space. In the `hm://` scheme itself, `hm://connect/<payload>` carries a peer-connection invitation and `hm://inspect/<uid>/<path>` opens the app's blob inspector. Neither is a document address. <!-- id:uTivcFxL -->
 
 # Working with URLs <!-- id:6fOFhA7C -->
 
@@ -113,8 +112,8 @@ The `Resource` request takes the packed id as its `id` parameter: `GET /api/Reso
 # See also <!-- id:zi3pWi3V -->
 
 - [Documents](./documents.md) for what a version is. <!-- id:84OVp_oO -->
-- [Blocks](./blocks.md) for block ids and ranges.
+- [Blocks](./blocks.md) for block ids and ranges. <!-- id:Lvw4oYNf -->
 - [Sites](./sites.md) for registration and `/hm/api/config`. <!-- id:lvPrUoZm -->
-- [Comments](./comments.md) for comment ids.
-- [Network](./network.md) for how an `hm://` address is discovered.
+- [Comments](./comments.md) for comment ids. <!-- id:xZAg6Qsx -->
+- [Network](./network.md) for how an `hm://` address is discovered. <!-- id:8N3XnLBb -->
 - Schema pages: [hm-url](../hm-url.md) (the value type used in schemas), [ipfs-url](../ipfs-url.md), [principal](../principal.md). <!-- id:_3qmjREW -->

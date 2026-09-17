@@ -19,9 +19,9 @@ A **closed struct** with these fields: <!-- id:hVjHrQ0n -->
 
 - [string](../../string.md) <!-- id:_2S5kV0V -->
 
-# See also
+# See also <!-- id:WVm97pex -->
 
-- [MoveBlocks](./move-blocks.md): the move rules deletion follows.
-- [ReplaceBlock](./replace-block.md): the content register a delete leaves alone.
-- [change/op](../op.md): all operations.
-- [Documents](../../protocol/documents.md): replay and history.
+- [MoveBlocks](./move-blocks.md): the move rules deletion follows. <!-- id:iHlEhpIT -->
+- [ReplaceBlock](./replace-block.md): the content register a delete leaves alone. <!-- id:LQsdUH9V -->
+- [change/op](../op.md): all operations. <!-- id:qOu4hWU3 -->
+- [Documents](../../protocol/documents.md): replay and history. <!-- id:StvTCa1l -->

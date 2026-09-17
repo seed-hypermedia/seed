@@ -1,6 +1,6 @@
 ---
 name: Place
-summary: "A world-builder page type for a place, whose attributes require a kind and may add a founding date, a parent region, and a coordinates object."
+summary: A world-builder page type for a place, whose attributes require a kind and may add a founding date, a parent region, and a coordinates object.
 schemaDefinition: ipfs://bafyreif2ualrqd5jryfqgwd3yhgocrc7zewjkj3lldtagt2pvbd3qzjzhm
 ---
 A [World Builder](../schema/world-builder.md) page type for a place. Its [attributes](../schema/typed-documents.md) require a `kind` and may carry a `founded` date. A place can nest inside a `region`, which is another place, and link to a coordinates object through an [ipfs:// URL](../ipfs-url.md). That object must conform to [geo](./geo.md). <!-- id:7NTBcQkU -->
@@ -24,9 +24,9 @@ A **closed struct** with these fields: <!-- id:Ow0yN6aL -->
 - [date](../date.md) <!-- id:-lpQetBo -->
 - [string](../string.md) <!-- id:4eJ_Aidm -->
 
-# See also
+# See also <!-- id:50FuA0nD -->
 
-- [World Builder](../schema/world-builder.md): the demo these types come from.
-- [geo](./geo.md): the coordinates type.
-- [faction-doc](./faction-doc.md): the ruler type.
-- [Examples](../example.md): every example, grouped by feature.
+- [World Builder](../schema/world-builder.md): the demo these types come from. <!-- id:5hWKCEzf -->
+- [geo](./geo.md): the coordinates type. <!-- id:bmiALNrc -->
+- [faction-doc](./faction-doc.md): the ruler type. <!-- id:lr3L6JWH -->
+- [Examples](../example.md): every example, grouped by feature. <!-- id:GXxNYEQ0 -->

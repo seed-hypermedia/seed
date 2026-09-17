@@ -18,8 +18,8 @@ A **closed struct** with these fields: <!-- id:30yArQuX -->
 
 - [string](../../string.md) <!-- id:mvuguHT_ -->
 
-# See also
+# See also <!-- id:rpVxi04m -->
 
-- [DiscoveryStatus](../discovery-status.md): the method that returns it.
-- [Network](../../protocol/network.md): discovery and sync.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [DiscoveryStatus](../discovery-status.md): the method that returns it. <!-- id:NITUrPji -->
+- [Network](../../protocol/network.md): discovery and sync. <!-- id:7p9hS2zd -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:kaaw6E3l -->

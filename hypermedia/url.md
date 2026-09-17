@@ -11,10 +11,10 @@ This page describes the **url** type, a value type of [Hypermedia Schemas](./sch
 
 Kind: `string`. <!-- id:Pj-VXb-Q -->
 
-# See also
+# See also <!-- id:GuZo5fUD -->
 
-- [hm-url](./hm-url.md): a reference to a Hypermedia document.
-- [ipfs-url](./ipfs-url.md): a reference to a file by CID.
-- [URLs](./protocol/urls.md): the `hm://` scheme and how it maps to the web.
-- [metadata](./metadata.md): `siteUrl` and the other URL keys.
-- [navigation item](./metadata/navigation-item.md): a menu entry with a link.
+- [hm-url](./hm-url.md): a reference to a Hypermedia document. <!-- id:uBTlGwij -->
+- [ipfs-url](./ipfs-url.md): a reference to a file by CID. <!-- id:fYlGSHsm -->
+- [URLs](./protocol/urls.md): the `hm://` scheme and how it maps to the web. <!-- id:EWAs5Sgw -->
+- [metadata](./metadata.md): `siteUrl` and the other URL keys. <!-- id:D9GiNvm2 -->
+- [navigation item](./metadata/navigation-item.md): a menu entry with a link. <!-- id:sRoRh-ih -->

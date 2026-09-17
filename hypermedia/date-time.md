@@ -11,9 +11,9 @@ This page describes the **date-time** type, a value type of [Hypermedia Schemas]
 
 Kind: `string`. <!-- id:ZgB4U8NO -->
 
-# See also
+# See also <!-- id:vGexqQNi -->
 
-- [date](./date.md): a calendar date without a time.
-- [timestamp](./timestamp.md): the Unix-millisecond time inside blobs.
-- [string](./string.md): the underlying kind.
-- [Scalar schema](./schema/scalar-schema.md): how `format` and patterns refine a string.
+- [date](./date.md): a calendar date without a time. <!-- id:kHOef67Q -->
+- [timestamp](./timestamp.md): the Unix-millisecond time inside blobs. <!-- id:4Mglu7q6 -->
+- [string](./string.md): the underlying kind. <!-- id:10HU0a0l -->
+- [Scalar schema](./schema/scalar-schema.md): how `format` and patterns refine a string. <!-- id:B7uD_g9g -->

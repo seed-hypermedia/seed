@@ -1,6 +1,6 @@
 ---
 name: Reference Schema
-summary: "The variant for a reference, which is a bare include or, when it carries refinements, an extension."
+summary: The variant for a reference, which is a bare include or, when it carries refinements, an extension.
 schemaDefinition: ipfs://bafyreia5b773b75qoqhrey3snq26ioz4wwmtlixtasnlkf6npjeurmeoae
 ---
 **Include**: a `type` that names another schema by its [URL](../hm-url.md) and nothing else: `{ "type": "hm://…" }`. The node becomes exactly that schema. Adding any other key, such as `properties`, `values`, `items`, `target` or a leaf constraint, makes the node refine the schema it names instead. That is an [extension](./extension.md). [References and naming](./references.md) covers includes, links and extensions. <!-- id:NgjaircK -->
@@ -23,10 +23,10 @@ A **closed struct** with these fields: <!-- id:tVGElzcp -->
 
 - [schema](../schema.md) <!-- id:ztCcR1XB -->
 
-# See also
+# See also <!-- id:BVzFQBbC -->
 
-- [References and naming](./references.md): include, typed link and extension, and why references are names.
-- [Extension](./extension.md): an include that also carries refinements.
-- [Link schema](./link-schema.md): a pointer to a separate block, where an include embeds a shape.
-- [`hm://` URL](../hm-url.md): how a reference names its schema.
-- [Variant](./variant.md): the members of the meta-schema union.
+- [References and naming](./references.md): include, typed link and extension, and why references are names. <!-- id:rBMw5f8h -->
+- [Extension](./extension.md): an include that also carries refinements. <!-- id:n-oYFjoy -->
+- [Link schema](./link-schema.md): a pointer to a separate block, where an include embeds a shape. <!-- id:zQ995yat -->
+- [`hm://` URL](../hm-url.md): how a reference names its schema. <!-- id:BsE9Xede -->
+- [Variant](./variant.md): the members of the meta-schema union. <!-- id:Yel3N5KH -->

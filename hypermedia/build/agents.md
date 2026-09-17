@@ -102,8 +102,8 @@ In [Seed Agents](../agent.md), this page's operations are the `read`, `write` an
 
 - [Seed Agents](../agent.md) and its [tools](../agent/tools.md) <!-- id:iC-sBE-r -->
 - [Keys](./keys.md) <!-- id:4qZxnnqx -->
-- [The signed API](../agent/signed-api.md)
-- [MCP servers](../agent/mcp.md)
-- [Sign in with Seed](./sign-in.md)
-- [Query grammar](./query-grammar.md)
-- [Seed CLI](./cli.md)
+- [The signed API](../agent/signed-api.md) <!-- id:L7hM8ozn -->
+- [MCP servers](../agent/mcp.md) <!-- id:HPP-Hx1k -->
+- [Sign in with Seed](./sign-in.md) <!-- id:2TC5K8BN -->
+- [Query grammar](./query-grammar.md) <!-- id:CaBSHL7I -->
+- [Seed CLI](./cli.md) <!-- id:9XraUbPK -->

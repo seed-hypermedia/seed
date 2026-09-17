@@ -234,7 +234,7 @@ Seed Agents call these same functions when an agent's [`write`](../agent/write.m
 - [Seed API](./web-api.md) <!-- id:7ckPCJ6j -->
 - [Blobs](../protocol/blobs.md) <!-- id:HKj6dP4l -->
 - [Change](../change.md), the blob a document is built from <!-- id:cysKeVxe -->
-- [Seed CLI](./cli.md)
-- [Keys](./keys.md)
-- [Sign in with Seed](./sign-in.md)
-- [Query grammar](./query-grammar.md)
+- [Seed CLI](./cli.md) <!-- id:wcLvU_Qx -->
+- [Keys](./keys.md) <!-- id:NjPCSXMt -->
+- [Sign in with Seed](./sign-in.md) <!-- id:UDcI1Ddr -->
+- [Query grammar](./query-grammar.md) <!-- id:cJXiZige -->

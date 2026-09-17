@@ -22,7 +22,6 @@ A page publishes at its path: `protocol/documents.md` is `/protocol/documents`. 
 | `example.md`, `example/` | example schemas and instances |
 | `agent.md`, `agent/` | Seed Agents: reference pages, one page per term, the live roadmap and plans |
 | `glossary.md` | one entry per term |
-| `history.md`, `history/` | dated design records |
 | `schemas.lock.json`, `schemas.aliases.json`, `pages.aliases.json` | not published: every schema's CID, old schema names that still resolve, and old page paths that redirect |
 
 A `*.schema.json` beside a page is the schema that page defines. It is encoded to canonical DAG-CBOR, published as a blob, and bound to the page as `schemaDefinition: ipfs://<cid>`. A page without a schema can still be an instance of a type by naming one in `attributesSchema` in its frontmatter (see `example/bob.md`). How documents bind to schemas is explained in [Typed documents](./schema/typed-documents.md).

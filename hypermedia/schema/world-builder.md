@@ -30,11 +30,11 @@ A type page is a document like any other, so you edit the ontology the way you e
 
 The whole tree is ordinary Hypermedia. You can [sync](../protocol/network.md) it, share it, [comment](../protocol/comments.md) on it, and query it from another [space](../protocol/identity.md). [Typed documents](./typed-documents.md) explains the model underneath. <!-- id:OMoeBJCw -->
 
-# See also
+# See also <!-- id:0cizZ2YE -->
 
-- [Typed documents](./typed-documents.md): the three keys that bind a document to a type.
-- [User stories](./user-stories.md): the same features, step by step in the app, the CLI and an agent.
-- [References and naming](./references.md): why a `target` can name a page that does not exist yet.
-- [Schema language](./schema-language.md): the vocabulary the type pages are written in.
-- [Metadata](../metadata.md): the built-in keys, including `attributesSchema` and `childAttributesSchema`.
-- [Examples](../example.md): the library's example schemas, including the World kit.
+- [Typed documents](./typed-documents.md): the three keys that bind a document to a type. <!-- id:OzEiw_oJ -->
+- [User stories](./user-stories.md): the same features, step by step in the app, the CLI and an agent. <!-- id:Zotapw4E -->
+- [References and naming](./references.md): why a `target` can name a page that does not exist yet. <!-- id:Cp4CsWXx -->
+- [Schema language](./schema-language.md): the vocabulary the type pages are written in. <!-- id:l_-8A42B -->
+- [Metadata](../metadata.md): the built-in keys, including `attributesSchema` and `childAttributesSchema`. <!-- id:BiRzyeVK -->
+- [Examples](../example.md): the library's example schemas, including the World kit. <!-- id:OgmaGHH2 -->

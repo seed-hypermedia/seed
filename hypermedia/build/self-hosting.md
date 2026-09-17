@@ -134,5 +134,5 @@ As of September 2026, the deploy script does not yet report new deployments to t
 - [Network](../protocol/network.md), how the site's daemon syncs with the app that publishes to it <!-- id:pYi4ny5p -->
 - [Seed API](./web-api.md), everything your new server answers <!-- id:DRTZJIFU -->
 - [Web app](../apps/web.md) and [daemon](../apps/daemon.md), configuration and flags in detail <!-- id:eSSvPKrX -->
-- [Keys](./keys.md), the key that publishes to the site
-- [Contributing](./contributing.md), for the `ops/` deploy tooling
+- [Keys](./keys.md), the key that publishes to the site <!-- id:ia1UxKo- -->
+- [Contributing](./contributing.md), for the `ops/` deploy tooling <!-- id:4hicMIvg -->

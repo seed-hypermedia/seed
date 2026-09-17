@@ -1,6 +1,6 @@
 ---
 name: "RPC: ResourceMetadata"
-summary: "Returns only the metadata payload of a resource, given its parsed id."
+summary: Returns only the metadata payload of a resource, given its parsed id.
 schemaDefinition: ipfs://bafyreiain6czrhflzyx6v62c6zcbquudbbkdmakxzixktvk5r7qocy5j44
 ---
 Fetches only the [metadata](../metadata.md) of a [resource](../glossary.md), given its [parsed id](./type/id.md). The result is a [metadata payload](./type/metadata-payload.md). <!-- id:C2feHa74 -->
@@ -19,11 +19,11 @@ A **closed struct** with these fields: <!-- id:5AAU-kvD -->
 - [rpc/type/id](./type/id.md) <!-- id:_dSHDZrd -->
 - [rpc/type/metadata-payload](./type/metadata-payload.md) <!-- id:x5jQfnso -->
 
-# See also
+# See also <!-- id:FPSmawDq -->
 
-- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
-- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
-- [RPC](./method.md): every method in one union.
-- [Resource](./resource.md): fetch the whole resource.
-- [Metadata](../metadata.md): every metadata key.
-- [Hypermedia URLs](../protocol/urls.md): the ids this method takes.
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication. <!-- id:szp1UmJU -->
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console. <!-- id:i2zrOeuj -->
+- [RPC](./method.md): every method in one union. <!-- id:BvCbPmAm -->
+- [Resource](./resource.md): fetch the whole resource. <!-- id:kh4U9QlB -->
+- [Metadata](../metadata.md): every metadata key. <!-- id:n5qjw3wG -->
+- [Hypermedia URLs](../protocol/urls.md): the ids this method takes. <!-- id:iCEGsjd1 -->

@@ -50,11 +50,11 @@ Canonical DAG-CBOR is deterministic, so **the CID is a pure function of a schema
 
 Anyone can resolve a schema by its `hm://` name, through the manifest or the authority. They can also fetch an exact version by CID, decode the DAG-CBOR, and type-check data against it. That is the same validation this repo runs locally. <!-- id:53nL6eHG -->
 
-# See also
+# See also <!-- id:f3T2QJJS -->
 
-- [References and naming](./references.md): why references are names and not CIDs.
-- [The data model](./data-model.md): the nine kinds, including link and bytes.
-- [DAG-CBOR](./dag-cbor.md), [dag-json](./dag-json.md), [Envelope](./envelope.md) and [Canonical encoding](./canonical-encoding.md): the term pages.
-- [Blobs](../protocol/blobs.md): how the network encodes and signs its data.
-- [CID](../cid.md): the CID type.
-- [Schemas for network blobs](./blobs.md): the blob schemas built on this encoding.
+- [References and naming](./references.md): why references are names and not CIDs. <!-- id:a5VF35ot -->
+- [The data model](./data-model.md): the nine kinds, including link and bytes. <!-- id:-R8AO22o -->
+- [DAG-CBOR](./dag-cbor.md), [dag-json](./dag-json.md), [Envelope](./envelope.md) and [Canonical encoding](./canonical-encoding.md): the term pages. <!-- id:-lKkBjIt -->
+- [Blobs](../protocol/blobs.md): how the network encodes and signs its data. <!-- id:bMA7jKeP -->
+- [CID](../cid.md): the CID type. <!-- id:IxZuGZOV -->
+- [Schemas for network blobs](./blobs.md): the blob schemas built on this encoding. <!-- id:ylJUSWo0 -->

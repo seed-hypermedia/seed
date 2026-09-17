@@ -1,6 +1,6 @@
 ---
 name: RPC
-summary: "The union of every read-only method of the Seed API, each variant pinning a method key and typing its input and output."
+summary: The union of every read-only method of the Seed API, each variant pinning a method key and typing its input and output.
 schemaDefinition: ipfs://bafyreihceqkz5ertrc6mrnefoj4b5ink2nczuogohthdbanucs26aeackm
 ---
 The union of every read-only method of the [Seed API](../build/web-api.md). Each variant pins a method key and types its input and output. The app's [API console](../rpc.md) builds its method picker from this union. <!-- id:IKHnPUjW -->
@@ -66,10 +66,10 @@ A **union**. A value matches one of these variants: <!-- id:t3jRiLMY -->
 - [rpc/search](./search.md) <!-- id:fF0JDz5h -->
 - [rpc/subject-contacts](./subject-contacts.md) <!-- id:mpRvoduy -->
 
-# See also
+# See also <!-- id:WY60lqm- -->
 
-- [Seed API Schemas](../rpc.md): how the methods are published and the console.
-- [Seed API](../build/web-api.md): calling these keys over HTTP.
-- [SDK](../build/sdk.md): typed calls from TypeScript.
-- [Resource](./resource.md): the most common read.
-- [Search](./search.md): full-text search.
+- [Seed API Schemas](../rpc.md): how the methods are published and the console. <!-- id:Eh4B2bQE -->
+- [Seed API](../build/web-api.md): calling these keys over HTTP. <!-- id:iPUozo1L -->
+- [SDK](../build/sdk.md): typed calls from TypeScript. <!-- id:kfjbyoNo -->
+- [Resource](./resource.md): the most common read. <!-- id:tWF0cW-d -->
+- [Search](./search.md): full-text search. <!-- id:d9IB0Vla -->

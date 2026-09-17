@@ -26,9 +26,9 @@ A **union**. A value matches one of these variants: <!-- id:jNUpA86w -->
 - [rpc/type/resource-redirect](./resource-redirect.md) <!-- id:g4RUXR0d -->
 - [rpc/type/resource-tombstone](./resource-tombstone.md) <!-- id:30MZAJAa -->
 
-# See also
+# See also <!-- id:gOc_LNIH -->
 
-- [Resource](../resource.md): the method that returns it.
-- [Parsed ID](./id.md): the id every state carries.
-- [Documents](../../protocol/documents.md): redirects and tombstones.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [Resource](../resource.md): the method that returns it. <!-- id:W2LDliym -->
+- [Parsed ID](./id.md): the id every state carries. <!-- id:obijvEt- -->
+- [Documents](../../protocol/documents.md): redirects and tombstones. <!-- id:UN4FeT97 -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:b8x7B6lc -->

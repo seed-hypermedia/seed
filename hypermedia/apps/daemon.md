@@ -41,11 +41,11 @@ Both gRPC and HTTP bind all interfaces, so other machines can reach them unless 
 # What it stores <!-- id:1pWs4GeY -->
 
 The data directory holds three things. <!-- id:sBs3fgUk -->
-  - `keys/libp2p_id_ed25519` is the device key. It is separate from every [account key](../protocol/identity.md).
-  - `vault.json` is the encrypted local keystore for account keys. A secret in the OS keychain decrypts it.
-  - `db/db.sqlite` is the SQLite database. It holds every [blob](../protocol/blobs.md), the index derived from them, full-text search, and the domain store.
+  - `keys/libp2p_id_ed25519` is the device key. It is separate from every [account key](../protocol/identity.md). <!-- id:b69girWF -->
+  - `vault.json` is the encrypted local keystore for account keys. A secret in the OS keychain decrypts it. <!-- id:hrt_nz2V -->
+  - `db/db.sqlite` is the SQLite database. It holds every [blob](../protocol/blobs.md), the index derived from them, full-text search, and the domain store. <!-- id:EFYA2PwL -->
 
-The schema in `backend/storage/schema.sql` is the source of truth, and migrations only go forward. Reindexing rebuilds everything derived from the blobs and can take a long time on a large node. A debug flag forces a reindex with profiling.
+The schema in `backend/storage/schema.sql` is the source of truth, and migrations only go forward. Reindexing rebuilds everything derived from the blobs and can take a long time on a large node. A debug flag forces a reindex with profiling. <!-- id:VHdZ4OXj -->
 
 # The HTTP surface <!-- id:6a_7IwIy -->
 
@@ -84,4 +84,4 @@ The [web app](./web.md) answers every site's `/api/<Key>` routes by calling the 
 
 - [Network](../protocol/network.md), [Files](../protocol/files.md), [Integrity](../protocol/integrity.md) <!-- id:6u82OxAd -->
 - [Building with gRPC](../build/grpc.md), [Self-hosting](../build/self-hosting.md), [Contributing](../build/contributing.md) <!-- id:4MEJP6xc -->
-- [The desktop app](./desktop.md), [The web app](./web.md)
+- [The desktop app](./desktop.md), [The web app](./web.md) <!-- id:XTRrvAGF -->

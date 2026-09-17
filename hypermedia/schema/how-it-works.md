@@ -27,18 +27,17 @@ Everything a schema types is an [IPLD](./ipld.md) value. Each value is one of ni
 # Layer 2: schemas and the meta-schema <!-- id:oOZsaLa6 -->
 
 A schema is a `map` value that constrains other values. It takes one of nine shapes: <!-- id:wjogEwsM -->
+  - a [`struct` schema](./struct-schema.md) with named fields, <!-- id:yetSbHOT -->
+  - a [`map` schema](./map-schema.md), an open map typed by `values`, <!-- id:nf_BZvrL -->
+  - a [`list` schema](./list-schema.md), <!-- id:cPxjp5jT -->
+  - a [`scalar` schema](./scalar-schema.md) with value constraints, <!-- id:HPbQwpOg -->
+  - a [`link` schema](./link-schema.md), a typed CID, <!-- id:ptezErPy -->
+  - an [`include`](./include-schema.md), a `type` that names another schema, <!-- id:sH-uapmQ -->
+  - a union with [`anyOf`](./anyof.md), <!-- id:3Dpdfoiy -->
+  - a [`var`](./var-schema.md), a type variable for [generics](./generic.md), <!-- id:N-VbcTAm -->
+  - a [`literal`](./literal-schema.md) written `{value, description}`. <!-- id:N7cdcnDo -->
 
-- a [`struct` schema](./struct-schema.md) with named fields,
-- a [`map` schema](./map-schema.md), an open map typed by `values`,
-- a [`list` schema](./list-schema.md),
-- a [`scalar` schema](./scalar-schema.md) with value constraints,
-- a [`link` schema](./link-schema.md), a typed CID,
-- an [`include`](./include-schema.md), a `type` that names another schema,
-- a union with [`anyOf`](./anyof.md),
-- a [`var`](./var-schema.md), a type variable for [generics](./generic.md),
-- a [`literal`](./literal-schema.md) written `{value, description}`.
-
-A bare string, integer, boolean or null is also a literal and accepts exactly that value. The [meta-schema](../schema.md) is the schema of schemas. It is the [discriminated union](./discriminated-union.md) of those shapes, and it validates as an instance of itself. The reference validator checks this [self-description](./self-description.md) on every run. See [the schema language](./schema-language.md).
+A bare string, integer, boolean or null is also a literal and accepts exactly that value. The [meta-schema](../schema.md) is the schema of schemas. It is the [discriminated union](./discriminated-union.md) of those shapes, and it validates as an instance of itself. The reference validator checks this [self-description](./self-description.md) on every run. See [the schema language](./schema-language.md). <!-- id:D-0xApZo -->
 
 # Layer 3: the library <!-- id:JEnxb06S -->
 
@@ -105,12 +104,12 @@ The system holds together because of a few properties that tooling checks: <!-- 
   - **Generated code matches the library.** `typegen --check` and the bundled-registry generator fail the build when out of date. <!-- id:qvFbt6RU -->
   - **Warnings never block writes.** A document with out-of-spec data still saves. The app shows the mismatch and does not enforce it. <!-- id:gl1Qu8GD -->
 
-# See also
+# See also <!-- id:52kolQhw -->
 
-- [Hypermedia Schemas in one page](./quick-reference.md): the model, the library and the tools in brief.
-- [The schema language](./schema-language.md): every schema shape and constraint.
-- [Typed documents](./typed-documents.md): the three binding keys and what the editor does with them.
-- [References and naming](./references.md): include, link and `hm://` names.
-- [Encoding](./encoding.md): DAG-CBOR, dag-json and canonical encoding.
-- [Publishing a folder](../build/publish-a-folder.md): how a folder of pages becomes a site.
-- [Blobs](../protocol/blobs.md): signed blobs and content addressing on the network.
+- [Hypermedia Schemas in one page](./quick-reference.md): the model, the library and the tools in brief. <!-- id:Wj-sDIOm -->
+- [The schema language](./schema-language.md): every schema shape and constraint. <!-- id:xBBlJDIT -->
+- [Typed documents](./typed-documents.md): the three binding keys and what the editor does with them. <!-- id:sMccYqLb -->
+- [References and naming](./references.md): include, link and `hm://` names. <!-- id:Vxd2KOx9 -->
+- [Encoding](./encoding.md): DAG-CBOR, dag-json and canonical encoding. <!-- id:VtAEOLmv -->
+- [Publishing a folder](../build/publish-a-folder.md): how a folder of pages becomes a site. <!-- id:ueJwXaZU -->
+- [Blobs](../protocol/blobs.md): signed blobs and content addressing on the network. <!-- id:KvT5OKM7 -->

@@ -101,7 +101,7 @@ The row links to its child through the parent transcript's `tool_spawn` event. [
 
 Checklist, in order: <!-- id:3hMFhTPK -->
   1. **Was the child awaited?** `delegate` with `await: false` is detached by design. The child joins the parent's run tree (visible in the progress card), but it never resolves a result and never wakes the parent. Check the parent transcript for the `delegate` input the model sent. If the model keeps detaching work whose result it needs, report it as a prompt problem. The verb's description steers the model to the awaited default. <!-- id:2jUcM9sM -->
-  2. Run `ListRuns {rootRunId}` on the parent's root and check whether the children are terminal while the parent is `waiting`. The parent's `wait_cbor.toolCallIds` should shrink as each child's finalizer appends the durable `delegate` tool_result. A restart runs `#reconcileWaitingRunsAtBoot`, which replays any child that finalized without resolving its parent. That pass exists because a child's terminal commit and its parent's wait resolution are separate transactions. <!-- id:qVv02EZb -->
+  2. Run `ListRuns {rootRunId}` on the parent's root and check whether the children are terminal while the parent is `waiting`. The parent's `wait_cbor.toolCallIds` should shrink as each child's finalizer appends the durable `delegate` tool_result. A restart runs `#reconcileWaitingRunsAtBoot`, which replays any child that finalized without resolving its parent. That pass exists because a child's terminal commit and its parent's wait resolution are separate transactions._ <!-- id:qVv02EZb -->
   3. A child that never delivered a required [typed result](./typed-result.md) does not vanish quietly. The parent run records `unmetObligations: [{kind: 'typed-result'}]`, which `GetRun` returns and the card shows. <!-- id:0bGn2DdH -->
   4. Where errors surface: a failed run's `error_cbor` shows in `RunInfo.error` and on the card. Failed script effects appear as `result {status: 'failed'}` [journal](./journal.md) entries, visible in the card's Activity drawer and in `GetRunJournal`. Agent-run failures also append a durable session `error` event after retries run out. <!-- id:kUlpL23z -->
 
@@ -145,12 +145,12 @@ rm -f agents/data/agents.sqlite agents/data/agents.sqlite-shm agents/data/agents
 
 Restart the server. <!-- id:y-E4pbt- -->
 
-# See also
+# See also <!-- id:l9QDdj-U -->
 
-- [Operations](./operations.md)
-- [Persistence](./persistence.md)
-- [Signed API](./signed-api.md)
-- [WebSocket subscriptions](./websocket-subscriptions.md)
-- [Tools](./tools.md)
-- [Security](./security.md)
-- [Agents glossary](./glossary.md)
+- [Operations](./operations.md) <!-- id:cSXHQ9JA -->
+- [Persistence](./persistence.md) <!-- id:posBEpFv -->
+- [Signed API](./signed-api.md) <!-- id:mO9rJX5n -->
+- [WebSocket subscriptions](./websocket-subscriptions.md) <!-- id:SOq81JU3 -->
+- [Tools](./tools.md) <!-- id:sQACZoxn -->
+- [Security](./security.md) <!-- id:1nlofFyf -->
+- [Agents glossary](./glossary.md) <!-- id:ZqhVL-mE -->

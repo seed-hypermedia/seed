@@ -1,6 +1,6 @@
 ---
 name: Comment Group
-summary: "A thread of comments grouped for display, with a count of elided replies."
+summary: A thread of comments grouped for display, with a count of elided replies.
 schemaDefinition: ipfs://bafyreie4js3bfbqu6gk6hyn2houaoxcadbmevayoxjrj7tcpbsmi6ccxaa
 ---
 A thread of [comments](../../protocol/comments.md) grouped for display, with a count of the replies left out. [rpc/list-discussions](../list-discussions.md) returns these. <!-- id:kfaho3GA -->
@@ -20,9 +20,9 @@ A **closed struct** with these fields: <!-- id:hQ_A0BRE -->
 - [string](../../string.md) <!-- id:Cmnm7JiI -->
 - [rpc/type/comment](./comment.md) <!-- id:fg2iMFOh -->
 
-# See also
+# See also <!-- id:JZ1PE70_ -->
 
-- [External Comment Group](./external-comment-group.md): a thread from a citing document.
-- [Comment (Payload)](./comment.md): each comment.
-- [ListDiscussions](../list-discussions.md): the method that returns groups.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [External Comment Group](./external-comment-group.md): a thread from a citing document. <!-- id:YJtB8mYe -->
+- [Comment (Payload)](./comment.md): each comment. <!-- id:gbPTHWR8 -->
+- [ListDiscussions](../list-discussions.md): the method that returns groups. <!-- id:cI1pM5j8 -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:AYRaAOGf -->

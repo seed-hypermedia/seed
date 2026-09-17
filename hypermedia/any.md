@@ -28,9 +28,9 @@ A **union**. A value matches one of these variants: <!-- id:6EezA2oG -->
 - [null](./null.md) <!-- id:3eQVhAK1 -->
 - [string](./string.md) <!-- id:Wgktcf4G -->
 
-# See also
+# See also <!-- id:nQDtHodx -->
 
-- [Data model](./schema/data-model.md): the kinds every value is built from.
-- [value](./value.md): the smaller union a metadata attribute can hold.
-- [list](./list.md) and [map](./map.md): the container kinds.
-- [block](./block.md): the open block, whose extra fields are of this type.
+- [Data model](./schema/data-model.md): the kinds every value is built from. <!-- id:LPER4UwP -->
+- [value](./value.md): the smaller union a metadata attribute can hold. <!-- id:49AnlS5k -->
+- [list](./list.md) and [map](./map.md): the container kinds. <!-- id:LdxJNcAp -->
+- [block](./block.md): the open block, whose extra fields are of this type. <!-- id:FqUALYAw -->

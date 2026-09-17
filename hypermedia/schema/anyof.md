@@ -21,9 +21,9 @@ A **closed struct** with these fields: <!-- id:Y_Txjo0B -->
 
 - [schema](../schema.md) <!-- id:XRX69ozh -->
 
-# See also
+# See also <!-- id:xg9bzB-w -->
 
-- [Discriminated union](./discriminated-union.md): how the meta-schema tells its variants apart.
-- [Literal schema](./literal-schema.md): the arms of a fixed set of choices.
-- [Variant](./variant.md): the members of the meta-schema union.
-- [The schema language](./schema-language.md): the full vocabulary.
+- [Discriminated union](./discriminated-union.md): how the meta-schema tells its variants apart. <!-- id:va1B0ATe -->
+- [Literal schema](./literal-schema.md): the arms of a fixed set of choices. <!-- id:nd5iDqi2 -->
+- [Variant](./variant.md): the members of the meta-schema union. <!-- id:lUeQ0ocD -->
+- [The schema language](./schema-language.md): the full vocabulary. <!-- id:UXiXY6xp -->

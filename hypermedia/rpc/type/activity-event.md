@@ -1,6 +1,6 @@
 ---
 name: Activity Event
-summary: "One event of the activity feed, currently an open map because the event union is not yet pinned down schema-side."
+summary: One event of the activity feed, currently an open map because the event union is not yet pinned down schema-side.
 schemaDefinition: ipfs://bafyreighcdnpfewr2gho4l3rw5z6qiabsj4pex3dx3vcbmumj7yodigpsu
 ---
 One event of the activity feed that [rpc/list-events](../list-events.md) pages through. The event union is not pinned down in the schema yet, so this is an open map. Tightening it is tracked follow-up work. <!-- id:ohvGePiV -->
@@ -15,8 +15,8 @@ An **open map**. Every value: [any](../../any.md). <!-- id:sBIDM6B6 -->
 
 - [any](../../any.md) <!-- id:sc0AkmF_ -->
 
-# See also
+# See also <!-- id:xwc4R5Rs -->
 
-- [ListEvents](../list-events.md): the method that returns events.
-- [Activity Summary](./activity-summary.md): the latest-activity digest on listings.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [ListEvents](../list-events.md): the method that returns events. <!-- id:NFFKgs_s -->
+- [Activity Summary](./activity-summary.md): the latest-activity digest on listings. <!-- id:MmRcqU9V -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:ePFc9Y1m -->

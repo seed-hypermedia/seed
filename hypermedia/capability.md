@@ -28,11 +28,11 @@ Create one with `seed-cli capability create --delegate <uid> --role WRITER --pat
 - [role](./role.md) <!-- id:-FedhZti -->
 - [string](./string.md) <!-- id:C6Jjf4J4 -->
 
-# See also
+# See also <!-- id:JzIvRXS3 -->
 
-- [Permissions](./protocol/permissions.md): the authorization rule and worked examples.
-- [role](./role.md): what WRITER and AGENT allow.
-- [ref](./ref.md): the blob a capability authorizes.
-- [profile](./profile.md): aliases that need an AGENT capability.
-- [Identity](./protocol/identity.md): accounts, spaces and linked keys.
-- [blob](./blob.md): the signed envelope.
+- [Permissions](./protocol/permissions.md): the authorization rule and worked examples. <!-- id:rEyMVNK2 -->
+- [role](./role.md): what WRITER and AGENT allow. <!-- id:00j3rR-u -->
+- [ref](./ref.md): the blob a capability authorizes. <!-- id:nPTFzDGp -->
+- [profile](./profile.md): aliases that need an AGENT capability. <!-- id:5kxmRArX -->
+- [Identity](./protocol/identity.md): accounts, spaces and linked keys. <!-- id:3-S5A_HA -->
+- [blob](./blob.md): the signed envelope. <!-- id:wD2G2_Id -->

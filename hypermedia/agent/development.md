@@ -179,12 +179,12 @@ Documentation is part of the change, in the same commit. <!-- id:_-pHvjIO -->
 
 After a core change: start the server and the app, open Agents, confirm the server is online, configure a provider, create an agent, open a session, send a message, confirm the subscription succeeds and the reply streams and persists across a reload. Then ask it to `read` a URL, `read ~/tools/`, and `read ~/memory/`. Confirm tool rows appear and that a `call` of an unexpanded tool comes back as the contract. Run a verb from the wrench palette and confirm the You chip and that the agent sees it. Give it a task worth a checklist and a delegation. Confirm the run card shows the plan, the child attaches to the running step, and the parent resumes with the result. <!-- id:QokFTRwA -->
 
-# See also
+# See also <!-- id:zPiwykmo -->
 
-- [Operations](./operations.md)
-- [Environments](./environments.md)
-- [System overview](./system-overview.md)
-- [Tools](./tools.md)
-- [Persistence](./persistence.md)
-- [Agents service](../apps/agents.md)
-- [Contributing](../build/contributing.md)
+- [Operations](./operations.md) <!-- id:n4QkH6sG -->
+- [Environments](./environments.md) <!-- id:xAKxp5eo -->
+- [System overview](./system-overview.md) <!-- id:koi4XoLt -->
+- [Tools](./tools.md) <!-- id:UZ1y3WVD -->
+- [Persistence](./persistence.md) <!-- id:Q6M0O-yD -->
+- [Agents service](../apps/agents.md) <!-- id:cq7YdHE3 -->
+- [Contributing](../build/contributing.md) <!-- id:PX0gDkk6 -->

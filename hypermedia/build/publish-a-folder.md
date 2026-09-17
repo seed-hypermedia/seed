@@ -94,8 +94,8 @@ An agent that maintains a documentation site should work in the git checkout and
 # See also <!-- id:tp-mbUCj -->
 
 - [Seed CLI](./cli.md) <!-- id:96NwUR-F -->
-- [Keys](./keys.md)
-- [Contributing](./contributing.md)
+- [Keys](./keys.md) <!-- id:usory21u -->
+- [Contributing](./contributing.md) <!-- id:l-NfNt5v -->
 - [Documents](../protocol/documents.md) for what a change, a version and a redirect are <!-- id:OdJU2HjS -->
 - [Hypermedia Schemas](../schema.md) for schema files beside pages <!-- id:5RnHi4tV -->
-- [SDK](./sdk.md)
+- [SDK](./sdk.md) <!-- id:4G3c4uc9 -->

@@ -25,9 +25,9 @@ A **closed struct** with these fields: <!-- id:ugdqxq2C -->
 - [timestamp](../../timestamp.md) <!-- id:CYoLI_wb -->
 - [string](../../string.md) <!-- id:gMda6qOD -->
 
-# See also
+# See also <!-- id:3Pf9mJmb -->
 
-- [Contact](../../contact.md): the signed contact blob.
-- [AccountContacts](../account-contacts.md): contacts an account wrote.
-- [SubjectContacts](../subject-contacts.md): contacts that name an account.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [Contact](../../contact.md): the signed contact blob. <!-- id:igc-2qQ- -->
+- [AccountContacts](../account-contacts.md): contacts an account wrote. <!-- id:XJeRclKn -->
+- [SubjectContacts](../subject-contacts.md): contacts that name an account. <!-- id:Rk7NWvBU -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:hoLBK5kk -->

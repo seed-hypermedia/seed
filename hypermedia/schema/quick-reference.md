@@ -129,12 +129,12 @@ The [Seed Agents](../agent.md) verbs ([read](../agent/read.md), [write](../agent
 | find documents by attribute, or typed by a schema | Explore (advanced search) | `query --where`, `query --filter` | `QueryDocuments` | `call` → `query` <!-- id:dC9EEwVd --> |
 | which attribute keys exist, and their values | Explore's attribute pickers | `attributes`, `attributes --values` | `ListDocumentAttributeNames`, `ListDocumentAttributeValues` | `call` → `attributes` <!-- id:p0-yKm3E --> |
 
-# See also
+# See also <!-- id:LiAq1oVn -->
 
-- [Hypermedia Schemas](../schema.md): the meta-schema and the index of schema pages.
-- [Why Hypermedia Schemas](./why.md): the problem they solve.
-- [The schema language](./schema-language.md): every key, with examples.
-- [Typed documents](./typed-documents.md): the three binding keys in depth.
-- [References and naming](./references.md): include, typed link, and `hm://` names.
-- [Query grammar](../build/query-grammar.md): the Explore grammar behind `query --where`.
-- [User stories](./user-stories.md): what each surface can do today.
+- [Hypermedia Schemas](../schema.md): the meta-schema and the index of schema pages. <!-- id:FWzgWO-f -->
+- [Why Hypermedia Schemas](./why.md): the problem they solve. <!-- id:yd-eXlb4 -->
+- [The schema language](./schema-language.md): every key, with examples. <!-- id:RLqWVHEp -->
+- [Typed documents](./typed-documents.md): the three binding keys in depth. <!-- id:KUAtjYnb -->
+- [References and naming](./references.md): include, typed link, and `hm://` names. <!-- id:25jrKF14 -->
+- [Query grammar](../build/query-grammar.md): the Explore grammar behind `query --where`. <!-- id:bnE9_C84 -->
+- [User stories](./user-stories.md): what each surface can do today. <!-- id:Jd2dyqFi -->

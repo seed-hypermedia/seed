@@ -19,9 +19,9 @@ A **closed struct** with these fields: <!-- id:mWeaUv6g -->
 
 - [string](../../string.md) <!-- id:NePRTnJk -->
 
-# See also
+# See also <!-- id:WNErak-V -->
 
-- [Change](../../change.md): the signed change blob.
-- [ListChanges](../list-changes.md): the method that returns it.
-- [Documents](../../protocol/documents.md): the change DAG.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [Change](../../change.md): the signed change blob. <!-- id:IeR4Xs4i -->
+- [ListChanges](../list-changes.md): the method that returns it. <!-- id:_E_9BALY -->
+- [Documents](../../protocol/documents.md): the change DAG. <!-- id:aMjOdxSR -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:_qmsCsy_ -->

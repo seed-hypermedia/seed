@@ -28,10 +28,10 @@ Create and remove contacts with `seed-cli contact create --subject <uid> --name 
 - [principal](./principal.md) <!-- id:x0-Ea1K- -->
 - [string](./string.md) <!-- id:BjAJTc65 -->
 
-# See also
+# See also <!-- id:C9ofKsUO -->
 
-- [contact/subscribe](./contact/subscribe.md): the join and follow flags.
-- [Permissions](./protocol/permissions.md): contacts, joins and the web of trust.
-- [profile](./profile.md): the name an account gives itself.
-- [Sites](./protocol/sites.md): site members.
-- [blob](./blob.md): the signed envelope.
+- [contact/subscribe](./contact/subscribe.md): the join and follow flags. <!-- id:Iw4J7xvH -->
+- [Permissions](./protocol/permissions.md): contacts, joins and the web of trust. <!-- id:L86Ul52D -->
+- [profile](./profile.md): the name an account gives itself. <!-- id:2wBRY82P -->
+- [Sites](./protocol/sites.md): site members. <!-- id:fM8XiSa4 -->
+- [blob](./blob.md): the signed envelope. <!-- id:gsEkmi9E -->

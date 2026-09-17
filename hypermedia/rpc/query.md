@@ -1,6 +1,6 @@
 ---
 name: "RPC: Query"
-summary: "Runs a document query (the same shape a Query block embeds) and returns the matching documents as a query result, or null."
+summary: Runs a document query (the same shape a Query block embeds) and returns the matching documents as a query result, or null.
 schemaDefinition: ipfs://bafyreihsgf5tz26q6k67sd7cvgpemrrwmpk5relwuc467x2rpj4oprwgy4
 ---
 Runs a document [query](../query.md), the same object a [query block](../protocol/blocks.md) stores. It returns the matching [documents](../protocol/documents.md) as a [query result](./type/query-result.md), or `null`. <!-- id:ikOICZ5G -->
@@ -20,11 +20,11 @@ A **closed struct** with these fields: <!-- id:BqgxY2nD -->
 - [null](../null.md) <!-- id:BVB9w3KD -->
 - [rpc/type/query-result](./type/query-result.md) <!-- id:_MQGXI7B -->
 
-# See also
+# See also <!-- id:78MA51ot -->
 
-- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
-- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
-- [RPC](./method.md): every method in one union.
-- [QueryBlock](./query-block.md): the query plus everything a query block renders.
-- [Query grammar](../build/query-grammar.md): attribute queries with `QueryDocuments`.
-- [Document Info](./type/document-info.md): one matched document.
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication. <!-- id:ouf9knxY -->
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console. <!-- id:Kzg0OdGb -->
+- [RPC](./method.md): every method in one union. <!-- id:gIl1Ztm1 -->
+- [QueryBlock](./query-block.md): the query plus everything a query block renders. <!-- id:9GymTcFl -->
+- [Query grammar](../build/query-grammar.md): attribute queries with `QueryDocuments`. <!-- id:kQCXTKjT -->
+- [Document Info](./type/document-info.md): one matched document. <!-- id:6xgNIH0j -->

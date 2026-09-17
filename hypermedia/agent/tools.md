@@ -49,12 +49,11 @@ type ToolDocument = {
 # The Space index <!-- id:OmLIl6Dh -->
 
 Every system prompt carries a compact `<space>` block built by `buildSpaceIndex()`. It has: <!-- id:hv-y1xqA -->
+  - one line per enabled tool document (`- name — summary`). Authored tools are tagged `(authored)` and remote tools `(<server> MCP)`. An MCP server with more than six tools collapses to one `- <server>__* — N tools …` line. <!-- id:fUDEa-rz -->
+  - a one-line summary of top-level memory. <!-- id:MeTMOILl -->
+  - a triggers line. It names active [triggers](./triggers.md) and advertises `read ~/triggers/` and `write ~/triggers/<name>` even when no triggers exist, so an agent asked "do this every morning" knows it can create the automation. <!-- id:M-5n-zT_ -->
 
-- one line per enabled tool document (`- name — summary`). Authored tools are tagged `(authored)` and remote tools `(<server> MCP)`. An MCP server with more than six tools collapses to one `- <server>__* — N tools …` line.
-- a one-line summary of top-level memory.
-- a triggers line. It names active [triggers](./triggers.md) and advertises `read ~/triggers/` and `write ~/triggers/<name>` even when no triggers exist, so an agent asked "do this every morning" knows it can create the automation.
-
-The index is cached per `(account, agent, callable set)` and invalidated on memory, tool, or trigger writes. Over `SPACE_INDEX_BUDGET_BYTES` (2048) the per-tool lines collapse to a count, so the index stays accurate and small.
+The index is cached per `(account, agent, callable set)` and invalidated on memory, tool, or trigger writes. Over `SPACE_INDEX_BUDGET_BYTES` (2048) the per-tool lines collapse to a count, so the index stays accurate and small. <!-- id:DWzJqLum -->
 
 The agent always knows what it _could_ expand, without paying for every contract up front. <!-- id:G7Mcolvq -->
 
@@ -121,30 +120,28 @@ Unrecognized addresses fail with the supported list (`api-service.ts:7350`). The
 **Web escalation.** An `https://` address is tried as hypermedia first. It falls through to the web reader only when the resolver says the URL is not hypermedia, or the resource 404s. Every other failure surfaces: transient daemon errors, too-large, network. Scraped page HTML never silently replaces a document's real content (`api-service.ts:7332`). <!-- id:V1SnC19P -->
 
 **Web reading tiers.** `executeWebRead` (`agents/src/web-tools.ts:371`) runs a cheapest-first chain and returns the first tier that yields ≥ 200 characters: <!-- id:XauDXdGs -->
+  1. **MediaWiki API** for wiki-shaped URLs. It probes the host once via `api.php?meta=siteinfo` (cached per host) and fetches Parsoid HTML. <!-- id:LvDhX5Wk -->
+  2. **In-process static extraction**: plain `fetch`, Mozilla Readability on a `linkedom` DOM, Turndown to markdown. <!-- id:iREwMBdU -->
+  3. **Crawl4AI** (`POST /md`, Bearer token) when `SEED_AGENTS_CRAWLER_URL` is configured. This is the backstop for JS-heavy and anti-bot pages. <!-- id:rl1exd6I -->
 
-1. **MediaWiki API** for wiki-shaped URLs. It probes the host once via `api.php?meta=siteinfo` (cached per host) and fetches Parsoid HTML.
-2. **In-process static extraction**: plain `fetch`, Mozilla Readability on a `linkedom` DOM, Turndown to markdown.
-3. **Crawl4AI** (`POST /md`, Bearer token) when `SEED_AGENTS_CRAWLER_URL` is configured. This is the backstop for JS-heavy and anti-bot pages.
-
-`options.raw: true` skips the chain and returns the response body verbatim (text content types only). Markdown is bounded to 200 KiB, truncated on a byte boundary.
+`options.raw: true` skips the chain and returns the response body verbatim (text content types only). Markdown is bounded to 200 KiB, truncated on a byte boundary. <!-- id:64A-mWGZ -->
 
 **Hypermedia output.** Markdown output resolves Seed [embeds](../protocol/blocks.md) before returning. Inline `Embed` annotations render as readable account and document labels. Block `Embed` nodes inline the embedded markdown, including block-fragment zooms. Block-level links must quote an exact `<!-- id:BLOCK_ID -->` marker copied from a read result. The shared assistant prompt states this. The agent must re-read after a write, because block IDs may change. <!-- id:bmrXx1wm -->
 
 **Comments.** A [comment](../protocol/comments.md) id is `<authorUid>/<tsid>`. Its canonical address is `hm://<authorUid>/<tsid>`, which the daemon's `Resource` request answers with a `comment` resource. The read result (`type: hypermedia_comment`) carries: <!-- id:51w039Nb -->
+  - the comment and its `target` document, <!-- id:egIfxnBK -->
+  - `replyParent` and `threadRoot`, <!-- id:cxyjF0NK -->
+  - the `discussion` address, <!-- id:VNMAahmV -->
+  - a ready `replyWith` write call, <!-- id:2qWfZjgM -->
+  - the whole `thread` it belongs to, loaded through `ListComments` on the target: the root plus every reply under that root, oldest first, capped at `MAX_THREAD_COMMENTS` keeping the root and the newest. <!-- id:B6-OMWtN -->
 
-- the comment and its `target` document,
-- `replyParent` and `threadRoot`,
-- the `discussion` address,
-- a ready `replyWith` write call,
-- the whole `thread` it belongs to, loaded through `ListComments` on the target: the root plus every reply under that root, oldest first, capped at `MAX_THREAD_COMMENTS` keeping the root and the newest.
+`<doc>/:comments` (aliases `:comment`, `:discussions`) reads the whole discussion grouped into threads (`type: hypermedia_discussion`). <!-- id:kV2XwVzw -->
 
-`<doc>/:comments` (aliases `:comment`, `:discussions`) reads the whole discussion grouped into threads (`type: hypermedia_discussion`).
-
-Slightly wrong input is tolerated on purpose. An agent often composes a comment id glued onto a document (`hm://<docUid>/<author>/<tsid>`) from a target uid and a `replyParent` field. `commentIdInAddress()` recognizes it, reads it at its canonical address, and the result says so in `recovered`. The literal address is tried only when nothing is there. The same thread loader feeds the trigger prompt's `<trigger_thread>` block (`triggerThreadContext`). A mention inside a reply arrives with the thread around it, because the request almost always refers to something earlier ("make this your profile pic" under an image another agent posted).
+Slightly wrong input is tolerated on purpose. An agent often composes a comment id glued onto a document (`hm://<docUid>/<author>/<tsid>`) from a target uid and a `replyParent` field. `commentIdInAddress()` recognizes it, reads it at its canonical address, and the result says so in `recovered`. The literal address is tried only when nothing is there. The same thread loader feeds the trigger prompt's `<trigger_thread>` block (`triggerThreadContext`). A mention inside a reply arrives with the thread around it, because the request almost always refers to something earlier ("make this your profile pic" under an image another agent posted). <!-- id:FC_I6C0v -->
 
 **Address resolution.** Hypermedia reads go through the shared client resolver: `resolveIdWithClient()` from `frontend/packages/client/src/resource-read.ts`, given a `domainResolver` backed by the read-only Seed `GetDomain` request. There is no custom parsing. The resolver covers pasted clean web-domain URLs, `hm:` and `hm://` IDs, block fragments, and comment view URLs. `:profile` paths branch to the [profile](../profile.md) reader. `/:attributes` is stripped into an attributes-only read. `/:directory` branches to a Children `Query` listing of the id's child documents, trimmed to plain JSON-safe entries: id, path, name, summary, updateTime, childrenCount. <!-- id:Fkkm9Cj7 -->
 
-Bare `hm://` addresses read from the service's configured HM server (`SEED_AGENTS_HM_SERVER_URL`, the local node in every desktop environment), exactly where `write` publishes. Explicit [gateway](../protocol/sites.md) and site URLs read from the URL's own origin. There is no cross-server fallback: a document the configured server does not have is a `not-found`, never a silent read from a public gateway. Every read-path request carries a 30s deadline, so a wedged server fails the tool call and does not hang the session's run. The result keeps both `requestedId` (what was asked for) and `id` (the canonical hm:// URL). The agent never shells out to `seed-cli`.
+Bare `hm://` addresses read from the service's configured HM server (`SEED_AGENTS_HM_SERVER_URL`, the local node in every desktop environment), exactly where `write` publishes. Explicit [gateway](../protocol/sites.md) and site URLs read from the URL's own origin. There is no cross-server fallback: a document the configured server does not have is a `not-found`, never a silent read from a public gateway. Every read-path request carries a 30s deadline, so a wedged server fails the tool call and does not hang the session's run. The result keeps both `requestedId` (what was asked for) and `id` (the canonical hm:// URL). The agent never shells out to `seed-cli`. <!-- id:IXwpItUm -->
 
 # `write` <!-- id:v941MPk4 -->
 
@@ -168,9 +165,9 @@ type WriteInput = {
 
 Hypermedia writes map `options.action` onto the command envelope shared with the [CLI](../build/cli.md) (`api-service.ts:7528`): the default `document` becomes `document.create`, plus `update`, `comment` (with `target` and `replyTo`), `move` (`toPath`), `redirect` (`toUrl`), `delete`, and `fork` (`fromUrl`). The runtime builds and signs the [Change](../change.md) and [Ref](../ref.md). <!-- id:PbMNPSW8 -->
 
-For `update`, the write address **is** the edit target. The envelope fills `input.edit` from it ("same address, new version"), so there is no separate option to name the target. An update with `content` replaces the whole document body. An update with no `content` at all changes only metadata and leaves the body untouched. It never diffs against an empty tree, which would delete every block.
+For `update`, the write address **is** the edit target. The envelope fills `input.edit` from it ("same address, new version"), so there is no separate option to name the target. An update with `content` replaces the whole document body. An update with no `content` at all changes only metadata and leaves the body untouched. It never diffs against an empty tree, which would delete every block. <!-- id:QUdlrjMK -->
 
-Any dotted action passes through as a raw command: `draft.create`, `profile.update`, `contact.create`, `capability.grant`, and the rest, with the address filling account and path. Extra command fields go **only** in `options.input`, never as loose option keys. The command handlers accept aliases (`reply`, `commentId`, `name`, …), and a stray key that silently changes the operation is a real hazard.
+Any dotted action passes through as a raw command: `draft.create`, `profile.update`, `contact.create`, `capability.grant`, and the rest, with the address filling account and path. Extra command fields go **only** in `options.input`, never as loose option keys. The command handlers accept aliases (`reply`, `commentId`, `name`, …), and a stray key that silently changes the operation is a real hazard. <!-- id:OVZd6Zcp -->
 
 An unrecognized loose option key is **refused with a 400 naming the key and the supported set**. It is never silently dropped. This is enforced per address form (`assertKnownWriteOptions`), because of a real failure: a model passed `{metadata}` before the envelope knew that key, the write "succeeded", and the document published without the metadata. The model's only option was to fake it in the body text. A model can read a loud refusal and correct itself. It cannot learn from a silent drop. Retired spellings get a migration hint in the refusal (`RETIRED_WRITE_OPTION_HINTS`): `title` points at `name` or `metadata.name`, and `dryRun` points at the top-level field. <!-- id:omwu1HQq -->
 
@@ -184,12 +181,12 @@ More write behavior: <!-- id:6PdHCPGt -->
   - Root-level `server` and `dev` are accepted only when they resolve to the configured agent HM server. Publishing always uses that server, never one the model picks (`api-service.ts:7953`). <!-- id:Dlh1Pqbd -->
   - `path: "/"` means the account [home document](../protocol/documents.md) and is published as the canonical empty HM path. <!-- id:zkDp34Z8 -->
   - [Tables](../block/table.md) round-trip through markdown as GFM tables carrying identity comments. The shared dialect is in `frontend/packages/client/src/markdown-to-blocks.ts` and `blocks-to-markdown.ts`. <!-- id:-ULSX1WW -->
-    - A standalone `<!-- id:… -->` line before the table is the Table block.
-    - `<!-- col:… -->` inside each header cell is the TableColumn identity. Column order and reorders follow these.
-    - `<!-- id:… -->` inside each row's last cell is the TableRow identity. It sits in the cell so every line keeps the delimiter row's cell count, because strict GFM refuses tables whose header cell count disagrees. The parser still accepts the legacy placement after the final pipe.
-    - Cell block ids never appear. On update, `rebindTableIdentities` re-derives each cell as (row id, column id) against the old document, so cell history and anchored comments survive edits. Columns whose comments were dropped still match by header text, then position.
-    - Attributes markdown cannot express (column width, header column) carry over from the old blocks. Plain GFM tables with no comments create fresh tables.
-    - `\|` escapes a pipe, and `<br>` is a newline inside a cell. A headerless HM table emits an all-empty header row and parses back headerless.
+    - A standalone `<!-- id:… -->` line before the table is the Table block. <!-- id:mo2H9Hyg -->
+    - `<!-- col:… -->` inside each header cell is the TableColumn identity. Column order and reorders follow these. <!-- id:j1OVADRs -->
+    - `<!-- id:… -->` inside each row's last cell is the TableRow identity. It sits in the cell so every line keeps the delimiter row's cell count, because strict GFM refuses tables whose header cell count disagrees. The parser still accepts the legacy placement after the final pipe. <!-- id:DXu3roB3 -->
+    - Cell block ids never appear. On update, `rebindTableIdentities` re-derives each cell as (row id, column id) against the old document, so cell history and anchored comments survive edits. Columns whose comments were dropped still match by header text, then position. <!-- id:8zj3Wck9 -->
+    - Attributes markdown cannot express (column width, header column) carry over from the old blocks. Plain GFM tables with no comments create fresh tables. <!-- id:GBnQnrR9 -->
+    - `\|` escapes a pipe, and `<br>` is a newline inside a cell. A headerless HM table emits an all-empty header row and parses back headerless. <!-- id:E6v1ErH- -->
   - Hypermedia content is bounded at 256 KiB (`MAX_WRITE_CONTENT_BYTES`). `normalizeWriteContent()` (`api-service.ts:9072`) rejects oversized document and comment bodies, and publishing a memory file refuses the same ceiling (`api-service.ts:8861`). Memory writes themselves are unbounded. See the note in [security](./security.md). <!-- id:Ftyq2lzE -->
 
 # `call` <!-- id:dSIpKStF -->
@@ -279,12 +276,11 @@ Two gates apply before a lambda runs. The server must actually offer that runtim
 Spawns a [child](./child.md) run. There are two kinds of child and one verb (`api-service.ts:7889`). The [delegate](./delegate.md) term page has the short version. <!-- id:ApEK039O -->
 
 **Model child.** Pass `brief`: human-readable markdown that becomes the child conversation's first message **verbatim**. The user reviews it as the child's full context. See [brief](./brief.md). <!-- id:n7YXckLv -->
-
-- `prompt` gives an anonymous worker persona.
-- `tools` narrows the child's set. It is intersected against the parent's full callable set, not a stale minimal default (`api-service.ts:2623`).
-- `model` runs the child on one of the agent's enabled models ("provider/model", or a bare model id when unambiguous). `resolveDelegateModelRef()` resolves it at spawn time against `enabledModels` plus the active pair, then stores it as the child session's model override. The user's quick-switch uses the same mechanism, so run resolution and every client surface agree on what ran.
-- `model` and `reasoningLevel` travel together (`normalizeDelegateModelChoice()`). A `model` without a `reasoningLevel` (`off` or one of the levels) is refused, with no default. A level without a model is refused too. Omitting both inherits the agent's configured model and level. This stops a child from silently running the agent's model with reasoning off: an override stores the level explicitly, and an absent level on an override means off.
-- Agents with more than one enabled model get system-prompt guidance to route cheap mechanical subtasks to cheaper models and hard reasoning to the strongest.
+  - `prompt` gives an anonymous worker persona. <!-- id:F_DmeZ4g -->
+  - `tools` narrows the child's set. It is intersected against the parent's full callable set, not a stale minimal default (`api-service.ts:2623`). <!-- id:6Qet4VLC -->
+  - `model` runs the child on one of the agent's enabled models ("provider/model", or a bare model id when unambiguous). `resolveDelegateModelRef()` resolves it at spawn time against `enabledModels` plus the active pair, then stores it as the child session's model override. The user's quick-switch uses the same mechanism, so run resolution and every client surface agree on what ran. <!-- id:RspuTIWZ -->
+  - `model` and `reasoningLevel` travel together (`normalizeDelegateModelChoice()`). A `model` without a `reasoningLevel` (`off` or one of the levels) is refused, with no default. A level without a model is refused too. Omitting both inherits the agent's configured model and level. This stops a child from silently running the agent's model with reasoning off: an override stores the level explicitly, and an absent level on an override means off. <!-- id:Qla1n252 -->
+  - Agents with more than one enabled model get system-prompt guidance to route cheap mechanical subtasks to cheaper models and hard reasoning to the strongest. <!-- id:dof-ASpS -->
 
 A child always runs as the delegating agent. Direct agent-to-agent delegation (`agentId`) was removed on purpose. A transcript that an agent's collaborators or the public can read must never leak the account's other agents or carry their briefs and results. Cross-agent collaboration happens through Seed content (documents and comments), where the [capability](../protocol/permissions.md) system governs access. A stray `agentId` is refused loudly at both the spec and dispatch layers. <!-- id:EaXmZDVV -->
 
@@ -298,9 +294,9 @@ A child always runs as the delegating agent. Direct agent-to-agent delegation (`
 
 **Leaves.** A run at the budget's depth is a leaf. It gets **no delegate verb at all** and no spawn handlers (`#delegationStatus`, `canDelegate`), and its system prompt says so ("You are a leaf worker…"). It never gets a verb whose every call is refused and costs a turn. <!-- id:44rasYwX -->
 
-Every non-leaf turn's prompt states its depth, how many children it may still start, and whether its children could delegate further. A parent whose children will be leaves is told to give them self-contained briefs (`delegationPrompt()`). A resolved child's `tool_result` also carries `delegation: {depth, maxDepth, childCouldDelegate, parentChildrenRemaining, parentMaxChildren}`. The parent's count there is the live one, since its system prompt was built when the run started. `~/self` shows the agent's preset and limits.
+Every non-leaf turn's prompt states its depth, how many children it may still start, and whether its children could delegate further. A parent whose children will be leaves is told to give them self-contained briefs (`delegationPrompt()`). A resolved child's `tool_result` also carries `delegation: {depth, maxDepth, childCouldDelegate, parentChildrenRemaining, parentMaxChildren}`. The parent's count there is the live one, since its system prompt was built when the run started. `~/self` shows the agent's preset and limits. <!-- id:Ok1umdMw -->
 
-When a run uses its last slot, `childrenExhaustedMessage()` tells it to finish alone now, and how to pack the next long list: several items per brief, or one script child whose children draw on their own budget. The one remaining fixed limit is 3 `return_result` retries (`MAX_RETURN_RESULT_RETRIES`).
+When a run uses its last slot, `childrenExhaustedMessage()` tells it to finish alone now, and how to pack the next long list: several items per brief, or one script child whose children draw on their own budget. The one remaining fixed limit is 3 `return_result` retries (`MAX_RETURN_RESULT_RETRIES`). <!-- id:ENgm3Xcs -->
 
 **Choosing thoroughness.** A person picks the preset where they pick the model: the agent's Settings tab, the Create Agent dialog, and the model badge on a session. That includes the assistant panel's draft chat, whose choice goes with `CreateSession`. A session's change applies from its next root run, because running trees keep the budget they copied. The run queue also knows a wall-clock budget, `maxWallMs`. It parks a run with the `budget-pause` wait reason until a person resumes it with `SignalRun`. As of September 2026 nothing outside tests sets it. The [delegation budgets](./plans/delegation-budgets.md) plan proposes pause cards, tree-wide budgets, and token budgets on top of this. <!-- id:gd7-bOM2 -->
 
@@ -314,7 +310,7 @@ The runtime handles one consequence of this directly. A model resuming after its
 
 **Obligations.** A turn that ends still owing something does not just end. `#openObligations()` (`api-service.ts:2776`) collects one list: an undelivered typed result, and unfinished plan steps. The run hands the turn back with every open obligation named at once, up to `MAX_RUN_CONTINUATIONS` (3) times (`#executeAgentRun`, `api-service.ts:2607`). <!-- id:ou9pyPWe -->
 
-Steps left open while children are still working are not obligations, because someone else is carrying them. `failed` and `skipped` are terminal. An agent that says it could not do something has kept the contract, and the runtime never nags it into pretending otherwise. When the budget is spent, the run leaves an actor-`system` notice that says exactly what was left undone. A typed child that never delivered **fails**. An unfinished plan **succeeds owing it**. Nothing is ever ticked off on the agent's behalf.
+Steps left open while children are still working are not obligations, because someone else is carrying them. `failed` and `skipped` are terminal. An agent that says it could not do something has kept the contract, and the runtime never nags it into pretending otherwise. When the budget is spent, the run leaves an actor-`system` notice that says exactly what was left undone. A typed child that never delivered **fails**. An unfinished plan **succeeds owing it**. Nothing is ever ticked off on the agent's behalf. <!-- id:U08n9EAn -->
 
 # `status` <!-- id:mbUuxFT_ -->
 
@@ -330,7 +326,7 @@ Exposed only inside typed delegate children. Its declared parameters ARE the spa
 
 Carries the conversation into a fresh **successor** session and ends the turn. The successor's run answers the user. Input: `{reason, title, description, handoff: {purpose, currentRequest, establishedFacts?, decisions?, openQuestions?, nextActions?, cautions?, ...}, sources?, transfer?: {plan}}`. `title` and `description` are required. The predecessor names the successor exactly as the `status` verb would (`title_source = 'agent'`). The handoff is open: any other key on it becomes its own section in the successor's projection. `sources`, `transfer`, or `description` nested inside `handoff` are hoisted to the top level rather than refused, because models put them there constantly and a refusal costs a whole retry turn. <!-- id:Tu7wr6n5 -->
 
-The verb is available to a foreground conversation with a live run. It is never available to a delegated child (typed or not) or a script. It is idempotent on the tool call id. The predecessor's transcript is untouched. The successor opens with a runtime-generated projection (lineage, the handoff, cited and recent excerpts), followed by the initiating user message copied verbatim. Each turn where the verb is available also carries a `<context_usage>` block. Full account: [`session-continuation.md`](./session-continuation.md).
+The verb is available to a foreground conversation with a live run. It is never available to a delegated child (typed or not) or a script. It is idempotent on the tool call id. The predecessor's transcript is untouched. The successor opens with a runtime-generated projection (lineage, the handoff, cited and recent excerpts), followed by the initiating user message copied verbatim. Each turn where the verb is available also carries a `<context_usage>` block. Full account: [`session-continuation.md`](./session-continuation.md). <!-- id:DRMeZEYR -->
 
 # The user holds the same verbs <!-- id:dwr2ygva -->
 
@@ -384,13 +380,13 @@ Durable session events and the desktop UI keep the tool's full output. Only the 
 7. Add tests for success, tool failure, and provider continuation. <!-- id:UW1RpNvJ -->
 8. Update `tools.md`, `security.md`, `desktop-ui.md`, and `roadmap.md`. <!-- id:tBAUc28m -->
 
-# See also
+# See also <!-- id:oCLMZYfZ -->
 
-- [Seed Agents](../agent.md)
-- [Grants](./grants.md)
-- [Tool document](./tool-document.md)
-- [MCP servers](./mcp.md)
-- [Triggers](./triggers.md)
-- [Security](./security.md)
-- [Session continuation](./session-continuation.md)
-- [Building agents on Seed](../build/agents.md)
+- [Seed Agents](../agent.md) <!-- id:TrgD5bzh -->
+- [Grants](./grants.md) <!-- id:rK4BKGX7 -->
+- [Tool document](./tool-document.md) <!-- id:lG_ea_kJ -->
+- [MCP servers](./mcp.md) <!-- id:4D2TubeN -->
+- [Triggers](./triggers.md) <!-- id:F1npZzOs -->
+- [Security](./security.md) <!-- id:1gpCge_Z -->
+- [Session continuation](./session-continuation.md) <!-- id:5SxLzsxa -->
+- [Building agents on Seed](../build/agents.md) <!-- id:L73dL6H1 -->

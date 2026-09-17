@@ -33,10 +33,10 @@ A **closed struct** with these fields: <!-- id:hxnNqONe -->
 - [visibility](../../visibility.md) <!-- id:cKpRsaIH -->
 - [string](../../string.md) <!-- id:KfWsCcfr -->
 
-# See also
+# See also <!-- id:poya4uNW -->
 
-- [Comment](../../comment.md): the signed comment blob.
-- [Comment](../comment.md): the method that fetches one comment.
-- [Comment List](./comment-list.md): comments with author metadata.
-- [Comments](../../protocol/comments.md): threads and replies.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [Comment](../../comment.md): the signed comment blob. <!-- id:v45QksSn -->
+- [Comment](../comment.md): the method that fetches one comment. <!-- id:bD1IPWNX -->
+- [Comment List](./comment-list.md): comments with author metadata. <!-- id:Wa95DTSp -->
+- [Comments](../../protocol/comments.md): threads and replies. <!-- id:YGJekBn- -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:a19mHxCo -->

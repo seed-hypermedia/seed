@@ -40,5 +40,5 @@ Three shapes are valid. A **version Ref** has `genesisBlob` and one or more `hea
 - [Permissions](./protocol/permissions.md): who may sign a Ref for a path. <!-- id:1PwTTRT6 -->
 - [Privacy](./protocol/privacy.md): what a private Ref means. <!-- id:283yXuwj -->
 - Read models: [Resource](./rpc/resource.md), [ResourceRedirect](./rpc/type/resource-redirect.md), [ResourceTombstone](./rpc/type/resource-tombstone.md). <!-- id:6dVqgLC7 -->
-- [change](./change.md): the blobs a Ref's heads point at.
-- [ref/redirect-target](./ref/redirect-target.md): where a redirect sends readers.
+- [change](./change.md): the blobs a Ref's heads point at. <!-- id:icR4eZUw -->
+- [ref/redirect-target](./ref/redirect-target.md): where a redirect sends readers. <!-- id:DW3vxLxf -->

@@ -19,10 +19,10 @@ An **alias** of [bytes](./bytes.md). <!-- id:xRB39OHx -->
 
 - [bytes](./bytes.md) <!-- id:uebSMAU- -->
 
-# See also
+# See also <!-- id:AuwvOpwm -->
 
-- [Identity](./protocol/identity.md): accounts, keys and delegation.
-- [signature](./signature.md): what a principal's key produces.
-- [blob](./blob.md): the `signer` field.
-- [Keys](./build/keys.md): key files and the keyring.
-- [authority](./authority.md): a key that owns a namespace.
+- [Identity](./protocol/identity.md): accounts, keys and delegation. <!-- id:0BkCHLry -->
+- [signature](./signature.md): what a principal's key produces. <!-- id:TnZEaNt1 -->
+- [blob](./blob.md): the `signer` field. <!-- id:k7GSK4m2 -->
+- [Keys](./build/keys.md): key files and the keyring. <!-- id:0XfN_SDP -->
+- [authority](./authority.md): a key that owns a namespace. <!-- id:2U8H8yqz -->

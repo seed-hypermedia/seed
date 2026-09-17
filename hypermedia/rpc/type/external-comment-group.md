@@ -1,6 +1,6 @@
 ---
 name: External Comment Group
-summary: "A comment thread from another document that cites this one, with its target’s metadata payload."
+summary: A comment thread from another document that cites this one, with its target’s metadata payload.
 schemaDefinition: ipfs://bafyreieinuvrdx3c3uofgivn2nhs2i2begspipkbbj6qloj2jwr7ib7ufa
 ---
 A [comment](../../protocol/comments.md) thread from a different document that cites this one, with its target's [metadata payload](./metadata-payload.md). <!-- id:IQ1q6cc0 -->
@@ -22,9 +22,9 @@ A **closed struct** with these fields: <!-- id:cipbf9F9 -->
 - [rpc/type/comment](./comment.md) <!-- id:HUGkQkES -->
 - [rpc/type/metadata-payload](./metadata-payload.md) <!-- id:Q5L7rBRv -->
 
-# See also
+# See also <!-- id:N1FTRW62 -->
 
-- [Comment Group](./comment-group.md): a thread on the document itself.
-- [ListDiscussions](../list-discussions.md): the method that returns it.
-- [Citation](./citation.md): how one resource cites another.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [Comment Group](./comment-group.md): a thread on the document itself. <!-- id:TMpm3OrF -->
+- [ListDiscussions](../list-discussions.md): the method that returns it. <!-- id:MbqpY4i_ -->
+- [Citation](./citation.md): how one resource cites another. <!-- id:HdeViDyb -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:lNx8tSP0 -->

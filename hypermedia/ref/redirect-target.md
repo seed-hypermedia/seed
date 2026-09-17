@@ -22,9 +22,9 @@ A **closed struct** with these fields: <!-- id:vOHPKMNt -->
 - [boolean](../boolean.md) <!-- id:zkw60tb9 -->
 - [string](../string.md) <!-- id:jyHqppJd -->
 
-# See also
+# See also <!-- id:pgpFBhsR -->
 
-- [ref](../ref.md): the three shapes of a Ref.
-- [Documents](../protocol/documents.md): moving, redirecting and generations.
-- [ResourceRedirect](../rpc/type/resource-redirect.md): what readers get back.
-- [URLs](../protocol/urls.md): addresses and paths.
+- [ref](../ref.md): the three shapes of a Ref. <!-- id:YGwW5Sh9 -->
+- [Documents](../protocol/documents.md): moving, redirecting and generations. <!-- id:YALZHLsh -->
+- [ResourceRedirect](../rpc/type/resource-redirect.md): what readers get back. <!-- id:2LuMY9pb -->
+- [URLs](../protocol/urls.md): addresses and paths. <!-- id:_nSNVMLf -->

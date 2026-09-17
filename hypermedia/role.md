@@ -13,9 +13,9 @@ The values are upper-case for compatibility with the old protobuf enum names. Pe
 
 Kind: `string`. One of: `WRITER`, `AGENT`. <!-- id:wBrzi7da -->
 
-# See also
+# See also <!-- id:Gz3c_AJX -->
 
-- [Permissions](./protocol/permissions.md): the authorization rule.
-- [capability](./capability.md): the blob that carries a role.
-- [Identity](./protocol/identity.md): linking devices with AGENT.
-- [Privacy](./protocol/privacy.md): who can read private content.
+- [Permissions](./protocol/permissions.md): the authorization rule. <!-- id:ZZ-3CQl_ -->
+- [capability](./capability.md): the blob that carries a role. <!-- id:LTmL7MY2 -->
+- [Identity](./protocol/identity.md): linking devices with AGENT. <!-- id:T6RWpaR6 -->
+- [Privacy](./protocol/privacy.md): who can read private content. <!-- id:ZA9ezGJr -->

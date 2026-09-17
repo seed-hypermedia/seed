@@ -21,10 +21,10 @@ A **closed struct** with these fields: <!-- id:UzbQr_7l -->
 
 - [value](../value.md) <!-- id:zhwCgPs9 -->
 
-# See also
+# See also <!-- id:u_bGQptH -->
 
-- [Union schema](./anyof.md): a fixed set of choices is a union of literals.
-- [Scalar schema](./scalar-schema.md): a scalar kind with constraints, where a literal pins one value.
-- [Kind](./kind.md): the value types a literal can come from.
-- [The schema language](./schema-language.md): the full vocabulary.
-- [Blob](../blob.md): every signed blob pins its `type` tag with a literal.
+- [Union schema](./anyof.md): a fixed set of choices is a union of literals. <!-- id:yPpUkUyi -->
+- [Scalar schema](./scalar-schema.md): a scalar kind with constraints, where a literal pins one value. <!-- id:8SeSkGvo -->
+- [Kind](./kind.md): the value types a literal can come from. <!-- id:7FM5raw1 -->
+- [The schema language](./schema-language.md): the full vocabulary. <!-- id:N2gmy57a -->
+- [Blob](../blob.md): every signed blob pins its `type` tag with a literal. <!-- id:fKqo5q4w -->

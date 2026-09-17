@@ -84,12 +84,12 @@ Tests: a grant on the owner is seen by a grandchild's next spawn. Usage rolls up
 - Where does the pause card live for a background tree with no session open? The agent's activity feed is one option. <!-- id:v0LjAF2T -->
 - Should a paused run time out (auto-finish after a day) so an abandoned pause does not hold a tool call open forever? Probably yes, with the note explaining it. <!-- id:gGyU1nld -->
 
-# See also
+# See also <!-- id:Ay4dKQrT -->
 
-- [Tools](../tools.md)
-- [Delegate](../delegate.md)
-- [Runs](../runs.md)
-- [Park / Wait](../park.md)
-- [Wake source](../wake-source.md)
-- [Session continuation](../session-continuation.md)
-- [Roadmap](../roadmap.md)
+- [Tools](../tools.md) <!-- id:aKOb-ZPy -->
+- [Delegate](../delegate.md) <!-- id:QVAla-1A -->
+- [Runs](../runs.md) <!-- id:f-bnbvme -->
+- [Park / Wait](../park.md) <!-- id:YTXLz_UA -->
+- [Wake source](../wake-source.md) <!-- id:u5r5tRSS -->
+- [Session continuation](../session-continuation.md) <!-- id:Amce1mDN -->
+- [Roadmap](../roadmap.md) <!-- id:e29reShj -->
