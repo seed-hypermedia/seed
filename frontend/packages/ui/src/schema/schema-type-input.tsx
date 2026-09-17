@@ -86,6 +86,7 @@ export function SchemaTypeInput({
   const [text, setText] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const selectOnMouseUp = useRef(false)
   const resolvedLabel = useTypeLabel(value)
   const label = labelOverride ?? resolvedLabel
   const query = text ?? ''
@@ -138,7 +139,18 @@ export function SchemaTypeInput({
             // While searching, a chip is a plain field again.
             chip && text !== null && 'bg-background text-foreground border-border min-w-40 cursor-text',
           )}
-          onFocus={() => setOpen(true)}
+          onFocus={(e) => {
+            setOpen(true)
+            // Select the current type's name so typing replaces it: click, then start searching.
+            e.currentTarget.select()
+            selectOnMouseUp.current = true
+          }}
+          // The click that focused the input would drop the selection to a caret on mouseup; keep it.
+          onMouseUp={(e) => {
+            if (!selectOnMouseUp.current) return
+            selectOnMouseUp.current = false
+            e.preventDefault()
+          }}
           // A click on an already-focused input (e.g. after Escape) reopens the list.
           onPointerDown={() => setOpen(true)}
           onChange={(e) => {
