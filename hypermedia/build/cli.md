@@ -55,19 +55,19 @@ Any command that takes an id accepts `hm://<uid>/<path>`, a bare `<uid>`, or an 
 # document <!-- id:i0pxk9fs -->
 
 <!-- id:qijTrXEQ -->
-| Command <!-- col:JPX23dD8 --> | What it does <!-- col:TWw0cJY2 --> | <!-- col:PVhJrD_P --> | <!-- col:AwCi47h4 --> <!-- id:r2M5zqO6 --> |
-| --- | --- | --- | --- |
-| `document get <id>` | prints a document or comment as markdown with YAML frontmatter and `<!-- id:… -->` block comments; `-m` metadata only, `-r` resolves embeds, mentions and queries, `-o <file>` writes to a file. Follows redirects and republishes and says so. |  | <!-- id:k7DwdrM6 --> |
-| `document create` | creates a document from `-f <file>` (`.md`, `.json` blocks, or `.pdf`) or stdin. `-p, --path` (default: a slug of the name; `/` is the home document), `--name`, `--summary`, `--display-author`, `--display-publish-time`, `--icon`, `--cover`, `--site-url`, `--layout`, `--show-outline` / `--no-show-outline`, `--show-activity` / `--no-show-activity`, \`--content-width S | M | L` ,  `--children-type` ,  `--seed-experimental-logo` ,  `--seed-experimental-home-order` ,  `--import-categories` ,  `--import-tags` ,  `--metadata \<json>`(any keys, merged last),`--attributes-schema \<ref>` ,  `--child-attributes-schema \<ref>` ,  `--schema-definition \<file>` ,  `--grobid-url` ,  `--dry-run` ,  `--force`(overwrite an occupied path with a new lineage),`-k` ,  `-a\`. <!-- id:OIS2RpKN --> |
-| `document update <id>` | diffs `-f <file>` against the current content by block id and publishes only changed blocks; the metadata flags above, `--delete-blocks <ids>`, `-k`. Takes over the address of a redirect or republish. `--parent` is accepted but has no effect. |  | <!-- id:tnRmEpG5 --> |
-| `document delete <id>` | publishes a tombstone Ref |  | <!-- id:-VbBSHZ_ --> |
-| `document fork <source> <destination>` | a new path on the source's history |  | <!-- id:eyvdqDUC --> |
-| `document move <source> <destination>` | a version Ref at the destination and a redirect at the source |  | <!-- id:B5EPykr7 --> |
-| `document redirect <id> --to <target> [--republish]` | a redirect Ref; with `--republish` the target's content shows at this path |  | <!-- id:JRNLjoGN --> |
-| `document changes <id>` | the change history (`ListChanges`) |  | <!-- id:NrxnVjXX --> |
-| `document stats <id>` | interaction counts |  | <!-- id:RbkZ0A9H --> |
-| `document validate <id> [--content]` | checks the document against its effective attributes schema; exit 1 on violations |  | <!-- id:2PWOgnvd --> |
-| `document cid <cid>` | fetches a raw block |  | <!-- id:TTzBDoke --> |
+| Command <!-- col:JPX23dD8 --> | What it does <!-- col:TWw0cJY2 --> <!-- id:r2M5zqO6 --> |
+| --- | --- |
+| `document get <id>` | prints a document or comment as markdown with YAML frontmatter and `<!-- id:… -->` block comments; `-m` metadata only, `-r` resolves embeds, mentions and queries, `-o <file>` writes to a file. Follows redirects and republishes and says so. <!-- id:k7DwdrM6 --> |
+| `document create` | creates a document from `-f <file>` (`.md`, `.json` blocks, or `.pdf`) or stdin. `-p, --path` (default: a slug of the name; `/` is the home document), `--name`, `--summary`, `--display-author`, `--display-publish-time`, `--icon`, `--cover`, `--site-url`, `--layout`, `--show-outline` / `--no-show-outline`, `--show-activity` / `--no-show-activity`, `--content-width` (`S`, `M` or `L`), `--children-type`, `--seed-experimental-logo`, `--seed-experimental-home-order`, `--import-categories`, `--import-tags`, `--metadata <json>` (any keys, merged last), `--attributes-schema <ref>`, `--child-attributes-schema <ref>`, `--schema-definition <file>`, `--grobid-url`, `--dry-run`, `--force` (overwrite an occupied path with a new lineage), `-k`, `-a`. <!-- id:OIS2RpKN --> |
+| `document update <id>` | diffs `-f <file>` against the current content by block id and publishes only changed blocks; the metadata flags above, `--delete-blocks <ids>`, `-k`. Takes over the address of a redirect or republish. `--parent` is accepted but has no effect. <!-- id:tnRmEpG5 --> |
+| `document delete <id>` | publishes a tombstone Ref <!-- id:-VbBSHZ_ --> |
+| `document fork <source> <destination>` | a new path on the source's history <!-- id:eyvdqDUC --> |
+| `document move <source> <destination>` | a version Ref at the destination and a redirect at the source <!-- id:B5EPykr7 --> |
+| `document redirect <id> --to <target> [--republish]` | a redirect Ref; with `--republish` the target's content shows at this path <!-- id:JRNLjoGN --> |
+| `document changes <id>` | the change history (`ListChanges`) <!-- id:NrxnVjXX --> |
+| `document stats <id>` | interaction counts <!-- id:RbkZ0A9H --> |
+| `document validate <id> [--content]` | checks the document against its effective attributes schema; exit 1 on violations <!-- id:2PWOgnvd --> |
+| `document cid <cid>` | fetches a raw block <!-- id:TTzBDoke --> |
 
 [Metadata](../metadata.md) precedence on create is defaults, then frontmatter or PDF, then flags, then `--metadata`. `file://` links in image [blocks](../protocol/blocks.md) and in icon, cover and logo metadata are uploaded as [IPFS files](../protocol/files.md) and rewritten to `ipfs://`. After creating a child, the CLI links it from the parent document. The SDK applies the [genesis](../protocol/documents.md) rule that makes a new document distinct from the home document. See [SDK](./sdk.md). <!-- id:byfHfFJe -->
 
