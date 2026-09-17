@@ -173,7 +173,7 @@ pnpm hypermedia:push -- --dry-run     # what a publish would create, update, mov
 Rules that matter when you edit: <!-- id:i7YPkwE2 -->
   - Nothing publishes while any relative link is broken, so fix links in the same commit that moves a page. <!-- id:au3AMFtl -->
   - Renaming a file in git publishes a move with a [redirect](../protocol/documents.md) at the old address. <!-- id:Xz4P0KgA -->
-  - Deleting a file retires its document on the next push, unless the push runs with `--keep-stale`. If the page moved or was folded into another, add its old path to `hypermedia/pages.aliases.json` so the old address becomes a redirect. <!-- id:n5piDq7x -->
+  - Deleting a file retires its document on the next push, unless the push runs with `--keep-stale`. <!-- id:n5piDq7x -->
   - A page with a `*.schema.json` beside it defines a [schema](../schema.md). Keep its path, and let `check.mjs` confirm the lockfile and generated types. <!-- id:NE-QyORm -->
   - Keep the `<!-- id:… -->` comments on lines you keep. They are [block](../protocol/blocks.md) ids. New pages need none. <!-- id:1y4a34hH -->
 

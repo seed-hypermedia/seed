@@ -22,7 +22,7 @@ A page publishes at its path: `protocol/documents.md` is `/protocol/documents`. 
 | `example.md`, `example/` | example schemas and instances |
 | `agent.md`, `agent/` | Seed Agents: reference pages, one page per term, the live roadmap and plans |
 | `glossary.md` | one entry per term |
-| `schemas.lock.json`, `schemas.aliases.json`, `pages.aliases.json` | not published: every schema's CID, old schema names that still resolve, and old page paths that redirect |
+| `schemas.lock.json`, `schemas.aliases.json` | not published: every schema's CID, and old schema names that still resolve |
 
 A `*.schema.json` beside a page is the schema that page defines. The sync encodes it to canonical DAG-CBOR, publishes it as a blob, and sets the page's `schemaDefinition` to `ipfs://<cid>` at publish time. Don't put `schemaDefinition` in frontmatter; `check.mjs` rejects it. A page without a schema can still be an instance of a type by naming one in `attributesSchema` in its frontmatter (see `example/bob.md`). How documents bind to schemas is explained in [Typed documents](./schema/typed-documents.md).
 
@@ -54,7 +54,7 @@ pnpm hypermedia:pull                # bring edits made in the Seed app back into
 ./dev hm-sync                       # edit this folder in the desktop dev app
 ```
 
-`push` checks every schema against the lockfile, publishes the schema blobs, then publishes each page. An existing document is updated block by block, and unchanged documents publish nothing. A page renamed in git publishes as a move. A document whose file is gone becomes a redirect when `pages.aliases.json` or `schemas.aliases.json` maps its old path to a live page, and is deleted otherwise. `--keep-stale` skips this. Nothing publishes while any relative link in the folder is broken.
+`push` checks every schema against the lockfile, publishes the schema blobs, then publishes each page. An existing document is updated block by block, and unchanged documents publish nothing. A page renamed in git publishes as a move. A document whose file is gone is deleted, except a renamed schema page, which becomes a redirect when `schemas.aliases.json` maps its old name to a live page. `--keep-stale` skips this. Nothing publishes while any relative link in the folder is broken.
 
 `./dev hm-sync` (the `hm-sync` pane of `./dev up`) publishes the folder into the desktop dev app's daemon under a throwaway key in `hypermedia/.dev/`, and writes every document you publish in the app straight back to its file. While it runs, the app is the writer and git is where you commit. See [Publish a folder](./build/publish-a-folder.md).
 
