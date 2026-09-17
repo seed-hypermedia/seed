@@ -7,10 +7,10 @@ Everything on this page is a link into the reference; read it top to bottom once
 # The model in ten lines <!-- id:WLRqc2K4 -->
 
 - Every value is one of **nine [kinds](./kind.md)**: [null](../null.md), [boolean](../boolean.md), [integer](../integer.md), [float](../float.md), [string](../string.md), [bytes](../bytes.md), [list](../list.md), [map](../map.md), [link](../link.md). [struct](../struct.md) is a map with named fields. The bytes are [DAG-CBOR](./dag-cbor.md); the readable form is [dag-json](./dag-json.md). <!-- id:H5eL6ixB -->
-- A **schema** is a map that constrains a value: `type`, `properties` (one [property](./property.md) per field: `{value, required?, description?}`), `items`, `values`, `ref`, `anyOf`, `target`, generics, and leaf constraints — or a bare literal (`"draft"`, `1`) that accepts exactly that value. See [the schema language](./schema-language.md). <!-- id:Wyj6bKBt -->
+- A **schema** is a map that constrains a value: `type`, `properties` (one [property](./property.md) per field: `{value, required?, description?}`), `items`, `values`, `anyOf`, `target`, generics, and leaf constraints — or a bare literal (`"draft"`, `1`) that accepts exactly that value. See [the schema language](./schema-language.md). <!-- id:Wyj6bKBt -->
 - The **[meta-schema](../schema.md)** describes what a schema is: a union of [struct-schema](./struct-schema.md), [map-schema](./map-schema.md), [list-schema](./list-schema.md), [scalar-schema](./scalar-schema.md), [link-schema](./link-schema.md), [include-schema](./include-schema.md), [anyof](./anyof.md), [var-schema](./var-schema.md), [literal-schema](./literal-schema.md). It validates itself. <!-- id:kh_e5uKR -->
 - A schema is itself a DAG-CBOR blob with a CID; schemas reference each other by **`hm://` name** ([references](./references.md)), which is what lets types recurse and form cycles ([the fixpoint problem](./fixpoint-problem.md)). <!-- id:zm8ENE2w -->
-- `{ref: X}` alone **includes** X; `{ref: X, properties: …}` **[extends](./extension.md)** it — the parent's fields plus new ones, closedness kept. <!-- id:3s1dFPYn -->
+- `{type: X}` alone **includes** X. `{type: X, properties: …}` **[extends](./extension.md)** it: the parent's fields plus new ones, closedness kept. <!-- id:3s1dFPYn -->
 - Validation is **advisory** in the editors (warn, never block) and **strict** in the reference validator, the CLI's checks, and the agent's refusals for blobs. <!-- id:qnkL2XO2 -->
 
 # The library, by link <!-- id:y2Zw6upY -->
@@ -101,7 +101,7 @@ documentMetadataSchema(metadataSchemaOf(person.schema))                   // the
 
 <!-- id:OAh4Rwf9 -->
 - `classifyRef` sorts a reference into a bundled library name, a CID, or a document URL without fetching; `resolveSchemaRef` follows it (a document URL → its `schemaDefinition` → the blob). <!-- id:yXAkWi-5 -->
-- `effectiveSchemaRef` applies the own-else-parent rule; `hydrateSchemaRegistry` fetches every type a schema references so nested `ref`s validate. <!-- id:-xfW1N_s -->
+- `effectiveSchemaRef` applies the own-else-parent rule; `hydrateSchemaRegistry` fetches every type a schema references so nested type references validate. <!-- id:-xfW1N_s -->
 - `QueryDocuments` takes a recursive `DocumentFilter` (`and` / `or` / `not`, `comparison`, `exists` / `missing`, `stringMatch`, `spaceMatch`, `pathMatch`, `urlMatch`) in protobuf JSON, sorts by attribute or built-in field, and pages; the two attribute listings answer "which keys exist" and "which values does this key take". The Explore grammar compiles to the same filter: `compileExploreQuery(parseExploreQuery(q), {type: 'node'}).filter?.toJson()` from the shared package. <!-- id:nanymnNJ -->
 - Generated TypeScript for the whole library ships as `schema-types.generated.ts` (`HMDocument`, `HMMetadata`, `HMChange<B>`, …), from `scripts/hypermedia/typegen.mjs`. <!-- id:ZZ1mAdzM -->
 

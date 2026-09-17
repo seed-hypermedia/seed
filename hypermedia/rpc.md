@@ -1,10 +1,22 @@
 ---
-name: API
-summary: The Seed read API as an schema catalog — every method's key, input, and output are published schemas, and the in-app API console is generated from them rather than hand-written.
+name: Seed API Schemas
+summary: The read keys of the Seed API published as Hypermedia Schemas, one page per key with its input and output, and the live console the Seed app builds from them.
 ---
 # One call shape <!-- id:S_OZNfxS -->
 
-Seed apps talk to a daemon through a universal client with a single call shape: `request(key, input) → output`. The `key` names a method — `Resource`, `Query`, `Search`, `ListComments` — and each method has its own input and output. Historically those shapes lived only in TypeScript. Now each one is a published schema. <!-- id:JoVBzIrS -->
+Seed apps talk to the network through a universal client with a single call shape: `request(key, input) → output`. The `key` names a method, such as `Resource`, `Query`, `Search` or `ListComments`, and each method has its own input and output. Those shapes used to live only in TypeScript. Now each read method is also a published schema, and this page explains the catalog they form. <!-- id:JoVBzIrS -->
+
+# Transport <!-- id:h0phrocI -->
+
+The same keys travel over HTTP on every Seed site, at `/api/<Key>`. Reads are `GET` requests with the input in the query string. Writes are `POST` requests with a [DAG-CBOR](./schema/dag-cbor.md) body. Responses are JSON wrapped by [superjson](https://github.com/flightcontrolhq/superjson), so the output sits under a top-level `json` member. A few pass-through keys, such as `QueryDocuments`, answer plain protobuf JSON instead. <!-- id:iyQoDYlt -->
+
+```sh <!-- id:m6WWWHjT -->
+curl 'https://hyper.media/api/Resource?id=hm://z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS/resources/self-host-seed'
+```
+
+The [Seed API reference](./build/web-api.md) has the details this page leaves out: the three query-string encodings, errors, CORS, authentication, `GET /api/schema`, and the write keys `PublishBlobs` and `PrepareDocumentChange`. The [SDK](./build/sdk.md) and the [Seed CLI](./build/cli.md) make these requests for you. <!-- id:xfryff8e -->
+
+The schema catalog below covers the read methods only. The write and pass-through keys are documented in the Seed API reference but have no `rpc/<method>` schema yet. <!-- id:TAHiMqXZ -->
 
 # The catalog <!-- id:LJgSGvSR -->
 
@@ -30,7 +42,7 @@ The `output` side is built from the read models under `rpc/type/`: the derived d
 
 # The console <!-- id:pntyyyx_ -->
 
-In the Seed app, with Developer Mode on, open the schema tour and navigate to any `rpc/<method>` page: below the schema is a live call section for that method. The input is edited with the same schema-respecting value editor used everywhere else — seeded with the method's required fields, with dropdowns and reference pickers where the schema calls for them. Press **Run** and the app sends the request through the real universal client, then validates the response against the declared `output` schema, showing **matches schema** or listing the fields that did not conform. The [rpc/method](./rpc/method.md) page renders the whole console, with a method picker built from the union. <!-- id:Me1tBVqs -->
+In the Seed app, open any `rpc/<method>` page of this library. The page's schema renders above its body, and below the schema is a live call section for that method. The input is edited with the same schema-respecting value editor used everywhere else — seeded with the method's required fields, with dropdowns and reference pickers where the schema calls for them. Press **Run** and the app sends the request through the real universal client, then validates the response against the declared `output` schema, showing **matches schema** or listing the fields that did not conform. The [rpc/method](./rpc/method.md) page renders the whole console, with a method picker built from the union. <!-- id:Me1tBVqs -->
 
 None of that is hand-wired. The console reads the `rpc/method` union at runtime, so a method exists in the console exactly when its schema exists in the library. <!-- id:XJsp5ct- -->
 
