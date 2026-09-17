@@ -30,6 +30,7 @@ import {
 } from '@seed-hypermedia/agents-protocol'
 import {validateJsonSchemaShape, validateJsonSchemaValue} from '@/json-schema'
 import * as activityTriggers from '@/activity-triggers'
+import {resolveDocsLinks, resolveDocsUrl} from '@/docs-space'
 import * as agentMemory from '@/agent-memory'
 import * as sessionAttachments from '@/session-attachments'
 import {
@@ -6860,9 +6861,12 @@ export class Service {
     const agentPromptBlocks =
       runPromptProfile?.includeAgentSystemPrompt === false ? [] : normalizeSystemPromptBlocks(definition.systemPrompt)
     const additionalPrompt = runPromptProfile?.systemPrompt ?? runPromptProfile?.prompt
-    const promptBlocks = additionalPrompt
+    const requestedPromptBlocks = additionalPrompt
       ? [...agentPromptBlocks, ...normalizeSystemPromptBlocks(additionalPrompt)]
       : agentPromptBlocks
+    // `hm://hyper.media` embeds (the default Agent Guide) resolve to the configured knowledge base. The resolved
+    // blocks key the cache, so a new dev site key re-resolves the prompt.
+    const promptBlocks = resolveDocsLinks(requestedPromptBlocks)
     const promptSource = safeJSONStringify(promptBlocks)
     const cachedPrompt = this.#resolvedSystemPromptCache.get(agentId)
     let systemPrompt: string
@@ -10340,7 +10344,7 @@ async function promptBlocksToResolvedMarkdown(
   blocks: HMBlockNode[],
   client: Parameters<typeof contentToResolvedMarkdown>[1]['client'],
 ): Promise<string> {
-  const markdown = await contentToResolvedMarkdown(blocks, {client, maxDepth: 2})
+  const markdown = await contentToResolvedMarkdown(resolveDocsLinks(blocks), {client, maxDepth: 2})
   return stripPromptMarkdownArtifacts(markdown)
 }
 
@@ -15899,7 +15903,7 @@ function stripAttributesViewTerm(id: UnpackedHypermediaId): {
 export async function readHypermedia(input: unknown): Promise<Record<string, unknown>> {
   if (!input || typeof input !== 'object' || Array.isArray(input))
     throw new APIError(400, 'Tool input must be an object')
-  const rawRequestedId = normalizeBoundedString((input as {id?: unknown}).id, 'Hypermedia ID', 2048)
+  const rawRequestedId = resolveDocsUrl(normalizeBoundedString((input as {id?: unknown}).id, 'Hypermedia ID', 2048))
   const requestedId = BARE_COMMENT_ID_PATTERN.test(rawRequestedId) ? `hm://${rawRequestedId}` : rawRequestedId
   const server = (input as {server?: unknown}).server
   const dev = (input as {dev?: unknown}).dev
