@@ -17,7 +17,7 @@ curl 'https://hyper.media/api/Resource?id=hm://z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDb
 ```
 
 ```json
-{"json":{"type":"document","id":{"id":"hm://z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS/resources/self-host-seed","uid":"z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS","path":["resources","self-host-seed"],"latest":true,…},"document":{"metadata":{"name":"Self-Host a Seed Website","cover":"ipfs://bafkreie6…"},"content":[{"children":[],"block":{"type":"Paragraph","id":"OtLkse-T","text":"If you want to publish on your own domain without relying on our service, …"}},…],"version":"bafy2bzacedia6…","genesis":"bafy2bzacedvbz…","authors":["z6MkfnCSnmst…","z6MkgisVMELv…"]}}}
+{"json":{"type":"document","document":{"content":[{"children":[],"block":{"type":"Paragraph","id":"OtLkse-T",…,"text":"If you want to publish on your own domain without relying on our service, …"}},…],"version":"bafy2bzacedia6…","authors":["z6MkfnCSnmst…","z6MkgisVMELv…",…],"metadata":{"name":"Self-Host a Seed Website","cover":"ipfs://bafkreie6…"},"genesis":"bafy2bzacedvbz…",…},"id":{"id":"hm://z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS/resources/self-host-seed","uid":"z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS","path":["resources","self-host-seed"],…,"latest":true}}}
 ```
 
 The body is wrapped in `{"json": …}`; the document is a tree of blocks with metadata, a `version` (the ids of the changes it is made of) and the accounts that ever changed it. If you only want to read, the same document is one URL away as markdown:
@@ -141,7 +141,7 @@ cat > hello.md <<'EOF'
 ---
 name: Hello
 ---
-A second document. The home document now links to this one.
+A second document, one level below the home document.
 EOF
 
 seed-cli document create -f hello.md --path hello
@@ -155,7 +155,7 @@ Open the printed URL. The gateway renders your space; `seed-cli document get hm:
 
 # What happened
 
-Each `document create` did three things on your machine. It turned the markdown into a [Change](../change.md) blob: a signed, content-addressed record of the operations that build the document. For a new document that first change is also its genesis, the id that names the document's whole history. It then signed a [Ref](../ref.md), a small blob saying "in my space, at this path, the document is at this version", and sent both blobs to `hyper.media` with a single `PublishBlobs` request. The gateway's daemon verified the signatures, indexed the blobs, and will hand them to any peer that asks for your space.
+Each `document create` did three things on your machine. It turned the markdown into a [Change](../change.md) blob: a signed, content-addressed record of the operations that build the document. For a new document that first change is also its genesis, the id that names the document's whole history. It then signed a [Ref](../ref.md), a small blob saying "in my space, at this path, the document is at this version", and sent both blobs to `hyper.media` with a single `PublishBlobs` request. When a new document is two or more levels deep and its parent exists, the CLI also adds a link card to the parent. `hello` sits directly under the root, so the home document does not change. The gateway's daemon verified the signatures, indexed the blobs, and will hand them to any peer that asks for your space.
 
 Nothing was logged in. Your authority to publish at `hm://z6Mk…/hello` is that the Ref is signed by the key that owns the space. Anyone can fetch the blobs and verify that. [Documents](../protocol/documents.md) explains the change graph, versions and refs; [Blobs](../protocol/blobs.md) explains the signing envelope and content ids.
 
