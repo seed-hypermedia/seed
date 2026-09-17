@@ -454,7 +454,8 @@ export type DocumentMachineEvent =
   | {
       type: 'change'
       metadata?: HMDraft['metadata']
-      schemaDraft?: Record<string, any>
+      /** The working schema behind `schemaDefinition`; `null` drops it. */
+      schemaDraft?: Record<string, any> | null
       /** Binding schemas to draft, by key; `null` drops a key's draft (cleared or repointed). */
       bindingSchemaDrafts?: Partial<Record<BindingSchemaKey, Record<string, any> | null>>
     }
@@ -766,7 +767,7 @@ export const documentMachine = setup({
       },
       // A `change` may also carry the working schema, which is draft state beside the metadata.
       schemaDraft: ({context, event}) =>
-        event.type === 'change' && event.schemaDraft ? event.schemaDraft : context.schemaDraft,
+        event.type === 'change' && event.schemaDraft !== undefined ? event.schemaDraft : context.schemaDraft,
       // A `change` may carry one or more binding schemas; they merge over the ones already drafted,
       // and a `null` drops that key's draft (cleared, or repointed at a reference).
       bindingSchemaDrafts: ({context, event}) => {

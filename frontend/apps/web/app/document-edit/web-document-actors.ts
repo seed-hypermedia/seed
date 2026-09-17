@@ -204,8 +204,10 @@ export async function writeWebDraft(
     // and a full replace would wipe those fields on the first autosave.
     // The working schema is saved beside the metadata; an older draft's metadata copy is dropped.
     metadata: splitLegacySchemaDraft({...(existingDraft?.metadata ?? {}), ...(input.metadata ?? {})}).metadata,
-    schemaDraft: input.schemaDraft ?? draftSchemaDraft(existingDraft),
-    bindingSchemaDrafts: input.bindingSchemaDrafts ?? draftBindingSchemaDrafts(existingDraft),
+    // The machine's working schemas are authoritative: null means cleared.
+    schemaDraft: input.schemaDraft === undefined ? draftSchemaDraft(existingDraft) : input.schemaDraft,
+    bindingSchemaDrafts:
+      input.bindingSchemaDrafts === undefined ? draftBindingSchemaDrafts(existingDraft) : input.bindingSchemaDrafts,
     deps: input.deps,
     baseBlocks: input.baseBlocks,
     mineTouchedIds: input.mineTouchedIds,
