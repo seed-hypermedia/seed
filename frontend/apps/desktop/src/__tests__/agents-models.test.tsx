@@ -9,6 +9,7 @@ const invalidateQueriesMock = vi.fn()
 const setSettingMock = vi.fn()
 const syncSubscribeMock = vi.fn()
 const syncUnsubscribeMock = vi.fn()
+const discoverEntityMock = vi.fn()
 const getAgentServerHealthMock = vi.fn()
 const getAgentWebSocketUrlMock = vi.fn()
 const signAgentActionMock = vi.fn()
@@ -23,6 +24,7 @@ vi.mock('@shm/ui/agents/platform', async () => {
       getSetting: getSettingMock,
       setSetting: setSettingMock,
       subscribeToEntity: syncSubscribeMock,
+      discoverEntity: discoverEntityMock,
     }),
     setAgentsPlatform: vi.fn(),
   }
@@ -143,6 +145,7 @@ describe('agent server models', () => {
       return undefined
     })
     syncSubscribeMock.mockReturnValue({unsubscribe: syncUnsubscribeMock})
+    discoverEntityMock.mockResolvedValue({state: 'DISCOVERY_TASK_IN_PROGRESS', version: ''})
     getAgentServerHealthMock.mockResolvedValue({status: 'ok', uptime: 1})
     getAgentWebSocketUrlMock.mockReturnValue('ws://agents.test/agents/ws')
     signAgentActionMock.mockResolvedValue({action: {_: 'Subscribe'}, signature: new Uint8Array(), signer: 'test'})
@@ -348,5 +351,211 @@ describe('agent server models', () => {
     expect(syncSubscribeMock).not.toHaveBeenCalled()
     cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
     expect(syncUnsubscribeMock).not.toHaveBeenCalled()
+  })
+
+  function emitOpenSessionEvent(socket: FakeWebSocket, seq: number, event: Record<string, unknown>) {
+    socket.emit('message', {
+      data: JSON.stringify({
+        _: 'append',
+        key: 'sessions/open-session',
+        event: {id: `open-event-${seq}`, sessionId: 'open-session', seq, createdAt: seq, event},
+      }),
+    })
+  }
+
+  async function flushMicrotasks() {
+    for (let i = 0; i < 10; i += 1) await Promise.resolve()
+  }
+
+  it('runs bounded discovery for references on an account-level hint, without live subscriptions', async () => {
+    vi.resetModules()
+    const mod = await import('@shm/ui/agents/models')
+    const rendered = renderHook(() =>
+      mod.useAgentWebSocketSubscription('https://agents.test', 'account-1', 'account/account-1'),
+    )
+    const socket = FakeWebSocket.instances[0]!
+    // Probes stay in flight for the whole test so sharing between hints is observable; a settled
+    // probe is released, and a later hint for the same version may legitimately ask again.
+    discoverEntityMock.mockImplementation(() => new Promise(() => {}))
+
+    const hint = {
+      _: 'change',
+      key: 'account/account-1',
+      value: {
+        reason: 'session-event',
+        agentId: 'agent-1',
+        sessionId: 'background-session',
+        references: [
+          'hm://z6MkAgent/report?v=published-version',
+          'hm://z6MkOwner/notes/:comments/z6MkAgent/01ABC',
+          'https://example.com/not-hm',
+        ],
+      },
+    }
+    socket.emit('message', {data: JSON.stringify(hint)})
+    await waitForCondition(() => discoverEntityMock.mock.calls.length === 2)
+
+    // The produced document is pinned to its published version; the comment's target is discovered
+    // recursively once (a comment has no document version to pin).
+    expect(discoverEntityMock.mock.calls).toEqual(
+      expect.arrayContaining([['hm://z6MkAgent/report', 'published-version'], ['hm://z6MkOwner/notes/**']]),
+    )
+    expect(syncSubscribeMock).not.toHaveBeenCalled()
+
+    // The same hint reaching another socket in this window (or arriving twice) shares the probes.
+    socket.emit('message', {data: JSON.stringify(hint)})
+    await flushAsyncEvents()
+    expect(discoverEntityMock).toHaveBeenCalledTimes(2)
+
+    // A hint without references changes nothing.
+    socket.emit('message', {
+      data: JSON.stringify({_: 'change', key: 'account/account-1', value: {reason: 'session-updated'}}),
+    })
+    await flushAsyncEvents()
+    expect(discoverEntityMock).toHaveBeenCalledTimes(2)
+
+    cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
+    expect(syncUnsubscribeMock).not.toHaveBeenCalled()
+  })
+
+  it('cancels a still-running hint probe when the account-level hook unmounts', async () => {
+    vi.resetModules()
+    const mod = await import('@shm/ui/agents/models')
+    const rendered = renderHook(() =>
+      mod.useAgentWebSocketSubscription('https://agents.test', 'account-1', 'account/account-1'),
+    )
+    const socket = FakeWebSocket.instances[0]!
+    // The node keeps reporting an older version, so the pinned probe would keep polling.
+    discoverEntityMock.mockResolvedValue({state: 'DISCOVERY_TASK_COMPLETED', version: 'older-version'})
+
+    vi.useFakeTimers()
+    try {
+      socket.emit('message', {
+        data: JSON.stringify({
+          _: 'change',
+          key: 'account/account-1',
+          value: {reason: 'session-event', references: ['hm://z6MkAgent/report?v=new-version']},
+        }),
+      })
+      await flushMicrotasks()
+      expect(discoverEntityMock).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(discoverEntityMock).toHaveBeenCalledTimes(2)
+
+      cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(discoverEntityMock).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('pins the version from a write tool result until the local node reports it', async () => {
+    vi.resetModules()
+    const mod = await import('@shm/ui/agents/models')
+    const rendered = renderHook(() =>
+      mod.useAgentWebSocketSubscription('https://agents.test', 'account-1', 'sessions/open-session'),
+    )
+    const socket = FakeWebSocket.instances[0]!
+    discoverEntityMock.mockResolvedValue({state: 'DISCOVERY_TASK_COMPLETED', version: 'published-version'})
+
+    emitOpenSessionEvent(socket, 1, {
+      type: 'tool_result',
+      name: 'write',
+      output: {id: 'hm://z6MkAgent/report', version: 'published-version', cids: []},
+    })
+    await waitForCondition(
+      () => syncSubscribeMock.mock.calls.length === 1 && discoverEntityMock.mock.calls.length === 1,
+    )
+
+    // The live subscription still tracks "latest" for the whole session...
+    expect(syncSubscribeMock).toHaveBeenCalledWith(
+      {id: expect.objectContaining({id: 'hm://z6MkAgent/report', version: 'published-version'}), recursive: false},
+      expect.objectContaining({onError: expect.any(Function)}),
+    )
+    // ...and the exact published version is requested once, without the ?v= query in the id.
+    expect(discoverEntityMock).toHaveBeenCalledTimes(1)
+    expect(discoverEntityMock).toHaveBeenCalledWith('hm://z6MkAgent/report', 'published-version')
+
+    // A prose reference without a version only subscribes; nothing to pin.
+    emitOpenSessionEvent(socket, 2, {type: 'message', role: 'assistant', content: 'Also see hm://z6MkAgent/other'})
+    await waitForCondition(() => syncSubscribeMock.mock.calls.length === 2)
+    expect(discoverEntityMock).toHaveBeenCalledTimes(1)
+
+    cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
+    expect(syncUnsubscribeMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps re-asking for the pinned version while the node holds an older one, and stops when the session closes', async () => {
+    vi.resetModules()
+    const mod = await import('@shm/ui/agents/models')
+    const rendered = renderHook(() =>
+      mod.useAgentWebSocketSubscription('https://agents.test', 'account-1', 'sessions/open-session'),
+    )
+    const socket = FakeWebSocket.instances[0]!
+    discoverEntityMock
+      .mockResolvedValueOnce({state: 'DISCOVERY_TASK_IN_PROGRESS', version: ''})
+      .mockResolvedValueOnce({state: 'DISCOVERY_TASK_COMPLETED', version: 'older-version'})
+      .mockResolvedValue({state: 'DISCOVERY_TASK_COMPLETED', version: 'older-version'})
+
+    vi.useFakeTimers()
+    try {
+      emitOpenSessionEvent(socket, 1, {
+        type: 'tool_result',
+        name: 'write',
+        output: {id: 'hm://z6MkAgent/report', version: 'new-version'},
+      })
+      await flushMicrotasks()
+      expect(discoverEntityMock).toHaveBeenCalledTimes(1)
+
+      // Still pending / stale after the first answer: the probe re-asks on its poll interval.
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(discoverEntityMock).toHaveBeenCalledTimes(2)
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(discoverEntityMock).toHaveBeenCalledTimes(3)
+      expect(discoverEntityMock).toHaveBeenLastCalledWith('hm://z6MkAgent/report', 'new-version')
+
+      // Closing the session cancels the probe along with the live subscription.
+      cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
+      expect(syncUnsubscribeMock).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(discoverEntityMock).toHaveBeenCalledTimes(3)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('re-pins when the same document is referenced again with a newer version', async () => {
+    vi.resetModules()
+    const mod = await import('@shm/ui/agents/models')
+    const rendered = renderHook(() =>
+      mod.useAgentWebSocketSubscription('https://agents.test', 'account-1', 'sessions/open-session'),
+    )
+    const socket = FakeWebSocket.instances[0]!
+    discoverEntityMock.mockImplementation(async (_id: string, version?: string) => ({
+      state: 'DISCOVERY_TASK_COMPLETED',
+      version,
+    }))
+
+    emitOpenSessionEvent(socket, 1, {
+      type: 'tool_result',
+      name: 'write',
+      output: {id: 'hm://z6MkAgent/report', version: 'v1'},
+    })
+    await waitForCondition(() => discoverEntityMock.mock.calls.length === 1)
+    emitOpenSessionEvent(socket, 2, {
+      type: 'tool_result',
+      name: 'write',
+      output: {id: 'hm://z6MkAgent/report', version: 'v2'},
+    })
+    await waitForCondition(() => discoverEntityMock.mock.calls.length === 2)
+
+    expect(discoverEntityMock.mock.calls.map((call) => call[1])).toEqual(['v1', 'v2'])
+    // The stale subscription for v1 was replaced by one for v2.
+    expect(syncSubscribeMock).toHaveBeenCalledTimes(2)
+    expect(syncUnsubscribeMock).toHaveBeenCalledTimes(1)
+
+    cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
+    expect(syncUnsubscribeMock).toHaveBeenCalledTimes(2)
   })
 })

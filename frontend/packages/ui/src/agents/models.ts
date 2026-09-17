@@ -310,12 +310,179 @@ export function invalidateForAccountChange(
 // normal sync service. A one-shot discover is insufficient: it can race the peer connection or return a cached
 // result from before the agent published. The live subscription keeps touching discovery until the new content
 // arrives and stays active until the session closes.
+//
+// The subscription asks for "latest", so when the document already exists on the local node (the agent updated
+// it, or the user had opened it before), the node answers with the version it already has and the freshly
+// published one only arrives on the node's own slow refresh. References that carry the published version
+// (`hm://…?v=<version>`, which the write tool result always does) additionally pin that exact version for a
+// bounded time — see {@link pinAgentReferenceVersion}.
 const HM_REF_REGEX = /hm:\/\/[^\s)"'`\]<>]+/g
+
+/** How often the pinned-version probe re-asks the local node, and when it gives up (the live subscription stays). */
+const AGENT_REFERENCE_VERSION_PIN_POLL_MS = 5_000
+const AGENT_REFERENCE_VERSION_PIN_TIMEOUT_MS = 90_000
 
 type AgentReferenceSubscription = {
   url: string
   recursive: boolean
   unsubscribe: () => void
+}
+
+/**
+ * Asks the local node for the exact version an agent referenced, repeating every
+ * {@link AGENT_REFERENCE_VERSION_PIN_POLL_MS} until the node reports that version, the probe times out, or
+ * the caller cancels. Each call touches the daemon's discovery task for `(id, version)`; while the task's
+ * result differs from the pinned version the scheduler re-runs it immediately, which is what makes an agent's
+ * update to an already-local document show up in seconds rather than on the next periodic refresh.
+ *
+ * Best-effort: failures are logged under `[agents-discovery]` and leave the live subscription in place.
+ * Returns a cancel function; `onSettled` fires when the probe stops on its own (found, timed out, failed).
+ */
+function pinAgentReferenceVersion(id: string, version: string, onSettled?: () => void): () => void {
+  const discoverEntity = getAgentsPlatform().discoverEntity
+  if (!discoverEntity) return () => {}
+  let cancelled = false
+  let timer: ReturnType<typeof setTimeout> | null = null
+  const startedAt = Date.now()
+  console.info('[agents-discovery] pinning agent-published version on local node', {id, version})
+
+  const probe = async () => {
+    if (cancelled) return
+    try {
+      const resp = await discoverEntity(id, version)
+      if (cancelled) return
+      if (resp.version === version) {
+        console.info('[agents-discovery] agent-published version is on the local node', {id, version})
+        onSettled?.()
+        return
+      }
+      if (Date.now() - startedAt >= AGENT_REFERENCE_VERSION_PIN_TIMEOUT_MS) {
+        console.warn('[agents-discovery] gave up pinning agent-published version', {
+          id,
+          version,
+          state: resp.state,
+          localVersion: resp.version || '(none)',
+        })
+        onSettled?.()
+        return
+      }
+      timer = setTimeout(() => void probe(), AGENT_REFERENCE_VERSION_PIN_POLL_MS)
+    } catch (error) {
+      if (cancelled) return
+      console.warn('[agents-discovery] pinned version discovery failed', {
+        id,
+        version,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      onSettled?.()
+    }
+  }
+
+  void probe()
+  return () => {
+    cancelled = true
+    if (timer) clearTimeout(timer)
+  }
+}
+
+/**
+ * Bounded discovery for hm:// references that arrive on an account-level hint (`references` on a
+ * `session-event` change): the produced document pinned to its published version, or a one-shot recursive
+ * discover of a comment's target document. Unlike {@link subscribeToAgentReferences} this never opens a live
+ * subscription — the account socket that delivers these hints lives as long as the window, so anything held
+ * from it would never be released — and every probe ends on its own.
+ *
+ * Several sockets in one window receive the same hint (the title bar's per-server socket, the agents list,
+ * the agent page's mirror), so probes are shared per (document, version) across callers. The returned
+ * function releases this caller's hold and cancels a probe once nobody holds it; `onDone` fires once every
+ * probe this call holds has ended on its own, so a long-lived caller can forget the release.
+ */
+const sharedAgentReferenceProbes = new Map<string, {cancel: () => void; holders: Set<() => void>}>()
+
+function discoverAgentReferencesOnce(urls: string[], onDone?: () => void): () => void {
+  const discoverEntity = getAgentsPlatform().discoverEntity
+  if (!discoverEntity) {
+    onDone?.()
+    return () => {}
+  }
+  const references = new Map<string, {version?: string; recursive: boolean}>()
+  for (const rawUrl of urls) {
+    const canonical = canonicalAgentRef(rawUrl)
+    if (!canonical) continue
+    const id = unpackHmId(canonical.url)
+    if (!id) continue
+    const previous = references.get(canonical.key)
+    // A comment lives in its target document's subtree and carries no document version; a `?v=` on a
+    // comment URL would pin the target to a version it never has.
+    const recursive = rawUrl.includes('/:comments/') || (previous?.recursive ?? false)
+    references.set(canonical.key, {
+      version: recursive ? undefined : id.version || previous?.version || undefined,
+      recursive,
+    })
+  }
+
+  const holds: Array<{probeKey: string; done: () => void}> = []
+  let pending = references.size
+  if (pending === 0) onDone?.()
+  for (const [key, reference] of Array.from(references.entries())) {
+    const probeKey = `${key}|${reference.recursive ? '**' : reference.version ?? ''}`
+    const done = () => {
+      pending -= 1
+      if (pending === 0) onDone?.()
+    }
+    holds.push({probeKey, done})
+    const existing = sharedAgentReferenceProbes.get(probeKey)
+    if (existing) {
+      existing.holders.add(done)
+      continue
+    }
+    const entry = {cancel: () => {}, holders: new Set([done])}
+    sharedAgentReferenceProbes.set(probeKey, entry)
+    // The probe ended by itself: forget it and tell every holder, so a later hint for the same
+    // version asks again rather than joining a finished probe.
+    const settled = () => {
+      if (sharedAgentReferenceProbes.get(probeKey) !== entry) return
+      sharedAgentReferenceProbes.delete(probeKey)
+      for (const holder of Array.from(entry.holders)) holder()
+    }
+    if (reference.version) {
+      entry.cancel = pinAgentReferenceVersion(key, reference.version, settled)
+    } else {
+      const discoveryId = `${key}${reference.recursive ? '/**' : ''}`
+      let cancelled = false
+      console.info('[agents-discovery] discovering agent-referenced content from account hint', {id: discoveryId})
+      discoverEntity(discoveryId)
+        .then((resp) => {
+          if (cancelled) return
+          console.info('[agents-discovery] agent-referenced content discovery scheduled', {
+            id: discoveryId,
+            state: resp.state,
+            version: resp.version || '(pending)',
+          })
+        })
+        .catch((error) => {
+          if (cancelled) return
+          console.warn('[agents-discovery] agent-referenced content discovery failed', {
+            id: discoveryId,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        })
+        .finally(settled)
+      entry.cancel = () => {
+        cancelled = true
+      }
+    }
+  }
+
+  return () => {
+    for (const {probeKey, done} of holds) {
+      const entry = sharedAgentReferenceProbes.get(probeKey)
+      if (!entry || !entry.holders.delete(done)) continue
+      if (entry.holders.size > 0) continue
+      entry.cancel()
+      sharedAgentReferenceProbes.delete(probeKey)
+    }
+  }
 }
 
 type CanonicalAgentRef = {
@@ -391,10 +558,16 @@ function subscribeToAgentReferences(
         },
       },
     )
+    // The write tool result references `id?v=<version>`; ask the node for that exact version so an update
+    // to a document it already holds is fetched now instead of on the node's next periodic refresh.
+    const cancelVersionPin = id.version ? pinAgentReferenceVersion(key, id.version) : () => {}
     activeSubscriptions.set(key, {
       url: reference.url,
       recursive: reference.recursive,
-      unsubscribe: () => subscription.unsubscribe(),
+      unsubscribe: () => {
+        cancelVersionPin()
+        subscription.unsubscribe()
+      },
     })
   }
 }
@@ -3332,15 +3505,19 @@ export function useAgentWebSocketSubscription(
 ): AgentSessionLiveState {
   const [partials, setPartials] = useState<Record<string, AgentSessionLiveState>>({})
   const referenceSubscriptionsRef = useRef(new Map<string, AgentReferenceSubscription>())
+  const hintProbeReleasesRef = useRef(new Set<{release: () => void}>())
 
   // Keep the local node peered with this server's HM node so agent-created content can be discovered locally.
   useConnectLocalNodeToAgentHmServer(serverUrl)
 
   useEffect(() => {
     const subscriptions = referenceSubscriptionsRef.current
+    const hintProbeReleases = hintProbeReleasesRef.current
     return () => {
       for (const subscription of Array.from(subscriptions.values())) subscription.unsubscribe()
       subscriptions.clear()
+      for (const hold of Array.from(hintProbeReleases)) hold.release()
+      hintProbeReleases.clear()
     }
   }, [serverUrl, accountUid, key])
 
@@ -3450,7 +3627,23 @@ export function useAgentWebSocketSubscription(
       } else if (event.key.startsWith('sessions/') && serverUrl && accountUid) {
         applySessionToCaches(serverUrl, accountUid, event.value as SessionInfo)
       } else if (event.key.startsWith('account/') && serverUrl && accountUid) {
-        invalidateForAccountChange(serverUrl, accountUid, (event.value ?? {}) as {reason?: string; agentId?: string})
+        const value = (event.value ?? {}) as {reason?: string; agentId?: string; references?: string[]}
+        invalidateForAccountChange(serverUrl, accountUid, value)
+        // A write result somewhere in this account (an off-screen or trigger session included) names
+        // what it published; ask the local node for it now, bounded. The open session's own socket
+        // keeps its live subscriptions separately, above.
+        if (Array.isArray(value.references) && value.references.length > 0) {
+          // Held only until the probes end on their own, so a window that lives for days does not
+          // keep a closure per write it ever heard about.
+          const holds = hintProbeReleasesRef.current
+          const hold = {release: () => {}}
+          let finished = false
+          hold.release = discoverAgentReferencesOnce(value.references, () => {
+            finished = true
+            holds.delete(hold)
+          })
+          if (!finished) holds.add(hold)
+        }
       } else {
         invalidateQueries(['agents'])
       }
