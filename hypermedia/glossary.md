@@ -8,34 +8,34 @@ Hypermedia is the protocol and Seed is the software that implements it. When an 
 
 # Identity and keys <!-- id:T_8Q8IGa -->
 
-- **Account.** A key pair used as an identity; its public key is its name, and there is no account record anywhere else. See [Identity](./protocol/identity.md). <!-- id:Eq4EScpl -->
+- **Account.** A key pair used as an identity. Its public key is its name, and no account record exists anywhere else. See [Identity](./protocol/identity.md). <!-- id:Eq4EScpl -->
 - **Space.** The namespace of documents an account owns, addressed as `hm://<account>/<path>`. Account and space are the same key seen from two sides: the identity that signs and the place its documents live. See [Documents](./protocol/documents.md). <!-- id:t-7AMQ1Y -->
 - **Principal.** The wire form of a public key: a multicodec prefix followed by the raw key bytes, written as base58btc text that starts with `z6Mk` for Ed25519 keys and `zDn` for P-256 keys. See [Principal](./principal.md). <!-- id:nPBRgL2N -->
 - **Account ID, uid.** The text form of an account's principal as it appears in URLs, for example `z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb`. See [Identity](./protocol/identity.md). <!-- id:m6GkTW-R -->
 - **Key name.** A local alias under which the daemon or the CLI stores a key, such as `main`. It is never the same thing as the principal, and only the principal means anything to other people. See [Keys](./build/keys.md). <!-- id:YYW7wBy9 -->
 - **Mnemonic.** A BIP-39 word list, 12 to 24 words with an optional passphrase, from which an Ed25519 account key is derived on the path `m/44'/104109'/0'`. One mnemonic and passphrase give exactly one account. See [Identity](./protocol/identity.md). <!-- id:3dJyziCz -->
 - **Key file.** An exported `.hmkey.json` holding one key, optionally encrypted with a password, used by the CLI and in CI. See [Keys](./build/keys.md). <!-- id:PWw0yDWc -->
-- **Vault.** The encrypted key store behind sign-in on the web and, since 2026, the desktop app; the server that holds a vault cannot read the keys inside it. See [Sign in with Seed](./build/sign-in.md). <!-- id:On4tmukn -->
+- **Vault.** The encrypted key store behind sign-in on the web and, since 2026, the desktop app. The server that holds a vault cannot read the keys inside it. See [Sign in with Seed](./build/sign-in.md). <!-- id:On4tmukn -->
 - **Session key.** A browser-held key that a vault account delegates to with an AGENT capability, so a site can sign for you without ever receiving your account key. See [Sign in with Seed](./build/sign-in.md). <!-- id:HdEIPBwG -->
 - **Device key.** The Ed25519 key that identifies one running daemon as a libp2p peer. It secures connections and never signs content. See [Network](./protocol/network.md). <!-- id:eBS-9s56 -->
-- **Profile.** A small signed snapshot blob that gives an account a name, an avatar and a description; the daemon merges all of an account's profile blobs field by field. See [Profile](./profile.md). <!-- id:V2quF0dS -->
+- **Profile.** A small signed snapshot blob that gives an account a name, an avatar and a description. The daemon merges all of an account's profile blobs field by field. See [Profile](./profile.md). <!-- id:V2quF0dS -->
 - **Alias.** A profile whose only field points at another account, meaning "this key is really that account". The daemon accepts it only if that account granted the key an AGENT capability. See [Identity](./protocol/identity.md). <!-- id:J90CYDNz -->
 - **Key linking.** Joining several keys into one identity with an AGENT capability from the main account and an alias profile from the other key. It is how desktop, phone and browser keys all show up as one person. See [Identity](./protocol/identity.md). <!-- id:8XQHVpoa -->
 - **Bearer token.** A token the daemon issues in exchange for a signed, short-lived capability, which the Seed web app forwards so that a public-only node can serve you private content. It never authorizes a write. See [Privacy](./protocol/privacy.md). <!-- id:g2T0h5UN -->
 
 # Blobs and encoding <!-- id:NUGiiJeD -->
 
-- **Blob.** An immutable piece of data named by the hash of its bytes. Structured blobs are signed DAG-CBOR maps; file chunks are unsigned IPFS data. See [Signed Blobs](./protocol/blobs.md). <!-- id:uZTgXmyY -->
+- **Blob.** An immutable piece of data named by the hash of its bytes. Structured blobs are signed DAG-CBOR maps, and file chunks are unsigned IPFS data. See [Signed Blobs](./protocol/blobs.md). <!-- id:uZTgXmyY -->
 - **CID.** A content identifier: a self-describing hash that names a blob. Hypermedia uses CIDv1 with the `dag-cbor` codec for structured blobs, and `dag-pb` and `raw` for files. See [CID](./cid.md). <!-- id:gkdzPdiY -->
 - **DAG-CBOR.** The deterministic binary encoding every structured blob uses: CBOR with sorted keys, shortest integers and native CID links. Because the encoding is canonical, one value always has one CID. See [DAG-CBOR](./schema/dag-cbor.md). <!-- id:9vQFpLmN -->
 - **DAG-JSON.** The JSON projection of the same data, where a link is written `{"/": "<cid>"}` and bytes are written `{"/": {"bytes": "…"}}`. The CLI prints blobs in this form. See [DAG-JSON](./schema/dag-json.md). <!-- id:y3XRlTZV -->
 - **Signed envelope.** The four fields every structured blob carries: `type`, `signer`, `sig` and `ts`. See [Blob](./blob.md). <!-- id:iaM6m4wS -->
-- **Signature.** 64 bytes over the blob's canonical encoding taken with the `sig` field set to 64 zero bytes, not omitted. See [Signature](./signature.md). <!-- id:KGVtgLSC -->
+- **Signature.** 64 bytes over the blob's canonical encoding taken with the `sig` field set to 64 zero bytes. The field is present, never omitted. See [Signature](./signature.md). <!-- id:KGVtgLSC -->
 - **Timestamp (`ts`).** The signer's claimed time in Unix milliseconds. Nothing checks it against real time when a blob arrives. See [Integrity](./protocol/integrity.md). <!-- id:BWO1r4Z9 -->
 - **Snapshot blob.** A blob that carries a record's whole value and is replaced whole on edit: comments, contacts and profiles. Documents are the other kind, built from deltas. See [Signed Blobs](./protocol/blobs.md). <!-- id:BwhZWs55 -->
 - **TSID.** A timestamped id: 10 bytes of a 48-bit millisecond timestamp and the first 4 bytes of a SHA-256 hash, written as 14 or 15 base58 characters. It gives a snapshot record a stable identity across edits. See [Signed Blobs](./protocol/blobs.md). <!-- id:6EixjmEI -->
 - **Stash.** Where the daemon keeps a blob it has stored but cannot yet interpret, because a dependency has not arrived or the signer is not yet authorized. The blob is retried when the missing piece lands. See [Signed Blobs](./protocol/blobs.md). <!-- id:U86WqFrM -->
-- **BLAKE2b and SHA-256 CIDs.** The daemon hashes blobs it creates with BLAKE2b and the SDK and apps use SHA-256; both are valid names for the same bytes. A blob that another blob references must be uploaded under the exact CID the referrer used. See [Signed Blobs](./protocol/blobs.md). <!-- id:dA5bUsiH -->
+- **BLAKE2b and SHA-256 CIDs.** The daemon hashes blobs it creates with BLAKE2b and the SDK and apps use SHA-256. Both are valid names for the same bytes. A blob that another blob references must be uploaded under the exact CID the referrer used. See [Signed Blobs](./protocol/blobs.md). <!-- id:dA5bUsiH -->
 
 # Documents and resources <!-- id:TfdNYAw0 -->
 
@@ -45,33 +45,33 @@ Hypermedia is the protocol and Seed is the software that implements it. When an 
 - **Change.** A signed delta on a document: a list of operations plus links to the changes it builds on. See [Change](./change.md). <!-- id:v_HHROc9 -->
 - **Genesis.** A document's first Change, and therefore its identity. Two Refs that name the same genesis talk about the same document, wherever they place it. See [Documents](./protocol/documents.md). <!-- id:2KxUlfPD -->
 - **Home document.** The document at the empty path of a space, `hm://<account>`. Its genesis is a deterministic empty Change with `ts` 0, so every device of the account derives the same one. See [Documents](./protocol/documents.md). <!-- id:Dri6S3_G -->
-- **Deps and depth.** A Change's `deps` are the heads its author saw, sorted by CID; its `depth` is one more than the deepest dep. Together they order the history. See [Change](./change.md). <!-- id:ihtU17b5 -->
+- **Deps and depth.** A Change's `deps` are the heads its author saw, sorted by CID. Its `depth` is one more than the deepest dep. Together they order the history. See [Change](./change.md). <!-- id:ihtU17b5 -->
 - **Operation (op).** One edit inside a Change: `SetAttributes`, `ReplaceBlock`, `MoveBlocks`, `DeleteBlocks`, or the deprecated `SetKey`. Each has an id of timestamp, position and actor that decides concurrent conflicts. See [Operations](./change/op.md). <!-- id:qZKqO48U -->
 - **CRDT.** A conflict-free replicated data type: a merge rule that makes every replica reach the same state in any delivery order. Documents use a last-writer-wins register for metadata and a move tree with ordered sibling lists for blocks. See [Documents](./protocol/documents.md). <!-- id:dy5OI6oD -->
 - **Head.** A Change that no other Change depends on yet. A document with two heads has two concurrent edits that nobody has merged. See [Documents](./protocol/documents.md). <!-- id:6xy8H4Ag -->
 - **Version.** The set of head CIDs, sorted and joined with `.`, written `?v=` in a URL. A version always replays to the same content. See [URLs](./protocol/urls.md). <!-- id:BjQ5iozl -->
 - **Latest (`l`).** A URL flag meaning "the newest version, and at least this one". Today the daemon simply returns the newest version it knows. See [URLs](./protocol/urls.md). <!-- id:rs_XaEuE -->
 - **Ref.** A signed claim that an address currently shows a given version, is deleted, or redirects elsewhere. A document appears at an address only through an indexed Ref from an authorized signer. See [Ref](./ref.md). <!-- id:lPdSM9oW -->
-- **Generation.** One life of an address, numbered by the writer; the highest generation wins. Publishing a Ref with a higher generation replaces whatever lived at the path. See [Documents](./protocol/documents.md). <!-- id:8rckapbW -->
+- **Generation.** One life of an address, numbered by the writer. The highest generation wins. Publishing a Ref with a higher generation replaces whatever lived at the path. See [Documents](./protocol/documents.md). <!-- id:8rckapbW -->
 - **Tombstone.** A Ref with a genesis and no heads, which marks the document deleted. The history stays on every node that holds it. See [Documents](./protocol/documents.md). <!-- id:0YElj_oJ -->
 - **Redirect.** A Ref with no heads and a `redirect` target, so readers of the old address are sent to the new one. See [Redirect target](./ref/redirect-target.md). <!-- id:6FsTfeiy -->
 - **Republish.** A redirect with `republish` set: the old address keeps showing the target's content under its own URL. See [Documents](./protocol/documents.md). <!-- id:bb6pz4zK -->
 - **Fork (branch).** Publishing your own Ref, in your own space, that points at another document's genesis and heads. You get an address you control with the whole history intact. See [Documents](./protocol/documents.md). <!-- id:xDAYgRjP -->
 - **Path.** The `/`-separated name of a document inside a space, such as `/notes/sushi`. Paths are plain strings, and a parent path confers no authority over its children except through capabilities. See [Documents](./protocol/documents.md). <!-- id:7nXURVOs -->
-- **Directory.** The documents whose paths sit under a given path, found by a prefix query. The daemon stores no tree; a directory is only a listing. See [Documents](./protocol/documents.md). <!-- id:nO-Pbybk -->
-- **Draft.** Unpublished edits kept by a client: the Seed app, the CLI and Seed Agents each keep their own. The daemon has no drafts; publishing is signing a Change and a Ref. See [Documents](./protocol/documents.md). <!-- id:ZIyfQ3Sb -->
+- **Directory.** The documents whose paths sit under a given path, found by a prefix query. The daemon stores no tree. A directory is only a listing. See [Documents](./protocol/documents.md). <!-- id:nO-Pbybk -->
+- **Draft.** Unpublished edits kept by a client: the Seed app, the CLI and Seed Agents each keep their own. The daemon has no drafts. Publishing means signing a Change and a Ref. See [Documents](./protocol/documents.md). <!-- id:ZIyfQ3Sb -->
 - **Metadata (attributes).** A document's key-value attributes such as `name`, `summary`, `icon` and `siteUrl`, set with `SetAttributes` and merged last-writer-wins. See [Document Metadata](./metadata.md). <!-- id:4o5TMHkl -->
 
 # Content <!-- id:Hcelf4Wj -->
 
 - **Block.** One addressable piece of a document or comment body, such as a paragraph, heading, image or table row, with a permanent id. See [Blocks](./protocol/blocks.md). <!-- id:3aE-TUts -->
-- **Block node.** A block plus its list of child block nodes; a document body is an ordered list of them. See [Block node](./block/node.md). <!-- id:kBlwwc-r -->
-- **Children type.** The `childrenType` attribute that lays out a block's children: `Group`, `Ordered`, `Unordered`, `Blockquote` or `Grid`. A list is a property of the parent, not of its items. See [Children type](./block/children-type.md). <!-- id:XwP-bbE0 -->
+- **Block node.** A block plus its list of child block nodes. A document body is an ordered list of them. See [Block node](./block/node.md). <!-- id:kBlwwc-r -->
+- **Children type.** The `childrenType` attribute that lays out a block's children: `Group`, `Ordered`, `Unordered`, `Blockquote` or `Grid`. A list is a property of the parent, and its items carry no list type. See [Children type](./block/children-type.md). <!-- id:XwP-bbE0 -->
 - **Annotation.** An inline layer over a range of a block's text: a style, a link, a highlight or an inline embed. Offsets count Unicode code points. See [Annotation](./block/annotation.md). <!-- id:xJ8aMYAC -->
 - **Mention.** An inline embed over a placeholder character that links to an account or a document and renders the target's current name. The daemon indexes it as a link, which is how "mentions of me" works. See [Comments](./protocol/comments.md). <!-- id:mJHyWqJ3 -->
 - **Embed.** A block that shows another resource in place: a document, a block, a block with its children, a text range or a discussion, pinned to a version or following the latest. See [Embed](./block/embed.md). <!-- id:y00RsMBd -->
 - **Query block.** A block that stores a query (included spaces and paths, sort, limit) and shows its live result as cards, a list or a table. See [Query block](./block/query.md). <!-- id:2NMccQyT -->
-- **Collection.** A document whose content is a single top-level query block that lists its own children. The indexer derives this from the content and reports it as `isCollection`; no attribute declares it. It is a presentation convention in the Seed app, not a protocol concept. See [Blocks](./protocol/blocks.md). <!-- id:_s9jhb51 -->
+- **Collection.** A document whose content is a single top-level query block that lists its own children. The indexer derives this from the content and reports it as `isCollection`. No attribute declares it. It is a presentation convention in the Seed app, and the protocol has no such concept. See [Blocks](./protocol/blocks.md). <!-- id:_s9jhb51 -->
 - **Detached block.** A block that has content but no position in the tree. The daemon returns it separately, and the Seed app keeps a site's menu in one named `navigation`, whose children are `Link` blocks. See [Navigation item](./metadata/navigation-item.md). <!-- id:KjxBIpYZ -->
 - **Revision.** The CID of the Change that last replaced a block, reported on every block the daemon serves. A citation records it so readers can tell whether the cited text has changed. See [Blocks](./protocol/blocks.md). <!-- id:pgtQLeP3 -->
 - **Text fragment.** A URL fragment that names a block (`#id`), a block with its children (`#id+`) or a range of its text (`#id[start:end]`). See [URLs](./protocol/urls.md). <!-- id:3gJJuJ0J -->
@@ -83,14 +83,14 @@ Hypermedia is the protocol and Seed is the software that implements it. When an 
 # Permissions and relationships <!-- id:CH5VsOuR -->
 
 - **Capability.** A signed grant from a space owner to another key, with a role and an optional path scope. It never expires and cannot be revoked today. See [Permissions](./protocol/permissions.md). <!-- id:WDijUUnT -->
-- **Role.** The kind of capability: `WRITER` may publish Refs at and under a path; `AGENT` is full delegation of the issuer's key and must have an empty path. No other role exists in data. See [Role](./role.md). <!-- id:vZUo05tD -->
+- **Role.** The kind of capability: `WRITER` may publish Refs at and under a path. `AGENT` is full delegation of the issuer's key and must have an empty path. No other role exists in data. See [Role](./role.md). <!-- id:vZUo05tD -->
 - **Delegate.** The key a capability grants authority to. See [Capability](./capability.md). <!-- id:jkkT27v0 -->
 - **Path scope.** The path a capability covers, matched by segment and always recursive: `/team` covers `/team/notes` but not `/teammates`. See [Permissions](./protocol/permissions.md). <!-- id:jq6U9atk -->
 - **Collaborator.** A key that may write in a space through a capability, listed by the `ListDocumentCollaborators` request and the `/:collaborators` view. See [Permissions](./protocol/permissions.md). <!-- id:jZjJi7pv -->
 - **Contact.** A public, signed address-book entry in which one account names another. The daemon never consults a contact for access. See [Contact](./contact.md). <!-- id:PZMycmxi -->
-- **Join.** Publishing a contact for a site's account with `subscribe.site` set; the site's members list is derived from these contacts. See [Contact subscription](./contact/subscribe.md). <!-- id:2fnCKAdy -->
+- **Join.** Publishing a contact for a site's account with `subscribe.site` set. The site's members list is derived from these contacts. See [Contact subscription](./contact/subscribe.md). <!-- id:2fnCKAdy -->
 - **Follow.** Publishing a contact for a person with `subscribe.profile` set. See [Contact subscription](./contact/subscribe.md). <!-- id:N71IoYZ4 -->
-- **Member.** An account that has joined a site; a member who also holds a capability is shown with its role. Membership grants no permissions. See [Permissions](./protocol/permissions.md). <!-- id:J7WoeHrk -->
+- **Member.** An account that has joined a site. A member who also holds a capability is shown with its role. Membership grants no permissions. See [Permissions](./protocol/permissions.md). <!-- id:J7WoeHrk -->
 - **Visibility.** Whether a Ref or comment is public (the empty string) or `Private`. Changes and files inherit visibility from whatever links to them. See [Visibility](./visibility.md). <!-- id:0lIDEN5A -->
 - **Private document.** A document published with a private Ref, readable only by the owner, keys holding a root-scoped grant, and the site server. Creating new private documents is disabled in the daemon at the moment. See [Privacy](./protocol/privacy.md). <!-- id:xn5JE30b -->
 - **Web of trust.** The long-term idea that trust between accounts filters what you see. Today only capabilities, aliases and contacts exist, and none of them carry trust transitively. See [Permissions](./protocol/permissions.md). <!-- id:7msLlJ6z -->
@@ -107,14 +107,14 @@ Hypermedia is the protocol and Seed is the software that implements it. When an 
 - **Subscription.** A standing, periodic discovery for one address, optionally recursive. The Seed app subscribes to the spaces you join or follow, and a site server subscribes to its registered account. See [Network](./protocol/network.md). <!-- id:MCWB9inm -->
 - **Push.** Announcing a set of blobs to a specific peer, usually a site server, so it fetches them right away instead of waiting for its subscription. See [Network](./protocol/network.md). <!-- id:23OhVJdo -->
 - **Peer exchange.** Asking a connected peer for its recent peer list, which is how a node finds peers beyond the bootstrap list. There is no DHT today. See [Network](./protocol/network.md). <!-- id:s91IwmGD -->
-- **Relay.** A server that forwards connections for peers behind NAT; the daemon uses two compiled-in Seed relays and never relays for others. See [Network](./protocol/network.md). <!-- id:42O6serL -->
+- **Relay.** A server that forwards connections for peers behind NAT. The daemon uses two compiled-in Seed relays and never relays for others. See [Network](./protocol/network.md). <!-- id:42O6serL -->
 - **Site.** A space published at a web domain by a server that holds its content and renders it as web pages. See [Sites](./protocol/sites.md). <!-- id:Z2JlW0jf -->
 - **`siteUrl`.** The home document attribute that names a space's site. Nodes treat the server behind it as the space's authority and let it receive the space's private blobs. See [Sites](./protocol/sites.md). <!-- id:V7lmLuE6 -->
 - **Site registration.** The handshake that binds one account to one site: the owner's app presents a one-time secret to `/hm/api/register`, pushes the space, and sets `siteUrl`. See [Sites](./protocol/sites.md). <!-- id:uXOObTck -->
 - **`/hm/api/config`.** A site's public description of itself: its registered account, peer id, addresses and protocol id. Any client holding only a web URL starts here. See [Sites](./protocol/sites.md). <!-- id:4S5TlLKU -->
 - **Custom domain.** A domain you own that points at a hosted `<name>.hyper.media` site or a self-hosted server. See [Sites](./protocol/sites.md). <!-- id:qZQN2e1f -->
 - **Public-only node.** A daemon started with `-public-only`, which serves only public data over HTTP and gRPC unless a request carries a valid bearer token. Hosted sites and gateways run this way. See [Privacy](./protocol/privacy.md). <!-- id:9P4NLgPE -->
-- **Hot and cold discovery.** Hot tasks come from something on screen and rerun every ten seconds while viewed; cold tasks are subscriptions that rerun every minute. See [Network](./protocol/network.md). <!-- id:c3XzLhjO -->
+- **Hot and cold discovery.** Hot tasks come from something on screen and rerun every ten seconds while viewed. Cold tasks are subscriptions that rerun every minute. See [Network](./protocol/network.md). <!-- id:c3XzLhjO -->
 
 # URLs and APIs <!-- id:H_i4c7kQ -->
 
@@ -139,14 +139,14 @@ Hypermedia is the protocol and Seed is the software that implements it. When an 
 - **Struct schema.** A schema for a map with known fields, each a property. See [Struct schema](./schema/struct-schema.md) and [Property](./schema/property.md). <!-- id:RbR5twB1 -->
 - **Map schema.** A schema for a map whose arbitrary keys all hold values of one schema. See [Map schema](./schema/map-schema.md) and [Closed map](./schema/closed-map.md). <!-- id:AS8ovaOI -->
 - **List schema.** A schema for a list whose items match one schema. See [List schema](./schema/list-schema.md). <!-- id:TKRNLE7O -->
-- **Literal.** A schema that accepts exactly one value; a fixed set of choices is a union of literals. See [Literal schema](./schema/literal-schema.md). <!-- id:GPfun5BC -->
+- **Literal.** A schema that accepts exactly one value. A fixed set of choices is a union of literals. See [Literal schema](./schema/literal-schema.md). <!-- id:GPfun5BC -->
 - **Union.** A schema that matches any one of several alternatives, told apart by a discriminant when they are tagged. See [Union schema](./schema/anyof.md) and [Discriminated union](./schema/discriminated-union.md). <!-- id:Uw0jj-eH -->
 - **Link schema.** A schema for a CID link, optionally naming the type the link must point at with `target`. See [Link schema](./schema/link-schema.md). <!-- id:ZR0vqtGY -->
-- **Include and extension.** A schema node whose `type` names another schema; bare it is an include, and with extra refining keys it is an extension. See [Reference Schema](./schema/include-schema.md) and [Extension](./schema/extension.md). <!-- id:97tuLxho -->
+- **Include and extension.** A schema node whose `type` names another schema. Bare, it is an include, and with extra refining keys it is an extension. See [Reference Schema](./schema/include-schema.md) and [Extension](./schema/extension.md). <!-- id:97tuLxho -->
 - **Generic and variable.** A schema parameterized over a type, and the `{"var": "<name>"}` reference that stands for the bound parameter inside it. See [Generic](./schema/generic.md) and [Variable schema](./schema/var-schema.md). <!-- id:RwWUQUHb -->
 - **Primitive.** One of the standard-library schemas that is exactly one kind, such as [string](./string.md) or [integer](./integer.md). See [Primitive](./schema/primitive.md). <!-- id:oSnst34U -->
 - **Canonical encoding.** The single deterministic byte form of a value in DAG-CBOR, which is why a schema has exactly one CID. See [Canonical Encoding](./schema/canonical-encoding.md). <!-- id:paXKUcrW -->
-- **Fixpoint problem.** A blob cannot contain its own CID, so a cycle of CID links has no encoding order; names break such cycles. See [Fixpoint Problem](./schema/fixpoint-problem.md) and [References and Naming](./schema/references.md). <!-- id:8gARS93M -->
+- **Fixpoint problem.** A blob cannot contain its own CID, so a cycle of CID links has no encoding order. Names break such cycles. See [Fixpoint Problem](./schema/fixpoint-problem.md) and [References and Naming](./schema/references.md). <!-- id:8gARS93M -->
 - **Lockfile.** `schemas.lock.json` in the repository, which pins every library schema's CID and is checked before publishing. See [How Schemas Work](./schema/how-it-works.md). <!-- id:255xCRyO -->
 
 # Seed Agents <!-- id:zTbkpg3w -->
@@ -157,7 +157,7 @@ Seed Agents has its own vocabulary, defined once in the [Agents glossary](./agen
   - **The five verbs.** [read](./agent/read.md), [write](./agent/write.md), [call](./agent/call.md), [delegate](./agent/delegate.md) and [plan](./agent/plan.md), the whole model-facing tool surface. <!-- id:uWLm_jV4 -->
   - **Trigger.** Standing configuration that starts or wakes an agent on a schedule, a comment, a mention, a site update, a webhook or another run finishing. See [Trigger](./agent/trigger.md). <!-- id:5mQOFGu3 -->
   - **Grants.** An agent's permissions: the callable tools, the publish grant and the enabled MCP servers. See [Grants](./agent/grants.md). <!-- id:aIa42PgS -->
-  - **MCP server.** A Model Context Protocol server that Seed Agents connects to as a client; its tools appear in the agent's space. No first-party MCP server exposes Seed itself. See [MCP](./agent/mcp.md). <!-- id:1769lNvE -->
+  - **MCP server.** A Model Context Protocol server that Seed Agents connects to as a client. Its tools appear in the agent's space. No first-party MCP server exposes Seed itself. See [MCP](./agent/mcp.md). <!-- id:1769lNvE -->
   - **seed-cli skill.** The agent skill that lets an external agent, such as Claude Code, use the Seed CLI to read and publish. See [Building with agents](./build/agents.md). <!-- id:RUsX_znS -->
 
 # Software and process <!-- id:yWwG-PYb -->
@@ -167,7 +167,7 @@ Seed Agents has its own vocabulary, defined once in the [Agents glossary](./agen
 - **Seed web app.** The server-rendered web app that turns a daemon into a site and serves the Seed API. See [Web](./apps/web.md). <!-- id:ranDOCO7 -->
 - **Extensions (plugins).** A planned plugin system in which a document carries a small app that a site installs. It is being redone and nothing ships today. See [Roadmap](./protocol/roadmap.md). <!-- id:sHvv1RQS -->
 - **HM26.** The working name for a redesign of the blob layout and resource model under discussion in 2026. Nothing of it ships. See [Where this is going](./protocol/roadmap.md). <!-- id:dDtKuX_n -->
-- **Protocol change.** Any change to permanent data, the sync protocol, capabilities, identity, or any interoperable wire or disk format. It goes through a written proposal and review; see [Contributing](./build/contributing.md). <!-- id:yTSdjbju -->
+- **Protocol change.** Any change to permanent data, the sync protocol, capabilities, identity, or any interoperable wire or disk format. It goes through a written proposal and review. See [Contributing](./build/contributing.md). <!-- id:yTSdjbju -->
 - **Repo HM sync.** The round trip between a git folder and a Hypermedia space that publishes this site from the repository. See [Publish a folder](./build/publish-a-folder.md). <!-- id:mkEgUuP2 -->
 
 # Retired names <!-- id:wzhS50Pz -->
@@ -191,10 +191,12 @@ These names appear in old documents, commit messages, team notes and a few code 
 | `SetKey` | The original flat metadata operation. The daemon still accepts it. | `SetAttributes` <!-- id:o00J2oZi --> |
 | `ListEntityMentions` | The old backlinks request, now deprecated. | `ListCitations` <!-- id:USgpAsO4 --> |
 | `/:metadata` | The old view suffix for a document's attributes, still accepted in links. | `/:attributes` <!-- id:UGJSeQtM --> |
-| EDITOR, Owner, Admin, Follower, Subscriber roles | Roles named in design notes and reserved in a proto comment. None exists in data. | `WRITER` or `AGENT`; see [Role](./role.md) <!-- id:OhlGEp3w --> |
+| EDITOR, Owner, Admin, Follower, Subscriber roles | Roles named in design notes and reserved in a proto comment. None exists in data. | `WRITER` or `AGENT`, see [Role](./role.md) <!-- id:OhlGEp3w --> |
 
 # See also <!-- id:kJk74Vnq -->
 
 - [The Hypermedia protocol](./protocol.md), the layered tour these terms come from. <!-- id:gVMgrctA -->
 - [Agents glossary](./agent/glossary.md), for every Seed Agents term. <!-- id:joAFt8D_ -->
 - [History](./history.md), for the dated design records behind the current names. <!-- id:rSuR3f-S -->
+- [Why Hypermedia](./why.md), the motivation behind these terms, for any reader.
+- [Building on Hypermedia](./build.md), for task guides that use them.
