@@ -2047,7 +2047,7 @@ export type SeedSiteMember = {
 
 /**
  * Schema
- * The meta-schema: a discriminated union of the shapes a schema can take, and a valid instance of itself — how to browse, author and validate schemas in the Seed app, plus the full reference documentation.
+ * The meta-schema, the union of every shape a schema can take and a valid instance of itself, with a guide to browsing, authoring and checking schemas in the Seed app and an index of the reference pages.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema
  */
 export type HMSchema =

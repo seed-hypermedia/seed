@@ -15,7 +15,7 @@ Everything lives in one repository, [github.com/seed-hypermedia/seed](https://gi
 | [Web app](./apps/web.md) | The site server and gateway: server-rendered pages, the Seed API, site services, browser signing. | `frontend/apps/web` | gRPC-web on the daemon's HTTP port, with a per-request bearer token. |
 | [CLI](./apps/cli.md) | The command-line client for documents, comments, contacts, capabilities and keys, and the tool that publishes this folder. | `frontend/apps/cli` | The Seed API of a site over HTTPS; optionally a local daemon. |
 | [Notify](./apps/notify.md) | The notifications and email service. | `frontend/apps/notify` and `frontend/apps/emails` | The daemon's activity feed over gRPC-web. |
-| [Vault](./apps/vault.md) | The zero-knowledge identity vault that keeps account keys and delegates session keys to browsers. | `vault/` | Not at all; clients bring the vault's output to the daemon. |
+| [Vault](./apps/vault.md) | The zero-knowledge identity vault that keeps account keys and delegates session keys to browsers. | `vault/` | gRPC-web to the site's daemon for account lookups and signing, and `/ipfs` uploads of profile and capability blobs. |
 | [Mobile app](./apps/mobile.md) | The Expo app for iOS, Android and web. | `frontend/apps/mobile` | The Seed API of a site. |
 | [Explorer](./apps/explorer.md) | A raw-data browser for the network: documents, blobs, feeds, an API lab. | `frontend/apps/explore` | The Seed API of a site. |
 | [Seed Agents](./apps/agents.md) | The agent runtime: a signed action API, sessions, tools and triggers. | `agents/` | The Seed API, as a client with delegated keys. |

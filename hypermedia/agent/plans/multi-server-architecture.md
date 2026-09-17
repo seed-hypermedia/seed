@@ -1,8 +1,8 @@
 ---
 name: Multi-Server Architecture
-summary: "How the agents service grows past one box, in three phases that can each stop and hold. Written against the 2026-08-29 production baseline: one 4-vCPU host…"
+summary: "A three-phase plan for growing the agents service past one host by separating sandboxed execution from the control plane and then sharding accounts across servers."
 ---
-How the agents service grows past one box, in three phases that can each stop and hold. Written against the 2026-08-29 production baseline: one 4-vCPU host running `agents-stable`/`-staging`/`-dev`, Caddy, SearXNG, and Crawl4AI, saturated by a single heavy dev agent (see [perf-squeeze-plan.md](./perf-squeeze.md)). <!-- id:m4ehHETW -->
+How the agents service grows past one box, in three phases that can each stop and hold. Written against the 2026-08-29 production baseline: one 4-vCPU host running `agents-stable`/`-staging`/`-dev`, Caddy, SearXNG, and Crawl4AI, saturated by a single heavy dev agent (the finished perf-squeeze plan, now in git history, measured it). <!-- id:m4ehHETW -->
 
 # Why this shape <!-- id:FRElSwuo -->
 

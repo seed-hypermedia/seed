@@ -1,6 +1,6 @@
 ---
 name: System Overview
-summary: Seed Agents is a local-first, account-scoped agent system. It lets the desktop app configure an agent server, store provider secrets, create agents, work in…
+summary: "How the pieces of Seed Agents fit together: the signed control plane, per-account storage, durable sessions and runs, live subscriptions, and the clients that drive them."
 ---
 Seed Agents is a local-first, account-scoped agent system. It lets the desktop app configure an agent server, store provider secrets, create agents, work in durable sessions, stream model responses, delegate work to children, and inspect everything that executed. <!-- id:j6gFhd29 -->
 
@@ -15,18 +15,18 @@ Seed Agents is a local-first, account-scoped agent system. It lets the desktop a
 6. **Visible tools** — tool calls and tool results are durable session events rendered in the UI. <!-- id:MArR08vh -->
 7. **Shared hypermedia behavior** — `read` uses SDK code shared with CLI URL resolution, not a CLI shellout. <!-- id:1_gfqzKV -->
 8. **Inspectable operation** — durable session events, the signed read actions, and diagnostic logs support debugging local workflows; there is no unauthenticated inspection surface. <!-- id:ldqXhH-1 -->
-9. **Five verbs, one address space** — `read`, `write`, `call`, `delegate`, `plan` are the whole model-facing surface; new capability arrives as a new address or a new callable, not a new tool in the provider payload. <!-- id:Y-pjolWg -->
+9. **Few verbs, one address space** — the five verbs `read`, `write`, `call`, `delegate`, `plan`, plus the two session verbs `status` and `continue_session`, are the whole model-facing surface; new capability arrives as a new address or a new callable, not a new tool in the provider payload. <!-- id:Y-pjolWg -->
 10. **Configuration is content** — an agent's tools and memory are documents in its Space, addressable and readable by the agent and by its owner alike. <!-- id:5lhl3lKX -->
 11. **The log is symmetric** — the user holds the same verbs the agent does, every event names its actor, and there is no side channel between them. <!-- id:3AOgn7T0 -->
 12. **Everything that executes is a run** — turns, children, and scripts are rows in one tree that is also the queue, so waiting is free and a crash is recoverable. <!-- id:H7vDrg4J -->
 
-The vocabulary above is defined once, one page per term, under Terms in [the Agents overview](../agent.md). <!-- id:1RALufCn -->
+The vocabulary above is defined once, one page per term, and listed in the [Agents glossary](./glossary.md). <!-- id:1RALufCn -->
 
 # Major components <!-- id:LF0S8XBg -->
 
 ```text <!-- id:9rdPDFNJ -->
-Desktop app
-  ├─ Local agents server subprocess (same artifact as the Docker image)
+Seed app (desktop) and Seed web app, sharing frontend/packages/ui/src/agents
+  ├─ Local agents server subprocess (desktop only; same artifact as the Docker image)
   │    configured with the desktop's typed HM API bridge plus its daemon's direct IPFS endpoint
   ├─ Agents routes: list, detail, session
   ├─ Assistant sidebar: sessions of any agent on any configured server
@@ -42,15 +42,15 @@ Agents service (Bun)
   ├─ SQLite persistence (state, and the runs table that is also the queue)
   ├─ AES-GCM secret storage
   ├─ Pi SDK-backed model execution loop
-  ├─ the five verbs (read / write / call / delegate / plan)
+  ├─ the verbs (read / write / call / delegate / plan, plus status / continue_session)
   ├─ tool documents in ~/tools + the <space> index in every system prompt
   ├─ run queue: leases, boot sweep, park/resume, wake sources
   ├─ QuickJS script engine with a content-keyed journal
   └─ diagnostic logging
 
 Shared Seed libraries
-  ├─ @shm/shared/blobs for Ed25519 signatures/principals
-  ├─ @shm/shared/cbor for canonical DAG-CBOR
+  ├─ @seed-hypermedia/client for Ed25519 signatures/principals and canonical DAG-CBOR
+  │    (the service imports them through the @shm/shared/blobs and @shm/shared/cbor re-exports)
   ├─ @seed-hypermedia/client for URL resolution and markdown conversion
   └─ desktop daemon for selected-account signing
 ```
@@ -69,7 +69,7 @@ Shared Seed libraries
 10. Desktop subscribes to `sessions/<sessionId>` over WebSocket. <!-- id:o4auo92c -->
 11. A writer sends a message with signed `MessageSession`; other accepted writers may send at the same time. <!-- id:HR9VWSNS -->
 12. Server immediately appends each durable user message with its acting account and exact signer, broadcasts it, and creates a `runs` row. The first turn is claimed inline on the `interactive` queue; concurrent turns remain queued in append order because only one model turn may own a session. Session status is a derived mirror of run state, so it reads `streaming` while any of those turns remain live. <!-- id:oRXM5vFs -->
-13. Server creates an in-memory Pi SDK session configured from the Seed provider record, encrypted secret, the agent's system prompt (its own instructions plus the shared runtime prompt and its `<space>` index), and the tool set: the five verbs, plus any callables the transcript shows this thread has already expanded. <!-- id:XnosbwT5 -->
+13. Server creates an in-memory Pi SDK session configured from the Seed provider record, encrypted secret, the agent's system prompt (its own instructions plus the shared runtime prompt and its `<space>` index), and the tool set: the verbs, plus any callables the transcript shows this thread has already expanded. <!-- id:XnosbwT5 -->
 14. Pi runs the provider/model loop and emits streaming/tool/final events. <!-- id:5aLPYqqC -->
 15. Server emits `session-partial` service events for model text deltas, cumulative usage, and the current activity phase. <!-- id:Tmz1FBxK -->
 16. WebSocket sends `appendPartial` events to subscribed desktop clients. <!-- id:t5ien6K3 -->
@@ -111,17 +111,17 @@ Shared Seed libraries
 - Pi SDK-backed model execution for OpenAI-compatible, Anthropic, and Google provider mappings. <!-- id:lAWFWbOd -->
 - Text streaming translated from Pi events into Seed WebSocket partials. <!-- id:NSfbrCwb -->
 - Durable user/assistant/error/tool events, each carrying its actor. <!-- id:98lUOPrW -->
-- The five verbs registered as Seed-owned Pi custom tools, with callables dispatched through `call` rather than exposed to the provider. <!-- id:w4i5NWLg -->
+- The verbs registered as Seed-owned Pi custom tools, with callables dispatched through `call` rather than exposed to the provider. <!-- id:w4i5NWLg -->
 - Tool result size limiting (256 KiB). <!-- id:l4qFQAxD -->
 - The run queue: two queues, lease-based claiming, boot sweep, retry classification with backoff, cancellation cascade, timer and event wakes. <!-- id:5fTXXpUY -->
 
-## Desktop <!-- id:HoIeFoE4 -->
+## Seed app and web UI <!-- id:HoIeFoE4 -->
 
 - Agents list, server, detail, and session routes with sidebar/menu/shortcut integration. <!-- id:KVIyJNrf -->
-- Local agents server lifecycle: attaches to an already-running server in development, spawns the bundled binary in a packaged app. See [Desktop agent unification](./plans/desktop-agent-unification.md). <!-- id:o29cW4lm -->
+- Local agents server lifecycle: attaches to an already-running server in development, spawns the bundled binary in a packaged app. <!-- id:o29cW4lm -->
 - Assistant sidebar backed by agent sessions rather than a separate chat runtime, listing sessions from every configured server including the local one. <!-- id:KM6x2pZe -->
 - Default and multi-server settings. <!-- id:OuuPfvPJ -->
-- Provider management dialog for OpenAI/Anthropic/Google records/secrets. <!-- id:5OYSu8Vw -->
+- Provider management dialog for every provider type in the registry, with API-key and ChatGPT-subscription sign-in. <!-- id:5OYSu8Vw -->
 - Create-agent dialog with configured-provider selection. <!-- id:JhGY7o_O -->
 - Agent detail page with editable name/model/system prompt and a Settings collaborator invite/member panel. <!-- id:x5czSImM -->
 - Session page with debounced inline title editing, optimistic user messages, durable events, live assistant partials, and shared chat rendering. <!-- id:Dy_Snpcf -->
@@ -136,12 +136,12 @@ Shared Seed libraries
 
 <!-- id:y8Sembfy -->
 - Anthropic and Google are mapped through Pi but still need real-provider smoke coverage before being considered production-complete. <!-- id:YsLNlO21 -->
-- Signed-action timestamps reject requests more than 30 seconds from server time, but nonce caching is still missing. <!-- id:qZUKtz61 -->
+- Signed-action timestamps reject requests more than five minutes from server time, but there is no nonce cache, so a captured request can be replayed inside that window. <!-- id:qZUKtz61 -->
 - No production KMS/OS-keychain secret key storage. <!-- id:3g510zpO -->
 - Grants stop at the callable set plus a single `publish` grant; there is no per-address or per-destination policy engine, and memory writes are ungated by design. <!-- id:nJ6r4hkB -->
 - Providers can be deleted (`DeleteModelProvider`, which also removes the API-key secret), but there is no general secret-deletion action. <!-- id:iDJldMWp -->
-- Triggers and plans are still SQLite rows rather than documents in the Space; the event-bus milestone that moves them is only partly built (see [harness/m6-event-bus-design.md](./history/harness/m6-event-bus-design.md)). <!-- id:OoUMhsD3 -->
+- Triggers and plans are still SQLite rows rather than documents in the Space; the event-bus milestone that moves them is only partly built. <!-- id:OoUMhsD3 -->
 - No full WebSocket heartbeat/backpressure/subscription-limit protocol. <!-- id:RfSHih36 -->
 - No long-term retention/pruning policy for events, runs, or journals. <!-- id:PujE4u8_ -->
 
-See [Future projects](./plans/future-projects.md) and [Roadmap](./plans/roadmap.md). <!-- id:ycSmp720 -->
+See the [roadmap](./roadmap.md) for what is planned. <!-- id:ycSmp720 -->

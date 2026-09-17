@@ -7,7 +7,7 @@ DeleteBlocks takes blocks out of the document. Under the hood it is a move: each
 
 This page defines the **change/op/delete-blocks** operation inside a [Change body](../body.md). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:O5i7-yOi -->
 
-`blocks` lists the ids to delete. Children of a deleted block go with it, because they hang off a parent that is no longer visible. The block's content register is untouched, which is why the history still shows what the block said and why restoring is a single move. The SDK emits one DeleteBlocks per Change, after the moves and before the attribute and content ops, and drops blocks that were created and deleted within the same Change. See [Documents](../../protocol/documents.md). <!-- id:R-Sxz-5s -->
+`blocks` lists the ids to delete. Children of a deleted block go with it, because they hang off a parent that is no longer visible. The block's content register is untouched, which is why the history still shows what the block said and why restoring is a single move. When the daemon prepares a Change for the Seed app it emits one DeleteBlocks, after the moves and before the attribute and content ops, and drops blocks that were created and deleted within the same Change. See [Documents](../../protocol/documents.md). <!-- id:R-Sxz-5s -->
 
 # Shape <!-- id:ZBAbxMDE -->
 

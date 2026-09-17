@@ -2,7 +2,7 @@
 name: Agents Glossary
 summary: Every Seed Agents term in one or two sentences, each linking to the page that defines it, grouped by the part of the runtime it belongs to.
 ---
-The words the Seed Agents pages use, one line each, linking to the page where the term is defined. The three nouns and five verbs come first because every other term is built on them. Protocol terms such as account, capability, and comment are in the site-wide [glossary](../glossary.md).
+The words the Seed Agents pages use, one line each, linking to the page where the term is defined. The three nouns and the verbs come first because every other term is built on them. Protocol terms such as account, capability, and comment are in the site-wide [glossary](../glossary.md).
 
 # The three nouns
 
@@ -10,13 +10,15 @@ The words the Seed Agents pages use, one line each, linking to the page where th
 - [Log](./log.md): everything that happened in a thread, an append-only sequence of events each stamped with an actor.
 - [Runs](./runs.md): everything that executes, one durable row per turn, child, and script, in a tree that doubles as the dispatch queue.
 
-# The five verbs
+# The verbs
 
 - [read](./read.md): one verb over every address, from memory files to `hm://` documents, web pages, the activity feed, and other threads.
 - [write](./write.md): the mirror of read: memory, authored tools, triggers, IPFS uploads, and signed Hypermedia publishing under the publish grant.
 - [call](./call.md): invoke a callable tool by name; a wrong or missing input answers with the tool's contract.
 - [delegate](./delegate.md): spawn a child run, either a model child given a brief or a script child given source.
 - [plan](./plan.md): maintain the thread's visible checklist.
+- status: set the session's title and live description as they appear in session lists; see [tools](./tools.md).
+- continue_session: carry the conversation into a fresh successor session; see [session continuation](./session-continuation.md).
 
 # Tools
 
@@ -27,7 +29,7 @@ The words the Seed Agents pages use, one line each, linking to the page where th
 - [grants](./grants.md): the per-agent permissions: the callable set, the `publish` grant, and the enabled MCP servers; the verbs are never grants.
 - [MCP server](./mcp.md): a remote Model Context Protocol server connected per account and enabled per agent, whose tools appear as `<server>__<tool>` documents.
 - touch-expand: the behaviour of `call` on a miss: instead of an error, the tool's contract comes back so the retry succeeds; defined on [tools](./tools.md).
-- callable: a tool dispatched through `call` rather than handed to the model directly: `search`, `query`, `attributes`, `web_search`, `execute`, an authored lambda, or an MCP tool; see [tools](./tools.md).
+- callable: a tool dispatched through `call` rather than handed to the model directly: `search`, `query`, `attributes`, `web_search`, `navigate`, `execute`, an authored lambda, or an MCP tool; see [tools](./tools.md).
 
 # Delegation and orchestration
 
@@ -64,6 +66,6 @@ The words the Seed Agents pages use, one line each, linking to the page where th
 # Control plane
 
 - signed envelope: the DAG-CBOR wrapper around every action, signed by the account key or a delegated key; see the [signed API](./signed-api.md).
-- signing identity: an Ed25519 account key held by the server for the owner, which an agent signs its Hypermedia writes with; see [tools](./tools.md) and [security](./security.md).
+- signing identity: the agent's own Ed25519 account key, created on the agents server and delegated to by the owner's account, which the agent signs its Hypermedia writes with; see [tools](./tools.md) and [security](./security.md).
 - subscription: a signed `Subscribe` action over the WebSocket that streams account, agent, session, or run changes; see [WebSocket subscriptions](./websocket-subscriptions.md).
 - collaborator: a Seed account invited to an agent as `reader` or `writer`; `publicRead` and `publicChat` open an agent to any signed account; see the [signed API](./signed-api.md).

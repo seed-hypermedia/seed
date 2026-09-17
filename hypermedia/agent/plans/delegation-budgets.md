@@ -1,21 +1,12 @@
 ---
+name: Delegation Budgets
+summary: A proposal, not started as of September 2026, to let a person answer budget pauses, give each run tree one shared budget, and count budgets in tokens and money.
 ---
-\--- name: Delegation Budgets summary: The proposal that follows the shipped thoroughness presets: budget pauses a person answers, one budget per run tree with a live meter, and budgets denominated in tokens and money. --- Written 2026-09-10 alongside PR #1070 (budgeted delegation with thoroughness presets). What that PR built is now reference material on the [tools](../tools.md) page and summarised below; the rest of this page is the proposal for the project that follows, **budget pauses and tree budgets**, which turns a hard cap the model bumps into into a negotiation with the person paying for the work. Status as of 2026-09-16: proposed, not started. <!-- id:ZtY71Q3g -->
+Written 2026-09-10 alongside PR #1070 (budgeted delegation with thoroughness presets). What that PR built is now reference material on the [tools](../tools.md) page and summarised below; the rest of this page is the proposal for the project that follows, **budget pauses and tree budgets**, which turns a hard cap the model bumps into into a negotiation with the person paying for the work. Status as of 2026-09-16: proposed, not started. <!-- id:ZtY71Q3g -->
 
-# What shipped in #1070 <!-- id:8i3PyS2N -->
+# What shipped in #1070 <!-- id:ujIb66Pu -->
 
-- Every root run (a user turn, a trigger firing, a continuation successor, a retry) is created with a `RunBudget` (`maxDepth`, `maxChildren`) from the session's thoroughness, else the agent's, else `normal`. Every child copies its parent's budget, so one tree answers to one setting. <!-- id:iJZuO_m6 -->
-
-  <!-- id:rT9vGrHr -->
-  | Preset <!-- col:NFMzvXMj --> | Max depth <!-- col:tCSnkXVz --> | Children per run <!-- col:43uaRTQZ --> <!-- id:RFXviIak --> |
-  | --- | --- | --- |
-  | quick | 1 | 4 <!-- id:9DRWpeia --> |
-  | normal | 3 | 10 <!-- id:hk7UBlXS --> |
-  | deep | 5 | 16 <!-- id:fit-O-Zp --> |
-- **Depth counts model children only.** A script is orchestration, not thinking, so `root → script → worker` is depth 1. <!-- id:E6-TKjyf -->
-- **Leaves lose the verb.** A run at the budget's depth gets no `delegate` tool and a prompt that says so, so it never tries. This removed the failure that motivated the PR (122 refusals across 67 of Ion's sessions in two weeks). <!-- id:52RH0-Zp -->
-- **Width is still a refusal.** A run may need the verb until its last slot is used, so the eleventh spawn is refused. #1070 softens this two ways: every child result carries `delegation.parentChildrenRemaining` (the live count — the system prompt is built once per run and goes stale after the first batch), and the refusal says what works from there (finish alone now; next time, several items per brief or one script child, whose own children draw on a separate budget). <!-- id:u85UCkFU -->
-- **Thoroughness is chosen where the model is chosen**: agent Settings, the Create Agent dialog, and the session model badge (including the assistant panel's draft chat, whose choices ride `CreateSession`). <!-- id:V3UIrZTQ -->
+Every root run gets a depth and fan-out budget from the `quick`, `normal`, or `deep` thoroughness preset, and every child copies it. A run at the budget's depth loses the `delegate` verb. Past the fan-out limit a spawn is refused, and each child result carries the parent's live remaining count. The full reference, with the preset table, is under `delegate` on the [tools](../tools.md) page. Leaves removed the failure that motivated the PR: 122 refused delegations across 67 of Ion's sessions in two weeks. <!-- id:veZugn5a -->
 
 # Why this is not the end state <!-- id:rvk6vgyB -->
 
@@ -78,7 +69,7 @@ Tests: a grant on the owner is seen by a grandchild's next spawn; usage rolls up
 ## Performance and cost notes <!-- id:FIqus6FP -->
 
 - Every child is a full context: the agent's system prompt, memory, the space index, then the brief. Fan-out is the expensive part of a tree, and the meter should make that visible in tokens rather than counts. <!-- id:cUntqoU_ -->
-- Prod runs 8 model runs at a time (`run-concurrency.md`). A fan-out of 16 finishes no faster than 8; the prompt should say the effective parallelism so the model prefers fewer, larger children and scripts for mechanical work. <!-- id:3DRsAQzP -->
+- The run queue caps model runs at 8 at a time by default (see [operations](../operations.md)). A fan-out of 16 finishes no faster than 8; the prompt should say the effective parallelism so the model prefers fewer, larger children and scripts for mechanical work. <!-- id:3DRsAQzP -->
 - The extra queries in #1070 (a recursive CTE for depth, a count for children) run once per turn and per spawn on cached statements; milestone 2 replaces the count with a read of the owner row. <!-- id:zYg12jUa -->
 
 ## Non-goals <!-- id:ASTP667Y -->
