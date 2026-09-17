@@ -57,11 +57,11 @@ Nothing in the console is hand-wired. It reads the `rpc/method` union at runtime
 
 Add an `rpc/<method>.schema.json` with its `key` literal, `input` and `output`. Add a companion `.md` page and reference the schema from the `rpc/method` union. Run the publisher to update the lockfile, run the generators to refresh the bundled registry and TypeScript types, then sync the folder. The method then shows up in the console and as a typed call in the client. [How Hypermedia Schemas work](./schema/how-it-works.md) describes the pipeline. <!-- id:J_7p0r19 -->
 
-# See also
+# See also <!-- id:zRWuHEcl -->
 
-- [Seed API](./build/web-api.md): HTTP transport, encodings, errors and write keys.
-- [RPC](./rpc/method.md): the union of every method.
-- [Resource](./rpc/resource.md): the most common read.
-- [SDK](./build/sdk.md): typed calls from TypeScript.
-- [Hypermedia Schemas](./schema.md): the schema system these pages use.
-- [Examples](./example.md): more schemas to read.
+- [Seed API](./build/web-api.md): HTTP transport, encodings, errors and write keys. <!-- id:fJU1whCA -->
+- [RPC](./rpc/method.md): the union of every method. <!-- id:4YU6Ckc7 -->
+- [Resource](./rpc/resource.md): the most common read. <!-- id:u6PKf6Za -->
+- [SDK](./build/sdk.md): typed calls from TypeScript. <!-- id:7ctbC9zR -->
+- [Hypermedia Schemas](./schema.md): the schema system these pages use. <!-- id:T3_NBQDA -->
+- [Examples](./example.md): more schemas to read. <!-- id:IoA2BKWl -->

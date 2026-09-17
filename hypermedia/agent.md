@@ -9,12 +9,11 @@ Seed Agents runs agents for you. An agent is a language model with a memory, a s
 An agents server is a standalone service. It is a Bun process, shipped as the `seedhypermedia/agents` Docker image and embedded in the [desktop app](./apps/desktop.md). It keeps account-scoped state in SQLite: model providers and their encrypted secrets, agent definitions, sessions, triggers, tool documents, and every run that ever executed. Clients drive it through a signed DAG-CBOR HTTP API and subscribe to live updates over a signed WebSocket. The server has no browser UI. The Seed app and the Seed web app are its clients, and so is any program that holds a Seed [key](./build/keys.md). The [agents service](./apps/agents.md) page describes the software. <!-- id:3UeuZ8RQ -->
 
 The runtime has three nouns and five verbs. The nouns are: <!-- id:N8Qe0rh- -->
+  - the agent's [Space](./agent/space.md): the tree of everything it has (memory files, tools, triggers, its own definition), <!-- id:nD0DoAo1 -->
+  - the session [Log](./agent/log.md): an append-only sequence of events, each stamped with who did it, <!-- id:1ZgvtHwU -->
+  - the [Runs](./agent/runs.md) table: every turn, delegated child, and script is a durable row, and the table is also the dispatch queue. <!-- id:Ccw0LVHS -->
 
-- the agent's [Space](./agent/space.md): the tree of everything it has (memory files, tools, triggers, its own definition),
-- the session [Log](./agent/log.md): an append-only sequence of events, each stamped with who did it,
-- the [Runs](./agent/runs.md) table: every turn, delegated child, and script is a durable row, and the table is also the dispatch queue.
-
-The verbs are [read](./agent/read.md), [write](./agent/write.md), [call](./agent/call.md), [delegate](./agent/delegate.md), and [plan](./agent/plan.md). Two session verbs, `status` and `continue_session`, join them: they name a conversation and carry it into a fresh one. These are all the tools the model gets. Anything else an agent can do is an address the verbs accept, or a callable tool dispatched through `call`. The [glossary](./agent/glossary.md) defines every term used in these pages.
+The verbs are [read](./agent/read.md), [write](./agent/write.md), [call](./agent/call.md), [delegate](./agent/delegate.md), and [plan](./agent/plan.md). Two session verbs, `status` and `continue_session`, join them: they name a conversation and carry it into a fresh one. These are all the tools the model gets. Anything else an agent can do is an address the verbs accept, or a callable tool dispatched through `call`. The [glossary](./agent/glossary.md) defines every term used in these pages. <!-- id:O4s1-OTA -->
 
 # How it relates to the protocol <!-- id:jHVtdYWD -->
 
@@ -42,10 +41,10 @@ The control plane is signed the same way. Every request to an agents server is a
 - To run or deploy a server: [operations](./agent/operations.md), [environments](./agent/environments.md), [model providers](./agent/model-providers.md), and [troubleshooting](./agent/troubleshooting.md). <!-- id:WNPnKf7v -->
 - To change the code: [development](./agent/development.md) has the code map and the commands. The [roadmap](./agent/roadmap.md) and the open [plans](./agent/plans/speed.md) say where this is going. The build history that used to live here is in git. <!-- id:MQefzS0T -->
 
-# See also
+# See also <!-- id:DjNqP3PQ -->
 
-- [Agents service](./apps/agents.md) for the software and how it ships.
-- [Building agents on Seed](./build/agents.md) for external agents that use the CLI.
-- [Permissions](./protocol/permissions.md) for the `WRITER` and `AGENT` roles an agent receives.
-- [Identity](./protocol/identity.md) for accounts and keys.
-- [Agents glossary](./agent/glossary.md) for every agent term.
+- [Agents service](./apps/agents.md) for the software and how it ships. <!-- id:C9tvvzFn -->
+- [Building agents on Seed](./build/agents.md) for external agents that use the CLI. <!-- id:IT0c7_0G -->
+- [Permissions](./protocol/permissions.md) for the `WRITER` and `AGENT` roles an agent receives. <!-- id:tsaPdU6_ -->
+- [Identity](./protocol/identity.md) for accounts and keys. <!-- id:qx-0dmsn -->
+- [Agents glossary](./agent/glossary.md) for every agent term. <!-- id:m9ogAdq- -->

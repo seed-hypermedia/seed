@@ -1,6 +1,6 @@
 ---
 name: Multi-Server Architecture
-summary: "A three-phase plan for growing the agents service past one host by separating sandboxed execution from the control plane and then sharding accounts across servers."
+summary: A three-phase plan for growing the agents service past one host by separating sandboxed execution from the control plane and then sharding accounts across servers.
 ---
 This plan grows the [agents service](../../apps/agents.md) past one box in three phases. Each phase can stop and hold. It is written against the 2026-08-29 production baseline: one 4-vCPU host running `agents-stable`/`-staging`/`-dev`, Caddy, SearXNG, and Crawl4AI, saturated by a single heavy dev agent. The finished perf-squeeze plan, now in git history, measured this. <!-- id:m4ehHETW -->
 
@@ -45,12 +45,12 @@ Rules of thumb: <!-- id:dWG-C4EC -->
 - Kubernetes. Three roles with Compose and Terraform stay easy to read. Revisit only if exec hosts are autoscaled. <!-- id:o_ODywj8 -->
 - Scheduling sandboxes on the control plane "because there is spare CPU". That spare CPU is the latency budget for everyone's triggers and streams. Phase 2 exists to protect it. <!-- id:e1zoSp0W -->
 
-# See also
+# See also <!-- id:5uqFckDJ -->
 
-- [Operations](../operations.md)
-- [Persistence](../persistence.md)
-- [Worker-isolated execution](./worker-isolated-execution.md)
-- [Speed](./speed.md)
-- [Environments](../environments.md)
-- [Agents service](../../apps/agents.md)
-- [Roadmap](../roadmap.md)
+- [Operations](../operations.md) <!-- id:kAdDjxwb -->
+- [Persistence](../persistence.md) <!-- id:hKJNerz5 -->
+- [Worker-isolated execution](./worker-isolated-execution.md) <!-- id:s7OkSwKu -->
+- [Speed](./speed.md) <!-- id:Qw9kMnkl -->
+- [Environments](../environments.md) <!-- id:lIg6OqGp -->
+- [Agents service](../../apps/agents.md) <!-- id:WfDKMo1L -->
+- [Roadmap](../roadmap.md) <!-- id:uhprhD12 -->

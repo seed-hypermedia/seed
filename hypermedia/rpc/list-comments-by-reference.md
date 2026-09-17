@@ -1,6 +1,6 @@
 ---
 name: "RPC: ListCommentsByReference"
-summary: "Returns the comments that reference a specific block, given a target id that carries the block reference."
+summary: Returns the comments that reference a specific block, given a target id that carries the block reference.
 schemaDefinition: ipfs://bafyreifxlq7hat24yrsyhhkbr355q6tsxku6hkuaezkamh2kzwah2wmyva
 ---
 Lists the [comments](../protocol/comments.md) that reference one [block](../protocol/blocks.md). The target id carries the block reference in `blockRef`. The result is a [comment list](./type/comment-list.md). <!-- id:Zqcrf57v -->
@@ -19,11 +19,11 @@ A **closed struct** with these fields: <!-- id:w_aoeIfy -->
 - [rpc/type/comment-list](./type/comment-list.md) <!-- id:XNc4mZdP -->
 - [rpc/type/id](./type/id.md) <!-- id:O57rd3n4 -->
 
-# See also
+# See also <!-- id:apO9Kjgw -->
 
-- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
-- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
-- [RPC](./method.md): every method in one union.
-- [Hypermedia URLs](../protocol/urls.md): block references in a URL.
-- [ListComments](./list-comments.md): all comments on a document.
-- [Parsed ID](./type/id.md): the id shape that carries `blockRef`.
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication. <!-- id:pbPCc77D -->
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console. <!-- id:UUBc6aHQ -->
+- [RPC](./method.md): every method in one union. <!-- id:ASfkbuTg -->
+- [Hypermedia URLs](../protocol/urls.md): block references in a URL. <!-- id:4XASzq9T -->
+- [ListComments](./list-comments.md): all comments on a document. <!-- id:LgE_yxoX -->
+- [Parsed ID](./type/id.md): the id shape that carries `blockRef`. <!-- id:nP95SFOj -->

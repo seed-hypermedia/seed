@@ -1,6 +1,6 @@
 ---
 name: Session Continuation
-summary: "How an agent carries a conversation into a fresh successor session at a natural boundary, with no compaction of its history, and what the successor starts from."
+summary: How an agent carries a conversation into a fresh successor session at a natural boundary, with no compaction of its history, and what the successor starts from.
 ---
 <!-- id:dZ2yQFiR -->
 > Shipped 2026-09-01. Implements Ion's proposal <!-- id:GkeZ3hua -->
@@ -68,12 +68,12 @@ Availability (`canContinueSession` in `#runPiAgent`): a [run](./runs.md) exists,
 
 Phase 3 of the proposal is not built: budget estimates before continuing, recommended ranges, purpose-specific projections, and measuring repeated recalls of omitted sources. Forks, where a person branches from an earlier point, do not share the edge yet. <!-- id:mjlnYXEd -->
 
-# See also
+# See also <!-- id:KhstTmbm -->
 
-- [Log](./log.md)
-- [Runs](./runs.md)
-- [Tools](./tools.md)
-- [Prompt injection map](./prompt-injection-map.md)
-- [Persistence](./persistence.md)
-- [Desktop UI](./desktop-ui.md)
-- [Agents glossary](./glossary.md)
+- [Log](./log.md) <!-- id:_QsJ-kK4 -->
+- [Runs](./runs.md) <!-- id:3N4utHzM -->
+- [Tools](./tools.md) <!-- id:zLFSlj9M -->
+- [Prompt injection map](./prompt-injection-map.md) <!-- id:w2ay0kLj -->
+- [Persistence](./persistence.md) <!-- id:t0_EgAzA -->
+- [Desktop UI](./desktop-ui.md) <!-- id:5bcZD6JW -->
+- [Agents glossary](./glossary.md) <!-- id:cNsCEES6 -->

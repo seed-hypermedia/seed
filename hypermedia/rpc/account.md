@@ -1,6 +1,6 @@
 ---
 name: "RPC: Account"
-summary: "Resolves an account uid to its metadata payload, or to an explicit not-found result."
+summary: Resolves an account uid to its metadata payload, or to an explicit not-found result.
 schemaDefinition: ipfs://bafyreia7idjrnvfoy2fy676lzxjlza46egtlkozyeabr6c62detwkml5hq
 ---
 Resolves an [account](../protocol/identity.md) by uid. The result is an [account result](./type/account-result.md): the account's metadata payload, or an explicit not-found. <!-- id:6J7TokxK -->
@@ -19,11 +19,11 @@ A **closed struct** with these fields: <!-- id:GaSmj_z8 -->
 - [string](../string.md) <!-- id:EgZGPF7j -->
 - [rpc/type/account-result](./type/account-result.md) <!-- id:ilaQtTDw -->
 
-# See also
+# See also <!-- id:IaPzdtxt -->
 
-- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
-- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
-- [RPC](./method.md): every method in one union.
-- [Identity](../protocol/identity.md): accounts, keys and profiles.
-- [ListAccounts](./list-accounts.md): every account the daemon knows.
-- [Metadata Payload](./type/metadata-payload.md): the metadata shape.
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication. <!-- id:XLKRDkIk -->
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console. <!-- id:fpuXk0v9 -->
+- [RPC](./method.md): every method in one union. <!-- id:ahIXFmls -->
+- [Identity](../protocol/identity.md): accounts, keys and profiles. <!-- id:stMUbZEO -->
+- [ListAccounts](./list-accounts.md): every account the daemon knows. <!-- id:LF2hi8rK -->
+- [Metadata Payload](./type/metadata-payload.md): the metadata shape. <!-- id:_OmcGg9z -->

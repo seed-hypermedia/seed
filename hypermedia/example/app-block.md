@@ -18,10 +18,10 @@ A **union**. A value matches one of these variants: <!-- id:gD5uxIi- -->
 - [example/poll-block](./poll-block.md) <!-- id:wbfKb6k5 -->
 - [block/core](../block/core.md) <!-- id:fORBRaGS -->
 
-# See also
+# See also <!-- id:QR7ghAYW -->
 
-- [poll-block](./poll-block.md): the custom block it adds.
-- [myapp-change](./myapp-change.md): a Change bound to this block type.
-- [Core blocks](../block/core.md): the built-in block union.
-- [Blocks](../protocol/blocks.md): the block model.
-- [Examples](../example.md): every example, grouped by feature.
+- [poll-block](./poll-block.md): the custom block it adds. <!-- id:uRHU5dXA -->
+- [myapp-change](./myapp-change.md): a Change bound to this block type. <!-- id:Hq7F_GRU -->
+- [Core blocks](../block/core.md): the built-in block union. <!-- id:1oo10ITR -->
+- [Blocks](../protocol/blocks.md): the block model. <!-- id:wfgpsgK4 -->
+- [Examples](../example.md): every example, grouped by feature. <!-- id:-gyLSJej -->

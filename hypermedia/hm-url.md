@@ -1,6 +1,6 @@
 ---
 name: Resource URL
-summary: "A reference to a Hypermedia document held as an `hm://` URL string, which editors render as a searchable pill showing the target’s title."
+summary: A reference to a Hypermedia document held as an `hm://` URL string, which editors render as a searchable pill showing the target’s title.
 schemaDefinition: ipfs://bafyreiafkupvge7zvxw7tb5cchncqflp33qwsaib5qi3mxl3knerkwzowq
 ---
 An **`hm://` URL** is a [name reference](./schema/references.md): how one schema points at another (`hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string`). A name does not depend on content, so names can form cycles, which a [CID](./cid.md) cannot. That is what makes recursion expressible. Local filenames are the dev alias (`string` ⇄ `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string`). <!-- id:yKu5YAX1 -->
@@ -13,9 +13,9 @@ This page describes the **hm-url** type, a value type of [Hypermedia Schemas](./
 
 Kind: `string`. <!-- id:jtyGQxC6 -->
 
-# See also
+# See also <!-- id:A4DWj6VN -->
 
-- [URLs](./protocol/urls.md): the full `hm://` syntax.
-- [References and naming](./schema/references.md): how schemas refer to each other.
-- [url](./url.md) and [ipfs-url](./ipfs-url.md): the other URL types.
-- [metadata](./metadata.md): `attributesSchema` and `childAttributesSchema` hold this type.
+- [URLs](./protocol/urls.md): the full `hm://` syntax. <!-- id:RQHvZ7kw -->
+- [References and naming](./schema/references.md): how schemas refer to each other. <!-- id:Mor6vN9_ -->
+- [url](./url.md) and [ipfs-url](./ipfs-url.md): the other URL types. <!-- id:LqSgxDJN -->
+- [metadata](./metadata.md): `attributesSchema` and `childAttributesSchema` hold this type. <!-- id:XA5FqCzv -->

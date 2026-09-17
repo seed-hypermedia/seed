@@ -23,10 +23,10 @@ Every stage is now measured (see Instrumentation). So "it feels slow" breaks dow
   - `provider.request_gap`: from turn dispatch to the first provider request sent (pre-turn overhead). <!-- id:aHKgUKtz -->
   - `provider.ttft`: from provider request sent to the first streamed event, logged per request as `provider first output`. <!-- id:HyYtJqVD -->
   - `provider.turn`: from provider request sent to assistant turn complete. <!-- id:gWcjq2tB -->
-  - `exec.boot` / `exec.run` / `exec.teardown` / `exec.total`: the execute_code span, split into parts. `bootMs` is now also reported on every `CodeExecResult`. <!-- id:Yd5pXIcs -->
+  - `exec.boot` / `exec.run` / `exec.teardown` / `exec.total`: the execute_code span, split into parts. `bootMs` is now also reported on every `CodeExecResult`._ <!-- id:Yd5pXIcs -->
   - `run.dispatch_delay`: from run dispatchable to executor started. <!-- id:aw_TUCfu -->
   - `tool.<name>`: every tool call span, by tool name. <!-- id:GgBg2IJ8 -->
-- **Counters** count occurrences. They sit in the same snapshot so they line up with the spans above. `provider.error.<provider>.<model>.<reason>` normalizes the reason to {overloaded, rate_limited, timeout, other}. Ion asked for this so provider overload can be told apart from local queue and prep time. `run.retry.<code>` counts queue-level retries. <!-- id:IU0Updlf -->
+- **Counters** count occurrences. They sit in the same snapshot so they line up with the spans above. `provider.error.<provider>.<model>.<reason>` normalizes the reason to {overloaded, rate_limited, timeout, other}. Ion asked for this so provider overload can be told apart from local queue and prep time. `run.retry.<code>` counts queue-level retries._ <!-- id:IU0Updlf -->
 - **`scripts/bench-exec.ts`**: a standalone sandbox benchmark through the real executor (`bun scripts/bench-exec.ts --runs=6 --runtime=shell`), for before-and-after proof on any host. <!-- id:58eqX-3h -->
 
 # What the first measurements say <!-- id:PzJ2ajOc -->
@@ -45,11 +45,10 @@ With the warm pool (this branch, `--warm-pool`), the first call boots in about 4
 Boot takes most of the time even on a fast laptop, for the cheapest possible command. Production is worse in two ways that add up. The 4-vCPU VPS boots slower under load. A fresh VM also has **no warm state**: the 2026-08-29 investigation measured a cold repo typecheck at 150s+, where a warm incremental one takes seconds. Collect prod numbers from `/api/perf` once this branch deploys. <!-- id:3MAg-QyX -->
 
 Ion reviewed this plan from the agentic host on 2026-09-01 and reported from prod: <!-- id:43ycwJ5X -->
-
-- Cold `execute` dominates dev loops. Keeping warm guest state matters more than shaving milliseconds off trivial commands.
-- Provider round trips grow with the transcript. That points at upload, prefill, and re-decode, and not at model degradation.
-- Control-plane read and write calls matter less, but 1 to 2s each adds up.
-- [Delegation](../delegate.md) sometimes hits provider overload. The percentiles should separate that from local queue and prep time.
+  - Cold `execute` dominates dev loops. Keeping warm guest state matters more than shaving milliseconds off trivial commands. <!-- id:HHl1IpUN -->
+  - Provider round trips grow with the transcript. That points at upload, prefill, and re-decode, and not at model degradation. <!-- id:JIzOr6CF -->
+  - Control-plane read and write calls matter less, but 1 to 2s each adds up. <!-- id:Rc2JNGM7 -->
+  - [Delegation](../delegate.md) sometimes hits provider overload. The percentiles should separate that from local queue and prep time. <!-- id:TxpRw638 -->
 
 # Workstreams, in order of expected impact <!-- id:URIPrRHx -->
 
@@ -64,10 +63,10 @@ Ion reviewed this plan from the agentic host on 2026-09-01 and reported from pro
 - Running server, real traffic: `curl -s https://<host>/api/perf | jq .metrics` <!-- id:eHVhJ6sV -->
 - Per-request TTFT in logs: grep `provider first output` <!-- id:h3-CVHFE -->
 
-# See also
+# See also <!-- id:Z4fn-ubO -->
 
-- [Model comms latency](./model-comms-latency.md), the provider round-trip plan.
-- [Operations](../operations.md), for the warm pool and server configuration.
-- [Runs](../runs.md), for the dispatch queue.
-- [Model providers](../model-providers.md), for how provider requests are built.
-- [Roadmap](../roadmap.md), where speed and cost of every turn is a top priority.
+- [Model comms latency](./model-comms-latency.md), the provider round-trip plan. <!-- id:QkZT30x2 -->
+- [Operations](../operations.md), for the warm pool and server configuration. <!-- id:RSasRXv7 -->
+- [Runs](../runs.md), for the dispatch queue. <!-- id:upV0u4x3 -->
+- [Model providers](../model-providers.md), for how provider requests are built. <!-- id:wCAh-GAM -->
+- [Roadmap](../roadmap.md), where speed and cost of every turn is a top priority. <!-- id:RR97xcbV -->

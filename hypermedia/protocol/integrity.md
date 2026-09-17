@@ -67,7 +67,7 @@ seed-cli document changes hm://…        # the change DAG with signers and time
 seed-cli document cid hm://…            # the CIDs behind a version
 ```
 
-See [the CLI guide](../build/cli.md).
+See [the CLI guide](../build/cli.md). <!-- id:07MEld4- -->
 
 ## SDK <!-- id:KgEm50AD -->
 

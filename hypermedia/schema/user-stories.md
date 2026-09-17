@@ -174,12 +174,12 @@ All three surfaces now cover all eight stories. The resolver, validator and sign
 
 The CLI and agent columns are fully automated. Every CLI and agent step above runs in `tests/user-stories.integration.test.ts`, against a real daemon and the web app. The agent steps run through `agents/scripts/user-stories.ts`, which calls the same `read` and `write` verbs a person uses from the agent UI. The app column automates stories 1 and 2 in `frontend/apps/desktop/tests/user-stories/`. The rest of the app column is tested by hand with the steps above. An isolated test daemon cannot browse the public library, and the desktop unit tests already cover the schema and blob editors. <!-- id:P7-KXoKT -->
 
-# See also
+# See also <!-- id:WvQ9u3os -->
 
-- [Typed documents](./typed-documents.md): the model behind stories 2 to 5.
-- [Hypermedia Schemas in one page](./quick-reference.md): the model, the commands and the agent verbs on one page.
-- [The World Builder](./world-builder.md): a worked demo of typed documents in the app.
-- [Schema language](./schema-language.md): the vocabulary every schema here is written in.
-- [Network blobs](./blobs.md): the envelope and the built-in signed blob types.
-- [CLI](../build/cli.md): the full command reference.
-- [Seed Agents](../agent.md): the runtime behind the `read` and `write` tools.
+- [Typed documents](./typed-documents.md): the model behind stories 2 to 5. <!-- id:Iu1HdDPV -->
+- [Hypermedia Schemas in one page](./quick-reference.md): the model, the commands and the agent verbs on one page. <!-- id:nr9YU-al -->
+- [The World Builder](./world-builder.md): a worked demo of typed documents in the app. <!-- id:DqFcZuXR -->
+- [Schema language](./schema-language.md): the vocabulary every schema here is written in. <!-- id:XVvSRiPR -->
+- [Network blobs](./blobs.md): the envelope and the built-in signed blob types. <!-- id:G0ynL-ym -->
+- [CLI](../build/cli.md): the full command reference. <!-- id:DJbzyR0z -->
+- [Seed Agents](../agent.md): the runtime behind the `read` and `write` tools. <!-- id:bI7pY-Nh -->

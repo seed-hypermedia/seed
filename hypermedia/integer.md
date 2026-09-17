@@ -9,9 +9,9 @@ The **integer** type is a whole number. [DAG-CBOR](./schema/dag-cbor.md) encodes
 
 Kind: `integer`. <!-- id:WvR-QEI8 -->
 
-# See also
+# See also <!-- id:fa6R8Ypg -->
 
-- [float](./float.md): floating-point numbers.
-- [timestamp](./timestamp.md): Unix milliseconds, stored as an integer.
-- [value](./value.md): the scalar values an attribute can hold.
-- [Data model](./schema/data-model.md): all the kinds.
+- [float](./float.md): floating-point numbers. <!-- id:X2QgMGNj -->
+- [timestamp](./timestamp.md): Unix milliseconds, stored as an integer. <!-- id:RSUsKhlI -->
+- [value](./value.md): the scalar values an attribute can hold. <!-- id:fcVXKZES -->
+- [Data model](./schema/data-model.md): all the kinds. <!-- id:kkDgXSRa -->

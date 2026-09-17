@@ -1,6 +1,6 @@
 ---
 name: "RPC: ListComments"
-summary: "Returns all comments on a target document, with the metadata payloads of their authors."
+summary: Returns all comments on a target document, with the metadata payloads of their authors.
 schemaDefinition: ipfs://bafyreiexlmvhw7e5jhoerjldmjxtt25zeeybmvhfoc2dhf5co2lhubvyru
 ---
 Lists all [comments](../protocol/comments.md) on a target [document](../protocol/documents.md), with the metadata payloads of their authors. The result is a [comment list](./type/comment-list.md). <!-- id:YbdgawAp -->
@@ -19,11 +19,11 @@ A **closed struct** with these fields: <!-- id:uftselk_ -->
 - [rpc/type/comment-list](./type/comment-list.md) <!-- id:E15hQPIY -->
 - [rpc/type/id](./type/id.md) <!-- id:lN6X6Wve -->
 
-# See also
+# See also <!-- id:bhX0-3rw -->
 
-- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
-- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
-- [RPC](./method.md): every method in one union.
-- [Comments](../protocol/comments.md): threads and replies.
-- [ListDiscussions](./list-discussions.md): the same comments grouped into threads.
-- [ListCommentsByAuthor](./list-comments-by-author.md): comments by one author.
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication. <!-- id:_yI7OsYa -->
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console. <!-- id:4S7UiG01 -->
+- [RPC](./method.md): every method in one union. <!-- id:gFRCpTNV -->
+- [Comments](../protocol/comments.md): threads and replies. <!-- id:5kWhIoxz -->
+- [ListDiscussions](./list-discussions.md): the same comments grouped into threads. <!-- id:ytZLEqH5 -->
+- [ListCommentsByAuthor](./list-comments-by-author.md): comments by one author. <!-- id:2FzhwRZU -->

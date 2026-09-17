@@ -30,7 +30,7 @@ Today an [account](./identity.md)'s [site](./sites.md) is rooted at its home doc
 
 # Permissions <!-- id:BE5zABdh -->
 
-**Where it comes from.** 2026-09-03 and 2026-09-10 tech syncs; the August 2026 [permissions investigation](../history/permissions.md). <!-- id:vYaQ-ncg -->
+**Where it comes from.** The 2026-09-03 and 2026-09-10 tech syncs. <!-- id:vYaQ-ncg -->
 
 **Today.** A [capability](../capability.md) is signed only by the space owner, grants the role writer or agent, is scoped by path prefix, cannot be re-delegated, and has no expiry or revocation. The proto reserves an editor role, a non-recursive flag and revocation. The daemon implements none of them. See [Permissions](./permissions.md). <!-- id:d-4kczz7 -->
 
@@ -103,13 +103,12 @@ The team decided to proceed with nodes over the current [change](./documents.md)
 
 # How to read this page <!-- id:5D6-Vn8W -->
 
-If a concept page and this page disagree, the concept page describes the code and this page describes intent. If the code and this page disagree, the code wins and this page is out of date. Please say so in a comment. The [history](../history.md) section holds the dated design records behind these decisions. <!-- id:Nj5xNvOH -->
+If a concept page and this page disagree, the concept page describes the code and this page describes intent. If the code and this page disagree, the code wins and this page is out of date. Please say so in a comment. <!-- id:Nj5xNvOH -->
 
-# See also
+# See also <!-- id:Ore7i7eA -->
 
-- [The Hypermedia Protocol](../protocol.md): the current layers.
-- [Documents](./documents.md): today's change and Ref model.
-- [Permissions](./permissions.md): today's capabilities.
-- [Privacy](./privacy.md): today's private documents.
-- [Network](./network.md): today's sync and discovery.
-- [History](../history.md): dated design records.
+- [The Hypermedia Protocol](../protocol.md): the current layers. <!-- id:CTAYVSYw -->
+- [Documents](./documents.md): today's change and Ref model. <!-- id:8FYuo4ml -->
+- [Permissions](./permissions.md): today's capabilities. <!-- id:h3Bulcb3 -->
+- [Privacy](./privacy.md): today's private documents. <!-- id:G_EiK-Yy -->
+- [Network](./network.md): today's sync and discovery. <!-- id:fG0dLnMy -->

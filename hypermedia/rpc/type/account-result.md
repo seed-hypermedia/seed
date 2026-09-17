@@ -21,9 +21,9 @@ A **union**. A value matches one of these variants: <!-- id:HZf6WBQs -->
 - [string](../../string.md) <!-- id:BvamZwgP -->
 - [rpc/type/id](./id.md) <!-- id:-A7na0uO -->
 
-# See also
+# See also <!-- id:uXZhN98c -->
 
-- [Account](../account.md): the method that returns it.
-- [Metadata Payload](./metadata-payload.md): the found case.
-- [Identity](../../protocol/identity.md): accounts and keys.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [Account](../account.md): the method that returns it. <!-- id:47g16n-y -->
+- [Metadata Payload](./metadata-payload.md): the found case. <!-- id:ftg-Ij99 -->
+- [Identity](../../protocol/identity.md): accounts and keys. <!-- id:hz4vhr7Z -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:wimj_pnE -->

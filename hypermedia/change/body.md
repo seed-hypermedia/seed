@@ -25,9 +25,9 @@ A **closed struct** with these fields: <!-- id:xndwO-1C -->
 - [change/op](./op.md) <!-- id:10QhAwJr -->
 - [integer](../integer.md) <!-- id:f2oL511e -->
 
-# See also
+# See also <!-- id:9Ajv5aH9 -->
 
-- [change](../change.md): the blob that carries the body.
-- [change/op](./op.md): the operations and how each mutates a document.
-- [Documents](../protocol/documents.md): op ids and replay.
-- [Generic](../schema/generic.md): how the body is generic over its block type.
+- [change](../change.md): the blob that carries the body. <!-- id:vtSyL2C0 -->
+- [change/op](./op.md): the operations and how each mutates a document. <!-- id:U4IDVKYr -->
+- [Documents](../protocol/documents.md): op ids and replay. <!-- id:KaapwAiZ -->
+- [Generic](../schema/generic.md): how the body is generic over its block type. <!-- id:AQqnzwFG -->

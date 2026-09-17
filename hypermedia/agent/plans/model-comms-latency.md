@@ -1,16 +1,15 @@
 ---
 name: Model Comms Latency
-summary: "A plan to make each model-provider round trip cheaper and the first streamed token arrive sooner, through prompt caching, byte-stable prompt prefixes, leaner turn preparation, and fewer round trips."
+summary: A plan to make each model-provider round trip cheaper and the first streamed token arrive sooner, through prompt caching, byte-stable prompt prefixes, leaner turn preparation, and fewer round trips.
 ---
 How to make every [model provider](../model-providers.md) round trip cheaper and the first token arrive sooner. This goes with the [speed plan](./speed.md). Workstream 4 of the finished perf-squeeze plan covered the egress-volume side of the same problem. That plan now lives only in git history. <!-- id:5YS5DZIm -->
 
 # What we measure now <!-- id:t2RVPlFb -->
 
-Per provider request (this branch):
-
-- `provider.request_gap`: from turn dispatch to request sent.
-- `provider.ttft`: from request sent to the first streamed event, also logged per request.
-- `provider.turn`: from request to turn complete.
+Per provider request (this branch): <!-- id:mF9Nt8Pv -->
+  - `provider.request_gap`: from turn dispatch to request sent. <!-- id:drBinaym -->
+  - `provider.ttft`: from request sent to the first streamed event, also logged per request. <!-- id:CAPipt8e -->
+  - `provider.turn`: from request to turn complete. <!-- id:HjqGccIT -->
 
 Collect a week of `/api/perf` from prod before and after each lever below. TTFT (time to first token) p50 and p95 is the success metric. <!-- id:9njfBnGs -->
 
@@ -54,10 +53,10 @@ Each tool batch costs a full provider round trip on a growing context. Two behav
 3. `previous_response_id` for codex (lever 2). This is the biggest upload and serialization win. <!-- id:IiB-q5gk -->
 4. Compaction (lever 3), then turn-prep caching (lever 5) if `request_gap` calls for it. <!-- id:TBolxmAu -->
 
-# See also
+# See also <!-- id:Rh7OkGlh -->
 
-- [Agent speed plan](./speed.md), the parent plan.
-- [Model providers](../model-providers.md), for provider records and request building.
-- [Tools](../tools.md), for touch-expand and promotion.
-- [Prompt injection map](../prompt-injection-map.md), for what goes into each prompt.
-- [Session continuation](../session-continuation.md), for moving a long conversation into a fresh session.
+- [Agent speed plan](./speed.md), the parent plan. <!-- id:SVphWtxp -->
+- [Model providers](../model-providers.md), for provider records and request building. <!-- id:hYTrkMKd -->
+- [Tools](../tools.md), for touch-expand and promotion. <!-- id:nKHXSncf -->
+- [Prompt injection map](../prompt-injection-map.md), for what goes into each prompt. <!-- id:GjJXA0zG -->
+- [Session continuation](../session-continuation.md), for moving a long conversation into a fresh session. <!-- id:SD1mImhf -->

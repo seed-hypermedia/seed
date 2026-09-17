@@ -241,14 +241,13 @@ The [SDK](../build/sdk.md), `@seed-hypermedia/client`, has no libp2p either. `cr
 A site's [Seed API](../build/web-api.md) exposes discovery as `GET /api/DiscoveryStatus` (flat params `uid`, `path`, `v`, `l`). The site services expose `POST /hm/api/discover` with JSON `{uid, path[], version?, media?}`, which blocks until the site's daemon has the document (and, with `media`, its files). `GET /hm/api/config` describes the peer: `{peerId, protocolId, addrs, registeredAccountUid, isGateway, …}`. The daemon's own HTTP port answers the same path with only `{peerId, addrs, protocolId}`. <!-- id:WItao87q -->
 
 For deep integration the daemon's gRPC surface (plain gRPC on its gRPC port, or gRPC-web on the HTTP port, both with reflection) has these calls: <!-- id:eU7Ugij2 -->
+  - `Networking.GetPeerInfo`, `Networking.ListPeers` (no addresses, by design) and `Networking.Connect(addrs)`. <!-- id:7voiOes4 -->
+  - `Subscriptions.Subscribe/Unsubscribe/ListSubscriptions`. <!-- id:kvpyNysS -->
+  - `Entities.DiscoverEntity(id, version?)`. <!-- id:9mUDFYsX -->
+  - `Resources.PushResourcesToPeer(addrs, resources)`. Its `recursive` field is ignored today. <!-- id:0Shqcv40 -->
+  - `Daemon.GetInfo` for your own peer id and protocol id. <!-- id:bgeUY0Z- -->
 
-- `Networking.GetPeerInfo`, `Networking.ListPeers` (no addresses, by design) and `Networking.Connect(addrs)`.
-- `Subscriptions.Subscribe/Unsubscribe/ListSubscriptions`.
-- `Entities.DiscoverEntity(id, version?)`.
-- `Resources.PushResourcesToPeer(addrs, resources)`. Its `recursive` field is ignored today.
-- `Daemon.GetInfo` for your own peer id and protocol id.
-
-The peer-to-peer services `P2P` and `Syncing` are also re-exported locally behind a `target-peer` metadata key, so a local client can run `ListSpaces` or `ReconcileBlobs` against a remote peer through your daemon. A local daemon's API has no authentication. Keep it on localhost or behind a firewall, and run public servers with `-public-only`. The [gRPC guide](../build/grpc.md) has the catalogue.
+The peer-to-peer services `P2P` and `Syncing` are also re-exported locally behind a `target-peer` metadata key, so a local client can run `ListSpaces` or `ReconcileBlobs` against a remote peer through your daemon. A local daemon's API has no authentication. Keep it on localhost or behind a firewall, and run public servers with `-public-only`. The [gRPC guide](../build/grpc.md) has the catalogue. <!-- id:ceErZghv -->
 
 ```sh <!-- id:FZrOsxuq -->
 grpcurl -plaintext localhost:56002 com.seed.networking.v1alpha.Networking/ListPeers

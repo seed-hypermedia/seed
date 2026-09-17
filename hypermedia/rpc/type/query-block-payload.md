@@ -25,9 +25,9 @@ A **closed struct** with these fields: <!-- id:DyS_qKTz -->
 - [rpc/type/id](./id.md) <!-- id:VjUau-KS -->
 - [rpc/type/query-block-item-summary](./query-block-item-summary.md) <!-- id:3DKOCjfE -->
 
-# See also
+# See also <!-- id:wm9hJK_g -->
 
-- [QueryBlock](../query-block.md): the method that returns it.
-- [Query Result](./query-result.md): the results without the extras.
-- [Accounts Metadata](./accounts-metadata.md): the author metadata.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [QueryBlock](../query-block.md): the method that returns it. <!-- id:XL1_YyB3 -->
+- [Query Result](./query-result.md): the results without the extras. <!-- id:ElQjd1_p -->
+- [Accounts Metadata](./accounts-metadata.md): the author metadata. <!-- id:SGFlOQQo -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:bJOG3Px4 -->

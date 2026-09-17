@@ -25,9 +25,9 @@ A **closed struct** with these fields: <!-- id:xuUlh0JO -->
 - [null](../../null.md) <!-- id:QzHgJRnw -->
 - [string](../../string.md) <!-- id:UW_sdNOt -->
 
-# See also
+# See also <!-- id:tYzXGxPs -->
 
-- [GetDomain](../get-domain.md): check one domain.
-- [ListDomains](../list-domains.md): every known domain.
-- [Sites](../../protocol/sites.md): domains and gateways.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [GetDomain](../get-domain.md): check one domain. <!-- id:HeRRjVoH -->
+- [ListDomains](../list-domains.md): every known domain. <!-- id:OkEavDJa -->
+- [Sites](../../protocol/sites.md): domains and gateways. <!-- id:CDlbtVTg -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:MRTbXZmC -->

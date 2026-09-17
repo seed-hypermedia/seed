@@ -1,6 +1,6 @@
 ---
 name: "RPC: ListChanges"
-summary: "Returns a document’s change history as raw change records plus its latest version, given the target id."
+summary: Returns a document’s change history as raw change records plus its latest version, given the target id.
 schemaDefinition: ipfs://bafyreifv2ymng6qkgqbvwnhg7szptugcxu4ztbvsmtxgevnyogyqi2pelm
 ---
 Lists the history of a [document](../protocol/documents.md) as [raw change records](./type/raw-document-change.md), plus its latest version, given the target id. <!-- id:ihAmEwiL -->
@@ -20,11 +20,11 @@ A **closed struct** with these fields: <!-- id:CpilCY5t -->
 - [rpc/type/id](./type/id.md) <!-- id:5kkwJiCD -->
 - [rpc/type/raw-document-change](./type/raw-document-change.md) <!-- id:3-1Dl14U -->
 
-# See also
+# See also <!-- id:CmEB6W8H -->
 
-- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
-- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
-- [RPC](./method.md): every method in one union.
-- [Documents](../protocol/documents.md): the change DAG, versions and heads.
-- [Change](../change.md): the signed change blob.
-- [Resource](./resource.md): fetch the document itself.
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication. <!-- id:weqDXgew -->
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console. <!-- id:pGS2HvxW -->
+- [RPC](./method.md): every method in one union. <!-- id:Czr0J415 -->
+- [Documents](../protocol/documents.md): the change DAG, versions and heads. <!-- id:daUcL2vp -->
+- [Change](../change.md): the signed change blob. <!-- id:w5Pu7ox- -->
+- [Resource](./resource.md): fetch the document itself. <!-- id:jEEQdMwU -->

@@ -13,9 +13,9 @@ A link is how one immutable [blob](./protocol/blobs.md) refers to another. A [Ch
 
 Kind: `link`. <!-- id:IlnLasbp -->
 
-# See also
+# See also <!-- id:e1Edar8- -->
 
-- [cid](./cid.md): the alias blob schemas use for links.
-- [Link schema](./schema/link-schema.md): typed links in a schema.
-- [Signed Blobs](./protocol/blobs.md): content addressing and the two hash functions.
-- [Data model](./schema/data-model.md): all the kinds.
+- [cid](./cid.md): the alias blob schemas use for links. <!-- id:FHaZwEkr -->
+- [Link schema](./schema/link-schema.md): typed links in a schema. <!-- id:Yf6e2l6A -->
+- [Signed Blobs](./protocol/blobs.md): content addressing and the two hash functions. <!-- id:Pgrer0vM -->
+- [Data model](./schema/data-model.md): all the kinds. <!-- id:ulWG6Wdm -->

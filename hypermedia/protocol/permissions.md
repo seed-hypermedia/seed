@@ -187,12 +187,9 @@ Design direction as of September 2026. None of it is code: <!-- id:kMkQmM7X -->
   - **HM26.** The node and resource redesign drops path-scoped grants in favour of invitations at the space level, discontinues the non-recursive flag, treats capabilities as a special category of resource, and wants a group concept so one grant can name several keys. Existing sub-document grants would not migrate. See [Roadmap](./roadmap.md). <!-- id:EhB-HPsr -->
   - **Trust beyond grants.** Team essays describe contextual trust rooted in communities, with no global PGP-style web. None of it is specified yet. <!-- id:K3H2OcX3 -->
 
-The dated investigation behind much of this, including an adversarial review of a "grants" design, is under [History: Permissions](../history/permissions.md). [How privacy works today](../history/permissions/current-state.md) is the August 2026 snapshot it was written against. <!-- id:yEF4JCXV -->
-
 # See also <!-- id:UsfnKGWX -->
 
 - [Capability](../capability.md), [Role](../role.md), [Contact](../contact.md), [Contact subscription](../contact/subscribe.md), [Profile](../profile.md), [Ref](../ref.md) <!-- id:3UVwnuSb -->
 - [Identity](./identity.md), [Privacy](./privacy.md), [Integrity](./integrity.md), [Documents](./documents.md) <!-- id:pQ57rddD -->
 - [Sign in with Seed](../build/sign-in.md), [Building agents](../build/agents.md) <!-- id:riQzNm9U -->
-- [History: Permissions](../history/permissions.md) <!-- id:Z7aTl8we -->
 - [Glossary](../glossary.md) <!-- id:-jTZqAOp -->

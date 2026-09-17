@@ -183,8 +183,8 @@ The CLI is the recommended way for an external agent to touch Seed. Run it as `n
 
 - [Keys](./keys.md) <!-- id:sjB5BRW_ -->
 - [The Seed CLI app page](../apps/cli.md), for where the code lives and how it is tested <!-- id:PEaV_SgZ -->
-- [Publish a folder](./publish-a-folder.md)
-- [Query grammar](./query-grammar.md)
-- [Using Seed from your own agent](./agents.md)
-- [SDK](./sdk.md)
-- [Seed API](./web-api.md)
+- [Publish a folder](./publish-a-folder.md) <!-- id:DQ2RF-Di -->
+- [Query grammar](./query-grammar.md) <!-- id:hogVlMfc -->
+- [Using Seed from your own agent](./agents.md) <!-- id:tGU9ay8W -->
+- [SDK](./sdk.md) <!-- id:Txl_sF-C -->
+- [Seed API](./web-api.md) <!-- id:9goznpU9 -->

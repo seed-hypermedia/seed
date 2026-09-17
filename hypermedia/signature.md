@@ -17,9 +17,9 @@ An **alias** of [bytes](./bytes.md). <!-- id:OMQsN3IL -->
 
 - [bytes](./bytes.md) <!-- id:p9KTsAgq -->
 
-# See also
+# See also <!-- id:X0yQAGtY -->
 
-- [Signed Blobs](./protocol/blobs.md): the signing rule and encoding.
-- [blob](./blob.md): the envelope that carries `sig`.
-- [principal](./principal.md): the public key that verifies it.
-- [Integrity](./protocol/integrity.md): what a signature proves.
+- [Signed Blobs](./protocol/blobs.md): the signing rule and encoding. <!-- id:M4eJrZNV -->
+- [blob](./blob.md): the envelope that carries `sig`. <!-- id:I_P6RN3i -->
+- [principal](./principal.md): the public key that verifies it. <!-- id:TWWpORXq -->
+- [Integrity](./protocol/integrity.md): what a signature proves. <!-- id:lqBlZ1Wr -->

@@ -24,9 +24,9 @@ A **union**. A value matches one of these variants: <!-- id:TsnOcutU -->
 - [profile](../profile.md) <!-- id:DiDCtHSa -->
 - [ref](../ref.md) <!-- id:WAyUTcQu -->
 
-# See also
+# See also <!-- id:ESSnX0hn -->
 
-- [blob](../blob.md): the signed envelope all six types extend.
-- [Signed Blobs](../protocol/blobs.md): encoding, CIDs and what the daemon accepts.
-- [Network blobs](../schema/blobs.md): the blob types as schemas.
-- [Discriminated union](../schema/discriminated-union.md): how the `type` tag selects a variant.
+- [blob](../blob.md): the signed envelope all six types extend. <!-- id:DkUt2bp2 -->
+- [Signed Blobs](../protocol/blobs.md): encoding, CIDs and what the daemon accepts. <!-- id:mwBeWZsY -->
+- [Network blobs](../schema/blobs.md): the blob types as schemas. <!-- id:8d7iIjc4 -->
+- [Discriminated union](../schema/discriminated-union.md): how the `type` tag selects a variant. <!-- id:k_kJEZkf -->

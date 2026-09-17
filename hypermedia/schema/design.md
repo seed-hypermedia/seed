@@ -47,11 +47,11 @@ This page explains why Hypermedia Schemas have their shape, and what is still un
 - A query or transformation language. It types data and nothing more. <!-- id:i4B6KiPY -->
 - Hiding [IPLD](./ipld.md). Links and content addressing stay visible on purpose. <!-- id:ssdyUSWm -->
 
-# See also
+# See also <!-- id:d0uSa603 -->
 
-- [Why Hypermedia Schemas](./why.md): the problem the design answers.
-- [The schema language](./schema-language.md): every key these decisions produced.
-- [The data model](./data-model.md): the nine kinds.
-- [References and naming](./references.md): names, CIDs and the fixpoint problem.
-- [Encoding](./encoding.md): DAG-CBOR and the canonical form.
-- [Blobs](../protocol/blobs.md): content addressing on the Hypermedia Network.
+- [Why Hypermedia Schemas](./why.md): the problem the design answers. <!-- id:rFpv81vc -->
+- [The schema language](./schema-language.md): every key these decisions produced. <!-- id:JpeSzRGL -->
+- [The data model](./data-model.md): the nine kinds. <!-- id:ZqCLNrz9 -->
+- [References and naming](./references.md): names, CIDs and the fixpoint problem. <!-- id:b1yc7vUP -->
+- [Encoding](./encoding.md): DAG-CBOR and the canonical form. <!-- id:lwt8efof -->
+- [Blobs](../protocol/blobs.md): content addressing on the Hypermedia Network. <!-- id:Le_ZTYZf -->

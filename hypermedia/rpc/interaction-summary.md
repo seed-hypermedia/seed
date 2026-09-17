@@ -1,6 +1,6 @@
 ---
 name: "RPC: InteractionSummary"
-summary: "Returns a document’s aggregate citation, comment, change, child, and author counts with per-block breakdowns, given its id."
+summary: Returns a document’s aggregate citation, comment, change, child, and author counts with per-block breakdowns, given its id.
 schemaDefinition: ipfs://bafyreidvcyspkzgvc3ceo43cukt7xtjfk7pjkgrkmxtsbn3joytya2uuqu
 ---
 Counts the interactions on a [document](../protocol/documents.md): [citations](../protocol/comments.md), comments, changes, child documents and authors, with counts per [block](../protocol/blocks.md). The result is an [interaction summary](./type/interaction-summary.md). <!-- id:o5tltrJQ -->
@@ -19,11 +19,11 @@ A **closed struct** with these fields: <!-- id:C6ObWmqI -->
 - [rpc/type/id](./type/id.md) <!-- id:IvcbCWto -->
 - [rpc/type/interaction-summary](./type/interaction-summary.md) <!-- id:EIwlmCUh -->
 
-# See also
+# See also <!-- id:fR9a7ajC -->
 
-- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
-- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
-- [RPC](./method.md): every method in one union.
-- [Comments](../protocol/comments.md): comments and citations.
-- [ListCitations](./list-citations.md): the citations behind the count.
-- [ListComments](./list-comments.md): the comments behind the count.
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication. <!-- id:XplM3uAk -->
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console. <!-- id:TQzIkpb4 -->
+- [RPC](./method.md): every method in one union. <!-- id:KRryWyiP -->
+- [Comments](../protocol/comments.md): comments and citations. <!-- id:PcAdRU2b -->
+- [ListCitations](./list-citations.md): the citations behind the count. <!-- id:drnrwjlu -->
+- [ListComments](./list-comments.md): the comments behind the count. <!-- id:mVKHa0Ki -->

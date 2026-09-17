@@ -25,9 +25,9 @@ A **closed struct** with these fields: <!-- id:9qhgoTmA -->
 - [string](../../string.md) <!-- id:6MwjyTWx -->
 - [rpc/type/id](./id.md) <!-- id:RiWTRYEb -->
 
-# See also
+# See also <!-- id:xGH2VWqh -->
 
-- [Permissions](../../protocol/permissions.md): capabilities, roles and delegation.
-- [Raw Capability](./raw-capability.md): the indexed wire form.
-- [Collaborators Payload](./collaborators-payload.md): where the API returns these.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [Permissions](../../protocol/permissions.md): capabilities, roles and delegation. <!-- id:A1I7pZGp -->
+- [Raw Capability](./raw-capability.md): the indexed wire form. <!-- id:YH7a9T8a -->
+- [Collaborators Payload](./collaborators-payload.md): where the API returns these. <!-- id:91n3gJ1f -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:7wtBis_q -->

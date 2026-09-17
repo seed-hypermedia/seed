@@ -33,7 +33,6 @@ These pages are markdown files in the Seed repository under `hypermedia/`. A com
 | [Apps](./apps.md) | The Seed software, one page per program. <!-- id:IUS1Ivva --> |
 | [Examples](./example.md) | Example schemas and typed instances. <!-- id:xVNduUPu --> |
 | [Glossary](./glossary.md) | Every term in one line, with a table of retired names. <!-- id:dvqdYbSA --> |
-| [History](./history.md) | Dated design records that still inform the code. <!-- id:8kno8G_X --> |
 
 # Where this is going <!-- id:dP4wg_p_ -->
 

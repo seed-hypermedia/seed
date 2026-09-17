@@ -1,6 +1,6 @@
 ---
 name: Accounts Metadata
-summary: "A map from account uid to resolved metadata payload, sent alongside listings so clients can render authors without extra requests."
+summary: A map from account uid to resolved metadata payload, sent alongside listings so clients can render authors without extra requests.
 schemaDefinition: ipfs://bafyreibeenkjw3vbnedisiwx3l6gex4kbh2ddbi5x7a2kjdq2rbjap7khm
 ---
 A map from [account](../../protocol/identity.md) uid to its resolved [metadata payload](./metadata-payload.md). Listings send it along so clients can show authors without extra requests. <!-- id:ytAJ6HkR -->
@@ -15,9 +15,9 @@ An **open map**. Every value: [rpc/type/metadata-payload](./metadata-payload.md)
 
 - [rpc/type/metadata-payload](./metadata-payload.md) <!-- id:3J-SED2K -->
 
-# See also
+# See also <!-- id:gZWqUtgu -->
 
-- [Metadata Payload](./metadata-payload.md): each value.
-- [Query Block Payload](./query-block-payload.md): a listing that carries it.
-- [Collaborators Payload](./collaborators-payload.md): another listing that carries it.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [Metadata Payload](./metadata-payload.md): each value. <!-- id:V5R8mzdL -->
+- [Query Block Payload](./query-block-payload.md): a listing that carries it. <!-- id:NrwW8lFi -->
+- [Collaborators Payload](./collaborators-payload.md): another listing that carries it. <!-- id:RTgn2gqL -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:39mHwkP0 -->

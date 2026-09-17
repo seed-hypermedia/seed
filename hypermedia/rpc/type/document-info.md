@@ -39,9 +39,9 @@ A **closed struct** with these fields: <!-- id:JQCMU3uI -->
 - [rpc/type/id](./id.md) <!-- id:f-OIRb8y -->
 - [rpc/type/redirect-info](./redirect-info.md) <!-- id:9I8fkVGm -->
 
-# See also
+# See also <!-- id:Ayk863xI -->
 
-- [Document (Payload)](./document.md): the full document.
-- [Query Result](./query-result.md): a listing of document info.
-- [Redirect Info](./redirect-info.md): a listed document that redirects.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [Document (Payload)](./document.md): the full document. <!-- id:e5YYXJFA -->
+- [Query Result](./query-result.md): a listing of document info. <!-- id:Q7U8stwj -->
+- [Redirect Info](./redirect-info.md): a listed document that redirects. <!-- id:-663LVLt -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:xd9JhQMZ -->

@@ -36,10 +36,10 @@ A **union**. A value matches one of these variants: <!-- id:bdgSe4Z4 -->
 - [change/op/set-attributes](./op/set-attributes.md) <!-- id:xn-9VfDd -->
 - [change/op/set-key](./op/set-key.md) <!-- id:HylY6yqt -->
 
-# See also
+# See also <!-- id:JL7ONhAk -->
 
-- [change/body](./body.md): the list that holds the ops.
-- [change](../change.md): the signed blob.
-- [Documents](../protocol/documents.md): op ids, the CRDT rules and replay.
-- [Blocks](../protocol/blocks.md): what a block contains.
-- [metadata](../metadata.md): the keys SetAttributes writes.
+- [change/body](./body.md): the list that holds the ops. <!-- id:V7ACuPOm -->
+- [change](../change.md): the signed blob. <!-- id:-kQUFkr7 -->
+- [Documents](../protocol/documents.md): op ids, the CRDT rules and replay. <!-- id:0bBEwnNO -->
+- [Blocks](../protocol/blocks.md): what a block contains. <!-- id:_Km1h1dQ -->
+- [metadata](../metadata.md): the keys SetAttributes writes. <!-- id:btAHkrBi -->

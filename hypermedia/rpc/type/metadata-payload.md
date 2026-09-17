@@ -1,6 +1,6 @@
 ---
 name: Metadata Payload
-summary: "A resource id with its resolved metadata, or null when the document has none."
+summary: A resource id with its resolved metadata, or null when the document has none.
 schemaDefinition: ipfs://bafyreiaxowaql3pnjqlnli3bngkfzdqfink5pkz4ukivhssxzw6j466q7u
 ---
 A [resource](../../glossary.md) id with its resolved [metadata](../../metadata.md). `metadata` is `null` when the document has none. <!-- id:Y5u7CGw2 -->
@@ -21,9 +21,9 @@ A **closed struct** with these fields: <!-- id:0j_x3TEg -->
 - [null](../../null.md) <!-- id:6NloaXgX -->
 - [rpc/type/id](./id.md) <!-- id:L9kGhYH8 -->
 
-# See also
+# See also <!-- id:h53Azurw -->
 
-- [ResourceMetadata](../resource-metadata.md): the method that returns it.
-- [Accounts Metadata](./accounts-metadata.md): a map of these by account.
-- [Metadata](../../metadata.md): every metadata key.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [ResourceMetadata](../resource-metadata.md): the method that returns it. <!-- id:QNG2OY8Z -->
+- [Accounts Metadata](./accounts-metadata.md): a map of these by account. <!-- id:EumtKVZU -->
+- [Metadata](../../metadata.md): every metadata key. <!-- id:vdvTEhUW -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:iZtfwmfH -->

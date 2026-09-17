@@ -1,6 +1,6 @@
 ---
 name: Raw Citation
-summary: "A citation in raw indexed form, before client-side resolution into a citation read model."
+summary: A citation in raw indexed form, before client-side resolution into a citation read model.
 schemaDefinition: ipfs://bafyreig6plnf6lzprkerpm5gmheeicd2crba3nqlgmnxgdguek2szkucby
 ---
 A [citation](../../protocol/comments.md) in raw indexed form, before the client resolves it into a [citation](./citation.md). [rpc/list-citations](../list-citations.md) returns these. <!-- id:ax5Fn9Xm -->
@@ -29,9 +29,9 @@ A **closed struct** with these fields: <!-- id:VSMoMOwV -->
 - [boolean](../../boolean.md) <!-- id:lRrCLPEF -->
 - [string](../../string.md) <!-- id:Z4_aA0VM -->
 
-# See also
+# See also <!-- id:Khae6tLn -->
 
-- [Citation](./citation.md): the resolved form.
-- [ListCitations](../list-citations.md): the method that returns it.
-- [Comments](../../protocol/comments.md): citations and backlinks.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [Citation](./citation.md): the resolved form. <!-- id:Kc_3MdM3 -->
+- [ListCitations](../list-citations.md): the method that returns it. <!-- id:Xx7fqTS7 -->
+- [Comments](../../protocol/comments.md): citations and backlinks. <!-- id:oPFTujVY -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:SlcL_NVh -->

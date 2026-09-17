@@ -3,7 +3,7 @@ name: "Example: Value"
 summary: "A primitive value: string, integer, boolean, or null."
 schemaDefinition: ipfs://bafyreieg4ddcrqezij6pymoqtm7tex6i3c6nsl7qkhmj5trfboz534k4qi
 ---
-A primitive value: a [union](../schema/anyof.md) of [string](../string.md), [integer](../integer.md), [boolean](../boolean.md) or [null](../null.md).
+A primitive value: a [union](../schema/anyof.md) of [string](../string.md), [integer](../integer.md), [boolean](../boolean.md) or [null](../null.md). <!-- id:E9afMyGb -->
 
 This page describes the **example/value** type, one of the [example schemas](../example.md). The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it and create values of this type. <!-- id:U1Ak7_KO -->
 
@@ -22,9 +22,9 @@ A **union**. A value matches one of these variants: <!-- id:CaQ1qtr3 -->
 - [null](../null.md) <!-- id:VkEPDTco -->
 - [string](../string.md) <!-- id:BMopbHvt -->
 
-# See also
+# See also <!-- id:X5iiuc-H -->
 
-- [json](./json.md): the recursive version.
-- [status](./status.md): a union of literals.
-- [Union](../schema/anyof.md): how `anyOf` works.
-- [Examples](../example.md): every example, grouped by feature.
+- [json](./json.md): the recursive version. <!-- id:sqabJ2xc -->
+- [status](./status.md): a union of literals. <!-- id:TXspdnAc -->
+- [Union](../schema/anyof.md): how `anyOf` works. <!-- id:3FbVzYCt -->
+- [Examples](../example.md): every example, grouped by feature. <!-- id:--JN0hRJ -->

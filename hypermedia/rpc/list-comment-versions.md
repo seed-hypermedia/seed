@@ -1,6 +1,6 @@
 ---
 name: "RPC: ListCommentVersions"
-summary: "Returns every stored version of a comment, given its id."
+summary: Returns every stored version of a comment, given its id.
 schemaDefinition: ipfs://bafyreicihw6ljp4yhqw76clbaldyyan4hlpni3ibakaq3xbc3oynbc76im
 ---
 Lists every stored version of a [comment](../protocol/comments.md), which is its edit history, given its id. Each version is a [comment read model](./type/comment.md). <!-- id:jtYHnqzi -->
@@ -19,10 +19,10 @@ A **closed struct** with these fields: <!-- id:SGcsRaoX -->
 - [string](../string.md) <!-- id:NRiz7Dmr -->
 - [rpc/type/comment](./type/comment.md) <!-- id:-J30-WLH -->
 
-# See also
+# See also <!-- id:iLqJzimj -->
 
-- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
-- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
-- [RPC](./method.md): every method in one union.
-- [Comments](../protocol/comments.md): comments and edits.
-- [Comment](./comment.md): fetch one version.
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication. <!-- id:6KU8Aj4B -->
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console. <!-- id:ZDlGdOhB -->
+- [RPC](./method.md): every method in one union. <!-- id:EDbXNxJD -->
+- [Comments](../protocol/comments.md): comments and edits. <!-- id:GINmaaZx -->
+- [Comment](./comment.md): fetch one version. <!-- id:OEkdvcg2 -->

@@ -1,6 +1,6 @@
 ---
 name: Comment List
-summary: "A list of comments plus the metadata payloads of every author involved."
+summary: A list of comments plus the metadata payloads of every author involved.
 schemaDefinition: ipfs://bafyreig3f4ozdxbg2tlctxfnt6pdd24nrmyhyurjimdddw5pjcbkcgtpq4
 ---
 A list of [comments](../../protocol/comments.md) plus the metadata payloads of every author involved. [rpc/list-comments](../list-comments.md) returns it, as do the by-author and by-reference variants. <!-- id:YsLbrH3B -->
@@ -18,10 +18,10 @@ A **closed struct** with these fields: <!-- id:KZctBNHM -->
 - [rpc/type/comment](./comment.md) <!-- id:uEtChrVR -->
 - [rpc/type/metadata-payload](./metadata-payload.md) <!-- id:Dt3ONyxv -->
 
-# See also
+# See also <!-- id:HzzRUmYv -->
 
-- [Comment (Payload)](./comment.md): each comment.
-- [Metadata Payload](./metadata-payload.md): each author.
-- [ListCommentsByAuthor](../list-comments-by-author.md): comments by one author.
-- [ListCommentsByReference](../list-comments-by-reference.md): comments on one block.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [Comment (Payload)](./comment.md): each comment. <!-- id:YpvfgdzR -->
+- [Metadata Payload](./metadata-payload.md): each author. <!-- id:zV2Qr5Nj -->
+- [ListCommentsByAuthor](../list-comments-by-author.md): comments by one author. <!-- id:-RKpmIFP -->
+- [ListCommentsByReference](../list-comments-by-reference.md): comments on one block. <!-- id:PoAai1ze -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:TAi6TM-k -->

@@ -23,9 +23,9 @@ A **closed struct** with these fields: <!-- id:Vs4HGtDy -->
 - [boolean](../../boolean.md) <!-- id:oHJaYRhQ -->
 - [string](../../string.md) <!-- id:qCF6yVV1 -->
 
-# See also
+# See also <!-- id:c8-vjriK -->
 
-- [Document Info](./document-info.md): the listing entry that carries it.
-- [ListEvents](../list-events.md): the full activity feed.
-- [Interaction Summary](./interaction-summary.md): aggregate counts for a document.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [Document Info](./document-info.md): the listing entry that carries it. <!-- id:L-WJy8YM -->
+- [ListEvents](../list-events.md): the full activity feed. <!-- id:5ea6a4LJ -->
+- [Interaction Summary](./interaction-summary.md): aggregate counts for a document. <!-- id:zEZSxgdp -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:ORU33oEd -->

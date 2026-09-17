@@ -45,9 +45,8 @@ A WRITER scoped to a sub-path can write there but is denied private reads there.
 ## How peers are gated <!-- id:COGK2cRq -->
 
 Peer-to-peer delivery is the only place with real access control. It has two layers. <!-- id:mgaHufcC -->
-
-- **Peer authentication.** A [peer](./network.md) proves it holds an account by signing an ephemeral capability naming the account and the server's peer, fresh within one minute. The server remembers that proof in memory for the connection.
-- **Authorization.** A private blob is served to a peer only if one of these holds: the peer is allowlisted for an in-flight push; it is authenticated as the space owner; it is the server the space names in its home document's `siteUrl` (resolved by fetching that site's `/hm/api/config` and comparing the peer ID); or it is authenticated as an account holding a **WRITER** capability for the space, at any path.
+  - **Peer authentication.** A [peer](./network.md) proves it holds an account by signing an ephemeral capability naming the account and the server's peer, fresh within one minute. The server remembers that proof in memory for the connection. <!-- id:tDVMmEf5 -->
+  - **Authorization.** A private blob is served to a peer only if one of these holds: the peer is allowlisted for an in-flight push; it is authenticated as the space owner; it is the server the space names in its home document's `siteUrl` (resolved by fetching that site's `/hm/api/config` and comparing the peer ID); or it is authenticated as an account holding a **WRITER** capability for the space, at any path. <!-- id:VG44C2tX -->
 
 Set reconciliation is filtered the same way. The server computes which spaces the peer may see and folds range fingerprints over the filtered view, so an unauthorized peer never learns that hidden blobs exist. Plain blob listing never lists private blobs. A daemon that holds a WRITER grant for a space authenticates automatically before syncing with that space's site. <!-- id:JDJJ5Hwi -->
 
@@ -87,5 +86,4 @@ As of September 2026 the direction is Phase 2 of private documents: read and wri
 
 - [Visibility](../visibility.md), [Ref](../ref.md), [Comment](../comment.md), [Capability](../capability.md) <!-- id:Nu4wuyOP -->
 - [Identity](./identity.md), [Permissions](./permissions.md), [Integrity](./integrity.md), [Network](./network.md), [Sites](./sites.md) <!-- id:2qg6gojo -->
-- [How privacy works today](../history/permissions/current-state.md), the August 2026 investigation snapshot <!-- id:tT_fEW0h -->
 - [Glossary](../glossary.md) <!-- id:CVgi0Ulg -->

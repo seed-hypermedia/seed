@@ -58,12 +58,12 @@ Validation has two modes. **At rest it is advisory.** A blob is a cryptographic 
 
 Read [how Hypermedia Schemas work](./how-it-works.md) for the whole system, [typed documents](./typed-documents.md) for how documents bind to schemas, or go to the reference chapters from the [schema home page](../schema.md). <!-- id:mdWI56L4 -->
 
-# See also
+# See also <!-- id:_1bOSofL -->
 
-- [How Hypermedia Schemas work](./how-it-works.md): the pipeline from schema file to signed blob and typed API call.
-- [Typed documents](./typed-documents.md): `attributesSchema`, `childAttributesSchema` and `schemaDefinition`.
-- [Design rationale](./design.md): the decisions behind the language.
-- [References and naming](./references.md): why names make recursive types possible.
-- [Blobs](../protocol/blobs.md): the signed data the schemas describe.
-- [Documents](../protocol/documents.md): the resources that carry and define schemas.
-- [Metadata](../metadata.md): the document attributes a schema types.
+- [How Hypermedia Schemas work](./how-it-works.md): the pipeline from schema file to signed blob and typed API call. <!-- id:HLGbgqGX -->
+- [Typed documents](./typed-documents.md): `attributesSchema`, `childAttributesSchema` and `schemaDefinition`. <!-- id:OWulMFtU -->
+- [Design rationale](./design.md): the decisions behind the language. <!-- id:CNDxZ3Km -->
+- [References and naming](./references.md): why names make recursive types possible. <!-- id:Q9IqdtnW -->
+- [Blobs](../protocol/blobs.md): the signed data the schemas describe. <!-- id:C9hGMBp- -->
+- [Documents](../protocol/documents.md): the resources that carry and define schemas. <!-- id:6-gP2gk9 -->
+- [Metadata](../metadata.md): the document attributes a schema types. <!-- id:TXBSw0rH -->
