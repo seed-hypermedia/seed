@@ -1199,6 +1199,23 @@ func sanitizeSearchQuery(raw string) string {
 	return strings.Join(strings.Fields(clean), " ")
 }
 
+// dedupeContentType is the content type a result is deduplicated under. An
+// account's name is indexed twice, as its home document's title and as its
+// Profile blob, and both resolve to the same path-less IRI; folding them into
+// one group keeps the account from showing up twice with the same name.
+func dedupeContentType(res fullDataSearchResult) string {
+	if (res.contentType == "title" || res.contentType == "profile") && res.blockID == "" && isAccountIRI(res.iri) {
+		return "account"
+	}
+	return res.contentType
+}
+
+// isAccountIRI reports whether the IRI addresses an account itself (no path).
+func isAccountIRI(iri string) bool {
+	rest, ok := strings.CutPrefix(iri, "hm://")
+	return ok && rest != "" && !strings.Contains(rest, "/")
+}
+
 func searchEntityKind(result fullDataSearchResult) entpb.EntityKindFilter {
 	switch result.contentType {
 	case "comment":
@@ -1550,9 +1567,19 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	var uniqueResults []fullDataSearchResult
 	var uniqueBodyMatches []fuzzy.Match
 	for i, res := range searchResults {
-		key := fmt.Sprintf("%s|%s|%s|%s", res.iri, res.blockID, res.rawContent, res.contentType)
+		key := fmt.Sprintf("%s|%s|%s|%s", res.iri, res.blockID, res.rawContent, dedupeContentType(res))
 		if idx, ok := seen[key]; ok {
-			// duplicate – compare blobID
+			// duplicate – prefer the profile row for an account, otherwise the newer one.
+			if res.contentType == "profile" && uniqueResults[idx].contentType != "profile" {
+				uniqueResults[idx] = res
+				bm := bodyMatches[i]
+				bm.Index = idx
+				uniqueBodyMatches[idx] = bm
+				continue
+			}
+			if uniqueResults[idx].contentType == "profile" && res.contentType != "profile" {
+				continue
+			}
 			if res.versionTime.AsTime().After(uniqueResults[idx].versionTime.AsTime()) {
 				uniqueResults[idx] = res
 				bm := bodyMatches[i]

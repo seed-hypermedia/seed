@@ -9,8 +9,10 @@ import (
 	"seed/backend/blob"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
+	documents "seed/backend/genproto/documents/v3alpha"
 	entpb "seed/backend/genproto/entities/v1alpha"
 
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
 )
@@ -295,4 +297,43 @@ func TestSearchEntitiesFoodVersions(t *testing.T) {
 	require.Contains(t, byContent, "I hate food")
 	require.False(t, isLatest(byContent["I love food"].Id), "the superseded text must link to its old version")
 	require.True(t, isLatest(byContent["I hate food"].Id), "unrelated later edits carry the current text forward to the latest version")
+}
+
+func TestSearchEntitiesAccountNameListedOnce(t *testing.T) {
+	t.Parallel()
+
+	svc := newTestServices(t, "alice")
+	kp := svc.me.Account
+	ctx := context.Background()
+	clock := newTestClock()
+	account := kp.Principal().String()
+
+	// The account's name lives in two places: the Profile blob and the home
+	// document's title. Both must collapse into one search result.
+	_, err := svc.documents.UpdateProfile(ctx, &documents.UpdateProfileRequest{
+		Account:        account,
+		SigningKeyName: "main",
+		Profile:        &documents.Profile{Name: "Lunaticoin"},
+	})
+	require.NoError(t, err)
+
+	genesis, err := blob.NewChange(kp, cid.Undef, nil, 0, blob.ChangeBody{}, blob.ZeroUnixTime())
+	require.NoError(t, err)
+	home, err := blob.NewChange(kp, genesis.CID, []cid.Cid{genesis.CID}, 1, blob.ChangeBody{OpCount: 1, Ops: []blob.OpMap{titleOp(t, "Lunaticoin")}}, clock.next())
+	require.NoError(t, err)
+	homeRef, err := blob.NewRef(kp, 1, genesis.CID, kp.Principal(), "", []cid.Cid{home.CID}, clock.next(), blob.VisibilityPublic)
+	require.NoError(t, err)
+	for _, b := range []blocks.Block{genesis, home, homeRef} {
+		require.NoError(t, svc.idx.Put(ctx, b))
+	}
+
+	res, err := svc.entities.SearchEntities(ctx, &entpb.SearchEntitiesRequest{
+		Query:             "Lunaticoin",
+		ContentTypeFilter: []entpb.ContentTypeFilter{entpb.ContentTypeFilter_CONTENT_TYPE_TITLE},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Entities, 1, "the account must be listed once, not once per place its name is indexed")
+	require.Equal(t, "profile", res.Entities[0].Type)
+	require.Equal(t, "hm://"+account, res.Entities[0].Id)
+	require.Equal(t, "Lunaticoin", res.Entities[0].Content)
 }
