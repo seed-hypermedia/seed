@@ -429,9 +429,12 @@ export function validate(
     return errors
   }
   if (kind === 'map' || kind === 'struct') {
-    for (const key of requiredFieldNames(schema)) if (!(key in data)) errors.push(`${path}: missing required "${key}"`)
+    // An undefined value is an absent field: DAG-CBOR has no undefined, so it never reaches the wire.
+    for (const key of requiredFieldNames(schema))
+      if (!(key in data) || data[key] === undefined) errors.push(`${path}: missing required "${key}"`)
     const closed = schema.properties && !schema.values
     for (const [key, value] of Object.entries(data)) {
+      if (value === undefined) continue
       const child = fieldSchema(schema, key) ?? schema.values
       if (child) errors.push(...validate(child, value, `${path}.${key}`, env, reg))
       else if (closed) errors.push(`${path}: unexpected key "${key}"`)
