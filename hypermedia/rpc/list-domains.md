@@ -1,6 +1,6 @@
 ---
 name: "RPC: ListDomains"
-summary: "Returns every site domain the daemon knows, each with its registration and health info."
+summary: Returns every site domain the daemon knows, each with its registration and health info.
 schemaDefinition: ipfs://bafyreidlmqv7wr7wbybpocgdd2ok5yxgwyu74n35x63fcpjkbdquc3wqka
 ---
 Lists every [site](../protocol/sites.md) domain the daemon knows, each with its registration and health info as [domain info](./type/domain-info.md). <!-- id:EU590VBL -->
@@ -18,10 +18,10 @@ A **closed struct** with these fields: <!-- id:9151imY0 -->
 
 - [rpc/type/domain-info](./type/domain-info.md) <!-- id:YRWfuQiw -->
 
-# See also
+# See also <!-- id:xNSMDkYR -->
 
-- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
-- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
-- [RPC](./method.md): every method in one union.
-- [Sites](../protocol/sites.md): domains and gateways.
-- [GetDomain](./get-domain.md): check one domain.
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication. <!-- id:FPN1J4mK -->
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console. <!-- id:OUF1nM5X -->
+- [RPC](./method.md): every method in one union. <!-- id:rZcUZfTh -->
+- [Sites](../protocol/sites.md): domains and gateways. <!-- id:YBjUOeRc -->
+- [GetDomain](./get-domain.md): check one domain. <!-- id:Ns17oRrq -->

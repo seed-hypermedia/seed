@@ -57,13 +57,14 @@ This route describes the site. Any client that has only a web URL starts here: <
 }
 ```
 
+<!-- id:MXFhfPA5 -->
 - `registeredAccountUid` is the space the site serves. <!-- id:XAUU6RZE -->
-- `peerId` and `addrs` are how to reach its daemon.
-- `protocolId` tells you whether your node can talk to it.
-- `signerAccountUid` is a key the web app generated for itself. The server signs with it on its own behalf, for example when a web visitor edits through the site.
-- `isGateway` is explained below.
+- `peerId` and `addrs` are how to reach its daemon. <!-- id:iOzjCMhe -->
+- `protocolId` tells you whether your node can talk to it. <!-- id:nZx9yDva -->
+- `signerAccountUid` is a key the web app generated for itself. The server signs with it on its own behalf, for example when a web visitor edits through the site. <!-- id:US2kbkxG -->
+- `isGateway` is explained below. <!-- id:77d8-6PY -->
 
-The route is public and answers any origin. The daemon's own HTTP port serves the same path with only `peerId`, `addrs` and `protocolId`, which is enough to bootstrap a libp2p connection from a URL.
+The route is public and answers any origin. The daemon's own HTTP port serves the same path with only `peerId`, `addrs` and `protocolId`, which is enough to bootstrap a libp2p connection from a URL. <!-- id:9Ba7hmw7 -->
 
 The daemon keeps a **domain table**. Whenever it resolves a `siteUrl` it records the domain and re-checks `https://<domain>/hm/api/config` every 30 minutes, storing the last status (`success`, `unreachable`, `error`, `unknown`), the last successful config and the last error. `Daemon.GetDomain` returns that row. When the daemon has never fetched the domain, it falls back to what it knows locally: a home document whose `siteUrl` names the domain. `ListDomains` lists them all. The Seed app and the [SDK](../build/sdk.md) use this table to turn `https://example.com/about` into an `hm://` id without a network round trip when the domain was seen before. <!-- id:3vwDmSTZ -->
 

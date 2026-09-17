@@ -118,10 +118,10 @@ As of September 2026 the open items are moderation (an owner revoking or hiding 
 # See also <!-- id:ACaA2zth -->
 
 - [Blocks](./blocks.md): the body of a comment and block fragments. <!-- id:BhQTgF2X -->
-- [Documents](./documents.md): what a comment targets.
-- [URLs](./urls.md): comment addresses.
-- [Permissions](./permissions.md): contacts and the web of trust.
-- [Privacy](./privacy.md): private comments.
-- [Identity](./identity.md): who signs a comment.
-- Schema pages: [comment](../comment.md), [block/comment](../block/comment.md).
-- API pages: [rpc/list-comments](../rpc/list-comments.md), [rpc/list-discussions](../rpc/list-discussions.md), [rpc/list-citations](../rpc/list-citations.md).
+- [Documents](./documents.md): what a comment targets. <!-- id:brAnNt8t -->
+- [URLs](./urls.md): comment addresses. <!-- id:GsYNlv3h -->
+- [Permissions](./permissions.md): contacts and the web of trust. <!-- id:MWmT1tHV -->
+- [Privacy](./privacy.md): private comments. <!-- id:tbG2ruHD -->
+- [Identity](./identity.md): who signs a comment. <!-- id:hWXQM6-W -->
+- Schema pages: [comment](../comment.md), [block/comment](../block/comment.md). <!-- id:TBI2OJDj -->
+- API pages: [rpc/list-comments](../rpc/list-comments.md), [rpc/list-discussions](../rpc/list-discussions.md), [rpc/list-citations](../rpc/list-citations.md). <!-- id:OVYCeTHL -->

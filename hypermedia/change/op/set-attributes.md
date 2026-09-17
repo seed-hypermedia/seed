@@ -21,10 +21,10 @@ A **closed struct** with these fields: <!-- id:t_VD1Nku -->
 - [key-value](../../key-value.md) <!-- id:XnogVOLT -->
 - [string](../../string.md) <!-- id:wW3E9OCx -->
 
-# See also
+# See also <!-- id:2msgeUhu -->
 
-- [metadata](../../metadata.md): the keys this op writes.
-- [key-value](../../key-value.md): one key path and value.
-- [SetKey](./set-key.md): the deprecated flat form.
-- [Typed documents](../../schema/typed-documents.md): custom attributes from a schema.
-- [change/op](../op.md): all operations.
+- [metadata](../../metadata.md): the keys this op writes. <!-- id:AMNd63W1 -->
+- [key-value](../../key-value.md): one key path and value. <!-- id:VePy3P20 -->
+- [SetKey](./set-key.md): the deprecated flat form. <!-- id:-U407d6U -->
+- [Typed documents](../../schema/typed-documents.md): custom attributes from a schema. <!-- id:5RhWlQtH -->
+- [change/op](../op.md): all operations. <!-- id:vvoWGmkv -->

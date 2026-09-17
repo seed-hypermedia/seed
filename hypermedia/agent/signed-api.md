@@ -925,12 +925,12 @@ The apps and the server consume the same private package, `@seed-hypermedia/agen
 
 When changing the protocol package, update service dispatch, desktop behavior, and docs in the same change. <!-- id:mj-buzJQ -->
 
-# See also
+# See also <!-- id:P08ObkPt -->
 
-- [Seed Agents](../agent.md)
-- [WebSocket subscriptions](./websocket-subscriptions.md)
-- [Security](./security.md)
-- [Persistence](./persistence.md)
-- [Tools](./tools.md)
-- [Triggers](./triggers.md)
-- [Identity](../protocol/identity.md) for the keys that sign every request
+- [Seed Agents](../agent.md) <!-- id:vocdFen8 -->
+- [WebSocket subscriptions](./websocket-subscriptions.md) <!-- id:OeziFpeC -->
+- [Security](./security.md) <!-- id:6ebJZqJM -->
+- [Persistence](./persistence.md) <!-- id:ND3MfXyJ -->
+- [Tools](./tools.md) <!-- id:zhoOWj1- -->
+- [Triggers](./triggers.md) <!-- id:iAepIbNB -->
+- [Identity](../protocol/identity.md) for the keys that sign every request <!-- id:_fLN9hVS -->

@@ -67,13 +67,13 @@ The header carries back-navigation to the agent, an inline editable title (debou
 
 ## The log <!-- id:2g3GZ6UZ -->
 
-Durable events from the [Log](./log.md) become rows, and finished run cards are interleaved into the same chronological scroll. A `#event=<id>` hash scrolls to that message. Every row knows its [**actor**](./actor.md), and the actor is checked before the role. User messages are blue bubbles with the sender's live account icon. System messages are quiet grey rows behind a left rule, so continuation prompts and unmet-obligation notices read as runtime notes about the conversation. Agent messages render as assistant parts. A tool row run by a person carries a **You** chip. Every row can explain itself. A message's info dialog shows the exact markdown the model sees, a share URL, ids, and any hidden window context. A tool row's dialog shows raw input and output. Both end in a Details grid with the sender's account and signer, or the model, provider, duration, and token breakdown. <!-- id:4I5n9iJd -->
+Durable events from the [Log](./log.md) become rows, and finished run cards are interleaved into the same chronological scroll. A `#event=<id>` hash scrolls to that message. Every row knows its **[actor](./actor.md)**, and the actor is checked before the role. User messages are blue bubbles with the sender's live account icon. System messages are quiet grey rows behind a left rule, so continuation prompts and unmet-obligation notices read as runtime notes about the conversation. Agent messages render as assistant parts. A tool row run by a person carries a **You** chip. Every row can explain itself. A message's info dialog shows the exact markdown the model sees, a share URL, ids, and any hidden window context. A tool row's dialog shows raw input and output. Both end in a Details grid with the sender's account and signer, or the model, provider, duration, and token breakdown. <!-- id:4I5n9iJd -->
 
 Tool rows get a purpose-built view per tool: [`delegate`](./delegate.md) shows the [brief](./brief.md) and the child's work, `execute` shows its one-line description, the code, and a live output tail, `read` and `write` show the resolved target, a Hypermedia write gets its own phrasing, and a `call` row borrows the called tool's icon and label. A trigger-created session hides the raw `<trigger_context>` text and renders a context card instead. Other behaviours: optimistic user messages, concurrent sends while the agent is busy (queued and serialized server-side), live streaming partials, a scroll-to-latest pill, in-app `hm://` links, Stop with recovery for sessions stuck in `streaming`, and Retry only on a trailing error. <!-- id:vLQIw76h -->
 
 ## The composer and the wrench palette <!-- id:5IQw8NMb -->
 
-The composer is the Seed block editor. Dropped files upload as session-private [attachments](./attachment.md) and are referenced by id. They are never written to memory or IPFS unless the agent does that itself. When a child session is being driven by its parent, the composer is replaced by a line saying so. Beside the send button is the [**wrench**](./wrench-palette.md), the person's side of the symmetric log: it lists Read, Write, and every callable the agent is granted and the server can run, with a form generated from each tool's input schema. Running one sends `InvokeSessionTool`, and the call and result land on the log as user events the agent reads next turn. A contract miss keeps the form open and points at the contract row now in the thread. The wrench is disabled while the agent is busy. <!-- id:NoImy3ET -->
+The composer is the Seed block editor. Dropped files upload as session-private [attachments](./attachment.md) and are referenced by id. They are never written to memory or IPFS unless the agent does that itself. When a child session is being driven by its parent, the composer is replaced by a line saying so. Beside the send button is the **[wrench](./wrench-palette.md)**, the person's side of the symmetric log: it lists Read, Write, and every callable the agent is granted and the server can run, with a form generated from each tool's input schema. Running one sends `InvokeSessionTool`, and the call and result land on the log as user events the agent reads next turn. A contract miss keeps the form open and points at the contract row now in the thread. The wrench is disabled while the agent is busy. <!-- id:NoImy3ET -->
 
 ## The run card <!-- id:_KR4h8j_ -->
 
@@ -106,12 +106,12 @@ Every list refreshes through React Query polling and [WebSocket](./websocket-sub
 7. Run a read from the wrench; confirm the You chip and that the agent refers to it next turn. <!-- id:gg9uksVt -->
 8. Reload; confirm the transcript, run cards, and card state reconstruct. <!-- id:fe2AgLbi -->
 
-# See also
+# See also <!-- id:2I3uDyM9 -->
 
-- [Seed Agents](../agent.md)
-- [Signed API](./signed-api.md)
-- [Environments](./environments.md)
-- [Wrench palette](./wrench-palette.md)
-- [Tools](./tools.md)
-- [Triggers](./triggers.md)
-- [Desktop app](../apps/desktop.md)
+- [Seed Agents](../agent.md) <!-- id:NwPcf8q5 -->
+- [Signed API](./signed-api.md) <!-- id:_gykYEJZ -->
+- [Environments](./environments.md) <!-- id:r1KKNsrN -->
+- [Wrench palette](./wrench-palette.md) <!-- id:rNagNLC1 -->
+- [Tools](./tools.md) <!-- id:u6UqAs9x -->
+- [Triggers](./triggers.md) <!-- id:R4lPrqze -->
+- [Desktop app](../apps/desktop.md) <!-- id:HBFmfkNP -->

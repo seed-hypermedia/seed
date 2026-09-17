@@ -1,6 +1,6 @@
 ---
 name: "RPC: Search"
-summary: "Searches the network for documents, contacts, and comments matching a query string, with optional account, type, and paging filters."
+summary: Searches the network for documents, contacts, and comments matching a query string, with optional account, type, and paging filters.
 schemaDefinition: ipfs://bafyreid7sgphydzs3bmydbu6k4r4wv2ewk3qz7macg4o4w2ta56byqznde
 ---
 Searches the network for [documents](../protocol/documents.md), [contacts](../protocol/permissions.md) and [comments](../protocol/comments.md) that match a query string. Optional filters narrow it by account and type and set paging. The result is a page of [search results](./type/search-results.md). <!-- id:6M7UDKGx -->
@@ -21,11 +21,11 @@ A **closed struct** with these fields: <!-- id:xZHVDSnU -->
 - [string](../string.md) <!-- id:pea6QrJ4 -->
 - [rpc/type/search-results](./type/search-results.md) <!-- id:oDACMPrv -->
 
-# See also
+# See also <!-- id:7gRkfW9t -->
 
-- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
-- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
-- [RPC](./method.md): every method in one union.
-- [Search Result Item](./type/search-result-item.md): one hit.
-- [Query](./query.md): structured document queries.
-- [Query grammar](../build/query-grammar.md): attribute queries.
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication. <!-- id:M1EUqyTh -->
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console. <!-- id:uhER1Y9O -->
+- [RPC](./method.md): every method in one union. <!-- id:NCNZ_BTC -->
+- [Search Result Item](./type/search-result-item.md): one hit. <!-- id:I-cN6wSa -->
+- [Query](./query.md): structured document queries. <!-- id:YM_Uucgt -->
+- [Query grammar](../build/query-grammar.md): attribute queries. <!-- id:IjTMa_HE -->

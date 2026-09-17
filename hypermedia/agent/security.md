@@ -300,12 +300,12 @@ For every new tool or address form: <!-- id:CwIdOyUb -->
   8. Add tests for missing credentials and provider or tool errors. <!-- id:DT_jTHUr -->
   9. Update `security.md`, `model-providers.md`, or `tools.md`. <!-- id:6LSu7e5m -->
 
-# See also
+# See also <!-- id:zMjUwvqz -->
 
-- [Prompt injection map](./prompt-injection-map.md)
-- [Grants](./grants.md)
-- [Signed API](./signed-api.md)
-- [Tools](./tools.md)
-- [MCP servers](./mcp.md)
-- [Integrity](../protocol/integrity.md)
-- [Permissions](../protocol/permissions.md)
+- [Prompt injection map](./prompt-injection-map.md) <!-- id:AE0gzIt9 -->
+- [Grants](./grants.md) <!-- id:Y0do_GI6 -->
+- [Signed API](./signed-api.md) <!-- id:0xLAb_pL -->
+- [Tools](./tools.md) <!-- id:PqOJhjcu -->
+- [MCP servers](./mcp.md) <!-- id:0FIt6app -->
+- [Integrity](../protocol/integrity.md) <!-- id:r2tAKzit -->
+- [Permissions](../protocol/permissions.md) <!-- id:HiYPvOW5 -->

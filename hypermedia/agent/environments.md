@@ -1,6 +1,6 @@
 ---
 name: Environments
-summary: "The five kinds of environment the agents server runs in, from local development to hosted and self-hosted remotes, and the configuration each one turns on."
+summary: The five kinds of environment the agents server runs in, from local development to hosted and self-hosted remotes, and the configuration each one turns on.
 ---
 A [Seed Agents](../agent.md) server runs in five kinds of environment. The hosted remote is one kind, running as three deployments: production, staging, and dev. The binary logic is the same everywhere. The surroundings differ: what spawns it, what it binds, which HM server it reads and writes through, whether code execution and web tools exist, and how it gets updated. This page describes each environment and the configuration that makes it work. The full env-var reference is in [operations](./operations.md). This page covers which of those settings each environment uses, and why. <!-- id:qqHzmE1k -->
 
@@ -135,12 +135,12 @@ Public read is a precondition. Publishing does not arrange it. Only an already-p
 
 Only ids and order live in the document. An agent's name, icon, and status are read from the agent itself, so renaming one never strands a stale copy in a signed document. Document metadata attributes have no array encoding, so the ordered list is a map to positions. <!-- id:JMmRzk56 -->
 
-# See also
+# See also <!-- id:3S26P38- -->
 
-- [Operations](./operations.md)
-- [Desktop and web UI](./desktop-ui.md)
-- [Development](./development.md)
-- [Model providers](./model-providers.md)
-- [Self-hosting](../build/self-hosting.md)
-- [Sites](../protocol/sites.md)
-- [Agents service](../apps/agents.md)
+- [Operations](./operations.md) <!-- id:FxRtwkH5 -->
+- [Desktop and web UI](./desktop-ui.md) <!-- id:YHB2GhlS -->
+- [Development](./development.md) <!-- id:mxqWnHIb -->
+- [Model providers](./model-providers.md) <!-- id:Ji11frcK -->
+- [Self-hosting](../build/self-hosting.md) <!-- id:SSwXndlB -->
+- [Sites](../protocol/sites.md) <!-- id:-SxSweG5 -->
+- [Agents service](../apps/agents.md) <!-- id:7A-dIiqm -->

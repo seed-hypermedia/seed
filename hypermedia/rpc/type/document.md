@@ -32,10 +32,10 @@ A **closed struct** with these fields: <!-- id:OhtHahKP -->
 - [integer](../../integer.md) <!-- id:lK3bWake -->
 - [string](../../string.md) <!-- id:qVYchjv5 -->
 
-# See also
+# See also <!-- id:Mpyfk2Cc -->
 
-- [Document](../../document.md): the document term page.
-- [Documents](../../protocol/documents.md): changes, refs and versions.
-- [Document Info](./document-info.md): the listing form without content.
-- [Resource](../resource.md): the method that fetches documents.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [Document](../../document.md): the document term page. <!-- id:pBq5dti4 -->
+- [Documents](../../protocol/documents.md): changes, refs and versions. <!-- id:Nbv54P6F -->
+- [Document Info](./document-info.md): the listing form without content. <!-- id:-Ml8Zu_i -->
+- [Resource](../resource.md): the method that fetches documents. <!-- id:CNlgmGJa -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:an2uAvPl -->

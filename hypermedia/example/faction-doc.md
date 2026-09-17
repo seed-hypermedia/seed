@@ -1,6 +1,6 @@
 ---
 name: Faction
-summary: "A world-builder page type for a faction, order, house, or guild, whose attributes require a founding date and link to its seat, its leader, and a banner."
+summary: A world-builder page type for a faction, order, house, or guild, whose attributes require a founding date and link to its seat, its leader, and a banner.
 schemaDefinition: ipfs://bafyreianjjmb5gp24n2ylkgm5m2qqht54bjs6y7qzs3oujmyjmc5yffple
 ---
 A [World Builder](../schema/world-builder.md) page type for a faction, order, house or guild. Its [attributes](../schema/typed-documents.md) require a `founded` date. They link to its seat, which is a [place](./place-doc.md), its leader, which is a [character](./character-doc.md), and a banner image. <!-- id:RvItBHZN -->
@@ -22,9 +22,9 @@ A **closed struct** with these fields: <!-- id:-hXTuVju -->
 - [ipfs-url](../ipfs-url.md) <!-- id:niUF-Oyt -->
 - [date](../date.md) <!-- id:CiiSksy4 -->
 
-# See also
+# See also <!-- id:kyDu5wCM -->
 
-- [World Builder](../schema/world-builder.md): the demo these types come from.
-- [place-doc](./place-doc.md): the seat type.
-- [event-doc](./event-doc.md): events that involve factions.
-- [Examples](../example.md): every example, grouped by feature.
+- [World Builder](../schema/world-builder.md): the demo these types come from. <!-- id:1yK0ahw2 -->
+- [place-doc](./place-doc.md): the seat type. <!-- id:vvoIbp7s -->
+- [event-doc](./event-doc.md): events that involve factions. <!-- id:VvmrPdfG -->
+- [Examples](../example.md): every example, grouped by feature. <!-- id:Mwh4TkN- -->

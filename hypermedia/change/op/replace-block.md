@@ -21,10 +21,10 @@ A **closed struct** with these fields: <!-- id:Sym_gHmT -->
 
 - [block](../../block.md) <!-- id:F5Wi39wT -->
 
-# See also
+# See also <!-- id:YMsW0s-F -->
 
-- [block](../../block.md): the block this op carries.
-- [MoveBlocks](./move-blocks.md): the op that positions a block.
-- [SetAttributes](./set-attributes.md): document-level metadata.
-- [change/op](../op.md): all operations.
-- [Blocks](../../protocol/blocks.md): the block model.
+- [block](../../block.md): the block this op carries. <!-- id:m-rezJiC -->
+- [MoveBlocks](./move-blocks.md): the op that positions a block. <!-- id:jwiieyrK -->
+- [SetAttributes](./set-attributes.md): document-level metadata. <!-- id:4PvUFltK -->
+- [change/op](../op.md): all operations. <!-- id:eTceYWQ_ -->
+- [Blocks](../../protocol/blocks.md): the block model. <!-- id:sSuS07jS -->

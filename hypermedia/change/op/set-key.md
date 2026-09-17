@@ -21,9 +21,9 @@ A **closed struct** with these fields: <!-- id:V7WX1yMd -->
 - [value](../../value.md) <!-- id:qm09nK_o -->
 - [string](../../string.md) <!-- id:O0_PIyLu -->
 
-# See also
+# See also <!-- id:cJTUpcBK -->
 
-- [SetAttributes](./set-attributes.md): the op to use instead.
-- [metadata](../../metadata.md): the keys a document carries.
-- [value](../../value.md): what a key can hold.
-- [change/op](../op.md): all operations.
+- [SetAttributes](./set-attributes.md): the op to use instead. <!-- id:OYI15l5u -->
+- [metadata](../../metadata.md): the keys a document carries. <!-- id:RI8kflF_ -->
+- [value](../../value.md): what a key can hold. <!-- id:fLAupoCD -->
+- [change/op](../op.md): all operations. <!-- id:2GaxiZxv -->

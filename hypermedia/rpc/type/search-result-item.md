@@ -26,9 +26,9 @@ A **closed struct** with these fields: <!-- id:funk1VF2 -->
 - [string](../../string.md) <!-- id:u5Z_32fj -->
 - [rpc/type/id](./id.md) <!-- id:FD_zY--5 -->
 
-# See also
+# See also <!-- id:R8fwx08_ -->
 
-- [Search Results](./search-results.md): a page of hits.
-- [Search](../search.md): the method that searches.
-- [Breadcrumb](./breadcrumb.md): path entries on listings.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [Search Results](./search-results.md): a page of hits. <!-- id:nSnUvueW -->
+- [Search](../search.md): the method that searches. <!-- id:b-x06Qjw -->
+- [Breadcrumb](./breadcrumb.md): path entries on listings. <!-- id:JSdBEQL4 -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:a4KAKKJR -->

@@ -1,6 +1,6 @@
 ---
 name: "RPC: ListAccounts"
-summary: "Returns every account the daemon knows as a list of metadata payloads; it takes no meaningful input."
+summary: Returns every account the daemon knows as a list of metadata payloads; it takes no meaningful input.
 schemaDefinition: ipfs://bafyreiczbl22fu5bjxblx5zacwi7fyoij35st5kwjlimhswfx4zqaf3irm
 ---
 Lists every [account](../protocol/identity.md) the daemon knows, as [metadata payloads](./type/metadata-payload.md). The input carries nothing the method uses. <!-- id:5KM-97Ry -->
@@ -19,10 +19,10 @@ A **closed struct** with these fields: <!-- id:HtDCnuN6 -->
 - [null](../null.md) <!-- id:QJ8U0HIB -->
 - [rpc/type/metadata-payload](./type/metadata-payload.md) <!-- id:_CB4100E -->
 
-# See also
+# See also <!-- id:WD0X6wSG -->
 
-- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
-- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
-- [RPC](./method.md): every method in one union.
-- [Identity](../protocol/identity.md): accounts and keys.
-- [Account](./account.md): resolve one account.
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication. <!-- id:vnliNlOr -->
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console. <!-- id:C79o6SWd -->
+- [RPC](./method.md): every method in one union. <!-- id:9ZHRrYRT -->
+- [Identity](../protocol/identity.md): accounts and keys. <!-- id:-XIa3jKJ -->
+- [Account](./account.md): resolve one account. <!-- id:2dutOrRR -->

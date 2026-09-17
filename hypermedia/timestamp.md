@@ -17,9 +17,9 @@ An **alias** of [integer](./integer.md). <!-- id:W5eiRn_4 -->
 
 - [integer](./integer.md) <!-- id:scFx2aH0 -->
 
-# See also
+# See also <!-- id:2dwAshfc -->
 
-- [blob](./blob.md): the `ts` field.
-- [Integrity](./protocol/integrity.md): what is trusted and what is verified.
-- [Documents](./protocol/documents.md): how timestamps order Changes.
-- [date-time](./date-time.md): a human-readable instant for schemas.
+- [blob](./blob.md): the `ts` field. <!-- id:rMB4SJhL -->
+- [Integrity](./protocol/integrity.md): what is trusted and what is verified. <!-- id:aRZLRVkF -->
+- [Documents](./protocol/documents.md): how timestamps order Changes. <!-- id:LnCSw9kS -->
+- [date-time](./date-time.md): a human-readable instant for schemas. <!-- id:ziLlpH5M -->

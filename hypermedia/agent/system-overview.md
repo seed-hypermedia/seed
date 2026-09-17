@@ -55,7 +55,7 @@ Shared Seed libraries
   └─ desktop daemon for selected-account signing
 ```
 
-The desktop app signs through the [Seed daemon](../apps/daemon.md). The service itself is described on the [agents service](../apps/agents.md) page, and [persistence](./persistence.md) covers the SQLite tables.
+The desktop app signs through the [Seed daemon](../apps/daemon.md). The service itself is described on the [agents service](../apps/agents.md) page, and [persistence](./persistence.md) covers the SQLite tables. <!-- id:yIyCWRRk -->
 
 # End-to-end user flow <!-- id:29tMaHyG -->
 
@@ -148,12 +148,12 @@ The desktop app signs through the [Seed daemon](../apps/daemon.md). The service 
 
 See the [roadmap](./roadmap.md) for what is planned. <!-- id:ycSmp720 -->
 
-# See also
+# See also <!-- id:9AU1odFA -->
 
-- [Seed Agents](../agent.md)
-- [Signed API](./signed-api.md)
-- [WebSocket subscriptions](./websocket-subscriptions.md)
-- [Persistence](./persistence.md)
-- [Tools](./tools.md)
-- [Security](./security.md)
-- [Agents service](../apps/agents.md)
+- [Seed Agents](../agent.md) <!-- id:6uBPJsy2 -->
+- [Signed API](./signed-api.md) <!-- id:-Alet1OC -->
+- [WebSocket subscriptions](./websocket-subscriptions.md) <!-- id:wcs36GWm -->
+- [Persistence](./persistence.md) <!-- id:y2-XofLJ -->
+- [Tools](./tools.md) <!-- id:pt_odyHy -->
+- [Security](./security.md) <!-- id:AOXXb80e -->
+- [Agents service](../apps/agents.md) <!-- id:qeaCNGql -->

@@ -197,6 +197,5 @@ These names appear in old documents, commit messages, team notes and a few code 
 
 - [The Hypermedia protocol](./protocol.md), the layered tour these terms come from. <!-- id:gVMgrctA -->
 - [Agents glossary](./agent/glossary.md), for every Seed Agents term. <!-- id:joAFt8D_ -->
-- [History](./history.md), for the dated design records behind the current names. <!-- id:rSuR3f-S -->
-- [Why Hypermedia](./why.md), the motivation behind these terms, for any reader.
-- [Building on Hypermedia](./build.md), for task guides that use them.
+- [Why Hypermedia](./why.md), the motivation behind these terms, for any reader. <!-- id:ExOLt8Sa -->
+- [Building on Hypermedia](./build.md), for task guides that use them. <!-- id:n38_BPBT -->

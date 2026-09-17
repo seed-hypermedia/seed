@@ -24,9 +24,9 @@ A **closed struct** with these fields: <!-- id:VmqoRbRO -->
 - [rpc/type/id](./id.md) <!-- id:ZVKjgJT0 -->
 - [rpc/type/parsed-fragment](./parsed-fragment.md) <!-- id:sJ6YEHCt -->
 
-# See also
+# See also <!-- id:J5kPflAX -->
 
-- [Comments](../../protocol/comments.md): citations, mentions and backlinks.
-- [ListCitations](../list-citations.md): the method that lists citations.
-- [Raw Citation](./raw-citation.md): the indexed form.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [Comments](../../protocol/comments.md): citations, mentions and backlinks. <!-- id:PBXKYcSB -->
+- [ListCitations](../list-citations.md): the method that lists citations. <!-- id:HpZTJgef -->
+- [Raw Citation](./raw-citation.md): the indexed form. <!-- id:2oXCTCWh -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:Xq4QyZ3J -->

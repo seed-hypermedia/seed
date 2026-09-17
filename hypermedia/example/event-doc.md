@@ -1,6 +1,6 @@
 ---
 name: Event
-summary: "A world-builder page type for something that happened, whose attributes require a date and link the event to a place and a protagonist character."
+summary: A world-builder page type for something that happened, whose attributes require a date and link the event to a place and a protagonist character.
 schemaDefinition: ipfs://bafyreifl3hbrvjn4xtsnzkxatspsqq2hyarrfsp4hjxe34je7f5fclvtxy
 ---
 A [World Builder](../schema/world-builder.md) page type for something that happened. Its [attributes](../schema/typed-documents.md) require a `date`. They link the event to a location, which is a [place](./place-doc.md), and a protagonist, which is a [character](./character-doc.md). An optional `ends` date covers spans. <!-- id:1OgsTNBq -->
@@ -23,10 +23,10 @@ A **closed struct** with these fields: <!-- id:APCz1dtU -->
 - [date](../date.md) <!-- id:-cgxdt72 -->
 - [string](../string.md) <!-- id:HeRKKPgt -->
 
-# See also
+# See also <!-- id:gb-Zo98E -->
 
-- [World Builder](../schema/world-builder.md): the demo these types come from.
-- [character-doc](./character-doc.md): the protagonist type.
-- [faction-doc](./faction-doc.md): the faction type.
-- [Typed documents](../schema/typed-documents.md): how a page names its type.
-- [Examples](../example.md): every example, grouped by feature.
+- [World Builder](../schema/world-builder.md): the demo these types come from. <!-- id:ffpdmmFf -->
+- [character-doc](./character-doc.md): the protagonist type. <!-- id:yl0VdvTo -->
+- [faction-doc](./faction-doc.md): the faction type. <!-- id:ulSykKK9 -->
+- [Typed documents](../schema/typed-documents.md): how a page names its type. <!-- id:0JthmwkN -->
+- [Examples](../example.md): every example, grouped by feature. <!-- id:AMCdWRv_ -->

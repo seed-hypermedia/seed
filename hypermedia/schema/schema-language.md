@@ -196,12 +196,12 @@ node scripts/hypermedia/validate.mjs
 
 If you extend the vocabulary, run it again. If the union can no longer describe its own new shape, the loop is broken and the check fails. <!-- id:vGjbVugA -->
 
-# See also
+# See also <!-- id:JD7jplmC -->
 
-- [Hypermedia Schemas](../schema.md): the meta-schema and the index of schema pages.
-- [The data model](./data-model.md): the nine kinds every value is built from.
-- [References and naming](./references.md): include, typed link, and why references are `hm://` names.
-- [Encoding](./encoding.md): how a schema becomes canonical DAG-CBOR.
-- [Typed documents](./typed-documents.md): how a document names its schema.
-- [Quick reference](./quick-reference.md): the whole system on one page.
-- [Examples](../example.md): every example schema, grouped by feature.
+- [Hypermedia Schemas](../schema.md): the meta-schema and the index of schema pages. <!-- id:VToSvCAu -->
+- [The data model](./data-model.md): the nine kinds every value is built from. <!-- id:EkRaa876 -->
+- [References and naming](./references.md): include, typed link, and why references are `hm://` names. <!-- id:ewBSSZpE -->
+- [Encoding](./encoding.md): how a schema becomes canonical DAG-CBOR. <!-- id:qqYp_kau -->
+- [Typed documents](./typed-documents.md): how a document names its schema. <!-- id:wVgYa0nh -->
+- [Quick reference](./quick-reference.md): the whole system on one page. <!-- id:FfOecpJs -->
+- [Examples](../example.md): every example schema, grouped by feature. <!-- id:pI6ZGF0E -->

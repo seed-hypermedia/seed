@@ -1,6 +1,6 @@
 ---
 name: "RPC: QueryBlock"
-summary: "Runs a Query block’s query and returns the results plus the per-item interaction summaries and author metadata its rendering needs, or null."
+summary: Runs a Query block’s query and returns the results plus the per-item interaction summaries and author metadata its rendering needs, or null.
 schemaDefinition: ipfs://bafyreiaulfxdzbw7rfuh356i6cwnq6obtcllzrtr7qkuozgf27u36i2ntq
 ---
 Runs the query of a [query block](../protocol/blocks.md) and returns everything the block needs to render: the results, per-item interaction summaries and author metadata. The output is a [query block payload](./type/query-block-payload.md), or `null`. <!-- id:9vWOoz-M -->
@@ -20,11 +20,11 @@ A **closed struct** with these fields: <!-- id:MNSUcwUS -->
 - [null](../null.md) <!-- id:2IhT75Lz -->
 - [rpc/type/query-block-payload](./type/query-block-payload.md) <!-- id:K45Wipex -->
 
-# See also
+# See also <!-- id:wnEeTkUa -->
 
-- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
-- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
-- [RPC](./method.md): every method in one union.
-- [Blocks](../protocol/blocks.md): the query block.
-- [Query](./query.md): run the query alone.
-- [Query object](../query.md): the query shape.
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication. <!-- id:558wqium -->
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console. <!-- id:TTcwcX02 -->
+- [RPC](./method.md): every method in one union. <!-- id:diZJKZNM -->
+- [Blocks](../protocol/blocks.md): the query block. <!-- id:F4QF5gih -->
+- [Query](./query.md): run the query alone. <!-- id:kmd3Fr0L -->
+- [Query object](../query.md): the query shape. <!-- id:S7Rwc_u9 -->

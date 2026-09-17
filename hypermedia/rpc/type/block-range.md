@@ -1,6 +1,6 @@
 ---
 name: Block Range
-summary: "A selection within a block, either as character offsets (start and end) or as the whole block expanded."
+summary: A selection within a block, either as character offsets (start and end) or as the whole block expanded.
 schemaDefinition: ipfs://bafyreigyopiiv7gs5tnho7yblsi3bhm2lexmgd4jtby6vh5gzshuimsnn4
 ---
 A selection within a [block](../../protocol/blocks.md): character offsets in `start` and `end`, or the whole block expanded. A [parsed id](./id.md) carries one for a [block reference](../../protocol/urls.md). <!-- id:cbPv3bBq -->
@@ -18,9 +18,9 @@ A **closed struct** with these fields: <!-- id:N88QDkke -->
 
 - [boolean](../../boolean.md) <!-- id:-9DkLtVZ -->
 
-# See also
+# See also <!-- id:_SxTa0Jo -->
 
-- [Parsed Fragment](./parsed-fragment.md): a block id plus a range.
-- [Parsed ID](./id.md): the id that carries it.
-- [Hypermedia URLs](../../protocol/urls.md): block references and text ranges.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [Parsed Fragment](./parsed-fragment.md): a block id plus a range. <!-- id:EtcxGg6p -->
+- [Parsed ID](./id.md): the id that carries it. <!-- id:loKqAiDE -->
+- [Hypermedia URLs](../../protocol/urls.md): block references and text ranges. <!-- id:tyrdLYF4 -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:UFYHTij7 -->

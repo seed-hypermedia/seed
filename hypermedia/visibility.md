@@ -13,9 +13,9 @@ Only Refs and Comments carry the field. [Changes](./change.md) and [files](./pro
 
 Kind: `string`. One of: , `Private`. <!-- id:cmT7iNGC -->
 
-# See also
+# See also <!-- id:r5i9GC9F -->
 
-- [Privacy](./protocol/privacy.md): the private document model.
-- [ref](./ref.md): the blob whose visibility sets a document's.
-- [comment](./comment.md): comments carry their own visibility.
-- [role](./role.md): which writers can read private content.
+- [Privacy](./protocol/privacy.md): the private document model. <!-- id:qSWY01UJ -->
+- [ref](./ref.md): the blob whose visibility sets a document's. <!-- id:SwE-8GaF -->
+- [comment](./comment.md): comments carry their own visibility. <!-- id:IpEEKo-M -->
+- [role](./role.md): which writers can read private content. <!-- id:s9W1K0v8 -->

@@ -4,15 +4,15 @@ summary: How an account connects remote Model Context Protocol servers so its ag
 ---
 Agents can call tools from remote [Model Context Protocol](https://modelcontextprotocol.io) (MCP) servers. An [account](../protocol/identity.md) connects servers the same way it configures [model providers](./model-providers.md), and each agent enables the servers it may use. The model-facing surface does not change. The verbs are still the whole surface, and every remote tool arrives as a [tool document](./tool-document.md) in the agent's `~/tools/`. So it is listed in the [Space index](./space-index.md), read as a [contract](./contract.md), dispatched through [call](./call.md), and [promoted](./promotion.md) like any builtin or lambda (see [tools](./tools.md)). <!-- id:c625NrrN -->
 
-# Why Seed has no MCP server of its own
+# Why Seed has no MCP server of its own <!-- id:Dwg2TLco -->
 
-[Seed Agents](../agent.md) is an MCP client. It connects to MCP servers that other people run. Seed has no MCP server that exposes Hypermedia to outside assistants.
+[Seed Agents](../agent.md) is an MCP client. It connects to MCP servers that other people run. Seed has no MCP server that exposes Hypermedia to outside assistants. <!-- id:BeWYleM1 -->
 
-Hypermedia content must be [signed](../protocol/blobs.md) on the device that holds the key, and the [SDK](../build/sdk.md) or the [CLI](../build/cli.md) built on it does that signing. A hosted MCP server takes plain tool calls and acts on them remotely, so it would need your private key. Keys should never leave your device. The full reasoning, and how to run an MCP interface locally on the SDK, is in [Why there is no Seed MCP server](../build/agents.md).
+Hypermedia content must be [signed](../protocol/blobs.md) on the device that holds the key, and the [SDK](../build/sdk.md) or the [CLI](../build/cli.md) built on it does that signing. A hosted MCP server takes plain tool calls and acts on them remotely, so it would need your private key. Keys should never leave your device. The full reasoning, and how to run an MCP interface locally on the SDK, is in [Why there is no Seed MCP server](../build/agents.md). <!-- id:cjYyi-9w -->
 
-An agents server does sign content, and that fits the same rule. The keys it signs with are the agent's own. `CreateSigningIdentity` generates a new key on that server, publishes a [profile](../protocol/identity.md) for it, and stores the key encrypted. Your account key stays on your device. For the agent to publish in your space, you delegate a `WRITER` or `AGENT` [capability](../protocol/permissions.md) to the agent's key.
+An agents server does sign content, and that fits the same rule. The keys it signs with are the agent's own. `CreateSigningIdentity` generates a new key on that server, publishes a [profile](../protocol/identity.md) for it, and stores the key encrypted. Your account key stays on your device. For the agent to publish in your space, you delegate a `WRITER` or `AGENT` [capability](../protocol/permissions.md) to the agent's key. <!-- id:Q7N_J4rc -->
 
-Agent keys are less secure than your personal identity by design, because the agents server holds them. That is one reason to give an agent its own key instead of your personal one. `ImportSigningIdentity`, the Import key button in the accounts dialog, sends the seed of an existing `.hmkey.json` [key](../build/keys.md) to the server, so only import a key made for the agent. If you don't want a hosted server to hold your agent keys, [self-host the agents server](../apps/agents.md).
+Agent keys are less secure than your personal identity by design, because the agents server holds them. That is one reason to give an agent its own key instead of your personal one. `ImportSigningIdentity`, the Import key button in the accounts dialog, sends the seed of an existing `.hmkey.json` [key](../build/keys.md) to the server, so only import a key made for the agent. If you don't want a hosted server to hold your agent keys, [self-host the agents server](../apps/agents.md). <!-- id:LrPb8BxH -->
 
 # Scope and transports <!-- id:S2QKCy5- -->
 
@@ -111,12 +111,12 @@ A session calling a remote tool through `call`, and a later turn using the promo
 - `agents/src/verbs.test.ts`: `call` dispatch to a remote tool, touch-expand on a miss, thrown server and transport errors, the grant check, image content, index and listing tags, and the per-server collapse. <!-- id:zF_OhFKt -->
 - `agents/src/api-service.test.ts`: the actions end to end against a live test server. It covers discovery on save, invalid names, URLs, and headers, a saved but unreachable server, projection onto agents through `CreateAgent`/`UpdateAgent`, and delete scrubbing agents and secrets. It also runs a full session: the user calls a remote tool from the palette, the agent calls it through `call`, and the tool is promoted on the next turn. <!-- id:-mezCZ8h -->
 
-# See also
+# See also <!-- id:TndNkW8b -->
 
-- [Tools](./tools.md)
-- [Grants](./grants.md)
-- [Tool document](./tool-document.md)
-- [Security](./security.md)
-- [Signed API](./signed-api.md)
-- [Model providers](./model-providers.md)
-- [External agents and the SDK](../build/agents.md)
+- [Tools](./tools.md) <!-- id:qgB8xKaF -->
+- [Grants](./grants.md) <!-- id:l49WGpFN -->
+- [Tool document](./tool-document.md) <!-- id:Q3Dg5LhN -->
+- [Security](./security.md) <!-- id:ei-dRYjr -->
+- [Signed API](./signed-api.md) <!-- id:2fqIPl6q -->
+- [Model providers](./model-providers.md) <!-- id:iqVg_ymP -->
+- [External agents and the SDK](../build/agents.md) <!-- id:COGSkyzI -->

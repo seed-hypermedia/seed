@@ -137,13 +137,13 @@ A **union**: a value matches one of these variants. <!-- id:r_pDx306 -->
 - [Canonical encoding](./schema/canonical-encoding.md) <!-- id:usb9xHLx -->
 - [Struct](./struct.md) <!-- id:GKgCZDN3 -->
 
-# See also
+# See also <!-- id:W4A1iB0e -->
 
-- [Typed documents](./schema/typed-documents.md): how a document names its schema.
-- [References and naming](./schema/references.md): why schemas point at each other by name.
-- [Examples](./example.md): every example schema, grouped by feature.
-- [Metadata](./metadata.md): the attribute keys that bind a document to a schema.
-- [Blobs](./protocol/blobs.md): the signed DAG-CBOR objects the network stores.
-- [Documents](./protocol/documents.md): the pages schemas are published as.
-- [URLs](./protocol/urls.md): the `hm://` names schemas use.
-- [Seed API schemas](./rpc.md): the read methods as published schemas.
+- [Typed documents](./schema/typed-documents.md): how a document names its schema. <!-- id:2AyGAZS8 -->
+- [References and naming](./schema/references.md): why schemas point at each other by name. <!-- id:rM3zXm_M -->
+- [Examples](./example.md): every example schema, grouped by feature. <!-- id:dvqmc00w -->
+- [Metadata](./metadata.md): the attribute keys that bind a document to a schema. <!-- id:IH68O-Ib -->
+- [Blobs](./protocol/blobs.md): the signed DAG-CBOR objects the network stores. <!-- id:CjHSu5e6 -->
+- [Documents](./protocol/documents.md): the pages schemas are published as. <!-- id:Qdt4-Z3B -->
+- [URLs](./protocol/urls.md): the `hm://` names schemas use. <!-- id:UM9fUhzV -->
+- [Seed API schemas](./rpc.md): the read methods as published schemas. <!-- id:giH4ygOT -->

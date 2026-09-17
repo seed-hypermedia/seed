@@ -145,5 +145,5 @@ The request catalogue is in the [Seed API guide](../build/web-api.md). <!-- id:X
 - [Identity](./identity.md): keys, principals and who may sign. <!-- id:mR862nTi -->
 - [Integrity](./integrity.md): what a signature proves, and what it does not. <!-- id:ttnccOPl -->
 - [Files](./files.md): the unsigned UnixFS side. <!-- id:d6TzWVXx -->
-- [Network](./network.md): how blobs move between peers.
+- [Network](./network.md): how blobs move between peers. <!-- id:-UyvyR_V -->
 - Schema pages: [blob](../blob.md), [cid](../cid.md), [principal](../principal.md), [signature](../signature.md), [timestamp](../timestamp.md), [DAG-CBOR](../schema/dag-cbor.md), [canonical encoding](../schema/canonical-encoding.md), [Network blobs](../schema/blobs.md). <!-- id:A0KydBLn -->

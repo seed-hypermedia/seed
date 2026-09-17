@@ -86,14 +86,14 @@ node scripts/hypermedia/validate.mjs example/article my-article.json
 
 The [Seed CLI](./build/cli.md) also checks data against a published type: <!-- id:hE1GrTtd -->
 
-```sh
+```sh <!-- id:x-l82bKg -->
 seed-cli blob validate -f value.json --schema <type URL>
 ```
 
-# See also
+# See also <!-- id:pSz63GUE -->
 
-- [Hypermedia Schemas](./schema.md): the schema system.
-- [Hypermedia Schemas in one page](./schema/quick-reference.md): the features these examples follow.
-- [Typed documents](./schema/typed-documents.md): attributes schemas on real pages.
-- [The World Builder](./schema/world-builder.md): the demo behind the world-builder types.
-- [Seed API Schemas](./rpc.md): real schemas for the Seed API.
+- [Hypermedia Schemas](./schema.md): the schema system. <!-- id:mUXoRnuL -->
+- [Hypermedia Schemas in one page](./schema/quick-reference.md): the features these examples follow. <!-- id:AcIT29Wj -->
+- [Typed documents](./schema/typed-documents.md): attributes schemas on real pages. <!-- id:7IMvkykK -->
+- [The World Builder](./schema/world-builder.md): the demo behind the world-builder types. <!-- id:NhbaWGTZ -->
+- [Seed API Schemas](./rpc.md): real schemas for the Seed API. <!-- id:VoHi5KuO -->

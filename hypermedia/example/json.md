@@ -3,7 +3,7 @@ name: "Example: JSON Value"
 summary: "A recursive JSON value: null, boolean, number, string, list, or map."
 schemaDefinition: ipfs://bafyreibx2s7qud2cc7miwkswlp3egvtbh5ok6z7eijirwune6zflpud6x4
 ---
-A JSON value: null, boolean, integer, float, string, a list of JSON values, or a map of JSON values. It is a recursive [union](../schema/anyof.md) that refers to itself by [name](../schema/references.md).
+A JSON value: null, boolean, integer, float, string, a list of JSON values, or a map of JSON values. It is a recursive [union](../schema/anyof.md) that refers to itself by [name](../schema/references.md). <!-- id:y0oYtLzi -->
 
 This page describes the **example/json** type, one of the [example schemas](../example.md). The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it and create values of this type. <!-- id:3z3l-Qim -->
 
@@ -26,9 +26,9 @@ A **union**. A value matches one of these variants: <!-- id:LeYxSEKh -->
 - [null](../null.md) <!-- id:M_y7MmNP -->
 - [string](../string.md) <!-- id:f_KyPTCR -->
 
-# See also
+# See also <!-- id:96-6Ixx4 -->
 
-- [value](./value.md): a non-recursive primitive union.
-- [Union](../schema/anyof.md): how `anyOf` works.
-- [References](../schema/references.md): why recursion works.
-- [Examples](../example.md): every example, grouped by feature.
+- [value](./value.md): a non-recursive primitive union. <!-- id:thuXeJAL -->
+- [Union](../schema/anyof.md): how `anyOf` works. <!-- id:irwQDSvj -->
+- [References](../schema/references.md): why recursion works. <!-- id:ZjpWnV9R -->
+- [Examples](../example.md): every example, grouped by feature. <!-- id:QPS1b9v5 -->

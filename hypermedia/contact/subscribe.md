@@ -17,9 +17,9 @@ A **closed struct** with these fields: <!-- id:_ytcLXM1 -->
 
 - [boolean](../boolean.md) <!-- id:LxIPmPhY -->
 
-# See also
+# See also <!-- id:HppIWhhg -->
 
-- [contact](../contact.md): the blob that carries these flags.
-- [Permissions](../protocol/permissions.md): joins, follows and membership.
-- [Sites](../protocol/sites.md): site members.
-- [Network](../protocol/network.md): how sync subscriptions work.
+- [contact](../contact.md): the blob that carries these flags. <!-- id:j05CBKhK -->
+- [Permissions](../protocol/permissions.md): joins, follows and membership. <!-- id:iul56CzM -->
+- [Sites](../protocol/sites.md): site members. <!-- id:wB8eehzg -->
+- [Network](../protocol/network.md): how sync subscriptions work. <!-- id:jjVU39zz -->

@@ -28,5 +28,5 @@ A **closed struct** with these fields: <!-- id:3x9xTU5x -->
 - [Blocks](./protocol/blocks.md): the content tree. <!-- id:hhd_L8x- -->
 - [metadata](./metadata.md): every metadata key. <!-- id:PJbpQSRL -->
 - [Resource](./rpc/resource.md): the API request that returns a document. <!-- id:r36w2Nqp -->
-- [Typed documents](./schema/typed-documents.md): binding a document to a schema.
-- [change](./change.md) and [ref](./ref.md): the blobs a document is built from.
+- [Typed documents](./schema/typed-documents.md): binding a document to a schema. <!-- id:dHvF1nT1 -->
+- [change](./change.md) and [ref](./ref.md): the blobs a document is built from. <!-- id:pGSVAs5n -->

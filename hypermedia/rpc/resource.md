@@ -19,11 +19,11 @@ A **closed struct** with these fields: <!-- id:utly96z5 -->
 - [rpc/type/id](./type/id.md) <!-- id:gdMZoKdz -->
 - [rpc/type/resource](./type/resource.md) <!-- id:Qt87mW4L -->
 
-# See also
+# See also <!-- id:aEHTBil6 -->
 
-- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
-- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
-- [RPC](./method.md): every method in one union.
-- [Hypermedia URLs](../protocol/urls.md): the `hm://` URLs that ids come from.
-- [Document (Payload)](./type/document.md): the document read model.
-- [ResourceMetadata](./resource-metadata.md): fetch only the metadata.
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication. <!-- id:qbtl_8jA -->
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console. <!-- id:i3wBYXik -->
+- [RPC](./method.md): every method in one union. <!-- id:0luRF4qb -->
+- [Hypermedia URLs](../protocol/urls.md): the `hm://` URLs that ids come from. <!-- id:Q6jS7Vh1 -->
+- [Document (Payload)](./type/document.md): the document read model. <!-- id:TQ1fXNVt -->
+- [ResourceMetadata](./resource-metadata.md): fetch only the metadata. <!-- id:p8jtf1g_ -->

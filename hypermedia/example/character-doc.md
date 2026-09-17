@@ -1,6 +1,6 @@
 ---
 name: Character
-summary: "A world-builder page type for a character, whose attributes require a birth date and a role and link to a home place, a faction, a portrait, and a stats object."
+summary: A world-builder page type for a character, whose attributes require a birth date and a role and link to a home place, a faction, a portrait, and a stats object.
 schemaDefinition: ipfs://bafyreicvvxzsyz4y3brn4w7mf57zcy2oevhyoeuesvffqag5wdqqafw3oq
 ---
 A [World Builder](../schema/world-builder.md) page type for a character. Its [attributes](../schema/typed-documents.md) require a `born` [date](../date.md) and a `role`. They link the character to a home [place](./place-doc.md) and a [faction](./faction-doc.md) with [hm:// URLs](../hm-url.md), and to a portrait file and a [stats](./stats.md) object with [ipfs:// URLs](../ipfs-url.md). The stats object must conform to `example/stats`. `notes` is an untyped object link that holds any [DAG-CBOR](../schema/dag-cbor.md) value. <!-- id:QPklbVhv -->
@@ -26,10 +26,10 @@ A **closed struct** with these fields: <!-- id:dms8pLir -->
 - [date](../date.md) <!-- id:d2oM-6Id -->
 - [string](../string.md) <!-- id:eAML1B3O -->
 
-# See also
+# See also <!-- id:HQ5r50aP -->
 
-- [World Builder](../schema/world-builder.md): the demo these types come from.
-- [stats](./stats.md): the linked stats object.
-- [place-doc](./place-doc.md): the home place type.
-- [Typed documents](../schema/typed-documents.md): how a page names its type.
-- [Examples](../example.md): every example, grouped by feature.
+- [World Builder](../schema/world-builder.md): the demo these types come from. <!-- id:gRABJ8Kj -->
+- [stats](./stats.md): the linked stats object. <!-- id:UW7s8Mq7 -->
+- [place-doc](./place-doc.md): the home place type. <!-- id:nf9bq0Zf -->
+- [Typed documents](../schema/typed-documents.md): how a page names its type. <!-- id:biu4VWjN -->
+- [Examples](../example.md): every example, grouped by feature. <!-- id:zWjAr4JZ -->

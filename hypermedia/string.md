@@ -9,8 +9,8 @@ The **string** type is UTF-8 text. It is a [primitive](./schema/primitive.md) of
 
 Kind: `string`. <!-- id:lITT9lP- -->
 
-# See also
+# See also <!-- id:gbV46MDS -->
 
-- [url](./url.md), [hm-url](./hm-url.md), [ipfs-url](./ipfs-url.md), [date](./date.md) and [date-time](./date-time.md): string types with a format.
-- [value](./value.md): the scalar values an attribute can hold.
-- [Data model](./schema/data-model.md): all the kinds.
+- [url](./url.md), [hm-url](./hm-url.md), [ipfs-url](./ipfs-url.md), [date](./date.md) and [date-time](./date-time.md): string types with a format. <!-- id:fRfCEUDW -->
+- [value](./value.md): the scalar values an attribute can hold. <!-- id:QlZY_iWt -->
+- [Data model](./schema/data-model.md): all the kinds. <!-- id:kH3S49VK -->

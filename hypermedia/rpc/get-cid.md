@@ -1,6 +1,6 @@
 ---
 name: "RPC: GetCID"
-summary: "Fetches a raw IPFS block by CID and returns it decoded as a DAG-JSON value."
+summary: Fetches a raw IPFS block by CID and returns it decoded as a DAG-JSON value.
 schemaDefinition: ipfs://bafyreic5sb7xm2eidzvnu2ghffcybycqx5o6vynbfbtaboxlchiwhjfrfm
 ---
 Fetches a raw IPFS block by [CID](../protocol/blobs.md) and returns it decoded as a [DAG-JSON](../schema/dag-json.md) value. <!-- id:KrdeFkDA -->
@@ -19,11 +19,11 @@ A **closed struct** with these fields: <!-- id:HzFHBpWO -->
 - [any](../any.md) <!-- id:xxcRpn4k -->
 - [string](../string.md) <!-- id:rLVe6evY -->
 
-# See also
+# See also <!-- id:JSgX7GqV -->
 
-- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
-- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
-- [RPC](./method.md): every method in one union.
-- [Signed Blobs](../protocol/blobs.md): encoding and content addressing.
-- [CID](../cid.md): the CID type.
-- [Files](../protocol/files.md): files and the `/ipfs/` endpoint.
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication. <!-- id:ARfLSwlD -->
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console. <!-- id:hFNPi3z5 -->
+- [RPC](./method.md): every method in one union. <!-- id:duVEygxE -->
+- [Signed Blobs](../protocol/blobs.md): encoding and content addressing. <!-- id:Tk64YGOA -->
+- [CID](../cid.md): the CID type. <!-- id:jXQr8pBF -->
+- [Files](../protocol/files.md): files and the `/ipfs/` endpoint. <!-- id:QcmzKXTJ -->

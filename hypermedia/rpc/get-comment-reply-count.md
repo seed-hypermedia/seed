@@ -1,6 +1,6 @@
 ---
 name: "RPC: GetCommentReplyCount"
-summary: "Returns the number of replies under a comment, given the comment id."
+summary: Returns the number of replies under a comment, given the comment id.
 schemaDefinition: ipfs://bafyreiesdg7ica6z7vg6f7jyhygcyrxv7bsh5rpyb4vnqitfa6q2lmwnl4
 ---
 Counts the replies under a [comment](../protocol/comments.md), given the comment id. <!-- id:POuk7vni -->
@@ -18,11 +18,11 @@ A **closed struct** with these fields: <!-- id:YNWk_gey -->
 
 - [string](../string.md) <!-- id:L1b4cqBz -->
 
-# See also
+# See also <!-- id:rmbFlq7w -->
 
-- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
-- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
-- [RPC](./method.md): every method in one union.
-- [Comments](../protocol/comments.md): threads and replies.
-- [Comment](./comment.md): fetch one comment.
-- [ListDiscussions](./list-discussions.md): comment threads on a document.
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication. <!-- id:0WdHEs8J -->
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console. <!-- id:2uxNATbg -->
+- [RPC](./method.md): every method in one union. <!-- id:IOyUwyhC -->
+- [Comments](../protocol/comments.md): threads and replies. <!-- id:F0YPlPcx -->
+- [Comment](./comment.md): fetch one comment. <!-- id:dcZzK8bX -->
+- [ListDiscussions](./list-discussions.md): comment threads on a document. <!-- id:Jv4Wr1fc -->

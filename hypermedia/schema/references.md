@@ -79,12 +79,12 @@ So the meta-schema is the system's **axiom**: the one block whose type is known 
 
 Named references are the mechanism that makes the self-reference resolvable. The meta-schema being the axiom is the reason pointing it at itself is sound. <!-- id:o-jpn49c -->
 
-# See also
+# See also <!-- id:H4xmnfzR -->
 
-- [The schema language](./schema-language.md): every keyword, including `type`, `target`, `anyOf` and generics.
-- [Encoding](./encoding.md): canonical DAG-CBOR, dag-json and the publish step.
-- [Fixpoint problem](./fixpoint-problem.md): the term page for the cycle this page describes.
-- [Self-description](./self-description.md): how the meta-schema validates itself.
-- [`hm://` URL](../hm-url.md) and [Authority](../authority.md): the naming terms.
-- [URLs](../protocol/urls.md): Hypermedia URLs across the protocol.
-- [Examples](../example.md): the example schemas used on this page.
+- [The schema language](./schema-language.md): every keyword, including `type`, `target`, `anyOf` and generics. <!-- id:I8pyifxx -->
+- [Encoding](./encoding.md): canonical DAG-CBOR, dag-json and the publish step. <!-- id:52vejBku -->
+- [Fixpoint problem](./fixpoint-problem.md): the term page for the cycle this page describes. <!-- id:pPSWAtjN -->
+- [Self-description](./self-description.md): how the meta-schema validates itself. <!-- id:fZ2xJrB5 -->
+- [`hm://` URL](../hm-url.md) and [Authority](../authority.md): the naming terms. <!-- id:No2WqbdD -->
+- [URLs](../protocol/urls.md): Hypermedia URLs across the protocol. <!-- id:XWAEJx82 -->
+- [Examples](../example.md): the example schemas used on this page. <!-- id:LasmbvtN -->

@@ -1,6 +1,6 @@
 ---
 name: "Resource: Redirect"
-summary: "A resource that redirects to another id, optionally republishing its content in place."
+summary: A resource that redirects to another id, optionally republishing its content in place.
 schemaDefinition: ipfs://bafyreiesad52jom3u2rikyc2y4kbangshn7zulnv6ft7hwhz5rxwsknq5y
 ---
 A [resource](../../glossary.md) that redirects to another id, optionally republishing its content in place. [Documents](../../protocol/documents.md) explains redirects. It is one state of [rpc/type/resource](./resource.md). <!-- id:nq0tvFEY -->
@@ -20,9 +20,9 @@ A **closed struct** with these fields: <!-- id:gXsjb7Rl -->
 - [boolean](../../boolean.md) <!-- id:GXI1oXzy -->
 - [rpc/type/id](./id.md) <!-- id:ILFvu60V -->
 
-# See also
+# See also <!-- id:h6BVN1At -->
 
-- [Resource](./resource.md): every resource state.
-- [Redirect Info](./redirect-info.md): the redirect marker on listings.
-- [Ref](../../ref.md): the signed ref that carries a redirect.
-- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
+- [Resource](./resource.md): every resource state. <!-- id:VWCjO2Rb -->
+- [Redirect Info](./redirect-info.md): the redirect marker on listings. <!-- id:S7VESAAj -->
+- [Ref](../../ref.md): the signed ref that carries a redirect. <!-- id:zB5UvC-b -->
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models. <!-- id:b3SdNfGx -->

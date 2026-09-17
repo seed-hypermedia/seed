@@ -1,6 +1,6 @@
 ---
 name: "RPC: DiscoveryStatus"
-summary: "Reports whether a background discovery task for a resource (uid, path, optional version) is pending, found, or failed."
+summary: Reports whether a background discovery task for a resource (uid, path, optional version) is pending, found, or failed.
 schemaDefinition: ipfs://bafyreigylgmaycfzuirdccqxgns75l64xhijxxecrvhhzdrfinzm3jdi6u
 ---
 Reports the state of a background [discovery](../protocol/network.md) task for a resource, given its uid, path and optional version. The task is pending, found or failed, as described by [discovery status](./type/discovery-status.md). <!-- id:s7Yt7azE -->
@@ -20,11 +20,11 @@ A **closed struct** with these fields: <!-- id:w4vuYwBh -->
 - [string](../string.md) <!-- id:Ev6PVaa6 -->
 - [rpc/type/discovery-status](./type/discovery-status.md) <!-- id:xHV9GDA8 -->
 
-# See also
+# See also <!-- id:hmow8yUy -->
 
-- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
-- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
-- [RPC](./method.md): every method in one union.
-- [Network](../protocol/network.md): how peers discover and sync content.
-- [Discovery Status](./type/discovery-status.md): the output shape.
-- [Resource](./resource.md): fetch the resource once it is found.
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication. <!-- id:0QtmwhA_ -->
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console. <!-- id:OLgGn3zq -->
+- [RPC](./method.md): every method in one union. <!-- id:hST-ff83 -->
+- [Network](../protocol/network.md): how peers discover and sync content. <!-- id:oykziQQK -->
+- [Discovery Status](./type/discovery-status.md): the output shape. <!-- id:9zQtZOaW -->
+- [Resource](./resource.md): fetch the resource once it is found. <!-- id:-diMrhla -->

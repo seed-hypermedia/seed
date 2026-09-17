@@ -1,6 +1,6 @@
 ---
 name: Worker-Isolated Run Execution
-summary: "A plan to move agent run execution off the agents server's single event loop into worker threads, so heavy runs stop stalling the API and live updates."
+summary: A plan to move agent run execution off the agents server's single event loop into worker threads, so heavy runs stop stalling the API and live updates.
 ---
 # The problem <!-- id:W48hvbe4 -->
 
@@ -86,12 +86,12 @@ Guarantees: <!-- id:5NCB0VTw -->
 
 This proves the effect bridge and `SharedArrayBuffer` cancel pattern end to end on the safest surface, so phases 3 and 4 (agent runs) build on a tested base. <!-- id:oBe4vjFl -->
 
-# See also
+# See also <!-- id:mDp634P5 -->
 
-- [Multi-server architecture](./multi-server-architecture.md)
-- [Speed](./speed.md)
-- [Operations](../operations.md)
-- [Runs](../runs.md)
-- [Script / ctx](../script.md)
-- [Persistence](../persistence.md)
-- [Agents service](../../apps/agents.md)
+- [Multi-server architecture](./multi-server-architecture.md) <!-- id:eHMJvCKz -->
+- [Speed](./speed.md) <!-- id:WscUMp4o -->
+- [Operations](../operations.md) <!-- id:5a3j86er -->
+- [Runs](../runs.md) <!-- id:_rqv04fN -->
+- [Script / ctx](../script.md) <!-- id:DZEG8kK0 -->
+- [Persistence](../persistence.md) <!-- id:7HCRcOWl -->
+- [Agents service](../../apps/agents.md) <!-- id:pvowYZVZ -->

@@ -104,12 +104,12 @@ Ranked by exposure. Everything here is untrusted content that reaches the model.
 6. Inspect a live session through `GetSession.systemPromptMarkdown` or the session UI dialog. <!-- id:Owoth1sD -->
 7. Update this page if a prompt source is added, removed, or moved. <!-- id:-jQUo6Jc -->
 
-# See also
+# See also <!-- id:wZczVOGe -->
 
-- [Tools](./tools.md)
-- [Security](./security.md)
-- [Space index](./space-index.md)
-- [Triggers](./triggers.md)
-- [Session continuation](./session-continuation.md)
-- [Model providers](./model-providers.md)
-- [Signed API](./signed-api.md)
+- [Tools](./tools.md) <!-- id:lqU__Oh- -->
+- [Security](./security.md) <!-- id:Tsezei1t -->
+- [Space index](./space-index.md) <!-- id:K6DQ9Nwp -->
+- [Triggers](./triggers.md) <!-- id:LyfyPD6R -->
+- [Session continuation](./session-continuation.md) <!-- id:bGFaHwPs -->
+- [Model providers](./model-providers.md) <!-- id:Yg_ewJjT -->
+- [Signed API](./signed-api.md) <!-- id:roRkWXLX -->

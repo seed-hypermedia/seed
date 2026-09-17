@@ -1,6 +1,6 @@
 ---
 name: "RPC: ListDocumentCollaborators"
-summary: "Returns a document’s collaboration picture (publisher, inherited and direct capabilities, effective members), given its id."
+summary: Returns a document’s collaboration picture (publisher, inherited and direct capabilities, effective members), given its id.
 schemaDefinition: ipfs://bafyreie3rvsn6kwc7qzawxklw2wp5q63dnt27fwpymywpl3paaruyxlenu
 ---
 Resolves who can work on a [document](../protocol/documents.md): the publisher, inherited and direct [capabilities](../protocol/permissions.md), and the effective members. The result is a [collaborators payload](./type/collaborators-payload.md). <!-- id:SpxLa0Jx -->
@@ -19,11 +19,11 @@ A **closed struct** with these fields: <!-- id:EdUzp_Jx -->
 - [rpc/type/collaborators-payload](./type/collaborators-payload.md) <!-- id:7mZJBG2y -->
 - [rpc/type/id](./type/id.md) <!-- id:w9pYis7F -->
 
-# See also
+# See also <!-- id:2cOAE6zH -->
 
-- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
-- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
-- [RPC](./method.md): every method in one union.
-- [Permissions](../protocol/permissions.md): capabilities, roles and membership.
-- [ListCapabilities](./list-capabilities.md): the raw capabilities.
-- [Site Member](./type/site-member.md): one member and their role.
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication. <!-- id:Vqog98qb -->
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console. <!-- id:PXwtFdCx -->
+- [RPC](./method.md): every method in one union. <!-- id:btY9vnnz -->
+- [Permissions](../protocol/permissions.md): capabilities, roles and membership. <!-- id:jMwI9Gh5 -->
+- [ListCapabilities](./list-capabilities.md): the raw capabilities. <!-- id:d0QYJHuW -->
+- [Site Member](./type/site-member.md): one member and their role. <!-- id:pd2Uj869 -->

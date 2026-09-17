@@ -169,13 +169,14 @@ function loadPageAliases(): (path: string) => string | null {
   return (path) => {
     let key = path.replace(/^\//, '')
     for (let hops = 0; hops < 8 && table[key] !== undefined; hops++) key = table[key]!
-    return key === path.replace(/^\//, '') ? null : '/' + key
+    if (key === path.replace(/^\//, '')) return null
+    return key.startsWith('hm://') ? key : '/' + key
   }
 }
 
 /**
  * Retire the documents of the site whose file is gone from the folder. A page that moved (it has an entry in
- * `schemas.aliases.json` or `pages.aliases.json` pointing at a page that still exists) becomes a redirect, so
+ * `schemas.aliases.json` or `pages.aliases.json` pointing at a page that still exists, here or in another space) becomes a redirect, so
  * links and schema references to the old address keep working. A page with no alias is deleted. The home
  * document is never retired, and existing redirects are left alone.
  */
@@ -199,7 +200,11 @@ async function retireStale(
     .sort()
   for (const path of stale) {
     const target = aliasOf(path)
-    const redirectTo = target !== null && published.has(target) ? target : null
+    // A target is a live page of this site, or an hm:// URL of a page that moved to another space.
+    const external = target?.startsWith('hm://') ? target.slice('hm://'.length).split('/') : null
+    const redirectTo = external ? target : target !== null && published.has(target) ? target : null
+    const targetSpace = external ? external[0]! : account
+    const targetPath = external ? '/' + external.slice(1).join('/') : redirectTo
     console.log(redirectTo ? `  redirect ${path} -> ${redirectTo}` : `  retire  ${path}`)
     if (dryRun) continue
     const resource = await client.request('Resource', hmId(account, {path: path.replace(/^\//, '').split('/')}))
@@ -207,7 +212,7 @@ async function retireStale(
     const genesis = resource.document.genesis
     const ref = redirectTo
       ? await createRedirectRef(
-          {space: account, path, genesis, generation: Date.now(), targetSpace: account, targetPath: redirectTo},
+          {space: account, path, genesis, generation: Date.now(), targetSpace, targetPath: targetPath!},
           signer,
         )
       : await createTombstoneRef(

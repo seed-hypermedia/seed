@@ -9,9 +9,9 @@ The **bytes** type is raw binary data, a byte string. It is a [primitive](./sche
 
 Kind: `bytes`. <!-- id:IQBTYXn_ -->
 
-# See also
+# See also <!-- id:82dVcOwA -->
 
-- [principal](./principal.md): a public key, stored as bytes.
-- [signature](./signature.md): a blob's signature, stored as bytes.
-- [any](./any.md): the union of every value.
-- [Data model](./schema/data-model.md): all the kinds.
+- [principal](./principal.md): a public key, stored as bytes. <!-- id:6rMub8p3 -->
+- [signature](./signature.md): a blob's signature, stored as bytes. <!-- id:UPXu4hI3 -->
+- [any](./any.md): the union of every value. <!-- id:HdyF_opS -->
+- [Data model](./schema/data-model.md): all the kinds. <!-- id:3H3j5pVy -->

@@ -21,10 +21,10 @@ A **closed struct** with these fields: <!-- id:dhIYxPj9 -->
 
 - [string](../../string.md) <!-- id:AmT0qRL2 -->
 
-# See also
+# See also <!-- id:f0b-WTsl -->
 
-- [ReplaceBlock](./replace-block.md): the op that sets a block's content.
-- [DeleteBlocks](./delete-blocks.md): a move to the trash.
-- [block/node](../../block/node.md): the tree these moves build.
-- [change/op](../op.md): all operations and op ids.
-- [Documents](../../protocol/documents.md): the CRDT rules.
+- [ReplaceBlock](./replace-block.md): the op that sets a block's content. <!-- id:4eJG0ZHP -->
+- [DeleteBlocks](./delete-blocks.md): a move to the trash. <!-- id:yuzXa8oH -->
+- [block/node](../../block/node.md): the tree these moves build. <!-- id:IaY7qzoB -->
+- [change/op](../op.md): all operations and op ids. <!-- id:PyNtbOPv -->
+- [Documents](../../protocol/documents.md): the CRDT rules. <!-- id:UDTuiF9s -->

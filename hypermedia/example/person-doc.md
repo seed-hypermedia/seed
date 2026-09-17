@@ -17,9 +17,9 @@ A **closed struct** with these fields: <!-- id:Zw6v2bIk -->
 
 - [string](../string.md) <!-- id:HGDaIkqh -->
 
-# See also
+# See also <!-- id:3tReXDbH -->
 
-- [Typed documents](../schema/typed-documents.md): `attributesSchema` and `childAttributesSchema`.
-- [person](./person.md): the struct version of a person.
-- [World Builder](../schema/world-builder.md): more document types.
-- [Examples](../example.md): every example, grouped by feature.
+- [Typed documents](../schema/typed-documents.md): `attributesSchema` and `childAttributesSchema`. <!-- id:V7vVd2h3 -->
+- [person](./person.md): the struct version of a person. <!-- id:WZ2zUfVK -->
+- [World Builder](../schema/world-builder.md): more document types. <!-- id:1RhiROnN -->
+- [Examples](../example.md): every example, grouped by feature. <!-- id:4W3fXN2o -->

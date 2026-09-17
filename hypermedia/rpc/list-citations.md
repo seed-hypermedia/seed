@@ -1,6 +1,6 @@
 ---
 name: "RPC: ListCitations"
-summary: "Returns the raw citations that point at a target resource, given its id."
+summary: Returns the raw citations that point at a target resource, given its id.
 schemaDefinition: ipfs://bafyreifzwfbmojtf5olopsupja2q5pbvavnjmbgakhsefyuyqcsnfiwyye
 ---
 Lists the raw [citations](../protocol/comments.md) that point at a target resource, given its id. Each one is a [raw citation](./type/raw-citation.md). <!-- id:EWDwlcgM -->
@@ -19,11 +19,11 @@ A **closed struct** with these fields: <!-- id:DCfHjHME -->
 - [rpc/type/id](./type/id.md) <!-- id:iS-6L-Uf -->
 - [rpc/type/raw-citation](./type/raw-citation.md) <!-- id:Umt7r3Gz -->
 
-# See also
+# See also <!-- id:VepTxBNO -->
 
-- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
-- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
-- [RPC](./method.md): every method in one union.
-- [Comments](../protocol/comments.md): citations, mentions and backlinks.
-- [Citation](./type/citation.md): the resolved citation shape.
-- [InteractionSummary](./interaction-summary.md): citation counts.
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication. <!-- id:7m11S0MH -->
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console. <!-- id:isEjti8a -->
+- [RPC](./method.md): every method in one union. <!-- id:bxKOyCuy -->
+- [Comments](../protocol/comments.md): citations, mentions and backlinks. <!-- id:RTX7fFYH -->
+- [Citation](./type/citation.md): the resolved citation shape. <!-- id:fVRqK4aa -->
+- [InteractionSummary](./interaction-summary.md): citation counts. <!-- id:gTBrnCtz -->

@@ -3,7 +3,7 @@ name: Button Block
 summary: "A call-to-action button: a label, a required link and a horizontal alignment."
 schemaDefinition: ipfs://bafyreifqzjgn7p35ejndllmcjepvtkg56pdovu5sucx547l5ve6yepdaee
 ---
-A **button block** is a call-to-action button. `text` is the label, and `link` (required) is where it goes: an `hm://` or web URL, see [URLs](../protocol/urls.md). Attributes: `name` (an alternative label), `alignment` (a [button alignment](./button-alignment.md): `flex-start`, `center` or `flex-end`), and the parent-layout pair `childrenType` and `columnCount`.
+A **button block** is a call-to-action button. `text` is the label, and `link` (required) is where it goes: an `hm://` or web URL, see [URLs](../protocol/urls.md). Attributes: `name` (an alternative label), `alignment` (a [button alignment](./button-alignment.md): `flex-start`, `center` or `flex-end`), and the parent-layout pair `childrenType` and `columnCount`. <!-- id:JBQN_b6r -->
 
 # Shape <!-- id:xGD5dY-c -->
 
@@ -22,9 +22,9 @@ A **button block** is a call-to-action button. `text` is the label, and `link` (
 - [float](../float.md) <!-- id:rjjWap8S -->
 - [string](../string.md) <!-- id:dcAn-Ks- -->
 
-# See also
+# See also <!-- id:D0909KYI -->
 
-- [block/button-alignment](./button-alignment.md): where the button sits.
-- [block/embed](./embed.md): show a linked document in place.
-- [block/core](./core.md): all built-in block types.
-- [Blocks](../protocol/blocks.md): the block model.
+- [block/button-alignment](./button-alignment.md): where the button sits. <!-- id:vTGd7N5i -->
+- [block/embed](./embed.md): show a linked document in place. <!-- id:8ExLW19I -->
+- [block/core](./core.md): all built-in block types. <!-- id:bKIQAvJw -->
+- [Blocks](../protocol/blocks.md): the block model. <!-- id:p7M2sHWe -->

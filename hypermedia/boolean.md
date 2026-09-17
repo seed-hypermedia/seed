@@ -9,8 +9,8 @@ The **boolean** type is a true or false value. It is a [primitive](./schema/prim
 
 Kind: `boolean`. <!-- id:21AqOFOY -->
 
-# See also
+# See also <!-- id:NpNBGhcj -->
 
-- [value](./value.md): the scalar values an attribute can hold.
-- [any](./any.md): the union of every value.
-- [Data model](./schema/data-model.md): all the kinds.
+- [value](./value.md): the scalar values an attribute can hold. <!-- id:tCAhF_9E -->
+- [any](./any.md): the union of every value. <!-- id:OuTpuMPH -->
+- [Data model](./schema/data-model.md): all the kinds. <!-- id:cSLyTwT1 -->

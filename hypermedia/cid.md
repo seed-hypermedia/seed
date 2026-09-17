@@ -19,10 +19,10 @@ An **alias** of [link](./link.md). <!-- id:bqb7XsxG -->
 
 - [link](./link.md) <!-- id:WkXd4lGr -->
 
-# See also
+# See also <!-- id:67Sc6PXL -->
 
-- [Signed Blobs](./protocol/blobs.md): encoding, CIDs and the hash rule for publishers.
-- [link](./link.md): the kind a CID is stored as.
-- [blob](./blob.md): the envelope whose bytes a CID names.
-- [Files](./protocol/files.md): dag-pb and raw CIDs.
-- [URLs](./protocol/urls.md): version strings made of CIDs.
+- [Signed Blobs](./protocol/blobs.md): encoding, CIDs and the hash rule for publishers. <!-- id:4XugMpjB -->
+- [link](./link.md): the kind a CID is stored as. <!-- id:3COiBQhg -->
+- [blob](./blob.md): the envelope whose bytes a CID names. <!-- id:dFdsLAz6 -->
+- [Files](./protocol/files.md): dag-pb and raw CIDs. <!-- id:qAVHPv90 -->
+- [URLs](./protocol/urls.md): version strings made of CIDs. <!-- id:9uNlyqgF -->

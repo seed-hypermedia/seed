@@ -9,8 +9,8 @@ The **float** type is a floating-point number. It is a [primitive](./schema/prim
 
 Kind: `float`. <!-- id:ns7E3uN0 -->
 
-# See also
+# See also <!-- id:4Z_-0qLs -->
 
-- [integer](./integer.md): whole numbers, encoded apart from floats.
-- [any](./any.md): the union of every value.
-- [Data model](./schema/data-model.md): all the kinds.
+- [integer](./integer.md): whole numbers, encoded apart from floats. <!-- id:qjExX5Cs -->
+- [any](./any.md): the union of every value. <!-- id:u2T1rOTL -->
+- [Data model](./schema/data-model.md): all the kinds. <!-- id:4kLcPGXw -->
