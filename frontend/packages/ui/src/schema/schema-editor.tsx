@@ -451,6 +451,7 @@ function TypeChip({
       options={options}
       onChange={(url) => onNode(typeSchemaFor(url))}
       onPick={onNode}
+      literals
       ariaLabel={ariaLabel}
       className={chipColor(node)}
     />
