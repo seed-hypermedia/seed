@@ -1,7 +1,6 @@
 ---
 name: Blob
 summary: The signed envelope every Hypermedia blob extends, with a type tag, the signer's public key, an Ed25519 signature over the canonical CBOR with the signature zeroed, and a millisecond timestamp.
-schemaDefinition: ipfs://bafyreihyn2t2ohxof224okmb4ditzzigvbhajqfylhj4fe77uggczihdlm
 ---
 A **blob** envelope is the signed base every Hypermedia CBOR [blob](./protocol/blobs.md) extends. It has four fields: a `type` tag that the network dispatches on, the signer's public key, an Ed25519 signature over the canonical CBOR with the signature zeroed, and a Unix-millisecond timestamp. [Change](./change.md), [Ref](./ref.md), [Profile](./profile.md), [Comment](./comment.md), [Capability](./capability.md) and [Contact](./contact.md) all extend it. Your own types can extend it too: extend this schema, pin a `type` tag, and the app signs values with your account. <!-- id:9OHHE4tm -->
 
@@ -13,24 +12,10 @@ Third-party implementations most often get the signing rule wrong, so here it is
 
 The [daemon](./apps/daemon.md) computes CIDs with BLAKE2b-256, and the [SDK](./build/sdk.md) and the apps use SHA-256. Both are accepted. A blob that another blob references by CID must be published under the CID the referrer used. [Signed Blobs](./protocol/blobs.md) explains the rule and its consequences. <!-- id:nGAH7ftn -->
 
-# Shape <!-- id:QOHOzNqJ -->
-
-A **closed struct** with these fields: <!-- id:bQI8hkFy -->
-  - `type` _(required)_: `string` <!-- id:LQdoRLZZ -->
-  - `signer` _(required)_: [principal](./principal.md) <!-- id:CtQVur6r -->
-  - `sig` _(required)_: [signature](./signature.md) <!-- id:enu99wz8 -->
-  - `ts` _(required)_: [timestamp](./timestamp.md) <!-- id:kWIJ7his -->
-
-# Depends on <!-- id:jpOci9E7 -->
-
-- [principal](./principal.md) <!-- id:y9c8QnRC -->
-- [signature](./signature.md) <!-- id:dsCKf5iI -->
-- [timestamp](./timestamp.md) <!-- id:OFc0RrUw -->
-
 # See also <!-- id:M8oK5GWj -->
 
 - [Signed Blobs](./protocol/blobs.md): encoding, CIDs, the six types, what the daemon accepts, stashes and rejects. <!-- id:0IYlzuuU -->
 - [Identity](./protocol/identity.md): how a key becomes a principal. <!-- id:kuxGUzYU -->
 - [Network blobs](./schema/blobs.md): how the envelope is expressed as a schema extension. <!-- id:SMx3d91O -->
 - The types that extend it: [change](./change.md), [ref](./ref.md), [comment](./comment.md), [capability](./capability.md), [contact](./contact.md), [profile](./profile.md). <!-- id:rpxouCRj -->
-- [blob/any](./blob/any.md): the union of all six types.
+- [blob/any](./blob/any.md): the union of all six types. <!-- id:Fm0x_ZKU -->

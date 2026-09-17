@@ -15,7 +15,8 @@
  * `<file>.schema.json` beside the document that defines it.
  *
  * Schemas travel with their documents. Export writes the DAG-CBOR blob a
- * document's `metadata.schemaDefinition` points at as `<file>.schema.json`;
+ * document's `metadata.schemaDefinition` points at as `<file>.schema.json` (and leaves
+ * `schemaDefinition` out of that file's frontmatter);
  * import encodes that file back to canonical DAG-CBOR, publishes the blob with
  * the document, and sets `schemaDefinition: ipfs://<cid>` (the file is the
  * truth, whatever the frontmatter says). A document that CONFORMS to a type says so in its
@@ -30,6 +31,7 @@ import {
   createChange,
   createChangeOps,
   createRedirectRef,
+  createTombstoneRef,
   createVersionRef,
   flattenToOperations,
   markdownBlockNodesToHMBlockNodes,
@@ -88,6 +90,25 @@ export type SpaceLayout = {
    * hm:// link as is.
    */
   fileForLinkPath?(path: string): string | null
+  /**
+   * A name the files use for this space's own documents instead of its key, e.g. `hyper.media` in
+   * `hm://hyper.media/protocol/documents`. Import resolves it to the publishing space's key in links
+   * and metadata, and export writes it back, so the files never name a key.
+   */
+  selfAuthority?: string
+}
+
+/** Every `hm://<from>` URL in a value (a string, or strings nested in lists and maps) with its authority set to `to`. */
+export function swapAuthority<T>(value: T, from: string, to: string): T {
+  const re = new RegExp(`^hm://${from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[/?#])`)
+  const walk = (v: unknown): unknown => {
+    if (typeof v === 'string') return v.replace(re, `hm://${to}`)
+    if (Array.isArray(v)) return v.map(walk)
+    if (v && typeof v === 'object' && !(v instanceof Uint8Array))
+      return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]))
+    return v
+  }
+  return walk(value) as T
 }
 
 export const defaultLayout: SpaceLayout = {
@@ -228,6 +249,13 @@ export type ExportOptions = {
   uid: string
   dir: string
   layout?: SpaceLayout
+  /**
+   * Download the files documents link (`ipfs://…` images, videos, files) and
+   * link them relatively instead. See AssetDownloader in space-archive.ts.
+   */
+  assets?: {
+    localize(nodes: HMBlockNode[], mdFile: string, metadata?: Record<string, unknown>): Promise<HMBlockNode[]>
+  }
   log?: (line: string) => void
 }
 
@@ -335,14 +363,25 @@ export async function exportDocument(
     return result
   }
   result.files.set(path, file)
-  const content = hmToRelativeLinks(doc.content || [], file, doc.account, layout)
-  const md = blocksToMarkdown({...doc, content}, {ipfsGateway: false})
+  const schemaCid = ipfsCid((doc.metadata as Record<string, unknown> | undefined)?.schemaDefinition)
+  const schemaFile = schemaCid ? layout.schemaFileFor(file) : null
+  // The schema file beside the page is the truth about what it defines, and import sets
+  // `schemaDefinition` from it, so the frontmatter does not repeat the CID.
+  const metadata = schemaFile
+    ? (Object.fromEntries(
+        Object.entries(doc.metadata || {}).filter(([key]) => key !== 'schemaDefinition'),
+      ) as HMDocument['metadata'])
+    : doc.metadata
+  let relative = hmToRelativeLinks(doc.content || [], file, doc.account, layout)
+  if (opts.assets) relative = await opts.assets.localize(relative, file, doc.metadata as Record<string, unknown>)
+  const self = layout.selfAuthority
+  const content = self ? rewriteLinks(relative, (link) => swapAuthority(link, doc.account, self)) : relative
+  const ownMetadata = self && metadata ? swapAuthority(metadata, doc.account, self) : metadata
+  const md = blocksToMarkdown({...doc, metadata: ownMetadata, content}, {ipfsGateway: false})
   const changed = writeIfChanged(resolve(opts.dir, file), md)
   ;(changed ? result.written : result.unchanged).push(file)
   log(`${changed ? 'wrote  ' : 'same   '} ${file}`)
 
-  const schemaCid = ipfsCid((doc.metadata as Record<string, unknown> | undefined)?.schemaDefinition)
-  const schemaFile = schemaCid ? layout.schemaFileFor(file) : null
   if (schemaCid && schemaFile) {
     const blob = await opts.client.request('GetCID', {cid: schemaCid})
     const changedSchema = writeJsonPreservingOrder(resolve(opts.dir, schemaFile), blob.value)
@@ -443,6 +482,77 @@ export function applySchemaMetadata(metadata: HMMetadata, schema: SchemaFile | n
   return out as HMMetadata
 }
 
+// ─── Retire ──────────────────────────────────────────────────────────────────
+
+export type RetireOptions = {
+  client: SeedClient
+  signer: HMSigner
+  account: string
+  dir: string
+  layout?: SpaceLayout
+  dryRun?: boolean
+  /** Only these document paths are candidates; by default every document of the space. */
+  paths?: string[]
+  /** Paths to leave alone (e.g. the sources of moves the import just published). */
+  skip?: ReadonlySet<string>
+  /** A live path a retired document should redirect to instead of being deleted. */
+  redirectFor?: (path: string, published: ReadonlySet<string>) => string | null
+  log?: (line: string) => void
+}
+
+/**
+ * Retire the documents of a space that no longer have a file in the directory: the directory is the truth about
+ * what the space publishes. A document becomes a redirect when `redirectFor` names a live path, and is
+ * tombstoned otherwise. The home document is never retired, and redirects are left alone. Returns the paths.
+ */
+export async function retireMissing(opts: RetireOptions): Promise<string[]> {
+  const layout = opts.layout || defaultLayout
+  const log = opts.log || (() => {})
+  const published = new Set(
+    listMarkdownFiles(opts.dir)
+      .map((file) => layout.pathForFile(file))
+      .filter((p): p is string => p !== null),
+  )
+  const candidates = opts.paths ?? [...(await listSpaceVersions(opts.client, opts.account)).keys()]
+  const stale = candidates.filter((path) => path !== '' && !published.has(path) && !opts.skip?.has(path)).sort()
+  const retired: string[] = []
+  for (const path of stale) {
+    const resource = await opts.client.request(
+      'Resource',
+      hmId(opts.account, {path: path.replace(/^\//, '').split('/')}),
+    )
+    if (resource.type !== 'document') continue
+    const redirectTo = opts.redirectFor?.(path, published) ?? null
+    log(redirectTo ? `redirect ${path} -> ${redirectTo}` : `retire  ${path}`)
+    retired.push(path)
+    if (opts.dryRun) continue
+    const genesis = resource.document.genesis
+    const ref = redirectTo
+      ? await createRedirectRef(
+          {
+            space: opts.account,
+            path,
+            genesis,
+            generation: Date.now(),
+            targetSpace: opts.account,
+            targetPath: redirectTo,
+          },
+          opts.signer,
+        )
+      : await createTombstoneRef(
+          {
+            space: opts.account,
+            path,
+            genesis,
+            generation: resource.document.generationInfo ? Number(resource.document.generationInfo.generation) : 0,
+          },
+          opts.signer,
+        )
+    await opts.client.publish(ref)
+  }
+  return retired
+}
+
 // ─── Import ──────────────────────────────────────────────────────────────────
 
 export type ImportOptions = {
@@ -457,6 +567,12 @@ export type ImportOptions = {
   capability?: string
   /** Adjust a file's metadata before publishing (e.g. inject schema bindings). */
   metadataFor?: (file: string, metadata: HMMetadata) => HMMetadata
+  /**
+   * Old paths a new path is known to have moved from (e.g. from an alias table), most likely first.
+   * When the block ids of a file don't identify its source, the first of these that still holds a
+   * document, and has no file of its own, is published as a move instead of a new document.
+   */
+  movedFromFor?: (path: string) => string[]
   /** Restrict to these files (relative to dir). */
   only?: string[]
   /** Validate every document against its effective schema first; refuse to publish on a violation. */
@@ -681,11 +797,11 @@ export function metadataDiffOp(
 function prepareFile(opts: ImportOptions, layout: SpaceLayout, file: string) {
   const raw = readFileSync(resolve(opts.dir, file), 'utf8')
   const {tree, metadata} = parseMarkdown(raw)
-  const nodes = relativeAssetsToFileLinks(
-    relativeToHmLinks(markdownBlockNodesToHMBlockNodes(tree), file, opts.account, layout),
-    opts.dir,
-    file,
-  )
+  const blocks = markdownBlockNodesToHMBlockNodes(tree)
+  const own = layout.selfAuthority
+    ? rewriteLinks(blocks, (link) => swapAuthority(link, layout.selfAuthority!, opts.account))
+    : blocks
+  const nodes = relativeAssetsToFileLinks(relativeToHmLinks(own, file, opts.account, layout), opts.dir, file)
   return {raw, tree, metadata, nodes}
 }
 
@@ -719,6 +835,8 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
   const layout = opts.layout || defaultLayout
   const log = opts.log || (() => {})
   const result: ImportResult = {created: [], updated: [], unchanged: [], skipped: [], moved: []}
+  // Each existing document moves to at most one new path.
+  const claimedSources = new Set<string>()
   const files = opts.only ?? listMarkdownFiles(opts.dir)
   const allFiles = new Set(listMarkdownFiles(opts.dir))
   let index: Promise<BlockIndex> | undefined
@@ -757,7 +875,10 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     if (!prep) prepared.set(file, (prep = prepareFile(opts, layout, file)))
     const {raw, tree, metadata: fileMetadata, nodes} = prep
     const schema = await readSchemaFile(opts.dir, file, layout)
-    const metadata = applySchemaMetadata(opts.metadataFor ? opts.metadataFor(file, fileMetadata) : fileMetadata, schema)
+    const ownMetadata = layout.selfAuthority
+      ? swapAuthority(fileMetadata, layout.selfAuthority, opts.account)
+      : fileMetadata
+    const metadata = applySchemaMetadata(opts.metadataFor ? opts.metadataFor(file, ownMetadata) : ownMetadata, schema)
     // The schema blob rides along with the change that binds it.
     const schemaBlobs = schema ? [{data: schema.data, cid: schema.cid}] : []
     const resolved = await resolveFileLinks(nodes)
@@ -782,8 +903,21 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
         // A copy (the source file still exists) is a new document, not a move.
         const sourceDoc = from === null ? undefined : docs.get(from)
         const sourceFile = sourceDoc ? layout.fileForPath(from!, sourceDoc) : null
-        if (from !== null && !(sourceFile && allFiles.has(sourceFile))) movedFrom = from
+        if (from !== null && !(sourceFile && allFiles.has(sourceFile)) && !claimedSources.has(from)) movedFrom = from
       }
+      if (movedFrom === null && opts.movedFromFor) {
+        index ??= buildBlockIndex(opts.client, opts.account)
+        const {docs} = await index
+        for (const candidate of opts.movedFromFor(path)) {
+          const sourceDoc = docs.get(candidate)
+          if (!sourceDoc || claimedSources.has(candidate)) continue
+          const sourceFile = layout.fileForPath(candidate, sourceDoc)
+          if (sourceFile && allFiles.has(sourceFile)) continue
+          movedFrom = candidate
+          break
+        }
+      }
+      if (movedFrom !== null) claimedSources.add(movedFrom)
     }
 
     if (absent && movedFrom === null) {

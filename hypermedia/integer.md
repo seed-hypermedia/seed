@@ -1,17 +1,12 @@
 ---
 name: Integer
 summary: A whole number, which DAG-CBOR encodes distinctly from floats.
-schemaDefinition: ipfs://bafyreieammx4j6wazd6douaqwznnu23kp3d4nj7bhyfadyfh7j4bgcebze
 ---
 The **integer** type is a whole number. [DAG-CBOR](./schema/dag-cbor.md) encodes integers distinctly from floats. It is a [primitive](./schema/primitive.md) of the [data model](./schema/data-model.md). Its formal schema is attached as the `schemaDefinition` in this document's metadata, so the app can show it and create values of this type. <!-- id:_O8DSgHF -->
 
-# Shape <!-- id:Xux7du-y -->
+# See also <!-- id:fa6R8Ypg -->
 
-Kind: `integer`. <!-- id:WvR-QEI8 -->
-
-# See also
-
-- [float](./float.md): floating-point numbers.
-- [timestamp](./timestamp.md): Unix milliseconds, stored as an integer.
-- [value](./value.md): the scalar values an attribute can hold.
-- [Data model](./schema/data-model.md): all the kinds.
+- [float](./float.md): floating-point numbers. <!-- id:X2QgMGNj -->
+- [timestamp](./timestamp.md): Unix milliseconds, stored as an integer. <!-- id:RSUsKhlI -->
+- [value](./value.md): the scalar values an attribute can hold. <!-- id:fcVXKZES -->
+- [Data model](./schema/data-model.md): all the kinds. <!-- id:kkDgXSRa -->

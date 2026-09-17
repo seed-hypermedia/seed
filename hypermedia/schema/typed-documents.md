@@ -37,10 +37,10 @@ An attributes schema is an ordinary struct with one [property](./property.md) pe
 
 ```json <!-- id:5qgOO0Ub -->
 {
-  "type": "hm://z6MkmZUb…/struct",
+  "type": "hm://hyper.media/struct",
   "properties": {
-    "surname":   {"value": {"type": "hm://z6MkmZUb…/string"}, "required": true},
-    "givenName": {"value": {"type": "hm://z6MkmZUb…/string"}}
+    "surname":   {"value": {"type": "hm://hyper.media/string"}, "required": true},
+    "givenName": {"value": {"type": "hm://hyper.media/string"}}
   }
 }
 ```
@@ -75,12 +75,12 @@ Turn on Developer Mode, then work from any document's options menu: <!-- id:eTXH
 
 A reference by CID pins exact bytes. The type never changes under you, and you must republish to adopt a newer one. A reference by `hm://` URL follows the type's document, which its owner may update. New fields then appear on every instance the next time it opens. The library uses names, so schemas can reference each other in cycles and a type can evolve in place. Choose on purpose: pin when you need a stable contract, and follow when you want the type's owner to improve it. [References and naming](./references.md) covers the versioning trade-off. <!-- id:zgMFP-J0 -->
 
-# See also
+# See also <!-- id:oWU3rUEa -->
 
-- [How Hypermedia Schemas work](./how-it-works.md): the pipeline from schema file to typed document.
-- [The World Builder](./world-builder.md): a worked demo of linked types in the app.
-- [Metadata](../metadata.md): the base document attributes, including the three binding keys.
-- [Documents](../protocol/documents.md): paths, drafts, versions and children.
-- [Struct schema](./struct-schema.md) and [property](./property.md): the shape of an attributes schema.
-- [Extension](./extension.md): building one type on another.
-- [Querying by attribute](../build/query-grammar.md): finding documents by their typed attributes.
+- [How Hypermedia Schemas work](./how-it-works.md): the pipeline from schema file to typed document. <!-- id:JfaOlasx -->
+- [The World Builder](./world-builder.md): a worked demo of linked types in the app. <!-- id:oVtIGDI0 -->
+- [Metadata](../metadata.md): the base document attributes, including the three binding keys. <!-- id:bZlgaAck -->
+- [Documents](../protocol/documents.md): paths, drafts, versions and children. <!-- id:FNZFTX9J -->
+- [Struct schema](./struct-schema.md) and [property](./property.md): the shape of an attributes schema. <!-- id:3MTjxo6H -->
+- [Extension](./extension.md): building one type on another. <!-- id:rAW4Et1N -->
+- [Querying by attribute](../build/query-grammar.md): finding documents by their typed attributes. <!-- id:XneCBpXU -->

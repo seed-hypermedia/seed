@@ -1,82 +1,85 @@
 {
   "anyOf": [
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/account"
+      "type": "hm://hyper.media/rpc/account"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/account-contacts"
+      "type": "hm://hyper.media/rpc/account-contacts"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/comment"
+      "type": "hm://hyper.media/rpc/comment"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/discovery-status"
+      "type": "hm://hyper.media/rpc/discovery-status"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/get-cid"
+      "type": "hm://hyper.media/rpc/get-cid"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/get-comment-reply-count"
+      "type": "hm://hyper.media/rpc/get-comment-reply-count"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/get-domain"
+      "type": "hm://hyper.media/rpc/get-domain"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/interaction-summary"
+      "type": "hm://hyper.media/rpc/interaction-summary"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/list-accounts"
+      "type": "hm://hyper.media/rpc/list-accounts"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/list-capabilities"
+      "type": "hm://hyper.media/rpc/list-capabilities"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/list-changes"
+      "type": "hm://hyper.media/rpc/list-changes"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/list-citations"
+      "type": "hm://hyper.media/rpc/list-citations"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/list-comment-versions"
+      "type": "hm://hyper.media/rpc/list-comment-versions"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/list-comments"
+      "type": "hm://hyper.media/rpc/list-comments"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/list-comments-by-author"
+      "type": "hm://hyper.media/rpc/list-comments-by-author"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/list-comments-by-reference"
+      "type": "hm://hyper.media/rpc/list-comments-by-reference"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/list-discussions"
+      "type": "hm://hyper.media/rpc/list-discussions"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/list-document-collaborators"
+      "type": "hm://hyper.media/rpc/list-document-collaborators"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/list-domains"
+      "type": "hm://hyper.media/rpc/list-domains"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/list-events"
+      "type": "hm://hyper.media/rpc/list-events"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/query"
+      "type": "hm://hyper.media/rpc/list-refs"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/query-block"
+      "type": "hm://hyper.media/rpc/query"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/resource"
+      "type": "hm://hyper.media/rpc/query-block"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/resource-metadata"
+      "type": "hm://hyper.media/rpc/resource"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/search"
+      "type": "hm://hyper.media/rpc/resource-metadata"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/subject-contacts"
+      "type": "hm://hyper.media/rpc/search"
+    },
+    {
+      "type": "hm://hyper.media/rpc/subject-contacts"
     }
   ]
 }

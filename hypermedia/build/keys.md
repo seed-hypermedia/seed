@@ -114,8 +114,8 @@ Seed Agents keep signing identities as encrypted per-account secrets on the agen
 
 - [Identity](../protocol/identity.md) <!-- id:YDnNfseC -->
 - [Principal](../principal.md) <!-- id:b7J_h__z -->
-- [Permissions](../protocol/permissions.md)
-- [Capability](../capability.md)
-- [Integrity](../protocol/integrity.md)
-- [Sign in with Seed](./sign-in.md)
-- [Seed CLI](./cli.md)
+- [Permissions](../protocol/permissions.md) <!-- id:ttAA_xal -->
+- [Capability](../capability.md) <!-- id:gAeWZhBJ -->
+- [Integrity](../protocol/integrity.md) <!-- id:64HO1YUK -->
+- [Sign in with Seed](./sign-in.md) <!-- id:4oj8Ks-5 -->
+- [Seed CLI](./cli.md) <!-- id:4M_T7OSx -->

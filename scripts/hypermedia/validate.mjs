@@ -24,13 +24,10 @@ import { fileURLToPath } from "node:url";
 
 const DIR = HM_DIR;
 
-// References are hm:// URLs pointing at each schema's published document under
-// the Hypermedia account: hm://<library>/<name>, where the name is the file's basename
-// (hypermedia-string, hypermedia-schema, example-person, …). Legacy forms —
-// the dev authorities (hyper.media / seed.hyper.media / example.com) and the
-// bare primitive names published before the `hypermedia-` rename — still
-// resolve for back-compat.
-const HYPERMEDIA_UID = "z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb";
+// References are hm://hyper.media/<name> URLs, where the name is the schema's path in hypermedia/
+// (string, schema, example/person, …). Legacy forms, the old dev authorities (seed.hyper.media,
+// example.com) and the prefixed names from before the reorganization, still resolve.
+const LIBRARY_AUTHORITY = "hyper.media";
 const urlToFile = (ref) => fileOfName(refToName(ref, (name) => existsSync(resolve(DIR, fileOfName(name)))));
 
 const cache = new Map();
@@ -63,7 +60,7 @@ function typeOf(d) {
 // locally off the URL — no fetch needed, so the discriminant stays local. The
 // legacy forms (hm://hyper.media/<kind>, hm://<library>/<kind>) still read.
 const KINDS = ["null", "boolean", "integer", "float", "string", "bytes", "list", "map", "struct", "link"];
-const KIND_URL = new RegExp(`^hm://(?:hyper\\.media|${HYPERMEDIA_UID})/(?:schema/|hypermedia-)?([a-z]+)$`);
+const KIND_URL = new RegExp(`^hm://hyper\\.media/(?:schema/|hypermedia-)?([a-z]+)$`);
 const kindOf = (t) => {
   const k = KIND_URL.exec(t)?.[1];
   return k && KINDS.includes(k) ? k : t;
@@ -328,12 +325,12 @@ for (const f of jsonFiles) {
 // 3. The discriminated union REJECTS malformed schemas.
 // =====================================================================
 section("The meta-schema rejects malformed schemas");
-const K = (k) => `hm://${HYPERMEDIA_UID}/${k}`;
+const K = (k) => `hm://${LIBRARY_AUTHORITY}/${k}`;
 failed += reportReject("scalar carrying `items`", validate(meta, { type: K("string"), items: { type: K("integer") } }));
 failed += reportReject("scalar carrying `properties`", validate(meta, { type: K("string"), properties: {} }));
 failed += reportReject("map schema with an unknown keyword", validate(meta, { type: K("map"), bogus: 1 }));
 failed += reportReject("struct schema with an unknown keyword", validate(meta, { type: K("struct"), bogus: 1 }));
-const U = (k) => `hm://${HYPERMEDIA_UID}/${k}`;
+const U = (k) => `hm://${LIBRARY_AUTHORITY}/${k}`;
 failed += report("a struct with fields is a valid schema", validate(meta, { type: U("struct"), properties: { a: { value: { type: U("string") }, required: true, description: "an a" } } }));
 failed += reportReject("a struct field must be a property ({value, …}), not a bare schema", validate(meta, { type: U("struct"), properties: { a: { type: U("string") } } }));
 failed += report("a map of values is a valid schema", validate(meta, { type: U("map"), values: { type: U("integer") } }));
@@ -371,7 +368,7 @@ const tagged = { type: U("struct"), properties: { type: { value: "Change", requi
 failed += report("a pinned tag field accepts the tag", validate(tagged, { type: "Change", n: 1 }));
 failed += reportReject("a pinned tag field rejects another tag", validate(tagged, { type: "Comment", n: 1 }));
 failed += reportReject("a pinned integer field rejects another integer", validate(tagged, { type: "Change", n: 2 }));
-const pinned = { type: `hm://${HYPERMEDIA_UID}/schema/block/base`, properties: { type: { value: "Poll", required: true } } };
+const pinned = { type: `hm://${LIBRARY_AUTHORITY}/schema/block/base`, properties: { type: { value: "Poll", required: true } } };
 failed += report("an extension can pin a field to a literal", validate(pinned, { id: "b1", type: "Poll" }));
 failed += reportReject("…and then rejects the base's other tags", validate(pinned, { id: "b1", type: "Paragraph" }));
 
@@ -670,7 +667,7 @@ for (const c of CASES) {
 // 4b. Value constraints — string length/pattern, numeric bounds, list size.
 // =====================================================================
 section("Value constraints");
-const S = (k, extra) => ({ type: `hm://${HYPERMEDIA_UID}/hypermedia-${k}`, ...extra });
+const S = (k, extra) => ({ type: `hm://${LIBRARY_AUTHORITY}/hypermedia-${k}`, ...extra });
 
 // string minLength / maxLength (counted in code points)
 const strLen = S("string", { minLength: 3, maxLength: 5 });
@@ -703,11 +700,11 @@ failed += reportReject("date-time: bare date", validate(dateTimeT, "2026-08-26")
 // `target` — a reference-valued string may name the schema its target should
 // conform to. Allowed on the scalar and include variants (advisory; never
 // dereferenced), rejected elsewhere because the variants are closed maps.
-failed += report("target on a scalar reference", validate(meta, { type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", format: "ipfs", target: "hm://acme/stats" }));
-failed += report("target on an include reference", validate(meta, { type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hm-url", target: "hm://acme/place" }));
+failed += report("target on a scalar reference", validate(meta, { type: "hm://hyper.media/string", format: "ipfs", target: "hm://acme/stats" }));
+failed += report("target on an include reference", validate(meta, { type: "hm://hyper.media/hm-url", target: "hm://acme/place" }));
 failed += reportReject("target on a map schema", validate(meta, { type: K("map"), properties: {}, target: "hm://acme/x" }));
 failed += reportReject("target on a list schema", validate(meta, { type: K("list"), target: "hm://acme/x" }));
-failed += report("target does not affect the value", validate({ type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", format: "ipfs", target: "hm://acme/stats" }, "ipfs://bafyfoo"));
+failed += report("target does not affect the value", validate({ type: "hm://hyper.media/string", format: "ipfs", target: "hm://acme/stats" }, "ipfs://bafyfoo"));
 
 // integer minimum / maximum
 const intRange = S("integer", { minimum: 0, maximum: 100 });
@@ -722,7 +719,7 @@ failed += report("float within bounds", validate(floatRange, 0.5));
 failed += reportReject("float below minimum", validate(floatRange, -0.5));
 
 // list minItems / maxItems
-const listSize = S("list", { minItems: 1, maxItems: 3, items: { type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string" } });
+const listSize = S("list", { minItems: 1, maxItems: 3, items: { type: "hm://hyper.media/string" } });
 failed += report("list within size bounds", validate(listSize, ["a", "b"]));
 failed += reportReject("list too short", validate(listSize, []));
 failed += reportReject("list too long", validate(listSize, ["a", "b", "c", "d"]));

@@ -42,19 +42,19 @@ For authors, **key order and formatting in these JSON files do not matter.** Whi
 Two scripts turn this repo into published Hypermedia types. `node scripts/hypermedia/publish.mjs` computes the CIDs, and `pnpm hypermedia:push` publishes the blobs: <!-- id:ilHK6ydh -->
   1. `publish.mjs` parses each `.schema.json` file as dag-json. References are already **`hm://` URLs**, which are names. The step does not rewrite them into CIDs, so recursive and mutually recursive schemas keep working (see [references](./references.md)). <!-- id:3NjmpKsi -->
   2. It encodes each schema to canonical DAG-CBOR and content-addresses it as a CIDv1 with sha2-256 and the `dag-cbor` codec (0x71). The backend uses the same codec for its blobs. <!-- id:aqTbhvIL -->
-  3. It writes `schemas.lock.json`, the manifest that maps each `hm://` URL to its CID. `publish.mjs` publishes nothing. `pnpm hypermedia:push` encodes each schema file again, checks its CID against `schemas.lock.json`, and stops on any mismatch. Then it publishes every schema blob to the server and imports each page as a document of the [authority](../authority.md) at its `hm://` path, with the schema blob as the page's `schemaDefinition`. <!-- id:hVW1Ddfl -->
+  3. It writes `schemas.lock.json`, the manifest that maps each `hm://` URL to its CID. `publish.mjs` publishes nothing. `pnpm hypermedia:push` encodes each schema file again, checks its CID against `schemas.lock.json`, and stops on any mismatch. Then it publishes every schema blob to the server and imports each page as a document in the space of the signing key at its path, with `hm://hyper.media` in links and frontmatter swapped for that key, with the schema blob as the page's `schemaDefinition`. <!-- id:hVW1Ddfl -->
 
 Canonical DAG-CBOR is deterministic, so **the CID is a pure function of a schema's content**. CI and any runtime that recomputes it get the same CID. This has two consequences: <!-- id:m9tDS9Ms -->
   - `node publish.mjs --check` runs in CI. It fails if the lockfile is stale, and a CID that changes in a diff means the schema changed. <!-- id:wtUc5Kgv -->
   - A schema links others by **name**, so its CID depends only on its own bytes. Editing `block` does **not** change the CID of `change`. In a CID or Merkle graph, any change would propagate upward. The manifest is the separate name-to-CID index a resolver uses. <!-- id:UfL2JB8v -->
 
-Anyone can resolve a schema by its `hm://` name, through the manifest or the authority. They can also fetch an exact version by CID, decode the DAG-CBOR, and type-check data against it. That is the same validation this repo runs locally. <!-- id:53nL6eHG -->
+Anyone can resolve a schema by its `hm://` name, through the manifest or the SDK's bundle. The network does not resolve the `hyper.media` [authority](../authority.md) yet, so a fetch over the network uses the docs space's key. They can also fetch an exact version by CID, decode the DAG-CBOR, and type-check data against it. That is the same validation this repo runs locally. <!-- id:53nL6eHG -->
 
-# See also
+# See also <!-- id:f3T2QJJS -->
 
-- [References and naming](./references.md): why references are names and not CIDs.
-- [The data model](./data-model.md): the nine kinds, including link and bytes.
-- [DAG-CBOR](./dag-cbor.md), [dag-json](./dag-json.md), [Envelope](./envelope.md) and [Canonical encoding](./canonical-encoding.md): the term pages.
-- [Blobs](../protocol/blobs.md): how the network encodes and signs its data.
-- [CID](../cid.md): the CID type.
-- [Schemas for network blobs](./blobs.md): the blob schemas built on this encoding.
+- [References and naming](./references.md): why references are names and not CIDs. <!-- id:a5VF35ot -->
+- [The data model](./data-model.md): the nine kinds, including link and bytes. <!-- id:-R8AO22o -->
+- [DAG-CBOR](./dag-cbor.md), [dag-json](./dag-json.md), [Envelope](./envelope.md) and [Canonical encoding](./canonical-encoding.md): the term pages. <!-- id:-lKkBjIt -->
+- [Blobs](../protocol/blobs.md): how the network encodes and signs its data. <!-- id:bMA7jKeP -->
+- [CID](../cid.md): the CID type. <!-- id:IxZuGZOV -->
+- [Schemas for network blobs](./blobs.md): the blob schemas built on this encoding. <!-- id:ylJUSWo0 -->

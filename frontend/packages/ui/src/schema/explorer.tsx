@@ -80,6 +80,12 @@ function Tag({kind, children}: {kind: string; children?: React.ReactNode}) {
  * an `hm://` type document or an `ipfs://` schema blob. Supplied by the page
  * hosting the explorer (route navigation).
  */
+/** A short label for a schema target: its library name, or the path of a document in some other space. */
+function targetLabel(target: string): string {
+  const name = refToName(target)
+  return name.startsWith('hm://') ? name.replace(/^hm:\/\/[^/]+\/?/, '') || name : name
+}
+
 export const SchemaNavContext = createContext<{openRef?: (ref: string) => void}>({})
 export const useSchemaOpenRef = () => useContext(SchemaNavContext).openRef
 
@@ -136,7 +142,7 @@ function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React
     typeof node.target === 'string' ? (
       <>
         {' '}
-        <Chip label={`→ ${refToName(node.target)}`} onClick={() => open(node.target)} variant="dep" />
+        <Chip label={`→ ${targetLabel(node.target)}`} onClick={() => open(node.target)} variant="dep" />
       </>
     ) : null
   if (node.var !== undefined) return <Tag kind="var">{`⟨${node.var}⟩`}</Tag>
@@ -194,7 +200,7 @@ function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React
         {typeof node.target === 'string' && (
           <>
             {' '}
-            <Chip label={`→ ${refToName(node.target)}`} onClick={() => open(node.target)} variant="dep" />
+            <Chip label={`→ ${targetLabel(node.target)}`} onClick={() => open(node.target)} variant="dep" />
           </>
         )}
       </span>

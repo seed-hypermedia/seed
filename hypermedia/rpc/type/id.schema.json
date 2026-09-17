@@ -1,15 +1,15 @@
 {
-  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+  "type": "hm://hyper.media/struct",
   "properties": {
     "id": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+        "type": "hm://hyper.media/string"
       },
       "required": true
     },
     "uid": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+        "type": "hm://hyper.media/string"
       },
       "required": true
     },
@@ -17,13 +17,13 @@
       "value": {
         "anyOf": [
           {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
+            "type": "hm://hyper.media/list",
             "items": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+              "type": "hm://hyper.media/string"
             }
           },
           {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null"
+            "type": "hm://hyper.media/null"
           }
         ]
       },
@@ -33,10 +33,10 @@
       "value": {
         "anyOf": [
           {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+            "type": "hm://hyper.media/string"
           },
           {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null"
+            "type": "hm://hyper.media/null"
           }
         ]
       },
@@ -46,10 +46,10 @@
       "value": {
         "anyOf": [
           {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+            "type": "hm://hyper.media/string"
           },
           {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null"
+            "type": "hm://hyper.media/null"
           }
         ]
       },
@@ -59,10 +59,10 @@
       "value": {
         "anyOf": [
           {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/block-range"
+            "type": "hm://hyper.media/rpc/type/block-range"
           },
           {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null"
+            "type": "hm://hyper.media/null"
           }
         ]
       },
@@ -72,10 +72,10 @@
       "value": {
         "anyOf": [
           {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+            "type": "hm://hyper.media/string"
           },
           {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null"
+            "type": "hm://hyper.media/null"
           }
         ]
       },
@@ -85,10 +85,10 @@
       "value": {
         "anyOf": [
           {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+            "type": "hm://hyper.media/string"
           },
           {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null"
+            "type": "hm://hyper.media/null"
           }
         ]
       },
@@ -98,10 +98,10 @@
       "value": {
         "anyOf": [
           {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean"
+            "type": "hm://hyper.media/boolean"
           },
           {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null"
+            "type": "hm://hyper.media/null"
           }
         ]
       }

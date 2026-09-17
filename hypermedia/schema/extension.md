@@ -12,9 +12,9 @@ There is no `extends` keyword. `type` names the parent. Any other key on the nod
 
 Example: [employee](../example/employee.md) extends [person](../example/person.md). <!-- id:-NO5_fFA -->
 
-# See also
+# See also <!-- id:d6mFleaG -->
 
-- [References and naming](./references.md): include, link and extension side by side.
-- [Include schema](./include-schema.md): the variant an extension belongs to.
-- [Property](./property.md): the fields an extension adds.
-- [Generic](./generic.md): the other way to reuse a schema.
+- [References and naming](./references.md): include, link and extension side by side. <!-- id:YKGXsf7b -->
+- [Include schema](./include-schema.md): the variant an extension belongs to. <!-- id:5FToMJqL -->
+- [Property](./property.md): the fields an extension adds. <!-- id:C1W1JH50 -->
+- [Generic](./generic.md): the other way to reuse a schema. <!-- id:uwPSMwR9 -->

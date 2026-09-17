@@ -9,7 +9,7 @@ Every item on this page links into the reference. Read it once top to bottom, th
 - Every value is one of **nine [kinds](./kind.md)**: [null](../null.md), [boolean](../boolean.md), [integer](../integer.md), [float](../float.md), [string](../string.md), [bytes](../bytes.md), [list](../list.md), [map](../map.md), [link](../link.md). [struct](../struct.md) is a map with named fields. The bytes are [DAG-CBOR](./dag-cbor.md), and the readable form is [dag-json](./dag-json.md). <!-- id:H5eL6ixB -->
 - A **schema** is a map that constrains a value: `type`, `properties` (one [property](./property.md) per field: `{value, required?, description?}`), `items`, `values`, `anyOf`, `target`, generics, and leaf constraints. A bare literal (`"draft"`, `1`) is also a schema, and accepts exactly that value. See [the schema language](./schema-language.md). <!-- id:Wyj6bKBt -->
 - The **[meta-schema](../schema.md)** describes what a schema is: a union of [struct-schema](./struct-schema.md), [map-schema](./map-schema.md), [list-schema](./list-schema.md), [scalar-schema](./scalar-schema.md), [link-schema](./link-schema.md), [include-schema](./include-schema.md), [anyof](./anyof.md), [var-schema](./var-schema.md), [literal-schema](./literal-schema.md). It validates itself. <!-- id:kh_e5uKR -->
-- A schema is itself a DAG-CBOR [blob](../protocol/blobs.md) with a [CID](../cid.md). Schemas reference each other by **[`hm://`](../hm-url.md) name** ([references](./references.md)), so types can recurse and form cycles ([the fixpoint problem](./fixpoint-problem.md)). Library schemas live under the Hypermedia account: `example/person` is `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/person`. <!-- id:zm8ENE2w -->
+- A schema is itself a DAG-CBOR [blob](../protocol/blobs.md) with a [CID](../cid.md). Schemas reference each other by **[`hm://`](../hm-url.md) name** ([references](./references.md)), so types can recurse and form cycles ([the fixpoint problem](./fixpoint-problem.md)). Library schemas are named by the domain `hyper.media`: `example/person` is `hm://hyper.media/example/person`. The SDK resolves these names from its bundle. The network does not resolve domains in `hm://` URLs yet, so the published pages carry the docs space's key. <!-- id:zm8ENE2w -->
 - `{type: X}` alone **[includes](./include-schema.md)** X. `{type: X, properties: …}` **[extends](./extension.md)** it: the parent's fields plus new ones, closedness kept. <!-- id:3s1dFPYn -->
 - Validation is **advisory** in the editors (warn, never block) and **strict** in the reference validator, the CLI's checks, and the agent's refusals for blobs. <!-- id:qnkL2XO2 -->
 
@@ -129,12 +129,12 @@ The [Seed Agents](../agent.md) verbs ([read](../agent/read.md), [write](../agent
 | find documents by attribute, or typed by a schema | Explore (advanced search) | `query --where`, `query --filter` | `QueryDocuments` | `call` → `query` <!-- id:dC9EEwVd --> |
 | which attribute keys exist, and their values | Explore's attribute pickers | `attributes`, `attributes --values` | `ListDocumentAttributeNames`, `ListDocumentAttributeValues` | `call` → `attributes` <!-- id:p0-yKm3E --> |
 
-# See also
+# See also <!-- id:LiAq1oVn -->
 
-- [Hypermedia Schemas](../schema.md): the meta-schema and the index of schema pages.
-- [Why Hypermedia Schemas](./why.md): the problem they solve.
-- [The schema language](./schema-language.md): every key, with examples.
-- [Typed documents](./typed-documents.md): the three binding keys in depth.
-- [References and naming](./references.md): include, typed link, and `hm://` names.
-- [Query grammar](../build/query-grammar.md): the Explore grammar behind `query --where`.
-- [User stories](./user-stories.md): what each surface can do today.
+- [Hypermedia Schemas](../schema.md): the meta-schema and the index of schema pages. <!-- id:FWzgWO-f -->
+- [Why Hypermedia Schemas](./why.md): the problem they solve. <!-- id:yd-eXlb4 -->
+- [The schema language](./schema-language.md): every key, with examples. <!-- id:RLqWVHEp -->
+- [Typed documents](./typed-documents.md): the three binding keys in depth. <!-- id:KUAtjYnb -->
+- [References and naming](./references.md): include, typed link, and `hm://` names. <!-- id:25jrKF14 -->
+- [Query grammar](../build/query-grammar.md): the Explore grammar behind `query --where`. <!-- id:bnE9_C84 -->
+- [User stories](./user-stories.md): what each surface can do today. <!-- id:Jd2dyqFi -->

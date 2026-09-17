@@ -5,6 +5,7 @@ import {SubjectContacts} from './api-subject-contacts'
 import {ListEvents} from './api-activity'
 import {ListCapabilities, ListCapabilitiesParams} from './api-capabilities'
 import {ListChanges, ListChangesParams} from './api-changes'
+import {ListRefs, ListRefsParams} from './api-refs'
 import {ListCitations, ListCitationsParams} from './api-citations'
 import {Comment} from './api-comment'
 import {
@@ -57,6 +58,7 @@ export const APIQueries = {
   ListCitations,
   ListChanges,
   ListCapabilities,
+  ListRefs,
   ListDocumentCollaborators,
   InteractionSummary,
   DiscoveryStatus,
@@ -89,6 +91,7 @@ export const APIParams: {
   ListCitations: ListCitationsParams,
   ListChanges: ListChangesParams,
   ListCapabilities: ListCapabilitiesParams,
+  ListRefs: ListRefsParams,
   ListDocumentCollaborators: ListDocumentCollaboratorsParams,
   DiscoveryStatus: DiscoveryStatusParams,
 }

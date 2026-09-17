@@ -35,7 +35,7 @@ seed-cli space import self --dir ./site --check   # publish nothing while a file
 
 `self` means the signing key's own space. The signing [key](./keys.md) comes from the vault or keyring, or from the environment, which is how CI signs: `SEED_CLI_KEYFILE` holds the contents of an unencrypted `.hmkey.json` exported from the app, or `SEED_CLI_MNEMONIC` holds a BIP-39 phrase. <!-- id:zcB4OI7D -->
 
-A file renamed in git (`git mv`) keeps its block ids, so the import publishes a [move](../protocol/documents.md): a version [Ref](../ref.md) at the new path and a [redirect](../protocol/documents.md) at the old one. Nothing is imported while a relative link in the directory would break. A document that carries a [schema definition](../schema/typed-documents.md) travels with it. On export the schema [blob](../protocol/blobs.md) is written beside the page as `a/b.schema.json`. On import the file is encoded back to [DAG-CBOR](../schema/encoding.md), published, and bound as the document's `schemaDefinition`. Two limits apply as of September 2026. The signing key must own the space, and importing with a [delegated](../protocol/permissions.md) key is refused. Removing a file does not by itself unpublish the document (see the retire step below). <!-- id:xU_ABl-L -->
+A file renamed in git (`git mv`) keeps its block ids, so the import publishes a [move](../protocol/documents.md): a version [Ref](../ref.md) at the new path and a [redirect](../protocol/documents.md) at the old one. Nothing is imported while a relative link in the directory would break. A document that carries a [schema definition](../schema/typed-documents.md) travels with it. On export the schema [blob](../protocol/blobs.md) is written beside the page as `a/b.schema.json`, and `schemaDefinition` is left out of the page's frontmatter. On import the file is encoded back to [DAG-CBOR](../schema/encoding.md), published, and bound as the document's `schemaDefinition`. The schema file is the only source for it, so don't write `schemaDefinition` in frontmatter. Two limits apply as of September 2026. The signing key must own the space, and importing with a [delegated](../protocol/permissions.md) key is refused. Removing a file does not by itself unpublish the document (see the retire step below). <!-- id:xU_ABl-L -->
 
 # Editing in the app <!-- id:j-kcO6jR -->
 
@@ -55,7 +55,7 @@ The folder `hypermedia/` in the Seed repository is this site. A small script in 
 
 ```sh <!-- id:MTYNMnUm -->
 pnpm hypermedia:check                # offline consistency checks (schemas, lockfile, generated files, page names and summaries)
-pnpm hypermedia:push -- --dry-run    # what would change on hyper.media: created, moved, updated, unchanged, retired
+pnpm hypermedia:push -- --dry-run    # what would change in the main key's space: created, moved, updated, unchanged, retired
 pnpm hypermedia:push                 # publish, signing with the `main` key
 pnpm hypermedia:pull                 # bring edits made in the Seed app back into git
 ./dev hm-sync                        # the local editing loop; `./dev up` runs it as the hm-sync pane
@@ -63,11 +63,13 @@ pnpm hypermedia:pull                 # bring edits made in the Seed app back int
 
 From `frontend/apps/cli` the same commands are `bun run src/sync-hypermedia.ts push [--dry-run] [--server <url>] [--key <name>] [--keep-stale]`, `pull [--server <url>] [--space <uid>]` and `dev [--api <url>] [--daemon <url>] [--interval <ms>] [--no-push] [--no-watch] [--keep-stale]`. <!-- id:YT7XXn6B -->
 
-**Retiring pages.** The folder is the truth about what the site publishes, so `push` also retires every document of the site whose file is gone. If `hypermedia/pages.aliases.json` or `hypermedia/schemas.aliases.json` maps the old path to a page that still exists, the old path becomes a [redirect](../protocol/documents.md) to it, so old links keep working. Otherwise the document is [tombstoned](../protocol/documents.md). The dry run lists these as `redirect` and `retire`. Redirects left by moves are kept, and the home document is never retired. `--keep-stale` skips the step. Rename a page with `git mv` and the push publishes a move. If a page moves in a way git can't track, or is folded into another page, add an alias. <!-- id:VveGReog -->
+**Naming.** The folder never names the space it publishes to. Pages link to each other with relative links. Absolute references to the docs space, such as schema bindings in frontmatter and links in examples, use `hm://hyper.media/…`. The layout sets `selfAuthority` to `hyper.media`: `push` swaps it for the signing key's account in page links and in every `hm://` string in frontmatter, and `pull` swaps the key back. So in git an `attributesSchema` says `hm://hyper.media/example/person`, and on the published site it says `hm://<key>/example/person`. Schema blobs keep `hm://hyper.media` unchanged, so their CIDs match the lockfile. `hyper.media` is a name the SDK and the sync understand. The network does not resolve domains in `hm://` URLs yet, and support is planned. The space is the signing key's own: `main` by default, `--key <name>` to choose, or the key in the environment in CI. A dry run without a key needs `--space <uid>`. `pull` takes `--space <uid>`, or else uses the space of the `main` key.
 
-**Pull.** `pull` exports every document of the site back into the folder, schema files included, and regenerates the lockfile and the bundled schema registry when a schema changed. When the dev loop starts it also compares the folder with hyper.media and warns when the public site is behind. <!-- id:oXXFJMx7 -->
+**Retiring pages.** The folder is the truth about what the site publishes, so `push` also retires every document of the site whose file is gone. The document is [tombstoned](../protocol/documents.md), except a renamed schema page: when `hypermedia/schemas.aliases.json` maps its old name to a page that still exists, the old path becomes a [redirect](../protocol/documents.md) so schema references keep resolving. The dry run lists these as `retire` and `redirect`. Redirects left by moves are kept, and the home document is never retired. `--keep-stale` skips the step. Rename a page with `git mv` and the push publishes a move. <!-- id:VveGReog -->
 
-**CI.** A push to `main` that touches `hypermedia/` runs the consistency checks and then the publish, signing with a repository secret that holds the contents of an exported `.hmkey.json` in `SEED_CLI_KEYFILE`. The site is that key's own space. <!-- id:6ZSmetkQ -->
+**Pull.** `pull` exports every document of the site back into the folder, schema files included, and regenerates the lockfile and the bundled schema registry when a schema changed. When the dev loop starts it also compares the folder with the `main` key's site on hyper.media and warns when that site is behind. <!-- id:oXXFJMx7 -->
+
+**CI.** A push to `main` that touches `hypermedia/` runs the consistency checks and then the publish, signing with a repository secret that holds the contents of an exported `.hmkey.json` in `SEED_CLI_KEYFILE`. The site is that key's own space, and no key is written in the repository. <!-- id:6ZSmetkQ -->
 
 # Working with it <!-- id:jkjEbVp5 -->
 
@@ -94,8 +96,8 @@ An agent that maintains a documentation site should work in the git checkout and
 # See also <!-- id:tp-mbUCj -->
 
 - [Seed CLI](./cli.md) <!-- id:96NwUR-F -->
-- [Keys](./keys.md)
-- [Contributing](./contributing.md)
+- [Keys](./keys.md) <!-- id:usory21u -->
+- [Contributing](./contributing.md) <!-- id:l-NfNt5v -->
 - [Documents](../protocol/documents.md) for what a change, a version and a redirect are <!-- id:OdJU2HjS -->
 - [Hypermedia Schemas](../schema.md) for schema files beside pages <!-- id:5RnHi4tV -->
-- [SDK](./sdk.md)
+- [SDK](./sdk.md) <!-- id:4G3c4uc9 -->

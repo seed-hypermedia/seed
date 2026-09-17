@@ -22,10 +22,9 @@ A page publishes at its path: `protocol/documents.md` is `/protocol/documents`. 
 | `example.md`, `example/` | example schemas and instances |
 | `agent.md`, `agent/` | Seed Agents: reference pages, one page per term, the live roadmap and plans |
 | `glossary.md` | one entry per term |
-| `history.md`, `history/` | dated design records |
-| `schemas.lock.json`, `schemas.aliases.json`, `pages.aliases.json` | not published: every schema's CID, old schema names that still resolve, and old page paths that redirect |
+| `schemas.lock.json`, `schemas.aliases.json` | not published: every schema's CID, and old schema names that still resolve |
 
-A `*.schema.json` beside a page is the schema that page defines. It is encoded to canonical DAG-CBOR, published as a blob, and bound to the page as `schemaDefinition: ipfs://<cid>`. A page without a schema can still be an instance of a type by naming one in `attributesSchema` in its frontmatter (see `example/bob.md`). How documents bind to schemas is explained in [Typed documents](./schema/typed-documents.md).
+A `*.schema.json` beside a page is the schema that page defines. The sync encodes it to canonical DAG-CBOR, publishes it as a blob, and sets the page's `schemaDefinition` to `ipfs://<cid>` at publish time. Don't put `schemaDefinition` in frontmatter; `check.mjs` rejects it. A page without a schema can still be an instance of a type by naming one in `attributesSchema` in its frontmatter (see `example/bob.md`). How documents bind to schemas is explained in [Typed documents](./schema/typed-documents.md).
 
 ## Writing pages
 
@@ -49,13 +48,15 @@ node scripts/hypermedia/typegen.mjs          # TypeScript types for every schema
 ## Publishing
 
 ```sh
-pnpm hypermedia:push -- --dry-run   # what would change on hyper.media
+pnpm hypermedia:push -- --dry-run   # what would change in the signing key's space
 pnpm hypermedia:push                # publish (signing key: main)
 pnpm hypermedia:pull                # bring edits made in the Seed app back into git
 ./dev hm-sync                       # edit this folder in the desktop dev app
 ```
 
-`push` checks every schema against the lockfile, publishes the schema blobs, then publishes each page. An existing document is updated block by block, and unchanged documents publish nothing. A page renamed in git publishes as a move. A document whose file is gone becomes a redirect when `pages.aliases.json` or `schemas.aliases.json` maps its old path to a live page, and is deleted otherwise. `--keep-stale` skips this. Nothing publishes while any relative link in the folder is broken.
+The folder never names a key. Absolute links to the docs space and schema bindings in frontmatter use `hm://hyper.media/…`, and the layout's `selfAuthority` makes `push` swap `hyper.media` for the signing key's account and `pull` swap it back. Schema blobs publish unchanged. `hyper.media` is a name the SDK and the sync understand. The network does not resolve domains in `hm://` URLs yet (planned), so published documents carry the resolved key. `push` needs a signing key: `main`, `--key <name>`, or `SEED_CLI_KEYFILE` in CI. A dry run without a key takes `--space <uid>`.
+
+`push` checks every schema against the lockfile, publishes the schema blobs, then publishes each page. An existing document is updated block by block, and unchanged documents publish nothing. A page renamed in git publishes as a move. A document whose file is gone is deleted, except a renamed schema page, which becomes a redirect when `schemas.aliases.json` maps its old name to a live page. `--keep-stale` skips this. Nothing publishes while any relative link in the folder is broken.
 
 `./dev hm-sync` (the `hm-sync` pane of `./dev up`) publishes the folder into the desktop dev app's daemon under a throwaway key in `hypermedia/.dev/`, and writes every document you publish in the app straight back to its file. While it runs, the app is the writer and git is where you commit. See [Publish a folder](./build/publish-a-folder.md).
 

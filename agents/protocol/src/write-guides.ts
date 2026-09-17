@@ -92,14 +92,14 @@ The gateway serves a file only once public Hypermedia content references it (a d
 
 A JSON object in \`content\` publishes as one content-addressed DAG-CBOR blob (dag-json: \`{"/": "<cid>"}\` is a link, \`{"/": {"bytes": "…"}}\` is bytes). Read it back with \`read ipfs://<cid>\`, which returns the decoded \`value\`, its \`signature\` and its \`schema\` check.
 
-- \`options.schema\` — the schema the object must follow: a library name (\`hypermedia-schema\` is the meta-schema every schema must satisfy; \`hypermedia-document\`, \`hypermedia-blob\`, …), an \`ipfs://<cid>\` of a schema blob, or the \`hm://\` URL of a type document (a document whose metadata \`schemaDefinition\` points at its schema blob). The object is validated and, when it conforms, published with a \`schema\` link to the schema's CID (\`options.link: false\` omits the link). A violation refuses the publish and lists what is wrong; \`options.force: true\` publishes anyway and returns the violations as \`warnings\`.
-- \`options.sign: true\` — a signed blob: the object's own fields are wrapped in the Hypermedia signed-blob envelope (\`type\`, \`signer\`, \`ts\`, \`sig\`) and signed by one of the agent's identities (\`options.signer\` chooses one as for hm:// writes). \`type\` comes from the schema when it pins one (a signed type extends \`hypermedia-blob\` and fixes \`type\` to a literal), else from \`options.type\`. Leave \`signer\`, \`ts\` and \`sig\` out of the content. The result carries the CID, \`signer\`, \`ts\` and \`blobType\`.
+- \`options.schema\` — the schema the object must follow: a library name (\`schema\` is the meta-schema every schema must satisfy; \`document\`, \`blob\`, \`example/person\`, …), an \`ipfs://<cid>\` of a schema blob, or the \`hm://\` URL of a type document (a document whose metadata \`schemaDefinition\` points at its schema blob). The object is validated and, when it conforms, published with a \`schema\` link to the schema's CID (\`options.link: false\` omits the link). A violation refuses the publish and lists what is wrong; \`options.force: true\` publishes anyway and returns the violations as \`warnings\`.
+- \`options.sign: true\` — a signed blob: the object's own fields are wrapped in the Hypermedia signed-blob envelope (\`type\`, \`signer\`, \`ts\`, \`sig\`) and signed by one of the agent's identities (\`options.signer\` chooses one as for hm:// writes). \`type\` comes from the schema when it pins one (a signed type extends \`blob\` and fixes \`type\` to a literal), else from \`options.type\`. Leave \`signer\`, \`ts\` and \`sig\` out of the content. The result carries the CID, \`signer\`, \`ts\` and \`blobType\`.
 - \`dryRun: true\` validates and returns the CID and the exact value that would publish, without publishing.
 
-Define a type: publish its schema as an object that follows \`hypermedia-schema\`, then bind it to a page with a document write whose \`options.metadata.schemaDefinition\` is the schema's \`ipfs://<cid>\`. The page's \`hm://\` URL is the type's name from then on.
+Define a type: publish its schema as an object that follows \`schema\`, then bind it to a page with a document write whose \`options.metadata.schemaDefinition\` is the schema's \`ipfs://<cid>\`. The page's \`hm://\` URL is the type's name from then on.
 
 \`\`\`json
-{"address":"ipfs://","content":"{\\"type\\":\\"hm://HYPERMEDIA_UID/hypermedia-struct\\",\\"properties\\":{\\"name\\":{\\"value\\":{\\"type\\":\\"hm://HYPERMEDIA_UID/hypermedia-string\\"},\\"required\\":true}}}","options":{"schema":"hypermedia-schema"}}
+{"address":"ipfs://","content":"{\\"type\\":\\"hm://hyper.media/struct\\",\\"properties\\":{\\"name\\":{\\"value\\":{\\"type\\":\\"hm://hyper.media/string\\"},\\"required\\":true}}}","options":{"schema":"schema"}}
 \`\`\`
 
 Publish an instance of a type, validated against it:
@@ -108,13 +108,13 @@ Publish an instance of a type, validated against it:
 {"address":"ipfs://","content":"{\\"name\\":\\"Bob Smith\\"}","options":{"schema":"hm://ACCOUNT_UID/types/person"}}
 \`\`\`
 
-Sign an instance of a signed type (a schema that extends \`hypermedia-blob\`):
+Sign an instance of a signed type (a schema that extends \`blob\`):
 
 \`\`\`json
 {"address":"ipfs://","content":"{\\"target\\":\\"hm://ACCOUNT_UID/notes\\",\\"choice\\":\\"yes\\"}","options":{"schema":"hm://ACCOUNT_UID/types/vote","sign":true}}
 \`\`\`
 
-The Hypermedia schema library — every kind, the meta-schema, and the built-in types — is readable at \`hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb\` (HYPERMEDIA_UID above); \`read hm://HYPERMEDIA_UID/hypermedia-schema\` explains how schemas are written.`,
+Library schemas are named \`hm://hyper.media/<name>\` inside a schema (\`hm://hyper.media/string\`, \`hm://hyper.media/struct\`), and by the bare name in \`options.schema\`. The library is built into this server, so those names resolve without a network read.`,
   },
   documents: {
     summary: 'Create, update, move, redirect, fork, delete, and publish Seed documents.',
@@ -154,7 +154,7 @@ Any metadata key is allowed: \`options.metadata\` is merged into the document's 
 
 - \`attributesSchema\` — the type this document conforms to: the \`hm://\` URL of a schema document (or an \`ipfs://\` schema CID) whose struct describes the document's attributes.
 - \`childAttributesSchema\` — the type every direct child of this document conforms to, unless a child sets its own \`attributesSchema\`.
-- \`schemaDefinition\` — this document defines a type: the \`ipfs://<cid>\` of a schema blob (publish it first with \`write ipfs://\` and \`options.schema: "hypermedia-schema"\`; see \`~/tools/write/ipfs\`).
+- \`schemaDefinition\` — this document defines a type: the \`ipfs://<cid>\` of a schema blob (publish it first with \`write ipfs://\` and \`options.schema: "schema"\`; see \`~/tools/write/ipfs\`).
 
 Conformance is advisory: a document that violates its type still publishes, and the result says so beside the id — \`schema\` ({schema, via, required, missing, violations}) and \`warnings\`, one line per violation (a \`schemaDefinition\` that is not a valid schema warns too). A \`dryRun\` reports the same, so check before publishing. A \`read\` of a typed document returns the same \`schema\` block.
 

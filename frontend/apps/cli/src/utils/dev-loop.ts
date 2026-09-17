@@ -21,11 +21,13 @@ import {printInfo, printSuccess, printWarning} from '../output'
 import {deriveKeyPairFromMnemonic, generateMnemonic, type KeyPair} from './key-derivation'
 import {createSignerFromKey} from './signer'
 import {
+  defaultLayout,
   exportPath,
   exportSpace,
   grantWriters,
   importSpace,
   listSpaceVersions,
+  retireMissing,
   type ImportOptions,
   type SpaceLayout,
 } from './space-sync'
@@ -295,8 +297,19 @@ export async function runDevLoop(opts: DevLoopOptions) {
       metadataFor: opts.metadataFor,
       log: printInfo,
     })
+    // The directory is the truth: a document whose file is gone (deleted in git while the loop was stopped)
+    // is retired here, or the export below would write it back as a file.
+    const retired = await retireMissing({
+      client,
+      signer,
+      account,
+      dir: opts.dir,
+      layout,
+      skip: new Set(result.moved.map((m) => m.split(' -> ')[0]!)),
+      log: printInfo,
+    })
     printInfo(
-      `${result.created.length} created, ${result.moved.length} moved, ${result.updated.length} updated, ${result.unchanged.length} unchanged.`,
+      `${result.created.length} created, ${result.moved.length} moved, ${result.updated.length} updated, ${result.unchanged.length} unchanged, ${retired.length} retired.`,
     )
   }
 
@@ -353,24 +366,34 @@ export async function runDevLoop(opts: DevLoopOptions) {
         else if (f.endsWith('.schema.json')) mdFiles.add(f.replace(/\.schema\.json$/, '.md'))
       }
       const only = Array.from(mdFiles).filter((f) => existsSync(resolve(opts.dir, f)))
-      for (const f of mdFiles) {
-        if (!only.includes(f))
-          printInfo(`${stamp()}  ${f} is gone from disk; its document stays until deleted in the app`)
-      }
-      if (!only.length) return
+      const gone = Array.from(mdFiles)
+        .filter((f) => !only.includes(f))
+        .map((f) => (layout ?? defaultLayout).pathForFile(f))
+        .filter((p): p is string => p !== null)
       try {
-        const result = await importSpace({
-          client,
-          signer,
-          account,
-          dir: opts.dir,
-          layout,
-          metadataFor: opts.metadataFor,
-          only,
-          log: (line) => printInfo(`${stamp()}  ${line}`),
-        })
-        const pushed = [...result.created, ...result.updated, ...result.moved.map((m) => m.split(' -> ')[1] ?? m)]
-        if (pushed.length && opts.onPushed) opts.onPushed(only)
+        if (only.length) {
+          const result = await importSpace({
+            client,
+            signer,
+            account,
+            dir: opts.dir,
+            layout,
+            metadataFor: opts.metadataFor,
+            only,
+            log: (line) => printInfo(`${stamp()}  ${line}`),
+          })
+          const pushed = [...result.created, ...result.updated, ...result.moved.map((m) => m.split(' -> ')[1] ?? m)]
+          if (pushed.length && opts.onPushed) opts.onPushed(only)
+        }
+        // A file deleted on disk retires its document (git is the truth). A file renamed in the same batch was
+        // just published as a move, and its old path is already a redirect, which retiring leaves alone.
+        if (gone.length) {
+          for (const path of await retireMissing({client, signer, account, dir: opts.dir, layout, paths: gone})) {
+            versions.delete(path)
+            files.delete(path)
+            printInfo(`${stamp()}  retired ${path}`)
+          }
+        }
       } catch (err) {
         printWarning(`${stamp()}  push failed: ${(err as Error).message}`)
       }

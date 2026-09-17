@@ -1,7 +1,6 @@
 ---
 name: Ref
 summary: A signed claim, like a Git ref, that a path in a space points at the current head Changes of a document, or that the path is deleted or redirects elsewhere.
-schemaDefinition: ipfs://bafyreiduqxxs33cs7fat6cnc426whpk6jdrl5ayrg5ov6iwn3xioyoutde
 ---
 A **Ref** is the blob that gives a [document](./protocol/documents.md) an address. [Changes](./change.md) describe history. A Ref says "this path in this space currently shows these heads". The daemon checks Refs for permission. A Ref is what makes a document appear in listings and search, and you publish one to branch, delete, move or redirect a document. <!-- id:od4IuOD_ -->
 
@@ -11,34 +10,11 @@ Three shapes are valid. A **version Ref** has `genesisBlob` and one or more `hea
 
 `space` is omitted when the signer is the space owner. Otherwise the signer must hold a [capability](./capability.md) for the path, or the Ref is stashed and has no effect. The `capability` field is informational only and the daemon ignores it, so publish the Capability blob itself. `generation` orders the lives of an address: the highest generation wins. The daemon's `CreateRef` asks for a higher generation before it replaces a document with a different genesis, and clients use the current time in milliseconds for a new document. `visibility` is empty for public or `Private`, and a private Ref must have a single-segment path. Paths must start with `/`, must not end with `/`, and may not contain single or double quotes, backslashes, NUL, tab, CR or LF. [Documents](./protocol/documents.md) gives the reasoning behind each rule. <!-- id:CNUyMAhI -->
 
-# Shape <!-- id:dpE2fWQB -->
-
-**Extends** [blob](./blob.md) with these added fields: <!-- id:6u-Qshey -->
-  - `type`: `"Ref"` <!-- id:4LKiQ2kT -->
-  - `space`: [principal](./principal.md) <!-- id:idNr9FJM -->
-  - `path`: [string](./string.md) <!-- id:8izgFQy0 -->
-  - `genesisBlob`: [cid](./cid.md) <!-- id:cob0_GUo -->
-  - `capability`: [cid](./cid.md) <!-- id:Wv5xpNAJ -->
-  - `heads` _(required)_: list of [cid](./cid.md) <!-- id:_B1tM30h -->
-  - `redirect`: [ref/redirect-target](./ref/redirect-target.md) <!-- id:F5YoHwBj -->
-  - `generation`: [integer](./integer.md) <!-- id:tPhi-Hlj -->
-  - `visibility`: [visibility](./visibility.md) <!-- id:CgsyURu- -->
-
-# Depends on <!-- id:L4KMjf3U -->
-
-- [blob](./blob.md) <!-- id:qR-dN0GK -->
-- [cid](./cid.md) <!-- id:h6XHAqQF -->
-- [principal](./principal.md) <!-- id:CCI4-2aZ -->
-- [ref/redirect-target](./ref/redirect-target.md) <!-- id:x_NaRzFr -->
-- [visibility](./visibility.md) <!-- id:CDnB2GqZ -->
-- [integer](./integer.md) <!-- id:1vZFCegM -->
-- [string](./string.md) <!-- id:B2_Qyt3Z -->
-
 # See also <!-- id:_DOCd5Nd -->
 
 - [Documents](./protocol/documents.md): heads and versions, generations and takeover, branching, deleting, moving. <!-- id:NnRrjyyg -->
 - [Permissions](./protocol/permissions.md): who may sign a Ref for a path. <!-- id:1PwTTRT6 -->
 - [Privacy](./protocol/privacy.md): what a private Ref means. <!-- id:283yXuwj -->
 - Read models: [Resource](./rpc/resource.md), [ResourceRedirect](./rpc/type/resource-redirect.md), [ResourceTombstone](./rpc/type/resource-tombstone.md). <!-- id:6dVqgLC7 -->
-- [change](./change.md): the blobs a Ref's heads point at.
-- [ref/redirect-target](./ref/redirect-target.md): where a redirect sends readers.
+- [change](./change.md): the blobs a Ref's heads point at. <!-- id:icR4eZUw -->
+- [ref/redirect-target](./ref/redirect-target.md): where a redirect sends readers. <!-- id:DW3vxLxf -->

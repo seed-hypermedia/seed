@@ -64,11 +64,11 @@ These are the **standard library**. Keep two layers apart: <!-- id:zEmQScRC -->
 
 A field names the primitive with `type`: `{ "type": "hm://…/string" }`. The URL both names the kind and points at the canonical `string` block. So **a field's type is itself a resolvable reference**, using the same mechanism as any other reference (see [references](./references.md) and [`hm://` URLs](../protocol/urls.md)). The example schemas all do this. In `example/person`, every field's `type` names a primitive or another schema. <!-- id:TvpKD4MG -->
 
-# See also
+# See also <!-- id:KB-QRRj5 -->
 
-- [The schema language](./schema-language.md): the keys that constrain these kinds.
-- [Encoding](./encoding.md): how each kind is written in DAG-CBOR and dag-json.
-- [References and naming](./references.md): includes, typed links and `hm://` names.
-- [Kind](./kind.md): the term page.
-- [Blobs](../protocol/blobs.md): DAG-CBOR and CIDs on the Hypermedia Network.
-- [Design rationale](./design.md): why the kinds are split this way.
+- [The schema language](./schema-language.md): the keys that constrain these kinds. <!-- id:xB0P0p89 -->
+- [Encoding](./encoding.md): how each kind is written in DAG-CBOR and dag-json. <!-- id:b7BtkRZD -->
+- [References and naming](./references.md): includes, typed links and `hm://` names. <!-- id:MmGY78pk -->
+- [Kind](./kind.md): the term page. <!-- id:BzBEYIZs -->
+- [Blobs](../protocol/blobs.md): DAG-CBOR and CIDs on the Hypermedia Network. <!-- id:SV22Aevk -->
+- [Design rationale](./design.md): why the kinds are split this way. <!-- id:9ZubrEvc -->

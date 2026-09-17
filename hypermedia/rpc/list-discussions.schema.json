@@ -1,5 +1,5 @@
 {
-  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+  "type": "hm://hyper.media/struct",
   "properties": {
     "key": {
       "value": "ListDiscussions",
@@ -7,17 +7,17 @@
     },
     "input": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+        "type": "hm://hyper.media/struct",
         "properties": {
           "targetId": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/id"
+              "type": "hm://hyper.media/rpc/type/id"
             },
             "required": true
           },
           "commentId": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+              "type": "hm://hyper.media/string"
             }
           }
         }
@@ -26,31 +26,31 @@
     },
     "output": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+        "type": "hm://hyper.media/struct",
         "properties": {
           "discussions": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
+              "type": "hm://hyper.media/list",
               "items": {
-                "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/comment-group"
+                "type": "hm://hyper.media/rpc/type/comment-group"
               }
             },
             "required": true
           },
           "authors": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+              "type": "hm://hyper.media/map",
               "values": {
-                "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/metadata-payload"
+                "type": "hm://hyper.media/rpc/type/metadata-payload"
               }
             },
             "required": true
           },
           "citingDiscussions": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
+              "type": "hm://hyper.media/list",
               "items": {
-                "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/external-comment-group"
+                "type": "hm://hyper.media/rpc/type/external-comment-group"
               }
             },
             "required": true

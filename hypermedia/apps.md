@@ -54,6 +54,6 @@ A daemon started on its own, without the desktop app, defaults to 55000, 55001 a
 - [Building on Hypermedia](./build.md), for using these programs from your own code. <!-- id:c6L_X3Dv -->
 - [Self-hosting](./build/self-hosting.md), for running a site. <!-- id:dhRFEU6- -->
 - [Contributing](./build/contributing.md), for developing them. <!-- id:6S0cZ3WH -->
-- [The web API](./build/web-api.md), the Seed API most of these programs speak.
-- [Seed Agents](./agent.md), what the agents service runs.
-- [The protocol](./protocol.md), what the daemon implements.
+- [The web API](./build/web-api.md), the Seed API most of these programs speak. <!-- id:ASzcRpeV -->
+- [Seed Agents](./agent.md), what the agents service runs. <!-- id:rXMWvQ23 -->
+- [The protocol](./protocol.md), what the daemon implements. <!-- id:zIQ4sfQN -->

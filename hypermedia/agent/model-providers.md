@@ -42,12 +42,12 @@ Subscription provider: <!-- id:7jCnLfG9 -->
 # API actions <!-- id:seQkEzEa -->
 
 These are [signed API](./signed-api.md) actions. <!-- id:oSxv44bd -->
-- `ListModelProviders`: redacted provider metadata. <!-- id:obDhDqLd -->
-- `ListProviderModels`: decrypts the API key server-side and queries the provider's model-list endpoint. <!-- id:emMglq7O -->
-- `SetModelProvider`: upserts provider config. <!-- id:z3UJn0_5 -->
-- `SetSecret`: encrypts and upserts a secret value.
-- `DeleteModelProvider`: removes a provider record and its API-key secret. <!-- id:EPPvk15T -->
-- `StartProviderOAuth`, `SubmitProviderOAuthCode`, `GetProviderOAuthStatus`, `CancelProviderOAuth`: the subscription sign-in flow. <!-- id:c_F1btlK -->
+  - `ListModelProviders`: redacted provider metadata. <!-- id:obDhDqLd -->
+  - `ListProviderModels`: decrypts the API key server-side and queries the provider's model-list endpoint. <!-- id:emMglq7O -->
+  - `SetModelProvider`: upserts provider config. <!-- id:z3UJn0_5 -->
+  - `SetSecret`: encrypts and upserts a secret value. <!-- id:vEMVC60a -->
+  - `DeleteModelProvider`: removes a provider record and its API-key secret. <!-- id:EPPvk15T -->
+  - `StartProviderOAuth`, `SubmitProviderOAuthCode`, `GetProviderOAuthStatus`, `CancelProviderOAuth`: the subscription sign-in flow. <!-- id:c_F1btlK -->
 
 Returned provider shape (`protocol/src/index.ts:1078`): <!-- id:TaVAqOZZ -->
 
@@ -183,12 +183,12 @@ It resolves its model through `piProviderRuntimeForTitle()`, which uses the same
 4. Real cost tables. `cost` is zeroed today, so usage is counted in tokens and never in money. <!-- id:7Wl-vPBv -->
 5. Per-provider reasoning payload quirks (`compat.thinkingFormat` for `deepseek` and `openrouter`) are not wired up yet. Those types register as non-reasoning models. <!-- id:Khfw6YkX -->
 
-# See also
+# See also <!-- id:Tmv4gUhn -->
 
-- [Signed API](./signed-api.md)
-- [Security](./security.md)
-- [Persistence](./persistence.md)
-- [Prompt injection map](./prompt-injection-map.md)
-- [Desktop UI](./desktop-ui.md)
-- [Troubleshooting](./troubleshooting.md)
-- [Operations](./operations.md)
+- [Signed API](./signed-api.md) <!-- id:Mkhv-xvr -->
+- [Security](./security.md) <!-- id:jGxLYbem -->
+- [Persistence](./persistence.md) <!-- id:IP49a6Ve -->
+- [Prompt injection map](./prompt-injection-map.md) <!-- id:WCT2M2dx -->
+- [Desktop UI](./desktop-ui.md) <!-- id:c78-tdP7 -->
+- [Troubleshooting](./troubleshooting.md) <!-- id:bTwdA-Fh -->
+- [Operations](./operations.md) <!-- id:m0u21V9S -->

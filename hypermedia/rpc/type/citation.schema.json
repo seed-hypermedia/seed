@@ -1,11 +1,11 @@
 {
-  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+  "type": "hm://hyper.media/struct",
   "properties": {
     "source": {
       "value": {
         "anyOf": [
           {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+            "type": "hm://hyper.media/struct",
             "properties": {
               "type": {
                 "value": "c",
@@ -13,24 +13,24 @@
               },
               "id": {
                 "value": {
-                  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/id"
+                  "type": "hm://hyper.media/rpc/type/id"
                 },
                 "required": true
               },
               "author": {
                 "value": {
-                  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+                  "type": "hm://hyper.media/string"
                 }
               },
               "time": {
                 "value": {
-                  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/timestamp"
+                  "type": "hm://hyper.media/timestamp"
                 }
               }
             }
           },
           {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+            "type": "hm://hyper.media/struct",
             "properties": {
               "type": {
                 "value": "d",
@@ -38,18 +38,18 @@
               },
               "id": {
                 "value": {
-                  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/id"
+                  "type": "hm://hyper.media/rpc/type/id"
                 },
                 "required": true
               },
               "author": {
                 "value": {
-                  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+                  "type": "hm://hyper.media/string"
                 }
               },
               "time": {
                 "value": {
-                  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/timestamp"
+                  "type": "hm://hyper.media/timestamp"
                 }
               }
             }
@@ -60,7 +60,7 @@
     },
     "isExactVersion": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean"
+        "type": "hm://hyper.media/boolean"
       },
       "required": true
     },
@@ -68,10 +68,10 @@
       "value": {
         "anyOf": [
           {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/parsed-fragment"
+            "type": "hm://hyper.media/rpc/type/parsed-fragment"
           },
           {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null"
+            "type": "hm://hyper.media/null"
           }
         ]
       },
@@ -79,7 +79,7 @@
     },
     "targetId": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/id"
+        "type": "hm://hyper.media/rpc/type/id"
       },
       "required": true
     }

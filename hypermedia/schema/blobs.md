@@ -4,7 +4,7 @@ summary: How Hypermedia Schemas type the six signed DAG-CBOR blobs of the Hyperm
 ---
 # Schemas for network blobs <!-- id:MZbfGNFo -->
 
-The Hypermedia Network stores its data as [DAG-CBOR](./dag-cbor.md) [blobs](../protocol/blobs.md) in IPFS. There are six signed blob types: [Change](../change.md), [Ref](../ref.md), [Profile](../profile.md), [Comment](../comment.md), [Capability](../capability.md) and [Contact](../contact.md). They are related, because every one embeds the same signed [envelope](../blob.md). These schemas type production data, use only the features of the [schema language](./schema-language.md), and are published under the Hypermedia account: the blob schemas at the root (`change`, `ref`, …) and the block model under `block/`. <!-- id:mIEsrB_H -->
+The Hypermedia Network stores its data as [DAG-CBOR](./dag-cbor.md) [blobs](../protocol/blobs.md) in IPFS. There are six signed blob types: [Change](../change.md), [Ref](../ref.md), [Profile](../profile.md), [Comment](../comment.md), [Capability](../capability.md) and [Contact](../contact.md). They are related, because every one embeds the same signed [envelope](../blob.md). These schemas type production data, use only the features of the [schema language](./schema-language.md), and are named under the library's [authority](../authority.md), `hm://hyper.media`: the blob schemas at the root (`change`, `ref`, …) and the block model under `block/`. <!-- id:mIEsrB_H -->
 
 ## The shared envelope <!-- id:5NuFY-Ul -->
 
@@ -63,8 +63,8 @@ To add a block type, do what the core blocks do. **Extend `block/base`**, then p
 
 ```json <!-- id:TQDZHz8Q -->
 // example/app-block: the core, PLUS this app's custom Poll block
-{ "anyOf": [ { "type": "hm://z6MkmZUb…/block/core" },
-             { "type": "hm://z6MkmZUb…/example/poll-block" } ] }
+{ "anyOf": [ { "type": "hm://hyper.media/block/core" },
+             { "type": "hm://hyper.media/example/poll-block" } ] }
 ```
 
 See [`example/poll-block`](../example/poll-block.md), a custom block that extends the same base, and [`example/app-block`](../example/app-block.md). That union is **strict for its app**. It accepts core blocks and Polls and rejects any block type it does not know. The wire type `block` stays open. <!-- id:uKNf26fA -->
@@ -89,18 +89,18 @@ The wire types map onto [primitive](./primitive.md) schemas, wrapped in aliases 
 ## Seed API read models <!-- id:dVV5nKIm -->
 
 The `rpc/type/*` schemas type the **derived data the [Seed daemon](../apps/daemon.md) computes for clients**. These are the read models the apps consume, and they are not signed network data. They are: <!-- id:jteK8i91 -->
-  - [`rpc/type/resource`](../rpc/type/resource.md): the union of every state a fetched resource can be in (document, comment, redirect, not-found, tombstone, error).
-  - [`rpc/type/document`](../rpc/type/document.md) and [`rpc/type/comment`](../rpc/type/comment.md): the API payload forms, with resolved versions, authors and timestamps.
-  - `rpc/type/citation`, `rpc/type/interaction-summary`, `rpc/type/search-results`, `rpc/type/site-member`, `rpc/type/contact-record` and `rpc/type/discovery-status`.
-  - [`rpc/type/id`](../rpc/type/id.md): the parsed form of an [`hm://` identifier](../protocol/urls.md), which the others build on.
+  - [`rpc/type/resource`](../rpc/type/resource.md): the union of every state a fetched resource can be in (document, comment, redirect, not-found, tombstone, error). <!-- id:IQzsTo_3 -->
+  - [`rpc/type/document`](../rpc/type/document.md) and [`rpc/type/comment`](../rpc/type/comment.md): the API payload forms, with resolved versions, authors and timestamps. <!-- id:GD3JtXKG -->
+  - `rpc/type/citation`, `rpc/type/interaction-summary`, `rpc/type/search-results`, `rpc/type/site-member`, `rpc/type/contact-record` and `rpc/type/discovery-status`. <!-- id:3Y-Cjojh -->
+  - [`rpc/type/id`](../rpc/type/id.md): the parsed form of an [`hm://` identifier](../protocol/urls.md), which the others build on. <!-- id:bv2sxXXW -->
 
-The same schemas describe what is signed on the wire and what the [Seed API](../build/web-api.md) serves back. See [Seed API schemas](../rpc.md) for every read method.
+The same schemas describe what is signed on the wire and what the [Seed API](../build/web-api.md) serves back. See [Seed API schemas](../rpc.md) for every read method. <!-- id:w1-4ceAw -->
 
-# See also
+# See also <!-- id:sE3O9dpp -->
 
-- [Blobs](../protocol/blobs.md): signed blobs, envelopes and CIDs as protocol concepts.
-- [Documents](../protocol/documents.md): how Changes and Refs become a document.
-- [Blocks](../protocol/blocks.md): the block tree, annotations and embeds.
-- [The schema language](./schema-language.md): extension, unions and generics.
-- [Encoding](./encoding.md): canonical DAG-CBOR and the dag-json form.
-- [Seed API schemas](../rpc.md): the read methods these read models come from.
+- [Blobs](../protocol/blobs.md): signed blobs, envelopes and CIDs as protocol concepts. <!-- id:URKQdsqZ -->
+- [Documents](../protocol/documents.md): how Changes and Refs become a document. <!-- id:zVN9-JSN -->
+- [Blocks](../protocol/blocks.md): the block tree, annotations and embeds. <!-- id:Ow8Jx5UE -->
+- [The schema language](./schema-language.md): extension, unions and generics. <!-- id:mTmegwSB -->
+- [Encoding](./encoding.md): canonical DAG-CBOR and the dag-json form. <!-- id:3Cw2Ybeg -->
+- [Seed API schemas](../rpc.md): the read methods these read models come from. <!-- id:5ZTRfjZB -->

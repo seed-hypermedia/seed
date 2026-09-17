@@ -47,12 +47,12 @@ A CID is the hash of a block's bytes, and those bytes would now have to contain 
 
 ### The solution: reference by name <!-- id:fVw9uG3N -->
 
-A CID is derived from content, so a cycle of CIDs has no encoding order. A **name** is a stable identifier that does not depend on the content it points to. So references are **names**, and the schema language uses [`hm://` URLs](../protocol/urls.md). A schema's name is its path inside the `hypermedia/` folder without `.schema.json` (`string`, `block/image`, `example/person`). That is also the path its document publishes at under the Hypermedia account, so the name `example/folder` is the URL `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/folder`. References in the schema files are these full URLs: <!-- id:VLYzJQfm -->
+A CID is derived from content, so a cycle of CIDs has no encoding order. A **name** is a stable identifier that does not depend on the content it points to. So references are **names**, and the schema language uses [`hm://` URLs](../protocol/urls.md). A schema's name is its path inside the `hypermedia/` folder without `.schema.json` (`string`, `block/image`, `example/person`). The library's [authority](../authority.md) is written as the domain `hyper.media`, so the name `example/folder` is the URL `hm://hyper.media/example/folder`. Its document publishes at the same path in the docs space. References in the schema files are these full URLs: <!-- id:VLYzJQfm -->
 
 ``` <!-- id:RTAR4FMH -->
-hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string          the string kind
-hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/folder  the example folder schema
-hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/file    the example file schema
+hm://hyper.media/string          the string kind
+hm://hyper.media/example/folder  the example folder schema
+hm://hyper.media/example/file    the example file schema
 ```
 
 With names, recursion works. [`example/folder`](../example/folder.md) references `…/example/file`, and [`example/file`](../example/file.md) references `…/example/folder`. That is a **mutual** cycle that no CID scheme can express. Each side names the other, so neither has to be encoded first, and the names resolve lazily. In the schema explorer you can click from folder to file to folder in a circle. <!-- id:FxLxMdnv -->
@@ -67,9 +67,9 @@ This is the same split as IPFS and IPNS, or a hash and a domain name: <!-- id:37
 | cycles | impossible | fine <!-- id:mcDC4EuJ --> |
 | use for | pinning an exact version | recursive / owned / evolving types <!-- id:X58GiMnr --> |
 
-An [authority](../authority.md) is a public key. That key signs everything published under it, so `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string` is a verifiable name owned by the Hypermedia [account](../protocol/identity.md). A domain like `hyper.media` can resolve to an authority. Schemas can reference each other across authorities. You can still pin any name to an exact CID when you want an immutable snapshot. Use names for recursion and identity, and CIDs for immutability. <!-- id:nsuDvsJA -->
+An authority is a public key, and that key signs everything published under it. `hm://hyper.media/string` names its authority by domain. `hyper.media` is a name the [SDK](../build/sdk.md) and the docs sync understand. The network does not resolve domains in `hm://` URLs yet, and support is planned. Until then the app resolves `hm://hyper.media/…` to its bundled library only. A reference to any other authority, such as `hm://<account>/person`, names a document of that [account](../protocol/identity.md) and is fetched. Schemas can reference each other across authorities. You can still pin any name to an exact CID when you want an immutable snapshot. Use names for recursion and identity, and CIDs for immutability. <!-- id:nsuDvsJA -->
 
-The publish step keeps references as names. `publish.mjs` encodes each schema to canonical DAG-CBOR and records its CID in `schemas.lock.json`, a separate index from `hm://` URL to CID. Because references stay names, a schema's CID depends only on its own bytes. Names from before the library moved under the Hypermedia account still resolve through `schemas.aliases.json`. That covers the old dev authorities (`hyper.media`, `seed.hyper.media`, `example.com`), the old prefixed names such as `example-person`, and the bare primitive names. <!-- id:Mk1UgX6F -->
+The publish step keeps references as names, `hyper.media` included. `publish.mjs` encodes each schema to canonical DAG-CBOR and records its CID in `schemas.lock.json`, a separate index from `hm://` URL to CID. Because references stay names, a schema's CID depends only on its own bytes, and it is the same wherever the library is published. The docs sync publishes the pages into the space of the signing key and swaps `hyper.media` for that key in page links and frontmatter, so published documents carry the resolved key. Old names still resolve: the old dev authorities (`seed.hyper.media`, `example.com`) map through the SDK, and `schemas.aliases.json` covers the old prefixed names such as `example-person`, and the bare primitive names. <!-- id:Mk1UgX6F -->
 
 ### Why the meta-schema is special <!-- id:9gbAh4Ot -->
 
@@ -79,12 +79,12 @@ So the meta-schema is the system's **axiom**: the one block whose type is known 
 
 Named references are the mechanism that makes the self-reference resolvable. The meta-schema being the axiom is the reason pointing it at itself is sound. <!-- id:o-jpn49c -->
 
-# See also
+# See also <!-- id:H4xmnfzR -->
 
-- [The schema language](./schema-language.md): every keyword, including `type`, `target`, `anyOf` and generics.
-- [Encoding](./encoding.md): canonical DAG-CBOR, dag-json and the publish step.
-- [Fixpoint problem](./fixpoint-problem.md): the term page for the cycle this page describes.
-- [Self-description](./self-description.md): how the meta-schema validates itself.
-- [`hm://` URL](../hm-url.md) and [Authority](../authority.md): the naming terms.
-- [URLs](../protocol/urls.md): Hypermedia URLs across the protocol.
-- [Examples](../example.md): the example schemas used on this page.
+- [The schema language](./schema-language.md): every keyword, including `type`, `target`, `anyOf` and generics. <!-- id:I8pyifxx -->
+- [Encoding](./encoding.md): canonical DAG-CBOR, dag-json and the publish step. <!-- id:52vejBku -->
+- [Fixpoint problem](./fixpoint-problem.md): the term page for the cycle this page describes. <!-- id:pPSWAtjN -->
+- [Self-description](./self-description.md): how the meta-schema validates itself. <!-- id:fZ2xJrB5 -->
+- [`hm://` URL](../hm-url.md) and [Authority](../authority.md): the naming terms. <!-- id:No2WqbdD -->
+- [URLs](../protocol/urls.md): Hypermedia URLs across the protocol. <!-- id:XWAEJx82 -->
+- [Examples](../example.md): the example schemas used on this page. <!-- id:LasmbvtN -->

@@ -143,7 +143,7 @@ The team's process for a protocol change, as written in its internal methodology
   3. Decide by working through the technical objections. Consensus does not decide. <!-- id:o-O2bJml -->
   4. Update the protocol documentation, which is now this site. <!-- id:YiDYgKHv -->
 
-The process is slow on purpose because published blobs are permanent. Every node that holds old data must keep reading it. The dated records in [History](../history.md) and the direction on [Where this is going](../protocol/roadmap.md) show what this looks like in practice. <!-- id:-hDpm579 -->
+The process is slow on purpose because published blobs are permanent. Every node that holds old data must keep reading it. [Where this is going](../protocol/roadmap.md) shows what this looks like in practice. <!-- id:-hDpm579 -->
 
 ## Deployment tooling <!-- id:v7shYIEe -->
 
@@ -173,7 +173,7 @@ pnpm hypermedia:push -- --dry-run     # what a publish would create, update, mov
 Rules that matter when you edit: <!-- id:i7YPkwE2 -->
   - Nothing publishes while any relative link is broken, so fix links in the same commit that moves a page. <!-- id:au3AMFtl -->
   - Renaming a file in git publishes a move with a [redirect](../protocol/documents.md) at the old address. <!-- id:Xz4P0KgA -->
-  - Deleting a file retires its document on the next push, unless the push runs with `--keep-stale`. If the page moved or was folded into another, add its old path to `hypermedia/pages.aliases.json` so the old address becomes a redirect. <!-- id:n5piDq7x -->
+  - Deleting a file retires its document on the next push, unless the push runs with `--keep-stale`. <!-- id:n5piDq7x -->
   - A page with a `*.schema.json` beside it defines a [schema](../schema.md). Keep its path, and let `check.mjs` confirm the lockfile and generated types. <!-- id:NE-QyORm -->
   - Keep the `<!-- id:… -->` comments on lines you keep. They are [block](../protocol/blocks.md) ids. New pages need none. <!-- id:1y4a34hH -->
 
@@ -190,6 +190,6 @@ Once a vulnerability is fixed, the team discloses it as a GitHub issue closed by
 - [The Seed software](../apps.md), a map of every program in the repository. <!-- id:erSntcM2 -->
 - [Getting started](./getting-started.md), for using Seed without changing it. <!-- id:h-8pj_T2 -->
 - [Self-hosting](./self-hosting.md), for running a site. <!-- id:A3x3u2MP -->
-- [History](../history.md) and [Where this is going](../protocol/roadmap.md), for the design context behind a protocol change. <!-- id:SMOpY2F6 -->
-- [Publish a folder](./publish-a-folder.md), for how these docs round-trip.
-- [Daemon gRPC](./grpc.md), for the services the protobuf files define.
+- [Where this is going](../protocol/roadmap.md), for the design context behind a protocol change. <!-- id:SMOpY2F6 -->
+- [Publish a folder](./publish-a-folder.md), for how these docs round-trip. <!-- id:hv5PxrzW -->
+- [Daemon gRPC](./grpc.md), for the services the protobuf files define. <!-- id:ta6poGjk -->

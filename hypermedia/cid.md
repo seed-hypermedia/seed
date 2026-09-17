@@ -1,7 +1,6 @@
 ---
 name: CID
 summary: A content identifier, the self-describing hash that names a blob by its bytes, written in Hypermedia as CIDv1 with the dag-cbor codec and either a SHA-256 or a BLAKE2b-256 multihash.
-schemaDefinition: ipfs://bafyreif7e4777snpct3iqfq2fdayahrt22t5rkodphhgbb4mrr6fawd2eq
 ---
 A **CID** (content identifier) is a self-describing hash that names a block by its content. It is the canonical form of a reference. <!-- id:jGQjdjiu -->
 
@@ -11,18 +10,10 @@ A [CID](https://docs.ipfs.tech/concepts/content-addressing/) packs a version, a 
 
 Two hash functions are in use for the same codec. The [Seed daemon](./apps/daemon.md) names the blobs it creates with **BLAKE2b-256**. The [SDK](./build/sdk.md), [CLI](./build/cli.md) and apps use **SHA-256**. Both are valid names for the same bytes and the daemon accepts either on ingest, but they are different names: a [Ref](./ref.md) that points at the SHA-256 CID of a Change does not reach a copy stored under its BLAKE2b CID. So publishers must supply an explicit CID for every blob that another blob references. A [version](./protocol/documents.md) string is the CIDs of the head Changes, sorted and joined with `.`. See [Signed Blobs](./protocol/blobs.md) and [URLs](./protocol/urls.md). <!-- id:5D5S5mIm -->
 
-# Shape <!-- id:efsrvawv -->
+# See also <!-- id:67Sc6PXL -->
 
-An **alias** of [link](./link.md). <!-- id:bqb7XsxG -->
-
-# Depends on <!-- id:1T45v5dv -->
-
-- [link](./link.md) <!-- id:WkXd4lGr -->
-
-# See also
-
-- [Signed Blobs](./protocol/blobs.md): encoding, CIDs and the hash rule for publishers.
-- [link](./link.md): the kind a CID is stored as.
-- [blob](./blob.md): the envelope whose bytes a CID names.
-- [Files](./protocol/files.md): dag-pb and raw CIDs.
-- [URLs](./protocol/urls.md): version strings made of CIDs.
+- [Signed Blobs](./protocol/blobs.md): encoding, CIDs and the hash rule for publishers. <!-- id:4XugMpjB -->
+- [link](./link.md): the kind a CID is stored as. <!-- id:3COiBQhg -->
+- [blob](./blob.md): the envelope whose bytes a CID names. <!-- id:dFdsLAz6 -->
+- [Files](./protocol/files.md): dag-pb and raw CIDs. <!-- id:qAVHPv90 -->
+- [URLs](./protocol/urls.md): version strings made of CIDs. <!-- id:9uNlyqgF -->

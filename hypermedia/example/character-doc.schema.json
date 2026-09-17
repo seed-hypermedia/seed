@@ -1,16 +1,16 @@
 {
-  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+  "type": "hm://hyper.media/struct",
   "properties": {
     "born": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date"
+        "type": "hm://hyper.media/date"
       },
       "required": true,
       "description": "Birth date (ISO 8601 `YYYY-MM-DD`) — rendered as a date picker."
     },
     "died": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date"
+        "type": "hm://hyper.media/date"
       },
       "description": "Death date, if any."
     },
@@ -28,34 +28,34 @@
     },
     "home": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hm-url",
-        "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/place-doc"
+        "type": "hm://hyper.media/hm-url",
+        "target": "hm://hyper.media/example/place-doc"
       },
       "description": "The place this character calls home — a page conforming to the Place type."
     },
     "faction": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hm-url",
-        "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/faction-doc"
+        "type": "hm://hyper.media/hm-url",
+        "target": "hm://hyper.media/example/faction-doc"
       },
       "description": "The faction this character belongs to."
     },
     "portrait": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/ipfs-url"
+        "type": "hm://hyper.media/ipfs-url"
       },
       "description": "A portrait image file on IPFS."
     },
     "stats": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/ipfs-url",
-        "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/stats"
+        "type": "hm://hyper.media/ipfs-url",
+        "target": "hm://hyper.media/example/stats"
       },
       "description": "An `ipfs://` object that must conform to Character stats (a required target schema)."
     },
     "notes": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/ipfs-url"
+        "type": "hm://hyper.media/ipfs-url"
       },
       "description": "An `ipfs://` object with no declared schema — free-form data."
     }

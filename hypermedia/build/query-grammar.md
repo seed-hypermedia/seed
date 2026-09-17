@@ -102,7 +102,7 @@ Seed Agents call `query` with `{q?, filter?, sort?, pageSize?, pageToken?}` and 
 
 - [Query](../query.md) and the query block <!-- id:WuhrH0aB -->
 - [Search](../rpc/search.md) for full text <!-- id:gjdZoZRm -->
-- [Metadata](../metadata.md)
-- [Typed documents](../schema/typed-documents.md)
-- [Seed CLI](./cli.md)
-- [SDK](./sdk.md)
+- [Metadata](../metadata.md) <!-- id:RcHJjty_ -->
+- [Typed documents](../schema/typed-documents.md) <!-- id:WwNggx8d -->
+- [Seed CLI](./cli.md) <!-- id:PxwRyb9v -->
+- [SDK](./sdk.md) <!-- id:1sNaOk0I -->

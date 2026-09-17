@@ -1,7 +1,6 @@
 ---
 name: Schema
 summary: The meta-schema, which is the union of every shape a schema can take and a valid instance of itself, with a guide to schemas in the Seed app and an index of the reference pages.
-schemaDefinition: ipfs://bafyreiblucqpfoylug6ex3anrhm66lvep4uyjd4ukh2d4iqolfeucc3gre
 ---
 A **schema** is a value that constrains other values. It is either a map written with the [schema vocabulary](./schema/schema-language.md), or a bare [literal](./schema/literal-schema.md) (`"draft"`, `1`, `true`, `null`) that accepts exactly one value. Every schema is typed by the meta-schema and matches one of its variants. <!-- id:OzcV9e2b -->
 
@@ -79,39 +78,6 @@ The concepts, in reading order: <!-- id:MLxtm7My -->
 
 The library's tools live in `scripts/hypermedia/` in the Seed repository. The reference validator has no dependencies. It proves the meta-schema [describes itself](./schema/self-description.md), validates every schema against it, and confirms the union rejects malformed schemas. The publisher hashes each schema to its [DAG-CBOR](./schema/dag-cbor.md) [CID](./cid.md). The TypeScript generator turns every schema into a TS type: maps become interfaces, literal unions become TS unions, [extension](./schema/extension.md) becomes intersection, and [`Change<Block>`](./change.md) becomes a TS [generic](./schema/generic.md). The registry generator bundles the library for the apps. The Seed app runs a port of the same validator, so its schema browser and editors agree with the reference validator. The [Seed CLI](./build/cli.md), the [SDK](./build/sdk.md) and [Seed Agents](./agent.md) use the same engine from `@seed-hypermedia/client`. <!-- id:-VNyXPT9 -->
 
-# Shape <!-- id:4QWuviLU -->
-
-A **union**: a value matches one of these variants. <!-- id:r_pDx306 -->
-  - [struct-schema](./schema/struct-schema.md) <!-- id:JDZD3hmG -->
-  - [map-schema](./schema/map-schema.md) <!-- id:8o35KJdz -->
-  - [list-schema](./schema/list-schema.md) <!-- id:Q3vpoo1- -->
-  - [scalar-schema](./schema/scalar-schema.md) <!-- id:XcNAJyGU -->
-  - [link-schema](./schema/link-schema.md) <!-- id:vq_S_Dm7 -->
-  - [include-schema](./schema/include-schema.md) <!-- id:ZjHtnpFj -->
-  - [union-schema](./schema/anyof.md) <!-- id:n9qz4ea3 -->
-  - [var-schema](./schema/var-schema.md) <!-- id:VY7nFwdc -->
-  - [literal-schema](./schema/literal-schema.md) <!-- id:KZ3BNjsi -->
-  - [string](./string.md): a bare string is a literal schema <!-- id:yqpTFSKq -->
-  - [integer](./integer.md): a bare integer is a literal schema <!-- id:c3PPOXHO -->
-  - [boolean](./boolean.md): a bare boolean is a literal schema <!-- id:-cxXCWv7 -->
-  - [null](./null.md): null is a literal schema <!-- id:6_sGlZ9l -->
-
-# Depends on <!-- id:_7aiQPhA -->
-
-- [boolean](./boolean.md) <!-- id:ReFegJmw -->
-- [include-schema](./schema/include-schema.md) <!-- id:sgBDWijw -->
-- [integer](./integer.md) <!-- id:xEEWZo_C -->
-- [link-schema](./schema/link-schema.md) <!-- id:A4p8bq5A -->
-- [list-schema](./schema/list-schema.md) <!-- id:wC1FNIlK -->
-- [literal-schema](./schema/literal-schema.md) <!-- id:7GZkoLpS -->
-- [map-schema](./schema/map-schema.md) <!-- id:G0zPLoYK -->
-- [null](./null.md) <!-- id:DOl7wGGz -->
-- [scalar-schema](./schema/scalar-schema.md) <!-- id:6GlNvB4Q -->
-- [struct-schema](./schema/struct-schema.md) <!-- id:dM0DU7X5 -->
-- [string](./string.md) <!-- id:wRRFFgG5 -->
-- [union-schema](./schema/anyof.md) <!-- id:GFJNvn_u -->
-- [var-schema](./schema/var-schema.md) <!-- id:hRHhpE13 -->
-
 # Terms <!-- id:g0hNqX_Z -->
 
 - [Kind](./schema/kind.md) <!-- id:jAaKSJhR -->
@@ -137,13 +103,13 @@ A **union**: a value matches one of these variants. <!-- id:r_pDx306 -->
 - [Canonical encoding](./schema/canonical-encoding.md) <!-- id:usb9xHLx -->
 - [Struct](./struct.md) <!-- id:GKgCZDN3 -->
 
-# See also
+# See also <!-- id:W4A1iB0e -->
 
-- [Typed documents](./schema/typed-documents.md): how a document names its schema.
-- [References and naming](./schema/references.md): why schemas point at each other by name.
-- [Examples](./example.md): every example schema, grouped by feature.
-- [Metadata](./metadata.md): the attribute keys that bind a document to a schema.
-- [Blobs](./protocol/blobs.md): the signed DAG-CBOR objects the network stores.
-- [Documents](./protocol/documents.md): the pages schemas are published as.
-- [URLs](./protocol/urls.md): the `hm://` names schemas use.
-- [Seed API schemas](./rpc.md): the read methods as published schemas.
+- [Typed documents](./schema/typed-documents.md): how a document names its schema. <!-- id:2AyGAZS8 -->
+- [References and naming](./schema/references.md): why schemas point at each other by name. <!-- id:rM3zXm_M -->
+- [Examples](./example.md): every example schema, grouped by feature. <!-- id:dvqmc00w -->
+- [Metadata](./metadata.md): the attribute keys that bind a document to a schema. <!-- id:IH68O-Ib -->
+- [Blobs](./protocol/blobs.md): the signed DAG-CBOR objects the network stores. <!-- id:CjHSu5e6 -->
+- [Documents](./protocol/documents.md): the pages schemas are published as. <!-- id:Qdt4-Z3B -->
+- [URLs](./protocol/urls.md): the `hm://` names schemas use. <!-- id:UM9fUhzV -->
+- [Seed API schemas](./rpc.md): the read methods as published schemas. <!-- id:giH4ygOT -->

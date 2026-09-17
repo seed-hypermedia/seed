@@ -24,7 +24,7 @@ A [Hypermedia schema](../schema.md) is a value of [kind](./kind.md) `map` built 
 
 `name` and `description` are **metadata** about the schema. The validator ignores them when it checks a value, and the schema explorer shows them as each schema's title and blurb. A schema's `name` has nothing to do with a field called `name` inside its `properties`. <!-- id:GROkvj0R -->
 
-A `type` value is always an [`hm://` URL](../hm-url.md), whether it names a kind or another schema, so every type is clickable. The real value is `"hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map"`. **For readability these docs shorten `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map` to `map`.** Examples use the same library account: `example/person` is `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/person`. <!-- id:SZ-BjsVR -->
+A `type` value is always an [`hm://` URL](../hm-url.md), whether it names a kind or another schema, so every type is clickable. The real value is `"hm://hyper.media/map"`. **For readability these docs shorten `hm://hyper.media/map` to `map`.** Examples use the same library name: `example/person` is `hm://hyper.media/example/person`. <!-- id:SZ-BjsVR -->
 
 ## Literals <!-- id:Lit1eral -->
 
@@ -53,10 +53,10 @@ A node whose `type` names another schema and that _also_ carries refinements **e
 ```json <!-- id:fnvdYhmQ -->
 // example/employee = example/person, plus employeeId and department
 {
-  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/person",
+  "type": "hm://hyper.media/example/person",
   "properties": {
-    "employeeId": { "value": { "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string" }, "required": true },
-    "department": { "value": { "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string" } }
+    "employeeId": { "value": { "type": "hm://hyper.media/string" }, "required": true },
+    "department": { "value": { "type": "hm://hyper.media/string" } }
   }
 }
 ```
@@ -110,7 +110,7 @@ Beyond the kind, a schema can narrow the _values_ a leaf accepts. Every constrai
 
 ```json <!-- id:RBAU34K6 -->
 // a lowercase handle, 3–12 code points, matching a pattern
-{ "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+{ "type": "hm://hyper.media/string",
   "minLength": 3, "maxLength": 12, "pattern": "^[a-z0-9_]+$" }
 ```
 
@@ -196,12 +196,12 @@ node scripts/hypermedia/validate.mjs
 
 If you extend the vocabulary, run it again. If the union can no longer describe its own new shape, the loop is broken and the check fails. <!-- id:vGjbVugA -->
 
-# See also
+# See also <!-- id:JD7jplmC -->
 
-- [Hypermedia Schemas](../schema.md): the meta-schema and the index of schema pages.
-- [The data model](./data-model.md): the nine kinds every value is built from.
-- [References and naming](./references.md): include, typed link, and why references are `hm://` names.
-- [Encoding](./encoding.md): how a schema becomes canonical DAG-CBOR.
-- [Typed documents](./typed-documents.md): how a document names its schema.
-- [Quick reference](./quick-reference.md): the whole system on one page.
-- [Examples](../example.md): every example schema, grouped by feature.
+- [Hypermedia Schemas](../schema.md): the meta-schema and the index of schema pages. <!-- id:VToSvCAu -->
+- [The data model](./data-model.md): the nine kinds every value is built from. <!-- id:EkRaa876 -->
+- [References and naming](./references.md): include, typed link, and why references are `hm://` names. <!-- id:ewBSSZpE -->
+- [Encoding](./encoding.md): how a schema becomes canonical DAG-CBOR. <!-- id:qqYp_kau -->
+- [Typed documents](./typed-documents.md): how a document names its schema. <!-- id:wVgYa0nh -->
+- [Quick reference](./quick-reference.md): the whole system on one page. <!-- id:FfOecpJs -->
+- [Examples](../example.md): every example schema, grouped by feature. <!-- id:pI6ZGF0E -->

@@ -11,7 +11,7 @@ Hypermedia is the protocol and Seed is the software that implements it. When an 
 - **Account.** A key pair used as an identity. Its public key is its name, and no account record exists anywhere else. See [Identity](./protocol/identity.md). <!-- id:Eq4EScpl -->
 - **Space.** The namespace of documents an account owns, addressed as `hm://<account>/<path>`. Account and space are the same key seen from two sides: the identity that signs and the place its documents live. See [Documents](./protocol/documents.md). <!-- id:t-7AMQ1Y -->
 - **Principal.** The wire form of a public key: a multicodec prefix followed by the raw key bytes, written as base58btc text that starts with `z6Mk` for Ed25519 keys and `zDn` for P-256 keys. See [Principal](./principal.md). <!-- id:nPBRgL2N -->
-- **Account ID, uid.** The text form of an account's principal as it appears in URLs, for example `z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb`. See [Identity](./protocol/identity.md). <!-- id:m6GkTW-R -->
+- **Account ID, uid.** The text form of an account's principal as it appears in URLs, for example `z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS`. See [Identity](./protocol/identity.md). <!-- id:m6GkTW-R -->
 - **Key name.** A local alias under which the daemon or the CLI stores a key, such as `main`. It is never the same thing as the principal, and only the principal means anything to other people. See [Keys](./build/keys.md). <!-- id:YYW7wBy9 -->
 - **Mnemonic.** A BIP-39 word list, 12 to 24 words with an optional passphrase, from which an Ed25519 account key is derived on the path `m/44'/104109'/0'`. One mnemonic and passphrase give exactly one account. See [Identity](./protocol/identity.md). <!-- id:3dJyziCz -->
 - **Key file.** An exported `.hmkey.json` holding one key, optionally encrypted with a password, used by the CLI and in CI. See [Keys](./build/keys.md). <!-- id:PWw0yDWc -->
@@ -147,6 +147,8 @@ Hypermedia is the protocol and Seed is the software that implements it. When an 
 - **Primitive.** One of the standard-library schemas that is exactly one kind, such as [string](./string.md) or [integer](./integer.md). See [Primitive](./schema/primitive.md). <!-- id:oSnst34U -->
 - **Canonical encoding.** The single deterministic byte form of a value in DAG-CBOR, which is why a schema has exactly one CID. See [Canonical Encoding](./schema/canonical-encoding.md). <!-- id:paXKUcrW -->
 - **Fixpoint problem.** A blob cannot contain its own CID, so a cycle of CID links has no encoding order. Names break such cycles. See [Fixpoint Problem](./schema/fixpoint-problem.md) and [References and Naming](./schema/references.md). <!-- id:8gARS93M -->
+- **Library.** The schemas and pages in the `hypermedia/` folder of the Seed repository, which the Seed app and the SDK bundle. Each schema is named `hm://hyper.media/<path>`. See [How Schemas Work](./schema/how-it-works.md).
+- **Authority.** The key that owns an `hm://` URL and signs what is published under it. The library writes its authority as the domain `hyper.media`, which the SDK and the docs sync understand but the network does not resolve yet. See [Authority](./authority.md).
 - **Lockfile.** `schemas.lock.json` in the repository, which pins every library schema's CID and is checked before publishing. See [How Schemas Work](./schema/how-it-works.md). <!-- id:255xCRyO -->
 
 # Seed Agents <!-- id:zTbkpg3w -->
@@ -197,6 +199,5 @@ These names appear in old documents, commit messages, team notes and a few code 
 
 - [The Hypermedia protocol](./protocol.md), the layered tour these terms come from. <!-- id:gVMgrctA -->
 - [Agents glossary](./agent/glossary.md), for every Seed Agents term. <!-- id:joAFt8D_ -->
-- [History](./history.md), for the dated design records behind the current names. <!-- id:rSuR3f-S -->
-- [Why Hypermedia](./why.md), the motivation behind these terms, for any reader.
-- [Building on Hypermedia](./build.md), for task guides that use them.
+- [Why Hypermedia](./why.md), the motivation behind these terms, for any reader. <!-- id:ExOLt8Sa -->
+- [Building on Hypermedia](./build.md), for task guides that use them. <!-- id:n38_BPBT -->

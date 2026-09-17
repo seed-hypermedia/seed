@@ -119,6 +119,9 @@ Any command that takes an id accepts `hm://<uid>/<path>`, a bare `<uid>`, or an 
 | --- | --- |
 | `space export <space\|self> -d <dir>` | writes every document of a space as lossless markdown, home document as `index.md`, `/a/b` as `a/b.md`, a defined schema as `a/b.schema.json` <!-- id:8xVuFg6X --> |
 | `space import <space\|self> -d <dir> [--dry-run] [--check]` | publishes the directory, diffing existing documents by block id and detecting moves; `--check` validates every file against its schema first and publishes nothing on a violation. The signing key must own the space. <!-- id:ZupCY3QW --> |
+| `space export <space\|self> -d <dir> --assets` | also downloads every file the documents link into `<dir>/assets/` and links it relatively |
+| `space archive <space\|self> -o <file.zip> [--format markdown\|blobs] [--no-comments]` | saves the whole space in one zip. `markdown` (the default) is the `space export` folder with its assets, readable anywhere. `blobs` is every signed blob of the space (Refs, changes, capabilities, comments, file blocks), byte for byte, each checked against its CID |
+| `space restore <file.zip> [--into <space\|self>] [-d <dir>] [--dry-run]` | a blob archive is published as is to `--server`, with its signatures and history intact. A markdown archive is imported into `--into` (default `self`) like `space import`, as new changes signed by your key |
 | `space dev -d <dir> [--api http://localhost:58004] [--daemon http://localhost:58001] [--interval 2000] [--no-push] [--no-watch] [--keep-stale]` | edits the directory in the desktop dev app under a throwaway key <!-- id:gwBM5yqo --> |
 
 [Publish a folder](./publish-a-folder.md) explains the dialect and the loop. <!-- id:ZalQUTp2 -->
@@ -183,8 +186,8 @@ The CLI is the recommended way for an external agent to touch Seed. Run it as `n
 
 - [Keys](./keys.md) <!-- id:sjB5BRW_ -->
 - [The Seed CLI app page](../apps/cli.md), for where the code lives and how it is tested <!-- id:PEaV_SgZ -->
-- [Publish a folder](./publish-a-folder.md)
-- [Query grammar](./query-grammar.md)
-- [Using Seed from your own agent](./agents.md)
-- [SDK](./sdk.md)
-- [Seed API](./web-api.md)
+- [Publish a folder](./publish-a-folder.md) <!-- id:DQ2RF-Di -->
+- [Query grammar](./query-grammar.md) <!-- id:hogVlMfc -->
+- [Using Seed from your own agent](./agents.md) <!-- id:tGU9ay8W -->
+- [SDK](./sdk.md) <!-- id:Txl_sF-C -->
+- [Seed API](./web-api.md) <!-- id:9goznpU9 -->
