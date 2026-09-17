@@ -1,7 +1,6 @@
 ---
 name: Property
 summary: One field of a struct, holding its value schema, whether a value must include it, and a description of what it is for.
-schemaDefinition: ipfs://bafyreiddimhjlsf7ba6idhzdt6h5bgna77merrs5msg4vscsauuc362u3q
 ---
 A [struct](./struct-schema.md) lists its fields under `properties`, one property per field name. A property wraps a [schema](../schema.md) and is not a schema itself. `value` is the schema the field's value must match. `required` says whether a value of the struct must include the field. `description` says what the field is for, and the editors show it next to the field. <!-- id:kLdsYe2_ -->
 

@@ -1,7 +1,6 @@
 ---
 name: Ref
 summary: A signed claim, like a Git ref, that a path in a space points at the current head Changes of a document, or that the path is deleted or redirects elsewhere.
-schemaDefinition: ipfs://bafyreiduqxxs33cs7fat6cnc426whpk6jdrl5ayrg5ov6iwn3xioyoutde
 ---
 A **Ref** is the blob that gives a [document](./protocol/documents.md) an address. [Changes](./change.md) describe history. A Ref says "this path in this space currently shows these heads". The daemon checks Refs for permission. A Ref is what makes a document appear in listings and search, and you publish one to branch, delete, move or redirect a document. <!-- id:od4IuOD_ -->
 
@@ -10,29 +9,6 @@ This page defines the **ref** blob type, a Hypermedia network blob that extends 
 Three shapes are valid. A **version Ref** has `genesisBlob` and one or more `heads`, and asserts a version. A **tombstone** has `genesisBlob` and no heads, and deletes the document at that path once it is newer than the last live Ref of the same generation. A **redirect** has `genesisBlob`, no heads and a [redirect target](./ref/redirect-target.md). With `republish` set, a redirect keeps showing the target's content under this address and does not count as a deletion. The home document (empty `path`) may be neither a tombstone nor a redirect. <!-- id:ABaZUnEP -->
 
 `space` is omitted when the signer is the space owner. Otherwise the signer must hold a [capability](./capability.md) for the path, or the Ref is stashed and has no effect. The `capability` field is informational only and the daemon ignores it, so publish the Capability blob itself. `generation` orders the lives of an address: the highest generation wins. The daemon's `CreateRef` asks for a higher generation before it replaces a document with a different genesis, and clients use the current time in milliseconds for a new document. `visibility` is empty for public or `Private`, and a private Ref must have a single-segment path. Paths must start with `/`, must not end with `/`, and may not contain single or double quotes, backslashes, NUL, tab, CR or LF. [Documents](./protocol/documents.md) gives the reasoning behind each rule. <!-- id:CNUyMAhI -->
-
-# Shape <!-- id:dpE2fWQB -->
-
-**Extends** [blob](./blob.md) with these added fields: <!-- id:6u-Qshey -->
-  - `type`: `"Ref"` <!-- id:4LKiQ2kT -->
-  - `space`: [principal](./principal.md) <!-- id:idNr9FJM -->
-  - `path`: [string](./string.md) <!-- id:8izgFQy0 -->
-  - `genesisBlob`: [cid](./cid.md) <!-- id:cob0_GUo -->
-  - `capability`: [cid](./cid.md) <!-- id:Wv5xpNAJ -->
-  - `heads` _(required)_: list of [cid](./cid.md) <!-- id:_B1tM30h -->
-  - `redirect`: [ref/redirect-target](./ref/redirect-target.md) <!-- id:F5YoHwBj -->
-  - `generation`: [integer](./integer.md) <!-- id:tPhi-Hlj -->
-  - `visibility`: [visibility](./visibility.md) <!-- id:CgsyURu- -->
-
-# Depends on <!-- id:L4KMjf3U -->
-
-- [blob](./blob.md) <!-- id:qR-dN0GK -->
-- [cid](./cid.md) <!-- id:h6XHAqQF -->
-- [principal](./principal.md) <!-- id:CCI4-2aZ -->
-- [ref/redirect-target](./ref/redirect-target.md) <!-- id:x_NaRzFr -->
-- [visibility](./visibility.md) <!-- id:CDnB2GqZ -->
-- [integer](./integer.md) <!-- id:1vZFCegM -->
-- [string](./string.md) <!-- id:B2_Qyt3Z -->
 
 # See also <!-- id:_DOCd5Nd -->
 

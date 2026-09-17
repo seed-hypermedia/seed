@@ -24,7 +24,7 @@ A page publishes at its path: `protocol/documents.md` is `/protocol/documents`. 
 | `glossary.md` | one entry per term |
 | `schemas.lock.json`, `schemas.aliases.json`, `pages.aliases.json` | not published: every schema's CID, old schema names that still resolve, and old page paths that redirect |
 
-A `*.schema.json` beside a page is the schema that page defines. It is encoded to canonical DAG-CBOR, published as a blob, and bound to the page as `schemaDefinition: ipfs://<cid>`. A page without a schema can still be an instance of a type by naming one in `attributesSchema` in its frontmatter (see `example/bob.md`). How documents bind to schemas is explained in [Typed documents](./schema/typed-documents.md).
+A `*.schema.json` beside a page is the schema that page defines. The sync encodes it to canonical DAG-CBOR, publishes it as a blob, and sets the page's `schemaDefinition` to `ipfs://<cid>` at publish time. Don't put `schemaDefinition` in frontmatter; `check.mjs` rejects it. A page without a schema can still be an instance of a type by naming one in `attributesSchema` in its frontmatter (see `example/bob.md`). How documents bind to schemas is explained in [Typed documents](./schema/typed-documents.md).
 
 ## Writing pages
 

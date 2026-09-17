@@ -1,7 +1,6 @@
 ---
 name: Operation
 summary: One step inside a Change body, a map tagged by type that sets metadata, replaces a block, moves blocks, or deletes blocks, and the page explains how each op mutates the document.
-schemaDefinition: ipfs://bafyreidwovzt73cwk6yypirkavyd65pwdo2ogbuyd2iugpueq4lwuqkwau
 ---
 An **operation** is the smallest thing a [Change](../change.md) can say about a document: set this metadata key, replace this block, put these blocks here, delete those. A Change carries a list of them, and the daemon applies the list in order when it rebuilds the [document](../protocol/documents.md). <!-- id:XDsfcsVH -->
 
@@ -15,26 +14,6 @@ Every op is a map with a `type` string and, apart from that tag, only the fields
   - [SetKey](./op/set-key.md) is the deprecated flat form of SetAttributes, still accepted for old Changes. <!-- id:6TXv-L74 -->
 
 Op ids are `(ts, idx, actor)`: the Change's timestamp, the op's position counter, and a number derived from the signer's [principal](../principal.md). `MoveBlocks.ref` carries such an id as `[ts, idx, actor]`, or as `[idx]` to mean an op earlier in the same Change. Inside a multi-block op the counter advances by the element's index, a quirk that is now part of the wire format. [Documents](../protocol/documents.md) has the full rules. <!-- id:Hn_s-yee -->
-
-# Shape <!-- id:xCLEKTpg -->
-
-A **union**. A value matches one of these variants: <!-- id:bdgSe4Z4 -->
-  - [change/op/set-attributes](./op/set-attributes.md) <!-- id:BP_gB1f4 -->
-  - [change/op/move-blocks](./op/move-blocks.md) <!-- id:q_WzwIs6 -->
-  - [change/op/replace-block](./op/replace-block.md)⟨Block = type variable `⟨Block⟩`⟩ <!-- id:DPvyep9M -->
-  - [change/op/delete-blocks](./op/delete-blocks.md) <!-- id:PlfgegNY -->
-  - [change/op/set-key](./op/set-key.md) <!-- id:HKHLdobn -->
-
-**Generic** over `⟨Block⟩` (default [block](../block.md)). <!-- id:VQIfC_d8 -->
-
-# Depends on <!-- id:BTjLtIcz -->
-
-- [block](../block.md) <!-- id:qhL6R4Ju -->
-- [change/op/delete-blocks](./op/delete-blocks.md) <!-- id:I7YcxiFi -->
-- [change/op/move-blocks](./op/move-blocks.md) <!-- id:QfAw7guU -->
-- [change/op/replace-block](./op/replace-block.md) <!-- id:bKH963tB -->
-- [change/op/set-attributes](./op/set-attributes.md) <!-- id:xn-9VfDd -->
-- [change/op/set-key](./op/set-key.md) <!-- id:HylY6yqt -->
 
 # See also <!-- id:JL7ONhAk -->
 
