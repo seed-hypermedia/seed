@@ -1,6 +1,6 @@
 ---
 name: Session Continuation
-summary: Seed never compacts a conversation by replacing its early history with a summary. When a transcript stops being the right working context — the user changed…
+summary: "How an agent carries a conversation into a fresh successor session at a natural boundary instead of compacting its history, and what the successor starts from."
 ---
 <!-- id:dZ2yQFiR -->
 > Shipped 2026-09-01. Implements Ion's proposal <!-- id:GkeZ3hua -->

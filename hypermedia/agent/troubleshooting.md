@@ -1,6 +1,6 @@
 ---
 name: Troubleshooting
-summary: This document is a quick diagnostic guide. More operational detail is in Operations.
+summary: "A symptom-first guide to agents server problems: missing streams, signature errors, failed reads, stuck or orphaned runs, and a server that stops responding."
 ---
 This document is a quick diagnostic guide. More operational detail is in [Operations](./operations.md). <!-- id:nOzjb6a5 -->
 
@@ -43,7 +43,7 @@ Current mitigation: <!-- id:uFxBgjdT -->
 
 If it happens again: <!-- id:-DfwmYgp -->
   1. log the action shape before signing without private content; <!-- id:bZIKsUfX -->
-  2. compare desktop `agents-client.ts` protocol mirror with `agents/src/api.ts`; <!-- id:73KJw0uG -->
+  2. check that the client and server agree on the protocol version (`X-Agents-Protocol`), since both import their types from `agents/protocol`; <!-- id:73KJw0uG -->
   3. check CBOR encoding behavior; <!-- id:SNdy4U9O -->
   4. add a regression test. <!-- id:q4NRYIhg -->
 

@@ -7,9 +7,9 @@ The body of a [Change](../change.md) is where the editing happens: an ordered li
 
 This page defines the **change/body** struct, the payload inside a Change blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:c8Da_qa9 -->
 
-`ops` is the list of [operations](./op.md), each a map tagged with a `type`. Order matters: each op receives an id made of the Change's timestamp, its position in this list and the signer, and later ops in the same Change may refer back to earlier ones by position. `opCount` is a hint for consumers: some ops are run-length encoded (one `MoveBlocks` can place many blocks), so the number of logical operations may exceed the number of list items. The daemon writes it and nothing reads it today. <!-- id:G_hztZbt -->
+`ops` is the list of [operations](./op.md), each a map tagged with a `type`. Order matters: each op receives an id made of the Change's timestamp, its position in this list and the signer, and later ops in the same Change may refer back to earlier ones by position. `opCount` is a hint for consumers: some ops are run-length encoded (one `MoveBlocks` can place many blocks), so the number of logical operations may exceed the number of list items. The daemon and the SDK write it and nothing reads it today. <!-- id:G_hztZbt -->
 
-A minimal body emitted by the Seed app or the SDK has moves first, then deletions, then one `SetAttributes` for all metadata, then one `ReplaceBlock` per changed block; [Documents](../protocol/documents.md) explains why. <!-- id:nus6mgsa -->
+A minimal body, which the daemon's `PrepareChange` emits for the Seed app, has moves first, then deletions, then one `SetAttributes` for all metadata, then one `ReplaceBlock` per changed block; [Documents](../protocol/documents.md) explains why. <!-- id:nus6mgsa -->
 
 # Shape <!-- id:BpgwjtEP -->
 

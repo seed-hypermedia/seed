@@ -9,7 +9,7 @@ This page defines the **principal** value type, an alias of [bytes](./bytes.md) 
 
 The bytes are an unsigned-varint [multicodec](https://github.com/multiformats/multicodec) code followed by the raw public key. For Ed25519 the code is 0xed, so a principal is 34 bytes: `ed 01` plus the 32-byte key. The string form is multibase base58btc of those bytes, which is why every account you see starts with `z6Mk`; it is exactly the `did:key` encoding of an Ed25519 key. The daemon also registers ECDSA P-256 (compressed 33-byte key), whose string form would start with `zDn`, so that browser session keys made with WebCrypto can sign; every key the daemon itself creates is Ed25519. In CBOR a principal is a byte string, never text. <!-- id:WVskuNtB -->
 
-A short form of the principal, the first 8 bytes of its SHA-256 as a 56-bit number, is the `actor` component of every op id inside a document. How keys are derived from a mnemonic, stored, and delegated to other keys is in [Identity](./protocol/identity.md). <!-- id:cL_K5O_W -->
+A short form of the principal, the first 7 bytes of its SHA-256 read as a little-endian 56-bit number, is the `actor` component of every op id inside a document. How keys are derived from a mnemonic, stored, and delegated to other keys is in [Identity](./protocol/identity.md). <!-- id:cL_K5O_W -->
 
 # Shape <!-- id:sT34p2wb -->
 

@@ -1,6 +1,6 @@
 ---
 name: Prompt Injection Map
-summary: Every place model-facing text is defined, assembled, or handed to a provider. Use it when changing agent behavior, and when reviewing anything that puts…
+summary: A map of every place model-facing text is written, assembled, or sent to a provider, for anyone changing agent behaviour or reviewing where untrusted text reaches the model.
 ---
 Every place model-facing text is defined, assembled, or handed to a provider. Use it when changing agent behavior, and when reviewing anything that puts untrusted content in front of the model. <!-- id:aKrz9t71 -->
 
@@ -87,12 +87,12 @@ Ranked by exposure. Everything here is untrusted content that reaches the model.
   6. **Authored tool descriptions** — see the Space index note above. <!-- id:q9c-trgm -->
   7. **Attachment file names** — rendered into the `<attachments>` block unescaped. <!-- id:u5VCsmtV -->
 
-# Desktop surfaces <!-- id:vMAEIwUn -->
+# App surfaces <!-- id:vMAEIwUn -->
 
-- **Assistant panel** (`frontend/apps/desktop/src/components/assistant-panel.tsx`) is a client of the agents service; it builds no system prompt of its own. It contributes window context as `context` content parts (line 562). The old `app-chat.ts` / `chat-provider-options.ts` local-assistant prompt path is gone. <!-- id:B_kzpqgq -->
+- **Assistant panel** (`frontend/packages/ui/src/agents/assistant-panel.tsx`, shared by the Seed app and the Seed web app) is a client of the agents service; it builds no system prompt of its own. It contributes window context as `context` content parts on the first message. The old `app-chat.ts` / `chat-provider-options.ts` local-assistant prompt path is gone. <!-- id:B_kzpqgq -->
 - **Default new-agent prompt**: a single Embed block of the shared skill document (`hm://z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS/resources/skill`, published at https://seed.hyper.media/resources/skill) — see `defaultAgentSystemPrompt` in `frontend/packages/ui/src/agents/dialogs.tsx`. User-editable, becomes `AgentDefinition.systemPrompt`; the service inlines the embedded document when it resolves the prompt, so whoever can edit that document shapes every new agent's prompt. <!-- id:Xsbs2TBc -->
-- **Prompt tab** (`pages/agents/detail.tsx`) edits those blocks with the Seed block editor; the server normalizes and resolves them to markdown before use. <!-- id:DkIerr6J -->
-- **System prompt dialog** (`pages/agents/session.tsx`) shows `systemPromptMarkdown` — the exact prompt that would be used to continue the session. <!-- id:zUoF2iV9 -->
+- **Prompt tab** (`frontend/packages/ui/src/agents/detail.tsx`) edits those blocks with the Seed block editor; the server normalizes and resolves them to markdown before use. <!-- id:DkIerr6J -->
+- **System prompt dialog** (`frontend/packages/ui/src/agents/session.tsx`) shows `systemPromptMarkdown` — the exact prompt that would be used to continue the session. <!-- id:zUoF2iV9 -->
 
 # Change checklist <!-- id:kIr2R1vA -->
 

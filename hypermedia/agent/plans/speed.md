@@ -1,8 +1,8 @@
 ---
 name: Agent Speed Plan
-summary: "Goal: agents should feel instant — the reply starts streaming the moment you hit send, tool calls resolve in the time the work itself takes, and nothing…"
+summary: A plan to make agents feel instant by measuring every stage of a turn and cutting the delays a person actually waits through, from dispatch to the first token.
 ---
-Goal: agents should feel **instant** — the reply starts streaming the moment you hit send, tool calls resolve in the time the work itself takes, and nothing sits in a queue you can't see. This is the perceived-latency companion to [perf-squeeze-plan.md](./perf-squeeze.md), which attacks host throughput; here the unit of success is the milliseconds a person (or a parent agent) waits. <!-- id:ne7tmVa3 -->
+Goal: agents should feel **instant** — the reply starts streaming the moment you hit send, tool calls resolve in the time the work itself takes, and nothing sits in a queue you can't see. This is the perceived-latency companion to the finished perf-squeeze plan (now in git history), which attacked host throughput; here the unit of success is the milliseconds a person (or a parent agent) waits. <!-- id:ne7tmVa3 -->
 
 # The latency a user actually experiences <!-- id:W0Wj8fiz -->
 
@@ -48,9 +48,9 @@ Prod-side experience (ion, 2026-09-01, reviewing this plan from the agentic host
 
 # Workstreams, in order of expected impact <!-- id:URIPrRHx -->
 
-1. **Keep the microVM alive between calls** — [exec-warm-pool.md](./exec-warm-pool.md). Removes `exec.boot` from every call after the first and, far bigger, preserves guest warm state for dev loops. <!-- id:XHzdvgl0 -->
-2. **Cut provider round-trip cost** — [model-comms-latency.md](./model-comms-latency.md). TTFT and per-turn upload: prompt caching, server-side conversation state, context compaction, leaner tool contracts. <!-- id:ogA71Hyt -->
-3. **Shave the dispatch/prep path** — watch `run.dispatch_delay` and `provider.request_gap` in prod. Suspects when they're high: the 1s dispatch poll for background runs (interactive runs bypass it via `runInline`), system-prompt resolution fetching remote hm:// documents (now cached 5 min — verify the hit rate), and `#piMessages` re-decoding large transcripts every turn (the append-time spill follow-up in perf-squeeze §6). <!-- id:MySHfUMe -->
+1. **Keep the microVM alive between calls** — shipped as the exec warm pool, still opt-in with `SEED_AGENTS_EXEC_WARM_POOL=1` as of September 2026 (see [operations](../operations.md)). Removes `exec.boot` from every call after the first and, far bigger, preserves guest warm state for dev loops. <!-- id:XHzdvgl0 -->
+2. **Cut provider round-trip cost** — [model-comms-latency.md](./model-comms-latency.md). TTFT and per-turn upload: prompt caching, server-side conversation state, elision of old tool results, leaner tool contracts. <!-- id:ogA71Hyt -->
+3. **Shave the dispatch/prep path** — watch `run.dispatch_delay` and `provider.request_gap` in prod. Suspects when they're high: the 1s dispatch poll for background runs (interactive runs bypass it via `runInline`), system-prompt resolution fetching remote hm:// documents (now cached 5 min — verify the hit rate), and `#piMessages` re-decoding large transcripts every turn (the append-time spill follow-up left by the perf-squeeze plan). <!-- id:MySHfUMe -->
 4. **Never look idle** — the UI side: `starting` / `thinking` / `tool` phase events already stream; make sure every stage above emits one so waiting always shows motion. Cheap, pure perception, worth auditing after the numbers improve. <!-- id:NrCII4ob -->
 
 # How to re-measure <!-- id:8633Vh-c -->

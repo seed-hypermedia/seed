@@ -1,23 +1,23 @@
 ---
 name: Tools
-summary: "An agent's entire model-facing tool surface is five verbs: read, write, call, delegate, plan. Everything else — searching, the web, code execution, an…"
+summary: "The reference for everything an agent can do: the verbs handed to the model, the address forms they accept, the callable tools dispatched through call, and how tool events are recorded."
 ---
-An agent's entire model-facing tool surface is **five verbs**: `read`, `write`, `call`, `delegate`, `plan`. Everything else — searching, the web, code execution, an agent's own authored tools — is either an address form of a verb or a **callable tool** dispatched through `call`. Tool calls and results are persisted as durable, actor-stamped session events and rendered in the desktop log. <!-- id:sdHo0UwP -->
+An agent's entire model-facing tool surface is **five verbs**, `read`, `write`, `call`, `delegate`, `plan`, plus two session verbs, `status` and `continue_session`. Everything else — searching, the web, code execution, an agent's own authored tools — is either an address form of a verb or a **callable tool** dispatched through `call`. Tool calls and results are persisted as durable, actor-stamped session events and rendered in the session log of the Seed app and the Seed web app. <!-- id:sdHo0UwP -->
 
 # The registry <!-- id:-aLT2u3W -->
 
 The canonical registry lives at `agents/protocol/src/tool-registry.ts`. The Agents service executes from it and the desktop renders from it, so a tool's prompt text, schemas, chat bubble, and HM-reference extraction can never drift apart. It exports three tables: <!-- id:5JGudaAa -->
-  - `seedVerbRegistry` — the five verbs plus the hidden `return_result` mechanism. This is the **only** provider-facing toolset (`agents/protocol/src/tool-registry.ts:398`). <!-- id:cpDWf5e4 -->
-  - `callableToolRegistry` — `search`, `query`, `attributes`, `web_search`, `navigate`, `execute`. These are never handed to the provider as tools by default; `call` dispatches them (`tool-registry.ts:613`). <!-- id:Z3ye-2G4 -->
-  - `seedToolRegistry` — both, merged, for renderers and validation lookups (`tool-registry.ts:630`). <!-- id:lnALDCIy -->
+  - `seedVerbRegistry` — the five verbs, `status`, `continue_session`, and the hidden `return_result` mechanism. This is the **only** provider-facing toolset. A leaf run gets no `delegate`, a delegated child gets no `continue_session`, and only a typed child gets `return_result`. <!-- id:cpDWf5e4 -->
+  - `callableToolRegistry` — `search`, `query`, `attributes`, `web_search`, `navigate`, `execute`. These are never handed to the provider as tools by default; `call` dispatches them (`callableToolRegistry`). <!-- id:Z3ye-2G4 -->
+  - `seedToolRegistry` — both, merged, for renderers and validation lookups (`seedToolRegistry`). <!-- id:lnALDCIy -->
 
 Each entry owns the model-facing name, label, prompt description, JSON input schema, optional output schema, runtime availability (`assistant` / `agent-service`), rendering metadata, and an optional `getReferencedUrls` extractor used to sync `hm://` resources a call touched. Write results include document versions and comment/target URLs in this extraction so an open desktop session can keep newly published content subscribed on its local node before the user follows the result link. Server runtimes add only execution functions around registry entries; chat UIs pick their bubble renderer from the same metadata. <!-- id:Io_jNF7p -->
 
-`navigate` is marked `runtimes: ['assistant']`, so the agent service never offers it: `serviceCallableNames()` (`agents/src/api-service.ts:285`) filters on `runtimes.includes('agent-service')`, leaving the service's callable set as `search`, `query`, `attributes`, `web_search`, `execute`. Nothing on this branch runs the `assistant` runtime, so `navigate` is currently inert — it is kept as the registry entry a desktop-side executor would bind to. <!-- id:hZYGek_X -->
+`navigate` is marked `runtimes: ['assistant']`, so the agent service never offers it: `serviceCallableNames()` (in `agents/src/api-service.ts`) filters on `runtimes.includes('agent-service')`, leaving the service's callable set as `search`, `query`, `attributes`, `web_search`, `execute`. Nothing on this branch runs the `assistant` runtime, so `navigate` is currently inert — it is kept as the registry entry a desktop-side executor would bind to. <!-- id:hZYGek_X -->
 
 ## Legacy names <!-- id:xGuoC4hF -->
 
-`normalizeSeedToolName()` maps exactly one renamed callable: `execute_code` → `execute` (`tool-registry.ts:642`). Names that were absorbed into verbs — `memory_*`, `web_read`, `ipfs_*`, `attachment_*`, `list_activity_feed`, the old spawn tools, `update_plan`, `set_session_title` — have **no** alias on purpose. The verbs are always on, so those entries in a stored `tools` array are simply inert. <!-- id:CjHdoLy8 -->
+`normalizeSeedToolName()` maps exactly one renamed callable: `execute_code` → `execute` (in `tool-registry.ts`). Names that were absorbed into verbs — `memory_*`, `web_read`, `ipfs_*`, `attachment_*`, `list_activity_feed`, the old spawn tools, `update_plan`, `set_session_title` — have **no** alias on purpose. The verbs are always on, so those entries in a stored `tools` array are simply inert. <!-- id:CjHdoLy8 -->
 
 # Tools are documents <!-- id:SM16VRI3 -->
 
@@ -171,13 +171,21 @@ Dispatch order in `executeCallVerb` (`api-service.ts:7794`): <!-- id:iTHt2YHO --
   2. If it is not a granted builtin, look for an enabled document of that name: a **lambda** runs in the sandbox (`executeLambdaTool`), an **MCP projection** is proxied to its server (`executeMcpTool`, see [`mcp.md`](./mcp.md)). <!-- id:SWV7WM4u -->
   3. Otherwise return the `~/tools` listing with a "no callable tool named …" summary. <!-- id:WixN3gx_ -->
   4. Validate `input` against the tool's schema; on failure return the contract (touch-expand). <!-- id:euze5A7r -->
-  5. Execute: `search` → `executeAgentServiceSearch`, `web_search` → `executeWebSearch`, `execute` → the sandbox. <!-- id:dlSy993f -->
+  5. Execute: `search` → `executeAgentServiceSearch`, `query` → `executeAgentServiceQuery`, `attributes` → `executeAgentServiceAttributes`, `web_search` → `executeWebSearch`, `execute` → the sandbox. <!-- id:dlSy993f -->
 
 Promoted callables are exposed as real provider tools that route back through the same function (`createAgentServicePiTools`, `api-service.ts:7869`), so a promoted tool and a `call` of it behave identically — same validation, same narrowing, same executor. <!-- id:NFz3qyK1 -->
 
 ## `search` <!-- id:hXDTk_mE -->
 
 Seed hypermedia search: document titles, contacts, optionally bodies and comments. Input `{query, accountUid?, includeBody?, contextSize?, searchType?: 'keyword' | 'semantic' | 'hybrid', pageSize?}`. Returns ranked results with hm:// URLs. <!-- id:awBGnb8w -->
+
+## `query` <!-- id:1f1goTTm -->
+
+Finds current documents by their attributes, the structured complement to `search`: free text is not matched. Input `{q?, filter?, sort?, pageSize?, pageToken?}`, where at least one of `q` or `filter` is required and both are ANDed. `q` uses the Explore grammar described on the [query grammar](../build/query-grammar.md) page (`key=value`, `key:text`, `has:key`, `in:<space or hm:// URL>`, `path:/specs/*`, AND/OR/NOT); `filter` is a raw `DocumentFilter` in JSON. `sort` takes attribute keys or the built-in fields `NAME`, `PATH`, `CREATE_TIME`, `UPDATE_TIME`, `ACTIVITY_TIME`, `COMMENT_COUNT`. `pageSize` defaults to 25, at most 100. The executor compiles the query and sends one `QueryDocuments` request to the configured HM server; each result carries its URL, name, account, path, full attributes, authors, update time, and version. <!-- id:GNN4ar6q -->
+
+## `attributes` <!-- id:j5uitYVU -->
+
+Discovers which attribute keys documents use and what values a key takes, so the agent can learn a type's fields before writing a `query`. Without `key` it lists attribute names with the kinds seen for each (`parent` narrows to a nested object, `recursive: true` lists full dotted paths) through `ListDocumentAttributeNames`. With a dotted `key` it lists distinct values, optionally one `kind` (`string`, `int`, `bool`), through `ListDocumentAttributeValues`. `account` prioritises or restricts to one space, `prefix` filters, and `pageSize` defaults to 50, at most 200. <!-- id:IfSA0MYd -->
 
 ## `web_search` <!-- id:yjViFSdL -->
 
@@ -250,6 +258,8 @@ A child always runs as the delegating agent. Direct agent-to-agent delegation (`
 
 **Leaves.** A run at the budget's depth is a leaf. It gets **no delegate verb at all** and no spawn handlers (`#delegationStatus`, `canDelegate`), and its system prompt says so ("You are a leaf worker…"), instead of a verb whose every call is refused and costs a turn. Every non-leaf turn's prompt states its depth, how many children it may still start, and whether its children could delegate further — a parent whose children will be leaves is told to give them self-contained briefs (`delegationPrompt()`). A resolved child's `tool_result` also carries `delegation: {depth, maxDepth, childCouldDelegate, parentChildrenRemaining, parentMaxChildren}` — the parent's count is the live one, since its system prompt was built when the run started — and `~/self` shows the agent's preset and limits. Using the last slot is answered by `childrenExhaustedMessage()`, which says to finish alone now and how to pack the next long list (several items per brief, or one script child whose children draw on their own budget). The remaining fixed limit is 3 `return_result` retries (`MAX_RETURN_RESULT_RETRIES`). <!-- id:44rasYwX -->
 
+**Choosing thoroughness.** A person picks the preset where they pick the model: the agent's Settings tab, the Create Agent dialog, and the model badge on a session, including the assistant panel's draft chat, whose choice rides `CreateSession`. A session's change applies from its next root run, because running trees keep the budget they copied. The run queue also knows a wall-clock budget, `maxWallMs`, that parks a run with the `budget-pause` wait reason until a person resumes it with `SignalRun`; as of September 2026 nothing outside tests sets it. The [delegation budgets](./plans/delegation-budgets.md) plan proposes pause cards, tree-wide budgets, and token budgets on top of this. <!-- id:gd7-bOM2 -->
+
 # `plan` <!-- id:zu6_3lwq -->
 
 Maintains the thread's visible checklist: `{title?, steps: [{id, label, status: pending | running | done | failed | skipped}]}`. Calls replace the whole plan, are stored on `sessions.plan_cbor`, and write **no transcript event** — the checklist is the card, not conversation. The server stamps the owning run id; when every step settles, it copies that snapshot onto the run so the completed plan stays in transcript history even after a later turn replaces the session's mutable plan. <!-- id:rWxol_cq -->
@@ -259,6 +269,10 @@ That choice has a consequence the runtime handles explicitly. A model resuming a
 **Runtime settlement.** When every run attached to a running step comes back `succeeded`, `#settlePlanStepFromChildren()` (`api-service.ts:2727`) marks the step `done` with `resolvedBy: 'runtime'`. Only success settles a step — what a failed child means is a judgment the model makes, and the continuation loop exists to make it ask. `resolvedBy` can never be forged from model input: `normalizeRunPlan` reads only what the model may say, and `#carryResolvedBy()` (`api-service.ts:2174`) carries the runtime's mark across later writes while the step stays done, dropping it if the step is reopened or written off. <!-- id:mCLG-mEC -->
 
 **Obligations.** A turn that ends still owing something does not simply end. `#openObligations()` (`api-service.ts:2776`) collects one list — an undelivered typed result, unfinished plan steps — and the run hands the turn back with every open obligation named at once, up to `MAX_RUN_CONTINUATIONS` (3) times (`#executeAgentRun`, `api-service.ts:2607`). Steps left open while children are still working are not obligations (someone else is carrying them), and `failed`/`skipped` are terminal — an agent that says it could not do something has kept the contract and must never be nagged into pretending otherwise. When the budget is spent, the run leaves an actor-`system` notice saying exactly what was left undone; a typed child that never delivered **fails**, an unfinished plan **succeeds owing it**. Nothing is ever ticked off on the agent's behalf. <!-- id:ou9pyPWe -->
+
+# `status` <!-- id:mbUuxFT_ -->
+
+Sets the session's agent-maintained `title` and `description`: `{title?, description?}`, passing only the fields that change. The title names what the whole session is about and is set once early; the description is the live status and is updated at milestones and once more when the work finishes. Each turn shows the current values in a `<session_status>` block, so the verb is a change, never a restatement. A title the user typed is never overwritten. The call is hidden in the log, like `plan`. <!-- id:wNgr5l4d -->
 
 # `return_result` <!-- id:yPsyH8z2 -->
 

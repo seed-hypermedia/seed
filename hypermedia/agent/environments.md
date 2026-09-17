@@ -1,6 +1,6 @@
 ---
 name: Environments
-summary: The agents server runs in five distinct kinds of environment (the hosted remote is one kind running as three deployments — production, staging, and dev).…
+summary: "The five kinds of environment the agents server runs in, from local development to hosted and self-hosted remotes, and the configuration each one turns on."
 ---
 The agents server runs in five distinct kinds of environment (the hosted remote is one kind running as three deployments — production, staging, and dev). Same binary logic, very different surroundings: what spawns it, what it binds, which HM server it reads and writes through, whether code execution and web tools exist, and how it gets updated. This document describes each one and the configuration that makes it work. The full env-var reference lives in `operations.md`; this is about which of those knobs each environment turns and why. <!-- id:qqHzmE1k -->
 

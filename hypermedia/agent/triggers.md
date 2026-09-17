@@ -1,6 +1,6 @@
 ---
 name: Triggers
-summary: The reference for agent triggers: the six sources that can fire, the four continuations a firing can run, how the monitors match and deduplicate, and where triggers are edited.
+summary: "The reference for agent triggers: the sources that can fire one, the continuations a firing runs, how monitors match and deduplicate events, and where triggers are edited."
 ---
 A trigger lets an agent act when nobody is talking to it. It binds a **source** (something that happens: a comment, a mention, a site update, a schedule, a webhook delivery, or another run finishing) to a **continuation** (what to do about it: start a conversation, wake a parked run, or run a tool or script with no model at all). Triggers belong to one agent, live on its agents server, and are the one piece of standing authority an agent holds, so the [security](./security.md) page discusses them too.
 

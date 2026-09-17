@@ -1,6 +1,6 @@
 ---
 name: Worker-Isolated Run Execution
-summary: "The agents server runs everything on one JavaScript event loop: the HTTP API, the WebSocket broadcast fan-out, the background poll loops, and the execution…"
+summary: "A plan to move agent run execution off the agents server's single event loop into worker threads, so heavy runs stop stalling the API and live updates."
 ---
 # The problem <!-- id:W48hvbe4 -->
 

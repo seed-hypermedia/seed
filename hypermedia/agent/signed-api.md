@@ -1,6 +1,6 @@
 ---
 name: Signed API
-summary: The Agents HTTP API is a signed, DAG-CBOR encoded action API. Canonical protocol types live in agents/protocol/src/index.ts and are re-exported from…
+summary: The reference for the agents server HTTP API, where every request is a signed DAG-CBOR action envelope, including versioning, authorization, and every action.
 ---
 The Agents HTTP API is a signed, DAG-CBOR encoded action API. Canonical protocol types live in `agents/protocol/src/index.ts` and are re-exported from `agents/src/api.ts`; dispatch lives in `agents/src/api-service.ts`; HTTP routing lives in `agents/src/main.ts`. <!-- id:g-EvU-a4 -->
 
@@ -44,15 +44,15 @@ type AgentAction = UnsignedAgentAction & {
 Server validation: <!-- id:8LJhY3ZT -->
   1. envelope shape and `type`; <!-- id:75XviWi8 -->
   2. principal/signature byte shapes; <!-- id:_v8P7UA3 -->
-  3. signed action timestamp is within 30 seconds of server local time; <!-- id:Zr6E8UHr -->
-  4. Ed25519 signature through `@shm/shared/blobs.verify()`; <!-- id:qOVjsEhi -->
+  3. signed action timestamp is within five minutes of server local time; <!-- id:Zr6E8UHr -->
+  4. Ed25519 signature through `verify()` from `@seed-hypermedia/client` (imported through the `@shm/shared/blobs` re-export); <!-- id:qOVjsEhi -->
   5. signer is account or locally authorized for account; <!-- id:84U_5iGK -->
   6. action is valid for the transport. <!-- id:1BkfRowE -->
 
 Implementation: <!-- id:siTzEryg -->
   - `agents/src/auth.ts` — shape/signature/authorization. <!-- id:ifLx8GI- -->
   - `agents/src/api-service.ts` — action dispatch and ownership checks. <!-- id:KxS_yJfG -->
-  - `frontend/apps/desktop/src/agents-client.ts` — daemon-backed desktop signing. <!-- id:XxzGLFqk -->
+  - `frontend/packages/ui/src/agents/client.ts` — `signAgentAction()` and `sendAgentAction()`, shared by both apps; the desktop's platform (`frontend/apps/desktop/src/agents-platform.ts`) supplies a daemon-backed signer. <!-- id:XxzGLFqk -->
 
 # Signing caveat: omit undefined <!-- id:asgFXeqf -->
 
@@ -896,14 +896,14 @@ type AgentPromptBlock = {
 
 `reasoningLevel` applies to reasoning-capable models and must be one of the levels `modelReasoningSupport` reports for the model (`agents/protocol/src/reasoning.ts`); absent means off, or the provider default where reasoning cannot be disabled. <!-- id:MeW0UZKi -->
 
-`tools` is a **grant list, not the tool surface**. The five verbs — `read`, `write`, `call`, `delegate`, `plan` — are always on and can never be granted or revoked; see [the glossary](../agent.md). (The one exception is structural, not a permission: `delegate` needs a run to park on, so the rare runless invocation simply omits it.) What `tools` narrows is: <!-- id:69h9HRvq -->
-  - the **callable set** dispatched through `call` (today `search`, `web_search`, `execute`; `navigate` is assistant-runtime only). An omitted `tools` array grants every service-runtime callable; an explicit array keeps only the names it lists. Unknown and legacy names are ignored, and `execute_code` normalizes to `execute` (`normalizeSeedToolName`). `execute` is dropped silently on hosts that cannot run sandboxes, so the model never sees a tool that can only fail. <!-- id:zNYgtpXZ -->
+`tools` is a **grant list, not the tool surface**. The verbs (`read`, `write`, `call`, `delegate`, `plan`, `status`, and `continue_session`) are never granted or revoked; see [the glossary](./glossary.md). Their absences are structural, not permissions: `delegate` is omitted for a runless invocation and for a leaf at its delegation budget's depth, and `continue_session` is omitted for delegated children. What `tools` narrows is: <!-- id:69h9HRvq -->
+  - the **callable set** dispatched through `call` (today `search`, `query`, `attributes`, `web_search`, `execute`; `navigate` is registered for the assistant runtime only and never offered by the service). An omitted `tools` array grants every service-runtime callable; an explicit array keeps only the names it lists. Unknown and legacy names are ignored, and `execute_code` normalizes to `execute` (`normalizeSeedToolName`). `execute` is dropped silently on hosts that cannot run sandboxes, so the model never sees a tool that can only fail. <!-- id:zNYgtpXZ -->
   - the **publish grant**: the pseudo-tool name `publish` authorizes signed public writing (`hm://` documents and comments, IPFS uploads). Legacy write-group names (`write`, `memory_publish_document`, `ipfs_write`, `attachment_to_ipfs`) still count so a pre-verbs agent keeps the posture its owner configured, and an omitted `tools` array publishes. Memory writes are never gated. <!-- id:-GXtTNC3 -->
 
 `signingKeys` stores the selected uploaded HM account key secret names for signing/publishing; `signingKey` is retained as a legacy single-key field. When an agent runs, selected keys are appended to the system prompt with both profile names and public key IDs so the model can map user-facing names to signing IDs. Pi's own builtin tools are disabled by the Seed runner (`noTools: 'builtin'`). <!-- id:U9fN8wVf -->
 
 # Protocol sync <!-- id:7-eqGvuo -->
 
-Desktop and server now consume the same private package, `@seed-hypermedia/agents-protocol`, instead of maintaining manual protocol mirrors. Change protocol action, response, session-event, or WebSocket-event types in `agents/protocol/src/index.ts`; `agents/src/api.ts` re-exports those types for service-local imports, and `frontend/apps/desktop/src/agents-client.ts` aliases them for desktop callers. <!-- id:Cn08kTEd -->
+The apps and the server consume the same private package, `@seed-hypermedia/agents-protocol`, instead of maintaining manual protocol mirrors. Change protocol action, response, session-event, or WebSocket-event types in `agents/protocol/src/index.ts`; `agents/src/api.ts` re-exports those types for service-local imports, and `frontend/packages/ui/src/agents/client.ts` aliases them for the shared UI. <!-- id:Cn08kTEd -->
 
 When changing the protocol package, update service dispatch, desktop behavior, and docs in the same change. <!-- id:mj-buzJQ -->

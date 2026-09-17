@@ -1,6 +1,6 @@
 ---
 name: Operations
-summary: This document explains how to run, inspect, and troubleshoot the Agents service.
+summary: How to build, configure, deploy, observe, and troubleshoot an agents server, including every environment variable, endpoint, and background loop.
 ---
 This document explains how to run, inspect, and troubleshoot the Agents service. <!-- id:nR-WGkJx -->
 
@@ -24,7 +24,7 @@ direnv exec . bash -lc 'cd agents && bun run test:docker'
 direnv exec . bash -lc 'cd agents && bun run test:trigger'
 ```
 
-`test:trigger` boots the real daemon against a local stand-in for hyper.media's `/api/ListEvents`, creates an agent + user-mention trigger over the signed API, and asserts a comment-mention fires exactly one session (guards the comment/citation sibling race; see `agent/plans/triggers.md`). <!-- id:PN41rCE- -->
+`test:trigger` boots the real daemon against a local stand-in for hyper.media's `/api/ListEvents`, creates an agent + user-mention trigger over the signed API, and asserts a comment-mention fires exactly one session (guards the comment/citation sibling race; see [triggers](./triggers.md)). <!-- id:PN41rCE- -->
 
 Desktop: <!-- id:nzMipXzR -->
 
@@ -138,6 +138,12 @@ Config source: `agents/src/config.ts`. <!-- id:Woltv7hS -->
 | `SEED_AGENTS_EXEC_TIMEOUT_SECS` | `60` | Default per-execution timeout (tool may request up to 300s). <!-- id:lyEYdp2i --> |
 | `SEED_AGENTS_EXEC_ALLOW_NETWORK` | `true` | Sandbox internet access. Set `false`/`off`/`0` to isolate sandboxes. <!-- id:YZQgb6sX --> |
 | `SEED_AGENTS_EXEC_DNS` | `1.1.1.1,8.8.8.8` | Comma-separated DNS resolvers used inside execution sandboxes. <!-- id:J926ue8T --> |
+| `SEED_AGENTS_EXEC_MAX_CONCURRENT` | CPU count minus 2, at least 1 | Host-wide cap on sandboxes in use at once; a call past the cap waits for a slot. <!-- id:8sZw4vce --> |
+| `SEED_AGENTS_EXEC_ACQUIRE_WAIT_SECS` | `30` | How long a call waits for a sandbox slot before failing with a retryable error. <!-- id:kO3J-GJE --> |
+| `SEED_AGENTS_EXEC_WARM_POOL` | off | Set `1` to keep microVMs alive between calls instead of booting one per call. Opt-in until it is the proven default. <!-- id:dXJDYAaT --> |
+| `SEED_AGENTS_EXEC_MAX_VMS` | `3` | Warm pool only: pooled VMs retained; extra concurrent calls boot transient VMs rather than wait. <!-- id:8tLQhClP --> |
+| `SEED_AGENTS_EXEC_POOL_IDLE_TTL_SECS` | `180` | Warm pool only: how long a parked VM may sit idle before it is disposed. <!-- id:pZDEsB5o --> |
+| `SEED_AGENTS_EXEC_POOL_MAX_AGE_SECS` | `1800` | Warm pool only: maximum age of a pooled VM, enforced between calls. <!-- id:yTmSdS1y --> |
 | `SEED_AGENTS_LOG_LEVEL` | `info` | Minimum log level (`debug`, `info`, `warn`, `error`). `debug` re-enables hot-path lines. <!-- id:5TX4N4wb --> |
 
 CLI flags override env/defaults: <!-- id:ZtCaYR7h -->
@@ -448,7 +454,7 @@ Likely causes: <!-- id:3kFIP4ug -->
   - signed action contains values that encode differently before/after decode; <!-- id:wSv7HCO_ -->
   - explicit `undefined` fields were sent. <!-- id:cGvB3HF1 -->
 
-Current desktop signing omits `undefined` recursively before signing. If this returns, inspect `frontend/apps/desktop/src/agents-client.ts` and server `auth.verifyEnvelope()`. <!-- id:nS1GjGqf -->
+Current desktop signing omits `undefined` recursively before signing. If this returns, inspect `signAgentAction()` in `frontend/packages/ui/src/agents/client.ts` and server `auth.verifyEnvelope()`. <!-- id:nS1GjGqf -->
 
 ## No live streaming appears <!-- id:3rMq20wP -->
 

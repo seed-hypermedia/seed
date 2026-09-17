@@ -1,8 +1,8 @@
 ---
 name: Model Comms Latency
-summary: How to make every provider round-trip cheaper and the first token arrive sooner. Companion to agent/plans/speed.md; the egress-volume view of the same…
+summary: "A plan to make each model-provider round trip cheaper and the first streamed token arrive sooner, through prompt caching, byte-stable prompt prefixes, leaner turn preparation, and fewer round trips."
 ---
-How to make every provider round-trip cheaper and the first token arrive sooner. Companion to [agent/plans/speed.md](./speed.md); the egress-volume view of the same problem is workstream 4 of [perf-squeeze-plan.md](./perf-squeeze.md). <!-- id:5YS5DZIm -->
+How to make every provider round-trip cheaper and the first token arrive sooner. Companion to the [speed plan](./speed.md); the egress-volume view of the same problem was workstream 4 of the finished perf-squeeze plan, which now lives only in git history. <!-- id:5YS5DZIm -->
 
 # What we now measure <!-- id:t2RVPlFb -->
 
@@ -22,7 +22,7 @@ The Responses API supports `store: true` + `previous_response_id`: send only the
 
 ## 3. Context compaction <!-- id:A0L4Cbas -->
 
-Old tool results are the dead weight: 64 KB exec outputs that stopped mattering three turns ago are re-serialized, re-uploaded, and re-prefilled every turn (and on cache misses they blow the prefix). Elide or summarize tool results older than N turns, leaving a model-visible `[output elided]` note. This cuts bytes, event-loop serialization time, AND makes prompt-cache prefixes shorter to rebuild on a miss. The append-time spill of oversized outputs (perf-squeeze §6 follow-up) is the storage-side twin of this. <!-- id:LHGoHg_P -->
+Old tool results are the dead weight: 64 KB exec outputs that stopped mattering three turns ago are re-serialized, re-uploaded, and re-prefilled every turn (and on cache misses they blow the prefix). Elide or summarize tool results older than N turns, leaving a model-visible `[output elided]` note. This cuts bytes, event-loop serialization time, AND makes prompt-cache prefixes shorter to rebuild on a miss. The append-time spill of oversized outputs (a follow-up from the finished perf-squeeze plan) is the storage-side twin of this. <!-- id:LHGoHg_P -->
 
 ## 4. Byte-stable prefixes <!-- id:0Y96YhUF -->
 

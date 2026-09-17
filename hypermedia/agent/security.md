@@ -1,8 +1,8 @@
 ---
 name: Security Model
-summary: The Agents security model centers on signed account-scoped actions, server-side owner/collaborator checks, encrypted/redacted secrets, signed WebSocket…
+summary: "The Seed Agents security model: signed account-scoped actions, owner and collaborator checks, encrypted secrets, signed subscriptions, sandboxed code, and a fixed set of model-facing verbs."
 ---
-The Agents security model centers on signed account-scoped actions, server-side owner/collaborator checks, encrypted/redacted secrets, signed WebSocket subscriptions, and a model-facing tool surface whose authority is fixed at five verbs. <!-- id:DmipMeA2 -->
+The Agents security model centers on signed account-scoped actions, server-side owner/collaborator checks, encrypted/redacted secrets, signed WebSocket subscriptions, and a model-facing tool surface whose authority is fixed at a handful of verbs. <!-- id:DmipMeA2 -->
 
 # Trust boundaries <!-- id:rNafV-CT -->
 
@@ -70,9 +70,9 @@ Agents of the same account do not read each other's state. The `thread:` address
 
 # Secrets <!-- id:SgQVhqL8 -->
 
-`SetSecret` accepts key bytes, encrypts them, and returns only redacted metadata. `CreateSigningIdentity` generates a server-side Ed25519 HM account key and stores the raw seed through the same encrypted secret path. `ListSigningIdentities` only returns redacted metadata for account-scoped secrets tagged with `kind: 'hm-account-key'`; the plaintext key material is never returned and cross-account keys are not visible. <!-- id:5DSi0bnT -->
+`SetSecret` accepts key bytes, encrypts them, and returns only redacted metadata. `CreateSigningIdentity` generates a new Ed25519 account key on the server for the agent, publishes its profile, and stores the raw seed through the same encrypted secret path. The owner's own key stays on their device and grants the agent a capability. `ImportSigningIdentity` is the exception: it accepts the seed of an existing key, decrypted on the client. `ListSigningIdentities` only returns redacted metadata for account-scoped secrets tagged with `kind: 'hm-account-key'`; the plaintext key material is never returned and cross-account keys are not visible. <!-- id:5DSi0bnT -->
 
-Desktop refuses to send secrets to non-local plain HTTP servers (`isSafeAgentServerSecretTarget()`, `frontend/apps/desktop/src/agents-client.ts:127`). Remote servers must use HTTPS. <!-- id:SvO1iUID -->
+The shared client refuses to send secrets to non-local plain HTTP servers (`isSafeAgentServerSecretTarget()`, `frontend/packages/ui/src/agents/client.ts`). Remote servers must use HTTPS. <!-- id:SvO1iUID -->
 
 Do not log: <!-- id:FIGniD9D -->
   - plaintext secrets; <!-- id:Y7oc2F-N -->
@@ -108,7 +108,7 @@ Adding a pinned provider type only requires a `PROVIDER_SPECS` entry; it inherit
 
 # The tool surface is the authority boundary <!-- id:ZUb7YijU -->
 
-The model sees five verbs. Nothing widens that set except **promotion**, and promotion is bounded twice over (`api-service.ts:4322`): <!-- id:jh9t4A6y -->
+The model sees the five verbs plus the two session verbs, `status` and `continue_session`, which touch only the session's own title and lineage. Nothing widens that set except **promotion**, and promotion is bounded twice over (`api-service.ts:4322`): <!-- id:jh9t4A6y -->
   - promotion is derived only from durable `tool_call` events in this session's own transcript, so it survives restarts and cannot be smuggled in through live state; <!-- id:LdBc3z4t -->
   - the promoted list is intersected with `enabledCallableTools()` before it reaches Pi. This filter is the security control, not a tidiness pass: a hallucinated or injected `call {tool: 'bash'}` durably stores that name, and an unfiltered allowlist would hand `bash` to Pi and activate Pi's own host bash/edit builtins **outside** the sandbox. <!-- id:q2b0tftt -->
 
@@ -119,7 +119,7 @@ Events written by a user's own verb calls carry `actor: 'user'` and are explicit
 # Grants <!-- id:u27bF0_B -->
 
 Two things are granted per agent, both stored in `definition.tools`; the verbs themselves are never grants. <!-- id:c2iQDOLW -->
-  - **The callable set** — which of `search`, `web_search`, `execute` the agent may dispatch. `execute` additionally drops out when the host cannot run sandboxes. <!-- id:svPa8AfP -->
+  - **The callable set** — which of `search`, `query`, `attributes`, `web_search`, `execute` the agent may dispatch. `execute` additionally drops out when the host cannot run sandboxes. <!-- id:svPa8AfP -->
   - **Publish** — the pseudo-tool `publish` (with legacy write-group names still honored). Without it, `write` to `hm://` or `ipfs://` returns 403 (`api-service.ts:7454`, `api-service.ts:7499`). Memory writes are never gated, which is the intended line: private files are the agent's workspace, signed public content is a disclosure. <!-- id:N5F17hzw -->
 
 A delegate child's `tools` narrowing intersects against the parent's full callable set, so delegation can only ever reduce authority (`api-service.ts:2623`). <!-- id:6GNsOBus -->
@@ -148,7 +148,7 @@ Mitigations present: <!-- id:PtUHslMF -->
 
 Agents manage their own triggers directly: `write ~/triggers/<name>` creates, edits, enables, disables, or deletes a trigger, and `enabled` is honored exactly as written (defaulting to true). This is a **deliberate product decision by the owner** (2026-08-19): "do this every morning" said in chat should just work, without a separate approval step in the desktop. <!-- id:6xYSwts8 -->
 
-What that means for the threat model: a trigger is standing authority to act with nobody present, and an agent — which can be steered by a prompt injection in content it reads — can now grant that authority to itself. The draft→active consent design in `harness/m6-event-bus-design.md` proposed gating activation on a user gesture; that gate was built and then removed on the owner's direction. The remaining mitigations are visibility, not prevention: <!-- id:Vb4QmNhC -->
+What that means for the threat model: a trigger is standing authority to act with nobody present, and an agent — which can be steered by a prompt injection in content it reads — can now grant that authority to itself. An earlier event-bus design (now only in git history) proposed gating activation on a user gesture; that gate was built and then removed on the owner's direction. The remaining mitigations are visibility, not prevention: <!-- id:Vb4QmNhC -->
   - every trigger write is a durable, actor-stamped `tool_call`/`tool_result` pair on the session log; <!-- id:AcgbWlNJ -->
   - trigger writes emit `trigger-updated` account events, so the desktop Triggers tab reflects changes live; <!-- id:TqGo-Ffe -->
   - a trigger fires only what the agent could already do — its callable set and publish grant still bound the blast radius, and delegation still only narrows authority; <!-- id:95IODWlx -->
@@ -255,10 +255,10 @@ Several behaviors exist so the log cannot quietly disagree with reality, which i
 Implemented: <!-- id:6yUGwnPB -->
   - idempotency for create/message actions with client IDs; <!-- id:wLMm9_EJ -->
   - every signed action carries a signed `action.ts` Unix epoch millisecond timestamp; <!-- id:3GaTvXWk -->
-  - HTTP and WebSocket envelopes are rejected when `action.ts` is missing, invalid, or more than 30 seconds from server local time (`MAX_ACTION_CLOCK_SKEW_MS`, `agents/src/auth.ts:5`). <!-- id:lPu7yc3v -->
+  - HTTP and WebSocket envelopes are rejected when `action.ts` is missing, invalid, or more than five minutes from server local time (`MAX_ACTION_CLOCK_SKEW_MS` in `agents/src/auth.ts`). The window bounds both clock skew and time spent queued behind a busy server. <!-- id:lPu7yc3v -->
 
 Not implemented: <!-- id:DEdO-lj6 -->
-  - nonce caching, so a captured request can still be replayed within the 30-second timestamp window. <!-- id:JO8PA4PF -->
+  - nonce caching, so a captured request can still be replayed within the five-minute timestamp window. <!-- id:JO8PA4PF -->
 
 Nonce caching remains a high-priority hardening project. <!-- id:GLnsVNcT -->
 
