@@ -168,9 +168,24 @@ Important columns:
 - `last_fired_at`
 - `last_error`
 
-`source_cbor` encodes `AgentTriggerSource`: document-comment, user-mention, site-update, schedule, and run-completed.
+`source_cbor` encodes `AgentTriggerSource`: document-comment, user-mention, site-update, activity, schedule, webhook,
+and run-completed. An activity source contains a nonempty list of `{id, source}` alternatives, limited to the three
+activity filters. Legacy single-source rows remain valid without rewriting their CBOR or changing their identities.
 Schedule triggers store interval, weekly-days/time, or one-time run configuration inside this CBOR blob; no additional
 schedule table is required.
+
+`merged_into` marks a trigger retired by combination. It is disabled and immutable, retaining its original firing
+history. The surviving trigger receives the combined conditions and the selected shared action in one transaction.
+
+`trigger_event_claims` records `(account_id, trigger_id, activity_key)` for activity admission. The migration seeds it
+from existing firings, including canonical blob-key aliases for old raw mention keys. Combining imports the union of
+both triggers' claims; deleting a predecessor does not delete claims already imported into the survivor. Original firing
+rows keep their IDs and trigger associations even when both predecessors handled the same event.
+
+New activity firings store `context_cbor` with the name, prompt, and matched conditions observed at admission. Session
+attribution reads that snapshot instead of the current configuration. Legacy firings retain their existing fallback;
+combination captures their current view before changing the surviving configuration, without claiming historical
+condition-match information that was never recorded.
 
 `continuation_cbor` encodes what a firing does — `{kind: 'newThread'}` or `{kind: 'wake', signal, runId?, payload?}`.
 NULL means the only thing triggers used to do: start a new thread. The event-bus milestone moves this (and the rest of a

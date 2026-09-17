@@ -29,7 +29,7 @@
  */
 
 /** The protocol version this code speaks (client and server alike). */
-export const AGENTS_PROTOCOL_VERSION = 2
+export const AGENTS_PROTOCOL_VERSION = 3
 
 /**
  * The oldest client protocol a server built from this code still answers. A client below it is

@@ -519,10 +519,15 @@ monitor, and schedule triggers are processed by the schedule monitor.
 Trigger source shape:
 
 ```ts
-type AgentTriggerSource =
+type AgentActivitySource =
   | {type: 'document-comment'; resource: string; author?: string}
   | {type: 'user-mention'; mentionedAccounts: string[]; resourcePrefix?: string}
   | {type: 'site-update'; resourcePrefix: string; eventTypes?: string[]}
+
+type AgentTriggerSource =
+  | AgentActivitySource
+  | {type: 'activity'; conditions: {id: string; source: AgentActivitySource}[]}
+  | {type: 'webhook'}
   | {type: 'schedule'; schedule: AgentScheduleTrigger}
   | {
       type: 'run-completed'
@@ -552,6 +557,20 @@ markdown; trigger prompt blocks are converted to resolved markdown before starti
 
 A `user-mention` source watches a list of accounts; a legacy singular `mentionedAccount` on input is still normalized
 into `mentionedAccounts`, and an empty list is rejected.
+
+An `activity` source matches any of its 1–32 conditions. Condition IDs must be unique and remain stable when edited; the
+server assigns an ID if omitted on input. Nested groups and schedule/webhook/run-completed conditions are rejected. One
+comment matching both a document filter and a mention filter admits only one firing, including sibling feed events
+arriving in separate polls. Distinct triggers remain independent.
+
+`CombineAgentTriggers {triggerId, otherTriggerId, expectedUpdatedAt, otherExpectedUpdatedAt, useOtherAction?}` combines
+two activity triggers of the same agent and returns `UpdateAgentTriggerResponse`. The first survives, retaining its name
+and enabled state. Its action stays unless `useOtherAction` is true. The other becomes disabled with `mergedInto` and
+cannot be edited or enabled again. Both original histories remain available; previously handled events remain
+deduplicated. `UpdateAgentTrigger` also accepts optional `expectedUpdatedAt` to reject stale edits with HTTP 409.
+
+Compound-source operations require protocol 3. Older clients receive a typed update-required response rather than an
+incomplete rule. Existing single-source operations and session attribution remain compatible.
 
 `continuation` says what a firing _does_. Omitted (or `newThread`) starts a fresh thread from the trigger's prompt —
 what every trigger did before continuations existed. `wake` delivers a signal to a run parked on `ctx.waitForEvent`

@@ -86,3 +86,21 @@ with `MIN_CLIENT_PROTOCOL <= 1`.
   with the newest 50 top-level sessions, as the viewer may see them, for protocol 1 clients. Protocol 1 answered every
   session unbounded; those clients filtered children themselves, so nothing is lost below 50, but on a busier agent
   their agent page shows a capped list and count. Remove the shim and the V1 type when `MIN_CLIENT_PROTOCOL` reaches 2.
+
+## Protocol 3
+
+2026-09-17, activity trigger conditions.
+
+- `AgentTriggerSource` adds `{type: 'activity', conditions: [{id, source}]}`. Conditions are flat alternatives of
+  document-comment, user-mention, and site-update filters; one underlying event fires the parent once.
+- `CombineAgentTriggers` retains the selected survivor and retires its peer, preserving original firings and importing
+  deduplication claims. `UpdateAgentTrigger.expectedUpdatedAt` optionally prevents stale edits. Retired triggers expose
+  `mergedInto` and cannot be re-enabled or edited.
+- Clients below protocol 3 still read and write single-source triggers. Reading a compound trigger or a trigger list
+  containing one, creating a compound trigger, combining triggers, or editing a compound trigger returns a typed 426
+  `protocol_too_old` error before mutation. Compound sources are never projected to a misleading first condition.
+- Session attribution continues to carry one actual matching leaf source for compatibility. The additive
+  `matchedConditions` field records the conditions matched at admission. New activity firings snapshot their name,
+  prompt, and matched sources, so later edits cannot rewrite their explanation.
+- `MIN_CLIENT_PROTOCOL` remains 1. Older clients can continue using unrelated agent features; compound-trigger editing
+  requires an updated app. Older servers need upgrading before a new client can save compound conditions.
