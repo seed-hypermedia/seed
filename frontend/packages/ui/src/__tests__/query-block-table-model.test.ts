@@ -35,6 +35,7 @@ describe('query block table model', () => {
 
     expect(columns.map((column) => [column.id, column.defaultVisible])).toEqual([
       ['title', true],
+      ['space', false],
       ['tags', true],
       ['updated', true],
       ['children', true],
@@ -71,6 +72,7 @@ describe('query block table model', () => {
       getQuerySortColumns(columns, {'metadata:status': true, 'metadata:priority': false}).map(({id}) => id),
     ).toEqual([
       'title',
+      'space',
       'tags',
       'updated',
       'children',

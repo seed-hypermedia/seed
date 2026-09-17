@@ -55,6 +55,7 @@ export function inferAttributeType(values: unknown[]): QueryTableAttributeType {
 export function buildQueryTableColumns(items: HMDocumentInfo[] = []): QueryTableColumn[] {
   const coreColumns: QueryTableColumn[] = [
     {id: 'title', label: 'Name', type: 'text', defaultVisible: true},
+    {id: 'space', label: 'Space', type: 'text', defaultVisible: false},
     {id: 'tags', label: 'Tags', type: 'list', defaultVisible: true},
     {id: 'updated', label: 'Last Modified', type: 'date', defaultVisible: true},
     {id: 'children', label: 'Subdocuments', type: 'number', defaultVisible: true},
@@ -108,6 +109,8 @@ export function getDocumentTags(item: HMDocumentInfo): string[] {
 export function getQueryTableValue(item: HMDocumentInfo, columnId: string, context?: QueryTableValueContext): unknown {
   if (columnId.startsWith('metadata:')) return item.metadata[columnId.slice('metadata:'.length)]
   if (columnId === 'title') return item.metadata.name || item.path.at(-1) || 'Untitled'
+  // The space a document belongs to is named by its root, which is the first breadcrumb.
+  if (columnId === 'space') return item.breadcrumbs?.[0]?.name || item.id?.uid || ''
   if (columnId === 'tags') return getDocumentTags(item)
   if (columnId === 'comments') {
     const summaryId = item.id?.id ?? item.id

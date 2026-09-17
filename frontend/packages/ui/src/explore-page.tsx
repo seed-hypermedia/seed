@@ -1,16 +1,15 @@
-import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
+import type {HMDocumentInfo, HMQueryTableConfig} from '@seed-hypermedia/client/hm-types'
 import {getMetadataName} from '@shm/shared/content'
 import type {
   ExplorePresentation,
   ExploreQueryNode,
-  ExploreSortRule,
+  ExploreView,
   HMExploreContext,
   HMExploreResult,
   HMExploreResultType,
   ParsedExploreQuery,
 } from '@shm/shared/explore'
 import {
-  cycleExploreSort,
   exploreQueryChips,
   isExploreSpaceId,
   removeExploreQueryChip,
@@ -18,7 +17,7 @@ import {
   toggleExplorePredicate,
 } from '@shm/shared/explore'
 import {useSelectedAccountCapability} from '@shm/shared/models/capabilities'
-import {useAccountsMetadata, useCapabilities} from '@shm/shared/models/entity'
+import {useAccountsMetadata} from '@shm/shared/models/entity'
 import type {ExploreAccount} from '@shm/shared/models/explore'
 import {
   exploreDocumentKey,
@@ -29,6 +28,8 @@ import {
   useExploreAttributeNames,
   useExploreJoinedSpaces,
   useExploreRecentDocuments,
+  useExploreResultDocuments,
+  useExploreSpacePeople,
 } from '@shm/shared/models/explore'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {useRouteLink} from '@shm/shared/routing'
@@ -40,10 +41,13 @@ import {
   FileText,
   GitBranch,
   Globe,
+  LayoutGrid,
+  List,
   Loader2,
   MessageSquare,
   Pilcrow,
   Search,
+  Table2,
   User,
   X,
 } from 'lucide-react'
@@ -54,6 +58,7 @@ import {Input} from './components/input'
 import {FacePile} from './face-pile'
 import {HMIcon} from './hm-icon'
 import {PrivateBadge} from './private-badge'
+import {QueryBlockContent} from './query-block-content'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
@@ -321,6 +326,49 @@ function ExploreSpaceCard({space}: {space: HMDocumentInfo}) {
 // How many spaces are shown before the section has to be expanded.
 const COLLAPSED_SPACE_COUNT = 3
 
+const exploreViewOptions: Array<{value: ExploreView; label: string; icon: typeof FileText}> = [
+  {value: 'list', label: 'List', icon: List},
+  {value: 'card', label: 'Cards', icon: LayoutGrid},
+  {value: 'table', label: 'Table', icon: Table2},
+]
+
+// Default table columns Explore opens with.
+function exploreTableConfig(showSpace: boolean): HMQueryTableConfig {
+  const visible = new Set(showSpace ? ['title', 'space', 'updated'] : ['title', 'updated'])
+  return {
+    columns: ['title', 'space', 'updated', 'tags', 'children', 'comments', 'citations'].map((id) => ({
+      id,
+      visible: visible.has(id),
+    })),
+  }
+}
+
+// Explore view names map onto the Collections query block styles.
+function queryBlockStyle(view: ExploreView): 'Card' | 'List' | 'Table' {
+  return view === 'card' ? 'Card' : view === 'table' ? 'Table' : 'List'
+}
+
+// Segmented view controls.
+function ExploreViewSwitcher({view, onChange}: {view: ExploreView; onChange: (view: ExploreView) => void}) {
+  return (
+    <div className="bg-muted flex items-center gap-0.5 rounded-md p-0.5">
+      {exploreViewOptions.map((option) => (
+        <Button
+          key={option.value}
+          size="sm"
+          variant="ghost"
+          aria-pressed={view === option.value}
+          className={cn('h-7 gap-1.5 px-2', view === option.value && 'bg-background shadow-sm')}
+          onClick={() => onChange(option.value)}
+        >
+          <option.icon className="size-3.5" aria-hidden />
+          <span className="hidden sm:inline">{option.label}</span>
+        </Button>
+      ))}
+    </div>
+  )
+}
+
 /** Kinds Explore can list without a search term. */
 type ExploreBrowseKind = 'document' | 'space' | 'contact'
 const BROWSABLE_KINDS: ExploreBrowseKind[] = ['document', 'space', 'contact']
@@ -360,34 +408,32 @@ function ExplorePersonCard({account}: {account: ExploreAccount & {role?: string}
  * Everything of one kind in scope, listed without a search term. Reached from a Jump to pill, and
  * left by clearing the type chip.
  */
-function ExploreBrowse({kind, context}: {kind: ExploreBrowseKind; context: HMExploreContext}) {
+function ExploreBrowse({
+  kind,
+  context,
+  view,
+  onViewChange,
+}: {
+  kind: ExploreBrowseKind
+  context: HMExploreContext
+  view: ExploreView
+  onViewChange: (view: ExploreView) => void
+}) {
   const results = useExploreRecentDocuments(context, {
     enabled: kind !== 'contact',
     pageSize: 50,
     rootsOnly: kind === 'space',
   })
   const spaceId = context.type === 'site' ? context.id : null
-  const capabilities = useCapabilities(kind === 'contact' ? spaceId : null)
+  const spacePeople = useExploreSpacePeople(spaceId, {enabled: kind === 'contact'})
   const allAccounts = useExploreAccountList({enabled: kind === 'contact' && !spaceId})
-  const accounts = spaceId
-    ? {
-        isLoading: capabilities.isLoading,
-        // Filter out agent capabilities.
-        data: Object.values(
-          (capabilities.data ?? [])
-            .filter((capability) => capability.role !== 'agent')
-            .reduce<Record<string, {uid: string; role: string}>>((byAccount, capability) => {
-              const existing = byAccount[capability.accountUid]
-              const rank = (role: string) => ['owner', 'writer', 'member'].indexOf(role)
-              if (!existing || rank(capability.role) < rank(existing.role)) {
-                byAccount[capability.accountUid] = {uid: capability.accountUid, role: capability.role}
-              }
-              return byAccount
-            }, {}),
-        ),
-      }
-    : allAccounts
+  const accounts = spaceId ? spacePeople : allAccounts
   const heading = kind === 'space' ? 'Spaces' : kind === 'contact' ? 'People' : 'Documents'
+  const authorUids = useMemo(
+    () => Array.from(new Set((results.data ?? []).flatMap((document) => document.authors ?? []))),
+    [results.data],
+  )
+  const accountsMetadata = useAccountsMetadata(authorUids).data ?? {}
   if (kind === 'contact') {
     if (accounts.isLoading) {
       return <ExploreState icon={<Loader2 className="animate-spin" />} title="Loading" detail="Finding people." />
@@ -422,12 +468,19 @@ function ExploreBrowse({kind, context}: {kind: ExploreBrowseKind; context: HMExp
   }
   return (
     <section aria-label={heading} className="flex flex-col gap-3">
-      <h2 className="text-lg font-semibold">{heading}</h2>
-      <div className="flex flex-col gap-2">
-        {results.data.map((document) => (
-          <ExploreDocumentCard key={exploreDocumentKey(document.id)} document={document} />
-        ))}
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold">
+          {results.data.length} {heading.toLowerCase()}
+        </h2>
+        <ExploreViewSwitcher view={view} onChange={onViewChange} />
       </div>
+      {/* The same renderer Collections use. */}
+      <QueryBlockContent
+        items={results.data}
+        style={queryBlockStyle(view)}
+        accountsMetadata={accountsMetadata}
+        tableConfig={exploreTableConfig(kind !== 'space')}
+      />
     </section>
   )
 }
@@ -589,6 +642,8 @@ const tabs: Array<{id: ResultTab; label: string}> = [
 /** Shared Explore search/results surface used by desktop and web wrappers. */
 export function ExplorePage(props: ExplorePageProps) {
   const [activeTab, setActiveTab] = useState<ResultTab>('all')
+  // Set once the reader picks a tab, so the default below never overrides a deliberate choice.
+  const [tabPicked, setTabPicked] = useState(false)
   const [menu, setMenu] = useState<'scope' | 'type' | 'in' | 'attributes' | 'sort' | null>(null)
   const [sortBy, setSortBy] = useState<ExploreSortOption>('relevance')
   const [draft, setDraft] = useState(props.query)
@@ -597,6 +652,19 @@ export function ExplorePage(props: ExplorePageProps) {
   const onQueryChangeRef = useRef(props.onQueryChange)
   onQueryChangeRef.current = props.onQueryChange
   useEffect(() => setDraft(props.query), [props.query])
+  // view, cols, and sort are in the same query string as the search, so compare the
+  // search alone. Switching the view must not throw the reader back to the default tab.
+  const searchKey = useMemo(() => serializeExploreQuery(props.parsed.ast), [props.parsed.ast])
+  useEffect(() => {
+    setTabPicked(false)
+    setActiveTab('all')
+  }, [searchKey])
+  // Open the documents tab by default, if documents were found.
+  useEffect(() => {
+    if (tabPicked || activeTab !== 'all') return
+    if (props.counts.document > 0) setActiveTab('document')
+    else if (props.counts.space > 0) setActiveTab('space')
+  }, [tabPicked, activeTab, props.counts.document, props.counts.space])
   // Dismiss an open dropdown on blur.
   useEffect(() => {
     if (!menu) return
@@ -675,6 +743,25 @@ export function ExplorePage(props: ExplorePageProps) {
     const name = accounts.data?.find((account) => account.value === uid)?.label
     return name && name !== uid ? `In ${name}` : chip.label
   }
+  // A results tab can use the Collections views only when every row in it is a document or a space.
+  // Search returns matched text and an id, so those rows are hydrated into records first.
+  const viewableResults = activeTab === 'document' || activeTab === 'space'
+  const view = props.parsed.presentation.view ?? 'list'
+  const resultDocuments = useExploreResultDocuments(sortedResults, {enabled: viewableResults})
+  const hydratedItems = useMemo(
+    () =>
+      sortedResults.flatMap((result) => {
+        if (result.type !== 'document' && result.type !== 'space') return []
+        const document = resultDocuments.data[exploreDocumentKey(result.id)]
+        return document ? [document] : []
+      }),
+    [sortedResults, resultDocuments.data],
+  )
+  const resultAuthorUids = useMemo(
+    () => Array.from(new Set(hydratedItems.flatMap((document) => document.authors ?? []))),
+    [hydratedItems],
+  )
+  const resultAccountsMetadata = useAccountsMetadata(resultAuthorUids).data ?? {}
   const streams = exploreStreamSelection(props.parsed, props.context)
   const willSearch = streams.text || streams.documents
   const updateQuery = (next: string) => {
@@ -687,20 +774,6 @@ export function ExplorePage(props: ExplorePageProps) {
   }
   const updatePresentation = (presentation: ExplorePresentation) =>
     updateQuery(withPresentation(props.parsed.ast, presentation))
-  const selectedColumns = props.parsed.presentation.columns?.length
-    ? props.parsed.presentation.columns
-    : ['title', 'space', 'path', 'updated']
-  const sortRules = props.parsed.presentation.sort ?? []
-  const cycleSort = (key: string) => {
-    const nextRules = cycleExploreSort(sortRules, key)
-    updatePresentation({...props.parsed.presentation, sort: nextRules.length ? nextRules : undefined})
-  }
-  // Contacts carry none of the table's columns, so People stays a list.
-  const tableMode =
-    props.parsed.presentation.view === 'table' &&
-    activeTab !== 'block' &&
-    activeTab !== 'comment' &&
-    activeTab !== 'contact'
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-5 py-6 lg:px-8">
@@ -816,7 +889,10 @@ export function ExplorePage(props: ExplorePageProps) {
               type="button"
               role="tab"
               aria-selected={activeTab === tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => {
+                setTabPicked(true)
+                setActiveTab(tab.id)
+              }}
               className={cn(
                 'border-b-2 px-3 py-2 text-sm transition-colors',
                 activeTab === tab.id
@@ -836,31 +912,39 @@ export function ExplorePage(props: ExplorePageProps) {
             {props.counts[activeTab]} results
             {props.textTerms.length ? <> for &ldquo;{props.textTerms.join(' ')}&rdquo;</> : null}
           </p>
-          <div className="relative" data-explore-menu>
-            <ExploreChipButton
-              label={`Sort by ${sortOptions.find((option) => option.value === sortBy)?.label ?? 'Relevance'}`}
-              active={sortBy !== 'relevance'}
-              open={menu === 'sort'}
-              onClick={() => setMenu(menu === 'sort' ? null : 'sort')}
-            />
-            {menu === 'sort' ? (
-              <div className="bg-popover text-popover-foreground absolute top-full right-0 z-30 mt-2 min-w-48 rounded-md border p-1 shadow-md">
-                {sortOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    className="hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm"
-                    onClick={() => {
-                      setSortBy(option.value)
-                      setMenu(null)
-                    }}
-                  >
-                    {sortBy === option.value ? <Check className="size-3.5" /> : <span className="size-3.5" />}
-                    {option.label}
-                  </button>
-                ))}
-              </div>
+          <div className="flex items-center gap-2">
+            {viewableResults ? (
+              <ExploreViewSwitcher
+                view={view}
+                onChange={(next) => updatePresentation({...props.parsed.presentation, view: next})}
+              />
             ) : null}
+            <div className="relative" data-explore-menu>
+              <ExploreChipButton
+                label={`Sort by ${sortOptions.find((option) => option.value === sortBy)?.label ?? 'Relevance'}`}
+                active={sortBy !== 'relevance'}
+                open={menu === 'sort'}
+                onClick={() => setMenu(menu === 'sort' ? null : 'sort')}
+              />
+              {menu === 'sort' ? (
+                <div className="bg-popover text-popover-foreground absolute top-full right-0 z-30 mt-2 min-w-48 rounded-md border p-1 shadow-md">
+                  {sortOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className="hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm"
+                      onClick={() => {
+                        setSortBy(option.value)
+                        setMenu(null)
+                      }}
+                    >
+                      {sortBy === option.value ? <Check className="size-3.5" /> : <span className="size-3.5" />}
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       ) : null}
@@ -913,7 +997,15 @@ export function ExplorePage(props: ExplorePageProps) {
                 </p>
               ) : null}
               {browseKinds.length ? (
-                browseKinds.map((kind) => <ExploreBrowse key={kind} kind={kind} context={props.context} />)
+                browseKinds.map((kind) => (
+                  <ExploreBrowse
+                    key={kind}
+                    kind={kind}
+                    context={props.context}
+                    view={props.parsed.presentation.view ?? 'list'}
+                    onViewChange={(view) => updatePresentation({...props.parsed.presentation, view})}
+                  />
+                ))
               ) : searchOnlyTypes.length ? null : (
                 <>
                   <ExploreYourSpaces />
@@ -923,16 +1015,13 @@ export function ExplorePage(props: ExplorePageProps) {
             </div>
           )
         ) : null}
-        {visibleResults.length && tableMode ? (
-          <ExploreTable
-            results={sortedResults.filter(
-              (result): result is Extract<HMExploreResult, {type: 'document' | 'space'}> =>
-                result.type === 'document' || result.type === 'space',
-            )}
-            columns={selectedColumns}
-            sortRules={sortRules}
-            onSort={cycleSort}
-            onOpen={props.onOpenResult}
+        {visibleResults.length && viewableResults ? (
+          <QueryBlockContent
+            items={hydratedItems}
+            style={queryBlockStyle(view)}
+            accountsMetadata={resultAccountsMetadata}
+            isDiscovering={resultDocuments.isLoading}
+            tableConfig={exploreTableConfig(activeTab !== 'space')}
           />
         ) : visibleResults.length ? (
           <div className="border-border divide-border bg-background overflow-hidden rounded-lg border">
@@ -1002,94 +1091,6 @@ function withPresentation(ast: ExploreQueryNode | null, presentation: ExplorePre
   return serializeExploreQuery({ast, presentation, diagnostics: []})
 }
 
-function tableCellValue(result: Extract<HMExploreResult, {type: 'document' | 'space'}>, column: string) {
-  const document = result.document
-  if (column === 'title') return document?.metadata?.name || result.matchText || 'Untitled'
-  if (column === 'space') return result.id.uid
-  if (column === 'path') return `/${result.id.path?.join('/') || ''}`
-  if (column === 'updated') return result.versionTime || '—'
-  if (column === 'version') return result.id.version || '—'
-  let value: unknown = document?.metadata
-  for (const segment of column.split('.')) {
-    if (!value || typeof value !== 'object') return '—'
-    value = (value as Record<string, unknown>)[segment]
-  }
-  return value === undefined || value === null ? '—' : typeof value === 'object' ? JSON.stringify(value) : String(value)
-}
-
-function ExploreTable({
-  results,
-  columns,
-  sortRules,
-  onSort,
-  onOpen,
-}: {
-  results: Extract<HMExploreResult, {type: 'document' | 'space'}>[]
-  columns: string[]
-  sortRules: ExploreSortRule[]
-  onSort: (key: string) => void
-  onOpen: (result: HMExploreResult) => void
-}) {
-  return (
-    <div className="border-border bg-background overflow-x-auto rounded-lg border">
-      <table className="w-full min-w-max border-collapse text-left text-sm">
-        <thead className="bg-muted/40 text-muted-foreground">
-          <tr>
-            {columns.map((column) => {
-              const sort = sortRules.find((rule) => rule.key === column)
-              const sortable = !['title', 'space', 'path', 'updated', 'version'].includes(column)
-              return (
-                <th key={column} className="border-border border-b px-3 py-2 font-medium whitespace-nowrap">
-                  <button
-                    type="button"
-                    className={cn(
-                      'rounded px-1 text-left',
-                      sortable
-                        ? 'hover:bg-muted focus-visible:ring-ring outline-none focus-visible:ring-2'
-                        : 'cursor-default',
-                    )}
-                    disabled={!sortable}
-                    onClick={() => onSort(column)}
-                    aria-label={sortable ? `Sort by ${column}` : undefined}
-                  >
-                    {column}
-                    {sort ? <span className="ml-1">{sort.direction === 'asc' ? '↑' : '↓'}</span> : null}
-                  </button>
-                </th>
-              )
-            })}
-          </tr>
-        </thead>
-        <tbody>
-          {results.map((result) => (
-            <tr key={resultKey(result)} className="hover:bg-muted/20 border-b last:border-b-0">
-              {columns.map((column) => (
-                <td key={column} className="max-w-80 px-3 py-2 align-top">
-                  {column === 'title' ? (
-                    <button
-                      type="button"
-                      className="text-foreground focus-visible:ring-ring rounded text-left outline-none hover:underline focus-visible:ring-2"
-                      onClick={() => onOpen(result)}
-                    >
-                      {tableCellValue(result, column)}
-                    </button>
-                  ) : (
-                    tableCellValue(result, column)
-                  )}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-/**
- * Row heading for a result. Documents and spaces use their own name. The rest fall back to the
- * last breadcrumb, then to a label naming the kind, so a row is never blank.
- */
 function exploreResultTitle(result: HMExploreResult) {
   if (result.type === 'document' || result.type === 'space') {
     return result.document?.metadata?.name || result.matchText || packHmId(result.id)

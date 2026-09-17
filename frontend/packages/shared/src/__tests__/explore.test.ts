@@ -98,6 +98,14 @@ describe('Explore query grammar', () => {
     expect(parsed.ast).not.toMatchObject({kind: 'predicate', predicate: {kind: 'attribute', key: 'view'}})
   })
 
+  test('serializing the AST alone is stable across view changes', () => {
+    // Switching the view should not read as a new search and reset the tab.
+    const listed = parseExploreQuery('type:space roadmap view:list')
+    const tabled = parseExploreQuery('type:space roadmap view:table')
+    expect(serializeExploreQuery(tabled.ast)).toBe(serializeExploreQuery(listed.ast))
+    expect(serializeExploreQuery(tabled)).not.toBe(serializeExploreQuery(listed))
+  })
+
   test('does not extract directive-looking text from quoted phrases', () => {
     const parsed = parseExploreQuery('"the sort:asc thing"')
     expect(parsed.presentation).toEqual({})
@@ -217,6 +225,21 @@ describe('Explore document filter compilation', () => {
       'This exclusion could not be applied to the text part; results may include excluded documents.',
     )
     expect(compileExploreQuery(parseExploreQuery('NOT status:x'), {type: 'node'}).diagnostics).toEqual([])
+  })
+
+  test('narrows a spaces-only query to root documents', () => {
+    const spaces = compileExploreQuery(parseExploreQuery('type:space has:status'), {type: 'node'})
+    expect(spaces.filter?.filter.case).toBe('and')
+    const nested = spaces.filter?.filter.case === 'and' ? spaces.filter.filter.value.filters : []
+    const pathMatch = nested.find((filter) => filter.filter.case === 'pathMatch')
+    expect(pathMatch?.filter.case === 'pathMatch' && pathMatch.filter.value.path).toBe('')
+    expect(pathMatch?.filter.case === 'pathMatch' && pathMatch.filter.value.prefix).toBe(false)
+    // Documents are not roots, and a mixed query must still reach every document, so neither
+    // gets the extra path match. The bare predicate stays the whole filter.
+    const documents = compileExploreQuery(parseExploreQuery('type:document has:status'), {type: 'node'})
+    expect(documents.filter?.filter.case).toBe('exists')
+    const mixed = compileExploreQuery(parseExploreQuery('type:space type:document has:status'), {type: 'node'})
+    expect(mixed.filter?.filter.case).toBe('exists')
   })
 
   test('keeps negated scopes and types out of positive search projections', () => {

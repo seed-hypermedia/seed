@@ -1,5 +1,6 @@
-import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
+import type {HMDocumentInfo, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useInfiniteQuery, useQuery} from '@tanstack/react-query'
+import {useMemo} from 'react'
 import {
   BuiltinSortAttribute,
   ContentTypeFilter,
@@ -9,6 +10,7 @@ import {
   DocumentFilter_Or,
   DocumentFilter_PathMatch,
   DocumentFilter_SpaceMatch,
+  DocumentFilter_URLMatch,
   DocumentSort,
   EntityKindFilter,
   ListAccountsRequest,
@@ -28,8 +30,9 @@ import {
   type ParsedExploreQuery,
 } from '../explore'
 import {useUniversalClient} from '../routing'
+import {packHmId} from '../utils/entity-id-url'
 import {useSelectedAccountContacts} from './contacts'
-import {prepareHMDocumentInfo, useSelectedAccountId} from './entity'
+import {prepareHMDocumentInfo, useSelectedAccountId, useSiteMembers} from './entity'
 import {queryKeys} from './query-keys'
 import type {SearchResultItem} from './search'
 
@@ -600,4 +603,100 @@ export function useExploreAccountList(options: {enabled?: boolean; pageSize?: nu
         }))
     },
   })
+}
+
+/**
+ * The people of one space, as the space's own People tab lists them.
+ *
+ * ListDocumentCollaborators returns the publisher, the members holding
+ * a granted capability, and the plain members. Ordered publisher
+ * first, then granted members, then the rest, matching the tab.
+ */
+export function useExploreSpacePeople(spaceId: UnpackedHypermediaId | null, options: {enabled?: boolean} = {}) {
+  const enabled = options.enabled ?? true
+  const {accounts, grantedMembers, members, isInitialLoading} = useSiteMembers(enabled && spaceId ? spaceId : null)
+  const data = useMemo(() => {
+    if (!enabled || !spaceId) return []
+    const toAccount = (uid: string, role: string): ExploreAccount & {role: string} => ({
+      uid,
+      name: accounts[uid]?.metadata?.name || undefined,
+      icon: accounts[uid]?.metadata?.icon || undefined,
+      role,
+    })
+    const seen = new Set<string>()
+    // The publisher owns the space and heads the tab's list.
+    const people = [toAccount(spaceId.uid, 'owner')]
+    seen.add(spaceId.uid)
+    for (const member of [...grantedMembers, ...members]) {
+      if (seen.has(member.account.uid)) continue
+      seen.add(member.account.uid)
+      people.push(toAccount(member.account.uid, member.role))
+    }
+    return people
+  }, [enabled, spaceId, accounts, grantedMembers, members])
+  // A disabled query reports isLoading forever, which would leave
+  // the caller on a spinner whenever there is no space to ask about.
+  return {data, isLoading: isInitialLoading}
+}
+
+/**
+ * Document records for the search results on screen, fetched in one request.
+ *
+ * Full-text search returns matched content and an id, so a search result
+ * has no name, authors, attributes or activity. Run a single QueryDocuments
+ * call as an OR of URL matches.
+ */
+export function useExploreResultDocuments(results: HMExploreResult[], options: {enabled?: boolean} = {}) {
+  const client = useUniversalClient()
+  // Only documents and spaces have records to fetch.
+  const urls = Array.from(
+    new Set(
+      results
+        .filter((result) => result.type === 'document' || result.type === 'space')
+        .map((result) =>
+          packHmId({
+            ...(result as Extract<HMExploreResult, {type: 'document' | 'space'}>).id,
+            version: null,
+            blockRef: null,
+            blockRange: null,
+            latest: null,
+          }),
+        ),
+    ),
+  ).sort()
+
+  const query = useQuery({
+    queryKey: [queryKeys.ENTITY, 'explore-result-documents', urls],
+    enabled: (options.enabled ?? true) && Boolean(client.queryDocuments) && urls.length > 0,
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<Record<string, HMDocumentInfo>> => {
+      if (!client.queryDocuments || !urls.length) return {}
+      const response = await client.queryDocuments(
+        new QueryDocumentsRequest({
+          filter: new DocumentFilter({
+            filter: {
+              case: 'or',
+              value: new DocumentFilter_Or({
+                filters: urls.map(
+                  (url) =>
+                    new DocumentFilter({
+                      filter: {case: 'urlMatch', value: new DocumentFilter_URLMatch({url, prefix: false})},
+                    }),
+                ),
+              }),
+            },
+          }),
+          pageSize: urls.length,
+        }),
+        {signal},
+      )
+      const byKey: Record<string, HMDocumentInfo> = {}
+      for (const raw of response.documents) {
+        const document = prepareHMDocumentInfo(raw)
+        byKey[exploreDocumentKey(document.id)] = document
+      }
+      return byKey
+    },
+  })
+
+  return {...query, data: query.data ?? {}}
 }

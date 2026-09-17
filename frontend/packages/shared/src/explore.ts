@@ -114,8 +114,10 @@ export type ExploreQueryNode =
   | {kind: 'not'; child: ExploreQueryNode}
 /** A multi-key document sort directive. */
 export type ExploreSortRule = {key: string; direction: 'asc' | 'desc'}
+/** Result view names. */
+export type ExploreView = 'list' | 'card' | 'table'
 /** Presentation directives kept separate from the boolean query tree. */
-export type ExplorePresentation = {view?: 'list' | 'table'; columns?: string[]; sort?: ExploreSortRule[]}
+export type ExplorePresentation = {view?: ExploreView; columns?: string[]; sort?: ExploreSortRule[]}
 /** A recoverable parser diagnostic. */
 export type ExploreDiagnostic = {message: string; start: number; end: number; severity: 'warning' | 'error'}
 /** A stable, removable projection of one AST leaf. */
@@ -161,7 +163,7 @@ function extractPresentation(query: string, tokens: Token[], diagnostics: Explor
     const value = valueToken.value
     ranges.push([nameToken.start, valueToken.end])
     if (name === 'view') {
-      if (value === 'list' || value === 'table') presentation.view = value
+      if (value === 'list' || value === 'card' || value === 'table') presentation.view = value
       else diagnostics.push(diagnostic(`Unknown view "${value}".`, nameToken.start, valueToken.end))
     } else if (name === 'cols') {
       const columns = value
@@ -675,7 +677,17 @@ export function compileExploreQuery(parsed: ParsedExploreQuery, context: HMExplo
   }
   walkWithPolarity(parsed.ast)
   const compiled = compileNode(parsed.ast)
-  const filters = [contextFilter(context), compiled.filter].filter((filter): filter is DocumentFilter => !!filter)
+  const uniqueRequestedTypes = Array.from(new Set(requestedTypes))
+  // A space is its own pathless root document, so narrow down to roots.
+  const rootsOnly =
+    uniqueRequestedTypes.length === 1 && uniqueRequestedTypes[0] === 'space'
+      ? new DocumentFilter({
+          filter: {case: 'pathMatch', value: new DocumentFilter_PathMatch({path: '', prefix: false})},
+        })
+      : null
+  const filters = [contextFilter(context), rootsOnly, compiled.filter].filter(
+    (filter): filter is DocumentFilter => !!filter,
+  )
   const filter =
     filters.length === 0
       ? undefined
@@ -686,7 +698,7 @@ export function compileExploreQuery(parsed: ParsedExploreQuery, context: HMExplo
     filter,
     documentPredicates,
     textTerms,
-    requestedTypes: Array.from(new Set(requestedTypes)),
+    requestedTypes: uniqueRequestedTypes,
     excludedTypes: Array.from(new Set(excludedTypes)),
     positiveScopes,
     presentation: parsed.presentation,
