@@ -50,7 +50,8 @@ function stripNullsDeep(value: unknown): unknown {
   if (isPlainObject(value)) {
     const out: Record<string, unknown> = {}
     for (const [key, v] of Object.entries(value)) {
-      if (v === null) continue
+      // A null tombstone and an unset (undefined) key both mean the field is absent.
+      if (v === null || v === undefined) continue
       out[key] = stripNullsDeep(v)
     }
     return out
