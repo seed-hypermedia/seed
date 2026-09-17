@@ -127,7 +127,7 @@ describe('comment/citation mention race (real monitor + HTTP + service)', () => 
     fs.rmSync(dataDir, {recursive: true, force: true})
   })
 
-  async function setupMentionTrigger(): Promise<{
+  async function setupMentionTrigger(includeComments = false): Promise<{
     svc: apisvc.Service
     monitor: ActivityMonitor
     accountId: string
@@ -158,7 +158,15 @@ describe('comment/citation mention race (real monitor + HTTP + service)', () => 
           trigger: {
             name: 'Mentions of Teal Scribe',
             prompt: 'Respond to the mention.',
-            source: {type: 'user-mention', mentionedAccounts: [MENTIONED_ACCOUNT]},
+            source: includeComments
+              ? {
+                  type: 'activity',
+                  conditions: [
+                    {id: 'mentions', source: {type: 'user-mention', mentionedAccounts: [MENTIONED_ACCOUNT]}},
+                    {id: 'comments', source: {type: 'document-comment', resource: `hm://${TARGET_DOC}`}},
+                  ],
+                }
+              : {type: 'user-mention', mentionedAccounts: [MENTIONED_ACCOUNT]},
           },
         },
       }),
@@ -256,6 +264,22 @@ describe('comment/citation mention race (real monitor + HTTP + service)', () => 
 
       // The citation matches too, but collapses onto the comment's blob-<cid> firing key, so no
       // second session is created.
+      expect(firingCount(agentId)).toBe(1)
+      expect(sessionCount(agentId)).toBe(1)
+    } finally {
+      await svc.drainTriggerSessions()
+    }
+  })
+
+  test('a comment matching two conditions and its later citation create only one thread', async () => {
+    const {svc, monitor, agentId} = await setupMentionTrigger(true)
+    try {
+      await monitor.pollOnce()
+      feed = {events: [commentEvent(COMMENT_CID, Date.now())], nextPageToken: ''}
+      await monitor.pollOnce()
+      expect(sessionCount(agentId)).toBe(1)
+      feed = {events: [citationEvent(COMMENT_CID, Date.now())], nextPageToken: ''}
+      await monitor.pollOnce()
       expect(firingCount(agentId)).toBe(1)
       expect(sessionCount(agentId)).toBe(1)
     } finally {

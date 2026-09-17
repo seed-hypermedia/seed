@@ -108,7 +108,7 @@ export async function moveAgentToServer(options: MoveAgentOptions): Promise<Move
 
   const triggersRes = await send({serverUrl: sourceServerUrl, accountUid, action: {_: 'ListAgentTriggers', agentId}})
   if (triggersRes._ !== 'ListAgentTriggersResponse') throw new Error('Unexpected trigger list response')
-  const triggers = triggersRes.triggers
+  const triggers = triggersRes.triggers.filter((trigger) => !trigger.mergedInto)
 
   // Signing keys name secrets on the source server; they would fail validation on the target and
   // the private keys behind them cannot move, so the copy starts without a publishing account.

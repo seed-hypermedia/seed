@@ -96,6 +96,7 @@ CREATE TABLE agent_triggers (
     prompt TEXT NOT NULL,
     continuation_cbor BLOB,
     cooldown_ms INTEGER,
+    merged_into TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     last_checked_at INTEGER,
@@ -104,6 +105,13 @@ CREATE TABLE agent_triggers (
 ) WITHOUT ROWID;
 
 CREATE INDEX agent_triggers_by_agent ON agent_triggers (agent_id, updated_at DESC);
+
+CREATE TABLE trigger_event_claims (
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    trigger_id TEXT NOT NULL REFERENCES agent_triggers (id),
+    activity_key TEXT NOT NULL,
+    PRIMARY KEY (account_id, trigger_id, activity_key)
+) WITHOUT ROWID;
 
 CREATE TABLE webhook_trigger_credentials (
     trigger_id TEXT PRIMARY KEY REFERENCES agent_triggers (id),
@@ -167,6 +175,7 @@ CREATE TABLE trigger_firings (
     session_id TEXT REFERENCES sessions (id),
     activity_cbor BLOB NOT NULL,
     body_digest BLOB,
+    context_cbor BLOB,
     run_id TEXT,
     status TEXT NOT NULL,
     error TEXT,

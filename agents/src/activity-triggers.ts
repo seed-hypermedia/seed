@@ -45,6 +45,10 @@ export function activityEventKey(event: ActivityFeedEvent): string | null {
  * with no recognizable comment CID.
  */
 export function activityFiringKey(event: ActivityFeedEvent): string | null {
+  const mention = activityEventMention(event)
+  const origin = mention && (recordField(mention, 'sourceBlob') || recordField(mention, 'source_blob'))
+  const originCid = origin && stringField(origin, 'cid')
+  if (originCid && originCid !== 'undefined') return `blob-${originCid}`
   const key = activityEventKey(event)
   if (!key) return null
   if (key.startsWith('mention-')) {
@@ -112,6 +116,9 @@ export function matchesActivityCriteria(
 
 /** Returns true when an HM activity event matches a saved agent trigger source. */
 export function activityMatchesTriggerSource(source: api.AgentTriggerSource, event: ActivityFeedEvent): boolean {
+  if (source.type === 'activity') {
+    return source.conditions.some((condition) => activityMatchesTriggerSource(condition.source, event))
+  }
   if (source.type === 'document-comment') return matchesDocumentComment(source, event)
   if (source.type === 'user-mention') return matchesUserMention(source, event)
   if (source.type === 'site-update') return matchesSiteUpdate(source, event)
