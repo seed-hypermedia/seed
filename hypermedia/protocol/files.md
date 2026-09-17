@@ -12,7 +12,7 @@ This is the [IPFS](https://docs.ipfs.tech/concepts/) file model, used unchanged:
 
 A file is chunked into pieces of up to 256 KiB. Each piece becomes a **raw** block whose CID is the SHA-256 of its bytes (CIDv1, the `bafkrei…` form). A file that fits in one piece is just that one raw block, which is why small icons in [metadata](../metadata.md) look like `ipfs://bafkreie6wls…`. A larger file gets a root node in [DAG-PB](https://ipld.io/docs/codecs/known/dag-pb/) encoding (`bafybei…`), the UnixFS format, which lists the pieces in order (up to 174 links per node, in a balanced tree). Both the daemon and the SDK build the tree with the same parameters (balanced layout, raw leaves, CIDv1, 256 KiB chunks), so the same bytes get the same CID whichever side chunks them. <!-- id:tHJMplbk -->
 
-DAG-PB is compact and carries almost no metadata: a node is a byte payload plus links. That is deliberate. No filename, MIME type or size rides inside the blocks; a File block in a document may carry a display name beside the link, and the daemon sniffs the content type when it serves the bytes. File blocks are not signed. Their integrity comes from the hash alone, and their authorship from the signed [blob](../blob.md) that links to them. <!-- id:-mKRWYdr -->
+DAG-PB is compact and carries almost no metadata: a node is a byte payload plus links. That is deliberate. No filename, MIME type or size rides inside the blocks; a File block in a document may carry a display name beside the link, and the daemon serves the bytes as `application/octet-stream`, leaving the client to detect the type. File blocks are not signed. Their integrity comes from the hash alone, and their authorship from the signed [blob](../blob.md) that links to them. <!-- id:-mKRWYdr -->
 
 The daemon indexes a DAG-PB node only far enough to record its links (`dagpb/<name>` or `dagpb/chunk`) so that visibility can flow down to the pieces; raw leaves are stored but never indexed. <!-- id:qE8JFw7Z -->
 
@@ -53,7 +53,7 @@ Content published only on Seed is not findable from public IPFS gateways such as
 
 ## The site's file and image services <!-- id:2HWScTI0 -->
 
-The web app adds two routes on top of the raw gateway. `GET /hm/api/file/<cid>` streams the daemon's `/ipfs/<cid>` with `Range` forwarded and the visitor's session cookie turned into a bearer token, so private files render for signed-in readers on hosted sites. `GET /hm/api/image/<cid>?size=S|M|L|XL` returns a resized PNG at 120, 650, 1600 or 4000 pixels wide (default `M`; GIFs pass through untouched), cached on disk only when the daemon says the source is public. Every icon, cover and inline image on a rendered page goes through the image route; downloads and videos go through the file route. <!-- id:IFM5pnYg -->
+The web app adds two routes on top of the raw gateway. `GET /hm/api/file/<cid>` streams the daemon's `/ipfs/<cid>` with `Range` forwarded and the visitor's session cookie turned into a bearer token, so private files render for signed-in readers on hosted sites. `GET /hm/api/image/<cid>?size=S|M|L|XL` returns a PNG resized to at most 120, 650, 1600 or 4000 pixels wide (default `M`; GIFs pass through untouched), cached on disk only when the daemon says the source is public. Every icon, cover and inline image on a rendered page goes through the image route; downloads and videos go through the file route. <!-- id:IFM5pnYg -->
 
 ## Uploading <!-- id:xXvAXmF5 -->
 
