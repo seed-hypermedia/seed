@@ -222,6 +222,10 @@ jobs:
       # the mobile npm install is skipped too; bun stays for the vault server.
       - name: Install bun
         uses: oven-sh/setup-bun@v2
+      # The agent user stories run under Bun from agents/, whose dependencies are its own
+      # (bun install), not part of the pnpm workspace install above.
+      - name: Install agent dependencies
+        run: cd agents && bun install --frozen-lockfile
       - name: Cache GGUF model
         uses: actions/cache@v4
         with:

@@ -1,0 +1,52 @@
+{
+  "anyOf": [
+    {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+      "properties": {
+        "type": {
+          "value": "account",
+          "required": true
+        },
+        "id": {
+          "value": {
+            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/id"
+          },
+          "required": true
+        },
+        "metadata": {
+          "value": {
+            "anyOf": [
+              {
+                "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/metadata"
+              },
+              {
+                "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null"
+              }
+            ]
+          },
+          "required": true
+        },
+        "hasSite": {
+          "value": {
+            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean"
+          }
+        }
+      }
+    },
+    {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+      "properties": {
+        "type": {
+          "value": "account-not-found",
+          "required": true
+        },
+        "uid": {
+          "value": {
+            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+          },
+          "required": true
+        }
+      }
+    }
+  ]
+}

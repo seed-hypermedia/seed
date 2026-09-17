@@ -1,0 +1,15 @@
+{
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/employee",
+  "properties": {
+    "permissions": {
+      "value": {
+        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+        "values": {
+          "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean"
+        }
+      },
+      "required": true,
+      "description": "The permissions this admin holds, as flags. A set of flags is a map rather than a list because a document's attributes hold scalars and nested maps, so this type describes a document as well as a blob."
+    }
+  }
+}

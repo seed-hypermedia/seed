@@ -52,6 +52,10 @@ export interface WebDocDraft {
   cursorPosition: number | null
   /** Optional path the user picked via the publish-popover rename affordance. */
   publishPath?: string[] | null
+  /** The working schema of a draft whose document defines a type (not metadata). */
+  schemaDraft?: Record<string, any> | null
+  /** The working attributes schemas behind the binding keys, by key (not metadata). */
+  bindingSchemaDrafts?: Record<string, Record<string, any>> | null
   /** Wall-clock timestamp of last save. Used for cleanup. */
   updatedAt: number
   /** Type derived from the persisted draft content. */

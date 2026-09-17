@@ -138,12 +138,35 @@ export const inspectRouteSchema = z.object({
 export type InspectRoute = z.infer<typeof inspectRouteSchema>
 
 /** Route schema for raw IPFS inspection inside the inspector. */
+/** Edit a blob IN THE CONTEXT of a document's metadata field: publishing the
+ * blob also publishes a metadata change on that document (no draft). */
+export const inspectIpfsEditFieldSchema = z.object({
+  /** The document (hm:// URL) whose metadata field references the blob. */
+  docUrl: z.string(),
+  /** The metadata key (e.g. `schemaDefinition`). */
+  field: z.string(),
+})
+export type InspectIpfsEditField = z.infer<typeof inspectIpfsEditFieldSchema>
+
 export const inspectIpfsRouteSchema = z.object({
   key: z.literal('inspect-ipfs'),
   ipfsPath: z.string(),
+  editField: inspectIpfsEditFieldSchema.optional(),
 })
 /** Navigation route for raw IPFS inspection inside the inspector. */
 export type InspectIpfsRoute = z.infer<typeof inspectIpfsRouteSchema>
+
+/** A schema blob by CID — the full-page schema browser (`/hm/schema/<cid>`).
+ * Bundled library schemas and user-published ones alike; refs are clickable. */
+export const schemaRouteSchema = z.object({
+  key: z.literal('schema'),
+  /** The schema blob CID. Optional when `id` is set (resolved from the doc's schemaDefinition). */
+  cid: z.string().optional(),
+  /** The document that DEFINES this schema. With it, this is a document tool tab (like Attributes)
+   * and the URL is the doc URL suffixed with /:schema; without it, the bare-CID browser page. */
+  id: unpackedHmIdSchema.optional(),
+})
+export type SchemaRoute = z.infer<typeof schemaRouteSchema>
 
 // Collaborators page panel options
 const collaboratorsPagePanelSchema = z.discriminatedUnion('key', [
@@ -220,6 +243,8 @@ export const metadataRouteSchema = z.object({
   key: z.literal('metadata'),
   id: unpackedHmIdSchema,
   panel: metadataPagePanelSchema.nullable().optional(),
+  /** Open the tab with this binding schema ready to edit (drafting an empty struct when there is none). */
+  focus: z.enum(['attributesSchema', 'childAttributesSchema']).optional(),
 })
 export type MetadataRoute = z.infer<typeof metadataRouteSchema>
 
@@ -458,6 +483,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   allDocumentsRouteSchema,
   inspectRouteSchema,
   inspectIpfsRouteSchema,
+  schemaRouteSchema,
   directoryRouteSchema,
   collaboratorsRouteSchema,
   activityRouteSchema,
@@ -697,6 +723,8 @@ export function createDocumentNavRoute(
       return {key: 'site-settings', id: docId}
     case 'metadata':
       return {key: 'metadata', id: docId, panel}
+    case 'schema':
+      return {key: 'schema', id: docId}
     default: {
       // ?panel=comments/COMMENT_ID (no viewTerm) → document main + comments right panel
       return {key: 'document', id: docId, panel}
@@ -722,7 +750,8 @@ export function createInspectNavRoute(
     key: 'inspect',
     id: docId,
   }
-  if (targetView && targetView !== 'site-settings' && targetView !== 'explore') route.targetView = targetView
+  if (targetView && targetView !== 'site-settings' && targetView !== 'explore' && targetView !== 'schema')
+    route.targetView = targetView
   if (targetActivityFilter) route.targetActivityFilter = targetActivityFilter
   if (targetView === 'comments' && openComment) route.targetOpenComment = openComment
   if (isSiteProfileTab(targetView) && accountUid) route.targetAccountUid = accountUid
@@ -731,10 +760,11 @@ export function createInspectNavRoute(
 }
 
 /** Creates an inspector route for a raw IPFS object. */
-export function createInspectIpfsNavRoute(ipfsPath: string): InspectIpfsRoute {
+export function createInspectIpfsNavRoute(ipfsPath: string, editField?: InspectIpfsEditField): InspectIpfsRoute {
   return {
     key: 'inspect-ipfs',
     ipfsPath,
+    ...(editField ? {editField} : {}),
   }
 }
 
@@ -853,6 +883,10 @@ export function createInspectNavRouteFromRoute(route: NavRoute): InspectRoute | 
     case 'draft':
       // A draft editing an existing document inspects that document; brand-new drafts have nothing published to inspect.
       return route.editUid ? createInspectNavRoute(hmId(route.editUid, {path: route.editPath ?? null})) : null
+    case 'schema':
+      // A schema page inspects its raw blob. Without a CID (doc-resolved form, still loading)
+      // there is nothing addressable yet.
+      return route.cid ? createInspectIpfsNavRoute(route.cid) : null
     default:
       return null
   }

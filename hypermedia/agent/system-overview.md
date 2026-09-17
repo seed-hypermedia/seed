@@ -1,0 +1,159 @@
+---
+name: System Overview
+summary: "How the pieces of Seed Agents fit together: the signed control plane, per-account storage, durable sessions and runs, live subscriptions, and the clients that drive them."
+---
+[Seed Agents](../agent.md) is a local-first, account-scoped agent system. The [desktop app](../apps/desktop.md) uses it to configure an agent server, store provider secrets, create agents, work in durable sessions, stream model responses, [delegate](./delegate.md) work to children, and inspect everything that executed. <!-- id:j6gFhd29 -->
+
+# Design principles <!-- id:bHJBP28f -->
+
+<!-- id:aTrhlaXK -->
+1. **Signed control plane**: every HTTP action is wrapped in a signed DAG-CBOR envelope. See the [signed API](./signed-api.md). <!-- id:DoPLxUzT -->
+2. **Account isolation**: persisted state belongs to one Seed [account](../protocol/identity.md). Access needs ownership or an accepted agent-level reader or writer collaboration. <!-- id:JartbkEd -->
+3. **Durable sessions**: sessions are append-only event logs with replay by sequence number. <!-- id:G2rHB4lC -->
+4. **Live clients**: desktop clients subscribe over a signed [WebSocket protocol](./websocket-subscriptions.md) and receive live changes. <!-- id:eZIvnI2F -->
+5. **Secret redaction**: API keys are encrypted at rest and never returned in API responses. <!-- id:0HDC4TeT -->
+6. **Visible tools**: tool calls and tool results are durable session events, rendered in the UI. <!-- id:MArR08vh -->
+7. **Shared hypermedia behavior**: [`read`](./read.md) uses [SDK](../build/sdk.md) code shared with the [CLI](../build/cli.md)'s URL resolution. It does not shell out to the CLI. <!-- id:1_gfqzKV -->
+8. **Inspectable operation**: durable session events, the signed read actions, and diagnostic logs support debugging local workflows. There is no unauthenticated inspection surface. <!-- id:ldqXhH-1 -->
+9. **Few verbs, one address space**: the five verbs `read`, `write`, `call`, `delegate`, `plan`, plus the two session verbs `status` and `continue_session`, are the whole model-facing surface. A new feature arrives as a new address or a new callable. It never adds a tool to the provider payload. <!-- id:Y-pjolWg -->
+10. **Configuration is content**: an agent's tools and memory are documents in its [Space](./space.md). The agent and its owner can both address and read them. <!-- id:5lhl3lKX -->
+11. **The log is symmetric**: the user holds the same verbs the agent does, every event in the [Log](./log.md) names its actor, and there is no side channel between them. <!-- id:3AOgn7T0 -->
+12. **Everything that executes is a run**: turns, children, and scripts are rows in one tree, and that tree is also the queue. Waiting costs nothing and a crash is recoverable. See [Runs](./runs.md). <!-- id:H7vDrg4J -->
+
+Each term above has its own page, listed in the [Agents glossary](./glossary.md). <!-- id:1RALufCn -->
+
+# Major components <!-- id:LF0S8XBg -->
+
+```text <!-- id:9rdPDFNJ -->
+Seed app (desktop) and Seed web app, sharing frontend/packages/ui/src/agents
+  ├─ Local agents server subprocess (desktop only; same artifact as the Docker image)
+  │    configured with the desktop's typed HM API bridge plus its daemon's direct IPFS endpoint
+  ├─ Agents routes: list, detail, session
+  ├─ Assistant sidebar: sessions of any agent on any configured server
+  ├─ Provider and create-agent dialogs
+  ├─ daemon-backed signing for the selected account
+  ├─ signed CBOR HTTP client
+  ├─ signed WebSocket subscription hook
+  └─ chat message renderer shared with the desktop assistant panel
+
+Agents service (Bun)
+  ├─ /api/message signed action API
+  ├─ /agents/ws signed subscription API
+  ├─ SQLite persistence (state, and the runs table that is also the queue)
+  ├─ AES-GCM secret storage
+  ├─ Pi SDK-backed model execution loop
+  ├─ the verbs (read / write / call / delegate / plan, plus status / continue_session)
+  ├─ tool documents in ~/tools + the <space> index in every system prompt
+  ├─ run queue: leases, boot sweep, park/resume, wake sources
+  ├─ QuickJS script engine with a content-keyed journal
+  └─ diagnostic logging
+
+Shared Seed libraries
+  ├─ @seed-hypermedia/client for Ed25519 signatures/principals and canonical DAG-CBOR
+  │    (the service imports them through the @shm/shared/blobs and @shm/shared/cbor re-exports)
+  ├─ @seed-hypermedia/client for URL resolution and markdown conversion
+  └─ desktop daemon for selected-account signing
+```
+
+The desktop app signs through the [Seed daemon](../apps/daemon.md). The service itself is described on the [agents service](../apps/agents.md) page, and [persistence](./persistence.md) covers the SQLite tables.
+
+# End-to-end user flow <!-- id:29tMaHyG -->
+
+1. User opens the desktop **Agents** page. <!-- id:1xHbNrzu -->
+2. Desktop reads the default agent server URL and checks `/agents/api/health`. <!-- id:iJTq1h2g -->
+3. Desktop opens a signed WebSocket subscription for the selected account. <!-- id:tn8sA958 -->
+4. User configures a model provider in the **Model providers** dialog. <!-- id:Ckat4Ybf -->
+5. Desktop sends signed `SetSecret` and `SetModelProvider` actions. <!-- id:TNB496ji -->
+6. User creates an agent in the **Create agent** dialog. <!-- id:6rIhCXQw -->
+7. Desktop sends signed `CreateAgent`. <!-- id:Mw42bAcf -->
+8. Server persists the agent and broadcasts account changes. <!-- id:U2T3lUGx -->
+9. User opens agent detail and creates or opens a session. <!-- id:Mx7jRmmi -->
+10. Desktop subscribes to `sessions/<sessionId>` over WebSocket. <!-- id:o4auo92c -->
+11. A writer sends a message with signed `MessageSession`. Other accepted writers may send at the same time. <!-- id:HR9VWSNS -->
+12. Server immediately appends each durable user message with its acting account and exact signer, broadcasts it, and creates a `runs` row. The first turn is claimed inline on the `interactive` queue. Concurrent turns stay queued in append order, because only one model turn may own a session. Session status mirrors run state, so it reads `streaming` while any of those turns are live. <!-- id:oRXM5vFs -->
+13. Server creates an in-memory Pi SDK session. Its configuration comes from the Seed provider record, the encrypted secret, the agent's system prompt (its own instructions plus the shared runtime prompt and its `<space>` index), and the tool set: the verbs, plus any callables the transcript shows this thread has already expanded. <!-- id:XnosbwT5 -->
+14. Pi runs the provider and model loop and emits streaming, tool, and final events. <!-- id:5aLPYqqC -->
+15. Server emits `session-partial` service events for model text deltas, cumulative usage, and the current activity phase. <!-- id:Tmz1FBxK -->
+16. WebSocket sends `appendPartial` events to subscribed desktop clients. <!-- id:t5ien6K3 -->
+17. Desktop renders the partial through the shared assistant markdown renderer. <!-- id:5V6t_xTb -->
+18. Tool calls and results are translated from Pi events and appended as durable Seed events stamped `actor: 'agent'`. A [`call`](./call.md) for a tool the thread has not expanded returns that tool's contract instead of an error (touch-expand). Once the contract is in the transcript, the tool is promoted for the rest of the thread. <!-- id:aSLd8Isz -->
+19. If the turn used `delegate`, each child gets its own run row: a model child with its own session, or a script child in the QuickJS engine. The parent's run parks on them without holding resources and resumes when they resolve. <!-- id:nKBBy1Gx -->
+20. The final assistant message is appended as a durable event. The run finalizes: it rolls child usage up, settles [plan](./plan.md) steps whose children all succeeded, and records any obligation it ended without meeting. <!-- id:ZwcfQgzb -->
+21. Session status re-derives to `idle`, or to `error` when the latest run failed. <!-- id:2lxTmx1B -->
+
+# Completed capabilities <!-- id:9UY_uh_E -->
+
+## Server <!-- id:4Y9bCXsB -->
+
+- Bun standalone service with configurable host, port, db, and data dir. See [operations](./operations.md). <!-- id:4LiSzWvH -->
+- `/api/message` and `/agents/api/message` signed CBOR action routes. <!-- id:tZu7kMWo -->
+- `/api/health` and `/agents/api/health` JSON health routes. <!-- id:DEcuBaGj -->
+- `/agents/ws` signed WebSocket subscription endpoint. <!-- id:w0JhfKLo -->
+- No browser UI and no unauthenticated data routes. Everything else is a 404. <!-- id:ERQ0V57X -->
+- Graceful shutdown for WebSockets and SQLite. <!-- id:cCtN6O8W -->
+
+## Persistence <!-- id:C_BJ2Z-T -->
+
+- SQLite schema, version gate, and prepend-only migrations. <!-- id:fvsEGXdQ -->
+- Accounts and local account authorization table. <!-- id:72tGFpPU -->
+- Provider config table. <!-- id:qif5Dl3t -->
+- AES-GCM encrypted secrets. <!-- id:C8oZwlYq -->
+- Agent definitions and per-agent state directories. <!-- id:XzwNmuZl -->
+- Sessions and durable session events. <!-- id:aSBPPy31 -->
+- [Tool documents](./tool-document.md) per agent (`tool_documents`), addressed by [CID](../protocol/blobs.md). <!-- id:2NHGmCh6 -->
+- Runs, run journals, and outstanding event waits (`runs`, `run_journal`, `run_event_waits`). <!-- id:GvE0H7TR -->
+- Idempotency table for client request and message IDs. <!-- id:RZlMVIHT -->
+
+## Agent runtime <!-- id:AAxrzi8V -->
+
+- Agent create, list, get, update, and delete. <!-- id:GWMCE9_k -->
+- Agent invitations, acceptance and decline, revocation, and reader and writer collaborator roles. Readers can inspect the complete agent. Writers can also change it and interact with it. Only owners manage access or delete the agent. <!-- id:pwPlTOBC -->
+- Session create, get, list, message, stop, retry, and delete. <!-- id:D2RZH2GQ -->
+- Cross-agent session listing (`ListSessions`) with composite keyset pagination. <!-- id:8iuaH3pW -->
+- Pi SDK-backed model execution for OpenAI-compatible, Anthropic, and Google provider mappings. See [model providers](./model-providers.md). <!-- id:lAWFWbOd -->
+- Text streaming translated from Pi events into Seed WebSocket partials. <!-- id:NSfbrCwb -->
+- Durable user, assistant, error, and tool events, each carrying its actor. <!-- id:98lUOPrW -->
+- The verbs, registered as Seed-owned Pi custom tools. Callables are dispatched through `call` and never exposed to the provider. <!-- id:w4i5NWLg -->
+- Tool result size limiting (256 KiB). <!-- id:l4qFQAxD -->
+- The run queue: two queues, lease-based claiming, boot sweep, retry classification with backoff, cancellation cascade, and timer and event wakes. <!-- id:5fTXXpUY -->
+
+## Seed app and web UI <!-- id:HoIeFoE4 -->
+
+- Agents list, server, detail, and session routes with sidebar, menu, and shortcut integration. See [desktop and web UI](./desktop-ui.md). <!-- id:KVIyJNrf -->
+- Local agents server lifecycle: attaches to an already-running server in development, and spawns the bundled binary in a packaged app. <!-- id:o29cW4lm -->
+- Assistant sidebar backed by agent sessions, with no separate chat runtime. It lists sessions from every configured server, including the local one. <!-- id:KM6x2pZe -->
+- Default and multi-server settings. <!-- id:OuuPfvPJ -->
+- Provider management dialog for every provider type in the registry, with API-key and ChatGPT-subscription sign-in. <!-- id:5OYSu8Vw -->
+- Create-agent dialog with configured-provider selection. <!-- id:JhGY7o_O -->
+- Agent detail page with editable name, model, and system prompt, and a Settings panel to invite collaborators and manage members. <!-- id:x5czSImM -->
+- Session page with debounced inline title editing, optimistic user messages, durable events, live assistant partials, and shared chat rendering. <!-- id:Dy_Snpcf -->
+- A mounted remote session page, or the selected Assistant-sidebar session, keeps `hm://` [documents](../protocol/documents.md) and [comments](../protocol/comments.md) that the agent created or referenced subscribed on the desktop's local node. This includes recursive target discovery for comments and exact versions for document write results. Background sessions do not [sync](../protocol/network.md). <!-- id:JyyRewW4 -->
+- User and assistant bubbles, markdown, streaming cursor, and tool-call bubbles shared with the desktop assistant panel. <!-- id:uWhyPwax -->
+- Tools tab over `ListAgentTools`: the callable [grants](./grants.md) an owner can toggle, and, for an authored lambda, a dialog with its full document: contract, source, and content address. <!-- id:VVqVjmDP -->
+- The pinned run card with its Activity drawer, nested child sessions, and the parked-run Answer action that sends a `SignalRun`. <!-- id:2IpFHfyj -->
+- The composer's [wrench palette](./wrench-palette.md), which runs `read`, `write`, and `call` as the user through `InvokeSessionTool`. <!-- id:e_7FcNsV -->
+- WebSocket diagnostic logs and defensive message parsing. <!-- id:Gow06xE6 -->
+
+# Known incomplete areas <!-- id:7Kit49Vm -->
+
+<!-- id:y8Sembfy -->
+- Anthropic and Google are mapped through Pi but have no real-provider smoke coverage yet, so they are not production-complete. <!-- id:YsLNlO21 -->
+- Signed-action timestamps reject requests more than five minutes from server time. There is no nonce cache, so a captured request can be replayed inside that window. See [security](./security.md). <!-- id:qZUKtz61 -->
+- No production KMS or OS-keychain storage for the secret key. <!-- id:3g510zpO -->
+- Grants stop at the callable set plus a single `publish` grant. There is no per-address or per-destination policy engine, and memory writes are ungated by design. <!-- id:nJ6r4hkB -->
+- Providers can be deleted (`DeleteModelProvider`, which also removes the API-key secret), but there is no general secret-deletion action. <!-- id:iDJldMWp -->
+- [Triggers](./triggers.md) and plans are still SQLite rows, not documents in the Space. The event-bus milestone that moves them is only partly built. <!-- id:OoUMhsD3 -->
+- No full WebSocket heartbeat, backpressure, or subscription-limit protocol. <!-- id:RfSHih36 -->
+- No long-term retention or pruning policy for events, runs, or journals. <!-- id:PujE4u8_ -->
+
+See the [roadmap](./roadmap.md) for what is planned. <!-- id:ycSmp720 -->
+
+# See also
+
+- [Seed Agents](../agent.md)
+- [Signed API](./signed-api.md)
+- [WebSocket subscriptions](./websocket-subscriptions.md)
+- [Persistence](./persistence.md)
+- [Tools](./tools.md)
+- [Security](./security.md)
+- [Agents service](../apps/agents.md)

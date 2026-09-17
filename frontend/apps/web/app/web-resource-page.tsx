@@ -10,6 +10,7 @@ import {canCreateChildDocuments} from '@shm/shared/document-utils'
 import {HomeDraftProvider} from '@shm/shared/home-draft-context'
 import {type EditorAccessor} from '@shm/shared/models/document-machine'
 import {useResource} from '@shm/shared/models/entity'
+import {draftBindingSchemaDrafts, draftSchemaDraft} from '@shm/shared/models/schema-draft'
 import {isDocumentCardCleanupJobActive} from '@shm/shared/models/document-card-cleanup-machine'
 import {selectContext, useDocumentMachineRef, useOnDocumentRenamed} from '@shm/shared/models/use-document-machine'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
@@ -33,7 +34,8 @@ import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useQuery} from '@tanstack/react-query'
-import {FileInput} from 'lucide-react'
+import {FileCode2, FileInput} from 'lucide-react'
+import {blobBuilderMenuItems} from '@shm/ui/schema/blob-menu-items'
 import {Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   EditProfileDialog,
@@ -174,7 +176,7 @@ function useClientDocumentEditor(): React.ComponentType<DocumentContentProps> | 
 
 export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResourcePageProps) {
   const DocumentContentComponent = useClientDocumentEditor()
-  const {origin, originHomeId} = useUniversalAppContext()
+  const {origin, originHomeId, experiments} = useUniversalAppContext()
   const route = useNavRoute()
   const navigate = useNavigate()
   const replaceRoute = useNavigate('replace')
@@ -187,6 +189,14 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const {createAccount, content: createAccountContent} = useCreateAccount()
   const keyPairLoaded = useLocalKeyPairLoaded()
   const fileUpload = useMemo(() => makeWebFileUpload(universalClient), [universalClient])
+
+  // Building-block entry points (desktop shows these under Developer Mode; web
+  // enables developerMode by default). "New Schema" is a new instance of the
+  // built-in meta-schema. The editor's own menu offers these too once open.
+  const schemaBuilderMenuItems = useMemo<MenuItemType[]>(
+    () => (experiments?.developerMode ? blobBuilderMenuItems(navigate) : []),
+    [experiments?.developerMode, navigate],
+  )
 
   // Editor accessor — populated by the editor's onEditorReady callback.
   const editorRef = useRef<any>(null)
@@ -366,6 +376,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const existingDraftContent = isDraftStale ? undefined : draftData?.content ?? undefined
   const existingDraftCursorPosition = isDraftStale ? undefined : draftData?.cursorPosition ?? undefined
   const existingDraftPublishPath = isDraftStale ? undefined : draftData?.publishPath ?? undefined
+  const existingDraftSchemaDraft = isDraftStale ? undefined : draftSchemaDraft(draftData) ?? undefined
+  const existingDraftBindingSchemaDrafts = isDraftStale ? undefined : draftBindingSchemaDrafts(draftData) ?? undefined
 
   // Garbage-collect old IDB drafts once per session.
   useEffect(() => {
@@ -654,8 +666,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     }
   }, [docId, effectiveCanEdit, isHomeTarget, onDeleteDocument, replaceRoute, signingAccountId])
   const optionsMenuItems = useMemo(
-    () => [...webMenuItems, moveMenuItem, deleteMenuItem].filter(Boolean) as MenuItemType[],
-    [deleteMenuItem, moveMenuItem, webMenuItems],
+    () => [...webMenuItems, moveMenuItem, deleteMenuItem, ...schemaBuilderMenuItems].filter(Boolean) as MenuItemType[],
+    [deleteMenuItem, moveMenuItem, webMenuItems, schemaBuilderMenuItems],
   )
 
   // Inline subscribe box for non-members
@@ -788,6 +800,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                           existingDraftContent={existingDraftContent}
                           existingDraftCursorPosition={existingDraftCursorPosition}
                           existingDraftPublishPath={existingDraftPublishPath}
+                          existingDraftSchemaDraft={existingDraftSchemaDraft}
+                          existingDraftBindingSchemaDrafts={existingDraftBindingSchemaDrafts}
                           existingDraftDeps={draftData?.deps}
                           existingDraftBaseBlocks={draftData?.baseBlocks ?? undefined}
                           existingDraftMaintenanceRevision={draftData?.maintenanceRevision}

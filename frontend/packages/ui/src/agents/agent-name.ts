@@ -14,7 +14,7 @@ const ADJECTIVES = [
   'Copper',
   'Emerald',
   'Ivory',
-  'Onyx',
+  'Opal',
   'Coral',
   'Azure',
   'Indigo',

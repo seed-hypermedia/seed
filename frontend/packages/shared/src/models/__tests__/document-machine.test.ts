@@ -2325,3 +2325,73 @@ describe('DocumentLifecycle machine > rename', () => {
     actor.stop()
   })
 })
+
+describe('working schema (schemaDraft) is draft state beside the metadata', () => {
+  const SCHEMA = {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct', properties: {}}
+
+  function schemaActor(capture: (input: any) => void) {
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<{id: string}, any>(async ({input}) => {
+          capture(input)
+          return {id: 'draft-schema'}
+        }),
+        publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+        discardDraft: fromPromise<void, any>(async () => {}),
+      },
+      delays: {autosaveTimeout: 10, saveIndicatorDismiss: 10},
+    })
+    return createActor(machine, {input: {documentId: mockDocumentId, canEdit: true}})
+  }
+
+  it('a schema edit is saved as the draft’s schemaDraft, not as metadata', async () => {
+    let saved: any = null
+    const actor = schemaActor((input) => (saved = input))
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'draft.resolved', draftId: null, content: null, cursorPosition: null})
+    actor.send({type: 'edit.start'})
+    actor.send({type: 'change', schemaDraft: SCHEMA})
+    actor.send({
+      type: 'change',
+      bindingSchemaDrafts: {childAttributesSchema: {...SCHEMA, properties: {height: {value: {type: 'x'}}}}},
+    })
+    await new Promise((r) => setTimeout(r, 100))
+    expect(actor.getSnapshot().context.schemaDraft).toEqual(SCHEMA)
+    expect(saved.schemaDraft).toEqual(SCHEMA)
+    expect(saved.bindingSchemaDrafts).toEqual({
+      childAttributesSchema: {...SCHEMA, properties: {height: {value: {type: 'x'}}}},
+    })
+    expect(saved.metadata).not.toHaveProperty('schemaDraft')
+    expect(saved.metadata).not.toHaveProperty('bindingSchemaDrafts')
+    // A null drops that key's draft; the last one gone leaves no map at all.
+    actor.send({type: 'change', bindingSchemaDrafts: {childAttributesSchema: null}})
+    expect(actor.getSnapshot().context.bindingSchemaDrafts).toBeNull()
+    actor.send({type: 'change', schemaDraft: null})
+    expect(actor.getSnapshot().context.schemaDraft).toBeNull()
+    actor.stop()
+  })
+
+  it('hydrates from the draft, and lifts an older draft’s metadata copy out of the metadata', () => {
+    const fresh = schemaActor(() => {})
+    fresh.start()
+    fresh.send({type: 'document.loaded', document: mockDocument})
+    fresh.send({type: 'draft.resolved', draftId: 'd1', content: [], cursorPosition: null, schemaDraft: SCHEMA})
+    expect(fresh.getSnapshot().context.schemaDraft).toEqual(SCHEMA)
+    fresh.stop()
+
+    const legacy = schemaActor(() => {})
+    legacy.start()
+    legacy.send({type: 'document.loaded', document: mockDocument})
+    legacy.send({
+      type: 'draft.resolved',
+      draftId: 'd2',
+      content: [],
+      cursorPosition: null,
+      metadata: {name: 'Old draft', schemaDraft: SCHEMA} as any,
+    })
+    expect(legacy.getSnapshot().context.schemaDraft).toEqual(SCHEMA)
+    expect(legacy.getSnapshot().context.metadata).toEqual({name: 'Old draft'})
+    legacy.stop()
+  })
+})

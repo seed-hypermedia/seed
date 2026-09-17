@@ -49,6 +49,27 @@ describe('api service', () => {
       const href = decodeURIComponent(String(url))
       if (href.includes('/api/Resource')) {
         resourceRequests.push(href)
+        // The parent, looked up for an inherited attributes schema; it declares none.
+        if (href.endsWith('id=hm://z6MkDoc')) {
+          return Response.json(
+            serialize({
+              type: 'document',
+              id: unpackHmId('hm://z6MkDoc'),
+              document: {
+                content: [],
+                version: 'v1',
+                account: 'z6MkDoc',
+                authors: [],
+                path: '/',
+                createTime: '',
+                updateTime: '',
+                metadata: {name: 'Space'},
+                genesis: 'genesis',
+                visibility: 'PUBLIC',
+              },
+            }),
+          )
+        }
         return Response.json(
           serialize({
             type: 'document',
@@ -76,10 +97,12 @@ describe('api service', () => {
         id: 'https://hyper.media/hm/z6MkDoc/employees/:attributes',
       })
 
-      // The view term was stripped before hitting the resolver.
-      expect(resourceRequests).toHaveLength(1)
-      expect(resourceRequests[0]).not.toContain(':attributes')
+      // The view term was stripped before hitting the resolver. The second request is the
+      // parent, read to resolve the attributes schema a child inherits (childAttributesSchema).
+      expect(resourceRequests).toHaveLength(2)
+      expect(resourceRequests.some((href) => href.includes(':attributes'))).toBe(false)
       expect(resourceRequests[0]).toContain('hm://z6MkDoc/employees')
+      expect(resourceRequests[1]).toContain('hm://z6MkDoc')
 
       // Metadata only: no document content in any form.
       expect(result.view).toBe('attributes')
@@ -144,8 +167,9 @@ describe('api service', () => {
     try {
       const result = await apisvc.readHypermedia({id: republishedAt})
 
-      // The redirect was followed: one request for the republished path, one for the original.
-      expect(resourceRequests).toEqual([republishedAt, original])
+      // The redirect was followed: one request for the republished path, one for the original —
+      // then the original's parent, read for the attributes schema a child inherits.
+      expect(resourceRequests).toEqual([republishedAt, original, 'hm://z6MkOther/resources'])
 
       // The agent gets the original's content, attributed to the original's address...
       expect(result.id).toBe(original)
