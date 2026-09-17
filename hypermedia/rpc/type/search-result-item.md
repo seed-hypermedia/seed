@@ -1,11 +1,11 @@
 ---
 name: Search Result Item
-summary: "One hit of a network search: the matched id with display info (title, icon, breadcrumb parent names) and what kind of entity matched. A derived read model compu"
+summary: "One hit of a network search: the matched id with its title, icon, and breadcrumb parent names, and what kind of entity matched."
 schemaDefinition: ipfs://bafyreicjanyuetbb2mtgtkyrmom25ybitikvme6suyx3phww4cmxajbcaq
 ---
 One hit of a network search: the matched id with display info (title, icon, breadcrumb parent names) and what kind of entity matched. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:qXiY7SqP -->
 
-This document describes the **rpc/type/search-result-item** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:NqIvQcGm -->
+This page describes the **rpc/type/search-result-item** read model of the Seed API — derived data the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:NqIvQcGm -->
 
 # Shape <!-- id:7_SrO2k5 -->
 

@@ -1,11 +1,11 @@
 ---
 name: RPC
-summary: The union of every read-only method of the Seed universal-client API. Each variant pins a method key and types its input and output — the machine-readable catal
+summary: "The union of every read-only method of the Seed API, each variant pinning a method key and typing its input and output."
 schemaDefinition: ipfs://bafyreihceqkz5ertrc6mrnefoj4b5ink2nczuogohthdbanucs26aeackm
 ---
 The union of every read-only method of the Seed universal-client API. Each variant pins a method key and types its input and output — the machine-readable catalog the in-app API console is driven by. <!-- id:IKHnPUjW -->
 
-This document describes the **rpc/method** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:fcTIA-2I -->
+This page describes the **rpc/method** union of the Seed API — a read model of what the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:fcTIA-2I -->
 
 # Shape <!-- id:s2nSHzDT -->
 

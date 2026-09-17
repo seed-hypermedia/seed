@@ -1,11 +1,11 @@
 ---
 name: "RPC: ListComments"
-summary: "Lists all comments on a target document. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `o"
+summary: "Returns all comments on a target document, with the metadata payloads of their authors."
 schemaDefinition: ipfs://bafyreiexlmvhw7e5jhoerjldmjxtt25zeeybmvhfoc2dhf5co2lhubvyru
 ---
 Lists all comments on a target document. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:YbdgawAp -->
 
-This document describes the **rpc/list-comments** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:OuB5VWl- -->
+This page describes the **rpc/list-comments** method of the Seed API — a read model of what the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:OuB5VWl- -->
 
 # Shape <!-- id:c34xkjMP -->
 

@@ -1,9 +1,9 @@
 ---
 name: Paragraph Block
-summary: A paragraph of rich text with annotations.
+summary: "The default block: a paragraph of text with inline annotations; inside a table row it is a cell and carries the column id."
 schemaDefinition: ipfs://bafyreifjzaopfo4ugenflaf52bmubt25wagkxxqb5miasjb3yazzhbayvu
 ---
-This document describes the **block/paragraph** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:Vou7cbhc -->
+A paragraph of rich text: `text` plus [annotations](./annotation.md) for formatting, links and mentions. Attributes are the parent-layout pair `childrenType` and `columnCount`, and `columnId`, which is set only when the paragraph is a cell inside a [table row](./table-row.md) and names the [table column](./table-column.md) it belongs to.
 
 # Shape <!-- id:l0o5Tte_ -->
 

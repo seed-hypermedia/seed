@@ -1,9 +1,13 @@
 ---
 name: MoveBlocks Op
-summary: Move blocks under a parent, using RGA CRDT reference ids.
+summary: The operation that places a contiguous run of blocks under a parent after a reference position, using RGA op ids so concurrent moves converge and the latest move of a block wins.
 schemaDefinition: ipfs://bafyreihivwjksbvqtfh6hzosjx5qsvbujjcnp7lzzooy7vkxdrrxp4dyae
 ---
-This document describes the **change/op/move-blocks** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:niF7ZUUC -->
+MoveBlocks gives blocks their place in the tree. A Change that creates a paragraph uses [ReplaceBlock](./replace-block.md) for its content and MoveBlocks to say where it goes; a Change that reorders a list or indents a block uses MoveBlocks alone. <!-- id:z1F84vi3 -->
+
+This page defines the **change/op/move-blocks** operation inside a [Change body](../body.md). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:niF7ZUUC -->
+
+`parent` is the id of the block the run goes under; empty means the document root. `blocks` is a contiguous run of sibling ids in order. `ref` is the position to insert after: empty means the start of the parent's list; `[ts, idx, actor]` names the op that placed the block to the left; and a single `[idx]` names an earlier op of this same Change, which is how a run of several blocks chains each block after the previous one. Each parent's children form a replicated growable array (RGA): concurrent inserts at the same `ref` are ordered by op id with the newer op nearer the ref, so every node ends with the same order. When a block has several moves in its history the latest by op id wins and earlier positions become invisible, and a move that would make a block its own ancestor is ignored. Inside one op the counter advances by the element index (the second block gets `idx + 1`, the third `idx + 2` more, and so on), a quirk that is now part of the wire format. See [Documents](../../protocol/documents.md). <!-- id:LUsfvbJw -->
 
 # Shape <!-- id:IA76HbOX -->
 

@@ -1,9 +1,9 @@
 ---
 name: Embed View
-summary: "How an Embed block renders its target: Content, Card, Comments, or Link."
+summary: "How an Embed block renders its target: the content itself, a card, its discussion, or a plain link."
 schemaDefinition: ipfs://bafyreiakvbosqv7cyvhaetqpcdgjok3tr2fabqov3kl42f2vdiqvc75e2e
 ---
-This document describes the **block/embed-view** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:F18m8ySc -->
+The `view` of an [embed](./embed.md): `Content` renders the target's body inline, `Card` shows its title, summary and cover, `Comments` shows its discussion, and `Link` shows a plain link.
 
 # Shape <!-- id:zw6uZukZ -->
 

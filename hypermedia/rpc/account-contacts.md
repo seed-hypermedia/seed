@@ -1,11 +1,11 @@
 ---
 name: "RPC: AccountContacts"
-summary: "Lists the contacts an account has named. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `o"
+summary: "Returns the contact records an account has written, given that account’s uid."
 schemaDefinition: ipfs://bafyreifecpqr2l4wpryx33wvsjjpwjdnz7jofg4mioq2djp2tb2pf7byfa
 ---
 Lists the contacts an account has named. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:cWeHZkGM -->
 
-This document describes the **rpc/account-contacts** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:x07vBh1L -->
+This page describes the **rpc/account-contacts** method of the Seed API — a read model of what the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:x07vBh1L -->
 
 # Shape <!-- id:iSm7ekda -->
 

@@ -1,9 +1,15 @@
 ---
 name: Capability
-summary: A delegation granting a role (WRITER or AGENT) from a space owner (the signer) to a delegate key, optionally scoped to a path.
+summary: "A signed grant from a space owner to another key: a role (WRITER or AGENT), an optional path scope, and nothing that expires or revokes it."
 schemaDefinition: ipfs://bafyreic6t7cjpkoib3hc6cy53it2x6al4xd6evwgq6trzco3uoq2eygmbe
 ---
-This document describes the **capability** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:EoJZUC30 -->
+A **capability** is the blob that lets someone other than the space owner write into a space. The owner signs it, names the key that receives the grant (the `delegate`), picks a [role](./role.md), and optionally limits it to a path. Every node checks Refs against the capabilities it has stored, so the grant is enforced by the whole network, not by one server. The full model, the exact authorization rule and a worked example are in [Permissions](./protocol/permissions.md). <!-- id:EoJZUC30 -->
+
+The `signer` is both the issuer and the space: only the space owner's key can sign a capability for that space, and a delegate cannot re-delegate. `role` is `WRITER` (publish under the path and everything beneath it) or `AGENT` (act as the issuer; must have an empty path). `path` scopes by segment and is always recursive: a grant at `/team` covers `/team/notes` but not `/teammates`. `label` is a public, immutable note of at most 512 bytes. `audience` appears only on the short-lived, unstored capabilities that peers and HTTP clients sign to prove they hold an account; a stored grant never sets it. <!-- id:Q9nzk6HJ -->
+
+There is no expiry and no revocation. A capability that arrives before the Ref it authorizes, or after it, gives the same result: the daemon stashes an unauthorized Ref and retries it when a matching capability is indexed. An AGENT delegate inherits the issuer's own space and the issuer's direct grants elsewhere for exactly one hop. <!-- id:bbIv8daq -->
+
+Create one with `seed-cli capability create --delegate <uid> --role WRITER --path /team`, with `createCapability` in the SDK, from a document's Collaborators view in the Seed app, or with the agent `write` action `capability.grant`. <!-- id:jBYfdmtC -->
 
 # Shape <!-- id:Z4Q_8BDH -->
 

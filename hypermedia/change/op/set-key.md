@@ -1,9 +1,13 @@
 ---
 name: SetKey Op
-summary: "Deprecated: set a single flat metadata key to a value."
+summary: The deprecated flat form of SetAttributes that sets a single top-level metadata key, still accepted so old Changes replay.
 schemaDefinition: ipfs://bafyreihl3tsfpri4hahwsok4dbcb5qwvhwi2akqmehpjtyzx2ncidmxn54
 ---
-This document describes the **change/op/set-key** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:FCBip3cB -->
+SetKey is the original metadata operation: one top-level key, one scalar value. It was superseded by [SetAttributes](./set-attributes.md), which addresses nested key paths and sets many keys in one op, but Changes that used SetKey exist on the network and must replay forever, so the daemon still applies it as a SetAttributes with a single-segment path. <!-- id:dUsTY6sm -->
+
+This page defines the **change/op/set-key** operation, kept for compatibility inside a [Change body](../body.md). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:FCBip3cB -->
+
+Do not emit SetKey in new Changes; the SDK and the Seed app no longer do. `value` is a string, boolean, integer or null, with the same last-writer-wins semantics by op id as SetAttributes. <!-- id:cDYPBzAu -->
 
 # Shape <!-- id:bpJR-BNN -->
 

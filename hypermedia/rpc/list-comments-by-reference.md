@@ -1,11 +1,11 @@
 ---
 name: "RPC: ListCommentsByReference"
-summary: "Lists comments that reference a specific block (the target id carries the blockRef). One method of the Seed universal-client API: `request(key, input) -> output"
+summary: "Returns the comments that reference a specific block, given a target id that carries the block reference."
 schemaDefinition: ipfs://bafyreifxlq7hat24yrsyhhkbr355q6tsxku6hkuaezkamh2kzwah2wmyva
 ---
 Lists comments that reference a specific block (the target id carries the blockRef). One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:Zqcrf57v -->
 
-This document describes the **rpc/list-comments-by-reference** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:5eUKh3i5 -->
+This page describes the **rpc/list-comments-by-reference** method of the Seed API — a read model of what the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:5eUKh3i5 -->
 
 # Shape <!-- id:i2iLp9HU -->
 

@@ -1,31 +1,47 @@
 ---
-name: Seed Developer Docs
-summary: Documentation that lives next to the code, in this repository, and is published to the Hypermedia network from here.
+name: Seed Hypermedia
+summary: The developer knowledge base for the Hypermedia protocol and the Seed software that implements it, published from the Seed repository itself.
 ---
-These pages are markdown files checked into the Seed repository under `hypermedia/`. A commit to `main` publishes them to this site, so what you read here is exactly what the code ships with. Very cool, right?! <!-- id:-gK0HbNj -->
+Hypermedia is a protocol for publishing documents and discussions that belong to their authors rather than to a server. Every document is a signed, content-addressed history of changes, every account is a cryptographic key, and every link can point at an exact version, an exact block, or an exact range of text. Content stays readable and verifiable as long as anyone still holds a copy.
 
-The folder is also an example of a workflow: the markdown is the source of truth, but the Seed app can be the editor. See [Repo HM sync](./build/publish-a-folder.md) for how a directory of markdown files in a repository and a Hypermedia space mirror each other, and [CLI](./build/cli.md) for the commands. <!-- id:_G1k0qF- -->
+Seed is the open-source software that implements the protocol: a daemon that stores and syncs the data over a peer-to-peer network, a desktop app and a web app for reading, writing and discussing, a command-line tool, a hosted agent runtime, and a TypeScript SDK. Think of the split as HTTP versus a browser. The protocol defines identity, documents, changes, links and permissions. Seed is one implementation, and the team hopes it will not be the last.
 
-# Developer docs <!-- id:Bv7m2S0v -->
+These pages are markdown files in the Seed repository under `hypermedia/`. A commit to the main branch publishes them to this site, and the Seed app can edit them in place, so what you read is exactly what the code ships with. Every page opens in plain language, links its terms to the [glossary](./glossary.md), and then gets precise.
 
-Everything that is not a concept, a schema, an API method or an example is collected under [Developer docs](./build.md). <!-- id:qpnAtzl2 -->
+# Three doors
 
-# Publishing <!-- id:qquyu_Qe -->
+- **Understand the protocol.** Start with [The Hypermedia protocol](./protocol.md), a layered tour from keys to blobs to documents, links, permissions, comments, privacy, the network and sites. Each stop links the page with the exact model and a worked example.
+- **Build on it.** Start with [Building on Hypermedia](./build.md). The Seed API served by every site and the [SDK](./build/sdk.md) are the canonical entry points. The [CLI](./build/cli.md) and agent skills are for scripting. The daemon [gRPC API](./build/grpc.md) and libp2p are for deep integration.
+- **Run the software.** Start with [The Seed software](./apps.md), one map page per app: desktop, web, daemon, CLI, notify, vault, mobile, explorer and agents. [Self-hosting](./build/self-hosting.md) explains how to run a site of your own.
 
-- [Repo HM sync](./build/publish-a-folder.md) — the lossless markdown dialect and the export, import and dev commands. <!-- id:m2GuhDRm -->
-- [CLI](./build/cli.md) — the `seed-cli` commands this folder is published with. <!-- id:4Fo9jG63 -->
+# Why Hypermedia
 
-# Hypermedia Schemas <!-- id:G9c9jn03 -->
+[Why Hypermedia](./why.md) is the motivation, written for any reader: [the end of broken links](./why/broken-links.md), [signed content instead of server trust](./why/signed-content.md), [open editing](./why/open-editing.md), [a network for thought](./why/network-for-thought.md), and [the lineage](./why/inspirations.md) from Engelbart and Xanadu to IPFS and Automerge.
 
-[Hypermedia Schemas](./schema.md) is the self-describing type system for content-addressed data that Hypermedia documents are built from. Every schema in the library is a page here, with its formal definition attached, and the reference chapters explain the system from the top down: <!-- id:lsYfVMeq -->
-  - [Why Hypermedia Schemas](./schema/why.md), [How Hypermedia Schemas work](./schema/how-it-works.md), [Typed documents](./schema/typed-documents.md), [The World Builder](./schema/world-builder.md), [The typed API](./rpc.md) <!-- id:u75glGr1 -->
-  - [User stories](./schema/user-stories.md) — what a person should be able to do with schemas through the app, the CLI, and an agent: the steps, and where each surface stands. <!-- id:pSOZzOrZ -->
-  - [The data model](./schema/data-model.md), [The schema language](./schema/schema-language.md), [References & naming](./schema/references.md), [Encoding](./schema/encoding.md), [Examples](./example.md), [Schemas on the Hypermedia Network](./schema/blobs.md), [Design rationale](./schema/design.md), [Glossary](./schema.md) <!-- id:CEaJilu0 -->
-  - [Hypermedia Permissions System](./history/permissions.md) — a design investigation into permissions and privacy for Hypermedia content. <!-- id:SIUblIDE -->
+# The map
 
-# Agents <!-- id:v3ihjVoi -->
+| Section | What lives there |
+| --- | --- |
+| [Why](./why.md) | The motivation and the inspirations, for any reader. |
+| [Protocol](./protocol.md) | The Hypermedia protocol explained by concept: [identity](./protocol/identity.md), [blobs](./protocol/blobs.md), [documents](./protocol/documents.md), [blocks](./protocol/blocks.md), [URLs](./protocol/urls.md), [permissions](./protocol/permissions.md), [privacy](./protocol/privacy.md), [integrity](./protocol/integrity.md), [network](./protocol/network.md), [sites](./protocol/sites.md), [comments](./protocol/comments.md), [files](./protocol/files.md). |
+| Term pages | The blob and value types have their own pages with the formal schema attached: [blob](./blob.md), [change](./change.md), [ref](./ref.md), [document](./document.md), [block](./block.md), [comment](./comment.md), [capability](./capability.md), [contact](./contact.md), [profile](./profile.md), [metadata](./metadata.md), [query](./query.md), [cid](./cid.md), [principal](./principal.md), [visibility](./visibility.md) and more. |
+| [Schemas](./schema.md) | Hypermedia Schemas, the self-describing type system for content-addressed data, and how documents bind to a schema. |
+| [Seed API](./rpc.md) | The typed read API every Seed site serves, one page per request key. |
+| [Build](./build.md) | Task guides: [getting started](./build/getting-started.md), [the web API](./build/web-api.md), [gRPC](./build/grpc.md), [the SDK](./build/sdk.md), [the CLI](./build/cli.md), [agents](./build/agents.md), [keys](./build/keys.md), [sign in with Seed](./build/sign-in.md), [publish a folder](./build/publish-a-folder.md), [self-hosting](./build/self-hosting.md), [extensions](./build/extensions.md), [the query grammar](./build/query-grammar.md), [contributing](./build/contributing.md). |
+| [Agents](./agent.md) | Seed Agents, the hosted agent runtime: an agent has a space, tools and triggers, and reads and writes Hypermedia through the Seed API with delegated keys. |
+| [Apps](./apps.md) | The Seed software, one map page per program. |
+| [Examples](./example.md) | Example schemas and typed instances. |
+| [Glossary](./glossary.md) | Every term in one line, with a table of retired names. |
+| [History](./history.md) | Dated design records that still inform the code. |
 
-[Seed Agents](./agent.md) is the account-scoped agent runtime, the Harness: a Bun service with a signed API, SQLite persistence and a desktop UI. Its documentation lives under `agent/`: <!-- id:ugp7F8mP -->
-  - Start with [the system overview](./agent/system-overview.md), [the terms](./agent.md) and [development](./agent/development.md). <!-- id:JqSMa6qL -->
-  - Design and operations: [tools](./agent/tools.md), [the signed API](./agent/signed-api.md), [persistence](./agent/persistence.md), [security](./agent/security.md), [operations](./agent/operations.md), [troubleshooting](./agent/troubleshooting.md). <!-- id:M4LYVFUH -->
-  - The Harness rebuild: [plan](./agent/history/harness/plan.md), [build log](./agent/history/harness/build-log.md), [roadmap](./agent/plans/roadmap.md), [future projects](./agent/plans/future-projects.md). <!-- id:BlXxGsCb -->
+# Where this is going
+
+The protocol is in active design. Concept pages describe what the daemon does today; direction that has been decided but not built is collected on one dated page, [Where this is going](./protocol/roadmap.md), and linked from the pages it affects. Seed Agents keeps its own live [roadmap](./agent/roadmap.md).
+
+# For agents
+
+Seed treats agents as a first-class surface. Every concept page ends with a "Working with it" section that covers the Seed app, the CLI, the SDK, the web API, and agents. If you are an agent reading this site through the seed-cli skill or the Seed API, the fastest routes are [Building with agents](./build/agents.md), [the CLI reference](./build/cli.md), and [the Seed API](./rpc.md). The `/api/Resource` request key on any Seed site returns a document as JSON, and appending `.md` to a page URL returns its markdown.
+
+# Where the source lives
+
+The Seed repository is public at [github.com/seed-hypermedia/seed](https://github.com/seed-hypermedia/seed). This folder is `hypermedia/` in that repository, and [Publish a folder](./build/publish-a-folder.md) explains the round trip between a git folder and a Hypermedia space that keeps these pages in sync. To contribute a correction, edit the markdown and open a pull request, or edit the page in the Seed app and let the sync bring it back to git.

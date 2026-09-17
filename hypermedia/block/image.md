@@ -1,9 +1,9 @@
 ---
 name: Image Block
-summary: An image, referenced by a URL (typically ipfs://).
+summary: "An image referenced by an ipfs:// link, with a caption in the text field and an optional display width."
 schemaDefinition: ipfs://bafyreici4lod2qvcovhzwubn4rnxjiyfuodq5mnpagqgqts43ifgychmpi
 ---
-This document describes the **block/image** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:VjEBnK6Y -->
+An image: `link` is required and is normally an `ipfs://<cid>` [file](../protocol/files.md) the daemon serves at `/ipfs/<cid>`; `text` and `annotations` are the caption. Attributes: `width` (display width in pixels), `name` (the original file name), and the parent-layout pair. A document's first image block is also what listings use as a fallback cover.
 
 # Shape <!-- id:cbXa8mno -->
 

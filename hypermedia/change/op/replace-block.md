@@ -1,9 +1,13 @@
 ---
 name: ReplaceBlock Op
-summary: Replace the content of a block.
+summary: The operation that sets the full state of one block, its id, type, text, link, annotations and attributes, where the newest replacement by op id wins.
 schemaDefinition: ipfs://bafyreievwi7m47efoyfeq5545mlhp6f3dy45zbzmeuq7atew6d4vcq5uk4
 ---
-This document describes the **change/op/replace-block** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:W0uu_eZA -->
+ReplaceBlock is the only way content gets into a document. It carries a whole [block](../../block.md), not a diff of one: the daemon keeps a register per block id and the newest ReplaceBlock by op id is the block's state. <!-- id:z4vmPqIg -->
+
+This page defines the **change/op/replace-block** operation inside a [Change body](../body.md). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:W0uu_eZA -->
+
+`block` is a block map: `id`, `type`, optional `text`, `link` and `annotations`, and any other keys are the block's attributes, inlined at the top level (older encodings with a nested `attributes` map are still accepted). A block that is replaced but never positioned by [MoveBlocks](./move-blocks.md) is a detached block: it is kept, returned by the API, and rendered by the apps outside the main tree, which is how custom navigation is stored. The API reports each block's `revision`, the CID of the Change whose ReplaceBlock currently defines it. The operation is generic over the block type so a schema can pin a stricter block model. See [Blocks](../../protocol/blocks.md) for what goes inside a block. <!-- id:ztxKecj4 -->
 
 # Shape <!-- id:2s8VcML2 -->
 

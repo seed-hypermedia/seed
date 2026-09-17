@@ -1,11 +1,11 @@
 ---
 name: Raw Citation
-summary: A citation in raw indexed form, before client-side resolution into a rpc/type/citation. A derived read model computed by the Seed daemon/API for clients — not a sig
+summary: "A citation in raw indexed form, before client-side resolution into a citation read model."
 schemaDefinition: ipfs://bafyreig6plnf6lzprkerpm5gmheeicd2crba3nqlgmnxgdguek2szkucby
 ---
 A citation in raw indexed form, before client-side resolution into a rpc/type/citation. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:ax5Fn9Xm -->
 
-This document describes the **rpc/type/raw-citation** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:Wy3Bfu0Z -->
+This page describes the **rpc/type/raw-citation** read model of the Seed API — derived data the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:Wy3Bfu0Z -->
 
 # Shape <!-- id:Qooxep7h -->
 

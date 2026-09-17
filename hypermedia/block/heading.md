@@ -1,9 +1,9 @@
 ---
 name: Heading Block
-summary: A section heading.
+summary: "A section heading whose children are the section; the heading level comes from nesting, not from an attribute."
 schemaDefinition: ipfs://bafyreici55nezeopyatqjmcf3tbtlox6hbegfm2cpbzaa5vj7y7uxt4hzq
 ---
-This document describes the **block/heading** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:wmJHjzZa -->
+A heading with `text` and [annotations](./annotation.md). There is no level attribute: a heading's depth is its nesting depth, and the blocks under it are its section, laid out by `childrenType` and `columnCount`. In the markdown dialect a heading's children sit at its indentation until the next heading of the same level.
 
 # Shape <!-- id:lCAihj5P -->
 

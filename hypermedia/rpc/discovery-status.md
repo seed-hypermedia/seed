@@ -1,11 +1,11 @@
 ---
 name: "RPC: DiscoveryStatus"
-summary: "Reports the state of a background discovery task. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you"
+summary: "Reports whether a background discovery task for a resource (uid, path, optional version) is pending, found, or failed."
 schemaDefinition: ipfs://bafyreigylgmaycfzuirdccqxgns75l64xhijxxecrvhhzdrfinzm3jdi6u
 ---
 Reports the state of a background discovery task. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:s7Yt7azE -->
 
-This document describes the **rpc/discovery-status** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:suWGAZ3c -->
+This page describes the **rpc/discovery-status** method of the Seed API — a read model of what the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:suWGAZ3c -->
 
 # Shape <!-- id:pUBQx10M -->
 

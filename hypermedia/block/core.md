@@ -1,11 +1,11 @@
 ---
 name: Core Block
-summary: The union of the fifteen built-in block types (Paragraph, Heading, Code, Math, Image, Video, File, Button, Embed, WebEmbed, Nostr, Table, TableRow, TableColumn,
+summary: "The strict union of the fifteen built-in block types; extend it with your own types by making a larger union that includes it."
 schemaDefinition: ipfs://bafyreidjmvkidd6iorhrdnavyqfnhdzoaxfemx56fwlzqtbo5rebqnbbry
 ---
 The union of the fifteen built-in block types (Paragraph, Heading, Code, Math, Image, Video, File, Button, Embed, WebEmbed, Nostr, Table, TableRow, TableColumn, Query). This is the strict core Hypermedia defines; anyone can extend it by making a larger union that includes it plus their own block types. <!-- id:38pY0Ovx -->
 
-This document describes the **block/core** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:MKlfmMqt -->
+The Seed app also knows `Slot` (an invisible container for top-level lists and grids), `Link` (a navigation menu item) and the legacy `Group`, which are not part of this union. Anything else still parses as the open [block](../block.md). One line per type, with its attributes, is on [Blocks](../protocol/blocks.md).
 
 # Shape <!-- id:3vJCYHye -->
 

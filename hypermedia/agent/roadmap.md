@@ -1,128 +1,69 @@
 ---
-name: Roadmap
-summary: Living document, last reconciled against the code on 2026-08-13 (the harness/full line). Larger project descriptions live in Future projects; how the…
+name: Agents Roadmap
+summary: The one live list of what Seed Agents does not do yet and what comes next, reconciled against the code on 2026-09-16, with the finished projects reduced to a line each.
 ---
-Living document, last reconciled against the code on **2026-08-13** (the `harness/full` line). Larger project descriptions live in [Future projects](./future-projects.md); how the current system is shaped and named lives in the `docs/glossary.md` and `docs/harness/plan.md`. <!-- id:28QADEsr -->
+This is the only forward-looking page for Seed Agents. It records what is open, in rough priority, as of **2026-09-16**. Anything that shipped is described in the reference pages ([tools](./tools.md), [triggers](./triggers.md), [persistence](./persistence.md), [security](./security.md), and the rest); the design records and build logs that used to sit beside this page are in git history. The larger open designs each have their own page under [plans](./plans/speed.md). <!-- id:OypE7mEz -->
 
-# Current completed baseline <!-- id:WJudQGtC -->
+# What exists today <!-- id:fuShc1t7 -->
 
-Complete enough to build on; treat as baseline functionality: <!-- id:XSquofnG -->
-  - standalone Bun agents service; signed CBOR HTTP API with a 30-second action window; SQLite persistence and schema gate; encrypted provider secrets; <!-- id:WdKIOdZi -->
-  - registry-driven providers (OpenAI, Anthropic, Google, OpenRouter, DeepSeek, Groq, xAI, Ollama, Custom) executing through the Pi SDK, with per-agent reasoning levels and ChatGPT/Codex subscription auth; <!-- id:DkXudon8 -->
-  - agent and session CRUD, pending invitations and accepted reader/writer agent collaborators, durable event replay, collaborator-aware WebSocket subscriptions, streaming assistant partials, desktop streaming markdown; <!-- id:zxkvg3si -->
-  - the local agents server as a desktop subprocess, with the assistant sidebar unified onto agent sessions across every configured server; <!-- id:3hUeFKJ7 -->
-  - **the runs tree** — every turn, child, and script is a run row and the table is the dispatch queue (leases, boot-sweep crash recovery, derived session status, persisted usage with child rollup), plus `StopSession`/`CancelRun` over whole subtrees; <!-- id:vwOi-y5P -->
-  - **the five verbs** (`read`, `write`, `call`, `delegate`, `plan`) as the entire model-facing surface, with search, web search, navigate, and execute reached through `call`; <!-- id:vwxoQED2 -->
-  - **tools as documents** — content-addressed (DAG-CBOR/CID) documents under `~/tools/`, a byte-budgeted Space index in every system prompt, contract-on-wrong-input, and touch-expand promotion derived from durable events; <!-- id:xBkfbVd6 -->
-  - **MCP servers** — remote Streamable HTTP / SSE servers connected per account and enabled per agent, projected into `~/tools/` as `<server>__<tool>` documents, called over lazy per-run connections, managed from the Tools tab (`mcp.md`); no OAuth flow yet, static headers only; <!-- id:vxCc3yxl -->
-  - **delegation** — model children with verbatim briefings and typed `return_result`, script children on the QuickJS engine with content-keyed journal replay, detached children still in the run tree, plan-step attachment by stable step id; <!-- id:CoB5EIW_ -->
-  - **the symmetric log** — every event stamped with an actor, `InvokeSessionTool` letting the user run the same verbs through the same dispatchers, and the desktop wrench palette with "You"-chipped result rows; <!-- id:cBgjUc_F -->
-  - **execution** — `execute {runtime: ts | python | shell}` in microVMs (TypeScript gated on an operator-configured image), and authored `~/tools/**` lambdas callable by name with validation on both edges; <!-- id:ovcQzoHM -->
-  - **durable time** — `ctx.sleep`, `ctx.waitForEvent`, `ctx.continueAsNew`, `budget-pause`, `SignalRun`, and card affordances (Answer / Answer with data / Resume) for every parked state; <!-- id:pgUlDedy -->
-  - **the event bus, first slice** — `run-completed` as a trigger source, the `wake` continuation delivering into parked runs exactly once, an 8-hop firing-chain loop guard, and one shared activity matcher; <!-- id:GRXwRNGb -->
-  - **obligations** — one contract for what a run owes, a bounded continuation loop, honest `unmetObligations` rather than auto-checked steps, runtime-authored messages durably `actor: 'system'`, and runtime step settlement from succeeded children; <!-- id:4-h3X9Oy -->
-  - per-agent memory filesystem, session-private attachments, self-hosted `web_search`/`web_read`, schedule and activity triggers. <!-- id:lETFiPgn -->
+Complete enough to build on: a standalone Bun service with a signed CBOR HTTP API and signed WebSocket subscriptions; SQLite persistence behind a schema gate; encrypted provider secrets; registry-driven providers (OpenAI, Anthropic, Google, OpenRouter, DeepSeek, Groq, xAI, Ollama, custom) executing through the Pi SDK, with reasoning levels and ChatGPT subscription sign-in; agents, sessions, collaborators, public read and public chat; the runs tree as dispatch queue with leases, boot-sweep recovery, fair-share ordering across accounts, and cancellation over subtrees; the five verbs as the whole model-facing surface; tools as content-addressed documents with touch-expand and promotion; remote MCP servers; model and script children with typed results and journaled replay; budgeted delegation with thoroughness presets; parked runs and every wake source; six trigger sources and four continuations; the symmetric log with the wrench palette; session continuation instead of compaction; per-agent memory, attachments, self-hosted web search and reading, sandboxed execution with an opt-in warm microVM pool; the shared desktop and web UI; the local agents server embedded in the desktop app; delegated signers proven by a published capability blob. <!-- id:hpRRD8nC -->
 
-# Highest priority next steps <!-- id:yeLu-hra -->
+# Highest priority <!-- id:kVLJTyIl -->
 
-## 1. Finish M6 — trigger documents <!-- id:SCQi9KoD -->
+## 1. Trigger documents <!-- id:rvAwOYgb -->
 
-Why: triggers are the one piece of standing authority an agent can hold. **Shipped 2026-08-18 (introspection slice):** the `~/triggers/**` verb surface (read listing/detail, write create/edit/enable/disable/delete, `enabled` honored as written — no consent step, by owner decision; see `security.md`) plus `read ~/self` and the `thread:` listing/search. All of it rides the existing `agent_triggers` rows. <!-- id:L1oa8wTm -->
+Triggers are the one piece of standing authority an agent holds, and they are still SQLite rows behind CRUD actions plus the `~/triggers/` verb surface. The intended shape is content-addressed trigger documents versioned by CID like `~/tools/`, a migration off `agent_triggers` that carries firing keys forward so nothing re-fires, a `document-change` source, an `appendTo` continuation, deletion of the CRUD actions, and a desktop editor that replaces the dialogs (which today cannot create a `run-completed` trigger; the API and the agent's `write ~/triggers/<name>` can). The earlier draft-then-activate consent proposal is explicitly not wanted. <!-- id:cB9oVnBU -->
 
-Remaining work: <!-- id:rromFbpu -->
-  - the content-addressed document form (CID per trigger, like `~/tools/`), and the migration off `agent_triggers` that carries firing keys forward so nothing re-fires; <!-- id:mYyy_P6m -->
-  - the `document-change` source and the `appendTo` continuation (`runPlan` waits for `~/plans/` to exist); the `tool` and `script` continuations shipped 2026-08-30 (`trigger-continuations.md`) — a firing can now run code with no model and escalate to a thread only on failure; <!-- id:Vc9XYI5j -->
-  - deletion of the trigger CRUD actions, and the desktop editor that replaces them — including a form for `run-completed` triggers, which today can only be created through the API or an agent's `write ~/triggers/<name>`. <!-- id:G3Bd-4GJ -->
+## 2. Delegation budgets: pauses, tree budgets, cost <!-- id:aXlXYVvS -->
 
-## 2. Delegated signers for clients that are not the account key <!-- id:e6T8Opyd -->
+A run that exhausts its fan-out budget is told to finish alone and nobody is asked. The follow-on project, in [delegation budgets](./plans/delegation-budgets.md), replaces the refusal with a pause card the person answers, moves the budget to the root of the tree so a grant is one write and a meter is one query, and denominates budgets in tokens and then money. Prod runs 8 model runs at a time, so a fan-out of 16 finishes no faster than 8; the prompt should say so. <!-- id:A5q-XemL -->
 
-Why: `verifyEnvelope` already accepts a non-account signer holding an `AGENT`/`OWNER` row in `account_authorizations`, but nothing writes that table outside tests — `setLocalAuthorization` has no protocol action behind it. In practice the signer must equal the account, which is what blocks a web device (whose key is its own) from acting for an account. <!-- id:TJMhKOtm -->
+## 3. Speed and cost of every turn <!-- id:I2jfqt2d -->
 
-Work: <!-- id:XCs_Ls6J -->
-  - an action that registers a delegated signer, with the capability record that authorizes it; <!-- id:XJht9mQA -->
-  - decide what proves the delegation (an HM capability blob is the obvious candidate) and how it is revoked; <!-- id:YJwi83Vg -->
-  - tests for authorized, unauthorized, and revoked signers on the action paths that matter. <!-- id:Jjy3jiPZ -->
+Every provider request re-uploads the whole session, and a cold microVM boot dominates short `execute` calls. Instrumentation (`/api/perf`, per-stage spans) and the warm pool are done; the pool is still opt-in (`SEED_AGENTS_EXEC_WARM_POOL=1`) until it is the proven default. Open: prompt caching and server-side conversation state per provider, context compaction of old tool results, byte-stable prefixes, and the dispatch and prep path ([speed](./plans/speed.md), [model comms latency](./plans/model-comms-latency.md)). Two smaller follow-ups from the 2026-08 production investigation: per-agent log files, and spilling oversized tool outputs to files at append time so a multi-megabyte event stops costing every model turn. <!-- id:prgzeErd -->
 
-## 3. Run the live-model gates <!-- id:Oamg3yX4 -->
+## 4. Real parallelism <!-- id:zN1pnOMV -->
 
-Why: the deterministic gates and the scripted-provider live checks pass, but no scenario has run against a real model since the verb surface changed. Blocked on OpenAI credits, not on code. <!-- id:irr2iyRF -->
+The server runs the API, the WebSocket fan-out, the poll loops, and every run on one JavaScript event loop, so a CPU-bound run stalls `/api/health` for seconds. The workflow VM already runs in a worker behind `SEED_AGENTS_WORKFLOW_WORKER=1` as a proof of concept; the staged plan to move agent runs off the main thread is [worker-isolated execution](./plans/worker-isolated-execution.md). Beyond one box, [multi-server architecture](./plans/multi-server-architecture.md) describes sharding by account. <!-- id:6vqXDUkY -->
 
-Work: `agents/e2e/live-gate.ts` end to end; re-record the stale gpt-5-mini cassettes (their fingerprints embed tool names); write the still-missing battery scenarios. <!-- id:to-OOXnp -->
+## 5. Provider hardening <!-- id:bWzCxrxO -->
 
-## 4. Provider hardening <!-- id:-2YSMAPM -->
+Anthropic and Google run through Pi with mocked coverage only; they need real-provider smoke tests, a provider test action, capability status in the UI, and a decision on whether `modelDefaults` stays a raw payload override. `cost` is zeroed for every non-subscription model, so usage is counted in tokens and never in money. Per-provider reasoning quirks (`deepseek`, `openrouter`) are unwired. <!-- id:QN20yS-S -->
 
-Work: <!-- id:udJ-Ru54 -->
-  - real-provider smoke tests for Anthropic and Google (mocked coverage only today); <!-- id:IKkQfJVJ -->
-  - a provider test action and clearer capability status in the desktop, including warning badges for provider types that are configurable but unproven; <!-- id:f2AV6tm7 -->
-  - decide whether `provider.modelDefaults` stays an advanced payload override or becomes typed settings; <!-- id:RFnGibe3 -->
-  - focused multi-turn tool-history regression tests; <!-- id:uSE8yeSN -->
-  - runtime diagnostics that log neither secrets nor full session content (provider listings are redacted, but the per-delta streaming logs have no level control — see "Streaming logs are useful but noisy" below). <!-- id:twSKcsog -->
+## 6. Live-model gates <!-- id:KyOePz72 -->
 
-## 5. Plan settlement follow-ups <!-- id:i1QtVpuA -->
+The deterministic gates pass, but the recorded cassettes predate the verb collapse (`agents/e2e/recordings/STALE.md`), so `e2e-replay.test.ts` skips and no scenario has run against a real model since the surface changed. Re-record, and write the missing battery scenarios. <!-- id:vZSPV0j8 -->
 
-Two gaps left by the settlement work, both visible in `#writeSessionPlan` and `RunPlanStep`: <!-- id:vIxF6rUF -->
-  - **Turn-settle and evidence-settle do not meet.** A step closes either because the model said so or because every child attached to it succeeded — there is no path for a step the agent completed with its own tools, and when the two disagree the runtime mark simply wins and persists. Whether that is the final rule or a placeholder is undecided. <!-- id:UQkoNl88 -->
-  - **A closed step records that it closed, not what closed it.** There is no outcome line — which child, which result, what evidence — so a reader of a settled checklist has to open the children to find out. <!-- id:-FVxHEX2 -->
+## 7. Plan settlement <!-- id:u6kTcJHV -->
 
-# Medium priority <!-- id:HRwDygAr -->
+A step closes because the model said so or because every attached child succeeded; there is no path for a step the agent finished with its own tools, and a closed step records that it closed but not what closed it. <!-- id:VrByaKEn -->
 
-## Idempotency for interrupted `ctx.call` <!-- id:BT2EBgv4 -->
+# Medium priority <!-- id:5vetoXdG -->
 
-A call journaled without a result re-executes on resume, because whether it took effect is unknowable (`workflow-host.ts`). Fine for reads; a `write` interrupted mid-crash could double-apply. Needs either idempotency keys on the effect or a documented contract that script tools must be idempotent. <!-- id:9WrihMpy -->
+- **Grants for `query` and `attributes`.** Both callables exist in the registry, but the app's Tools tab offers only search, web search, execute, and publish, and an agent created from the app stores exactly that list; the UI normalizer also drops the two names when it resaves. Only an agent whose `tools` array is undefined gets them. Either add the toggles or make them ungated. <!-- id:xFWO-fi7 -->
+- **Idempotency for an interrupted `ctx.call`.** A call journaled without a result re-executes on resume; fine for reads, a hazard for writes. <!-- id:lm_AQRfE -->
+- **WebSocket protocol v2.** Heartbeat, explicit unsubscribe, CBOR server events, subscription limits, backpressure, reconnect cursors, metrics. Agent-run text partials remain ephemeral across a disconnect. <!-- id:CeAzSzD2 -->
+- **Provider and secret lifecycle.** Providers can be deleted; secret rotation and a general secret-deletion action do not exist. <!-- id:hKIB9nP3 -->
+- **Streaming subscription regression tests** for the `omitUndefined` signing fix and CRLF SSE parsing. <!-- id:Wyvsdbd1 -->
+- **Desktop packaging coverage.** The smoke workflow runs on macOS only; Linux and Windows binaries are compiled but never executed in CI. <!-- id:BDc7l7DR -->
+- **Rich tool results.** Document previews rendered as documents, and the requested URL beside the resolved one. <!-- id:jOpOPWUp -->
 
-## Streaming subscription regression tests <!-- id:DdE0HVu0 -->
+# Security hardening <!-- id:AVYp8ESV -->
 
-The signed-`Subscribe` failure caused by explicit `undefined` fields was fixed by `omitUndefined()` in `agents-client.ts`, but nothing tests it. Still unwritten: desktop signing omits undefined fields; the server verifies a subscribe envelope without `afterSeq`; a WebSocket receives `appendPartial` after a signed subscription; CRLF SSE parsing emits partials. <!-- id:lclyXiau -->
+1. Nonce caching on top of the signed-action timestamp window (5 minutes; duplicates inside it are accepted). <!-- id:IL5IhLQb -->
+2. KMS or OS-keychain storage for the secret encryption key, which today lives in the same SQLite file as the ciphertext. <!-- id:kneZhkch -->
+3. Rate limits and quotas; a reachable server accepts any self-signed account's agents. <!-- id:m-HAIpNZ -->
+4. An audit log for secret, provider, tool, and trigger events. <!-- id:6REDQh-S -->
+5. An outbound network policy for tools and an account-level tool policy above the per-agent one. <!-- id:hIsxUn-h -->
 
-## WebSocket protocol v2 <!-- id:grDWzRRL -->
+# Documentation <!-- id:zh_wEkwJ -->
 
-Heartbeat, explicit unsubscribe, CBOR server events, subscription limits, backpressure, better reconnect cursors. <!-- id:nsaelxWK -->
+Signed-envelope examples as runnable scripts, the delegated-signer flow end to end, a production deployment guide, and a threat model. The [signed API](./signed-api.md) page documents every action but no client library exists outside the frontend monorepo; the protocol package is private. <!-- id:EXhfyWaR -->
 
-## Provider and secret lifecycle <!-- id:fhJ6ZpC0 -->
+# Finished projects <!-- id:0BWMjs4l -->
 
-Delete provider, rotate secret, delete secret, last-used/error metadata. <!-- id:QksM-jR5 -->
+Each of these was a plan page; the plan is in git, the result is in the reference pages. Shared protocol package (`agents/protocol`). Pi SDK migration (every turn runs through Pi). Anthropic and Google backends (through Pi). Stop and cancel (`StopSession`, `CancelRun` over subtrees). Run records and the runs tree. Domain-aware reads (`resolveIdWithClient` with a domain resolver). Desktop agent unification (the local server as a desktop subprocess; the old assistant runtime deleted). Agent triggers phases 1 to 3, the event-bus first slice, the introspection slice, and headless continuations ([triggers](./triggers.md)). Workflows v1 (runs, children, scripts, progress UI). The five-verb harness and tools as documents. The write tool with CLI parity (now the `write` verb). Tables round-tripping through markdown. The warm microVM pool. Execution timeouts, leveled logging, session wire-size caps, and fair-share dispatch after the 2026-09-07 queue-wait incident. <!-- id:lzEGClKd -->
 
-## Desktop packaging coverage <!-- id:OrovpBQr -->
+# Definition of done <!-- id:Kv6fICmJ -->
 
-`desktop-smoke-test.yml` builds and runs on macOS only; the Linux and Windows binaries are compiled but never executed in CI. A fresh install also has no agent to talk to — auto-provisioning a built-in `Assistant` is still open. <!-- id:Wvvh2sbX -->
-
-# Security hardening priority <!-- id:uvtGf3iY -->
-
-1. Nonce caching on top of the signed-action timestamp window (the window exists; duplicate-nonce rejection does not). <!-- id:m3QcV6NM -->
-2. KMS/keychain storage for the secret encryption key. <!-- id:WHSh8-RK -->
-3. Rate limits and quotas. <!-- id:7aKg56T3 -->
-4. Audit log for secret/provider/tool/security events. <!-- id:C4NUyg8N -->
-5. Outbound network policy for tools. <!-- id:OPn_ZSqp -->
-
-# Code improvement areas found during review <!-- id:tqZHhtFV -->
-
-## Protocol package follow-up <!-- id:z8dDfx7A -->
-
-Protocol types are shared through `@seed-hypermedia/agents-protocol`. If external clients are added, decide whether to publish this package or generate language-specific clients from the same source. <!-- id:BcbBxhXG -->
-
-## Streaming logs are useful but noisy <!-- id:sxylNRBE -->
-
-Diagnostics are helpful in development and have no log-level control. Before production, add levels/config so per-delta logs can be reduced without removing the troubleshooting path. <!-- id:K8cj84C3 -->
-
-## WebSocket partials are ephemeral <!-- id:VfGyqCuZ -->
-
-Acceptable for live typing, but a disconnect misses partials until the durable append. Run journals cover this for script children; agent-run text partials remain ephemeral. <!-- id:NA_2gwyO -->
-
-# Documentation roadmap <!-- id:YZTOxGnv -->
-
-- production deployment guide; <!-- id:qaFIgjd0 -->
-- signed-envelope examples with small code snippets; <!-- id:4CtkJiRs -->
-- sequence diagrams; <!-- id:08ipm1r9 -->
-- threat model; <!-- id:bJomJwB3 -->
-- model-provider troubleshooting guide; <!-- id:OW3ogl3a -->
-- UI screenshots when design stabilizes. <!-- id:OfZYinDc -->
-
-# Definition of done for future milestones <!-- id:T2X3BQ4P -->
-
-A future Agents milestone is not done until: <!-- id:UoR6lXF4 -->
-  - code is implemented; <!-- id:kSVyqr9X -->
-  - tests pass for touched areas; <!-- id:VCP0LsJe -->
-  - docs are updated and linked from `readme.md`; <!-- id:nuvBRZdT -->
-  - completed/remaining status is reflected in this roadmap; <!-- id:6FAe0Ppq -->
-  - security and logging implications are reviewed; <!-- id:oEcM-D0e -->
-  - manual desktop smoke test is performed when UI/runtime behavior changes. <!-- id:JF3INr_Q -->
+A future milestone is not done until the code is implemented, tests pass for the touched areas, the reference pages describe the result and this roadmap no longer lists it, security and logging implications are reviewed, and the desktop smoke test has been run when UI or runtime behaviour changed. <!-- id:qlLug2wi -->

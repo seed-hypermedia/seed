@@ -1,9 +1,9 @@
 ---
 name: Block (Base)
-summary: "Fields shared by every concrete block type: id, optional revision, and the type discriminator. Concrete blocks extend this."
+summary: "The three fields every concrete block type shares: the required id and type, and the daemon-filled revision."
 schemaDefinition: ipfs://bafyreidwdd7tojybh5gqkzglruektctlgvckgu3wvyru2uu7au7pzqgz6y
 ---
-This document describes the **block/base** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:ibCqRoF1 -->
+Every concrete block type extends this struct: `id` is the block's permanent identity inside its document, `type` names the block type, and `revision` is output only, the CID of the last Change that modified the block. A new block type is a struct that extends this base and adds its own `text`, `link`, `annotations` and `attributes`; see [block/core](./core.md) for the built-in union and [Blocks](../protocol/blocks.md) for the model.
 
 # Shape <!-- id:QptDZ4s_ -->
 
