@@ -1,7 +1,6 @@
 ---
 name: Blob
 summary: The signed envelope every Hypermedia blob extends, with a type tag, the signer's public key, an Ed25519 signature over the canonical CBOR with the signature zeroed, and a millisecond timestamp.
-schemaDefinition: ipfs://bafyreihyn2t2ohxof224okmb4ditzzigvbhajqfylhj4fe77uggczihdlm
 ---
 A **blob** envelope is the signed base every Hypermedia CBOR [blob](./protocol/blobs.md) extends. It has four fields: a `type` tag that the network dispatches on, the signer's public key, an Ed25519 signature over the canonical CBOR with the signature zeroed, and a Unix-millisecond timestamp. [Change](./change.md), [Ref](./ref.md), [Profile](./profile.md), [Comment](./comment.md), [Capability](./capability.md) and [Contact](./contact.md) all extend it. Your own types can extend it too: extend this schema, pin a `type` tag, and the app signs values with your account. <!-- id:9OHHE4tm -->
 
@@ -12,20 +11,6 @@ These four fields are all the network needs to trust a piece of data. `type` say
 Third-party implementations most often get the signing rule wrong, so here it is exactly. Fill `sig` with 64 zero bytes, encode the whole map as canonical [DAG-CBOR](./schema/dag-cbor.md), sign those bytes, put the signature in `sig`, and encode again. The final bytes are the blob, and their hash is its [CID](./cid.md). Verification zeroes the field again and checks the signature over the re-encoded bytes. Omitting the field instead of zeroing it gives a different message and an invalid signature. <!-- id:R9US3xC6 -->
 
 The [daemon](./apps/daemon.md) computes CIDs with BLAKE2b-256, and the [SDK](./build/sdk.md) and the apps use SHA-256. Both are accepted. A blob that another blob references by CID must be published under the CID the referrer used. [Signed Blobs](./protocol/blobs.md) explains the rule and its consequences. <!-- id:nGAH7ftn -->
-
-# Shape <!-- id:QOHOzNqJ -->
-
-A **closed struct** with these fields: <!-- id:bQI8hkFy -->
-  - `type` _(required)_: `string` <!-- id:LQdoRLZZ -->
-  - `signer` _(required)_: [principal](./principal.md) <!-- id:CtQVur6r -->
-  - `sig` _(required)_: [signature](./signature.md) <!-- id:enu99wz8 -->
-  - `ts` _(required)_: [timestamp](./timestamp.md) <!-- id:kWIJ7his -->
-
-# Depends on <!-- id:jpOci9E7 -->
-
-- [principal](./principal.md) <!-- id:y9c8QnRC -->
-- [signature](./signature.md) <!-- id:dsCKf5iI -->
-- [timestamp](./timestamp.md) <!-- id:OFc0RrUw -->
 
 # See also <!-- id:M8oK5GWj -->
 

@@ -1,7 +1,6 @@
 ---
 name: Change
 summary: A signed delta on a document that links the changes it depends on into a causal graph and carries the operations that mutate the document's content and metadata.
-schemaDefinition: ipfs://bafyreie3extkcrek4pduyrezyrad3aqddw3tcaijeveeectku5zih3qrgi
 ---
 A **Change** is the unit of editing in Hypermedia: one signed step in a [document](./protocol/documents.md)'s history. Each Change says which earlier Changes it builds on and lists the operations that turn that state into the new one. Replaying a document's Changes in dependency order, on any machine, produces the same document. Every Change is signed, so the author of every step is known. <!-- id:BGe4AnmS -->
 
@@ -10,25 +9,6 @@ This page defines the **change** blob type, a Hypermedia network blob that exten
 `genesis` names the document's first Change, which is the document's identity. `deps` are the heads the author saw, sorted by [CID](./cid.md). `depth` is one more than the deepest dependency. `body` holds the [operations](./change/op.md). The genesis Change of an ordinary document is its first content Change, and it carries none of `genesis`, `deps` or `depth`. The daemon rejects a Change that has some but not all of the three. At replay it requires that every dependency was applied first with a smaller timestamp and depth. The home document of a space is the one exception to "the first content Change is the genesis": its genesis is an empty Change with `ts: 0`, deterministic for the account key. <!-- id:m48rXg09 -->
 
 A Change alone does not change what readers see. A [Ref](./ref.md) that points at the head Changes asserts the document's current state at an address. A Change that no Ref reaches is a proposal, and that is how branches and [open editing](./why/open-editing.md) work. [Documents](./protocol/documents.md) has the rules for ordering concurrent Changes, producing minimal Changes from an edit, and merging heads. <!-- id:-6QfT9mG -->
-
-# Shape <!-- id:NQM1VhDF -->
-
-**Extends** [blob](./blob.md) with these added fields: <!-- id:WtuABanO -->
-  - `type`: `"Change"` <!-- id:vuVh1zRN -->
-  - `genesis`: [cid](./cid.md) <!-- id:OjyRoI0Z -->
-  - `deps`: list of [cid](./cid.md) <!-- id:14sUK5dG -->
-  - `depth`: [integer](./integer.md) <!-- id:WymiRSox -->
-  - `body`: [change/body](./change/body.md)⟨Block = type variable `⟨Block⟩`⟩ <!-- id:uBgg3XsN -->
-
-**Generic** over `⟨Block⟩` (default [block](./block.md)). <!-- id:R7cLitDd -->
-
-# Depends on <!-- id:04pSmVGM -->
-
-- [blob](./blob.md) <!-- id:WMAGmaBA -->
-- [block](./block.md) <!-- id:FapoGwga -->
-- [change/body](./change/body.md) <!-- id:_jOGY6LF -->
-- [cid](./cid.md) <!-- id:63xfnTGa -->
-- [integer](./integer.md) <!-- id:fvXmpXcE -->
 
 # See also <!-- id:Vocl2sK5 -->
 

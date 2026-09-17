@@ -1,7 +1,6 @@
 ---
 name: Struct schema
 summary: The variant for a struct, with known fields under properties and optionally extra keys of one type under values.
-schemaDefinition: ipfs://bafyreigaaaz4ycvw2opvffvdnu6jnpc7ik5xka5erx3hkfucu5yikxk3ce
 ---
 This is the shape a schema takes when it describes a struct. `type` is `struct`. `properties` names the fields, with one [property](./property.md) per field. Each property carries its value schema, whether a value must include it, and a description. An optional `values` opens the struct to further keys of one type. Like every [variant](./variant.md), a struct schema is a closed struct itself, so a stray keyword is rejected. <!-- id:xBr-gnCA -->
 

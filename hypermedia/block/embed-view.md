@@ -1,13 +1,8 @@
 ---
 name: Embed View
 summary: "How an Embed block renders its target: the content itself, a card, its discussion, or a plain link."
-schemaDefinition: ipfs://bafyreiakvbosqv7cyvhaetqpcdgjok3tr2fabqov3kl42f2vdiqvc75e2e
 ---
 The **embed view** is the `view` of an [embed](./embed.md). `Content` renders the target's body inline. `Card` shows its title, summary and cover. `Comments` shows its [discussion](../protocol/comments.md). `Link` shows a plain link. <!-- id:bQHMC3Ru -->
-
-# Shape <!-- id:zw6uZukZ -->
-
-Kind: `string`. One of: `Content`, `Card`, `Comments`, `Link`. <!-- id:tybrOd_y -->
 
 # See also <!-- id:YfCIMna7 -->
 

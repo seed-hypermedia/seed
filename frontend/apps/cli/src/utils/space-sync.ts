@@ -15,7 +15,8 @@
  * `<file>.schema.json` beside the document that defines it.
  *
  * Schemas travel with their documents. Export writes the DAG-CBOR blob a
- * document's `metadata.schemaDefinition` points at as `<file>.schema.json`;
+ * document's `metadata.schemaDefinition` points at as `<file>.schema.json` (and leaves
+ * `schemaDefinition` out of that file's frontmatter);
  * import encodes that file back to canonical DAG-CBOR, publishes the blob with
  * the document, and sets `schemaDefinition: ipfs://<cid>` (the file is the
  * truth, whatever the frontmatter says). A document that CONFORMS to a type says so in its
@@ -342,15 +343,22 @@ export async function exportDocument(
     return result
   }
   result.files.set(path, file)
+  const schemaCid = ipfsCid((doc.metadata as Record<string, unknown> | undefined)?.schemaDefinition)
+  const schemaFile = schemaCid ? layout.schemaFileFor(file) : null
+  // The schema file beside the page is the truth about what it defines, and import sets
+  // `schemaDefinition` from it, so the frontmatter does not repeat the CID.
+  const metadata = schemaFile
+    ? (Object.fromEntries(
+        Object.entries(doc.metadata || {}).filter(([key]) => key !== 'schemaDefinition'),
+      ) as HMDocument['metadata'])
+    : doc.metadata
   let content = hmToRelativeLinks(doc.content || [], file, doc.account, layout)
   if (opts.assets) content = await opts.assets.localize(content, file, doc.metadata as Record<string, unknown>)
-  const md = blocksToMarkdown({...doc, content}, {ipfsGateway: false})
+  const md = blocksToMarkdown({...doc, metadata, content}, {ipfsGateway: false})
   const changed = writeIfChanged(resolve(opts.dir, file), md)
   ;(changed ? result.written : result.unchanged).push(file)
   log(`${changed ? 'wrote  ' : 'same   '} ${file}`)
 
-  const schemaCid = ipfsCid((doc.metadata as Record<string, unknown> | undefined)?.schemaDefinition)
-  const schemaFile = schemaCid ? layout.schemaFileFor(file) : null
   if (schemaCid && schemaFile) {
     const blob = await opts.client.request('GetCID', {cid: schemaCid})
     const changedSchema = writeJsonPreservingOrder(resolve(opts.dir, schemaFile), blob.value)

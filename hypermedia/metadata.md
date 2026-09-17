@@ -1,9 +1,10 @@
 ---
 name: Document Metadata
 summary: "The attributes of a document, merged from its Changes: the keys Seed understands, the three schema-binding keys, and any custom keys a typed document adds."
-schemaDefinition: ipfs://bafyreicjyjyo7aqw5wzptnny6htrpa2ue7ghqvtlzlfd37aaosjo6fgqji
 ---
 A document's **metadata** is the map of attributes its [Changes](./change.md) set with [SetAttributes](./change/op/set-attributes.md), merged last-writer-wins per key path. The map is open. Beside the keys listed here a [document](./protocol/documents.md) may carry any custom attribute, and a [typed document](./schema/typed-documents.md) binds a schema that describes those custom keys. Values are the four scalar [values](./value.md) or nested maps of them. <!-- id:kTGd2V7p -->
+
+Any other key is allowed; its value is a [value](./value.md). <!-- id:oALOK8WB -->
 
 # The keys Seed understands <!-- id:O1w2gINW -->
 
@@ -45,45 +46,6 @@ Older documents may still carry `title` (now `name`), and old profiles `alias` a
 # Working with metadata <!-- id:9_Lec_uh -->
 
 In the [Seed app](./apps/desktop.md) the Attributes tab edits every key, with the required fields of a bound schema pinned at the top. The [CLI](./build/cli.md) sets keys with `document create --metadata` and with the frontmatter of a markdown file, which lists every key in a fixed order. The [SDK](./build/sdk.md)'s `HMDocumentMetadataSchema` parses the known keys and passes the rest through. The [Seed API](./build/web-api.md)'s `ResourceMetadata` request returns only the metadata, and `QueryDocuments` filters documents by any key. Agents [read](./agent/read.md) `hm://…/:attributes` and [write](./agent/write.md) `options.metadata`. See [the query grammar](./build/query-grammar.md). <!-- id:09DUk8Zl -->
-
-# Shape <!-- id:-ix8zCqi -->
-
-A map with these fields: <!-- id:L2SJyGsk -->
-  - `name`: [string](./string.md) <!-- id:A-W8DLNa -->
-  - `summary`: [string](./string.md) <!-- id:3LriHtp0 -->
-  - `icon`: [ipfs-url](./ipfs-url.md) <!-- id:6dGrRIdx -->
-  - `thumbnail`: [ipfs-url](./ipfs-url.md), deprecated <!-- id:D0sa9yvM -->
-  - `cover`: [ipfs-url](./ipfs-url.md) <!-- id:zjUSdmH1 -->
-  - `siteUrl`: [url](./url.md) <!-- id:PyLw_CMi -->
-  - `agentServerUrl`: [url](./url.md) <!-- id:HvivP6aJ -->
-  - `spaceAgents`: map of [value](./value.md) <!-- id:-QU44KVT -->
-  - `attributesSchema`: [hm-url](./hm-url.md) <!-- id:ADiIVpjJ -->
-  - `childAttributesSchema`: [hm-url](./hm-url.md) <!-- id:UONmILsQ -->
-  - `schemaDefinition`: [ipfs-url](./ipfs-url.md), targeting [schema](./schema.md) <!-- id:ZUbSthmD -->
-  - `layout`: one of `"Seed/Experimental/Newspaper"` | `""` <!-- id:I-9Xt4-i -->
-  - `seedExperimentalLogo`: [ipfs-url](./ipfs-url.md) <!-- id:LgesKjn4 -->
-  - `seedExperimentalHomeOrder`: one of `"UpdatedFirst"` | `"CreatedFirst"` <!-- id:N5ucmN29 -->
-  - `displayPublishTime`: [string](./string.md) <!-- id:t_InI3WT -->
-  - `displayAuthor`: [string](./string.md) <!-- id:b3VkN4qc -->
-  - `showOutline`: [boolean](./boolean.md) <!-- id:PGeCxMgg -->
-  - `showActivity`: [boolean](./boolean.md) <!-- id:Rfm2qV8U -->
-  - `contentWidth`: one of `"S"` | `"M"` | `"L"` <!-- id:8si9AhAF -->
-  - `childrenType`: [string](./string.md) <!-- id:-HIIWHMr -->
-  - `theme`: struct { `headerLayout`: one of `"Center"` | `""` } <!-- id:Gz2wxX6C -->
-  - `importCategories`: [string](./string.md) <!-- id:mQ5SgVLR -->
-  - `importTags`: [string](./string.md) <!-- id:DdNNZMpm -->
-
-Any other key is allowed; its value is a [value](./value.md). <!-- id:oALOK8WB -->
-
-# Depends on <!-- id:ZvzKpaKj -->
-
-- [value](./value.md) <!-- id:9xa9orX2 -->
-- [boolean](./boolean.md) <!-- id:iyrNR-f0 -->
-- [string](./string.md) <!-- id:W8yIt82N -->
-- [url](./url.md) <!-- id:8rpfA1Fp -->
-- [hm-url](./hm-url.md) <!-- id:PC2-lm5G -->
-- [ipfs-url](./ipfs-url.md) <!-- id:Dnryk11i -->
-- [schema](./schema.md) <!-- id:4-Ji9eB5 -->
 
 # See also <!-- id:xkWCsJm3 -->
 

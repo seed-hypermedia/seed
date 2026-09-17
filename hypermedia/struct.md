@@ -1,7 +1,6 @@
 ---
 name: Struct
 summary: A map with known, named fields, the type behind every record-like value from an address to a signed Change.
-schemaDefinition: ipfs://bafyreieff2wkyfnyxymypvvvy4fa6kxeulvgktdzvfqnqy2wsjtel7yioq
 ---
 A **struct** is the kind for named fields. `properties` fixes each field. The struct is closed, so unlisted keys are rejected, unless it adds a `values` tail. A [map](./map.md) has no named fields: every value matches one `values` schema. <!-- id:Nsw83C4N -->
 
