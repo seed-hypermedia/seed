@@ -39,7 +39,7 @@ Hypermedia Schemas is a small schema language for [IPLD](./ipld.md) data, the va
 
 **Agents and tools** get contracts they can read and be checked against. Tools and agents can then be hypermedia resources themselves. <!-- id:d4tnck1j -->
 
-# Guardrails, not gates <!-- id:IYcGoiB1 -->
+# Validation warns and never blocks <!-- id:IYcGoiB1 -->
 
 Validation has two modes. **At rest it is advisory.** A blob is a cryptographic fact, and you will often receive data whose schema you have not fetched, or whose author used a newer version. The app stores it, renders what it can, and shows red warnings that do not block anything. **At a boundary it is strict.** The reference validator rejects malformed schemas, and a tool or API call is checked against its declared contract before it runs. Validation is lenient where data is stored and strict where it is acted on. <!-- id:VaWhKFCl -->
 
