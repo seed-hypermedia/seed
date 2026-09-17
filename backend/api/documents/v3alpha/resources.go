@@ -22,7 +22,6 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/fxamacker/cbor/v2"
@@ -83,8 +82,6 @@ func (srv *Server) ListCitations(ctx context.Context, in *documents.ListCitation
 	}
 
 	resp := &documents.ListCitationsResponse{}
-	var genesisBlobIDs []string
-	seenGenesisBlobs := make(map[int64]struct{})
 	var deletedList []string
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		var eid int64
@@ -127,15 +124,8 @@ func (srv *Server) ListCitations(ctx context.Context, in *documents.ListCitation
 				fragment      = stmt.ColumnText(9)
 				tsid          = blob.TSID(stmt.ColumnText(12))
 				citationType  = stmt.ColumnText(13)
-				isDeleted     = stmt.ColumnText(15) == "1"
+				isDeleted     = stmt.ColumnText(14) == "1"
 			)
-			// Zero means NULL genesis blob, which can never match anything in the moved-resources query.
-			if gb := stmt.ColumnInt64(14); gb != 0 {
-				if _, ok := seenGenesisBlobs[gb]; !ok {
-					seenGenesisBlobs[gb] = struct{}{}
-					genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(gb, 10))
-				}
-			}
 			lastCursor.BlobID = stmt.ColumnInt64(10)
 			lastCursor.LinkID = stmt.ColumnInt64(11)
 
@@ -148,7 +138,10 @@ func (srv *Server) ListCitations(ctx context.Context, in *documents.ListCitation
 				sourceDoc = source
 				source = "hm://" + author + "/" + tsid.String()
 			}
-			if isDeleted {
+			// Only Comment tombstones set extra_attrs.deleted (see blob_comment.go); a Ref
+			// tombstone is recorded as `tombstone` and document deletions are handled in
+			// SQL through document_generations.is_deleted instead.
+			if isDeleted && blobType == "Comment" {
 				deletedList = append(deletedList, source)
 			}
 
@@ -177,31 +170,6 @@ func (srv *Server) ListCitations(ctx context.Context, in *documents.ListCitation
 		return nil
 	}); err != nil {
 		return nil, err
-	}
-
-	var movedResources []citationMovedResource
-	if len(genesisBlobIDs) > 0 {
-		genesisBlobJSON := "[" + strings.Join(genesisBlobIDs, ",") + "]"
-		err = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-			return sqlitex.Exec(conn, qCitationMovedResources(), func(stmt *sqlite.Stmt) error {
-				movedResources = append(movedResources, citationMovedResource{
-					NewIRI:    stmt.ColumnText(0),
-					OldIRI:    stmt.ColumnText(1),
-					IsDeleted: stmt.ColumnInt(2) == 1,
-				})
-				return nil
-			}, genesisBlobJSON)
-		})
-		if err != nil {
-			return nil, err
-		}
-	}
-	for _, movedResource := range movedResources {
-		for i, result := range resp.Citations {
-			if result.Source == movedResource.OldIRI {
-				resp.Citations[i].Source = movedResource.NewIRI
-			}
-		}
 	}
 
 	seenCitations := make(map[string]bool)
@@ -596,12 +564,6 @@ func citationCommentExists(conn *sqlite.Conn, id string) (bool, error) {
 	return exists, nil
 }
 
-type citationMovedResource struct {
-	NewIRI    string
-	OldIRI    string
-	IsDeleted bool
-}
-
 type citationsCursor struct {
 	BlobID int64 `json:"b"`
 	LinkID int64 `json:"l"`
@@ -647,29 +609,41 @@ var qCitationCommentExists = dqb.Str(`
 	LIMIT 1
 `)
 
-// The CROSS JOIN forces SQLite to drive the query from the (small) list of genesis blobs
-// using the index on structural_blobs.genesis_blob, instead of scanning every Ref blob in the database.
-var qCitationMovedResources = dqb.Str(`
-SELECT
-  sb.extra_attrs->>'redirect' AS redirect,
-  r.iri,
-  dg.is_deleted
-  FROM json_each(:genesisBlobJson) AS g
-  CROSS JOIN structural_blobs sb ON sb.genesis_blob = g.value
-  JOIN resources r ON r.id = sb.resource
-  JOIN document_generations dg ON dg.resource = (SELECT id FROM resources WHERE iri = sb.extra_attrs->>'redirect')
-  WHERE sb.type = 'Ref'
-  AND sb.extra_attrs->>'redirect' != '';
-`)
-
-// The redirected CTE walks redirect chains backwards from the target. It selects only
-// the flattened current attributes that carry a redirect, served by the
+// qListCitationsTpl lists the blobs that link to a resource.
+//
+// The Comment arm walks redirect chains backwards from the target (the redirected CTE
+// selects only the flattened current attributes that carry a redirect, served by the
 // document_attributes_by_key index, instead of materializing the latest generation of
-// every document in the database.
-// MATERIALIZED is required: without it SQLite 3.45 inlines the subquery and re-runs it
-// on every recursion level. A resource whose latest generation redirects elsewhere has
-// a row in the CTE, so the seed's NOT IN check preserves the old "target is not itself
-// redirected" behavior, including for resources with no generations at all.
+// every document in the database). MATERIALIZED is required there: without it SQLite
+// 3.45 inlines the subquery and re-runs it on every recursion level. A resource whose
+// latest generation redirects elsewhere has a row in the CTE, so the seed's NOT IN
+// check preserves the "target is not itself redirected" behavior, including for
+// resources with no generations at all.
+//
+// The Ref (document) arm attributes each citing Change to the document that published
+// it. A Change carries no resource of its own, so the row is attributed to the Ref that
+// lists the Change as a head (blob_links type ref/head, served by blob_backlinks); when
+// no Ref heads the Change locally, the walk follows change/dep back-links to the nearest
+// headed descendants, expanding only through unheaded nodes. Attributing by genesis
+// instead let every document that shares a genesis (a republish carries its target's
+// genesis, a takeover keeps it, older agent releases put whole import batches on the
+// account's home genesis) claim the link: a document's own internal anchors showed up
+// as citations from unrelated documents, and the fan-out cost a page 200ms on a
+// heavily linked target. Redirect, republish and tombstone Refs have no heads, so they
+// never become sources.
+//
+// Sources are resolved and validated once per distinct Ref (change_refs and
+// live_sources are small and deliberately MATERIALIZED so the move-redirect walk, the
+// tombstone checks and the Ref blob's codec/multihash/author/visibility lookups run per
+// source, not per link row) and only then joined back to the per-link rows. `changes`
+// is MATERIALIZED on purpose too: it is the plain per-link set without any view join
+// (a LEFT JOIN on the public_blobs view inside a materialized CTE made SQLite 3.45
+// materialize the whole view and scan it per row), and the visibility filter lives in
+// visible_changes so that :publicOnly keeps its position in the positional bind order
+// (:target, :publicOnly, :blob_id, :link_id, :page_size). Measured on a 6.5 GB desktop
+// database under the vendored SQLite 3.45 with cached prepared statements: 195ms ->
+// 2.1ms on the heaviest target, 2.3ms -> 1.9ms on a document with 142 self-links,
+// faster on every other target tried.
 const qListCitationsTpl = `
 WITH RECURSIVE
 redirected AS MATERIALIZED (
@@ -696,48 +670,86 @@ redirect_ancestors(resource, iri, depth) AS (
   WHERE r.iri != ra.iri
   AND ra.depth < 16
 ),
-changes AS (
-SELECT
-    structural_blobs.genesis_blob AS genesis_blob,
-	structural_blobs.ts AS ts,
+changes AS MATERIALIZED (
+  SELECT
+    structural_blobs.ts AS ts,
     resource_links.id AS link_id,
     resource_links.is_pinned AS is_pinned,
-	blobs.id AS id,
+    structural_blobs.id AS id,
     resource_links.extra_attrs->>'a' AS anchor,
-	resource_links.extra_attrs->>'v' AS target_version,
-	resource_links.extra_attrs->>'f' AS target_fragment,
-	resource_links.type AS type
-FROM resource_links
-JOIN structural_blobs ON structural_blobs.id = resource_links.source
-JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-JOIN public_keys ON public_keys.id = structural_blobs.author
-LEFT JOIN public_blobs pb3 ON pb3.id = blobs.id
-WHERE resource_links.target = :target
-AND structural_blobs.type IN ('Change')
-AND (:publicOnly = 0 OR pb3.id IS NOT NULL)
+    resource_links.extra_attrs->>'v' AS target_version,
+    resource_links.extra_attrs->>'f' AS target_fragment,
+    resource_links.type AS type
+  FROM resource_links
+  JOIN structural_blobs ON structural_blobs.id = resource_links.source
+  WHERE resource_links.target = :target
+  AND structural_blobs.type = 'Change'
 ),
-citing_blobs AS (
-  SELECT changes.ts, changes.link_id, changes.is_pinned, changes.anchor,
-         changes.target_version, changes.target_fragment, changes.type, changes.genesis_blob,
-         sb.id AS source_blob
+visible_changes AS (
+  SELECT changes.*
   FROM changes
-  JOIN structural_blobs sb ON sb.genesis_blob = changes.genesis_blob AND sb.type = 'Ref'
+  LEFT JOIN public_blobs pb3 ON pb3.id = changes.id
+  WHERE (:publicOnly = 0 OR pb3.id IS NOT NULL)
+),
+owners(change_id, node, depth) AS (
+  SELECT DISTINCT id, id, 0 FROM changes
 
   UNION
 
-  SELECT changes.ts, changes.link_id, changes.is_pinned, changes.anchor,
-         changes.target_version, changes.target_fragment, changes.type, changes.genesis_blob,
-         sb.id
-  FROM changes
-  JOIN structural_blobs sb ON sb.genesis_blob = changes.id AND sb.type = 'Ref'
+  SELECT o.change_id, bl.source, o.depth + 1
+  FROM owners o
+  CROSS JOIN blob_links bl ON bl.target = o.node AND bl.type = 'change/dep'
+  WHERE o.depth < 64
+  AND NOT EXISTS (SELECT 1 FROM blob_links h WHERE h.target = o.node AND h.type = 'ref/head')
+),
+change_refs AS MATERIALIZED (
+  SELECT DISTINCT o.change_id, sb.id AS ref_blob, sb.resource AS resource,
+         sb.extra_attrs->>'generation' AS generation
+  FROM owners o
+  CROSS JOIN blob_links h ON h.target = o.node AND h.type = 'ref/head'
+  CROSS JOIN structural_blobs sb ON sb.id = h.source
+  WHERE sb.type = 'Ref'
+  AND sb.resource IS NOT NULL
+),
+resolved(ref_blob, resource, depth) AS (
+  SELECT DISTINCT sr.ref_blob, sr.resource, 0
+  FROM change_refs sr
+  WHERE sr.generation IS NULL OR EXISTS (
+    SELECT 1 FROM document_generations g
+    WHERE g.resource = sr.resource AND g.generation = sr.generation AND g.is_deleted = 0
+  )
 
-  UNION
+  UNION ALL
 
-  SELECT changes.ts, changes.link_id, changes.is_pinned, changes.anchor,
-         changes.target_version, changes.target_fragment, changes.type, changes.genesis_blob,
-         sb.id
-  FROM changes
-  JOIN structural_blobs sb ON sb.id = changes.id AND sb.type = 'Comment'
+  SELECT r.ref_blob, target.id, r.depth + 1
+  FROM resolved r
+  CROSS JOIN document_attributes da
+    ON da.resource = r.resource
+    AND da.key = (SELECT id FROM document_attribute_keys WHERE key = '$db.redirect')
+    AND da.kind = 's'
+  CROSS JOIN resources target ON target.iri = da.value
+  WHERE target.id != r.resource
+  AND r.depth < 16
+),
+live_sources AS MATERIALIZED (
+  SELECT r.ref_blob, res.iri, blobs.codec, blobs.multihash, public_keys.principal AS author
+  FROM resolved r
+  JOIN resources res ON res.id = r.resource
+  JOIN structural_blobs sb ON sb.id = r.ref_blob
+  JOIN blobs INDEXED BY blobs_metadata ON blobs.id = r.ref_blob
+  JOIN public_keys ON public_keys.id = sb.author
+  LEFT JOIN public_blobs pb2 ON pb2.id = r.ref_blob
+  CROSS JOIN document_generations dg
+    ON dg.resource = r.resource
+    AND dg.generation = (SELECT MAX(g2.generation) FROM document_generations g2 WHERE g2.resource = r.resource)
+  WHERE dg.is_deleted = 0
+  AND (:publicOnly = 0 OR pb2.id IS NOT NULL)
+  AND NOT EXISTS (
+    SELECT 1 FROM document_attributes da
+    WHERE da.resource = r.resource
+    AND da.key = (SELECT id FROM document_attribute_keys WHERE key = '$db.redirect')
+    AND da.kind = 's'
+  )
 )
 SELECT
     (SELECT iri FROM redirect_ancestors WHERE depth = 0) AS source_iri,
@@ -754,7 +766,6 @@ SELECT
     resource_links.id AS link_id,
 	structural_blobs.extra_attrs->>'tsid' AS tsid,
 	resource_links.type AS link_type,
-	structural_blobs.genesis_blob,
 	structural_blobs.extra_attrs->>'deleted' AS is_deleted
 FROM redirect_ancestors ra
 CROSS JOIN resource_links ON resource_links.target = ra.resource
@@ -769,31 +780,26 @@ GROUP BY source_iri, link_id, target_version, target_fragment
 
 UNION ALL
 SELECT
-    resources.iri,
-    blobs.codec,
-    blobs.multihash,
-    public_keys.principal AS author,
-    citing_blobs.ts,
+    ls.iri,
+    ls.codec,
+    ls.multihash,
+    ls.author,
+    changes.ts,
     'Ref' AS blob_type,
-    citing_blobs.is_pinned,
-    citing_blobs.anchor,
-	citing_blobs.target_version,
-	citing_blobs.target_fragment,
-    blobs.id AS blob_id,
-    citing_blobs.link_id,
-	structural_blobs.extra_attrs->>'tsid' AS tsid,
-	citing_blobs.type AS link_type,
-	citing_blobs.genesis_blob,
-	structural_blobs.extra_attrs->>'deleted' AS is_deleted
-FROM citing_blobs
-JOIN structural_blobs ON structural_blobs.id = citing_blobs.source_blob
-JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-JOIN public_keys ON public_keys.id = structural_blobs.author
-LEFT JOIN resources ON resources.id = structural_blobs.resource
-LEFT JOIN public_blobs pb2 ON pb2.id = blobs.id
-WHERE (blobs.id %s :blob_id OR (blobs.id = :blob_id AND citing_blobs.link_id %s :link_id))
-AND (:publicOnly = 0 OR pb2.id IS NOT NULL)
-GROUP BY resources.iri, citing_blobs.link_id, target_version, target_fragment
+    changes.is_pinned,
+    changes.anchor,
+    changes.target_version,
+    changes.target_fragment,
+    ls.ref_blob AS blob_id,
+    changes.link_id,
+    NULL AS tsid,
+    changes.type AS link_type,
+    NULL AS is_deleted
+FROM visible_changes AS changes
+CROSS JOIN change_refs cr ON cr.change_id = changes.id
+CROSS JOIN live_sources ls ON ls.ref_blob = cr.ref_blob
+WHERE (ls.ref_blob %s :blob_id OR (ls.ref_blob = :blob_id AND changes.link_id %s :link_id))
+GROUP BY ls.iri, changes.link_id, target_version, target_fragment
 ORDER BY blob_id %s, link_id %s
 LIMIT :page_size + 1;
 `
