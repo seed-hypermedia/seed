@@ -8,7 +8,7 @@ This page explains why Hypermedia Schemas have their shape, and what is still un
 
 ## Principles <!-- id:V0hRDQGX -->
 
-**Minimal enough to describe itself.** The eight _structural_ keys are the smallest set that can express their own structure. `name` and `description` are optional metadata on top. Every candidate feature has to pass one test: the [meta-schema](../schema.md) must still be a valid instance of itself. [The schema language](./schema-language.md) shows the loop, and `validate.mjs` checks it. [Self-description](./self-description.md) is the design constraint. <!-- id:1YvFIYx6 -->
+**Minimal enough to describe itself.** The ten _structural_ keys are the smallest set that can express their own structure. `name` and `description` are optional metadata on top. Every candidate feature has to pass one test: the [meta-schema](../schema.md) must still be a valid instance of itself. [The schema language](./schema-language.md) shows the loop, and `validate.mjs` checks it. [Self-description](./self-description.md) is the design constraint. <!-- id:1YvFIYx6 -->
 
 **Precise.** The meta-schema is a [discriminated union](./discriminated-union.md) of [closed](./closed-map.md) [variants](./variant.md), so it rejects malformed schemas such as `{type:"string", items:{…}}`. A type system whose own type is loose would accept nonsense. Making `schema` a union lets it reject that. <!-- id:W4Lj9Nfw -->
 

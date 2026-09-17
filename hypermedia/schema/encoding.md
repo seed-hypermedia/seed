@@ -39,10 +39,10 @@ For authors, **key order and formatting in these JSON files do not matter.** Whi
 
 ## The publish step <!-- id:xI7XePTO -->
 
-`publish.mjs` turns this repo into published Hypermedia types: <!-- id:ilHK6ydh -->
-  1. It parses each `.schema.json` file as dag-json. References are already **`hm://` URLs**, which are names. The step does not rewrite them into CIDs, so recursive and mutually recursive schemas keep working (see [references](./references.md)). <!-- id:3NjmpKsi -->
+Two scripts turn this repo into published Hypermedia types. `node scripts/hypermedia/publish.mjs` computes the CIDs, and `pnpm hypermedia:push` publishes the blobs: <!-- id:ilHK6ydh -->
+  1. `publish.mjs` parses each `.schema.json` file as dag-json. References are already **`hm://` URLs**, which are names. The step does not rewrite them into CIDs, so recursive and mutually recursive schemas keep working (see [references](./references.md)). <!-- id:3NjmpKsi -->
   2. It encodes each schema to canonical DAG-CBOR and content-addresses it as a CIDv1 with sha2-256 and the `dag-cbor` codec (0x71). The backend uses the same codec for its blobs. <!-- id:aqTbhvIL -->
-  3. It writes `schemas.lock.json`, the manifest that maps each `hm://` URL to its CID. The blocks are published under their [authority](../authority.md) at their `hm://` paths, signed by the authority's key. <!-- id:hVW1Ddfl -->
+  3. It writes `schemas.lock.json`, the manifest that maps each `hm://` URL to its CID. `publish.mjs` publishes nothing. `pnpm hypermedia:push` encodes each schema file again, checks its CID against `schemas.lock.json`, and stops on any mismatch. Then it publishes every schema blob to the server and imports each page as a document of the [authority](../authority.md) at its `hm://` path, with the schema blob as the page's `schemaDefinition`. <!-- id:hVW1Ddfl -->
 
 Canonical DAG-CBOR is deterministic, so **the CID is a pure function of a schema's content**. CI and any runtime that recomputes it get the same CID. This has two consequences: <!-- id:m9tDS9Ms -->
   - `node publish.mjs --check` runs in CI. It fails if the lockfile is stale, and a CID that changes in a diff means the schema changed. <!-- id:wtUc5Kgv -->

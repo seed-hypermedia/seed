@@ -33,7 +33,7 @@ These pages explain the system from the top down: <!-- id:XwK2BBFL -->
 
 # Using Hypermedia Schemas in the Seed app <!-- id:L_DgXvRt -->
 
-Typed documents need no setting: any [document](./protocol/documents.md)'s **Attributes** tab shows its [schema bindings](./schema/typed-documents.md). The raw building blocks, **New Blob** and **New Schema**, need **Developer Mode**. Turn it on in Settings, Advanced, on desktop. It is on by default in the web app. Once it is on, a document's options menu shows both entries. <!-- id:5Fs6bCbF -->
+Typed documents need no setting: any [document](./protocol/documents.md)'s **Attributes** tab shows its [schema bindings](./schema/typed-documents.md). The raw building blocks, **New Blob** and **New Schema**, sit behind a switch on desktop. Open Settings, Developers, press **Enable Debug Tools**, then turn on **Hypermedia Schemas**. With it on, a document's options menu shows both entries, and the **New** menu gains **Schema**. The web app shows the options menu entries by default. <!-- id:5Fs6bCbF -->
 
 ## Browse the schemas <!-- id:aRoEaieX -->
 
