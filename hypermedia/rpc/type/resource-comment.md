@@ -3,7 +3,9 @@ name: "Resource: Comment"
 summary: "A resolved resource that is a comment: the parsed id plus the comment read model."
 schemaDefinition: ipfs://bafyreifh4ympsbhu6enq2voev5zysuaneaasbtfxql3vuvxdxots2qnadu
 ---
-This page describes the **rpc/type/resource-comment** read model of the Seed API — derived data the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:WM00tRcd -->
+A resolved [resource](../../glossary.md) that is a [comment](../../protocol/comments.md): the [parsed id](./id.md) plus the [comment read model](./comment.md). It is one state of [rpc/type/resource](./resource.md).
+
+This page describes the **rpc/type/resource-comment** read model of the [Seed API](../../build/web-api.md). The daemon computes it for clients. It is separate from the signed [blobs](../../protocol/blobs.md) that travel the network. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it. <!-- id:WM00tRcd -->
 
 # Shape <!-- id:EAMFXFtn -->
 
@@ -16,3 +18,10 @@ A **closed struct** with these fields: <!-- id:CTozbhjz -->
 
 - [rpc/type/comment](./comment.md) <!-- id:LtTxleFu -->
 - [rpc/type/id](./id.md) <!-- id:ExCrWOlT -->
+
+# See also
+
+- [Resource](./resource.md): every resource state.
+- [Resource: Document](./resource-document.md): the document state.
+- [Comment (Payload)](./comment.md): the comment read model.
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.

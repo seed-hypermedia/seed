@@ -3,9 +3,9 @@ name: "RPC: ListDiscussions"
 summary: "Returns a document’s comments grouped into threads, their authors’ metadata, and threads from other documents that cite it, optionally focused on one comment."
 schemaDefinition: ipfs://bafyreif2nqvfoox4pevp4mn4ak4i6zeemflv7cwkzwpmscxtlc3msve7jy
 ---
-Lists threaded discussions on a document (optionally focused on one comment), plus citing discussions from other documents. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:unbh1D7h -->
+Lists the [comment](../protocol/comments.md) threads on a [document](../protocol/documents.md), optionally focused on one comment. It also returns threads from other documents that cite this one. Threads come back as [comment groups](./type/comment-group.md) and [external comment groups](./type/external-comment-group.md), with their authors' metadata. <!-- id:unbh1D7h -->
 
-This page describes the **rpc/list-discussions** method of the Seed API — a read model of what the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:bvGkwgJy -->
+This page describes the **rpc/list-discussions** method. It is one method of the [Seed API](../build/web-api.md), which clients call as `request(key, input) -> output`. `input` types what you send and `output` types what comes back. The output is a read model that the daemon computes for clients, separate from the signed [blobs](../protocol/blobs.md) that travel the network. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it and run the method from its [API console](../rpc.md). <!-- id:bvGkwgJy -->
 
 # Shape <!-- id:14v3gfqr -->
 
@@ -21,3 +21,12 @@ A **closed struct** with these fields: <!-- id:uJXPLY-q -->
 - [rpc/type/external-comment-group](./type/external-comment-group.md) <!-- id:C9Smaf8c -->
 - [rpc/type/id](./type/id.md) <!-- id:U1EQAqgK -->
 - [rpc/type/metadata-payload](./type/metadata-payload.md) <!-- id:sJQj_K4p -->
+
+# See also
+
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication.
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console.
+- [RPC](./method.md): every method in one union.
+- [Comments](../protocol/comments.md): threads, replies and citations.
+- [ListComments](./list-comments.md): the flat list of comments.
+- [GetCommentReplyCount](./get-comment-reply-count.md): replies under one comment.

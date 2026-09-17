@@ -3,7 +3,9 @@ name: "Example: Article"
 summary: "A published article: status, author, tags, a bytes body, cover image, comments, and metadata."
 schemaDefinition: ipfs://bafyreibt3rzbwmki2u4ply554e55cin37z2rehfese6ojgpu6ehd3fqosy
 ---
-This document describes the **example/article** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:mDywKS1k -->
+A published article that pulls the other examples together. It is a [struct](../struct.md) with a [status](./status.md), an author [link](../link.md) to a [person](./person.md), [tags](./tags.md), a [bytes](../bytes.md) body, a word count, a featured flag, a cover link to a [blob](./blob.md), a list of [comment](./comment.md) links and open string [metadata](./metadata.md).
+
+This page describes the **example/article** type, one of the [example schemas](../example.md). The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it and create values of this type. <!-- id:mDywKS1k -->
 
 # Shape <!-- id:SskWA3Pk -->
 
@@ -32,3 +34,10 @@ A **closed struct** with these fields: <!-- id:aJ1hAcGr -->
 - [bytes](../bytes.md) <!-- id:994wvqN5 -->
 - [integer](../integer.md) <!-- id:0R3Sbn78 -->
 - [string](../string.md) <!-- id:aiTuoPpm -->
+
+# See also
+
+- [Link](../link.md): typed links between values.
+- [status](./status.md): the status union.
+- [person](./person.md): the author type.
+- [Examples](../example.md): every example, grouped by feature.

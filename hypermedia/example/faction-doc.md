@@ -3,9 +3,9 @@ name: Faction
 summary: "A world-builder page type for a faction, order, house, or guild, whose attributes require a founding date and link to its seat, its leader, and a banner."
 schemaDefinition: ipfs://bafyreianjjmb5gp24n2ylkgm5m2qqht54bjs6y7qzs3oujmyjmc5yffple
 ---
-A world-builder kit type: a page about a faction, order, house, or guild. Its attributes require a `founded` date; they link to its seat (a Place) and leader (a Character), and a banner image. <!-- id:RvItBHZN -->
+A [World Builder](../schema/world-builder.md) page type for a faction, order, house or guild. Its [attributes](../schema/typed-documents.md) require a `founded` date. They link to its seat, which is a [place](./place-doc.md), its leader, which is a [character](./character-doc.md), and a banner image. <!-- id:RvItBHZN -->
 
-This document describes the **example/faction-doc** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:Q-lkJuXw -->
+This page describes the **example/faction-doc** type, one of the [example schemas](../example.md). The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it and create values of this type. <!-- id:Q-lkJuXw -->
 
 # Shape <!-- id:5EsVMAhL -->
 
@@ -21,3 +21,10 @@ A **closed struct** with these fields: <!-- id:-hXTuVju -->
 - [hm-url](../hm-url.md) <!-- id:-qmfs1ee -->
 - [ipfs-url](../ipfs-url.md) <!-- id:niUF-Oyt -->
 - [date](../date.md) <!-- id:CiiSksy4 -->
+
+# See also
+
+- [World Builder](../schema/world-builder.md): the demo these types come from.
+- [place-doc](./place-doc.md): the seat type.
+- [event-doc](./event-doc.md): events that involve factions.
+- [Examples](../example.md): every example, grouped by feature.

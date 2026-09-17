@@ -3,9 +3,9 @@ name: Query Block Payload
 summary: "Everything a rendered Query block needs: the results plus per-item interaction summaries and author metadata."
 schemaDefinition: ipfs://bafyreifro57tpsh3sbgg7u6vbc52j727ygpnlhathvnvzhsxuqqvwskqki
 ---
-Everything a rendered Query block needs: the results plus per-item interaction summaries and author metadata. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:VzSZH5xA -->
+Everything a rendered [query block](../../protocol/blocks.md) needs: the [results](./document-info.md), per-item [interaction summaries](./query-block-item-summary.md) and author metadata. [rpc/query-block](../query-block.md) returns it. <!-- id:VzSZH5xA -->
 
-This page describes the **rpc/type/query-block-payload** read model of the Seed API — derived data the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:OsEQqtxV -->
+This page describes the **rpc/type/query-block-payload** read model of the [Seed API](../../build/web-api.md). The daemon computes it for clients. It is separate from the signed [blobs](../../protocol/blobs.md) that travel the network. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it. <!-- id:OsEQqtxV -->
 
 # Shape <!-- id:a4jQ1u0u -->
 
@@ -24,3 +24,10 @@ A **closed struct** with these fields: <!-- id:DyS_qKTz -->
 - [rpc/type/document-info](./document-info.md) <!-- id:IBffstpK -->
 - [rpc/type/id](./id.md) <!-- id:VjUau-KS -->
 - [rpc/type/query-block-item-summary](./query-block-item-summary.md) <!-- id:3DKOCjfE -->
+
+# See also
+
+- [QueryBlock](../query-block.md): the method that returns it.
+- [Query Result](./query-result.md): the results without the extras.
+- [Accounts Metadata](./accounts-metadata.md): the author metadata.
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.

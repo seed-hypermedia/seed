@@ -3,9 +3,9 @@ name: Search Result Item
 summary: "One hit of a network search: the matched id with its title, icon, and breadcrumb parent names, and what kind of entity matched."
 schemaDefinition: ipfs://bafyreicjanyuetbb2mtgtkyrmom25ybitikvme6suyx3phww4cmxajbcaq
 ---
-One hit of a network search: the matched id with display info (title, icon, breadcrumb parent names) and what kind of entity matched. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:qXiY7SqP -->
+One hit of a network search: the matched id with its title, icon and breadcrumb parent names, and the kind of entity that matched: a [document](../../protocol/documents.md), a [contact](../../protocol/permissions.md) or a [comment](../../protocol/comments.md). <!-- id:qXiY7SqP -->
 
-This page describes the **rpc/type/search-result-item** read model of the Seed API — derived data the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:NqIvQcGm -->
+This page describes the **rpc/type/search-result-item** read model of the [Seed API](../../build/web-api.md). The daemon computes it for clients. It is separate from the signed [blobs](../../protocol/blobs.md) that travel the network. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it. <!-- id:NqIvQcGm -->
 
 # Shape <!-- id:7_SrO2k5 -->
 
@@ -25,3 +25,10 @@ A **closed struct** with these fields: <!-- id:funk1VF2 -->
 - [metadata](../../metadata.md) <!-- id:e03fcW5T -->
 - [string](../../string.md) <!-- id:u5Z_32fj -->
 - [rpc/type/id](./id.md) <!-- id:FD_zY--5 -->
+
+# See also
+
+- [Search Results](./search-results.md): a page of hits.
+- [Search](../search.md): the method that searches.
+- [Breadcrumb](./breadcrumb.md): path entries on listings.
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.

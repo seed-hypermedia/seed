@@ -3,9 +3,9 @@ name: Raw Citation
 summary: "A citation in raw indexed form, before client-side resolution into a citation read model."
 schemaDefinition: ipfs://bafyreig6plnf6lzprkerpm5gmheeicd2crba3nqlgmnxgdguek2szkucby
 ---
-A citation in raw indexed form, before client-side resolution into a rpc/type/citation. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:ax5Fn9Xm -->
+A [citation](../../protocol/comments.md) in raw indexed form, before the client resolves it into a [citation](./citation.md). [rpc/list-citations](../list-citations.md) returns these. <!-- id:ax5Fn9Xm -->
 
-This page describes the **rpc/type/raw-citation** read model of the Seed API — derived data the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:Wy3Bfu0Z -->
+This page describes the **rpc/type/raw-citation** read model of the [Seed API](../../build/web-api.md). The daemon computes it for clients. It is separate from the signed [blobs](../../protocol/blobs.md) that travel the network. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it. <!-- id:Wy3Bfu0Z -->
 
 # Shape <!-- id:Qooxep7h -->
 
@@ -28,3 +28,10 @@ A **closed struct** with these fields: <!-- id:VSMoMOwV -->
 - [timestamp](../../timestamp.md) <!-- id:hBJ55G_b -->
 - [boolean](../../boolean.md) <!-- id:lRrCLPEF -->
 - [string](../../string.md) <!-- id:Z4_aA0VM -->
+
+# See also
+
+- [Citation](./citation.md): the resolved form.
+- [ListCitations](../list-citations.md): the method that returns it.
+- [Comments](../../protocol/comments.md): citations and backlinks.
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.

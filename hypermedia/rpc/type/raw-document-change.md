@@ -3,9 +3,9 @@ name: Raw Document Change
 summary: "One change of a document’s history in raw listing form: CID, author, dependency edges, and time."
 schemaDefinition: ipfs://bafyreidkk2w4e4lsqqysqhinznab6exkeus36evown7f5szqhziar24igq
 ---
-One change of a document's history in raw listing form: CID, author, dependency edges, time. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:eHAssQwO -->
+One [change](../../change.md) in a [document](../../protocol/documents.md)'s history, in raw listing form: CID, author, dependency edges and time. [rpc/list-changes](../list-changes.md) returns these. <!-- id:eHAssQwO -->
 
-This page describes the **rpc/type/raw-document-change** read model of the Seed API — derived data the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:QXa2QqTl -->
+This page describes the **rpc/type/raw-document-change** read model of the [Seed API](../../build/web-api.md). The daemon computes it for clients. It is separate from the signed [blobs](../../protocol/blobs.md) that travel the network. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it. <!-- id:QXa2QqTl -->
 
 # Shape <!-- id:FxmCqSQ7 -->
 
@@ -18,3 +18,10 @@ A **closed struct** with these fields: <!-- id:mWeaUv6g -->
 # Depends on <!-- id:x-YC6YOj -->
 
 - [string](../../string.md) <!-- id:NePRTnJk -->
+
+# See also
+
+- [Change](../../change.md): the signed change blob.
+- [ListChanges](../list-changes.md): the method that returns it.
+- [Documents](../../protocol/documents.md): the change DAG.
+- [Seed API Schemas](../../rpc.md): the catalog of methods and read models.
