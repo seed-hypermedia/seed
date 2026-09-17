@@ -4,7 +4,7 @@ summary: How a directory of markdown files in a git repository and a Hypermedia 
 ---
 A Hypermedia document is a tree of typed blocks with annotations and metadata. Markdown has syntax for most of that and none for the rest. Repo HM sync keeps a directory of markdown files in a git repository and a Hypermedia space in step by using a markdown dialect that carries everything a document can hold, so a document exported to a file and imported again is the same document, and a file exported from a document and re-exported is the same text. <!-- id:8v9H35RZ -->
 
-The result is a site you can edit in two places: in git, with a pull request, and in the Seed app, with the editor. Either side can be the source of truth for a while, and the other side follows.
+The result is a site you can edit in two places: in git, with a pull request, and in the Seed app, with the editor. Either side can be the source of truth for a while, and the other side follows. <!-- id:FUrMW8hZ -->
 
 # The dialect <!-- id:ypR-0GOe -->
 
@@ -16,7 +16,7 @@ Nesting is indentation. A block's children sit two spaces deeper, or at the cont
 
 Text is escaped so that markdown syntax characters survive, newlines inside a block are written as `<br>`, and style annotations that markdown lacks, such as underline, highlight and colors, are written as inline HTML tags. <!-- id:MqsUZbaE -->
 
-A hand-written file needs none of the comments: a new file with no ids is matched to an existing document by position, so editing a paragraph in place updates that paragraph rather than replacing the page, and the ids appear the next time the document is exported. Links between files of the directory are relative file links (`[Keys](./keys.md)`), which render on GitHub and become `hm://` links to the corresponding documents when published. The dialect is implemented once, in the [SDK](./sdk.md).
+A hand-written file needs none of the comments: a new file with no ids is matched to an existing document by position, so editing a paragraph in place updates that paragraph rather than replacing the page, and the ids appear the next time the document is exported. Links between files of the directory are relative file links (`[Keys](./keys.md)`), which render on GitHub and become `hm://` links to the corresponding documents when published. The dialect is implemented once, in the [SDK](./sdk.md). <!-- id:q0ZEm1qw -->
 
 # Export and import <!-- id:Qw6tZURQ -->
 
@@ -31,13 +31,15 @@ seed-cli space import self --dir ./site
 seed-cli space import self --dir ./site --check   # publish nothing while a file would violate its schema
 ```
 
+`--check`, and the `--no-watch` and `--keep-stale` flags of `space dev` below, are newer than the npm release of mid-September 2026 (0.2.9); see [Seed CLI](./cli.md). <!-- id:3FDgTtPD -->
+
 `self` means the signing key's own space. The signing key comes from the vault or keyring, or from the environment, which is how CI signs: `SEED_CLI_KEYFILE` holds the contents of an unencrypted `.hmkey.json` exported from the app, or `SEED_CLI_MNEMONIC` holds a BIP-39 phrase. <!-- id:zcB4OI7D -->
 
-A file renamed in git (`git mv`) keeps its block ids, so the import publishes a move: a version Ref at the new path and a redirect at the old one. Nothing is imported while a relative link in the directory would break. A document that carries a schema definition travels with it: the schema blob is written beside the page as `a/b.schema.json` on export, and on import the file is encoded back to DAG-CBOR, published, and bound as the document's `schemaDefinition`. Two limits as of September 2026: the signing key must own the space (importing with a delegated key is refused), and removing a file does not by itself unpublish the document (see the retire step below).
+A file renamed in git (`git mv`) keeps its block ids, so the import publishes a move: a version Ref at the new path and a redirect at the old one. Nothing is imported while a relative link in the directory would break. A document that carries a schema definition travels with it: the schema blob is written beside the page as `a/b.schema.json` on export, and on import the file is encoded back to DAG-CBOR, published, and bound as the document's `schemaDefinition`. Two limits as of September 2026: the signing key must own the space (importing with a delegated key is refused), and removing a file does not by itself unpublish the document (see the retire step below). <!-- id:xU_ABl-L -->
 
 # Editing in the app <!-- id:j-kcO6jR -->
 
-`space dev` turns the desktop dev app into the editor for a directory. It creates a throwaway key under `.dev/` in the directory, registers it in the app's own daemon, publishes the directory there, and then watches the daemon. Every document you publish in the app is written straight back as a file, so `git diff` shows the edit within seconds. Only the dev app is watched: the production Seed app registers the same `hm://` scheme, and an edit made there reaches the directory only once the two daemons happen to sync. <!-- id:sRBhq3FC -->
+`space dev` turns the desktop dev app into the editor for a directory. It creates a throwaway key under `.dev/` in the directory, registers it in the app's own daemon, publishes the directory there, and then watches the daemon. Every document you publish in the app is written straight back as a file, so `git diff` shows the edit within seconds. Only the dev app is watched: the production Seed app registers the same `hm://` scheme, so do not open the site from a link: the loop warns that an edit made there never reaches the directory. <!-- id:sRBhq3FC -->
 
 While the loop runs, the app is the writer and git is where you commit. <!-- id:2YxRmFf1 -->
 
@@ -45,52 +47,52 @@ While the loop runs, the app is the writer and git is where you commit. <!-- id:
 seed-cli space dev --dir ./site
 ```
 
-The loop talks to the dev app's API on `http://localhost:58004` and to its daemon on `http://localhost:58001` (both configurable with `--api` and `--daemon`), polls every two seconds, and also pushes files you change on disk while it runs (`--no-watch` to stop that, `--no-push` to skip the initial publish). The key lives in `<dir>/.dev/dev-key.mnemonic`, ignored by git, and is registered in the daemon under the name `hm-sync-<dirname>-<account tail>`; the accounts the directory has used are recorded in `<dir>/.dev/accounts.json` so that a regenerated key's stale dev site can be retired next time (`--keep-stale` leaves it). The dev daemon is a peer like any other, so the dev site propagates to whatever network it is on: use a development build of the app.
+The loop talks to the dev app's API on `http://localhost:58004` and to its daemon on `http://localhost:58001` (both configurable with `--api` and `--daemon`), polls every two seconds, and also pushes files you change on disk while it runs (`--no-watch` to stop that, `--no-push` to skip the initial publish). The key lives in `<dir>/.dev/dev-key.mnemonic`, ignored by git, and is registered in the daemon under the name `hm-sync-<dirname>-<account tail>`; the accounts the directory has used are recorded in `<dir>/.dev/accounts.json` so that a regenerated key's stale dev site can be retired next time (`--keep-stale` leaves it). The dev daemon is a peer like any other, so the dev site propagates to whatever network it is on: use a development build of the app. <!-- id:zrY2vBSi -->
 
 # How this documentation is published <!-- id:S9sJBMK0 -->
 
-The folder `hypermedia/` in the Seed repository is this site. A small script in the CLI package, `sync-hypermedia.ts`, wraps `space import`, `space export` and `space dev` with the folder's layout: `index.md` is the home document, `README.md` stays on GitHub, every other `<x>.md` publishes at `/<x>`, and a `*.schema.json` beside a page is the schema that page defines. Before anything is published the script encodes every schema file and checks its CID against `schemas.lock.json`, then publishes the schema blobs first.
+The folder `hypermedia/` in the Seed repository is this site. A small script in the CLI package, `sync-hypermedia.ts`, wraps `space import`, `space export` and `space dev` with the folder's layout: `index.md` is the home document, `README.md` stays on GitHub, every other `<x>.md` publishes at `/<x>`, and a `*.schema.json` beside a page is the schema that page defines. Before anything is published the script encodes every schema file and checks its CID against `schemas.lock.json`, then publishes the schema blobs first. <!-- id:PtSuOMus -->
 
-```sh
-pnpm hypermedia:check                # offline consistency checks (links, schemas, summaries)
+```sh <!-- id:MTYNMnUm -->
+pnpm hypermedia:check                # offline consistency checks (schemas, lockfile, generated files, page names and summaries)
 pnpm hypermedia:push -- --dry-run    # what would change on hyper.media: created, moved, updated, unchanged, retired
 pnpm hypermedia:push                 # publish, signing with the `main` key
 pnpm hypermedia:pull                 # bring edits made in the Seed app back into git
 ./dev hm-sync                        # the local editing loop; `./dev up` runs it as the hm-sync pane
 ```
 
-From `frontend/apps/cli` the same commands are `bun run src/sync-hypermedia.ts push [--dry-run] [--server <url>] [--key <name>] [--keep-stale]`, `pull [--server <url>] [--space <uid>]` and `dev [--api <url>] [--daemon <url>] [--interval <ms>] [--no-push] [--no-watch] [--keep-stale]`.
+From `frontend/apps/cli` the same commands are `bun run src/sync-hypermedia.ts push [--dry-run] [--server <url>] [--key <name>] [--keep-stale]`, `pull [--server <url>] [--space <uid>]` and `dev [--api <url>] [--daemon <url>] [--interval <ms>] [--no-push] [--no-watch] [--keep-stale]`. <!-- id:YT7XXn6B -->
 
-**Retiring pages.** The folder is the truth about what the site publishes, so `push` also retires: every document of the site whose file is gone from the folder is tombstoned (the dry run lists them as `retire`). Redirects left behind by moves are kept, and the home document is never retired. `--keep-stale` skips the step. Delete a page in git and the next push removes it from the site; rename it with `git mv` and the push publishes a move instead.
+**Retiring pages.** The folder is the truth about what the site publishes, so `push` also retires: every document of the site whose file is gone from the folder is tombstoned (the dry run lists them as `retire`). Redirects left behind by moves are kept, and the home document is never retired. `--keep-stale` skips the step. Delete a page in git and the next push removes it from the site; rename it with `git mv` and the push publishes a move instead. <!-- id:VveGReog -->
 
-**Pull.** `pull` exports every document of the site back into the folder, schema files included, and regenerates the lockfile and the bundled schema registry when a schema changed. When the dev loop starts it also compares the folder with hyper.media and warns when the public site is behind.
+**Pull.** `pull` exports every document of the site back into the folder, schema files included, and regenerates the lockfile and the bundled schema registry when a schema changed. When the dev loop starts it also compares the folder with hyper.media and warns when the public site is behind. <!-- id:oXXFJMx7 -->
 
-**CI.** A push to `main` that touches `hypermedia/` runs the consistency checks and then the publish, signing with a repository secret that holds the contents of an exported `.hmkey.json` in `SEED_CLI_KEYFILE`. The site is that key's own space.
+**CI.** A push to `main` that touches `hypermedia/` runs the consistency checks and then the publish, signing with a repository secret that holds the contents of an exported `.hmkey.json` in `SEED_CLI_KEYFILE`. The site is that key's own space. <!-- id:6ZSmetkQ -->
 
-# Working with it
+# Working with it <!-- id:jkjEbVp5 -->
 
-## In the Seed app
+## In the Seed app <!-- id:SQhS12ol -->
 
-Run the dev loop and edit in the app; commit the files it writes back. Documents published in the app that are not in the folder are pulled in on the next export.
+Run the dev loop and edit in the app; commit the files it writes back. Documents published in the app that are not in the folder are pulled in on the next export. <!-- id:PW7O3ScJ -->
 
-## CLI
+## CLI <!-- id:VnNTczJ2 -->
 
-`space export`, `space import`, `space dev`; `key export` for the CI key. [Seed CLI](./cli.md) lists every flag.
+`space export`, `space import`, `space dev`; `key export` for the CI key. [Seed CLI](./cli.md) lists every flag. <!-- id:jSB7Akp1 -->
 
-## SDK
+## SDK <!-- id:fLZdm6QX -->
 
-`blocksToMarkdown`, `parseMarkdown`, `flattenToOperations` and the block-diff helpers are the dialect and the diff; the CLI's `space-sync.ts` composes them. See [SDK](./sdk.md).
+`blocksToMarkdown`, `parseMarkdown`, `flattenToOperations` and the block-diff helpers are the dialect and the diff; the CLI's `space-sync.ts` composes them. See [SDK](./sdk.md). <!-- id:zaB8S2em -->
 
-## Web API
+## Web API <!-- id:q0SOQufN -->
 
-The import is ordinary `PublishBlobs` requests; nothing here needs more than the [Seed API](./web-api.md).
+The import is ordinary `PublishBlobs` requests; nothing here needs more than the [Seed API](./web-api.md). <!-- id:H9mlTot0 -->
 
-## Agents
+## Agents <!-- id:2zRDnAm1 -->
 
-An agent that maintains a documentation site should work in the git checkout and let the push publish, so every change is reviewed as a diff; an agent that edits the site directly (a Seed Agents `write` to `hm://…`) is pulled back into git by the next `pull`. Both keep block ids, so neither loses the other's work.
+An agent that maintains a documentation site should work in the git checkout and let the push publish, so every change is reviewed as a diff; an agent that edits the site directly (a Seed Agents `write` to `hm://…`) is pulled back into git by the next `pull`. Both keep block ids, so neither loses the other's work. <!-- id:QVJJckLz -->
 
-# See also
+# See also <!-- id:tp-mbUCj -->
 
-- [Seed CLI](./cli.md), [Keys](./keys.md), [Contributing](./contributing.md)
-- [Documents](../protocol/documents.md) for what a change, a version and a redirect are
-- [Hypermedia Schemas](../schema.md) for schema files beside pages
+- [Seed CLI](./cli.md), [Keys](./keys.md), [Contributing](./contributing.md) <!-- id:96NwUR-F -->
+- [Documents](../protocol/documents.md) for what a change, a version and a redirect are <!-- id:OdJU2HjS -->
+- [Hypermedia Schemas](../schema.md) for schema files beside pages <!-- id:5RnHi4tV -->
