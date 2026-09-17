@@ -1,6 +1,6 @@
 ---
 name: Model Providers
-summary: Model providers are account-scoped records telling the agent server how to call an LLM backend. Provider credentials are stored separately and encrypted;…
+summary: How an account tells its agents server which language-model backends to call, how provider credentials are stored encrypted, and how models and reasoning levels are chosen.
 ---
 Model providers are account-scoped records telling the agent server how to call an LLM backend. Provider credentials are stored separately and encrypted; the record itself holds only a reference to them. <!-- id:F5iAgtU4 -->
 
@@ -45,7 +45,8 @@ Subscription provider: <!-- id:7jCnLfG9 -->
 - `ListModelProviders` — redacted provider metadata. <!-- id:obDhDqLd -->
 - `ListProviderModels` — decrypts the API key server-side and queries the provider's model-list endpoint. <!-- id:emMglq7O -->
 - `SetModelProvider` — upserts provider config. <!-- id:z3UJn0_5 -->
-- `SetSecret` — encrypts/upserts a secret value. <!-- id:EPPvk15T -->
+- `SetSecret` — encrypts/upserts a secret value.
+- `DeleteModelProvider` — removes a provider record and its API-key secret. <!-- id:EPPvk15T -->
 - `StartProviderOAuth` / `SubmitProviderOAuthCode` / `GetProviderOAuthStatus` / `CancelProviderOAuth` — the subscription sign-in flow. <!-- id:c_F1btlK -->
 
 Returned provider shape (`protocol/src/index.ts:1078`): <!-- id:TaVAqOZZ -->
@@ -74,7 +75,7 @@ Errors: a missing key on a `requireApiKey` provider fails with 400 before any fe
 
 # Supported provider types <!-- id:dO5T0qHa -->
 
-Provider behavior is driven by one code-owned registry, `PROVIDER_SPECS` (`agents/src/api-service.ts:6603`). Adding a provider is usually one entry there plus a matching `PROVIDER_METADATA` entry in `frontend/apps/desktop/src/pages/agents/provider-registry.ts`. Most providers are OpenAI-compatible and ride the same `openai-completions` execution and `GET /models` list path, differing only by base URL. <!-- id:0Licoykk -->
+Provider behavior is driven by one code-owned registry, `PROVIDER_SPECS` (`agents/src/api-service.ts:6603`). Adding a provider is usually one entry there plus a matching `PROVIDER_METADATA` entry in `frontend/packages/ui/src/agents/provider-registry.ts`. Most providers are OpenAI-compatible and ride the same `openai-completions` execution and `GET /models` list path, differing only by base URL. <!-- id:0Licoykk -->
 
 <!-- id:CaCYyomB -->
 | type <!-- col:rIZ8I7hq --> | Pi API <!-- col:y_MYituR --> | default base URL <!-- col:D3AxfQ-x --> | base URL editable <!-- col:5q6PJbaj --> | API key <!-- col:T-SLNGtx --> | model list <!-- col:VzlfocgI --> <!-- id:c7jSC36w --> |
@@ -118,20 +119,6 @@ For everything else: <!-- id:bGOJ6vf9 -->
 
 ## Reasoning levels <!-- id:cAV_thkI -->
 
-`agents/protocol/src/reasoning.ts` is shared by the server and every model picker. Levels are `minimal`, `low`, `medium`, `high`, `xhigh`, and the lists are **empirically verified against live provider APIs**, not scraped, because providers gate levels per model generation: <!-- id:MKDKGzBg -->
-
-<!-- id:jJYsBfZi -->
-| family <!-- col:42ut9Uu0 --> | levels <!-- col:hfeSMcIL --> | leaving it unset <!-- col:Ke4uH2p8 --> <!-- id:DdgtsuZm --> |
-| --- | --- | --- |
-| OpenAI gpt-5 / gpt-5-mini | minimal, low, medium, high | provider default (can't disable) <!-- id:J4w2Z5iJ --> |
-| OpenAI gpt-5.1 | low, medium, high | off (sends `effort: 'none'`) <!-- id:_Ks-7NJp --> |
-| OpenAI gpt-5.2+ (incl. 5.4, 5.6) | low, medium, high, xhigh | off (sends `effort: 'none'`) <!-- id:wSKzKqVJ --> |
-| OpenAI o-series (o1/o3/o4) | low, medium, high | provider default <!-- id:33iJ5Egr --> |
-| Anthropic claude-3-7 and later | minimal, low, medium, high | off <!-- id:L8l3dsqZ --> |
-| Google gemini-2.5+ | minimal, low, medium, high | off, except `-pro` (default) <!-- id:WNdvNKTs --> |
-
-`gpt-5-chat*` variants expose no reasoning control. Anything else — including every OpenAI-compatible passthrough type — returns null, and the desktop's `ReasoningSelect` renders nothing for it. <!-- id:1zBT-TX_ -->
-
 `agents/protocol/src/reasoning.ts` is shared by the server and every model picker. Levels are `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, and the lists are **empirically verified against live provider APIs**, not scraped, because providers gate levels per model generation: <!-- id:o0RRTzN9 -->
 
 <!-- id:w2DBomCg -->
@@ -145,13 +132,15 @@ For everything else: <!-- id:bGOJ6vf9 -->
 | Anthropic claude-3-7 and later | minimal, low, medium, high | off <!-- id:moUuGMt9 --> |
 | Google gemini-2.5+ | minimal, low, medium, high | off, except `-pro` (default) <!-- id:ZPj6RMRf --> |
 
+`gpt-5-chat*` variants expose no reasoning control. Anything else — including every OpenAI-compatible passthrough type — returns null, and the shared `ReasoningSelect` picker renders nothing for it. <!-- id:1zBT-TX_ -->
+
 Each run creates an in-memory Pi session (`#runPiAgent`, `api-service.ts:4298`) with: <!-- id:8GvfxwcF -->
   - `AuthStorage` — `inMemory()` with a runtime-only API key for api-key providers, or `fromStorage()` over the persisted OAuth backend for subscription providers; <!-- id:ydcMAJua -->
   - `ModelRegistry.inMemory()` plus a per-run provider/model registration; <!-- id:cOzZ5JAV -->
   - `SessionManager.inMemory()` so Pi persists no session JSONL of its own; <!-- id:b24OJJek -->
   - `SettingsManager.inMemory({compaction: {enabled: false}})`; <!-- id:3gtf99zH -->
   - a no-discovery `ResourceLoader` whose system prompt is the assembled agent prompt (see `prompt-injection-map.md`); <!-- id:vS47YBmy -->
-  - `noTools: 'builtin'` and an explicit tool list: the five verbs, plus any promoted callables, plus `return_result` for typed children. `delegate` is included only when the turn has a run to park on. <!-- id:cQrTAIZl -->
+  - `noTools: 'builtin'` and an explicit tool list: the verbs, plus any promoted callables, plus `return_result` for typed children. `delegate` is included only when the turn has a run to park on and room in its delegation budget, and `continue_session` only for a foreground conversation. <!-- id:cQrTAIZl -->
 
 The selected level rides on `AgentDefinition.reasoningLevel` and is passed to Pi as `thinkingLevel` at session creation (`#runPiAgent` in `api-service.ts`, defaulting to `'off'`). `applyReasoningEffort()` then decides what the outgoing OpenAI Responses payload says about effort: the stored level wins over anything Pi produced (Pi clamps levels for models its catalog does not know); with no level the request sends `none` where the generation accepts it and otherwise omits the effort so the provider default applies (Pi writes `none` for every level-less reasoning model, which gpt-6+ rejects). <!-- id:n3rwsNjt -->
 
@@ -178,7 +167,7 @@ It resolves its model through `piProviderRuntimeForTitle()` — the same `#piPro
 
 # Adding or changing provider execution <!-- id:52gF6XVq -->
 
-1. Add the `PROVIDER_SPECS` entry (and the desktop `PROVIDER_METADATA` entry). <!-- id:Yitpyyku -->
+1. Add the `PROVIDER_SPECS` entry (and the shared UI's `PROVIDER_METADATA` entry). <!-- id:Yitpyyku -->
 2. If the model needs reasoning control, add its generation to `reasoning.ts` with a note on how the levels were verified; if it takes images, add it to `model-capabilities.ts`. <!-- id:y2sD7Ow4 -->
 3. Preserve session lifecycle and WebSocket partials. <!-- id:x2MC9twp -->
 4. Map Pi assistant/tool events into ordered `message`/`tool_call`/`tool_result` events. <!-- id:g94NWpwe -->
@@ -190,6 +179,6 @@ It resolves its model through `piProviderRuntimeForTitle()` — the same `#piPro
 
 1. Real-provider smoke coverage for Anthropic and Google through Pi, including model-list behavior. <!-- id:Z7dlT2Z_ -->
 2. A provider test button. <!-- id:e_N8dAPv -->
-3. Provider deletion and secret rotation UI. <!-- id:YHUxPjUs -->
+3. Secret rotation UI (providers can already be deleted). <!-- id:YHUxPjUs -->
 4. Real cost tables — `cost` is currently zeroed, so usage is counted in tokens and never in money. <!-- id:7Wl-vPBv -->
 5. Per-provider reasoning payload quirks (`compat.thinkingFormat` for `deepseek`/`openrouter`) are still unwired; those types register as non-reasoning models. <!-- id:Khfw6YkX -->

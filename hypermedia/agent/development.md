@@ -1,6 +1,8 @@
 ---
+name: Development
+summary: How to run, test, and change the Seed Agents service and its shared UI, with a code map and the rules that keep the model-facing surface coherent.
 ---
-\--- name: Development summary: How to work on the Seed Agents code safely: the commands, the code map with every entry point, the test map, the rules for changing the model-facing surface, and which page to update when. --- This page is for people and coding agents changing Seed Agents. It names where things are, how to run and validate them, and the conventions that keep the runtime coherent. Read the root `AGENTS.md`, then `agents/AGENTS.md` for the service (Bun only, never pnpm; `bun check && bun test` before every commit) and `frontend/AGENTS.md` for UI work. <!-- id:K7JAYkEv -->
+This page is for people and coding agents changing Seed Agents. It names where things are, how to run and validate them, and the conventions that keep the runtime coherent. Read the root `AGENTS.md`, then `agents/AGENTS.md` for the service (Bun only, never pnpm; `bun check && bun test` before every commit) and `frontend/AGENTS.md` for UI work. <!-- id:K7JAYkEv -->
 
 # Commands <!-- id:72a6F9hI -->
 
@@ -80,14 +82,14 @@ The service, in `agents/`: <!-- id:I1toG_st -->
   - `src/perf.ts`, `src/session-perf.ts`: the latency recorder behind `/api/perf`. <!-- id:66v3Od0T -->
   - `src/protocol-compat.ts`, `src/protocol-surface.ts`: shims for older clients and the surface snapshot the CI gate diffs. <!-- id:jf1NH6Pm -->
   - `protocol/src/index.ts`: the canonical protocol types for actions, responses, session events, and WebSocket events, published as the private package `@seed-hypermedia/agents-protocol`; `protocol/PROTOCOL.md` holds the versioning rules and changelog. <!-- id:wuXFGuu3 -->
-  - `protocol/src/tool-registry.ts`: the five verbs and the callable tools: model-facing descriptions, JSON schemas, render metadata. Every word of a description is prompt. <!-- id:m4xyW-wr -->
+  - `protocol/src/tool-registry.ts`: the verbs and the callable tools: model-facing descriptions, JSON schemas, render metadata. Every word of a description is prompt. <!-- id:m4xyW-wr -->
   - `protocol/src/write-guides.ts`: the per-resource guides an agent reads at `~/tools/write/<resource>`. <!-- id:ljPi4l8J -->
   - `protocol/src/delegation.ts`, `protocol/src/reasoning.ts`, `protocol/src/model-capabilities.ts`: thoroughness presets, the reasoning-level matrix, image-input support. <!-- id:sbhHJvWe -->
   - `e2e/run.ts` and `e2e/live-gate.ts`: the record/replay model gate and the live gate against a real server and model. <!-- id:EDMyrsOj -->
 
-The shared UI, in `frontend/packages/ui/src/agents/`: `client.ts` signs and sends actions, `models.ts` holds the React Query hooks and signed subscriptions, `platform.ts` is the seam each app implements, and the pages and pieces are listed on the [desktop and web UI](./desktop-ui.md) page. The desktop's platform lives with `frontend/apps/desktop/src/pages/agents.tsx`; the web's in `frontend/apps/web/app/web-agents-platform.ts` and `web-assistant-host.tsx`. Routes are in `frontend/packages/shared/src/routes.ts`. <!-- id:_QMM36jW -->
+The shared UI, in `frontend/packages/ui/src/agents/`: `client.ts` signs and sends actions, `models.ts` holds the React Query hooks and signed subscriptions, `platform.ts` is the seam each app implements, and the pages and pieces are listed on the [desktop and web UI](./desktop-ui.md) page. The desktop's platform is `frontend/apps/desktop/src/agents-platform.ts` (its `pages/agents.tsx` only re-exports the shared list page); the web's in `frontend/apps/web/app/web-agents-platform.ts` and `web-assistant-host.tsx`. Routes are in `frontend/packages/shared/src/routes.ts`. <!-- id:_QMM36jW -->
 
-Shared Hypermedia behaviour the service reuses from `@seed-hypermedia/client`: `resource-read.ts` (`resolveIdWithClient`, shared with the CLI), `hm-resolver.ts`, `blocks-to-markdown.ts` and `markdown-to-blocks.ts`, `explore-query.ts`, and the blob signing primitives (imported through the `@shm/shared/blobs` re-export). <!-- id:MF4Ylcua -->
+Shared Hypermedia behaviour the service reuses from `@seed-hypermedia/client`: `resource-read.ts` (`resolveIdWithClient`, shared with the CLI), `hm-resolver.ts`, `blocks-to-markdown.ts` and `markdown-to-blocks.ts`, `explore-query.ts`, and the blob signing and DAG-CBOR primitives (imported through the `@shm/shared/blobs` and `@shm/shared/cbor` re-exports). <!-- id:MF4Ylcua -->
 
 # Test map <!-- id:nszQ78y6 -->
 
@@ -102,7 +104,7 @@ The whole service suite runs from `agents/` with `bun test`: <!-- id:QcZ8YChE --
   - `auth.test.ts`, `sqlite.test.ts`, `main.test.ts`, `config.test.ts`, `json-schema.test.ts`, `poll-loop.test.ts`, `provider-oauth.test.ts`, `protocol-surface.test.ts`, `statements.test.ts`, `perf.test.ts`, `session-perf.test.ts`. <!-- id:-392qrQH -->
   - `e2e-replay.test.ts` shells out to `e2e/run.ts`. It currently **skips**: the cassettes predate the verb collapse (`e2e/recordings/STALE.md`), so a green run is not model-gate coverage. See [operations](./operations.md). <!-- id:cLhLv7ws -->
 
-Frontend: the shared UI tests live in `frontend/packages/ui/src/agents/__tests__/` and the desktop's in `frontend/apps/desktop/src/__tests__/`; new page or hook tests belong beside those. <!-- id:9Bb25FAA -->
+Frontend: the shared UI's agents tests live in `frontend/packages/ui/src/__tests__/`, the desktop's in `frontend/apps/desktop/src/__tests__/`, and the web app's in `frontend/apps/web/app/__tests__/`; new page or hook tests belong beside those. <!-- id:9Bb25FAA -->
 
 # Conventions <!-- id:MrQG6Bgv -->
 
@@ -139,7 +141,7 @@ Frontend: the shared UI tests live in `frontend/packages/ui/src/agents/__tests__
 
 # Changing the model-facing surface <!-- id:bS7bGT8I -->
 
-The five verbs are the whole provider-facing surface. New capability arrives as an address, an option, or a callable, never as a sixth verb. <!-- id:c9hqLvkf -->
+The verbs (the five working verbs plus `status` and `continue_session`) are the whole provider-facing surface. New capability arrives as an address, an option, or a callable, never as another verb without a design discussion. <!-- id:c9hqLvkf -->
   1. A new **address form** for `read` or `write` goes in the verb's description in the tool registry and in the address dispatch in `api-service.ts`. Edit the description as prompt. <!-- id:JkzIH8Jt -->
   2. A new **callable** goes in `callableToolRegistry` with `runtimes` including `agent-service`. It is reachable through `call`, never added to the provider payload directly; the next listing materializes it as a tool document for every agent, and the CID change is the version bump. <!-- id:3CFRldLu -->
   3. Keep touch-expand intact: a wrong or unexpanded `call` answers with the contract, not an error. <!-- id:FtdrC1Vt -->

@@ -1,10 +1,18 @@
 ---
 name: MCP Servers
-summary: Agents can call tools from remote Model Context Protocol (MCP) servers. An account connects servers the way it configures model providers; each agent…
+summary: How an account connects remote Model Context Protocol servers so its agents can call their tools as ordinary tool documents, which makes Seed Agents an MCP client.
 ---
-**MCP server** — a remote Model Context Protocol server connected per account, like a model provider, and enabled per agent (`definition.mcpServers`). Its tools appear as `<server>__<tool>` documents; connections open lazily per run. <!-- id:ICrwRs3q -->
+Agents can call tools from remote [Model Context Protocol](https://modelcontextprotocol.io) (MCP) servers. An account connects servers the way it configures model providers; each agent enables the servers it may use. Nothing about the model-facing surface changes: the verbs stay the whole surface, and every remote tool arrives as a **tool document** in the agent's `~/tools/` — so it is listed in the Space index, read as a contract, dispatched through `call`, and promoted like any builtin or lambda (see [`tools.md`](./tools.md)). <!-- id:c625NrrN -->
 
-Agents can call tools from remote [Model Context Protocol](https://modelcontextprotocol.io) (MCP) servers. An account connects servers the way it configures model providers; each agent enables the servers it may use. Nothing about the model-facing surface changes: the five verbs stay the whole surface, and every remote tool arrives as a **tool document** in the agent's `~/tools/` — so it is listed in the Space index, read as a contract, dispatched through `call`, and promoted like any builtin or lambda (see [`tools.md`](./tools.md)). <!-- id:c625NrrN -->
+# Why Seed has no MCP server of its own
+
+Seed Agents is an MCP client. It connects to MCP servers that other people run. Seed has no MCP server that exposes Hypermedia to outside assistants.
+
+Hypermedia content must be signed on the device that holds the key, and the [SDK](../build/sdk.md) or the [CLI](../build/cli.md) built on it does that signing. A hosted MCP server takes plain tool calls and acts on them remotely, so it would need your private key. Keys should never leave your device. The full reasoning, and how to run an MCP interface locally on the SDK, is in [Why there is no Seed MCP server](../build/agents.md).
+
+An agents server does sign content, and that fits the same rule. The keys it signs with are the agent's own. `CreateSigningIdentity` generates a new key on that server, publishes a profile for it, and stores the key encrypted. Your account key stays on your device. For the agent to publish in your space, you delegate a `WRITER` or `AGENT` [capability](../capability.md) to the agent's key.
+
+One path breaks this rule. `ImportSigningIdentity`, the Import key button in the accounts dialog, sends the seed of an existing `.hmkey.json` key to the server. Only import a key that was made for the agent to use.
 
 # Scope and transports <!-- id:S2QKCy5- -->
 

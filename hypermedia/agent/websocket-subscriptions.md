@@ -1,6 +1,6 @@
 ---
 name: WebSocket Subscriptions
-summary: The Agents WebSocket API delivers live account, agent, and session updates after a signed subscription handshake.
+summary: How a client opens a signed WebSocket subscription to an agents server and receives live account, agent, session, and run updates.
 ---
 The Agents WebSocket API delivers live account, agent, and session updates after a signed subscription handshake. <!-- id:xPzzllRE -->
 
@@ -16,7 +16,7 @@ Local URL (dev; release builds use port 3050): <!-- id:WN40e7Mr -->
 ws://localhost:3051/agents/ws
 ```
 
-Desktop URL helper: `getAgentWebSocketUrl()` in `frontend/apps/desktop/src/agents-client.ts`. <!-- id:RwWUii1G -->
+URL helper: `getAgentWebSocketUrl()` in `frontend/packages/ui/src/agents/client.ts`. <!-- id:RwWUii1G -->
 
 # Transport <!-- id:Ylw5APIb -->
 
@@ -38,7 +38,7 @@ type Subscribe = {
 }
 ```
 
-Desktop must omit `afterSeq` when absent. Do not sign `afterSeq: undefined`. `signAgentAction()` adds a signed `ts` timestamp, and the server rejects stale/future subscriptions using the same 30-second window as HTTP actions. <!-- id:g9HwBwFE -->
+Desktop must omit `afterSeq` when absent. Do not sign `afterSeq: undefined`. `signAgentAction()` adds a signed `ts` timestamp, and the server rejects stale/future subscriptions using the same five-minute window as HTTP actions. <!-- id:g9HwBwFE -->
 
 # Server events <!-- id:o7iR-u63 -->
 
@@ -109,7 +109,7 @@ The pinned run card on the session page is durable-first: it reconstructs from `
 
 `Service.verifySubscription()` verifies: <!-- id:Df5IOCWO -->
   1. signed envelope shape; <!-- id:JnnBW67S -->
-  2. signed action timestamp is within 30 seconds of server local time; <!-- id:Dca-RSwH -->
+  2. signed action timestamp is within five minutes of server local time; <!-- id:Dca-RSwH -->
   3. Ed25519 signature; <!-- id:bE9T2ugC -->
   4. signer authorization for account; <!-- id:ezvGnO9q -->
   5. requested key belongs to the account. <!-- id:8C2Q0c3R -->
@@ -210,4 +210,4 @@ Troubleshooting sequence: <!-- id:sttnj-Cy -->
 
 # Future work <!-- id:RGNIvPpy -->
 
-See [Future projects](./plans/future-projects.md): WebSocket protocol v2, run records, stop/cancel controls, and metrics. <!-- id:kEebyX8V -->
+The planned WebSocket protocol v2 (heartbeat, explicit unsubscribe, subscription limits, backpressure, reconnect cursors, and metrics) is on the [roadmap](./roadmap.md). <!-- id:kEebyX8V -->
