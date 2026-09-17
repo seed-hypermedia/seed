@@ -12,8 +12,8 @@ The Table block's own attributes are only the parent-layout pair. In the markdow
 # Shape <!-- id:axji3Nx3 -->
 
 **Extends** [block/base](./base.md) with these added fields: <!-- id:WAdLuZ1t -->
-  - `type` — `"Table"` <!-- id:OIXFENDr -->
-  - `attributes` — map { 2 fields } <!-- id:1Ug72bRZ -->
+  - `type`: `"Table"` <!-- id:OIXFENDr -->
+  - `attributes`: map { 2 fields } <!-- id:1Ug72bRZ -->
 
 # Depends on <!-- id:AgnaGp59 -->
 

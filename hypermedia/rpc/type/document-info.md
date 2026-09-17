@@ -10,22 +10,22 @@ This page describes the **rpc/type/document-info** read model of the Seed API �
 # Shape <!-- id:lMYeC4DK -->
 
 A **closed struct** with these fields: <!-- id:JQCMU3uI -->
-  - `type` _(required)_ — `"document"` <!-- id:EkpuRfkl -->
-  - `id` _(required)_ — [rpc/type/id](./id.md) <!-- id:4VVfYH_e -->
-  - `path` _(required)_ — list of [string](../../string.md) <!-- id:A9ajQXb_ -->
-  - `authors` _(required)_ — list of [string](../../string.md) <!-- id:_uPzrha3 -->
-  - `createTime` _(required)_ — [timestamp](../../timestamp.md) <!-- id:3RABUqT6 -->
-  - `updateTime` _(required)_ — [timestamp](../../timestamp.md) <!-- id:BkzIrpr_ -->
-  - `sortTime` _(required)_ — [string](../../string.md) <!-- id:JIjiRvAQ -->
-  - `genesis` _(required)_ — [string](../../string.md) <!-- id:Z1kajVwn -->
-  - `version` _(required)_ — [string](../../string.md) <!-- id:M6ZV22FP -->
-  - `breadcrumbs` _(required)_ — list of [rpc/type/breadcrumb](./breadcrumb.md) <!-- id:6-_0qrTO -->
-  - `activitySummary` _(required)_ — [rpc/type/activity-summary](./activity-summary.md) <!-- id:_7KE0iso -->
-  - `generationInfo` _(required)_ — map { 2 fields } <!-- id:TAxxiK1e -->
-  - `redirectInfo` — [rpc/type/redirect-info](./redirect-info.md) <!-- id:RDlcQ0Cv -->
-  - `metadata` _(required)_ — [metadata](../../metadata.md) <!-- id:sJz5N_pg -->
-  - `firstImageInContent` — [string](../../string.md) <!-- id:5w2RRbrg -->
-  - `visibility` _(required)_ — [visibility](../../visibility.md) <!-- id:d1YCn1pJ -->
+  - `type` _(required)_: `"document"` <!-- id:EkpuRfkl -->
+  - `id` _(required)_: [rpc/type/id](./id.md) <!-- id:4VVfYH_e -->
+  - `path` _(required)_: list of [string](../../string.md) <!-- id:A9ajQXb_ -->
+  - `authors` _(required)_: list of [string](../../string.md) <!-- id:_uPzrha3 -->
+  - `createTime` _(required)_: [timestamp](../../timestamp.md) <!-- id:3RABUqT6 -->
+  - `updateTime` _(required)_: [timestamp](../../timestamp.md) <!-- id:BkzIrpr_ -->
+  - `sortTime` _(required)_: [string](../../string.md) <!-- id:JIjiRvAQ -->
+  - `genesis` _(required)_: [string](../../string.md) <!-- id:Z1kajVwn -->
+  - `version` _(required)_: [string](../../string.md) <!-- id:M6ZV22FP -->
+  - `breadcrumbs` _(required)_: list of [rpc/type/breadcrumb](./breadcrumb.md) <!-- id:6-_0qrTO -->
+  - `activitySummary` _(required)_: [rpc/type/activity-summary](./activity-summary.md) <!-- id:_7KE0iso -->
+  - `generationInfo` _(required)_: map { 2 fields } <!-- id:TAxxiK1e -->
+  - `redirectInfo`: [rpc/type/redirect-info](./redirect-info.md) <!-- id:RDlcQ0Cv -->
+  - `metadata` _(required)_: [metadata](../../metadata.md) <!-- id:sJz5N_pg -->
+  - `firstImageInContent`: [string](../../string.md) <!-- id:5w2RRbrg -->
+  - `visibility` _(required)_: [visibility](../../visibility.md) <!-- id:d1YCn1pJ -->
 
 # Depends on <!-- id:IsmdwRwB -->
 

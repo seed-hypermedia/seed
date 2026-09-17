@@ -10,9 +10,9 @@ This page describes the **rpc/list-accounts** method of the Seed API — a read 
 # Shape <!-- id:1w2fkBth -->
 
 A **closed struct** with these fields: <!-- id:HtDCnuN6 -->
-  - `key` _(required)_ — `"ListAccounts"` <!-- id:nrPBInN4 -->
-  - `input` _(required)_ — one of map | [null](../null.md) <!-- id:rapKkCzO -->
-  - `output` _(required)_ — map { 1 fields } <!-- id:0hkz1VKc -->
+  - `key` _(required)_: `"ListAccounts"` <!-- id:nrPBInN4 -->
+  - `input` _(required)_: one of map | [null](../null.md) <!-- id:rapKkCzO -->
+  - `output` _(required)_: map { 1 fields } <!-- id:0hkz1VKc -->
 
 # Depends on <!-- id:bHnYGVgD -->
 

@@ -8,9 +8,9 @@ This page describes the **rpc/type/query-block-item-summary** read model of the 
 # Shape <!-- id:_dcwCAEa -->
 
 A **closed struct** with these fields: <!-- id:qq18fyuR -->
-  - `comments` _(required)_ — `integer` <!-- id:npWZl1gz -->
-  - `children` — `integer` <!-- id:3mQ5Cg-9 -->
-  - `authorUids` — list of [string](../../string.md) <!-- id:h7HlbaFp -->
+  - `comments` _(required)_: `integer` <!-- id:npWZl1gz -->
+  - `children`: `integer` <!-- id:3mQ5Cg-9 -->
+  - `authorUids`: list of [string](../../string.md) <!-- id:h7HlbaFp -->
 
 # Depends on <!-- id:sjAu9-Sn -->
 

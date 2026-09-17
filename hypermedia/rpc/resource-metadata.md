@@ -10,9 +10,9 @@ This page describes the **rpc/resource-metadata** method of the Seed API — a r
 # Shape <!-- id:_ep6ugnk -->
 
 A **closed struct** with these fields: <!-- id:5AAU-kvD -->
-  - `key` _(required)_ — `"ResourceMetadata"` <!-- id:HerqY_zj -->
-  - `input` _(required)_ — [rpc/type/id](./type/id.md) <!-- id:1XN_xHq6 -->
-  - `output` _(required)_ — [rpc/type/metadata-payload](./type/metadata-payload.md) <!-- id:EGkLBWqc -->
+  - `key` _(required)_: `"ResourceMetadata"` <!-- id:HerqY_zj -->
+  - `input` _(required)_: [rpc/type/id](./type/id.md) <!-- id:1XN_xHq6 -->
+  - `output` _(required)_: [rpc/type/metadata-payload](./type/metadata-payload.md) <!-- id:EGkLBWqc -->
 
 # Depends on <!-- id:OV283JHj -->
 

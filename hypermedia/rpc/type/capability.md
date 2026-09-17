@@ -10,13 +10,13 @@ This page describes the **rpc/type/capability** read model of the Seed API — d
 # Shape <!-- id:U635-Zyt -->
 
 A **closed struct** with these fields: <!-- id:9qhgoTmA -->
-  - `id` _(required)_ — [string](../../string.md) <!-- id:p0Pqs-hQ -->
-  - `accountUid` _(required)_ — [string](../../string.md) <!-- id:3FK_99NA -->
-  - `role` _(required)_ — [role](../../role.md) <!-- id:9j3W7BSF -->
-  - `capabilityId` — [string](../../string.md) <!-- id:jGkFhD5o -->
-  - `grantId` _(required)_ — [rpc/type/id](./id.md) <!-- id:kw33mNHc -->
-  - `label` — [string](../../string.md) <!-- id:mit3zxzN -->
-  - `createTime` _(required)_ — [timestamp](../../timestamp.md) <!-- id:fOzDuCtH -->
+  - `id` _(required)_: [string](../../string.md) <!-- id:p0Pqs-hQ -->
+  - `accountUid` _(required)_: [string](../../string.md) <!-- id:3FK_99NA -->
+  - `role` _(required)_: [role](../../role.md) <!-- id:9j3W7BSF -->
+  - `capabilityId`: [string](../../string.md) <!-- id:jGkFhD5o -->
+  - `grantId` _(required)_: [rpc/type/id](./id.md) <!-- id:kw33mNHc -->
+  - `label`: [string](../../string.md) <!-- id:mit3zxzN -->
+  - `createTime` _(required)_: [timestamp](../../timestamp.md) <!-- id:fOzDuCtH -->
 
 # Depends on <!-- id:Thx5b8sf -->
 

@@ -8,10 +8,10 @@ A site's menu is not metadata and not part of the body. It is a detached block n
 # Shape <!-- id:dvycGapW -->
 
 A **closed struct** with these fields: <!-- id:Mu8YSSfc -->
-  - `type` _(required)_ — `"Link"` <!-- id:Q8-nnpcx -->
-  - `id` _(required)_ — [string](../string.md) <!-- id:WEDCihgA -->
-  - `text` _(required)_ — [string](../string.md) <!-- id:rF9qJUPE -->
-  - `link` _(required)_ — [string](../string.md) <!-- id:9jmT0dlV -->
+  - `type` _(required)_: `"Link"` <!-- id:Q8-nnpcx -->
+  - `id` _(required)_: [string](../string.md) <!-- id:WEDCihgA -->
+  - `text` _(required)_: [string](../string.md) <!-- id:rF9qJUPE -->
+  - `link` _(required)_: [string](../string.md) <!-- id:9jmT0dlV -->
 
 # Depends on <!-- id:jX5d4-tm -->
 

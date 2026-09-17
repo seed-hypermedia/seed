@@ -10,16 +10,16 @@ A comment's identity is `<author>/<tsid>`, where the TSID of the first version i
 # Shape <!-- id:N7i6Swe_ -->
 
 **Extends** [blob](./blob.md) with these added fields: <!-- id:AWi9pItM -->
-  - `type` — `"Comment"` <!-- id:gZNdkJAq -->
-  - `id` — [string](./string.md) <!-- id:0a38WCxb -->
-  - `capability` — [cid](./cid.md) <!-- id:0BzGpgFt -->
-  - `space` — [principal](./principal.md) <!-- id:d6ppVYNz -->
-  - `path` — [string](./string.md) <!-- id:P5ixnsgk -->
-  - `version` — list of [cid](./cid.md) <!-- id:I1NS_x2j -->
-  - `threadRoot` — [cid](./cid.md) <!-- id:hZXu6bZ4 -->
-  - `replyParent` — [cid](./cid.md) <!-- id:uy9USgoy -->
-  - `body` _(required)_ — list of [block/comment](./block/comment.md) <!-- id:9j2wEjJ6 -->
-  - `visibility` — [visibility](./visibility.md) <!-- id:ZEob4xDQ -->
+  - `type`: `"Comment"` <!-- id:gZNdkJAq -->
+  - `id`: [string](./string.md) <!-- id:0a38WCxb -->
+  - `capability`: [cid](./cid.md) <!-- id:0BzGpgFt -->
+  - `space`: [principal](./principal.md) <!-- id:d6ppVYNz -->
+  - `path`: [string](./string.md) <!-- id:P5ixnsgk -->
+  - `version`: list of [cid](./cid.md) <!-- id:I1NS_x2j -->
+  - `threadRoot`: [cid](./cid.md) <!-- id:hZXu6bZ4 -->
+  - `replyParent`: [cid](./cid.md) <!-- id:uy9USgoy -->
+  - `body` _(required)_: list of [block/comment](./block/comment.md) <!-- id:9j2wEjJ6 -->
+  - `visibility`: [visibility](./visibility.md) <!-- id:ZEob4xDQ -->
 
 # Depends on <!-- id:R1pFNfYx -->
 

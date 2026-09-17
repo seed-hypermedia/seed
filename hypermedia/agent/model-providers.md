@@ -42,11 +42,11 @@ Subscription provider: <!-- id:7jCnLfG9 -->
 # API actions <!-- id:seQkEzEa -->
 
 <!-- id:oSxv44bd -->
-- `ListModelProviders` — redacted provider metadata. <!-- id:obDhDqLd -->
-- `ListProviderModels` — decrypts the API key server-side and queries the provider's model-list endpoint. <!-- id:emMglq7O -->
-- `SetModelProvider` — upserts provider config. <!-- id:z3UJn0_5 -->
-- `SetSecret` — encrypts/upserts a secret value.
-- `DeleteModelProvider` — removes a provider record and its API-key secret. <!-- id:EPPvk15T -->
+- `ListModelProviders`: redacted provider metadata. <!-- id:obDhDqLd -->
+- `ListProviderModels`: decrypts the API key server-side and queries the provider's model-list endpoint. <!-- id:emMglq7O -->
+- `SetModelProvider`: upserts provider config. <!-- id:z3UJn0_5 -->
+- `SetSecret`: encrypts/upserts a secret value.
+- `DeleteModelProvider`: removes a provider record and its API-key secret. <!-- id:EPPvk15T -->
 - `StartProviderOAuth` / `SubmitProviderOAuthCode` / `GetProviderOAuthStatus` / `CancelProviderOAuth` — the subscription sign-in flow. <!-- id:c_F1btlK -->
 
 Returned provider shape (`protocol/src/index.ts:1078`): <!-- id:TaVAqOZZ -->
@@ -135,7 +135,7 @@ For everything else: <!-- id:bGOJ6vf9 -->
 `gpt-5-chat*` variants expose no reasoning control. Anything else — including every OpenAI-compatible passthrough type — returns null, and the shared `ReasoningSelect` picker renders nothing for it. <!-- id:1zBT-TX_ -->
 
 Each run creates an in-memory Pi session (`#runPiAgent`, `api-service.ts:4298`) with: <!-- id:8GvfxwcF -->
-  - `AuthStorage` — `inMemory()` with a runtime-only API key for api-key providers, or `fromStorage()` over the persisted OAuth backend for subscription providers; <!-- id:ydcMAJua -->
+  - `AuthStorage`: `inMemory()` with a runtime-only API key for api-key providers, or `fromStorage()` over the persisted OAuth backend for subscription providers; <!-- id:ydcMAJua -->
   - `ModelRegistry.inMemory()` plus a per-run provider/model registration; <!-- id:cOzZ5JAV -->
   - `SessionManager.inMemory()` so Pi persists no session JSONL of its own; <!-- id:b24OJJek -->
   - `SettingsManager.inMemory({compaction: {enabled: false}})`; <!-- id:3gtf99zH -->

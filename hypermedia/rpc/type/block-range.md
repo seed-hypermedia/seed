@@ -10,9 +10,9 @@ This page describes the **rpc/type/block-range** read model of the Seed API — 
 # Shape <!-- id:_ySLGKVQ -->
 
 A **closed struct** with these fields: <!-- id:N88QDkke -->
-  - `start` — `integer` <!-- id:sZD7rgCl -->
-  - `end` — `integer` <!-- id:sqGFTb5g -->
-  - `expanded` — [boolean](../../boolean.md) <!-- id:uWwInii1 -->
+  - `start`: `integer` <!-- id:sZD7rgCl -->
+  - `end`: `integer` <!-- id:sqGFTb5g -->
+  - `expanded`: [boolean](../../boolean.md) <!-- id:uWwInii1 -->
 
 # Depends on <!-- id:JTmQ38m4 -->
 

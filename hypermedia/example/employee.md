@@ -8,8 +8,8 @@ This document describes the **example/employee** type — an example schema. Its
 # Shape <!-- id:FRM7SadU -->
 
 **Extends** [example/person](./person.md) with these added fields: <!-- id:XUqvPhRC -->
-  - `employeeId` _(required)_ — [string](../string.md) <!-- id:VBcJW2v6 -->
-  - `department` — [string](../string.md) <!-- id:LKh9yy5V -->
+  - `employeeId` _(required)_: [string](../string.md) <!-- id:VBcJW2v6 -->
+  - `department`: [string](../string.md) <!-- id:LKh9yy5V -->
 
 # Depends on <!-- id:Ah7bnx2c -->
 

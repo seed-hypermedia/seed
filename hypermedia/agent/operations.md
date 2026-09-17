@@ -63,9 +63,9 @@ The values come from `agents/src/build-info.ts`, populated by Docker build args 
 ## CI build + push <!-- id:TT-1OVn2 -->
 
 `agents/Dockerfile` is built and pushed by three GitHub Actions workflows, all of which also accept a manual `workflow_dispatch` run from the Actions tab: <!-- id:9ag8Sj9F -->
-  - `.github/workflows/release-docker-images.yml` — on a `*.*.*` release tag push (or manual dispatch), pushes `seedhypermedia/agents:<tag>`. The resolved tag is the version (`latest` for a manual run with no tag); `agents-stable` on the host tracks `:latest`. <!-- id:dqZxrWX0 -->
-  - `.github/workflows/dev-docker-images.yml` — on push to `main` touching `agents/**` (or manual dispatch), pushes `seedhypermedia/agents:dev`, which **both** `agents-staging` and `agents-dev` track. Note the consequence: while this workflow is red on `main`, `:dev` stops moving, and staging silently keeps validating an older commit than the one you are about to release. `/api/version` on staging is the check that catches it. <!-- id:-c40zu4a -->
-  - `.github/workflows/hotfix-agents-image.yml` — manual dispatch only, from `main` only. Runs the agents test gate and pushes ONLY `seedhypermedia/agents:latest`. Use this to hotfix the production agent server without cutting a full release of every image. <!-- id:i8GnJuWs -->
+  - `.github/workflows/release-docker-images.yml`: on a `*.*.*` release tag push (or manual dispatch), pushes `seedhypermedia/agents:<tag>`. The resolved tag is the version (`latest` for a manual run with no tag); `agents-stable` on the host tracks `:latest`. <!-- id:dqZxrWX0 -->
+  - `.github/workflows/dev-docker-images.yml`: on push to `main` touching `agents/**` (or manual dispatch), pushes `seedhypermedia/agents:dev`, which **both** `agents-staging` and `agents-dev` track. Note the consequence: while this workflow is red on `main`, `:dev` stops moving, and staging silently keeps validating an older commit than the one you are about to release. `/api/version` on staging is the check that catches it. <!-- id:-c40zu4a -->
+  - `.github/workflows/hotfix-agents-image.yml`: manual dispatch only, from `main` only. Runs the agents test gate and pushes ONLY `seedhypermedia/agents:latest`. Use this to hotfix the production agent server without cutting a full release of every image. <!-- id:i8GnJuWs -->
 
 ## Manual build + push from a workstation <!-- id:g7mprK3Z -->
 

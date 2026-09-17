@@ -12,8 +12,8 @@ This page defines the **change/op/replace-block** operation inside a [Change bod
 # Shape <!-- id:2s8VcML2 -->
 
 A **closed struct** with these fields: <!-- id:Sym_gHmT -->
-  - `type` _(required)_ — `"ReplaceBlock"` <!-- id:WO4CBI3C -->
-  - `block` _(required)_ — type variable `⟨Block⟩` <!-- id:PobCzv9L -->
+  - `type` _(required)_: `"ReplaceBlock"` <!-- id:WO4CBI3C -->
+  - `block` _(required)_: type variable `⟨Block⟩` <!-- id:PobCzv9L -->
 
 **Generic** over `⟨Block⟩` (default [block](../../block.md)). <!-- id:apzRnVg1 -->
 

@@ -12,9 +12,9 @@ This page defines the **change/op/set-attributes** operation inside a [Change bo
 # Shape <!-- id:LAfbycov -->
 
 A **closed struct** with these fields: <!-- id:t_VD1Nku -->
-  - `type` _(required)_ — `"SetAttributes"` <!-- id:8RrVMKzp -->
-  - `block` — [string](../../string.md) <!-- id:DNLUlw3V -->
-  - `attrs` — list of [key-value](../../key-value.md) <!-- id:fYFXgIHc -->
+  - `type` _(required)_: `"SetAttributes"` <!-- id:8RrVMKzp -->
+  - `block`: [string](../../string.md) <!-- id:DNLUlw3V -->
+  - `attrs`: list of [key-value](../../key-value.md) <!-- id:fYFXgIHc -->
 
 # Depends on <!-- id:LkWlsBr_ -->
 

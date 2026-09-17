@@ -10,9 +10,9 @@ This document describes the **example/world-doc** type — an example schema. It
 # Shape <!-- id:f1KbJ2ci -->
 
 A **closed struct** with these fields: <!-- id:qfyt9Gtj -->
-  - `genre` _(required)_ — [string](../string.md) (one of `fantasy`, `science-fiction`, `historical`, `contemporary`, `mythic`) <!-- id:0ujhBQvU -->
-  - `epoch` — [date](../date.md) <!-- id:U_Ww1oVZ -->
-  - `tagline` — [string](../string.md) <!-- id:JSSPut80 -->
+  - `genre` _(required)_: [string](../string.md) (one of `fantasy`, `science-fiction`, `historical`, `contemporary`, `mythic`) <!-- id:0ujhBQvU -->
+  - `epoch`: [date](../date.md) <!-- id:U_Ww1oVZ -->
+  - `tagline`: [string](../string.md) <!-- id:JSSPut80 -->
 
 # Depends on <!-- id:isqmdDcM -->
 

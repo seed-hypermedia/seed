@@ -10,14 +10,14 @@ This page describes the **rpc/type/domain-info** read model of the Seed API — 
 # Shape <!-- id:ekpw-cCp -->
 
 A **closed struct** with these fields: <!-- id:xuUlh0JO -->
-  - `domain` _(required)_ — [string](../../string.md) <!-- id:0oRkcHc4 -->
-  - `lastCheck` _(required)_ — one of [string](../../string.md) | [null](../../null.md) <!-- id:op-PJX0_ -->
-  - `status` _(required)_ — [string](../../string.md) <!-- id:-nDqsTzH -->
-  - `lastSuccess` _(required)_ — one of [string](../../string.md) | [null](../../null.md) <!-- id:02R65FHg -->
-  - `registeredAccountUid` _(required)_ — one of [string](../../string.md) | [null](../../null.md) <!-- id:te87btfE -->
-  - `peerId` _(required)_ — one of [string](../../string.md) | [null](../../null.md) <!-- id:PLQslevr -->
-  - `isGateway` _(required)_ — [boolean](../../boolean.md) <!-- id:e9kFFZZK -->
-  - `lastError` _(required)_ — one of [string](../../string.md) | [null](../../null.md) <!-- id:KicuZnnK -->
+  - `domain` _(required)_: [string](../../string.md) <!-- id:0oRkcHc4 -->
+  - `lastCheck` _(required)_: one of [string](../../string.md) | [null](../../null.md) <!-- id:op-PJX0_ -->
+  - `status` _(required)_: [string](../../string.md) <!-- id:-nDqsTzH -->
+  - `lastSuccess` _(required)_: one of [string](../../string.md) | [null](../../null.md) <!-- id:02R65FHg -->
+  - `registeredAccountUid` _(required)_: one of [string](../../string.md) | [null](../../null.md) <!-- id:te87btfE -->
+  - `peerId` _(required)_: one of [string](../../string.md) | [null](../../null.md) <!-- id:PLQslevr -->
+  - `isGateway` _(required)_: [boolean](../../boolean.md) <!-- id:e9kFFZZK -->
+  - `lastError` _(required)_: one of [string](../../string.md) | [null](../../null.md) <!-- id:KicuZnnK -->
 
 # Depends on <!-- id:IX_BCuo3 -->
 

@@ -8,8 +8,8 @@ This page describes the **rpc/type/resource-not-found** read model of the Seed A
 # Shape <!-- id:x4SrnzVB -->
 
 A **closed struct** with these fields: <!-- id:erYiDX2c -->
-  - `type` _(required)_ — `"not-found"` <!-- id:1DwJBRbq -->
-  - `id` _(required)_ — [rpc/type/id](./id.md) <!-- id:TaNDKqak -->
+  - `type` _(required)_: `"not-found"` <!-- id:1DwJBRbq -->
+  - `id` _(required)_: [rpc/type/id](./id.md) <!-- id:TaNDKqak -->
 
 # Depends on <!-- id:cW26WYlZ -->
 

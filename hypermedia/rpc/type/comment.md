@@ -10,21 +10,21 @@ This page describes the **rpc/type/comment** read model of the Seed API — deri
 # Shape <!-- id:IaBONBBP -->
 
 A **closed struct** with these fields: <!-- id:hxnNqONe -->
-  - `id` _(required)_ — [string](../../string.md) <!-- id:dcjQthm9 -->
-  - `version` _(required)_ — [string](../../string.md) <!-- id:J4LrGM2E -->
-  - `author` _(required)_ — [string](../../string.md) <!-- id:7mfVIRZU -->
-  - `targetAccount` _(required)_ — [string](../../string.md) <!-- id:yJYYXSde -->
-  - `targetPath` — [string](../../string.md) <!-- id:-8lj6kOw -->
-  - `targetVersion` _(required)_ — [string](../../string.md) <!-- id:UAjhTGkE -->
-  - `replyParent` — [string](../../string.md) <!-- id:c-uNOGGX -->
-  - `replyParentVersion` — [string](../../string.md) <!-- id:UG5_yEyk -->
-  - `threadRoot` — [string](../../string.md) <!-- id:asBCWS_Y -->
-  - `threadRootVersion` — [string](../../string.md) <!-- id:fnFZa1Wa -->
-  - `capability` — [string](../../string.md) <!-- id:Th6VPgwz -->
-  - `content` _(required)_ — list of [block/node](../../block/node.md) <!-- id:kMrq60w0 -->
-  - `createTime` _(required)_ — [timestamp](../../timestamp.md) <!-- id:GVdcv7Mp -->
-  - `updateTime` _(required)_ — [timestamp](../../timestamp.md) <!-- id:B3HL3IYi -->
-  - `visibility` _(required)_ — [visibility](../../visibility.md) <!-- id:QGBLQ-HM -->
+  - `id` _(required)_: [string](../../string.md) <!-- id:dcjQthm9 -->
+  - `version` _(required)_: [string](../../string.md) <!-- id:J4LrGM2E -->
+  - `author` _(required)_: [string](../../string.md) <!-- id:7mfVIRZU -->
+  - `targetAccount` _(required)_: [string](../../string.md) <!-- id:yJYYXSde -->
+  - `targetPath`: [string](../../string.md) <!-- id:-8lj6kOw -->
+  - `targetVersion` _(required)_: [string](../../string.md) <!-- id:UAjhTGkE -->
+  - `replyParent`: [string](../../string.md) <!-- id:c-uNOGGX -->
+  - `replyParentVersion`: [string](../../string.md) <!-- id:UG5_yEyk -->
+  - `threadRoot`: [string](../../string.md) <!-- id:asBCWS_Y -->
+  - `threadRootVersion`: [string](../../string.md) <!-- id:fnFZa1Wa -->
+  - `capability`: [string](../../string.md) <!-- id:Th6VPgwz -->
+  - `content` _(required)_: list of [block/node](../../block/node.md) <!-- id:kMrq60w0 -->
+  - `createTime` _(required)_: [timestamp](../../timestamp.md) <!-- id:GVdcv7Mp -->
+  - `updateTime` _(required)_: [timestamp](../../timestamp.md) <!-- id:B3HL3IYi -->
+  - `visibility` _(required)_: [visibility](../../visibility.md) <!-- id:QGBLQ-HM -->
 
 # Depends on <!-- id:Wb9fPfnU -->
 

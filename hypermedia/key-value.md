@@ -8,8 +8,8 @@ The payload of a [SetAttributes](./change/op/set-attributes.md) op is a list of 
 # Shape <!-- id:VMONYTkt -->
 
 A **closed struct** with these fields: <!-- id:NyettGx4 -->
-  - `key` — list of [string](./string.md) <!-- id:STJDSKAR -->
-  - `value` — [value](./value.md) <!-- id:7qky9GU7 -->
+  - `key`: list of [string](./string.md) <!-- id:STJDSKAR -->
+  - `value`: [value](./value.md) <!-- id:7qky9GU7 -->
 
 # Depends on <!-- id:vLWqKSnN -->
 

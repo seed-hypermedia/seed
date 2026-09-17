@@ -128,13 +128,13 @@ These are the value constraints folded in from the "Seed Blob Schema v1" dialect
 
 The schema language has both flavours of generic. <!-- id:GUz2-s2k -->
 
-**Applied generics** — supplying a type parameter concretely — come for free from `items` and `values`: <!-- id:wY_2EAUG -->
+**Applied generics**: supplying a type parameter concretely — come for free from `items` and `values`: <!-- id:wY_2EAUG -->
   - `list` + `items` = `List<T>` — `items` is `T` <!-- id:aZPTtuab -->
   - `map` + `values` = `Map<V>` — `values` is `V` <!-- id:aY249UNO -->
 
 So `{"Apples":5,"Oranges":3}` is `Map<Integer>`, written `example/counts`: `{ "type":"map", "values":{ "type":"integer" } }`. It nests all the way down. <!-- id:-Yhf7y6_ -->
 
-**Generic abstraction** — defining a reusable parameterized type and instantiating it later — is expressed with three keys: <!-- id:s5ZsDksV -->
+**Generic abstraction**: defining a reusable parameterized type and instantiating it later — is expressed with three keys: <!-- id:s5ZsDksV -->
 
 <!-- id:wD_cjjbP -->
 | key <!-- col:ZdQs1aS6 --> | meaning <!-- col:qyZSsTwz --> <!-- id:J9JCB24S --> |

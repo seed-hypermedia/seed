@@ -10,10 +10,10 @@ This page describes the **rpc/type/comment-group** read model of the Seed API �
 # Shape <!-- id:bn9hhdhT -->
 
 A **closed struct** with these fields: <!-- id:hQ_A0BRE -->
-  - `comments` _(required)_ — list of [rpc/type/comment](./comment.md) <!-- id:6j0dIlAA -->
-  - `moreCommentsCount` _(required)_ — `integer` <!-- id:YX7_v3Cs -->
-  - `id` _(required)_ — [string](../../string.md) <!-- id:LESTYzIE -->
-  - `type` _(required)_ — `"commentGroup"` <!-- id:8G00dDGM -->
+  - `comments` _(required)_: list of [rpc/type/comment](./comment.md) <!-- id:6j0dIlAA -->
+  - `moreCommentsCount` _(required)_: `integer` <!-- id:YX7_v3Cs -->
+  - `id` _(required)_: [string](../../string.md) <!-- id:LESTYzIE -->
+  - `type` _(required)_: `"commentGroup"` <!-- id:8G00dDGM -->
 
 # Depends on <!-- id:zRpGsTRj -->
 

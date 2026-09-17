@@ -8,8 +8,8 @@ This page describes the **rpc/type/resource-tombstone** read model of the Seed A
 # Shape <!-- id:_bPH9V6J -->
 
 A **closed struct** with these fields: <!-- id:iq6WzySf -->
-  - `type` _(required)_ — `"tombstone"` <!-- id:r8b5CNgx -->
-  - `id` _(required)_ — [rpc/type/id](./id.md) <!-- id:ZERYE6t9 -->
+  - `type` _(required)_: `"tombstone"` <!-- id:r8b5CNgx -->
+  - `id` _(required)_: [rpc/type/id](./id.md) <!-- id:ZERYE6t9 -->
 
 # Depends on <!-- id:NkOEAKQC -->
 

@@ -8,11 +8,11 @@ This document describes the **schema/link-schema** type — a meta-schema varian
 # Shape <!-- id:oZ8Ewg1C -->
 
 A **closed struct** with these fields: <!-- id:f0WtHHnG -->
-  - `type` _(required)_ — `"link"` <!-- id:aINr0L9m -->
-  - `target` — `string` (the schema the linked block should conform to) <!-- id:9EpX2r1A -->
-  - `name` — `string` <!-- id:l3kcRCy0 -->
-  - `description` — `string` <!-- id:X1qTBkc0 -->
-  - `params` — map ⟨ \* : [schema](../schema.md) ⟩ <!-- id:WvvPXIYj -->
+  - `type` _(required)_: `"link"` <!-- id:aINr0L9m -->
+  - `target`: `string` (the schema the linked block should conform to) <!-- id:9EpX2r1A -->
+  - `name`: `string` <!-- id:l3kcRCy0 -->
+  - `description`: `string` <!-- id:X1qTBkc0 -->
+  - `params`: map ⟨ \* : [schema](../schema.md) ⟩ <!-- id:WvvPXIYj -->
 
 # Depends on <!-- id:ZrXqrtqn -->
 

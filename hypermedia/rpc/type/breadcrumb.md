@@ -10,9 +10,9 @@ This page describes the **rpc/type/breadcrumb** read model of the Seed API — d
 # Shape <!-- id:7Ey_ElAb -->
 
 A **closed struct** with these fields: <!-- id:GaJkyvmU -->
-  - `name` _(required)_ — [string](../../string.md) <!-- id:KeXz3K4U -->
-  - `path` _(required)_ — [string](../../string.md) <!-- id:JM-WnnRQ -->
-  - `isMissing` — [boolean](../../boolean.md) <!-- id:O1QZ1BQ3 -->
+  - `name` _(required)_: [string](../../string.md) <!-- id:KeXz3K4U -->
+  - `path` _(required)_: [string](../../string.md) <!-- id:JM-WnnRQ -->
+  - `isMissing`: [boolean](../../boolean.md) <!-- id:O1QZ1BQ3 -->
 
 # Depends on <!-- id:60zxuRgg -->
 

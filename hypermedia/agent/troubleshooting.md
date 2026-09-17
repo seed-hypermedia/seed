@@ -124,8 +124,8 @@ Both are the runtime keeping the card honest, and both are visible in the plan s
 Symptom: health/API/WebSocket all time out, the container stays "Up", and CPU sits at \~100% on one core. Bun runs JS on a single thread, so any synchronous infinite loop wedges the entire server (HTTP, WS, triggers) while the process looks healthy from outside. <!-- id:_IVa2DFM -->
 
 Fast diagnosis: <!-- id:qdTU6rbl -->
-  - `docker stats` — one core pegged with flat network I/O suggests a JS busy loop, not load; <!-- id:CLDSxI8J -->
-  - `docker logs -t --tail 50` — find the last event before logs went silent; look for a `tool call start` with no matching `tool call end`; <!-- id:Fh2OFium -->
+  - `docker stats`: one core pegged with flat network I/O suggests a JS busy loop, not load; <!-- id:CLDSxI8J -->
+  - `docker logs -t --tail 50`: find the last event before logs went silent; look for a `tool call start` with no matching `tool call end`; <!-- id:Fh2OFium -->
   - `strace -p <pid> -c` on the host — repeated reads of `/proc/self/statm` plus `futex`/`sched_yield` are GC allocation checks inside a spinning JIT loop; <!-- id:lnefkJD0 -->
   - full tool inputs are persisted in `session_events` (DAG-CBOR in `event_cbor`) even when the log line is truncated — decode them and replay the input against the suspect code path locally. <!-- id:Vzfv2OJ5 -->
 

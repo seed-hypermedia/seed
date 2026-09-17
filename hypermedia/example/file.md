@@ -8,8 +8,8 @@ This document describes the **example/file** type — an example schema. Its for
 # Shape <!-- id:Q0wy8br3 -->
 
 A **closed struct** with these fields: <!-- id:s0wTKzxN -->
-  - `name` _(required)_ — [string](../string.md) <!-- id:CcwT0871 -->
-  - `parent` — `link` → [example/folder](./folder.md) <!-- id:deMPQl1o -->
+  - `name` _(required)_: [string](../string.md) <!-- id:CcwT0871 -->
+  - `parent`: `link` → [example/folder](./folder.md) <!-- id:deMPQl1o -->
 
 # Depends on <!-- id:edXncEYg -->
 

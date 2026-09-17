@@ -25,7 +25,7 @@ What's _genuinely_ missing is narrower and more interesting: <!-- id:Qsg4jKBu --
   2. **The server doesn't defend the claims.** `CreateRef` hardcodes public visibility (open VULN-5); nothing enforces "visibility set only at first publish"; a modified client can flip any doc public on any publish. The envelope exists; the _validation rules_ around it are missing. <!-- id:TpglewB4 -->
   3. **Publicness is irreversible.** `blob_visibility` rows are only ever added. Once public, a blob is served forever regardless of later Refs. The proposal's timestamp-ordered supersession gestures at fixing this, but see Attack 2. <!-- id:gscY0VQT -->
 
-**Verdict: the pillar dissolves into three real work items** — claim raw uploads, validate visibility transitions at index time, make un-publishing mean something at the blob layer. None of them is a new blob type. <!-- id:TNW1rmYs -->
+**Verdict: the pillar dissolves into three real work items**: claim raw uploads, validate visibility transitions at index time, make un-publishing mean something at the blob layer. None of them is a new blob type. <!-- id:TNW1rmYs -->
 
 # Attack 2: The timestamp isn't just weak — it's already a live vulnerability class <!-- id:dGQjTvhm -->
 

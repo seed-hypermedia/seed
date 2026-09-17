@@ -47,29 +47,29 @@ In the Seed app the Attributes tab edits every key, with the required fields of 
 # Shape <!-- id:-ix8zCqi -->
 
 A map with these fields: <!-- id:L2SJyGsk -->
-  - `name` — [string](./string.md) <!-- id:A-W8DLNa -->
-  - `summary` — [string](./string.md) <!-- id:3LriHtp0 -->
-  - `icon` — [ipfs-url](./ipfs-url.md) <!-- id:6dGrRIdx -->
-  - `thumbnail` — [ipfs-url](./ipfs-url.md), deprecated
-  - `cover` — [ipfs-url](./ipfs-url.md) <!-- id:zjUSdmH1 -->
-  - `siteUrl` — [url](./url.md) <!-- id:PyLw_CMi -->
-  - `agentServerUrl` — [url](./url.md)
-  - `spaceAgents` — map of [value](./value.md)
-  - `attributesSchema` — [hm-url](./hm-url.md) <!-- id:ADiIVpjJ -->
-  - `childAttributesSchema` — [hm-url](./hm-url.md) <!-- id:UONmILsQ -->
-  - `schemaDefinition` — [ipfs-url](./ipfs-url.md), targeting [schema](./schema.md) <!-- id:ZUbSthmD -->
-  - `layout` — one of `"Seed/Experimental/Newspaper"` | `""` <!-- id:I-9Xt4-i -->
-  - `seedExperimentalLogo` — [ipfs-url](./ipfs-url.md)
-  - `seedExperimentalHomeOrder` — one of `"UpdatedFirst"` | `"CreatedFirst"`
-  - `displayPublishTime` — [string](./string.md) <!-- id:t_InI3WT -->
-  - `displayAuthor` — [string](./string.md) <!-- id:b3VkN4qc -->
-  - `showOutline` — [boolean](./boolean.md) <!-- id:PGeCxMgg -->
-  - `showActivity` — [boolean](./boolean.md) <!-- id:Rfm2qV8U -->
-  - `contentWidth` — one of `"S"` | `"M"` | `"L"` <!-- id:8si9AhAF -->
-  - `childrenType` — [string](./string.md) <!-- id:-HIIWHMr -->
-  - `theme` — struct { `headerLayout` — one of `"Center"` | `""` } <!-- id:Gz2wxX6C -->
-  - `importCategories` — [string](./string.md)
-  - `importTags` — [string](./string.md)
+  - `name`: [string](./string.md) <!-- id:A-W8DLNa -->
+  - `summary`: [string](./string.md) <!-- id:3LriHtp0 -->
+  - `icon`: [ipfs-url](./ipfs-url.md) <!-- id:6dGrRIdx -->
+  - `thumbnail`: [ipfs-url](./ipfs-url.md), deprecated
+  - `cover`: [ipfs-url](./ipfs-url.md) <!-- id:zjUSdmH1 -->
+  - `siteUrl`: [url](./url.md) <!-- id:PyLw_CMi -->
+  - `agentServerUrl`: [url](./url.md)
+  - `spaceAgents`: map of [value](./value.md)
+  - `attributesSchema`: [hm-url](./hm-url.md) <!-- id:ADiIVpjJ -->
+  - `childAttributesSchema`: [hm-url](./hm-url.md) <!-- id:UONmILsQ -->
+  - `schemaDefinition`: [ipfs-url](./ipfs-url.md), targeting [schema](./schema.md) <!-- id:ZUbSthmD -->
+  - `layout`: one of `"Seed/Experimental/Newspaper"` | `""` <!-- id:I-9Xt4-i -->
+  - `seedExperimentalLogo`: [ipfs-url](./ipfs-url.md)
+  - `seedExperimentalHomeOrder`: one of `"UpdatedFirst"` | `"CreatedFirst"`
+  - `displayPublishTime`: [string](./string.md) <!-- id:t_InI3WT -->
+  - `displayAuthor`: [string](./string.md) <!-- id:b3VkN4qc -->
+  - `showOutline`: [boolean](./boolean.md) <!-- id:PGeCxMgg -->
+  - `showActivity`: [boolean](./boolean.md) <!-- id:Rfm2qV8U -->
+  - `contentWidth`: one of `"S"` | `"M"` | `"L"` <!-- id:8si9AhAF -->
+  - `childrenType`: [string](./string.md) <!-- id:-HIIWHMr -->
+  - `theme`: struct { `headerLayout` — one of `"Center"` | `""` } <!-- id:Gz2wxX6C -->
+  - `importCategories`: [string](./string.md)
+  - `importTags`: [string](./string.md)
 
 Any other key is allowed; its value is a [value](./value.md).
 

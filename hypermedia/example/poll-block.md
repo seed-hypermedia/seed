@@ -8,10 +8,10 @@ This document describes the **example/poll-block** type — an example schema. I
 # Shape <!-- id:aF0A6qUJ -->
 
 **Extends** [block/base](../block/base.md) with these added fields: <!-- id:AU7ub5dT -->
-  - `type` — `"Poll"` <!-- id:a5Im9O50 -->
-  - `question` _(required)_ — [string](../string.md) <!-- id:MVAEf3cE -->
-  - `options` _(required)_ — list of [string](../string.md) <!-- id:pU77dcCF -->
-  - `attributes` — map { 3 fields } <!-- id:jJ3NLW4y -->
+  - `type`: `"Poll"` <!-- id:a5Im9O50 -->
+  - `question` _(required)_: [string](../string.md) <!-- id:MVAEf3cE -->
+  - `options` _(required)_: list of [string](../string.md) <!-- id:pU77dcCF -->
+  - `attributes`: map { 3 fields } <!-- id:jJ3NLW4y -->
 
 # Depends on <!-- id:czM-qx6F -->
 

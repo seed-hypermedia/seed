@@ -10,9 +10,9 @@ This page describes the **rpc/list-comments-by-reference** method of the Seed AP
 # Shape <!-- id:i2iLp9HU -->
 
 A **closed struct** with these fields: <!-- id:w_aoeIfy -->
-  - `key` _(required)_ — `"ListCommentsByReference"` <!-- id:CE40T36c -->
-  - `input` _(required)_ — map { 1 fields } <!-- id:3dWih2WE -->
-  - `output` _(required)_ — [rpc/type/comment-list](./type/comment-list.md) <!-- id:kDDoWxNB -->
+  - `key` _(required)_: `"ListCommentsByReference"` <!-- id:CE40T36c -->
+  - `input` _(required)_: map { 1 fields } <!-- id:3dWih2WE -->
+  - `output` _(required)_: [rpc/type/comment-list](./type/comment-list.md) <!-- id:kDDoWxNB -->
 
 # Depends on <!-- id:2-ilVUqp -->
 

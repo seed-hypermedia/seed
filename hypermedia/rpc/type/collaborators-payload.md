@@ -10,12 +10,12 @@ This page describes the **rpc/type/collaborators-payload** read model of the See
 # Shape <!-- id:0pHZWhFV -->
 
 A **closed struct** with these fields: <!-- id:aPWcE-eZ -->
-  - `publisherUid` _(required)_ — [string](../../string.md) <!-- id:dNxcOhZ0 -->
-  - `parentCapabilities` _(required)_ — list of [rpc/type/capability](./capability.md) <!-- id:1Qe1cDdo -->
-  - `grantedCapabilities` _(required)_ — list of [rpc/type/capability](./capability.md) <!-- id:F1LujJDo -->
-  - `grantedMembers` _(required)_ — list of [rpc/type/site-member](./site-member.md) <!-- id:MgzEcRK6 -->
-  - `members` _(required)_ — list of [rpc/type/site-member](./site-member.md) <!-- id:0jqsG9an -->
-  - `accounts` _(required)_ — [rpc/type/accounts-metadata](./accounts-metadata.md) <!-- id:iTCASGut -->
+  - `publisherUid` _(required)_: [string](../../string.md) <!-- id:dNxcOhZ0 -->
+  - `parentCapabilities` _(required)_: list of [rpc/type/capability](./capability.md) <!-- id:1Qe1cDdo -->
+  - `grantedCapabilities` _(required)_: list of [rpc/type/capability](./capability.md) <!-- id:F1LujJDo -->
+  - `grantedMembers` _(required)_: list of [rpc/type/site-member](./site-member.md) <!-- id:MgzEcRK6 -->
+  - `members` _(required)_: list of [rpc/type/site-member](./site-member.md) <!-- id:0jqsG9an -->
+  - `accounts` _(required)_: [rpc/type/accounts-metadata](./accounts-metadata.md) <!-- id:iTCASGut -->
 
 # Depends on <!-- id:EuNEDEuM -->
 

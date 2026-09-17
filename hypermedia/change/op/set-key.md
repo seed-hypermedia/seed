@@ -12,9 +12,9 @@ Do not emit SetKey in new Changes; the SDK and the Seed app no longer do. `value
 # Shape <!-- id:bpJR-BNN -->
 
 A **closed struct** with these fields: <!-- id:V7WX1yMd -->
-  - `type` _(required)_ — `"SetKey"` <!-- id:P7fT8krq -->
-  - `key` — [string](../../string.md) <!-- id:WmbuE6qh -->
-  - `value` — [value](../../value.md) <!-- id:4tkeslz0 -->
+  - `type` _(required)_: `"SetKey"` <!-- id:P7fT8krq -->
+  - `key`: [string](../../string.md) <!-- id:WmbuE6qh -->
+  - `value`: [value](../../value.md) <!-- id:4tkeslz0 -->
 
 # Depends on <!-- id:_E_R0ssw -->
 

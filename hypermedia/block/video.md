@@ -8,9 +8,9 @@ A video: `link` is required, either an `ipfs://<cid>` [file](../protocol/files.m
 # Shape <!-- id:P9bV1JXS -->
 
 **Extends** [block/base](./base.md) with these added fields: <!-- id:kf5ps0sg -->
-  - `type` — `"Video"` <!-- id:5rdECHj3 -->
-  - `link` _(required)_ — [string](../string.md) <!-- id:efxgTfxI -->
-  - `attributes` — map { 7 fields } <!-- id:B0S2hL6h -->
+  - `type`: `"Video"` <!-- id:5rdECHj3 -->
+  - `link` _(required)_: [string](../string.md) <!-- id:efxgTfxI -->
+  - `attributes`: map { 7 fields } <!-- id:B0S2hL6h -->
 
 # Depends on <!-- id:zuMUGUt2 -->
 

@@ -8,8 +8,8 @@ This page describes the **rpc/type/site-member** read model of the Seed API — 
 # Shape <!-- id:7NSDhta8 -->
 
 A **closed struct** with these fields: <!-- id:FIu9UTGK -->
-  - `account` _(required)_ — [rpc/type/id](./id.md) <!-- id:CdShRyF7 -->
-  - `role` _(required)_ — one of `"owner"` | `"writer"` | `"member"` <!-- id:rQoJfwbo -->
+  - `account` _(required)_: [rpc/type/id](./id.md) <!-- id:CdShRyF7 -->
+  - `role` _(required)_: one of `"owner"` | `"writer"` | `"member"` <!-- id:rQoJfwbo -->
 
 # Depends on <!-- id:T1nSmVgV -->
 

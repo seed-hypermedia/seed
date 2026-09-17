@@ -10,9 +10,9 @@ This page describes the **rpc/list-capabilities** method of the Seed API — a r
 # Shape <!-- id:YK3vwxSB -->
 
 A **closed struct** with these fields: <!-- id:RQY-bLCd -->
-  - `key` _(required)_ — `"ListCapabilities"` <!-- id:6HrUMgDQ -->
-  - `input` _(required)_ — map { 1 fields } <!-- id:2dxY9qtk -->
-  - `output` _(required)_ — map { 1 fields } <!-- id:xLkK3UYa -->
+  - `key` _(required)_: `"ListCapabilities"` <!-- id:6HrUMgDQ -->
+  - `input` _(required)_: map { 1 fields } <!-- id:2dxY9qtk -->
+  - `output` _(required)_: map { 1 fields } <!-- id:xLkK3UYa -->
 
 # Depends on <!-- id:4XBJ0Wiw -->
 

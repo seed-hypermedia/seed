@@ -14,12 +14,12 @@ Create and remove contacts with `seed-cli contact create --subject <uid> --name 
 # Shape <!-- id:ME2Gye2p -->
 
 **Extends** [blob](./blob.md) with these added fields: <!-- id:WjOZXUDV -->
-  - `type` — `"Contact"` <!-- id:NIqiWA2a -->
-  - `id` — [string](./string.md) <!-- id:3n_-393R -->
-  - `account` — [principal](./principal.md) <!-- id:zI4HdIy8 -->
-  - `subject` — [principal](./principal.md) <!-- id:bkt0fx8L -->
-  - `name` — [string](./string.md) <!-- id:SQCjgwlt -->
-  - `subscribe` — [contact/subscribe](./contact/subscribe.md) <!-- id:EtgdYE7E -->
+  - `type`: `"Contact"` <!-- id:NIqiWA2a -->
+  - `id`: [string](./string.md) <!-- id:3n_-393R -->
+  - `account`: [principal](./principal.md) <!-- id:zI4HdIy8 -->
+  - `subject`: [principal](./principal.md) <!-- id:bkt0fx8L -->
+  - `name`: [string](./string.md) <!-- id:SQCjgwlt -->
+  - `subscribe`: [contact/subscribe](./contact/subscribe.md) <!-- id:EtgdYE7E -->
 
 # Depends on <!-- id:5LiFHG4S -->
 

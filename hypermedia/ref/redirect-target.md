@@ -12,9 +12,9 @@ This page defines the **ref/redirect-target** struct used by a redirecting [Ref]
 # Shape <!-- id:Mw7vaa0_ -->
 
 A **closed struct** with these fields: <!-- id:vOHPKMNt -->
-  - `space` — [principal](../principal.md) <!-- id:BX1XxAo1 -->
-  - `path` — [string](../string.md) <!-- id:tkiZCNDO -->
-  - `republish` — [boolean](../boolean.md) <!-- id:f8ILSJ4c -->
+  - `space`: [principal](../principal.md) <!-- id:BX1XxAo1 -->
+  - `path`: [string](../string.md) <!-- id:tkiZCNDO -->
+  - `republish`: [boolean](../boolean.md) <!-- id:f8ILSJ4c -->
 
 # Depends on <!-- id:n0grsHmb -->
 

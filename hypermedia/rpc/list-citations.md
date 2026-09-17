@@ -10,9 +10,9 @@ This page describes the **rpc/list-citations** method of the Seed API — a read
 # Shape <!-- id:z2qy10O8 -->
 
 A **closed struct** with these fields: <!-- id:DCfHjHME -->
-  - `key` _(required)_ — `"ListCitations"` <!-- id:kLPa7FFC -->
-  - `input` _(required)_ — map { 1 fields } <!-- id:764R8Zt5 -->
-  - `output` _(required)_ — map { 1 fields } <!-- id:q3KgSdY9 -->
+  - `key` _(required)_: `"ListCitations"` <!-- id:kLPa7FFC -->
+  - `input` _(required)_: map { 1 fields } <!-- id:764R8Zt5 -->
+  - `output` _(required)_: map { 1 fields } <!-- id:q3KgSdY9 -->
 
 # Depends on <!-- id:Wk6DpqCs -->
 
