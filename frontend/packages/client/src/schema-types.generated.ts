@@ -1372,6 +1372,21 @@ export type SeedRpcListEvents = {
 }
 
 /**
+ * RPC: ListRefs
+ * Returns every Ref published at a document path, newest generation first, given the target id.
+ * Schema: hm://hyper.media/rpc/list-refs
+ */
+export type RpcListRefs = {
+  key: 'ListRefs'
+  input: {
+    targetId: SeedId
+  }
+  output: {
+    refs: RpcTypeRawRef[]
+  }
+}
+
+/**
  * RPC
  * The union of every read-only method of the Seed API, each variant pinning a method key and typing its input and output.
  * Schema: hm://hyper.media/rpc/method
@@ -1397,6 +1412,7 @@ export type SeedRpc =
   | SeedRpcListDocumentCollaborators
   | SeedRpcListDomains
   | SeedRpcListEvents
+  | RpcListRefs
   | SeedRpcQuery
   | SeedRpcQueryBlock
   | SeedRpcResource
@@ -1916,6 +1932,36 @@ export type SeedRawDocumentChange = {
   author?: string
   deps?: string[]
   createTime?: string
+}
+
+/**
+ * Raw Ref
+ * A Ref as indexed, in raw wire form, pointing at a version, a redirect or a tombstone.
+ * Schema: hm://hyper.media/rpc/type/raw-ref
+ */
+export type RpcTypeRawRef = {
+  id?: string
+  account?: string
+  path?: string
+  target?: {
+    version?: {
+      genesis?: string
+      version?: string
+    }
+    redirect?: {
+      account?: string
+      path?: string
+      republish?: boolean
+    }
+    tombstone?: Record<string, never>
+  }
+  signer?: string
+  capability?: string
+  timestamp?: string
+  generationInfo?: {
+    genesis?: string
+    generation?: string
+  }
 }
 
 /**

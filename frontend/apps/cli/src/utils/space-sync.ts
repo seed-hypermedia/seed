@@ -249,6 +249,13 @@ export type ExportOptions = {
   uid: string
   dir: string
   layout?: SpaceLayout
+  /**
+   * Download the files documents link (`ipfs://…` images, videos, files) and
+   * link them relatively instead. See AssetDownloader in space-archive.ts.
+   */
+  assets?: {
+    localize(nodes: HMBlockNode[], mdFile: string, metadata?: Record<string, unknown>): Promise<HMBlockNode[]>
+  }
   log?: (line: string) => void
 }
 
@@ -365,7 +372,8 @@ export async function exportDocument(
         Object.entries(doc.metadata || {}).filter(([key]) => key !== 'schemaDefinition'),
       ) as HMDocument['metadata'])
     : doc.metadata
-  const relative = hmToRelativeLinks(doc.content || [], file, doc.account, layout)
+  let relative = hmToRelativeLinks(doc.content || [], file, doc.account, layout)
+  if (opts.assets) relative = await opts.assets.localize(relative, file, doc.metadata as Record<string, unknown>)
   const self = layout.selfAuthority
   const content = self ? rewriteLinks(relative, (link) => swapAuthority(link, doc.account, self)) : relative
   const ownMetadata = self && metadata ? swapAuthority(metadata, doc.account, self) : metadata

@@ -127,6 +127,9 @@ const QUERY_PARAM_SERIALIZERS = {
   ListCapabilities: (input: Extract<HMRequest, {key: 'ListCapabilities'}>['input']) => ({
     targetId: packHmId(input.targetId),
   }),
+  ListRefs: (input: Extract<HMRequest, {key: 'ListRefs'}>['input']) => ({
+    targetId: packHmId(input.targetId),
+  }),
   DiscoveryStatus: (input: Extract<HMRequest, {key: 'DiscoveryStatus'}>['input']) => ({
     uid: input.uid,
     path: input.path.join('/'),
