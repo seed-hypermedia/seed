@@ -1,9 +1,9 @@
 ---
 name: Key/Value
-summary: "A metadata attribute: a dotted key path (segments) and a value."
+summary: "One attribute assignment in a SetAttributes op: a key path (a list of segments) and a scalar value."
 schemaDefinition: ipfs://bafyreifgtew4cyin4lry5idl7igtl32eibtmakoumyrl3alsqevpsf3gi4
 ---
-This document describes the **key-value** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:KBi_5PW1 -->
+The payload of a [SetAttributes](./change/op/set-attributes.md) op is a list of these. `key` is a path of segments, so `["theme", "headerLayout"]` sets a nested key, and `value` is a scalar [value](./value.md); `null` deletes the key. The daemon merges each path last-writer-wins, and a write to a path also removes any register at an ancestor or descendant path, so a map and a nested key never coexist. See [metadata](./metadata.md).
 
 # Shape <!-- id:VMONYTkt -->
 

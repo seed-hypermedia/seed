@@ -1,9 +1,9 @@
 ---
 name: Math Block
-summary: A block of LaTeX/KaTeX math.
+summary: "A block of LaTeX math, stored as text and rendered with KaTeX."
 schemaDefinition: ipfs://bafyreiabl5272ce3ly7c6yc6kiei575vgj3rxhdsnaontxaqh7njju3mhm
 ---
-This document describes the **block/math** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:usrj-I7W -->
+A math block: `text` is the LaTeX source, rendered with KaTeX. It has no annotations; its only attributes are the parent-layout pair `childrenType` and `columnCount`.
 
 # Shape <!-- id:aWWfkPD5 -->
 

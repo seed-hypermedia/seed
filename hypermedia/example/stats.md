@@ -1,6 +1,6 @@
 ---
 name: Character Stats
-summary: "A character's attribute block — the object a character page links to from its `stats` field. Lives as its own DAG-CBOR blob (an `ipfs://` reference), so it can "
+summary: "A character’s stats object, stored as its own DAG-CBOR blob linked by `ipfs://` so it can hold the integers and enums document metadata cannot."
 schemaDefinition: ipfs://bafyreicqyqbhxuvjyo36z5unngbmtegvzoqm223sbzkxo7l3adkh2sshsy
 ---
 A character's attribute block — the object a character page links to from its `stats` field. Lives as its own DAG-CBOR blob (an `ipfs://` reference), so it can hold integers and enums that document metadata cannot. <!-- id:oHLwcXC5 -->

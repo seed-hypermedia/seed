@@ -1,11 +1,11 @@
 ---
 name: "RPC: Resource"
-summary: "Fetches a resource (document, comment, redirect, …) by parsed id. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` fiel"
+summary: "Fetches a resource by parsed id and returns whichever state it is in: document, comment, redirect, not found, tombstone, or error."
 schemaDefinition: ipfs://bafyreifkdekhx2khdpw74hg65kisb7xprznasxhzx6ewbmozdpj7c4u5zq
 ---
 Fetches a resource (document, comment, redirect, …) by parsed id. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:0FgdDO0r -->
 
-This document describes the **rpc/resource** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:qsZY_yJS -->
+This page describes the **rpc/resource** method of the Seed API — a read model of what the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:qsZY_yJS -->
 
 # Shape <!-- id:wRYJGS_e -->
 

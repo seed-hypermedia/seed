@@ -1,11 +1,11 @@
 ---
 name: "RPC: ListCapabilities"
-summary: "Lists raw capabilities granted on a target. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass;"
+summary: "Returns the raw capabilities granted on a target document, given its id."
 schemaDefinition: ipfs://bafyreidhif2mdldha6ybmqqc3dlt4wssfrdx42eqxyfu326rn6cjkf22sm
 ---
 Lists raw capabilities granted on a target. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:L8_yo2Q9 -->
 
-This document describes the **rpc/list-capabilities** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:IqUUi73s -->
+This page describes the **rpc/list-capabilities** method of the Seed API — a read model of what the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:IqUUi73s -->
 
 # Shape <!-- id:YK3vwxSB -->
 

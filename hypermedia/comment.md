@@ -1,9 +1,11 @@
 ---
 name: Comment
-summary: A comment on a document version, threaded via threadRoot and replyParent. Its body is a tree of comment blocks.
+summary: "A signed comment on a document version, threaded through threadRoot and replyParent, with a body that is a tree of comment blocks."
 schemaDefinition: ipfs://bafyreih2ik7yfwmwklamuzz5mg6wcdejxffdhflf6jagvia2ia562dmqpi
 ---
-This document describes the **comment** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:fJpitbt3 -->
+A comment is a signed snapshot [blob](./blob.md): each edit publishes a whole new blob, and an empty `body` is a tombstone. The blob names its target (`space` and `path`, with `space` omitted when it equals the signer) and the document `version` the author saw; a reply carries the thread's first comment in `threadRoot` and the comment it answers in `replyParent` (omitted when equal to the root). `id` appears only on an edit or a tombstone and holds the TSID of the comment being replaced. `capability` is deprecated and ignored; some old blobs still carry it.
+
+A comment's identity is `<author>/<tsid>`, where the TSID of the first version is derived from the blob's bytes. Comments are not permission-checked: anyone can comment on anything. How threads, block and range comments, citations and mentions work is on [Comments](./protocol/comments.md).
 
 # Shape <!-- id:N7i6Swe_ -->
 

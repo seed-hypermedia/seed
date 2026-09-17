@@ -1,9 +1,9 @@
 ---
 name: Value
-summary: "A metadata / attribute value: string, integer, boolean, or null."
+summary: "A metadata or attribute value: a string, an integer, a boolean, or null."
 schemaDefinition: ipfs://bafyreieg4ddcrqezij6pymoqtm7tex6i3c6nsl7qkhmj5trfboz534k4qi
 ---
-This document describes the **value** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. It is also the type of a [literal](./schema/literal-schema.md) schema's `value`: only these four kinds can be literals. <!-- id:8zx2Wxx- -->
+The scalar values a document attribute can hold: a string, an integer, a boolean, or `null`. Nested attributes are expressed as key paths rather than as map values, see [key-value](./key-value.md). It is also the type of a [literal](./schema/literal-schema.md) schema's `value`: only these four kinds can be literals.
 
 # Shape <!-- id:-_VwZsPA -->
 

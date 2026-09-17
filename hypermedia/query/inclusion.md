@@ -1,9 +1,9 @@
 ---
 name: Query Inclusion
-summary: "One source a Query block pulls documents from: a space (account), an optional path prefix inside it, and whether to list direct Children or AllDescendants."
+summary: "One source a query pulls documents from: a space, an optional path prefix inside it, and whether to list direct children or all descendants."
 schemaDefinition: ipfs://bafyreiboqg4rghabvpb4mvkbjhalrwkb3hontjm4hebjczrv7vbrroiyne
 ---
-This document describes the **query/inclusion** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:FNiZQ7M3 -->
+One source of a [query](../query.md): `space` is the account whose documents to list, `path` an optional prefix inside it (a folder), and `mode` either `Children` (the direct children of that path) or `AllDescendants` (everything below it). A directory listing is a query with one inclusion.
 
 # Shape <!-- id:dNz8ygnf -->
 

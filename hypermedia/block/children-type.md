@@ -1,9 +1,9 @@
 ---
 name: Children Type
-summary: "How a block's children are laid out: Group (default), Ordered, Unordered, Blockquote, or Grid."
+summary: "How a block lays out its children: Group (the default), Ordered, Unordered, Blockquote or Grid."
 schemaDefinition: ipfs://bafyreicwrtydbhkkkoun5ynp4a3mzkmy6ma7svg4zgtmqajivqvw33ohoa
 ---
-This document describes the **block/children-type** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:Oh03LfF- -->
+A list is a property of the parent block, not of its items. A block's `childrenType` attribute says how its children render: `Group` (plain, the default when the key is absent or null), `Ordered` (a numbered list), `Unordered` (bullets), `Blockquote`, or `Grid` (columns, with the parent's `columnCount`). Document metadata carries the same key for the root-level blocks, and a `Slot` block gives a top-level list a parent when one is needed. See [Blocks](../protocol/blocks.md).
 
 # Shape <!-- id:QSISM9Z4 -->
 

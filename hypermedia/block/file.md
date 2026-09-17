@@ -1,9 +1,9 @@
 ---
 name: File Block
-summary: A file attachment, referenced by a URL.
+summary: "An attachment of any kind, referenced by an ipfs:// link, with its file name and size."
 schemaDefinition: ipfs://bafyreicb4mgprxbxjdu7x37w5o6vjdlinmtayrep5j6fmdipp3x7vqvqzy
 ---
-This document describes the **block/file** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:NBx9Tnq9 -->
+A file attachment: `link` is required and is an `ipfs://<cid>` [file](../protocol/files.md). Attributes: `name` (the file name shown to readers), `size` (bytes; older documents stored it as a string, and readers coerce it), and the parent-layout pair. The file's type is detected from its bytes when served, not stored on the block.
 
 # Shape <!-- id:LvbrriHo -->
 

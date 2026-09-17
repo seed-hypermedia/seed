@@ -1,10 +1,8 @@
 ---
 ---
-# Delegation budgets: where #1070 leaves us, and the next project <!-- id:xSH20A6L -->
+\--- name: Delegation Budgets summary: The proposal that follows the shipped thoroughness presets: budget pauses a person answers, one budget per run tree with a live meter, and budgets denominated in tokens and money. --- Written 2026-09-10 alongside PR #1070 (budgeted delegation with thoroughness presets). What that PR built is now reference material on the [tools](../tools.md) page and summarised below; the rest of this page is the proposal for the project that follows, **budget pauses and tree budgets**, which turns a hard cap the model bumps into into a negotiation with the person paying for the work. Status as of 2026-09-16: proposed, not started. <!-- id:ZtY71Q3g -->
 
-Written 2026-09-10 alongside PR #1070 (budgeted delegation with thoroughness presets). The first half records what that PR built and why it is only a first step. The second half is a proposal for the project that follows: **budget pauses and tree budgets**, which turns a hard cap the model bumps into, into a negotiation with the person paying for the work. <!-- id:s0BaP8Aj -->
-
-## What #1070 built <!-- id:8i3PyS2N -->
+# What shipped in #1070 <!-- id:8i3PyS2N -->
 
 - Every root run (a user turn, a trigger firing, a continuation successor, a retry) is created with a `RunBudget` (`maxDepth`, `maxChildren`) from the session's thoroughness, else the agent's, else `normal`. Every child copies its parent's budget, so one tree answers to one setting. <!-- id:iJZuO_m6 -->
 
@@ -19,7 +17,7 @@ Written 2026-09-10 alongside PR #1070 (budgeted delegation with thoroughness pre
 - **Width is still a refusal.** A run may need the verb until its last slot is used, so the eleventh spawn is refused. #1070 softens this two ways: every child result carries `delegation.parentChildrenRemaining` (the live count — the system prompt is built once per run and goes stale after the first batch), and the refusal says what works from there (finish alone now; next time, several items per brief or one script child, whose own children draw on a separate budget). <!-- id:u85UCkFU -->
 - **Thoroughness is chosen where the model is chosen**: agent Settings, the Create Agent dialog, and the session model badge (including the assistant panel's draft chat, whose choices ride `CreateSession`). <!-- id:V3UIrZTQ -->
 
-## Why this is not the end state <!-- id:rvk6vgyB -->
+# Why this is not the end state <!-- id:rvk6vgyB -->
 
 **The cap is a proxy.** Depth and fan-out are stand-ins for what the person actually cares about: money, time, and whether the answer is good. A tree that spends its budget as three deep chains or as one wide fan-out should be free to choose; shape caps should be safety rails, not the operative signal. <!-- id:aG-l6Ukg -->
 
@@ -33,7 +31,7 @@ Written 2026-09-10 alongside PR #1070 (budgeted delegation with thoroughness pre
 
 **The escape hatch is accidental.** `continue_session` starts a fresh root run with a fresh budget, so a foreground conversation can always out-run the cap. That is fine as a per-turn bound, but it means the cap bounds a turn, not a task, and the person never sees the cumulative spend. <!-- id:lo5dWBIa -->
 
-## Principles for the harness <!-- id:VKpkV0xy -->
+# Principles for the harness <!-- id:VKpkV0xy -->
 
 1. **Budgets are about cost.** The operative budget is denominated in tokens (later: dollars) and wall time, per tree. Depth and fan-out stay as high safety rails against runaway trees. <!-- id:f-ereCIi -->
 2. **Budget state is part of every observation.** The model never learns a limit from a refusal. Either the affordance is removed (leaves) or the remaining budget is visible in every tool result, the way the context meter is visible. <!-- id:WbzKfA2B -->
@@ -43,11 +41,11 @@ Written 2026-09-10 alongside PR #1070 (budgeted delegation with thoroughness pre
 6. **The tree owns the budget; children reference it.** One object at the root, read by every descendant, so a grant is one write and a meter is one query. <!-- id:gBy_QFnb -->
 7. **The person sees the tree, its spend, and its remaining budget, and can raise or stop it.** The pause renders as a card with three choices — continue with more, finish without helpers, stop — and that card is the whole interaction. <!-- id:qn3LSGTb -->
 
-## Proposal: budget pauses and tree budgets <!-- id:FcmW-uuG -->
+# Proposal: budget pauses and tree budgets <!-- id:FcmW-uuG -->
 
 Scope: one project, three milestones, each shippable. Cost-denominated budgets are milestone 3 because they need the meter from milestone 2 to be legible. <!-- id:OaZkTqk6 -->
 
-### Milestone 1 — the pause card <!-- id:UvmptRPZ -->
+## Milestone 1 — the pause card <!-- id:UvmptRPZ -->
 
 Reuse what exists. `runs.ts` already has a `budget-pause` wait reason ("only a person resumes it"), a wall-clock budget (`maxWallMs`) that produces it, and `resumeBudgetPause()` which drops the exhausted dimension and requeues. Generalize it from wall time to every dimension. <!-- id:9GIqlgjv -->
   - **Server.** When a spawn would exceed `maxChildren` (or a script child would), and the run's exhaustion policy is `pause`, the run parks with `{reason: 'budget-pause', note, exhausted: 'children' | 'depth' | 'wallMs', pending}` instead of throwing. `pending` is the spawn request that was refused, so resuming replays it: the model's turn is not interrupted, its delegate call simply resolves later. The parent's `tool_call` stays open exactly as it does for an awaited child. <!-- id:GkfwBRU1 -->
@@ -58,7 +56,7 @@ Reuse what exists. `runs.ts` already has a `budget-pause` wait reason ("only a p
 
 Tests: a spawn past the cap parks instead of throwing under `pause`; resume with a grant replays it and the child runs; finish resolves the call with the exhaustion message; a trigger-started run finishes alone and its result carries the note. <!-- id:Er36Q-Ee -->
 
-### Milestone 2 — tree budgets and the meter <!-- id:hD8S3g7G -->
+## Milestone 2 — tree budgets and the meter <!-- id:hD8S3g7G -->
 
 <!-- id:toaymq2Z -->
 - **Data model.** Add `runs.budget_run_id` (the root of the tree that owns the budget; the root points at itself). `#delegationLimits(run)` reads the owner's `budget_cbor`. Children stop copying the budget. Migration: backfill `budget_run_id` from the parent chain; runs with no owner keep today's copy-on-spawn behaviour. <!-- id:9tUE_zlR -->
@@ -70,26 +68,26 @@ Tests: a spawn past the cap parks instead of throwing under `pause`; resume with
 
 Tests: a grant on the owner is seen by a grandchild's next spawn; usage rolls up across three levels; a script reads its budget and chunks; a mid-flight thoroughness change applies to the next spawn. <!-- id:9Cge9T7s -->
 
-### Milestone 3 — cost-denominated budgets <!-- id:DK0dEU-8 -->
+## Milestone 3 — cost-denominated budgets <!-- id:DK0dEU-8 -->
 
 - Add `maxTokens` to `RunBudget` and to the presets, chosen so that a `normal` tree today rarely hits it. The presets become budget templates: `{maxDepth, maxChildren, maxTokens, maxWallMs}`. <!-- id:QDdTlZT9 -->
 - The pause fires on tokens like any other dimension; the card says "spent 1.2M tokens of 1M". <!-- id:wqni9YNb -->
 - Later, dollars: per-provider pricing is already partly known (`model-capabilities`); a `maxUsd` dimension is the same mechanism with a price table. <!-- id:q7or2222 -->
 - Shape caps stay, raised to safety-rail values (`deep` might become depth 6, 32 children) once tokens are the operative bound. <!-- id:uUxZPJF- -->
 
-### Performance and cost notes <!-- id:FIqus6FP -->
+## Performance and cost notes <!-- id:FIqus6FP -->
 
 - Every child is a full context: the agent's system prompt, memory, the space index, then the brief. Fan-out is the expensive part of a tree, and the meter should make that visible in tokens rather than counts. <!-- id:cUntqoU_ -->
 - Prod runs 8 model runs at a time (`run-concurrency.md`). A fan-out of 16 finishes no faster than 8; the prompt should say the effective parallelism so the model prefers fewer, larger children and scripts for mechanical work. <!-- id:3DRsAQzP -->
 - The extra queries in #1070 (a recursive CTE for depth, a count for children) run once per turn and per spawn on cached statements; milestone 2 replaces the count with a read of the owner row. <!-- id:zYg12jUa -->
 
-### Non-goals <!-- id:ASTP667Y -->
+## Non-goals <!-- id:ASTP667Y -->
 
 - Queueing spawns past the cap as a concurrency limit. The cap bounds cost per turn; a throttle bounds nothing. <!-- id:I7iSaXo9 -->
 - Per-account or per-server budgets. Those are the resource manager's job (see the Supe project); this is per tree. <!-- id:UIzHxbOX -->
 - Changing how `continue_session` budgets successors. A successor is a new tree by design; the meter should show the chain's cumulative spend, but the budget resets. <!-- id:6Sm3O3f9 -->
 
-### Open questions <!-- id:Q0By_lCn -->
+## Open questions <!-- id:Q0By_lCn -->
 
 - Should "Continue with more" grant a fixed increment (one more preset's worth) or ask for a number? Start fixed. <!-- id:IKUE8Rpx -->
 - Where does the pause card live for a background tree with no session open — the agent's activity feed? <!-- id:v0LjAF2T -->

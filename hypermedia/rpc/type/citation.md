@@ -1,11 +1,11 @@
 ---
 name: Citation
-summary: "One mention of a target resource from elsewhere on the network: the citing source (a document 'd' or a comment 'c'), whether it pinned the exact version, and th"
+summary: "One mention of a target resource from elsewhere on the network: the citing document or comment, whether it pinned an exact version, and the fragment it points at."
 schemaDefinition: ipfs://bafyreif2zx7kevtj753643osrtnybp3xskvmvcoeefsehzenk6k7aetlje
 ---
 One mention of a target resource from elsewhere on the network: the citing source (a document 'd' or a comment 'c'), whether it pinned the exact version, and the fragment it points at. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:vp-ojCpz -->
 
-This document describes the **rpc/type/citation** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:MOh8ryRo -->
+This page describes the **rpc/type/citation** read model of the Seed API — derived data the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:MOh8ryRo -->
 
 # Shape <!-- id:rbyri4dZ -->
 

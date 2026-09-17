@@ -1,11 +1,11 @@
 ---
 name: "RPC: ListDocumentCollaborators"
-summary: "Resolves a document's full collaboration picture. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you"
+summary: "Returns a document’s collaboration picture (publisher, inherited and direct capabilities, effective members), given its id."
 schemaDefinition: ipfs://bafyreie3rvsn6kwc7qzawxklw2wp5q63dnt27fwpymywpl3paaruyxlenu
 ---
 Resolves a document's full collaboration picture. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:SpxLa0Jx -->
 
-This document describes the **rpc/list-document-collaborators** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:av_BQwYg -->
+This page describes the **rpc/list-document-collaborators** method of the Seed API — a read model of what the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:av_BQwYg -->
 
 # Shape <!-- id:QWP-bfOj -->
 

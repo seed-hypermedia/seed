@@ -1,11 +1,11 @@
 ---
 name: Raw Document Change
-summary: "One change of a document's history in raw listing form: CID, author, dependency edges, time. A derived read model computed by the Seed daemon/API for clients — "
+summary: "One change of a document’s history in raw listing form: CID, author, dependency edges, and time."
 schemaDefinition: ipfs://bafyreidkk2w4e4lsqqysqhinznab6exkeus36evown7f5szqhziar24igq
 ---
 One change of a document's history in raw listing form: CID, author, dependency edges, time. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:eHAssQwO -->
 
-This document describes the **rpc/type/raw-document-change** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:QXa2QqTl -->
+This page describes the **rpc/type/raw-document-change** read model of the Seed API — derived data the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:QXa2QqTl -->
 
 # Shape <!-- id:FxmCqSQ7 -->
 

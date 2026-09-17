@@ -1,9 +1,9 @@
 ---
 name: Video Block
-summary: A video, referenced by a URL.
+summary: "A video referenced by an ipfs:// file or a supported web video URL, with playback attributes."
 schemaDefinition: ipfs://bafyreicncsk4bhw33ishol33dgaqjoijdyo3k4k2k5hgwwbq3uzik6uhiu
 ---
-This document describes the **block/video** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:EYK9AnN- -->
+A video: `link` is required, either an `ipfs://<cid>` [file](../protocol/files.md) or a web video URL the app knows how to embed (YouTube links are recognized). Attributes: `width`, `name`, and the playback flags `autoplay`, `loop` and `muted`, plus the parent-layout pair.
 
 # Shape <!-- id:P9bV1JXS -->
 

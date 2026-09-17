@@ -1,9 +1,9 @@
 ---
 name: Site Member
-summary: One member of a site with their effective role. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+summary: "One member of a site with their effective role: owner, writer, or member."
 schemaDefinition: ipfs://bafyreiaczyeizz757pdb5pvkrcljqfovvcm57qmj3l7fud2dmbsb6rcuni
 ---
-This document describes the **rpc/type/site-member** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:H3mBSjt5 -->
+This page describes the **rpc/type/site-member** read model of the Seed API — derived data the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:H3mBSjt5 -->
 
 # Shape <!-- id:7NSDhta8 -->
 

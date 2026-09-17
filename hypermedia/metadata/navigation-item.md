@@ -1,9 +1,9 @@
 ---
 name: Navigation item
-summary: "One entry of a site's navigation menu, stored in document metadata: a link with display text."
+summary: "One entry of a site's navigation menu: a Link block with display text and a link, stored as a child of the detached navigation block."
 schemaDefinition: ipfs://bafyreiexmspnzsukur3eskmrf7e6t7rxaeky6xf67ikcoysjtz4dcrp4ia
 ---
-This document describes the **metadata/navigation-item** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:qG6VHGQm -->
+A site's menu is not metadata and not part of the body. It is a detached block named `navigation` (a block with state but no position in the content tree), and each of its children is one of these `Link` blocks: `text` is the label and `link` is an `hm://` or web URL. The Seed app edits the menu in a site's settings, and the daemon returns it in the document's detached blocks. See [Blocks](../protocol/blocks.md).
 
 # Shape <!-- id:dvycGapW -->
 

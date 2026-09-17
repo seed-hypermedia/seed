@@ -1,9 +1,9 @@
 ---
 name: Query Table Config
-summary: "Persisted presentation settings for a Query block's Table view: which columns are visible and how wide they are."
+summary: "The persisted settings of a Query block's table view: which columns are visible and how wide they are."
 schemaDefinition: ipfs://bafyreicgsh5jy23fplg662gpijjhjjdmhnvckaeexfryz7egm3m77dvyv4
 ---
-This document describes the **query/table-config** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:qcdiG9pw -->
+Presentation settings for the table view of a [query block](../block/query.md): `columns` is a list of `{id, visible, width?}`, where `id` names a built-in column (title, updated, authors and the like) or a custom attribute. Older documents may carry a `sorting` list from before sort moved into the query's own `sort`; readers ignore it.
 
 # Shape <!-- id:d84aVZ53 -->
 

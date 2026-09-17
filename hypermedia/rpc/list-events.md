@@ -1,11 +1,11 @@
 ---
 name: "RPC: ListEvents"
-summary: "Pages through the activity feed, with author/type/resource filters. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` fi"
+summary: "Pages through the activity feed as activity events, filtered by author, event type, or resource, with a token for the next page."
 schemaDefinition: ipfs://bafyreig6xphaup5axrskzvh6uuqq42rlopkxqp2vk5qmdiijincyx4beyy
 ---
 Pages through the activity feed, with author/type/resource filters. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:8NB6bWqQ -->
 
-This document describes the **rpc/list-events** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:CxLVzOd5 -->
+This page describes the **rpc/list-events** method of the Seed API — a read model of what the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:CxLVzOd5 -->
 
 # Shape <!-- id:kghUGbcO -->
 

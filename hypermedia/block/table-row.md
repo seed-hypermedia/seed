@@ -1,9 +1,9 @@
 ---
 name: Table Row Block
-summary: One row of a Table block. Its children are Paragraph cell blocks, each carrying a columnId attribute referencing a TableColumn id.
+summary: "One row of a Table block: its children are Paragraph cells, each naming its column with a columnId attribute."
 schemaDefinition: ipfs://bafyreiabl53reqzfvdhyio2vbhocupxb3kzhgakd7p7ji53pgyxpc4gwpa
 ---
-This document describes the **block/table-row** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:BjIgY6_L -->
+A row of a [table](./table.md). Its children are the row's cells: [paragraph](./paragraph.md) blocks whose `columnId` attribute names a [table column](./table-column.md) id. Cell order inside the row is ignored. `isHeader` marks the header row and is honored only on the first row; the other attributes are the parent-layout pair.
 
 # Shape <!-- id:rU9d2YT4 -->
 
