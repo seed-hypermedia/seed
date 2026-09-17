@@ -1,5 +1,5 @@
 ---
-name: Signed content, not server trust
+name: Signed content
 summary: Why authors sign their own documents and comments on their own devices, what that gives readers, and why the team chose not to build on ActivityPub.
 ---
 When you read a page on the web, you trust the server. It could have changed the text or be serving an old copy, and nothing in the page proves who wrote it. Federated systems such as Mastodon spread that trust from one big server to many small ones, but you still trust a server.

@@ -9,7 +9,7 @@ This section makes the case. You do not need to know what a hash is to read it. 
 # The four ideas
 
 - [The end of broken links](./why/broken-links.md). A piece of content is named by a hash of its bytes, so its address does not depend on any server. A link to a Hypermedia [document](./protocol/documents.md) keeps working as long as anyone still holds a copy, and anyone who holds a copy can prove it is genuine.
-- [Signed content, not server trust](./why/signed-content.md). Authors sign their own documents and [comments](./protocol/comments.md) on their own devices. You check the author's signature, whichever server delivered the bytes. This page also explains why the team did not build on ActivityPub.
+- [Signed content](./why/signed-content.md). Authors sign their own documents and [comments](./protocol/comments.md) on their own devices. You check the author's signature, whichever server delivered the bytes. This page also explains why the team did not build on ActivityPub.
 - [Open editing](./why/open-editing.md). Documents are histories of signed changes. You can see who changed what, branch someone else's document into your own space, and merge their work back without giving them the keys. The model comes from git.
 - [A network for thought](./why/network-for-thought.md). There is no login. You exist in the network as a [key](./protocol/identity.md). Your node holds your own copy of what you care about, talks to other nodes directly, and can publish to the ordinary web when you want a domain.
 

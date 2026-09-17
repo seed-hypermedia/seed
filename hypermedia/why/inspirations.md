@@ -43,6 +43,6 @@ The team's own essay on this lineage, "We're not alone", is published on seed.hy
 
 - [Why Hypermedia](../why.md)
 - [The Hypermedia protocol](../protocol.md)
-- [Signed content, not server trust](./signed-content.md)
+- [Signed content](./signed-content.md)
 - [A network for thought](./network-for-thought.md)
 - [Permissions prior art](../history/permissions/prior-art.md)
