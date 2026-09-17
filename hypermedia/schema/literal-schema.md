@@ -1,22 +1,30 @@
 ---
 name: Literal Schema
-summary: The variant for a literal — a schema that accepts exactly one value, with a description of what that value means.
+summary: The variant for a literal, which is a schema that accepts exactly one value and can describe what that value means.
 schemaDefinition: ipfs://bafyreibe2fpmh33ylvqxu2wwvzk6pltjmk27xczrxmeoh6bgerkmouwesi
 ---
-**Literal**: a schema that accepts exactly one value, written as the value itself (`"Change"`, `1`, `true`, `null`) or as `{value, description}` when the value deserves an explanation. Only a string, integer, boolean, or null can be a literal. ([the schema language](./schema-language.md)) <!-- id:--m2-2zx -->
+**Literal**: a schema that accepts exactly one value. You write it as the value itself (`"Change"`, `1`, `true`, `null`), or as `{value, description}` when the value needs an explanation. Only a string, integer, boolean or null can be a literal. [The schema language](./schema-language.md) covers literals with the rest of the vocabulary. <!-- id:--m2-2zx -->
 
-A literal schema accepts exactly one value. Most of the time it is written as the value itself — `"draft"`, `1`, `true`, `null` — and needs no variant at all: a bare string, integer, boolean, or null is a schema. This variant is the long form, `{value, description}`, for a literal that deserves an explanation, such as one choice among several in a union. <!-- id:1xTsRaHa -->
+A literal schema accepts exactly one value. Most literals are written as the value itself, such as `"draft"`, `1`, `true` or `null`, and need no variant at all: a bare string, integer, boolean or null is a schema. This variant is the long form, `{value, description}`, for a literal that needs an explanation, such as one choice among several in a [union](./anyof.md). <!-- id:1xTsRaHa -->
 
-A fixed set of choices is a union of literals: `{"anyOf": ["draft", {"value": "published", "description": "Visible to everyone"}, "archived"]}`. The editors show such a union as a dropdown, with each description beside its option. A field pinned to one value — the `type` tag of every signed blob, the `key` of every RPC method — is simply that literal: `"type": {"value": "Change", "required": true}`. <!-- id:CvYPTOfS -->
+A fixed set of choices is a union of literals: `{"anyOf": ["draft", {"value": "published", "description": "Visible to everyone"}, "archived"]}`. The editors show such a union as a dropdown, with each description beside its option. A field pinned to one value is that literal. The `type` tag of every [signed blob](../protocol/blobs.md) and the `key` of every [Seed API method](../rpc.md) work this way: `"type": {"value": "Change", "required": true}`. <!-- id:CvYPTOfS -->
 
-A literal can only be a [value](../value.md): a string, an integer, a boolean, or null. A map literal would be indistinguishable from a schema, and a float compares badly. <!-- id:6Nz5fcWH -->
+A literal can only be a [value](../value.md): a string, an integer, a boolean or null. A map literal would look exactly like a schema, and floats do not compare reliably. <!-- id:6Nz5fcWH -->
 
 # Shape <!-- id:QwSwJe4s -->
 
 A **closed struct** with these fields: <!-- id:UzbQr_7l -->
-  - `value` _(required)_: [value](../value.md) — The one value this schema accepts: a string, integer, boolean, or null. <!-- id:m35Nau7E -->
-  - `description`: `string` — What this value means, for people and for the editors that offer it. <!-- id:Mg4EK18j -->
+  - `value` _(required)_: [value](../value.md). The one value this schema accepts: a string, integer, boolean, or null. <!-- id:m35Nau7E -->
+  - `description`: `string`. What this value means, for people and for the editors that offer it. <!-- id:Mg4EK18j -->
 
 # Depends on <!-- id:hLYzugBc -->
 
 - [value](../value.md) <!-- id:zhwCgPs9 -->
+
+# See also
+
+- [Union schema](./anyof.md): a fixed set of choices is a union of literals.
+- [Scalar schema](./scalar-schema.md): a scalar kind with constraints, where a literal pins one value.
+- [Kind](./kind.md): the value types a literal can come from.
+- [The schema language](./schema-language.md): the full vocabulary.
+- [Blob](../blob.md): every signed blob pins its `type` tag with a literal.
