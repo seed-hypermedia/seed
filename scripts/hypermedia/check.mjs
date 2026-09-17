@@ -17,6 +17,7 @@
 //   6. conformance   a page's own attributes satisfy the schema its `attributesSchema` names
 //   7. bindings      `attributesSchema` / `childAttributesSchema` / `schemaDefinition` resolve
 //   8. frontmatter   every page has a name and a whole one-sentence summary
+//   9. tables        every table row has as many cells as its header (a raw `|` inside inline code splits a row)
 
 import {execFileSync} from 'node:child_process'
 import {existsSync, readdirSync, readFileSync} from 'node:fs'
@@ -211,6 +212,33 @@ section('Every page has a name and a whole summary')
   if (!bad) ok(`${pages.length} pages have a name and a whole summary`)
 }
 
+
+
+// 9. Tables ──────────────────────────────────────────────────────────────────
+// Markdown splits a table row on every `|`, even inside inline code, and the Seed app then round-trips the
+// extra cells as extra columns. Write `\|` or avoid the pipe.
+section('Every table row matches its header')
+{
+  let bad = 0
+  const cellCount = (line) => line.replace(/<!--.*?-->/g, '').trim().split(/(?<!\\)\|/).length - 2
+  for (const page of pages) {
+    const lines = readFileSync(resolve(HM_DIR, page.file), 'utf8').split('\n')
+    let inCode = false
+    for (let i = 1; i < lines.length; i++) {
+      if (lines[i].startsWith('```')) inCode = !inCode
+      if (inCode || !/^\|\s*:?-{3}/.test(lines[i])) continue
+      const header = cellCount(lines[i - 1])
+      for (let j = i + 1; j < lines.length && lines[j].trim().startsWith('|'); j++) {
+        const cells = cellCount(lines[j])
+        if (cells !== header) {
+          fail(page.file, `line ${j + 1}: table row has ${cells} cells, header has ${header} (escape a | inside code as \\|)`)
+          bad++
+        }
+      }
+    }
+  }
+  if (!bad) ok('every table row matches its header')
+}
 
 if (failures.length) {
   console.error(`\nFAILED: ${failures.length} problem(s) in hypermedia/`)
