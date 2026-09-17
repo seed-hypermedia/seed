@@ -1,6 +1,6 @@
 ---
 name: Schema
-summary: "The meta-schema: a discriminated union of the shapes a schema can take, and a valid instance of itself — how to browse, author and validate schemas in the Seed app, plus the full reference documentation."
+summary: The meta-schema, the union of every shape a schema can take and a valid instance of itself, with a guide to browsing, authoring and checking schemas in the Seed app and an index of the reference pages.
 schemaDefinition: ipfs://bafyreiblucqpfoylug6ex3anrhm66lvep4uyjd4ukh2d4iqolfeucc3gre
 ---
 **Schema** — a value of kind `map` that constrains other values, written with the twelve-key vocabulary — or a bare literal (`"draft"`, `1`, `true`, `null`) that accepts exactly one value. Every schema is itself typed by the meta-schema, and is one of the meta-schema's variants. <!-- id:OzcV9e2b -->
@@ -15,13 +15,13 @@ This page is a practical guide to _using_ Hypermedia Schemas inside the Seed app
 
 # Start here <!-- id:jYC5B4_d -->
 
-New to Hypermedia Schemas? These four pages explain the system from the top down before the reference chapters go deep: <!-- id:XwK2BBFL -->
+New to Hypermedia Schemas? These pages explain the system from the top down before the reference chapters go deep: <!-- id:XwK2BBFL -->
   - [Hypermedia Schemas in one page](./schema/quick-reference.md) — the condensed reference: the model, the library by link, the three document-typing keys, and the exact CLI commands, SDK calls, and agent verbs that read, write, and check them. <!-- id:tk4m-_Cj -->
   - [Why Hypermedia Schemas](./schema/why.md) — the problem it solves, what it makes possible, and what it deliberately is not. <!-- id:ASDj0A2q -->
   - [How Hypermedia Schemas work](./schema/how-it-works.md) — the whole pipeline, from a schema file to a signed blob, a browsable document, a resolved reference, a generated type, and a typed API call. <!-- id:JnOo7Tmo -->
   - [Typed documents](./schema/typed-documents.md) — how a document declares what it is with `attributesSchema`, `childAttributesSchema`, and `schemaDefinition`, and what the editor does about it. <!-- id:ejnPERZF -->
   - [The World Builder](./schema/world-builder.md) — a worked demo: scaffold an ontology of types that reference each other, with date pickers, title pills, and linked objects in every page. <!-- id:JKC7fUPx -->
-  - [The typed API](./rpc.md) — every read method of the Seed API as a published schema, and the console generated from them. <!-- id:gnB4WgGS -->
+  - [Seed API schemas](./rpc.md) — every read method of the Seed API as a published schema, and the console generated from them. <!-- id:gnB4WgGS -->
   - [User stories](./schema/user-stories.md) — what a person should be able to do with all of this through the app, the CLI, and an agent, step by step, and where each surface stands. <!-- id:xzhJgjsb -->
 
 # In one minute <!-- id:sPmTq8Rq -->
@@ -33,15 +33,15 @@ New to Hypermedia Schemas? These four pages explain the system from the top down
 
 # Using Hypermedia Schemas in the Seed app <!-- id:L_DgXvRt -->
 
-The schema features live behind **Developer Mode** (Settings → Developers on desktop; on by default on web). Once enabled, every document's options menu gains the building-block entries below. <!-- id:5Fs6bCbF -->
+Typed documents need no setting: any document's **Attributes** tab shows its schema bindings. The raw building blocks, **New Blob** and **New Schema**, live behind **Developer Mode** (Settings → Advanced on desktop; on by default on the web). Once enabled, a document's options menu gains them. <!-- id:5Fs6bCbF -->
 
 ## Browse the schemas <!-- id:aRoEaieX -->
 
-Every schema is a page of this site (start at [the meta-schema](./schema.md)), and in the app any schema blob opens in the schema browser at `/hm/schema/<cid>`. For the whole library on one local site, `node scripts/hypermedia/tour.mjs` serves the tour, a browsable view of the whole type system: <!-- id:vbG_WGq1 -->
-  - A catalog of every schema, grouped into the meta-schema, primitives, examples, and the Hypermedia network's real blob schemas. <!-- id:Ic9Qwwbd -->
+Every schema is a page of this site; start at [the meta-schema](./schema.md). In the Seed app, a document that defines a schema shows it above its body in the schema browser, and a schema blob with no defining document opens on its own at `/hm/schema/<cid>`: <!-- id:vbG_WGq1 -->
+  - The library covers the meta-schema, primitives, [examples](./example.md), the Hypermedia network's real blob schemas, and the [Seed API schemas](./rpc.md). <!-- id:Ic9Qwwbd -->
   - Each schema renders as a page: its fields (with kinds and required/optional), union variants, extension (inherited vs added fields), generic parameters, its published `hm://` URL and CID, and its source `dag-json`. <!-- id:K_Hww_2j -->
   - **Every reference is a link.** Types are documents: click a field's type, a dependency, or an `hm://` value in the source to navigate to that schema. Each page also lists what it _depends on_ and what _depends on it_. <!-- id:U8TGynZc -->
-  - Under each schema is a **live editor** — build a value of that schema (or, on the meta-schema, build a _schema_) and watch it validate on every keystroke, by the same engine as the reference validator. <!-- id:Lvsl4-lc -->
+  - A type's page offers **New Document** and **New Collection**, and its options menu adds **Extend Schema**, **New Raw Value** and **Inspect Schema**. Under an `rpc/<method>` schema, a live call panel runs that method against the app's API. <!-- id:Lvsl4-lc -->
 
 ## Create a schema <!-- id:pGXQjMrq -->
 
@@ -49,15 +49,15 @@ Choose **New Schema** from the options menu. This opens the editor pointed at th
 
 ## Create typed data <!-- id:X0q30aDs -->
 
-Choose **New Blob** for a blank DAG-CBOR object, or **New Instance** (from a schema's page in the inspector) to start a value pre-seeded to match a schema. The editor is _schema-respecting_: it suggests the schema's fields, offers dropdowns for unions of literals and pickers for union variants, renders `link` and `bytes` with the right controls, and flags anything that doesn't conform — without blocking you. <!-- id:o1oySfG7 -->
+Choose **New Blob** for a blank DAG-CBOR object, **New Raw Value** on a type's page, or **New Instance of this Schema** from a schema blob in the inspector, to start a value pre-seeded to match a schema. The editor is _schema-respecting_: it suggests the schema's fields, offers dropdowns for unions of literals and pickers for union variants, renders `link` and `bytes` with the right controls, and flags anything that doesn't conform — without blocking you. <!-- id:o1oySfG7 -->
 
 ## Type a document's metadata with a schema <!-- id:94quIzFe -->
 
-In a document's **Attributes** editor, attach a schema as a field: click the schema-field button (or type a schema's `ipfs://…` URL as the field's name). The field then becomes schema-driven — dropdowns for literal unions, search-assisted inputs for `hm://` references, and advisory warnings when a value doesn't match. <!-- id:d5xNGHyZ -->
+A document names the type of its own attributes with `attributesSchema`, and a folder names the type of its children's attributes with `childAttributesSchema`. Both are bindings in the document's **Attributes** tab, and the tab ends with a **Schema definition** section where a document defines a schema of its own. Once a type applies, the tab becomes schema-driven: the type's required fields show as fixed rows, optional ones as chips, dropdowns for literal unions, date pickers, search-assisted inputs for `hm://` references, and advisory warnings when a value doesn't match. [Typed documents](./schema/typed-documents.md) explains the rules. <!-- id:d5xNGHyZ -->
 
 ## Inspect and validate <!-- id:bPbybkKJ -->
 
-Open any IPFS blob in the **inspector**. It recognizes the six signed Hypermedia blob types (a badge naming the type: Change, Comment, …), detects when a blob _is_ a schema (offering **New Instance**), and — when a blob carries an attached schema — fetches it and shows **✓ matches schema** or a count of advisory warnings. From there you can **Edit** a DAG-CBOR blob or open its schema. <!-- id:Z9K5k3Hw -->
+Open any IPFS blob in the **inspector**. It detects when a blob _is_ a schema and offers **New Instance of this Schema**. When a DAG-CBOR blob links a schema, the inspector fetches it and validates the value advisorily. From there you can edit the blob as fields or as raw dag-json, and attach or change its schema. <!-- id:Z9K5k3Hw -->
 
 # Schemas are hypermedia documents <!-- id:2ksHZHeX -->
 
@@ -77,7 +77,7 @@ The concepts, in reading order: <!-- id:MLxtm7My -->
 
 # Under the hood <!-- id:IbNZWutg -->
 
-The library ships a dependency-free reference validator that proves the meta-schema describes itself, validates every schema against it, and confirms the union _rejects_ malformed schemas; a deterministic publisher that hashes each schema to its DAG-CBOR CID; a TypeScript generator that turns every schema into a TS type (maps become interfaces, enums become literal unions, extension becomes intersection, and `Change<Block>` becomes a real TS generic); and a schema explorer that renders every schema as a page. That same validator is ported into the Seed app, so the in-app tour and editors can never disagree with the reference oracle. <!-- id:-VNyXPT9 -->
+The library ships a dependency-free reference validator that proves the meta-schema describes itself, validates every schema against it, and confirms the union _rejects_ malformed schemas; a deterministic publisher that hashes each schema to its DAG-CBOR CID; a TypeScript generator that turns every schema into a TS type (maps become interfaces, enums become literal unions, extension becomes intersection, and `Change<Block>` becomes a real TS generic); and a schema explorer that renders every schema as a page. That same validator is ported into the Seed app, so the in-app schema browser and editors can never disagree with the reference oracle. <!-- id:-VNyXPT9 -->
 
 # Shape <!-- id:4QWuviLU -->
 

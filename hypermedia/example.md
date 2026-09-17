@@ -1,66 +1,87 @@
 ---
 name: Examples
-summary: A catalog of every example schema — structs, literals, generics, unions, recursion, extension, and live instances.
+summary: A catalog of all 37 example schemas and instances in the Hypermedia Schemas library, grouped by the feature each one shows.
 ---
 # Examples <!-- id:HKSIPG2Z -->
 
-Every example here is a schema built _with_ Hypermedia Schemas, published beside its page as `example/<name>` (local files are `example/<name>.schema.json`). Each one demonstrates a specific feature, links to others, and is checked by `validate.mjs` — validated as a well-formed schema, plus positive and negative **data** cases. <!-- id:eYTB9M9t -->
+Every example here is built with Hypermedia Schemas and published as its own page under `example/`, with the schema beside it as `example/<name>.schema.json`. Each one demonstrates a specific feature and links to the types it uses. The groups follow [Hypermedia Schemas in one page](./schema/quick-reference.md). Thirty-two are schemas, and five are instances: documents whose attributes are the data. <!-- id:-wxYRM0Q -->
 
-## Structs & primitives <!-- id:oGPlvmvN -->
+## Structs <!-- id:oGPlvmvN -->
 
-- `example/address` — a closed struct of three strings. <!-- id:Nacs_YWm -->
-- `example/geo` — `float` lat/lng + `integer` altitude. <!-- id:g8yBWfUc -->
-- `example/person` — strings, an `integer`, a `boolean`, an [include](./schema/references.md) of an address, and a list. <!-- id:nVLVzwuR -->
-- `example/blob` — a `bytes` payload with a mime string and size. <!-- id:C-1sn3aB -->
+A struct is a closed map with named fields, each marked required or optional. <!-- id:KEhxl7Mb -->
+  - [address](./example/address.md) is three strings, `street` and `city` required and `postalCode` optional. <!-- id:Nacs_YWm -->
+  - [geo](./example/geo.md) is `float` latitude and longitude with an optional `integer` altitude. <!-- id:g8yBWfUc -->
+  - [person](./example/person.md) has a required `name`, an `integer` age, a `boolean` flag, a home that [includes](./schema/references.md) address, and a list of nicknames. <!-- id:nVLVzwuR -->
+  - [employee](./example/employee.md) [extends](./schema/extension.md) person with a required `employeeId` and a `department`. <!-- id:ZnIPWts0 -->
+  - [admin](./example/admin.md) extends employee with a map of `boolean` permission flags, a two-level chain from admin to employee to person. <!-- id:fQ7YGect -->
+  - [stats](./example/stats.md) holds three integers bounded from 1 to 10, a literal-union alignment, and a list of traits. <!-- id:xIoq_9tG -->
+  - [constrained](./example/constrained.md) shows value constraints: a username with `minLength`, `maxLength` and `pattern`, a score between 0 and 100, and a list of one to three tags. <!-- id:PYfnvrw0 -->
+  - [blob](./example/blob.md) is a `bytes` payload with a required mime string and an optional size. <!-- id:C-1sn3aB -->
+  - [article](./example/article.md) pulls the others together: a status union, an author `Link<person>`, tags, a `bytes` body, a word count, a cover `Link<blob>`, a list of comment links, and open string metadata. <!-- id:iZHzPdc_ -->
 
-## Literals <!-- id:eDkgeHDg -->
+## Maps and lists <!-- id:Litrltyz -->
 
-- `example/status` — a union of three literals, `draft | published | archived`; the schema is the choices themselves. <!-- id:25xmLnuT -->
+A list constrains its `items`; an open map constrains its `values`. See [the schema language](./schema/schema-language.md). <!-- id:RJooBqNV -->
+  - [counts](./example/counts.md) is `Map<Integer>`, the worked example. <!-- id:B35K3M5Y -->
+  - [tags](./example/tags.md) is `List<String>`. <!-- id:ADxHncd4 -->
+  - [matrix](./example/matrix.md) is `List<List<Integer>>`, a nested list. <!-- id:ZFp9DXan -->
+  - [metadata](./example/metadata.md) is `Map<String>`, an open map of strings. <!-- id:37dvuu1i -->
+  - [registry](./example/registry.md) is `Map<Link<person>>`, a map whose values are typed links. <!-- id:pCrPxAmI -->
+  - [tree](./example/tree.md) is a node with an integer value and a list of links to child trees. <!-- id:XQAu127V -->
+  - [json](./example/json.md) is the classic recursive union: a JSON value is null, a boolean, an integer, a float, a string, a list of JSON values, or a map of JSON values. <!-- id:EUKbD7wt -->
 
-## Generics — list & map ([schema language](./schema/schema-language.md)) <!-- id:Litrltyz -->
+## Unions and literals <!-- id:TRiT5pPB -->
 
-- `example/tags` — `List<String>`. <!-- id:ADxHncd4 -->
-- `example/matrix` — `List<List<Integer>>` (nested). <!-- id:ZFp9DXan -->
-- `example/metadata` — `Map<String>` (open map). <!-- id:37dvuu1i -->
-- `example/registry` — `Map<Link<Person>>`. <!-- id:pCrPxAmI -->
-- `example/counts` — `Map<Integer>` (the worked example). <!-- id:B35K3M5Y -->
+A union accepts a value that matches any one of its variants. A bare literal accepts exactly one value, so a union of literals is a fixed set of choices. <!-- id:BIvxHvFy -->
+  - [status](./example/status.md) is the union of three literals, `draft`, `published` and `archived`. <!-- id:25xmLnuT -->
+  - [value](./example/value.md) is `anyOf` string, integer, boolean or null. <!-- id:Ml4Hpn53 -->
+  - [entry](./example/entry.md) is a filesystem entry: a folder or a file. <!-- id:SMzNJ2fD -->
 
-## Unions ([schema language](./schema/schema-language.md)) <!-- id:TRiT5pPB -->
+## Recursion <!-- id:ngPnGEkV -->
 
-- `example/value` — `anyOf` string / integer / boolean / null. <!-- id:Ml4Hpn53 -->
-- `example/entry` — a filesystem entry: a folder **or** a file. <!-- id:SMzNJ2fD -->
-- `example/json` — the classic **recursive union**: a JSON value is null, bool, number, string, `List<json>`, or `Map<json>`. It references _itself_. <!-- id:EUKbD7wt -->
+These are only possible because schemas reference each other by `hm://` name rather than by content hash. [References](./schema/references.md) and [the fixpoint problem](./schema/fixpoint-problem.md) explain why. <!-- id:yZkCj7Y4 -->
+  - [document](./example/document.md) refers to itself: `previous` links to another document. <!-- id:ymvJqId7 -->
+  - [comment](./example/comment.md) is a thread, because a comment's `replies` link to comments. <!-- id:aojXrSvY -->
+  - [folder](./example/folder.md) and [file](./example/file.md) are mutually recursive: a folder lists files and subfolders, and a file links back to its parent folder. <!-- id:2ekiJzl0 -->
 
-## Recursion ([references](./schema/references.md)) <!-- id:ngPnGEkV -->
+## A custom block and a custom Change <!-- id:_Zyt3Gct -->
 
-Only possible because references are **names**, not content hashes: <!-- id:yZkCj7Y4 -->
-  - `example/document` — self-reference (`previous` → another document). <!-- id:ymvJqId7 -->
-  - `example/comment` — a thread: a comment's `replies` are comments. <!-- id:aojXrSvY -->
-  - `example/tree` — a node with child nodes. <!-- id:XQAu127V -->
-  - `example/folder` ↔ `example/file` — **mutual** recursion; click folder → file → folder in a circle. <!-- id:2ekiJzl0 -->
+These show how an application adds its own block type and constrains the changes it accepts. <!-- id:Z-Hy4tVq -->
+  - [poll-block](./example/poll-block.md) extends [block/base](./block/base.md) with the type literal `Poll`, a required question, a required list of options, and attributes such as `multiple`. <!-- id:pMVIhymw -->
+  - [app-block](./example/app-block.md) is the union of the [core blocks](./block/core.md) and poll-block: every block this application understands. <!-- id:Rs7UzOC5 -->
+  - [myapp-change](./example/myapp-change.md) instantiates the generic [change](./change.md) with `Block` set to app-block, so a change carrying an unknown block type is rejected deep inside its ops. <!-- id:2H2Gp4Tg -->
 
-## Extension — subtyping ([schema language](./schema/schema-language.md)) <!-- id:_Zyt3Gct -->
+## Attributes schemas for typed documents <!-- id:5sNzM3wJ -->
 
-- `example/employee` — extends `example/person` with `employeeId` + `department`. <!-- id:ZnIPWts0 -->
-- `example/admin` — extends `example/employee` (a two-level chain admin → employee → person) with `permissions`. <!-- id:fQ7YGect -->
+An attributes schema is a plain struct of the fields a document's metadata carries. A document names it with `attributesSchema`, and a folder names it for its children with `childAttributesSchema`. See [typed documents](./schema/typed-documents.md). <!-- id:Rj_hZP7M -->
+  - [person-doc](./example/person-doc.md) is a required `surname` and an optional `givenName`. <!-- id:0kQ0dPm5 -->
+  - [world-doc](./example/world-doc.md) is a genre chosen from five literals, an epoch date and a tagline. It types the page at the root of [the World Builder](./schema/world-builder.md). <!-- id:-HbeKOjb -->
+  - [character-doc](./example/character-doc.md) has birth and death dates, a role, `hm://` links to a home place and a faction, and `ipfs://` links to a portrait, stats and notes. <!-- id:mUSezYPg -->
+  - [place-doc](./example/place-doc.md) has a kind, a founding date, links to a containing region and a ruling faction, and `ipfs://` links to geo coordinates and a map. <!-- id:YFU2iKYe -->
+  - [faction-doc](./example/faction-doc.md) has founding and dissolution dates, links to a seat and a leader, and an `ipfs://` link to a banner. <!-- id:c2vbnh8t -->
+  - [event-doc](./example/event-doc.md) has start and end dates, links to a location, a protagonist and a faction, and an outcome. <!-- id:9dMo5tyY -->
 
-## Composite <!-- id:5sNzM3wJ -->
+## Instances <!-- id:xxv3d5ho -->
 
-- `example/article` — the centerpiece, pulling it together: a `status` union of literals, an author `Link<Person>`, `tags` (`List<String>`), a `bytes` body, `wordCount`, a cover `Link<Blob>`, a list of comment links, and open `Map<String>` metadata. Deeply linked to `example/status`, `example/tags`, `example/person`, `example/blob`, `example/comment`, and `example/metadata`. <!-- id:iZHzPdc_ -->
+An instance is an ordinary typed document: its own attributes are the data, and its `attributesSchema` names the type they follow. Open one in the Seed app and its Attributes tab checks the data against the type. <!-- id:QS_X-Qc7 -->
+  - [alice](./example/alice.md) and [carol](./example/carol.md) are people, instances of person. <!-- id:s7bGoabh -->
+  - [bob](./example/bob.md) and [dave](./example/dave.md) are employees, instances of employee. <!-- id:i37qO0Qw -->
+  - [root](./example/root.md) is an admin, an instance of admin, which is itself two levels of extension. <!-- id:9HYSH6eG -->
 
-## Instances — actual data <!-- id:xxv3d5ho -->
+Every schema and instance page lists what it depends on and what depends on it. From person you can reach its dependents, employee plus alice and carol. From bob you can walk up to employee and person. <!-- id:3m3eZzyL -->
 
-An **instance** is an ordinary typed document: its own attributes _are_ the data, and its `attributesSchema` names the type they follow. Each is validated live against its type, and each page shows **Dependencies** (its type) and **Dependents**. They form a dependency chain — `bob` → `employee` → `person`: <!-- id:QS_X-Qc7 -->
-  - `example/alice`, `example/carol` — people (instances of `example/person`). <!-- id:s7bGoabh -->
-  - `example/bob`, `example/dave` — employees (instances of `example/employee`). <!-- id:i37qO0Qw -->
-  - `example/root` — an admin (instance of `example/admin`, which is itself two levels of extension). <!-- id:9HYSH6eG -->
+# Checking the examples <!-- id:jzou-HMh -->
 
-Every schema and instance page shows what it **depends on** and what **depends on it** — so from `example/person` you can see its dependents (`example/employee`, plus `alice` and `carol`), and from `bob` you can walk up to `employee` and `person`. <!-- id:3m3eZzyL -->
+From a checkout of the Seed repository, the reference validator checks every example schema against the meta-schema and runs accepting and rejecting data cases for many of them. <!-- id:yOWgEY01 -->
 
-\--- <!-- id:_779N9tY -->
+```sh <!-- id:mwZwb8nz -->
+node scripts/hypermedia/validate.mjs
+```
 
-To validate any of these against your own data: <!-- id:yOWgEY01 -->
+To validate your own data file against one of these schemas, name the schema and the file. <!-- id:JNwDHyeL -->
 
 ```sh <!-- id:wqTx5NHe -->
-node validate.mjs example/article.json my-article.json
+node scripts/hypermedia/validate.mjs example/article my-article.json
 ```
+
+The [Seed CLI](./build/cli.md) checks data against a published type too, with `seed-cli blob validate -f value.json --schema <type URL>`. <!-- id:hE1GrTtd -->
