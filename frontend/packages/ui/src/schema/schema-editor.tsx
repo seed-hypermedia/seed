@@ -900,10 +900,10 @@ function TargetTypeInput({
           type="button"
           aria-label={ariaLabel}
           onClick={() => setEditing(true)}
-          className="border-border text-muted-foreground hover:bg-muted inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border px-1.5 font-mono text-xs"
+          className="border-border text-muted-foreground hover:bg-muted inline-flex h-6 max-w-full min-w-0 cursor-pointer items-center gap-1 rounded-md border px-1.5 font-mono text-xs"
         >
-          <ArrowRight className="size-3" />
-          {refToName(value)}
+          <ArrowRight className="size-3 shrink-0" />
+          <span className="truncate">{refToName(value)}</span>
         </button>
       </Tooltip>
     )
