@@ -3,7 +3,7 @@ name: Document Metadata
 summary: "The attributes of a document, merged from its Changes: the keys Seed understands, the three schema-binding keys, and any custom keys a typed document adds."
 schemaDefinition: ipfs://bafyreicjyjyo7aqw5wzptnny6htrpa2ue7ghqvtlzlfd37aaosjo6fgqji
 ---
-A document's metadata is the map of attributes its Changes set with [SetAttributes](./change/op/set-attributes.md), merged last-writer-wins per key path. The map is open: beside the keys listed here a document may carry any custom attribute, and a [typed document](./schema/typed-documents.md) binds a schema that describes those custom keys. Values are the four scalar [values](./value.md) or nested maps of them.
+A document's **metadata** is the map of attributes its [Changes](./change.md) set with [SetAttributes](./change/op/set-attributes.md), merged last-writer-wins per key path. The map is open. Beside the keys listed here a [document](./protocol/documents.md) may carry any custom attribute, and a [typed document](./schema/typed-documents.md) binds a schema that describes those custom keys. Values are the four scalar [values](./value.md) or nested maps of them.
 
 # The keys Seed understands
 
@@ -30,7 +30,7 @@ A document's metadata is the map of attributes its Changes set with [SetAttribut
 | `importCategories` | string | comma-separated categories kept from an external import such as WordPress |
 | `importTags` | string | comma-separated tags kept from the same import |
 
-Three keys bind a document to Hypermedia Schemas; [typed documents](./schema/typed-documents.md) explains them in full.
+Three keys bind a document to [Hypermedia Schemas](./schema.md). [Typed documents](./schema/typed-documents.md) explains them in full.
 
 | key | on which document | meaning |
 | --- | --- | --- |
@@ -38,11 +38,11 @@ Three keys bind a document to Hypermedia Schemas; [typed documents](./schema/typ
 | `attributesSchema` | an instance | the attributes schema **this** document conforms to: the type page's `hm://` URL or `ipfs://<cid>` |
 | `childAttributesSchema` | a folder | the attributes schema this document's **children** conform to |
 
-Older documents may still carry `title` (now `name`), and old profiles `alias` and `description` (now `summary`); readers map them. The daemon also keeps internal keys prefixed `$db.` (the redirect, visibility and derived fields) that it strips from the metadata it serves. A site's navigation menu is not metadata: it lives in a detached block, see [navigation item](./metadata/navigation-item.md).
+Older documents may still carry `title` (now `name`), and old profiles `alias` and `description` (now `summary`). Readers map them. The daemon also keeps internal keys prefixed `$db.` (the redirect, visibility and derived fields) and strips them from the metadata it serves. A site's navigation menu lives in a detached block, outside the metadata; see [navigation item](./metadata/navigation-item.md).
 
 # Working with metadata
 
-In the Seed app the Attributes tab edits every key, with the required fields of a bound schema pinned at the top. The CLI sets keys with `document create --metadata` and the frontmatter of a markdown file, which lists every key in a fixed order. The SDK's `HMDocumentMetadataSchema` parses the known keys and passes the rest through. The Seed API's `ResourceMetadata` request returns only the metadata, and `QueryDocuments` filters documents by any key; agents read `hm://…/:attributes` and write `options.metadata`. See [the query grammar](./build/query-grammar.md).
+In the [Seed app](./apps/desktop.md) the Attributes tab edits every key, with the required fields of a bound schema pinned at the top. The [CLI](./build/cli.md) sets keys with `document create --metadata` and with the frontmatter of a markdown file, which lists every key in a fixed order. The [SDK](./build/sdk.md)'s `HMDocumentMetadataSchema` parses the known keys and passes the rest through. The [Seed API](./build/web-api.md)'s `ResourceMetadata` request returns only the metadata, and `QueryDocuments` filters documents by any key. Agents [read](./agent/read.md) `hm://…/:attributes` and [write](./agent/write.md) `options.metadata`. See [the query grammar](./build/query-grammar.md).
 
 # Shape <!-- id:-ix8zCqi -->
 
@@ -67,7 +67,7 @@ A map with these fields: <!-- id:L2SJyGsk -->
   - `showActivity`: [boolean](./boolean.md) <!-- id:Rfm2qV8U -->
   - `contentWidth`: one of `"S"` | `"M"` | `"L"` <!-- id:8si9AhAF -->
   - `childrenType`: [string](./string.md) <!-- id:-HIIWHMr -->
-  - `theme`: struct { `headerLayout` — one of `"Center"` | `""` } <!-- id:Gz2wxX6C -->
+  - `theme`: struct { `headerLayout`: one of `"Center"` | `""` } <!-- id:Gz2wxX6C -->
   - `importCategories`: [string](./string.md)
   - `importTags`: [string](./string.md)
 
@@ -82,3 +82,12 @@ Any other key is allowed; its value is a [value](./value.md).
 - [hm-url](./hm-url.md)
 - [ipfs-url](./ipfs-url.md)
 - [schema](./schema.md)
+
+# See also
+
+- [document](./document.md): the read model metadata belongs to.
+- [SetAttributes](./change/op/set-attributes.md): the op that writes metadata.
+- [key-value](./key-value.md): one key path and value.
+- [Typed documents](./schema/typed-documents.md): the schema-binding keys.
+- [navigation item](./metadata/navigation-item.md): the site menu.
+- [ResourceMetadata](./rpc/resource-metadata.md): the API request that returns metadata.

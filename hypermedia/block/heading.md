@@ -3,7 +3,7 @@ name: Heading Block
 summary: "A section heading whose children are the section; the heading level comes from nesting, not from an attribute."
 schemaDefinition: ipfs://bafyreici55nezeopyatqjmcf3tbtlox6hbegfm2cpbzaa5vj7y7uxt4hzq
 ---
-A heading with `text` and [annotations](./annotation.md). There is no level attribute: a heading's depth is its nesting depth, and the blocks under it are its section, laid out by `childrenType` and `columnCount`. In the markdown dialect a heading's children sit at its indentation until the next heading of the same level.
+A **heading block** starts a section. It has `text` and [annotations](./annotation.md). There is no level attribute: a heading's depth is its nesting depth. The blocks under it are its section, laid out by `childrenType` and `columnCount` (see [children type](./children-type.md)). In the markdown dialect a heading's children sit at its indentation until the next heading of the same level.
 
 # Shape <!-- id:lCAihj5P -->
 
@@ -21,3 +21,10 @@ A heading with `text` and [annotations](./annotation.md). There is no level attr
 - [any](../any.md) <!-- id:jbfVLj7H -->
 - [float](../float.md) <!-- id:uyaQRe-W -->
 - [string](../string.md) <!-- id:sjgu9T7j -->
+
+# See also
+
+- [Blocks](../protocol/blocks.md): nesting and sections.
+- [block/node](./node.md): a block and its children.
+- [block/paragraph](./paragraph.md): the default text block.
+- [block/annotation](./annotation.md): inline formatting.
