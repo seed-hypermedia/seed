@@ -155,47 +155,33 @@ function argValue(args: string[], flag: string): string | undefined {
 }
 
 /**
- * The current path of a page that used to live at `path`, from the two alias tables beside the folder:
- * `schemas.aliases.json` (schema names before the reorganization) and `pages.aliases.json` (moved docs
- * pages). Chains are followed, so an old alias of an old alias still lands on a live page.
+ * The current path of a schema page that used to live at `path`, from `schemas.aliases.json` (schema names
+ * before the reorganization). Chains are followed, so an old alias of an old alias still lands on a live page.
  */
-function loadAliasTable(): Record<string, string> {
-  const table: Record<string, string> = {}
-  for (const file of ['schemas.aliases.json', 'pages.aliases.json']) {
-    const full = resolve(SCHEMAS_DIR, file)
-    if (!existsSync(full)) continue
-    Object.assign(table, (JSON.parse(readFileSync(full, 'utf8')) as {aliases?: Record<string, string>}).aliases ?? {})
-  }
-  return table
-}
-
-/** The old paths that alias to `path` in this site, so the import can publish a move instead of a new document. */
-function loadMovedFrom(): (path: string) => string[] {
-  const aliasOf = loadPageAliases()
-  const reverse = new Map<string, string[]>()
-  for (const old of Object.keys(loadAliasTable())) {
-    const target = aliasOf('/' + old)
-    if (!target || target.startsWith('hm://')) continue
-    reverse.set(target, [...(reverse.get(target) ?? []), '/' + old])
-  }
-  return (path) => reverse.get(path) ?? []
-}
-
-function loadPageAliases(): (path: string) => string | null {
-  const table = loadAliasTable()
-  return (path) => {
-    let key = path.replace(/^\//, '')
+function loadSchemaAliases(): {aliasOf: (path: string) => string | null; movedFrom: (path: string) => string[]} {
+  const full = resolve(SCHEMAS_DIR, 'schemas.aliases.json')
+  const table: Record<string, string> = existsSync(full)
+    ? (JSON.parse(readFileSync(full, 'utf8')) as {aliases?: Record<string, string>}).aliases ?? {}
+    : {}
+  const aliasOf = (path: string) => {
+    const start = path.replace(/^\//, '')
+    let key = start
     for (let hops = 0; hops < 8 && table[key] !== undefined; hops++) key = table[key]!
-    if (key === path.replace(/^\//, '')) return null
-    return key.startsWith('hm://') ? key : '/' + key
+    return key === start ? null : '/' + key
   }
+  // The reverse: old paths that alias to a page, so the import can publish a move instead of a new document.
+  const reverse = new Map<string, string[]>()
+  for (const old of Object.keys(table)) {
+    const target = aliasOf('/' + old)
+    if (target) reverse.set(target, [...(reverse.get(target) ?? []), '/' + old])
+  }
+  return {aliasOf, movedFrom: (path) => reverse.get(path) ?? []}
 }
 
 /**
- * Retire the documents of the site whose file is gone from the folder. A page that moved (it has an entry in
- * `schemas.aliases.json` or `pages.aliases.json` pointing at a page that still exists, here or in another space) becomes a redirect, so
- * links and schema references to the old address keep working. A page with no alias is deleted. The home
- * document is never retired, and existing redirects are left alone.
+ * Retire the documents of the site whose file is gone from the folder. A schema page that was renamed (its old
+ * name maps to a live page in `schemas.aliases.json`) becomes a redirect, so schema references to the old name
+ * keep working. Any other page is deleted. The home document is never retired, and existing redirects are left alone.
  */
 async function retireStale(
   client: SeedClient,
@@ -209,7 +195,7 @@ async function retireStale(
       .map((file) => layout.pathForFile(file))
       .filter((p): p is string => p !== null),
   )
-  const aliasOf = loadPageAliases()
+  const {aliasOf} = loadSchemaAliases()
   const versions = await listSpaceVersions(client, account)
   // A page the import just moved is already a redirect (or will be, in a dry run).
   const stale = [...versions.keys()]
@@ -217,11 +203,7 @@ async function retireStale(
     .sort()
   for (const path of stale) {
     const target = aliasOf(path)
-    // A target is a live page of this site, or an hm:// URL of a page that moved to another space.
-    const external = target?.startsWith('hm://') ? target.slice('hm://'.length).split('/') : null
-    const redirectTo = external ? target : target !== null && published.has(target) ? target : null
-    const targetSpace = external ? external[0]! : account
-    const targetPath = external ? '/' + external.slice(1).join('/') : redirectTo
+    const redirectTo = target !== null && published.has(target) ? target : null
     console.log(redirectTo ? `  redirect ${path} -> ${redirectTo}` : `  retire  ${path}`)
     if (dryRun) continue
     const resource = await client.request('Resource', hmId(account, {path: path.replace(/^\//, '').split('/')}))
@@ -229,7 +211,7 @@ async function retireStale(
     const genesis = resource.document.genesis
     const ref = redirectTo
       ? await createRedirectRef(
-          {space: account, path, genesis, generation: Date.now(), targetSpace, targetPath: targetPath!},
+          {space: account, path, genesis, generation: Date.now(), targetSpace: account, targetPath: redirectTo},
           signer,
         )
       : await createTombstoneRef(
@@ -262,7 +244,7 @@ async function pushTo(client: SeedClient, signer: HMSigner, account: string, dry
     dir: SCHEMAS_DIR,
     layout,
     dryRun,
-    movedFromFor: loadMovedFrom(),
+    movedFromFor: loadSchemaAliases().movedFrom,
     log: (line) => console.log('  ' + line),
   })
   const movedFrom = new Set(result.moved.map((m) => m.split(' -> ')[0]!))
