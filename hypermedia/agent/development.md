@@ -1,177 +1,178 @@
 ---
-name: Development
-summary: This document tells future agents how to work on the Agents feature safely and how to keep this knowledgebase current without waiting for manual instructions.
 ---
-This document tells future agents how to work on the Agents feature safely and how to keep this knowledgebase current without waiting for manual instructions. <!-- id:K7JAYkEv -->
+\--- name: Development summary: How to work on the Seed Agents code safely: the commands, the code map with every entry point, the test map, the rules for changing the model-facing surface, and which page to update when. --- This page is for people and coding agents changing Seed Agents. It names where things are, how to run and validate them, and the conventions that keep the runtime coherent. Read the root `AGENTS.md`, then `agents/AGENTS.md` for the service (Bun only, never pnpm; `bun check && bun test` before every commit) and `frontend/AGENTS.md` for UI work. <!-- id:K7JAYkEv -->
 
-# Required instructions <!-- id:72a6F9hI -->
+# Commands <!-- id:72a6F9hI -->
 
-Read before editing: <!-- id:45rcP_oD -->
-  - root `AGENTS.md`; <!-- id:eqZf8hys -->
-  - `agents/AGENTS.md` for `agents/**`; <!-- id:miSwQdtC -->
-  - `frontend/AGENTS.md` for desktop/frontend changes. <!-- id:onifzqtd -->
+The whole stack in one mprocs TUI (Docker web backends, desktop, web, and the agents server, one pane per process; `q` stops everything): <!-- id:45rcP_oD -->
 
-# Commands <!-- id:T63k7HLv -->
-
-Full dev stack (docker web backends + desktop + web + agents server) in one mprocs TUI, one pane per process: <!-- id:TsG-jsNo -->
-
-```bash <!-- id:fGePDBa6 -->
+```bash <!-- id:kTpugFCl -->
 ./dev up
 ```
 
-The backends (SearXNG :8899, crawl4ai :11235) run inline as the `backends` pane via `agents/dev/web-backends/docker-compose.yml` and stop when you quit mprocs (`q`). Config: `mprocs.yaml` at the repo root. <!-- id:G78p9tqd -->
+The agents server alone: <!-- id:iBra6R5G -->
 
-Agents: <!-- id:rEJidivZ -->
-
-```bash <!-- id:z8LkjSrt -->
-direnv exec . bash -lc 'cd agents && bun check'
-direnv exec . bash -lc 'cd agents && bun test'
-direnv exec . bash -lc 'cd agents && bun check && bun test'
+```bash <!-- id:4pr04rmj -->
+direnv exec . bash -lc 'cd agents && bun src/main.ts'   # plain
+direnv exec . bash -lc 'cd agents && bun run dev'       # hot reload, dev web backends, subscription auth on
 ```
 
-Frontend: <!-- id:jyIYHjqe -->
+Validate the service: <!-- id:w21cku7O -->
 
-```bash <!-- id:lxj4ShFp -->
+```bash <!-- id:92q4r3gT -->
+direnv exec . bash -lc 'cd agents && bun check && bun test'   # typecheck + formatter, then the suite
+direnv exec . bash -lc 'cd agents && bun run test:build'      # the compiled binary boots
+direnv exec . bash -lc 'cd agents && bun run test:docker'     # the image boots
+direnv exec . bash -lc 'cd agents && bun run test:trigger'    # real daemon, mention trigger fires once
+direnv exec . bash -lc 'cd agents && bun run protocol:check'  # the protocol surface did not change silently
+```
+
+Validate the frontend: <!-- id:z1RLpVSN -->
+
+```bash <!-- id:J9Xm3IKX -->
 direnv exec . bash -lc 'pnpm typecheck'
 direnv exec . bash -lc 'pnpm test'
-direnv exec . bash -lc 'pnpm format:write'
+direnv exec . bash -lc 'pnpm format:check'
 ```
 
-Targeted desktop tests often useful for streaming markdown changes: <!-- id:ZKtcloJN -->
+Build the deployment image and run the desktop: <!-- id:LXwDSl2S -->
 
-```bash <!-- id:ibknzVW9 -->
-direnv exec . bash -lc 'pnpm --filter @shm/desktop test:unit src/__tests__/assistant-panel.test.tsx src/__tests__/markdown.test.tsx'
-```
-
-Desktop smoke launch: <!-- id:tMJ-iG75 -->
-
-```bash <!-- id:qZ4eroRS -->
+```bash <!-- id:L-JSfuz3 -->
+docker build -t seedhypermedia/agents:dev . -f ./agents/Dockerfile
 direnv exec . bash -lc './dev run-desktop'
 ```
 
-# Test map <!-- id:l1qGFiv- -->
+`pnpm audit` fails today on repository dependency advisories unrelated to this feature; report that honestly rather than claiming it passed. <!-- id:ny9jUwE2 -->
 
-Agents — the whole suite runs from `agents/` with `bun test`: <!-- id:I1toG_st -->
-  - `agents/src/api-service.test.ts` — the big one: actions, ownership, sessions, delegation, obligations, plans. <!-- id:6Mgrjc3y -->
-  - `agents/src/verbs.test.ts` — the five verbs: address dispatch, touch-expand, promotion, user-invoked verbs. <!-- id:3mdc_Y9h -->
-  - `agents/src/tool-documents.test.ts` — tool documents: CIDs, builtin materialization, lambda authoring validation. <!-- id:o3piFt7L -->
-  - `agents/src/runs.test.ts`, `agents/src/run-time.test.ts` — queue claiming, leases, sweeps, parks and wakes. <!-- id:rfRSsgr7 -->
-  - `agents/src/workflow-host.test.ts` — script engine: lint, journal replay, fuel and caps. <!-- id:LswE9nei -->
-  - `agents/src/activity-triggers.test.ts`, `agents/src/trigger-events.test.ts`, `agents/src/activity-trigger-race.test.ts`, `agents/src/schedule-triggers.test.ts` — trigger matching, firing idempotency, and the comment/citation sibling race. <!-- id:kpAyOzjy -->
-  - `agents/src/agent-memory.test.ts`, `agents/src/session-attachments.test.ts`, `agents/src/code-exec.test.ts`, `agents/src/web-tools.test.ts`, `agents/src/agent-tools-api.test.ts`. <!-- id:4vcGWyxX -->
-  - `agents/src/auth.test.ts`, `agents/src/sqlite.test.ts`, `agents/src/main.test.ts`, `agents/src/config.test.ts`, `agents/src/json-schema.test.ts`, `agents/src/poll-loop.test.ts`, `agents/src/provider-oauth.test.ts`. <!-- id:kGbbvqL6 -->
-  - `agents/src/e2e-replay.test.ts` — shells out to `e2e/run.ts`. **It currently skips**: the cassettes predate the verb collapse (`e2e/recordings/STALE.md`), so a green run here is not model-gate coverage. See `operations.md`. <!-- id:TaUFITTv -->
+# Local URLs <!-- id:T63k7HLv -->
 
-Desktop relevant areas: <!-- id:_QMM36jW -->
-  - `frontend/apps/desktop/src/__tests__/assistant-panel.test.tsx` <!-- id:pr04SwXm -->
-  - `frontend/apps/desktop/src/__tests__/markdown.test.tsx` <!-- id:aQncn1pL -->
-  - any future Agents page/hook tests should live near existing desktop tests. <!-- id:VfKAbx_z -->
+The dev shell sets `SEED_AGENTS_HTTP_PORT=3051` in `.env.vars`, so the dev server never shares a port with the 3050 default a packaged build uses. <!-- id:TsG-jsNo -->
 
-# Development conventions <!-- id:nszQ78y6 -->
+<!-- id:w8SE6S_q -->
+| what <!-- col:_1WRiXMp --> | dev URL <!-- col:TDo0vFXF --> <!-- id:QLFChrGi --> |
+| --- | --- |
+| server base | `http://localhost:3051` <!-- id:0JDepxKs --> |
+| health | `http://localhost:3051/agents/api/health` <!-- id:5IM7m_SR --> |
+| signed API | `POST http://localhost:3051/api/message` <!-- id:hhM3PRG8 --> |
+| WebSocket | `ws://localhost:3051/agents/ws` <!-- id:omAL0PAD --> |
+| latency snapshot | `http://localhost:3051/api/perf` <!-- id:zM2v1hz1 --> |
 
-- Normalize user/network input at API boundaries. <!-- id:QcZ8YChE -->
-- Keep internal APIs expecting normalized values. <!-- id:9Bb25FAA -->
-- Do not hold SQLite write transactions around model/provider/tool network calls. <!-- id:6NhFPljY -->
-- Do not log secrets, signed bodies, or full session/model content. <!-- id:nzF4ofuc -->
-- Update shared protocol types in `agents/protocol/src/index.ts`; do not recreate desktop/server protocol mirrors. <!-- id:IhqdJNoo -->
-- Keep provider responses redacted. <!-- id:hrx6ZOQK -->
-- Use broad tests that exercise real behavior. <!-- id:pTwBaeul -->
-- Prefer existing files over tiny one-off modules unless extraction improves ownership. <!-- id:midZUak8 -->
+# Code map <!-- id:l1qGFiv- -->
 
-# Adding API actions <!-- id:MrQG6Bgv -->
+The service, in `agents/`: <!-- id:I1toG_st -->
+  - `src/main.ts`: the Bun HTTP and WebSocket server, CORS, the webhook route, health and version, live event fan-out. <!-- id:6Mgrjc3y -->
+  - `src/api-service.ts`: the heart of the service: action dispatch, persistence operations, the Pi-backed model loop, the verb implementations, the Space index, trigger firing, subscription verification. <!-- id:3mdc_Y9h -->
+  - `src/auth.ts`: signed envelope verification, the five-minute timestamp window, capability-based delegation. <!-- id:o3piFt7L -->
+  - `src/cbor.ts`: DAG-CBOR request and response helpers and the protocol version header. <!-- id:rfRSsgr7 -->
+  - `src/config.ts`: every environment variable and CLI flag, with defaults. <!-- id:LswE9nei -->
+  - `src/sqlite.ts` and `src/sqlite-schema.sql`: open, schema gate, migrations; the canonical schema. <!-- id:kpAyOzjy -->
+  - `src/runs.ts`: durable run records and the dispatch queue: leases, fair-share claiming, retries, cancellation cascade, timer wakes. <!-- id:4vcGWyxX -->
+  - `src/run-events.ts`: waiting runs and what wakes them. <!-- id:kGbbvqL6 -->
+  - `src/workflow-host.ts`: the QuickJS script engine: lint, realm prelude, journaled effect pump, replay; `src/workflow-worker-host.ts` runs it in a worker behind a flag. <!-- id:TaUFITTv -->
+  - `src/tool-documents.ts`: tools as content-addressed documents: the lambda ABI, builtin materialization, the MCP projection, authoring validation, contract markdown. <!-- id:p-4s5Rp2 -->
+  - `src/mcp.ts`: remote MCP servers: connect, discover, proxy, the lazy per-run connection pool. <!-- id:xfcQtnXV -->
+  - `src/web-tools.ts`: self-hosted `web_search` and the tiered web reader behind `read https://…`. <!-- id:8YgK0pIj -->
+  - `src/agent-memory.ts`: the per-agent memory filesystem and the signed memory actions. <!-- id:T-vsI77Q -->
+  - `src/code-exec.ts`: sandboxed execution in microsandbox microVMs, boot-per-call and the warm pool. <!-- id:asTciXkg -->
+  - `src/activity-monitor.ts`, `src/activity-triggers.ts`, `src/schedule-monitor.ts`, `src/schedule-triggers.ts`: the trigger monitors and matching. <!-- id:UIBmluxQ -->
+  - `src/provider-oauth.ts`: the ChatGPT subscription sign-in flow. <!-- id:TqJfEvj- -->
+  - `src/json-schema.ts`: the bounded JSON Schema validator for typed results and authored contracts. <!-- id:4scILU9z -->
+  - `src/perf.ts`, `src/session-perf.ts`: the latency recorder behind `/api/perf`. <!-- id:66v3Od0T -->
+  - `src/protocol-compat.ts`, `src/protocol-surface.ts`: shims for older clients and the surface snapshot the CI gate diffs. <!-- id:jf1NH6Pm -->
+  - `protocol/src/index.ts`: the canonical protocol types for actions, responses, session events, and WebSocket events, published as the private package `@seed-hypermedia/agents-protocol`; `protocol/PROTOCOL.md` holds the versioning rules and changelog. <!-- id:wuXFGuu3 -->
+  - `protocol/src/tool-registry.ts`: the five verbs and the callable tools: model-facing descriptions, JSON schemas, render metadata. Every word of a description is prompt. <!-- id:m4xyW-wr -->
+  - `protocol/src/write-guides.ts`: the per-resource guides an agent reads at `~/tools/write/<resource>`. <!-- id:ljPi4l8J -->
+  - `protocol/src/delegation.ts`, `protocol/src/reasoning.ts`, `protocol/src/model-capabilities.ts`: thoroughness presets, the reasoning-level matrix, image-input support. <!-- id:sbhHJvWe -->
+  - `e2e/run.ts` and `e2e/live-gate.ts`: the record/replay model gate and the live gate against a real server and model. <!-- id:EDMyrsOj -->
 
-1. Update `agents/protocol/src/index.ts` request/response types. <!-- id:RS0y-zWC -->
-2. Update service dispatch in `Service.message()`. <!-- id:TACnz28O -->
-3. Implement action with validation and account ownership checks. <!-- id:bdGZN4X_ -->
-4. Add idempotency if client retries could duplicate side effects. <!-- id:oaOlwOvA -->
-5. Emit `ServiceEvent`s if live clients need updates. <!-- id:v1_cpG9V -->
-6. Use the shared protocol aliases from `agents-client.ts`; do not add manual mirror types. <!-- id:GMnMav_E -->
-7. Add desktop hook/UI if needed. <!-- id:Rtz_4d-X -->
-8. Add tests. <!-- id:Wd_d7z2O -->
-9. Update docs. <!-- id:-YJwAyO4 -->
+The shared UI, in `frontend/packages/ui/src/agents/`: `client.ts` signs and sends actions, `models.ts` holds the React Query hooks and signed subscriptions, `platform.ts` is the seam each app implements, and the pages and pieces are listed on the [desktop and web UI](./desktop-ui.md) page. The desktop's platform lives with `frontend/apps/desktop/src/pages/agents.tsx`; the web's in `frontend/apps/web/app/web-agents-platform.ts` and `web-assistant-host.tsx`. Routes are in `frontend/packages/shared/src/routes.ts`. <!-- id:_QMM36jW -->
 
-# Adding WebSocket events <!-- id:Yusrx60B -->
+Shared Hypermedia behaviour the service reuses from `@seed-hypermedia/client`: `resource-read.ts` (`resolveIdWithClient`, shared with the CLI), `hm-resolver.ts`, `blocks-to-markdown.ts` and `markdown-to-blocks.ts`, `explore-query.ts`, and the blob signing primitives (imported through the `@shm/shared/blobs` re-export). <!-- id:MF4Ylcua -->
 
-1. Update `AgentWSEvent` in `agents/protocol/src/index.ts`. <!-- id:68bp4RE3 -->
-2. Add/emit service event if business logic originates it. <!-- id:ABZN2ZuZ -->
-3. Map it in `main.ts` publish fanout. <!-- id:iKsv7l1o -->
-4. Handle it in `useAgentWebSocketSubscription()`. <!-- id:CROBrqV1 -->
-5. Add safe diagnostics if useful. <!-- id:EUHuuzzz -->
-6. Update `websocket-subscriptions.md`. <!-- id:_S0EUw3S -->
+# Test map <!-- id:nszQ78y6 -->
 
-# Adding database changes <!-- id:Hu97ZELv -->
+The whole service suite runs from `agents/` with `bun test`: <!-- id:QcZ8YChE -->
+  - `api-service.test.ts`: the big one: actions, ownership, sessions, delegation, obligations, plans. <!-- id:v1WA7PUZ -->
+  - `verbs.test.ts`: the five verbs: address dispatch, touch-expand, promotion, user-invoked verbs. <!-- id:IEq07SB6 -->
+  - `tool-documents.test.ts`: CIDs, builtin materialization, lambda authoring validation. <!-- id:1H4sSkuE -->
+  - `runs.test.ts`, `run-time.test.ts`: queue claiming, leases, sweeps, parks and wakes. <!-- id:caikMvwb -->
+  - `workflow-host.test.ts`, `workflow-worker.test.ts`: the script engine: lint, journal replay, fuel and caps, the worker transport. <!-- id:fj1mr_e1 -->
+  - `activity-triggers.test.ts`, `trigger-events.test.ts`, `activity-trigger-race.test.ts`, `schedule-triggers.test.ts`: trigger matching, firing idempotency, the comment/citation sibling race. <!-- id:fTK3pA_y -->
+  - `agent-memory.test.ts`, `session-attachments.test.ts`, `code-exec.test.ts`, `exec-pool.test.ts`, `exec-verify.test.ts`, `web-tools.test.ts`, `agent-tools-api.test.ts`, `mcp.test.ts`, `session-continuation.test.ts`, `write-link-validation.test.ts`. <!-- id:tC2RMQQo -->
+  - `auth.test.ts`, `sqlite.test.ts`, `main.test.ts`, `config.test.ts`, `json-schema.test.ts`, `poll-loop.test.ts`, `provider-oauth.test.ts`, `protocol-surface.test.ts`, `statements.test.ts`, `perf.test.ts`, `session-perf.test.ts`. <!-- id:-392qrQH -->
+  - `e2e-replay.test.ts` shells out to `e2e/run.ts`. It currently **skips**: the cassettes predate the verb collapse (`e2e/recordings/STALE.md`), so a green run is not model-gate coverage. See [operations](./operations.md). <!-- id:cLhLv7ws -->
 
-1. Edit `sqlite-schema.sql` — the fresh-install baseline. <!-- id:b0Jmm1k2 -->
-2. **Prepend** the migration to the `migrations` array in `sqlite.ts` (the array is reversed, so the newest literal is applied last). Never edit or reorder a migration that has shipped. <!-- id:8xCYhLLy -->
-3. Keep the two equivalent: baseline + every migration must produce the same schema as `sqlite-schema.sql`. `sqlite.test.ts` synthesizes an old baseline by stripping sections out of the current schema, applies the migrations, and asserts the resulting tables and columns exist — add your new table or column to those assertions. It is not a full schema diff, so equivalence is still yours to verify. <!-- id:sLVISokW -->
-4. Add migration and fresh-init tests. <!-- id:kSXSMRz- -->
-5. Update `persistence.md`. <!-- id:kT7-Nuce -->
-6. Do not silently accept unknown/future versions. <!-- id:fzwLc6T8 -->
+Frontend: the shared UI tests live in `frontend/packages/ui/src/agents/__tests__/` and the desktop's in `frontend/apps/desktop/src/__tests__/`; new page or hook tests belong beside those. <!-- id:9Bb25FAA -->
 
-# Changing the model-facing tool surface <!-- id:X7HQ2JCB -->
+# Conventions <!-- id:MrQG6Bgv -->
 
-The five verbs are the whole provider-facing surface and new capability must arrive as an address, an option, or a callable — not as a sixth verb. In practice: <!-- id:1PYtDkPx -->
-  1. A new **address form** (`read`/`write`) goes in the verb's `description` in `agents/protocol/src/tool-registry.ts` and in the address dispatch in `api-service.ts`. Every word of that description is prompt: edit it as prompt. <!-- id:WYEom0kI -->
-  2. A new **callable tool** goes in `callableToolRegistry` with `runtimes` including `agent-service`. It is reachable through `call` and is never added to the provider payload directly; `ensureBuiltinToolDocuments` materializes it as a tool document for every agent on the next listing, and the CID change is the version bump. <!-- id:nsXiUwfI -->
-  3. Keep touch-expand intact: a wrong or unexpanded `call` must answer with the tool's contract, not an error. <!-- id:KJqpoAuA -->
-  4. Anything promoted into the provider payload must be filtered against the agent's enabled callable set. Promotion is derived from durable events, so an unfiltered allowlist would let a hallucinated tool name activate a real one. <!-- id:Hv7ExkDk -->
-  5. Grants are `publish` plus the callable set. Do not add a grant for a verb. <!-- id:Ykb7A5Ga -->
-  6. Update `tools.md`, `security.md`, and — if you invented a word for the mechanism — a new term page in `agent/`, listed under Terms in `agent.md`. <!-- id:yVL1ZPWB -->
+- Normalize user and network input at API boundaries; internal APIs expect normalized values. <!-- id:RS0y-zWC -->
+- Never hold a SQLite write transaction around a model, provider, or tool network call. <!-- id:TACnz28O -->
+- Never log secrets, signed bodies, or full session or model content. <!-- id:bdGZN4X_ -->
+- Protocol types live in `agents/protocol/src/index.ts`; do not recreate mirrors in the desktop or the service. A change to the surface must pass `bun run protocol:check`, and a breaking one bumps the protocol version per `protocol/PROTOCOL.md`. <!-- id:oaOlwOvA -->
+- Provider responses stay redacted. <!-- id:v1_cpG9V -->
+- Prefer broad tests that exercise real behaviour, and existing files over tiny one-off modules. <!-- id:GMnMav_E -->
 
-# Adding provider backends <!-- id:bS7bGT8I -->
+# Adding an API action <!-- id:Yusrx60B -->
 
-1. Add provider-specific runner. <!-- id:c9hqLvkf -->
-2. Keep session lifecycle consistent. <!-- id:FvKGpu0A -->
-3. Stream partials through the same WebSocket path. <!-- id:jtURdj6Z -->
-4. Map tools to durable internal events. <!-- id:F8lMUUFt -->
-5. Add mocked network tests. <!-- id:1G9qzdMo -->
-6. Update `model-providers.md`, `security.md`, `roadmap.md`. <!-- id:wnhwF5_x -->
+1. Add the request and response types to `agents/protocol/src/index.ts`. <!-- id:68bp4RE3 -->
+2. Dispatch it in `Service.message()` with validation and account-ownership checks. <!-- id:ABZN2ZuZ -->
+3. Add idempotency if client retries could duplicate side effects. <!-- id:iKsv7l1o -->
+4. Emit service events if live clients need updates. <!-- id:CROBrqV1 -->
+5. Add the hook in `models.ts` and any UI. <!-- id:EUHuuzzz -->
+6. Add tests, run `protocol:check`, and update the [signed API](./signed-api.md). <!-- id:_S0EUw3S -->
 
-# Documentation automation contract <!-- id:OTf3ZmOJ -->
+# Adding a WebSocket event <!-- id:Hu97ZELv -->
 
-Future agents must treat docs as part of the implementation. When code changes, update docs in the same PR/commit. <!-- id:V6_ROH-n -->
+1. Extend `AgentWSEvent` in the protocol package. <!-- id:b0Jmm1k2 -->
+2. Emit the service event where the change originates and map it in the fan-out in `main.ts`. <!-- id:8xCYhLLy -->
+3. Handle it in the subscription hook in `models.ts`. <!-- id:sLVISokW -->
+4. Update [WebSocket subscriptions](./websocket-subscriptions.md). <!-- id:kSXSMRz- -->
 
-Update routing: <!-- id:_U7z8PjV -->
-  - `agents/protocol/src/index.ts`, `api.ts`, or action semantics → `signed-api.md` <!-- id:AJhrbqk5 -->
-  - WebSocket/live streaming → `websocket-subscriptions.md`, `operations.md` <!-- id:9IQ4iwZO -->
-  - DB/schema → `persistence.md` <!-- id:g3aU94at -->
-  - provider execution/config → `model-providers.md` <!-- id:jUxNp_G3 -->
-  - verbs, callables, tool documents (`agents/protocol/src/tool-registry.ts`, `tool-documents.ts`) → `tools.md`, `security.md` <!-- id:ySdKFQlW -->
-  - new vocabulary for a mechanism → a new term page in `agent/`, then use its words everywhere else <!-- id:OUcHRa0u -->
-  - desktop workflow/rendering → `desktop-ui.md` <!-- id:i55-3Tm8 -->
-  - security/auth/secrets/logging → `security.md` <!-- id:wRkLlvnb -->
-  - major milestone completed → `implementation-history.md`, `roadmap.md` <!-- id:sNfgHKyl -->
-  - future work discovered → `future-projects.md`, `roadmap.md` <!-- id:XBfsMYO1 -->
-  - new doc file → link from `readme.md` <!-- id:bisQS0xh -->
+# Changing the database <!-- id:X7HQ2JCB -->
 
-Before finishing, run: <!-- id:VrwStUJn -->
+1. Edit `sqlite-schema.sql`, the fresh-install baseline. <!-- id:1PYtDkPx -->
+2. **Prepend** the migration to the `migrations` array in `sqlite.ts` (the array is reversed, so the newest literal applies last). Never edit or reorder a migration that has shipped. <!-- id:tlUdf6HK -->
+3. Keep the two equivalent: baseline plus every migration must produce the schema in `sqlite-schema.sql`. `sqlite.test.ts` synthesizes an old baseline, applies the migrations, and asserts the resulting tables and columns; add yours to those assertions. It is not a full schema diff. <!-- id:x-zqYDyR -->
+4. Never silently accept an unknown or future schema version. <!-- id:P3x_iSOP -->
+5. Update [persistence](./persistence.md). <!-- id:_wvDYz61 -->
 
-```bash <!-- id:4iEHZIah -->
-rg -n "TODO|not implemented|future|roadmap|Anthropic|Google|StopSession|nonce|KMS" agents/docs
-```
+# Changing the model-facing surface <!-- id:bS7bGT8I -->
 
-Then confirm references are intentional and current. <!-- id:cm0Swvpm -->
+The five verbs are the whole provider-facing surface. New capability arrives as an address, an option, or a callable, never as a sixth verb. <!-- id:c9hqLvkf -->
+  1. A new **address form** for `read` or `write` goes in the verb's description in the tool registry and in the address dispatch in `api-service.ts`. Edit the description as prompt. <!-- id:JkzIH8Jt -->
+  2. A new **callable** goes in `callableToolRegistry` with `runtimes` including `agent-service`. It is reachable through `call`, never added to the provider payload directly; the next listing materializes it as a tool document for every agent, and the CID change is the version bump. <!-- id:3CFRldLu -->
+  3. Keep touch-expand intact: a wrong or unexpanded `call` answers with the contract, not an error. <!-- id:FtdrC1Vt -->
+  4. Anything promoted into the provider payload must be filtered against the agent's enabled callables, because promotion is derived from durable events and an unfiltered allowlist would let a hallucinated tool name activate a real one. <!-- id:5YLbjR8m -->
+  5. Grants are `publish` plus the callable set. Do not add a grant for a verb. <!-- id:5G20WmgP -->
+  6. Update [tools](./tools.md) and [security](./security.md), and if you coined a word for the mechanism, add a term page and list it in the [glossary](./glossary.md). <!-- id:SF7b6DXI -->
 
-# Manual acceptance checklist <!-- id:z1WePGfo -->
+# Adding a provider <!-- id:OTf3ZmOJ -->
 
-After core changes: <!-- id:_-pHvjIO -->
-  1. Start agents server. <!-- id:JxgMnXgd -->
-  2. Start desktop. <!-- id:hkQxRraI -->
-  3. Open Agents. <!-- id:Hs727B6M -->
-  4. Confirm health online. <!-- id:sXjohtq6 -->
-  5. Configure OpenAI provider. <!-- id:RZ6Mkpxu -->
-  6. Create agent. <!-- id:6Ac5BAtk -->
-  7. Create/open session. <!-- id:XCxEaSCN -->
-  8. Send message. <!-- id:y6OaZfcV -->
-  9. Confirm WebSocket subscription succeeds. <!-- id:UNhC5zAi -->
-  10. Confirm assistant streams as markdown. <!-- id:sUBDxAjI -->
-  11. Confirm final message persists after refresh. <!-- id:g5CyreTk -->
-  12. Ask it to `read` a URL, then to `read ~/tools/` and `read ~/memory/`. <!-- id:lHMIyYUA -->
-  13. Confirm tool call/result events appear, and that a `call` for an unexpanded tool comes back as that tool's contract rather than an error. <!-- id:cDUhtr1N -->
-  14. Run a verb yourself from the composer's wrench palette; confirm the result lands on the log with a "You" chip and that the agent's next turn sees it. <!-- id:xtoknpdv -->
-  15. Give it a task worth a checklist and a delegation; confirm the run card shows the plan, the child attaches to the running step, and the parent resumes with the child's result. <!-- id:qkRxSYh2 -->
-  16. Reload the session page and confirm the durable session events are still visible. <!-- id:3y4aGrgS -->
+1. Add the `PROVIDER_SPECS` entry in `api-service.ts` and the matching `PROVIDER_METADATA` entry in the UI's `provider-registry.ts`. <!-- id:V6_ROH-n -->
+2. If the model needs reasoning control, add its generation to `reasoning.ts` with a note on how the levels were verified; if it takes images, add it to `model-capabilities.ts`. <!-- id:_U7z8PjV -->
+3. Preserve the session lifecycle and WebSocket partials; map Pi events into ordered `message`, `tool_call`, and `tool_result` events. <!-- id:VrwStUJn -->
+4. Add mocked network tests for success, streaming, text-before-tool ordering, tools, missing key, and provider errors. <!-- id:kuRYQE4J -->
+5. Confirm decrypted secrets stay in memory and never reach Pi auth files. <!-- id:cm0Swvpm -->
+6. Update [model providers](./model-providers.md). <!-- id:MImbwolq -->
 
-# Known validation caveat <!-- id:IijsWeYF -->
+# Which page to update <!-- id:z1WePGfo -->
 
-`pnpm audit` fails today because of existing repo dependency advisories unrelated to this feature. Report it honestly; do not mark it as passed unless fixed. <!-- id:QokFTRwA -->
+Documentation is part of the change, in the same commit. <!-- id:_-pHvjIO -->
+  - action or response semantics: [signed API](./signed-api.md) <!-- id:JxgMnXgd -->
+  - WebSocket or streaming: [WebSocket subscriptions](./websocket-subscriptions.md), [operations](./operations.md) <!-- id:hkQxRraI -->
+  - schema or migrations: [persistence](./persistence.md) <!-- id:Hs727B6M -->
+  - provider execution or config: [model providers](./model-providers.md) <!-- id:sXjohtq6 -->
+  - verbs, callables, tool documents: [tools](./tools.md), [security](./security.md) <!-- id:RZ6Mkpxu -->
+  - MCP servers: [MCP servers](./mcp.md), [tools](./tools.md), [security](./security.md) <!-- id:6Ac5BAtk -->
+  - triggers: [triggers](./triggers.md) <!-- id:XCxEaSCN -->
+  - UI behaviour: [desktop and web UI](./desktop-ui.md) <!-- id:y6OaZfcV -->
+  - prompts: [prompt injection map](./prompt-injection-map.md) <!-- id:UNhC5zAi -->
+  - auth, secrets, logging: [security](./security.md), [operations](./operations.md) <!-- id:sUBDxAjI -->
+  - environment variables, deployment: [operations](./operations.md), [environments](./environments.md) <!-- id:g5CyreTk -->
+  - something shipped or something new to do: the [roadmap](./roadmap.md); do not add a history page, git has the history <!-- id:lHMIyYUA -->
+  - a new page: link it from [Seed Agents](../agent.md) or the page it belongs under <!-- id:cDUhtr1N -->
+
+# Manual acceptance checklist <!-- id:IijsWeYF -->
+
+After a core change: start the server and the app, open Agents, confirm the server is online, configure a provider, create an agent, open a session, send a message, confirm the subscription succeeds and the reply streams and persists across a reload. Then ask it to `read` a URL, `read ~/tools/`, and `read ~/memory/`; confirm tool rows appear and that a `call` of an unexpanded tool comes back as the contract. Run a verb from the wrench palette and confirm the You chip and that the agent sees it. Give it a task worth a checklist and a delegation; confirm the run card shows the plan, the child attaches to the running step, and the parent resumes with the result. <!-- id:QokFTRwA -->

@@ -1,9 +1,9 @@
 ---
 name: "Resource: Document"
-summary: A resolved resource that is a document. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+summary: "A resolved resource that is a document: the parsed id plus the document read model."
 schemaDefinition: ipfs://bafyreifqd325u5vk2vtbwaxkykd7bo5tzyejvk7ocdbpovjtdabhqslgem
 ---
-This document describes the **rpc/type/resource-document** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:osbL_VzO -->
+This page describes the **rpc/type/resource-document** read model of the Seed API — derived data the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:osbL_VzO -->
 
 # Shape <!-- id:lpqlXCiW -->
 

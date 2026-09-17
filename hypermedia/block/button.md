@@ -1,9 +1,9 @@
 ---
 name: Button Block
-summary: A labelled button linking somewhere.
+summary: "A call-to-action button: a label, a required link and a horizontal alignment."
 schemaDefinition: ipfs://bafyreifqzjgn7p35ejndllmcjepvtkg56pdovu5sucx547l5ve6yepdaee
 ---
-This document describes the **block/button** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:4MIlhf71 -->
+A button: `text` is the label and `link` (required) is where it goes, an `hm://` or web URL. Attributes: `name` (an alternative label), `alignment` (a [button alignment](./button-alignment.md): `flex-start`, `center` or `flex-end`), and the parent-layout pair.
 
 # Shape <!-- id:xGD5dY-c -->
 

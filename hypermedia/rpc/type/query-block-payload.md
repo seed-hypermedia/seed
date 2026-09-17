@@ -1,11 +1,11 @@
 ---
 name: Query Block Payload
-summary: "Everything a rendered Query block needs: the results plus per-item interaction summaries and author metadata. A derived read model computed by the Seed daemon/A"
+summary: "Everything a rendered Query block needs: the results plus per-item interaction summaries and author metadata."
 schemaDefinition: ipfs://bafyreifro57tpsh3sbgg7u6vbc52j727ygpnlhathvnvzhsxuqqvwskqki
 ---
 Everything a rendered Query block needs: the results plus per-item interaction summaries and author metadata. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:VzSZH5xA -->
 
-This document describes the **rpc/type/query-block-payload** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:OsEQqtxV -->
+This page describes the **rpc/type/query-block-payload** read model of the Seed API — derived data the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:OsEQqtxV -->
 
 # Shape <!-- id:a4jQ1u0u -->
 

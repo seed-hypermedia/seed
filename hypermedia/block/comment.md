@@ -1,9 +1,9 @@
 ---
 name: Comment Block
-summary: "A comment content block: a Block extended with a recursive list of child comment blocks."
+summary: "A block inside a comment body: the open block plus a recursive list of child comment blocks."
 schemaDefinition: ipfs://bafyreibth2kanwonruhp2b37xi72lvds5kddpmwlymwrky4ft7fm53o434
 ---
-This document describes the **block/comment** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:mJYa3roS -->
+The body of a [comment](../comment.md) is a list of these: an open [block](../block.md) with its `children` carried inline, rather than the separate [block node](./node.md) wrapper documents use. The block types are the same as in documents; a block comment starts with an [embed](./embed.md) of the quoted block. See [Comments](../protocol/comments.md).
 
 # Shape <!-- id:KpgzcxVT -->
 

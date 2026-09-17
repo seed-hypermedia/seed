@@ -1,11 +1,11 @@
 ---
 name: Resource
-summary: "The union of every state a fetched resource can be in: a document, a comment, a redirect, not found, a tombstone, or an error. A derived read model computed by "
+summary: "The union of every state a fetched resource can be in: document, comment, redirect, not found, tombstone, or error."
 schemaDefinition: ipfs://bafyreifrbbw4hsotmyhhozjgy5ujnn33izocem7irfayjryihnyaoqaxui
 ---
 The union of every state a fetched resource can be in: a document, a comment, a redirect, not found, a tombstone, or an error. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:DKrlmk-b -->
 
-This document describes the **rpc/type/resource** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:8qMDyX3F -->
+This page describes the **rpc/type/resource** read model of the Seed API — derived data the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:8qMDyX3F -->
 
 # Shape <!-- id:QnWTk-_C -->
 

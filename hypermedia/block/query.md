@@ -1,9 +1,9 @@
 ---
 name: Query Block
-summary: "A block that embeds a live query: its results (documents from the queried spaces) render in place, styled as cards, a list, or a table."
+summary: "A block that embeds a live query: the matching documents render in place as cards, a list or a table."
 schemaDefinition: ipfs://bafyreiaqt22lnsis4rkqlmeemaqjsw43tmxgfg2tpdewlahncjngqaoipq
 ---
-This document describes the **block/query** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:F-SfTMKY -->
+A query block is a live listing: instead of a copied list of pages, the author stores a [query](../query.md) and every reader sees the current result. Attributes: `query` (required; the spaces and paths to include, the sort and the limit), `style` (a [query style](../query/style.md): `Card`, `List` or `Table`), `columnCount` (card columns, default 3), `banner` (show the first result as a banner), `table` (a [table config](../query/table-config.md) for the table view), and the parent-layout pair. A folder page is usually one query block over its own children. See [Blocks](../protocol/blocks.md) and [the query grammar](../build/query-grammar.md).
 
 # Shape <!-- id:qSgsFftP -->
 

@@ -1,11 +1,11 @@
 ---
 name: "RPC: Account"
-summary: "Resolves an account by uid. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types "
+summary: "Resolves an account uid to its metadata payload, or to an explicit not-found result."
 schemaDefinition: ipfs://bafyreia7idjrnvfoy2fy676lzxjlza46egtlkozyeabr6c62detwkml5hq
 ---
 Resolves an account by uid. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:6J7TokxK -->
 
-This document describes the **rpc/account** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:ZU4n5PMC -->
+This page describes the **rpc/account** method of the Seed API — a read model of what the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:ZU4n5PMC -->
 
 # Shape <!-- id:59ehBck9 -->
 

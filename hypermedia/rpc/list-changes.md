@@ -1,11 +1,11 @@
 ---
 name: "RPC: ListChanges"
-summary: "Lists a document's change history. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output`"
+summary: "Returns a document’s change history as raw change records plus its latest version, given the target id."
 schemaDefinition: ipfs://bafyreifv2ymng6qkgqbvwnhg7szptugcxu4ztbvsmtxgevnyogyqi2pelm
 ---
 Lists a document's change history. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:ihAmEwiL -->
 
-This document describes the **rpc/list-changes** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:TM8oraL9 -->
+This page describes the **rpc/list-changes** method of the Seed API — a read model of what the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:TM8oraL9 -->
 
 # Shape <!-- id:i0mfuAmP -->
 

@@ -3,7 +3,7 @@ name: Any Blob
 summary: Any Hypermedia CBOR blob — the discriminated union of the six blob types, tagged on the type field.
 schemaDefinition: ipfs://bafyreiaaqbdz22df2kkedhouarep2lmayxir52u3yzt52mst55noawt3f4
 ---
-This document describes the **blob/any** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:uf3sIMOH -->
+This page describes the **blob/any** type — the union of every Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:uf3sIMOH -->
 
 # Shape <!-- id:vU-ROV7h -->
 

@@ -1,11 +1,11 @@
 ---
 name: "RPC: ListDiscussions"
-summary: Lists threaded discussions on a document (optionally focused on one comment), plus citing discussions from other documents. One method of the Seed universal-cli
+summary: "Returns a document’s comments grouped into threads, their authors’ metadata, and threads from other documents that cite it, optionally focused on one comment."
 schemaDefinition: ipfs://bafyreif2nqvfoox4pevp4mn4ak4i6zeemflv7cwkzwpmscxtlc3msve7jy
 ---
 Lists threaded discussions on a document (optionally focused on one comment), plus citing discussions from other documents. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:unbh1D7h -->
 
-This document describes the **rpc/list-discussions** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:bvGkwgJy -->
+This page describes the **rpc/list-discussions** method of the Seed API — a read model of what the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:bvGkwgJy -->
 
 # Shape <!-- id:14v3gfqr -->
 

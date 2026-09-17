@@ -1,6 +1,6 @@
 ---
 name: Faction
-summary: "A world-builder kit type: a page about a faction, order, house, or guild. Its attributes require a `founded` date; they link to its seat (a Place) and"
+summary: "A world-builder page type for a faction, order, house, or guild, whose attributes require a founding date and link to its seat, its leader, and a banner."
 schemaDefinition: ipfs://bafyreianjjmb5gp24n2ylkgm5m2qqht54bjs6y7qzs3oujmyjmc5yffple
 ---
 A world-builder kit type: a page about a faction, order, house, or guild. Its attributes require a `founded` date; they link to its seat (a Place) and leader (a Character), and a banner image. <!-- id:RvItBHZN -->

@@ -1,11 +1,11 @@
 ---
 name: Accounts Metadata
-summary: Account uid -> resolved metadata payload, sent alongside listings so clients can render authors without extra requests. A derived read model computed by the See
+summary: "A map from account uid to resolved metadata payload, sent alongside listings so clients can render authors without extra requests."
 schemaDefinition: ipfs://bafyreibeenkjw3vbnedisiwx3l6gex4kbh2ddbi5x7a2kjdq2rbjap7khm
 ---
 Account uid -> resolved metadata payload, sent alongside listings so clients can render authors without extra requests. A derived read model computed by the Seed daemon/API for clients — not a signed network blob. <!-- id:ytAJ6HkR -->
 
-This document describes the **rpc/type/accounts-metadata** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:0FrTmY7Y -->
+This page describes the **rpc/type/accounts-metadata** read model of the Seed API — derived data the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:0FrTmY7Y -->
 
 # Shape <!-- id:bBb-OVOx -->
 

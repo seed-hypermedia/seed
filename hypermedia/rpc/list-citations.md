@@ -1,11 +1,11 @@
 ---
 name: "RPC: ListCitations"
-summary: "Lists raw citations of a target resource. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `"
+summary: "Returns the raw citations that point at a target resource, given its id."
 schemaDefinition: ipfs://bafyreifzwfbmojtf5olopsupja2q5pbvavnjmbgakhsefyuyqcsnfiwyye
 ---
 Lists raw citations of a target resource. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:EWDwlcgM -->
 
-This document describes the **rpc/list-citations** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:4clN1Gbd -->
+This page describes the **rpc/list-citations** method of the Seed API — a read model of what the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:4clN1Gbd -->
 
 # Shape <!-- id:z2qy10O8 -->
 

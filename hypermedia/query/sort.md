@@ -1,9 +1,9 @@
 ---
 name: Query Sort
-summary: One sort term for a Query block's results, optionally reversed.
+summary: "One sort term for query results, optionally reversed; the app writes lowercase terms and normalizes the older capitalized spellings on read."
 schemaDefinition: ipfs://bafyreihszez3pnfy6xxrkmcbunrytrrg4trwblkkipxjv7fubvnmtzdpnm
 ---
-This document describes the **query/sort** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:eaWXyOUU -->
+One sort term of a [query](../query.md). The values this schema lists (`Path`, `Title`, `CreateTime`, `UpdateTime`, `DisplayTime`, `ActivityTime`) are the original spellings, still present in older documents. The Seed app now writes the unified form `{term, reverse}` with `title`, `path`, `created`, `updated`, `displayTime` or `activity`, where `reverse` means descending. Readers normalize the old spellings to the new ones; because the old time terms sorted newest-first by default, their `reverse` flag is flipped on the way in.
 
 # Shape <!-- id:P0EJDwNB -->
 

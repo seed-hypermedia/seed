@@ -1,11 +1,11 @@
 ---
 name: "RPC: Query"
-summary: "Runs a document query (the same shape a Query block embeds). One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field typ"
+summary: "Runs a document query (the same shape a Query block embeds) and returns the matching documents as a query result, or null."
 schemaDefinition: ipfs://bafyreihsgf5tz26q6k67sd7cvgpemrrwmpk5relwuc467x2rpj4oprwgy4
 ---
 Runs a document query (the same shape a Query block embeds). One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back. <!-- id:ikOICZ5G -->
 
-This document describes the **rpc/query** type — a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:ci5mADgR -->
+This page describes the **rpc/query** method of the Seed API — a read model of what the daemon computes for clients, not a signed network blob. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:ci5mADgR -->
 
 # Shape <!-- id:iirT7bVv -->
 

@@ -1,0 +1,268 @@
+---
+name: Network
+summary: How Seed nodes find each other and exchange signed blobs over libp2p, using range-based set reconciliation to learn what is missing and Bitswap to fetch it.
+---
+Every Seed node is a peer on one shared network. When you open a document you do not have, your node asks the peers most likely to hold it, compares notes with them to find exactly which [blobs](../blob.md) it lacks, and downloads only those. Nothing is broadcast to everyone; sync follows the [sites](./sites.md), [contacts](../contact.md) and subscriptions you actually care about.
+
+This page describes the network layer of the Seed daemon as it runs today. It is the deepest layer of the [Hypermedia protocol](../protocol.md); most builders never touch it directly and instead read and write through a site's [Seed API](../build/web-api.md). Read it when you want to understand why a document appears on another machine, why it sometimes takes a while, or how to run a node that other nodes can reach.
+
+# Peers and the device key
+
+Each running daemon is one libp2p peer. Its identity on the wire is a **device key**: an [Ed25519](https://en.wikipedia.org/wiki/EdDSA#Ed25519) key pair generated the first time the daemon starts and stored in the data directory. The peer id derived from it is the familiar `12D3Koo…` string you see in the Seed app's network dialog.
+
+The device key is not an account key. Account keys ([identity](./identity.md)) sign content; the device key only secures connections. One person can run several devices, and a site's server is a device that holds no account key at all. When a connection needs to prove which account is behind it, the peer signs a short-lived [capability](../capability.md) with the account key (see "Private content" below). The `account_id` field that the networking API still exposes on a peer is always empty today.
+
+# Protocol id and versions
+
+Every Seed peer announces the libp2p protocol id `/hypermedia/0.9.2`. A daemon started with a testnet name announces `/hypermedia/0.9.2-<name>` instead, and testnets are isolated only by that suffix: the bootstrap list is the same everywhere. A remote peer whose version string does not match exactly is rejected as an incompatible protocol version, so peers on different daemon generations simply do not sync with each other. The same id names the stream on which the daemon serves its peer-to-peer gRPC services.
+
+# Transports and addresses
+
+The daemon uses go-libp2p's default transports (TCP, QUIC, WebSocket, WebTransport and WebRTC-direct), TLS or Noise for the handshake, and yamux for multiplexing. It listens on four multiaddrs for one port `P`:
+
+```
+/ip4/0.0.0.0/udp/P/quic-v1
+/ip4/0.0.0.0/udp/P/quic-v1/webtransport
+/ip4/0.0.0.0/udp/P/webrtc-direct
+/ip4/0.0.0.0/tcp/P
+```
+
+IPv6 listening is off for now. The `-p2p.listen-addrs` flag replaces this set, and `-p2p.announce-addrs` replaces what the node tells others (a site announces `/dns4/<host>/tcp/56000` and `/dns4/<host>/udp/56000/quic-v1`). By default a desktop node also announces and stores private LAN addresses, so two laptops on one network can find each other; `-p2p.no-private-ips` turns that off.
+
+# Reachability and relays
+
+Most desktop nodes sit behind NAT. The daemon enables hole punching and AutoNAT, and, unless told otherwise, it assumes it is **not** publicly reachable and asks one of two fixed Seed relay servers for a circuit-relay reservation, keeping at most two relay connections. Relays are never discovered from the network; the two addresses are compiled in. The daemon itself is never a relay for others; the relay is a separate small program in the repository.
+
+A site runs with `-p2p.no-relay=true -p2p.force-reachability-public=true`, so it never uses a relay and always answers direct dials. Current reachability is shown on the loopback-only `/debug/p2p` page.
+
+# Finding peers: there is no DHT today
+
+Seed does not run a distributed hash table. The daemon links the code for a delegated-routing client, but the URL it would talk to is empty by default, so every provider lookup fails quietly, and the local Kademlia code has no callers. Nothing announces "I have this document" to a global index, and a node cannot find a document by its hash alone. The flag help text that promises a local DHT client is wrong.
+
+What discovery relies on instead:
+
+- **Bootstrap gateways.** Every daemon dials a compiled-in list of Seed servers at startup and keeps them connected: production `hyper.media`, `dev.hyper.media`, `staging.hyper.media` and one community node. These are ordinary site daemons that hold essentially everything public, and they form the first tier every discovery asks. The public kubo bootstrap peers from IPFS are also dialed, out of habit; they speak no Hypermedia protocol and are filtered out of discovery.
+- **Peer exchange.** After identifying a bootstrap peer, the daemon asks it for its recent peer list (rows updated within 30 days) and stores them in its own `peers` table. A tick every 60 seconds keeps about 20 non-bootstrap Hypermedia peers connected, dialing stored peers when short. Dead peers fade out because their rows stop being refreshed.
+- **Site peer resolution.** When a [space](../document.md) declares a `siteUrl` in its home document [metadata](../metadata.md), the daemon fetches `https://<site>/hm/api/config` to learn the site server's peer id and addresses, and treats that server as the **authority** for the space. The answer is cached for five minutes and remembered in the `domains` table as a fallback.
+- **Explicit connections.** The `Networking.Connect` RPC takes multiaddrs, and the Seed app accepts a peer address, an `hm://connect/…` link or any site URL in its network dialog.
+- **DNS names inside multiaddrs.** That is the whole role of DNS: `/dns4/hyper.media/…` addresses and the HTTPS hostnames of site URLs. There is no DNSLink or TXT-record lookup.
+
+The practical consequence: a public document is findable because some gateway or site server has it, not because the network as a whole indexes it. A private document is findable only from its site server or from a device that authenticated as an authorized account.
+
+# What sync exchanges
+
+A sync never asks for "everything peer X has". It asks about a **scope**: one resource IRI such as `hm://ACC/notes/foo`, optionally its direct children (`depth one`) or all descendants (`recursive`), optionally restricted to some blob types. Both sides compute the same set of blobs for a scope from their own index:
+
+1. the [Refs](../ref.md), [capabilities](../capability.md), [comments](../comment.md), [profiles](../profile.md) and [contacts](../contact.md) anchored on the resources in scope;
+2. every [change](../change.md) reachable from those Refs through their heads and dependencies;
+3. the media those blobs link to (files, images, chunks), following every link but skipping blobs the index has stashed as unauthorized;
+4. inbound contacts naming the space's account, when the scope is a whole space;
+5. capabilities with the AGENT role whose delegate authored anything already in the set, repeated until nothing new appears.
+
+Because both peers derive the set with the same rules, they can compare it without listing it. The daemon keeps this set materialized per scope and patches it after every indexing commit, with a background verifier that recomputes a few scopes every 30 seconds and repairs drift.
+
+# Reconciling with RBSR
+
+**Range-Based Set Reconciliation** is an algorithm for efficiently finding differences between large sets held by different peers. Instead of exchanging all item identifiers, each peer recursively compares hash summaries of ordered key ranges. When the hash of a range differs, the peers subdivide that range and compare smaller segments until they isolate the exact items that differ. The cost grows with the number of differences, not the total set size. Seed's implementation follows [Aljoscha Meyer's paper](https://arxiv.org/abs/2212.13567) and the Negentropy design.
+
+In the daemon, an item is `(timestamp, CID)`, ordered by the blob's signed timestamp and then by bytes. A range's fingerprint is the first 16 bytes of the SHA-256 of the sum of its items' hashes. The initiator splits its whole range into 16 buckets and sends one fingerprint per bucket; a range of fewer than 32 items is sent as a plain list. The responder answers each fingerprint with "same" or with its own subdivision, and each list with its own list. Messages are capped at 1 MiB, a round at 15 seconds, and a session at 1,000 rounds. The result is one-directional: the initiator learns which CIDs the peer has that it lacks. What the responder would need from the initiator is computed but not used, because Seed pulls; it never lets a stranger push.
+
+# Fetching with Bitswap
+
+Once the wanted CIDs are known, the blobs themselves travel over [Bitswap](https://docs.ipfs.tech/concepts/bitswap/), the IPFS block exchange. Bitswap works like a marketplace for blocks: each peer keeps a wantlist of the blocks it needs, exchanges wantlists on connect, and serves what it has. Seed opens one Bitswap session per discovery and fetches in render order: signed DAG-CBOR blobs first, then "chrome" media (icons, covers), then inline images, and finally bulk files. Bulk downloads share a single daemon-wide slot so a large PDF never starves a page's text. Every block is verified against its CID on arrival and indexed like any other blob.
+
+Bitswap has no built-in access control, but it accepts a callback that is asked for every `(peer, CID)` request. Seed uses that callback to keep private blobs from unauthorized peers (below).
+
+# Discovery, step by step
+
+`DiscoverEntity` is the single entry point that the Seed app, a site server and subscriptions all use. It takes an `hm://` discovery URL:
+
+| URL | Scope |
+|---|---|
+| `hm://ACC` | the home document, all blob types |
+| `hm://ACC/path` | one document |
+| `hm://ACC/path/*` | the document and its direct children |
+| `hm://ACC/path/**` | the document and every descendant |
+| `hm://ACC/:profile`, `hm://ACC/path:profile` | profile, Ref and change blobs only |
+
+A discovery run has a ten-minute budget and proceeds in tiers:
+
+1. **Authority.** The space's site server, if its `siteUrl` is known, plus the bootstrap gateways. If the space has a site and you already hold the content, the gateways are dropped.
+2. **Connected.** A sample of already-connected Hypermedia peers, up to 20.
+3. **Cold.** Peers from the stored table that need a dial.
+
+A later tier runs only if the previous one left something owed, except during an **exhaustive wave**, which every recursive scope gets every ten minutes and which a user's fresh interest can force at most once every two minutes. Within a tier the node talks to up to 20 peers at once and cuts stragglers once 70 percent are done and downloads have been idle for five seconds. A peer whose dial fails is benched for 30 seconds, doubling up to ten minutes; this is an eligibility filter, not a reputation.
+
+For recursive scopes a quick structure-only pass (Refs and changes, depth one, no media) runs first so a directory listing appears before its files. Once the target resolves locally the run ends with outcome `connected`. If nothing resolved, the run ends with the vestigial "DHT" phase, which finds nothing and reports no error; the caller keeps polling.
+
+# Hot and cold: the scheduler
+
+The daemon runs discovery through one scheduler with `-syncing.max-workers` slots (default six) and one slot always reserved for interactive work.
+
+- **Hot tasks** come from a client that is looking at something. The Seed app calls `DiscoverEntity` for the document on screen every few seconds; each call is a heartbeat that keeps the task alive for 40 seconds and reruns it every 10 seconds. Hot tasks are last-in-first-out and may preempt an idle background run.
+- **Cold tasks** are subscriptions. They rerun every `-syncing.interval` (default one minute) after completing, clumped a few seconds together to save battery.
+
+What narrows as a scope settles is not the frequency but the fan-out: a recursive scope whose last two waves fetched nothing asks two peers instead of twenty, and a space with a known site server that you already hold asks only that server.
+
+# Subscriptions
+
+A subscription is a row `(iri, recursive)` and a standing cold task for it. `Subscriptions.Subscribe` stores the row, schedules the task and runs one discovery right away (synchronously, unless asked to run in the background or the resource is already local). A site server subscribes recursively to every account registered on it, which is how a site keeps a whole space current. The Seed app subscribes to the spaces you join or follow. There is no "mirror everything from peer X" mode any more; the older `-syncing.smart` and `-syncing.no-sync-back` flags are accepted and ignored, and `Daemon.ForceSync` returns Unimplemented.
+
+# Push
+
+Pull is the default, but a publisher does not want to wait for its site to poll. `Documents.PushResourcesToPeer` takes a peer's addresses and a list of resources, computes the related material (changes, Refs, the authors' root Refs and profiles, link targets, citations, comment links, and media), and calls the peer's `AnnounceBlobs` RPC with the CIDs. The receiving daemon checks which CIDs it lacks, fetches them over Bitswap from the announcer, and indexes them. Progress streams back to the caller.
+
+The Seed app pushes when you publish a document, when you register a site, and when you push a document to a site explicitly; it pushes to the space's site server and to the site servers of the documents you referenced, so that citations and backlinks appear on self-hosted sites of the people you cite. Private blobs are included in a push only when the target is the space's own site server. A receiving node accepts any announcement (the `-syncing.allow-push` flag exists but is never consulted) but can only fetch what the announcer is willing to serve it. Push is a sync optimisation, not the publishing step: your blobs exist in your local daemon the moment you sign them, even if the push announces nothing.
+
+# Sync is not gossip
+
+Seed's peer-to-peer sync is built around identity, trust and relevance. Because of that it is fundamentally different from [gossip protocols](https://en.wikipedia.org/wiki/Gossip_protocol), even though both operate in distributed peer-to-peer environments.
+
+**Gossip spreads widely; Seed sync is narrowly scoped.** Gossip protocols disseminate messages across a broad set of peers using mesh fan-out and probabilistic forwarding. They do not know who specifically should receive a message, only that it should spread, which also lets spam spread. Seed sync has the opposite goal: replicate resources only to peers with explicit trust or relevance relationships. No broadcast, no fan-out.
+
+**Seed's propagation graph is identity-defined.** Eligible recipients are known in advance: verified owners of sites, trusted contacts (and therefore their peers, including identity delegation), and explicit subscriptions. This is directed, bounded and user-controlled, not emergent or random. A node should never push content to uninterested or random peers.
+
+**Seed does not use epidemic convergence.** Gossip relies on repeated spreading until high-probability coverage is reached. Seed performs no mesh spreading, no redundant forwarding of blobs, and no probabilistic delivery across the network. Sync is targeted delivery, not epidemic dissemination.
+
+One clarification, because discovery does contact up to 20 peers per tier: that fan-out is a *pull* asking "do you have this?", scoped to one resource. It is not a push of your content to strangers. The design direction of Seed is to keep narrowing that pull as trust relationships become explicit.
+
+# Private content over the network
+
+Public blobs are served to anyone who asks. A private blob ([visibility](../visibility.md)) is served to a peer only if one of these holds:
+
+- the peer authenticated as the account that owns the space, or as an account holding a WRITER [capability](../capability.md) for it;
+- the peer is the space's site server, as reported by `https://<siteUrl>/hm/api/config`;
+- the blob is allow-listed for that peer for the duration of a push.
+
+Authentication is the `P2P.Authenticate` RPC: the caller sends its account, a millisecond timestamp and a signature over an ephemeral capability blob that delegates from the account to the caller's peer id with the server's peer id as audience. The server accepts a one-minute clock skew and remembers the binding until the connection closes. A desktop node authenticates automatically toward the site servers of every space its keys can write to, and only there.
+
+The same rule shapes reconciliation: before answering, a peer filters its scope set to what the caller may see, folding private items out of the fingerprints, so an unauthorized peer never learns that a private blob exists. The full HTTP-side rules are on the [privacy](./privacy.md) page.
+
+# Worked example: a document you do not have
+
+You open `hm://ACC/notes/foo` in the Seed app and nothing about `ACC` is on your machine yet.
+
+1. The app calls `DiscoverEntity` with that URL and keeps calling it every few seconds while the view is open. The daemon creates a hot task and, because you just showed interest, arms one exhaustive wave.
+2. The scheduler dispatches the task at once in the reserved hot slot.
+3. The daemon looks for `ACC`'s `siteUrl`. It knows nothing, so there is no site server; the wave is a full search: every bootstrap gateway plus a sample of 20 peers.
+4. A local reconciliation store for the scope is built. It is empty.
+5. Tier `authority` runs first. For each gateway the daemon opens (or reuses) a gRPC stream over libp2p, asks which spaces it may see (public only, since it did not authenticate), and runs `ReconcileBlobs` rounds for the filter `hm://ACC/notes/foo` until the ranges agree.
+6. The wanted CIDs go to Bitswap: DAG-CBOR blobs first, then icons and inline images, then bulk files if the media slot is free. Blocks stream through one writer into the index, which also patches the maintained scope sets.
+7. The authority tier is satisfied, so the connected and cold tiers are skipped unless this is the exhaustive wave.
+8. `GetResource` now resolves. The task completes with the version, and reruns on the ten-second cooldown while you keep looking.
+9. Later, once `ACC`'s home document (and its `siteUrl`) has arrived and you have subscribed, a settled run asks only the site server: one reconciliation round trip every ten seconds while viewed, once a minute otherwise, plus one full-width probe every ten minutes.
+
+If step 5 finds nothing anywhere, the run ends with an empty version and no error, the page keeps showing its "looking for this document" state, and the task retries with the same peer set every ten seconds.
+
+# Reference
+
+## Ports
+
+The daemon has three listeners: libp2p, an HTTP server (which carries gRPC-web, `/ipfs`, `/hm/api/config` and the loopback-only `/debug/*` pages) and a plain gRPC server. Both HTTP and gRPC bind all interfaces, not just loopback. Every Seed deployment picks its own port block:
+
+| Deployment | libp2p | HTTP (gRPC-web, `/ipfs`, `/debug`) | gRPC | Other |
+|---|---|---|---|---|
+| `seed-daemon` defaults | 55000 | 55001 | 55002 | |
+| Seed app, production | 56000 | 56001 | 56002 | 56003 metrics, 56004 Seed API bridge |
+| Seed app, development (`./dev`) | 58000 | 58001 | 58002 | 58003 metrics, 58004 Seed API bridge |
+| Self-hosted site (docker compose) | 56000 TCP and UDP, published | 56001, internal only (the web app and the `/ipfs` proxy use it) | 56002, internal only | 80 and 443 on the proxy |
+| `hyper.media` and `dev.hyper.media` bootstrap addresses | 56001 (QUIC and TCP) and TCP 143 | | | |
+| `staging.hyper.media` bootstrap address | 55001 | | | |
+
+The Seed app and the web app always talk to the daemon over gRPC-web on the HTTP port, never the plain gRPC port. The hosted `hyper.media` servers evidently map their libp2p listener to 56001 (with 143 as a second TCP listener for restrictive firewalls); that layout is not in this repository, so treat the bootstrap addresses, not the compose file, as the truth for those hosts. Older team notes that mention 53101 describe a standalone web daemon that no longer exists.
+
+## Flags that matter to operators
+
+Every flag can also be set as an environment variable with the `SEED_` prefix (`-p2p.port` is `SEED_P2P_PORT`), and `SEED_DAEMON_FLAGS` prepends a string of flags.
+
+| Flag | Default | Effect |
+|---|---|---|
+| `-p2p.port` | 55000 | port for the four listen multiaddrs |
+| `-p2p.testnet-name` | empty | appends `-<name>` to the protocol id and selects a separate keystore |
+| `-p2p.bootstrap-peers` | the compiled-in list | comma-separated multiaddrs; replaces the list (an empty value is an error, not "none") |
+| `-p2p.listen-addrs`, `-p2p.announce-addrs` | derived from the port; none | replace the listen set; replace what is advertised |
+| `-p2p.no-relay` | false | disables autorelay and the private-reachability assumption |
+| `-p2p.force-reachability-public` | false | skip AutoNAT; announce as directly reachable |
+| `-p2p.no-private-ips` | false | filter LAN addresses from what is announced and stored |
+| `-p2p.delegated-dht` | empty | URL of a `/routing/v1` server; empty means routing is off |
+| `-p2p.max-inbound-reconciles`, `-p2p.inbound-reconcile-wait` | auto (2 × CPUs, min 2); 3 s | cap on concurrent inbound reconciliations and how long a caller waits before `ResourceExhausted` |
+| `-syncing.no-peer-sharing` | false | refuse to answer peer-exchange requests |
+| `-syncing.interval` | 1m | cadence of subscription reruns |
+| `-syncing.max-workers` | 6 | scheduler pool; one slot is reserved for hot work |
+| `-syncing.timeout-per-peer` | 2m | budget for one peer inside a wave |
+| `-syncing.warmup-duration` | 20s | random delay before the first dispatch after start |
+| `-syncing.exhaustive-wave-interval` | 10m | how often a recursive scope runs a full-width wave |
+| `-syncing.no-pull` | false | do not run the scheduler; on-demand discovery and subscriptions still work |
+| `-syncing.no-discovery` | false | discovery errors; the file gateway serves local blobs only |
+| `-public-only` | false | serve only public data over HTTP and gRPC (what hosted sites run) |
+
+`-syncing.allow-push`, `-syncing.refresh-interval`, `-syncing.smart` and `-syncing.no-sync-back` are parsed and have no effect.
+
+## Constants worth knowing
+
+| What | Value |
+|---|---|
+| connection manager low / high watermark | 150 / 300 connections |
+| connections per source IP | 64 |
+| target connected non-bootstrap peers; peer-exchange tick | 20; every 60 s |
+| peer freshness window (exchange and pruning) | 30 days |
+| dial timeout inside a wave; per-peer sync budget | 6 s; 2 min |
+| discovery budget | 10 min |
+| hot task heartbeat; hot rerun cooldown | 40 s; 10 s |
+| exhaustive wave; user-forced probe | every 10 min; at most every 2 min |
+| RBSR message cap; fingerprint; buckets; list threshold | 1 MiB; 16 bytes; 16; under 32 items |
+| RBSR rounds per session; round timeout | 1,000; 15 s |
+| peers per tier at once | 20 |
+| straggler cut | 70 % done and 5 s idle (2 s on hot waves) |
+| bulk media slots per daemon | 1 |
+| push announcement limit; push fetch idle timeout | 200,000 CIDs; 40 s |
+| peer authentication clock skew | ± 1 min |
+| gRPC over libp2p max message | 8 MiB |
+| site config cache; domain re-check | 5 min; every 30 min |
+
+## Debug pages and metrics
+
+On the daemon's HTTP port, reachable only from the same machine: `/debug/p2p` (JSON dump of libp2p, Bitswap and the connection manager, including reachability), `/debug/network` (an HTML report of discovery phases, reconciliation, Bitswap outcomes and the inbound limiter), `/debug/metrics` (Prometheus) and `/debug/grpcui/` (an embedded gRPC console). The sync outcome labels you will see there are `ok`, `preempted`, `protocol_mismatch`, `dial_failed`, `auth_failed`, `putmany_failed` and `rpc_error` per peer, and `connected`, `dht`, `notfound` and `error` per discovery.
+
+# Working with the network
+
+## In the Seed app
+
+The network dialog (from the app's settings or the connection indicator) lists connected peers with their short peer id, protocol and the domains known for them, and lets you copy a peer's addresses. "Add connection" accepts a raw multiaddr list, an `hm://connect/…` or `https://…/hm/connect#…` link generated by another Seed app, or any site URL, which the app resolves through that site's `/hm/api/config`. The app keeps a gateway URL setting (default `https://hyper.media`) and shows whether that gateway is reachable. Publishing a document pushes it to the space's site server and to the sites of referenced documents, with per-host progress; "Publish Site" registers a space with a site and pushes the whole space. Subscriptions happen when you join a site or follow an account.
+
+## CLI
+
+The Seed CLI is not a peer. It talks HTTPS to a site (default `https://hyper.media`, or `--server`), signs locally and publishes through that site's [Seed API](../build/web-api.md); the site's daemon does the networking. When the site does not yet hold a document you ask for, `GET /api/DiscoveryStatus?uid=…&path=…` on that site pokes its daemon and reports `pending`, `found` or `failed`. The CLI has no commands for peers, subscriptions or push; use gRPC against a daemon for those (below). The [CLI reference](../build/cli.md) lists every command.
+
+## SDK
+
+`@seed-hypermedia/client` has no libp2p either. `createSeedClient(baseUrl)` reads and publishes through a site; `client.request('DiscoveryStatus', {uid, path, version?, latest?})` is the non-blocking discovery poke, and `resolveHypermediaUrl(url)` turns a web URL into an `hm://` id by asking `GetDomain` or the page's `X-Hypermedia-*` headers. `GetDomain` and `ListDomains` expose the daemon's domain table (peer id, registered account, gateway flag, last check). See the [SDK guide](../build/sdk.md).
+
+## Web API
+
+A site's [Seed API](../build/web-api.md) exposes discovery as `GET /api/DiscoveryStatus` (flat params `uid`, `path`, `v`, `l`) and the site services expose `POST /hm/api/discover` with JSON `{uid, path[], version?, media?}`, which blocks until the site's daemon has the document (and, with `media`, its files). `GET /hm/api/config` is the peer's business card: `{peerId, protocolId, addrs, registeredAccountUid, isGateway, …}`; the daemon's own HTTP port answers the same path with just `{peerId, addrs, protocolId}`.
+
+For deep integration the daemon's gRPC surface (plain gRPC on its gRPC port, or gRPC-web on the HTTP port, both with reflection) has `Networking.GetPeerInfo`, `Networking.ListPeers` (no addresses, by design) and `Networking.Connect(addrs)`; `Subscriptions.Subscribe/Unsubscribe/ListSubscriptions`; `Entities.DiscoverEntity(id, version?)`; `Resources.PushResourcesToPeer(addrs, resources, recursive)`; and `Daemon.GetInfo` for your own peer id and protocol id. The peer-to-peer services `P2P` and `Syncing` are also re-exported locally behind a `target-peer` metadata key, so a local client can run `ListSpaces` or `ReconcileBlobs` against a remote peer through your daemon. There is no authentication on a local daemon's API; keep it on localhost or behind a firewall, and run public servers with `-public-only`. The [gRPC guide](../build/grpc.md) has the catalogue.
+
+```sh
+grpcurl -plaintext localhost:56002 com.seed.networking.v1alpha.Networking/ListPeers
+grpcurl -plaintext -d '{"id":"hm://ACC/notes/foo"}' localhost:56002 \
+  com.seed.entities.v1alpha.Entities/DiscoverEntity
+```
+
+## Agents
+
+[Seed Agents](../agent.md) read and write through a site's Seed API exactly like the CLI: `read hm://ACC/notes/foo` asks the configured site (hosted agents use `https://hyper.media`; the desktop's built-in agent uses the app's own daemon through its local bridge), and that site's daemon discovers what it lacks. An agent never sees peers, relays or reconciliation, and it does not need to: the same `DiscoveryStatus` and `/hm/api/discover` calls are available to an agent that drives a site with `curl`. External agents using the `seed-cli` skill inherit the CLI's behaviour above. See [using Seed from your own agent](../build/agents.md).
+
+# Where this is going
+
+As of September 2026 the network layer is stable but two things are honestly open. First, routing: with no DHT, a node behind a fresh install can only reach content that a gateway, a site server or a peer it was told about holds; a delegated-routing server or a real provider system is the obvious next step and the code hooks for both exist unused. Second, the team's stated direction is to narrow discovery further toward explicit trust relationships (sites you joined, contacts, subscriptions) rather than sampling twenty peers, and to expose subscriptions through the public API rather than only through gRPC. The HM26 redesign notes on the [roadmap](./roadmap.md) touch both.
+
+# See also
+
+- [Sites](./sites.md): what a site server is and how registration makes it the authority for a space.
+- [Files](./files.md): how media travels over the same Bitswap sessions and the `/ipfs` gateway.
+- [Privacy](./privacy.md) and [Integrity](./integrity.md): what a peer may see and what is verified.
+- [Identity](./identity.md): account keys versus the device key.
+- [Self-hosting](../build/self-hosting.md): the compose file, ports and registration link for running your own node.
+- [Blob](../blob.md), [Change](../change.md), [Ref](../ref.md): the things that actually move.

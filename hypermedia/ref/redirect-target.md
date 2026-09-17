@@ -1,9 +1,13 @@
 ---
 name: Redirect Target
-summary: A redirect from one document to another space and/or path.
+summary: The destination carried by a redirect Ref, a space and path to send readers to, with a republish flag that keeps the content showing under the old address.
 schemaDefinition: ipfs://bafyreihqm4tl6kvexfsed2gohvvzg3qhthcdxhwo7k3xdmd5i26xqqam3y
 ---
-This document describes the **ref/redirect-target** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:BDVJInYn -->
+When a document moves, the old address should keep working. A redirect Ref carries this small struct to say where readers should go, so links made before the move still resolve. <!-- id:yW0sBFya -->
+
+This page defines the **ref/redirect-target** struct used by a redirecting [Ref](../ref.md). Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it. <!-- id:BDVJInYn -->
+
+`path` is the destination path and `space` the destination space, omitted when the redirect stays within the same space. `republish` changes the meaning of the Ref: without it, the Ref is a move and the old address counts as deleted (readers get a redirect result and listings drop it); with it, the old address is a **republish** that keeps appearing in listings and search and shows the target's content under its own URL. A chain of redirects is followed up to a small hop limit, and a cycle is refused. Editing an address that holds a redirect builds on the target's history and takes the address over with a higher generation. See [Documents](../protocol/documents.md). <!-- id:LeKLUozu -->
 
 # Shape <!-- id:Mw7vaa0_ -->
 

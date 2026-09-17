@@ -1,9 +1,9 @@
 ---
 name: Table Column Block
-summary: "One column of a Table block: childless, identified by its block id (cells reference it via their columnId attribute), ordered by sibling position."
+summary: "One column of a Table block: a childless marker whose id cells reference and whose sibling order is the display order."
 schemaDefinition: ipfs://bafyreidojz6dafdqzl644cafmbz6ad3znj76pmkbetsatciedw7inrz7my
 ---
-This document describes the **block/table-column** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:c4wVHkyt -->
+A column of a [table](./table.md). The block is childless; its id is what cells reference through their `columnId`, and the sibling order of the column blocks is the display order of the columns. Attributes: `width` (pixels), `isHeader` (a header column, honored only on the first column), and the parent-layout pair.
 
 # Shape <!-- id:TfYjxpaq -->
 

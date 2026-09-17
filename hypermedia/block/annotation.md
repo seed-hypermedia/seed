@@ -1,9 +1,11 @@
 ---
 name: Annotation
-summary: An inline text annotation (bold, link, …) over character ranges, plus arbitrary inline attributes.
+summary: "An inline layer over a block's text: a type, one or more code-point ranges, an optional link and inline attributes, used for formatting, links and mentions."
 schemaDefinition: ipfs://bafyreiacbskofr2t3bzpbrmsf265lh5oyhb6trmz3qbvflsbgpbmv74dw4
 ---
-This document describes the **block/annotation** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type. <!-- id:G0vvOmGK -->
+Formatting is not markup inside a block's text; it is a list of annotations layered over it. Each annotation has a `type`, parallel `starts` and `ends` arrays naming one or more ranges (so one annotation can cover several stretches of text), an optional `link`, and any further attributes inline. Offsets count Unicode code points.
+
+The types the Seed app writes are `Bold`, `Italic`, `Underline`, `Strike`, `Code`, `Link` (with `link`), `Embed` (an inline embed or mention: `link` plus `mentionKind` of `account` or `document`, over a single U+FEFF placeholder character in the text), `Range` (a highlight), and `TextColor`, `BackgroundColor`, `TextSize` and `TextFamily` (each with a `value`). As with blocks, an early comment encoding nested attributes under an `attributes` key, and the daemon reads both forms. See [Blocks](../protocol/blocks.md).
 
 # Shape <!-- id:khrAA7LZ -->
 

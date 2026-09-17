@@ -1,0 +1,130 @@
+---
+name: Sites
+summary: A site is a space published at a web domain by a server that holds the space's content, answers for it on the network, and renders it as ordinary web pages.
+---
+A **site** is what you get when a [space](../document.md) (an account's namespace of documents) is published at a web domain. Anyone with a browser can read it at `https://example.com/about`; anyone with a Seed node can reach the same content as `hm://<account>/about`. The site's server is a normal Seed node whose device happens to be a server, plus a web app in front of it.
+
+Sites are where the peer-to-peer [network](./network.md) meets the web. They give a space a stable place on the internet, a server that is always online to answer for it, and a way to reach readers who have never installed anything.
+
+# What a site is made of
+
+A site deployment runs three containers behind one domain:
+
+| Piece | What it does |
+|---|---|
+| **the Seed daemon** (`seedhypermedia/site` image) | the libp2p peer that stores and serves the space's blobs; runs with `-p2p.no-relay=true -p2p.force-reachability-public=true`, announces `/dns4/<host>/tcp/56000` and `/dns4/<host>/udp/56000/quic-v1`, keeps its keys in a file keystore |
+| **the Seed web app** (`seedhypermedia/web` image) | a server-rendered web app that talks to the daemon over gRPC-web, renders documents as HTML, exposes the [Seed API](../build/web-api.md) at `/api/<Key>` and the site services at `/hm/api/*`, and owns the registration state |
+| **a reverse proxy** (Caddy) | terminates HTTPS for the domain, sends `/ipfs/*` straight to the daemon and everything else to the web app |
+
+An optional notify service sends email notifications for the site. The [self-hosting guide](../build/self-hosting.md) walks through running this stack; this page explains what it means at the protocol level.
+
+The daemon has no "site mode" and no site-registration RPC. It does not know it is a site. It becomes one through two facts other nodes observe: its web app advertises a registered account at `/hm/api/config`, and the space's home document names the site's URL.
+
+# The home document and `siteUrl`
+
+Every space has a home document at the empty path; `hm://<account>` is its URL, and its `name` and `icon` become the site's title and favicon. When a space is registered with a site, the Seed app writes the site's origin into the home document's [metadata](../metadata.md) as `siteUrl` (for example `https://example.com`).
+
+That one attribute does a lot of work. Every node that reads the home document learns where the space lives on the web. The daemon resolves the space's **site peer** by fetching `https://<siteUrl>/hm/api/config`, treats that peer as the authority tier in [discovery](./network.md), authenticates to it when it holds a writer key for the space, includes private blobs in pushes to it, and lets that peer read the space's private content. The URL is also how a reader's app offers "open on the web" and how the web app builds pretty links. Whoever controls the HTTPS endpoint named in `siteUrl` therefore controls a meaningful trust relationship; see [Integrity](./integrity.md).
+
+# Registration
+
+Registering binds one account to one site. It is a short handshake between the site's web app and the Seed app that holds the account key:
+
+1. The site's operator (or the hosting service on their behalf) puts a one-time secret into the site's configuration. The setup link looks like `https://example.com/hm/register?secret=…`.
+2. The account owner opens "Publish Site" in the Seed app and pastes that link. The app fetches `/hm/api/config` and refuses if the site is already registered to a different account.
+3. The app posts `{registrationSecret, accountUid, peerId, addrs}` to `POST /hm/api/register`. The web app checks the secret, tells its daemon to connect to the app's peer, stores `registeredAccountUid` in its config, and subscribes its daemon recursively to the account's whole space so it stays current from then on.
+4. The app connects to the site's peer and pushes the whole space to it with `PushResourcesToPeer`, so the site has everything at once instead of waiting for its subscription to pull.
+5. The app publishes a new version of the home document with `siteUrl` set to the site's origin.
+
+From that moment `/hm/api/config` advertises the account, the site's pages render that account's home document, and other nodes treat the site's peer as the authority for the space. Until registration completes, the site shows a "not registered" page.
+
+A site's web app can run in two modes. **Single-site** mode keeps one `config.json` with the secret, the registered account and the source peer. **Multi-tenant** mode keeps a `service-config.json` with a root hostname, a config per named subdomain, and a map of custom domains to subdomains; the request's hostname selects the config. The hosted service on `hyper.media` runs the second mode and drives it through `POST /hm/api/admin` with an admin secret: `create-service {name}` allocates a subdomain and returns its setup link, `create-custom-domain {hostname, service}` maps a domain onto it, and `remove-service` and `remove-custom-domain` undo them. Subdomain names must match `^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$`.
+
+# `/hm/api/config`
+
+The site's business card. Any client that has only a web URL starts here:
+
+```json
+{
+  "registeredAccountUid": "z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS",
+  "peerId": "12D3KooWEDdEeuY3oHCSKtn1eC7tU9qNWjF9bb8sCtHzpuCjvomQ",
+  "protocolId": "/hypermedia/0.9.2",
+  "signerAccountUid": "z6Mk…",
+  "addrs": ["/dns4/hyper.media/udp/56001/quic-v1", "/dns4/hyper.media/tcp/56001"],
+  "hostname": "https://hyper.media",
+  "isGateway": true,
+  "notifyServiceHost": "https://notify.hyper.media"
+}
+```
+
+`registeredAccountUid` is the space the site serves; `peerId` and `addrs` are how to reach its daemon; `protocolId` tells you whether your node can talk to it; `signerAccountUid` is a key the web app generated for itself, used when the server signs on its own behalf (for example when a web visitor edits through the site); `isGateway` is explained below. The route is public and answers any origin. The daemon's own HTTP port serves the same path with only `peerId`, `addrs` and `protocolId`, which is enough to bootstrap a libp2p connection from a URL.
+
+The daemon keeps a **domain table**. Whenever it resolves a `siteUrl` it records the domain and re-checks `https://<domain>/hm/api/config` every 30 minutes, storing the last status (`success`, `unreachable`, `error`, `unknown`), the last successful config and the last error. `Daemon.GetDomain` returns that row, falling back to what the daemon knows locally (a home document whose `siteUrl` names the domain) when it has never fetched it; `ListDomains` lists them all. This is what the Seed app and the SDK use to turn `https://example.com/about` into an `hm://` id without a network round trip when the domain was seen before.
+
+# Web URLs and canonical forms
+
+A site maps `hm://` URLs to web URLs and back. The rules, in order:
+
+- **Pretty paths.** For the site's own registered account, the path is the document path: `hm://<account>/about` is `https://example.com/about`. The home document is `https://example.com/`.
+- **The `/hm/` prefix.** Any Hypermedia URL becomes a web URL by replacing `hm://` with `/hm/` and appending the result to the site's origin: `hm://aliceaccount/wunderland?v=deadbeef#block-id-1` can be served as `https://example.com/hm/aliceaccount/wunderland?v=deadbeef#block-id-1`. A site must be able to render any document, not only its own account's, because documents link across spaces and a linked space may have no site at all. The reverse conversion needs only the knowledge that the domain runs Hypermedia software. Even if a central server disappears, a saved `https://hyper.media/hm/…` link still names exactly one `hm://` resource.
+- **Query and fragment** carry over unchanged: `?v=` for a version, `&l` for "at least this version, prefer latest", `#block` and range selectors for [fragments](./urls.md).
+- **Exports.** Appending `.md` or `.json` to the document segment returns the document as markdown or JSON instead of a page, with the same `?v=` and `?l` parameters.
+
+Some path prefixes are reserved on every site and must not be used as document paths: `/hm/` (the mapping above and the site services), `/ipfs/` (blobs by CID, as an IPFS gateway would), `/ipns/` (unused, reserved for compatibility), `/.well-known/` (the well-known URI convention) and `/api/` (the Seed API). The app discourages creating documents at those paths, and a site must stay resilient if someone does.
+
+Every rendered page also says which resource it is. A `GET` or `OPTIONS` on a document URL answers with `X-Hypermedia-Id`, `X-Hypermedia-Version`, `X-Hypermedia-Title`, `X-Hypermedia-Type` and `X-Hypermedia-Authors` headers, and the HTML carries the same facts as `<meta name="hypermedia_id">` and `<meta name="hypermedia_version">` tags. That is how a plain `curl -X OPTIONS -I https://example.com/about` turns a web link into an `hm://` id, and how the SDK's URL resolver works when the domain table has no answer.
+
+A canonical-URL and robots policy (which of the pretty and `/hm/` forms search engines should index) is an open design note, not something the web app enforces today.
+
+# What "gateway" means
+
+Three different things share the word, and it helps to keep them apart:
+
+1. **Bootstrap gateways** are the Seed servers compiled into every daemon's bootstrap list: `hyper.media`, `dev.hyper.media`, `staging.hyper.media` and one community node. They are ordinary site daemons that hold essentially everything public and form the first tier of every [discovery](./network.md). Being "connected to hyper.media" means having a libp2p connection to that peer. They are not a DHT and not relays.
+2. **The web gateway flag** is `SEED_IS_GATEWAY` on the web container, surfaced as `isGateway` in `/hm/api/config`. A gateway site serves canonical `/hm/<account>/…` URLs for any account rather than one registered space, and it never starts discovery from a server-rendered request: an unknown document renders a placeholder page whose script polls `GET /api/DiscoveryStatus`, and that first poll is what starts the daemon's search. This keeps bots that probe thousands of nonexistent paths from queueing expensive discoveries. A non-gateway site discovers server-side and holds the request until the document arrives or times out. The daemon never reads this flag; it only passes it along in the domain table.
+3. **The IPFS file gateway** is the daemon's `GET /ipfs/<cid>` route, described on the [files](./files.md) page.
+
+`hyper.media` is all three at once: a bootstrap peer, a gateway site, and a file gateway.
+
+# Hosted sites, subdomains and custom domains
+
+The hosting service at `hyper.media` gives every space a free `<name>.hyper.media` site. You pick the name in the Seed app's "Publish Site" dialog and the app handles registration for you. Three-letter names are not offered: short names are rare, desirable and easy to squat, so they are held back. One server can host many spaces, but each space needs its own subdomain; a subdomain is exactly one space.
+
+A hosted site can also answer on a domain you own. In the Seed app, open the site's options and choose "Publish Custom Domain", enter the domain, and the app asks the hosting service to attach it. Then, at your DNS provider, point the domain at your site: an `ALIAS` or flattened `CNAME` record to `<name>.hyper.media` where the provider supports it, otherwise an `A` record to the address that `hyper.media` itself resolves to (check with `ping hyper.media`; it was `40.160.6.196` when this was written and may change). If you use Cloudflare, turn its proxy off for the record. Propagation usually takes about ten minutes; keep the app open, and the site goes live on the custom domain once the hosting service sees the record. Self-hosted sites do the same thing with their own DNS and the compose file's hostname setting.
+
+A site's content is never locked to its host. The space, the keys and the domain are yours, and the [self-hosting guide](../build/self-hosting.md) shows how to move.
+
+# Working with sites
+
+## In the Seed app
+
+"Publish Site" on a space opens the registration dialog: choose a free `hyper.media` subdomain, paste a self-hosted setup link, or follow the self-host instructions. After registration the space's settings show the site URL, and publishing a document pushes it to the site with progress per host. "Publish Custom Domain" attaches your own domain to a hosted site. The app's network dialog lists the site's peer among your connections, and the omnibar recognises `https://` site links and opens them as `hm://` resources.
+
+## CLI
+
+The Seed CLI talks to a site, so every command already "works with sites": `--server https://example.com` (default `https://hyper.media`) picks the one to read from and publish through, and an `https://` argument is resolved against that site's own API. `seed-cli document create --site-url https://example.com` sets `siteUrl` on a home document from the command line, which is the only piece of registration the CLI can do; the secret handshake itself runs from the app. Give any URL argument and the CLI reads `/hm/api/config` or the `X-Hypermedia-*` headers to find the `hm://` id. The [CLI reference](../build/cli.md) lists the flags.
+
+## SDK
+
+`createSeedClient('https://example.com')` is a client for that site's Seed API. `resolveHypermediaUrl(url)` turns a site URL into `{id, version, title, type, authors}` using the domain table through `GetDomain` when available and an `OPTIONS` request otherwise, and `resolveIdWithClient(url)` returns a client bound to the URL's own origin. `client.request('GetDomain', {domain, forceCheck?})` and `ListDomains` read the daemon's domain table. See the [SDK guide](../build/sdk.md).
+
+## Web API
+
+The site services under `/hm/api/*` are what make a site a site: `GET /hm/api/config` (above), `POST /hm/api/register` (`{registrationSecret, accountUid, peerId, addrs}`; the desktop's registration call), `POST /hm/api/admin` (multi-tenant management with an admin secret), `POST /hm/api/discover` (`{uid, path[], version?, media?}`, blocking discovery on the site's daemon), `/hm/api/file/<cid>` and `/hm/api/image/<cid>` ([files](./files.md)), `/hm/api/auth` ([sign-in](../build/sign-in.md)) and `/hm/api/version`. The Seed API at `/api/<Key>` adds `GetDomain`, `ListDomains` and `DiscoveryStatus`. The pages `/hm/register?secret=…`, `/hm/create-site`, `/hm/connect#…` and `/hm/download` are human entry points. The [web API guide](../build/web-api.md) documents each with examples.
+
+## Agents
+
+[Seed Agents](../agent.md) and external agents address sites the same way the CLI does. A hosted agent reads and writes through `https://hyper.media` (or the server it was configured with) and can `read https://example.com/about`, which resolves through the site's headers to an `hm://` id before reading. A space can name an agents server in its home document metadata as `agentServerUrl`, and list the agents it exposes to visitors as `spaceAgents`, so a site's readers see the site's agents in the assistant panel. An agent that drives a site with `curl` uses `/hm/api/config` to learn the account and `/api/DiscoveryStatus` to wait for a document. See [using Seed from your own agent](../build/agents.md).
+
+# Where this is going
+
+As of September 2026, the open items around sites are the canonical-URL and robots policy for search engines, exposing subscriptions and domain management through the public API rather than gRPC, and the broader HM26 direction on the [roadmap](./roadmap.md), where a site's authority over a space is meant to become an explicit, signed relationship instead of a `siteUrl` string plus an HTTPS lookup.
+
+# See also
+
+- [Network](./network.md): how a site's peer takes part in discovery and sync.
+- [Files](./files.md): the `/ipfs` gateway and image service every site exposes.
+- [URLs](./urls.md): the full `hm://` grammar behind the web mapping.
+- [Identity](./identity.md) and [Permissions](./permissions.md): accounts, the site's own signing key, and who may write to a space.
+- [Self-hosting](../build/self-hosting.md) and [Web API](../build/web-api.md): running a site and talking to one.
+- [Metadata](../metadata.md): the `siteUrl` and `agentServerUrl` keys on the home document.
