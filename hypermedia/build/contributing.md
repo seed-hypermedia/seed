@@ -2,7 +2,7 @@
 name: Contributing
 summary: How to find your way around the Seed repository, run the development stack, test and format each part, and ship changes to the daemon's storage, the protocol, releases and these docs.
 ---
-Seed is one public repository, [github.com/seed-hypermedia/seed](https://github.com/seed-hypermedia/seed), holding the Go daemon, the TypeScript apps and libraries, the agent runtime, the vault, deployment tooling, and the markdown for this site. This page is for people who want to change any of it. It covers the layout, the one-command development stack, the checks each area expects before a pull request, and the rules for the changes that are hard to undo: storage migrations, protocol changes and releases. <!-- id:_zvH8SHk -->
+Seed is one public repository, [github.com/seed-hypermedia/seed](https://github.com/seed-hypermedia/seed), holding the [Go daemon](../apps/daemon.md), the TypeScript apps and libraries, the [agent runtime](../agent.md), the [vault](../apps/vault.md), deployment tooling, and the markdown for this site. This page is for people who want to change any of it. It covers the layout, the one-command development stack, the checks each area expects before a pull request, and the rules for the changes that are hard to undo: storage migrations, protocol changes and releases. <!-- id:_zvH8SHk -->
 
 Every command below was checked against the repository on branch feat/onyx in September 2026. The repository also keeps instructions for coding agents in `AGENTS.md` at the root and in the subtrees listed below; they are written for humans too and are the authoritative version of the rules summarized here. <!-- id:vX8_MKKR -->
 
@@ -11,21 +11,21 @@ Every command below was checked against the repository on branch feat/onyx in Se
 <!-- id:qkA7gG_e -->
 | Path <!-- col:iWguLxEY --> | What lives there <!-- col:x03VL8Ja --> | Toolchain <!-- col:YTGiImZw --> <!-- id:-Wd8HBYw --> |
 | --- | --- | --- |
-| `backend/` | the Seed daemon: storage and indexing (`storage/`, `blob/`), the document model and CRDTs (`api/documents/`, `crdt/`), networking (`hmnet/`), gRPC APIs (`api/`), the embedding model (`llm/`) | Go, built with Please <!-- id:H2EwgJQj --> |
+| `backend/` | the [Seed daemon](../apps/daemon.md): storage and indexing (`storage/`, `blob/`), the document model and CRDTs (`api/documents/`, `crdt/`), networking (`hmnet/`), gRPC APIs (`api/`), the embedding model (`llm/`) | Go, built with Please <!-- id:H2EwgJQj --> |
 | `proto/` | protobuf definitions for every daemon service; generated Go and TypeScript are checked in | Please, `./dev gen` <!-- id:0NSWiC7J --> |
-| `frontend/apps/desktop` | the Seed app (Electron) | pnpm <!-- id:Zbe5Pvw9 --> |
-| `frontend/apps/web` | the Seed web app that serves sites, the Seed API and site services (Remix) | pnpm <!-- id:0CIOxjFE --> |
+| `frontend/apps/desktop` | the [Seed app](../apps/desktop.md) (Electron) | pnpm <!-- id:Zbe5Pvw9 --> |
+| `frontend/apps/web` | the [Seed web app](../apps/web.md) that serves sites, the [Seed API](./web-api.md) and site services (Remix) | pnpm <!-- id:0CIOxjFE --> |
 | `frontend/apps/cli` | `seed-cli`, also the home of the `hypermedia/` sync script | pnpm workspace, runs under Bun <!-- id:2PI-xaLm --> |
-| `frontend/apps/notify` | the email notification service | pnpm <!-- id:1XZADdbO --> |
-| `frontend/apps/explore` | the Hypermedia Explorer | pnpm <!-- id:jIim84ro --> |
-| `frontend/apps/mobile` | the React Native app, outside the pnpm workspace | npm <!-- id:RqovKZdX --> |
+| `frontend/apps/notify` | the email [notification service](../apps/notify.md) | pnpm <!-- id:1XZADdbO --> |
+| `frontend/apps/explore` | the [Hypermedia Explorer](../apps/explorer.md) | pnpm <!-- id:jIim84ro --> |
+| `frontend/apps/mobile` | the [React Native app](../apps/mobile.md), outside the pnpm workspace | npm <!-- id:RqovKZdX --> |
 | `frontend/apps/landing`, `emails`, `perf-web`, `performance`, `performance-dashboard` | the landing site, email templates, performance tooling | pnpm <!-- id:-PiCtbX7 --> |
-| `frontend/packages/client` | `@seed-hypermedia/client`, the published SDK | pnpm <!-- id:8NqjCj-r --> |
+| `frontend/packages/client` | `@seed-hypermedia/client`, the [published SDK](./sdk.md) | pnpm <!-- id:8NqjCj-r --> |
 | `frontend/packages/shared`, `ui`, `editor` | shared models and hooks (`@shm/shared`), UI components (`@shm/ui`), the editor (`@shm/editor`) | pnpm <!-- id:cUHLxKb5 --> |
-| `agents/` | the Seed Agents server | its own Bun workspace <!-- id:qOYduI_0 --> |
-| `vault/` | the key vault service | its own Bun workspace <!-- id:7uVXnFiT --> |
-| `hypermedia/` | this site: concept pages, the Hypermedia Schemas library, the Seed API reference, the Agents docs | markdown, `scripts/hypermedia/` <!-- id:KGtdocvh --> |
-| `ops/` | the self-hosted node deployment script (`seed-deploy`) | pinned Bun <!-- id:sKjHiyy5 --> |
+| `agents/` | the [Seed Agents](../agent.md) server | its own Bun workspace <!-- id:qOYduI_0 --> |
+| `vault/` | the [key vault service](../apps/vault.md) | its own Bun workspace <!-- id:7uVXnFiT --> |
+| `hypermedia/` | this site: concept pages, the [Hypermedia Schemas](../schema.md) library, the Seed API reference, the Agents docs | markdown, `scripts/hypermedia/` <!-- id:KGtdocvh --> |
+| `ops/` | the [self-hosted node](./self-hosting.md) deployment script (`seed-deploy`) | pinned Bun <!-- id:sKjHiyy5 --> |
 | `tests/` | cross-app integration tests | pnpm, Vitest, Playwright <!-- id:jLogi_RO --> |
 | `docs/` | internal design notes, decision records, runbooks and the security audit log; not published | markdown <!-- id:SH8-ft4T --> |
 
@@ -35,7 +35,7 @@ Every command below was checked against the repository on branch feat/onyx in Se
 
 The toolchain is pinned in `mise.toml` and activated by `direnv`: Go 1.26.2, Node 22.22.0, pnpm 10.32.0, Bun 1.3.10, protoc 24.4, golangci-lint 2.12.2, Please, and mprocs for the dev stack. <!-- id:kSqWFI66 -->
 
-Install [mise](https://mise.jdx.dev) and [direnv](https://direnv.net) and hook direnv into your shell, then clone the repository and allow the environment. The first `direnv allow` installs the pinned tools, initializes the `llama-go` submodule, downloads the embedding model and builds the llama.cpp libraries, which takes a few minutes. <!-- id:UzZJf2g1 -->
+Install [mise](https://mise.jdx.dev) and [direnv](https://direnv.net) and hook direnv into your shell, then clone the repository and allow the environment. The first `direnv allow` installs the pinned tools, initializes the `llama-go` submodule, downloads the [embedding model](../apps/daemon.md) and builds the llama.cpp libraries, which takes a few minutes. <!-- id:UzZJf2g1 -->
 
 ```sh <!-- id:sDnks94Q -->
 git clone https://github.com/seed-hypermedia/seed
@@ -46,7 +46,7 @@ pnpm install
 
 Install Docker as well if you want the full stack, because the agents' web search backends run as containers. <!-- id:hd08Yp6V -->
 
-`./dev` refuses to run outside a direnv-enabled shell. From scripts and agents, run commands as `direnv exec . <command>`. The README's link to a "developer setup" page points at a file that no longer exists; this section replaces it. <!-- id:nj4bpkxj -->
+`./dev` refuses to run outside a direnv-enabled shell. From scripts and agents, run commands as `direnv exec . <command>`. <!-- id:nj4bpkxj -->
 
 # Running things <!-- id:FRDrDXTI -->
 
@@ -57,7 +57,7 @@ Install Docker as well if you want the full stack, because the agents' web searc
 | --- | --- |
 | `./dev up` | the whole stack on mainnet in one mprocs window, one pane per process (see `mprocs.yaml`) <!-- id:mNYXdjtH --> |
 | `./dev up-testnet` | the same stack on the dev testnet (see `mprocs.testnet.yaml`) <!-- id:nWiElzcx --> |
-| `./dev run-desktop` | the desktop app, which builds and spawns its own daemon <!-- id:fYOpAbIh --> |
+| `./dev run-desktop` | the desktop app, which builds and spawns its own [daemon](../apps/daemon.md) <!-- id:fYOpAbIh --> |
 | `./dev run-desktop-mainnet` | the desktop app on mainnet <!-- id:IIoKH2Cu --> |
 | `./dev run-backend` | build and run `seed-daemon` alone; flags after `--` go to the daemon <!-- id:MNPxE43L --> |
 | `./dev build-backend`, `./dev build-desktop`, `./dev build-web` | production builds <!-- id:h4rT0Hyb --> |
@@ -73,7 +73,7 @@ Install Docker as well if you want the full stack, because the agents' web searc
 | Pane <!-- col:QTd1zqau --> | Process <!-- col:WJ1lZT8f --> | Address <!-- col:yET8czHf --> <!-- id:VHn1ebpI --> |
 | --- | --- | --- |
 | `backends` | SearXNG and crawl4ai containers for agent web search | :8899, :11235 <!-- id:XPdPUMv7 --> |
-| `agents` | the Seed Agents server with hot reload | :3051 <!-- id:G4Enzyn8 --> |
+| `agents` | the [Seed Agents](../agent.md) server with hot reload | :3051 <!-- id:G4Enzyn8 --> |
 | `web` | the web app, talking to the desktop app's daemon | :3000 <!-- id:7pKQKZUk --> |
 | `explore` | the Hypermedia Explorer | :5173 <!-- id:Cr3vaUS2 --> |
 | `notify` | the notification server | :3060 <!-- id:R9PRrtZx --> |
@@ -95,8 +95,8 @@ Run the checks for every area you touched. CI runs the same ones, and a single u
 | Whole TypeScript workspace | `pnpm typecheck` <!-- id:d94Q1u3R --> |
 | Formatting, everywhere | `pnpm format:write`, then `pnpm format:check` from the root; this covers the pnpm workspace, `agents/` and `vault/` <!-- id:mph0fqf0 --> |
 | Web, shared, desktop unit tests | `pnpm test` runs all three; singly `pnpm web:test`, `pnpm shared:test`, `pnpm desktop:test:unit` <!-- id:dugjfXvL --> |
-| SDK, UI, editor, notify, explore | `pnpm --filter @seed-hypermedia/client test`, `pnpm --filter @shm/ui test`, `pnpm --filter @shm/editor test`, and the same for `@shm/notify` and `@shm/explore` <!-- id:ofZFP1b2 --> |
-| CLI | `pnpm --filter @seed-hypermedia/cli test` (a fixture suite against a real daemon) and `test:unit` <!-- id:VOFZaWCk --> |
+| [SDK](./sdk.md), UI, editor, notify, explore | `pnpm --filter @seed-hypermedia/client test`, `pnpm --filter @shm/ui test`, `pnpm --filter @shm/editor test`, and the same for `@shm/notify` and `@shm/explore` <!-- id:ofZFP1b2 --> |
+| [CLI](./cli.md) | `pnpm --filter @seed-hypermedia/cli test` (a fixture suite against a real daemon) and `test:unit` <!-- id:VOFZaWCk --> |
 | Desktop end to end | `pnpm desktop:test`, which packages the app and drives it with Playwright <!-- id:Gilwz1nW --> |
 | Integration | `pnpm test:integration` from the root <!-- id:x7ufnsyK --> |
 | Mobile | `pnpm mobile:test`, `pnpm mobile:typecheck` <!-- id:d-fTb5LC --> |
@@ -120,7 +120,7 @@ npx @redwoodjs/agent-ci run -w .github/workflows/test-go.yml -p
 
 ## Storage schema and migrations <!-- id:9X3SrtbM -->
 
-The daemon's SQLite schema lives in `backend/storage/schema.sql`, which is the source of truth, and migrations live in `backend/storage/storage_migrations.go`. Read the comment at the top of that file before adding one. The rules it sets: <!-- id:PBuNzSFX -->
+The [daemon](../apps/daemon.md)'s SQLite schema lives in `backend/storage/schema.sql`, which is the source of truth, and migrations live in `backend/storage/storage_migrations.go`. Read the comment at the top of that file before adding one. The rules it sets: <!-- id:PBuNzSFX -->
   - A migration's version is a timestamp from `date +%Y-%m-%d.%H%M%S`, and the list is kept newest first. <!-- id:QnRf8-hL -->
   - Its run function executes in an immediate write transaction and must be as idempotent as possible. <!-- id:dMdOoxSo -->
   - A migration runs only when its version is higher than the data directory's, so never run a feature branch with a migration against a data directory you care about. Back it up first; switching back to main afterwards fails on the unknown version. <!-- id:8uBgJSVC -->
@@ -135,12 +135,12 @@ Edit `.proto` files under `proto/`, then run `./dev gen //proto/...` from the ro
 
 ## Protocol changes <!-- id:Db7n9S4a -->
 
-A protocol change is any change to the structure or meaning of permanent data (blobs, changes, the document graph, the CRDT rules), the sync protocol, the capability model, the identity system, or any format another implementation must read on disk or over the wire. If a feature can be built purely in an application, it is not a protocol change, and the team's advice is to build it that way first. <!-- id:tPvbLW30 -->
+A protocol change is any change to the structure or meaning of permanent data ([blobs](../protocol/blobs.md), changes, [the document graph](../protocol/documents.md), the CRDT rules), the [sync protocol](../protocol/network.md), the [capability model](../protocol/permissions.md), the [identity system](../protocol/identity.md), or any format another implementation must read on disk or over the wire. If a feature can be built purely in an application, it is not a protocol change, and the team's advice is to build it that way first. <!-- id:tPvbLW30 -->
 
 The team's process for a protocol change, as written in its internal methodology notes: <!-- id:xe8WbGn1 -->
   1. Write a proposal note describing the problem and the change. <!-- id:f0kCZNVa -->
   2. Map the arguments for and against it in the open, including rejected alternatives. <!-- id:VImOJ8CK -->
-  3. Decide by working through the technical objections, not by consensus. <!-- id:o-O2bJml -->
+  3. Decide by working through the technical objections. Consensus does not decide. <!-- id:o-O2bJml -->
   4. Update the protocol documentation, which is now this site. <!-- id:YiDYgKHv -->
 
 The process is deliberately slow because published blobs are permanent: every node that holds old data must keep reading it. The dated records in [History](../history.md) and the direction on [Where this is going](../protocol/roadmap.md) show what this looks like in practice. <!-- id:-hDpm579 -->
@@ -158,11 +158,11 @@ Maintainers cut releases with the runbook in `docs/releasing.md`. <!-- id:NpvcWh
   4. Write short, user-facing release notes with Features and Bug Fixes sections and a full-changelog link, then publish them with `gh release edit <tag> --notes-file <file> --prerelease=false --latest`. <!-- id:gCPNyIIR -->
   5. Run the `Generate latest.json (prod)` workflow so desktop auto-update sees the new version. <!-- id:Q0rdarDk -->
 
-Two packages publish on their own: pushes to main that touch the SDK or the CLI run the `publish-client` workflow, so there is no manual npm step. <!-- id:UCWfra3I -->
+Two packages publish on their own: pushes to main that touch the [SDK](./sdk.md) or the [CLI](./cli.md) run the `publish-client` workflow, so there is no manual npm step. <!-- id:UCWfra3I -->
 
 # Contributing to these docs <!-- id:FUbEfrIK -->
 
-This site is the `hypermedia/` folder, and a commit to main publishes it through `.github/workflows/sync-hypermedia.yml`. Pages are plain markdown with a `name` and a one-sentence `summary` in the frontmatter, links between pages are relative `.md` links, and the dialect round-trips losslessly through the Seed app. `hypermedia/README.md` explains the layout, and [Publish a folder](./publish-a-folder.md) explains the round trip. <!-- id:N8dBXosg -->
+This site is the `hypermedia/` folder, and a commit to main publishes it through `.github/workflows/sync-hypermedia.yml`. Pages are plain markdown with a `name` and a one-sentence `summary` in the frontmatter, links between pages are relative `.md` links, and the dialect round-trips losslessly through the [Seed app](../apps/desktop.md). `hypermedia/README.md` explains the layout, and [Publish a folder](./publish-a-folder.md) explains the round trip. <!-- id:N8dBXosg -->
 
 ```sh <!-- id:cKaIfLAn -->
 node scripts/hypermedia/check.mjs     # schemas, lockfile, generated types, bindings, frontmatter
@@ -172,9 +172,9 @@ pnpm hypermedia:push -- --dry-run     # what a publish would create, update, mov
 
 Rules that matter when you edit: <!-- id:i7YPkwE2 -->
   - Nothing publishes while any relative link is broken, so fix links in the same commit that moves a page. <!-- id:au3AMFtl -->
-  - Renaming a file in git publishes a move with a redirect at the old address. <!-- id:Xz4P0KgA -->
+  - Renaming a file in git publishes a move with a [redirect](../protocol/documents.md) at the old address. <!-- id:Xz4P0KgA -->
   - Deleting a file retires its document on the next push unless the push runs with `--keep-stale`. <!-- id:n5piDq7x -->
-  - A page with a `*.schema.json` beside it defines a schema. Keep its path, and let `check.mjs` confirm the lockfile and generated types. <!-- id:NE-QyORm -->
+  - A page with a `*.schema.json` beside it defines a [schema](../schema.md). Keep its path, and let `check.mjs` confirm the lockfile and generated types. <!-- id:NE-QyORm -->
   - Keep the `<!-- id:… -->` comments on lines you keep; they are block ids. New pages need none. <!-- id:1y4a34hH -->
 
 Corrections are welcome as pull requests, or as comments on the published page. <!-- id:KCHxO4zQ -->
@@ -183,7 +183,7 @@ Corrections are welcome as pull requests, or as comments on the published page. 
 
 Do not open a public issue or pull request that describes an unfixed vulnerability; this repository is public. The repository has no `SECURITY.md`, and GitHub's private vulnerability reporting is turned off as of September 2026, so contact the maintainers privately first. <!-- id:c1G7qQ-T -->
 
-Once a vulnerability is fixed, the team discloses it as a GitHub issue closed by the fixing commit. The public record of what has been audited and which hypotheses were ruled out is `docs/security/audit-log.md`, and the audit procedure itself is `docs/security/auditor.md`. The known limits you should design around, such as the unauthenticated local daemon API and non-revocable capabilities, are listed on [Integrity](../protocol/integrity.md). <!-- id:xbymaI9s -->
+Once a vulnerability is fixed, the team discloses it as a GitHub issue closed by the fixing commit. The public record of what has been audited and which hypotheses were ruled out is `docs/security/audit-log.md`, and the audit procedure itself is `docs/security/auditor.md`. The known limits you should design around, such as the unauthenticated local [daemon API](./grpc.md) and non-revocable [capabilities](../protocol/permissions.md), are listed on [Integrity](../protocol/integrity.md). <!-- id:xbymaI9s -->
 
 # See also <!-- id:-aDpNcBJ -->
 
