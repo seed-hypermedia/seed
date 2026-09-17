@@ -473,6 +473,12 @@ export type ImportOptions = {
   capability?: string
   /** Adjust a file's metadata before publishing (e.g. inject schema bindings). */
   metadataFor?: (file: string, metadata: HMMetadata) => HMMetadata
+  /**
+   * Old paths a new path is known to have moved from (e.g. from an alias table), most likely first.
+   * When the block ids of a file don't identify its source, the first of these that still holds a
+   * document, and has no file of its own, is published as a move instead of a new document.
+   */
+  movedFromFor?: (path: string) => string[]
   /** Restrict to these files (relative to dir). */
   only?: string[]
   /** Validate every document against its effective schema first; refuse to publish on a violation. */
@@ -735,6 +741,8 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
   const layout = opts.layout || defaultLayout
   const log = opts.log || (() => {})
   const result: ImportResult = {created: [], updated: [], unchanged: [], skipped: [], moved: []}
+  // Each existing document moves to at most one new path.
+  const claimedSources = new Set<string>()
   const files = opts.only ?? listMarkdownFiles(opts.dir)
   const allFiles = new Set(listMarkdownFiles(opts.dir))
   let index: Promise<BlockIndex> | undefined
@@ -798,8 +806,21 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
         // A copy (the source file still exists) is a new document, not a move.
         const sourceDoc = from === null ? undefined : docs.get(from)
         const sourceFile = sourceDoc ? layout.fileForPath(from!, sourceDoc) : null
-        if (from !== null && !(sourceFile && allFiles.has(sourceFile))) movedFrom = from
+        if (from !== null && !(sourceFile && allFiles.has(sourceFile)) && !claimedSources.has(from)) movedFrom = from
       }
+      if (movedFrom === null && opts.movedFromFor) {
+        index ??= buildBlockIndex(opts.client, opts.account)
+        const {docs} = await index
+        for (const candidate of opts.movedFromFor(path)) {
+          const sourceDoc = docs.get(candidate)
+          if (!sourceDoc || claimedSources.has(candidate)) continue
+          const sourceFile = layout.fileForPath(candidate, sourceDoc)
+          if (sourceFile && allFiles.has(sourceFile)) continue
+          movedFrom = candidate
+          break
+        }
+      }
+      if (movedFrom !== null) claimedSources.add(movedFrom)
     }
 
     if (absent && movedFrom === null) {
