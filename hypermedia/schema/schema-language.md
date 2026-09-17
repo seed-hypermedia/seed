@@ -68,7 +68,7 @@ The rules reuse existing keywords, so there is no `extends` keyword: <!-- id:A9L
   - `values` / `items` on the extension override the parent's. <!-- id:jK0_muct -->
   - the result keeps the parent's kind and closedness. An employee must have `name` (required on the parent) **and** `employeeId` (required on the extension), may use any inherited field, and still rejects unknown keys. <!-- id:jmFaI8J0 -->
 
-A **bare** `{ "type": X }`, where X names another schema and the node has nothing else, is a pure include. It becomes an extension only when a refinement is present. `validate.mjs` checks this (see the `employee data` / `extension …` checks). <!-- id:QzURq80i -->
+A **bare** `{ "type": X }`, where X names another schema and the node has nothing else, is a pure include. It becomes an extension only when a refinement is present. `validate.mjs` checks this (see the `example/employee.schema` checks and `an extension can pin a field to a literal`). <!-- id:QzURq80i -->
 
 ## Structs and maps <!-- id:SFVk1Mph -->
 
@@ -166,8 +166,8 @@ The parameter passes through references: each level passes it down with `args`, 
 Each variant is a **closed** map, so a nonsense schema like `{type:"string", items:{…}}` matches _none_ of them. The closed `schema/scalar-schema` rejects the stray `items` key, and the `type` tag rules out the others. Run it: <!-- id:j-_t0aVk -->
 
 ```sh <!-- id:yezLjFqJ -->
-node validate.mjs
-#   ok   rejects a string-that-is-also-a-list-and-struct (rejected)
+node scripts/hypermedia/validate.mjs
+#   ok   scalar carrying `items` (rejected)
 ```
 
 ### The loop still closes <!-- id:cAg3Oszt -->
@@ -186,11 +186,12 @@ Nothing defines the string `"map"`. A variant pins `type` to the literal kind UR
 `validate.mjs` validates `schema` against itself and every variant against the union. It also confirms the union _rejects_ malformed schemas. You can run it: <!-- id:R4Z6LPtc -->
 
 ```sh <!-- id:PxteeEDG -->
-node validate.mjs
-#   ok   schema.json describes itself
-#   ok   schema/map-schema.json is a valid schema
+node scripts/hypermedia/validate.mjs
+#   ok   hypermedia-schema.schema.json describes itself
 #   ...
-#   ok   rejects a string-that-is-also-a-list-and-struct (rejected)
+#   ok   schema/map-schema.schema.json
+#   ...
+#   ok   scalar carrying `items` (rejected)
 ```
 
 If you extend the vocabulary, run it again. If the union can no longer describe its own new shape, the loop is broken and the check fails. <!-- id:vGjbVugA -->

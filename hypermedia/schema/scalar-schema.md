@@ -14,6 +14,8 @@ A **closed struct** with these fields: <!-- id:rcFn9Ub4 -->
   - `minLength`: `integer` <!-- id:EbYp121n -->
   - `maxLength`: `integer` <!-- id:O9bBhW5v -->
   - `pattern`: `string` <!-- id:qMEWjTdR -->
+  - `format`: `string`
+  - `target`: `string`
   - `minimum`: `integer` <!-- id:3pUbMA-- -->
   - `maximum`: `integer` <!-- id:pfQyXxpR -->
   - `name`: `string` <!-- id:zMmY3mCD -->
