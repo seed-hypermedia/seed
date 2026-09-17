@@ -78,5 +78,6 @@
     {
       "type": "hm://hyper.media/rpc/subject-contacts"
     }
-  ]
+  ],
+  "description": "The union of every read-only method of the Seed API, each variant pinning a method key and typing its input and output."
 }

@@ -3,7 +3,8 @@
   "properties": {
     "key": {
       "value": "ListComments",
-      "required": true
+      "required": true,
+      "description": "Method key, always `ListComments`."
     },
     "input": {
       "value": {
@@ -13,17 +14,21 @@
             "value": {
               "type": "hm://hyper.media/rpc/type/id"
             },
-            "required": true
+            "required": true,
+            "description": "Id of the commented document."
           }
         }
       },
-      "required": true
+      "required": true,
+      "description": "The document whose comments to list."
     },
     "output": {
       "value": {
         "type": "hm://hyper.media/rpc/type/comment-list"
       },
-      "required": true
+      "required": true,
+      "description": "Comments on the document, with author metadata."
     }
-  }
+  },
+  "description": "Returns all comments on a target document, with the metadata payloads of their authors."
 }

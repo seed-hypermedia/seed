@@ -2,27 +2,32 @@
   "type": "hm://hyper.media/blob",
   "properties": {
     "type": {
-      "value": "Comment"
+      "value": "Comment",
+      "description": "Blob type tag, always `Comment`."
     },
     "id": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "TSID of the comment being replaced; present only on an edit or a tombstone."
     },
     "capability": {
       "value": {
         "type": "hm://hyper.media/cid"
-      }
+      },
+      "description": "Deprecated and ignored; some old comment blobs still carry it."
     },
     "space": {
       "value": {
         "type": "hm://hyper.media/principal"
-      }
+      },
+      "description": "Space of the commented document; omitted when it equals the signer."
     },
     "path": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "Path of the commented document within `space`."
     },
     "version": {
       "value": {
@@ -30,17 +35,20 @@
         "items": {
           "type": "hm://hyper.media/cid"
         }
-      }
+      },
+      "description": "CIDs of the document heads the author was looking at; empty means the document at this path."
     },
     "threadRoot": {
       "value": {
         "type": "hm://hyper.media/cid"
-      }
+      },
+      "description": "CID of the first comment of the thread; present on every reply."
     },
     "replyParent": {
       "value": {
         "type": "hm://hyper.media/cid"
-      }
+      },
+      "description": "CID of the comment this one replies to; omitted when it equals `threadRoot`."
     },
     "body": {
       "value": {
@@ -49,12 +57,15 @@
           "type": "hm://hyper.media/block/comment"
         }
       },
-      "required": true
+      "required": true,
+      "description": "The comment's content as a list of comment blocks; an empty body is a tombstone."
     },
     "visibility": {
       "value": {
         "type": "hm://hyper.media/visibility"
-      }
+      },
+      "description": "Empty for a public comment or `Private`, usually copied from the target document."
     }
-  }
+  },
+  "description": "A signed comment on a document version, threaded through `threadRoot` and `replyParent`, with a body of comment blocks."
 }

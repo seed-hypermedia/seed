@@ -1,3 +1,4 @@
 {
-  "type": "hm://hyper.media/link"
+  "type": "hm://hyper.media/link",
+  "description": "A content identifier: a CIDv1 link that names a blob by the hash of its bytes."
 }

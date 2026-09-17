@@ -39,5 +39,6 @@
     {
       "type": "hm://hyper.media/null"
     }
-  ]
+  ],
+  "description": "The meta-schema: the union of every shape a schema can take, itself a valid instance of this type."
 }

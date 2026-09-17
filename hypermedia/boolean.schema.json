@@ -1,3 +1,4 @@
 {
-  "type": "hm://hyper.media/boolean"
+  "type": "hm://hyper.media/boolean",
+  "description": "A true or false value."
 }

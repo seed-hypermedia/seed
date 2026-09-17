@@ -3,7 +3,8 @@
   "properties": {
     "key": {
       "value": "ListCommentsByAuthor",
-      "required": true
+      "required": true,
+      "description": "Method key, always `ListCommentsByAuthor`."
     },
     "input": {
       "value": {
@@ -13,17 +14,21 @@
             "value": {
               "type": "hm://hyper.media/rpc/type/id"
             },
-            "required": true
+            "required": true,
+            "description": "Id of the author account."
           }
         }
       },
-      "required": true
+      "required": true,
+      "description": "The author whose comments to list."
     },
     "output": {
       "value": {
         "type": "hm://hyper.media/rpc/type/comment-list"
       },
-      "required": true
+      "required": true,
+      "description": "The author's comments with author metadata."
     }
-  }
+  },
+  "description": "Returns the comments an author has written, with the author metadata payloads, given the author's id."
 }

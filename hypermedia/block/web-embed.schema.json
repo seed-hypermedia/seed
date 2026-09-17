@@ -2,13 +2,16 @@
   "type": "hm://hyper.media/block/base",
   "properties": {
     "type": {
-      "value": "WebEmbed"
+      "value": "WebEmbed",
+      "description": "Block type tag, always `WebEmbed`."
     },
     "link": {
       "value": {
         "type": "hm://hyper.media/url"
       },
-      "required": true
+      "required": true,
+      "description": "The embedded page or post — an `http(s)://` URL."
     }
-  }
+  },
+  "description": "An embed of an external web page or post by `https://` URL."
 }

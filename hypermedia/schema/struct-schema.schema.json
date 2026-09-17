@@ -42,5 +42,6 @@
       },
       "description": "Legacy: a name some published schemas still carry. New schemas are named by their page."
     }
-  }
+  },
+  "description": "A schema for a struct, with known fields under `properties` and optionally extra keys of one type under `values`."
 }

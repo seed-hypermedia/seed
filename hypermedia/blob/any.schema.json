@@ -18,5 +18,6 @@
     {
       "type": "hm://hyper.media/contact"
     }
-  ]
+  ],
+  "description": "Any Hypermedia CBOR blob — the union of the six blob types, selected by the `type` tag."
 }

@@ -3,12 +3,14 @@
   "properties": {
     "type": {
       "value": "SetAttributes",
-      "required": true
+      "required": true,
+      "description": "Operation tag, always `SetAttributes`."
     },
     "block": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "Reserved for per-block attributes; must be empty today."
     },
     "attrs": {
       "value": {
@@ -16,7 +18,9 @@
         "items": {
           "type": "hm://hyper.media/key-value"
         }
-      }
+      },
+      "description": "Key paths and the values to write; a `null` value deletes the key."
     }
-  }
+  },
+  "description": "The operation that sets document metadata by key path, each path a last-writer-wins register."
 }

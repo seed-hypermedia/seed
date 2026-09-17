@@ -8,7 +8,8 @@
           "type": "hm://hyper.media/query/inclusion"
         }
       },
-      "required": true
+      "required": true,
+      "description": "Spaces and path prefixes whose documents the query returns, each with a `Children` or `AllDescendants` mode."
     },
     "sort": {
       "value": {
@@ -16,13 +17,16 @@
         "items": {
           "type": "hm://hyper.media/query/sort"
         }
-      }
+      },
+      "description": "Sort terms for the results; the daemon applies the first."
     },
     "limit": {
       "value": {
         "type": "hm://hyper.media/integer",
         "minimum": 0
-      }
+      },
+      "description": "Maximum number of results to return."
     }
-  }
+  },
+  "description": "A live document query: which spaces and paths to include, how to sort, and an optional limit."
 }

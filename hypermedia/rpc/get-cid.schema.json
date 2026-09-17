@@ -3,7 +3,8 @@
   "properties": {
     "key": {
       "value": "GetCID",
-      "required": true
+      "required": true,
+      "description": "Method key, always `GetCID`."
     },
     "input": {
       "value": {
@@ -13,11 +14,13 @@
             "value": {
               "type": "hm://hyper.media/string"
             },
-            "required": true
+            "required": true,
+            "description": "CID of the IPFS block."
           }
         }
       },
-      "required": true
+      "required": true,
+      "description": "The block to fetch."
     },
     "output": {
       "value": {
@@ -27,11 +30,14 @@
             "value": {
               "type": "hm://hyper.media/any"
             },
-            "required": true
+            "required": true,
+            "description": "The block's content decoded as DAG-JSON."
           }
         }
       },
-      "required": true
+      "required": true,
+      "description": "The decoded block."
     }
-  }
+  },
+  "description": "Fetches a raw IPFS block by CID and returns it decoded as a DAG-JSON value; use it to inspect a blob's stored form."
 }

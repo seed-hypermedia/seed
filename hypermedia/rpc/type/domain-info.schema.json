@@ -5,7 +5,8 @@
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "The domain name."
     },
     "lastCheck": {
       "value": {
@@ -18,13 +19,15 @@
           }
         ]
       },
-      "required": true
+      "required": true,
+      "description": "Time of the last check, or `null` when never checked."
     },
     "status": {
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "Result of the last check: `success`, `unreachable`, `error`, or `unknown`."
     },
     "lastSuccess": {
       "value": {
@@ -37,7 +40,8 @@
           }
         ]
       },
-      "required": true
+      "required": true,
+      "description": "Time of the last successful check, or `null`."
     },
     "registeredAccountUid": {
       "value": {
@@ -50,7 +54,8 @@
           }
         ]
       },
-      "required": true
+      "required": true,
+      "description": "Account uid registered in the domain's site config, or `null` when unknown."
     },
     "peerId": {
       "value": {
@@ -63,13 +68,15 @@
           }
         ]
       },
-      "required": true
+      "required": true,
+      "description": "Peer id of the node serving the domain, or `null` when unknown."
     },
     "isGateway": {
       "value": {
         "type": "hm://hyper.media/boolean"
       },
-      "required": true
+      "required": true,
+      "description": "Whether the domain is a public gateway that serves canonical `/hm/*` URLs."
     },
     "lastError": {
       "value": {
@@ -82,7 +89,9 @@
           }
         ]
       },
-      "required": true
+      "required": true,
+      "description": "Error details from the last failed check, or `null`."
     }
-  }
+  },
+  "description": "The daemon's view of a site domain: registration, gateway status, and health-check results."
 }

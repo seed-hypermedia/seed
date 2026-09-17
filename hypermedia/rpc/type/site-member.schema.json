@@ -5,7 +5,8 @@
       "value": {
         "type": "hm://hyper.media/rpc/type/id"
       },
-      "required": true
+      "required": true,
+      "description": "Parsed id of the member account."
     },
     "role": {
       "value": {
@@ -15,7 +16,9 @@
           "member"
         ]
       },
-      "required": true
+      "required": true,
+      "description": "Effective role: `owner`, `writer`, or `member`."
     }
-  }
+  },
+  "description": "One member of a site with their effective role: owner, writer, or member."
 }

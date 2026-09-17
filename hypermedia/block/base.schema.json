@@ -5,18 +5,22 @@
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "The block's permanent identity inside its document."
     },
     "revision": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "Output only: CID of the last Change that modified this block."
     },
     "type": {
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "Name of the block type, such as `Paragraph` or `Image`."
     }
-  }
+  },
+  "description": "The fields every concrete block type shares: `id`, `type` and the daemon-filled `revision`."
 }

@@ -2,13 +2,15 @@
   "type": "hm://hyper.media/block/base",
   "properties": {
     "type": {
-      "value": "Video"
+      "value": "Video",
+      "description": "Block type tag, always `Video`."
     },
     "link": {
       "value": {
         "type": "hm://hyper.media/url"
       },
-      "required": true
+      "required": true,
+      "description": "The video — an `ipfs://<cid>` file or a web video URL such as a YouTube link."
     },
     "attributes": {
       "value": {
@@ -17,43 +19,52 @@
           "childrenType": {
             "value": {
               "type": "hm://hyper.media/block/children-type"
-            }
+            },
+            "description": "How this block lays out its children — a children type such as `Unordered` or `Grid`."
           },
           "columnCount": {
             "value": {
               "type": "hm://hyper.media/float"
-            }
+            },
+            "description": "Number of columns the children occupy when `childrenType` is `Grid`."
           },
           "width": {
             "value": {
               "type": "hm://hyper.media/float"
-            }
+            },
+            "description": "Display width in pixels."
           },
           "name": {
             "value": {
               "type": "hm://hyper.media/string"
-            }
+            },
+            "description": "Original file name of the video."
           },
           "autoplay": {
             "value": {
               "type": "hm://hyper.media/boolean"
-            }
+            },
+            "description": "Start playing automatically."
           },
           "loop": {
             "value": {
               "type": "hm://hyper.media/boolean"
-            }
+            },
+            "description": "Restart playback when the video ends."
           },
           "muted": {
             "value": {
               "type": "hm://hyper.media/boolean"
-            }
+            },
+            "description": "Play without sound."
           }
         },
         "values": {
           "type": "hm://hyper.media/any"
         }
-      }
+      },
+      "description": "Playback settings and parent-layout attributes."
     }
-  }
+  },
+  "description": "A video from an `ipfs://` file or a supported web video URL, with playback settings."
 }

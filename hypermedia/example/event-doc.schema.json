@@ -43,7 +43,9 @@
           "stalemate",
           "unknown"
         ]
-      }
+      },
+      "description": "How the event ended: `victory`, `defeat`, `stalemate` or `unknown`."
     }
-  }
+  },
+  "description": "A World Builder page type for something that happened, with a date and links to a place, a protagonist and a faction."
 }

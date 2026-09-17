@@ -2,5 +2,6 @@
   "anyOf": [
     "",
     "Private"
-  ]
+  ],
+  "description": "Who may see a Ref or Comment: empty for public, `Private` for the space owner, its writers and its site only."
 }

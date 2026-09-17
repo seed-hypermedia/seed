@@ -2,32 +2,39 @@
   "type": "hm://hyper.media/blob",
   "properties": {
     "type": {
-      "value": "Contact"
+      "value": "Contact",
+      "description": "Blob type tag, always `Contact`."
     },
     "id": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "TSID of the contact record being replaced; present only on updates and tombstones."
     },
     "account": {
       "value": {
         "type": "hm://hyper.media/principal"
-      }
+      },
+      "description": "Account the contact is written for, set only when a delegated key signs on its behalf."
     },
     "subject": {
       "value": {
         "type": "hm://hyper.media/principal"
-      }
+      },
+      "description": "The account being described; an empty subject makes the blob a tombstone."
     },
     "name": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "The signer's name for the subject account, up to 256 bytes."
     },
     "subscribe": {
       "value": {
         "type": "hm://hyper.media/contact/subscribe"
-      }
+      },
+      "description": "Flags saying whether the signer joined the subject's site or follows its profile."
     }
-  }
+  },
+  "description": "A public address-book entry: one account's name for another, with flags for joining its site or following its profile."
 }

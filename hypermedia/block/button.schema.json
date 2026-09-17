@@ -2,18 +2,21 @@
   "type": "hm://hyper.media/block/base",
   "properties": {
     "type": {
-      "value": "Button"
+      "value": "Button",
+      "description": "Block type tag, always `Button`."
     },
     "text": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "Label shown on the button."
     },
     "link": {
       "value": {
         "type": "hm://hyper.media/url"
       },
-      "required": true
+      "required": true,
+      "description": "Where the button goes — an `hm://` or web URL."
     },
     "attributes": {
       "value": {
@@ -22,28 +25,34 @@
           "childrenType": {
             "value": {
               "type": "hm://hyper.media/block/children-type"
-            }
+            },
+            "description": "How this block lays out its children — a children type such as `Unordered` or `Grid`."
           },
           "columnCount": {
             "value": {
               "type": "hm://hyper.media/float"
-            }
+            },
+            "description": "Number of columns the children occupy when `childrenType` is `Grid`."
           },
           "name": {
             "value": {
               "type": "hm://hyper.media/string"
-            }
+            },
+            "description": "Alternative label for the button."
           },
           "alignment": {
             "value": {
               "type": "hm://hyper.media/block/button-alignment"
-            }
+            },
+            "description": "Horizontal position of the button in its column."
           }
         },
         "values": {
           "type": "hm://hyper.media/any"
         }
-      }
+      },
+      "description": "Button settings and parent-layout attributes."
     }
-  }
+  },
+  "description": "A call-to-action button block with a label, a required link and an alignment."
 }

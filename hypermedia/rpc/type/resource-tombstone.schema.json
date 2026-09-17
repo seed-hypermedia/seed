@@ -3,13 +3,16 @@
   "properties": {
     "type": {
       "value": "tombstone",
-      "required": true
+      "required": true,
+      "description": "Discriminator: the resource was deleted."
     },
     "id": {
       "value": {
         "type": "hm://hyper.media/rpc/type/id"
       },
-      "required": true
+      "required": true,
+      "description": "Parsed id the resource was requested with."
     }
-  }
+  },
+  "description": "A resource that was deleted by a tombstone ref."
 }

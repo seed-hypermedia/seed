@@ -2,5 +2,6 @@
   "type": "hm://hyper.media/map",
   "values": {
     "type": "hm://hyper.media/rpc/type/metadata-payload"
-  }
+  },
+  "description": "A map from account uid to its resolved metadata payload, sent with listings so clients can show authors."
 }

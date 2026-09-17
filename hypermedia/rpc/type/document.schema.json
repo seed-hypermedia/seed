@@ -7,17 +7,20 @@
         "items": {
           "type": "hm://hyper.media/block/node"
         }
-      }
+      },
+      "description": "Block tree of the document content."
     },
     "version": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "Current version of the document."
     },
     "account": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "Account uid the document belongs to."
     },
     "authors": {
       "value": {
@@ -26,12 +29,14 @@
           "type": "hm://hyper.media/string"
         }
       },
-      "required": true
+      "required": true,
+      "description": "Uids of every account that has modified the document, including the original author."
     },
     "path": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "Path of the document within the account; empty string for the home document."
     },
     "createTime": {
       "value": {
@@ -43,7 +48,8 @@
             "type": "hm://hyper.media/string"
           }
         ]
-      }
+      },
+      "description": "Time the document was created."
     },
     "updateTime": {
       "value": {
@@ -55,13 +61,15 @@
             "type": "hm://hyper.media/string"
           }
         ]
-      }
+      },
+      "description": "Time the document was last updated."
     },
     "metadata": {
       "value": {
         "type": "hm://hyper.media/metadata"
       },
-      "required": true
+      "required": true,
+      "description": "The document's metadata, such as name, icon, and cover."
     },
     "detachedBlocks": {
       "value": {
@@ -69,13 +77,15 @@
         "values": {
           "type": "hm://hyper.media/block/node"
         }
-      }
+      },
+      "description": "Blocks that were created but never moved into the content, keyed by block id."
     },
     "genesis": {
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "CID of the document's genesis change."
     },
     "generationInfo": {
       "value": {
@@ -85,22 +95,27 @@
             "value": {
               "type": "hm://hyper.media/string"
             },
-            "required": true
+            "required": true,
+            "description": "CID of the genesis change the generation starts from."
           },
           "generation": {
             "value": {
               "type": "hm://hyper.media/integer"
             },
-            "required": true
+            "required": true,
+            "description": "Opaque generation number; a higher generation supersedes earlier ones for the same genesis."
           }
         }
-      }
+      },
+      "description": "Generation of the document this content belongs to."
     },
     "visibility": {
       "value": {
         "type": "hm://hyper.media/visibility"
       },
-      "required": true
+      "required": true,
+      "description": "Visibility, `PUBLIC` or `PRIVATE`; unset or unspecified values read as `PUBLIC`."
     }
-  }
+  },
+  "description": "A document as the API returns it: its metadata and content plus derived fields such as version, authors, and visibility."
 }

@@ -1,3 +1,4 @@
 {
-  "type": "hm://hyper.media/integer"
+  "type": "hm://hyper.media/integer",
+  "description": "A point in time as an integer of Unix milliseconds, claimed by the signer and not checked against wall-clock time."
 }

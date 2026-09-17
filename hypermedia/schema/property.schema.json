@@ -20,5 +20,6 @@
       },
       "description": "What the field is for, for people and for the editors that show it."
     }
-  }
+  },
+  "description": "One field of a struct: the schema its value must match, whether it is required, and what it is for."
 }

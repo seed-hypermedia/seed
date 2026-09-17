@@ -4,12 +4,14 @@
     "id": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "CID of the change."
     },
     "author": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "Account uid of the change's author."
     },
     "deps": {
       "value": {
@@ -17,12 +19,15 @@
         "items": {
           "type": "hm://hyper.media/string"
         }
-      }
+      },
+      "description": "CIDs of the changes this change depends on."
     },
     "createTime": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "Time the change was created, as claimed by the author, as an RFC 3339 string."
     }
-  }
+  },
+  "description": "One change of a document's history in raw listing form: CID, author, dependency edges, and time."
 }

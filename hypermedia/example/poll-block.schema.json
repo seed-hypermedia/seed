@@ -2,13 +2,15 @@
   "type": "hm://hyper.media/block/base",
   "properties": {
     "type": {
-      "value": "Poll"
+      "value": "Poll",
+      "description": "Block type literal `Poll`."
     },
     "question": {
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "The question the poll asks."
     },
     "options": {
       "value": {
@@ -17,7 +19,8 @@
           "type": "hm://hyper.media/string"
         }
       },
-      "required": true
+      "required": true,
+      "description": "The answer choices, in display order."
     },
     "attributes": {
       "value": {
@@ -26,23 +29,28 @@
           "childrenType": {
             "value": {
               "type": "hm://hyper.media/block/children-type"
-            }
+            },
+            "description": "How the block's children are laid out, such as `Ordered` or `Grid`."
           },
           "columnCount": {
             "value": {
               "type": "hm://hyper.media/float"
-            }
+            },
+            "description": "Number of columns when `childrenType` is `Grid`."
           },
           "multiple": {
             "value": {
               "type": "hm://hyper.media/boolean"
-            }
+            },
+            "description": "Whether a voter may choose more than one option."
           }
         },
         "values": {
           "type": "hm://hyper.media/any"
         }
-      }
+      },
+      "description": "Block attributes: layout keys plus poll settings such as `multiple`; other keys are allowed."
     }
-  }
+  },
+  "description": "An example third-party block type: a poll with a question and options, extending the shared block base like a core block."
 }

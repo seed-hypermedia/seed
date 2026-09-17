@@ -3,7 +3,8 @@
   "properties": {
     "key": {
       "value": "ListAccounts",
-      "required": true
+      "required": true,
+      "description": "Method key, always `ListAccounts`."
     },
     "input": {
       "value": {
@@ -16,7 +17,8 @@
           }
         ]
       },
-      "required": true
+      "required": true,
+      "description": "Ignored; send an empty map or `null`."
     },
     "output": {
       "value": {
@@ -29,11 +31,14 @@
                 "type": "hm://hyper.media/rpc/type/metadata-payload"
               }
             },
-            "required": true
+            "required": true,
+            "description": "Metadata payload of each known account."
           }
         }
       },
-      "required": true
+      "required": true,
+      "description": "All known accounts."
     }
-  }
+  },
+  "description": "Returns every account the daemon knows as a list of metadata payloads; it takes no meaningful input."
 }

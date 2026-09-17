@@ -12,22 +12,26 @@
           "hm://hyper.media/bytes"
         ]
       },
-      "required": true
+      "required": true,
+      "description": "The scalar kind the value must be: `null`, `boolean`, `integer`, `float`, `string` or `bytes`."
     },
     "minLength": {
       "value": {
         "type": "hm://hyper.media/integer"
-      }
+      },
+      "description": "Minimum length of a string value, counted in code points."
     },
     "maxLength": {
       "value": {
         "type": "hm://hyper.media/integer"
-      }
+      },
+      "description": "Maximum length of a string value, counted in code points."
     },
     "pattern": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "An unanchored ECMAScript regular expression a string value must match; an uncompilable pattern is ignored."
     },
     "format": {
       "value": {
@@ -44,17 +48,20 @@
     "minimum": {
       "value": {
         "type": "hm://hyper.media/integer"
-      }
+      },
+      "description": "The smallest number an integer or float value may be (inclusive)."
     },
     "maximum": {
       "value": {
         "type": "hm://hyper.media/integer"
-      }
+      },
+      "description": "The largest number an integer or float value may be (inclusive)."
     },
     "description": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "What the value is for, when it is written inline; a published schema is described by its page."
     },
     "params": {
       "value": {
@@ -62,12 +69,15 @@
         "values": {
           "type": "hm://hyper.media/schema"
         }
-      }
+      },
+      "description": "Type parameters that make this schema generic, each with its default schema."
     },
     "name": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "Legacy: a name some published schemas still carry. New schemas are named by their page."
     }
-  }
+  },
+  "description": "A schema for a null, boolean, integer, float, string or bytes value, optionally narrowed by value constraints."
 }

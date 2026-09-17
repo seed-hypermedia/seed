@@ -7,12 +7,15 @@
         "items": {
           "type": "hm://hyper.media/string"
         }
-      }
+      },
+      "description": "Path of key segments to set, such as `[\"theme\", \"headerLayout\"]` for a nested key."
     },
     "value": {
       "value": {
         "type": "hm://hyper.media/value"
-      }
+      },
+      "description": "Scalar value to store at `key`; `null` deletes the key."
     }
-  }
+  },
+  "description": "One attribute assignment in a SetAttributes op: a key path and the scalar value to set there."
 }

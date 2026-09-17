@@ -6,28 +6,32 @@
         "type": "hm://hyper.media/integer",
         "minimum": 0
       },
-      "required": true
+      "required": true,
+      "description": "Number of distinct documents citing this document."
     },
     "comments": {
       "value": {
         "type": "hm://hyper.media/integer",
         "minimum": 0
       },
-      "required": true
+      "required": true,
+      "description": "Number of distinct comments citing this document."
     },
     "changes": {
       "value": {
         "type": "hm://hyper.media/integer",
         "minimum": 0
       },
-      "required": true
+      "required": true,
+      "description": "Number of changes in the document's history."
     },
     "children": {
       "value": {
         "type": "hm://hyper.media/integer",
         "minimum": 0
       },
-      "required": true
+      "required": true,
+      "description": "Number of alive direct child documents."
     },
     "authorUids": {
       "value": {
@@ -35,7 +39,8 @@
         "items": {
           "type": "hm://hyper.media/string"
         }
-      }
+      },
+      "description": "Distinct account uids that authored the citing documents and comments."
     },
     "blocks": {
       "value": {
@@ -48,19 +53,23 @@
                 "type": "hm://hyper.media/integer",
                 "minimum": 0
               },
-              "required": true
+              "required": true,
+              "description": "Number of document citations pointing at this block."
             },
             "comments": {
               "value": {
                 "type": "hm://hyper.media/integer",
                 "minimum": 0
               },
-              "required": true
+              "required": true,
+              "description": "Number of comment citations pointing at this block."
             }
           }
         }
       },
-      "required": true
+      "required": true,
+      "description": "Citation and comment counts per cited block, keyed by block id."
     }
-  }
+  },
+  "description": "Interaction counts for a document (citations, comments, changes, children, authors) plus per-block counts."
 }

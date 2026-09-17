@@ -27,5 +27,6 @@
         "type": "hm://hyper.media/example/json"
       }
     }
-  ]
+  ],
+  "description": "A recursive JSON value: null, boolean, integer, float, string, or a list or map of JSON values."
 }

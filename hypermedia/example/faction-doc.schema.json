@@ -34,5 +34,6 @@
       },
       "description": "A banner or crest image file on IPFS."
     }
-  }
+  },
+  "description": "A World Builder page type for a faction, order, house or guild, with a founding date and links to its seat, leader and banner."
 }

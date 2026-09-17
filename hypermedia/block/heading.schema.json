@@ -2,12 +2,14 @@
   "type": "hm://hyper.media/block/base",
   "properties": {
     "type": {
-      "value": "Heading"
+      "value": "Heading",
+      "description": "Block type tag, always `Heading`."
     },
     "text": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "The heading text, without markup."
     },
     "annotations": {
       "value": {
@@ -15,7 +17,8 @@
         "items": {
           "type": "hm://hyper.media/block/annotation"
         }
-      }
+      },
+      "description": "Inline formatting, links and mentions over `text`."
     },
     "attributes": {
       "value": {
@@ -24,18 +27,22 @@
           "childrenType": {
             "value": {
               "type": "hm://hyper.media/block/children-type"
-            }
+            },
+            "description": "How this block lays out its children — a children type such as `Unordered` or `Grid`."
           },
           "columnCount": {
             "value": {
               "type": "hm://hyper.media/float"
-            }
+            },
+            "description": "Number of columns the children occupy when `childrenType` is `Grid`."
           }
         },
         "values": {
           "type": "hm://hyper.media/any"
         }
-      }
+      },
+      "description": "Parent-layout attributes for the section under the heading."
     }
-  }
+  },
+  "description": "A section heading whose children are the section; its level comes from nesting depth."
 }
