@@ -1,5 +1,5 @@
 {
-  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+  "type": "hm://hyper.media/struct",
   "properties": {
     "key": {
       "value": "QueryBlock",
@@ -7,11 +7,11 @@
     },
     "input": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+        "type": "hm://hyper.media/struct",
         "properties": {
           "query": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/query"
+              "type": "hm://hyper.media/query"
             },
             "required": true
           }
@@ -23,10 +23,10 @@
       "value": {
         "anyOf": [
           {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/query-block-payload"
+            "type": "hm://hyper.media/rpc/type/query-block-payload"
           },
           {
-            "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null"
+            "type": "hm://hyper.media/null"
           }
         ]
       },

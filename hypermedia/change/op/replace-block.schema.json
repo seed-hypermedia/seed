@@ -1,5 +1,5 @@
 {
-  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+  "type": "hm://hyper.media/struct",
   "properties": {
     "type": {
       "value": "ReplaceBlock",
@@ -14,7 +14,7 @@
   },
   "params": {
     "Block": {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block"
+      "type": "hm://hyper.media/block"
     }
   }
 }

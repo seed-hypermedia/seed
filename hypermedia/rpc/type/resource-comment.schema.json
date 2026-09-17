@@ -1,5 +1,5 @@
 {
-  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+  "type": "hm://hyper.media/struct",
   "properties": {
     "type": {
       "value": "comment",
@@ -7,13 +7,13 @@
     },
     "id": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/id"
+        "type": "hm://hyper.media/rpc/type/id"
       },
       "required": true
     },
     "comment": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/comment"
+        "type": "hm://hyper.media/rpc/type/comment"
       },
       "required": true
     }

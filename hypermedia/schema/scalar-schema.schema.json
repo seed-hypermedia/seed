@@ -1,72 +1,72 @@
 {
-  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+  "type": "hm://hyper.media/struct",
   "properties": {
     "type": {
       "value": {
         "anyOf": [
-          "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null",
-          "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean",
-          "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer",
-          "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float",
-          "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
-          "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/bytes"
+          "hm://hyper.media/null",
+          "hm://hyper.media/boolean",
+          "hm://hyper.media/integer",
+          "hm://hyper.media/float",
+          "hm://hyper.media/string",
+          "hm://hyper.media/bytes"
         ]
       },
       "required": true
     },
     "minLength": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer"
+        "type": "hm://hyper.media/integer"
       }
     },
     "maxLength": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer"
+        "type": "hm://hyper.media/integer"
       }
     },
     "pattern": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+        "type": "hm://hyper.media/string"
       }
     },
     "format": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+        "type": "hm://hyper.media/string"
       },
       "description": "A semantic hint for editors/renderers — the value is still a plain string. Known: `hm-url` (a Hypermedia document reference), `hm-profile` (an account reference), `ipfs-url` (an ipfs://<cid> reference to a file or DAG-CBOR object), `url` (a URL of any scheme), `date` (an ISO 8601 `YYYY-MM-DD` calendar date), `date-time` (an RFC 3339 instant)."
     },
     "target": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+        "type": "hm://hyper.media/string"
       },
       "description": "For a reference-valued string (`format: hm-url` or `format: ipfs-url`): the schema the referenced document or object is expected to conform to — an `hm://` schema-document URL or `ipfs://<cid>`. Advisory: an editor pre-seeds and validates the target against it; a validator does not dereference the reference."
     },
     "minimum": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer"
+        "type": "hm://hyper.media/integer"
       }
     },
     "maximum": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer"
+        "type": "hm://hyper.media/integer"
       }
     },
     "description": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+        "type": "hm://hyper.media/string"
       }
     },
     "params": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+        "type": "hm://hyper.media/map",
         "values": {
-          "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema"
+          "type": "hm://hyper.media/schema"
         }
       }
     },
     "name": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+        "type": "hm://hyper.media/string"
       }
     }
   }

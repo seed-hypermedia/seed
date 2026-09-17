@@ -1,8 +1,8 @@
 {
-  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/change",
+  "type": "hm://hyper.media/change",
   "args": {
     "Block": {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/app-block"
+      "type": "hm://hyper.media/example/app-block"
     }
   }
 }

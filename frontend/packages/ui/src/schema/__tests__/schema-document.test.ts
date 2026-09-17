@@ -29,7 +29,7 @@ describe('schema-document metadata helpers', () => {
 })
 
 describe('freezeSchemaDraft', () => {
-  const SCHEMA = {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct', properties: {}}
+  const SCHEMA = {type: 'hm://hyper.media/struct', properties: {}}
   const recordingClient = () => {
     const published: any[] = []
     return {
@@ -62,8 +62,8 @@ describe('freezeSchemaDraft', () => {
   it('freezes the children’s working schema into childAttributesSchema, beside the document’s own', async () => {
     const {client, published} = recordingClient()
     const CHILD = {
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct',
-      properties: {height: {value: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer'}}},
+      type: 'hm://hyper.media/struct',
+      properties: {height: {value: {type: 'hm://hyper.media/integer'}}},
     }
     const out = await freezeSchemaDraft(client, {name: 'Trees'}, undefined, {childAttributesSchema: CHILD})
     expect(published).toHaveLength(1)

@@ -1,22 +1,22 @@
 {
   "anyOf": [
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/resource-document"
+      "type": "hm://hyper.media/rpc/type/resource-document"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/resource-comment"
+      "type": "hm://hyper.media/rpc/type/resource-comment"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/resource-redirect"
+      "type": "hm://hyper.media/rpc/type/resource-redirect"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/resource-not-found"
+      "type": "hm://hyper.media/rpc/type/resource-not-found"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/resource-tombstone"
+      "type": "hm://hyper.media/rpc/type/resource-tombstone"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/resource-error"
+      "type": "hm://hyper.media/rpc/type/resource-error"
     }
   ]
 }

@@ -1,32 +1,32 @@
 {
-  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+  "type": "hm://hyper.media/struct",
   "properties": {
     "type": {
-      "value": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/link",
+      "value": "hm://hyper.media/link",
       "required": true
     },
     "target": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+        "type": "hm://hyper.media/string"
       },
       "description": "The schema the linked block is expected to conform to. Advisory: a validator does not dereference the link."
     },
     "description": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+        "type": "hm://hyper.media/string"
       }
     },
     "params": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+        "type": "hm://hyper.media/map",
         "values": {
-          "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema"
+          "type": "hm://hyper.media/schema"
         }
       }
     },
     "name": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+        "type": "hm://hyper.media/string"
       }
     }
   }

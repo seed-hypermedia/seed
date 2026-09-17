@@ -1,10 +1,21 @@
 import {describe, expect, it} from 'vitest'
-import {dependencies, dependents, HM_SCHEMAS, schemaCid, validate} from '../engine'
+import {
+  dependencies,
+  dependents,
+  HM_SCHEMAS,
+  kindUrl,
+  LIBRARY_AUTHORITY,
+  nameToUrl,
+  refToName,
+  schemaCid,
+  validate,
+} from '../engine'
+import {classifyRef} from '../schema-resolve'
 
 // dag-json constructors for test data (mirror scripts/hypermedia/validate.mjs)
 const cid = (s: string) => ({'/': s})
 const bytes = (b: string) => ({'/': {bytes: b}})
-const K = (k: string) => `hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/${k}`
+const K = (k: string) => `hm://hyper.media/${k}`
 const S = (name: string) => HM_SCHEMAS[name]
 
 const meta = S('schema')
@@ -150,6 +161,26 @@ describe('schema engine — parity with the reference validator (scripts/hyperme
     expect(dependents('schema/map-schema')).toContain('schema')
     // published CIDs exist
     expect(schemaCid('schema')).toMatch(/^bafy/)
-    expect(schemaCid('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema/map-schema')).toMatch(/^bafy/)
+    expect(schemaCid('hm://hyper.media/schema/map-schema')).toMatch(/^bafy/)
+  })
+})
+
+describe('library URLs name the library by domain, not by a key', () => {
+  it('nameToUrl and kindUrl use hm://hyper.media', () => {
+    expect(LIBRARY_AUTHORITY).toBe('hyper.media')
+    expect(nameToUrl('example/person')).toBe('hm://hyper.media/example/person')
+    expect(kindUrl('map')).toBe('hm://hyper.media/map')
+  })
+
+  it('hm://hyper.media/document is the bundled document schema', () => {
+    expect(refToName('hm://hyper.media/document')).toBe('document')
+    expect(classifyRef('hm://hyper.media/document')).toEqual({kind: 'hm-bundled', name: 'document'})
+  })
+
+  it("an account's document is never matched to the bundle by path", () => {
+    const ref = 'hm://z6MkSomeAccount/document'
+    expect(refToName(ref)).toBe(ref)
+    expect(classifyRef(ref)).toEqual({kind: 'hm-doc', url: ref})
+    expect(schemaCid(ref)).toBeUndefined()
   })
 })

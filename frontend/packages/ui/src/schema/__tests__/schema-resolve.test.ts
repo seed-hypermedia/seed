@@ -2,7 +2,9 @@ import {describe, expect, it} from 'vitest'
 import {HM_SCHEMAS, fieldSchema, requiredFieldNames, resolveSchema, schemaCid, validate} from '../engine'
 import {bareCid, classifyRef, metadataSchemaOf} from '../schema-resolve'
 
-const HYPERMEDIA_UID = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
+const LIBRARY = 'hm://hyper.media'
+/** Some account's space, not the library. */
+const ACCOUNT = 'z6MkSomeAccountTestTestTestTestTestTestTestTest'
 const personCid = schemaCid('example/person')!
 
 describe('hypermedia-metadata semantic field formats', () => {
@@ -39,13 +41,13 @@ describe('bareCid', () => {
 })
 
 describe('classifyRef', () => {
-  it('a bundled schema published under the Hypermedia account is hm-bundled (no fetch)', () => {
-    expect(classifyRef(`${HYPERMEDIA_UID}/example/person`)).toEqual({kind: 'hm-bundled', name: 'example/person'})
+  it('a library schema URL (hm://hyper.media/…) is hm-bundled (no fetch)', () => {
+    expect(classifyRef(`${LIBRARY}/example/person`)).toEqual({kind: 'hm-bundled', name: 'example/person'})
     // the base document schema too
-    expect(classifyRef(`${HYPERMEDIA_UID}/document`)).toEqual({kind: 'hm-bundled', name: 'document'})
+    expect(classifyRef(`${LIBRARY}/document`)).toEqual({kind: 'hm-bundled', name: 'document'})
   })
   it('a primitive kind URL resolves to its bundled schema', () => {
-    expect(classifyRef('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string')).toEqual({
+    expect(classifyRef('hm://hyper.media/string')).toEqual({
       kind: 'hm-bundled',
       name: 'string',
     })
@@ -56,11 +58,20 @@ describe('classifyRef', () => {
   it('an ipfs CID is a direct cid ref', () => {
     expect(classifyRef(`ipfs://${personCid}`)).toEqual({kind: 'cid', cid: personCid})
   })
-  it('a gateway/web URL normalizes to the same schema as its hm:// form', () => {
-    // A pasted or search-picked link often arrives as an https gateway URL.
-    expect(
-      classifyRef(`https://hyper.media/hm/z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/employee`),
-    ).toEqual({kind: 'hm-bundled', name: 'example/employee'})
+  it('a gateway/web URL normalizes to its hm:// form', () => {
+    // A pasted or search-picked link often arrives as an https gateway URL. An account's document is
+    // fetched like any other, even when its path matches a bundled schema name.
+    expect(classifyRef(`https://hyper.media/hm/${ACCOUNT}/example/employee`)).toEqual({
+      kind: 'hm-doc',
+      url: `hm://${ACCOUNT}/example/employee`,
+    })
+  })
+  it('an account URL whose path matches a bundled name is still a document to fetch (hm-doc)', () => {
+    expect(classifyRef(`hm://${ACCOUNT}/document`)).toEqual({kind: 'hm-doc', url: `hm://${ACCOUNT}/document`})
+    expect(classifyRef(`hm://${ACCOUNT}/string`)).toEqual({kind: 'hm-doc', url: `hm://${ACCOUNT}/string`})
+  })
+  it('the legacy dev authorities still resolve to the bundle', () => {
+    expect(classifyRef('hm://seed.hyper.media/string')).toEqual({kind: 'hm-bundled', name: 'string'})
   })
   it('empty / junk is none', () => {
     expect(classifyRef('')).toEqual({kind: 'none'})

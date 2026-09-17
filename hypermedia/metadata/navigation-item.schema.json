@@ -1,5 +1,5 @@
 {
-  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+  "type": "hm://hyper.media/struct",
   "properties": {
     "type": {
       "value": "Link",
@@ -7,19 +7,19 @@
     },
     "id": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+        "type": "hm://hyper.media/string"
       },
       "required": true
     },
     "text": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+        "type": "hm://hyper.media/string"
       },
       "required": true
     },
     "link": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/url"
+        "type": "hm://hyper.media/url"
       },
       "required": true
     }

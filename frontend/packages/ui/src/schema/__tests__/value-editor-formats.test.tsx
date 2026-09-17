@@ -79,6 +79,6 @@ describe('value editor formats', () => {
   })
 
   it('the kit exposes the target on the stats field', () => {
-    expect(nameToUrl('example/stats')).toBe('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/stats')
+    expect(nameToUrl('example/stats')).toBe('hm://hyper.media/example/stats')
   })
 })

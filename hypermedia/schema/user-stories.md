@@ -14,7 +14,7 @@ These are the things a person should be able to do with the type system, written
 
 **Running the automated tests.** The CLI and agent steps of every story run against a real daemon and the built web app. From `tests/`, run `SKIP_BUILD=true pnpm exec vitest --run user-stories`. Drop `SKIP_BUILD` for the first run, which builds the web app. The two automated app stories run against a packaged desktop app: from `frontend/apps/desktop`, run `pnpm package:e2e` once, then `pnpm e2e:stories`. The desktop suite uses its own account, appdata (`Seed-e2e`) and ports (58100 to 58106), so it never touches a dev or installed app. <!-- id:4wHdEdfA -->
 
-**Names used below.** `<acct>` is an [account](../protocol/identity.md) id such as `z6Mk…`. `<library>` is the account that publishes this library, `z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb`. Every library schema lives at `hm://<library>/<name>`, where the name is its path in the library, so `hm://<library>/document` is the base document type. <!-- id:oztmKE3p -->
+**Names used below.** `<acct>` is an [account](../protocol/identity.md) id such as `z6Mk…`. `<library>` is the key of the space the library is published to. Every library schema has a page at `hm://<library>/<name>`, where the name is its path in the library, so `hm://<library>/document` is the base document type. Inside schema files the library is written `hm://hyper.media/<name>`. The SDK understands that name, but the network does not resolve domains in `hm://` URLs yet, so a URL you open needs the key. <!-- id:oztmKE3p -->
 
 # 1. Understand the document model <!-- id:AMFjgZzp -->
 
@@ -101,7 +101,7 @@ These are the things a person should be able to do with the type system, written
   2. Give the document a name, and write a description in the body. The schema itself carries neither. The page carries them. <!-- id:RIVfC-ds -->
   3. Press **Edit** on the schema section. In the editor, use **Add field** for each [property](./property.md): its **Field name**, its type (picked from every type document, plus the built-ins: text, number, date, HM link, IPFS…), whether it is required, and a description. A union or a list is edited in the same form. **Schema JSON** switches to editing the schema as text. <!-- id:lq5g88L3 -->
   4. Publish. The working schema is frozen into a DAG-CBOR blob, and the document's `schemaDefinition` points at it. The page now shows a schema tag in its header and a **Create** button. <!-- id:JwxifnQe -->
-  5. To build on an existing type, open its page and choose **Extend Schema**. The new draft starts as `{type: <that type>}` plus your fields, which is an [extension](./extension.md). A typed document schema extends `hm://<library>/document` and refines `metadata`. See [typed documents](./typed-documents.md). <!-- id:H3Lkwivi -->
+  5. To build on an existing type, open its page and choose **Extend Schema**. The new draft starts as `{type: <that type>}` plus your fields, which is an [extension](./extension.md). A typed document schema extends `hm://hyper.media/document` and refines `metadata`. See [typed documents](./typed-documents.md). <!-- id:H3Lkwivi -->
 
 **With the CLI** <!-- id:U6i9oiV8 -->
   1. Write the schema as dag-json next to the page: `types/person.md` and `types/person.schema.json`. `space import hm://<acct> ./site --key <name>` encodes the schema to its CID, publishes the blob, and binds it to the document as `schemaDefinition`. This library is published the same way. See [publish a folder](../build/publish-a-folder.md). <!-- id:PwwtiTUC -->
@@ -143,10 +143,10 @@ These are the things a person should be able to do with the type system, written
   3. Or open the blob page and choose **Extend Schema** to start from the envelope directly. <!-- id:B4BhWu7g -->
 
 **With the CLI** <!-- id:jdh8RNzv -->
-  1. Write a schema whose root is `{"type": "hm://<library>/blob", "properties": {"type": {"value": "Vote", "required": true}, …}}`. Publish it as a type page with `document create --schema-definition vote.schema.json`, or beside its page with `space import`, as in story 5. <!-- id:SsUIQT9- -->
+  1. Write a schema whose root is `{"type": "hm://hyper.media/blob", "properties": {"type": {"value": "Vote", "required": true}, …}}`. Publish it as a type page with `document create --schema-definition vote.schema.json`, or beside its page with `space import`, as in story 5. <!-- id:SsUIQT9- -->
 
 **Through an agent** <!-- id:2OweK2rk -->
-  1. Do the same as story 5, with a schema whose root is `{"type": "hm://<library>/blob", "properties": {"type": {"value": "Vote", "required": true}, …}}`. `write ipfs://` with `options: {schema: "schema"}` publishes the signed type's schema blob. Then a `write hm://…/types/vote` with `metadata.schemaDefinition` binds it. <!-- id:21O_MRe- -->
+  1. Do the same as story 5, with a schema whose root is `{"type": "hm://hyper.media/blob", "properties": {"type": {"value": "Vote", "required": true}, …}}`. `write ipfs://` with `options: {schema: "schema"}` publishes the signed type's schema blob. Then a `write hm://…/types/vote` with `metadata.schemaDefinition` binds it. <!-- id:21O_MRe- -->
 
 **Status.** App: works. CLI: works. Agent: works. <!-- id:wJjSs4ZM -->
 

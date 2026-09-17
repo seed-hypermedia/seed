@@ -1,5 +1,5 @@
 {
-  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+  "type": "hm://hyper.media/struct",
   "properties": {
     "kind": {
       "value": {
@@ -17,34 +17,34 @@
     },
     "founded": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date"
+        "type": "hm://hyper.media/date"
       },
       "description": "Founding date."
     },
     "region": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hm-url",
-        "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/place-doc"
+        "type": "hm://hyper.media/hm-url",
+        "target": "hm://hyper.media/example/place-doc"
       },
       "description": "The larger place this one lies within."
     },
     "ruler": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hm-url",
-        "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/faction-doc"
+        "type": "hm://hyper.media/hm-url",
+        "target": "hm://hyper.media/example/faction-doc"
       },
       "description": "The faction that holds this place."
     },
     "coordinates": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/ipfs-url",
-        "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/geo"
+        "type": "hm://hyper.media/ipfs-url",
+        "target": "hm://hyper.media/example/geo"
       },
       "description": "An `ipfs://` object conforming to Geo point."
     },
     "map": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/ipfs-url"
+        "type": "hm://hyper.media/ipfs-url"
       },
       "description": "A map image file on IPFS."
     }

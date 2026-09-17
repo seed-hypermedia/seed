@@ -1,36 +1,36 @@
 {
-  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+  "type": "hm://hyper.media/struct",
   "properties": {
     "founded": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date"
+        "type": "hm://hyper.media/date"
       },
       "required": true,
       "description": "Founding date."
     },
     "dissolved": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date"
+        "type": "hm://hyper.media/date"
       },
       "description": "Dissolution date, if any."
     },
     "seat": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hm-url",
-        "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/place-doc"
+        "type": "hm://hyper.media/hm-url",
+        "target": "hm://hyper.media/example/place-doc"
       },
       "description": "Where the faction is based."
     },
     "leader": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hm-url",
-        "target": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/character-doc"
+        "type": "hm://hyper.media/hm-url",
+        "target": "hm://hyper.media/example/character-doc"
       },
       "description": "Who leads it."
     },
     "banner": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/ipfs-url"
+        "type": "hm://hyper.media/ipfs-url"
       },
       "description": "A banner or crest image file on IPFS."
     }

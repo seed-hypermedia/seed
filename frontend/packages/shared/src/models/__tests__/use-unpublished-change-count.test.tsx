@@ -249,7 +249,7 @@ describe('useUnpublishedChangeCount', () => {
   })
 
   it('counts drafted schemas as changes when nothing else changed', () => {
-    const STRUCT = {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct', properties: {}}
+    const STRUCT = {type: 'hm://hyper.media/struct', properties: {}}
     selectMock.draftId = 'draft-1'
     selectMock.bindingSchemaDrafts = {childAttributesSchema: STRUCT}
     const first = renderProbe()

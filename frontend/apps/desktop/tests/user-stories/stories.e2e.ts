@@ -14,8 +14,6 @@
 import {expect, test} from './fixtures'
 import {openAddress} from './harness'
 
-const HYPERMEDIA_UID = 'z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
-
 test.describe.configure({mode: 'serial'})
 
 test('1. Understand the document model — a document has Attributes and Content', async ({story}) => {

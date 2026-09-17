@@ -2327,7 +2327,7 @@ describe('DocumentLifecycle machine > rename', () => {
 })
 
 describe('working schema (schemaDraft) is draft state beside the metadata', () => {
-  const SCHEMA = {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct', properties: {}}
+  const SCHEMA = {type: 'hm://hyper.media/struct', properties: {}}
 
   function schemaActor(capture: (input: any) => void) {
     const machine = documentMachine.provide({

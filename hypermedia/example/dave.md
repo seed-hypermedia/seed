@@ -1,7 +1,7 @@
 ---
 name: Dave
 summary: An example employee, a document whose attributes follow example/employee.
-attributesSchema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/employee
+attributesSchema: hm://hyper.media/example/employee
 department: Design
 employeeId: E-9
 ---
