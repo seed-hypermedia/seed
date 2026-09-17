@@ -2,7 +2,7 @@
 name: The Seed CLI
 summary: Where the seed-cli code lives, how it reaches a site or a local desktop app, where it keeps its keys and settings, and how it is built and released.
 ---
-The Seed CLI, `seed-cli`, is the terminal client for the Hypermedia network. It reads and writes [documents](../protocol/documents.md), [comments](../protocol/comments.md), contacts, [capabilities](../protocol/permissions.md) and keys, converts documents to and from markdown, and publishes whole folders, including this documentation. It needs no [daemon](./daemon.md) of its own: it signs locally and talks to a [site](../protocol/sites.md) over HTTPS. This page is the contributor's map; every command and flag is in the [CLI reference](../build/cli.md). <!-- id:_Xplw73v -->
+The Seed CLI, `seed-cli`, is the terminal client for the Hypermedia network. It reads and writes [documents](../protocol/documents.md), [comments](../protocol/comments.md), [contacts](../protocol/permissions.md), [capabilities](../protocol/permissions.md) and [keys](../build/keys.md), converts documents to and from markdown, and [publishes whole folders](../build/publish-a-folder.md), including this documentation. It needs no [daemon](./daemon.md) of its own. It signs locally and talks to a [site](../protocol/sites.md) over HTTPS. This page is the contributor's map. Every command and flag is in the [CLI reference](../build/cli.md). <!-- id:_Xplw73v -->
 
 # Where the code is <!-- id:FOyxcRRf -->
 
@@ -17,11 +17,11 @@ The Seed CLI, `seed-cli`, is the terminal client for the Hypermedia network. It 
 | `src/sync-hypermedia.ts` | The push, pull and dev loop for this `hypermedia/` folder. <!-- id:oJVT-zrR --> |
 | `src/test/` | The fixture suite that starts a real [daemon](./daemon.md) and web server. <!-- id:hmbA1t-D --> |
 
-The CLI builds and signs [blobs](../protocol/blobs.md) with `@seed-hypermedia/client`, [the SDK](../build/sdk.md). A few files, the folder sync among them, also import from `@shm/shared` without declaring it; they work inside the monorepo and are bundled into the published build. <!-- id:aDUqe6BA -->
+The CLI builds and signs [blobs](../protocol/blobs.md) with `@seed-hypermedia/client`, [the SDK](../build/sdk.md). A few files, the folder sync among them, also import from `@shm/shared` without declaring it. They work inside the monorepo, and the published build bundles them. <!-- id:aDUqe6BA -->
 
 # How it talks to the network <!-- id:JjcUsDL6 -->
 
-By default every command goes to `https://hyper.media`. The server is chosen in this order: `--dev` (which means `https://dev.hyper.media` and the dev keyring), `--server <url>`, the `SEED_SERVER` environment variable, the `server` value in `~/.seed/config.json`, and finally hyper.media. Reads are GET requests to the [site](../protocol/sites.md)'s `/api/<Key>` routes; writes are signed [blobs](../protocol/blobs.md) sent with the `PublishBlobs` action. See [The web API](../build/web-api.md). <!-- id:3jCFyenv -->
+By default every command goes to `https://hyper.media`. The server is chosen in this order: `--dev` (which means `https://dev.hyper.media` and the dev keyring), `--server <url>`, the `SEED_SERVER` environment variable, the `server` value in `~/.seed/config.json`, and finally hyper.media. Reads are GET requests to the [site](../protocol/sites.md)'s `/api/<Key>` routes. Writes are signed [blobs](../protocol/blobs.md) sent with the `PublishBlobs` action. See [The web API](../build/web-api.md). <!-- id:3jCFyenv -->
 
 `seed-cli space dev` is the one mode that talks to a local node. It publishes a folder into the running [desktop app](./desktop.md) through the app's API bridge, `http://localhost:58004` by default, and watches the [daemon](./daemon.md) at `http://localhost:58001`, writing edits made in the app back to disk. `./dev hm-sync` runs that loop for this folder. <!-- id:3F7HcmWK -->
 
@@ -57,9 +57,9 @@ The CLI reads the same keyring entries and [vault](./vault.md) file as the [desk
 
 ## Agents <!-- id:ACF4c6ly -->
 
-A coding agent such as Claude Code with the seed-cli skill drives Hypermedia through these commands; [Building agents on Seed](../build/agents.md) shows how. [Seed Agents](../agent.md) do not use the CLI; they call the [Seed API](../build/web-api.md) directly. <!-- id:j7yozfyO -->
+A coding agent such as Claude Code with the seed-cli skill drives Hypermedia through these commands; [Building agents on Seed](../build/agents.md) shows how. [Seed Agents](../agent.md) do not use the CLI. They call the [Seed API](../build/web-api.md) directly. <!-- id:j7yozfyO -->
 
 # See also <!-- id:nOm7MljI -->
 
 - [CLI reference](../build/cli.md), [Keys](../build/keys.md), [Publish a folder](../build/publish-a-folder.md) <!-- id:1y732BFM -->
-- [The web app](./web.md), [The desktop app](./desktop.md) <!-- id:1Mor504j -->
+- [The web app](./web.md), [The desktop app](./desktop.md), [Building agents on Seed](../build/agents.md) <!-- id:1Mor504j -->

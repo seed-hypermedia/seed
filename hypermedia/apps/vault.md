@@ -2,7 +2,7 @@
 name: The identity vault
 summary: The Bun service at hyper.media/vault that stores a person's account keys end-to-end encrypted, signs them in with a passkey or password, lets websites act for them through delegated session keys, and syncs keys to the desktop and mobile apps.
 ---
-The vault is where a person's Hypermedia [account](../protocol/identity.md) keys live when they do not want to manage a recovery phrase. It works like a password manager: the keys are encrypted in the browser with a key only the person can derive, and the server stores ciphertext it cannot read. From the vault a person creates an account, signs in with a passkey or a password, approves websites that want to act for them, and connects the desktop and mobile apps so the same accounts appear there. The hosted vault is `https://hyper.media/vault`, and in the interface it is called "Identity". <!-- id:CVIMFwRf -->
+The vault is where a person's Hypermedia [account](../protocol/identity.md) keys live when they do not want to manage a recovery phrase. It works like a password manager: the keys are encrypted in the browser with a key only the person can derive, and the server stores ciphertext it cannot read. [Keys](../build/keys.md) covers the other ways to hold a key. From the vault a person creates an account, signs in with a passkey or a password, approves websites that want to [act for them](../build/sign-in.md), and connects the desktop and mobile apps so the same accounts appear there. The hosted vault is `https://hyper.media/vault`, and in the interface it is called "Identity". <!-- id:CVIMFwRf -->
 
 # Where the code is <!-- id:F28qoZtC -->
 
@@ -23,7 +23,7 @@ The cryptography itself, key derivation and encryption, is in the [SDK](../build
 
 # The zero-knowledge design <!-- id:fFrX4C0Y -->
 
-Each person has one random data encryption key (DEK). It encrypts the vault: the [account](../protocol/identity.md) private keys, the list of delegations the person approved, and settings such as the notify server. The server stores that ciphertext in `users.encrypted_data`, with a version number for optimistic concurrency, so two devices saving at once cannot silently overwrite each other. <!-- id:oUpOHZQb -->
+Each person has one random data encryption key (DEK). It encrypts the vault: the [account](../protocol/identity.md) private keys, the list of [delegations](../protocol/permissions.md) the person approved, and settings such as the [notify server](./notify.md). The server stores that ciphertext in `users.encrypted_data`, with a version number for optimistic concurrency, so two devices saving at once cannot silently overwrite each other. <!-- id:oUpOHZQb -->
 
 Each way of signing in is a credential that wraps the DEK with its own key, and the server stores only the wrapped copy. <!-- id:Oh-zX468 -->
 
@@ -56,7 +56,7 @@ The [desktop app](./desktop.md) keeps a local vault in its [daemon](./daemon.md)
   2. After consent, the browser creates a secret credential for the device, encrypts the credential and vault location with the token, and posts it to that mailbox. <!-- id:IW6xUUxQ -->
   3. The app picks it up, the server deletes it, and the app can now open and sync the vault on its own. Pending mailboxes expire after 15 minutes. <!-- id:rMPZ1AB3 -->
 
-The server only ever sees the encrypted payload; the token travels in the fragment, which browsers do not send. The daemon implements the device side in `backend/storage/vault`, and the [mobile app](./mobile.md) ports it in `frontend/apps/mobile/src/vault/connect.ts`. <!-- id:odUkeK9B -->
+The server only ever sees the encrypted payload. The token travels in the URL fragment, which browsers do not send to the server. The daemon implements the device side in `backend/storage/vault`, and the [mobile app](./mobile.md) ports it in `frontend/apps/mobile/src/vault/connect.ts`. <!-- id:odUkeK9B -->
 
 # Routes <!-- id:_PcNc-J1 -->
 
@@ -88,7 +88,7 @@ Every setting is a flag with an environment variable behind it. <!-- id:r5otBYl0
 | `--smtp-*` | `SEED_VAULT_SMTP_*` | unset, which disables email <!-- id:vGM4RTQy --> |
 | none | `SEED_VAULT_DEFAULT_NOTIFY_SERVER` | `https://notify.seed.hyper.media` <!-- id:Lci_Ngam --> |
 
-The database schema carries a version. If it does not match the code, the server starts in a mode that only shows a schema-mismatch page and tells you to delete the database; there are no migrations yet. <!-- id:HO_6v9PS -->
+The database schema carries a version. If it does not match the code, the server starts in a mode that only shows a schema-mismatch page and tells you to delete the database. There are no migrations yet. <!-- id:HO_6v9PS -->
 
 # Running it <!-- id:A0Kg0MQc -->
 
@@ -99,7 +99,7 @@ bun check        # typecheck and format
 bun test
 ```
 
-`./dev up` runs it as the `vault` pane. In development it proxies `/hm/api/config` to the [web app](./web.md) on port 3000. The web app finds it through `WEB_IDENTITY_ORIGIN` or `SEED_IDENTITY_DEFAULT_ORIGIN`, `http://localhost:3030` in development and `https://hyper.media` by default. Images are `seedhypermedia/vault:dev` and `seedhypermedia/vault:latest`; in the hosted deployment a reverse proxy sends `hyper.media/vault` and `dev.hyper.media/vault` to it. <!-- id:cKbVgfWg -->
+`./dev up` runs it as the `vault` pane. In development it proxies `/hm/api/config` to the [web app](./web.md) on port 3000. The web app finds it through `WEB_IDENTITY_ORIGIN` or `SEED_IDENTITY_DEFAULT_ORIGIN`, `http://localhost:3030` in development and `https://hyper.media` by default. Images are `seedhypermedia/vault:dev` and `seedhypermedia/vault:latest`. In the hosted deployment a reverse proxy sends `hyper.media/vault` and `dev.hyper.media/vault` to it. <!-- id:cKbVgfWg -->
 
 # Working with it <!-- id:69sus5M4 -->
 
@@ -109,25 +109,25 @@ Account settings in the [desktop app](./desktop.md) switch between the local vau
 
 ## CLI <!-- id:w6gtUmyO -->
 
-The [CLI](./cli.md) does not talk to the vault server. It reads the desktop app's local `vault.json`, and it can import an `.hmkey.json` exported from the vault; see [Keys](../build/keys.md). <!-- id:N04L1VC7 -->
+The [CLI](./cli.md) does not talk to the vault server. It reads the desktop app's local `vault.json`, and it can import an `.hmkey.json` exported from the vault. See [Keys](../build/keys.md). <!-- id:N04L1VC7 -->
 
 ## SDK <!-- id:iI516WkM -->
 
-`@seed-hypermedia/client/hmauth` implements the client side of [delegation](../protocol/permissions.md): `startAuth`, `handleCallback` and `createSessionSigner`. The vault crypto helpers are exported for other clients. <!-- id:Yfecst21 -->
+`@seed-hypermedia/client/hmauth`, part of the [SDK](../build/sdk.md), implements the client side of [delegation](../protocol/permissions.md): `startAuth`, `handleCallback` and `createSessionSigner`. The vault crypto helpers are exported for other clients. <!-- id:Yfecst21 -->
 
 ## Web API <!-- id:8gBDGaX- -->
 
-Everything under `/vault/api` is JSON over HTTPS and belongs to the vault app. It is separate from the [Seed API](../build/web-api.md). Third parties should use the delegation redirect. These routes are for the vault's own frontend. <!-- id:ZcAjTycJ -->
+Everything under `/vault/api` is JSON over HTTPS and belongs to the vault app. It is separate from the [Seed API](../build/web-api.md). These routes are for the vault's own frontend. Third parties use the delegation redirect described in [Sign in with Seed](../build/sign-in.md). <!-- id:ZcAjTycJ -->
 
 ## Agents <!-- id:8NPHnwWz -->
 
-Agents do not sign in through the vault. An agent acts with its own key and a capability delegated to it; see [Building agents on Seed](../build/agents.md). <!-- id:pmsCRFLK -->
+Agents do not sign in through the vault. An agent acts with its own key and a [capability](../protocol/permissions.md) delegated to it. See [Building agents on Seed](../build/agents.md). <!-- id:pmsCRFLK -->
 
 # Where this is going <!-- id:f0IHrcql -->
 
-As of September 2026: paper keys as another credential, social recovery, and a clearer answer to why a person might need both a [recovery phrase](../protocol/identity.md) and a password are open. The team has also discussed moving notification subscriptions and read status into the vault. <!-- id:lYnOHDb8 -->
+As of September 2026, three questions are open: paper keys as another credential, social recovery, and a clearer answer to why a person might need both a [recovery phrase](../protocol/identity.md) and a password. The team has also discussed moving notification subscriptions and read status into the vault. <!-- id:lYnOHDb8 -->
 
 # See also <!-- id:2v3pC_Ku -->
 
 - [Sign in with Seed](../build/sign-in.md), [Keys](../build/keys.md), [Identity](../protocol/identity.md) <!-- id:odhTeckE -->
-- [The web app](./web.md), [The notify service](./notify.md), [The mobile app](./mobile.md) <!-- id:thZZgz3X -->
+- [The web app](./web.md), [The notify service](./notify.md), [The mobile app](./mobile.md), [The desktop app](./desktop.md) <!-- id:thZZgz3X -->

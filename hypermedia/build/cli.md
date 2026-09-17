@@ -2,7 +2,7 @@
 name: Seed CLI
 summary: The seed-cli reference, from install and signing keys through every command group and flag, with the commands this documentation folder is published with.
 ---
-The Seed CLI (`seed-cli`) reads and writes the Hypermedia network from a terminal. It signs everything locally with an Ed25519 key you hold, talks to any Seed web server over the [Seed API](./web-api.md), and prints documents as markdown you can edit and send back. It is also the scripting surface for agents: a Claude Code session with the seed-cli skill runs exactly these commands. <!-- id:BvAYnvta -->
+The Seed CLI (`seed-cli`) reads and writes the Hypermedia network from a terminal. It signs everything locally with an Ed25519 [key](./keys.md) you hold. It talks to any Seed [site](../protocol/sites.md) over the [Seed API](./web-api.md), and prints [documents](../protocol/documents.md) as markdown you can edit and send back. Agents script Seed with it too: a Claude Code session with the [seed-cli skill](./agents.md) runs these same commands. <!-- id:BvAYnvta -->
 
 # Install <!-- id:XCJLULjs -->
 
@@ -11,7 +11,7 @@ npx -y @seed-hypermedia/cli --help        # run without installing
 npm install -g @seed-hypermedia/cli       # or install; provides `seed-cli` and `seed-hypermedia`
 ```
 
-Node 18 or newer. The package is a single bundle with the [SDK](./sdk.md) inside; CI publishes a new patch version on every push to `main` that touches it, so `npx …@latest` follows `main`. As of mid-September 2026 the npm release (0.2.9) predates the Hypermedia Schemas work: the `blob`, `schema` and `attributes` commands, `query --where` and `--filter`, `document validate`, the `--metadata` and schema flags on `document create` and `update`, `space import --check`, and `space dev --no-watch` and `--keep-stale` need a build from source until the next release. From a checkout, `bun run src/index.ts …` in `frontend/apps/cli` runs it from source, and `./dev install-cli` links it. <!-- id:wz0RTKXt -->
+It needs Node 18 or newer. The package is a single bundle with the [SDK](./sdk.md) inside. CI publishes a new patch version on every push to `main` that touches it, so `npx …@latest` follows `main`. As of mid-September 2026 the npm release (0.2.9) predates the [Hypermedia Schemas](../schema.md) work. These need a build from source until the next release: the `blob`, `schema` and `attributes` commands, `query --where` and `--filter`, `document validate`, the `--metadata` and schema flags on `document create` and `update`, `space import --check`, and `space dev --no-watch` and `--keep-stale`. From a checkout, `bun run src/index.ts …` in `frontend/apps/cli` runs it from source, and `./dev install-cli` links it. <!-- id:wz0RTKXt -->
 
 # Global options <!-- id:I7ujuhgH -->
 
@@ -28,7 +28,7 @@ Node 18 or newer. The package is a single bundle with the [SDK](./sdk.md) inside
 
 The server is resolved in this order: `--dev`, `--server`, the `SEED_SERVER` variable, `server` in `~/.seed/config.json`, then `https://hyper.media`. One exception: an `https://` URL given as an id talks to that URL's own origin, whatever the server setting. <!-- id:XV06Gebc -->
 
-Output conventions: stdout carries only data, so piping is safe; status lines go to stderr as `✓`, `✗`, `ℹ` and `⚠`. `document get` (JSON with `-m`), `draft get` and `document create --dry-run` print markdown by default; everything else prints JSON. Exit codes are `0` and `1` only; validation and verification failures also exit `1`. <!-- id:ux90dCEZ -->
+Output conventions: stdout carries only data, so piping is safe. Status lines go to stderr as `✓`, `✗`, `ℹ` and `⚠`. `document get` (JSON with `-m`), `draft get` and `document create --dry-run` print markdown by default. Everything else prints JSON. Exit codes are `0` and `1` only. Validation and verification failures also exit `1`. <!-- id:ux90dCEZ -->
 
 Config lives in `~/.seed/config.json` (`server`, `defaultAccount`, `vaultPath`), written with `seed-cli config --server <url>`, `--vault-path <path>`, `--show`, and `seed-cli key default <name>`. <!-- id:hoqqIrOF -->
 
@@ -39,18 +39,18 @@ Config lives in `~/.seed/config.json` (`server`, `defaultAccount`, `vaultPath`),
 | `SEED_CLI_KEYFILE` | the contents of an unencrypted `.hmkey.json`; becomes the signing key for every write <!-- id:otB3tiTQ --> |
 | `SEED_CLI_MNEMONIC` | a BIP-39 phrase used the same way; setting both is an error <!-- id:OWlx7P7f --> |
 | `SEED_VAULT_PATH` | an explicit `vault.json`; vault errors become fatal <!-- id:bWEn91kN --> |
-| `SEED_VAULT_KEK` | the base64 32-byte vault unlock secret, for machines without a keychain <!-- id:36-JJKGp --> |
+| `SEED_VAULT_KEK` | the base64 32-byte key-encryption key that unwraps the vault's data key, for machines without a keychain <!-- id:36-JJKGp --> |
 | `SEED_CLI_DRAFTS_DIR` | where drafts are written <!-- id:UMnYFE0U --> |
 
 # Keys and signing <!-- id:aswGrLxU -->
 
-The CLI signs locally and never asks a daemon or a vault service to sign. Keys come from three places, in this order of precedence: the environment (`SEED_CLI_KEYFILE` or `SEED_CLI_MNEMONIC`), the encrypted vault of a desktop app or daemon on the same machine (read-only), then the OS keyring, where `key generate` and `key import` write. `-k, --key <name>` picks a key by name or account id; without it the default key is the configured `defaultAccount`, else a key named `main`, else the first vault account. A key's name and its account id are different things: look up by either. [Keys](./keys.md) covers all of this in depth. <!-- id:qfwJg4ST -->
+The CLI signs locally and never asks a [daemon](../apps/daemon.md) or a [vault](../apps/vault.md) service to sign. Keys come from three places, in this order of precedence: the environment (`SEED_CLI_KEYFILE` or `SEED_CLI_MNEMONIC`), the encrypted vault of a desktop app or daemon on the same machine (read-only), then the OS keyring, where `key generate` and `key import` write. `-k, --key <name>` picks a key by name or [account](../protocol/identity.md) id. Without it the default key is the configured `defaultAccount`, else a key named `main`, else the first vault account. A key's name and its account id are different things. You can look up by either. [Keys](./keys.md) covers all of this in depth. <!-- id:qfwJg4ST -->
 
-Writing into a space you do not own takes a capability: `-a, --account <uid>` on `document create` and `account profile set` looks up a WRITER or AGENT capability the space published for your key and puts its CID on the blob. `document update` and `document delete` do the same lookup for the document's own space without a flag. See [Permissions](../protocol/permissions.md). <!-- id:2HxII8x6 -->
+Writing into a [space](../protocol/identity.md) you do not own takes a [capability](../protocol/permissions.md). `-a, --account <uid>` on `document create` and `account profile set` looks up a WRITER or AGENT capability the space published for your key and puts its [CID](../protocol/blobs.md) on the [blob](../protocol/blobs.md). `document update` and `document delete` do the same lookup for the document's own space without a flag. See [Permissions](../protocol/permissions.md). <!-- id:2HxII8x6 -->
 
 # Ids <!-- id:o86uuWD- -->
 
-Any command that takes an id accepts `hm://<uid>/<path>`, a bare `<uid>`, or an `https://` page URL, which is resolved through the site's `OPTIONS` headers. Given to `document get`, a path ending in `:directory` lists the children. Comment ids are `<author>/<tsid>`; web URLs with a comments panel are recognised as comment ids. See [URLs](../protocol/urls.md). <!-- id:oxYTd235 -->
+Any command that takes an id accepts `hm://<uid>/<path>`, a bare `<uid>`, or an `https://` page URL, which is resolved through the site's `OPTIONS` headers. Given to `document get`, a path ending in `:directory` lists the children. [Comment](../protocol/comments.md) ids are `<author>/<tsid>`. Web URLs with a comments panel are recognised as comment ids. See [URLs](../protocol/urls.md). <!-- id:oxYTd235 -->
 
 # document <!-- id:i0pxk9fs -->
 
@@ -69,7 +69,7 @@ Any command that takes an id accepts `hm://<uid>/<path>`, a bare `<uid>`, or an 
 | `document validate <id> [--content]` | checks the document against its effective attributes schema; exit 1 on violations |  | <!-- id:2PWOgnvd --> |
 | `document cid <cid>` | fetches a raw block |  | <!-- id:TTzBDoke --> |
 
-Metadata precedence on create is defaults, then frontmatter or PDF, then flags, then `--metadata`. `file://` links in image blocks and in icon, cover and logo metadata are uploaded as IPFS files and rewritten to `ipfs://`. After creating a child, the CLI links it from the parent document. The genesis rule that makes a new document distinct from the home document is applied by the SDK; see [SDK](./sdk.md). <!-- id:byfHfFJe -->
+[Metadata](../metadata.md) precedence on create is defaults, then frontmatter or PDF, then flags, then `--metadata`. `file://` links in image [blocks](../protocol/blocks.md) and in icon, cover and logo metadata are uploaded as [IPFS files](../protocol/files.md) and rewritten to `ipfs://`. After creating a child, the CLI links it from the parent document. The SDK applies the [genesis](../protocol/documents.md) rule that makes a new document distinct from the home document. See [SDK](./sdk.md). <!-- id:byfHfFJe -->
 
 # comment <!-- id:RYYLyDKM -->
 
@@ -110,7 +110,7 @@ Metadata precedence on create is defaults, then frontmatter or PDF, then flags, 
 
 # draft <!-- id:s6g4Q_0z -->
 
-Drafts are local files the desktop app also sees: `draft create -f <file>` parses and validates input and saves it under the app's drafts directory (`SEED_CLI_DRAFTS_DIR` overrides) with an entry in the app's draft index; `--edit <hm-url>` marks it as an edit of an existing document, `--location <hm-url>` as a new child, `--visibility PUBLIC|PRIVATE`. `draft get <slug>`, `draft list` and `draft rm [<slug>] [--all] [--force]` complete the set. An agent that writes drafts instead of publishing lets a person review in the app; see [Using Seed from your own agent](./agents.md). <!-- id:1AfMtS9j -->
+[Drafts](../protocol/documents.md) are local files the [desktop app](../apps/desktop.md) also sees. `draft create -f <file>` parses and validates input and saves it under the app's drafts directory (`SEED_CLI_DRAFTS_DIR` overrides), with an entry in the app's draft index. `--edit <hm-url>` marks it as an edit of an existing document, `--location <hm-url>` as a new child, and `--visibility PUBLIC|PRIVATE` sets its [visibility](../protocol/privacy.md). `draft get <slug>`, `draft list` and `draft rm [<slug>] [--all] [--force]` complete the set. An agent that writes drafts instead of publishing lets a person review in the app. See [Using Seed from your own agent](./agents.md). <!-- id:1AfMtS9j -->
 
 # space <!-- id:VYbYjx_0 -->
 
@@ -136,7 +136,7 @@ Drafts are local files the desktop app also sees: `draft create -f <file>` parse
 | `schema get <ref> [--resolve]` | a schema with its CID; `--resolve` follows references and merges extensions <!-- id:zSrsps2J --> |
 | `schema validate <ref>` | is this a valid Hypermedia schema <!-- id:rmUqkhgh --> |
 
-Publishing a schema of your own is `document create --schema-definition <file>`. [Hypermedia Schemas](../schema.md) and [the one-page reference](../schema/quick-reference.md) show the whole workflow. <!-- id:uMkNH8QA -->
+To publish a schema of your own, use `document create --schema-definition <file>`. [Hypermedia Schemas](../schema.md) and [the one-page reference](../schema/quick-reference.md) show the whole workflow. <!-- id:uMkNH8QA -->
 
 # search, query, attributes, citations, activity <!-- id:tPQuaVdB -->
 
@@ -153,8 +153,8 @@ Publishing a schema of your own is `document create --schema-definition <file>`.
 
 # Publishing this folder <!-- id:S9sJBMK0 -->
 
-The documentation you are reading is a folder of markdown in the Seed repository, published with the `space` commands wrapped by a small script that knows the folder's layout (`<x>.md` publishes at `/<x>`, `README.md` stays on GitHub) and verifies every schema against its lockfile first. <!-- id:DMpmJCIF -->
-  - `./dev hm-sync` runs the editing loop for `hypermedia/` (`./dev hm-sync <dir>` for any other folder); `./dev up` runs it as the `hm-sync` pane. <!-- id:fdA1E3H4 -->
+The documentation you are reading is a folder of markdown in the Seed repository. A small script wraps the `space` commands to publish it. The script knows the folder's layout (`<x>.md` publishes at `/<x>`, `README.md` stays on GitHub) and first verifies every schema against its lockfile. <!-- id:DMpmJCIF -->
+  - `./dev hm-sync` runs the editing loop for `hypermedia/` (`./dev hm-sync <dir>` for any other folder). `./dev up` runs it as the `hm-sync` pane. <!-- id:fdA1E3H4 -->
   - `pnpm hypermedia:push` publishes `hypermedia/` to the Hypermedia site on hyper.media with the `main` key (`--dry-run` to preview). <!-- id:SU-YBU1V -->
   - `pnpm hypermedia:pull` writes the published site back into `hypermedia/`. <!-- id:AFS_mXqg -->
   - A commit to `main` that touches `hypermedia/` publishes it from CI. <!-- id:QkZSrmRL -->
@@ -165,11 +165,11 @@ The documentation you are reading is a folder of markdown in the Seed repository
 
 ## In the Seed app <!-- id:ljnmGTI4 -->
 
-Drafts the CLI writes appear in the app's draft list; keys the app holds in its vault are readable by the CLI on the same machine. <!-- id:bATSGQNf -->
+Drafts the CLI writes appear in the app's draft list. The CLI can read keys the app holds in its vault on the same machine. <!-- id:bATSGQNf -->
 
 ## SDK <!-- id:kY71qpic -->
 
-Each command is a short composition of [SDK](./sdk.md) calls plus one `PublishBlobs` request; the CLI source is the best set of worked examples. <!-- id:Eg9Qe8bn -->
+Each command is a few [SDK](./sdk.md) calls plus one `PublishBlobs` request. The CLI source is the best set of worked examples. <!-- id:Eg9Qe8bn -->
 
 ## Web API <!-- id:jEgpIy-H -->
 
@@ -177,9 +177,14 @@ The CLI is a client of the [Seed API](./web-api.md) and nothing else, except `sp
 
 ## Agents <!-- id:4PWuqJLM -->
 
-The CLI is the recommended way for an external agent to touch Seed. Run it as `npx -y @seed-hypermedia/cli@latest …`, keep a bot key with a delegated capability, and prefer `draft create` when a person should review before anything is published. [Using Seed from your own agent](./agents.md) has the workflow; Seed Agents expose the same operations through their `read` and `write` verbs instead. <!-- id:bSJNd5GE -->
+The CLI is the recommended way for an external agent to touch Seed. Run it as `npx -y @seed-hypermedia/cli@latest …`, keep a bot key with a delegated capability, and prefer `draft create` when a person should review before anything is published. [Using Seed from your own agent](./agents.md) has the workflow. [Seed Agents](../agent.md) expose the same operations through their [`read`](../agent/read.md) and [`write`](../agent/write.md) verbs. <!-- id:bSJNd5GE -->
 
 # See also <!-- id:lZnXkUAB -->
 
-- [Keys](./keys.md), [Publish a folder](./publish-a-folder.md), [Query grammar](./query-grammar.md) <!-- id:sjB5BRW_ -->
-- [The Seed CLI app page](../apps/cli.md) for where the code lives and how it is tested <!-- id:PEaV_SgZ -->
+- [Keys](./keys.md) <!-- id:sjB5BRW_ -->
+- [The Seed CLI app page](../apps/cli.md), for where the code lives and how it is tested <!-- id:PEaV_SgZ -->
+- [Publish a folder](./publish-a-folder.md)
+- [Query grammar](./query-grammar.md)
+- [Using Seed from your own agent](./agents.md)
+- [SDK](./sdk.md)
+- [Seed API](./web-api.md)

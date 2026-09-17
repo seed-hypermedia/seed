@@ -2,9 +2,9 @@
 name: Daemon gRPC
 summary: How to call the Seed daemon's gRPC services directly, what each service does, which RPCs are unimplemented, and why the daemon's ports must stay private.
 ---
-Underneath every Seed site and every Seed app is one process, the Seed daemon. It holds the blobs, indexes them, syncs with peers, and answers a [gRPC](https://grpc.io/docs/what-is-grpc/introduction/) API. The web server, the desktop app and the CLI's local development mode are all clients of that API.
+Underneath every Seed [site](../protocol/sites.md) and every Seed app is one process, the [Seed daemon](../apps/daemon.md). It holds the [blobs](../protocol/blobs.md), indexes them, [syncs](../protocol/network.md) with [peers](../protocol/network.md), and answers a [gRPC](https://grpc.io/docs/what-is-grpc/introduction/) API. The [web server](../apps/web.md), the [desktop app](../apps/desktop.md) and the [CLI](./cli.md)'s local development mode are all clients of that API.
 
-Most builders never need it. The [Seed API](./web-api.md) over HTTP and the [SDK](./sdk.md) cover reading, searching and publishing, and they work against any site on the network without running anything. Reach for gRPC when you run a daemon yourself and want what only it can do: manage keys, subscribe to spaces, drive sync and discovery, list peers, or query the index in ways the HTTP keys do not expose.
+Most builders never need it. The [Seed API](./web-api.md) over HTTP and the [SDK](./sdk.md) cover reading, searching and publishing, and they work against any site on the network without running anything. Use gRPC when you run a daemon yourself and want what only it can do: manage [keys](./keys.md), subscribe to [spaces](../protocol/identity.md), drive sync and [discovery](../protocol/network.md), list peers, or query the index in ways the HTTP keys do not expose.
 
 # Connecting
 
@@ -16,7 +16,7 @@ The daemon listens on three ports. Which numbers depends on who started it.
 | plain gRPC | `55002` | `56002` | `58002` | `56002`, internal only |
 | libp2p | `55000` | `56000` | `58000` | `56000`, published |
 
-Flags are `-http.port`, `-grpc.port` and `-p2p.port`; every flag can also be an environment variable with the `SEED_` prefix, so `-http.port` is `SEED_HTTP_PORT`. The full flag list is on the [daemon page](../apps/daemon.md).
+Flags are `-http.port`, `-grpc.port` and `-p2p.port`. Every flag can also be an environment variable with the `SEED_` prefix, so `-http.port` is `SEED_HTTP_PORT`. The full flag list is on the [daemon page](../apps/daemon.md).
 
 The plain gRPC port speaks standard gRPC with [server reflection](https://grpc.io/docs/guides/reflection/) enabled, so [grpcurl](https://github.com/fullstorydev/grpcurl) can explore it without the proto files. Against a running desktop app:
 
@@ -56,25 +56,25 @@ grpcurl -plaintext localhost:56002 com.seed.daemon.v1alpha.Daemon/GetInfo
 }
 ```
 
-`grpcurl … describe com.seed.documents.v3alpha.Documents` prints a service's RPCs and message types. The HTTP port carries the same services as [gRPC-Web](https://github.com/grpc/grpc-web), which is what the browser-based clients use; the desktop app and the web server both connect with `@connectrpc/connect` transports to the HTTP port, never to the raw gRPC port. The daemon also embeds a [grpcui](https://github.com/fullstorydev/grpcui) at `http://localhost:<http-port>/debug/grpcui/`, reachable only from the same machine.
+`grpcurl … describe com.seed.documents.v3alpha.Documents` prints a service's RPCs and message types. The HTTP port carries the same services as [gRPC-Web](https://github.com/grpc/grpc-web), which is what the browser-based clients use. The desktop app and the web server both connect with `@connectrpc/connect` transports to the HTTP port, never to the raw gRPC port. The daemon also embeds a [grpcui](https://github.com/fullstorydev/grpcui) at `http://localhost:<http-port>/debug/grpcui/`, reachable only from the same machine.
 
 Message definitions live in the repository under `proto/`, one folder per service family, and generated clients are committed beside them: Go under `backend/genproto` and TypeScript under `frontend/packages/shared/src/client/.generated`. The TypeScript package exposes `createGRPCClient(transport)` with one property per service. After editing a proto file, `./dev gen` regenerates both.
 
 # There is no authentication
 
-Say it plainly: the daemon's API has no authentication or authorization of its own. Anyone who can reach the gRPC or HTTP port can list keys, sign arbitrary bytes with any stored key, export keys, delete keys, store blobs, create refs and capabilities with any registered key, force a reindex, and read everything the daemon holds. Both ports bind all interfaces, not loopback, and the HTTP port answers any origin.
+The daemon's API has no authentication or authorization of its own. Anyone who can reach the gRPC or HTTP port can list keys, sign arbitrary bytes with any stored key, export keys, delete keys, store blobs, create [refs](../ref.md) and [capabilities](../protocol/permissions.md) with any registered key, force a reindex, and read everything the daemon holds. Both ports bind all network interfaces, and the HTTP port answers any origin.
 
-Write RPCs are authorized by the **signing key**, not the caller. Every write takes a `signing_key_name`; the daemon loads that key from its own store and checks that it may write to the target space and path. The question "may this caller write" is never asked. Comments skip even that: anyone may comment on anything.
+Write RPCs check the **signing key**. Every write takes a `signing_key_name`. The daemon loads that key from its own store and checks that it may write to the target space and path. It never asks whether the caller may write. [Comments](../protocol/comments.md) skip even that check: anyone may comment on anything.
 
-The one piece of caller identity is the bearer token. `Daemon.Authenticate` proves possession of an account key and returns a token valid for thirty days; the HTTP middleware accepts it as `Authorization: Bearer <token>`. It is used for one purpose only: when the daemon runs with `-public-only`, private content is hidden from anonymous requests and shown to authenticated callers who may write the space. Without that flag, the token changes nothing. The plain gRPC port ignores it entirely.
+The one piece of caller identity is the bearer token. `Daemon.Authenticate` proves possession of an account key and returns a token valid for thirty days. The HTTP middleware accepts it as `Authorization: Bearer <token>`. It has one use. When the daemon runs with `-public-only`, [private](../protocol/privacy.md) content is hidden from anonymous requests and shown to authenticated callers who may write the space. Without that flag, the token changes nothing. The plain gRPC port ignores it entirely.
 
-So the mitigations are deployment, not configuration. A desktop app's daemon is reachable only on the local machine. A site's daemon publishes only its libp2p port outside the container network; its HTTP and gRPC ports are reachable by the web server alone, and the reverse proxy forwards only `/ipfs/*` to it. If you run a daemon yourself, keep the two API ports behind a firewall or bound to a private interface. [Integrity](../protocol/integrity.md) puts this in the larger picture of what the protocol does and does not verify.
+The protection comes from how you deploy the daemon. No setting adds it. A desktop app's daemon is reachable only on the local machine. A site's daemon publishes only its libp2p port outside the container network. Its HTTP and gRPC ports are reachable by the web server alone, and the reverse proxy forwards only `/ipfs/*` to it. If you run a daemon yourself, keep the two API ports behind a firewall or bound to a private interface. [Integrity](../protocol/integrity.md) puts this in the larger picture of what the protocol does and does not verify.
 
 # Conventions
 
-**Addressing.** A space is named by its `account`, the principal string of its key. A document is `account` plus `path`, where the empty path is the home document. A `version` is one or more [Change](../change.md) ids joined by `.`; an empty version means latest. Comments and contacts are addressed as `<author>/<tsid>`. The proto files still say `account` where the rest of the documentation says space; a rename is on the backend team's list.
+**Addressing.** A space is named by its `account`, the [principal](../principal.md) string of its key. A [document](../protocol/documents.md) is `account` plus `path`, where the empty path is the home document. A [`version`](../protocol/documents.md) is one or more [Change](../change.md) ids joined by `.`. An empty version means latest. Comments and [contacts](../protocol/permissions.md) are addressed as `<author>/<tsid>`. The proto files still say `account` where the rest of the documentation says space. A rename is on the backend team's list.
 
-**Pagination.** Requests take `page_size` and `page_token`; responses return `next_page_token`. Tokens are opaque cursors. A page size of zero or less means the handler's default, which differs by RPC between 10 and 100; document listings cap larger requests at 2000. Some listings ignore paging and return everything; they are marked below.
+**Pagination.** Requests take `page_size` and `page_token`. Responses return `next_page_token`. Tokens are opaque cursors. A page size of zero or less means the handler's default, which differs by RPC between 10 and 100. Document listings cap larger requests at 2000. Some listings ignore paging and return everything. They are marked below.
 
 **Redirects.** `GetDocument` on a path that holds a redirect [Ref](../ref.md) fails with `FailedPrecondition` and attaches `RedirectErrorDetails {target_account, target_path, republish}` to the status. `GetDocumentInfo` returns the redirect as data instead of failing. Follow redirects with a cycle guard.
 
@@ -93,7 +93,7 @@ So the mitigations are deployment, not configuration. A desktop app's daemon is 
 
 # Service catalogue
 
-The daemon registers fourteen services, plus gRPC reflection. Each table lists every RPC with one line. Unimplemented RPCs still appear in the proto files and in reflection; calling them returns `Unimplemented`.
+The daemon registers fourteen services, plus gRPC reflection. Each table lists every RPC with one line. Unimplemented RPCs still appear in the proto files and in reflection. Calling them returns `Unimplemented`.
 
 ## Daemon
 
@@ -146,7 +146,7 @@ The document model: reading, preparing changes, refs, accounts, profiles, contac
 | `CreateCapability` | sign a capability delegating `WRITER` or `AGENT`; the signing key must be the account itself, so there is no re-delegation, and `no_recursive=true` is **Unimplemented** |
 | `GetCapability` | one capability by id |
 
-There is no `RevokeCapability`; [permissions](../protocol/permissions.md) explains what that means in practice.
+There is no `RevokeCapability`. [Permissions](../protocol/permissions.md) explains what that means in practice.
 
 ## Comments
 
@@ -196,13 +196,13 @@ There is no `RevokeCapability`; [permissions](../protocol/permissions.md) explai
 
 ## P2P and Syncing, the peer protocol
 
-These are the RPCs peers exchange over libp2p; the [network page](../protocol/network.md) explains the protocol. The daemon also re-exports them on its local gRPC server as a proxy: attach a `target-peer` metadata key holding a peer id, and the call is forwarded to that peer. This is how you inspect what another node offers.
+These are the RPCs peers exchange over libp2p. The [network page](../protocol/network.md) explains the protocol. The daemon also re-exports them on its local gRPC server as a proxy: attach a `target-peer` metadata key holding a peer id, and the call is forwarded to that peer. This is how you inspect what another node offers.
 
 | RPC | What it does |
 | --- | --- |
 | `P2P.ListBlobs` | stream the ids of every public blob, from a cursor |
 | `P2P.ListPeers`, `P2P.ListSpaces` | peer exchange and the spaces a node holds |
-| `P2P.Authenticate` | prove an account key to a peer for this connection, which unlocks that account's private blobs |
+| `P2P.Authenticate` | prove an account key to a peer for this connection, which gives access to that account's private blobs |
 | `P2P.RequestInvoice` | Lightning invoice; `Unimplemented` until payments are wired |
 | `Syncing.ReconcileBlobs` | range-based set reconciliation of blob sets per scope |
 | `Syncing.AnnounceBlobs` | the receiving end of a push |
@@ -213,7 +213,7 @@ Lightning wallets through a hosted [lndhub](https://github.com/getAlby/lndhub.go
 
 ## Telemetry
 
-`RecordCheckpoints` appends client-side timing checkpoints to an in-memory buffer shown on the daemon's `/debug/journeys` page. The proto comment claims it is loopback-only; it is registered on the public server like everything else.
+`RecordCheckpoints` appends client-side timing checkpoints to an in-memory buffer shown on the daemon's `/debug/journeys` page. The proto comment claims it is loopback-only. In fact it is registered on the public server like everything else.
 
 # The daemon's own HTTP routes
 
@@ -242,11 +242,11 @@ The Seed CLI signs locally and talks to a site's [Seed API](./web-api.md). The o
 
 ## SDK
 
-`@seed-hypermedia/client` has no gRPC dependency by design, so it runs in browsers, Bun, Node and React Native. When you need the daemon, take the generated TypeScript clients from the shared package in the repository and a gRPC-Web transport pointed at the HTTP port; the desktop app and `seed-cli space dev` use `@connectrpc/connect-web`, and the web server uses `@connectrpc/connect-node`.
+`@seed-hypermedia/client` has no gRPC dependency by design, so it runs in browsers, Bun, Node and React Native. When you need the daemon, take the generated TypeScript clients from the shared package in the repository and a gRPC-Web transport pointed at the HTTP port. The desktop app and `seed-cli space dev` use `@connectrpc/connect-web`, and the web server uses `@connectrpc/connect-node`.
 
 ## Agents
 
-Seed Agents run beside a site and use the Seed API, not gRPC. An external agent operating a machine with a daemon can use `grpcurl` from its shell; anything it can reach it can fully control, which is one more reason to keep daemon ports off the network.
+[Seed Agents](../agent.md) run beside a site and use the Seed API. They do not use gRPC. An [external agent](./agents.md) on a machine with a daemon can use `grpcurl` from its shell. It can fully control any daemon it can reach, which is one more reason to keep daemon ports off the network.
 
 # See also
 
@@ -255,3 +255,4 @@ Seed Agents run beside a site and use the Seed API, not gRPC. An external agent 
 - [Network](../protocol/network.md), what the P2P and Syncing services do between peers
 - [Integrity](../protocol/integrity.md), the trust model and its limits
 - [Contributing](./contributing.md), regenerating clients after a proto change
+- [SDK](./sdk.md), the client that needs no daemon
