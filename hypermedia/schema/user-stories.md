@@ -6,7 +6,7 @@ These are the things a person should be able to do with the type system, written
 
 # Before you start <!-- id:aNQZP66c -->
 
-**The app.** On desktop the schema features sit behind a switch. Open Settings, Developers, press **Enable Debug Tools**, then turn on **Hypermedia Schemas**. With it on, the **New** menu gains **Schema**, and a [document](../protocol/documents.md)'s options menu gains **New Blob**, **New Schema** and **New World…**. On the web the same features are on by default. Validation is advisory everywhere: a value that breaks its schema is marked in red and is never refused. See [why Hypermedia Schemas](./why.md). <!-- id:5iiI8U-W -->
+**The app.** On desktop the schema features sit behind a switch. Open Settings, Developers, press **Enable Debug Tools**, then turn on **Hypermedia Schemas**. With it on, the **New** menu gains **Schema**, and a [document](../protocol/documents.md)'s options menu gains **New Blob**, **New Schema** and **New World…**. The web app shows **New Blob** and **New Schema** in the options menu by default. Validation is advisory everywhere: a value that breaks its schema is marked in red and is never refused. See [why Hypermedia Schemas](./why.md). <!-- id:5iiI8U-W -->
 
 **The CLI.** Point it at the node you are working with and sign with a key it holds. Use `--server http://localhost:58004` for the desktop dev app's API, `--server https://hyper.media` (the default) for the public [gateway](../protocol/sites.md), and `--key <name>` for the signing key (`key list` shows them). `--dev` selects the development keyring. The command reference is [CLI](../build/cli.md), and [keys](../build/keys.md) covers the keyring. <!-- id:l0yc6wyb -->
 
