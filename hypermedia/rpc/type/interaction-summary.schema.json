@@ -1,58 +1,58 @@
 {
-  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+  "type": "hm://hyper.media/struct",
   "properties": {
     "citations": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer",
+        "type": "hm://hyper.media/integer",
         "minimum": 0
       },
       "required": true
     },
     "comments": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer",
+        "type": "hm://hyper.media/integer",
         "minimum": 0
       },
       "required": true
     },
     "changes": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer",
+        "type": "hm://hyper.media/integer",
         "minimum": 0
       },
       "required": true
     },
     "children": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer",
+        "type": "hm://hyper.media/integer",
         "minimum": 0
       },
       "required": true
     },
     "authorUids": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
+        "type": "hm://hyper.media/list",
         "items": {
-          "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+          "type": "hm://hyper.media/string"
         }
       }
     },
     "blocks": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+        "type": "hm://hyper.media/map",
         "values": {
-          "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+          "type": "hm://hyper.media/struct",
           "properties": {
             "citations": {
               "value": {
-                "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer",
+                "type": "hm://hyper.media/integer",
                 "minimum": 0
               },
               "required": true
             },
             "comments": {
               "value": {
-                "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer",
+                "type": "hm://hyper.media/integer",
                 "minimum": 0
               },
               "required": true

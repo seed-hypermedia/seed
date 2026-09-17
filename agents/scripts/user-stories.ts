@@ -51,7 +51,7 @@ let account = ''
 const url = (p: string) => `hm://${account}${p ? '/' + p : ''}`
 
 /** The Hypermedia schema library space; kind URLs are `hm://<library>/hypermedia-<kind>`. */
-const LIBRARY = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
+const LIBRARY = 'hm://hyper.media'
 const KIND = (kind: string) => `${LIBRARY}/hypermedia-${kind}`
 
 /** The Person type (story 5): name and surname required, an optional ISO birth date. */

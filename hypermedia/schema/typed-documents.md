@@ -37,10 +37,10 @@ An attributes schema is an ordinary struct with one [property](./property.md) pe
 
 ```json <!-- id:5qgOO0Ub -->
 {
-  "type": "hm://z6MkmZUb…/struct",
+  "type": "hm://hyper.media/struct",
   "properties": {
-    "surname":   {"value": {"type": "hm://z6MkmZUb…/string"}, "required": true},
-    "givenName": {"value": {"type": "hm://z6MkmZUb…/string"}}
+    "surname":   {"value": {"type": "hm://hyper.media/string"}, "required": true},
+    "givenName": {"value": {"type": "hm://hyper.media/string"}}
   }
 }
 ```

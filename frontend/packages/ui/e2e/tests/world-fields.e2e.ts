@@ -11,7 +11,7 @@ import {expect, test, type Page} from '@playwright/test'
  */
 
 type Meta = Record<string, unknown>
-const HYPERMEDIA_UID = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
+const LIBRARY = 'hm://hyper.media'
 
 async function openHarness(page: Page, initialMeta?: Meta) {
   if (initialMeta) {
@@ -45,7 +45,7 @@ async function openDefineDialog(page: Page) {
 test.describe('world-builder field types', () => {
   test('a date field is a date picker that writes an ISO date', async ({page}) => {
     // A character page: `born` (date) and `role` (enum) are required rows.
-    await openHarness(page, {name: 'The Wanderer', attributesSchema: `${HYPERMEDIA_UID}/example/character-doc`})
+    await openHarness(page, {name: 'The Wanderer', attributesSchema: `${LIBRARY}/example/character-doc`})
     const born = page.getByRole('treeitem', {name: /born/}).first()
     await expect(born).toBeVisible()
     const picker = born.getByTestId('date-field')
@@ -69,7 +69,7 @@ test.describe('world-builder field types', () => {
   }) => {
     await openHarness(page, {
       name: 'The Wanderer',
-      attributesSchema: `${HYPERMEDIA_UID}/example/character-doc`,
+      attributesSchema: `${LIBRARY}/example/character-doc`,
       born: '0969-01-01',
       role: 'hero',
     })
@@ -113,7 +113,7 @@ test.describe('world-builder field types', () => {
   test('an untyped object field creates free-form data', async ({page}) => {
     await openHarness(page, {
       name: 'The Wanderer',
-      attributesSchema: `${HYPERMEDIA_UID}/example/character-doc`,
+      attributesSchema: `${LIBRARY}/example/character-doc`,
       born: '0969-01-01',
       role: 'hero',
     })
@@ -152,14 +152,14 @@ test.describe('world-builder field types', () => {
     await option('HM link').click()
     // The target type is a hover action until clicked, then a text field.
     await dialog.getByLabel('Set target type for giver').click()
-    await dialog.getByLabel('Target type for giver').fill(`${HYPERMEDIA_UID}/example/character-doc`)
+    await dialog.getByLabel('Target type for giver').fill(`${LIBRARY}/example/character-doc`)
 
     await dialog.getByTestId('linked-object-publish').click()
     await expect(dialog).toBeHidden()
     const published: any = await page.evaluate(() => (window as any).__lastPublishedSchema)
-    expect(published.properties.due).toEqual({value: {ref: `${HYPERMEDIA_UID}/date`}, required: true})
+    expect(published.properties.due).toEqual({value: {ref: `${LIBRARY}/date`}, required: true})
     expect(published.properties.giver).toMatchObject({
-      value: {format: 'hm-url', target: `${HYPERMEDIA_UID}/example/character-doc`},
+      value: {format: 'hm-url', target: `${LIBRARY}/example/character-doc`},
     })
   })
 
@@ -170,7 +170,7 @@ test.describe('world-builder field types', () => {
     const rootType = dialog.getByRole('textbox', {name: 'Root type'})
     await rootType.click()
     await rootType.press('ControlOrMeta+a')
-    await rootType.fill(`${HYPERMEDIA_UID}/blob`)
+    await rootType.fill(`${LIBRARY}/blob`)
     await rootType.press('Enter')
     await expect(rootType).toHaveValue('Blob')
     await expect(dialog.getByLabel('Type tag')).toHaveValue('Custom')
@@ -182,7 +182,7 @@ test.describe('world-builder field types', () => {
     await expect(dialog).toBeHidden()
 
     const published: any = await page.evaluate(() => (window as any).__lastPublishedSchema)
-    expect(published.ref).toBe(`${HYPERMEDIA_UID}/blob`)
+    expect(published.ref).toBe(`${LIBRARY}/blob`)
     expect(published.type).toBeUndefined()
     expect(published.properties.type).toEqual({value: 'DocVote', required: true})
     expect(Object.keys(published.properties)).toEqual(['type', 'choice'])

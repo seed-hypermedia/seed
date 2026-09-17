@@ -1,10 +1,10 @@
 {
   "anyOf": [
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block/core"
+      "type": "hm://hyper.media/block/core"
     },
     {
-      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/poll-block"
+      "type": "hm://hyper.media/example/poll-block"
     }
   ]
 }

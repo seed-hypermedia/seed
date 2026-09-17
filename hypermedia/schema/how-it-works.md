@@ -4,14 +4,14 @@ summary: The system end to end, from a schema file in the repository to a signed
 ---
 # The tour in one paragraph <!-- id:7s8eFKqO -->
 
-A [schema](../schema.md) is a small JSON file. A publisher hashes it to its [DAG-CBOR](./dag-cbor.md) [CID](../protocol/blobs.md) and records the CID in a lockfile. A sync uploads the [blob](../protocol/blobs.md) and publishes a companion [document](../protocol/documents.md) at an [`hm://` URL](../protocol/urls.md) under the Hypermedia [account](../protocol/identity.md). That document's [metadata](../metadata.md) points at the blob. Apps bundle the library, resolve any other reference over the network, and run one validation engine to drive explorers, editors, forms and warnings. The reference validator uses the same engine. A generator turns every schema into a TypeScript type. The read API is also described by schemas, so the app derives its API console from them. The sections below take each layer in turn. <!-- id:UiSIhbqU -->
+A [schema](../schema.md) is a small JSON file. A publisher hashes it to its [DAG-CBOR](./dag-cbor.md) [CID](../protocol/blobs.md) and records the CID in a lockfile. A sync uploads the [blob](../protocol/blobs.md) and publishes a companion [document](../protocol/documents.md) at an [`hm://` URL](../protocol/urls.md) in the space of the [account](../protocol/identity.md) that signs the push. That document's [metadata](../metadata.md) points at the blob. Apps bundle the library, resolve any other reference over the network, and run one validation engine to drive explorers, editors, forms and warnings. The reference validator uses the same engine. A generator turns every schema into a TypeScript type. The read API is also described by schemas, so the app derives its API console from them. The sections below take each layer in turn. <!-- id:UiSIhbqU -->
 
 ``` <!-- id:UwMwRuEn -->
   hypermedia/<name>.schema.json ──publish.mjs──▶ schemas.lock.json (name → CID)
         │  + <name>.md                      │
         │                                   ▼
         └──────hypermedia:push──▶ DAG-CBOR blob (ipfs://<cid>)
-                              + document hm://<library>/<name>
+                              + document hm://<key>/<name>
                                   metadata.schemaDefinition = ipfs://<cid>
                                             │
               ┌─────────────────────────────┼──────────────────────────┐
@@ -50,7 +50,7 @@ The library is a folder of pairs: `<name>.schema.json` holds the schema in dag-j
 | `rpc/` | the Seed API's RPC catalog, with its read models in `rpc/type/` | `rpc/type/resource`, `rpc/type/search-results`, `rpc/query` <!-- id:uMrZ9ndC --> |
 | `example/` | teaching schemas covering every feature, plus live instances | `example/person`, `example/folder`, `example/bob` <!-- id:uU6GnKnu --> |
 
-Inside a schema, every reference is an `hm://` URL under the Hypermedia account, and the URL path is the file's path: `hm://z6MkmZUb…/string`, `hm://z6MkmZUb…/metadata`, `hm://z6MkmZUb…/example/person`. So every reference is a real, published document you can open. See [references and naming](./references.md). <!-- id:HVN-l5c6 -->
+Inside a schema, every reference is an `hm://` URL with the authority `hyper.media`, and the URL path is the file's path: `hm://hyper.media/string`, `hm://hyper.media/metadata`, `hm://hyper.media/example/person`. `hyper.media` is a name the SDK and the sync understand. The network does not resolve domains in `hm://` URLs yet (that is planned), so the app resolves these references from its bundled library. Each name also has a published page at the same path in the docs space, and that page's URL carries the space's key. See [references and naming](./references.md). <!-- id:HVN-l5c6 -->
 
 # Layer 4: publishing <!-- id:tf74B4h5 -->
 
@@ -58,7 +58,7 @@ Two scripts publish the folder to the network. <!-- id:A7RyUZrS -->
 
 **`publish.mjs`** encodes each schema to [canonical DAG-CBOR](./canonical-encoding.md), hashes it, and writes `schemas.lock.json`. The lockfile maps every `hm://` URL to its content CID. It is the contract between the repository and the network: a schema cannot change without the lockfile changing too. <!-- id:9Dnutfyd -->
 
-**`hypermedia:push`** signs in as the Hypermedia account and publishes in two steps. First it recomputes every schema CID, stops if any differs from the lockfile, and uploads the schema blobs. Then it imports the whole `hypermedia/` folder as documents, and each page publishes at its path. `index.md` becomes the home document. A **type** page carries `schemaDefinition = ipfs://<cid>`, which says this document defines a type. An **instance** page, such as `example/bob`, holds its data in frontmatter and carries `attributesSchema = hm://<type>`, which says this document conforms to a type. The narrative pages you are reading publish the same way. See [publishing a folder](../build/publish-a-folder.md). <!-- id:nbEaMwcF -->
+**`hypermedia:push`** signs with the `main` key, or with the key in the environment in CI, and publishes into that key's space in two steps. First it recomputes every schema CID, stops if any differs from the lockfile, and uploads the schema blobs. Then it imports the whole `hypermedia/` folder as documents, and each page publishes at its path. `index.md` becomes the home document. A **type** page carries `schemaDefinition = ipfs://<cid>`, which says this document defines a type. An **instance** page, such as `example/bob`, holds its data in frontmatter and carries `attributesSchema = hm://<type>`, which says this document conforms to a type. The files write these URLs as `hm://hyper.media/…`. The push swaps `hyper.media` for the signing key in page links and frontmatter, and `pull` swaps it back, so git never holds a key. Schema blobs are uploaded unchanged. The narrative pages you are reading publish the same way. See [publishing a folder](../build/publish-a-folder.md). <!-- id:nbEaMwcF -->
 
 So the type system lives on the network it types: browsing the account is browsing the library. <!-- id:Tq9j2_Wz -->
 
@@ -69,7 +69,7 @@ A schema reference comes in three forms, and the app resolves each one different
 <!-- id:uSHoX7eZ -->
 | reference <!-- col:JXT6M672 --> | example <!-- col:lj87cEho --> | how it resolves <!-- col:FkwrUKdr --> <!-- id:DxBoBqwn --> |
 | --- | --- | --- |
-| bundled library URL | `hm://z6MkmZUb…/map` | locally, from the registry compiled into the app, with no network <!-- id:_MyC7yOr --> |
+| library URL | `hm://hyper.media/map` | locally, from the registry compiled into the app, with no network <!-- id:_MyC7yOr --> |
 | IPFS CID | `ipfs://bafy…` | fetch the blob directly (bundled if known, otherwise from the daemon) <!-- id:0XLNPaVl --> |
 | any Hypermedia document URL | `hm://acme/person` | fetch the document, read its `metadata.schemaDefinition`, then fetch that blob <!-- id:a2Tm8pMr --> |
 

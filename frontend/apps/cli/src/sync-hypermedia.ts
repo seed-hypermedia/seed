@@ -30,25 +30,11 @@ import {existsSync, readdirSync, readFileSync, statSync} from 'node:fs'
 import {dirname, join, relative, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 
-import {
-  createRedirectRef,
-  createSeedClient,
-  createTombstoneRef,
-  type HMSigner,
-  type SeedClient,
-} from '@seed-hypermedia/client'
-import {hmId} from '@shm/shared/utils/entity-id-url'
+import {createSeedClient, type HMSigner, type SeedClient} from '@seed-hypermedia/client'
 import {runDevLoop} from './utils/dev-loop'
 import {resolveSigningKey} from './utils/keys'
 import {createSignerFromKey} from './utils/signer'
-import {
-  encodeSchemaBlob,
-  exportSpace,
-  importSpace,
-  type SpaceLayout,
-  listMarkdownFiles,
-  listSpaceVersions,
-} from './utils/space-sync'
+import {encodeSchemaBlob, exportSpace, importSpace, retireMissing, type SpaceLayout} from './utils/space-sync'
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
@@ -76,8 +62,12 @@ function listSchemaFiles(dir: string): string[] {
 
 // ── Naming ────────────────────────────────────────────────────────────────────
 
-/** The space the library is published under. */
-const SITE = 'z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
+/**
+ * The folder never names the space it publishes to. Pages link to each other with relative links, and
+ * absolute references to the docs space (schema bindings, links in examples) use `hm://hyper.media/…`.
+ * The sync resolves that name to the space of the signing key on push, and writes it back on pull.
+ */
+const LIBRARY_AUTHORITY = 'hyper.media'
 
 /**
  * How documents of the space map onto hypermedia/: every page publishes at its path.
@@ -97,6 +87,7 @@ export const layout: SpaceLayout = {
     return `${path.replace(/^\//, '')}.md`
   },
   schemaFileFor: (mdFile) => mdFile.replace(/\.md$/, '.schema.json'),
+  selfAuthority: LIBRARY_AUTHORITY,
   fileForLinkPath(path) {
     if (path === '') return 'index.md'
     return `${path.replace(/^\//, '')}.md`
@@ -115,7 +106,7 @@ async function loadSchemaBlobs(): Promise<Array<{data: Uint8Array; cid: string}>
     const basename = file.replace(/\.schema\.json$/, '')
     const obj = JSON.parse(readFileSync(resolve(SCHEMAS_DIR, file), 'utf8'))
     const {data, cid} = await encodeSchemaBlob(obj)
-    const lockUrl = `hm://${SITE}/${basename}`
+    const lockUrl = `hm://${LIBRARY_AUTHORITY}/${basename}`
     const expected = lock.schemas[lockUrl]
     if (!expected) {
       console.error(`  ! ${file}: no lockfile entry for ${lockUrl}`)
@@ -178,56 +169,6 @@ function loadSchemaAliases(): {aliasOf: (path: string) => string | null; movedFr
   return {aliasOf, movedFrom: (path) => reverse.get(path) ?? []}
 }
 
-/**
- * Retire the documents of the site whose file is gone from the folder. A schema page that was renamed (its old
- * name maps to a live page in `schemas.aliases.json`) becomes a redirect, so schema references to the old name
- * keep working. Any other page is deleted. The home document is never retired, and existing redirects are left alone.
- */
-async function retireStale(
-  client: SeedClient,
-  signer: HMSigner,
-  account: string,
-  dryRun: boolean,
-  movedFrom: ReadonlySet<string> = new Set(),
-): Promise<string[]> {
-  const published = new Set(
-    listMarkdownFiles(SCHEMAS_DIR)
-      .map((file) => layout.pathForFile(file))
-      .filter((p): p is string => p !== null),
-  )
-  const {aliasOf} = loadSchemaAliases()
-  const versions = await listSpaceVersions(client, account)
-  // A page the import just moved is already a redirect (or will be, in a dry run).
-  const stale = [...versions.keys()]
-    .filter((path) => path !== '' && !published.has(path) && !movedFrom.has(path))
-    .sort()
-  for (const path of stale) {
-    const target = aliasOf(path)
-    const redirectTo = target !== null && published.has(target) ? target : null
-    console.log(redirectTo ? `  redirect ${path} -> ${redirectTo}` : `  retire  ${path}`)
-    if (dryRun) continue
-    const resource = await client.request('Resource', hmId(account, {path: path.replace(/^\//, '').split('/')}))
-    if (resource.type !== 'document') continue
-    const genesis = resource.document.genesis
-    const ref = redirectTo
-      ? await createRedirectRef(
-          {space: account, path, genesis, generation: Date.now(), targetSpace: account, targetPath: redirectTo},
-          signer,
-        )
-      : await createTombstoneRef(
-          {
-            space: account,
-            path,
-            genesis,
-            generation: resource.document.generationInfo ? Number(resource.document.generationInfo.generation) : 0,
-          },
-          signer,
-        )
-    await client.publish(ref)
-  }
-  return stale
-}
-
 /** Publish the schema blobs, then import hypermedia/ into `account` on `client`. */
 async function pushTo(client: SeedClient, signer: HMSigner, account: string, dryRun: boolean, keepStale = false) {
   const blobs = await loadSchemaBlobs()
@@ -248,13 +189,35 @@ async function pushTo(client: SeedClient, signer: HMSigner, account: string, dry
     log: (line) => console.log('  ' + line),
   })
   const movedFrom = new Set(result.moved.map((m) => m.split(' -> ')[0]!))
-  const retired = keepStale ? [] : await retireStale(client, signer, account, dryRun, movedFrom)
+  // A renamed schema page redirects to its new name so schema references keep resolving; other pages are deleted.
+  const {aliasOf} = loadSchemaAliases()
+  const retired = keepStale
+    ? []
+    : await retireMissing({
+        client,
+        signer,
+        account,
+        dir: SCHEMAS_DIR,
+        layout,
+        dryRun,
+        skip: movedFrom,
+        redirectFor: (path, published) => {
+          const target = aliasOf(path)
+          return target !== null && published.has(target) ? target : null
+        },
+        log: (line) => console.log('  ' + line),
+      })
   console.log(
     `\n${dryRun ? 'DRY RUN' : 'DONE'}: ${result.created.length} created, ${result.moved.length} moved, ${
       result.updated.length
     } updated, ${result.unchanged.length} unchanged, ${retired.length} retired.`,
   )
   return result
+}
+
+/** `main`, unless the environment supplies the key (CI), in which case the environment's key is used. */
+function defaultKeyName(): string | undefined {
+  return process.env.SEED_CLI_KEYFILE || process.env.SEED_CLI_MNEMONIC ? undefined : 'main'
 }
 
 function noSigner(): HMSigner {
@@ -267,18 +230,22 @@ function noSigner(): HMSigner {
 async function push(args: string[]) {
   const dryRun = args.includes('--dry-run')
   const serverUrl = argValue(args, '--server') ?? 'https://hyper.media'
-  // The main key by default; in CI the key is SEED_CLI_MNEMONIC (see utils/keys.ts).
-  const keyName = argValue(args, '--key') ?? (process.env.SEED_CLI_MNEMONIC ? undefined : 'main')
+  // The main key by default; in CI the key comes from SEED_CLI_KEYFILE or SEED_CLI_MNEMONIC (see utils/keys.ts).
+  const keyName = argValue(args, '--key') ?? defaultKeyName()
 
-  // A dry run needs no signer: it only diffs against the server.
+  // A dry run needs no signer: it only diffs against the server, so it may name the space with --space.
   const key = dryRun
     ? await resolveSigningKey(keyName, {dev: false}).catch(() => null)
     : await resolveSigningKey(keyName, {dev: false})
-  const account = key?.accountId ?? argValue(args, '--space') ?? SITE
+  const account = key?.accountId ?? argValue(args, '--space')
+  if (!account) {
+    console.error(
+      `No signing key "${keyName ?? '(from the environment)'}" found. Pass --key, or --space <uid> for a dry run.`,
+    )
+    process.exit(2)
+  }
   const signer = key ? createSignerFromKey(key) : noSigner()
-  console.log(
-    `Account: ${account}${account === SITE ? ' (the site)' : '  ! not the site account'}${key ? '' : '  (no key)'}`,
-  )
+  console.log(`Account: ${account}${key ? '' : '  (no key)'}`)
   console.log(`Server:  ${serverUrl}`)
   console.log(`Mode:    ${dryRun ? 'DRY RUN' : 'PUBLISH'}\n`)
 
@@ -288,7 +255,13 @@ async function push(args: string[]) {
 
 async function pull(args: string[]) {
   const serverUrl = argValue(args, '--server') ?? 'https://hyper.media'
-  const uid = argValue(args, '--space') ?? SITE
+  const uid =
+    argValue(args, '--space') ??
+    (await resolveSigningKey(argValue(args, '--key') ?? defaultKeyName(), {dev: false}).catch(() => null))?.accountId
+  if (!uid) {
+    console.error('Pass --space <uid>, or have the main key (or --key <name>) so the space can be found.')
+    process.exit(2)
+  }
   console.log(`Space:  hm://${uid}`)
   console.log(`Server: ${serverUrl}\n`)
 
@@ -312,20 +285,26 @@ async function dev(args: string[]) {
     // hyper.media is, so stale data there is never a surprise.
     afterStart: async () => {
       const server = argValue(args, '--server') ?? 'https://hyper.media'
+      const key = await resolveSigningKey(argValue(args, '--key') ?? defaultKeyName(), {dev: false}).catch(() => null)
+      if (!key) {
+        console.log(`No main key here, so the published site on ${server} is not compared with this folder.`)
+        return
+      }
       try {
         const result = await importSpace({
           client: createSeedClient(server),
           signer: noSigner(),
-          account: SITE,
+          account: key.accountId,
           dir: SCHEMAS_DIR,
           layout,
           dryRun: true,
+          movedFromFor: loadSchemaAliases().movedFrom,
         })
         const behind = result.created.length + result.updated.length + result.moved.length
-        if (behind === 0) console.log(`The Hypermedia site on ${server} matches this folder.`)
+        if (behind === 0) console.log(`The published site on ${server} matches this folder.`)
         else
           console.log(
-            `⚠ The Hypermedia site on ${server} (hm://${SITE}) is BEHIND this folder: ${result.created.length} to create, ${result.moved.length} to move, ${result.updated.length} to update. Run \`pnpm hypermedia:push\` (signs with the main key) to publish it.`,
+            `⚠ The published site on ${server} (hm://${key.accountId}) is BEHIND this folder: ${result.created.length} to create, ${result.moved.length} to move, ${result.updated.length} to update. Run \`pnpm hypermedia:push\` (signs with the main key) to publish it.`,
           )
       } catch (err) {
         console.log(`Could not compare with ${server}: ${(err as Error).message}`)

@@ -68,15 +68,15 @@ function renderField(value: Record<string, unknown>, schema: HypermediaSchema) {
 }
 
 const PROFILE_SCHEMA: HypermediaSchema = {
-  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct',
+  type: 'hm://hyper.media/struct',
   properties: {
-    author: {value: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string', format: 'hm-profile'}},
+    author: {value: {type: 'hm://hyper.media/string', format: 'hm-profile'}},
   },
 }
 const DOC_SCHEMA: HypermediaSchema = {
-  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct',
+  type: 'hm://hyper.media/struct',
   properties: {
-    post: {value: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string', format: 'hm-url'}},
+    post: {value: {type: 'hm://hyper.media/string', format: 'hm-url'}},
   },
 }
 

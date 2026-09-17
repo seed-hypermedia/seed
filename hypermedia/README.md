@@ -48,11 +48,13 @@ node scripts/hypermedia/typegen.mjs          # TypeScript types for every schema
 ## Publishing
 
 ```sh
-pnpm hypermedia:push -- --dry-run   # what would change on hyper.media
+pnpm hypermedia:push -- --dry-run   # what would change in the signing key's space
 pnpm hypermedia:push                # publish (signing key: main)
 pnpm hypermedia:pull                # bring edits made in the Seed app back into git
 ./dev hm-sync                       # edit this folder in the desktop dev app
 ```
+
+The folder never names a key. Absolute links to the docs space and schema bindings in frontmatter use `hm://hyper.media/…`, and the layout's `selfAuthority` makes `push` swap `hyper.media` for the signing key's account and `pull` swap it back. Schema blobs publish unchanged. `hyper.media` is a name the SDK and the sync understand. The network does not resolve domains in `hm://` URLs yet (planned), so published documents carry the resolved key. `push` needs a signing key: `main`, `--key <name>`, or `SEED_CLI_KEYFILE` in CI. A dry run without a key takes `--space <uid>`.
 
 `push` checks every schema against the lockfile, publishes the schema blobs, then publishes each page. An existing document is updated block by block, and unchanged documents publish nothing. A page renamed in git publishes as a move. A document whose file is gone is deleted, except a renamed schema page, which becomes a redirect when `schemas.aliases.json` maps its old name to a live page. `--keep-stale` skips this. Nothing publishes while any relative link in the folder is broken.
 

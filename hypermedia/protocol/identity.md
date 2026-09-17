@@ -30,7 +30,7 @@ The wire form of a public key is a [principal](../principal.md): the key's [mult
 The text form is [multibase](https://github.com/multiformats/multibase) base58btc of those bytes, so every account ID begins with `z`. An Ed25519 principal always starts with `z6Mk`, which matches the [did:key](https://w3c-ccg.github.io/did-key-spec/) encoding of an Ed25519 key. A P-256 principal starts with `zDn`. Anything that accepts a principal accepts either the text form or the raw bytes, and rejects a key of the wrong length. <!-- id:_6OiFl4f -->
 
 ``` <!-- id:oQALbxFe -->
-z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb    an Ed25519 account
+z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS    an Ed25519 account
 zDnaeTtfA5…                                          a P-256 (WebCrypto) account
 ```
 

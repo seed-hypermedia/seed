@@ -19,10 +19,10 @@ const LITERAL_KEY = `ipfs://${LITERAL_CID}`
 
 const ARTICLE_SCHEMA: HypermediaSchema = {
   name: 'Article',
-  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct',
+  type: 'hm://hyper.media/struct',
   properties: {
     headline: {
-      value: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string', minLength: 1},
+      value: {type: 'hm://hyper.media/string', minLength: 1},
       required: true,
     },
     status: {value: {anyOf: ['draft', 'published']}, required: true},

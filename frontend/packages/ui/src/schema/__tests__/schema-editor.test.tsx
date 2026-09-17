@@ -86,11 +86,7 @@ describe('SchemaEditor (struct form)', () => {
   })
 
   it('required is derived from the per-field checkbox, not authored as an array', () => {
-    act(() =>
-      root.render(
-        <Harness initial={{type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct', properties: {}}} />,
-      ),
-    )
+    act(() => root.render(<Harness initial={{type: 'hm://hyper.media/struct', properties: {}}} />))
     click(findButton('Add field'))
     // a new field starts required
     const fieldName = Object.keys(latest.properties ?? {})[0]!
@@ -110,11 +106,11 @@ describe('SchemaEditor (struct form)', () => {
       root.render(
         <Harness
           initial={{
-            type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct',
+            type: 'hm://hyper.media/struct',
             name: 'T',
             properties: {
               a: {
-                value: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string'},
+                value: {type: 'hm://hyper.media/string'},
                 required: true,
               },
             },
@@ -129,8 +125,8 @@ describe('SchemaEditor (struct form)', () => {
 })
 
 describe('SchemaEditor (nested structs)', () => {
-  const STRUCT = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct'
-  const STRING = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string'
+  const STRUCT = 'hm://hyper.media/struct'
+  const STRING = 'hm://hyper.media/string'
   const initial: HypermediaSchema = {
     type: STRUCT,
     properties: {
@@ -182,7 +178,7 @@ describe('SchemaEditor (nested structs)', () => {
   })
 
   it('recurses: a struct inside a list inside a struct inside a struct', () => {
-    const LIST = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list'
+    const LIST = 'hm://hyper.media/list'
     const deep: HypermediaSchema = {
       type: STRUCT,
       properties: {
@@ -206,9 +202,9 @@ describe('SchemaEditor (nested structs)', () => {
 })
 
 describe('SchemaEditor (generics and JSON mode)', () => {
-  const MAP = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map'
-  const STRUCT = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct'
-  const BLOCK = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/block'
+  const MAP = 'hm://hyper.media/map'
+  const STRUCT = 'hm://hyper.media/struct'
+  const BLOCK = 'hm://hyper.media/block'
 
   it('shows a generic schema’s type parameters and offers them as field kinds', () => {
     act(() => {
@@ -235,7 +231,7 @@ describe('SchemaEditor (generics and JSON mode)', () => {
       root.render(<Harness initial={emptyStructSchema()} />)
     })
     click(container.querySelector('button[aria-label^="Make generic"]')!)
-    expect(latest.params).toEqual({T: {type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any'}})
+    expect(latest.params).toEqual({T: {type: 'hm://hyper.media/any'}})
     expect(isHypermediaSchema(latest)).toBe(true)
     click(findButton('Add field'))
     // Point the new field at the parameter, then drop the parameter.
@@ -246,7 +242,7 @@ describe('SchemaEditor (generics and JSON mode)', () => {
     click(remove)
     expect(latest.params).toBeUndefined()
     expect(fieldSchema(latest, 'field')).toEqual({
-      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any',
+      type: 'hm://hyper.media/any',
     })
     expect(isHypermediaSchema(latest)).toBe(true)
   })
@@ -269,11 +265,7 @@ describe('SchemaEditor (generics and JSON mode)', () => {
 
   it('a list root edits its item type', () => {
     act(() => {
-      root.render(
-        <Harness
-          initial={{type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list', items: {type: BLOCK}}}
-        />,
-      )
+      root.render(<Harness initial={{type: 'hm://hyper.media/list', items: {type: BLOCK}}} />)
     })
     expect(container.querySelector('[data-testid="schema-list-items"] input')).toBeTruthy()
     expect(container.textContent).not.toContain('Add field')
@@ -299,7 +291,7 @@ describe('SchemaEditor (generics and JSON mode)', () => {
   })
 
   it('a struct with open extra values edits as fields; unchecking closes it', () => {
-    const VALUE = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/value'
+    const VALUE = 'hm://hyper.media/value'
     act(() => {
       root.render(<Harness initial={{type: STRUCT, properties: {type: {value: {type: MAP}}}, values: {type: VALUE}}} />)
     })

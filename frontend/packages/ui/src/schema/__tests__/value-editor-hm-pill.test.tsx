@@ -11,7 +11,7 @@ import {TooltipProvider} from '../../tooltip'
 import {CBOR_VALUE_RULES, ValueEditor, ValueEditorProvider} from '../../value-editor'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
 
-const URL = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example/place-doc'
+const URL = 'hm://hyper.media/example/place-doc'
 
 describe('hm:// string values in the schema-less editor', () => {
   let container: HTMLDivElement

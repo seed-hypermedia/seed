@@ -1,9 +1,9 @@
 {
-  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+  "type": "hm://hyper.media/struct",
   "properties": {
     "username": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+        "type": "hm://hyper.media/string",
         "minLength": 3,
         "maxLength": 12,
         "pattern": "^[a-z0-9_]+$"
@@ -12,7 +12,7 @@
     },
     "score": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer",
+        "type": "hm://hyper.media/integer",
         "minimum": 0,
         "maximum": 100
       },
@@ -20,11 +20,11 @@
     },
     "tags": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
+        "type": "hm://hyper.media/list",
         "minItems": 1,
         "maxItems": 3,
         "items": {
-          "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+          "type": "hm://hyper.media/string"
         }
       }
     }

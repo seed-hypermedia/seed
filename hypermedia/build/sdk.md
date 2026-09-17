@@ -77,7 +77,7 @@ Ids first. `unpackHmId('hm://<uid>/<path>?v=<version>#<block>')` returns an `Unp
 
 ```ts <!-- id:QC9HsuXk -->
 const client = createSeedClient('https://hyper.media')
-const id = unpackHmId('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/build/sdk')!
+const id = unpackHmId('hm://hyper.media/build/sdk')!
 const resource = await client.request('Resource', id)
 if (resource.type === 'document') console.log(resource.document.metadata.name)
 ```

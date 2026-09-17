@@ -1,5 +1,5 @@
 {
-  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+  "type": "hm://hyper.media/struct",
   "properties": {
     "key": {
       "value": "Search",
@@ -7,69 +7,69 @@
     },
     "input": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/struct",
+        "type": "hm://hyper.media/struct",
         "properties": {
           "query": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+              "type": "hm://hyper.media/string"
             },
             "required": true
           },
           "accountUid": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+              "type": "hm://hyper.media/string"
             }
           },
           "includeBody": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean"
+              "type": "hm://hyper.media/boolean"
             }
           },
           "contextSize": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer",
+              "type": "hm://hyper.media/integer",
               "minimum": 0
             }
           },
           "perspectiveAccountUid": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+              "type": "hm://hyper.media/string"
             }
           },
           "searchType": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer"
+              "type": "hm://hyper.media/integer"
             }
           },
           "pageSize": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer",
+              "type": "hm://hyper.media/integer",
               "minimum": 0
             }
           },
           "pageToken": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+              "type": "hm://hyper.media/string"
             }
           },
           "iriFilter": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+              "type": "hm://hyper.media/string"
             }
           },
           "contentTypeFilter": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
+              "type": "hm://hyper.media/list",
               "items": {
-                "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer"
+                "type": "hm://hyper.media/integer"
               }
             }
           },
           "entityKindFilter": {
             "value": {
-              "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
+              "type": "hm://hyper.media/list",
               "items": {
-                "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer"
+                "type": "hm://hyper.media/integer"
               }
             }
           }
@@ -79,7 +79,7 @@
     },
     "output": {
       "value": {
-        "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/rpc/type/search-results"
+        "type": "hm://hyper.media/rpc/type/search-results"
       },
       "required": true
     }

@@ -55,7 +55,7 @@ The folder `hypermedia/` in the Seed repository is this site. A small script in 
 
 ```sh <!-- id:MTYNMnUm -->
 pnpm hypermedia:check                # offline consistency checks (schemas, lockfile, generated files, page names and summaries)
-pnpm hypermedia:push -- --dry-run    # what would change on hyper.media: created, moved, updated, unchanged, retired
+pnpm hypermedia:push -- --dry-run    # what would change in the main key's space: created, moved, updated, unchanged, retired
 pnpm hypermedia:push                 # publish, signing with the `main` key
 pnpm hypermedia:pull                 # bring edits made in the Seed app back into git
 ./dev hm-sync                        # the local editing loop; `./dev up` runs it as the hm-sync pane
@@ -63,11 +63,13 @@ pnpm hypermedia:pull                 # bring edits made in the Seed app back int
 
 From `frontend/apps/cli` the same commands are `bun run src/sync-hypermedia.ts push [--dry-run] [--server <url>] [--key <name>] [--keep-stale]`, `pull [--server <url>] [--space <uid>]` and `dev [--api <url>] [--daemon <url>] [--interval <ms>] [--no-push] [--no-watch] [--keep-stale]`. <!-- id:YT7XXn6B -->
 
+**Naming.** The folder never names the space it publishes to. Pages link to each other with relative links. Absolute references to the docs space, such as schema bindings in frontmatter and links in examples, use `hm://hyper.media/…`. The layout sets `selfAuthority` to `hyper.media`: `push` swaps it for the signing key's account in page links and in every `hm://` string in frontmatter, and `pull` swaps the key back. So in git an `attributesSchema` says `hm://hyper.media/example/person`, and on the published site it says `hm://<key>/example/person`. Schema blobs keep `hm://hyper.media` unchanged, so their CIDs match the lockfile. `hyper.media` is a name the SDK and the sync understand. The network does not resolve domains in `hm://` URLs yet, and support is planned. The space is the signing key's own: `main` by default, `--key <name>` to choose, or the key in the environment in CI. A dry run without a key needs `--space <uid>`. `pull` takes `--space <uid>`, or else uses the space of the `main` key.
+
 **Retiring pages.** The folder is the truth about what the site publishes, so `push` also retires every document of the site whose file is gone. The document is [tombstoned](../protocol/documents.md), except a renamed schema page: when `hypermedia/schemas.aliases.json` maps its old name to a page that still exists, the old path becomes a [redirect](../protocol/documents.md) so schema references keep resolving. The dry run lists these as `retire` and `redirect`. Redirects left by moves are kept, and the home document is never retired. `--keep-stale` skips the step. Rename a page with `git mv` and the push publishes a move. <!-- id:VveGReog -->
 
-**Pull.** `pull` exports every document of the site back into the folder, schema files included, and regenerates the lockfile and the bundled schema registry when a schema changed. When the dev loop starts it also compares the folder with hyper.media and warns when the public site is behind. <!-- id:oXXFJMx7 -->
+**Pull.** `pull` exports every document of the site back into the folder, schema files included, and regenerates the lockfile and the bundled schema registry when a schema changed. When the dev loop starts it also compares the folder with the `main` key's site on hyper.media and warns when that site is behind. <!-- id:oXXFJMx7 -->
 
-**CI.** A push to `main` that touches `hypermedia/` runs the consistency checks and then the publish, signing with a repository secret that holds the contents of an exported `.hmkey.json` in `SEED_CLI_KEYFILE`. The site is that key's own space. <!-- id:6ZSmetkQ -->
+**CI.** A push to `main` that touches `hypermedia/` runs the consistency checks and then the publish, signing with a repository secret that holds the contents of an exported `.hmkey.json` in `SEED_CLI_KEYFILE`. The site is that key's own space, and no key is written in the repository. <!-- id:6ZSmetkQ -->
 
 # Working with it <!-- id:jkjEbVp5 -->
 

@@ -2,7 +2,7 @@
 //
 // A schema's name is its path inside hypermedia/ without `.schema.json`
 // (`string`, `block/image`, `rpc/type/document`, `example/person`),
-// which is also the path its document publishes at: hm://<library>/<name>.
+// which is also the path its document publishes at. References use hm://hyper.media/<name>.
 // Names from before the folder reorganization (`hypermedia-string`, the bare
 // primitive `string`, the dev authorities) resolve through schemas.aliases.json.
 
@@ -13,11 +13,15 @@ import {fileURLToPath} from 'node:url'
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 export const HM_DIR = resolve(REPO_ROOT, 'hypermedia')
 export const LOCK_PATH = resolve(HM_DIR, 'schemas.lock.json')
-export const HYPERMEDIA_UID = 'z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
+/**
+ * The authority schema references use: hm://hyper.media/<name>. It is a name, not a key, so a schema's bytes
+ * (and its CID) do not depend on which space publishes the library. The sync resolves it to the publishing
+ * space's key for page links and frontmatter bindings.
+ */
+export const LIBRARY_AUTHORITY = 'hyper.media'
 
-/** Dev authorities from before the Hypermedia account, and the name prefix each implied. */
+/** Dev authorities from before the library settled on hyper.media names, and the name prefix each implied. */
 export const LEGACY_AUTHORITY = [
-  ['hypermedia-', 'hyper.media'],
   ['hypermedia-', 'seed.hyper.media'],
   ['seed-', 'seed.hyper.media'],
   ['example-', 'example.com'],
@@ -52,7 +56,7 @@ export function listSchemaFiles() {
 
 export const nameOfFile = (file) => file.replace(/\.schema\.json$/, '')
 export const fileOfName = (name) => `${name}.schema.json`
-export const nameToUrl = (name) => `hm://${HYPERMEDIA_UID}/${name}`
+export const nameToUrl = (name) => `hm://${LIBRARY_AUTHORITY}/${name}`
 
 /**
  * A schema reference -> its current name. Accepts an hm:// URL (Hypermedia account or a
@@ -63,7 +67,7 @@ export function refToName(ref, has) {
   const m = /^hm:\/\/([^/]+)\/(.+)$/.exec(ref)
   let name
   if (!m) name = ref.replace(/\.schema\.json$|\.json$/, '')
-  else if (m[1] === HYPERMEDIA_UID) name = m[2]
+  else if (m[1] === LIBRARY_AUTHORITY) name = m[2]
   else {
     const prefix = LEGACY_AUTHORITY.find(([, authority]) => authority === m[1])?.[0]
     name = prefix ? `${prefix}${m[2]}` : m[2]
