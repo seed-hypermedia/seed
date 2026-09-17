@@ -1,3 +1,4 @@
 {
-  "type": "hm://hyper.media/map"
+  "type": "hm://hyper.media/map",
+  "description": "A map of string keys to values of one type (`Map<Any>` until `values` constrains it); use a struct for known field names."
 }

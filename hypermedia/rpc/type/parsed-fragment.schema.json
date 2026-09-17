@@ -5,7 +5,9 @@
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "Id of the block the fragment addresses."
     }
-  }
+  },
+  "description": "A parsed URL fragment addressing a block and, optionally, a range inside it."
 }

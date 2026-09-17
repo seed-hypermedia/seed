@@ -59,5 +59,6 @@
       },
       "description": "An `ipfs://` object with no declared schema — free-form data."
     }
-  }
+  },
+  "description": "A World Builder page type for a character, with a birth date, role, and links to a home place, faction, portrait and stats."
 }

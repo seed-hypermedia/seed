@@ -7,7 +7,9 @@
         "items": {
           "type": "hm://hyper.media/block/comment"
         }
-      }
+      },
+      "description": "Nested comment blocks under this one, in order."
     }
-  }
+  },
+  "description": "One block of a comment body — an open block with its child comment blocks carried inline."
 }

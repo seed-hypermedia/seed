@@ -4,7 +4,8 @@
     "reverse": {
       "value": {
         "type": "hm://hyper.media/boolean"
-      }
+      },
+      "description": "Sort in descending order."
     },
     "term": {
       "value": {
@@ -17,7 +18,9 @@
           "ActivityTime"
         ]
       },
-      "required": true
+      "required": true,
+      "description": "What to sort by: path, title, or a create, update, display or activity time."
     }
-  }
+  },
+  "description": "One sort term for query results, optionally reversed."
 }

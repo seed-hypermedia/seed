@@ -3,19 +3,23 @@
   "properties": {
     "type": {
       "value": "error",
-      "required": true
+      "required": true,
+      "description": "Discriminator: loading the resource failed."
     },
     "id": {
       "value": {
         "type": "hm://hyper.media/rpc/type/id"
       },
-      "required": true
+      "required": true,
+      "description": "Parsed id the resource was requested with."
     },
     "message": {
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "Error message describing why loading failed."
     }
-  }
+  },
+  "description": "A resource that failed to load, carrying its id and the error message."
 }

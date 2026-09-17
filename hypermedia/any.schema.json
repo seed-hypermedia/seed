@@ -33,5 +33,6 @@
         "type": "hm://hyper.media/any"
       }
     }
-  ]
+  ],
+  "description": "The top type that matches every Hypermedia value: null, boolean, number, string, bytes, link, or a list or map of any."
 }

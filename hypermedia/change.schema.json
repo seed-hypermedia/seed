@@ -2,12 +2,14 @@
   "type": "hm://hyper.media/blob",
   "properties": {
     "type": {
-      "value": "Change"
+      "value": "Change",
+      "description": "Blob type tag, always `Change`."
     },
     "genesis": {
       "value": {
         "type": "hm://hyper.media/cid"
-      }
+      },
+      "description": "CID of the document's first Change, which is its identity; omitted on the genesis Change itself."
     },
     "deps": {
       "value": {
@@ -15,12 +17,14 @@
         "items": {
           "type": "hm://hyper.media/cid"
         }
-      }
+      },
+      "description": "CIDs of the head Changes the author built on, sorted by CID; omitted on the genesis Change."
     },
     "depth": {
       "value": {
         "type": "hm://hyper.media/integer"
-      }
+      },
+      "description": "One more than the deepest dependency's depth; omitted on the genesis Change."
     },
     "body": {
       "value": {
@@ -30,12 +34,14 @@
             "var": "Block"
           }
         }
-      }
+      },
+      "description": "The operations this Change applies to the document's content and metadata."
     }
   },
   "params": {
     "Block": {
       "type": "hm://hyper.media/block"
     }
-  }
+  },
+  "description": "A signed delta on a document that links the Changes it depends on and carries the operations that edit its content and metadata."
 }

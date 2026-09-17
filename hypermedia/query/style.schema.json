@@ -3,5 +3,6 @@
     "Card",
     "List",
     "Table"
-  ]
+  ],
+  "description": "How a Query block presents its results: `Card`, `List` or `Table`."
 }

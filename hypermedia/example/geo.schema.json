@@ -5,18 +5,22 @@
       "value": {
         "type": "hm://hyper.media/float"
       },
-      "required": true
+      "required": true,
+      "description": "Latitude in degrees."
     },
     "lng": {
       "value": {
         "type": "hm://hyper.media/float"
       },
-      "required": true
+      "required": true,
+      "description": "Longitude in degrees."
     },
     "altitude": {
       "value": {
         "type": "hm://hyper.media/integer"
-      }
+      },
+      "description": "Altitude, as a whole number."
     }
-  }
+  },
+  "description": "A latitude and longitude coordinate with an optional altitude."
 }

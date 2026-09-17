@@ -3,7 +3,8 @@
   "properties": {
     "key": {
       "value": "AccountContacts",
-      "required": true
+      "required": true,
+      "description": "Method key, always `AccountContacts`."
     },
     "input": {
       "value": {
@@ -19,7 +20,9 @@
           "type": "hm://hyper.media/rpc/type/contact-record"
         }
       },
-      "required": true
+      "required": true,
+      "description": "Contact records authored by the account."
     }
-  }
+  },
+  "description": "Returns the contact records an account has written, given that account's uid; use it to list whom an account names."
 }

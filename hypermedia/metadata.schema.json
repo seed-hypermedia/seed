@@ -4,17 +4,20 @@
     "name": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "The document or space title."
     },
     "summary": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "A short description shown in previews and cards."
     },
     "icon": {
       "value": {
         "type": "hm://hyper.media/ipfs-url"
-      }
+      },
+      "description": "A square document or space image, as an `ipfs://` URL."
     },
     "thumbnail": {
       "value": {
@@ -25,12 +28,14 @@
     "cover": {
       "value": {
         "type": "hm://hyper.media/ipfs-url"
-      }
+      },
+      "description": "A wide cover image shown in headers and cards, as an `ipfs://` URL."
     },
     "siteUrl": {
       "value": {
         "type": "hm://hyper.media/url"
-      }
+      },
+      "description": "The web address a space is published at; set on the home document when a site is registered."
     },
     "agentServerUrl": {
       "value": {
@@ -72,7 +77,8 @@
           "Seed/Experimental/Newspaper",
           ""
         ]
-      }
+      },
+      "description": "Legacy space header layout: `Seed/Experimental/Newspaper` or empty."
     },
     "seedExperimentalLogo": {
       "value": {
@@ -92,22 +98,26 @@
     "displayPublishTime": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "Publication date shown to readers when it differs from the change history."
     },
     "displayAuthor": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "Author byline shown to readers."
     },
     "showOutline": {
       "value": {
         "type": "hm://hyper.media/boolean"
-      }
+      },
+      "description": "Whether to show the document outline."
     },
     "showActivity": {
       "value": {
         "type": "hm://hyper.media/boolean"
-      }
+      },
+      "description": "Whether to show the document's activity and tools."
     },
     "contentWidth": {
       "value": {
@@ -116,12 +126,14 @@
           "M",
           "L"
         ]
-      }
+      },
+      "description": "Width of the content column: `S`, `M` or `L`."
     },
     "childrenType": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "Layout of the document's root-level blocks, a block children type."
     },
     "theme": {
       "value": {
@@ -133,10 +145,12 @@
                 "Center",
                 ""
               ]
-            }
+            },
+            "description": "Space header layout: `Center` or empty for the default."
           }
         }
-      }
+      },
+      "description": "Visual settings for a space."
     },
     "importCategories": {
       "value": {
@@ -153,5 +167,6 @@
   },
   "values": {
     "type": "hm://hyper.media/value"
-  }
+  },
+  "description": "The attributes of a document, merged from its Changes: the keys Seed understands, the schema-binding keys, and any custom keys."
 }

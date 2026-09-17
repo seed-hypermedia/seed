@@ -8,19 +8,23 @@
           "type": "hm://hyper.media/rpc/type/search-result-item"
         }
       },
-      "required": true
+      "required": true,
+      "description": "The search hits on this page."
     },
     "searchQuery": {
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "The query the results were returned for."
     },
     "nextPageToken": {
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "Token for fetching the next page; empty when there are no more results."
     }
-  }
+  },
+  "description": "A page of search results with the query echoed back and a token for the next page."
 }

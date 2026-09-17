@@ -3,18 +3,22 @@
   "properties": {
     "type": {
       "value": "redirect",
-      "required": true
+      "required": true,
+      "description": "Discriminator: the document redirects."
     },
     "target": {
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "Redirect target: the account uid followed by the target document path."
     },
     "republish": {
       "value": {
         "type": "hm://hyper.media/boolean"
-      }
+      },
+      "description": "When `true`, the target document is shown in place instead of redirecting to it."
     }
-  }
+  },
+  "description": "Marks a listed document as a redirect to another target, optionally republishing its content in place."
 }

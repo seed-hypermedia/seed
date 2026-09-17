@@ -18,5 +18,6 @@
     {
       "type": "hm://hyper.media/rpc/type/resource-error"
     }
-  ]
+  ],
+  "description": "The union of every state a fetched resource can be in: document, comment, redirect, not found, tombstone, or error."
 }

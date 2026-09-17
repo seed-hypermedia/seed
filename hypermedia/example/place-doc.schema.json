@@ -13,7 +13,8 @@
           "realm"
         ]
       },
-      "required": true
+      "required": true,
+      "description": "What sort of place this is, such as `city`, `ruin` or `realm`."
     },
     "founded": {
       "value": {
@@ -48,5 +49,6 @@
       },
       "description": "A map image file on IPFS."
     }
-  }
+  },
+  "description": "A World Builder page type for a place, with a kind and optional founding date, parent region, ruler, coordinates and map."
 }

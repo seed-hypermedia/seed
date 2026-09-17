@@ -12,5 +12,6 @@
     {
       "type": "hm://hyper.media/null"
     }
-  ]
+  ],
+  "description": "A scalar metadata or attribute value: a string, an integer, a boolean, or null."
 }

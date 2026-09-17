@@ -3,7 +3,8 @@
   "properties": {
     "key": {
       "value": "ListCommentVersions",
-      "required": true
+      "required": true,
+      "description": "Method key, always `ListCommentVersions`."
     },
     "input": {
       "value": {
@@ -13,11 +14,13 @@
             "value": {
               "type": "hm://hyper.media/string"
             },
-            "required": true
+            "required": true,
+            "description": "Record id of the comment (`{publicKey}/{tsid}`)."
           }
         }
       },
-      "required": true
+      "required": true,
+      "description": "The comment whose versions to list."
     },
     "output": {
       "value": {
@@ -30,11 +33,14 @@
                 "type": "hm://hyper.media/rpc/type/comment"
               }
             },
-            "required": true
+            "required": true,
+            "description": "Each stored version of the comment."
           }
         }
       },
-      "required": true
+      "required": true,
+      "description": "The comment's versions."
     }
-  }
+  },
+  "description": "Returns every stored version of a comment (its edit history), given its id."
 }

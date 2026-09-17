@@ -5,13 +5,15 @@
       "properties": {
         "type": {
           "value": "account",
-          "required": true
+          "required": true,
+          "description": "Discriminator: the account was found."
         },
         "id": {
           "value": {
             "type": "hm://hyper.media/rpc/type/id"
           },
-          "required": true
+          "required": true,
+          "description": "Parsed id of the account's home document."
         },
         "metadata": {
           "value": {
@@ -24,12 +26,14 @@
               }
             ]
           },
-          "required": true
+          "required": true,
+          "description": "Resolved metadata of the account's home document, or `null` when it has none."
         },
         "hasSite": {
           "value": {
             "type": "hm://hyper.media/boolean"
-          }
+          },
+          "description": "Whether the account's home document has content, so the account has a site to show."
         }
       }
     },
@@ -38,15 +42,18 @@
       "properties": {
         "type": {
           "value": "account-not-found",
-          "required": true
+          "required": true,
+          "description": "Discriminator: no account was found for the uid."
         },
         "uid": {
           "value": {
             "type": "hm://hyper.media/string"
           },
-          "required": true
+          "required": true,
+          "description": "The account uid that was looked up."
         }
       }
     }
-  ]
+  ],
+  "description": "The result of resolving an account: its metadata payload, or an explicit not-found."
 }

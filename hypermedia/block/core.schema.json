@@ -45,5 +45,6 @@
     {
       "type": "hm://hyper.media/block/query"
     }
-  ]
+  ],
+  "description": "The union of the fifteen built-in block types; extend it with a larger union for custom blocks."
 }

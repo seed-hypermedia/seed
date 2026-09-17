@@ -5,12 +5,15 @@
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "The person's family name."
     },
     "givenName": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "The person's given (first) name."
     }
-  }
+  },
+  "description": "A document type for a person that requires a surname and allows a given name, bound per page or to a folder's children."
 }

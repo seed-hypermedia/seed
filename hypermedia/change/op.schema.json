@@ -25,5 +25,6 @@
     "Block": {
       "type": "hm://hyper.media/block"
     }
-  }
+  },
+  "description": "One operation inside a Change body, tagged by `type`: set metadata, replace, move or delete blocks."
 }

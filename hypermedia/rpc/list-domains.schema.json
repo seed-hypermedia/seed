@@ -3,13 +3,15 @@
   "properties": {
     "key": {
       "value": "ListDomains",
-      "required": true
+      "required": true,
+      "description": "Method key, always `ListDomains`."
     },
     "input": {
       "value": {
         "type": "hm://hyper.media/map"
       },
-      "required": true
+      "required": true,
+      "description": "Ignored; send an empty map."
     },
     "output": {
       "value": {
@@ -22,11 +24,14 @@
                 "type": "hm://hyper.media/rpc/type/domain-info"
               }
             },
-            "required": true
+            "required": true,
+            "description": "Registration and health info for each tracked domain."
           }
         }
       },
-      "required": true
+      "required": true,
+      "description": "All tracked domains."
     }
-  }
+  },
+  "description": "Returns every site domain the daemon knows, each with its registration and health info."
 }

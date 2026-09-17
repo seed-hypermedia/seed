@@ -3,7 +3,8 @@
   "properties": {
     "key": {
       "value": "Account",
-      "required": true
+      "required": true,
+      "description": "Method key, always `Account`."
     },
     "input": {
       "value": {
@@ -16,7 +17,9 @@
       "value": {
         "type": "hm://hyper.media/rpc/type/account-result"
       },
-      "required": true
+      "required": true,
+      "description": "The account's metadata payload, or a not-found result."
     }
-  }
+  },
+  "description": "Resolves an account uid to its metadata payload, or to an explicit not-found result."
 }

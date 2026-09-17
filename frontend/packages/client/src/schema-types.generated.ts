@@ -12,18 +12,24 @@ export type HMBytes = Uint8Array | {'/': {bytes: string}}
 /**
  * Blob
  * The signed envelope every Hypermedia blob extends, with a type tag, the signer's public key, an Ed25519 signature over the canonical CBOR with the signature zeroed, and a millisecond timestamp.
+ * The signed envelope every Hypermedia blob extends: a type tag, the signer's key, a signature and a millisecond timestamp.
  * Schema: hm://hyper.media/blob
  */
 export type HMBlob = {
+  /** Blob type tag the network dispatches on to pick a decoder and rules, such as `Change` or `Ref`. */
   type: string
+  /** Public key of the account or device that signed the blob. */
   signer: HMPrincipal
+  /** Signature over the canonical DAG-CBOR of the blob with `sig` set to 64 zero bytes. */
   sig: HMSignature
+  /** When the signer says the blob was made, in Unix milliseconds; not checked against real time. */
   ts: HMTimestamp
 }
 
 /**
  * Any Blob
  * Any Hypermedia CBOR blob: the discriminated union of the six blob types, tagged on the type field.
+ * Any Hypermedia CBOR blob — the union of the six blob types, selected by the `type` tag.
  * Schema: hm://hyper.media/blob/any
  */
 export type HMAnyBlob = HMChange<HMBlock> | HMRef | HMProfile | HMComment | HMCapability | HMContact
@@ -31,54 +37,79 @@ export type HMAnyBlob = HMChange<HMBlock> | HMRef | HMProfile | HMComment | HMCa
 /**
  * Block
  * The open wire block: id and type plus text, link, annotations and any attributes, so a document with a block type you do not know still parses.
+ * The open wire block: `id` and `type` plus text, link, annotations and any attributes, so unknown block types still parse.
  * Schema: hm://hyper.media/block
  */
 export type HMBlock = {
+  /** The block's permanent identity inside its document; clients generate an 8-character random id. */
   id: string
+  /** Output only: CID of the last Change that replaced this block, filled in by the daemon when serving. */
   revision?: string
+  /** The block type, such as `Paragraph` or `Image`; any string is accepted. */
   type: string
+  /** The block's plain text, for types that have text; formatting lives in `annotations`. */
   text?: string
+  /** The block's one link: an `hm://`, `ipfs://`, `https://` or `nostr:` URL depending on the type. */
   link?: HMUrl
+  /** Inline formatting, links and mentions over code-point ranges of `text`. */
   annotations?: HMAnnotation[]
+  /** Type-specific attributes, nested here by the Seed API and SDK; on the wire they sit at the block's top level. */
   attributes?: {[key: string]: unknown}
 } & {[key: string]: unknown}
 
 /**
  * Annotation
  * An inline layer over a block's text: a type, one or more code-point ranges, an optional link and inline attributes, used for formatting, links and mentions.
+ * An inline layer over a block's text, used for formatting, links and mentions.
  * Schema: hm://hyper.media/block/annotation
  */
 export type HMAnnotation = {
+  /** Annotation kind, such as `Bold`, `Italic`, `Link`, `Embed` or `TextColor`. */
   type?: string
+  /** Target URL for `Link` and `Embed` annotations — an `hm://` or web URL. */
   link?: HMUrl
+  /** Start offset of each covered range, in Unicode code points; parallel to `ends`. */
   starts?: number[]
+  /** End offset (exclusive) of each covered range, in Unicode code points; parallel to `starts`. */
   ends?: number[]
 } & {[key: string]: HMValue}
 
 /**
  * Block (Base)
  * The three fields every concrete block type shares: the required id and type, and the daemon-filled revision.
+ * The fields every concrete block type shares: `id`, `type` and the daemon-filled `revision`.
  * Schema: hm://hyper.media/block/base
  */
 export type HMBlockBase = {
+  /** The block's permanent identity inside its document. */
   id: string
+  /** Output only: CID of the last Change that modified this block. */
   revision?: string
+  /** Name of the block type, such as `Paragraph` or `Image`. */
   type: string
 }
 
 /**
  * Button Block
  * A call-to-action button: a label, a required link and a horizontal alignment.
+ * A call-to-action button block with a label, a required link and an alignment.
  * Schema: hm://hyper.media/block/button
  */
 export type HMBlockButton = HMBlockBase & {
   type?: 'Button'
+  /** Label shown on the button. */
   text?: string
+  /** Where the button goes — an `hm://` or web URL. */
   link: HMUrl
+  /** Button settings and parent-layout attributes. */
   attributes?: {
+    /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
     childrenType?: HMChildrenType
+    /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Alternative label for the button. */
     name?: string
+    /** Horizontal position of the button in its column. */
     alignment?: HMButtonAlignment
   } & {[key: string]: unknown}
 }
@@ -86,6 +117,7 @@ export type HMBlockButton = HMBlockBase & {
 /**
  * Button Alignment
  * The horizontal alignment of a Button block: flex-start, center or flex-end.
+ * Horizontal position of a Button block in its column: `flex-start`, `center` or `flex-end`.
  * Schema: hm://hyper.media/block/button-alignment
  */
 export type HMButtonAlignment = 'flex-start' | 'center' | 'flex-end'
@@ -93,6 +125,7 @@ export type HMButtonAlignment = 'flex-start' | 'center' | 'flex-end'
 /**
  * Children Type
  * How a block lays out its children: Group (the default), Ordered, Unordered, Blockquote or Grid.
+ * How a block lays out its children: `Group` (default), `Ordered`, `Unordered`, `Blockquote` or `Grid`.
  * Schema: hm://hyper.media/block/children-type
  */
 export type HMChildrenType = 'Group' | 'Ordered' | 'Unordered' | 'Blockquote' | 'Grid'
@@ -100,14 +133,20 @@ export type HMChildrenType = 'Group' | 'Ordered' | 'Unordered' | 'Blockquote' | 
 /**
  * Code Block
  * A block of verbatim text, optionally tagged with a programming language for highlighting.
+ * A block of verbatim text, optionally tagged with a language for syntax highlighting.
  * Schema: hm://hyper.media/block/code
  */
 export type HMBlockCode = HMBlockBase & {
   type?: 'Code'
+  /** The code, kept exactly as written. */
   text?: string
+  /** Code settings and parent-layout attributes. */
   attributes?: {
+    /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
     childrenType?: HMChildrenType
+    /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Programming language used for syntax highlighting. */
     language?: string
   } & {[key: string]: unknown}
 }
@@ -115,15 +154,18 @@ export type HMBlockCode = HMBlockBase & {
 /**
  * Comment Block
  * A block inside a comment body: the open block plus a recursive list of child comment blocks.
+ * One block of a comment body — an open block with its child comment blocks carried inline.
  * Schema: hm://hyper.media/block/comment
  */
 export type HMCommentBlock = HMBlock & {
+  /** Nested comment blocks under this one, in order. */
   children?: HMCommentBlock[]
 }
 
 /**
  * Core Block
  * The strict union of the fifteen built-in block types; extend it with your own types by making a larger union that includes it.
+ * The union of the fifteen built-in block types; extend it with a larger union for custom blocks.
  * Schema: hm://hyper.media/block/core
  */
 export type HMBlockCore =
@@ -146,14 +188,20 @@ export type HMBlockCore =
 /**
  * Embed Block
  * An embed of another Hypermedia document, block or text range by hm:// link, rendered as content, a card, its comments or a link.
+ * An embed of another Hypermedia document, block or text range, shown in place by `hm://` link.
  * Schema: hm://hyper.media/block/embed
  */
 export type HMBlockEmbed = HMBlockBase & {
   type?: 'Embed'
+  /** The embedded resource — an `hm://` URL, optionally pinned to a version, block or text range. */
   link: HMUrl
+  /** Embed settings and parent-layout attributes. */
   attributes?: {
+    /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
     childrenType?: HMChildrenType
+    /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** How the target renders: its content, a card, its comments or a plain link. */
     view?: HMEmbedView
   } & {[key: string]: unknown}
 }
@@ -161,6 +209,7 @@ export type HMBlockEmbed = HMBlockBase & {
 /**
  * Embed View
  * How an Embed block renders its target: the content itself, a card, its discussion, or a plain link.
+ * How an Embed block renders its target: `Content`, `Card`, `Comments` or `Link`.
  * Schema: hm://hyper.media/block/embed-view
  */
 export type HMEmbedView = 'Content' | 'Card' | 'Comments' | 'Link'
@@ -168,15 +217,22 @@ export type HMEmbedView = 'Content' | 'Card' | 'Comments' | 'Link'
 /**
  * File Block
  * An attachment of any kind, referenced by an ipfs:// link, with its file name and size.
+ * An attachment of any kind, referenced by an `ipfs://` link, with its file name and size.
  * Schema: hm://hyper.media/block/file
  */
 export type HMBlockFile = HMBlockBase & {
   type?: 'File'
+  /** The attached file — an `ipfs://<cid>` URL. */
   link: HMUrl
+  /** File details and parent-layout attributes. */
   attributes?: {
+    /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
     childrenType?: HMChildrenType
+    /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** File size in bytes. */
     size?: number
+    /** File name shown to readers. */
     name?: string
   } & {[key: string]: unknown}
 }
@@ -184,14 +240,20 @@ export type HMBlockFile = HMBlockBase & {
 /**
  * Heading Block
  * A section heading whose children are the section; the heading level comes from nesting, not from an attribute.
+ * A section heading whose children are the section; its level comes from nesting depth.
  * Schema: hm://hyper.media/block/heading
  */
 export type HMBlockHeading = HMBlockBase & {
   type?: 'Heading'
+  /** The heading text, without markup. */
   text?: string
+  /** Inline formatting, links and mentions over `text`. */
   annotations?: HMAnnotation[]
+  /** Parent-layout attributes for the section under the heading. */
   attributes?: {
+    /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
     childrenType?: HMChildrenType
+    /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
   } & {[key: string]: unknown}
 }
@@ -199,17 +261,26 @@ export type HMBlockHeading = HMBlockBase & {
 /**
  * Image Block
  * An image referenced by an ipfs:// link, with a caption in the text field and an optional display width.
+ * An image referenced by an `ipfs://` link, with an optional caption and display width.
  * Schema: hm://hyper.media/block/image
  */
 export type HMBlockImage = HMBlockBase & {
   type?: 'Image'
+  /** Caption shown with the image. */
   text?: string
+  /** Inline formatting, links and mentions over the caption. */
   annotations?: HMAnnotation[]
+  /** The image file, normally an `ipfs://<cid>` URL. */
   link: HMUrl
+  /** Image settings and parent-layout attributes. */
   attributes?: {
+    /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
     childrenType?: HMChildrenType
+    /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Display width in pixels. */
     width?: number
+    /** Original file name of the image. */
     name?: string
   } & {[key: string]: unknown}
 }
@@ -217,13 +288,18 @@ export type HMBlockImage = HMBlockBase & {
 /**
  * Math Block
  * A block of LaTeX math, stored as text and rendered with KaTeX.
+ * A block of LaTeX math, stored as text and rendered with KaTeX.
  * Schema: hm://hyper.media/block/math
  */
 export type HMBlockMath = HMBlockBase & {
   type?: 'Math'
+  /** The LaTeX source. */
   text?: string
+  /** Parent-layout attributes. */
   attributes?: {
+    /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
     childrenType?: HMChildrenType
+    /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
   } & {[key: string]: unknown}
 }
@@ -231,35 +307,47 @@ export type HMBlockMath = HMBlockBase & {
 /**
  * Block Node
  * One node of a content tree: a block plus its ordered child nodes, recursively, which is how documents and comments nest content.
+ * One node of a document content tree: a block plus its ordered child nodes, recursively.
  * Schema: hm://hyper.media/block/node
  */
 export type HMBlockNode = {
+  /** The block at this node. */
   block: HMBlock
+  /** Child nodes in display order; omitted on a leaf. */
   children?: HMBlockNode[]
 }
 
 /**
  * Nostr Block
  * An embed of a Nostr event by nostr: URL.
+ * An embed of a Nostr event by `nostr:` URL.
  * Schema: hm://hyper.media/block/nostr
  */
 export type HMBlockNostr = HMBlockBase & {
   type?: 'Nostr'
+  /** The embedded event — a `nostr:` URL. */
   link: HMUrl
 }
 
 /**
  * Paragraph Block
  * The default block: a paragraph of text with inline annotations; inside a table row it is a cell and carries the column id.
+ * The default block: a paragraph of rich text, which also serves as a table cell.
  * Schema: hm://hyper.media/block/paragraph
  */
 export type HMBlockParagraph = HMBlockBase & {
   type?: 'Paragraph'
+  /** The paragraph text, without markup. */
   text?: string
+  /** Inline formatting, links and mentions over `text`. */
   annotations?: HMAnnotation[]
+  /** Parent-layout attributes and the table column id. */
   attributes?: {
+    /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
     childrenType?: HMChildrenType
+    /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Id of the TableColumn block this cell belongs to; set only on cells inside a TableRow. */
     columnId?: string
   } & {[key: string]: unknown}
 }
@@ -267,16 +355,24 @@ export type HMBlockParagraph = HMBlockBase & {
 /**
  * Query Block
  * A block that embeds a live query: the matching documents render in place as cards, a list or a table.
+ * A block that runs a live query and renders the matching documents as cards, a list or a table.
  * Schema: hm://hyper.media/block/query
  */
 export type HMBlockQuery = HMBlockBase & {
   type?: 'Query'
+  /** The stored query and how its results are shown. */
   attributes: {
+    /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
     childrenType?: HMChildrenType
+    /** Number of card columns in the `Card` style (default 3). */
     columnCount?: number
+    /** How results are shown: `Card`, `List` or `Table`. */
     style?: HMQueryStyle
+    /** The query to run: spaces and paths to include, sort and limit. */
     query: HMQuery
+    /** Show the first result as a banner. */
     banner?: boolean
+    /** Column settings for the `Table` style. */
     table?: HMQueryTableConfig
   }
 }
@@ -284,12 +380,16 @@ export type HMBlockQuery = HMBlockBase & {
 /**
  * Table Block
  * The container of a table: its children are TableColumn markers followed by TableRow blocks whose Paragraph cells carry a columnId.
+ * The container of a table: TableColumn markers followed by TableRow blocks.
  * Schema: hm://hyper.media/block/table
  */
 export type HMBlockTable = HMBlockBase & {
   type?: 'Table'
+  /** Parent-layout attributes. */
   attributes?: {
+    /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
     childrenType?: HMChildrenType
+    /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
   }
 }
@@ -297,15 +397,20 @@ export type HMBlockTable = HMBlockBase & {
 /**
  * Table Column Block
  * One column of a Table block: a childless marker whose id cells reference and whose sibling order is the display order.
+ * One column of a Table block: a childless marker that cells reference by id.
  * Schema: hm://hyper.media/block/table-column
  */
 export type HMBlockTableColumn = HMBlockBase & {
   type?: 'TableColumn'
+  /** Column settings and parent-layout attributes. */
   attributes?: {
+    /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
     childrenType?: HMChildrenType
+    /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
-    /** minimum: 0 */
+    /** Column width in pixels. · minimum: 0 */
     width?: number
+    /** Marks a header column; honored only on the first column. */
     isHeader?: boolean
   }
 }
@@ -313,13 +418,18 @@ export type HMBlockTableColumn = HMBlockBase & {
 /**
  * Table Row Block
  * One row of a Table block: its children are Paragraph cells, each naming its column with a columnId attribute.
+ * One row of a Table block, whose children are Paragraph cells naming their column.
  * Schema: hm://hyper.media/block/table-row
  */
 export type HMBlockTableRow = HMBlockBase & {
   type?: 'TableRow'
+  /** Row settings and parent-layout attributes. */
   attributes?: {
+    /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
     childrenType?: HMChildrenType
+    /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Marks the header row; honored only on the first row. */
     isHeader?: boolean
   }
 }
@@ -327,18 +437,28 @@ export type HMBlockTableRow = HMBlockBase & {
 /**
  * Video Block
  * A video referenced by an ipfs:// file or a supported web video URL, with playback attributes.
+ * A video from an `ipfs://` file or a supported web video URL, with playback settings.
  * Schema: hm://hyper.media/block/video
  */
 export type HMBlockVideo = HMBlockBase & {
   type?: 'Video'
+  /** The video — an `ipfs://<cid>` file or a web video URL such as a YouTube link. */
   link: HMUrl
+  /** Playback settings and parent-layout attributes. */
   attributes?: {
+    /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
     childrenType?: HMChildrenType
+    /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Display width in pixels. */
     width?: number
+    /** Original file name of the video. */
     name?: string
+    /** Start playing automatically. */
     autoplay?: boolean
+    /** Restart playback when the video ends. */
     loop?: boolean
+    /** Play without sound. */
     muted?: boolean
   } & {[key: string]: unknown}
 }
@@ -346,53 +466,70 @@ export type HMBlockVideo = HMBlockBase & {
 /**
  * Web Embed Block
  * An embed of an external web page or post by https:// URL.
+ * An embed of an external web page or post by `https://` URL.
  * Schema: hm://hyper.media/block/web-embed
  */
 export type HMBlockWebEmbed = HMBlockBase & {
   type?: 'WebEmbed'
+  /** The embedded page or post — an `http(s)://` URL. */
   link: HMUrl
 }
 
 /**
  * Capability
  * A signed grant from a space owner to another key: a role (WRITER or AGENT), an optional path scope, and nothing that expires or revokes it.
+ * A signed grant from a space owner to another key: a `WRITER` or `AGENT` role, optionally scoped to a path.
  * Schema: hm://hyper.media/capability
  */
 export type HMCapability = HMBlob & {
   type?: 'Capability'
+  /** The key that receives the grant. */
   delegate: HMPrincipal
+  /** Only on short-lived, unstored capabilities that prove account ownership to a peer or HTTP server; never on stored grants. */
   audience?: HMPrincipal
+  /** Path the grant is scoped to, recursive by segment (`/team` covers `/team/notes`); empty for the whole space. */
   path?: string
+  /** What the delegate may do: `WRITER` publishes under `path`, `AGENT` acts as the issuer (path must be empty). */
   role?: HMRole
+  /** Public, immutable note describing the grant, at most 512 bytes. */
   label?: string
 }
 
 /**
  * Change
  * A signed delta on a document that links the changes it depends on into a causal graph and carries the operations that mutate the document's content and metadata.
+ * A signed delta on a document that links the Changes it depends on and carries the operations that edit its content and metadata.
  * Schema: hm://hyper.media/change
  */
 export type HMChange<Block = HMBlock> = HMBlob & {
   type?: 'Change'
+  /** CID of the document's first Change, which is its identity; omitted on the genesis Change itself. */
   genesis?: HMCid
+  /** CIDs of the head Changes the author built on, sorted by CID; omitted on the genesis Change. */
   deps?: HMCid[]
+  /** One more than the deepest dependency's depth; omitted on the genesis Change. */
   depth?: number
+  /** The operations this Change applies to the document's content and metadata. */
   body?: HMChangeBody<Block>
 }
 
 /**
  * Change Body
  * The operations payload of a Change, an ordered list of ops plus an advisory count of the logical operations they represent.
+ * The operations payload of a Change: an ordered list of ops the daemon applies in turn.
  * Schema: hm://hyper.media/change/body
  */
 export type HMChangeBody<Block = HMBlock> = {
+  /** Advisory count of logical operations, which can exceed the list length for run-length ops. */
   opCount?: number
+  /** Operations applied in order when the document is replayed. */
   ops?: HMOp<Block>[]
 }
 
 /**
  * Operation
  * One step inside a Change body, a map tagged by type that sets metadata, replaces a block, moves blocks, or deletes blocks, and the page explains how each op mutates the document.
+ * One operation inside a Change body, tagged by `type`: set metadata, replace, move or delete blocks.
  * Schema: hm://hyper.media/change/op
  */
 export type HMOp<Block = HMBlock> =
@@ -405,60 +542,75 @@ export type HMOp<Block = HMBlock> =
 /**
  * DeleteBlocks Op
  * The operation that removes blocks from the visible tree by moving them to the trash parent, from which a later move can restore them.
+ * The operation that removes blocks by moving them, with their children, to the trash parent.
  * Schema: hm://hyper.media/change/op/delete-blocks
  */
 export type HMOpDeleteBlocks = {
   type: 'DeleteBlocks'
+  /** Ids of the blocks to delete. */
   blocks: string[]
 }
 
 /**
  * MoveBlocks Op
  * The operation that places a contiguous run of blocks under a parent after a reference position, using RGA op ids so concurrent moves converge and the latest move of a block wins.
+ * The operation that places a contiguous run of sibling blocks under a parent after a reference position.
  * Schema: hm://hyper.media/change/op/move-blocks
  */
 export type HMOpMoveBlocks = {
   type: 'MoveBlocks'
+  /** Id of the block the run goes under; empty means the document root. */
   parent?: string
+  /** Ids of the sibling blocks to place, in order. */
   blocks: string[]
+  /** Op id to insert after: `[ts, idx, actor]`, or `[idx]` for an earlier op in this Change; empty means the start. */
   ref?: number[]
 }
 
 /**
  * ReplaceBlock Op
  * The operation that sets the full state of one block, its id, type, text, link, annotations and attributes, where the newest replacement by op id wins.
+ * The operation that sets the full state of one block; the newest replacement by op id wins.
  * Schema: hm://hyper.media/change/op/replace-block
  */
 export type HMOpReplaceBlock<Block = HMBlock> = {
   type: 'ReplaceBlock'
+  /** The complete new state of the block, with attributes inlined at the top level. */
   block: Block
 }
 
 /**
  * SetAttributes Op
  * The operation that sets document metadata by key path, where each path is a last-writer-wins register and a nested write prunes older values above and below it.
+ * The operation that sets document metadata by key path, each path a last-writer-wins register.
  * Schema: hm://hyper.media/change/op/set-attributes
  */
 export type HMOpSetAttributes = {
   type: 'SetAttributes'
+  /** Reserved for per-block attributes; must be empty today. */
   block?: string
+  /** Key paths and the values to write; a `null` value deletes the key. */
   attrs?: HMKeyValue[]
 }
 
 /**
  * SetKey Op
  * The deprecated flat form of SetAttributes that sets a single top-level metadata key, still accepted so old Changes replay.
+ * Deprecated flat form of SetAttributes that sets one top-level metadata key, kept so old Changes replay.
  * Schema: hm://hyper.media/change/op/set-key
  */
 export type HMOpSetKey = {
   type: 'SetKey'
+  /** Top-level metadata key to set. */
   key?: string
+  /** Scalar value to store: a string, boolean, integer or `null`. */
   value?: HMValue
 }
 
 /**
  * CID
  * A content identifier, the self-describing hash that names a blob by its bytes, written in Hypermedia as CIDv1 with the dag-cbor codec and either a SHA-256 or a BLAKE2b-256 multihash.
+ * A content identifier: a CIDv1 link that names a blob by the hash of its bytes.
  * Schema: hm://hyper.media/cid
  */
 export type HMCid = HMLink
@@ -466,48 +618,68 @@ export type HMCid = HMLink
 /**
  * Comment
  * A signed comment on a document version, threaded through threadRoot and replyParent, with a body that is a tree of comment blocks.
+ * A signed comment on a document version, threaded through `threadRoot` and `replyParent`, with a body of comment blocks.
  * Schema: hm://hyper.media/comment
  */
 export type HMComment = HMBlob & {
   type?: 'Comment'
+  /** TSID of the comment being replaced; present only on an edit or a tombstone. */
   id?: string
+  /** Deprecated and ignored; some old comment blobs still carry it. */
   capability?: HMCid
+  /** Space of the commented document; omitted when it equals the signer. */
   space?: HMPrincipal
+  /** Path of the commented document within `space`. */
   path?: string
+  /** CIDs of the document heads the author was looking at; empty means the document at this path. */
   version?: HMCid[]
+  /** CID of the first comment of the thread; present on every reply. */
   threadRoot?: HMCid
+  /** CID of the comment this one replies to; omitted when it equals `threadRoot`. */
   replyParent?: HMCid
+  /** The comment's content as a list of comment blocks; an empty body is a tombstone. */
   body: HMCommentBlock[]
+  /** Empty for a public comment or `Private`, usually copied from the target document. */
   visibility?: HMVisibility
 }
 
 /**
  * Contact
  * A public address-book entry: one account's name for another account, with flags that say whether it joined that account's site or follows its profile.
+ * A public address-book entry: one account's name for another, with flags for joining its site or following its profile.
  * Schema: hm://hyper.media/contact
  */
 export type HMContact = HMBlob & {
   type?: 'Contact'
+  /** TSID of the contact record being replaced; present only on updates and tombstones. */
   id?: string
+  /** Account the contact is written for, set only when a delegated key signs on its behalf. */
   account?: HMPrincipal
+  /** The account being described; an empty subject makes the blob a tombstone. */
   subject?: HMPrincipal
+  /** The signer's name for the subject account, up to 256 bytes. */
   name?: string
+  /** Flags saying whether the signer joined the subject's site or follows its profile. */
   subscribe?: HMContactSubscribe
 }
 
 /**
  * Contact Subscription
  * The two follow flags on a contact: site means the account joined the subject's site, profile means it follows the subject as a person.
+ * The follow flags on a contact: whether the signer joined the subject's site and follows its profile.
  * Schema: hm://hyper.media/contact/subscribe
  */
 export type HMContactSubscribe = {
+  /** The signing account joined the subject's site and appears among its members. */
   site?: boolean
+  /** The signing account follows the subject's profile. */
   profile?: boolean
 }
 
 /**
  * Date
  * A calendar date held as an ISO 8601 `YYYY-MM-DD` string, with `format: date` so editors show a date picker and validators can check the shape.
+ * A calendar date as an ISO 8601 `YYYY-MM-DD` string — rendered as a date picker.
  * Schema: hm://hyper.media/date
  */
 export type HMDate = string
@@ -515,6 +687,7 @@ export type HMDate = string
 /**
  * Date-Time
  * An instant held as an RFC 3339 string such as `2026-08-26T14:30:00Z`, with `format: date-time` so editors show a date-and-time picker.
+ * An instant as an RFC 3339 string such as `2026-08-26T14:30:00Z` — rendered as a date-and-time picker.
  * Schema: hm://hyper.media/date-time
  */
 export type HMDateTime = string
@@ -522,27 +695,35 @@ export type HMDateTime = string
 /**
  * Document
  * The read model of a Hypermedia document, the metadata and block tree that result from replaying its Changes, and the base every typed document's attributes are folded into.
+ * The read model of a Hypermedia document: the metadata and block tree that result from replaying its Changes.
  * Schema: hm://hyper.media/document
  */
 export type HMDocument = {
+  /** The document's attributes, merged last-writer-wins from every SetAttributes op. */
   metadata?: HMMetadata
+  /** The tree of content block nodes built from the document's move tree and block registers. */
   content?: HMBlockNode[]
 }
 
 /**
  * Example: Address
  * A postal address: street and city (required) plus an optional postal code.
+ * A postal address: street and city (required) plus an optional postal code.
  * Schema: hm://hyper.media/example/address
  */
 export type ExampleAddress = {
+  /** Street address line, including the house number. */
   street: string
+  /** City or town name. */
   city: string
+  /** Postal or ZIP code, if any. */
   postalCode?: string
 }
 
 /**
  * Example: Admin
  * An employee, extended with a map of boolean permission flags.
+ * An employee extended with a map of boolean permission flags — a two-level extension chain.
  * Schema: hm://hyper.media/example/admin
  */
 export type ExampleAdmin = ExampleEmployee & {
@@ -553,6 +734,7 @@ export type ExampleAdmin = ExampleEmployee & {
 /**
  * Example: App Block (Extended Core)
  * How a third party extends the block model: a strict union of Hypermedia’s core blocks plus the app’s own Poll block, rejecting block types it does not know.
+ * A strict union of Hypermedia's core blocks plus the app's own Poll block, showing how a third party extends the block model.
  * Schema: hm://hyper.media/example/app-block
  */
 export type ExampleAppBlock = HMBlockCore | ExamplePollBlock
@@ -560,36 +742,53 @@ export type ExampleAppBlock = HMBlockCore | ExamplePollBlock
 /**
  * Example: Article
  * A published article: status, author, tags, a bytes body, cover image, comments, and metadata.
+ * A published article that combines the other examples: status, author, tags, body, cover image, comments and metadata.
  * Schema: hm://hyper.media/example/article
  */
 export type ExampleArticle = {
+  /** Headline of the article. */
   title: string
+  /** URL-friendly short name for the article. */
   slug: string
+  /** Publication status: `draft`, `published` or `archived`. */
   status: ExampleStatus
+  /** The person who wrote the article. */
   author: HMLink
+  /** Topic tags for the article. */
   tags?: ExampleTags
+  /** The article's content as raw bytes. */
   body?: HMBytes
+  /** Number of words in the body. */
   wordCount?: number
+  /** Whether the article is featured. */
   featured?: boolean
+  /** Cover image, a link to a Blob. */
   cover?: HMLink
+  /** Links to the comments on the article. */
   comments?: HMLink[]
+  /** Open string metadata for anything the other fields do not cover. */
   meta?: ExampleMetadata
 }
 
 /**
  * Example: Blob
  * A binary payload tagged with a MIME type and optional size.
+ * A binary payload tagged with a MIME type and an optional size.
  * Schema: hm://hyper.media/example/blob
  */
 export type ExampleBlob = {
+  /** MIME type of the payload, such as `image/png`. */
   mime: string
+  /** Payload size in bytes. */
   size?: number
+  /** The binary payload. */
   data: HMBytes
 }
 
 /**
  * Character
  * A world-builder page type for a character, whose attributes require a birth date and a role and link to a home place, a faction, a portrait, and a stats object.
+ * A World Builder page type for a character, with a birth date, role, and links to a home place, faction, portrait and stats.
  * Schema: hm://hyper.media/example/character-doc
  */
 export type ExampleCharacterDoc = {
@@ -614,30 +813,37 @@ export type ExampleCharacterDoc = {
 /**
  * Example: Comment
  * A comment with an author and replies, which are themselves comments.
+ * A comment with an author and replies that are themselves comments, showing a self-referencing type.
  * Schema: hm://hyper.media/example/comment
  */
 export type ExampleComment = {
+  /** The comment's text. */
   text: string
+  /** The person who wrote the comment. */
   author?: HMLink
+  /** Links to replies, which are themselves comments. */
   replies?: HMLink[]
 }
 
 /**
  * Example: Constrained Record
  * A record that shows the value constraints: string length and pattern, numeric bounds, and list size.
+ * A record that shows value constraints: string length and pattern, numeric bounds, and list size.
  * Schema: hm://hyper.media/example/constrained
  */
 export type ExampleConstrained = {
-  /** minLength: 3 · maxLength: 12 · pattern: "^[a-z0-9_]+$" */
+  /** Login name: 3–12 characters of lowercase letters, digits and `_`. · minLength: 3 · maxLength: 12 · pattern: "^[a-z0-9_]+$" */
   username: string
-  /** minimum: 0 · maximum: 100 */
+  /** Score from 0 to 100. · minimum: 0 · maximum: 100 */
   score: number
+  /** One to three string tags. */
   tags?: string[]
 }
 
 /**
  * Example: Counts
  * A map from string keys to integers: Map<Integer>.
+ * A map from string keys to integers: `Map<Integer>`.
  * Schema: hm://hyper.media/example/counts
  */
 export type ExampleCounts = {[key: string]: number}
@@ -645,28 +851,37 @@ export type ExampleCounts = {[key: string]: number}
 /**
  * Example: Document
  * A document with a title, an author, a body, and a link to a previous document.
+ * A document with a title, author, body and a link to a previous document, showing a self-referencing type.
  * Schema: hm://hyper.media/example/document
  */
 export type ExampleDocument = {
+  /** Title of the document. */
   title: string
+  /** The person who wrote the document. */
   author?: HMLink
+  /** The document's content as raw bytes. */
   body?: HMBytes
+  /** The previous document, a link to another Document. */
   previous?: HMLink
 }
 
 /**
  * Example: Employee
  * A person, extended with an employee id and department.
+ * A person extended with an employee id and department.
  * Schema: hm://hyper.media/example/employee
  */
 export type ExampleEmployee = ExamplePerson & {
+  /** The employee's id within the organization. */
   employeeId: string
+  /** The department the employee works in. */
   department?: string
 }
 
 /**
  * Example: Filesystem Entry
  * Either a folder or a file, as a union.
+ * A filesystem entry: a union of folder and file.
  * Schema: hm://hyper.media/example/entry
  */
 export type ExampleEntry = ExampleFolder | ExampleFile
@@ -674,6 +889,7 @@ export type ExampleEntry = ExampleFolder | ExampleFile
 /**
  * Event
  * A world-builder page type for something that happened, whose attributes require a date and link the event to a place and a protagonist character.
+ * A World Builder page type for something that happened, with a date and links to a place, a protagonist and a faction.
  * Schema: hm://hyper.media/example/event-doc
  */
 export type ExampleEventDoc = {
@@ -687,12 +903,14 @@ export type ExampleEventDoc = {
   protagonist?: HMHmUrl
   /** The faction chiefly involved. */
   faction?: HMHmUrl
+  /** How the event ended: `victory`, `defeat`, `stalemate` or `unknown`. */
   outcome?: 'victory' | 'defeat' | 'stalemate' | 'unknown'
 }
 
 /**
  * Faction
  * A world-builder page type for a faction, order, house, or guild, whose attributes require a founding date and link to its seat, its leader, and a banner.
+ * A World Builder page type for a faction, order, house or guild, with a founding date and links to its seat, leader and banner.
  * Schema: hm://hyper.media/example/faction-doc
  */
 export type ExampleFactionDoc = {
@@ -711,38 +929,50 @@ export type ExampleFactionDoc = {
 /**
  * Example: File
  * A file with a name and a link to its parent folder.
+ * A file with a name and a link to its parent folder, showing mutually referencing types.
  * Schema: hm://hyper.media/example/file
  */
 export type ExampleFile = {
+  /** File name. */
   name: string
+  /** The folder that contains this file. */
   parent?: HMLink
 }
 
 /**
  * Example: Folder
  * A folder with a name and links to its files and subfolders.
+ * A folder with a name and links to its files and subfolders, showing mutually referencing types.
  * Schema: hm://hyper.media/example/folder
  */
 export type ExampleFolder = {
+  /** Folder name. */
   name: string
+  /** Links to the files directly in this folder. */
   files?: HMLink[]
+  /** Links to the folders directly inside this folder. */
   subfolders?: HMLink[]
 }
 
 /**
  * Example: Geo Point
  * A latitude and longitude coordinate with an optional altitude.
+ * A latitude and longitude coordinate with an optional altitude.
  * Schema: hm://hyper.media/example/geo
  */
 export type ExampleGeo = {
+  /** Latitude in degrees. */
   lat: number
+  /** Longitude in degrees. */
   lng: number
+  /** Altitude, as a whole number. */
   altitude?: number
 }
 
 /**
  * Example: JSON Value
  * A recursive JSON value: null, boolean, number, string, list, or map.
+ * A recursive JSON value: null, boolean, integer, float, string, or a list or map of JSON values.
  * Schema: hm://hyper.media/example/json
  */
 export type ExampleJson = null | boolean | number | string | ExampleJson[] | {[key: string]: ExampleJson}
@@ -750,6 +980,7 @@ export type ExampleJson = null | boolean | number | string | ExampleJson[] | {[k
 /**
  * Example: Matrix
  * A list of lists of integers: List<List<Integer>>.
+ * A list of lists of integers: `List<List<Integer>>`.
  * Schema: hm://hyper.media/example/matrix
  */
 export type ExampleMatrix = number[][]
@@ -757,6 +988,7 @@ export type ExampleMatrix = number[][]
 /**
  * Example: Metadata
  * Arbitrary string-to-string metadata: Map<String>.
+ * Arbitrary string-to-string metadata: `Map<String>`.
  * Schema: hm://hyper.media/example/metadata
  */
 export type ExampleMetadata = {[key: string]: string}
@@ -764,6 +996,7 @@ export type ExampleMetadata = {[key: string]: string}
 /**
  * Example: MyApp Change
  * A Change instantiated with the app’s block type, so its ReplaceBlock ops are validated strictly against core blocks plus Poll instead of the open default.
+ * A Change bound to the app's block type (`Change<example/app-block>`), so ReplaceBlock ops accept only core blocks and Poll.
  * Schema: hm://hyper.media/example/myapp-change
  */
 export type ExampleMyappChange = HMChange<ExampleAppBlock>
@@ -771,32 +1004,43 @@ export type ExampleMyappChange = HMChange<ExampleAppBlock>
 /**
  * Example: Person
  * A person with a name, age, active flag, home address, and nicknames.
+ * A person with a name, age, active flag, home address and nicknames.
  * Schema: hm://hyper.media/example/person
  */
 export type ExamplePerson = {
+  /** The person's name. */
   name: string
+  /** Age in years. */
   age?: number
+  /** Whether the person is currently active. */
   active?: boolean
+  /** Home postal address. */
   home?: ExampleAddress
+  /** Other names the person goes by. */
   nicknames?: string[]
 }
 
 /**
  * Example: Person Document
  * A document type for a person: an attributes schema requiring a surname with an optional given name, bound per page or to every child of a folder.
+ * A document type for a person that requires a surname and allows a given name, bound per page or to a folder's children.
  * Schema: hm://hyper.media/example/person-doc
  */
 export type ExamplePersonDoc = {
+  /** The person's family name. */
   surname: string
+  /** The person's given (first) name. */
   givenName?: string
 }
 
 /**
  * Place
  * A world-builder page type for a place, whose attributes require a kind and may add a founding date, a parent region, and a coordinates object.
+ * A World Builder page type for a place, with a kind and optional founding date, parent region, ruler, coordinates and map.
  * Schema: hm://hyper.media/example/place-doc
  */
 export type ExamplePlaceDoc = {
+  /** What sort of place this is, such as `city`, `ruin` or `realm`. */
   kind: 'city' | 'town' | 'village' | 'fortress' | 'ruin' | 'wilderness' | 'realm'
   /** Founding date. */
   founded?: HMDate
@@ -813,15 +1057,22 @@ export type ExamplePlaceDoc = {
 /**
  * Example: Poll Block (Custom)
  * An example third-party block type: a poll with a question and options. It extends the shared block base, exactly like a core block.
+ * An example third-party block type: a poll with a question and options, extending the shared block base like a core block.
  * Schema: hm://hyper.media/example/poll-block
  */
 export type ExamplePollBlock = HMBlockBase & {
   type?: 'Poll'
+  /** The question the poll asks. */
   question: string
+  /** The answer choices, in display order. */
   options: string[]
+  /** Block attributes: layout keys plus poll settings such as `multiple`; other keys are allowed. */
   attributes?: {
+    /** How the block's children are laid out, such as `Ordered` or `Grid`. */
     childrenType?: HMChildrenType
+    /** Number of columns when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Whether a voter may choose more than one option. */
     multiple?: boolean
   } & {[key: string]: unknown}
 }
@@ -829,6 +1080,7 @@ export type ExamplePollBlock = HMBlockBase & {
 /**
  * Example: Registry
  * A map from ids to person links: Map<Link<Person>>.
+ * A map from ids to person links: `Map<Link<Person>>`.
  * Schema: hm://hyper.media/example/registry
  */
 export type ExampleRegistry = {[key: string]: HMLink}
@@ -836,6 +1088,7 @@ export type ExampleRegistry = {[key: string]: HMLink}
 /**
  * Character Stats
  * A character’s stats object, stored as its own DAG-CBOR blob linked by `ipfs://` so it can hold the integers and enums document metadata cannot.
+ * A character's stats object, stored as its own DAG-CBOR blob so it can hold the integers and enums document metadata cannot.
  * Schema: hm://hyper.media/example/stats
  */
 export type ExampleStats = {
@@ -845,6 +1098,7 @@ export type ExampleStats = {
   intellect: number
   /** 1–10 · minimum: 1 · maximum: 10 */
   charisma: number
+  /** Moral alignment: `lawful`, `neutral` or `chaotic`. */
   alignment?: 'lawful' | 'neutral' | 'chaotic'
   /** Free-form descriptors. */
   traits?: string[]
@@ -853,6 +1107,7 @@ export type ExampleStats = {
 /**
  * Example: Status
  * A publication status: draft, published, or archived.
+ * A publication status: `draft`, `published` or `archived`.
  * Schema: hm://hyper.media/example/status
  */
 export type ExampleStatus = 'draft' | 'published' | 'archived'
@@ -860,6 +1115,7 @@ export type ExampleStatus = 'draft' | 'published' | 'archived'
 /**
  * Example: Tags
  * A list of string tags: List<String>.
+ * A list of string tags: `List<String>`.
  * Schema: hm://hyper.media/example/tags
  */
 export type ExampleTags = string[]
@@ -867,16 +1123,20 @@ export type ExampleTags = string[]
 /**
  * Example: Tree
  * A node holding an integer value and links to child nodes.
+ * A tree node holding an integer value and links to child nodes, showing a self-referencing type.
  * Schema: hm://hyper.media/example/tree
  */
 export type ExampleTree = {
+  /** The integer stored at this node. */
   value: number
+  /** Links to this node's child trees. */
   children?: HMLink[]
 }
 
 /**
  * Example: Value
  * A primitive value: string, integer, boolean, or null.
+ * A primitive value: string, integer, boolean or null.
  * Schema: hm://hyper.media/example/value
  */
 export type ExampleValue = string | number | boolean | null
@@ -884,18 +1144,22 @@ export type ExampleValue = string | number | boolean | null
 /**
  * World
  * A world-builder page type for the root of a fictional world, whose children hold the type definitions and the folders of characters, places, factions, and events.
+ * A World Builder page type for the root of a fictional world, naming its genre and the date the chronicle begins.
  * Schema: hm://hyper.media/example/world-doc
  */
 export type ExampleWorldDoc = {
+  /** The world's genre, such as `fantasy` or `science-fiction`. */
   genre: 'fantasy' | 'science-fiction' | 'historical' | 'contemporary' | 'mythic'
   /** The in-world date the chronicle begins. */
   epoch?: HMDate
+  /** A one-line pitch for the world. */
   tagline?: string
 }
 
 /**
  * Resource URL
  * A reference to a Hypermedia document held as an `hm://` URL string, which editors render as a searchable pill showing the target’s title.
+ * A reference to a Hypermedia document as an `hm://` URL string — rendered as a searchable pill showing the target's title.
  * Schema: hm://hyper.media/hm-url
  */
 export type HMHmUrl = string
@@ -903,6 +1167,7 @@ export type HMHmUrl = string
 /**
  * IPFS URL
  * A reference to a content-addressed object held as an `ipfs://<cid>` string, which editors render as a file pill you can open, upload to, or paste into.
+ * A string that is an `ipfs://` URL naming content by its CID — a file, or a DAG-CBOR object such as a schema.
  * Schema: hm://hyper.media/ipfs-url
  */
 export type HMIpfs = string
@@ -910,25 +1175,34 @@ export type HMIpfs = string
 /**
  * Key/Value
  * One attribute assignment in a SetAttributes op: a key path (a list of segments) and a scalar value.
+ * One attribute assignment in a SetAttributes op: a key path and the scalar value to set there.
  * Schema: hm://hyper.media/key-value
  */
 export type HMKeyValue = {
+  /** Path of key segments to set, such as `["theme", "headerLayout"]` for a nested key. */
   key?: string[]
+  /** Scalar value to store at `key`; `null` deletes the key. */
   value?: HMValue
 }
 
 /**
  * Document Metadata
  * The attributes of a document, merged from its Changes: the keys Seed understands, the three schema-binding keys, and any custom keys a typed document adds.
+ * The attributes of a document, merged from its Changes: the keys Seed understands, the schema-binding keys, and any custom keys.
  * Schema: hm://hyper.media/metadata
  */
 export type HMMetadata = {
+  /** The document or space title. */
   name?: string
+  /** A short description shown in previews and cards. */
   summary?: string
+  /** A square document or space image, as an `ipfs://` URL. */
   icon?: HMIpfs
   /** Deprecated image field kept for old documents; use `icon` or `cover`. */
   thumbnail?: HMIpfs
+  /** A wide cover image shown in headers and cards, as an `ipfs://` URL. */
   cover?: HMIpfs
+  /** The web address a space is published at; set on the home document when a site is registered. */
   siteUrl?: HMUrl
   /** The agents server this space advertises to its readers (an http(s) origin); clients connect to it beside their own servers. */
   agentServerUrl?: HMUrl
@@ -940,18 +1214,27 @@ export type HMMetadata = {
   childAttributesSchema?: HMHmUrl
   /** This document DEFINES a schema: ipfs://<cid> of the schema blob it describes. Its target is the meta-schema, so an editor creates and validates the blob as a Hypermedia schema (the struct form, rooted at Struct by default). Other documents reference this document's URL as their `attributesSchema`/`childAttributesSchema`. */
   schemaDefinition?: HMIpfs
+  /** Legacy space header layout: `Seed/Experimental/Newspaper` or empty. */
   layout?: 'Seed/Experimental/Newspaper' | ''
   /** Space header logo image. */
   seedExperimentalLogo?: HMIpfs
   /** Legacy ordering of a space home listing. */
   seedExperimentalHomeOrder?: 'UpdatedFirst' | 'CreatedFirst'
+  /** Publication date shown to readers when it differs from the change history. */
   displayPublishTime?: string
+  /** Author byline shown to readers. */
   displayAuthor?: string
+  /** Whether to show the document outline. */
   showOutline?: boolean
+  /** Whether to show the document's activity and tools. */
   showActivity?: boolean
+  /** Width of the content column: `S`, `M` or `L`. */
   contentWidth?: 'S' | 'M' | 'L'
+  /** Layout of the document's root-level blocks, a block children type. */
   childrenType?: string
+  /** Visual settings for a space. */
   theme?: {
+    /** Space header layout: `Center` or empty for the default. */
     headerLayout?: 'Center' | ''
   }
   /** Comma-separated categories kept from an external import (e.g. WordPress). */
@@ -963,18 +1246,23 @@ export type HMMetadata = {
 /**
  * Navigation item
  * One entry of a site's navigation menu: a Link block with display text and a link, stored as a child of the detached navigation block.
+ * One entry of a site's navigation menu, stored as a `Link` child of the detached `navigation` block.
  * Schema: hm://hyper.media/metadata/navigation-item
  */
 export type HMNavigationItem = {
   type: 'Link'
+  /** Block id of this menu entry. */
   id: string
+  /** Label shown in the menu. */
   text: string
+  /** Where the entry goes — an `hm://` or web URL. */
   link: HMUrl
 }
 
 /**
  * Principal
  * A public key that identifies an account or space, stored in blobs as the raw bytes of a multicodec prefix plus the key and shown to people as a base58 string starting with z6Mk.
+ * A public key that identifies an account or space, stored as multicodec-prefixed key bytes and shown as a `z6Mk…` string.
  * Schema: hm://hyper.media/principal
  */
 export type HMPrincipal = HMBytes
@@ -982,53 +1270,70 @@ export type HMPrincipal = HMBytes
 /**
  * Profile
  * A snapshot blob giving an account its display name, avatar and description, or an alias that redirects one key to another; readers merge every profile for an account field by field.
+ * A snapshot blob giving an account its display name, avatar and description, or an alias redirecting one key to another.
  * Schema: hm://hyper.media/profile
  */
 export type HMProfile = HMBlob & {
   type?: 'Profile'
+  /** Account this key really belongs to; a profile with `alias` carries no other field. */
   alias?: HMPrincipal
+  /** The account's display name. */
   name?: string
+  /** The account's picture, as an `ipfs://` link to an image. */
   avatar?: string
+  /** A short description of the account. */
   description?: string
+  /** Account the profile is for, set only when a delegated key signs on its behalf. */
   account?: HMPrincipal
 }
 
 /**
  * Query
  * A live document query: which spaces and paths to include, how to sort, and an optional limit; the payload of a Query block and of the Query request.
+ * A live document query: which spaces and paths to include, how to sort, and an optional limit.
  * Schema: hm://hyper.media/query
  */
 export type HMQuery = {
+  /** Spaces and path prefixes whose documents the query returns, each with a `Children` or `AllDescendants` mode. */
   includes: HMQueryInclusion[]
+  /** Sort terms for the results; the daemon applies the first. */
   sort?: HMQuerySort[]
-  /** minimum: 0 */
+  /** Maximum number of results to return. · minimum: 0 */
   limit?: number
 }
 
 /**
  * Query Inclusion
  * One source a query pulls documents from: a space, an optional path prefix inside it, and whether to list direct children or all descendants.
+ * One source a query pulls documents from: a space, an optional path, and a depth mode.
  * Schema: hm://hyper.media/query/inclusion
  */
 export type HMQueryInclusion = {
+  /** Account id whose documents to list. */
   space: string
+  /** Optional path prefix inside the space, such as a folder. */
   path?: string
+  /** `Children` lists direct children of the path; `AllDescendants` lists everything below it. */
   mode: 'Children' | 'AllDescendants'
 }
 
 /**
  * Query Sort
  * One sort term for query results, optionally reversed; the app writes lowercase terms and normalizes the older capitalized spellings on read.
+ * One sort term for query results, optionally reversed.
  * Schema: hm://hyper.media/query/sort
  */
 export type HMQuerySort = {
+  /** Sort in descending order. */
   reverse?: boolean
+  /** What to sort by: path, title, or a create, update, display or activity time. */
   term: 'Path' | 'Title' | 'CreateTime' | 'UpdateTime' | 'DisplayTime' | 'ActivityTime'
 }
 
 /**
  * Query Style
  * How a Query block presents its results: a card grid, a compact list, or a table.
+ * How a Query block presents its results: `Card`, `List` or `Table`.
  * Schema: hm://hyper.media/query/style
  */
 export type HMQueryStyle = 'Card' | 'List' | 'Table'
@@ -1036,13 +1341,17 @@ export type HMQueryStyle = 'Card' | 'List' | 'Table'
 /**
  * Query Table Config
  * The persisted settings of a Query block's table view: which columns are visible and how wide they are.
+ * The saved table-view settings of a Query block: which columns show and how wide they are.
  * Schema: hm://hyper.media/query/table-config
  */
 export type HMQueryTableConfig = {
+  /** Column settings in display order. */
   columns: {
+    /** Built-in column name (such as title or authors) or a custom metadata attribute key. */
     id: string
+    /** Whether the column is shown. */
     visible: boolean
-    /** minimum: 0 */
+    /** Column width in pixels. · minimum: 0 */
     width?: number
   }[]
 }
@@ -1050,34 +1359,48 @@ export type HMQueryTableConfig = {
 /**
  * Ref
  * A signed claim, like a Git ref, that a path in a space points at the current head Changes of a document, or that the path is deleted or redirects elsewhere.
+ * A signed claim that a path in a space points at a document's current head Changes, or that it is deleted or redirects elsewhere.
  * Schema: hm://hyper.media/ref
  */
 export type HMRef = HMBlob & {
   type?: 'Ref'
+  /** Space the path belongs to; omitted when the signer is the space owner. */
   space?: HMPrincipal
+  /** Document path within the space, starting with `/`; empty for the home document. */
   path?: string
+  /** CID of the genesis Change of the document at this address. */
   genesisBlob?: HMCid
+  /** Informational CID of the capability authorizing the signer; the daemon ignores it. */
   capability?: HMCid
+  /** CIDs of the document's current head Changes; empty for a tombstone or redirect. */
   heads: HMCid[]
+  /** Where readers are sent instead, making this Ref a redirect. */
   redirect?: HMRedirectTarget
+  /** Orders the lives of an address: the highest generation wins; clients use the current time in ms for a new document. */
   generation?: number
+  /** Empty for public or `Private`; a private Ref must have a single-segment path. */
   visibility?: HMVisibility
 }
 
 /**
  * Redirect Target
  * The destination carried by a redirect Ref, a space and path to send readers to, with a republish flag that keeps the content showing under the old address.
+ * The destination of a redirect Ref: the space and path readers are sent to.
  * Schema: hm://hyper.media/ref/redirect-target
  */
 export type HMRedirectTarget = {
+  /** Destination space; omitted when the redirect stays within the same space. */
   space?: HMPrincipal
+  /** Destination document path. */
   path?: string
+  /** Keep the old address listed, showing the target's content, instead of treating it as moved. */
   republish?: boolean
 }
 
 /**
  * Role
  * The kind of capability being granted: WRITER may publish under a path, AGENT may act as the issuing account; no other role exists in data.
+ * The kind of authority a capability grants: `WRITER` may publish under a path, `AGENT` may act as the issuing account.
  * Schema: hm://hyper.media/role
  */
 export type HMRole = 'WRITER' | 'AGENT'
@@ -1085,66 +1408,84 @@ export type HMRole = 'WRITER' | 'AGENT'
 /**
  * RPC: Account
  * Resolves an account uid to its metadata payload, or to an explicit not-found result.
+ * Resolves an account uid to its metadata payload, or to an explicit not-found result.
  * Schema: hm://hyper.media/rpc/account
  */
 export type SeedRpcAccount = {
   key: 'Account'
   /** The account uid. */
   input: string
+  /** The account's metadata payload, or a not-found result. */
   output: SeedAccountResult
 }
 
 /**
  * RPC: AccountContacts
  * Returns the contact records an account has written, given that account’s uid.
+ * Returns the contact records an account has written, given that account's uid; use it to list whom an account names.
  * Schema: hm://hyper.media/rpc/account-contacts
  */
 export type SeedRpcAccountContacts = {
   key: 'AccountContacts'
   /** The account uid. */
   input: string
+  /** Contact records authored by the account. */
   output: SeedContactRecord[]
 }
 
 /**
  * RPC: Comment
  * Returns one comment as the API read model, given its id (uid/tsid) or a version CID.
+ * Returns one comment as the API read model, given its id (`uid/tsid`) or a version CID.
  * Schema: hm://hyper.media/rpc/comment
  */
 export type SeedRpcComment = {
   key: 'Comment'
   /** Comment id (uid/tsid) or version CID. */
   input: string
+  /** The requested comment. */
   output: SeedComment
 }
 
 /**
  * RPC: DiscoveryStatus
  * Reports whether a background discovery task for a resource (uid, path, optional version) is pending, found, or failed.
+ * Starts or re-pokes background discovery of a resource that is not available locally and reports whether it is pending, found, or failed; safe to poll.
  * Schema: hm://hyper.media/rpc/discovery-status
  */
 export type SeedRpcDiscoveryStatus = {
   key: 'DiscoveryStatus'
+  /** The resource to discover. */
   input: {
+    /** Account uid of the space that owns the resource. */
     uid: string
+    /** Path segments of the document within the space; empty for the space's root document. */
     path: string[]
+    /** Specific version to discover; omit to discover any version. */
     version?: string
+    /** When `true`, any discovered version counts as success, not just `version`. */
     latest?: boolean
   }
+  /** Current state of the discovery task, with the found version or error. */
   output: SeedDiscoveryStatus
 }
 
 /**
  * RPC: GetCID
  * Fetches a raw IPFS block by CID and returns it decoded as a DAG-JSON value.
+ * Fetches a raw IPFS block by CID and returns it decoded as a DAG-JSON value; use it to inspect a blob's stored form.
  * Schema: hm://hyper.media/rpc/get-cid
  */
 export type SeedRpcGetCid = {
   key: 'GetCID'
+  /** The block to fetch. */
   input: {
+    /** CID of the IPFS block. */
     cid: string
   }
+  /** The decoded block. */
   output: {
+    /** The block's content decoded as DAG-JSON. */
     value: unknown
   }
 }
@@ -1152,53 +1493,69 @@ export type SeedRpcGetCid = {
 /**
  * RPC: GetCommentReplyCount
  * Returns the number of replies under a comment, given the comment id.
+ * Returns the number of replies under a comment, given the comment id.
  * Schema: hm://hyper.media/rpc/get-comment-reply-count
  */
 export type SeedRpcGetCommentReplyCount = {
   key: 'GetCommentReplyCount'
+  /** The comment to count replies for. */
   input: {
+    /** Record id of the comment (`{publicKey}/{tsid}`). */
     id: string
   }
-  /** minimum: 0 */
+  /** Number of replies to the comment. · minimum: 0 */
   output: number
 }
 
 /**
  * RPC: GetDomain
  * Returns the daemon’s registration and health view of one site domain, optionally forcing a fresh check.
+ * Returns the daemon's registration and health view of one site domain, optionally forcing a fresh check.
  * Schema: hm://hyper.media/rpc/get-domain
  */
 export type SeedRpcGetDomain = {
   key: 'GetDomain'
+  /** The domain to look up. */
   input: {
+    /** Site domain name, such as `example.com`. */
     domain: string
+    /** When `true`, performs a fresh HTTP check instead of returning cached data. */
     forceCheck?: boolean
   }
+  /** Registration and health info for the domain. */
   output: SeedDomainInfo
 }
 
 /**
  * RPC: InteractionSummary
  * Returns a document’s aggregate citation, comment, change, child, and author counts with per-block breakdowns, given its id.
+ * Returns a document's aggregate citation, comment, change, child, and author counts with per-block breakdowns, given its id.
  * Schema: hm://hyper.media/rpc/interaction-summary
  */
 export type SeedRpcInteractionSummary = {
   key: 'InteractionSummary'
+  /** The document to summarize. */
   input: {
+    /** Id of the document. */
     id: SeedId
   }
+  /** Interaction counts for the document and its blocks. */
   output: SeedInteractionSummary
 }
 
 /**
  * RPC: ListAccounts
  * Returns every account the daemon knows as a list of metadata payloads; it takes no meaningful input.
+ * Returns every account the daemon knows as a list of metadata payloads; it takes no meaningful input.
  * Schema: hm://hyper.media/rpc/list-accounts
  */
 export type SeedRpcListAccounts = {
   key: 'ListAccounts'
+  /** Ignored; send an empty map or `null`. */
   input: Record<string, never> | null
+  /** All known accounts. */
   output: {
+    /** Metadata payload of each known account. */
     accounts: SeedMetadataPayload[]
   }
 }
@@ -1206,14 +1563,19 @@ export type SeedRpcListAccounts = {
 /**
  * RPC: ListCapabilities
  * Returns the raw capabilities granted on a target document, given its id.
+ * Returns the raw capabilities granted on a target document, given its id.
  * Schema: hm://hyper.media/rpc/list-capabilities
  */
 export type SeedRpcListCapabilities = {
   key: 'ListCapabilities'
+  /** The document whose capabilities to list. */
   input: {
+    /** Id of the document the capabilities are granted on. */
     targetId: SeedId
   }
+  /** Capabilities granted on the target. */
   output: {
+    /** Raw capability records for the target. */
     capabilities: SeedRawCapability[]
   }
 }
@@ -1221,15 +1583,21 @@ export type SeedRpcListCapabilities = {
 /**
  * RPC: ListChanges
  * Returns a document’s change history as raw change records plus its latest version, given the target id.
+ * Returns a document's change history as raw change records plus its latest version, given the target id.
  * Schema: hm://hyper.media/rpc/list-changes
  */
 export type SeedRpcListChanges = {
   key: 'ListChanges'
+  /** The document whose history to list. */
   input: {
+    /** Id of the document. */
     targetId: SeedId
   }
+  /** The document's change history. */
   output: {
+    /** Raw change records of the document. */
     changes: SeedRawDocumentChange[]
+    /** Version of the document's latest state; empty when the document was not found. */
     latestVersion?: string
   }
 }
@@ -1237,14 +1605,19 @@ export type SeedRpcListChanges = {
 /**
  * RPC: ListCitations
  * Returns the raw citations that point at a target resource, given its id.
+ * Returns the raw citations that point at a target resource, given its id.
  * Schema: hm://hyper.media/rpc/list-citations
  */
 export type SeedRpcListCitations = {
   key: 'ListCitations'
+  /** The resource whose citations to list. */
   input: {
+    /** Id of the cited resource. */
     targetId: SeedId
   }
+  /** Citations of the target. */
   output: {
+    /** Raw citation records pointing at the target. */
     citations: SeedRawCitation[]
   }
 }
@@ -1252,14 +1625,19 @@ export type SeedRpcListCitations = {
 /**
  * RPC: ListCommentVersions
  * Returns every stored version of a comment, given its id.
+ * Returns every stored version of a comment (its edit history), given its id.
  * Schema: hm://hyper.media/rpc/list-comment-versions
  */
 export type SeedRpcListCommentVersions = {
   key: 'ListCommentVersions'
+  /** The comment whose versions to list. */
   input: {
+    /** Record id of the comment (`{publicKey}/{tsid}`). */
     id: string
   }
+  /** The comment's versions. */
   output: {
+    /** Each stored version of the comment. */
     versions: SeedComment[]
   }
 }
@@ -1267,56 +1645,76 @@ export type SeedRpcListCommentVersions = {
 /**
  * RPC: ListComments
  * Returns all comments on a target document, with the metadata payloads of their authors.
+ * Returns all comments on a target document, with the metadata payloads of their authors.
  * Schema: hm://hyper.media/rpc/list-comments
  */
 export type SeedRpcListComments = {
   key: 'ListComments'
+  /** The document whose comments to list. */
   input: {
+    /** Id of the commented document. */
     targetId: SeedId
   }
+  /** Comments on the document, with author metadata. */
   output: SeedCommentList
 }
 
 /**
  * RPC: ListCommentsByAuthor
  * Returns the comments an author has written, with the author metadata payloads, given the author’s id.
+ * Returns the comments an author has written, with the author metadata payloads, given the author's id.
  * Schema: hm://hyper.media/rpc/list-comments-by-author
  */
 export type SeedRpcListCommentsByAuthor = {
   key: 'ListCommentsByAuthor'
+  /** The author whose comments to list. */
   input: {
+    /** Id of the author account. */
     authorId: SeedId
   }
+  /** The author's comments with author metadata. */
   output: SeedCommentList
 }
 
 /**
  * RPC: ListCommentsByReference
  * Returns the comments that reference a specific block, given a target id that carries the block reference.
+ * Returns the comments that reference a specific block, given a target id that carries the block reference.
  * Schema: hm://hyper.media/rpc/list-comments-by-reference
  */
 export type SeedRpcListCommentsByReference = {
   key: 'ListCommentsByReference'
+  /** The block whose referencing comments to list. */
   input: {
+    /** Id of the document; must include a `blockRef` naming the block. */
     targetId: SeedId
   }
+  /** Comments referencing the block, with author metadata. */
   output: SeedCommentList
 }
 
 /**
  * RPC: ListDiscussions
  * Returns a document’s comments grouped into threads, their authors’ metadata, and threads from other documents that cite it, optionally focused on one comment.
+ * Returns a document's comments grouped into threads, their authors' metadata, and threads from other documents that cite it, optionally focused on one comment.
  * Schema: hm://hyper.media/rpc/list-discussions
  */
 export type SeedRpcListDiscussions = {
   key: 'ListDiscussions'
+  /** The document, and optionally the comment, to list discussions for. */
   input: {
+    /** Id of the commented document. */
     targetId: SeedId
+    /** Comment id; when set, threads start from that comment's direct replies instead of top-level comments. */
     commentId?: string
   }
+  /** Discussion threads with author metadata. */
   output: {
+    /** Comment threads on the document. */
     discussions: SeedCommentGroup[]
+    /** Metadata payloads of the comment authors, keyed by account uid. */
     authors: {[key: string]: SeedMetadataPayload}
+    /** Comment threads on other documents that cite this document. */
     citingDiscussions: SeedExternalCommentGroup[]
   }
 }
@@ -1324,25 +1722,33 @@ export type SeedRpcListDiscussions = {
 /**
  * RPC: ListDocumentCollaborators
  * Returns a document’s collaboration picture (publisher, inherited and direct capabilities, effective members), given its id.
+ * Returns a document's collaboration picture (publisher, inherited and direct capabilities, effective members), given its id.
  * Schema: hm://hyper.media/rpc/list-document-collaborators
  */
 export type SeedRpcListDocumentCollaborators = {
   key: 'ListDocumentCollaborators'
+  /** The document whose collaborators to list. */
   input: {
+    /** Id of the document. */
     targetId: SeedId
   }
+  /** The document's publisher, capabilities, and effective members. */
   output: SeedCollaboratorsPayload
 }
 
 /**
  * RPC: ListDomains
  * Returns every site domain the daemon knows, each with its registration and health info.
+ * Returns every site domain the daemon knows, each with its registration and health info.
  * Schema: hm://hyper.media/rpc/list-domains
  */
 export type SeedRpcListDomains = {
   key: 'ListDomains'
+  /** Ignored; send an empty map. */
   input: Record<string, never>
+  /** All tracked domains. */
   output: {
+    /** Registration and health info for each tracked domain. */
     domains: SeedDomainInfo[]
   }
 }
@@ -1350,29 +1756,42 @@ export type SeedRpcListDomains = {
 /**
  * RPC: ListEvents
  * Pages through the activity feed as activity events, filtered by author, event type, or resource, with a token for the next page.
+ * Pages through the activity feed as activity events, filtered by author, event type, or resource, with a token for the next page.
  * Schema: hm://hyper.media/rpc/list-events
  */
 export type SeedRpcListEvents = {
   key: 'ListEvents'
+  /** Paging, filter, and ordering options for the feed. */
   input: {
-    /** minimum: 0 */
+    /** Maximum number of events per page; the server picks a default when omitted. · minimum: 0 */
     pageSize?: number
+    /** `nextPageToken` from a previous response, to fetch the next page. */
     pageToken?: string
+    /** When `true`, returns only events from trusted peers; all peers by default. */
     trustedOnly?: boolean
+    /** Account uids to include events from; multiple authors match with OR logic. */
     filterAuthors?: string[]
+    /** Event types to include, such as `Ref`, `Capability`, `Comment`, `Contact` or `doc/Link`; OR logic. */
     filterEventType?: string[]
+    /** Resource id to include events for; accepts wildcards to match path prefixes. */
     filterResource?: string
+    /** Viewer's account uid, used to show that account's contact names for authors in the events. */
     currentAccount?: string
+    /** Feed ordering: `claimed` (default) by the event's claimed time, `observed` by when the server received the blob. */
     order?: 'claimed' | 'observed'
   }
+  /** One page of activity events. */
   output: {
+    /** Activity events on this page, with their referenced entities loaded. */
     events: SeedActivityEvent[]
+    /** Token for the next page; empty when there are no more events. */
     nextPageToken: string
   }
 }
 
 /**
  * RPC
+ * The union of every read-only method of the Seed API, each variant pinning a method key and typing its input and output.
  * The union of every read-only method of the Seed API, each variant pinning a method key and typing its input and output.
  * Schema: hm://hyper.media/rpc/method
  */
@@ -1407,106 +1826,139 @@ export type SeedRpc =
 /**
  * RPC: Query
  * Runs a document query (the same shape a Query block embeds) and returns the matching documents as a query result, or null.
+ * Runs a document query (the same shape a Query block embeds) and returns the matching documents as a query result, or null.
  * Schema: hm://hyper.media/rpc/query
  */
 export type SeedRpcQuery = {
   key: 'Query'
+  /** The document query to run. */
   input: HMQuery
+  /** The matching documents, or `null`. */
   output: SeedQueryResult | null
 }
 
 /**
  * RPC: QueryBlock
  * Runs a Query block’s query and returns the results plus the per-item interaction summaries and author metadata its rendering needs, or null.
+ * Runs a Query block's query and returns the results plus the per-item interaction summaries and author metadata its rendering needs, or null.
  * Schema: hm://hyper.media/rpc/query-block
  */
 export type SeedRpcQueryBlock = {
   key: 'QueryBlock'
+  /** The Query block's query. */
   input: {
+    /** The query as embedded in a Query block. */
     query: HMQuery
   }
+  /** Results and rendering data for the block, or `null` when the query has no results. */
   output: SeedQueryBlockPayload | null
 }
 
 /**
  * RPC: Resource
  * Fetches a resource by parsed id and returns whichever state it is in: document, comment, redirect, not found, tombstone, or error.
+ * Fetches a resource by parsed id and returns whichever state it is in: document, comment, redirect, not found, tombstone, or error.
  * Schema: hm://hyper.media/rpc/resource
  */
 export type SeedRpcResource = {
   key: 'Resource'
+  /** Parsed id of the resource. */
   input: SeedId
+  /** The resource in its current state. */
   output: SeedResource
 }
 
 /**
  * RPC: ResourceMetadata
  * Returns only the metadata payload of a resource, given its parsed id.
+ * Returns only the metadata payload of a resource, given its parsed id; use it when the full content is not needed.
  * Schema: hm://hyper.media/rpc/resource-metadata
  */
 export type SeedRpcResourceMetadata = {
   key: 'ResourceMetadata'
+  /** Parsed id of the resource. */
   input: SeedId
+  /** The resource's metadata payload. */
   output: SeedMetadataPayload
 }
 
 /**
  * RPC: Search
  * Searches the network for documents, contacts, and comments matching a query string, with optional account, type, and paging filters.
+ * Searches the network for documents, contacts, and comments matching a query string, with optional account, type, and paging filters.
  * Schema: hm://hyper.media/rpc/search
  */
 export type SeedRpcSearch = {
   key: 'Search'
+  /** The query string plus scope, type, and paging options. */
   input: {
+    /** Text to search for; supports SQLite FTS5 wildcards and phrases. */
     query: string
+    /** Deprecated: account uid to scope the search to; use `iriFilter` instead. */
     accountUid?: string
+    /** Deprecated: when `true`, matches document bodies as well as titles; use `contentTypeFilter` instead. */
     includeBody?: boolean
-    /** minimum: 0 */
+    /** Characters of text around each match, split before and after; defaults to 48. · minimum: 0 */
     contextSize?: number
+    /** Signed-in account uid; contacts are returned only when set, filtered to what that account can see. */
     perspectiveAccountUid?: string
+    /** Search mode: `0` keyword (default), `1` semantic, `2` hybrid. */
     searchType?: number
-    /** minimum: 0 */
+    /** Maximum results per page; `0` or omitted returns all results. · minimum: 0 */
     pageSize?: number
+    /** `nextPageToken` from a previous response, to fetch the next page. */
     pageToken?: string
+    /** `hm://` URL with optional GLOB wildcards scoping the search, such as `hm://<account>/cars/*`. */
     iriFilter?: string
+    /** Content types to match: `0` title, `1` document body, `2` comment, `3` contact. */
     contentTypeFilter?: number[]
+    /** Entity kinds to return: `1` space, `2` document, `3` comment, `4` contact. */
     entityKindFilter?: number[]
   }
+  /** One page of search results. */
   output: SeedSearchResults
 }
 
 /**
  * RPC: SubjectContacts
  * Returns the contact records that name a subject account, given the subject’s uid.
+ * Returns the contact records that name a subject account, given the subject's uid.
  * Schema: hm://hyper.media/rpc/subject-contacts
  */
 export type SeedRpcSubjectContacts = {
   key: 'SubjectContacts'
   /** The subject account uid. */
   input: string
+  /** Contact records whose subject is the account. */
   output: SeedContactRecord[]
 }
 
 /**
  * Account Result
  * The result of resolving an account: its metadata payload, or an explicit not-found.
+ * The result of resolving an account: its metadata payload, or an explicit not-found.
  * Schema: hm://hyper.media/rpc/type/account-result
  */
 export type SeedAccountResult =
   | {
       type: 'account'
+      /** Parsed id of the account's home document. */
       id: SeedId
+      /** Resolved metadata of the account's home document, or `null` when it has none. */
       metadata: HMMetadata | null
+      /** Whether the account's home document has content, so the account has a site to show. */
       hasSite?: boolean
     }
   | {
       type: 'account-not-found'
+      /** The account uid that was looked up. */
       uid: string
     }
 
 /**
  * Accounts Metadata
  * A map from account uid to resolved metadata payload, sent alongside listings so clients can render authors without extra requests.
+ * A map from account uid to its resolved metadata payload, sent with listings so clients can show authors.
  * Schema: hm://hyper.media/rpc/type/accounts-metadata
  */
 export type SeedAccountsMetadata = {[key: string]: SeedMetadataPayload}
@@ -1514,6 +1966,7 @@ export type SeedAccountsMetadata = {[key: string]: SeedMetadataPayload}
 /**
  * Activity Event
  * One event of the activity feed, currently an open map because the event union is not yet pinned down schema-side.
+ * One event of the activity feed, currently an open map because the event union is not yet pinned down.
  * Schema: hm://hyper.media/rpc/type/activity-event
  */
 export type SeedActivityEvent = {[key: string]: unknown}
@@ -1521,128 +1974,184 @@ export type SeedActivityEvent = {[key: string]: unknown}
 /**
  * Activity Summary
  * The latest-activity digest carried on document listings: the newest comment or change and the unread state.
+ * The latest-activity digest carried on document listings: the newest comment or change and the unread state.
  * Schema: hm://hyper.media/rpc/type/activity-summary
  */
 export type SeedActivitySummary = {
+  /** Time of the most recent comment, absent when there are no comments. */
   latestCommentTime?: HMTimestamp
+  /** Id of the most recent comment. */
   latestCommentId: string
-  /** minimum: 0 */
+  /** Total number of comments. · minimum: 0 */
   commentCount: number
+  /** Time of the most recent change. */
   latestChangeTime: HMTimestamp
+  /** Whether there is unread activity on this document or account. */
   isUnread: boolean
-  /** minimum: 0 */
+  /** Number of alive direct child documents; only populated in document listings. · minimum: 0 */
   childrenCount?: number
 }
 
 /**
  * Block Range
  * A selection within a block, either as character offsets (start and end) or as the whole block expanded.
+ * A selection within a block: character offsets in `start` and `end`, or the whole block expanded.
  * Schema: hm://hyper.media/rpc/type/block-range
  */
 export type SeedBlockRange = {
-  /** minimum: 0 */
+  /** Start offset of the selected text within the block, in codepoints. · minimum: 0 */
   start?: number
-  /** minimum: 0 */
+  /** End offset of the selected text within the block, in codepoints. · minimum: 0 */
   end?: number
+  /** When `true`, the reference covers the whole block with its children expanded instead of a text range. */
   expanded?: boolean
 }
 
 /**
  * Breadcrumb
  * One ancestor entry of a document’s path, resolved to a display name.
+ * One ancestor entry of a document's path, resolved to a display name.
  * Schema: hm://hyper.media/rpc/type/breadcrumb
  */
 export type SeedBreadcrumb = {
+  /** Title of the ancestor document. */
   name: string
+  /** Path of the ancestor document within the account. */
   path: string
+  /** `true` when the daemon has no indexed information about this ancestor document. */
   isMissing?: boolean
 }
 
 /**
  * Capability (Payload)
  * A capability as the API returns it: who was granted which role on which grant id.
+ * A capability as the API returns it: which account was granted which role on which grant id.
  * Schema: hm://hyper.media/rpc/type/capability
  */
 export type SeedCapability = {
+  /** Id of the capability. */
   id: string
+  /** Uid of the account the capability is delegated to. */
   accountUid: string
+  /** Role the capability grants to the delegate. */
   role: HMRole
+  /** Optional capability id supplied separately from `id`; the collaborators listing leaves it unset. */
   capabilityId?: string
+  /** The account and path the capability grants access to. */
   grantId: SeedId
+  /** Short, user-provided label identifying the capability. */
   label?: string
+  /** Time the capability was issued. */
   createTime: HMTimestamp
 }
 
 /**
  * Citation
  * One mention of a target resource from elsewhere on the network: the citing document or comment, whether it pinned an exact version, and the fragment it points at.
+ * One mention of a target resource from a document or comment, with its version pinning and target fragment.
  * Schema: hm://hyper.media/rpc/type/citation
  */
 export type SeedCitation = {
+  /** The citing resource: a comment (`c`) or a document (`d`). */
   source:
     | {
         type: 'c'
+        /** Parsed id of the citing comment. */
         id: SeedId
+        /** Account uid of the citing comment's author. */
         author?: string
+        /** Creation time of the blob that contains the citation. */
         time?: HMTimestamp
       }
     | {
         type: 'd'
+        /** Parsed id of the citing document, at the version that contains the citation. */
         id: SeedId
+        /** Account uid of the author of the citing change. */
         author?: string
+        /** Creation time of the blob that contains the citation. */
         time?: HMTimestamp
       }
+  /** Whether the link pins the exact target version rather than a suggested minimum version. */
   isExactVersion: boolean
+  /** The block, and optional range within it, the link points at, or `null` for the whole resource. */
   targetFragment: SeedParsedFragment | null
+  /** Parsed id of the resource being cited. */
   targetId: SeedId
 }
 
 /**
  * Collaborators Payload
  * A document’s collaboration picture: the publisher, inherited and directly granted capabilities, effective members, and their metadata.
+ * A document's collaboration picture: its publisher, inherited and direct capabilities, members, and their metadata.
  * Schema: hm://hyper.media/rpc/type/collaborators-payload
  */
 export type SeedCollaboratorsPayload = {
+  /** Uid of the account that publishes the document. */
   publisherUid: string
+  /** Capabilities inherited from ancestor paths, one per account. */
   parentCapabilities: SeedCapability[]
+  /** Capabilities granted directly on this document, one per account. */
   grantedCapabilities: SeedCapability[]
+  /** Accounts with a capability on the document, as `writer` or `member` rows, one per canonical account. */
   grantedMembers: SeedSiteMember[]
+  /** Accounts that subscribed to the site through a contact, excluding those already in `grantedMembers`. */
   members: SeedSiteMember[]
+  /** Metadata payloads for the publisher and every account listed above, keyed by uid. */
   accounts: SeedAccountsMetadata
 }
 
 /**
  * Comment (Payload)
  * A comment as the API returns it: the signed comment’s content plus derived fields such as stable id, version CID, thread links, timestamps, and visibility.
+ * A comment as the API returns it: its content plus derived fields such as id, version, thread links, and visibility.
  * Schema: hm://hyper.media/rpc/type/comment
  */
 export type SeedComment = {
+  /** Stable id of the comment. */
   id: string
+  /** Version (CID) of this revision of the comment. */
   version: string
+  /** Account uid of the comment's author. */
   author: string
+  /** Account uid of the document the comment targets. */
   targetAccount: string
+  /** Path within the target account of the document the comment targets. */
   targetPath?: string
+  /** Version of the target document the comment was made on. */
   targetVersion: string
+  /** Id of the comment this one directly replies to; empty for top-level comments. */
   replyParent?: string
+  /** Version of the parent comment, when this is a reply. */
   replyParentVersion?: string
+  /** Id of the top-level comment of the thread this comment belongs to. */
   threadRoot?: string
+  /** Version of the thread root comment, when this is a reply. */
   threadRootVersion?: string
+  /** Id of the capability the comment was created with, if any. */
   capability?: string
+  /** Block content of the comment. */
   content: HMBlockNode[]
+  /** Time the comment was created. */
   createTime: HMTimestamp
+  /** Time the comment was last updated. */
   updateTime: HMTimestamp
+  /** Visibility inherited from the target document at creation time, `PUBLIC` or `PRIVATE`. */
   visibility: HMVisibility
 }
 
 /**
  * Comment Group
  * A thread of comments grouped for display, with a count of elided replies.
+ * A thread of comments grouped for display, with a count of replies left out.
  * Schema: hm://hyper.media/rpc/type/comment-group
  */
 export type SeedCommentGroup = {
+  /** Comments of the thread, starting with its top-level comment. */
   comments: SeedComment[]
-  /** minimum: 0 */
+  /** Number of further replies not included in `comments`. · minimum: 0 */
   moreCommentsCount: number
+  /** Id of the comment that starts the group. */
   id: string
   type: 'commentGroup'
 }
@@ -1650,117 +2159,178 @@ export type SeedCommentGroup = {
 /**
  * Comment List
  * A list of comments plus the metadata payloads of every author involved.
+ * A list of comments plus the metadata payloads of every author involved.
  * Schema: hm://hyper.media/rpc/type/comment-list
  */
 export type SeedCommentList = {
+  /** The comments returned. */
   comments: SeedComment[]
+  /** Metadata payloads of the comment authors, keyed by account uid. */
   authors: {[key: string]: SeedMetadataPayload}
 }
 
 /**
  * Contact Record
  * A contact as the API returns it: who named whom what, signed by which key, with timestamps and subscription preferences.
+ * A contact as the API returns it: who named whom what, signed by which key, with timestamps and subscription preferences.
  * Schema: hm://hyper.media/rpc/type/contact-record
  */
 export type SeedContactRecord = {
+  /** Id of the contact. */
   id: string
+  /** Account uid the contact describes. */
   subject: string
+  /** Public name the issuing account knows the subject by. */
   name: string
+  /** Account uid that issued the contact. */
   account: string
+  /** Key that signed the contact; matches `account` when omitted in legacy storage. */
   signer: string
+  /** Time the contact was created. */
   createTime?: HMTimestamp
+  /** Time the contact was last updated. */
   updateTime?: HMTimestamp
+  /** Subscription preferences toward the subject's site and profile. */
   subscribe?: HMContactSubscribe
 }
 
 /**
  * Discovery Status
  * The state of a background discovery task for a resource: pending, found with the resolved version, or failed with the error.
+ * The state of a background discovery task for a resource: pending, found with the resolved version, or failed.
  * Schema: hm://hyper.media/rpc/type/discovery-status
  */
 export type SeedDiscoveryStatus = {
+  /** `pending` while discovery runs, `found` once a version is available, `failed` when the task finished without one. */
   state: 'pending' | 'found' | 'failed'
+  /** The discovered version, when `state` is `found`. */
   version?: string
+  /** Error message from the last failed attempt, when there is one. */
   error?: string
 }
 
 /**
  * Document (Payload)
  * A document as the API returns it: the signed document’s metadata and content plus derived fields such as resolved version, authors, timestamps, and visibility.
+ * A document as the API returns it: its metadata and content plus derived fields such as version, authors, and visibility.
  * Schema: hm://hyper.media/rpc/type/document
  */
 export type SeedDocument = {
+  /** Block tree of the document content. */
   content?: HMBlockNode[]
+  /** Current version of the document. */
   version?: string
+  /** Account uid the document belongs to. */
   account?: string
+  /** Uids of every account that has modified the document, including the original author. */
   authors: string[]
+  /** Path of the document within the account; empty string for the home document. */
   path?: string
+  /** Time the document was created. */
   createTime?: HMTimestamp | string
+  /** Time the document was last updated. */
   updateTime?: HMTimestamp | string
+  /** The document's metadata, such as name, icon, and cover. */
   metadata: HMMetadata
+  /** Blocks that were created but never moved into the content, keyed by block id. */
   detachedBlocks?: {[key: string]: HMBlockNode}
+  /** CID of the document's genesis change. */
   genesis: string
+  /** Generation of the document this content belongs to. */
   generationInfo?: {
+    /** CID of the genesis change the generation starts from. */
     genesis: string
+    /** Opaque generation number; a higher generation supersedes earlier ones for the same genesis. */
     generation: number
   }
+  /** Visibility, `PUBLIC` or `PRIVATE`; unset or unspecified values read as `PUBLIC`. */
   visibility: HMVisibility
 }
 
 /**
  * Document Info
  * One document in a listing: identity, authorship, timestamps, breadcrumbs, and activity summary, without the full content.
+ * One document in a listing: identity, authorship, timestamps, breadcrumbs, and activity summary, without content.
  * Schema: hm://hyper.media/rpc/type/document-info
  */
 export type SeedDocumentInfo = {
   type: 'document'
+  /** Parsed id of the document. */
   id: SeedId
+  /** Path segments of the document within its account; empty for the home document. */
   path: string[]
+  /** Uids of every account that has modified the document, including the original author. */
   authors: string[]
+  /** Time the document was created. */
   createTime: HMTimestamp
+  /** Time the document was last updated. */
   updateTime: HMTimestamp
   /** Serialized date used for ordering. */
   sortTime: string
+  /** CID of the document's genesis change. */
   genesis: string
+  /** Current version of the document. */
   version: string
+  /** Ancestor documents along the path, resolved to display names. */
   breadcrumbs: SeedBreadcrumb[]
+  /** Latest comment and change activity on the document. */
   activitySummary: SeedActivitySummary
+  /** Generation of the document that this listing entry reflects. */
   generationInfo: {
+    /** CID of the genesis change the generation starts from. */
     genesis: string
+    /** Opaque generation number; a higher generation supersedes earlier ones for the same genesis. */
     generation: number
   }
+  /** Present when the document is a redirect or republish of another document. */
   redirectInfo?: SeedRedirectInfo
+  /** The document's metadata, such as name, icon, and cover. */
   metadata: HMMetadata
+  /** Link of the first image block in reading order; empty string when the document has no image, absent when not derived yet. */
   firstImageInContent?: string
+  /** Visibility, `PUBLIC` or `PRIVATE`; unset or unspecified values read as `PUBLIC`. */
   visibility: HMVisibility
 }
 
 /**
  * Domain Info
  * The daemon’s view of a site domain: registration, gateway status, and health-check results.
+ * The daemon's view of a site domain: registration, gateway status, and health-check results.
  * Schema: hm://hyper.media/rpc/type/domain-info
  */
 export type SeedDomainInfo = {
+  /** The domain name. */
   domain: string
+  /** Time of the last check, or `null` when never checked. */
   lastCheck: string | null
+  /** Result of the last check: `success`, `unreachable`, `error`, or `unknown`. */
   status: string
+  /** Time of the last successful check, or `null`. */
   lastSuccess: string | null
+  /** Account uid registered in the domain's site config, or `null` when unknown. */
   registeredAccountUid: string | null
+  /** Peer id of the node serving the domain, or `null` when unknown. */
   peerId: string | null
+  /** Whether the domain is a public gateway that serves canonical `/hm/*` URLs. */
   isGateway: boolean
+  /** Error details from the last failed check, or `null`. */
   lastError: string | null
 }
 
 /**
  * External Comment Group
  * A comment thread from another document that cites this one, with its target’s metadata payload.
+ * A comment thread on another document that cites this one, with the metadata of the document it was posted on.
  * Schema: hm://hyper.media/rpc/type/external-comment-group
  */
 export type SeedExternalCommentGroup = {
+  /** The citing comment followed by its replies. */
   comments: SeedComment[]
-  /** minimum: 0 */
+  /** Number of further replies not included in `comments`. · minimum: 0 */
   moreCommentsCount: number
+  /** `hm://` id of the citing comment. */
   id: string
+  /** Metadata payload of the document the citing comment was posted on. */
   target: SeedMetadataPayload
   type: 'externalCommentGroup'
 }
@@ -1768,40 +2338,53 @@ export type SeedExternalCommentGroup = {
 /**
  * Parsed ID
  * A parsed hm:// identifier as clients pass it around (account uid, path segments, pinned version, block reference, origin hints), with null for whatever the URL does not carry.
+ * A parsed `hm://` identifier as clients pass it around, with `null` for whatever the URL does not carry.
  * Schema: hm://hyper.media/rpc/type/id
  */
 export type SeedId = {
+  /** The packed `hm://` identifier string. */
   id: string
+  /** Account uid the resource belongs to. */
   uid: string
+  /** Path segments within the account, or `null` for the home document. */
   path: string[] | null
+  /** Pinned version, or `null` for the latest. */
   version: string | null
+  /** Id of the referenced block, or `null`. */
   blockRef: string | null
+  /** Selection within the referenced block, or `null`. */
   blockRange: SeedBlockRange | null
+  /** Site hostname to build site-style URLs with, or `null` to use the gateway form. */
   hostname: string | null
+  /** URL scheme the id was parsed from, or `null`. */
   scheme: string | null
+  /** When `true` alongside a version, prefer the latest version over the pinned one. */
   latest?: boolean | null
 }
 
 /**
  * Interaction Summary
  * Aggregate interaction counts for a document (citations, comments, changes, child documents, distinct authors) plus per-block citation and comment counts.
+ * Interaction counts for a document (citations, comments, changes, children, authors) plus per-block counts.
  * Schema: hm://hyper.media/rpc/type/interaction-summary
  */
 export type SeedInteractionSummary = {
-  /** minimum: 0 */
+  /** Number of distinct documents citing this document. · minimum: 0 */
   citations: number
-  /** minimum: 0 */
+  /** Number of distinct comments citing this document. · minimum: 0 */
   comments: number
-  /** minimum: 0 */
+  /** Number of changes in the document's history. · minimum: 0 */
   changes: number
-  /** minimum: 0 */
+  /** Number of alive direct child documents. · minimum: 0 */
   children: number
+  /** Distinct account uids that authored the citing documents and comments. */
   authorUids?: string[]
+  /** Citation and comment counts per cited block, keyed by block id. */
   blocks: {
     [key: string]: {
-      /** minimum: 0 */
+      /** Number of document citations pointing at this block. · minimum: 0 */
       citations: number
-      /** minimum: 0 */
+      /** Number of comment citations pointing at this block. · minimum: 0 */
       comments: number
     }
   }
@@ -1810,127 +2393,181 @@ export type SeedInteractionSummary = {
 /**
  * Metadata Payload
  * A resource id with its resolved metadata, or null when the document has none.
+ * A resource id with its resolved metadata, or `null` metadata when the document has none.
  * Schema: hm://hyper.media/rpc/type/metadata-payload
  */
 export type SeedMetadataPayload = {
+  /** Parsed id of the resource. */
   id: SeedId
+  /** The resource's metadata, or `null` when it has none. */
   metadata: HMMetadata | null
+  /** For an account, whether its home document has content, so the account has a site to show. */
   hasSite?: boolean
 }
 
 /**
  * Parsed Fragment
  * A parsed URL fragment addressing a block and, optionally, a range inside it.
+ * A parsed URL fragment addressing a block and, optionally, a range inside it.
  * Schema: hm://hyper.media/rpc/type/parsed-fragment
  */
 export type SeedParsedFragment = SeedBlockRange & {
+  /** Id of the block the fragment addresses. */
   blockId: string
 }
 
 /**
  * Query Block Item Summary
  * The per-result interaction counts a Query block shows on its cards: comments, children, and author uids.
+ * The per-result interaction counts a Query block shows on its cards: comments, children, and author uids.
  * Schema: hm://hyper.media/rpc/type/query-block-item-summary
  */
 export type SeedQueryBlockItemSummary = {
-  /** minimum: 0 */
+  /** Number of comments on the result document. · minimum: 0 */
   comments: number
-  /** minimum: 0 */
+  /** Number of alive direct child documents of the result. · minimum: 0 */
   children?: number
+  /** Author uids shown on the card; currently always empty. */
   authorUids?: string[]
 }
 
 /**
  * Query Block Payload
  * Everything a rendered Query block needs: the results plus per-item interaction summaries and author metadata.
+ * Everything a rendered Query block needs: the results plus per-item interaction summaries and author metadata.
  * Schema: hm://hyper.media/rpc/type/query-block-payload
  */
 export type SeedQueryBlockPayload = {
+  /** Display name of the queried document, falling back to its last path segment or the account uid. */
   queryTargetName: string
+  /** Parsed id of the document the query lists under. */
   in: SeedId
+  /** Documents the query matched. */
   results: SeedDocumentInfo[]
+  /** `Children` for direct children only, `AllDescendants` for the whole subtree. */
   mode?: 'Children' | 'AllDescendants'
+  /** Interaction counts per result, keyed by the result's `hm://` id. */
   interactionSummaries: {[key: string]: SeedQueryBlockItemSummary}
+  /** Metadata payloads of the contributors shown on result cards, keyed by uid. */
   accountsMetadata: SeedAccountsMetadata
 }
 
 /**
  * Query Result
  * The documents a query matched, listed under the queried id together with the mode (children or all descendants) that was used.
+ * The documents a query matched, listed under the queried id with the mode that was used.
  * Schema: hm://hyper.media/rpc/type/query-result
  */
 export type SeedQueryResult = {
+  /** Parsed id of the document the query lists under. */
   in: SeedId
+  /** Documents the query matched. */
   results: SeedDocumentInfo[]
+  /** `Children` for direct children only, `AllDescendants` for the whole subtree. */
   mode?: 'Children' | 'AllDescendants'
 }
 
 /**
  * Raw Capability
  * A capability as indexed, in raw wire form with every field an optional string.
+ * A capability as the daemon indexes it, in raw wire form where every field is optional.
  * Schema: hm://hyper.media/rpc/type/raw-capability
  */
 export type SeedRawCapability = {
+  /** Id of the capability. */
   id?: string
+  /** Account uid that issued the capability. */
   issuer?: string
+  /** Account uid the capability is delegated to. */
   delegate?: string
+  /** Account uid the capability grants access to. */
   account?: string
+  /** Path within the account the capability grants access to; empty for the root. */
   path?: string
+  /** Role granted to the delegate, as the proto enum name such as `WRITER` or `AGENT`. */
   role?: string
+  /** When `true`, the capability applies only to the exact path, not its subpaths. */
   noRecursive?: boolean
+  /** Short, user-provided label identifying the capability. */
   label?: string
+  /** Time the capability was issued, as an RFC 3339 string. */
   createTime?: string
 }
 
 /**
  * Raw Citation
  * A citation in raw indexed form, before client-side resolution into a citation read model.
+ * A citation in raw indexed form, before client-side resolution into a citation read model.
  * Schema: hm://hyper.media/rpc/type/raw-citation
  */
 export type SeedRawCitation = {
+  /** The source blob where the citation was found. */
   source: string
+  /** Type of the source where the citation was found, such as a document or comment. */
   sourceType?: string
+  /** Context within the source; the block id when the source is a document or comment. */
   sourceContext?: string
+  /** The blob that contains the citation. */
   sourceBlob?: {
+    /** CID of the blob. */
     cid?: string
+    /** Account uid of the blob's author. */
     author?: string
+    /** Creation time of the blob. */
     createTime?: HMTimestamp
   }
+  /** Document where the citation was found; relevant when the source is a comment. */
   sourceDocument?: string
+  /** The resource the link points to. */
   target?: string
+  /** Version of the target the link points to, if the link specifies one. */
   targetVersion?: string
+  /** Fragment portion of the link. */
   targetFragment?: string
+  /** Whether the link pins the exact target version rather than a suggested minimum version. */
   isExactVersion?: boolean
+  /** Revision of the target block at `targetVersion`, when the fragment points to a block or range. */
   targetBlockRevision?: string
+  /** Kind of mention, such as `embed` or `link`. */
   mentionType?: string
+  /** Exactness flag not emitted by the current daemon citation message; prefer `isExactVersion`. */
   isExact?: boolean
 }
 
 /**
  * Raw Document Change
  * One change of a document’s history in raw listing form: CID, author, dependency edges, and time.
+ * One change of a document's history in raw listing form: CID, author, dependency edges, and time.
  * Schema: hm://hyper.media/rpc/type/raw-document-change
  */
 export type SeedRawDocumentChange = {
+  /** CID of the change. */
   id?: string
+  /** Account uid of the change's author. */
   author?: string
+  /** CIDs of the changes this change depends on. */
   deps?: string[]
+  /** Time the change was created, as claimed by the author, as an RFC 3339 string. */
   createTime?: string
 }
 
 /**
  * Redirect Info
  * Marks a listed document as a redirect to another target, optionally republishing its content in place.
+ * Marks a listed document as a redirect to another target, optionally republishing its content in place.
  * Schema: hm://hyper.media/rpc/type/redirect-info
  */
 export type SeedRedirectInfo = {
   type: 'redirect'
+  /** Redirect target: the account uid followed by the target document path. */
   target: string
+  /** When `true`, the target document is shown in place instead of redirecting to it. */
   republish?: boolean
 }
 
 /**
  * Resource
+ * The union of every state a fetched resource can be in: document, comment, redirect, not found, tombstone, or error.
  * The union of every state a fetched resource can be in: document, comment, redirect, not found, tombstone, or error.
  * Schema: hm://hyper.media/rpc/type/resource
  */
@@ -1945,109 +2582,144 @@ export type SeedResource =
 /**
  * Resource: Comment
  * A resolved resource that is a comment: the parsed id plus the comment read model.
+ * A resolved resource that is a comment: the parsed id plus the comment read model.
  * Schema: hm://hyper.media/rpc/type/resource-comment
  */
 export type SeedResourceComment = {
   type: 'comment'
+  /** Parsed id the resource was requested with. */
   id: SeedId
+  /** The comment. */
   comment: SeedComment
 }
 
 /**
  * Resource: Document
  * A resolved resource that is a document: the parsed id plus the document read model.
+ * A resolved resource that is a document: the parsed id plus the document read model.
  * Schema: hm://hyper.media/rpc/type/resource-document
  */
 export type SeedResourceDocument = {
   type: 'document'
+  /** Parsed id the resource was requested with. */
   id: SeedId
+  /** The document. */
   document: SeedDocument
 }
 
 /**
  * Resource: Error
  * A resource that failed to load, carrying its id and the error message.
+ * A resource that failed to load, carrying its id and the error message.
  * Schema: hm://hyper.media/rpc/type/resource-error
  */
 export type SeedResourceError = {
   type: 'error'
+  /** Parsed id the resource was requested with. */
   id: SeedId
+  /** Error message describing why loading failed. */
   message: string
 }
 
 /**
  * Resource: Not Found
  * A resource id that resolved to nothing.
+ * A resource id that resolved to nothing.
  * Schema: hm://hyper.media/rpc/type/resource-not-found
  */
 export type SeedResourceNotFound = {
   type: 'not-found'
+  /** Parsed id the resource was requested with. */
   id: SeedId
 }
 
 /**
  * Resource: Redirect
  * A resource that redirects to another id, optionally republishing its content in place.
+ * A resource that redirects to another id, optionally republishing its content in place.
  * Schema: hm://hyper.media/rpc/type/resource-redirect
  */
 export type SeedResourceRedirect = {
   type: 'redirect'
+  /** Parsed id the resource was requested with. */
   id: SeedId
+  /** Parsed id of the resource to redirect to. */
   redirectTarget: SeedId
+  /** When `true`, show the target's content under the original id instead of navigating; defaults to `false`. */
   republish?: boolean
 }
 
 /**
  * Resource: Tombstone
  * A resource that was deleted by a tombstone ref.
+ * A resource that was deleted by a tombstone ref.
  * Schema: hm://hyper.media/rpc/type/resource-tombstone
  */
 export type SeedResourceTombstone = {
   type: 'tombstone'
+  /** Parsed id the resource was requested with. */
   id: SeedId
 }
 
 /**
  * Search Result Item
  * One hit of a network search: the matched id with its title, icon, and breadcrumb parent names, and what kind of entity matched.
+ * One hit of a network search: the matched id with its title, icon, parent names, and the kind of entity matched.
  * Schema: hm://hyper.media/rpc/type/search-result-item
  */
 export type SeedSearchResultItem = {
+  /** Parsed id of the matched document or account; for comments, the document containing the comment. */
   id: SeedId
+  /** Id of the matched comment, without the `hm://` prefix; set only when `type` is `comment`. */
   commentId?: string
+  /** Metadata of the matched resource, when included. */
   metadata?: HMMetadata
+  /** Matched content: a title, or the matching excerpt with surrounding context. */
   title: string
+  /** Icon of the document containing the match. */
   icon: string
+  /** Names of the parent documents, for breadcrumb display. */
   parentNames: string[]
+  /** Time of the matched version, formatted as a locale date-time string. */
   versionTime?: string
+  /** The query this result was returned for. */
   searchQuery: string
+  /** Kind of entity that matched: `document`, `contact`, or `comment`. */
   type: 'document' | 'contact' | 'comment'
 }
 
 /**
  * Search Results
  * A page of search results with the query echoed back and a token for the next page.
+ * A page of search results with the query echoed back and a token for the next page.
  * Schema: hm://hyper.media/rpc/type/search-results
  */
 export type SeedSearchResults = {
+  /** The search hits on this page. */
   entities: SeedSearchResultItem[]
+  /** The query the results were returned for. */
   searchQuery: string
+  /** Token for fetching the next page; empty when there are no more results. */
   nextPageToken: string
 }
 
 /**
  * Site Member
  * One member of a site with their effective role: owner, writer, or member.
+ * One member of a site with their effective role: owner, writer, or member.
  * Schema: hm://hyper.media/rpc/type/site-member
  */
 export type SeedSiteMember = {
+  /** Parsed id of the member account. */
   account: SeedId
+  /** Effective role: `owner`, `writer`, or `member`. */
   role: 'owner' | 'writer' | 'member'
 }
 
 /**
  * Schema
  * The meta-schema, which is the union of every shape a schema can take and a valid instance of itself, with a guide to schemas in the Seed app and an index of the reference pages.
+ * The meta-schema: the union of every shape a schema can take, itself a valid instance of this type.
  * Schema: hm://hyper.media/schema
  */
 export type HMSchema =
@@ -2068,18 +2740,24 @@ export type HMSchema =
 /**
  * Union schema
  * The variant for a union, which accepts a value that matches any one of the schemas listed under anyOf.
+ * A union schema: a value is valid if it matches any one of the schemas listed under `anyOf`.
  * Schema: hm://hyper.media/schema/anyof
  */
 export type HMAnyof = {
+  /** The alternative schemas; a value must match at least one. When every arm is a literal, editors show a dropdown. */
   anyOf: HMSchema[]
+  /** What the union is for, when it is written inline; a published schema is described by its page. */
   description?: string
+  /** Type parameters that make this schema generic, each with its default schema. */
   params?: {[key: string]: HMSchema}
+  /** Legacy: a name some published schemas still carry. New schemas are named by their page. */
   name?: string
 }
 
 /**
  * Reference Schema
  * The variant for a reference, which is a bare include or, when it carries refinements, an extension.
+ * A schema that names another schema by URL: a bare include becomes that schema, and added refinements make it an extension.
  * Schema: hm://hyper.media/schema/include-schema
  */
 export type HMIncludeSchema = {
@@ -2087,48 +2765,66 @@ export type HMIncludeSchema = {
   type: string
   /** Fields the extension adds to (or overrides in) the base struct, as properties. */
   properties?: {[key: string]: HMProperty}
+  /** Overrides the named schema's `values`: the schema extra keys (open struct) or map values must match. */
   values?: HMSchema
+  /** Overrides the named schema's `items`: the schema every list element must match. */
   items?: HMSchema
   /** For a reference-valued string (`format: hm-url` or `format: ipfs-url`): the schema the referenced document or object is expected to conform to — an `hm://` schema-document URL or `ipfs://<cid>`. Advisory: an editor pre-seeds and validates the target against it; a validator does not dereference the reference. */
   target?: string
+  /** What the reference is for, when it is written inline; a published schema is described by its page. */
   description?: string
+  /** Type parameters that make this schema generic, each with its default schema. */
   params?: {[key: string]: HMSchema}
+  /** Applies a generic: binds the named schema's type parameters by name, falling back to their defaults when unbound. */
   args?: {[key: string]: HMSchema}
+  /** Legacy: a name some published schemas still carry. New schemas are named by their page. */
   name?: string
 }
 
 /**
  * Link schema
  * The variant for a link (a CID), which can name the type it expects to point at.
+ * A schema for a link: a CID pointing at a separate block, optionally typed by `target`.
  * Schema: hm://hyper.media/schema/link-schema
  */
 export type HMLinkSchema = {
   type: 'hm://hyper.media/link'
   /** The schema the linked block is expected to conform to. Advisory: a validator does not dereference the link. */
   target?: string
+  /** What the link is for, when it is written inline; a published schema is described by its page. */
   description?: string
+  /** Type parameters that make this schema generic, each with its default schema. */
   params?: {[key: string]: HMSchema}
+  /** Legacy: a name some published schemas still carry. New schemas are named by their page. */
   name?: string
 }
 
 /**
  * List schema
  * The variant for a list value, where items types the elements.
+ * A schema for a list, whose elements match `items` and whose length can be bounded.
  * Schema: hm://hyper.media/schema/list-schema
  */
 export type HMListSchema = {
   type: 'hm://hyper.media/list'
+  /** The schema every element of the list must match. Absent means elements of any kind. */
   items?: HMSchema
+  /** Minimum number of elements the list must have. */
   minItems?: number
+  /** Maximum number of elements the list may have. */
   maxItems?: number
+  /** What the list is for, when it is written inline; a published schema is described by its page. */
   description?: string
+  /** Type parameters that make this schema generic, each with its default schema. */
   params?: {[key: string]: HMSchema}
+  /** Legacy: a name some published schemas still carry. New schemas are named by their page. */
   name?: string
 }
 
 /**
  * Literal Schema
  * The variant for a literal, which is a schema that accepts exactly one value and can describe what that value means.
+ * The long form of a literal: a schema that accepts exactly one string, integer, boolean or null value, with a description.
  * Schema: hm://hyper.media/schema/literal-schema
  */
 export type HMLiteralSchema = {
@@ -2141,20 +2837,25 @@ export type HMLiteralSchema = {
 /**
  * Map schema
  * The variant for a map whose keys are arbitrary and whose values all match the one schema under values, while known fields belong in a struct schema.
+ * A schema for a map with arbitrary keys whose values all match one schema.
  * Schema: hm://hyper.media/schema/map-schema
  */
 export type HMMapSchema = {
   type: 'hm://hyper.media/map'
   /** The schema every value of the map must match. */
   values?: HMSchema
+  /** What the map is for, when it is written inline; a published schema is described by its page. */
   description?: string
+  /** Type parameters that make this schema generic, each with its default schema. */
   params?: {[key: string]: HMSchema}
+  /** Legacy: a name some published schemas still carry. New schemas are named by their page. */
   name?: string
 }
 
 /**
  * Property
  * One field of a struct, holding its value schema, whether a value must include it, and a description of what it is for.
+ * One field of a struct: the schema its value must match, whether it is required, and what it is for.
  * Schema: hm://hyper.media/schema/property
  */
 export type HMProperty = {
@@ -2169,9 +2870,11 @@ export type HMProperty = {
 /**
  * Scalar schema
  * The variant for a null, boolean, integer, float, string or bytes value, optionally narrowed by value constraints.
+ * A schema for a null, boolean, integer, float, string or bytes value, optionally narrowed by value constraints.
  * Schema: hm://hyper.media/schema/scalar-schema
  */
 export type HMScalarSchema = {
+  /** The scalar kind the value must be: `null`, `boolean`, `integer`, `float`, `string` or `bytes`. */
   type:
     | 'hm://hyper.media/null'
     | 'hm://hyper.media/boolean'
@@ -2179,23 +2882,32 @@ export type HMScalarSchema = {
     | 'hm://hyper.media/float'
     | 'hm://hyper.media/string'
     | 'hm://hyper.media/bytes'
+  /** Minimum length of a string value, counted in code points. */
   minLength?: number
+  /** Maximum length of a string value, counted in code points. */
   maxLength?: number
+  /** An unanchored ECMAScript regular expression a string value must match; an uncompilable pattern is ignored. */
   pattern?: string
   /** A semantic hint for editors/renderers — the value is still a plain string. Known: `hm-url` (a Hypermedia document reference), `hm-profile` (an account reference), `ipfs-url` (an ipfs://<cid> reference to a file or DAG-CBOR object), `url` (a URL of any scheme), `date` (an ISO 8601 `YYYY-MM-DD` calendar date), `date-time` (an RFC 3339 instant). */
   format?: string
   /** For a reference-valued string (`format: hm-url` or `format: ipfs-url`): the schema the referenced document or object is expected to conform to — an `hm://` schema-document URL or `ipfs://<cid>`. Advisory: an editor pre-seeds and validates the target against it; a validator does not dereference the reference. */
   target?: string
+  /** The smallest number an integer or float value may be (inclusive). */
   minimum?: number
+  /** The largest number an integer or float value may be (inclusive). */
   maximum?: number
+  /** What the value is for, when it is written inline; a published schema is described by its page. */
   description?: string
+  /** Type parameters that make this schema generic, each with its default schema. */
   params?: {[key: string]: HMSchema}
+  /** Legacy: a name some published schemas still carry. New schemas are named by their page. */
   name?: string
 }
 
 /**
  * Struct schema
  * The variant for a struct, with known fields under properties and optionally extra keys of one type under values.
+ * A schema for a struct, with known fields under `properties` and optionally extra keys of one type under `values`.
  * Schema: hm://hyper.media/schema/struct-schema
  */
 export type HMStructSchema = {
@@ -2215,17 +2927,22 @@ export type HMStructSchema = {
 /**
  * Variable Schema
  * A type-variable reference, written { "var": "<name>" }, that matches whatever a generic's parameter is bound to.
+ * A type-variable reference inside a generic, matching whatever schema the named parameter is bound to.
  * Schema: hm://hyper.media/schema/var-schema
  */
 export type HMVarSchema = {
+  /** The name of the type parameter, declared in an enclosing `params`, whose bound schema this node stands for. */
   var: string
+  /** What the type variable stands for, when it is written inline. */
   description?: string
+  /** Legacy: a name some published schemas still carry. New schemas are named by their page. */
   name?: string
 }
 
 /**
  * Signature
  * The 64 raw bytes of an Ed25519 or P-256 signature over a blob's canonical CBOR encoding taken with this very field set to zeros.
+ * The 64 raw bytes of an Ed25519 or P-256 signature over a blob's canonical CBOR, taken with this field zeroed.
  * Schema: hm://hyper.media/signature
  */
 export type HMSignature = HMBytes
@@ -2233,6 +2950,7 @@ export type HMSignature = HMBytes
 /**
  * Timestamp
  * A point in time as an integer of Unix milliseconds, issued by a causal clock when a blob is signed and never checked against wall-clock time on arrival.
+ * A point in time as an integer of Unix milliseconds, claimed by the signer and not checked against wall-clock time.
  * Schema: hm://hyper.media/timestamp
  */
 export type HMTimestamp = number
@@ -2240,6 +2958,7 @@ export type HMTimestamp = number
 /**
  * URL
  * A string holding a URL of any scheme, which `format: url` tells an editor to render as a link and to validate as one.
+ * A string holding a URL of any scheme — rendered as a link and validated as one.
  * Schema: hm://hyper.media/url
  */
 export type HMUrl = string
@@ -2247,6 +2966,7 @@ export type HMUrl = string
 /**
  * Value
  * A metadata or attribute value: a string, an integer, a boolean, or null.
+ * A scalar metadata or attribute value: a string, an integer, a boolean, or null.
  * Schema: hm://hyper.media/value
  */
 export type HMValue = string | number | boolean | null
@@ -2254,6 +2974,7 @@ export type HMValue = string | number | boolean | null
 /**
  * Visibility
  * The visibility of a Ref or Comment, empty for public and "Private" for private, from which every Change and file it links inherits its own visibility.
+ * Who may see a Ref or Comment: empty for public, `Private` for the space owner, its writers and its site only.
  * Schema: hm://hyper.media/visibility
  */
 export type HMVisibility = '' | 'Private'

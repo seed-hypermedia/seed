@@ -3,7 +3,8 @@
   "properties": {
     "key": {
       "value": "DiscoveryStatus",
-      "required": true
+      "required": true,
+      "description": "Method key, always `DiscoveryStatus`."
     },
     "input": {
       "value": {
@@ -13,7 +14,8 @@
             "value": {
               "type": "hm://hyper.media/string"
             },
-            "required": true
+            "required": true,
+            "description": "Account uid of the space that owns the resource."
           },
           "path": {
             "value": {
@@ -22,27 +24,33 @@
                 "type": "hm://hyper.media/string"
               }
             },
-            "required": true
+            "required": true,
+            "description": "Path segments of the document within the space; empty for the space's root document."
           },
           "version": {
             "value": {
               "type": "hm://hyper.media/string"
-            }
+            },
+            "description": "Specific version to discover; omit to discover any version."
           },
           "latest": {
             "value": {
               "type": "hm://hyper.media/boolean"
-            }
+            },
+            "description": "When `true`, any discovered version counts as success, not just `version`."
           }
         }
       },
-      "required": true
+      "required": true,
+      "description": "The resource to discover."
     },
     "output": {
       "value": {
         "type": "hm://hyper.media/rpc/type/discovery-status"
       },
-      "required": true
+      "required": true,
+      "description": "Current state of the discovery task, with the found version or error."
     }
-  }
+  },
+  "description": "Starts or re-pokes background discovery of a resource that is not available locally and reports whether it is pending, found, or failed; safe to poll."
 }

@@ -3,24 +3,29 @@
   "properties": {
     "type": {
       "value": "redirect",
-      "required": true
+      "required": true,
+      "description": "Discriminator: the resource redirects."
     },
     "id": {
       "value": {
         "type": "hm://hyper.media/rpc/type/id"
       },
-      "required": true
+      "required": true,
+      "description": "Parsed id the resource was requested with."
     },
     "redirectTarget": {
       "value": {
         "type": "hm://hyper.media/rpc/type/id"
       },
-      "required": true
+      "required": true,
+      "description": "Parsed id of the resource to redirect to."
     },
     "republish": {
       "value": {
         "type": "hm://hyper.media/boolean"
-      }
+      },
+      "description": "When `true`, show the target's content under the original id instead of navigating; defaults to `false`."
     }
-  }
+  },
+  "description": "A resource that redirects to another id, optionally republishing its content in place."
 }

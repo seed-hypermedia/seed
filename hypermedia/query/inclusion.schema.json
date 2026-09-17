@@ -5,12 +5,14 @@
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "Account id whose documents to list."
     },
     "path": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "Optional path prefix inside the space, such as a folder."
     },
     "mode": {
       "value": {
@@ -19,7 +21,9 @@
           "AllDescendants"
         ]
       },
-      "required": true
+      "required": true,
+      "description": "`Children` lists direct children of the path; `AllDescendants` lists everything below it."
     }
-  }
+  },
+  "description": "One source a query pulls documents from: a space, an optional path, and a depth mode."
 }

@@ -14,5 +14,6 @@
       },
       "description": "What this value means, for people and for the editors that offer it."
     }
-  }
+  },
+  "description": "The long form of a literal: a schema that accepts exactly one string, integer, boolean or null value, with a description."
 }

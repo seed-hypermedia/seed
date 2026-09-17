@@ -5,52 +5,61 @@
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "Headline of the article."
     },
     "slug": {
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "URL-friendly short name for the article."
     },
     "status": {
       "value": {
         "type": "hm://hyper.media/example/status"
       },
-      "required": true
+      "required": true,
+      "description": "Publication status: `draft`, `published` or `archived`."
     },
     "author": {
       "value": {
         "type": "hm://hyper.media/link",
         "target": "hm://hyper.media/example/person"
       },
-      "required": true
+      "required": true,
+      "description": "The person who wrote the article."
     },
     "tags": {
       "value": {
         "type": "hm://hyper.media/example/tags"
-      }
+      },
+      "description": "Topic tags for the article."
     },
     "body": {
       "value": {
         "type": "hm://hyper.media/bytes"
-      }
+      },
+      "description": "The article's content as raw bytes."
     },
     "wordCount": {
       "value": {
         "type": "hm://hyper.media/integer"
-      }
+      },
+      "description": "Number of words in the body."
     },
     "featured": {
       "value": {
         "type": "hm://hyper.media/boolean"
-      }
+      },
+      "description": "Whether the article is featured."
     },
     "cover": {
       "value": {
         "type": "hm://hyper.media/link",
         "target": "hm://hyper.media/example/blob"
-      }
+      },
+      "description": "Cover image, a link to a Blob."
     },
     "comments": {
       "value": {
@@ -59,12 +68,15 @@
           "type": "hm://hyper.media/link",
           "target": "hm://hyper.media/example/comment"
         }
-      }
+      },
+      "description": "Links to the comments on the article."
     },
     "meta": {
       "value": {
         "type": "hm://hyper.media/example/metadata"
-      }
+      },
+      "description": "Open string metadata for anything the other fields do not cover."
     }
-  }
+  },
+  "description": "A published article that combines the other examples: status, author, tags, body, cover image, comments and metadata."
 }

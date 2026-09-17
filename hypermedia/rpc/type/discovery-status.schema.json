@@ -9,17 +9,21 @@
           "failed"
         ]
       },
-      "required": true
+      "required": true,
+      "description": "`pending` while discovery runs, `found` once a version is available, `failed` when the task finished without one."
     },
     "version": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "The discovered version, when `state` is `found`."
     },
     "error": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "Error message from the last failed attempt, when there is one."
     }
-  }
+  },
+  "description": "The state of a background discovery task for a resource: pending, found with the resolved version, or failed."
 }

@@ -5,13 +5,15 @@
       "value": {
         "type": "hm://hyper.media/string"
       },
-      "required": true
+      "required": true,
+      "description": "Display name of the queried document, falling back to its last path segment or the account uid."
     },
     "in": {
       "value": {
         "type": "hm://hyper.media/rpc/type/id"
       },
-      "required": true
+      "required": true,
+      "description": "Parsed id of the document the query lists under."
     },
     "results": {
       "value": {
@@ -20,7 +22,8 @@
           "type": "hm://hyper.media/rpc/type/document-info"
         }
       },
-      "required": true
+      "required": true,
+      "description": "Documents the query matched."
     },
     "mode": {
       "value": {
@@ -28,7 +31,8 @@
           "Children",
           "AllDescendants"
         ]
-      }
+      },
+      "description": "`Children` for direct children only, `AllDescendants` for the whole subtree."
     },
     "interactionSummaries": {
       "value": {
@@ -37,13 +41,16 @@
           "type": "hm://hyper.media/rpc/type/query-block-item-summary"
         }
       },
-      "required": true
+      "required": true,
+      "description": "Interaction counts per result, keyed by the result's `hm://` id."
     },
     "accountsMetadata": {
       "value": {
         "type": "hm://hyper.media/rpc/type/accounts-metadata"
       },
-      "required": true
+      "required": true,
+      "description": "Metadata payloads of the contributors shown on result cards, keyed by uid."
     }
-  }
+  },
+  "description": "Everything a rendered Query block needs: the results plus per-item interaction summaries and author metadata."
 }

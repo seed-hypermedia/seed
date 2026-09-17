@@ -21,12 +21,14 @@
     "values": {
       "value": {
         "type": "hm://hyper.media/schema"
-      }
+      },
+      "description": "Overrides the named schema's `values`: the schema extra keys (open struct) or map values must match."
     },
     "items": {
       "value": {
         "type": "hm://hyper.media/schema"
-      }
+      },
+      "description": "Overrides the named schema's `items`: the schema every list element must match."
     },
     "target": {
       "value": {
@@ -37,7 +39,8 @@
     "description": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "What the reference is for, when it is written inline; a published schema is described by its page."
     },
     "params": {
       "value": {
@@ -45,7 +48,8 @@
         "values": {
           "type": "hm://hyper.media/schema"
         }
-      }
+      },
+      "description": "Type parameters that make this schema generic, each with its default schema."
     },
     "args": {
       "value": {
@@ -53,12 +57,15 @@
         "values": {
           "type": "hm://hyper.media/schema"
         }
-      }
+      },
+      "description": "Applies a generic: binds the named schema's type parameters by name, falling back to their defaults when unbound."
     },
     "name": {
       "value": {
         "type": "hm://hyper.media/string"
-      }
+      },
+      "description": "Legacy: a name some published schemas still carry. New schemas are named by their page."
     }
-  }
+  },
+  "description": "A schema that names another schema by URL: a bare include becomes that schema, and added refinements make it an extension."
 }

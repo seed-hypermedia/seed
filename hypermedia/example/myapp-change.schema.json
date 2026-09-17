@@ -4,5 +4,6 @@
     "Block": {
       "type": "hm://hyper.media/example/app-block"
     }
-  }
+  },
+  "description": "A Change bound to the app's block type (`Change<example/app-block>`), so ReplaceBlock ops accept only core blocks and Poll."
 }

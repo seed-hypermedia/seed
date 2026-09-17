@@ -6,5 +6,6 @@
     {
       "type": "hm://hyper.media/example/poll-block"
     }
-  ]
+  ],
+  "description": "A strict union of Hypermedia's core blocks plus the app's own Poll block, showing how a third party extends the block model."
 }

@@ -6,5 +6,6 @@
     {
       "type": "hm://hyper.media/example/file"
     }
-  ]
+  ],
+  "description": "A filesystem entry: a union of folder and file."
 }
