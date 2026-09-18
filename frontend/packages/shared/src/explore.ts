@@ -90,6 +90,13 @@ export type HMExploreResult =
 export function isExploreSpaceId(id: UnpackedHypermediaId) {
   return !id.path?.length
 }
+/**
+ * Kinds Explore can list without a search term. Comments and text blocks are absent because
+ * neither can be enumerated. `ListComments` needs a specific target document, and blocks exist
+ * only as full-text matches.
+ */
+export type ExploreBrowseKind = Extract<HMExploreResultType, 'document' | 'space' | 'contact'>
+export const BROWSABLE_KINDS: ExploreBrowseKind[] = ['document', 'space', 'contact']
 /** Scalar values accepted by document attribute comparisons. */
 export type ExploreScalar = string | number | boolean
 /** Attribute predicates in the Explore query AST. */
