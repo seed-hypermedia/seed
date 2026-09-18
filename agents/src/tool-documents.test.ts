@@ -29,6 +29,7 @@ describe('tool documents', () => {
     toolDocs.ensureBuiltinToolDocuments(db, 'acct', 'agent')
     const first = toolDocs.listToolDocuments(db, 'acct', 'agent')
     expect(first.map((row) => row.doc.name)).toEqual([
+      'apps',
       'attributes',
       'browser',
       'execute',

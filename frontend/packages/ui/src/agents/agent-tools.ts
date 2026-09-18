@@ -8,6 +8,8 @@ import {callableToolRegistry} from '@seed-hypermedia/agents-protocol'
 export const AGENT_SEARCH_TOOL = callableToolRegistry.search.name
 export const AGENT_WEB_SEARCH_TOOL = callableToolRegistry.web_search.name
 export const AGENT_EXECUTE_TOOL = callableToolRegistry.execute.name
+/** Creates session-private app artifacts without a code execution backend. */
+export const AGENT_APPS_TOOL = callableToolRegistry.apps.name
 /**
  * The integrated browser: lets the agent read and act on websites open in the owner's Seed window.
  * Opt-in per agent (not in DEFAULT_AGENT_TOOLS); the owner still consents per website at run time.
@@ -17,11 +19,17 @@ export const AGENT_BROWSER_TOOL = callableToolRegistry.browser.name
 export const AGENT_PUBLISH_GRANT = 'publish'
 
 /**
- * Tools granted to a newly created agent: Seed search, web search, sandboxed code execution, and
- * publishing. Reading, memory, delegation, and planning are verbs — always available. The server
+ * Tools granted to a newly created agent: search, sandboxed execution, local apps, and publishing.
+ * Reading, memory, delegation, and planning are verbs — always available. The server
  * silently drops execute from sessions when the host cannot run sandboxes.
  */
-export const DEFAULT_AGENT_TOOLS = [AGENT_SEARCH_TOOL, AGENT_WEB_SEARCH_TOOL, AGENT_EXECUTE_TOOL, AGENT_PUBLISH_GRANT]
+export const DEFAULT_AGENT_TOOLS = [
+  AGENT_SEARCH_TOOL,
+  AGENT_WEB_SEARCH_TOOL,
+  AGENT_EXECUTE_TOOL,
+  AGENT_APPS_TOOL,
+  AGENT_PUBLISH_GRANT,
+]
 
 /** Legacy stored tool names that meant "this agent may publish signed public content". */
 const LEGACY_PUBLISH_TOOL_NAMES = ['write', 'memory_publish_document', 'ipfs_write', 'attachment_to_ipfs']
@@ -37,7 +45,11 @@ export function normalizeStoredAgentTools(tools: string[]): string[] {
     if (tool === 'execute_code' || tool === AGENT_EXECUTE_TOOL) normalized.add(AGENT_EXECUTE_TOOL)
     else if (tool === AGENT_PUBLISH_GRANT || LEGACY_PUBLISH_TOOL_NAMES.includes(tool))
       normalized.add(AGENT_PUBLISH_GRANT)
-    else if (tool === AGENT_SEARCH_TOOL || tool === AGENT_WEB_SEARCH_TOOL || tool === AGENT_BROWSER_TOOL)
+    else if (
+      Object.values(callableToolRegistry).some(
+        (entry) => entry.name === tool && entry.runtimes.some((runtime) => runtime === 'agent-service'),
+      )
+    )
       normalized.add(tool)
     // Everything else was absorbed into the always-on verbs and is inert.
   }
@@ -45,10 +57,10 @@ export function normalizeStoredAgentTools(tools: string[]): string[] {
 }
 
 /**
- * Callables for the auto-provisioned sidebar Assistant: Seed search only. The read verb already
+ * Callables for the auto-provisioned sidebar Assistant: Seed search and local apps. The read verb already
  * covers documents/web/activity; hm:// publishing stays gated by the (absent) signing identities.
  */
-export const ASSISTANT_DEFAULT_TOOLS = [AGENT_SEARCH_TOOL]
+export const ASSISTANT_DEFAULT_TOOLS = [AGENT_SEARCH_TOOL, AGENT_APPS_TOOL]
 
 /** Tool-backend capabilities a server advertises in its health response. */
 export type AgentServerWebCapabilities = {

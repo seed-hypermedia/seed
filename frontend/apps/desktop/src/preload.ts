@@ -8,12 +8,13 @@ import {eventStream, writeableStateStream} from '@shm/shared/utils/stream'
 import type {OnboardingFormData, OnboardingState, OnboardingStep} from './app-onboarding'
 import {GoDaemonState} from './daemon'
 import {UpdateStatus} from './types/updater-types'
-import type {BrowserCommand} from '@seed-hypermedia/agents-protocol'
+import type {AgentApp, BrowserCommand} from '@seed-hypermedia/agents-protocol'
 
 // Declare global window extension for TypeScript
 declare global {
   interface Window {
     isWindowMaximized?: boolean
+    agentApps: {open: (app: AgentApp) => Promise<string>}
     webBrowser: {
       create: (options?: {private?: boolean}) => Promise<{browserId: number}>
       destroy: (input: {browserId: number}) => Promise<void>
@@ -61,6 +62,7 @@ export type AppInfoType = typeof AppInfo
 contextBridge.exposeInMainWorld('appInfo', AppInfo)
 
 const windowInfo = ipcRenderer.sendSync('initWindow')
+contextBridge.exposeInMainWorld('agentApps', {open: (app: AgentApp) => ipcRenderer.invoke('agent-app-open', app)})
 // The web pane: the renderer never holds a web view, it asks the main process for one.
 contextBridge.exposeInMainWorld('webBrowser', {
   create: (options?: {private?: boolean}) => ipcRenderer.invoke('web-browser-create', options ?? {}),

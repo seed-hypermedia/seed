@@ -1,5 +1,6 @@
 export * from './tool-registry'
 export * from './browser'
+export * from './apps'
 import type {
   ConnectSessionBrowser,
   PollSessionBrowser,

@@ -1,5 +1,6 @@
 import {resolveHypermediaRoute, useClickNavigate, useOpenUrl} from './navigation'
 import {getAgentsPlatform} from './platform'
+import {AgentAppLink, AgentAppWidget, parseAppWidget} from './app-widgets'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useResource} from '@shm/shared/models/entity'
 import {hmId, routeToUrl} from '@shm/shared/utils/entity-id-url'
@@ -84,7 +85,7 @@ export function resolveMarkdownImageSource(src: string, gatewayUrl: string): Mar
 }
 
 /** URL schemes react-markdown's sanitizer would drop but the transcript knows how to render. */
-const TRANSCRIPT_URL_PREFIXES = ['hm://', 'ipfs://', 'attachment:']
+const TRANSCRIPT_URL_PREFIXES = ['hm://', 'ipfs://', 'attachment:', 'seed-app:']
 
 function transcriptUrlTransform(value: string): string {
   return TRANSCRIPT_URL_PREFIXES.some((prefix) => value.startsWith(prefix)) ? value : defaultUrlTransform(value)
@@ -396,17 +397,51 @@ type PreHastNode = {
   children?: Array<PreHastNode & {type?: string; value?: string}>
 }
 
-/** Returns the fence's source when a `pre` hast node wraps a ```mermaid code block. */
-function mermaidSourceFromPre(node: unknown): string | null {
+/** Returns the source of a fenced code block with the requested language. */
+function fenceSourceFromPre(node: unknown, language: string): string | null {
   const code = (node as PreHastNode | undefined)?.children?.find((child) => child.tagName === 'code')
   const className = code?.properties?.className
-  if (!Array.isArray(className) || !className.includes('language-mermaid')) return null
+  if (!Array.isArray(className) || !className.includes(`language-${language}`)) return null
   return (code?.children ?? [])
     .map((child) => (child.type === 'text' && typeof child.value === 'string' ? child.value : ''))
     .join('')
 }
 
 function MarkdownLink({href, children}: React.ComponentProps<'a'> & ExtraProps) {
+  const scope = React.useContext(MarkdownAssetContext)
+  if (href?.startsWith('seed-app:'))
+    return (
+      <AgentAppLink
+        key={`${scope?.serverUrl}:${scope?.accountUid}:${scope?.sessionId}:${href}`}
+        reference={href}
+        scope={scope}
+      >
+        {children}
+      </AgentAppLink>
+    )
+  return <StandardMarkdownLink href={href}>{children}</StandardMarkdownLink>
+}
+
+// Stable component identity matters: streaming/rerendering must not restart a running app.
+function MarkdownPre({children, node}: React.ComponentProps<'pre'> & ExtraProps) {
+  const scope = React.useContext(MarkdownAssetContext)
+  const widgetSource = fenceSourceFromPre(node, 'seed-widget')
+  const widget = widgetSource && parseAppWidget(widgetSource)
+  if (widget)
+    return (
+      <AgentAppWidget
+        key={`${scope?.serverUrl}:${scope?.accountUid}:${scope?.sessionId}:${widget.app}`}
+        reference={widget.app}
+        height={widget.height}
+        scope={scope}
+      />
+    )
+  const mermaidSource = fenceSourceFromPre(node, 'mermaid')
+  if (mermaidSource !== null) return <MermaidDiagram code={mermaidSource} />
+  return <pre className="bg-background/50 my-2 overflow-x-auto rounded p-2 text-xs">{children}</pre>
+}
+
+function StandardMarkdownLink({href, children}: React.ComponentProps<'a'> & ExtraProps) {
   const openUrl = useOpenUrl()
   const openTranscriptLink = useTranscriptLinkOpener()
   const gatewayUrl = useGatewayUrlHook() || DEFAULT_GATEWAY_URL
@@ -460,54 +495,51 @@ function MarkdownLink({href, children}: React.ComponentProps<'a'> & ExtraProps) 
   )
 }
 
+// Keep all ancestor component identities stable as well, including widgets nested in lists.
+const markdownComponents: Components = {
+  h1: ({children}) => <h1 className="mt-3 mb-2 text-base font-bold first:mt-0">{children}</h1>,
+  h2: ({children}) => <h2 className="mt-3 mb-2 text-sm font-bold first:mt-0">{children}</h2>,
+  h3: ({children}) => <h3 className="mt-2 mb-1 text-sm font-semibold first:mt-0">{children}</h3>,
+  p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
+  ul: ({children}) => <ul className="mb-2 list-disc pl-4 last:mb-0">{children}</ul>,
+  ol: ({children}) => <ol className="mb-2 list-decimal pl-4 last:mb-0">{children}</ol>,
+  li: ({children}) => <li className="mb-0.5">{children}</li>,
+  a: MarkdownLink,
+  img: MarkdownImage,
+  blockquote: ({children}) => (
+    <blockquote className="border-muted-foreground/30 my-2 border-l-2 pl-3 italic">{children}</blockquote>
+  ),
+  strong: ({children}) => <strong className="font-semibold">{children}</strong>,
+  em: ({children}) => <em>{children}</em>,
+  hr: () => <hr className="border-border my-3" />,
+  pre: MarkdownPre,
+  code: ({className, children}) => {
+    const isBlock = !!className
+    if (isBlock) {
+      return <code className="text-xs">{children}</code>
+    }
+    return <code className="bg-background/50 rounded px-1 py-0.5 text-xs">{children}</code>
+  },
+  table: ({children}) => (
+    <div className="my-2 overflow-x-auto">
+      <table className="border-border min-w-full border-collapse text-xs">{children}</table>
+    </div>
+  ),
+  thead: ({children}) => <thead className="bg-background/30">{children}</thead>,
+  th: ({children}) => <th className="border-border border px-2 py-1 text-left font-semibold">{children}</th>,
+  td: ({children}) => <td className="border-border border px-2 py-1">{children}</td>,
+}
+
 /** Renders assistant markdown with in-app handling for Hypermedia links.
  *
  * GFM (tables, strikethrough, autolinks) is on by default; callers pass
  * `enableGfm={false}` while streaming so half-written tables don't flicker
  * between table and paragraph rendering mid-stream. */
 export function Markdown({children, enableGfm = true}: {children: string; enableGfm?: boolean}) {
-  const components: Components = {
-    h1: ({children}) => <h1 className="mt-3 mb-2 text-base font-bold first:mt-0">{children}</h1>,
-    h2: ({children}) => <h2 className="mt-3 mb-2 text-sm font-bold first:mt-0">{children}</h2>,
-    h3: ({children}) => <h3 className="mt-2 mb-1 text-sm font-semibold first:mt-0">{children}</h3>,
-    p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
-    ul: ({children}) => <ul className="mb-2 list-disc pl-4 last:mb-0">{children}</ul>,
-    ol: ({children}) => <ol className="mb-2 list-decimal pl-4 last:mb-0">{children}</ol>,
-    li: ({children}) => <li className="mb-0.5">{children}</li>,
-    a: MarkdownLink,
-    img: MarkdownImage,
-    blockquote: ({children}) => (
-      <blockquote className="border-muted-foreground/30 my-2 border-l-2 pl-3 italic">{children}</blockquote>
-    ),
-    strong: ({children}) => <strong className="font-semibold">{children}</strong>,
-    em: ({children}) => <em>{children}</em>,
-    hr: () => <hr className="border-border my-3" />,
-    pre: ({children, node}) => {
-      const mermaidSource = mermaidSourceFromPre(node)
-      if (mermaidSource !== null) return <MermaidDiagram code={mermaidSource} />
-      return <pre className="bg-background/50 my-2 overflow-x-auto rounded p-2 text-xs">{children}</pre>
-    },
-    code: ({className, children}) => {
-      const isBlock = !!className
-      if (isBlock) {
-        return <code className="text-xs">{children}</code>
-      }
-      return <code className="bg-background/50 rounded px-1 py-0.5 text-xs">{children}</code>
-    },
-    table: ({children}) => (
-      <div className="my-2 overflow-x-auto">
-        <table className="border-border min-w-full border-collapse text-xs">{children}</table>
-      </div>
-    ),
-    thead: ({children}) => <thead className="bg-background/30">{children}</thead>,
-    th: ({children}) => <th className="border-border border px-2 py-1 text-left font-semibold">{children}</th>,
-    td: ({children}) => <td className="border-border border px-2 py-1">{children}</td>,
-  }
-
   return (
     <ReactMarkdown
       remarkPlugins={enableGfm ? [remarkGfm, remarkStripHtmlComments] : [remarkStripHtmlComments]}
-      components={components}
+      components={markdownComponents}
       urlTransform={transcriptUrlTransform}
     >
       {children}

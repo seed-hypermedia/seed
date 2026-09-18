@@ -6,6 +6,7 @@ import {browserContentBlocker} from './browser-content-blocker'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import {loadBrowserFavicon, readBrowserFavicons} from './app-browser-favicon'
 import {executeBrowserCommand, type BrowserArchive} from './app-browser-agent'
+import {AgentAppHost} from './app-agent-apps'
 
 import {isGuestOnPrivateNetwork, navigatePublicBrowser, trackBrowserNetwork} from './browser-network-policy'
 import {
@@ -85,6 +86,14 @@ export function setupWebBrowser(
   archive?: (archive: BrowserArchive, accountUid: string) => Promise<{id: string}>,
 ) {
   const host = window.webContents
+  let apps: AgentAppHost | undefined
+  host.once('destroyed', () => apps?.close())
+  host.ipc.handle('agent-app-open', (event, input: unknown) => {
+    if (event.sender !== host || event.senderFrame !== host.mainFrame) throw new Error('Invalid app host')
+    if (!isWebBrowserEnabled()) throw new Error('Enable the experimental web browser in Advanced settings to open apps')
+    apps ??= new AgentAppHost()
+    return apps.open(input)
+  })
   let access:
     | {connectionId: string; browserId: number; accountUid: string; origins: {origin: string; level: 'read' | 'act'}[]}
     | undefined

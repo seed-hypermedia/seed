@@ -105,6 +105,7 @@ import {activityConditions, getSeedTool} from '@seed-hypermedia/agents-protocol'
 import {
   AGENT_BROWSER_TOOL,
   AGENT_EXECUTE_TOOL,
+  AGENT_APPS_TOOL,
   AGENT_PUBLISH_GRANT,
   AGENT_SEARCH_TOOL,
   AGENT_WEB_SEARCH_TOOL,
@@ -1512,6 +1513,7 @@ const AGENT_TOOL_OPTIONS: {names: string[]; title: string; description?: string;
   {names: [AGENT_SEARCH_TOOL], title: 'Search Seed content'},
   {names: [AGENT_WEB_SEARCH_TOOL], title: 'Search the web'},
   {names: [AGENT_EXECUTE_TOOL], title: 'Execute code'},
+  {names: [AGENT_APPS_TOOL], title: 'Create apps and widgets'},
   {
     names: [AGENT_BROWSER_TOOL],
     title: 'Use the integrated browser',

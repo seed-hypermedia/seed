@@ -77,9 +77,9 @@ describe('resolveLocalAssistantProvisioning', () => {
 })
 
 describe('buildLocalAssistantDefinition', () => {
-  it('grants search-only callables and no signing key; the verbs cover reading', () => {
+  it('grants search and local apps without a signing key; the verbs cover reading', () => {
     const definition = buildLocalAssistantDefinition('p', 'm')
-    expect(definition.tools).toEqual(['search'])
+    expect(definition.tools).toEqual(['search', 'apps'])
     expect(definition.signingKey).toBeUndefined()
     expect(definition.signingKeys).toBeUndefined()
   })
