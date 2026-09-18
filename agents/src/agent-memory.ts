@@ -338,12 +338,15 @@ export function listMemoryDir(
  * (`encoding: 'utf8'`, `content`); everything else comes back as raw bytes
  * (`encoding: 'binary'`, `data`).
  */
-export function readMemoryFile(stateDir: string, rawPath: unknown): AgentMemoryFileData {
+export function readMemoryFile(stateDir: string, rawPath: unknown, maxBytes?: number): AgentMemoryFileData {
   const {relPath, absPath} = resolveMemoryPath(stateDir, rawPath)
   assertNoSymlinkComponents(stateDir, relPath)
   const stat = lstatOrNull(absPath)
   if (!stat || stat.isSymbolicLink()) throw new AgentMemoryError(404, `Memory file not found: ${relPath}`)
   if (stat.isDirectory()) throw new AgentMemoryError(400, `Memory path is a directory, not a file: ${relPath}`)
+  if (!stat.isFile()) throw new AgentMemoryError(400, `Memory path is not a regular file: ${relPath}`)
+  if (maxBytes !== undefined && stat.size > maxBytes)
+    throw new AgentMemoryError(413, 'Memory file exceeds app size limit')
   const bytes = fs.readFileSync(absPath)
   const base = {
     path: relPath,

@@ -7,5 +7,6 @@ contextBridge.exposeInMainWorld('browserTest', {
   navigate: (input: unknown) => ipcRenderer.send('web-browser-navigate', input),
   access: (input: unknown) => ipcRenderer.invoke('browser-agent-access', input),
   execute: (input: unknown) => ipcRenderer.invoke('browser-agent-execute', input),
+  openApp: (input: unknown) => ipcRenderer.invoke('agent-app-open', input),
   hide: () => ipcRenderer.send('windowNavState', {routes: [{key: 'library'}], routeIndex: 0}),
 })
