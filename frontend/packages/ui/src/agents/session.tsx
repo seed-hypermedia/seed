@@ -1,5 +1,5 @@
 import {agentAccessCanChat, agentAccessCanWrite} from './access'
-import {type AgentRunActivity, type AgentSessionTriggerContext} from './client'
+import {type AgentRunActivity} from './client'
 import {AgentRunStatusBar} from './agent-run-status'
 import {SessionSummaryBanner} from './session-children'
 import {
@@ -59,14 +59,13 @@ import {
   AlertDialogTitle,
 } from '@shm/ui/components/alert-dialog'
 import {DialogTitle} from '@shm/ui/components/dialog'
-import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {Container, PanelContainer} from '@shm/ui/container'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {ArrowDown, ExternalLink, Info, Link2, ScrollText, Trash2} from 'lucide-react'
+import {ArrowDown, Link2, ScrollText, Trash2} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AgentHeader, AgentSubpageHeader, SessionModelBadge} from './header'
 import {writeStickyAgentSession} from './sticky-session'
@@ -78,79 +77,7 @@ import {
   TERMINAL_RUN_STATUSES,
 } from './rich-message-composer'
 import {SessionProviderGate, useMissingSessionProvider} from './session-provider-gate'
-import {getTriggerActivityRoute, summarizeTriggerSource, TriggerContextView} from './trigger-types'
-
-function TriggerContextPopover({
-  context,
-  onOpenTrigger,
-}: {
-  context: AgentSessionTriggerContext
-  onOpenTrigger: () => void
-}) {
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label={`Started by trigger: ${context.triggerName}`}>
-          <Info className="size-4" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="!w-[min(92vw,44rem)]">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SizableText weight="bold">Started by trigger</SizableText>
-              <SizableText size="sm" color="muted" className="block truncate">
-                {context.triggerName} · {context.activitySummary}
-              </SizableText>
-            </div>
-            <Button variant="outline" size="sm" onClick={onOpenTrigger}>
-              Open trigger
-            </Button>
-          </div>
-          <div className="grid gap-3 text-sm md:grid-cols-2">
-            <TriggerDetail label="Source" value={summarizeTriggerSource(context.source)} />
-            <TriggerDetail label="Activity key" value={context.activityKey} mono />
-            <TriggerDetail label="Firing ID" value={context.firingId} mono />
-            <TriggerDetail label="Fired at" value={new Date(context.firedAt).toLocaleString()} />
-            <TriggerDetail label="Status" value={context.status} />
-            {context.error ? <TriggerDetail label="Error" value={context.error} /> : null}
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="flex flex-col gap-1">
-              <SizableText size="sm" weight="bold">
-                Trigger prompt
-              </SizableText>
-              <pre className="bg-muted/60 max-h-60 overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
-                {context.prompt}
-              </pre>
-            </div>
-            <div className="flex flex-col gap-1">
-              <SizableText size="sm" weight="bold">
-                Activity context passed to session
-              </SizableText>
-              <pre className="bg-muted/60 max-h-60 overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
-                {JSON.stringify(context.activity, null, 2)}
-              </pre>
-            </div>
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-function TriggerDetail({label, value, mono}: {label: string; value: string; mono?: boolean}) {
-  return (
-    <div className="min-w-0">
-      <SizableText size="sm" weight="bold">
-        {label}
-      </SizableText>
-      <SizableText size="sm" color="muted" className={`block truncate ${mono ? 'font-mono' : ''}`}>
-        {value}
-      </SizableText>
-    </div>
-  )
-}
+import {TriggerContextView} from './trigger-types'
 
 function AgentSessionPage({
   sessionId,
@@ -287,10 +214,6 @@ function AgentSessionPage({
     onFollow: useCallback((link) => openSuccessor(link.sessionId), [openSuccessor]),
   })
   const contextTokens = useMemo(() => sessionContextTokens(session.data?.events), [session.data?.events])
-  const triggerActivityRoute = useMemo(
-    () => (session.data?.triggerContext ? getTriggerActivityRoute(session.data.triggerContext) : null),
-    [session.data?.triggerContext],
-  )
 
   useEffect(() => {
     if (!partialAssistantText) return
@@ -504,35 +427,7 @@ function AgentSessionPage({
             />
           </>
         }
-      >
-        {session.data?.triggerContext ? (
-          <div className="flex flex-none items-center gap-2">
-            <TriggerContextPopover
-              context={session.data.triggerContext}
-              onOpenTrigger={() =>
-                navigate({
-                  key: 'agent',
-                  agentId: session.data!.session.agentId,
-                  serverUrl,
-                  tab: 'triggers',
-                  triggerId: session.data!.triggerContext!.triggerId,
-                })
-              }
-            />
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Open triggering comment or document update"
-              onClick={() => {
-                if (triggerActivityRoute) navigate(triggerActivityRoute)
-              }}
-              disabled={!triggerActivityRoute}
-            >
-              <ExternalLink className="size-4" />
-            </Button>
-          </div>
-        ) : null}
-      </AgentSubpageHeader>
+      />
       <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col pr-1 pl-4">
         {session.isLoading ? <SizableText color="muted">Loading session…</SizableText> : null}
         {session.isError ? (
@@ -786,31 +681,18 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
   retryPending?: boolean
   onOpenSession?: (sessionId: string, agentId?: string) => void
 }) {
+  if (row.kind === 'trigger') {
+    return (
+      <TriggerContextView
+        context={row.context}
+        instructions={row.instructions}
+        serverUrl={serverUrl}
+        agentId={agentId}
+      />
+    )
+  }
+
   if (row.kind === 'message') {
-    if (row.triggerContext) {
-      // First message of a triggered session: render the human prompt (if any) and a friendly
-      // trigger card instead of the raw <trigger_context> text that is sent to the model.
-      return (
-        <div className="flex flex-col gap-1.5">
-          {row.message.content?.trim() || row.message.blocks?.length ? (
-            <ChatMessageBubble
-              message={row.message}
-              liveActivity={liveActivity}
-              isLiveTail={isLiveTail}
-              serverUrl={serverUrl}
-              accountUid={accountUid}
-              agentId={agentId}
-            />
-          ) : null}
-          <TriggerContextView
-            context={row.triggerContext}
-            instructions={row.triggerInstructions}
-            serverUrl={serverUrl}
-            agentId={agentId}
-          />
-        </div>
-      )
-    }
     return (
       <ChatMessageBubble
         message={row.message}

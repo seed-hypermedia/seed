@@ -943,15 +943,15 @@ export function TriggerContextView({
     : null
 
   return (
-    <div className="bg-muted/40 mr-6 ml-6 rounded-lg border px-3 py-2 text-xs">
-      <div className="flex min-w-0 flex-wrap items-center gap-x-1.5">
+    <div className="bg-muted/40 mb-3 flex min-w-0 flex-col gap-2 rounded-lg border p-3 text-xs">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
         <Icon className="size-3.5 shrink-0 opacity-70" />
         <span className="shrink-0">Triggered by</span>
         <ContextLink
           route={triggerRoute}
           onNavigate={navigate}
           title="Open this trigger"
-          className="shrink-0 font-medium"
+          className="min-w-0 font-medium break-words"
         >
           {context.triggerName}
         </ContextLink>
@@ -959,15 +959,13 @@ export function TriggerContextView({
           route={activityRoute}
           onNavigate={navigate}
           title="Open the comment, document, or update that started this session"
-          className="text-muted-foreground min-w-0 truncate"
+          className="text-muted-foreground w-full break-words"
         >
           {context.activitySummary}
         </ContextLink>
       </div>
-      <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-        <span>
-          <TriggerSourceSummary source={context.source} />
-        </span>
+      <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="min-w-0 break-words">{<TriggerSourceSummary source={context.source} />}</span>
         <span>Fired {formattedDateMedium(new Date(context.firedAt))}</span>
         {context.status && context.status !== 'fired' ? <span>Status: {context.status}</span> : null}
       </div>
@@ -986,14 +984,31 @@ export function TriggerContextView({
           ))}
         </div>
       ) : null}
+      {context.prompt ? (
+        <TriggerDisclosure label="Trigger prompt">
+          <p className="bg-background/60 text-foreground rounded-md border p-2 text-xs break-words whitespace-pre-wrap">
+            {context.prompt}
+          </p>
+        </TriggerDisclosure>
+      ) : null}
       <TriggerDisclosure label="Activity details">
-        <pre className="bg-background/60 text-foreground max-h-72 overflow-auto rounded-md border p-2 text-[11px] whitespace-pre-wrap">
+        <dl className="mb-2 grid min-w-0 gap-2">
+          <div>
+            <dt className="text-muted-foreground">Activity key</dt>
+            <dd className="font-mono break-all">{context.activityKey}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Firing ID</dt>
+            <dd className="font-mono break-all">{context.firingId}</dd>
+          </div>
+        </dl>
+        <pre className="bg-background/60 text-foreground max-h-72 overflow-auto rounded-md border p-2 text-xs whitespace-pre-wrap">
           {JSON.stringify(context.activity, null, 2)}
         </pre>
       </TriggerDisclosure>
       {instructions ? (
         <TriggerDisclosure label="Trigger instructions">
-          <p className="bg-background/60 text-foreground rounded-md border p-2 text-[11px] whitespace-pre-wrap">
+          <p className="bg-background/60 text-foreground rounded-md border p-2 text-xs break-words whitespace-pre-wrap">
             {instructions}
           </p>
         </TriggerDisclosure>
@@ -1022,7 +1037,9 @@ function ContextLink({
       type="button"
       title={title}
       onClick={() => onNavigate(route)}
-      className={`hover:text-foreground text-left hover:underline ${className ?? ''}`}
+      className={`hover:text-foreground focus-visible:ring-ring rounded-sm text-left hover:underline focus-visible:ring-2 focus-visible:outline-none active:opacity-70 ${
+        className ?? ''
+      }`}
     >
       {children}
     </button>
@@ -1038,12 +1055,12 @@ function TriggerDisclosure({label, children}: {label: string; children: React.Re
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
-        className="text-muted-foreground hover:text-foreground mt-1.5 flex items-center gap-1"
+        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex items-center gap-1 rounded-sm text-left focus-visible:ring-2 focus-visible:outline-none active:opacity-70"
       >
         {open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
         {label}
       </button>
-      {open ? <div className="mt-1.5">{children}</div> : null}
+      {open ? <div className="min-w-0">{children}</div> : null}
     </>
   )
 }
