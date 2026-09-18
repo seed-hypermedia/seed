@@ -70,6 +70,7 @@ function useDesktopSignInPrompt() {
 }
 
 const desktopAgentsPlatform: AgentsPlatform = {
+  openAgentApp: (app) => window.agentApps.open(app),
   BrowserTools: React.lazy(() =>
     import('./browser-agent-tools').then((module) => ({default: module.BrowserAgentTools})),
   ),
