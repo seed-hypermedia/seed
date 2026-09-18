@@ -267,7 +267,11 @@ function rewriteBlockLinks(block: HMBlockNode['block'], sourceKey: string, targe
 }
 
 function queryIncludeTargetsParent(include: any, parentUid: string, parentPath: string[]) {
-  if (!include || include.space !== parentUid) return false
+  if (!include) return false
+  // An empty space is the relative form a Collection's own query is created with, and it means
+  // "the document holding this block".
+  if (!include.space) return true
+  if (include.space !== parentUid) return false
   const includePath = String(include.path || '')
     .replace(/^\/+/, '')
     .split('/')

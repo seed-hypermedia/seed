@@ -1,14 +1,14 @@
+import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it, vi} from 'vitest'
-import {hmId} from './entity-id-url'
+import type {UniversalClient} from '../universal-client'
 import {
-  inspectChildDeletions,
-  validateConfirmedChildDeletions,
   executeConfirmedChildDeletion,
+  inspectChildDeletions,
   reconcileChildRemovalIntent,
   reviewConfirmedChildDeletion,
+  validateConfirmedChildDeletions,
 } from './confirmed-child-deletion'
-import type {UniversalClient} from '../universal-client'
-import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
+import {hmId} from './entity-id-url'
 
 const parentId = hmId('account', {path: ['parent']})
 const childId = hmId('account', {path: ['parent', 'child']})
@@ -68,6 +68,21 @@ describe('confirmed child deletion safety', () => {
       await inspectChildDeletions(clientWith(new Map([[childId.id, 'v1']])), {parentId, childIds: [childId], content}),
     ).toEqual([])
   })
+  it('keeps children referenced by a self-query written in the relative form', async () => {
+    const content = [
+      {
+        block: {
+          id: 'query',
+          type: 'Query',
+          attributes: {query: {includes: [{space: '', path: '', mode: 'Children'}]}},
+        },
+        children: [],
+      },
+    ] as unknown as HMBlockNode[]
+    const client = clientWith(new Map([[childId.id, 'v1']]))
+    expect(await inspectChildDeletions(client, {parentId, childIds: [childId], content})).toEqual([])
+  })
+
   it('keeps children referenced by a self-query, including limited queries', async () => {
     const content = [
       {

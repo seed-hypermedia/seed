@@ -2,17 +2,17 @@ import type {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
 import {
-  verifyDocumentCleanupPrimary,
   appendDraftCardToEditorBlocks,
   applyDocumentCardCleanupToBlockNodes,
-  planDocumentCardMoveOperations,
   getDirectChildrenLosingReferences,
   planDeletedDocumentCardEmbedCleanup,
   planDocumentCardAppend,
+  planDocumentCardMoveOperations,
   planDocumentCardRemoval,
   planDocumentCardRewrite,
   rebaseDocumentReferenceDraft,
   removeDraftCardFromEditorBlocks,
+  verifyDocumentCleanupPrimary,
 } from './document-card-cleanup'
 
 function doc(content: HMBlockNode[]): Pick<HMDocument, 'content'> {
@@ -263,6 +263,51 @@ describe('planDocumentCardAppend', () => {
 
     expect(result.changes).toEqual([])
     expect(result.addedBlockIds).toEqual([])
+  })
+
+  it('does not append when the parent has a self query block in the relative form', () => {
+    const result = planDocumentCardAppend(
+      doc([
+        {
+          block: {
+            id: 'query',
+            type: 'Query',
+            attributes: {
+              query: {includes: [{space: '', path: '', mode: 'Children'}]},
+            },
+          } as HMBlockNode['block'],
+          children: [],
+        },
+      ]),
+      'hm://parent/site',
+      'hm://parent/site/child',
+      'new-card',
+    )
+
+    expect(result.changes).toEqual([])
+    expect(result.addedBlockIds).toEqual([])
+  })
+
+  it('still appends when a query targets some other document', () => {
+    const result = planDocumentCardAppend(
+      doc([
+        {
+          block: {
+            id: 'query',
+            type: 'Query',
+            attributes: {
+              query: {includes: [{space: 'elsewhere', path: '/other', mode: 'Children'}]},
+            },
+          } as HMBlockNode['block'],
+          children: [],
+        },
+      ]),
+      'hm://parent/site',
+      'hm://parent/site/child',
+      'new-card',
+    )
+
+    expect(result.addedBlockIds).toEqual(['new-card'])
   })
 
   it('does not append when the parent already links to the child', () => {
