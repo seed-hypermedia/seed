@@ -3,6 +3,7 @@ import type * as blobs from '@shm/shared/blobs'
 import type {NavRoute} from '@shm/shared/routes'
 import type {NavMode} from '@shm/shared/utils/navigation'
 import type * as React from 'react'
+import type {AgentApp} from '@seed-hypermedia/agents-protocol'
 
 /** Collects rich editor content, letting the caller prepare binary attachments. */
 export type AgentsRichEditorGetContent = (
@@ -109,6 +110,8 @@ export type AgentsSignerDelegation = {
 }
 
 export type AgentsPlatform = {
+  /** Registers an isolated local app and returns its integrated-browser URL (desktop only). */
+  openAgentApp?: (app: AgentApp) => Promise<string>
   /** Session-bound desktop browser bridge and its visible access controls; absent on the web. */
   BrowserTools?: React.ComponentType<{serverUrl: string; sessionId: string; accountUid: string; toolEnabled: boolean}>
   /** Built-in default agent server URL for this runtime, or null when there is none. */

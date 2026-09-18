@@ -32,6 +32,7 @@ import {validateJsonSchemaShape, validateJsonSchemaValue} from '@/json-schema'
 import * as activityTriggers from '@/activity-triggers'
 import * as agentMemory from '@/agent-memory'
 import {BrowserTools} from '@/browser-tools'
+import {createAgentApp} from '@/agent-apps'
 import * as sessionAttachments from '@/session-attachments'
 import {
   buildLambdaProgram,
@@ -12961,6 +12962,9 @@ export async function executeCallVerb(
     }
   }
   switch (toolName) {
+    case 'apps':
+      if (!context.sessionId) throw new APIError(400, 'Apps require a chat session')
+      return createAgentApp(context.stateDir, context.sessionId, toolInput as {title: string; path: string})
     case 'browser': {
       if (!context.browser) throw new APIError(400, 'Browser access is unavailable in this execution context')
       if (toolInput.action === 'screenshot' && !context.modelAcceptsImages) {
