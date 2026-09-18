@@ -9,34 +9,47 @@ import {TooltipProvider} from '../tooltip'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const {focusedComment, parentComment, useCommentParentsMock, useDocumentCommentsMock, onBookmarkToggleMock} =
-  vi.hoisted(() => {
-    const focusedComment = {
-      id: 'alice/comment',
-      version: 'focused-version',
-      author: 'alice',
-      targetAccount: 'alice',
-      targetPath: 'doc',
-      targetVersion: 'document-version',
-      content: [{block: {id: 'text', type: 'Paragraph', text: 'A comment worth saving'}}],
-      createTime: {seconds: 0, nanos: 0},
-      updateTime: {seconds: 0, nanos: 0},
-      visibility: 'PUBLIC',
-    }
-    const parentComment = {...focusedComment, id: 'alice/parent', version: 'parent-version'}
+const {
+  focusedComment,
+  parentComment,
+  useCommentParentsMock,
+  useDocumentCommentsMock,
+  useResourceMock,
+  onBookmarkToggleMock,
+} = vi.hoisted(() => {
+  const focusedComment = {
+    id: 'alice/comment',
+    version: 'focused-version',
+    author: 'alice',
+    targetAccount: 'alice',
+    targetPath: 'doc',
+    targetVersion: 'document-version',
+    content: [{block: {id: 'text', type: 'Paragraph', text: 'A comment worth saving'}}],
+    createTime: {seconds: 0, nanos: 0},
+    updateTime: {seconds: 0, nanos: 0},
+    visibility: 'PUBLIC',
+  }
+  const parentComment = {...focusedComment, id: 'alice/parent', version: 'parent-version'}
 
-    return {
-      focusedComment,
-      parentComment,
-      useCommentParentsMock: vi.fn<() => any>(() => null),
-      useDocumentCommentsMock: vi.fn<() => any>(() => ({
-        data: null,
-        error: null,
-        isLoading: true,
-      })),
-      onBookmarkToggleMock: vi.fn(),
-    }
-  })
+  return {
+    focusedComment,
+    parentComment,
+    useCommentParentsMock: vi.fn<() => any>(() => null),
+    useDocumentCommentsMock: vi.fn<() => any>(() => ({
+      data: null,
+      error: null,
+      isLoading: true,
+    })),
+    useResourceMock: vi.fn<() => any>(() => ({
+      data: {type: 'comment', comment: focusedComment},
+      error: null,
+      isDiscovering: false,
+      isFetching: false,
+      isLoading: false,
+    })),
+    onBookmarkToggleMock: vi.fn(),
+  }
+})
 
 vi.mock('@shm/shared', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@shm/shared')>()
@@ -73,13 +86,7 @@ vi.mock('@shm/shared/models/entity', () => ({
   useAccounts: (ids: Array<string | null>) => ids.map((id) => ({data: id ? {metadata: {name: 'Alice'}} : undefined})),
   useIsCurrentUser: () => false,
   useResources: () => [],
-  useResource: () => ({
-    data: {type: 'comment', comment: focusedComment},
-    error: null,
-    isDiscovering: false,
-    isFetching: false,
-    isLoading: false,
-  }),
+  useResource: useResourceMock,
 }))
 
 vi.mock('@shm/shared/readonly-viewer-context', () => ({
@@ -135,6 +142,13 @@ afterEach(() => {
   container = null
   useCommentParentsMock.mockReturnValue(null)
   useDocumentCommentsMock.mockReturnValue({data: null, error: null, isLoading: true})
+  useResourceMock.mockReturnValue({
+    data: {type: 'comment', comment: focusedComment},
+    error: null,
+    isDiscovering: false,
+    isFetching: false,
+    isLoading: false,
+  })
   Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
   vi.useRealTimers()
   onBookmarkToggleMock.mockReset()
@@ -163,6 +177,45 @@ describe('CommentDiscussions', () => {
     act(() => vi.advanceTimersByTime(100))
 
     expect(scrollIntoView).toHaveBeenCalledWith({behavior: 'instant', block: 'start'})
+  })
+
+  it('renders a listed focused comment while its resource fallback is still discovering', () => {
+    useDocumentCommentsMock.mockReturnValue({
+      data: {comments: [focusedComment], authors: {}},
+      error: null,
+      isLoading: false,
+    })
+    useResourceMock.mockReturnValue({
+      data: {type: 'not-found'},
+      error: null,
+      isDiscovering: true,
+      isFetching: true,
+      isLoading: false,
+    })
+
+    renderCommentDiscussions()
+
+    expect(document.body.querySelector('button[aria-label="Add Comment to Bookmarks"]')).not.toBeNull()
+  })
+
+  it('does not render stale fallback data for another comment', () => {
+    useDocumentCommentsMock.mockReturnValue({
+      data: {comments: [], authors: {}},
+      error: null,
+      isLoading: false,
+    })
+    useResourceMock.mockReturnValue({
+      data: {type: 'comment', comment: parentComment},
+      error: null,
+      isDiscovering: false,
+      isFetching: true,
+      isLoading: false,
+      isPreviousData: true,
+    })
+
+    renderCommentDiscussions()
+
+    expect(document.body.querySelector('button[aria-label="Add Comment to Bookmarks"]')).toBeNull()
   })
 
   it('bookmarks a comment snapshot from the comment header', () => {
