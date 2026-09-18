@@ -839,9 +839,32 @@ export async function contentToResolvedMarkdown(
 
 async function documentToResolvedMarkdownWithContext(doc: HMDocument, ctx: ResolveContext): Promise<string> {
   const lines = [emitFrontmatter(doc.metadata || {})]
-  const body = await blockNodesToResolvedMarkdown(doc.content || [], ctx)
+  const body = await blockNodesToResolvedMarkdown(resolvedDocumentContent(doc), ctx)
   if (body) lines.push(body)
   return lines.join('\n')
+}
+
+function resolvedDocumentContent(doc: HMDocument): HMBlockNode[] {
+  const content = doc.content || []
+  const root = content[0]
+  if (!doc.account || content.length !== 1 || root?.block.type !== 'Query') return content
+  const query = root.block.attributes?.query
+  const include = query?.includes?.[0]
+  if (query?.includes.length !== 1 || !include || include.space || include.path) return content
+
+  // Like the collection view, a sole query with an empty source targets its containing document.
+  return [
+    {
+      ...root,
+      block: {
+        ...root.block,
+        attributes: {
+          ...root.block.attributes,
+          query: {...query, includes: [{...include, space: doc.account, path: doc.path}]},
+        },
+      },
+    },
+  ]
 }
 
 async function blockNodesToResolvedMarkdown(nodes: HMBlockNode[], ctx: ResolveContext): Promise<string> {
@@ -983,6 +1006,7 @@ async function resolveQuery(block: HMBlock, depth: number, ctx: ResolveContext):
     let limit: number | undefined
 
     if (queryConfig?.includes) {
+      if (!queryConfig.includes[0]?.space) return ind + '<!-- Query: no space specified -->'
       includes = queryConfig.includes.map((inc) => ({
         space: inc.space,
         path: inc.path,
@@ -1120,7 +1144,7 @@ async function resolveEmbeddedResource(link: string, ctx: ResolveContext): Promi
     resolved = {
       label: resource.document.metadata?.name || fallbackDocLabel(id),
       type: 'document',
-      content: resource.document.content || [],
+      content: resolvedDocumentContent(resource.document),
       version: id.version || resource.document.version,
       latestVersion: resource.document.version,
     }
