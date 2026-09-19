@@ -1,6 +1,7 @@
 import {BlockNoteEditor, BlockSchema} from './blocknote/core'
 import {EditorContent} from '@tiptap/react'
 import {HTMLAttributes, ReactNode} from 'react'
+import {getEditorViewKey} from './editor-view-key'
 
 /**
  * Minimal BlockNote view that renders EditorContent without MantineProvider.
@@ -17,7 +18,7 @@ export function ReadOnlyBlockNoteView<BSchema extends BlockSchema>({
   children?: ReactNode
 } & HTMLAttributes<HTMLDivElement>) {
   return (
-    <EditorContent editor={editor._tiptapEditor || null} className={className} {...rest}>
+    <EditorContent key={getEditorViewKey(editor)} editor={editor._tiptapEditor || null} className={className} {...rest}>
       {children ?? <></>}
     </EditorContent>
   )
