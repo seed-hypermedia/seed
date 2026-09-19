@@ -896,6 +896,39 @@ describe('event info dialogs', () => {
 
     cleanupRendered(root, container)
   })
+
+  it('shows structured read output containing bigint document fields in the raw tool dialog', () => {
+    const address = 'hm://z6MkjtdhPwB2jbdp6V8mn8oobZycbqqEuP6nXouN12EZN4Wa/2022/3511095.3536366'
+    const {container, root} = renderToolPart({
+      type: 'tool',
+      id: 'tool-read-json',
+      name: 'read',
+      args: {address, format: 'json'},
+      rawOutput: {
+        type: 'hypermedia_document',
+        id: address,
+        format: 'json',
+        resource: {
+          type: 'document',
+          document: {
+            metadata: {name: 'Paper'},
+            generationInfo: {generation: BigInt('1789512675661')},
+            content: [{attributes: {largeInteger: BigInt('9007199254740993'), count: 2}}],
+          },
+        },
+      },
+    })
+
+    openToolDialog(container)
+    const output = document.body.querySelectorAll('[role="dialog"] pre')[1]?.textContent
+    expect(output).toContain('"generation": "1789512675661"')
+    expect(output).toContain('"largeInteger": "9007199254740993"')
+    expect(output).toContain('"count": 2')
+    expect(output).toContain('"name": "Paper"')
+    expect(output).not.toContain('[object Object]')
+
+    cleanupRendered(root, container)
+  })
 })
 
 describe('thinking group', () => {

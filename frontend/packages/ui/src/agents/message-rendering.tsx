@@ -791,7 +791,7 @@ function formatToolDebugValue(value: unknown): string {
   if (typeof value === 'string') return value
 
   try {
-    return JSON.stringify(value, null, 2)
+    return JSON.stringify(value, (_key, item) => (typeof item === 'bigint' ? item.toString() : item), 2)
   } catch {
     return String(value)
   }
