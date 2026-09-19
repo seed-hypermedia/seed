@@ -831,6 +831,38 @@ describe('trigger introspection (~/triggers/ and ~/self)', () => {
     expect(rows.length).toBe(1)
   })
 
+  test('agents can combine activity conditions and cannot reactivate a retired trigger', async () => {
+    const context = makeContext()
+    await executeWriteVerb(context, {
+      address: '~/triggers/mentions',
+      content: JSON.stringify({source: {type: 'user-mention', mentionedAccounts: ['z6MkMe']}, prompt: 'Reply.'}),
+    })
+    await executeWriteVerb(context, {
+      address: '~/triggers/comments',
+      content: JSON.stringify({source: {type: 'document-comment', resource: 'hm://site'}, prompt: 'Triage.'}),
+    })
+    await executeWriteVerb(context, {address: '~/triggers/mentions', options: {combineWith: 'comments'}})
+    const combined = await executeReadVerb(context, {address: '~/triggers/mentions'})
+    expect(combined.source).toMatchObject({
+      type: 'activity',
+      conditions: [{source: {type: 'user-mention'}}, {source: {type: 'document-comment'}}],
+    })
+    expect(combined.prompt).toBe('Reply.')
+    const retired = await executeReadVerb(context, {address: '~/triggers/comments'})
+    expect(retired.enabled).toBe(false)
+    expect(retired.mergedInto).toBe(combined.id)
+    await expect(
+      executeWriteVerb(context, {
+        address: '~/triggers/comments',
+        content: JSON.stringify({
+          source: {type: 'document-comment', resource: 'hm://site'},
+          prompt: 'Restart',
+          enabled: true,
+        }),
+      }),
+    ).rejects.toThrow('cannot be edited')
+  })
+
   test('headless continuations are validated when written and explained when read', async () => {
     const context = makeContext()
     const schedule = {type: 'schedule', schedule: {kind: 'interval', every: 1, unit: 'hours'}}

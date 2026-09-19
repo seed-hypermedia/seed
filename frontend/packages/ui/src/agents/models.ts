@@ -2341,6 +2341,20 @@ export function useDeleteAgentMemoryFile(serverUrl: string | undefined, accountU
   })
 }
 
+/** Combines activity triggers and refreshes both active configuration and retained history. */
+export function useCombineAgentTriggers(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async (input: Omit<import('@seed-hypermedia/agents-protocol').CombineAgentTriggers, '_'>) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      return sendAgentAction({serverUrl, accountUid, action: {_: 'CombineAgentTriggers', ...input}})
+    },
+    onSuccess() {
+      invalidateQueries(['agents', 'triggers', serverUrl, accountUid])
+      invalidateQueries(['agents', 'trigger', serverUrl, accountUid])
+    },
+  })
+}
+
 /** Creates an activity trigger for one agent. */
 export function useCreateAgentTrigger(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
@@ -2409,9 +2423,21 @@ export function useInvokeSessionTool(serverUrl: string | undefined, accountUid: 
  */
 export function useUpdateAgentTrigger(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
-    mutationFn: async ({triggerId, patch}: {triggerId: string; patch: AgentTriggerPatch}) => {
+    mutationFn: async ({
+      triggerId,
+      patch,
+      expectedUpdatedAt,
+    }: {
+      triggerId: string
+      patch: AgentTriggerPatch
+      expectedUpdatedAt?: number
+    }) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
-      return sendAgentAction({serverUrl, accountUid, action: {_: 'UpdateAgentTrigger', triggerId, patch}})
+      return sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: {_: 'UpdateAgentTrigger', triggerId, patch, expectedUpdatedAt},
+      })
     },
     async onMutate({triggerId, patch}) {
       if (!serverUrl || !accountUid) return undefined

@@ -1,3 +1,4 @@
+import {TriggerContextView} from './trigger-types'
 import {
   addOptimisticSessionMessage,
   describeAgentServer,
@@ -1030,6 +1031,17 @@ function AssistantSessionChat({
               </div>
             ) : null}
             {rows.map((row) => {
+              if (row.kind === 'trigger') {
+                return (
+                  <TriggerContextView
+                    key={row.key}
+                    context={row.context}
+                    instructions={row.instructions}
+                    serverUrl={serverUrl}
+                    agentId={session.data?.session.agentId}
+                  />
+                )
+              }
               if (row.kind === 'message')
                 return (
                   <ChatMessageBubble

@@ -14,6 +14,20 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Combining triggers preserves their original firings while the survivor inherits every claim.
+  `ALTER TABLE agent_triggers ADD COLUMN merged_into TEXT;
+  ALTER TABLE trigger_firings ADD COLUMN context_cbor BLOB;
+  CREATE TABLE trigger_event_claims (
+      account_id TEXT NOT NULL REFERENCES accounts (id),
+      trigger_id TEXT NOT NULL REFERENCES agent_triggers (id),
+      activity_key TEXT NOT NULL,
+      PRIMARY KEY (account_id, trigger_id, activity_key)
+  ) WITHOUT ROWID;
+  INSERT OR IGNORE INTO trigger_event_claims (account_id, trigger_id, activity_key)
+    SELECT account_id, trigger_id, activity_key FROM trigger_firings;
+  INSERT OR IGNORE INTO trigger_event_claims (account_id, trigger_id, activity_key)
+    SELECT account_id, trigger_id, 'blob-' || substr(activity_key, 9, instr(substr(activity_key, 9), '-') - 1)
+    FROM trigger_firings WHERE activity_key LIKE 'mention-%' AND instr(substr(activity_key, 9), '-') > 1;`,
   // Per-session thoroughness override (a THOROUGHNESS_PRESETS key, or NULL for the agent's own):
   // the delegation budget new runs in the session start with.
   `ALTER TABLE sessions ADD COLUMN thoroughness TEXT;`,

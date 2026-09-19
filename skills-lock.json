@@ -10,6 +10,12 @@
       "source": "chiroro-jr/pencil-design-skill",
       "sourceType": "github",
       "computedHash": "d85c4365810524de5ef0be5684e9e267556e083856e61e837470ac4d04ba5934"
+    },
+    "seed-cli": {
+      "source": "seed-hypermedia/skills",
+      "sourceType": "github",
+      "skillPath": "plugins/seed-hypermedia/skills/seed-cli/SKILL.md",
+      "computedHash": "923b66e25b260cc837c24111e3618f7fa4cd4f3165b1d3710f436fc3690a4d1e"
     }
   }
 }
