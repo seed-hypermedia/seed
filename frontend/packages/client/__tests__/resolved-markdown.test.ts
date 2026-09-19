@@ -167,17 +167,23 @@ describe('resolved markdown', () => {
     expect(c.request).not.toHaveBeenCalledWith('Account', 'site')
   })
 
-  it('resolves query blocks in shared resolved markdown', async () => {
+  it.each([
+    {space: 'site', path: '/', mode: 'Children', limit: 5},
+    {
+      query: {
+        includes: [{space: 'site', path: '/', mode: 'Children'}],
+        sort: [{term: 'updated', reverse: true}],
+        limit: 5,
+      },
+    },
+  ])('resolves query blocks in shared resolved markdown: %j', async (attributes) => {
     const c = client({
       'Query:{"includes":[{"space":"site","path":"/","mode":"Children"}],"sort":[{"term":"updated","reverse":true}],"limit":5}':
         {
           results: [{id: {id: 'hm://site/result', uid: 'site', path: ['result']}, metadata: {name: 'Query Result'}}],
         },
     })
-    const markdown = await documentToResolvedMarkdown(
-      doc('Root', [query('q1', {space: 'site', path: '/', mode: 'Children', limit: 5})]),
-      {client: c},
-    )
+    const markdown = await documentToResolvedMarkdown(doc('Root', [query('q1', attributes)]), {client: c})
 
     expect(c.request).toHaveBeenCalledWith('Query', {
       includes: [{space: 'site', path: '/', mode: 'Children'}],
@@ -185,6 +191,87 @@ describe('resolved markdown', () => {
       limit: 5,
     })
     expect(markdown).toContain('- [Query Result](hm://site/result)')
+  })
+
+  it.each([
+    {query: {includes: [{space: '', path: '', mode: 'Children'}], sort: [{term: 'updated', reverse: true}]}},
+    {query: {includes: []}},
+    {space: '', path: '', mode: 'Children'},
+  ])('does not execute queries without a source or document context: %j', async (attributes) => {
+    const c = client({})
+    const markdown = await documentToResolvedMarkdown(doc('Proceedings', [query('FQ17xO8a', attributes)]), {
+      client: c,
+    })
+
+    expect(markdown).toContain('<!-- Query: no space specified --> <!-- id:FQ17xO8a -->')
+    expect(c.request).not.toHaveBeenCalled()
+  })
+
+  it.each(['/pro', ''])('resolves an empty collection source relative to its document at %j', async (path) => {
+    const input = {
+      includes: [{space: 'site', path, mode: 'Children'}],
+      sort: [{term: 'updated', reverse: true}],
+      limit: 10,
+    }
+    const c = client({
+      [`Query:${JSON.stringify(input)}`]: {
+        results: [{id: {id: `hm://site${path}/paper`, uid: 'site'}, metadata: {name: 'Paper'}}],
+      },
+    })
+    const document = {
+      ...doc('Proceedings', [
+        query('FQ17xO8a', {
+          query: {includes: [{space: '', path: '', mode: 'Children'}], sort: [{term: 'updated', reverse: true}]},
+        }),
+      ]),
+      account: 'site',
+      path,
+    }
+
+    const markdown = await documentToResolvedMarkdown(document, {client: c})
+
+    expect(c.request).toHaveBeenCalledWith('Query', input)
+    expect(markdown).toContain(`- [Paper](hm://site${path}/paper)`)
+    expect(document.content[0].block.attributes.query.includes[0].space).toBe('')
+  })
+
+  it('resolves an embedded collection against the embedded document', async () => {
+    const c = client({
+      'Resource:hm://other/pro': {
+        type: 'document',
+        document: {
+          ...doc('Proceedings', [query('q1', {query: {includes: [{space: '', path: '', mode: 'Children'}]}})]),
+          account: 'other',
+          path: '/pro',
+        },
+      },
+      'Query:{"includes":[{"space":"other","path":"/pro","mode":"Children"}],"sort":[{"term":"updated","reverse":true}],"limit":10}':
+        {results: [{id: {id: 'hm://other/pro/paper', uid: 'other'}, metadata: {name: 'Paper'}}]},
+    })
+    const markdown = await documentToResolvedMarkdown(
+      {...doc('Root', [embed('e1', 'hm://other/pro')]), account: 'site', path: '/home'},
+      {client: c},
+    )
+
+    expect(markdown).toContain('- [Paper](hm://other/pro/paper)')
+  })
+
+  it('does not treat an empty query alongside other content as a collection', async () => {
+    const c = client({})
+    const markdown = await documentToResolvedMarkdown(
+      {
+        ...doc('Root', [
+          paragraph('p1', 'Body'),
+          query('q1', {query: {includes: [{space: '', path: '', mode: 'Children'}]}}),
+        ]),
+        account: 'site',
+        path: '/pro',
+      },
+      {client: c},
+    )
+
+    expect(markdown).toContain('<!-- Query: no space specified -->')
+    expect(c.request).not.toHaveBeenCalled()
   })
 
   it('resolves block embeds while rendering standalone block content', async () => {
