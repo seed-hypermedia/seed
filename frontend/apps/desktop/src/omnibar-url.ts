@@ -20,6 +20,20 @@ function getUrlHostname(url?: string | null): string | null {
   }
 }
 
+/** Parses a typed web address, allowing bare domains while leaving search text and other schemes alone. */
+export function parseBrowserAddress(input: string): string | null {
+  const value = input.trim()
+  const explicitHttp = /^https?:\/\//i.test(value)
+  if (!explicitHttp && (/\s/.test(value) || (!value.includes('.') && !/^localhost(?::|\/|$)/.test(value)))) return null
+  if (!explicitHttp && /^[a-z][a-z\d+.-]*:/i.test(value) && !/^localhost:\d/.test(value)) return null
+  try {
+    const url = new URL(explicitHttp ? value : `${/^localhost(?::|\/|$)/.test(value) ? 'http' : 'https'}://${value}`)
+    return url.hostname && !url.username && !url.password ? url.href : null
+  } catch {
+    return null
+  }
+}
+
 /**
  * Returns the current site's custom domain only when it is actively resolving
  * to the same account as the page shown in the desktop omnibar.

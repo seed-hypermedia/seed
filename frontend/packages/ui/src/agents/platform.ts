@@ -109,6 +109,8 @@ export type AgentsSignerDelegation = {
 }
 
 export type AgentsPlatform = {
+  /** Session-bound desktop browser bridge and its visible access controls; absent on the web. */
+  BrowserTools?: React.ComponentType<{serverUrl: string; sessionId: string; accountUid: string; toolEnabled: boolean}>
   /** Built-in default agent server URL for this runtime, or null when there is none. */
   defaultServerUrl: () => string | null
   /** Returns a signer whose principal is the given account, used to sign agent actions. */

@@ -504,6 +504,26 @@ const DraftWriteSchema = z.object({
   maintenanceRevision: z.number().int().nonnegative().default(0),
 })
 
+/** Saves a captured website as a local editable draft, without publishing or uploading its contents. */
+export function createBrowserArchiveDraft(
+  archive: import('./app-browser-agent').BrowserArchive,
+  accountUid: string,
+): Promise<{id: string}> {
+  return serializeDraftMutation(() =>
+    writeDraft(
+      DraftWriteSchema.parse({
+        id: '',
+        locationUid: accountUid,
+        locationPath: [],
+        signingAccount: accountUid,
+        metadata: archive.metadata,
+        content: hmBlocksToEditorContent(archive.blocks),
+        visibility: 'PUBLIC',
+      }),
+    ),
+  )
+}
+
 async function getDraft(draftId: string): Promise<HMDraft | null> {
   const entry = draftIndex?.find((draft) => draft.id === draftId)
   if (!entry) return null

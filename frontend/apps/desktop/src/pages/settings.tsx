@@ -143,11 +143,32 @@ export default function Settings() {
 }
 
 function AdvancedSettings() {
+  const experiments = useUniversalAppContext().experiments
+  const writeExperiments = useWriteExperiments()
   return (
     <>
       <SizableText size="2xl" weight="bold">
         Advanced
       </SizableText>
+      <SettingsCard label="EXPERIMENTAL WEB BROWSER">
+        <SettingsRow
+          label="Integrated Web Browser"
+          description="Open web links inside Seed, with shared Back and Forward history. Websites appear alongside your sidebar and agents. This feature is experimental."
+          right={
+            <Button
+              size="sm"
+              variant="outline"
+              role="switch"
+              aria-checked={!!experiments?.webBrowser}
+              aria-label="Experimental web browser"
+              disabled={writeExperiments.isLoading}
+              onClick={() => writeExperiments.mutate({webBrowser: !experiments?.webBrowser})}
+            >
+              {experiments?.webBrowser ? 'Disable Web Browser' : 'Enable Web Browser'}
+            </Button>
+          }
+        />
+      </SettingsCard>
       <DeveloperSettings />
     </>
   )

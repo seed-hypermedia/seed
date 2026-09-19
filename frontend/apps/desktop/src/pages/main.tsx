@@ -41,6 +41,8 @@ import {BaseLoading, NotFoundPage} from './base'
 import {DocumentPlaceholder} from './document-placeholder'
 import './polyfills'
 
+const WebBrowser = lazy(() => import('./web-browser').then((module) => ({default: module.WebBrowser})))
+
 var Onboarding = lazy(() => import('./onboarding'))
 var Settings = lazy(() => import('./settings'))
 var AccountSettings = lazy(() => import('./account-settings'))
@@ -161,6 +163,10 @@ export default function Main({className}: {className?: string}) {
 
   const {platform} = useAppContext()
   const {PageComponent, Fallback} = useMemo(() => getPageComponent(navR), [navR])
+  const [browserMounted, setBrowserMounted] = useState(navR.key === 'web')
+  useEffect(() => {
+    if (navR.key === 'web') setBrowserMounted(true)
+  }, [navR.key])
   // Reset route-scoped crashes on navigation without forcing the entire page tree
   // to unmount. Document routes share a single page component and rely on staying
   // mounted so the site header and editor state do not flash between navigations.
@@ -253,7 +259,8 @@ export default function Main({className}: {className?: string}) {
                         inside the panel. Without this, the lazy import suspends all the way to the
                         root boundary and the whole window — chrome included — becomes a spinner. */}
                     <Suspense fallback={<Fallback />}>
-                      <PageComponent />
+                      {(browserMounted || navR.key === 'web') && <WebBrowser />}
+                      {navR.key !== 'web' && <PageComponent />}
                     </Suspense>
                   </ErrorBoundary>
                 </Panel>
