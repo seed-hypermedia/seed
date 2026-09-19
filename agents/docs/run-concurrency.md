@@ -38,8 +38,10 @@ Read: **the event loop is healthy at 2 runs** — the cap is now throttling thro
 `run.dispatch_delay` p95/max are inflated: the metric measures from `created_at` even for a parked parent that was
 requeued hours later (its wait should be measured from the requeue). Fix that before reading it as queue pressure.
 
-Sandbox CPU is bounded separately by `SEED_AGENTS_EXEC_MAX_VMS` (default 3), so raising the model-run cap does not raise
-sandbox CPU.
+Sandbox CPU is **not** bounded separately. `SEED_AGENTS_EXEC_MAX_VMS` (default 3) is the retained warm-pool size, not a
+concurrency limit — overflow VMs are unbounded (`code-exec.ts`: "the cap can never make a call fail or wait"), so
+raising the model-run cap raises sandbox CPU in proportion to how many `execute` calls those runs issue in parallel. A
+real cap is proposed in `per-account-quotas-and-accounting.md`.
 
 ## What a "model run" costs the main thread
 
