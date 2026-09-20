@@ -120,6 +120,9 @@ export async function startDaemon(config: TestConfig = {}): Promise<TestContext>
   const p2pPort = config.p2pPort || basePort + 2
 
   const dataDir = mkdtempSync(join(tmpdir(), 'seed-cli-test-'))
+  // Tests run in headless environments where an OS keyring service may not be
+  // available. Keep daemon credentials inside the already-ephemeral data dir.
+  const keystoreDir = join(dataDir, 'keystore')
 
   console.log(`[test] Starting daemon with testnet: ${testnetName}`)
   console.log(`[test] Data dir: ${dataDir}`)
@@ -137,7 +140,7 @@ export async function startDaemon(config: TestConfig = {}): Promise<TestContext>
     '/bin/sh',
     [
       '-c',
-      `cd "${daemonPath}" && "${goBinary}" run . -data-dir="${dataDir}" -http.port=${httpPort} -grpc.port=${grpcPort} -p2p.port=${p2pPort} -log-level=warn${
+      `cd "${daemonPath}" && "${goBinary}" run . -data-dir="${dataDir}" -keystore-dir="${keystoreDir}" -http.port=${httpPort} -grpc.port=${grpcPort} -p2p.port=${p2pPort} -log-level=warn${
         config.bootstrapPeers ? ` -p2p.bootstrap-peers="${config.bootstrapPeers}"` : ''
       }`,
     ],

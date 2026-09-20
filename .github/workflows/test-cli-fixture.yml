@@ -1,0 +1,106 @@
+name: CLI Fixture Tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/test-cli-fixture.yml'
+      - 'backend/**'
+      - 'frontend/apps/cli/**'
+      - 'frontend/apps/web/**'
+      - 'frontend/packages/client/**'
+      - 'frontend/packages/shared/**'
+      - 'test-fixtures/**'
+      - 'pnpm-lock.yaml'
+
+concurrency:
+  group: cli-fixture-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cli-fixture-tests:
+    name: CLI daemon fixture tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.10'
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.2'
+
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake gnome-keyring libsecret-tools
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Cache GGUF model
+        uses: actions/cache@v4
+        with:
+          path: backend/llm/backends/llamacpp/models/*.gguf
+          key: gguf-model-granite-v2
+          enableCrossOsArchive: true
+
+      - name: Download GGUF model
+        run: |
+          model=backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf
+          if [ ! -f "$model" ]; then
+            mkdir -p "$(dirname "$model")"
+            curl -fSL -o "$model" \
+              "https://huggingface.co/keisuke-miyako/granite-embedding-107m-multilingual-gguf-q8_0/resolve/main/granite-embedding-107m-multilingual-Q8_0.gguf?download=true"
+          fi
+
+      - name: Compute llama-go submodule SHA
+        id: llama-sha
+        run: echo "sha=$(git -C backend/util/llama-go rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache llama.cpp build
+        id: llama-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            backend/util/llama-go/libbinding.a
+            backend/util/llama-go/libllama.a
+            backend/util/llama-go/libggml*.a
+            backend/util/llama-go/libcommon.a
+            backend/util/llama-go/build
+          key: llama-cpu-linux-${{ runner.arch }}-${{ steps.llama-sha.outputs.sha }}
+
+      - name: Build llama.cpp (CPU-only)
+        if: steps.llama-cache.outputs.cache-hit != 'true'
+        run: |
+          cd backend/util/llama-go
+          CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_SYCL=OFF -DGGML_BLAS=OFF" make libbinding.a
+
+      # The package script boots one daemon and one web dev server for the whole
+      # fixture suite, so the native stack is compiled once rather than per test.
+      - name: Run CLI fixture tests
+        run: |
+          dbus-run-session -- bash -c '
+            eval "$(printf %s ci-test-keyring | gnome-keyring-daemon --unlock)"
+            pnpm --filter @seed-hypermedia/cli test
+          '
+        env:
+          CGO_ENABLED: '1'
+          GOFLAGS: '-tags=cpu'
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
