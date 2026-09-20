@@ -50,6 +50,7 @@ const FM_KEY_ORDER = [
   'summary',
   'icon',
   'cover',
+  'coverPosition',
   'displayAuthor',
   'displayPublishTime',
   'schema',

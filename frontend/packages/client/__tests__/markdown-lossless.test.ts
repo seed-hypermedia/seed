@@ -327,6 +327,7 @@ describe('lossless: metadata', () => {
       summary: 'A summary: with punctuation, "quotes" and #hashes',
       icon: 'ipfs://bafyicon',
       cover: 'ipfs://bafycover',
+      coverPosition: {x: 25, y: 80},
       siteUrl: 'https://example.com',
       layout: 'Seed/Experimental/Newspaper',
       displayPublishTime: '2024-01-01',

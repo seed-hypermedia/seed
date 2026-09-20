@@ -28,6 +28,12 @@ describe('HMDocumentMetadataSchema preserves custom metadata (open attribute map
     })
   })
 
+  it('validates the built-in cover focal position', () => {
+    expect(HMDocumentMetadataSchema.parse({coverPosition: {x: 25, y: 80}}).coverPosition).toEqual({x: 25, y: 80})
+    expect(() => HMDocumentMetadataSchema.parse({coverPosition: {x: 25.5, y: 80}})).toThrow()
+    expect(() => HMDocumentMetadataSchema.parse({coverPosition: {x: -1, y: 80}})).toThrow()
+  })
+
   it('still validates and keeps known fields', () => {
     const parsed = HMDocumentMetadataSchema.parse({name: 'Doc', showOutline: true})
     expect(parsed.name).toBe('Doc')

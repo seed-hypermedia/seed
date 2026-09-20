@@ -110,6 +110,23 @@ describe('getDocAttributeChanges', () => {
       .filter((c) => c.op.case === 'setAttribute' && c.op.value.value.case === 'nullValue')
       .map((c) => (c.op.case === 'setAttribute' ? c.op.value.key.join('.') : ''))
 
+  it('publishes and clears nested cover focal coordinates', () => {
+    const changes = getDocAttributeChanges({coverPosition: {x: 25, y: 80}} as never)
+    const values = new Map(
+      changes.map((change) => {
+        if (change.op.case !== 'setAttribute') throw new Error('expected setAttribute')
+        return [change.op.value.key.join('.'), change.op.value.value]
+      }),
+    )
+    expect(values.get('coverPosition.x')).toMatchObject({case: 'intValue', value: 25n})
+    expect(values.get('coverPosition.y')).toMatchObject({case: 'intValue', value: 80n})
+
+    const removed = expandObjectRemovals({coverPosition: null} as never, {coverPosition: {x: 25, y: 80}} as never)
+    expect(nullKeys(getDocAttributeChanges(removed))).toEqual(
+      expect.arrayContaining(['coverPosition.x', 'coverPosition.y']),
+    )
+  })
+
   it('deleting an object field emits a null removal for the key', () => {
     // Row "Remove" stages { obj: null }.
     const changes = getDocAttributeChanges({name: 'x', obj: null} as Record<string, unknown>)

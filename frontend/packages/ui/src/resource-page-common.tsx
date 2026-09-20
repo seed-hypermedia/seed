@@ -1938,16 +1938,26 @@ function DocumentBody({
   )
   const removeCover = useCallback(() => {
     beginEditIfNeeded()
-    send({type: 'change', metadata: {cover: ''}})
+    send({type: 'change', metadata: {cover: '', coverPosition: null}})
   }, [beginEditIfNeeded, send])
   const changeCover = useCallback(
     async (file: File) => {
       if (!fileUpload) return
       const cid = await fileUpload(file)
       beginEditIfNeeded()
-      send({type: 'change', metadata: {cover: cid.startsWith('ipfs://') ? cid : `ipfs://${cid}`}})
+      send({
+        type: 'change',
+        metadata: {cover: cid.startsWith('ipfs://') ? cid : `ipfs://${cid}`, coverPosition: null},
+      })
     },
     [beginEditIfNeeded, fileUpload, send],
+  )
+  const changeCoverPosition = useCallback(
+    (coverPosition: {x: number; y: number}) => {
+      beginEditIfNeeded()
+      send({type: 'change', metadata: {coverPosition}})
+    },
+    [beginEditIfNeeded, send],
   )
 
   // Capture the editor instance locally and forward to upstream onEditorReady.
@@ -2718,6 +2728,8 @@ function DocumentBody({
       {documentConversionDialog}
       <DocumentCover
         cover={metadata?.cover}
+        position={metadata?.coverPosition}
+        onChangePosition={canEditCurrentRoute && metadata?.cover ? changeCoverPosition : undefined}
         onRemove={canEditCurrentRoute && metadata?.cover ? removeCover : undefined}
         onChangeCover={canEditCurrentRoute && metadata?.cover && fileUpload ? changeCover : undefined}
       />
