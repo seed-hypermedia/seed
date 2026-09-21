@@ -9,7 +9,7 @@ import {afterAll, beforeAll, describe, expect, test} from 'bun:test'
 import {createComment, createSeedClient, type SeedClient} from '@seed-hypermedia/client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {unzipSync} from 'fflate'
-import {mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {createSignerFromKey} from '../utils/signer'
@@ -58,13 +58,19 @@ describe('space archive', () => {
     mkdirSync(join(dir, 'about'), {recursive: true})
     writeFileSync(join(dir, 'pic.png'), PNG)
     writeFileSync(join(dir, 'big.png'), BIG_PNG)
-    writeFileSync(join(dir, 'notes.md'), '# Notes\n\nFirst draft.\n\n![A pixel](./pic.png)\n\n![A big one](./big.png)\n')
+    writeFileSync(
+      join(dir, 'notes.md'),
+      '# Notes\n\nFirst draft.\n\n![A pixel](./pic.png)\n\n![A big one](./big.png)\n',
+    )
     writeFileSync(join(dir, 'about/team.md'), '# Team\n\nWho we are.\n')
     const opts = {client: clientA, signer: createSignerFromKey(account.keyPair), account: account.accountId, dir}
     await importSpace({...opts, only: ['notes.md', 'about/team.md']})
 
     // History: a second change on notes.
-    writeFileSync(join(dir, 'notes.md'), '# Notes\n\nSecond draft.\n\n![A pixel](./pic.png)\n\n![A big one](./big.png)\n')
+    writeFileSync(
+      join(dir, 'notes.md'),
+      '# Notes\n\nSecond draft.\n\n![A pixel](./pic.png)\n\n![A big one](./big.png)\n',
+    )
     await importSpace({...opts, only: ['notes.md']})
 
     // A move: /about/team -> /people (Version Ref at the new path, Redirect Ref at the old).
@@ -216,4 +222,64 @@ describe('space archive', () => {
     expect(result.exitCode).toBe(1)
     expect(result.stderr + result.stdout).toContain('bytes do not match the CID')
   })
+
+  test('restore --dry-run verifies a blob archive without publishing', async () => {
+    const result = await runCli(['space', 'restore', join(work, 'blobs.zip'), '--dry-run'], {server: b.webServerUrl})
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout + result.stderr).toContain('would publish')
+  })
+
+  test(
+    'a blob archive without comments leaves the Comment blobs out',
+    async () => {
+      const zip = join(work, 'no-comments.zip')
+      const archived = await runCli(
+        ['space', 'archive', `hm://${account.accountId}`, '--format', 'blobs', '--no-comments', '-o', zip],
+        {server: a.webServerUrl},
+      )
+      expect(archived.exitCode).toBe(0)
+      const {manifest} = readManifest(zip)
+      expect(manifest.blobs!.some((blob) => blob.type === 'Comment')).toBe(false)
+      expect(manifest.blobs!.some((blob) => blob.type === 'Change')).toBe(true)
+    },
+    TIMEOUT,
+  )
+
+  test('archive refuses a format it does not know', async () => {
+    const result = await runCli(
+      ['space', 'archive', `hm://${account.accountId}`, '--format', 'tar', '-o', join(work, 'never.zip')],
+      {server: a.webServerUrl},
+    )
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr + result.stdout).toContain('--format must be markdown or blobs')
+    expect(existsSync(join(work, 'never.zip'))).toBe(false)
+  })
+
+  test('restore refuses to import a markdown archive into a space the key does not own', async () => {
+    const stranger = generateTestAccount()
+    const result = await runCli(
+      ['space', 'restore', join(work, 'markdown.zip'), '--into', `hm://${account.accountId}`, '--dry-run'],
+      {server: b.webServerUrl, env: {SEED_CLI_MNEMONIC: stranger.mnemonic}},
+    )
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr + result.stdout).toContain('does not own space')
+  })
+
+  test(
+    'space export --assets downloads the linked files beside the markdown',
+    async () => {
+      const dir = join(work, 'exported-assets')
+      const result = await runCli(['space', 'export', `hm://${account.accountId}`, '--dir', dir, '--assets'], {
+        server: a.webServerUrl,
+      })
+      expect(result.exitCode).toBe(0)
+      const notesMd = readFileSync(join(dir, 'notes.md'), 'utf8')
+      expect(notesMd).not.toContain('ipfs://')
+      const links = [...notesMd.matchAll(/\]\(\.\/(assets\/[a-z0-9]+\.png)\)/g)].map((m) => m[1]!)
+      expect(links).toHaveLength(2)
+      expect(readFileSync(join(dir, links[0]!)).equals(PNG)).toBe(true)
+      expect(readFileSync(join(dir, links[1]!)).equals(BIG_PNG)).toBe(true)
+    },
+    TIMEOUT,
+  )
 })
