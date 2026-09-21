@@ -14,7 +14,7 @@
 //   link         -> HMLink (the dag-json {'/': cid} form)
 //   any          -> unknown
 //   a literal    -> a literal type ("Change", 1, true, null)
-//   anyOf        -> union
+//   anyOf        -> union (an empty union is never)
 //   ref          -> the referenced schema's generated type name
 //   extension    -> Base & {added/overridden fields} (literal `type` narrows the base)
 //   generics     -> params -> <T = Default>, var -> T, args -> Name<Arg> (1:1 with TS)
@@ -140,7 +140,7 @@ function emit(node, env, pad = '') {
 
   if (node.anyOf) {
     const parts = [...new Set(node.anyOf.map((v) => emit(v, env, pad)))]
-    return parts.join(' | ')
+    return parts.length ? parts.join(' | ') : 'never'
   }
 
   const named = namedSchemaUrl(node)

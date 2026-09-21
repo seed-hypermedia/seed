@@ -25,6 +25,10 @@ afterEach(() => {
 })
 
 describe('seedValue', () => {
+  it('has no default for none, while null has the default null', () => {
+    expect(seedValue(HM_SCHEMAS['none'])).toBeUndefined()
+    expect(seedValue(HM_SCHEMAS['null'])).toBeNull()
+  })
   it('synthesizes a map default with required keys for example-geo', () => {
     const seed = seedValue(HM_SCHEMAS['example/geo']) as Record<string, unknown>
     expect(seed).toMatchObject({lat: 0, lng: 0})
@@ -36,6 +40,14 @@ describe('seedValue', () => {
 })
 
 describe('SchemaDataEditor', () => {
+  it('renders none without attempting to select a nonexistent union arm', () => {
+    const schema = HM_SCHEMAS['none']
+    act(() => {
+      root.render(<SchemaDataEditor schema={schema} value={seedValue(schema)} onValue={() => {}} />)
+    })
+    expect(container.textContent).toContain('No value satisfies this schema.')
+    expect(container.querySelector('select')).toBeNull()
+  })
   it('renders map fields (required + optional) for example-geo without throwing', () => {
     const schema = HM_SCHEMAS['example/geo']
     act(() => {

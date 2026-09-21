@@ -8,6 +8,8 @@ This document describes the **schema/anyof** type, one [variant](./variant.md) o
 
 A union lists alternative schemas under `anyOf`. A value is valid if it matches any of them. When every arm is a [literal](./literal-schema.md), the union is a fixed set of choices, such as `{"anyOf": ["draft", "published", "archived"]}`. The editors offer that union as a dropdown. <!-- id:_g0zYO8Q -->
 
+An empty union, `{"anyOf": []}`, accepts no values. The library names this schema [none](../none.md). It differs from the literal schema `null`, which accepts the single value `null`. <!-- id:54sH8-hG -->
+
 # See also <!-- id:xg9bzB-w -->
 
 - [Discriminated union](./discriminated-union.md): how the meta-schema tells its variants apart. <!-- id:va1B0ATe -->

@@ -28,14 +28,18 @@ In one sentence: **include embeds a shape, and link points across blocks.** `per
 
 Target-type checking on a typed link is **lazy**. The validator cannot confirm the target matches `example/person` without fetching that block. So it checks now that the link is well-formed, and it checks the target type at resolution time. The reference validator works this way. <!-- id:LqRoXxvp -->
 
-## Why references cannot be CIDs <!-- id:f5ZpgAnC -->
+## Direct references by CID <!-- id:directSchemaCid -->
+
+A schema can include or extend another raw schema blob using `"type": "ipfs://<schema-cid>"`. This pins the referenced schema's exact bytes and needs no document. It works when the dependency graph is acyclic: publish the base schema first, then use its CID in the dependent schema. [The raw Person and Employee example](./encoding.md#rawPersonEmployee) shows this alongside the instance's separate `schema` link. <!-- id:directSchemaCidText -->
+
+## Why recursive references cannot all be CIDs <!-- id:f5ZpgAnC -->
 
 One way to publish content-addressed schemas is to replace every reference with a CID. A build step would: <!-- id:XDQnu6gS -->
   1. encode each schema to DAG-CBOR (see [encoding](./encoding.md)), <!-- id:yi-3JoZG -->
   2. compute its CID, <!-- id:xfljZeXh -->
   3. rewrite every reference to that schema into its CID. <!-- id:GF9F_NmT -->
 
-`{ "type": "example/address" }` would become `{ "type": <cid-of-address-block> }`. The graph stays the same, but it resolves by content hash instead of by name. For an **acyclic** set of schemas this is a clean bottom-up pass: encode the leaves, get their CIDs, then encode their parents, and so on up to the root. Hypermedia Schemas do not use this approach, because it fails on cycles. <!-- id:s9WK8Gv8 -->
+`{ "type": "example/address" }` would become `{ "type": "ipfs://<cid-of-address-block>" }`. The graph stays the same, but it resolves by content hash instead of by name. For an **acyclic** set of schemas this is a clean bottom-up pass: encode the leaves, get their CIDs, then encode their parents, and so on up to the root. The bundled Hypermedia Schemas library does not rewrite all references this way, because it fails on cycles. <!-- id:s9WK8Gv8 -->
 
 ## The meta-schema's fixpoint <!-- id:NqDWNSWI -->
 
