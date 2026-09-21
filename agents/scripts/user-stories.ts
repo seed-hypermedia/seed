@@ -52,7 +52,7 @@ const url = (p: string) => `hm://${account}${p ? '/' + p : ''}`
 
 /** The Hypermedia schema library space; kind URLs are `hm://<library>/hypermedia-<kind>`. */
 const LIBRARY = 'hm://hyper.media'
-const KIND = (kind: string) => `${LIBRARY}/hypermedia-${kind}`
+const KIND = (kind: string) => `${LIBRARY}/${kind}`
 
 /** The Person type (story 5): name and surname required, an optional ISO birth date. */
 const PERSON_SCHEMA = {
@@ -66,10 +66,10 @@ const PERSON_SCHEMA = {
 
 /** The Vote type (story 7): the signed-blob envelope plus a pinned type tag and two fields. */
 const VOTE_SCHEMA = {
-  ref: `${LIBRARY}/hypermedia-blob`,
+  type: `${LIBRARY}/blob`,
   properties: {
     type: {value: 'Vote', required: true},
-    target: {value: {ref: `${LIBRARY}/hypermedia-hm-url`}, required: true},
+    target: {value: {type: `${LIBRARY}/hm-url`}, required: true},
     choice: {value: {anyOf: ['yes', 'no']}, required: true},
   },
 }
@@ -177,23 +177,23 @@ try {
       const result = await verb('write', {
         address: 'ipfs://',
         content: JSON.stringify(PERSON_SCHEMA),
-        options: {schema: 'hypermedia-schema'},
+        options: {schema: 'schema'},
       })
       assert(result.type === 'ipfs_object_write_result', `result type ${result.type}`)
       assert(typeof result.cid === 'string' && result.url === `ipfs://${result.cid}`, 'result lacks the cid')
-      assert(result.schema === 'hypermedia-schema', `result.schema = ${result.schema}`)
+      assert(result.schema === 'schema', `result.schema = ${result.schema}`)
       assert(result.warnings === undefined, `unexpected warnings ${JSON.stringify(result.warnings)}`)
       personSchemaCid = result.cid
       // A schema that is not a schema is refused, with the violations spelled out.
       const refused = await verb('write', {
         address: 'ipfs://',
         content: JSON.stringify({type: `${LIBRARY}/struct`, properties: 'not a map'}),
-        options: {schema: 'hypermedia-schema'},
+        options: {schema: 'schema'},
       }).then(
         () => null,
         (error: Error) => error.message,
       )
-      assert(refused && refused.includes('does not conform to hypermedia-schema'), `refusal: ${refused}`)
+      assert(refused && refused.includes('does not conform to schema'), `refusal: ${refused}`)
     },
   )
   await step(
@@ -210,7 +210,7 @@ try {
       const read = await verb('read', {address: url('types/person')})
       assert(read.metadata?.schemaDefinition === `ipfs://${personSchemaCid}`, 'page lacks schemaDefinition')
       // The blob behind the page reads back as an object that conforms to the meta-schema.
-      const blob = await verb('read', {address: `ipfs://${personSchemaCid}`, options: {schema: 'hypermedia-schema'}})
+      const blob = await verb('read', {address: `ipfs://${personSchemaCid}`, options: {schema: 'schema'}})
       assert(blob.type === 'ipfs_object', `blob type ${blob.type}`)
       assert(blob.signature === null, 'a schema blob is not signed')
       assert(blob.schema?.violations?.length === 0, `schema check ${JSON.stringify(blob.schema)}`)
@@ -332,7 +332,7 @@ try {
       const result = await verb('write', {
         address: 'ipfs://',
         content: JSON.stringify(VOTE_SCHEMA),
-        options: {schema: 'hypermedia-schema'},
+        options: {schema: 'schema'},
       })
       assert(typeof result.cid === 'string' && result.warnings === undefined, `result ${JSON.stringify(result)}`)
       voteSchemaCid = result.cid
@@ -343,7 +343,7 @@ try {
       })
       assert(page.warnings === undefined, `page warnings ${JSON.stringify(page.warnings)}`)
       const blob = await verb('read', {address: `ipfs://${voteSchemaCid}`})
-      assert(blob.value?.ref === `${LIBRARY}/hypermedia-blob`, 'the schema extends hypermedia-blob')
+      assert(blob.value?.type === `${LIBRARY}/blob`, 'the schema extends blob')
     },
   )
 

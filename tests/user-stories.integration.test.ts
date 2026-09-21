@@ -538,8 +538,8 @@ describe('Agent', () => {
       passed('read hm://<doc> names the schema the document conforms to and its required fields'))
   })
   describe('2. Give a document custom metadata', () => {
-    it('write with options.metadata sets custom keys and the schema field', () =>
-      passed('write with options.metadata sets custom keys and the schema field'))
+    it('write with options.metadata sets custom keys and the attributesSchema field', () =>
+      passed('write with options.metadata sets custom keys and the attributesSchema field'))
   })
   describe('3. Give the direct children of a document a type', () => {
     it('write childAttributesSchema on a folder; a child written under it carries no schema of its own', () =>
