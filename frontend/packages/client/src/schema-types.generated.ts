@@ -1260,6 +1260,13 @@ export type HMNavigationItem = {
 }
 
 /**
+ * None
+ * The bottom type, which accepts no values and is defined as an empty union.
+ * Schema: hm://hyper.media/none
+ */
+export type HMNone = never
+
+/**
  * Principal
  * A public key that identifies an account or space, stored in blobs as the raw bytes of a multicodec prefix plus the key and shown to people as a base58 string starting with z6Mk.
  * A public key that identifies an account or space, stored as multicodec-prefixed key bytes and shown as a `z6Mk…` string.

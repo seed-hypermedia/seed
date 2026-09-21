@@ -219,6 +219,7 @@ export function validate(schema0, data, path = "$", env0 = {}) {
 
   // union: matches if it matches any variant.
   if (schema.anyOf) {
+    if (schema.anyOf.length === 0) return [`${path}: no value matches an empty union (none)`];
     const attempts = schema.anyOf.map((v) => validate(v, data, path, env));
     if (attempts.some((e) => e.length === 0)) return [];
     const topLevel = (errs) => errs.some((e) => e.startsWith(`${path}: expected`));
@@ -360,6 +361,35 @@ failed += reportReject("literal rejects another value", validate("draft", "publi
 failed += reportReject("literal rejects another kind", validate(1, "1"));
 failed += report("null literal accepts null", validate(null, null));
 failed += reportReject("null literal rejects a string", validate(null, "null"));
+failed += report("an empty union is a schema", validate(meta, { anyOf: [] }));
+const none = { type: U("none") };
+for (const value of [null, false, true, 0, 1.5, "", "null", [], {}, bytes("QQ"), cid("bafy")]) {
+  failed += reportReject(`none rejects ${JSON.stringify(value)}`, validate(none, value));
+  failed += reportReject(`empty union rejects ${JSON.stringify(value)}`, validate({ anyOf: [] }, value));
+  failed += report(`any accepts ${JSON.stringify(value)}`, validate({ type: U("any") }, value));
+  for (const nullSchema of [null, { type: U("null") }]) {
+    const check = value === null ? report : reportReject;
+    failed += check(`null schema ${value === null ? "accepts" : "rejects"} ${JSON.stringify(value)}`, validate(nullSchema, value));
+  }
+}
+failed += report("none does not prevent another union arm from matching", validate({ anyOf: [none, null] }, null));
+failed += reportReject("none adds no values to a union", validate({ anyOf: [none, null] }, false));
+for (const [schema, empty, nonempty] of [
+  [{ type: U("list"), items: none }, [], [null]],
+  [{ type: U("map"), values: none }, {}, { extra: null }],
+]) {
+  failed += report("a container of none accepts the empty container", validate(schema, empty));
+  failed += reportReject("a container of none rejects an element", validate(schema, nonempty));
+}
+const noExtras = { type: U("struct"), properties: { name: { value: { type: U("string") }, required: true } }, values: none };
+failed += report("none forbids extras without rejecting declared fields", validate(noExtras, { name: "Ada" }));
+failed += reportReject("none rejects an additional null field", validate(noExtras, { name: "Ada", extra: null }));
+const optionalNone = { type: U("struct"), properties: { forbidden: { value: none } } };
+failed += report("an optional none field can be absent", validate(optionalNone, {}));
+failed += reportReject("an optional none field cannot be null", validate(optionalNone, { forbidden: null }));
+const requiredNone = { type: U("struct"), properties: { forbidden: { value: none, required: true } } };
+failed += reportReject("a required none field cannot be absent", validate(requiredNone, {}));
+failed += reportReject("a required none field cannot be null", validate(requiredNone, { forbidden: null }));
 failed += report("described literal accepts its value", validate({ value: 3, description: "three" }, 3));
 const status = { anyOf: ["draft", { value: "published", description: "Live" }, "archived"] };
 failed += report("union of literals accepts a member", validate(status, "published"));

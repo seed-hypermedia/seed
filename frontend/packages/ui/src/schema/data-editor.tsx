@@ -53,7 +53,7 @@ export function seedValue(schema: HypermediaSchema, registry: SchemaRegistry = {
 function seed(schema0: HypermediaSchema, env: Env, reg: SchemaRegistry): unknown {
   const {schema, env: e} = resolveSchema(schema0, env, reg)
   if (isLiteralSchema(schema)) return schema.value
-  if (schema.anyOf) return seed(schema.anyOf[0], e, reg)
+  if (schema.anyOf) return schema.anyOf.length ? seed(schema.anyOf[0], e, reg) : undefined
   const kind = schema.type ? kindOf(schema.type) : null
   switch (kind) {
     case 'map':
@@ -141,6 +141,8 @@ function Node({schema: schema0, value, onChange, env, reg, depth}: NodeProps) {
   const members = literalMembers(schema, reg)
   if (members && members.length === 1) return <LiteralNode value={members[0]!.value} />
   if (members) return <LiteralUnionNode members={members} value={value} onChange={onChange} />
+  if (schema.anyOf?.length === 0)
+    return <span className="text-muted-foreground text-sm">No value satisfies this schema.</span>
   if (schema.anyOf)
     return <UnionNode schema={schema} value={value} onChange={onChange} env={e} reg={reg} depth={depth} />
 

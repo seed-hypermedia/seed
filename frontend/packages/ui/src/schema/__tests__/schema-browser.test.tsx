@@ -72,9 +72,7 @@ describe('SchemaByCid', () => {
     expect(page.textContent).toContain('Extends')
     expect(page.textContent).toContain('signed blob')
     // The `target` on the reference field is a chip that opens the referenced type document.
-    const chip = Array.from(page.querySelectorAll('button')).find(
-      (b) => b.textContent?.includes('→ proposal'),
-    )!
+    const chip = Array.from(page.querySelectorAll('button')).find((b) => b.textContent?.includes('→ proposal'))!
     expect(chip).toBeTruthy()
     act(() => chip.click())
     expect(openRef).toHaveBeenCalledWith('hm://acme/proposal')

@@ -58,7 +58,11 @@ A [document](./protocol/documents.md) names the type of its own [attributes](./m
 
 Open any IPFS [blob](./protocol/blobs.md) in the **inspector**. When the blob is a schema, the inspector offers **New Instance of this Schema**. When a DAG-CBOR blob links a schema, the inspector fetches the schema and checks the value against it, as a warning only. You can edit the blob as fields or as raw dag-json, and attach or change its schema. <!-- id:Z9K5k3Hw -->
 
-# Schemas are hypermedia documents <!-- id:2ksHZHeX -->
+# Raw objects and their schemas <!-- id:rawSchemaOverview -->
+
+A raw DAG-CBOR object links directly to its schema with `"schema": {"/": "<schema-cid>"}`. The blob tools set this field aside before checking the object's data against the schema. Both the schema and the instance can exist without a document. [The `schema` field on raw objects](./schema/encoding.md#rawSchemaLink) defines the field and walks through publishing Person, Employee and an instance of each using only raw blobs. <!-- id:rawSchemaOverviewText -->
+
+# Schemas can have hypermedia documents <!-- id:2ksHZHeX -->
 
 A schema can be published as a normal Hypermedia [document](./protocol/documents.md) whose [metadata](./metadata.md) has a `schemaDefinition` key pointing at the schema [blob](./protocol/blobs.md) as `ipfs://<cid>`. Other schemas and documents then reference it by [`hm://` name](./protocol/urls.md), which is readable, versioned and resolvable. The [CID](./cid.md) pins the exact bytes. The type system is stored on the same network it types. <!-- id:lp-qJpvG -->
 

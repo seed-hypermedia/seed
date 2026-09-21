@@ -6,6 +6,7 @@ The **any** type matches every Hypermedia value: null, a boolean, a number, a st
 
 # See also <!-- id:nQDtHodx -->
 
+- [none](./none.md): the bottom type, which accepts no values. <!-- id:zQN0qoQN -->
 - [Data model](./schema/data-model.md): the kinds every value is built from. <!-- id:LPER4UwP -->
 - [value](./value.md): the smaller union a metadata attribute can hold. <!-- id:49AnlS5k -->
 - [list](./list.md) and [map](./map.md): the container kinds. <!-- id:LdxJNcAp -->

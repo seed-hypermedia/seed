@@ -36,6 +36,7 @@ export const LIBRARY_CORE: ReadonlySet<string> = new Set(
   [
     ...KINDS,
     'any',
+    'none',
     'date',
     'date-time',
     'property',
@@ -49,7 +50,7 @@ export const LIBRARY_CORE: ReadonlySet<string> = new Set(
     'link-schema',
     'include-schema',
     'var-schema',
-  ].map((k) => (KINDS.includes(k) || k === 'schema' ? k : `schema/${k}`)), // kinds and the meta-schema live at the root,
+  ].map((k) => (KINDS.includes(k) || k === 'schema' || k === 'none' ? k : `schema/${k}`)), // kinds and the meta-schema live at the root,
 )
 export const isLibraryCore = (name: string): boolean => LIBRARY_CORE.has(name)
 const KIND_URL = /^hm:\/\/hyper\.media\/(?:schema\/|hypermedia-)?([a-z]+)$/
@@ -413,6 +414,7 @@ export function validate(
       : [`${path}: expected ${JSON.stringify(schema.value)}, got ${JSON.stringify(data)}`]
 
   if (schema.anyOf) {
+    if (schema.anyOf.length === 0) return [`${path}: no value matches an empty union (none)`]
     const attempts = schema.anyOf.map((v: HypermediaSchema) => validate(v, data, path, env, reg))
     if (attempts.some((e: string[]) => e.length === 0)) return []
     const topLevel = (errs: string[]) => errs.some((e) => e.startsWith(`${path}: expected`))
