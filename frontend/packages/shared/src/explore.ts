@@ -799,6 +799,24 @@ export function toggleExplorePredicate(parsed: ParsedExploreQuery, token: string
   return {ast, presentation: parsed.presentation, diagnostics: []}
 }
 
+// Narrows a query to one result type, for the currently selected tab.
+export function withExploreTypeFilter(
+  parsed: ParsedExploreQuery,
+  type: HMExploreResultType | null | undefined,
+): ParsedExploreQuery {
+  if (!type) return parsed
+  const compiled = compileExploreQuery(parsed, {type: 'node'})
+  if (compiled.requestedTypes.length || compiled.excludedTypes.length) return parsed
+  const predicate: ExploreQueryNode = {kind: 'predicate', predicate: {kind: 'type', value: type}}
+  const ast: ExploreQueryNode =
+    parsed.ast?.kind === 'and'
+      ? {kind: 'and', children: [...parsed.ast.children, predicate]}
+      : parsed.ast
+        ? {kind: 'and', children: [parsed.ast, predicate]}
+        : predicate
+  return {ast, presentation: parsed.presentation, diagnostics: parsed.diagnostics}
+}
+
 /** Cycles an attribute sort rule through ascending, descending, and inactive states. */
 export function cycleExploreSort(sort: ExploreSortRule[], key: string): ExploreSortRule[] {
   const current = sort.find((rule) => rule.key === key)

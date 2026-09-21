@@ -91,6 +91,7 @@ export type ExplorePageProps = {
   accountUid?: string
   context: HMExploreContext
   onScopeChange?: (scope: HMExploreContext) => void
+  onActiveTypeChange?: (type: HMExploreResultType | null) => void
 }
 
 type ResultTab = 'all' | HMExploreResultType
@@ -129,6 +130,12 @@ export function ExplorePage(props: ExplorePageProps) {
     if (props.counts.document > 0) setActiveTab('document')
     else if (props.counts.space > 0) setActiveTab('space')
   }, [tabPicked, activeTab, props.counts.document, props.counts.space])
+  // Report the tab so the caller can narrow its query to it.
+  const onActiveTypeChangeRef = useRef(props.onActiveTypeChange)
+  onActiveTypeChangeRef.current = props.onActiveTypeChange
+  useEffect(() => {
+    onActiveTypeChangeRef.current?.(activeTab === 'all' ? null : activeTab)
+  }, [activeTab])
   // Dismiss an open dropdown on blur.
   useEffect(() => {
     if (!menu) return
@@ -228,6 +235,18 @@ export function ExplorePage(props: ExplorePageProps) {
   const resultAccountsMetadata = useAccountsMetadata(resultAuthorUids).data ?? {}
   const streams = exploreStreamSelection(props.parsed, props.context)
   const willSearch = streams.text || streams.documents
+  // Counts describe the results loaded so far, never the total,
+  // so show a plus if there are more results than can be counted.
+  const countLabel = (count: number) => (props.hasMore ? `${count}+` : `${count}`)
+  const showsCount = (tab: ResultTab) =>
+    (activeTab === 'all' || tab === activeTab) && (!props.hasMore || props.counts[tab] > 0)
+  const busy = Boolean(props.isLoading || props.isRefetching || props.intersectionPending)
+  const autoLoad = useExploreAutoLoad({
+    enabled: Boolean(props.hasMore),
+    busy,
+    resetKey: searchKey,
+    onLoadMore: props.onLoadMore,
+  })
   const updateQuery = (next: string) => {
     if (debounceRef.current !== null) {
       window.clearTimeout(debounceRef.current)
@@ -287,7 +306,7 @@ export function ExplorePage(props: ExplorePageProps) {
             {menu === 'type' ? (
               <ExploreTypeMenu
                 counts={props.counts}
-                showCounts={willSearch}
+                showCounts={willSearch && activeTab === 'all'}
                 selected={selectedTypes}
                 onApply={(types) => {
                   applyTypes(types)
@@ -364,7 +383,10 @@ export function ExplorePage(props: ExplorePageProps) {
                   : 'text-muted-foreground hover:text-foreground border-transparent',
               )}
             >
-              {tab.label} <span className="text-muted-foreground tabular-nums">{props.counts[tab.id]}</span>
+              {tab.label}{' '}
+              {showsCount(tab.id) ? (
+                <span className="text-muted-foreground tabular-nums">{countLabel(props.counts[tab.id])}</span>
+              ) : null}
             </button>
           ))}
         </nav>
@@ -373,7 +395,7 @@ export function ExplorePage(props: ExplorePageProps) {
       {willSearch ? (
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">
-            {props.counts[activeTab]} results
+            {countLabel(props.counts[activeTab])} results
             {props.textTerms.length ? <> for &ldquo;{props.textTerms.join(' ')}&rdquo;</> : null}
           </p>
           <div className="flex items-center gap-2">
@@ -508,15 +530,59 @@ export function ExplorePage(props: ExplorePageProps) {
           </p>
         ) : null}
         {props.hasMore ? (
-          <Button className="mt-4 w-full" variant="outline" onClick={props.onLoadMore}>
-            Load more
-          </Button>
+          <>
+            <div ref={autoLoad.sentinelRef} className="h-px" aria-hidden />
+            <Button className="mt-4 w-full" variant="outline" disabled={busy} onClick={props.onLoadMore}>
+              {busy ? 'Loading…' : 'Load more'}
+            </Button>
+          </>
         ) : visibleResults.length ? (
           <p className="text-muted-foreground mt-5 text-center text-xs">End of results</p>
         ) : null}
       </section>
     </main>
   )
+}
+
+// How many pages scrolling may fetch before the reader has to ask again.
+export const AUTO_LOAD_PAGE_LIMIT = 5
+
+// Fetches the next page when the sentinel scrolls into view.
+export function useExploreAutoLoad({
+  enabled,
+  busy,
+  resetKey,
+  onLoadMore,
+}: {
+  enabled: boolean
+  busy: boolean
+  resetKey: string
+  onLoadMore?: () => void
+}) {
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  const [autoLoads, setAutoLoads] = useState(0)
+  // props.onLoadMore is rebuilt every render, so hold it in a ref rather than observing it.
+  const onLoadMoreRef = useRef(onLoadMore)
+  onLoadMoreRef.current = onLoadMore
+  useEffect(() => setAutoLoads(0), [resetKey])
+  const exhausted = autoLoads >= AUTO_LOAD_PAGE_LIMIT
+  useEffect(() => {
+    // Waiting for a page in flight, or the observer would fire again on the same sentinel.
+    if (!enabled || busy || exhausted || typeof IntersectionObserver === 'undefined') return
+    const sentinel = sentinelRef.current
+    if (!sentinel) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return
+        setAutoLoads((count) => count + 1)
+        onLoadMoreRef.current?.()
+      },
+      {rootMargin: '600px 0px'},
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [enabled, busy, exhausted])
+  return {sentinelRef, exhausted}
 }
 
 function withPresentation(ast: ExploreQueryNode | null, presentation: ExplorePresentation) {

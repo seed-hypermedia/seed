@@ -1,13 +1,13 @@
 import {MainWrapper} from '@/components/main-wrapper'
 import {useNavigate} from '@/utils/useNavigate'
-import {parseExploreQuery, type HMExploreResult} from '@shm/shared/explore'
+import {parseExploreQuery, type HMExploreResult, type HMExploreResultType} from '@shm/shared/explore'
 import {useExploreResults} from '@shm/shared/models/explore'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {PanelContainer} from '@shm/ui/container'
 import type {BreadcrumbEntry} from '@shm/ui/document-header'
 import {DocumentTopBar} from '@shm/ui/document-top-bar'
 import {ExplorePage} from '@shm/ui/explore-page'
-import {useMemo} from 'react'
+import {useMemo, useState} from 'react'
 
 function contextLabel(route: Extract<ReturnType<typeof useNavRoute>, {key: 'explore'}>) {
   if (route.context.type === 'node') return 'Node'
@@ -25,7 +25,9 @@ export default function ExploreDesktopPage() {
   const query = [rawQuery, legacySort].filter(Boolean).join(' ')
   const parsed = useMemo(() => parseExploreQuery(query), [query])
   const context = exploreRoute?.context || ({type: 'node'} as const)
-  const explore = useExploreResults(parsed, context, {enabled: !!exploreRoute})
+  // The open result tab narrows the request, so a page of results is all of the kind being read.
+  const [activeType, setActiveType] = useState<HMExploreResultType | null>(null)
+  const explore = useExploreResults(parsed, context, {enabled: !!exploreRoute, typeFilter: activeType})
   const results = explore.results
 
   const updateRoute = (q: string) => {
@@ -78,6 +80,7 @@ export default function ExploreDesktopPage() {
             if (exploreRoute) replace({...exploreRoute, context: nextContext, sort: undefined})
           }}
           onOpenResult={openResult}
+          onActiveTypeChange={setActiveType}
         />
       </MainWrapper>
     </PanelContainer>

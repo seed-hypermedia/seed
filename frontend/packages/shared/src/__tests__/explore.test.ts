@@ -13,6 +13,7 @@ import {
   serializeExploreQuery,
   toggleExploreColumn,
   toggleExplorePredicate,
+  withExploreTypeFilter,
 } from '../explore'
 import {assembleExploreResults, exploreStreamSelection, resultKey} from '../models/explore'
 import type {SearchResultItem} from '../models/search'
@@ -165,6 +166,48 @@ describe('Explore query serialization', () => {
     const serialized = parseExploreQuery(serializeExploreQuery(parsed))
     expect(serialized.ast).toEqual(parsed.ast)
     expect(serialized.presentation).toEqual(parsed.presentation)
+  })
+})
+
+describe('Explore type narrowing', () => {
+  const typesOf = (parsed: ReturnType<typeof parseExploreQuery>) =>
+    compileExploreQuery(parsed, {type: 'node'}).requestedTypes
+
+  test('narrows an untyped query to the open tab', () => {
+    const narrowed = withExploreTypeFilter(parseExploreQuery('engelbart'), 'document')
+    expect(typesOf(narrowed)).toEqual(['document'])
+    // The search itself is untouched, so the tab cannot change what is being searched for.
+    expect(compileExploreQuery(narrowed, {type: 'node'}).textTerms).toEqual([{value: 'engelbart', phrase: false}])
+  })
+
+  test('narrows an empty query', () => {
+    expect(typesOf(withExploreTypeFilter(parseExploreQuery(''), 'space'))).toEqual(['space'])
+  })
+
+  test('leaves a query that names its own types unchanged', () => {
+    const chipped = parseExploreQuery('engelbart type:space')
+    expect(typesOf(withExploreTypeFilter(chipped, 'document'))).toEqual(['space'])
+    const excluded = parseExploreQuery('engelbart NOT type:comment')
+    expect(withExploreTypeFilter(excluded, 'document')).toBe(excluded)
+  })
+
+  test('no-op without a tab', () => {
+    const parsed = parseExploreQuery('engelbart')
+    expect(withExploreTypeFilter(parsed, null)).toBe(parsed)
+    expect(withExploreTypeFilter(parsed, undefined)).toBe(parsed)
+  })
+
+  test('keeps presentation directives, so narrowing does not drop the view', () => {
+    const narrowed = withExploreTypeFilter(parseExploreQuery('engelbart view:table'), 'document')
+    expect(narrowed.presentation).toEqual({view: 'table'})
+  })
+
+  test('narrowing to spaces reaches the roots-only document filter', () => {
+    const narrowed = withExploreTypeFilter(parseExploreQuery('has:status'), 'space')
+    const filter = compileExploreQuery(narrowed, {type: 'node'}).filter
+    expect(filter?.filter.case).toBe('and')
+    const nested = filter?.filter.case === 'and' ? filter.filter.value.filters : []
+    expect(nested.some((item) => item.filter.case === 'pathMatch')).toBe(true)
   })
 })
 

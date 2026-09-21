@@ -22,6 +22,7 @@ import {
   compileExploreQuery,
   documentInfoToExploreResultDocument,
   searchResultItemToExploreResult,
+  withExploreTypeFilter,
   type ExploreQueryNode,
   type HMExploreContext,
   type HMExploreMatchedField,
@@ -353,12 +354,17 @@ function entityKindFilters(types: HMExploreResultType[]) {
 
 /** Shared TanStack Query hook for desktop and web Explore views. */
 export function useExploreResults(
-  parsed: ParsedExploreQuery,
+  inputParsed: ParsedExploreQuery,
   context: HMExploreContext,
-  options: {enabled?: boolean; pageSize?: number} = {},
+  options: {enabled?: boolean; pageSize?: number; typeFilter?: HMExploreResultType | null} = {},
 ) {
   const client = useUniversalClient()
   const perspectiveAccountUid = useSelectedAccountId()
+  // The reader's open result tab narrows the request to a type.
+  const parsed = useMemo(
+    () => withExploreTypeFilter(inputParsed, options.typeFilter),
+    [inputParsed, options.typeFilter],
+  )
   const compilation = compileExploreQuery(parsed, context)
   const enabled = options.enabled ?? true
   const pageSize = options.pageSize ?? 50

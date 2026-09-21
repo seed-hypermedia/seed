@@ -44,7 +44,7 @@ import type {
   LinkExtensionOptions,
 } from '@shm/shared/document-content-props'
 import {findDraftForPath, isDraftPlaceholderPath, useDraftsForAccountSafe} from '@shm/shared/draft-breadcrumb-context'
-import {parseExploreQuery} from '@shm/shared/explore'
+import {parseExploreQuery, type HMExploreResultType} from '@shm/shared/explore'
 import {useIsHomeDraftOverride} from '@shm/shared/home-draft-context'
 import type {DocumentMachineEvent, TransientResourceError} from '@shm/shared/models/document-machine'
 import {
@@ -3715,11 +3715,14 @@ function MainContent({
     route.key === 'explore' && route.sort && !/\bsort:/.test(rawExploreQuery) ? `sort:${route.sort}` : ''
   const exploreQuery = [rawExploreQuery, legacyExploreSort].filter(Boolean).join(' ')
   const parsedExploreQuery = useMemo(() => parseExploreQuery(exploreQuery), [exploreQuery])
+  // The open result tab narrows the request, so a page of results is all of the kind being read.
+  const [activeExploreType, setActiveExploreType] = useState<HMExploreResultType | null>(null)
   const explore = useExploreResults(
     parsedExploreQuery,
     {type: 'site', id: allDocumentsSiteId},
     {
       enabled: activeView === 'explore',
+      typeFilter: activeExploreType,
     },
   )
 
@@ -3776,6 +3779,7 @@ function MainContent({
             }
             navigate({key: 'document', id: result.id})
           }}
+          onActiveTypeChange={setActiveExploreType}
         />
       )
 
