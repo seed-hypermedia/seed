@@ -119,6 +119,29 @@ describe('useBlockScroll', () => {
     clippedShell.remove()
   })
 
+  it('does not call scrollIntoView for a centered route block inside clipped app chrome', () => {
+    vi.useFakeTimers()
+    const clippedShell = document.createElement('div')
+    clippedShell.style.overflowY = 'hidden'
+    const looseBlock = document.createElement('div')
+    looseBlock.id = 'centered-route-block-clipped'
+    looseBlock.scrollIntoView = vi.fn()
+    stubRect(looseBlock, 500)
+    clippedShell.appendChild(looseBlock)
+    document.body.appendChild(clippedShell)
+
+    function Harness() {
+      useBlockScroll('centered-route-block-clipped', {block: 'center'})
+      return null
+    }
+
+    act(() => root.render(<Harness />))
+    act(() => vi.runAllTimers())
+
+    expect(looseBlock.scrollIntoView).not.toHaveBeenCalled()
+    clippedShell.remove()
+  })
+
   it('clears the pinned document top bar when the document itself scrolls', () => {
     // Mobile web: no scrolling ancestor, and the top bar is pinned over the page.
     const looseBlock = document.createElement('div')
