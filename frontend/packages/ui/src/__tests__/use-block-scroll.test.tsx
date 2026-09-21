@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import {act} from 'react-dom/test-utils'
 import {createRoot, type Root} from 'react-dom/client'
-import {afterEach, beforeEach, describe, expect, it} from 'vitest'
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {useBlockScroll} from '../use-block-scroll'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -44,6 +44,7 @@ describe('useBlockScroll', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     act(() => root.unmount())
     host.remove()
     scrollContainer.remove()
@@ -62,6 +63,60 @@ describe('useBlockScroll', () => {
 
     // scrollTop (1000) + element top (400) - container top (100) - 16px margin
     expect(scrollCalls).toEqual([{top: 1284, behavior: 'smooth'}])
+  })
+
+  it('does not scroll the window when the target is inside clipped app chrome', () => {
+    const clippedShell = document.createElement('div')
+    clippedShell.style.overflowY = 'hidden'
+    const looseBlock = document.createElement('div')
+    looseBlock.id = 'block-clipped'
+    stubRect(looseBlock, 500)
+    clippedShell.appendChild(looseBlock)
+    document.body.appendChild(clippedShell)
+
+    const windowScrollCalls: ScrollToOptions[] = []
+    window.scrollTo = ((options: ScrollToOptions) => {
+      windowScrollCalls.push(options)
+    }) as typeof window.scrollTo
+
+    let scrollToBlock: ((blockId: string) => void) | undefined
+    function Harness() {
+      scrollToBlock = useBlockScroll(null).scrollToBlock
+      return null
+    }
+
+    act(() => root.render(<Harness />))
+    act(() => scrollToBlock?.('block-clipped'))
+
+    expect(windowScrollCalls).toEqual([])
+    clippedShell.remove()
+  })
+
+  it('does not scroll clipped app chrome while restoring a route block', () => {
+    vi.useFakeTimers()
+    const clippedShell = document.createElement('div')
+    clippedShell.style.overflowY = 'hidden'
+    const looseBlock = document.createElement('div')
+    looseBlock.id = 'route-block-clipped'
+    stubRect(looseBlock, 500)
+    clippedShell.appendChild(looseBlock)
+    document.body.appendChild(clippedShell)
+
+    const windowScrollCalls: ScrollToOptions[] = []
+    window.scrollTo = ((options: ScrollToOptions) => {
+      windowScrollCalls.push(options)
+    }) as typeof window.scrollTo
+
+    function Harness() {
+      useBlockScroll('route-block-clipped')
+      return null
+    }
+
+    act(() => root.render(<Harness />))
+    act(() => vi.runAllTimers())
+
+    expect(windowScrollCalls).toEqual([])
+    clippedShell.remove()
   })
 
   it('clears the pinned document top bar when the document itself scrolls', () => {

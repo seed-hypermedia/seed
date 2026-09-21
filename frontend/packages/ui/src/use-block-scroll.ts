@@ -35,6 +35,31 @@ const defaultOptions: BlockScrollOptions = {
   behavior: 'smooth',
 }
 
+type ScrollTarget = {
+  container: HTMLElement | null
+  clipped: boolean
+}
+
+/**
+ * Finds the nearest user-scrollable ancestor without crossing clipped app chrome.
+ * `overflow: hidden` elements can still be moved by window scrolling, which can
+ * carry fixed desktop chrome out of view even though the user cannot scroll it back.
+ */
+function findScrollTarget(element: HTMLElement): ScrollTarget {
+  let parent = element.parentElement
+  while (parent) {
+    const overflowY = window.getComputedStyle(parent).overflowY
+    if ((overflowY === 'auto' || overflowY === 'scroll') && parent.scrollHeight > parent.clientHeight) {
+      return {container: parent, clipped: false}
+    }
+    if (overflowY === 'hidden' || overflowY === 'clip') {
+      return {container: null, clipped: true}
+    }
+    parent = parent.parentElement
+  }
+  return {container: null, clipped: false}
+}
+
 /**
  * Hook for scrolling to blocks with deduplication to prevent double-scrolling.
  *
@@ -72,18 +97,10 @@ export function useBlockScroll(blockRef: string | null | undefined, options: Blo
       const element = document.getElementById(blockRef)
       if (!element) return false
 
-      // Find the scrollable ancestor container (for nested scroll containers like on web)
-      let scrollContainer: HTMLElement | null = null
-      let parent = element.parentElement
-      while (parent) {
-        const style = window.getComputedStyle(parent)
-        const overflowY = style.overflowY
-        if ((overflowY === 'auto' || overflowY === 'scroll') && parent.scrollHeight > parent.clientHeight) {
-          scrollContainer = parent
-          break
-        }
-        parent = parent.parentElement
-      }
+      // Find the scrollable ancestor container (for nested scroll containers like on web).
+      // If app chrome clips the target before that container exists, keep retrying
+      // rather than scrolling the window and stranding the desktop title bar.
+      const {container: scrollContainer, clipped} = findScrollTarget(element)
 
       if (scrollContainer) {
         // Scroll the container directly
@@ -91,6 +108,8 @@ export function useBlockScroll(blockRef: string | null | undefined, options: Blo
         const elementRect = element.getBoundingClientRect()
         const scrollTop = scrollContainer.scrollTop + elementRect.top - containerRect.top - SCROLL_TOP_MARGIN
         scrollContainer.scrollTo({top: scrollTop, behavior})
+      } else if (clipped) {
+        return false
       } else if (block === 'start') {
         scrollWindowToElement(element, behavior)
       } else {
@@ -134,24 +153,16 @@ export function useBlockScroll(blockRef: string | null | undefined, options: Blo
       const element = document.getElementById(blockId)
       if (!element) return
 
-      // Find the scrollable ancestor container
-      let scrollContainer: HTMLElement | null = null
-      let parent = element.parentElement
-      while (parent) {
-        const style = window.getComputedStyle(parent)
-        const overflowY = style.overflowY
-        if ((overflowY === 'auto' || overflowY === 'scroll') && parent.scrollHeight > parent.clientHeight) {
-          scrollContainer = parent
-          break
-        }
-        parent = parent.parentElement
-      }
+      // Find the scrollable ancestor container without crossing clipped app chrome.
+      const {container: scrollContainer, clipped} = findScrollTarget(element)
 
       if (scrollContainer) {
         const containerRect = scrollContainer.getBoundingClientRect()
         const elementRect = element.getBoundingClientRect()
         const scrollTop = scrollContainer.scrollTop + elementRect.top - containerRect.top - SCROLL_TOP_MARGIN
         scrollContainer.scrollTo({top: scrollTop, behavior})
+      } else if (clipped) {
+        return
       } else if (block === 'start') {
         scrollWindowToElement(element, behavior)
       } else {
