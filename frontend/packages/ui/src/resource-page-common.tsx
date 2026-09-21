@@ -95,7 +95,6 @@ import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/br
 import {
   activitySlugToFilter,
   activityFilterToSlug,
-  activitySlugToFilter,
   getCommentTargetId,
   getVersionHeads,
   hmIdToURL,
@@ -103,19 +102,6 @@ import {
   parseFragment,
   routeToUrl,
 } from '@shm/shared/utils/entity-id-url'
-
-/** Creates a right-panel route showing citations to one block. */
-export function getBlockCitationsPanelRoute(
-  docId: UnpackedHypermediaId,
-  targetBlockId: string,
-): Extract<DocumentPanelRoute, {key: 'activity'}> {
-  return {
-    key: 'activity',
-    id: docId,
-    filterEventType: activitySlugToFilter('citations'),
-    targetBlockId,
-  }
-}
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 import {getReservedLazyDraftBreadcrumbName} from '@shm/shared/utils/reserved-draft-ids'

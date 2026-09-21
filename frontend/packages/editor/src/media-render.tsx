@@ -65,7 +65,7 @@ interface RenderProps {
   editor: BlockNoteEditor<HMBlockSchema>
   mediaType: string
   submit?: (url: string, assign: any, setFileName: any, setLoading: any) => Promise<void> | void | undefined
-  icon: JSX.Element | FunctionComponent<{ color?: string; size?: number }>
+  icon: JSX.Element | FunctionComponent<{color?: string; size?: number}>
   DisplayComponent: React.ComponentType<DisplayComponentProps>
   CustomInput?: React.ComponentType<{
     editor: BlockNoteEditor<HMBlockSchema>
@@ -93,12 +93,12 @@ export const MediaRender: React.FC<RenderProps> = ({
 }) => {
   const [uploading, setUploading] = useState(false)
   const hasSrc = !!block.props?.src
-  const { canEdit, beginEditIfNeeded } = useEditorGate()
+  const {canEdit, beginEditIfNeeded} = useEditorGate()
 
   useEffect(() => {
     if (!uploading && hasSrc && editor.importWebFile && block.props.src) {
       if (block.props.src.startsWith('ipfs')) {
-        editor.updateBlock(block, { props: { url: block.props.src, src: '' } }, undefined, { addToHistory: false })
+        editor.updateBlock(block, {props: {url: block.props.src, src: ''}}, undefined, {addToHistory: false})
         return
       }
       setUploading(true)
@@ -111,9 +111,9 @@ export const MediaRender: React.FC<RenderProps> = ({
           if ('cid' in imageData) {
             editor.updateBlock(
               block,
-              { props: { url: `ipfs://${imageData.cid}`, size: imageData.size.toString(), src: '' } },
+              {props: {url: `ipfs://${imageData.cid}`, size: imageData.size.toString(), src: ''}},
               undefined,
-              { addToHistory: false },
+              {addToHistory: false},
             )
           }
           // Web result
@@ -130,7 +130,7 @@ export const MediaRender: React.FC<RenderProps> = ({
                 },
               },
               undefined,
-              { addToHistory: false },
+              {addToHistory: false},
             )
           }
         })
@@ -141,7 +141,7 @@ export const MediaRender: React.FC<RenderProps> = ({
     }
   }, [hasSrc, block, uploading, editor, editor.importWebFile])
 
-  const assignMedia = (props: MediaType, options?: { addToHistory?: boolean }) => {
+  const assignMedia = (props: MediaType, options?: {addToHistory?: boolean}) => {
     beginEditIfNeeded()
     // we used to spread the current block.props into the new props, but now we just overwrite the whole thing because it was causing bugs
     // @ts-expect-error
@@ -212,7 +212,7 @@ function MediaForm({
   editor: BlockNoteEditor<HMBlockSchema>
   mediaType: string
   submit?: (url: string, assign: any, setFileName: any, setLoading: any) => Promise<void> | void | undefined
-  icon: JSX.Element | FunctionComponent<{ color?: string; size?: number }> | null
+  icon: JSX.Element | FunctionComponent<{color?: string; size?: number}> | null
   CustomInput?: React.ComponentType<{
     editor: BlockNoteEditor<HMBlockSchema>
     assign: any
@@ -227,10 +227,10 @@ function MediaForm({
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const [uploadState, setUploadState] = useState<
-    | { status: 'idle' }
-    | { status: 'uploading'; fileName: string }
-    | { status: 'error'; title: string; message: string; hint?: string }
-  >({ status: 'idle' })
+    | {status: 'idle'}
+    | {status: 'uploading'; fileName: string}
+    | {status: 'error'; title: string; message: string; hint?: string}
+  >({status: 'idle'})
   const isEmbed = ['embed', 'web-embed'].includes(mediaType)
   const [fileName, setFileName] = useState<{
     name: string
@@ -256,8 +256,9 @@ function MediaForm({
         files.forEach((file) => {
           if (!file.type.includes(`${mediaType}/`)) {
             setFileName({
-              name: `File ${file.name.length < 36 ? file.name : file.name.slice(0, 32) + '…'} is not ${mediaType === 'image' ? 'an' : 'a'
-                } ${mediaType}.`,
+              name: `File ${file.name.length < 36 ? file.name : file.name.slice(0, 32) + '…'} is not ${
+                mediaType === 'image' ? 'an' : 'a'
+              } ${mediaType}.`,
               color: 'red',
             })
             isMedia = false
@@ -314,9 +315,9 @@ function MediaForm({
       return
     }
 
-    setUploadState({ status: 'uploading', fileName: file.name })
+    setUploadState({status: 'uploading', fileName: file.name})
 
-    const { name, size } = file
+    const {name, size} = file
     try {
       if (editor.handleFileAttachment) {
         const result = await editor.handleFileAttachment(file)
@@ -338,7 +339,7 @@ function MediaForm({
           }
         }
         markBlockUploaded(block.id)
-        assign({ props } as MediaType)
+        assign({props} as MediaType)
       } else {
         // upload to IPFS immediately if handleFileAttachment is not available
         const formData = new FormData()
@@ -420,7 +421,7 @@ function MediaForm({
           <button
             type="button"
             className="text-muted-foreground hover:text-foreground mt-2 cursor-default text-sm"
-            onClick={() => setUploadState({ status: 'idle' })}
+            onClick={() => setUploadState({status: 'idle'})}
           >
             Try again
           </button>
