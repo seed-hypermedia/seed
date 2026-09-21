@@ -1,10 +1,12 @@
 import {type AgentSessionTriggerContext, type AgentTriggerSource, type TriggerContinuation} from './client'
 import {activityConditions, type AgentActivitySource, type AgentToolInfo} from '@seed-hypermedia/agents-protocol'
 import {Button} from '@shm/ui/button'
+import {Dialog, DialogContent, DialogFooter, DialogTitle} from '@shm/ui/components/dialog'
 import {Textarea} from '@shm/ui/components/textarea'
 import {useNavigate} from './navigation'
-import {Dialog, DialogContent, DialogTitle, DialogFooter} from '@shm/ui/components/dialog'
-import {useAccount, useResource} from '@shm/shared/models/entity'
+import {useAccount, useResource, useSelectedAccountId} from '@shm/shared/models/entity'
+import {useInlineMentions} from '@shm/shared/models/inline-mentions'
+import {mentionCandidateSubtitle} from '@shm/shared/models/mention-ranking'
 import {Input} from '@shm/ui/components/input'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {Notice} from '@shm/ui/notice'
@@ -25,12 +27,13 @@ import {
   FileText,
   MessageSquare,
   Pencil,
+  Reply,
   Plus,
   X,
   Webhook,
   Workflow,
 } from 'lucide-react'
-import React, {createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState} from 'react'
+import React, {createContext, useCallback, useContext, useEffect, useId, useMemo, useState} from 'react'
 
 /**
  * Canonical per-trigger-type frontend definitions.
@@ -44,6 +47,7 @@ import React, {createContext, useCallback, useContext, useEffect, useId, useMemo
 export const TRIGGER_TYPE_OPTIONS: {value: string; label: string}[] = [
   {value: 'document-comment', label: 'Comment posted'},
   {value: 'user-mention', label: 'User mention'},
+  {value: 'comment-reply', label: 'Reply to account'},
   {value: 'site-event:doc-update', label: 'Document updated'},
   {value: 'site-event:citation', label: 'Reference added'},
   {value: 'site-event:capability', label: 'Access granted'},
@@ -66,6 +70,7 @@ const SCHEDULE_UNIT_OPTIONS = [
 export function defaultSourceForType(type: AgentTriggerSource['type']): AgentTriggerSource {
   if (type === 'webhook') return {type}
   if (type === 'user-mention') return {type, mentionedAccounts: []}
+  if (type === 'comment-reply') return {type, repliedToAccounts: []}
   if (type === 'site-update') return {type, resourcePrefix: '', eventTypes: ['doc-update']}
   if (type === 'schedule') return {type, schedule: {kind: 'interval', every: 1, unit: 'hours'}}
   return {type: 'document-comment', resource: ''}
@@ -90,6 +95,10 @@ export function summarizeTriggerSource(source: AgentTriggerSource): string {
     const mention = accounts.length ? accounts.map(abbreviateUid).join(', ') : 'anyone'
     return `Mention of ${mention}${source.resourcePrefix ? ` in ${source.resourcePrefix}` : ''}`
   }
+  if (source.type === 'comment-reply') {
+    const accounts = source.repliedToAccounts.map(abbreviateUid).join(', ')
+    return `Reply to ${accounts}${source.resourcePrefix ? ` in ${source.resourcePrefix}` : ''}`
+  }
   if (source.type === 'site-update') {
     return `Update in ${source.resourcePrefix}${source.eventTypes?.length ? ` (${source.eventTypes.join(', ')})` : ''}`
   }
@@ -113,9 +122,18 @@ export function summarizeTriggerSource(source: AgentTriggerSource): string {
 export function isTriggerSourceReady(source: AgentTriggerSource): boolean {
   if (source.type === 'activity')
     return source.conditions.length > 0 && source.conditions.every(({source}) => isTriggerSourceReady(source))
-  if (source.type === 'document-comment') return Boolean(source.resource.trim())
-  if (source.type === 'user-mention') return mentionedAccountsOf(source).some((account) => account.trim())
-  if (source.type === 'site-update') return Boolean(source.resourcePrefix.trim())
+  if (source.type === 'document-comment') return isTriggerResource(source.resource)
+  if (source.type === 'user-mention')
+    return (
+      mentionedAccountsOf(source).some((account) => account.trim()) &&
+      (!source.resourcePrefix || isTriggerResource(source.resourcePrefix))
+    )
+  if (source.type === 'comment-reply')
+    return (
+      source.repliedToAccounts.some((account) => account.trim()) &&
+      (!source.resourcePrefix || isTriggerResource(source.resourcePrefix))
+    )
+  if (source.type === 'site-update') return isTriggerResource(source.resourcePrefix)
   return true
 }
 
@@ -155,8 +173,19 @@ function siteEventLabel(eventType?: string) {
   return labels[eventType.toLowerCase()] || `${eventType} event`
 }
 
-/** Edits activity alternatives as committed conditions, keeping incomplete drafts local. */
-export function TriggerSourceFields(props: {
+/**
+ * Edits what starts a trigger. A lone condition edits in place like any other source; several
+ * conditions list as summaries, any of which fires the shared action. Adding or editing a condition
+ * opens a dialog, and nothing is committed until it is saved.
+ */
+export function TriggerSourceFields({
+  source,
+  onChange,
+  trailing,
+  lockSourceType = false,
+  allowWebhook = true,
+  onDraftChange,
+}: {
   source: AgentTriggerSource
   onChange: (source: AgentTriggerSource) => void
   trailing?: React.ReactNode
@@ -164,12 +193,8 @@ export function TriggerSourceFields(props: {
   allowWebhook?: boolean
   onDraftChange?: (editing: boolean) => void
 }) {
-  const {source, onChange, trailing, onDraftChange} = props
   const conditions = editableActivityConditions(source)
-  const initial = conditions[0]
-  const [editing, setEditing] = useState<string | null>(null)
-  const opener = useRef<HTMLButtonElement | null>(null)
-  const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<{id: string; draft: AgentActivitySource; isNew: boolean} | null>(null)
   const [pendingFields, setPendingFields] = useState<Set<string>>(() => new Set())
   const onPendingField = useCallback((id: string, pending: boolean) => {
     setPendingFields((previous) => {
@@ -180,177 +205,147 @@ export function TriggerSourceFields(props: {
       return next
     })
   }, [])
-  const [draft, setDraft] = useState<AgentActivitySource>(initial?.source ?? {type: 'document-comment', resource: ''})
-  useEffect(() => onDraftChange?.(editing !== null), [editing, onDraftChange])
-  if (!conditions.length)
-    return (
-      <SingleTriggerSourceFields
-        {...props}
-        onChange={(next) => {
-          const first = activityConditions(next)[0]
-          if (first) {
-            setAdding(false)
-            setDraft(first.source)
-            setEditing(first.id)
-          }
-          onChange(next)
-        }}
-      />
-    )
+  const isEditing = editing !== null
+  useEffect(() => onDraftChange?.(isEditing), [isEditing, onDraftChange])
 
-  function saveCondition() {
-    if (!isTriggerSourceReady(draft) || pendingFields.size) return
-    const next =
-      !adding && conditions.some(({id}) => id === editing)
-        ? conditions.map((condition) => (condition.id === editing ? {...condition, source: draft} : condition))
-        : [...conditions, {id: crypto.randomUUID(), source: draft}]
-    onChange(next.length === 1 && source.type !== 'activity' ? next[0]!.source : {type: 'activity', conditions: next})
+  const addButton =
+    conditions.length && conditions.length < 32 ? (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="text-muted-foreground hover:text-foreground justify-self-start"
+        disabled={isEditing || !isTriggerSourceReady(source)}
+        onClick={() =>
+          setEditing({id: crypto.randomUUID(), draft: {type: 'document-comment', resource: ''}, isNew: true})
+        }
+      >
+        <Plus className="size-3.5" />
+        Add condition
+      </Button>
+    ) : null
+
+  function save() {
+    if (!editing || !isTriggerSourceReady(editing.draft) || pendingFields.size) return
+    const next = editing.isNew
+      ? [...conditions, {id: editing.id, source: editing.draft}]
+      : conditions.map((condition) => (condition.id === editing.id ? {...condition, source: editing.draft} : condition))
+    onChange({type: 'activity', conditions: next})
     setEditing(null)
   }
 
-  return (
-    <div className="grid gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <label className="flex items-center gap-3">
-          <SizableText size="sm" weight="bold">
-            When
-          </SizableText>
-          <SelectDropdown
-            value="activity"
-            className="h-8 w-auto border-0 bg-transparent px-0 shadow-none"
-            options={[
-              {value: 'activity', label: 'Activity'},
-              {value: 'schedule', label: 'Schedule'},
-              ...(props.allowWebhook === false ? [] : [{value: 'webhook', label: 'Webhook'}]),
-            ]}
-            onValue={(value) => {
-              if (value === 'activity') return
-              setAdding(false)
-              setEditing(null)
-              onChange(defaultSourceForType(value as AgentTriggerSource['type']))
-            }}
-            disabled={props.lockSourceType}
-          />
-        </label>
-        {trailing}
-      </div>
-      <div className="border-border/70 overflow-hidden rounded-lg border">
-        {conditions.length > 1 ? (
-          <div className="text-muted-foreground border-border/70 border-b px-3 py-2 text-xs">Match any condition</div>
-        ) : null}
-        <div className="divide-border/70 divide-y">
-          {conditions.map((condition) => {
-            const Icon =
-              condition.source.type === 'site-update' && condition.source.eventTypes?.[0] === 'comment'
-                ? MessageSquare
-                : TRIGGER_TYPE_ICONS[condition.source.type]
-            return (
-              <div key={condition.id} className="group flex items-center gap-3 px-3 py-3">
-                <Icon className="text-muted-foreground size-4 shrink-0" />
-                <span className="min-w-0 flex-1 text-sm break-words">
-                  {isTriggerSourceReady(condition.source) ? (
-                    <TriggerSourceSummary source={condition.source} />
-                  ) : (
-                    'Choose a condition'
-                  )}
-                </span>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="iconSm"
-                    className="text-muted-foreground hover:text-foreground"
-                    disabled={editing !== null}
-                    title={isTriggerSourceReady(condition.source) ? 'Edit condition' : 'Choose condition'}
-                    onClick={(event) => {
-                      opener.current = event.currentTarget
-                      setAdding(false)
-                      setDraft(condition.source)
-                      setEditing(condition.id)
-                    }}
-                  >
-                    <Pencil className="size-3.5" />
-                    <span className="sr-only">
-                      {isTriggerSourceReady(condition.source) ? 'Edit' : 'Choose condition'}
-                    </span>
-                  </Button>
-                  {conditions.length > 1 ? (
-                    <Button
-                      variant="ghost"
-                      size="iconSm"
-                      className="text-muted-foreground hover:text-destructive"
-                      title="Remove condition"
-                      disabled={editing !== null}
-                      onClick={() =>
-                        onChange({type: 'activity', conditions: conditions.filter(({id}) => id !== condition.id)})
-                      }
-                    >
-                      <X className="size-3.5" />
-                      <span className="sr-only">Remove</span>
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-        <div className="border-border/70 border-t px-2 py-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-foreground"
-            disabled={conditions.length >= 32 || !isTriggerSourceReady(source)}
-            onClick={(event) => {
-              opener.current = event.currentTarget
-              setAdding(true)
-              setDraft({type: 'document-comment', resource: ''})
-              setEditing('new')
-            }}
-          >
-            <Plus className="size-3.5" />
-            Add condition
-          </Button>
-        </div>
-      </div>
-      <Dialog
-        open={editing !== null}
-        onOpenChange={(open) => {
-          if (!open) setEditing(null)
+  // Adding or editing one of several conditions happens in a dialog; the list keeps showing what is saved.
+  const dialog = (
+    <Dialog
+      open={isEditing}
+      onOpenChange={(open) => {
+        if (!open) setEditing(null)
+      }}
+    >
+      <DialogContent
+        contentClassName="gap-5 p-6"
+        aria-describedby={undefined}
+        onEscapeKeyDown={(event) => {
+          // Escape first closes an open search list; only a second press dismisses the dialog.
+          if (event.target instanceof HTMLInputElement && event.target.getAttribute('aria-expanded') === 'true') {
+            event.preventDefault()
+          }
         }}
       >
-        <DialogContent
-          contentClassName="gap-5 p-6"
-          aria-describedby={undefined}
-          onEscapeKeyDown={(event) => {
-            if (event.target instanceof HTMLInputElement && event.target.getAttribute('aria-expanded') === 'true') {
-              event.preventDefault()
-            }
-          }}
-          onCloseAutoFocus={(event) => {
-            if (opener.current) {
-              event.preventDefault()
-              opener.current.focus()
-            }
-          }}
-        >
-          <DialogTitle>{adding ? 'Add condition' : 'Edit condition'}</DialogTitle>
+        <DialogTitle>{editing?.isNew ? 'Add condition' : 'Edit condition'}</DialogTitle>
+        {editing ? (
           <PendingConditionFields.Provider value={onPendingField}>
             <SingleTriggerSourceFields
-              key={draft.type}
-              source={draft}
+              key={editing.id}
+              source={editing.draft}
               activityOnly
-              onChange={(next) => setDraft(next as AgentActivitySource)}
+              onChange={(draft) => setEditing({...editing, draft: draft as AgentActivitySource})}
             />
           </PendingConditionFields.Provider>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setEditing(null)}>
-              Cancel
-            </Button>
-            <Button onClick={saveCondition} disabled={!isTriggerSourceReady(draft) || pendingFields.size > 0}>
-              {adding ? 'Add condition' : 'Save condition'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        ) : null}
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setEditing(null)}>
+            Cancel
+          </Button>
+          <Button onClick={save} disabled={!editing || !isTriggerSourceReady(editing.draft) || pendingFields.size > 0}>
+            {editing?.isNew ? 'Add condition' : 'Save condition'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+
+  if (conditions.length <= 1) {
+    const only = conditions[0]
+    return (
+      <div className="grid gap-2">
+        <SingleTriggerSourceFields
+          source={only?.source ?? source}
+          trailing={trailing}
+          lockSourceType={lockSourceType}
+          allowWebhook={allowWebhook}
+          onChange={(next) => {
+            // A compound trigger trimmed to one condition keeps that condition's identity.
+            if (source.type === 'activity' && only && activityConditions(next).length) {
+              onChange({type: 'activity', conditions: [{id: only.id, source: next as AgentActivitySource}]})
+            } else onChange(next)
+          }}
+        />
+        {addButton}
+        {dialog}
+      </div>
+    )
+  }
+
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-end justify-between gap-3">
+        <SizableText size="sm" weight="bold">
+          When any of these happen
+        </SizableText>
+        {trailing}
+      </div>
+      <div className="border-border divide-border divide-y overflow-hidden rounded-lg border">
+        {conditions.map((condition) => {
+          const Icon =
+            condition.source.type === 'site-update' && condition.source.eventTypes?.[0] === 'comment'
+              ? MessageSquare
+              : TRIGGER_TYPE_ICONS[condition.source.type]
+          return (
+            <div key={condition.id} className="flex items-center gap-3 py-1 pr-1 pl-3">
+              <Icon className="text-muted-foreground size-4 shrink-0" />
+              <span className="min-w-0 flex-1 py-1.5 text-sm break-words">
+                <TriggerSourceSummary source={condition.source} />
+              </span>
+              <Button
+                variant="ghost"
+                size="iconSm"
+                className="text-muted-foreground hover:text-foreground"
+                title="Edit condition"
+                disabled={isEditing}
+                onClick={() => setEditing({id: condition.id, draft: condition.source, isNew: false})}
+              >
+                <Pencil className="size-3.5" />
+                <span className="sr-only">Edit</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="iconSm"
+                className="text-muted-foreground hover:text-destructive"
+                title="Remove condition"
+                disabled={isEditing || conditions.length < 2}
+                onClick={() =>
+                  onChange({type: 'activity', conditions: conditions.filter(({id}) => id !== condition.id)})
+                }
+              >
+                <X className="size-3.5" />
+                <span className="sr-only">Remove</span>
+              </Button>
+            </div>
+          )
+        })}
+      </div>
+      {addButton}
+      {dialog}
     </div>
   )
 }
@@ -384,6 +379,7 @@ function SingleTriggerSourceFields({
   if (source.type === 'site-update' && !options.some(({value}) => value === conditionType)) {
     options.push({value: conditionType, label: siteEventLabel(source.eventTypes?.[0])})
   }
+  if (source.type === 'run-completed') options.push({value: conditionType, label: 'Run completed'})
   return (
     <div className="grid gap-3">
       <div className="flex items-end justify-between gap-3">
@@ -399,10 +395,22 @@ function SingleTriggerSourceFields({
               const resource =
                 source.type === 'document-comment'
                   ? source.resource
-                  : source.type === 'site-update' || source.type === 'user-mention'
+                  : source.type === 'site-update' || source.type === 'user-mention' || source.type === 'comment-reply'
                     ? source.resourcePrefix ?? ''
                     : ''
-              if (value.startsWith('site-event:')) {
+              // Mentions and replies both target accounts, so switching between them keeps who and where.
+              const accounts =
+                source.type === 'user-mention'
+                  ? mentionedAccountsOf(source)
+                  : source.type === 'comment-reply'
+                    ? source.repliedToAccounts
+                    : null
+              const scope = resource ? {resourcePrefix: resource} : {}
+              if (value === 'user-mention' && accounts) {
+                onChange({type: 'user-mention', mentionedAccounts: accounts, ...scope})
+              } else if (value === 'comment-reply' && accounts) {
+                onChange({type: 'comment-reply', repliedToAccounts: accounts, ...scope})
+              } else if (value.startsWith('site-event:')) {
                 onChange({
                   type: 'site-update',
                   resourcePrefix: resource,
@@ -439,6 +447,22 @@ function SingleTriggerSourceFields({
           <MentionedAccountsField
             accounts={mentionedAccountsOf(source)}
             onChange={(accounts) => onChange({...source, mentionedAccounts: accounts})}
+          />
+          <TriggerEntityPicker
+            label="In document or space"
+            value={source.resourcePrefix ?? ''}
+            onChange={(value) => onChange({...source, resourcePrefix: value || undefined})}
+            kind="document"
+            optional
+          />
+        </div>
+      ) : null}
+      {source.type === 'comment-reply' ? (
+        <div className="grid gap-4">
+          <MentionedAccountsField
+            label="Replies to"
+            accounts={source.repliedToAccounts}
+            onChange={(accounts) => onChange({...source, repliedToAccounts: accounts})}
           />
           <TriggerEntityPicker
             label="In document or space"
@@ -599,26 +623,42 @@ function ScheduleTriggerFields({
   )
 }
 
+/**
+ * Resolves a stored account or document ID to its live name. Until the name arrives, or when it never
+ * does, the label is a short readable form of the ID rather than a loading message or a raw URL. A
+ * document value that names no account (such as a bare `hm://`) is flagged as invalid.
+ */
 function useTriggerEntityName(value: string, kind: 'document' | 'account') {
   const id = value ? (kind === 'account' ? hmId(value) : unpackHmId(value)) : null
+  const invalid = kind === 'document' && !!value && !id?.uid
   const account = useAccount(kind === 'account' ? id?.uid : undefined, {subscribe: true})
-  const resource = useResource(kind === 'document' ? id : undefined, {subscribed: true})
-  const name =
-    kind === 'account'
+  const resource = useResource(kind === 'document' && !invalid ? id : undefined, {subscribed: true})
+  const name = invalid
+    ? undefined
+    : kind === 'account'
       ? account.data?.metadata?.name
       : resource.data?.type === 'document'
         ? resource.data.document.metadata?.name
         : undefined
-  const result = kind === 'account' ? account : resource
-  return {
-    name,
-    label: name || (result.isLoading ? `Loading ${kind}…` : result.data ? `Unnamed ${kind}` : `Unavailable ${kind}`),
-  }
+  const fallback = invalid
+    ? 'an invalid document'
+    : id?.uid
+      ? id.path?.length
+        ? id.path[id.path.length - 1]!
+        : abbreviateUid(id.uid)
+      : value
+  return {name, label: name || fallback, resolved: !!name, invalid}
 }
 
 function TriggerEntityName({value, kind}: {value: string; kind: 'document' | 'account'}) {
-  const {label} = useTriggerEntityName(value, kind)
-  return <>{label}</>
+  const {label, resolved, invalid} = useTriggerEntityName(value, kind)
+  if (invalid) return <span className="text-destructive">{label}</span>
+  return resolved ? <>{label}</> : <span className="text-muted-foreground">{label}</span>
+}
+
+/** Whether a stored document filter names an account or document; a bare `hm://` names nothing. */
+function isTriggerResource(value: string | undefined): boolean {
+  return !!unpackHmId(value?.trim())?.uid
 }
 
 /** Describes a condition using live document and account names rather than stored identifiers. */
@@ -651,6 +691,24 @@ export function TriggerSourceSummary({source}: {source: AgentTriggerSource}) {
       <>
         Mention of {!mentionedAccountsOf(source).length ? 'anyone' : null}
         {mentionedAccountsOf(source).map((uid, index) => (
+          <React.Fragment key={uid}>
+            {index ? ', ' : null}
+            <TriggerEntityName value={uid} kind="account" />
+          </React.Fragment>
+        ))}
+        {source.resourcePrefix ? (
+          <>
+            {' '}
+            in <TriggerEntityName value={source.resourcePrefix} kind="document" />
+          </>
+        ) : null}
+      </>
+    )
+  if (source.type === 'comment-reply')
+    return (
+      <>
+        Reply to{' '}
+        {source.repliedToAccounts.map((uid, index) => (
           <React.Fragment key={uid}>
             {index ? ', ' : null}
             <TriggerEntityName value={uid} kind="account" />
@@ -709,34 +767,59 @@ function TriggerEntityPicker({
   const displayName = value
     ? resolved.name || (selectedName?.value === value && selectedName.name) || resolved.label
     : ''
-  const search = useSearch(query ?? '', {
-    enabled: focused,
-    pageSize: 12,
-    entityKindFilter:
-      kind === 'account'
-        ? [EntityKindFilter.ENTITY_KIND_CONTACT]
-        : [EntityKindFilter.ENTITY_KIND_DOCUMENT, EntityKindFilter.ENTITY_KIND_SPACE],
+  // Accounts come from the same ranked search as @mentions and invites; documents from full-text search.
+  const selectedAccountId = useSelectedAccountId()
+  const accountSearch = useInlineMentions(query ?? '', {
+    mode: 'account',
+    enabled: focused && kind === 'account',
+    perspectiveAccountUid: selectedAccountId,
   })
-  const results = (search.data?.entities ?? [])
-    .filter((item) =>
-      kind === 'account'
-        ? (item.type === 'contact' || !item.id.path?.length) && !exclude.includes(item.id.uid)
-        : item.type === 'document',
-    )
-    .filter(
-      (item, index, items) =>
-        items.findIndex((other) => (kind === 'account' ? other.id.uid === item.id.uid : other.id.id === item.id.id)) ===
-        index,
-    )
+  const documentSearch = useSearch(query ?? '', {
+    enabled: focused && kind === 'document',
+    pageSize: 12,
+    entityKindFilter: [EntityKindFilter.ENTITY_KIND_DOCUMENT, EntityKindFilter.ENTITY_KIND_SPACE],
+  })
+  const search =
+    kind === 'account'
+      ? {isFetching: accountSearch.isFetching, isError: accountSearch.isError}
+      : {isFetching: documentSearch.isFetching, isError: documentSearch.isError}
+  const pastedId = query?.trim().startsWith('hm://') ? unpackHmId(query.trim()) : null
+  const pasted = pastedId?.uid ? pastedId : null
+  const candidates: {value: string; title?: string; subtitle?: string}[] =
+    kind === 'account'
+      ? [
+          ...(pasted ? [{value: pasted.uid}] : []),
+          ...accountSearch.suggestions.flatMap((candidate) =>
+            candidate.type === 'account'
+              ? [
+                  {
+                    value: candidate.id.uid,
+                    title: candidate.petname || candidate.publicName || candidate.title,
+                    subtitle: mentionCandidateSubtitle(candidate),
+                  },
+                ]
+              : [],
+          ),
+        ]
+      : [
+          ...(pasted ? [{value: packHmId(pasted)}] : []),
+          ...(documentSearch.data?.entities ?? []).flatMap((item) =>
+            item.type === 'document'
+              ? [{value: packHmId(item.id), title: item.title, subtitle: item.parentNames?.join(' / ')}]
+              : [],
+          ),
+        ]
+  const results = candidates
+    .filter((item) => !exclude.includes(item.value))
+    .filter((item, index, items) => items.findIndex((other) => other.value === item.value) === index)
     .slice(0, 8)
   const open = focused && (query !== null || results.length > 0 || search.isFetching)
   const active = Math.min(activeIndex, Math.max(0, results.length - 1))
   function select(index: number) {
     const item = results[index]
     if (!item) return
-    const nextValue = kind === 'account' ? item.id.uid : packHmId(item.id)
-    setSelectedName({value: nextValue, name: item.title})
-    onChange(nextValue)
+    if (item.title) setSelectedName({value: item.value, name: item.title})
+    onChange(item.value)
     setQuery(null)
     setFocused(false)
   }
@@ -795,7 +878,7 @@ function TriggerEntityPicker({
           >
             {results.map((item, index) => (
               <button
-                key={kind === 'account' ? item.id.uid : item.id.id}
+                key={item.value}
                 id={`${listId}-${index}`}
                 type="button"
                 role="option"
@@ -806,13 +889,9 @@ function TriggerEntityPicker({
                 onClick={() => select(index)}
               >
                 <span className="font-medium">
-                  {item.title || (
-                    <TriggerEntityName value={kind === 'account' ? item.id.uid : packHmId(item.id)} kind={kind} />
-                  )}
+                  {item.title || <TriggerEntityName value={item.value} kind={kind} />}
                 </span>
-                {kind === 'document' && item.parentNames?.length ? (
-                  <span className="text-muted-foreground text-xs">{item.parentNames.join(' / ')}</span>
-                ) : null}
+                {item.subtitle ? <span className="text-muted-foreground text-xs">{item.subtitle}</span> : null}
               </button>
             ))}
             {!results.length ? (
@@ -833,7 +912,15 @@ function TriggerEntityPicker({
   )
 }
 
-function MentionedAccountsField({accounts, onChange}: {accounts: string[]; onChange: (accounts: string[]) => void}) {
+function MentionedAccountsField({
+  accounts,
+  onChange,
+  label = 'Mentioned accounts',
+}: {
+  accounts: string[]
+  onChange: (accounts: string[]) => void
+  label?: string
+}) {
   return (
     <div className="grid gap-2">
       {accounts.map((uid) => (
@@ -848,7 +935,7 @@ function MentionedAccountsField({accounts, onChange}: {accounts: string[]; onCha
         </div>
       ))}
       <TriggerEntityPicker
-        label="Mentioned accounts"
+        label={label}
         kind="account"
         value=""
         exclude={accounts}
@@ -913,6 +1000,7 @@ const TRIGGER_TYPE_ICONS: Record<AgentTriggerSource['type'], React.ComponentType
   activity: Workflow,
   'document-comment': MessageSquare,
   'user-mention': AtSign,
+  'comment-reply': Reply,
   'site-update': FileText,
   schedule: CalendarClock,
   'run-completed': Workflow,

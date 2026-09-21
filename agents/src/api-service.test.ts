@@ -1642,8 +1642,15 @@ describe('api service', () => {
       expect(listed.triggers).toHaveLength(1)
       const trigger = listed.triggers[0]
       expect(trigger?.enabled).toBe(true)
-      expect(trigger?.source).toEqual({type: 'user-mention', mentionedAccounts: ['z6MkAgentAccountUid']})
-      expect(agentPromptText(trigger?.prompt)).toBe('Respond to the mention, performing the action requested.')
+      expect(trigger?.name).toBe('Mentions and replies to Mentionable Agent')
+      expect(trigger?.source).toEqual({
+        type: 'activity',
+        conditions: [
+          {id: 'mention', source: {type: 'user-mention', mentionedAccounts: ['z6MkAgentAccountUid']}},
+          {id: 'reply', source: {type: 'comment-reply', repliedToAccounts: ['z6MkAgentAccountUid']}},
+        ],
+      })
+      expect(agentPromptText(trigger?.prompt)).toBe('Respond to the mention or reply, performing the action requested.')
     } finally {
       sqlite.closeDatabase(db)
       cleanup()

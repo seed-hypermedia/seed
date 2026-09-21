@@ -56,7 +56,9 @@ The source runs in the execute sandbox with validated input. Read \`~/tools/<nam
     summary: 'Create, edit, enable, disable, or delete an automation trigger.',
     markdown: `# Writing triggers
 
-Write JSON to \`~/triggers/<name>\` with \`source\`, \`prompt\`, and optional \`enabled\` and \`continuation\`. Read \`~/triggers/\` first for supported source shapes and current triggers. New triggers default to enabled.
+Write JSON to \`~/triggers/<name>\` with \`source\`, \`prompt\`, and optional \`enabled\` and \`continuation\`. Read \`~/triggers/\` first: it lists current triggers and which source fits which request (mentions, replies, comments, document changes, schedules). New triggers default to enabled.
+
+Check a trigger before saving it with \`options: {dryRun: true}\`: the write is validated and, for activity sources, replayed against recent activity to show how often it would have fired. Nothing is saved, so never create test triggers. If no source expresses the request, tell the user instead of approximating with a broad filter.
 
 \`\`\`json
 {"address":"~/triggers/hourly-review","content":"{\"source\":{\"type\":\"schedule\",\"schedule\":{\"kind\":\"interval\",\"every\":1,\"unit\":\"hours\"}},\"prompt\":\"Review current project state.\",\"enabled\":true}"}
@@ -68,7 +70,7 @@ A trigger's \`continuation\` decides what a firing does. The default starts a th
 {"address":"~/triggers/deploy-hook","content":"{\"source\":{\"type\":\"webhook\"},\"continuation\":{\"kind\":\"tool\",\"tool\":\"record-deploy\",\"input\":{\"payload\":\"$event.payload\"},\"onFailure\":\"thread\"},\"prompt\":\"The deploy recorder failed; investigate and fix the record.\"}"}
 \`\`\`
 
-Replace the trigger document to edit it, write with \`enabled: false\` to disable it, or use \`options: {delete: true}\` to remove it. Trigger writes do not use \`dryRun\` or a signer.`,
+Replace the trigger document to edit it, write with \`enabled: false\` to disable it, or use \`options: {delete: true}\` to remove it. An edit keeps the kind of source that starts the trigger; switching kinds needs \`options: {replaceSource: true}\`, and interval schedules under 5 minutes need \`options: {frequentSchedule: true}\`, only when the user asked for exactly that. Trigger writes do not use a signer.`,
   },
   ipfs: {
     summary: 'Publish a private memory file or conversation attachment to IPFS.',

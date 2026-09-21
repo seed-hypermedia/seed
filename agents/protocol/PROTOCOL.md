@@ -93,12 +93,15 @@ with `MIN_CLIENT_PROTOCOL <= 1`.
 
 - `AgentTriggerSource` adds `{type: 'activity', conditions: [{id, source}]}`. Conditions are flat alternatives of
   document-comment, user-mention, and site-update filters; one underlying event fires the parent once.
+- `AgentActivitySource` adds `{type: 'comment-reply', repliedToAccounts, resourcePrefix?}`: a comment replying directly
+  to a comment by one of those accounts, never an account's reply to itself. New agents get one default trigger with a
+  mention condition and a reply condition for the agent's own account.
 - `CombineAgentTriggers` retains the selected survivor and retires its peer, preserving original firings and importing
   deduplication claims. `UpdateAgentTrigger.expectedUpdatedAt` optionally prevents stale edits. Retired triggers expose
   `mergedInto` and cannot be re-enabled or edited.
-- Clients below protocol 3 still read and write single-source triggers. Reading a compound trigger or a trigger list
-  containing one, creating a compound trigger, combining triggers, or editing a compound trigger returns a typed 426
-  `protocol_too_old` error before mutation. Compound sources are never projected to a misleading first condition.
+- Clients below protocol 3 still read and write single-source triggers. Their trigger lists leave out compound and
+  reply triggers. Reading, creating, or editing one, or combining triggers, returns a typed 426 `protocol_too_old`
+  error before mutation. Compound sources are never projected to a misleading first condition.
 - Session attribution continues to carry one actual matching leaf source for compatibility. The additive
   `matchedConditions` field records the conditions matched at admission. New activity firings snapshot their name,
   prompt, and matched sources, so later edits cannot rewrite their explanation.

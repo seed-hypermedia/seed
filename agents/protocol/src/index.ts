@@ -594,6 +594,8 @@ export type AgentTriggerPatch = {
 export type AgentActivitySource =
   | {type: 'document-comment'; resource: string; author?: string}
   | {type: 'user-mention'; mentionedAccounts: string[]; resourcePrefix?: string}
+  /** A comment replying directly to a comment by one of these accounts, excluding their own replies. */
+  | {type: 'comment-reply'; repliedToAccounts: string[]; resourcePrefix?: string}
   | {type: 'site-update'; resourcePrefix: string; eventTypes?: string[]}
 
 /** A stable alternative within an activity trigger. */
@@ -619,7 +621,12 @@ export type AgentTriggerSource =
 /** Projects legacy single activity sources into the same condition list as compound triggers. */
 export function activityConditions(source: AgentTriggerSource, legacyId = 'legacy'): AgentActivityCondition[] {
   if (source.type === 'activity') return source.conditions
-  if (source.type === 'document-comment' || source.type === 'user-mention' || source.type === 'site-update') {
+  if (
+    source.type === 'document-comment' ||
+    source.type === 'user-mention' ||
+    source.type === 'comment-reply' ||
+    source.type === 'site-update'
+  ) {
     return [{id: legacyId, source}]
   }
   return []

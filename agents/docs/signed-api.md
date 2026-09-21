@@ -218,9 +218,10 @@ Request:
 Creates a new agent. Validates referenced provider exists for the account. Creates a per-agent state directory.
 
 When the definition's primary `signingKey` resolves to an `hm-account-key` secret, the server also auto-creates a
-default enabled `user-mention` trigger that follows that signing identity's account uid (prompt: "Respond to the
-mention, performing the action requested."), so mentioning the agent's account starts a session in which it responds.
-This is best-effort and never blocks agent creation; agents without a signing key get no default trigger.
+default enabled activity trigger, "Mentions and replies to <name>", for that signing identity's account uid: a
+`user-mention` condition and a `comment-reply` condition (prompt: "Respond to the mention or reply, performing the
+action requested."). Mentioning the agent's account, or replying to one of its comments, starts one session in which it
+responds. This is best-effort and never blocks agent creation; agents without a signing key get no default trigger.
 
 Idempotent when `clientRequestId` is supplied.
 
@@ -522,6 +523,7 @@ Trigger source shape:
 type AgentActivitySource =
   | {type: 'document-comment'; resource: string; author?: string}
   | {type: 'user-mention'; mentionedAccounts: string[]; resourcePrefix?: string}
+  | {type: 'comment-reply'; repliedToAccounts: string[]; resourcePrefix?: string}
   | {type: 'site-update'; resourcePrefix: string; eventTypes?: string[]}
 
 type AgentTriggerSource =
@@ -556,7 +558,17 @@ Trigger prompts accept the same rich Seed block format as agent system prompts. 
 markdown; trigger prompt blocks are converted to resolved markdown before starting the triggered session.
 
 A `user-mention` source watches a list of accounts; a legacy singular `mentionedAccount` on input is still normalized
-into `mentionedAccounts`, and an empty list is rejected.
+into `mentionedAccounts`, and an empty list is rejected. A `comment-reply` source matches a comment replying directly to
+a comment by one of `repliedToAccounts`, never an account's reply to itself.
+
+Document fields (`resource`, `resourcePrefix`) must name an account or document (`hm://<account uid>[/path]`); a bare
+`hm://` or a wildcard is rejected rather than treated as "everything". `site-update` `eventTypes` must be one of
+`doc-update`, `comment`, `citation`, `capability`, `contact` (or the legacy aliases `document-update`, `change`, `ref`).
+
+Agents writing `~/triggers/<name>` can pass `dryRun: true` to validate the trigger and replay about 100 recent activity
+events through it without saving. An agent's edit cannot change the kind of source that starts a trigger unless it
+passes `replaceSource: true`, and interval schedules under 5 minutes need `frequentSchedule: true`; both are meant only
+for explicit user requests.
 
 An `activity` source matches any of its 1–32 conditions. Condition IDs must be unique and remain stable when edited; the
 server assigns an ID if omitted on input. Nested groups and schedule/webhook/run-completed conditions are rejected. One

@@ -1115,20 +1115,22 @@ export class Service {
 
     if (clientProtocolOf(envelope) < 3) {
       const action = envelope.action
+      // Older clients cannot render these sources, so their lists simply leave them out; a request that
+      // names one directly gets a typed upgrade prompt instead.
+      if (action._ === 'ListAgentTriggers') {
+        const response = this.#listAgentTriggers(accountId, action.agentId)
+        return {...response, triggers: response.triggers.filter((trigger) => !sourceNeedsProtocol3(trigger.source))}
+      }
       const compound =
         action._ === 'CombineAgentTriggers' ||
-        (action._ === 'CreateAgentTrigger' && action.trigger.source.type === 'activity') ||
-        (action._ === 'ListAgentTriggers' &&
-          this.#listAgentTriggers(accountId, action.agentId).triggers.some(
-            (trigger) => trigger.source.type === 'activity',
-          )) ||
+        (action._ === 'CreateAgentTrigger' && sourceNeedsProtocol3(action.trigger.source)) ||
         ((action._ === 'GetAgentTrigger' || action._ === 'UpdateAgentTrigger') &&
-          (this.#getAgentTriggerInfo(accountId, action.triggerId)?.source.type === 'activity' ||
-            (action._ === 'UpdateAgentTrigger' && action.patch.source?.type === 'activity')))
+          (sourceNeedsProtocol3(this.#getAgentTriggerInfo(accountId, action.triggerId)?.source) ||
+            (action._ === 'UpdateAgentTrigger' && sourceNeedsProtocol3(action.patch.source))))
       if (compound) {
         throw new APIError(
           426,
-          'Update Seed to view or edit triggers with multiple activity conditions.',
+          'Update Seed to view or edit triggers with multiple activity conditions or reply conditions.',
           'protocol_too_old',
         )
       }
@@ -1876,8 +1878,9 @@ export class Service {
   }
 
   /**
-   * Gives a new agent a default trigger so that mentioning the agent's own HM account starts a
-   * session in which it responds. The mention target is the agent's signing-identity account uid,
+   * Gives a new agent a default trigger so that mentioning the agent's own HM account, or replying to
+   * one of its comments, starts a session in which it responds. Both conditions share one trigger, so a
+   * reply that also mentions the agent fires once. The account is the agent's signing-identity uid,
    * resolved from its primary signing key. Best-effort: a failure here never blocks agent creation.
    */
   #createDefaultMentionTrigger(accountId: string, agentId: string, definition: api.AgentDefinition): void {
@@ -1887,10 +1890,16 @@ export class Service {
     if (!mentionAccountId) return
     try {
       this.#createAgentTriggerOnce(accountId, agentId, {
-        name: `Mentions of ${definition.name}`,
+        name: `Mentions and replies to ${definition.name}`,
         enabled: true,
-        source: {type: 'user-mention', mentionedAccounts: [mentionAccountId]},
-        prompt: 'Respond to the mention, performing the action requested.',
+        source: {
+          type: 'activity',
+          conditions: [
+            {id: 'mention', source: {type: 'user-mention', mentionedAccounts: [mentionAccountId]}},
+            {id: 'reply', source: {type: 'comment-reply', repliedToAccounts: [mentionAccountId]}},
+          ],
+        },
+        prompt: 'Respond to the mention or reply, performing the action requested.',
       })
     } catch (error) {
       console.warn('[agents] failed to create default mention trigger', {agentId, error: errorMessage(error)})
@@ -10507,6 +10516,38 @@ function normalizeAgentTriggerPatch(
   return patch
 }
 
+/**
+ * Requires a trigger's document or prefix to name an account or document. A bare `hm://` would match
+ * every event on the network, which is never what a filter means; replies have their own source.
+ */
+function normalizeTriggerResource(value: unknown, label: string): string {
+  const resource = normalizeBoundedString(value, label, 2048)
+  if (!/^hm:\/\/[A-Za-z0-9]+(?:[/?#]|$)/.test(activityTriggers.canonicalizeResourceId(resource))) {
+    throw new APIError(
+      400,
+      `${label} must name an account or document, like hm://<account>/<path>; wildcards and a bare hm:// are not filters. To respond to replies to an account's comments, use {type: "comment-reply", repliedToAccounts: [...]}.`,
+    )
+  }
+  return resource
+}
+
+/** Activity event types a site-update filter can name (with the legacy aliases the matcher accepts). */
+const SITE_UPDATE_EVENT_TYPES = [
+  'doc-update',
+  'comment',
+  'citation',
+  'capability',
+  'contact',
+  'document-update',
+  'change',
+  'ref',
+]
+
+/** Sources that clients below protocol 3 cannot display or round-trip. */
+function sourceNeedsProtocol3(source: api.AgentTriggerSource | undefined): boolean {
+  return source?.type === 'activity' || source?.type === 'comment-reply'
+}
+
 function normalizeAgentTriggerSource(raw: api.AgentTriggerSource): api.AgentTriggerSource {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new APIError(400, 'Trigger source is required')
   if (raw.type === 'activity') {
@@ -10518,9 +10559,9 @@ function normalizeAgentTriggerSource(raw: api.AgentTriggerSource): api.AgentTrig
       if (
         !condition ||
         !condition.source ||
-        !['document-comment', 'user-mention', 'site-update'].includes(condition.source.type)
+        !['document-comment', 'user-mention', 'comment-reply', 'site-update'].includes(condition.source.type)
       ) {
-        throw new APIError(400, 'Only comments, mentions, and space updates can be combined')
+        throw new APIError(400, 'Only comments, mentions, replies, and space updates can be combined')
       }
       const id =
         condition.id === undefined
@@ -10536,7 +10577,7 @@ function normalizeAgentTriggerSource(raw: api.AgentTriggerSource): api.AgentTrig
   if (raw.type === 'document-comment') {
     return {
       type: 'document-comment',
-      resource: normalizeBoundedString(raw.resource, 'Trigger document resource', 2048),
+      resource: normalizeTriggerResource(raw.resource, 'Trigger document resource'),
       ...(raw.author === undefined
         ? {}
         : {author: normalizeBoundedString(raw.author, 'Trigger author', MAX_NAME_BYTES)}),
@@ -10558,22 +10599,48 @@ function normalizeAgentTriggerSource(raw: api.AgentTriggerSource): api.AgentTrig
       mentionedAccounts,
       ...(raw.resourcePrefix === undefined
         ? {}
-        : {resourcePrefix: normalizeBoundedString(raw.resourcePrefix, 'Trigger resource prefix', 2048)}),
+        : {resourcePrefix: normalizeTriggerResource(raw.resourcePrefix, 'Trigger resource prefix')}),
+    }
+  }
+  if (raw.type === 'comment-reply') {
+    if (!Array.isArray(raw.repliedToAccounts)) throw new APIError(400, 'Trigger replied-to accounts must be an array')
+    if (raw.repliedToAccounts.length > MAX_TOOL_COUNT) throw new APIError(400, 'Too many trigger replied-to accounts')
+    const repliedToAccounts: string[] = []
+    for (const account of raw.repliedToAccounts) {
+      const normalized = normalizeBoundedString(account, 'Trigger replied-to account', MAX_NAME_BYTES)
+      if (!repliedToAccounts.includes(normalized)) repliedToAccounts.push(normalized)
+    }
+    if (repliedToAccounts.length === 0) throw new APIError(400, 'Trigger replied-to account is required')
+    return {
+      type: 'comment-reply',
+      repliedToAccounts,
+      ...(raw.resourcePrefix === undefined
+        ? {}
+        : {resourcePrefix: normalizeTriggerResource(raw.resourcePrefix, 'Trigger resource prefix')}),
     }
   }
   if (raw.type === 'site-update') {
     const source: api.AgentTriggerSource = {
       type: 'site-update',
       resourcePrefix: activityTriggers.canonicalizeResourceId(
-        normalizeBoundedString(raw.resourcePrefix, 'Trigger resource prefix', 2048),
+        normalizeTriggerResource(raw.resourcePrefix, 'Trigger resource prefix'),
       ),
     }
     if (raw.eventTypes !== undefined) {
       if (!Array.isArray(raw.eventTypes)) throw new APIError(400, 'Trigger event types must be an array')
       if (raw.eventTypes.length > MAX_TOOL_COUNT) throw new APIError(400, 'Too many trigger event types')
-      source.eventTypes = raw.eventTypes.map((eventType) =>
-        normalizeBoundedString(eventType, 'Trigger event type', MAX_NAME_BYTES),
-      )
+      source.eventTypes = raw.eventTypes.map((eventType) => {
+        const normalized = normalizeBoundedString(eventType, 'Trigger event type', MAX_NAME_BYTES)
+        if (!SITE_UPDATE_EVENT_TYPES.includes(normalized.toLowerCase())) {
+          throw new APIError(
+            400,
+            `Unknown site-update event type "${normalized}". Use one of: ${SITE_UPDATE_EVENT_TYPES.join(
+              ', ',
+            )}. Mentions and replies have their own sources (user-mention, comment-reply).`,
+          )
+        }
+        return normalized
+      })
     }
     return source
   }
@@ -11836,6 +11903,7 @@ function triggerSourceSummaryLine(source: api.AgentTriggerSource): string {
   if (source.type === 'webhook') return 'inbound webhook deliveries'
   if (source.type === 'document-comment') return `new comments on ${source.resource}`
   if (source.type === 'user-mention') return `mentions of ${source.mentionedAccounts.join(', ')}`
+  if (source.type === 'comment-reply') return `replies to ${source.repliedToAccounts.join(', ')}`
   if (source.type === 'site-update') return `activity under ${source.resourcePrefix}`
   if (source.type === 'run-completed') {
     return `when a run finishes${source.status ? ` (${source.status})` : ''}${
@@ -11881,9 +11949,19 @@ function triggersListing(context: AgentServicePiToolContext): Record<string, unk
     triggers: rows.map(triggerListingEntry),
     contract: [
       'write ~/triggers/<name> with JSON content {source, prompt, enabled?, continuation?}.',
-      'source shapes: {type: "schedule", schedule: {kind: "interval", every, unit: "minutes"|"hours"} | {kind: "weekly", daysOfWeek: [0-6], timeOfDay: "HH:MM", timezone} | {kind: "once", runAt: epochMs}} · {type: "document-comment", resource, author?} · {type: "user-mention", mentionedAccounts: [..], resourcePrefix?} · {type: "site-update", resourcePrefix, eventTypes?} · {type: "run-completed", agentId?, status?, titleMatch?} · {type: "webhook"}.',
-      'To respond to several activity conditions with ONE action, use source {type: "activity", conditions: [{id: "stable-id", source: <document-comment, user-mention, or site-update source>}, ...]}. Any condition matches; the same underlying event fires once. Preserve condition IDs when editing. Schedules, webhooks and run-completed sources stay standalone.',
-      'Read existing triggers before creating another response trigger: agents already have a default mention trigger. Extend its activity conditions when the same instructions should handle another event source.',
+      'Choose the source by what should start it:',
+      '  someone @mentions an account → {type: "user-mention", mentionedAccounts: [uid], resourcePrefix?}',
+      '  someone replies directly to a comment by an account → {type: "comment-reply", repliedToAccounts: [uid], resourcePrefix?} (never fires on the account replying to itself)',
+      '  any new comment on a document or everything under it → {type: "document-comment", resource, author?}',
+      '  other changes under a document or space → {type: "site-update", resourcePrefix, eventTypes?} with eventTypes from doc-update, comment, citation, capability, contact',
+      '  a time → {type: "schedule", schedule: {kind: "interval", every, unit: "minutes"|"hours"} | {kind: "weekly", daysOfWeek: [0-6], timeOfDay: "HH:MM", timezone} | {kind: "once", runAt: epochMs}}',
+      '  another run finishing → {type: "run-completed", agentId?, status?, titleMatch?} · an HTTP request → {type: "webhook"}',
+      'resource and resourcePrefix are hm://<account uid>[/path]; there are no wildcards and no "everything" filter. Account fields take bare account uids.',
+      'Several activity sources can share ONE action: {type: "activity", conditions: [{id: "stable-id", source: <user-mention, comment-reply, document-comment or site-update source>}, ...]}. Any condition matches; one event fires once even when it matches several. Preserve condition IDs when editing. Schedules, webhooks and run-completed stay standalone.',
+      'Read existing triggers first: agents already have a default trigger for mentions of and replies to their own account. Extend its conditions when the same instructions should handle another event.',
+      'If no source expresses what the user asked for, say so and propose the closest option. Do not approximate with a broad filter plus code or prompt instructions that discard most firings: every firing costs a run.',
+      'Check a trigger before saving it: write with options {dryRun: true} validates it and, for activity sources, reports how many recent events it would have fired on, with examples. Nothing is saved, so never create test triggers.',
+      'Edits keep what starts a trigger: changing an existing trigger to a different kind of source needs options {replaceSource: true}, and interval schedules under 5 minutes need options {frequentSchedule: true}. Set these only when the user explicitly asked for that.',
       'To combine existing activity triggers while retaining history and deduplication, write the surviving ~/triggers/<name> with options {combineWith: <other name or ID>, useOtherAction?: boolean}. Read both first and choose the shared action deliberately. The other trigger is retired. options.expectedUpdatedAt guards ordinary edits against concurrent changes.',
       'prompt: customizable markdown that starts the session when the trigger fires; webhook JSON is appended separately as untrusted trigger context.',
       'Creating a webhook through write returns its secret endpoint path (the secret is the last URL segment; it may also be sent as a Bearer header instead), and read ~/triggers/<name> shows it again.',
@@ -11975,6 +12053,128 @@ async function readTriggerAddress(context: AgentServicePiToolContext, name: stri
   }
 }
 
+/** The broad kind of event that starts a trigger; activity covers every condition-based source. */
+function triggerSourceKind(source: api.AgentTriggerSource): string {
+  return protocol.activityConditions(source).length ? 'activity' : source.type
+}
+
+/**
+ * Agent-written triggers must not quietly change what starts them or wake a model every minute:
+ * both happened when an agent "repaired" a mention trigger into a one-minute schedule. Either needs
+ * an explicit option, which the error tells the agent to set only when the user asked for it.
+ */
+function assertAgentTriggerWriteIntent(
+  trigger: api.AgentTriggerInput,
+  row: AgentTriggerRow | undefined,
+  options: Record<string, unknown>,
+): void {
+  if (row && options.replaceSource !== true) {
+    const before = triggerSourceKind(cbor.decode<api.AgentTriggerSource>(row.source_cbor))
+    const after = triggerSourceKind(trigger.source)
+    if (before !== after) {
+      throw new APIError(
+        400,
+        `"${row.name}" is started by ${before}; this write would make it a ${after} trigger. Write a separate trigger for a different kind of event. Only when the user asked to change what starts this trigger, write again with options {replaceSource: true}.`,
+      )
+    }
+  }
+  const schedule = trigger.source.type === 'schedule' ? trigger.source.schedule : null
+  if (
+    schedule?.kind === 'interval' &&
+    schedule.unit === 'minutes' &&
+    schedule.every < 5 &&
+    options.frequentSchedule !== true
+  ) {
+    throw new APIError(
+      400,
+      `A schedule every ${schedule.every} minute${schedule.every === 1 ? '' : 's'} fires ${Math.round(
+        60 / schedule.every,
+      )} times an hour. Use an activity source to react to events, or a slower schedule. Only when the user explicitly asked for this frequency, write again with options {frequentSchedule: true}.`,
+    )
+  }
+}
+
+/** Recent activity a dry run checks: about as far back as a couple of monitor polls reach. */
+const TRIGGER_DRY_RUN_PAGES = 2
+const TRIGGER_DRY_RUN_PAGE_SIZE = 50
+
+/**
+ * Validates a trigger write and, for activity sources, replays recent activity through the matcher
+ * without saving anything — so an agent can check a filter instead of creating test triggers.
+ */
+async function dryRunTriggerWrite(
+  context: AgentServicePiToolContext,
+  trigger: api.AgentTriggerInput,
+  row: AgentTriggerRow | undefined,
+): Promise<Record<string, unknown>> {
+  const base = {
+    dryRun: true,
+    saved: false,
+    name: trigger.name,
+    action: row ? 'update' : 'create',
+    when: triggerSourceSummaryLine(trigger.source),
+    does: triggerContinuationSummaryLine(trigger.continuation),
+  }
+  const conditions = protocol.activityConditions(trigger.source, 'condition')
+  if (!conditions.length) {
+    return {
+      ...base,
+      summary: `Valid ${trigger.source.type} trigger; nothing was saved. Only activity sources can be checked against recent events.`,
+    }
+  }
+  const client = createSeedClient(context.hmServerUrl)
+  const events: activityTriggers.ActivityFeedEvent[] = []
+  let pageToken: string | undefined
+  for (let page = 0; page < TRIGGER_DRY_RUN_PAGES; page += 1) {
+    const response = await client.request('ListEvents', {
+      pageSize: TRIGGER_DRY_RUN_PAGE_SIZE,
+      pageToken,
+      currentAccount: context.accountId,
+      order: 'observed',
+    })
+    if (Array.isArray(response.events)) events.push(...(response.events as activityTriggers.ActivityFeedEvent[]))
+    pageToken =
+      typeof response.nextPageToken === 'string' && response.nextPageToken ? response.nextPageToken : undefined
+    if (!pageToken) break
+  }
+  // Firings collapse sibling events (a comment and its mention citation) the same way the monitor does.
+  const firings = new Map<string, {activity: string; time: number | null; conditions: Set<string>}>()
+  const perCondition: Record<string, number> = Object.fromEntries(conditions.map(({id}) => [id, 0]))
+  for (const event of events) {
+    const matched = conditions.filter(({source}) => activityTriggers.activityMatchesTriggerSource(source, event))
+    if (!matched.length) continue
+    const key = activityTriggers.activityFiringKey(event) ?? `event-${firings.size}`
+    const firing = firings.get(key) ?? {
+      activity: activityTriggers.activitySummary(event),
+      time: activityTriggers.activityEventTimeMs(event),
+      conditions: new Set<string>(),
+    }
+    for (const {id} of matched) {
+      if (!firing.conditions.has(id)) perCondition[id] = (perCondition[id] ?? 0) + 1
+      firing.conditions.add(id)
+    }
+    firings.set(key, firing)
+  }
+  const wouldFire = firings.size
+  const broad = events.length >= 20 && wouldFire / events.length > 0.25
+  return {
+    ...base,
+    summary: `Nothing was saved. Of the ${
+      events.length
+    } most recent activity events, this trigger would fire ${wouldFire} time${wouldFire === 1 ? '' : 's'}.${
+      broad ? ' That is a large share of all activity: the filter is probably too broad.' : ''
+    }${wouldFire === 0 ? ' No recent event matched; that can be correct for rare events.' : ''}`,
+    scannedEvents: events.length,
+    wouldFire,
+    matchesPerCondition: perCondition,
+    examples: [...firings.values()].slice(0, 10).map((firing) => ({
+      activity: firing.activity,
+      ...(firing.time === null ? {} : {at: new Date(firing.time).toISOString()}),
+      conditions: [...firing.conditions],
+    })),
+  }
+}
+
 /**
  * Writes one trigger for `write ~/triggers/<name>`: create, edit, enable/disable, or delete. The
  * agent manages its own triggers directly — `enabled` is honored as written (defaulting to true),
@@ -11998,6 +12198,9 @@ async function writeTriggerAddress(
   }
   const row = existing[0]
 
+  if (options.dryRun === true && (options.delete === true || options.combineWith !== undefined)) {
+    throw new APIError(400, 'dryRun checks trigger content; it cannot preview a delete or a combine')
+  }
   if (options.delete === true) {
     if (!row) return {summary: `No trigger named ${name}.`, name, deleted: false}
     deleteAgentTriggerRows(context.db, context.accountId, row.id)
@@ -12045,6 +12248,8 @@ async function writeTriggerAddress(
   // The address is the name; a name inside the content must not silently retarget the write.
   const trigger = normalizeAgentTriggerInput({...parsed, name} as api.AgentTriggerInput)
   assertTriggerContinuationCallable(context.db, context.accountId, context.agentId, trigger.continuation)
+  assertAgentTriggerWriteIntent(trigger, row, options)
+  if (options.dryRun === true) return dryRunTriggerWrite(context, trigger, row)
   if (row) {
     if (row.merged_into) throw new APIError(409, 'This trigger was combined into another trigger and cannot be edited')
     if (options.expectedUpdatedAt !== undefined && options.expectedUpdatedAt !== row.updated_at) {
@@ -12574,8 +12779,11 @@ export async function executeWriteVerb(
     throw new APIError(400, 'write dryRun must be a boolean')
   }
   const dryRun = input.dryRun === true
-  if (dryRun && !address.startsWith('hm://')) {
-    throw new APIError(400, 'dryRun applies only to hm:// writes — it validates a publish without publishing')
+  if (dryRun && !address.startsWith('hm://') && !address.startsWith('~/triggers/')) {
+    throw new APIError(
+      400,
+      'dryRun applies only to hm:// and ~/triggers/ writes — it validates the write without saving it',
+    )
   }
 
   if (address.startsWith('~/triggers/')) {
@@ -12585,8 +12793,16 @@ export async function executeWriteVerb(
       'combineWith',
       'useOtherAction',
       'expectedUpdatedAt',
+      'dryRun',
+      'replaceSource',
+      'frequentSchedule',
     ])
-    return writeTriggerAddress(context, address.slice('~/triggers/'.length).replace(/\/+$/, ''), content, options)
+    return writeTriggerAddress(
+      context,
+      address.slice('~/triggers/'.length).replace(/\/+$/, ''),
+      content,
+      dryRun ? {...options, dryRun: true} : options,
+    )
   }
 
   if (address.startsWith('~/tools/')) {

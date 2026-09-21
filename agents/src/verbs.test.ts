@@ -403,7 +403,7 @@ describe('write verb', () => {
       executeWriteVerb(context, {address: 'hm://z6MkDoc/notes', content: 'x', dryRun: 'true'}),
     ).rejects.toThrow('write dryRun must be a boolean')
     await expect(executeWriteVerb(context, {address: '~/memory/a.txt', content: 'x', dryRun: true})).rejects.toThrow(
-      'dryRun applies only to hm:// writes',
+      'dryRun applies only to hm:// and ~/triggers/ writes',
     )
   })
 
@@ -1247,5 +1247,144 @@ describe('mcp tools through the call verb', () => {
     expect(contract.kind).toBe('mcp')
     expect(String(contract.markdown)).toContain('`forecast` on the weather MCP server')
     expect(String(contract.markdown)).toContain('"required"')
+  })
+})
+
+describe('trigger write safeguards', () => {
+  const me = 'z6MkAgentUid'
+  const mentions = {type: 'user-mention', mentionedAccounts: [me]}
+  const reply = (id: string, author: string, parentAuthor: string) => ({
+    id,
+    type: 'comment',
+    feedEventId: `blob-${id}`,
+    author: {id: {uid: author, id: `hm://${author}`, path: []}},
+    comment: {author, targetAccount: 'z6MkSite', targetPath: '/notes', content: []},
+    replyParentAuthor: {id: {uid: parentAuthor, id: `hm://${parentAuthor}`, path: []}},
+    target: {id: {id: 'hm://z6MkSite/notes', uid: 'z6MkSite', path: ['notes']}},
+  })
+
+  function mockActivity(events: unknown[]) {
+    const originalFetch = globalThis.fetch
+    cleanups.push(() => {
+      globalThis.fetch = originalFetch
+    })
+    globalThis.fetch = mock(async (url: string | URL) => {
+      const href = decodeURIComponent(String(url))
+      if (href.includes('ListEvents')) return Response.json(serialize({events, nextPageToken: ''}))
+      throw new Error(`Unexpected fetch: ${href}`)
+    }) as unknown as typeof fetch
+  }
+
+  test('dryRun replays recent activity without saving, so agents never need test triggers', async () => {
+    const context = makeContext()
+    mockActivity([reply('bafyA', 'z6MkUser', me), reply('bafyB', 'z6MkUser', 'z6MkOther'), reply('bafyC', me, me)])
+    const content = JSON.stringify({
+      source: {
+        type: 'activity',
+        conditions: [
+          {id: 'mention', source: mentions},
+          {id: 'reply', source: {type: 'comment-reply', repliedToAccounts: [me]}},
+        ],
+      },
+      prompt: 'Respond.',
+    })
+    const result = await executeWriteVerb(context, {address: '~/triggers/respond', content, options: {dryRun: true}})
+    expect(result).toMatchObject({dryRun: true, saved: false, scannedEvents: 3, wouldFire: 1})
+    expect(result.matchesPerCondition).toEqual({mention: 0, reply: 1})
+    expect(String(result.summary)).toContain('Nothing was saved')
+    // The top-level dryRun flag works too.
+    const topLevel = await executeWriteVerb(context, {address: '~/triggers/respond', content, dryRun: true})
+    expect(topLevel.wouldFire).toBe(1)
+    expect(context.db.query('SELECT id FROM agent_triggers').all()).toHaveLength(0)
+    expect(context.onTriggersChange).not.toHaveBeenCalled()
+  })
+
+  test('dryRun flags filters that match most activity', async () => {
+    const context = makeContext()
+    mockActivity(Array.from({length: 20}, (_, index) => reply(`bafy${index}`, 'z6MkUser', 'z6MkOther')))
+    const result = await executeWriteVerb(context, {
+      address: '~/triggers/all-comments',
+      content: JSON.stringify({source: {type: 'document-comment', resource: 'hm://z6MkSite'}, prompt: 'x'}),
+      options: {dryRun: true},
+    })
+    expect(result.wouldFire).toBe(20)
+    expect(String(result.summary)).toContain('too broad')
+  })
+
+  test('rejects wildcard documents and unknown event types', async () => {
+    const context = makeContext()
+    for (const source of [
+      {type: 'document-comment', resource: 'hm://*'},
+      {type: 'site-update', resourcePrefix: 'hm://', eventTypes: ['comment']},
+    ]) {
+      await expect(
+        executeWriteVerb(context, {address: '~/triggers/bad', content: JSON.stringify({source, prompt: 'x'})}),
+      ).rejects.toThrow('must name an account or document')
+    }
+    await expect(
+      executeWriteVerb(context, {
+        address: '~/triggers/bad',
+        content: JSON.stringify({
+          source: {type: 'site-update', resourcePrefix: 'hm://z6MkSite', eventTypes: ['comment-reply']},
+          prompt: 'x',
+        }),
+      }),
+    ).rejects.toThrow('Unknown site-update event type "comment-reply"')
+  })
+
+  test('edits cannot silently turn an activity trigger into a frequent schedule', async () => {
+    const context = makeContext()
+    await executeWriteVerb(context, {
+      address: '~/triggers/mentions',
+      content: JSON.stringify({source: mentions, prompt: 'Reply.'}),
+    })
+    const everyMinute = JSON.stringify({
+      source: {type: 'schedule', schedule: {kind: 'interval', every: 1, unit: 'minutes'}},
+      prompt: 'Check for failures.',
+    })
+    await expect(executeWriteVerb(context, {address: '~/triggers/mentions', content: everyMinute})).rejects.toThrow(
+      'options {replaceSource: true}',
+    )
+    await expect(
+      executeWriteVerb(context, {address: '~/triggers/mentions', content: everyMinute, options: {replaceSource: true}}),
+    ).rejects.toThrow('options {frequentSchedule: true}')
+    await expect(executeWriteVerb(context, {address: '~/triggers/poll', content: everyMinute})).rejects.toThrow(
+      'fires 60 times an hour',
+    )
+    const replaced = await executeWriteVerb(context, {
+      address: '~/triggers/mentions',
+      content: everyMinute,
+      options: {replaceSource: true, frequentSchedule: true},
+    })
+    expect((replaced.source as {type: string}).type).toBe('schedule')
+    // Adding a condition keeps the activity kind, so it needs no option.
+    await executeWriteVerb(context, {
+      address: '~/triggers/replies',
+      content: JSON.stringify({source: mentions, prompt: 'Reply.'}),
+    })
+    const extended = await executeWriteVerb(context, {
+      address: '~/triggers/replies',
+      content: JSON.stringify({
+        source: {
+          type: 'activity',
+          conditions: [
+            {id: 'mention', source: mentions},
+            {id: 'reply', source: {type: 'comment-reply', repliedToAccounts: [me]}},
+          ],
+        },
+        prompt: 'Reply.',
+      }),
+    })
+    expect((extended.source as {type: string}).type).toBe('activity')
+  })
+
+  test('the listing tells agents which source fits which request', async () => {
+    const context = makeContext()
+    const listing = await executeReadVerb(context, {address: '~/triggers/'})
+    const contract = String(listing.contract)
+    expect(contract).toContain('replies directly to a comment by an account → {type: "comment-reply"')
+    expect(contract).toContain('options {dryRun: true}')
+    expect(contract).toContain('never create test triggers')
+    expect(contract).toContain('no wildcards')
   })
 })

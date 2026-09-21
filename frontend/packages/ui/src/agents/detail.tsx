@@ -2644,10 +2644,6 @@ function CreateAgentTriggerDialog({
 }) {
   const navigate = useNavigate()
   const createTrigger = useCreateAgentTrigger(input.serverUrl, input.selectedAccountId)
-  const updateTrigger = useUpdateAgentTrigger(input.serverUrl, input.selectedAccountId)
-  const existingTriggers = useAgentTriggers(input.serverUrl, input.selectedAccountId, input.agentId)
-  const [existingId, setExistingId] = useState('new')
-  const existing = existingTriggers.data?.find(({id}) => id === existingId)
   const [sourceDraftOpen, setSourceDraftOpen] = useState(false)
   const [source, setSource] = useState<AgentTriggerSource>({type: 'document-comment', resource: ''})
   const [name, setName] = useState(() => defaultTriggerName(source.type))
@@ -2662,33 +2658,6 @@ function CreateAgentTriggerDialog({
 
   async function handleCreateTrigger() {
     try {
-      if (existing) {
-        const added = activityConditions(source)
-        if (!added.length) throw new Error('Only activity conditions can be added to an existing trigger')
-        await updateTrigger.mutateAsync({
-          triggerId: existing.id,
-          expectedUpdatedAt: existing.updatedAt,
-          patch: {
-            source: {
-              type: 'activity',
-              conditions: [
-                ...activityConditions(existing.source, existing.id),
-                ...added.map(({source}) => ({id: crypto.randomUUID(), source})),
-              ],
-            },
-          },
-        })
-        toast.success('Conditions added to the existing trigger')
-        onClose()
-        navigate({
-          key: 'agent',
-          agentId: input.agentId,
-          serverUrl: input.serverUrl,
-          tab: 'triggers',
-          triggerId: existing.id,
-        })
-        return
-      }
       const trigger: AgentTriggerInput = {
         name,
         enabled: true,
@@ -2736,65 +2705,32 @@ function CreateAgentTriggerDialog({
           involved.
         </DialogDescription>
       </div>
-      {activityConditions(source).length &&
-      existingTriggers.data?.some((item) => !item.mergedInto && activityConditions(item.source).length) ? (
-        <label className="grid gap-1">
-          <SizableText size="sm" weight="bold">
-            Where should these conditions go?
-          </SizableText>
-          <SelectDropdown
-            value={existingId}
-            options={[
-              {value: 'new', label: 'Create a new trigger'},
-              ...(existingTriggers.data ?? [])
-                .filter((item) => !item.mergedInto && activityConditions(item.source).length)
-                .map((item) => ({value: item.id, label: `Add to ${item.name}`})),
-            ]}
-            onValue={setExistingId}
-          />
-          <SizableText size="xs" color="muted">
-            Add to an existing response trigger to share its instructions and avoid duplicate responses.
-          </SizableText>
-        </label>
-      ) : null}
-      {!existing ? (
-        <label className="flex flex-col gap-1">
-          <SizableText size="sm" weight="bold">
-            Name
-          </SizableText>
-          <Input
-            value={name}
-            onChange={(event) => {
-              nameEdited.current = true
-              setName(event.target.value)
-            }}
-          />
-        </label>
-      ) : null}
+      <label className="flex flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          Name
+        </SizableText>
+        <Input
+          value={name}
+          onChange={(event) => {
+            nameEdited.current = true
+            setName(event.target.value)
+          }}
+        />
+      </label>
       <TriggerSourceFields
         source={source}
         onDraftChange={setSourceDraftOpen}
         onChange={(nextSource) => {
-          if (!activityConditions(nextSource).length) setExistingId('new')
           setSource(nextSource)
           if (!nameEdited.current) setName(defaultTriggerName(nextSource.type))
         }}
       />
-      {existing ? (
-        <div className="border-border grid gap-2 rounded-lg border p-3">
-          <SizableText size="sm">Shared action: {summarizeTriggerContinuation(existing.continuation)}</SizableText>
-          <pre className="max-h-40 overflow-auto text-sm whitespace-pre-wrap">
-            {promptBlocksToMarkdown(agentPromptToBlocks(existing.prompt))}
-          </pre>
-        </div>
-      ) : (
-        <TriggerContinuationFields
-          continuation={continuation}
-          tools={agentTools.data?.tools}
-          onChange={setContinuation}
-        />
-      )}
-      {!existing && triggerUsesPrompt(continuation) ? (
+      <TriggerContinuationFields
+        continuation={continuation}
+        tools={agentTools.data?.tools}
+        onChange={setContinuation}
+      />
+      {triggerUsesPrompt(continuation) ? (
         <div className="flex flex-col gap-1">
           <SizableText size="sm" weight="bold">
             {isHeadlessContinuation(continuation) ? 'Recovery prompt' : 'Prompt'}
@@ -2820,15 +2756,9 @@ function CreateAgentTriggerDialog({
         </Button>
         <Button
           onClick={() => void handleCreateTrigger()}
-          disabled={
-            createTrigger.isLoading ||
-            updateTrigger.isLoading ||
-            sourceDraftOpen ||
-            !isTriggerSourceReady(source) ||
-            (!existing && !name.trim())
-          }
+          disabled={createTrigger.isLoading || sourceDraftOpen || !isTriggerSourceReady(source) || !name.trim()}
         >
-          {existing ? 'Add conditions' : 'Create trigger'}
+          Create trigger
         </Button>
       </div>
     </div>
@@ -2838,6 +2768,7 @@ function CreateAgentTriggerDialog({
 /** The name a new trigger starts with; the user replaces it, but it should already say what it is. */
 function defaultTriggerName(sourceType: AgentTriggerSource['type']): string {
   if (sourceType === 'webhook') return 'New webhook trigger'
+  if (sourceType === 'schedule') return 'New scheduled trigger'
   return 'New activity trigger'
 }
 

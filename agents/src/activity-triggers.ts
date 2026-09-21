@@ -121,6 +121,7 @@ export function activityMatchesTriggerSource(source: api.AgentTriggerSource, eve
   }
   if (source.type === 'document-comment') return matchesDocumentComment(source, event)
   if (source.type === 'user-mention') return matchesUserMention(source, event)
+  if (source.type === 'comment-reply') return matchesCommentReply(source, event)
   if (source.type === 'site-update') return matchesSiteUpdate(source, event)
   return false
 }
@@ -305,6 +306,31 @@ function matchesSingleMention(
   }
 
   return false
+}
+
+/**
+ * Matches a resolved comment event (the `/api/ListEvents` shape) that replies directly to a comment by
+ * one of the source's accounts. An account replying to itself never matches, so an agent continuing
+ * its own thread cannot trigger itself.
+ */
+function matchesCommentReply(
+  source: Extract<api.AgentTriggerSource, {type: 'comment-reply'}>,
+  event: ActivityFeedEvent,
+): boolean {
+  if (stringField(event, 'type') !== 'comment') return false
+  const comment = recordField(event, 'comment')
+  const parentAuthorRecord = recordField(event, 'replyParentAuthor')
+  const parentAuthorId = parentAuthorRecord ? recordField(parentAuthorRecord, 'id') : null
+  const replyingComment = recordField(event, 'replyingComment')
+  const parentAuthor =
+    (parentAuthorId && stringField(parentAuthorId, 'uid')) ||
+    (replyingComment && stringField(replyingComment, 'author'))
+  if (!parentAuthor || !source.repliedToAccounts.includes(parentAuthor)) return false
+  const authorRecord = recordField(event, 'author')
+  const authorId = authorRecord ? recordField(authorRecord, 'id') : null
+  const author = (authorId && stringField(authorId, 'uid')) || (comment && stringField(comment, 'author'))
+  if (author === parentAuthor) return false
+  return mentionMatchesResourcePrefix(event, source.resourcePrefix)
 }
 
 /** Resolves the account UID a mention link points at, when it targets an account root or `:profile`. */

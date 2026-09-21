@@ -184,9 +184,21 @@ describe('activity conditions and combination', () => {
     const single = await h.create(comments)
     expect((await h.send({_: 'GetAgentTrigger', triggerId: single.id}, 2))._).toBe('GetAgentTriggerResponse')
     const multi = await h.create(compound)
+    // Their lists leave out what they cannot render rather than failing outright.
+    const listed = await h.send({_: 'ListAgentTriggers', agentId: h.agentId}, 2)
+    expect(listed._ === 'ListAgentTriggersResponse' && listed.triggers.map(({id}) => id)).toEqual([single.id])
     for (const action of [
       {_: 'GetAgentTrigger', triggerId: multi.id},
-      {_: 'ListAgentTriggers', agentId: h.agentId},
+      {
+        _: 'CreateAgentTrigger',
+        agentId: h.agentId,
+        trigger: {
+          name: 'Replies',
+          enabled: true,
+          prompt: 'Reply.',
+          source: {type: 'comment-reply', repliedToAccounts: ['z6Mkagent']},
+        },
+      },
       {_: 'UpdateAgentTrigger', triggerId: multi.id, patch: {source: comments}},
     ] as api.UnsignedAgentAction[]) {
       await expect(h.send(action, 2)).rejects.toMatchObject({status: 426, code: 'protocol_too_old'})
@@ -206,6 +218,18 @@ describe('activity conditions and combination', () => {
       ],
     ]) {
       await expect(h.create({type: 'activity', conditions} as api.AgentTriggerSource)).rejects.toThrow()
+    }
+    // A bare hm:// matches the whole network; it is not a document filter.
+    for (const source of [
+      {type: 'site-update', resourcePrefix: 'hm://', eventTypes: ['comment']},
+      {type: 'document-comment', resource: 'hm://'},
+      {type: 'user-mention', mentionedAccounts: ['z6Mkagent'], resourcePrefix: 'docs/notes'},
+      {type: 'comment-reply', repliedToAccounts: ['z6Mkagent'], resourcePrefix: 'hm:///docs'},
+    ] as api.AgentActivitySource[]) {
+      await expect(h.create(source)).rejects.toThrow('must name an account or document')
+      await expect(h.create({type: 'activity', conditions: [{id: 'x', source}]})).rejects.toThrow(
+        'must name an account or document',
+      )
     }
     const target = await h.create(comments)
     const schedule = await h.create({type: 'schedule', schedule: {kind: 'interval', every: 1, unit: 'hours'}})
