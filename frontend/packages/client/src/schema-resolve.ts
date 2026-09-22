@@ -173,6 +173,20 @@ function referencesOf(schema: unknown, out: string[] = []): string[] {
 }
 
 /**
+ * The references a schema makes to schemas outside the bundled library — `hm://` document URLs
+ * and `ipfs://` blobs — in the order they appear, each once. What `hydrateSchemaRegistry` will
+ * fetch, so a caller can key a cache on it without fetching anything.
+ */
+export function externalSchemaRefs(schema: HypermediaSchema | undefined): string[] {
+  const out: string[] = []
+  for (const ref of referencesOf(schema)) {
+    if (!/^(hm|ipfs):\/\//.test(ref) || out.includes(ref) || loadFrom({}, ref)) continue
+    out.push(ref)
+  }
+  return out
+}
+
+/**
  * Fetch every reference a schema makes that the registry (and the bundled library) cannot
  * already answer, recursively, so `resolveSchema` / `validate` can follow `ref`s to types
  * published under any account. Returns the registry (mutated and returned for chaining).

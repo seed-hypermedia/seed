@@ -7,7 +7,7 @@
 // tab. Readers see the same rows read-only — the value, or "not set" for a missing
 // one. The caller resolves the schema (see useEffectiveDocSchema) and passes its
 // metadata sub-schema as `conformanceSchema`.
-import {fieldSchema, requiredFieldNames} from './schema/engine'
+import {fieldSchema, requiredFieldNames, type SchemaRegistry} from './schema/engine'
 import {useMemo} from 'react'
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {seedValue} from './schema/data-editor'
@@ -27,13 +27,18 @@ import {FIELD_LABEL_CLASS, FieldRow, METADATA_VALUE_RULES, ValueDisplay, ValueEd
  * the document's current (draft-merged) metadata; `onMetadata` stages a single
  * field patch (the same shape the Attributes tab publishes) — omit it for readers.
  */
+const EMPTY_REGISTRY: SchemaRegistry = {}
+
 export function RequiredAttributesEditor({
   conformanceSchema,
+  conformanceRegistry,
   metadata,
   onMetadata,
   openUrl,
 }: {
   conformanceSchema: HypermediaSchema | undefined
+  /** The published types `conformanceSchema` refers to, fetched by the caller (see useConformanceSchema). */
+  conformanceRegistry?: SchemaRegistry
   metadata: HMMetadata | undefined
   onMetadata?: (patch: Record<string, unknown>) => void
   /** Makes `hm://` values clickable. */
@@ -41,9 +46,10 @@ export function RequiredAttributesEditor({
 }) {
   const current = (metadata ?? {}) as Record<string, unknown>
 
+  const registry = conformanceRegistry ?? EMPTY_REGISTRY
   const schemaRoot = useMemo(
-    () => (conformanceSchema ? documentMetadataSchema(conformanceSchema, {}, {}) : undefined),
-    [conformanceSchema],
+    () => (conformanceSchema ? documentMetadataSchema(conformanceSchema, {}, registry) : undefined),
+    [conformanceSchema, registry],
   )
 
   const requiredKeys = useMemo(
@@ -87,7 +93,7 @@ export function RequiredAttributesEditor({
 
   return (
     <ValueEditorProvider openUrl={openUrl}>
-      <SchemaRegistryProvider schema={schemaRoot} registry={{}} value={current}>
+      <SchemaRegistryProvider schema={schemaRoot} registry={registry} value={current}>
         <div
           className="border-border bg-muted/30 mb-4 flex flex-col rounded-lg border px-4 py-1"
           data-testid="required-attributes"

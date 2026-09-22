@@ -60,7 +60,29 @@ function stripNulls(value: Record<string, unknown>): Record<string, unknown> {
 export const WORLD_UID = 'z6MkWorldFixture'
 const LIBRARY = 'hm://hyper.media'
 type FixtureDoc = {path: string[]; metadata: Record<string, unknown>}
+// Two type pages of the world's own: Mammal EXTENDS Animal by document URL, so resolving a
+// mammal's fields needs the animal page fetched too (the registry hydration the app does).
+const ANIMAL_CID = 'bafyreigkxnvamoxiyp2qvcn7qazdppwnt2mdnbojuehthjrk7yfpuhnmjq'
+const MAMMAL_CID = 'bafyreidedtokl6mruxplo3w6hgqmluuubnfgmz43c5zq7oqehysi5wo5ea'
+const worldBlobs: Record<string, unknown> = {
+  [ANIMAL_CID]: {
+    type: `${LIBRARY}/struct`,
+    properties: {
+      diet: {value: {anyOf: ['herbivore', 'carnivore', 'omnivore']}, required: true},
+      habitat: {value: {type: `${LIBRARY}/string`}, required: true},
+    },
+  },
+  [MAMMAL_CID]: {
+    type: `hm://${WORLD_UID}/types/animal`,
+    properties: {
+      hasFur: {value: {type: `${LIBRARY}/boolean`}, required: true},
+      gestationDays: {value: {type: `${LIBRARY}/integer`, minimum: 0}},
+    },
+  },
+}
 const worldDocs: FixtureDoc[] = [
+  {path: ['types', 'animal'], metadata: {name: 'Animal', schemaDefinition: `ipfs://${ANIMAL_CID}`}},
+  {path: ['types', 'mammal'], metadata: {name: 'Mammal', schemaDefinition: `ipfs://${MAMMAL_CID}`}},
   {path: ['places'], metadata: {name: 'Places', childAttributesSchema: `${LIBRARY}/example/place-doc`}},
   {path: ['places', 'shire'], metadata: {name: 'The Shire'}},
   {path: ['places', 'mordor'], metadata: {name: 'Mordor', attributesSchema: `${LIBRARY}/example/place-doc`}},
@@ -164,7 +186,7 @@ const mockUniversalClient = {
       return {cids: (params?.blobs ?? []).map((b: {cid: string}) => b.cid)}
     }
     if (method === 'GetCID') {
-      return {value: null}
+      return {value: worldBlobs[params?.cid] ?? null}
     }
     if (method === 'Search') {
       return {entities: []}
@@ -206,12 +228,13 @@ function MetadataEditor({
   meta: Record<string, unknown>
   onMetadata: (patch: MetadataPatch) => void
 }) {
-  const {metadataSchema: conformanceSchema} = useEffectiveDocSchema(undefined, meta)
+  const {metadataSchema: conformanceSchema, registry} = useEffectiveDocSchema(undefined, meta)
   return (
     <DocumentMetadataView
       metadata={meta}
       canEdit
       conformanceSchema={conformanceSchema}
+      conformanceRegistry={registry}
       onMetadata={onMetadata}
       // A mock uploader so ipfs-typed fields show their file-picker affordance.
       fileUpload={async () => 'bafyreietestuploadcidxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'}

@@ -161,7 +161,7 @@ import {SizableText} from './text'
 import {SchemaBrowserPage} from './schema/schema-browser'
 import {
   classifyRef,
-  metadataSchemaOf,
+  useConformanceSchema,
   useEffectiveDocSchema,
   useParentDraftChildAttributesSchema,
   useResolvedSchema,
@@ -3975,19 +3975,11 @@ function DocumentMetadataPage({
   // `childAttributesSchema`) — drives required-field rows + advisory validation. While the
   // document's own attributes schema is being drafted below, the draft is the schema: every edit
   // to it reshapes the rows and their validation at once, before anything is published.
-  const {metadataSchema: effectiveSchema} = useEffectiveDocSchema(docId, metadata)
-  const draftedAttributesSchema = ctx.bindingSchemaDrafts?.attributesSchema
   // …and with no schema of its own, the parent's DRAFTED children schema counts too (desktop).
-  const ownRef = typeof (metadata as Record<string, unknown>).attributesSchema === 'string'
-  const parentDraft = useParentDraftChildAttributesSchema(ownRef || draftedAttributesSchema ? null : docId)
-  const conformanceSchema = useMemo(
-    () =>
-      draftedAttributesSchema
-        ? metadataSchemaOf(draftedAttributesSchema)
-        : !ownRef && parentDraft.schema
-          ? metadataSchemaOf(parentDraft.schema)
-          : effectiveSchema,
-    [draftedAttributesSchema, ownRef, parentDraft.schema, effectiveSchema],
+  const {schema: conformanceSchema, registry: conformanceRegistry} = useConformanceSchema(
+    docId,
+    metadata,
+    ctx.bindingSchemaDrafts?.attributesSchema,
   )
 
   // Open an uploaded IPFS file reference in its own dedicated viewer window/tab.
@@ -4021,6 +4013,7 @@ function DocumentMetadataPage({
         metadata={metadata as any}
         canEdit={canEditCurrentRoute}
         conformanceSchema={conformanceSchema}
+        conformanceRegistry={conformanceRegistry}
         onMetadata={(patch) => {
           if (!canEditCurrentRoute) return
           beginEditIfNeeded()
@@ -4613,20 +4606,10 @@ function ContentViewWithOutline({
   // The schema this document must conform to (own `attributesSchema`, else parent's
   // `childAttributesSchema`) — drives the always-visible required attributes. A drafted own
   // attributes schema (Attributes tab) takes precedence, so the rows follow it live.
-  const {metadataSchema: effectiveSchema} = useEffectiveDocSchema(resourceId, requiredAttrMetadata)
-  const draftedAttributesSchema = ctx.bindingSchemaDrafts?.attributesSchema
-  const ownAttributesRef = typeof (requiredAttrMetadata as Record<string, unknown>).attributesSchema === 'string'
-  const parentDraft = useParentDraftChildAttributesSchema(
-    ownAttributesRef || draftedAttributesSchema ? null : resourceId,
-  )
-  const conformanceSchema = useMemo(
-    () =>
-      draftedAttributesSchema
-        ? metadataSchemaOf(draftedAttributesSchema)
-        : !ownAttributesRef && parentDraft.schema
-          ? metadataSchemaOf(parentDraft.schema)
-          : effectiveSchema,
-    [draftedAttributesSchema, ownAttributesRef, parentDraft.schema, effectiveSchema],
+  const {schema: conformanceSchema, registry: conformanceRegistry} = useConformanceSchema(
+    resourceId,
+    requiredAttrMetadata,
+    ctx.bindingSchemaDrafts?.attributesSchema,
   )
   // existingDraftContent may arrive in HMBlockNode[] or
   // EditorBlock[] shape. Pick the outline builder that matches.
@@ -4678,6 +4661,7 @@ function ContentViewWithOutline({
         {/* Everyone sees the required attributes; writers edit them in place. */}
         <RequiredAttributesEditor
           conformanceSchema={conformanceSchema}
+          conformanceRegistry={conformanceRegistry}
           metadata={requiredAttrMetadata}
           openUrl={openUrl}
           onMetadata={

@@ -1,5 +1,5 @@
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
-import {fieldSchema, requiredFieldNames, structFields} from './schema/engine'
+import {fieldSchema, requiredFieldNames, structFields, type SchemaRegistry} from './schema/engine'
 import {Braces, Check} from 'lucide-react'
 import {useEffect, useMemo, useState} from 'react'
 import {seedValue} from './schema/data-editor'
@@ -106,6 +106,7 @@ export function DocumentMetadataView({
   canEdit = false,
   onMetadata,
   conformanceSchema,
+  conformanceRegistry,
   fileUpload,
   openFile,
   openUrl,
@@ -124,6 +125,12 @@ export function DocumentMetadataView({
    * distinct from `schemaDefinition`, which is a schema this document DEFINES.
    */
   conformanceSchema?: HypermediaSchema
+  /**
+   * The published types the conformance schema refers to (what it extends or includes, the
+   * targets of its reference fields), fetched by the caller — see useConformanceSchema. Without
+   * it a field typed by another account's schema resolves as missing.
+   */
+  conformanceRegistry?: SchemaRegistry
   /** Uploads a file dropped onto a string field to IPFS, returning its CID. */
   fileUpload?: (file: File) => Promise<string>
   /** Opens an uploaded IPFS file (by CID) in its own dedicated viewer window. */
@@ -172,6 +179,8 @@ export function DocumentMetadataView({
     return cids
   }, [keysDep, pendingSchemaCid])
   const {byCid} = useSchemaRegistry(seedCids)
+  // Schema-keyed (ipfs://) fields resolve by CID; the conformance schema's own references by name.
+  const registry = useMemo(() => ({...byCid, ...(conformanceRegistry ?? {})}), [byCid, conformanceRegistry])
   // The metadata schema that drives field suggestions + advisory validation is
   // the document's CONFORMANCE schema (its `attributesSchema`, or a parent's
   // `childAttributesSchema`), resolved by the caller and passed as `conformanceSchema`.
@@ -192,9 +201,9 @@ export function DocumentMetadataView({
     return documentMetadataSchema(
       conformanceSchema ?? {},
       Object.fromEntries(structFields(keyRoot).map((f) => [f.name, f.schema])),
-      byCid,
+      registry,
     )
-  }, [keysDep, pendingSchemaCid, byCid, conformanceSchema])
+  }, [keysDep, pendingSchemaCid, registry, conformanceSchema])
 
   // The fields the conformance schema declares are ALWAYS shown (seeded if absent), so the user
   // never has to "add" a field the type already names: required ones first, then the optional ones
@@ -253,7 +262,7 @@ export function DocumentMetadataView({
       onCreateBlob={editable ? onCreateBlob : undefined}
     >
       <MetadataDirectEditContext.Provider value={directEdit ?? null}>
-        <SchemaRegistryProvider schema={schemaRoot} registry={{}} value={validationValue}>
+        <SchemaRegistryProvider schema={schemaRoot} registry={registry} value={validationValue}>
           <div className="flex flex-col gap-4 py-6">
             {/* No title here — the tab/breadcrumb (main view) and the panel header
               already label this "Attributes". */}

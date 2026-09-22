@@ -18,12 +18,43 @@ import {draftBindingSchemaDrafts} from '@shm/shared/models/schema-draft'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, unpackHmId} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
-import {HM_SCHEMAS, type HypermediaSchema, schemaCid} from './engine'
+import {HM_SCHEMAS, type HypermediaSchema, type SchemaRegistry, schemaCid} from './engine'
 import {useSchemaRegistry} from './schema-registry-cid'
 import {schemaDefinitionCid} from './schema-document'
 
 export {bareCid, classifyRef, metadataSchemaOf, type RefKind} from '@seed-hypermedia/client/schema-resolve'
-import {classifyRef, metadataSchemaOf} from '@seed-hypermedia/client/schema-resolve'
+import {
+  classifyRef,
+  externalSchemaRefs,
+  hydrateSchemaRegistry,
+  metadataSchemaOf,
+  type SchemaFetchClient,
+} from '@seed-hypermedia/client/schema-resolve'
+
+const EMPTY_REGISTRY: SchemaRegistry = {}
+
+/**
+ * The registry that resolves a schema's references to OTHER published types — the type a schema
+ * extends or includes, the target of a reference field — fetched recursively, the way the CLI's
+ * `hydrateSchemaRegistry` does. Bundled library references need no fetch, so a schema that only
+ * uses those is complete at once. Advisory: an unreachable reference stays missing and the
+ * resolver reports it, nothing throws.
+ */
+export function useHydratedRegistry(schema: HypermediaSchema | undefined): {
+  registry: SchemaRegistry
+  isLoading: boolean
+} {
+  const client = useUniversalClient()
+  const refs = useMemo(() => externalSchemaRefs(schema), [schema])
+  const query = useQuery({
+    queryKey: [queryKeys.ENTITY, 'schema-registry', refs],
+    enabled: refs.length > 0,
+    staleTime: 60_000,
+    queryFn: () => hydrateSchemaRegistry(client as unknown as SchemaFetchClient, schema, {}),
+  })
+  if (refs.length === 0) return {registry: EMPTY_REGISTRY, isLoading: false}
+  return {registry: query.data ?? EMPTY_REGISTRY, isLoading: query.isLoading}
+}
 
 /**
  * Resolve a single schema reference to its Hypermedia schema. Async only for the
@@ -34,6 +65,8 @@ export function useResolvedSchema(ref: string | null | undefined): {
   schema?: HypermediaSchema
   /** The schema blob's CID, when known — what a conforming blob links to via its `schema` key. */
   cid?: string
+  /** The published types the schema refers to, fetched — pass to the resolver and the validator. */
+  registry: SchemaRegistry
   isLoading: boolean
 } {
   const cls = useMemo(() => classifyRef(ref), [ref])
@@ -52,11 +85,14 @@ export function useResolvedSchema(ref: string | null | undefined): {
   const {byCid, isLoading: cidLoading} = useSchemaRegistry(cid ? [cid] : [])
 
   const schema = cls.kind === 'hm-bundled' ? HM_SCHEMAS[cls.name] : cid ? byCid[cid] : undefined
+  const hydrated = useHydratedRegistry(schema)
   const isLoading =
-    !schema && ((cls.kind === 'hm-doc' && (resource.isLoading || !!docSchemaCid)) || (cls.kind === 'cid' && cidLoading))
+    (!schema &&
+      ((cls.kind === 'hm-doc' && (resource.isLoading || !!docSchemaCid)) || (cls.kind === 'cid' && cidLoading))) ||
+    hydrated.isLoading
 
   const schemaBlobCid = cls.kind === 'hm-bundled' ? schemaCid(cls.name) : cid ?? undefined
-  return {schema, cid: schema ? schemaBlobCid : undefined, isLoading}
+  return {schema, cid: schema ? schemaBlobCid : undefined, registry: hydrated.registry, isLoading}
 }
 
 /**
@@ -70,13 +106,43 @@ export function useEffectiveDocSchema(
 ): {
   schema?: HypermediaSchema
   metadataSchema?: HypermediaSchema
+  registry: SchemaRegistry
   source: 'own' | 'inherited' | 'none'
   isLoading: boolean
 } {
   const {ref, source, isLoading: refLoading} = useEffectiveSchemaRef(id, metadata)
-  const {schema, isLoading} = useResolvedSchema(ref)
-  const metadataSchema = useMemo(() => metadataSchemaOf(schema), [schema])
-  return {schema, metadataSchema, source, isLoading: isLoading || refLoading}
+  const {schema, registry, isLoading} = useResolvedSchema(ref)
+  // The type may extend or include another published type: resolve against what was fetched.
+  const metadataSchema = useMemo(() => metadataSchemaOf(schema, registry), [schema, registry])
+  return {schema, metadataSchema, registry, source, isLoading: isLoading || refLoading}
+}
+
+/**
+ * The struct a document's Attributes tab renders and validates against, with the registry that
+ * resolves it: a drafted own attributes schema first (every edit reshapes the rows live), else a
+ * parent's DRAFTED children schema when the document has no binding of its own (desktop), else
+ * the effective published schema.
+ */
+export function useConformanceSchema(
+  id: UnpackedHypermediaId | null | undefined,
+  metadata: unknown,
+  draftedAttributesSchema: HypermediaSchema | null | undefined,
+): {schema?: HypermediaSchema; registry: SchemaRegistry; isLoading: boolean} {
+  const effective = useEffectiveDocSchema(id, metadata)
+  const ownRef = typeof (metadata as any)?.attributesSchema === 'string'
+  const parentDraft = useParentDraftChildAttributesSchema(ownRef || draftedAttributesSchema ? null : id)
+  const drafted = draftedAttributesSchema ?? (!ownRef ? parentDraft.schema : undefined)
+  const draftedRegistry = useHydratedRegistry(drafted)
+  return useMemo(() => {
+    if (drafted) {
+      return {
+        schema: metadataSchemaOf(drafted, draftedRegistry.registry),
+        registry: draftedRegistry.registry,
+        isLoading: draftedRegistry.isLoading,
+      }
+    }
+    return {schema: effective.metadataSchema, registry: effective.registry, isLoading: effective.isLoading}
+  }, [drafted, draftedRegistry.registry, draftedRegistry.isLoading, effective])
 }
 
 /**

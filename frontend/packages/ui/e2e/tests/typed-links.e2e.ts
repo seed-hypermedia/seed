@@ -72,6 +72,17 @@ test.describe('typed references', () => {
     expect((await meta(page)).home).toBe(`${WORLD}/factions/fellowship`)
   })
 
+  test('a type that extends another published type shows both field sets', async ({page}) => {
+    // Mammal (a page of the world) extends Animal (another page) by URL: the animal fields must
+    // appear alongside the mammal ones, which needs the parent type fetched, not just the child.
+    await openHarness(page, {name: 'Cat', attributesSchema: `${WORLD}/types/mammal`})
+    for (const field of ['diet', 'habitat', 'hasFur', 'gestationDays']) {
+      await expect(page.getByRole('treeitem', {name: new RegExp(`^${field}`)}).first()).toBeVisible()
+    }
+    // The inherited enum keeps its control: a dropdown, not a text field.
+    await expect(page.getByRole('treeitem', {name: /^diet/}).first().getByRole('combobox')).toBeVisible()
+  })
+
   test('a folder-typed document conforms without a binding of its own', async ({page}) => {
     await openHarness(page, character({home: `${WORLD}/places/shire`}))
     const home = page.getByRole('treeitem', {name: /^home/}).first()
