@@ -1,15 +1,30 @@
 name: Repo HM sync (hypermedia)
 
 # Publishes hypermedia/ (developer docs, the Hypermedia schema library, agents docs)
-# to the Seed developer docs site, staging.hyper.media, whenever main changes it.
-# Signs with SEED_DOCS_STAGING_KEYFILE (a repository secret holding the contents
-# of an unencrypted .hmkey.json, as the daemon exports it): the site is that key's
-# own space, hm://z6MkkW8Uh77G79XMED3KLFiSqoYMqSF63fJMLEiYBNpF9xnL, and the push goes
-# through the staging gateway, which holds the site's own documents. Documents are
-# updated block by block; unchanged pages publish nothing.
+# to a Seed developer docs site. Two targets, each the space of its own site key,
+# stored as a repository secret holding an unencrypted .hmkey.json as the daemon
+# exports it; the push goes through that site's gateway, which holds its documents:
+#   staging     staging.hyper.media  hm://z6MkkW8Uh77G79XMED3KLFiSqoYMqSF63fJMLEiYBNpF9xnL  SEED_DOCS_STAGING_KEYFILE
+#   production  hyper.media          hm://z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB  SEED_DOCS_KEYFILE
+# Every merge to main that touches hypermedia/ publishes to staging. A release
+# (the Release - Docker Images workflow, which a *.*.*  tag starts) calls this
+# workflow to publish the released tree to production. Documents are updated
+# block by block; unchanged pages publish nothing.
 
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: Which docs site to publish to
+        type: choice
+        options: [staging, production]
+        default: staging
+  workflow_call:
+    inputs:
+      target:
+        description: staging or production
+        type: string
+        required: true
   push:
     branches: [main]
     paths:
@@ -17,13 +32,15 @@ on:
       - '.github/workflows/sync-hypermedia.yml'
 
 concurrency:
-  group: ${{ github.workflow }}
+  group: ${{ github.workflow }}-${{ inputs.target || 'staging' }}
   cancel-in-progress: false
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      TARGET: ${{ inputs.target || 'staging' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -38,13 +55,18 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Check hypermedia/ is consistent
         run: node scripts/hypermedia/check.mjs
-      - name: Publish hypermedia/ to staging.hyper.media
+      - name: Publish hypermedia/ to the ${{ env.TARGET }} docs site
         working-directory: frontend/apps/cli
         env:
-          SEED_CLI_KEYFILE: ${{ secrets.SEED_DOCS_STAGING_KEYFILE }}
+          SEED_CLI_KEYFILE: ${{ env.TARGET == 'production' && secrets.SEED_DOCS_KEYFILE || secrets.SEED_DOCS_STAGING_KEYFILE }}
         run: |
+          case "$TARGET" in
+            production) SERVER=https://hyper.media; SECRET=SEED_DOCS_KEYFILE ;;
+            staging) SERVER=https://staging.hyper.media; SECRET=SEED_DOCS_STAGING_KEYFILE ;;
+            *) echo "::error::unknown target '$TARGET'"; exit 1 ;;
+          esac
           if [ -z "$SEED_CLI_KEYFILE" ]; then
-            echo "SEED_DOCS_STAGING_KEYFILE secret is not set; skipping publish."
+            echo "$SECRET secret is not set; skipping publish."
             exit 0
           fi
-          bun run src/sync-hypermedia.ts push --server https://staging.hyper.media
+          bun run src/sync-hypermedia.ts push --server "$SERVER"
