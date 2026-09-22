@@ -555,6 +555,10 @@ function processEventsInner(events: Event[]) {
   // no account argument, but site-library and root-document caches can be targeted
   // from the Ref resource safely.
   if (seenBlobTypes.has('ref')) {
+    // QueryBlock powers collection tables. This main-process invalidation is
+    // broadcast to every renderer window, keeping a collection current when a
+    // child was published elsewhere.
+    appInvalidateQueries([queryKeys.QUERY_BLOCK])
     appInvalidateQueries([queryKeys.LIBRARY])
 
     const siteUids = new Set<string>()

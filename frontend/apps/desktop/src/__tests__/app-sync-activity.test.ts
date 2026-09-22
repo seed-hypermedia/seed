@@ -166,6 +166,7 @@ describe('activity event processing', () => {
     it('targets site-library invalidation for child Ref events', async () => {
       const {processEvents} = await loadModule()
       processEvents([makeBlobEvent('Ref', 'hm://z6MkOwner/doc?v=abc')])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.QUERY_BLOCK])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.LIBRARY])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.SITE_LIBRARY, 'z6MkOwner'])
       expect(appInvalidateQueriesMock).not.toHaveBeenCalledWith([queryKeys.SITE_LIBRARY])

@@ -29,4 +29,8 @@ export function invalidateAfterPublish(docId: UnpackedHypermediaId, newDocument:
   invalidateQueries([queryKeys.ACCOUNT, docId.uid])
   invalidateQueries([queryKeys.RESOLVED_ENTITY, docId.id])
   invalidateQueries([queryKeys.ACTIVITY_FEED])
+  // Collection tables are backed by the combined QueryBlock endpoint rather
+  // than directory queries. Refetch inactive entries too so a collection that
+  // is open in another window cannot remount with stale child metadata.
+  invalidateQueries([queryKeys.QUERY_BLOCK], {refetchType: 'all'})
 }
