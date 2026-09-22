@@ -12,9 +12,10 @@ interface. A remote server's `localhost` is never mistaken for the user's machin
    existing grants are not silently changed. No execution backend or publishing keys are needed.
 3. Ask: “Build an interactive budget calculator with sliders. Show it as a widget and give me a link to open it in the
    browser. Let me send my selected budget back to you.”
-4. Click **Run widget** or **Open in browser**. In chat, a result appears outside the app with **Send to agent** and
-   **Dismiss** controls. Nothing is sent until the user chooses to send it. The resulting message has an **App context**
-   bubble containing the artifact reference and the output's provenance.
+4. The widget runs in the chat as soon as it appears (**Stop widget** puts it behind a **Run widget** button), or click
+   **Open in browser**. In chat, a result appears outside the app with **Send to agent** and **Dismiss** controls.
+   Nothing is sent until the user chooses to send it. The resulting message has an **App context** bubble containing the
+   artifact reference and the output's provenance.
 
 The app opens in the ordinary `web` route, preserving the sidebar, title bar, footer, assistant panel, omnibar, and
 browser/Seed navigation history. The local HTTP URL lasts until that Seed window closes; use the original chat link to
@@ -88,7 +89,7 @@ iframe can submit a signed chat action. The result bridge is available in chat, 
 ## Boundaries and current limits
 
 - Single HTML file, maximum 1 MiB UTF-8. Bundle libraries, styles, and images inline; no CDN imports.
-- Explicit **Run widget** before executing anything in a transcript. Raw HTML in Markdown remains inert.
+- A widget runs when it appears in a transcript; only the sandbox contains it. Raw HTML in Markdown remains inert.
 - Nested sandboxed frames allow scripts but not same-origin access, forms, popups, downloads, or top navigation. CSP
   blocks external resource loads, fetch, and frame navigation; no Seed preload, signing keys, or tool bridge is
   injected. The wrapper's frame policy also constrains script-initiated navigation inside the app.
@@ -111,8 +112,8 @@ The isolation uses standard
 ## Tests
 
 - Agents: revision immutability, memory path checks and size bounds, discovery/grants, signed session authorization.
-- UI: explicit start/stop, rerender stability, integrity failures, source-checked result messages, user-approved sends,
-  integrated-browser navigation, context disclosure, and tool-grant preservation.
+- UI: run on sight, stop and restart, rerender stability, integrity failures, source-checked result messages,
+  user-approved sends, integrated-browser navigation, context disclosure, and tool-grant preservation.
 - Electron: real Chromium interaction in both views, image data URLs, result relay, blocked network loads/navigation,
   blocked parent DOM/storage/Node/preload access, loopback endpoint restrictions, and listener cleanup.
 
