@@ -84,6 +84,7 @@ import {
   ContinuedMessageChip,
   HandoffBody,
   continuationReasonLabel,
+  continuationArg,
   handoffMarkdownFromArgs,
   sourceLinesFromArgs,
 } from './continuation'
@@ -603,9 +604,10 @@ function ContinuationDetailsDialog({
   const args = item.args
   const output = (item.rawOutput ?? {}) as {successorSessionId?: string; title?: string}
   const title = String(args?.title ?? output.title ?? 'a new session')
-  const description = typeof args?.description === 'string' ? args.description : undefined
+  const rawDescription = continuationArg(args, 'description')
+  const description = typeof rawDescription === 'string' ? rawDescription : undefined
   const reason = continuationReasonLabel(typeof args?.reason === 'string' ? args.reason : undefined)
-  const transfer = args?.transfer as {plan?: string} | undefined
+  const transfer = continuationArg(args, 'transfer') as {plan?: string} | undefined
   const rawOutput = item.rawOutput ?? item.result
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

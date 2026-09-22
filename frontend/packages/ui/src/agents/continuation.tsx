@@ -1,3 +1,8 @@
+import {
+  CONTINUATION_HANDOFF_KEYS,
+  CONTINUATION_HOISTED_ARGS,
+  continuationSectionTitle,
+} from '@seed-hypermedia/agents-protocol'
 import {type SessionContinuationLink, type SessionEvent, type SessionInfo} from './client'
 import {type ChatToolPart} from './chat-parts'
 import {Markdown} from './markdown'
@@ -300,25 +305,51 @@ export function ContinuationHeader({
  */
 export function handoffMarkdownFromArgs(args: Record<string, unknown> | undefined): string {
   const handoff = (args?.handoff ?? {}) as Record<string, unknown>
+  const text = (item: unknown): string => (typeof item === 'string' ? item : JSON.stringify(item) ?? '')
   const section = (title: string, value: unknown): string[] => {
-    if (typeof value === 'string' && value.trim()) return [`## ${title}`, value, '']
-    if (Array.isArray(value) && value.length) return [`## ${title}`, ...value.map((item) => `- ${String(item)}`), '']
-    return []
+    if (value === undefined || value === null) return []
+    if (Array.isArray(value)) return value.length ? [`## ${title}`, ...value.map((item) => `- ${text(item)}`), ''] : []
+    return text(value).trim() ? [`## ${title}`, text(value), ''] : []
   }
+  const known: Array<[string, string]> = [
+    ['purpose', 'Purpose'],
+    ['currentRequest', 'Current request'],
+    ['establishedFacts', 'Established facts'],
+    ['decisions', 'Decisions'],
+    ['openQuestions', 'Open questions'],
+    ['nextActions', 'Next actions'],
+    ['cautions', 'Cautions'],
+  ]
+  const hoisted = new Set<string>(CONTINUATION_HOISTED_ARGS)
+  // Same rule as the runtime: unknown keys are sections, and a model-written `extra: {...}` folds in.
+  const extra = Object.entries(handoff)
+    .flatMap(([key, value]) =>
+      key === 'extra' && value && typeof value === 'object' && !Array.isArray(value)
+        ? Object.entries(value as Record<string, unknown>)
+        : [[key, value] as const],
+    )
+    .filter(([key]) => !hoisted.has(key) && !CONTINUATION_HANDOFF_KEYS.has(key))
   return [
-    ...section('Purpose', handoff.purpose),
-    ...section('Current request', handoff.currentRequest),
-    ...section('Established facts', handoff.establishedFacts),
-    ...section('Decisions', handoff.decisions),
-    ...section('Open questions', handoff.openQuestions),
-    ...section('Next actions', handoff.nextActions),
-    ...section('Cautions', handoff.cautions),
+    ...known.flatMap(([key, title]) => section(title, handoff[key])),
+    ...extra.flatMap(([key, value]) => section(continuationSectionTitle(key), value)),
   ].join('\n')
+}
+
+/**
+ * A top-level continue_session argument the model may instead have nested inside `handoff`. The
+ * runtime hoists these when the top level lacks them; the cards read them the same way so what
+ * they show matches what the successor received.
+ */
+export function continuationArg(args: Record<string, unknown> | undefined, key: string): unknown {
+  if (args?.[key] !== undefined) return args[key]
+  const handoff = args?.handoff
+  return handoff && typeof handoff === 'object' ? (handoff as Record<string, unknown>)[key] : undefined
 }
 
 /** The cited sources as the tool input carries them, one line each, as the projection lists them. */
 export function sourceLinesFromArgs(args: Record<string, unknown> | undefined): string[] {
-  const sources = Array.isArray(args?.sources) ? (args!.sources as Array<Record<string, unknown>>) : []
+  const raw = continuationArg(args, 'sources')
+  const sources = Array.isArray(raw) ? (raw as Array<Record<string, unknown>>) : []
   return sources.map((source) => {
     const where =
       source.kind === 'resource'

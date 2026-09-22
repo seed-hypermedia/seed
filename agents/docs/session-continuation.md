@@ -46,11 +46,14 @@ anyway; the transition card renders from that pair.
 `continue_session({reason, title, description, handoff, sources?, transfer?})` — `tool-registry.ts`. `title` and
 `description` are **required** and set by the predecessor's agent, the way the `status` verb names a session
 (`title_source = 'agent'`, so the fallback namer stays out). `handoff` is prose for a colleague who has read nothing:
-purpose, currentRequest, establishedFacts, decisions, openQuestions, nextActions, cautions. `sources` are exact
-breadcrumbs: `resource` (hm://, ipfs://, http), `memory` (`~/memory/…`, must exist), `session_events`/`session_event`
-(seq ranges of a thread, as `read thread:<id>` shows them; validated against the thread). `transfer.plan` is `carry`
-(default when the checklist has unfinished steps — it is copied with its owner cleared, so the successor's run adopts
-it) or `close`/`omit`.
+purpose, currentRequest, establishedFacts, decisions, openQuestions, nextActions, cautions — plus any key the agent
+invents, kept under `handoff.extra` (each value normalized to a string list) and rendered as its own `## Section`. The
+handoff schema has no `additionalProperties: false`: in prod, models nested `sources`/`transfer`/`description` inside
+`handoff` on roughly 40% of calls and every one was refused and retried, so `normalizeContinueSessionInput` hoists those
+three to the top level when the top level lacks them. `sources` are exact breadcrumbs: `resource` (hm://, ipfs://,
+http), `memory` (`~/memory/…`, must exist), `session_events`/`session_event` (seq ranges of a thread, as
+`read thread:<id>` shows them; validated against the thread). `transfer.plan` is `carry` (default when the checklist has
+unfinished steps — it is copied with its owner cleared, so the successor's run adopts it) or `close`/`omit`.
 
 Availability (`canContinueSession` in `#runPiAgent`): a run exists, it is not a delegated child (`parentRunId`), and it
 is not a typed child (`return_result`). Scripts never see it.

@@ -1289,6 +1289,11 @@ export type SessionContinuationHandoff = {
   openQuestions?: string[]
   nextActions?: string[]
   cautions?: string[]
+  /**
+   * Any other keys the agent put on its handoff, each normalized to a list of strings and shown
+   * to the successor as its own section. Agents invent sections freely; nothing is dropped.
+   */
+  extra?: Record<string, string[]>
 }
 
 /** An exact, inspectable pointer the handoff cites — never a paraphrase of it. */
