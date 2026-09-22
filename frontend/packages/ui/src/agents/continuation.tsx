@@ -333,9 +333,21 @@ function handoffSectionTitle(key: string): string {
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : key
 }
 
+/**
+ * A top-level continue_session argument the model may instead have nested inside `handoff`. The
+ * runtime hoists these when the top level lacks them; the cards read them the same way so what
+ * they show matches what the successor received.
+ */
+export function continuationArg(args: Record<string, unknown> | undefined, key: string): unknown {
+  if (args?.[key] !== undefined) return args[key]
+  const handoff = args?.handoff
+  return handoff && typeof handoff === 'object' ? (handoff as Record<string, unknown>)[key] : undefined
+}
+
 /** The cited sources as the tool input carries them, one line each, as the projection lists them. */
 export function sourceLinesFromArgs(args: Record<string, unknown> | undefined): string[] {
-  const sources = Array.isArray(args?.sources) ? (args!.sources as Array<Record<string, unknown>>) : []
+  const raw = continuationArg(args, 'sources')
+  const sources = Array.isArray(raw) ? (raw as Array<Record<string, unknown>>) : []
   return sources.map((source) => {
     const where =
       source.kind === 'resource'
