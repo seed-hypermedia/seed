@@ -492,6 +492,26 @@ export function metadataDiffOp(
   return attrs.length ? {type: 'SetAttributes', attrs} : null
 }
 
+/**
+ * Relative links to files that are not documents (`./images/x.png`, `../assets/x.png`)
+ * become `file://` links to their absolute path, which the import uploads as
+ * blobs (resolveFileLinks). The parser already writes `file://./x` for a
+ * relative image; anything still relative that exists on disk is treated the
+ * same. Resolving against the page's own folder, not the working directory, is
+ * what lets a nested page link a shared `assets/` folder.
+ */
+function relativeAssetsToFileLinks(nodes: HMBlockNode[], dir: string, file: string): HMBlockNode[] {
+  const fileDir = resolve(dir, dirname(file))
+  return rewriteLinks(nodes, (link) => {
+    let rel: string | null = null
+    if (/^file:\/\/(?!\/)/.test(link)) rel = link.slice('file://'.length)
+    else if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(link) && !link.startsWith('/') && !link.startsWith('#')) rel = link
+    if (rel === null || /\.md(#.*)?$/.test(rel)) return link
+    const abs = resolve(fileDir, rel.split('#')[0]!)
+    return existsSync(abs) && statSync(abs).isFile() ? `file://${abs}` : link
+  })
+}
+
 export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
   const layout = opts.layout || defaultLayout
   const log = opts.log || (() => {})
@@ -510,7 +530,11 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     const {tree, metadata: fileMetadata} = parseMarkdown(raw)
     const metadata = opts.metadataFor ? opts.metadataFor(file, fileMetadata) : fileMetadata
     const resolved = await resolveFileLinks(
-      relativeToHmLinks(markdownBlockNodesToHMBlockNodes(tree), file, opts.account, layout),
+      relativeAssetsToFileLinks(
+        relativeToHmLinks(markdownBlockNodesToHMBlockNodes(tree), file, opts.account, layout),
+        opts.dir,
+        file,
+      ),
     )
     const newTree = resolved.nodes.map(hmBlockNodeToBlockNode)
     const id = hmId(opts.account, {path: path ? path.replace(/^\//, '').split('/') : []})
