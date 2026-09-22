@@ -10,6 +10,14 @@ export type HMLink = {'/': string}
 export type HMBytes = Uint8Array | {'/': {bytes: string}}
 
 /**
+ * Account
+ * A reference to an account, held as the bare `hm://<principal>` URL, with `format: hm-profile` so editors offer an account search and accept a pasted principal.
+ * A reference to an account (a space) as its bare `hm://<principal>` URL — rendered as a searchable account pill; a pasted principal is normalised to the URL.
+ * Schema: hm://hyper.media/account
+ */
+export type HMAccount = string
+
+/**
  * Blob
  * The signed envelope every Hypermedia blob extends, with a type tag, the signer's public key, an Ed25519 signature over the canonical CBOR with the signature zeroed, and a millisecond timestamp.
  * The signed envelope every Hypermedia blob extends: a type tag, the signer's key, a signature and a millisecond timestamp.

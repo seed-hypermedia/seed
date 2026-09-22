@@ -7,7 +7,9 @@ import {useSearch} from '@shm/shared/models/search'
 import {useSchemaSubtypes, useTypedDocumentSearch} from '@shm/shared/models/typed-documents'
 import {useUniversalAppContext} from '@shm/shared/routing'
 import {packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {principalFromString} from '@seed-hypermedia/client/blobs'
 import {inClosure} from '@seed-hypermedia/client/schema-subtypes'
+import {EntityKindFilter} from '@shm/shared/client/grpc-types'
 import {FileCode2, FileText, TriangleAlert, User, X} from 'lucide-react'
 import {useState} from 'react'
 import {Button} from './button'
@@ -35,6 +37,16 @@ import {cn} from './utils'
  * warning — advisory too, so a pasted URL of any type still commits.
  */
 export type HMEntityFieldMode = 'document' | 'profile' | 'schema'
+
+/** Whether `text` is a bare principal (`z6Mk…`): what an account field accepts and stores as `hm://<principal>`. */
+function isPrincipalString(text: string): boolean {
+  try {
+    principalFromString(text)
+    return true
+  } catch {
+    return false
+  }
+}
 
 export function HMEntityField({
   value,
@@ -238,7 +250,11 @@ function HMEntitySearchInput({
   // The platform's domain store answers first (cached, offline); the site's own answer is the fallback.
   const {domainResolver} = useUniversalAppContext()
   const isUrlInput = /^(hm|ipfs|https?):\/\//i.test(text.trim())
-  const search = useSearch(text.trim(), {enabled: mode !== 'schema' && text.trim().length > 0 && !isUrlInput})
+  const search = useSearch(text.trim(), {
+    enabled: mode !== 'schema' && text.trim().length > 0 && !isUrlInput,
+    // An account field searches accounts (spaces) only; a document field searches everything.
+    entityKindFilter: mode === 'profile' ? [EntityKindFilter.ENTITY_KIND_SPACE] : undefined,
+  })
   // Schema mode offers only pages that DEFINE a schema (carry `schemaDefinition`), through the
   // attribute query — by name when text is typed, the latest ones when the field is empty — so
   // whatever is picked resolves to a schema. Text and profile modes use full-text search.
@@ -285,6 +301,11 @@ function HMEntitySearchInput({
       return
     }
     const trimmed = text.trim()
+    // An account field takes either spelling: a bare principal is stored as its hm:// URL.
+    if (mode === 'profile' && isPrincipalString(trimmed)) {
+      onCommit(`hm://${trimmed}`)
+      return
+    }
     // A pasted web link (a site or gateway URL) names a document only once the site has been
     // asked which account and path it serves: resolve it to the canonical hm:// URL, the same
     // way the omnibar does. An unresolvable link commits as typed, so the warning can say so.

@@ -60,6 +60,8 @@ function stripNulls(value: Record<string, unknown>): Record<string, unknown> {
 // with its own binding, and a faction — what a Character's `home` field (target: Place)
 // must offer and must warn about, respectively.
 export const WORLD_UID = 'z6MkWorldFixture'
+/** A real Ed25519 principal, so a pasted account id round-trips through the principal decoder. */
+export const ALICE_UID = 'z6MkgisVMELvqnsCo3dYmtVpy8PiqPGMVwfAyBWFn84vebq4'
 const LIBRARY = 'hm://hyper.media'
 type FixtureDoc = {path: string[]; metadata: Record<string, unknown>}
 // Two type pages of the world's own: Mammal EXTENDS Animal by document URL, so resolving a
@@ -72,6 +74,7 @@ const worldBlobs: Record<string, unknown> = {
     properties: {
       diet: {value: {anyOf: ['herbivore', 'carnivore', 'omnivore']}, required: true},
       habitat: {value: {type: `${LIBRARY}/string`}, required: true},
+      keeper: {value: {type: `${LIBRARY}/account`}, description: 'The account that looks after this animal.'},
     },
   },
   [MAMMAL_CID]: {
@@ -191,7 +194,17 @@ const mockUniversalClient = {
       return {value: worldBlobs[params?.cid] ?? null}
     }
     if (method === 'Search') {
-      return {entities: []}
+      // Accounts are found only through the space filter, the way an account field searches.
+      const spacesOnly = Array.isArray(params?.entityKindFilter) && params.entityKindFilter.includes(1)
+      const query = String(params?.query ?? '').toLowerCase()
+      const accounts = [{uid: ALICE_UID, title: 'Alice Keeper'}]
+      return {
+        entities: spacesOnly
+          ? accounts
+              .filter((account) => account.title.toLowerCase().includes(query))
+              .map((account) => ({id: hmId(account.uid), title: account.title, type: 'document'}))
+          : [],
+      }
     }
     return {}
   },

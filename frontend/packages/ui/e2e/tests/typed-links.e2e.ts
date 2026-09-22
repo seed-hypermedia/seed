@@ -114,6 +114,52 @@ test.describe('typed references', () => {
     expect(published.properties.mother).toMatchObject({value: {format: 'hm-url', target: `${WORLD}/types/mammal`}})
   })
 
+  test('an account field searches accounts and normalises a pasted principal', async ({page}) => {
+    const ALICE = 'z6MkgisVMELvqnsCo3dYmtVpy8PiqPGMVwfAyBWFn84vebq4'
+    await openHarness(page, {
+      name: 'Rex',
+      attributesSchema: `${WORLD}/types/animal`,
+      diet: 'carnivore',
+      habitat: 'yard',
+    })
+    const keeper = page.getByRole('treeitem', {name: /^keeper/}).first()
+    const input = keeper.getByPlaceholder(/Search accounts/)
+    await expect(input).toBeVisible()
+
+    // Search reaches accounts (the mock answers only a spaces-filtered search).
+    await input.fill('ali')
+    const results = page.locator('[data-hm-search-results]').getByTestId('hm-search-result')
+    await expect(results).toHaveCount(1)
+    await expect(results.first()).toContainText('Alice Keeper')
+    await results.first().click()
+    await expect.poll(async () => (await meta(page)).keeper).toBe(`hm://${ALICE}`)
+
+    // Clear, then paste the bare principal: stored as the same URL.
+    await keeper.getByRole('button', {name: 'Remove reference'}).click()
+    await keeper.getByPlaceholder(/Search accounts/).fill(ALICE)
+    await keeper.getByPlaceholder(/Search accounts/).press('Enter')
+    await expect.poll(async () => (await meta(page)).keeper).toBe(`hm://${ALICE}`)
+    await expect(page.getByRole('alert').getByText(/keeper/)).toHaveCount(0)
+  })
+
+  test('the schema editor offers an Account kind that includes the library type', async ({page}) => {
+    await openHarness(page, {name: 'X'})
+    await page.getByRole('button', {name: 'Define schema'}).click()
+    const dialog = page.getByRole('dialog', {name: /New object/})
+    await dialog.getByRole('button', {name: 'Add field'}).click()
+    await dialog.getByRole('textbox', {name: 'Field name'}).first().fill('owner')
+    await dialog.getByRole('textbox', {name: 'Type of owner'}).click()
+    await page
+      .getByTestId('schema-type-option')
+      .filter({has: page.getByText('Account', {exact: true})})
+      .click()
+    await expect(dialog.getByRole('textbox', {name: 'Type of owner'})).toHaveValue('Account')
+    await dialog.getByTestId('linked-object-publish').click()
+    await expect(dialog).toBeHidden()
+    const published: any = await page.evaluate(() => (window as any).__lastPublishedSchema)
+    expect(published.properties.owner).toEqual({value: {type: `${LIBRARY}/account`}, required: true})
+  })
+
   test('a folder-typed document conforms without a binding of its own', async ({page}) => {
     await openHarness(page, character({home: `${WORLD}/places/shire`}))
     const home = page.getByRole('treeitem', {name: /^home/}).first()

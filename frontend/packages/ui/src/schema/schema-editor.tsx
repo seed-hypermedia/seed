@@ -42,6 +42,7 @@ import {SchemaTypeInput, type TypeOption} from './schema-type-input'
 const FIELD_KINDS: {kind: string; label: string}[] = [
   {kind: 'string', label: 'Text'},
   {kind: 'hm-url', label: 'HM link'},
+  {kind: 'account', label: 'Account'},
   {kind: 'ipfs', label: 'IPFS file / object'},
   {kind: 'date', label: 'Date'},
   {kind: 'date-time', label: 'Date & time'},
@@ -67,6 +68,7 @@ function propKind(ps: any): string {
   const named = namedSchemaUrl(ps)
   const refName = named ? refToName(named) : null
   if (ps?.format === 'hm-url' || refName === 'hm-url') return 'hm-url'
+  if (ps?.format === 'hm-profile' || refName === 'account') return 'account'
   if (ps?.format === 'ipfs-url' || ps?.format === 'ipfs' || refName === 'ipfs-url') return 'ipfs'
   if (ps?.format === 'date' || refName === 'date') return 'date'
   if (ps?.format === 'date-time' || refName === 'date-time') return 'date-time'
@@ -116,6 +118,7 @@ function nodeLabel(ps: any): string | undefined {
   const k = propKind(ps)
   if (k.startsWith('var:')) return `⟨${k.slice(4)}⟩`
   if (k === 'hm-url') return 'HM link'
+  if (k === 'account') return 'Account'
   if (k === 'ipfs') return 'IPFS file / object'
   if (k === CUSTOM_KIND && !nodeUrl(ps)) return customLabel(ps)
   return undefined
@@ -136,6 +139,8 @@ function kindSchema(kind: string): HypermediaSchema {
   if (kind.startsWith('var:')) return {var: kind.slice(4)}
   if (kind === 'any') return {type: ANY_URL}
   if (kind === 'hm-url') return {type: kindUrl('string'), format: 'hm-url'}
+  // An account is the library type: a string with format hm-profile and the URL pattern.
+  if (kind === 'account') return {type: nameToUrl('account')!}
   if (kind === 'ipfs') return {type: kindUrl('string'), format: 'ipfs-url'}
   // The built-in date types are includes of the library schemas, which carry
   // the format (→ a date picker) and the pattern (→ validation).
@@ -358,7 +363,7 @@ function chipColor(ps: any): string {
   if (Array.isArray(ps?.anyOf)) return kindColor.union!
   const k = propKind(ps)
   if (k.startsWith('var:')) return kindColor.var!
-  if (k === 'hm-url' || k === 'ipfs' || k === 'date' || k === 'date-time') return kindColor.string!
+  if (k === 'hm-url' || k === 'account' || k === 'ipfs' || k === 'date' || k === 'date-time') return kindColor.string!
   if (k === CUSTOM_KIND) return isLiteralSchema(ps) ? kindColor.string! : refChipColor
   return kindColor[k] ?? refChipColor
 }
@@ -688,10 +693,11 @@ function StructSchemaForm({
     ...paramEntries.map(([name]) => ({label: `⟨${name}⟩`, hint: 'type parameter', schema: {var: name}})),
     unionOption(),
     {label: 'HM link', hint: 'string · hm-url', schema: kindSchema('hm-url')},
+    {label: 'Account', hint: 'string · hm-profile', schema: kindSchema('account')},
     {label: 'IPFS file / object', hint: 'string · ipfs', schema: kindSchema('ipfs')},
     // A core kind applies its canonical property schema (a list gets `items`, a
     // struct `properties`, a date its library ref) — not a bare type URL.
-    ...FIELD_KINDS.filter(({kind}) => !isReferenceKind(kind)).map(({kind, label}) => ({
+    ...FIELD_KINDS.filter(({kind}) => !isReferenceKind(kind) && kind !== 'account').map(({kind, label}) => ({
       label: HM_SCHEMA_PAGES[kind]?.name ?? label,
       hint: 'core type',
       schema: kindSchema(kind),

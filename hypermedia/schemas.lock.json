@@ -2,8 +2,9 @@
   "//": "Hypermedia schema manifest — hm:// URL -> DAG-CBOR CID (CIDv1, sha2-256). Deterministic; regenerate with `node scripts/hypermedia/publish.mjs`.",
   "codec": "dag-cbor",
   "hash": "sha2-256",
-  "count": 185,
+  "count": 186,
   "schemas": {
+    "hm://hyper.media/account": "bafyreib6bhgdwvqkcek25kdeg7cjzwvbzaaea2fcka3lddif4l3qw2v4ge",
     "hm://hyper.media/any": "bafyreibntt2wb4lx7wpuhigdnwiuoz3kbwomfxfp2no4ojev3m4rc65zry",
     "hm://hyper.media/blob": "bafyreifzrq4e75i6pbz6uvoiigcb6xiwp5rl5alcfr22j4n2f7m6dpw6yu",
     "hm://hyper.media/blob/any": "bafyreibuaxlhzxtzndwjsvsl6cqaxw3wxshadllpfj6jof7wg7bqo6dffa",

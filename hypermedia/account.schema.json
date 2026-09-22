@@ -1,0 +1,6 @@
+{
+  "type": "hm://hyper.media/string",
+  "format": "hm-profile",
+  "pattern": "^hm://z[1-9A-HJ-NP-Za-km-z]{40,}$",
+  "description": "A reference to an account (a space) as its bare `hm://<principal>` URL — rendered as a searchable account pill; a pasted principal is normalised to the URL."
+}
