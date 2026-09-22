@@ -1,10 +1,12 @@
 name: Repo HM sync (hypermedia)
 
 # Publishes hypermedia/ (developer docs, the Hypermedia schema library, agents docs)
-# to its Hypermedia site whenever main changes it.
-# Signs with SEED_DOCS_KEYFILE (a repository secret holding the contents of an
-# unencrypted .hmkey.json, as exported by the app): the site is that key's own
-# space. Documents are updated block by block; unchanged pages publish nothing.
+# to the Seed developer docs site, staging.hyper.media, whenever main changes it.
+# Signs with SEED_DOCS_STAGING_KEYFILE (a repository secret holding the contents
+# of an unencrypted .hmkey.json, as the daemon exports it): the site is that key's
+# own space, hm://z6MkkW8Uh77G79XMED3KLFiSqoYMqSF63fJMLEiYBNpF9xnL, and the push goes
+# through the staging gateway, which holds the site's own documents. Documents are
+# updated block by block; unchanged pages publish nothing.
 
 on:
   workflow_dispatch:
@@ -36,13 +38,13 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Check hypermedia/ is consistent
         run: node scripts/hypermedia/check.mjs
-      - name: Publish hypermedia/ to hyper.media
+      - name: Publish hypermedia/ to staging.hyper.media
         working-directory: frontend/apps/cli
         env:
-          SEED_CLI_KEYFILE: ${{ secrets.SEED_DOCS_KEYFILE }}
+          SEED_CLI_KEYFILE: ${{ secrets.SEED_DOCS_STAGING_KEYFILE }}
         run: |
           if [ -z "$SEED_CLI_KEYFILE" ]; then
-            echo "SEED_DOCS_KEYFILE secret is not set; skipping publish."
+            echo "SEED_DOCS_STAGING_KEYFILE secret is not set; skipping publish."
             exit 0
           fi
-          bun run src/sync-hypermedia.ts push --server https://hyper.media
+          bun run src/sync-hypermedia.ts push --server https://staging.hyper.media
