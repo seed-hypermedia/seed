@@ -73,6 +73,25 @@ export function useEffectiveDocSchema(
   source: 'own' | 'inherited' | 'none'
   isLoading: boolean
 } {
+  const {ref, source, isLoading: refLoading} = useEffectiveSchemaRef(id, metadata)
+  const {schema, isLoading} = useResolvedSchema(ref)
+  const metadataSchema = useMemo(() => metadataSchemaOf(schema), [schema])
+  return {schema, metadataSchema, source, isLoading: isLoading || refLoading}
+}
+
+/**
+ * The REFERENCE to a document's effective attributes schema, without resolving it: its own
+ * `attributesSchema`, else its parent's `childAttributesSchema`. What a typed reference field
+ * compares against its target's subtype closure.
+ */
+export function useEffectiveSchemaRef(
+  id: UnpackedHypermediaId | null | undefined,
+  metadata: unknown,
+): {
+  ref: string | null
+  source: 'own' | 'inherited' | 'none'
+  isLoading: boolean
+} {
   const ownRef =
     typeof (metadata as any)?.attributesSchema === 'string' ? ((metadata as any).attributesSchema as string) : null
 
@@ -90,12 +109,8 @@ export function useEffectiveDocSchema(
     return typeof cs === 'string' ? cs : null
   }, [ownRef, parent.data])
 
-  const effectiveRef = ownRef ?? parentChildrenRef
-  const {schema, isLoading} = useResolvedSchema(effectiveRef)
-  const metadataSchema = useMemo(() => metadataSchemaOf(schema), [schema])
   const source: 'own' | 'inherited' | 'none' = ownRef ? 'own' : parentChildrenRef ? 'inherited' : 'none'
-
-  return {schema, metadataSchema, source, isLoading: isLoading || (!!parentId && parent.isLoading)}
+  return {ref: ownRef ?? parentChildrenRef, source, isLoading: !!parentId && parent.isLoading}
 }
 
 const samePath = (a: readonly string[] | null | undefined, b: readonly string[]) =>

@@ -2066,6 +2066,85 @@ func TestQueryDocuments(t *testing.T) {
 	require.Equal(t, "page_size must not exceed 1000", status.Convert(err).Message())
 }
 
+// A folder's childAttributesSchema types its direct children (hypermedia/schema/typed-documents.md),
+// so a filter on attributesSchema must find those children even though they carry no binding of
+// their own. Grandchildren are not typed by it: the rule is one level deep.
+func TestQueryDocumentsInheritedAttributesSchema(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := t.Context()
+	account := alice.me.Account.Principal()
+	const animal = "hm://z6MkTypes/types/animal"
+	const plant = "hm://z6MkTypes/types/plant"
+
+	publish := func(path string, attrs map[string]any) {
+		b := apitest.NewChangeBuilder(account, path, "", "main").SetAttribute("", []string{"title"}, path)
+		for key, value := range attrs {
+			b = b.SetAttribute("", []string{key}, value)
+		}
+		_, err := alice.PublishDocumentChangeForTest(ctx, b.Build())
+		require.NoError(t, err)
+	}
+	publish("/animals", map[string]any{"childAttributesSchema": animal})
+	publish("/animals/dog", nil)                                        // typed by its folder only
+	publish("/animals/cat", map[string]any{"attributesSchema": animal}) // typed by both
+	publish("/animals/deep/fern", map[string]any{"attributesSchema": plant})
+	publish("/animals/deep/rock", nil) // a grandchild of the folder: untyped
+	publish("/tree", map[string]any{"attributesSchema": plant})
+	publish("/loose", nil)
+
+	filter := func(f any) *documents.DocumentFilter {
+		switch f := f.(type) {
+		case *documents.DocumentFilter_Comparison_:
+			return &documents.DocumentFilter{Filter: f}
+		case *documents.DocumentFilter_StringMatch_:
+			return &documents.DocumentFilter{Filter: f}
+		case *documents.DocumentFilter_Exists:
+			return &documents.DocumentFilter{Filter: f}
+		case *documents.DocumentFilter_Missing:
+			return &documents.DocumentFilter{Filter: f}
+		default:
+			t.Fatalf("unexpected filter %T", f)
+			return nil
+		}
+	}
+	equals := func(key, value string) *documents.DocumentFilter {
+		return filter(&documents.DocumentFilter_Comparison_{Comparison: &documents.DocumentFilter_Comparison{
+			Key:      key,
+			Operator: documents.DocumentFilter_Comparison_EQUAL,
+			Value:    &documents.AttributeValue{Value: &documents.AttributeValue_StringValue{StringValue: value}},
+		}})
+	}
+	paths := func(f *documents.DocumentFilter) []string {
+		resp, err := alice.QueryDocuments(ctx, &documents.QueryDocumentsRequest{Filter: f, PageSize: 100})
+		require.NoError(t, err)
+		out := make([]string, 0, len(resp.Documents))
+		for _, doc := range resp.Documents {
+			out = append(out, doc.Path)
+		}
+		return out
+	}
+
+	require.ElementsMatch(t, []string{"/animals/dog", "/animals/cat"}, paths(equals("attributesSchema", animal)))
+	require.ElementsMatch(t, []string{"/animals/deep/fern", "/tree"}, paths(equals("attributesSchema", plant)))
+
+	// String matching and presence go through the same effective-schema rule.
+	require.ElementsMatch(t, []string{"/animals/dog", "/animals/cat"}, paths(filter(&documents.DocumentFilter_StringMatch_{StringMatch: &documents.DocumentFilter_StringMatch{
+		Key:   "attributesSchema",
+		Value: "types/animal",
+	}})))
+	require.ElementsMatch(t, []string{"/animals/dog", "/animals/cat", "/animals/deep/fern", "/tree"},
+		paths(filter(&documents.DocumentFilter_Exists{Exists: &documents.DocumentFilter_Presence{Key: "attributesSchema"}})))
+	untyped := paths(filter(&documents.DocumentFilter_Missing{Missing: &documents.DocumentFilter_Presence{Key: "attributesSchema"}}))
+	require.Subset(t, untyped, []string{"/animals", "/animals/deep/rock", "/loose"})
+	require.NotContains(t, untyped, "/animals/dog")
+	require.NotContains(t, untyped, "/animals/cat")
+
+	// Only attributesSchema inherits: the folder's own binding is not a child attribute.
+	require.ElementsMatch(t, []string{"/animals"}, paths(equals("childAttributesSchema", animal)))
+}
+
 func TestDocumentAttributeAutocomplete(t *testing.T) {
 	t.Parallel()
 

@@ -1185,11 +1185,14 @@ export function ValueEditor({
     const dateMode: DateFieldMode | undefined =
       resolvedSchema?.format === 'date' || resolvedSchema?.format === 'date-time' ? resolvedSchema.format : undefined
     const ipfsTarget = ipfsMode && typeof resolvedSchema?.target === 'string' ? resolvedSchema.target : undefined
+    const hmTarget =
+      hmMode === 'document' && typeof resolvedSchema?.target === 'string' ? resolvedSchema.target : undefined
     return (
       <StringLeafEditor
         value={value}
         literalOptions={literalOptions}
         hmMode={hmMode}
+        hmTarget={hmTarget}
         ipfsMode={ipfsMode}
         ipfsTarget={ipfsTarget}
         dateMode={dateMode}
@@ -1282,6 +1285,7 @@ function StringLeafEditor({
   value,
   literalOptions,
   hmMode,
+  hmTarget,
   ipfsMode,
   ipfsTarget,
   dateMode,
@@ -1293,6 +1297,8 @@ function StringLeafEditor({
   literalOptions: LiteralOption[] | undefined
   /** Schema format hm-url/hm-profile: search-assisted hypermedia reference input. */
   hmMode?: 'document' | 'profile'
+  /** Schema `target` on an hm-url field: the type (or a subtype of it) the linked DOCUMENT should be typed by. */
+  hmTarget?: string
   /** Schema format ipfs: the value is an `ipfs://<cid>` file reference — offer a
    * file picker (+ paste) when empty, and the file pill once set. */
   ipfsMode?: boolean
@@ -1354,6 +1360,7 @@ function StringLeafEditor({
       <HMEntityField
         value={value}
         mode={hmMode ?? 'document'}
+        target={hmTarget}
         onValue={onValue}
         onOpen={openUrl}
         onClear={() => onValue('')}

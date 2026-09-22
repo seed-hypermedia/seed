@@ -28,7 +28,7 @@ Examples: <!-- id:pcdMQ6vr -->
 <!-- id:v9RufyAX -->
 | Query <!-- col:sdNC81sj --> | Finds <!-- col:_-VgHBJM --> <!-- id:g60Mc4ia --> |
 | --- | --- |
-| `attributesSchema=hm://<uid>/types/person` | every document typed by that schema <!-- id:pIhTUeU- --> |
+| `attributesSchema=hm://<uid>/types/person` | every document typed by that schema, including the children a folder types through its `childAttributesSchema` <!-- id:pIhTUeU- --> |
 | `in:hm://<uid>/places kind=fortress` | fortresses under one subtree <!-- id:HZzR9mBo --> |
 | `has:childAttributesSchema` | every typed folder, anywhere <!-- id:LHzMCyGu --> |
 | `status="In Progress" AND priority>=3` | open, important work <!-- id:0NVoBs46 --> |
