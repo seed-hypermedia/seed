@@ -305,15 +305,32 @@ export function handoffMarkdownFromArgs(args: Record<string, unknown> | undefine
     if (Array.isArray(value) && value.length) return [`## ${title}`, ...value.map((item) => `- ${String(item)}`), '']
     return []
   }
+  const known: Array<[string, string]> = [
+    ['purpose', 'Purpose'],
+    ['currentRequest', 'Current request'],
+    ['establishedFacts', 'Established facts'],
+    ['decisions', 'Decisions'],
+    ['openQuestions', 'Open questions'],
+    ['nextActions', 'Next actions'],
+    ['cautions', 'Cautions'],
+  ]
+  // Top-level arguments the model nested inside handoff are hoisted by the runtime, not sections.
+  const hoisted = new Set(['sources', 'transfer', 'description', 'extra'])
+  const extra = Object.entries(handoff).filter(([key]) => !hoisted.has(key) && !known.some(([k]) => k === key))
   return [
-    ...section('Purpose', handoff.purpose),
-    ...section('Current request', handoff.currentRequest),
-    ...section('Established facts', handoff.establishedFacts),
-    ...section('Decisions', handoff.decisions),
-    ...section('Open questions', handoff.openQuestions),
-    ...section('Next actions', handoff.nextActions),
-    ...section('Cautions', handoff.cautions),
+    ...known.flatMap(([key, title]) => section(title, handoff[key])),
+    ...extra.flatMap(([key, value]) => section(handoffSectionTitle(key), value)),
   ].join('\n')
+}
+
+/** "riskRegister" / "risk_register" → "Risk register", matching the runtime's projection titles. */
+function handoffSectionTitle(key: string): string {
+  const words = key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .toLowerCase()
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : key
 }
 
 /** The cited sources as the tool input carries them, one line each, as the projection lists them. */

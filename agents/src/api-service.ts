@@ -14883,12 +14883,31 @@ type ContinueSessionInput = {
   transfer?: {plan?: 'carry' | 'close' | 'omit'}
 }
 
+const CONTINUATION_HANDOFF_KEYS = new Set([
+  'purpose',
+  'currentRequest',
+  'establishedFacts',
+  'decisions',
+  'openQuestions',
+  'nextActions',
+  'cautions',
+  'extra',
+])
+
 /**
  * Validates continue_session input: what the agent must supply, bounded like the status verb.
  * Thread sources default to `defaultSessionId` — the session being continued — when they name none.
  */
-function normalizeContinueSessionInput(raw: unknown, defaultSessionId: string): ContinueSessionInput {
-  const input = isPlainRecord(raw) ? raw : {}
+export function normalizeContinueSessionInput(raw: unknown, defaultSessionId: string): ContinueSessionInput {
+  const given = isPlainRecord(raw) ? raw : {}
+  const handoffRaw: Record<string, unknown> = isPlainRecord(given.handoff) ? {...given.handoff} : {}
+  // Models routinely nest the top-level arguments inside `handoff` (the verb text describes them
+  // together). Hoist any the caller left off the top level rather than refusing the continuation.
+  const input: Record<string, unknown> = {...given}
+  for (const key of ['sources', 'transfer', 'description'] as const) {
+    if (input[key] === undefined && handoffRaw[key] !== undefined) input[key] = handoffRaw[key]
+    if (key in handoffRaw) delete handoffRaw[key]
+  }
   if (!CONTINUATION_REASONS.includes(input.reason as api.SessionContinuationReason)) {
     throw new APIError(400, `continue_session needs a reason: one of ${CONTINUATION_REASONS.join(', ')}`)
   }
@@ -14898,7 +14917,6 @@ function normalizeContinueSessionInput(raw: unknown, defaultSessionId: string): 
     'Successor session description',
     MAX_SESSION_DESCRIPTION_BYTES,
   )
-  const handoffRaw = isPlainRecord(input.handoff) ? input.handoff : {}
   const list = (value: unknown, label: string): string[] | undefined => {
     if (value === undefined || value === null) return undefined
     if (!Array.isArray(value)) throw new APIError(400, `handoff.${label} must be a list of strings`)
@@ -14917,6 +14935,19 @@ function normalizeContinueSessionInput(raw: unknown, defaultSessionId: string): 
     const items = list(handoffRaw[key], key)
     if (items) handoff[key] = items
   }
+  // Anything else on the handoff is the agent's own section: keep it, as a list of strings.
+  const extra: Record<string, string[]> = {}
+  for (const [key, value] of Object.entries(handoffRaw)) {
+    if (CONTINUATION_HANDOFF_KEYS.has(key)) continue
+    if (value === undefined || value === null) continue
+    const items = (Array.isArray(value) ? value : [value])
+      .map((item) => (typeof item === 'string' ? item : safeJSONStringify(item)))
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => normalizeBoundedString(item, `handoff.${key} entry`, MAX_MESSAGE_TEXT_BYTES))
+    if (items.length) extra[key] = items
+  }
+  if (Object.keys(extra).length) handoff.extra = extra
   const sources: api.SessionContinuationSource[] = []
   if (input.sources !== undefined && input.sources !== null) {
     if (!Array.isArray(input.sources)) throw new APIError(400, 'sources must be a list')
@@ -15083,7 +15114,17 @@ type ContinuationProjection = {
  * not loaded. The initiating message itself is not excerpted here — it is replayed verbatim as
  * the next event, with its provenance.
  */
-function compileContinuationProjection(input: ContinuationProjectionInput): ContinuationProjection {
+/** "riskRegister" / "risk_register" → "Risk register": an agent-invented handoff key as a section title. */
+export function continuationSectionTitle(key: string): string {
+  const words = key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .toLowerCase()
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : key
+}
+
+export function compileContinuationProjection(input: ContinuationProjectionInput): ContinuationProjection {
   const escape = escapeActionFraming
   const predecessorTitle = input.predecessor.title ? escape(input.predecessor.title) : ''
   const head = [
@@ -15117,6 +15158,9 @@ function compileContinuationProjection(input: ContinuationProjectionInput): Cont
     ...section('Open questions', input.handoff.openQuestions),
     ...section('Next actions', input.handoff.nextActions),
     ...section('Cautions', input.handoff.cautions),
+    ...Object.entries(input.handoff.extra ?? {}).flatMap(([key, items]) =>
+      section(continuationSectionTitle(key), items),
+    ),
     '</handoff>',
   ]
   const describeSource = (source: api.SessionContinuationSource): string => {

@@ -455,18 +455,11 @@ const continueSessionVerb = {
   name: 'continue_session',
   label: 'Continue',
   description: [
-    'Carry this conversation into a FRESH session and answer the user there. Call it INSTEAD of replying when the current transcript is no longer the right working context. This session is never compacted or rewritten: its history stays complete and unchanged, a new session is created linked to it, the user is moved there, and the successor run answers the current message. Your turn here ends the moment you call it — do not write a reply first; the successor gives the reply.',
-    'Reach for it at semantic boundaries, not on a token count:',
-    '- the user changes to a substantially different subject (`topic_change`);',
-    '- one phase of the work is done and the next begins — research finished, implementation starts; a task completed, a new one requested (`phase_change`);',
-    '- the user wants to get back to something earlier, or to focus on one thread of a sprawling conversation, and a clean context built around that thread would serve better than scrolling through everything else (`refocus`);',
-    '- old tool traffic or abandoned tangents crowd out what matters now (`refocus`);',
-    '- the user asks for it (`user_request`);',
-    '- the `<context_usage>` block shows the context nearly full (roughly 70% or more), or you notice the model losing track of earlier facts (`context_pressure`). Do not wait until it is completely full: continue while there is room to write a careful handoff. Continuing at 40% for a real subject change is right; splitting a coherent single task at 60% just because of the number is not.',
-    'Do NOT continue while side effects are unresolved: finish or explicitly account for in-flight work first (delegated children still running, a write you have not confirmed). Do not continue from a delegated child session — a child reports back with its result. Do not continue when the user is simply following up on the same work with the same working set; that is the conversation working as intended.',
-    'The successor starts with: its normal system prompt and tools; a runtime-generated lineage block naming this session (it can `read thread:<id>` to recall anything exact); your handoff; the exact text of the message that caused the continuation; and short excerpts of the most recent exchanges. Everything else from here is reachable but NOT loaded, so the handoff must stand on its own: write it for a capable colleague who has read none of this conversation. Put in `establishedFacts` the concrete things learned (names, ids, URLs, numbers, what worked and what failed); in `decisions` what was chosen and why; in `nextActions` what the successor should do first. Cite `sources` — hm:// resources, memory files, thread event ranges — for anything the successor might need exactly rather than as your summary.',
-    '`title` and `description` name the successor as it will appear in session lists; they are required and are yours to set, the way the status verb sets them: a specific title ("Migrate billing cron to Postgres", not "Continued conversation") and a one-or-two-sentence description of what the successor is about to do.',
-    '`transfer.plan` says what happens to the live checklist: `carry` copies it into the successor (default when it has unfinished steps), `close` leaves it here as history. Structured state — identity, grants, model, attachments — is carried by the runtime, not by your prose.',
+    'Carry this conversation into a FRESH session and answer the user there. Call it INSTEAD of replying: your turn ends here, the user is moved to the successor, and this transcript stays complete and linked (never compacted).',
+    'When: the subject changes (`topic_change`); a phase ends and the next begins (`phase_change`); the user wants to focus on one thread, or stale tool traffic crowds out what matters (`refocus`); the user asks (`user_request`); <context_usage> is near 70% or earlier facts are slipping (`context_pressure`) — continue while there is room for a careful handoff, but never split one coherent task on the number alone.',
+    'Not while side effects are unresolved (children still running, unconfirmed writes), never from a delegated child, and not for a plain follow-up on the same work.',
+    'The successor gets: its system prompt and tools, a lineage block (it can `read thread:<id>` for anything exact), your handoff, the verbatim message being answered, and short recent excerpts. Nothing else is loaded, so write `handoff` for a capable colleague who has read none of this: concrete facts (names, ids, URLs, numbers, what worked and what failed), decisions and why, next actions in order. Any extra handoff key is passed through as its own section.',
+    'Top-level arguments, NOT handoff fields: `title` (specific, at most eight words) and `description` (one or two sentences) name the successor in session lists; `sources` are exact pointers (hm://, memory files, thread seq ranges) the successor may need verbatim rather than summarized; `transfer.plan` is `carry` (copy the live checklist; default when steps are unfinished) or `close` (leave it here).',
   ].join('\n'),
   inputSchema: {
     type: 'object',
@@ -489,8 +482,8 @@ const continueSessionVerb = {
       },
       handoff: {
         type: 'object',
-        additionalProperties: false,
-        description: 'Orientation for the successor, written for a colleague who has read none of this conversation.',
+        description:
+          'Orientation for the successor, written for a colleague who has read none of this conversation. Unknown keys are kept and shown to the successor as extra sections.',
         properties: {
           purpose: {type: 'string', minLength: 1, description: 'What the successor session is for.'},
           currentRequest: {

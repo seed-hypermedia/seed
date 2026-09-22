@@ -381,3 +381,103 @@ describe('continue_session', () => {
     expect(harness.db.query<{n: number}, []>(`SELECT COUNT(*) AS n FROM session_continuations`).get()?.n).toBe(0)
   })
 })
+
+/**
+ * The verb's argument shape, as models actually produce it. In prod (30 days, gpt-5.6-sol) 36 of
+ * 84 continue_session calls that reached validation nested `sources`/`transfer`/`description`
+ * inside `handoff` and were refused, costing a full retry turn each. The runtime now hoists them,
+ * and any agent-invented handoff key reaches the successor as its own section instead of failing.
+ */
+describe('continue_session input shape', () => {
+  const sessionId = 'sess-1'
+
+  test('hoists sources, transfer, and description nested inside handoff', () => {
+    const input = apisvc.normalizeContinueSessionInput(
+      {
+        reason: 'topic_change',
+        title: 'Hypermedia Design Principles Skill',
+        handoff: {
+          purpose: 'Draft the design-principles skill.',
+          currentRequest: 'Create a first draft.',
+          description: 'Inspecting the corporate site first.',
+          sources: [{kind: 'memory', path: '~/memory/design-skills/gabo.md', relevance: 'prior structure'}],
+          transfer: {plan: 'close'},
+        },
+      },
+      sessionId,
+    )
+    expect(input.description).toBe('Inspecting the corporate site first.')
+    expect(input.sources).toEqual([
+      {kind: 'memory', path: '~/memory/design-skills/gabo.md', relevance: 'prior structure'},
+    ])
+    expect(input.transfer).toEqual({plan: 'close'})
+    expect(input.handoff.extra).toBeUndefined()
+    expect('sources' in input.handoff).toBe(false)
+  })
+
+  test('top-level arguments win over nested duplicates', () => {
+    const input = apisvc.normalizeContinueSessionInput(
+      {
+        reason: 'refocus',
+        title: 'T',
+        description: 'Top-level wins.',
+        handoff: {purpose: 'P', currentRequest: 'R', description: 'Nested loses.'},
+        sources: [],
+      },
+      sessionId,
+    )
+    expect(input.description).toBe('Top-level wins.')
+  })
+
+  test('keeps unknown handoff keys as extra sections and renders them for the successor', () => {
+    const input = apisvc.normalizeContinueSessionInput(
+      {
+        reason: 'phase_change',
+        title: 'T',
+        description: 'D',
+        handoff: {
+          purpose: 'P',
+          currentRequest: 'R',
+          riskRegister: ['Vendor contract unsigned', 'Budget not approved'],
+          working_theory: 'The cache is stale.',
+          metrics: {p95: 120},
+          empty: [],
+        },
+      },
+      sessionId,
+    )
+    expect(input.handoff.extra).toEqual({
+      riskRegister: ['Vendor contract unsigned', 'Budget not approved'],
+      working_theory: ['The cache is stale.'],
+      metrics: ['{"p95":120}'],
+    })
+    const initiating: api.SessionEvent = {
+      id: 'ev-9',
+      sessionId,
+      seq: 9,
+      createdAt: 1,
+      event: {type: 'message', role: 'user', content: 'go'} as api.SessionEventPayload,
+    }
+    const projection = apisvc.compileContinuationProjection({
+      continuationId: 'edge-1',
+      predecessor: {id: sessionId, title: 'Before'},
+      originSessionId: sessionId,
+      initiating,
+      reason: input.reason,
+      handoff: input.handoff,
+      sources: input.sources,
+      events: [initiating],
+      budgetBytes: 100_000,
+    })
+    expect(projection.content).toContain('## Risk register\n- Vendor contract unsigned\n- Budget not approved')
+    expect(projection.content).toContain('## Working theory\n- The cache is stale.')
+    expect(projection.content).toContain('## Metrics\n- {"p95":120}')
+    expect(projection.content).not.toContain('## Empty')
+  })
+
+  test('section titles from agent-invented keys', () => {
+    expect(apisvc.continuationSectionTitle('riskRegister')).toBe('Risk register')
+    expect(apisvc.continuationSectionTitle('working_theory')).toBe('Working theory')
+    expect(apisvc.continuationSectionTitle('Notes')).toBe('Notes')
+  })
+})
