@@ -38,6 +38,12 @@ describe('invalidateAfterPublish', () => {
     expect(invalidateQueries).toHaveBeenCalledWith([queryKeys.ACTIVITY_FEED])
   })
 
+  it('refetches collection query blocks after publishing a child document', () => {
+    invalidateAfterPublish(docId, document)
+
+    expect(invalidateQueries).toHaveBeenCalledWith([queryKeys.QUERY_BLOCK], {refetchType: 'all'})
+  })
+
   it('does NOT invalidate the doc ENTITY query (avoids a stale post-publish refetch clobbering the fresh doc)', () => {
     invalidateAfterPublish(docId, document)
     expect(invalidateQueries).not.toHaveBeenCalledWith([queryKeys.ENTITY, docId.id])
