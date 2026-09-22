@@ -12,5 +12,5 @@ This page defines the **ref/redirect-target** struct used by a redirecting Ref. 
 
 - [ref](../ref.md): the three shapes of a Ref. <!-- id:YGwW5Sh9 -->
 - [Documents](../protocol/documents.md): moving, redirecting and generations. <!-- id:YALZHLsh -->
-- [ResourceRedirect](../rpc/type/resource-redirect.md): what readers get back. <!-- id:2LuMY9pb -->
+- [Seed API](../build/web-api.md): what `Resource` returns when a ref redirects. <!-- id:2LuMY9pb -->
 - [URLs](../protocol/urls.md): addresses and paths. <!-- id:_nSNVMLf -->

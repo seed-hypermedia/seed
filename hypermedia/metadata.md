@@ -54,4 +54,4 @@ In the [Seed app](./apps/desktop.md) the Attributes tab edits every key, with th
 - [key-value](./key-value.md): one key path and value. <!-- id:p3Fz0BLV -->
 - [Typed documents](./schema/typed-documents.md): the schema-binding keys. <!-- id:YJsQMrfm -->
 - [navigation item](./metadata/navigation-item.md): the site menu. <!-- id:DYF6jNMP -->
-- [ResourceMetadata](./rpc/resource-metadata.md): the API request that returns metadata. <!-- id:CaWZ_NsU -->
+- [Seed API](./build/web-api.md): `ResourceMetadata` returns metadata. <!-- id:CaWZ_NsU -->

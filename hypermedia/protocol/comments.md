@@ -51,7 +51,7 @@ Because the quote is an ordinary link inside the body, the daemon indexes it lik
 
 # Citations and backlinks <!-- id:fvUUw6AL -->
 
-Every `hm://` link the daemon meets while indexing becomes a link record from the source blob to the target [resource](../glossary.md). The link can sit in a document [block](./blocks.md), an annotation, or a comment body. The record is, tagged with the source block, the fragment and the version. A pinned version marks the link as exact. A link that follows the latest marks its version as a suggested minimum. `ListCitations` on a target returns these records as [citations](../rpc/type/citation.md), ordered by when the citing blob arrived locally. The order ignores the blob's claimed time, so a late-arriving old blob can never hide a newer citation on the next page. Four links from one version count as four citations. <!-- id:cQdIVT1x -->
+Every `hm://` link the daemon meets while indexing becomes a link record from the source blob to the target [resource](../glossary.md). The link can sit in a document [block](./blocks.md), an annotation, or a comment body. The record is, tagged with the source block, the fragment and the version. A pinned version marks the link as exact. A link that follows the latest marks its version as a suggested minimum. `ListCitations` on a target returns these records as citations, ordered by when the citing blob arrived locally. The order ignores the blob's claimed time, so a late-arriving old blob can never hide a newer citation on the next page. Four links from one version count as four citations. <!-- id:cQdIVT1x -->
 
 The older `ListEntityMentions` call is deprecated. Use `ListCitations`. <!-- id:s094t8hZ -->
 
@@ -124,4 +124,4 @@ As of September 2026 the open items are moderation (an owner revoking or hiding 
 - [Privacy](./privacy.md): private comments. <!-- id:tbG2ruHD -->
 - [Identity](./identity.md): who signs a comment. <!-- id:hWXQM6-W -->
 - Schema pages: [comment](../comment.md), [block/comment](../block/comment.md). <!-- id:TBI2OJDj -->
-- API pages: [rpc/list-comments](../rpc/list-comments.md), [rpc/list-discussions](../rpc/list-discussions.md), [rpc/list-citations](../rpc/list-citations.md). <!-- id:OVYCeTHL -->
+- [Seed API](../build/web-api.md): `ListComments`, `ListDiscussions`, `ListCitations`. <!-- id:OVYCeTHL -->

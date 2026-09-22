@@ -18,32 +18,12 @@ import {Tooltip} from '../tooltip'
 import {extendSchemaRoute, META_SCHEMA_CID, newInstanceRoute} from './blob-menu-items'
 import {nameForCid, nameToUrl, HM_SCHEMAS, schemaCid} from './engine'
 import {SchemaNavContext, SchemaByCid} from './explorer'
-import {RpcConsole, RpcCallPanel, rpcMethodForSlug} from './rpc-console'
 import {useSchemaRegistry} from './schema-registry-cid'
 import {schemaDefinitionCid} from './schema-document'
 
 /** The URL of a library page inside a space that mirrors the library. */
 export function libraryPageUrl(space: string, slug: string): string {
   return `hm://${space}/${slug}`
-}
-
-/** Under a bundled API schema, the live call panel (the union page is the whole console). */
-function RpcSection({slug}: {slug: string}) {
-  if (slug === 'rpc/method')
-    return (
-      <section className="border-border mt-6 border-t pt-4">
-        <h2 className="mb-2 text-sm font-semibold">API console · call any method of this union</h2>
-        <RpcConsole />
-      </section>
-    )
-  const method = rpcMethodForSlug(slug)
-  if (!method) return null
-  return (
-    <section className="border-border mt-6 border-t pt-4">
-      <h2 className="mb-2 text-sm font-semibold">Call {method.key} · live, against this app's API</h2>
-      <RpcCallPanel key={slug} method={method} />
-    </section>
-  )
 }
 
 export function SchemaBrowserPage({
@@ -155,10 +135,7 @@ export function SchemaBrowserPage({
       )}
       <SchemaNavContext.Provider value={{openRef}}>
         {cid ? (
-          <>
-            <SchemaByCid key={cid} cid={cid} nav={nav} hideIdentity={embedded} />
-            {bundled && <RpcSection slug={bundled} />}
-          </>
+          <SchemaByCid key={cid} cid={cid} nav={nav} hideIdentity={embedded} />
         ) : (
           <div className="text-muted-foreground p-4 text-sm" data-testid="schema-browser-resolving">
             {docResource.isLoading

@@ -4,7 +4,7 @@ summary: The system end to end, from a schema file in the repository to a signed
 ---
 # The tour in one paragraph <!-- id:7s8eFKqO -->
 
-A [schema](../schema.md) is a small JSON file. A publisher hashes it to its [DAG-CBOR](./dag-cbor.md) [CID](../protocol/blobs.md) and records the CID in a lockfile. A sync uploads the [blob](../protocol/blobs.md) and publishes a companion [document](../protocol/documents.md) at an [`hm://` URL](../protocol/urls.md) in the space of the [account](../protocol/identity.md) that signs the push. That document's [metadata](../metadata.md) points at the blob. Apps bundle the library, resolve any other reference over the network, and run one validation engine to drive explorers, editors, forms and warnings. The reference validator uses the same engine. A generator turns every schema into a TypeScript type. The read API is also described by schemas, so the app derives its API console from them. The sections below take each layer in turn. <!-- id:UiSIhbqU -->
+A [schema](../schema.md) is a small JSON file. A publisher hashes it to its [DAG-CBOR](./dag-cbor.md) [CID](../protocol/blobs.md) and records the CID in a lockfile. A sync uploads the [blob](../protocol/blobs.md) and publishes a companion [document](../protocol/documents.md) at an [`hm://` URL](../protocol/urls.md) in the space of the [account](../protocol/identity.md) that signs the push. That document's [metadata](../metadata.md) points at the blob. Apps bundle the library, resolve any other reference over the network, and run one validation engine to drive explorers, editors, forms and warnings. The reference validator uses the same engine. A generator turns every schema into a TypeScript type. The sections below take each layer in turn. <!-- id:UiSIhbqU -->
 
 ``` <!-- id:UwMwRuEn -->
   hypermedia/<name>.schema.json ──publish.mjs──▶ schemas.lock.json (name → CID)
@@ -47,7 +47,6 @@ The library is a folder of pairs: `<name>.schema.json` holds the schema in dag-j
 | prefix <!-- col:PpnISgiK --> | family <!-- col:u7IW2VGz --> | examples <!-- col:UvNmWoqE --> <!-- id:rMJt-Vv8 --> |
 | --- | --- | --- |
 | root and `schema/` | the Hypermedia Network's real blobs, one canonical primitive per kind and the meta-schema at the root, the block model in `block/`; under `schema/`, the type language's variants | `schema`, `schema/anyof`, `string`, `change`, `block/table` <!-- id:bPX-_f4P --> |
-| `rpc/` | the Seed API's RPC catalog, with its read models in `rpc/type/` | `rpc/type/resource`, `rpc/type/search-results`, `rpc/query` <!-- id:uMrZ9ndC --> |
 | `example/` | teaching schemas covering every feature, plus live instances | `example/person`, `example/folder`, `example/bob` <!-- id:uU6GnKnu --> |
 
 Inside a schema, every reference is an `hm://` URL with the authority `hyper.media`, and the URL path is the file's path: `hm://hyper.media/string`, `hm://hyper.media/metadata`, `hm://hyper.media/example/person`. `hyper.media` is a name the SDK and the sync understand. The network does not resolve domains in `hm://` URLs yet (that is planned), so the app resolves these references from its bundled library. Each name also has a published page at the same path in the docs space, and that page's URL carries the space's key. See [references and naming](./references.md). <!-- id:HVN-l5c6 -->
@@ -89,10 +88,6 @@ These tools sit behind Developer Mode in the Seed app. Developer Mode is off by 
 # Layer 7: generated code <!-- id:jpRr0H4N -->
 
 `typegen.mjs` walks the library and emits one TypeScript type per schema. A map becomes an object type, a literal becomes a literal type, `anyOf` becomes a union, extension becomes an intersection, and an open map becomes an index signature. `params`, `var` and `args` become real generics, so `Change<Block>` in the schema is `Change<Block>` in TypeScript. A self-referential schema, like a recursive JSON value, comes out as a legal recursive type. A `--check` mode fails when the generated file is stale. The schemas are the source of truth for the app's data types, and nobody writes those type declarations by hand. <!-- id:e53sOros -->
-
-# Layer 8: the typed API <!-- id:tHk1te8z -->
-
-The last layer describes the API with schemas. The Seed universal client exposes reads as `request(key, input) → output`. Every read method is an `rpc/<method>` schema. It pins the method key to a literal and types `input` and `output` by referencing the read-model schemas. `rpc/method` is the union of all of them. The in-app API console reads that union to build its method picker, uses the value editor for inputs, and validates inputs and outputs without blocking. To add a method to the catalog, you add a schema. See [the typed API](../rpc.md) and the [Seed API](../build/web-api.md). <!-- id:ygRqUJXw -->
 
 # The invariants <!-- id:4g92-jwm -->
 

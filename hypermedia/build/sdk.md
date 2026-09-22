@@ -101,7 +101,7 @@ The keys you will use most: <!-- id:SgBrNcQY -->
 | `GetCID` | `{cid}` | `{value}`: a stored blob decoded to DAG-JSON <!-- id:r_m2eGVm --> |
 | `DiscoveryStatus` | `{uid, path, version?, latest?}` | whether the site has found a resource yet <!-- id:Ls9FCHT_ --> |
 
-`HMResource` is a union on `type`: `document`, `comment`, `redirect` (with `redirectTarget` and `republish`), `not-found`, `tombstone`, `error`. `HMDocument` carries `content` (a tree of `{block, children?}`), `metadata`, `version`, `genesis`, `authors`, `generationInfo` and [`visibility`](../protocol/privacy.md). Every key's exact input and output shape is a page under [the Seed API](../rpc.md). <!-- id:UBN1iThC -->
+`HMResource` is a union on `type`: `document`, `comment`, `redirect` (with `redirectTarget` and `republish`), `not-found`, `tombstone`, `error`. `HMDocument` carries `content` (a tree of `{block, children?}`), `metadata`, `version`, `genesis`, `authors`, `generationInfo` and [`visibility`](../protocol/privacy.md). Every key's exact input and output shape is in [the Seed API guide](./web-api.md). <!-- id:UBN1iThC -->
 
 To follow [moves and republishes](../protocol/documents.md), `followRedirects(client, id)` walks the redirect chain, `followToDocument` stops at the first document, and `resolveEditableDocument` returns what an editor should load together with the address that a new change must take over. <!-- id:NY7ZIh68 -->
 

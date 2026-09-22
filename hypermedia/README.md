@@ -18,7 +18,6 @@ A page publishes at its path: `protocol/documents.md` is `/protocol/documents`. 
 | `build.md`, `build/` | task guides: the Seed API, gRPC, the SDK, the CLI, agents, keys, sign-in, self-hosting, contributing |
 | `apps.md`, `apps/` | one map page per piece of Seed software |
 | `schema.md`, `schema/` | Hypermedia Schemas: the meta-schema, the chapters, one page per term |
-| `rpc.md`, `rpc/` | the Seed API read methods as schemas, with the read models in `rpc/type/` |
 | `example.md`, `example/` | example schemas and instances |
 | `agent.md`, `agent/` | Seed Agents: reference pages, one page per term, the live roadmap and plans |
 | `glossary.md` | one entry per term |

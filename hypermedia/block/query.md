@@ -8,6 +8,6 @@ A **query block** is a live listing. The author stores a [query](../query.md) in
 
 - [query](../query.md): the query object this block stores. <!-- id:KclDs7Lv -->
 - [query/style](../query/style.md) and [query/table-config](../query/table-config.md): how results are shown. <!-- id:yqsyk05c -->
-- [QueryBlock](../rpc/query-block.md): the API request that runs a query block. <!-- id:j1Ki_W9h -->
+- [Seed API](../build/web-api.md): `QueryBlock` runs a query block. <!-- id:j1Ki_W9h -->
 - [Query grammar](../build/query-grammar.md): filtering by attributes. <!-- id:GURAxYKd -->
 - [Blocks](../protocol/blocks.md): the block model. <!-- id:l_kiOAY_ -->

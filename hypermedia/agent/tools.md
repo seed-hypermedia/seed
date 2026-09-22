@@ -111,7 +111,7 @@ type ReadInput = {
 | `thread:` | lists THIS AGENT's conversations, newest first; `options.query` searches titles plus a bounded scan (4000 most recent events) of message text with snippets, `options.limit` caps at 100 <!-- id:v1d_FuXg --> |
 | `run:<id>` | a run's public record, plus `sourceText` for script runs <!-- id:6irqDOBK --> |
 
-Unrecognized addresses fail with the supported list (`api-service.ts:7350`). The `hm://` form follows [Hypermedia URLs](../protocol/urls.md), `ipfs://` follows [files](../protocol/files.md), and `activity:` reads the [ListEvents](../rpc/list-events.md) feed. An [attachment](./attachment.md) is private to its session. <!-- id:4eukeNwd -->
+Unrecognized addresses fail with the supported list (`api-service.ts:7350`). The `hm://` form follows [Hypermedia URLs](../protocol/urls.md), `ipfs://` follows [files](../protocol/files.md), and `activity:` reads the `ListEvents` feed. An [attachment](./attachment.md) is private to its session. <!-- id:4eukeNwd -->
 
 `thread:` reads and listings are scoped to the **agent's own threads** (`readThreadAddress`, `threadsListing`). Agents do not read each other's state, whatever account they share. They communicate over public interfaces (documents, comments) until a deliberate inter-agent contract exists. `run:` stays account-scoped (`readRunAddress`). One agent can list, search, and read the transcripts and [runs](./runs.md) of every other agent on the same account. This is deliberate, so an agent asked "what did my research agent find yesterday?" can answer. See [security](./security.md). <!-- id:6bHJ78uL -->
 
@@ -208,7 +208,7 @@ Promoted callables are exposed as real provider tools that route back through th
 
 ## `search` <!-- id:hXDTk_mE -->
 
-Seed hypermedia search over document titles and contacts, and optionally bodies and comments. Input `{query, accountUid?, includeBody?, contextSize?, searchType?: 'keyword' | 'semantic' | 'hybrid', pageSize?}`. Returns ranked results with hm:// URLs. The daemon request is [Search](../rpc/search.md). <!-- id:awBGnb8w -->
+Seed hypermedia search over document titles and contacts, and optionally bodies and comments. Input `{query, accountUid?, includeBody?, contextSize?, searchType?: 'keyword' | 'semantic' | 'hybrid', pageSize?}`. Returns ranked results with hm:// URLs. The Seed API request is `Search`. <!-- id:awBGnb8w -->
 
 ## `query` <!-- id:1f1goTTm -->
 

@@ -1,7 +1,7 @@
 // Schema names for the hypermedia/ library, shared by the scripts beside this file.
 //
 // A schema's name is its path inside hypermedia/ without `.schema.json`
-// (`string`, `block/image`, `rpc/type/document`, `example/person`),
+// (`string`, `block/image`, `schema/map-schema`, `example/person`),
 // which is also the path its document publishes at. References use hm://hyper.media/<name>.
 // Names from before the folder reorganization (`hypermedia-string`, the bare
 // primitive `string`, the dev authorities) resolve through schemas.aliases.json.

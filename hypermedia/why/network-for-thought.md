@@ -22,7 +22,7 @@ Knowledge in Seed lives in [spaces](../protocol/documents.md). Each space is own
 
 # The ordinary web is still there <!-- id:vcLIBSfN -->
 
-A space can be published as a [site](../protocol/sites.md) at a web domain, hosted at hyper.media or on a server you run. A site is a node with a domain and a [web app](../apps/web.md) in front of it. Browsers can read every document, comment with a signed web key, and follow the same links. Every site also serves the [Seed API](../rpc.md), and any `https://site/hm/<account>/<path>` URL can be turned back into an `hm://` address. [Sites](../protocol/sites.md) has the details. <!-- id:dTqorlDq -->
+A space can be published as a [site](../protocol/sites.md) at a web domain, hosted at hyper.media or on a server you run. A site is a node with a domain and a [web app](../apps/web.md) in front of it. Browsers can read every document, comment with a signed web key, and follow the same links. Every site also serves the [Seed API](../build/web-api.md), and any `https://site/hm/<account>/<path>` URL can be turned back into an `hm://` address. [Sites](../protocol/sites.md) has the details. <!-- id:dTqorlDq -->
 
 The team describes the tradeoff this way: a view of a distributed object can be at most two of correct, decentralised and fast. Seed first loads the fast, correct answer from an authoritative server, then confirms it against the peer-to-peer network in the background. So the web app feels like an ordinary website, while the desktop app holds a full copy. <!-- id:vGg5fZGY -->
 

@@ -120,7 +120,7 @@ Hypermedia is the protocol and Seed is the software that implements it. When an 
 
 - **hm:// URL.** `hm://<account>/<path>?v=<version>#<block>`, an address that names a space, a path, optionally an exact version and a block or text range. See [URLs](./protocol/urls.md). <!-- id:ecKbxVg2 -->
 - **View suffix.** A path segment starting with `:` that selects a view of the same document, such as `/:comments`, `/:directory` or `/:attributes`. See [URLs](./protocol/urls.md). <!-- id:B4xPxZED -->
-- **Seed API.** The typed HTTP API every Seed web app serves at `/api/<Key>`, such as `/api/Resource?id=…`. See [Web API](./build/web-api.md) and [the request catalogue](./rpc.md). <!-- id:obPcUTpG -->
+- **Seed API.** The typed HTTP API every Seed web app serves at `/api/<Key>`, such as `/api/Resource?id=…`. See [Web API](./build/web-api.md). <!-- id:obPcUTpG -->
 - **Site services.** The web app's own endpoints under `/hm/api/*`: config, auth, file, register, discover and others. See [Web API](./build/web-api.md). <!-- id:OsCXuvoY -->
 - **Daemon gRPC API.** The Seed daemon's gRPC services, served natively and as gRPC-web on its HTTP port, for deep integration. The local API has no authentication, so keep it on localhost. See [gRPC](./build/grpc.md). <!-- id:k9WnQ-6c -->
 - **SDK.** `@seed-hypermedia/client`, the TypeScript library for reading through the Seed API and for building, signing and publishing blobs. See [SDK](./build/sdk.md). <!-- id:Hrd2ZG5N -->

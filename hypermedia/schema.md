@@ -17,10 +17,9 @@ This page shows how to use Hypermedia Schemas in the [Seed app](./apps/desktop.m
 These pages explain the system from the top down: <!-- id:XwK2BBFL -->
   - [Hypermedia Schemas in one page](./schema/quick-reference.md): the model, the library by link, the three keys that type a document, and the CLI commands, SDK calls and agent verbs that read, write and check them. <!-- id:tk4m-_Cj -->
   - [Why Hypermedia Schemas](./schema/why.md): the problem they solve, what they make possible, and what they do not try to do. <!-- id:ASDj0A2q -->
-  - [How Hypermedia Schemas work](./schema/how-it-works.md): the pipeline from a schema file to a signed blob, a browsable document, a resolved reference, a generated type and a typed API call. <!-- id:JnOo7Tmo -->
+  - [How Hypermedia Schemas work](./schema/how-it-works.md): the pipeline from a schema file to a signed blob, a browsable document, a resolved reference and a generated type. <!-- id:JnOo7Tmo -->
   - [Typed documents](./schema/typed-documents.md): how a [document](./protocol/documents.md) says what it is with `attributesSchema`, `childAttributesSchema` and `schemaDefinition`, and what the editor does with them. <!-- id:ejnPERZF -->
   - [The World Builder](./schema/world-builder.md): a worked demo that builds a set of linked types, with date pickers, title pills and linked objects on every page. <!-- id:JKC7fUPx -->
-  - [Seed API schemas](./rpc.md): every read method of the [Seed API](./build/web-api.md) as a published schema, and the console the app builds from them. <!-- id:gnB4WgGS -->
   - [User stories](./schema/user-stories.md): what a person should be able to do through the app, the CLI and an agent, step by step, and how far each surface has come. <!-- id:xzhJgjsb -->
 
 # In one minute <!-- id:sPmTq8Rq -->
@@ -37,10 +36,10 @@ Typed documents need no setting: any [document](./protocol/documents.md)'s **Att
 ## Browse the schemas <!-- id:aRoEaieX -->
 
 Every schema is a page of this site, starting at the meta-schema on this page. In the Seed app, a [document](./protocol/documents.md) that defines a schema shows it above its body in the schema browser. A schema blob with no defining document opens on its own at `/hm/schema/<cid>`. <!-- id:vbG_WGq1 -->
-  - The library covers the meta-schema, primitives, [examples](./example.md), the schemas of the network's signed blobs, and the [Seed API schemas](./rpc.md). <!-- id:Ic9Qwwbd -->
+  - The library covers the meta-schema, primitives, [examples](./example.md) and the schemas of the network's signed blobs. <!-- id:Ic9Qwwbd -->
   - Each schema shows its fields with kinds and required flags, union variants, inherited and added fields for an extension, generic parameters, its published [`hm://` URL](./hm-url.md) and [CID](./protocol/blobs.md), and its source [dag-json](./schema/dag-json.md). <!-- id:K_Hww_2j -->
   - **Every reference is a link.** Click a field's type, a dependency, or an `hm://` value in the source to open that schema. Each page also lists what it depends on and what depends on it. <!-- id:U8TGynZc -->
-  - A type's page offers **New Document** and **New Collection**. Its options menu adds **Extend Schema**, **New Raw Value** and **Inspect Schema**. Under an `rpc/<method>` schema, a live call panel runs that method against the app's [Seed API](./build/web-api.md). <!-- id:Lvsl4-lc -->
+  - A type's page offers **New Document** and **New Collection**. Its options menu adds **Extend Schema**, **New Raw Value** and **Inspect Schema**. <!-- id:Lvsl4-lc -->
 
 ## Create a schema <!-- id:pGXQjMrq -->
 
@@ -74,7 +73,7 @@ The concepts, in reading order: <!-- id:MLxtm7My -->
   3. [References & naming](./schema/references.md): include, typed link and extend, `hm://` names, and why names make recursion possible where hashes cannot. <!-- id:W-7l34pY -->
   4. [Encoding](./schema/encoding.md): DAG-CBOR, the `dag-json` human form, canonical encoding and the reserved-key envelopes. <!-- id:zc8wCFCX -->
   5. [Examples](./example.md): every example schema, grouped by feature. <!-- id:nslzTd6Z -->
-  6. [Schemas on the Hypermedia Network](./schema/blobs.md): schemas for the network's DAG-CBOR blobs (Change, Ref, Profile and the rest), the block model including [tables](./block/table.md) and [query blocks](./block/query.md), and the `rpc/type/*` read models the daemon computes for clients, such as resources, [citations](./rpc/type/citation.md) and [search results](./rpc/type/search-results.md). <!-- id:SZlHsPnT -->
+  6. [Schemas on the Hypermedia Network](./schema/blobs.md): schemas for the network's DAG-CBOR blobs (Change, Ref, Profile and the rest), the block model including [tables](./block/table.md) and [query blocks](./block/query.md). <!-- id:SZlHsPnT -->
   7. [Design rationale](./schema/design.md): why the system has this shape, the decisions taken, and the open questions. <!-- id:ZHSf8L5M -->
   8. Terms: one page per definition, listed at the end of this page. <!-- id:lZdOYrQc -->
 
@@ -116,4 +115,3 @@ The library's tools live in `scripts/hypermedia/` in the Seed repository. The re
 - [Blobs](./protocol/blobs.md): the signed DAG-CBOR objects the network stores. <!-- id:CjHSu5e6 -->
 - [Documents](./protocol/documents.md): the pages schemas are published as. <!-- id:Qdt4-Z3B -->
 - [URLs](./protocol/urls.md): the `hm://` names schemas use. <!-- id:UM9fUhzV -->
-- [Seed API schemas](./rpc.md): the read methods as published schemas. <!-- id:giH4ygOT -->
