@@ -212,6 +212,7 @@ export type UnsignedAgentAction =
   | GetAgentTrigger
   | CreateAgentTrigger
   | UpdateAgentTrigger
+  | CombineAgentTriggers
   | DeleteAgentTrigger
   | ListAgentMemory
   | ListAgentMemoryDir
@@ -544,6 +545,19 @@ export type UpdateAgentTrigger = {
   _: 'UpdateAgentTrigger'
   triggerId: string
   patch: AgentTriggerPatch
+  /** Rejects a stale edit instead of replacing another editor's changes. */
+  expectedUpdatedAt?: number
+}
+
+/** Combines activity conditions into the surviving trigger, retaining both histories. */
+export type CombineAgentTriggers = {
+  _: 'CombineAgentTriggers'
+  triggerId: string
+  otherTriggerId: string
+  expectedUpdatedAt: number
+  otherExpectedUpdatedAt: number
+  /** Keeps the survivor's action unless explicitly selecting the other's. */
+  useOtherAction?: boolean
 }
 
 /** Deletes an activity trigger. */
@@ -576,12 +590,24 @@ export type AgentTriggerPatch = {
   continuation?: TriggerContinuation
 }
 
-/** Activity source/filter that decides when an agent trigger fires. */
-export type AgentTriggerSource =
-  | {type: 'webhook'}
+/** One activity filter. Fields within a filter must all match. */
+export type AgentActivitySource =
   | {type: 'document-comment'; resource: string; author?: string}
   | {type: 'user-mention'; mentionedAccounts: string[]; resourcePrefix?: string}
+  /** A comment replying directly to a comment by one of these accounts, excluding their own replies. */
+  | {type: 'comment-reply'; repliedToAccounts: string[]; resourcePrefix?: string}
+  /** A comment on a document authored by one of these accounts, excluding their own comments. */
+  | {type: 'document-author-comment'; documentAuthors: string[]; resourcePrefix?: string}
   | {type: 'site-update'; resourcePrefix: string; eventTypes?: string[]}
+
+/** A stable alternative within an activity trigger. */
+export type AgentActivityCondition = {id: string; source: AgentActivitySource}
+
+/** Activity source/filter that decides when an agent trigger fires. */
+export type AgentTriggerSource =
+  | AgentActivitySource
+  | {type: 'activity'; conditions: AgentActivityCondition[]}
+  | {type: 'webhook'}
   | {type: 'schedule'; schedule: AgentScheduleTrigger}
   /** Fires when a run of this account finishes — the source that lets automations chain. */
   | {
@@ -593,6 +619,21 @@ export type AgentTriggerSource =
       /** Case-insensitive substring the finished run's title must contain. */
       titleMatch?: string
     }
+
+/** Projects legacy single activity sources into the same condition list as compound triggers. */
+export function activityConditions(source: AgentTriggerSource, legacyId = 'legacy'): AgentActivityCondition[] {
+  if (source.type === 'activity') return source.conditions
+  if (
+    source.type === 'document-comment' ||
+    source.type === 'user-mention' ||
+    source.type === 'comment-reply' ||
+    source.type === 'document-author-comment' ||
+    source.type === 'site-update'
+  ) {
+    return [{id: legacyId, source}]
+  }
+  return []
+}
 
 /**
  * What a trigger does when it fires. Omitted means `newThread`, which is what every trigger did
@@ -1162,6 +1203,8 @@ export type AgentTriggerInfo = {
   lastCheckedAt?: number
   lastFiredAt?: number
   lastError?: string
+  /** Retired by combination; its history remains available and it cannot be re-enabled. */
+  mergedInto?: string
 }
 
 /** Public metadata returned for a session. */
@@ -1448,6 +1491,8 @@ export type AgentSessionTriggerSummary = {
   activitySummary: string
   source: AgentTriggerSource
   firedAt: number
+  /** Conditions observed when this firing was admitted, captured before later edits. */
+  matchedConditions?: AgentActivityCondition[]
 }
 
 /** Full trigger context passed into a trigger-created session. */
@@ -2002,6 +2047,8 @@ export type ListAgentTriggersResponse = {
 /** One time a trigger fired, as shown on its page. */
 export type TriggerFiringInfo = {
   id: string
+  /** Conditions observed at admission, preserved even when the trigger is edited. */
+  matchedConditions?: AgentActivityCondition[]
   /**
    * `created` (thread started), `running`/`succeeded` (headless run), `delivered`/`no-listener`
    * (wake), `error`, or `escalated` (headless run failed and a recovery thread was started).

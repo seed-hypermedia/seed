@@ -31,6 +31,7 @@ import {
   useAgentTriggers,
   useAgentWebSocketSubscription,
   useCreateAgentTrigger,
+  useCombineAgentTriggers,
   useCreateSigningIdentity,
   useDeleteAgent,
   useDeleteAgentTool,
@@ -71,6 +72,7 @@ import {
 } from '@shm/ui/components/alert-dialog'
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
+import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {Switch} from '@shm/ui/components/switch'
 import {Textarea} from '@shm/ui/components/textarea'
 import {AccountSearchInput, type SearchResult} from '@shm/ui/collaborators-page'
@@ -99,7 +101,7 @@ import {
 import {HMIcon} from '@shm/ui/hm-icon'
 import {SigningIdentityIcon} from './signing-identity-icon'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
-import {getSeedTool} from '@seed-hypermedia/agents-protocol'
+import {activityConditions, getSeedTool} from '@seed-hypermedia/agents-protocol'
 import {
   AGENT_EXECUTE_TOOL,
   AGENT_PUBLISH_GRANT,
@@ -115,10 +117,11 @@ import {AgentMcpServersSection} from './mcp-servers'
 import {
   TriggerContinuationFields,
   TriggerSourceFields,
+  isTriggerSourceReady,
   isHeadlessContinuation,
   triggerUsesPrompt,
   summarizeTriggerContinuation,
-  summarizeTriggerSource,
+  TriggerSourceSummary,
 } from './trigger-types'
 import {getAgentsPlatform} from './platform'
 import {routeToHref} from '@shm/shared/routing'
@@ -2040,6 +2043,8 @@ function AgentTriggersTab({
   const updateTrigger = useUpdateAgentTrigger(serverUrl, selectedAccountId)
   const deleteTrigger = useDeleteAgentTrigger(serverUrl, selectedAccountId)
   const selected = trigger.data?.trigger
+  const archived = Boolean(selected?.mergedInto)
+  const combineDialog = useAppDialog(CombineAgentTriggersDialog)
   const [name, setName] = useState('')
   const [nameDirty, setNameDirty] = useState(false)
   const [nameSaveState, setNameSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
@@ -2050,9 +2055,12 @@ function AgentTriggersTab({
   const [continuation, setContinuation] = useState<TriggerContinuation>({kind: 'newThread'})
   const agentTools = useAgentTools(serverUrl, selectedAccountId, agentId)
   const [detailsDirty, setDetailsDirty] = useState(false)
+  const [sourceDraftOpen, setSourceDraftOpen] = useState(false)
+  const [sourceEditorRevision, setSourceEditorRevision] = useState(0)
   const [detailsSaveState, setDetailsSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const detailsSaveIdRef = useRef(0)
   const selectedTriggerRef = useRef<string | null>(null)
+  const editRevisionRef = useRef<number>()
   const lastSavedDetailsKeyRef = useRef('')
   const currentDetailsKey = useMemo(() => {
     return JSON.stringify({prompt, source, continuation})
@@ -2072,7 +2080,8 @@ function AgentTriggersTab({
     const triggerChanged = selectedTriggerRef.current !== selected.id
     selectedTriggerRef.current = selected.id
     if (triggerChanged || !nameDirty) setName(selected.name)
-    if (!triggerChanged) return
+    if (!triggerChanged && (detailsDirty || nameDirty || sourceDraftOpen)) return
+    editRevisionRef.current = selected.updatedAt
     const nextPrompt = agentPromptToBlocks(selected.prompt)
     const nextSource = selected.source
     const nextContinuation: TriggerContinuation = selected.continuation ?? {kind: 'newThread'}
@@ -2087,10 +2096,10 @@ function AgentTriggersTab({
     })
     setDetailsDirty(false)
     setDetailsSaveState('idle')
-  }, [nameDirty, selected])
+  }, [detailsDirty, nameDirty, selected, sourceDraftOpen])
 
   useEffect(() => {
-    if (readOnly || !selectedTriggerId || !selected || !nameDirty) return
+    if (readOnly || archived || !selectedTriggerId || !selected || !nameDirty || nameSaveState === 'error') return
     const draftName = name.trim()
     if (!draftName) return
     if (draftName === selected.name) {
@@ -2103,10 +2112,15 @@ function AgentTriggersTab({
     const timer = setTimeout(() => {
       setNameSaveState('saving')
       void updateTrigger
-        .mutateAsync({triggerId: selectedTriggerId, patch: {name: draftName}})
+        .mutateAsync({
+          triggerId: selectedTriggerId,
+          patch: {name: draftName},
+          expectedUpdatedAt: editRevisionRef.current,
+        })
         .then((result) => {
           if (nameSaveIdRef.current !== saveId) return
           if (result._ !== 'UpdateAgentTriggerResponse') throw new Error('Unexpected trigger update response')
+          editRevisionRef.current = result.trigger.updatedAt
           setName(draftName)
           setNameDirty(false)
           setNameSaveState('saved')
@@ -2128,8 +2142,13 @@ function AgentTriggersTab({
     const previousEnabled = enabled
     setEnabled(nextEnabled)
     try {
-      const result = await updateTrigger.mutateAsync({triggerId: selectedTriggerId, patch: {enabled: nextEnabled}})
+      const result = await updateTrigger.mutateAsync({
+        triggerId: selectedTriggerId,
+        patch: {enabled: nextEnabled},
+        expectedUpdatedAt: editRevisionRef.current,
+      })
       if (result._ !== 'UpdateAgentTriggerResponse') throw new Error('Unexpected trigger update response')
+      editRevisionRef.current = result.trigger.updatedAt
     } catch (error) {
       setEnabled(previousEnabled)
       toast.error(error instanceof Error ? error.message : 'Could not update trigger enabled state')
@@ -2137,7 +2156,17 @@ function AgentTriggersTab({
   }
 
   useEffect(() => {
-    if (readOnly || !selectedTriggerId || !selected || !detailsDirty || detailsSaveState === 'saving') return
+    if (
+      readOnly ||
+      archived ||
+      !selectedTriggerId ||
+      !selected ||
+      !detailsDirty ||
+      detailsSaveState === 'saving' ||
+      detailsSaveState === 'error' ||
+      !isTriggerSourceReady(source)
+    )
+      return
     const detailsKey = currentDetailsKey
     if (detailsKey === lastSavedDetailsKeyRef.current) {
       setDetailsDirty(false)
@@ -2152,10 +2181,12 @@ function AgentTriggersTab({
         .mutateAsync({
           triggerId: selectedTriggerId,
           patch: {prompt: promptBlocksForRequest(prompt), source, continuation},
+          expectedUpdatedAt: editRevisionRef.current,
         })
         .then((result) => {
           if (detailsSaveIdRef.current !== saveId) return
           if (result._ !== 'UpdateAgentTriggerResponse') throw new Error('Unexpected trigger update response')
+          editRevisionRef.current = result.trigger.updatedAt
           lastSavedDetailsKeyRef.current = detailsKey
           if (currentDetailsKeyRef.current === detailsKey) {
             setDetailsDirty(false)
@@ -2210,7 +2241,7 @@ function AgentTriggersTab({
             setNameDirty(true)
           }}
           saveState={nameSaveState}
-          disabled={!selected || readOnly}
+          disabled={!selected || readOnly || archived}
           backLabel="Back to agent triggers"
           onBack={() => navigate({key: 'agent', agentId, serverUrl, tab: 'triggers'})}
           actions={
@@ -2244,10 +2275,37 @@ function AgentTriggersTab({
                       },
                     ]
                   : []),
+                ...(!readOnly &&
+                !archived &&
+                selected &&
+                activityConditions(selected.source).length &&
+                triggers.some(
+                  (item) => item.id !== selected.id && !item.mergedInto && activityConditions(item.source).length,
+                )
+                  ? [
+                      {
+                        key: 'combine-triggers',
+                        icon: <Plus className="size-4" />,
+                        label: 'Combine with another trigger',
+                        disabled: detailsDirty || nameDirty || sourceDraftOpen,
+                        onClick: () =>
+                          combineDialog.open({
+                            serverUrl,
+                            selectedAccountId,
+                            target: selected,
+                            others: triggers.filter(
+                              (item) =>
+                                item.id !== selected.id && !item.mergedInto && activityConditions(item.source).length,
+                            ),
+                          }),
+                      },
+                    ]
+                  : []),
               ]}
             />
           }
         />
+        {combineDialog.content}
         <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-5 overflow-y-auto px-4 py-4">
           {trigger.isLoading ? <SizableText color="muted">Loading trigger…</SizableText> : null}
           {trigger.isError ? (
@@ -2260,19 +2318,54 @@ function AgentTriggersTab({
           ) : null}
           {selected ? (
             <>
-              {readOnly ? (
+              {selected.mergedInto ? (
+                <Notice title="Combined trigger">
+                  <p>This trigger is retired. Its original history is retained.</p>
+                  <Button
+                    variant="link"
+                    onClick={() =>
+                      navigate({key: 'agent', agentId, serverUrl, tab: 'triggers', triggerId: selected.mergedInto})
+                    }
+                  >
+                    Open the combined trigger
+                  </Button>
+                </Notice>
+              ) : null}
+              {detailsSaveState === 'error' || nameSaveState === 'error' ? (
+                <Notice title="Changes could not be saved">
+                  <p>Your draft is still here. Reload the saved version to resolve a conflicting edit.</p>
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      const result = await trigger.refetch()
+                      if (result.data?.trigger) {
+                        selectedTriggerRef.current = null
+                        setSourceDraftOpen(false)
+                        setSourceEditorRevision((revision) => revision + 1)
+                        setDetailsDirty(false)
+                        setNameDirty(false)
+                        setNameSaveState('idle')
+                        setDetailsSaveState('idle')
+                      }
+                    }}
+                  >
+                    Reload saved version
+                  </Button>
+                </Notice>
+              ) : null}
+              {readOnly || archived ? (
                 <div className="grid gap-4">
                   <div className="border-border bg-muted/40 rounded-lg border p-3">
                     <SizableText size="sm" weight="bold" className="block">
                       Source
                     </SizableText>
                     <SizableText size="sm" color="muted">
-                      {summarizeTriggerSource(source)}
+                      {<TriggerSourceSummary source={source} />}
                     </SizableText>
                   </div>
                   <div className="border-border bg-muted/40 rounded-lg border p-3">
                     <SizableText size="sm" weight="bold" className="block">
-                      When it fires
+                      Then
                     </SizableText>
                     <SizableText size="sm" color="muted">
                       {summarizeTriggerContinuation(continuation)}
@@ -2299,12 +2392,15 @@ function AgentTriggersTab({
               ) : (
                 <div className="grid gap-4">
                   <TriggerSourceFields
+                    key={`${selected.id}:${sourceEditorRevision}`}
+                    onDraftChange={setSourceDraftOpen}
                     source={source}
                     lockSourceType={source.type === 'webhook'}
                     allowWebhook={false}
                     onChange={(nextSource) => {
                       setSource(nextSource)
                       setDetailsDirty(true)
+                      setDetailsSaveState('idle')
                     }}
                     trailing={
                       <label className="flex h-9 items-center gap-2 text-base">
@@ -2331,6 +2427,7 @@ function AgentTriggersTab({
                     onChange={(next) => {
                       setContinuation(next)
                       setDetailsDirty(true)
+                      setDetailsSaveState('idle')
                     }}
                   />
                   {triggerUsesPrompt(continuation) ? (
@@ -2350,6 +2447,7 @@ function AgentTriggersTab({
                         onChange={(blocks) => {
                           setPrompt(blocks)
                           setDetailsDirty(true)
+                          setDetailsSaveState('idle')
                         }}
                       />
                     </div>
@@ -2413,11 +2511,11 @@ function AgentTriggersTab({
           <div className="flex w-full items-center justify-between gap-3">
             <SizableText weight="bold">{item.name}</SizableText>
             <SizableText size="xs" color={item.enabled ? undefined : 'muted'}>
-              {item.enabled ? 'Enabled' : 'Disabled'}
+              {item.mergedInto ? 'Combined' : item.enabled ? 'Enabled' : 'Disabled'}
             </SizableText>
           </div>
           <SizableText size="sm" color="muted">
-            {summarizeTriggerSource(item.source)}
+            {<TriggerSourceSummary source={item.source} />}
           </SizableText>
           <SizableText size="xs" color="muted">
             Updated {new Date(item.updatedAt).toLocaleString()}
@@ -2441,6 +2539,102 @@ function TriggerMeta({label, value}: {label: string; value?: number | string | n
   )
 }
 
+function CombineAgentTriggersDialog({
+  input,
+  onClose,
+}: {
+  input: {
+    serverUrl: string
+    selectedAccountId: string | null | undefined
+    target: AgentTriggerInfo
+    others: AgentTriggerInfo[]
+  }
+  onClose: () => void
+}) {
+  const combine = useCombineAgentTriggers(input.serverUrl, input.selectedAccountId)
+  const [otherId, setOtherId] = useState(input.others[0]?.id ?? '')
+  const [useOtherAction, setUseOtherAction] = useState(false)
+  const [error, setError] = useState<string>()
+  const other = input.others.find(({id}) => id === otherId)
+  const action = useOtherAction && other ? other : input.target
+  return (
+    <div className="grid gap-4">
+      <DialogTitle>Combine activity triggers</DialogTitle>
+      <DialogDescription>
+        Conditions will share one action in “{input.target.name}”. The other trigger will be retired, with its history
+        retained. Existing runs continue.
+      </DialogDescription>
+      <label className="grid gap-1">
+        <SizableText size="sm" weight="bold">
+          Combine with
+        </SizableText>
+        <SelectDropdown
+          value={otherId}
+          options={input.others.map(({id, name}) => ({value: id, label: name}))}
+          onValue={setOtherId}
+          disabled={combine.isLoading}
+        />
+      </label>
+      <div className="bg-muted/40 border-border grid gap-2 rounded-lg border p-3">
+        <SizableText size="sm">{<TriggerSourceSummary source={input.target.source} />}</SizableText>
+        <SizableText size="xs" color="muted">
+          OR
+        </SizableText>
+        {other ? <SizableText size="sm">{<TriggerSourceSummary source={other.source} />}</SizableText> : null}
+      </div>
+      <label className="grid gap-1">
+        <SizableText size="sm" weight="bold">
+          Use the action and instructions from
+        </SizableText>
+        <SelectDropdown
+          value={useOtherAction ? 'other' : 'target'}
+          options={[
+            {value: 'target', label: input.target.name},
+            ...(other ? [{value: 'other', label: other.name}] : []),
+          ]}
+          onValue={(value) => setUseOtherAction(value === 'other')}
+          disabled={combine.isLoading}
+        />
+      </label>
+      <SizableText size="sm">{summarizeTriggerContinuation(action.continuation)}</SizableText>
+      <pre className="bg-muted/40 max-h-48 overflow-auto rounded-lg p-3 text-sm whitespace-pre-wrap">
+        {promptBlocksToMarkdown(agentPromptToBlocks(action.prompt))}
+      </pre>
+      <SizableText size="sm" color="muted">
+        Previously handled events stay handled. The combined trigger will be{' '}
+        {input.target.enabled ? 'enabled' : 'disabled'}.
+      </SizableText>
+      {error ? <Notice title="Could not combine triggers">{error}</Notice> : null}
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" onClick={onClose} disabled={combine.isLoading}>
+          Cancel
+        </Button>
+        <Button
+          disabled={!other || combine.isLoading}
+          onClick={async () => {
+            if (!other) return
+            try {
+              await combine.mutateAsync({
+                triggerId: input.target.id,
+                otherTriggerId: other.id,
+                expectedUpdatedAt: input.target.updatedAt,
+                otherExpectedUpdatedAt: other.updatedAt,
+                useOtherAction,
+              })
+              toast.success('Triggers combined')
+              onClose()
+            } catch (error) {
+              setError(error instanceof Error ? error.message : 'Could not combine triggers')
+            }
+          }}
+        >
+          {combine.isLoading ? 'Combining…' : 'Combine triggers'}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 function CreateAgentTriggerDialog({
   input,
   onClose,
@@ -2450,6 +2644,7 @@ function CreateAgentTriggerDialog({
 }) {
   const navigate = useNavigate()
   const createTrigger = useCreateAgentTrigger(input.serverUrl, input.selectedAccountId)
+  const [sourceDraftOpen, setSourceDraftOpen] = useState(false)
   const [source, setSource] = useState<AgentTriggerSource>({type: 'document-comment', resource: ''})
   const [name, setName] = useState(() => defaultTriggerName(source.type))
   const nameEdited = useRef(false)
@@ -2524,6 +2719,7 @@ function CreateAgentTriggerDialog({
       </label>
       <TriggerSourceFields
         source={source}
+        onDraftChange={setSourceDraftOpen}
         onChange={(nextSource) => {
           setSource(nextSource)
           if (!nameEdited.current) setName(defaultTriggerName(nextSource.type))
@@ -2558,7 +2754,10 @@ function CreateAgentTriggerDialog({
         <Button variant="ghost" onClick={onClose}>
           Cancel
         </Button>
-        <Button onClick={() => void handleCreateTrigger()} disabled={createTrigger.isLoading}>
+        <Button
+          onClick={() => void handleCreateTrigger()}
+          disabled={createTrigger.isLoading || sourceDraftOpen || !isTriggerSourceReady(source) || !name.trim()}
+        >
           Create trigger
         </Button>
       </div>
@@ -2569,6 +2768,7 @@ function CreateAgentTriggerDialog({
 /** The name a new trigger starts with; the user replaces it, but it should already say what it is. */
 function defaultTriggerName(sourceType: AgentTriggerSource['type']): string {
   if (sourceType === 'webhook') return 'New webhook trigger'
+  if (sourceType === 'schedule') return 'New scheduled trigger'
   return 'New activity trigger'
 }
 
@@ -2649,6 +2849,17 @@ function TriggerFiringsSection({
                 {formattedDateMedium(new Date(firing.createdAt))}
               </SizableText>
             </div>
+            {firing.matchedConditions?.length ? (
+              <SizableText size="xs" color="muted">
+                Matched:{' '}
+                {firing.matchedConditions.map(({id, source}, index) => (
+                  <React.Fragment key={id}>
+                    {index ? ' · ' : null}
+                    <TriggerSourceSummary source={source} />
+                  </React.Fragment>
+                ))}
+              </SizableText>
+            ) : null}
             {firing.error ? (
               <SizableText size="xs" className="text-destructive break-words">
                 {firing.error}

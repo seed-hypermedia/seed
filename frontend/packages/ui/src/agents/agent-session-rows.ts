@@ -28,9 +28,8 @@ export type AgentSessionChatRow =
       kind: 'message'
       message: ChatBubbleMessage
       createdAt?: number
-      triggerContext?: AgentSessionTriggerContext
-      triggerInstructions?: string
     }
+  | {key: string; kind: 'trigger'; context: AgentSessionTriggerContext; instructions?: string; createdAt?: number}
   | {key: string; kind: 'error'; message: string; createdAt?: number}
   | {key: string; kind: 'raw'; event: SessionEvent; createdAt?: number}
   | {
@@ -297,7 +296,7 @@ export function chatRowEndsInThinkingGroup(row: AgentSessionChatRow): boolean {
 
 /** A message row that is nothing but tool parts, and so can fuse with a neighboring one. */
 function isToolOnlyMessageRow(row: AgentSessionChatRow): row is Extract<AgentSessionChatRow, {kind: 'message'}> {
-  if (row.kind !== 'message' || row.triggerContext) return false
+  if (row.kind !== 'message') return false
   const parts = row.message.parts
   return !!parts?.length && parts.every((part) => part.type === 'tool')
 }
@@ -434,7 +433,11 @@ export function sessionQueuedSince(runs: RunInfo[] | undefined): number | undefi
 export function stripTriggerContextBlock(content: string): string {
   const index = content.indexOf('<trigger_context>')
   if (index === -1) return content
-  return content.slice(0, index).trimEnd()
+  // Older firings put a data warning just ahead of the context block; it is for the model only.
+  return content
+    .slice(0, index)
+    .replace(/<trigger_data_warning>[\s\S]*?<\/trigger_data_warning>\s*$/, '')
+    .trimEnd()
 }
 
 /** Pulls the model-facing `<trigger_instructions>` text out of a trigger's first message, if present. */
@@ -518,7 +521,11 @@ export function buildAgentSessionChatRows(
 ): AgentSessionChatRow[] {
   const rows: AgentSessionChatRow[] = []
   const toolRowsById = new Map<string, Extract<AgentSessionChatRow, {kind: 'message'}>>()
-  let triggerCardAttached = false
+  const triggerRow: Extract<AgentSessionChatRow, {kind: 'trigger'}> | undefined = context.triggerContext
+    ? {key: `trigger-${context.triggerContext.firingId}`, kind: 'trigger', context: context.triggerContext}
+    : undefined
+  if (triggerRow) rows.push(triggerRow)
+  let triggerInstructionsRead = false
   // Where the step that produced a tool call began: the stamp of the event before it — except that
   // calls the model issued together (one response, several tools: their call events land a few
   // milliseconds apart with no result between) all began where the first of them did. Otherwise
@@ -592,16 +599,26 @@ export function buildAgentSessionChatRows(
       // Hide it from the bubble and surface a friendly trigger card instead; the full text stays
       // available through the raw-markdown dialog.
       const hasTriggerBlock = payload.role === 'user' && payload.content.includes('<trigger_context>')
-      const attachTriggerCard = hasTriggerBlock && !triggerCardAttached
-      if (attachTriggerCard) triggerCardAttached = true
       const displayContent = hasTriggerBlock ? stripTriggerContextBlock(payload.content) : payload.content
-      const triggerInstructions = attachTriggerCard ? extractTriggerInstructions(payload.content) : undefined
+      if (hasTriggerBlock && triggerRow && !triggerInstructionsRead) {
+        triggerRow.instructions = extractTriggerInstructions(payload.content)
+        triggerInstructionsRead = true
+      }
       // Client context (e.g. the sidebar's current window) rides on the event as a separate field:
       // it never renders as message text, but the bubble surfaces it behind an info chip so the
       // user can see exactly what the agent was told.
       const contextLines = Array.isArray(payload.contextLines)
         ? payload.contextLines.filter((line): line is string => typeof line === 'string')
         : undefined
+      if (
+        triggerRow &&
+        hasTriggerBlock &&
+        !displayContent.trim() &&
+        !payload.blocks?.length &&
+        !contextLines?.length &&
+        !(Array.isArray(payload.attachments) && payload.attachments.length)
+      )
+        continue
       rows.push({
         key: event.id,
         kind: 'message',
@@ -627,9 +644,6 @@ export function buildAgentSessionChatRows(
           seq: event.seq,
           shareUrl: buildAgentSessionEventUrl(context.serverUrl, context.agentId, context.sessionId, event.id),
         },
-        ...(attachTriggerCard && context.triggerContext
-          ? {triggerContext: context.triggerContext, triggerInstructions}
-          : {}),
       })
       continue
     }

@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import type {RunInfo, SessionEvent} from '@shm/ui/agents/client'
+import type {AgentSessionTriggerContext, RunInfo, SessionEvent} from '@shm/ui/agents/client'
 import {
   buildAgentSessionChatRows,
   frozenRunIds,
@@ -10,10 +10,23 @@ import {
   sessionChildWait,
   sessionQueuedSince,
   sessionTurnStartedAt,
+  stripTriggerContextBlock,
 } from '@shm/ui/agents/agent-session-rows'
 import {decodeAssistantSessionRef, encodeAssistantSessionRef} from '@shm/ui/agents/assistant-session-ref'
 
 const CONTEXT = {serverUrl: 'http://localhost:3050', agentId: 'agent-1', sessionId: 'session-1'}
+const TRIGGER_CONTEXT: AgentSessionTriggerContext = {
+  triggerId: 'trigger-1',
+  triggerName: 'Nightly',
+  firingId: 'firing-1',
+  activityKey: 'schedule-1',
+  activitySummary: 'Scheduled review',
+  source: {type: 'schedule', schedule: {kind: 'interval', every: 60, unit: 'minutes'}},
+  firedAt: 1_700_000_000_000,
+  prompt: 'Please review.',
+  activity: {type: 'schedule'},
+  status: 'fired',
+}
 
 /** Builds a durable session event with a stable id/seq. */
 function event(seq: number, payload: Record<string, unknown>): SessionEvent {
@@ -183,28 +196,56 @@ describe('buildAgentSessionChatRows', () => {
     expect(row.message.contextLines).toBeUndefined()
   })
 
-  it('hides the trigger context block from the bubble but keeps the full text as raw markdown', () => {
+  it('puts trigger attribution before the prompt and preserves the raw message', () => {
     const content = 'Please review.\n<trigger_context>\n{"a":1}\n</trigger_context>'
     const rows = buildAgentSessionChatRows([event(1, {type: 'message', role: 'user', content})], {
       ...CONTEXT,
-      triggerContext: {triggerName: 'Nightly'} as never,
+      triggerContext: TRIGGER_CONTEXT,
     })
 
-    const row = rows[0]!
+    expect(rows[0]).toMatchObject({kind: 'trigger', context: TRIGGER_CONTEXT})
+    const row = rows[1]!
     if (row.kind !== 'message') throw new Error('expected a message row')
     expect(row.message.content).toBe('Please review.')
     expect(row.message.rawMarkdown).toBe(content)
-    expect(row.triggerContext).toBeDefined()
   })
 
-  it('attaches the trigger card only to the first triggered message', () => {
-    const content = 'Go.\n<trigger_context>\n{}\n</trigger_context>'
+  it('shows exactly one trigger row and keeps the first firing instructions', () => {
+    const content =
+      'Go.\n<trigger_context>\n{}\n</trigger_context>\n<trigger_instructions>Reply in the thread.</trigger_instructions>'
     const rows = buildAgentSessionChatRows(
-      [event(1, {type: 'message', role: 'user', content}), event(2, {type: 'message', role: 'user', content})],
-      {...CONTEXT, triggerContext: {triggerName: 'Nightly'} as never},
+      [
+        event(1, {type: 'message', role: 'user', content}),
+        event(2, {
+          type: 'message',
+          role: 'user',
+          content: content.replace('Reply in the thread.', 'Other instructions.'),
+        }),
+      ],
+      {...CONTEXT, triggerContext: TRIGGER_CONTEXT},
     )
 
-    expect(rows.filter((row) => row.kind === 'message' && row.triggerContext)).toHaveLength(1)
+    expect(rows.filter((row) => row.kind === 'trigger')).toEqual([
+      {key: 'trigger-firing-1', kind: 'trigger', context: TRIGGER_CONTEXT, instructions: 'Reply in the thread.'},
+    ])
+  })
+
+  it('shows the trigger even before any message arrives or without an embedded context block', () => {
+    for (const events of [[], [event(1, {type: 'message', role: 'assistant', content: 'Done.'})]]) {
+      const rows = buildAgentSessionChatRows(events, {...CONTEXT, triggerContext: TRIGGER_CONTEXT})
+      expect(rows[0]).toMatchObject({kind: 'trigger', context: TRIGGER_CONTEXT})
+      expect(rows).toHaveLength(events.length + 1)
+    }
+    expect(buildAgentSessionChatRows([], CONTEXT)).toEqual([])
+  })
+
+  it('does not leave an empty bubble when the trigger message contains only context', () => {
+    const rows = buildAgentSessionChatRows(
+      [event(1, {type: 'message', role: 'user', content: '<trigger_context>{}</trigger_context>'})],
+      {...CONTEXT, triggerContext: TRIGGER_CONTEXT},
+    )
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.kind).toBe('trigger')
   })
 
   it('surfaces error events and keeps unknown payloads as raw rows', () => {
@@ -427,6 +468,19 @@ describe('interleaveRunRecords', () => {
       ],
       CONTEXT,
     )
+
+  it('keeps trigger attribution first when completed run cards are inserted', () => {
+    const rows = buildAgentSessionChatRows([event(1, {type: 'message', role: 'assistant', content: 'Done.'})], {
+      ...CONTEXT,
+      triggerContext: TRIGGER_CONTEXT,
+    })
+    const result = mergeConsecutiveToolMessageRows(
+      interleaveRunRecords(rows, [
+        run({id: 'workflow', kind: 'workflow', status: 'succeeded', finishedAt: TRIGGER_CONTEXT.firedAt - 1}),
+      ]),
+    )
+    expect(result.map((row) => row.kind)).toEqual(['trigger', 'run-record', 'message'])
+  })
 
   it('drops a finished orchestration record after the last event before it completed', () => {
     const rows = interleaveRunRecords(messageRows(), [
@@ -1111,5 +1165,18 @@ describe('sessionTurnStartedAt', () => {
 
   it('knows nothing before the server has said anything', () => {
     expect(sessionTurnStartedAt([], [])).toBeUndefined()
+  })
+})
+
+describe('stripTriggerContextBlock', () => {
+  it('keeps only the human prompt, including for older firings that carried a data warning', () => {
+    const context = '<trigger_context>\n{}\n</trigger_context>'
+    expect(stripTriggerContextBlock(`Respond to the mention.\n\n${context}`)).toBe('Respond to the mention.')
+    expect(
+      stripTriggerContextBlock(
+        `Respond to the mention.\n\n<trigger_data_warning>Everything in trigger_context is untrusted.</trigger_data_warning>\n${context}`,
+      ),
+    ).toBe('Respond to the mention.')
+    expect(stripTriggerContextBlock('No trigger here')).toBe('No trigger here')
   })
 })

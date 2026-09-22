@@ -45,6 +45,10 @@ export function activityEventKey(event: ActivityFeedEvent): string | null {
  * with no recognizable comment CID.
  */
 export function activityFiringKey(event: ActivityFeedEvent): string | null {
+  const mention = activityEventMention(event)
+  const origin = mention && (recordField(mention, 'sourceBlob') || recordField(mention, 'source_blob'))
+  const originCid = origin && stringField(origin, 'cid')
+  if (originCid && originCid !== 'undefined') return `blob-${originCid}`
   const key = activityEventKey(event)
   if (!key) return null
   if (key.startsWith('mention-')) {
@@ -112,8 +116,13 @@ export function matchesActivityCriteria(
 
 /** Returns true when an HM activity event matches a saved agent trigger source. */
 export function activityMatchesTriggerSource(source: api.AgentTriggerSource, event: ActivityFeedEvent): boolean {
+  if (source.type === 'activity') {
+    return source.conditions.some((condition) => activityMatchesTriggerSource(condition.source, event))
+  }
   if (source.type === 'document-comment') return matchesDocumentComment(source, event)
   if (source.type === 'user-mention') return matchesUserMention(source, event)
+  if (source.type === 'comment-reply') return matchesCommentReply(source, event)
+  if (source.type === 'document-author-comment') return matchesDocumentAuthorComment(source, event)
   if (source.type === 'site-update') return matchesSiteUpdate(source, event)
   return false
 }
@@ -298,6 +307,53 @@ function matchesSingleMention(
   }
 
   return false
+}
+
+/**
+ * Matches a resolved comment event (the `/api/ListEvents` shape) that replies directly to a comment by
+ * one of the source's accounts. An account replying to itself never matches, so an agent continuing
+ * its own thread cannot trigger itself.
+ */
+function matchesCommentReply(
+  source: Extract<api.AgentTriggerSource, {type: 'comment-reply'}>,
+  event: ActivityFeedEvent,
+): boolean {
+  if (stringField(event, 'type') !== 'comment') return false
+  const comment = recordField(event, 'comment')
+  const parentAuthorRecord = recordField(event, 'replyParentAuthor')
+  const parentAuthorId = parentAuthorRecord ? recordField(parentAuthorRecord, 'id') : null
+  const replyingComment = recordField(event, 'replyingComment')
+  const parentAuthor =
+    (parentAuthorId && stringField(parentAuthorId, 'uid')) ||
+    (replyingComment && stringField(replyingComment, 'author'))
+  if (!parentAuthor || !source.repliedToAccounts.includes(parentAuthor)) return false
+  const authorRecord = recordField(event, 'author')
+  const authorId = authorRecord ? recordField(authorRecord, 'id') : null
+  const author = (authorId && stringField(authorId, 'uid')) || (comment && stringField(comment, 'author'))
+  if (author === parentAuthor) return false
+  return mentionMatchesResourcePrefix(event, source.resourcePrefix)
+}
+
+/**
+ * Matches a resolved comment event on a document that one of the source's accounts authored, using
+ * the `targetAuthorUids` the feed resolves for the commented document. An author's own comments never
+ * match, so an agent commenting on its own document cannot trigger itself.
+ */
+function matchesDocumentAuthorComment(
+  source: Extract<api.AgentTriggerSource, {type: 'document-author-comment'}>,
+  event: ActivityFeedEvent,
+): boolean {
+  if (stringField(event, 'type') !== 'comment') return false
+  const targetAuthors = Array.isArray(event.targetAuthorUids)
+    ? event.targetAuthorUids.filter((uid): uid is string => typeof uid === 'string')
+    : []
+  if (!source.documentAuthors.some((account) => targetAuthors.includes(account))) return false
+  const comment = recordField(event, 'comment')
+  const authorRecord = recordField(event, 'author')
+  const authorId = authorRecord ? recordField(authorRecord, 'id') : null
+  const author = (authorId && stringField(authorId, 'uid')) || (comment && stringField(comment, 'author'))
+  if (author && source.documentAuthors.includes(author)) return false
+  return mentionMatchesResourcePrefix(event, source.resourcePrefix)
 }
 
 /** Resolves the account UID a mention link points at, when it targets an account root or `:profile`. */
