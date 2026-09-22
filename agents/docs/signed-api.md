@@ -218,10 +218,11 @@ Request:
 Creates a new agent. Validates referenced provider exists for the account. Creates a per-agent state directory.
 
 When the definition's primary `signingKey` resolves to an `hm-account-key` secret, the server also auto-creates a
-default enabled activity trigger, "Mentions and replies to <name>", for that signing identity's account uid: a
-`user-mention` condition and a `comment-reply` condition (prompt: "Respond to the mention or reply, performing the
-action requested."). Mentioning the agent's account, or replying to one of its comments, starts one session in which it
-responds. This is best-effort and never blocks agent creation; agents without a signing key get no default trigger.
+default enabled activity trigger, "Mentions, replies, and comments for <name>", for that signing identity's account uid:
+a `user-mention`, a `comment-reply`, and a `document-author-comment` condition (prompt: "Respond to the mention, reply,
+or comment on your document, performing any action requested."). Mentioning the agent's account, replying to one of its
+comments, or commenting on a document it authored starts one session in which it responds. This is best-effort and never
+blocks agent creation; agents without a signing key get no default trigger.
 
 Idempotent when `clientRequestId` is supplied.
 
@@ -524,6 +525,7 @@ type AgentActivitySource =
   | {type: 'document-comment'; resource: string; author?: string}
   | {type: 'user-mention'; mentionedAccounts: string[]; resourcePrefix?: string}
   | {type: 'comment-reply'; repliedToAccounts: string[]; resourcePrefix?: string}
+  | {type: 'document-author-comment'; documentAuthors: string[]; resourcePrefix?: string}
   | {type: 'site-update'; resourcePrefix: string; eventTypes?: string[]}
 
 type AgentTriggerSource =
@@ -559,7 +561,9 @@ markdown; trigger prompt blocks are converted to resolved markdown before starti
 
 A `user-mention` source watches a list of accounts; a legacy singular `mentionedAccount` on input is still normalized
 into `mentionedAccounts`, and an empty list is rejected. A `comment-reply` source matches a comment replying directly to
-a comment by one of `repliedToAccounts`, never an account's reply to itself.
+a comment by one of `repliedToAccounts`, never an account's reply to itself. A `document-author-comment` source matches
+a comment on a document authored by one of `documentAuthors` (the feed's `targetAuthorUids`), never an author's own
+comment.
 
 Document fields (`resource`, `resourcePrefix`) must name an account or document (`hm://<account uid>[/path]`); a bare
 `hm://` or a wildcard is rejected rather than treated as "everything". `site-update` `eventTypes` must be one of

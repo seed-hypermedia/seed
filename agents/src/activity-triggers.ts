@@ -122,6 +122,7 @@ export function activityMatchesTriggerSource(source: api.AgentTriggerSource, eve
   if (source.type === 'document-comment') return matchesDocumentComment(source, event)
   if (source.type === 'user-mention') return matchesUserMention(source, event)
   if (source.type === 'comment-reply') return matchesCommentReply(source, event)
+  if (source.type === 'document-author-comment') return matchesDocumentAuthorComment(source, event)
   if (source.type === 'site-update') return matchesSiteUpdate(source, event)
   return false
 }
@@ -330,6 +331,28 @@ function matchesCommentReply(
   const authorId = authorRecord ? recordField(authorRecord, 'id') : null
   const author = (authorId && stringField(authorId, 'uid')) || (comment && stringField(comment, 'author'))
   if (author === parentAuthor) return false
+  return mentionMatchesResourcePrefix(event, source.resourcePrefix)
+}
+
+/**
+ * Matches a resolved comment event on a document that one of the source's accounts authored, using
+ * the `targetAuthorUids` the feed resolves for the commented document. An author's own comments never
+ * match, so an agent commenting on its own document cannot trigger itself.
+ */
+function matchesDocumentAuthorComment(
+  source: Extract<api.AgentTriggerSource, {type: 'document-author-comment'}>,
+  event: ActivityFeedEvent,
+): boolean {
+  if (stringField(event, 'type') !== 'comment') return false
+  const targetAuthors = Array.isArray(event.targetAuthorUids)
+    ? event.targetAuthorUids.filter((uid): uid is string => typeof uid === 'string')
+    : []
+  if (!source.documentAuthors.some((account) => targetAuthors.includes(account))) return false
+  const comment = recordField(event, 'comment')
+  const authorRecord = recordField(event, 'author')
+  const authorId = authorRecord ? recordField(authorRecord, 'id') : null
+  const author = (authorId && stringField(authorId, 'uid')) || (comment && stringField(comment, 'author'))
+  if (author && source.documentAuthors.includes(author)) return false
   return mentionMatchesResourcePrefix(event, source.resourcePrefix)
 }
 

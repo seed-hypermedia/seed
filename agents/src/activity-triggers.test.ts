@@ -118,6 +118,31 @@ describe('activity trigger matching', () => {
     ).toBe(true)
   })
 
+  test('matches comments on documents an account authored, but not its own comments', () => {
+    const source = {type: 'document-author-comment' as const, documentAuthors: ['z6Mkagent']}
+    const comment = (author: string, targetAuthorUids: string[] | undefined, type = 'comment') => ({
+      type,
+      author: {id: {uid: author, id: `hm://${author}`, path: []}},
+      comment: {author, targetAccount: 'z6Mksite', targetPath: '/notes', content: []},
+      target: {id: {id: 'hm://z6Mksite/notes', uid: 'z6Mksite', path: ['notes']}},
+      ...(targetAuthorUids ? {targetAuthorUids} : {}),
+    })
+
+    // Wherever the document lives, what matters is who authored it.
+    expect(triggers.activityMatchesTriggerSource(source, comment('z6Mkuser', ['z6Mkother', 'z6Mkagent']))).toBe(true)
+    expect(triggers.activityMatchesTriggerSource(source, comment('z6Mkuser', ['z6Mkother']))).toBe(false)
+    expect(triggers.activityMatchesTriggerSource(source, comment('z6Mkuser', undefined))).toBe(false)
+    // The agent commenting on its own document, and non-comment events, do not match.
+    expect(triggers.activityMatchesTriggerSource(source, comment('z6Mkagent', ['z6Mkagent']))).toBe(false)
+    expect(triggers.activityMatchesTriggerSource(source, comment('z6Mkuser', ['z6Mkagent'], 'citation'))).toBe(false)
+    expect(
+      triggers.activityMatchesTriggerSource(
+        {...source, resourcePrefix: 'hm://z6Mkelsewhere'},
+        comment('z6Mkuser', ['z6Mkagent']),
+      ),
+    ).toBe(false)
+  })
+
   test('matches direct replies to an account without matching its own replies', () => {
     const source = {type: 'comment-reply' as const, repliedToAccounts: ['z6Mkagent']}
     const reply = (author: string, parentAuthor: string | null, extra: Record<string, unknown> = {}) => ({

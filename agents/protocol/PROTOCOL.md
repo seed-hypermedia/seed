@@ -94,8 +94,11 @@ with `MIN_CLIENT_PROTOCOL <= 1`.
 - `AgentTriggerSource` adds `{type: 'activity', conditions: [{id, source}]}`. Conditions are flat alternatives of
   document-comment, user-mention, and site-update filters; one underlying event fires the parent once.
 - `AgentActivitySource` adds `{type: 'comment-reply', repliedToAccounts, resourcePrefix?}`: a comment replying directly
-  to a comment by one of those accounts, never an account's reply to itself. New agents get one default trigger with a
-  mention condition and a reply condition for the agent's own account.
+  to a comment by one of those accounts, never an account's reply to itself.
+- `AgentActivitySource` adds `{type: 'document-author-comment', documentAuthors, resourcePrefix?}`: a comment on a
+  document one of those accounts authored (the feed's `targetAuthorUids`), never an author's own comment.
+- New agents get one default trigger for the agent's own account with a mention, a reply, and a document-author comment
+  condition.
 - `CombineAgentTriggers` retains the selected survivor and retires its peer, preserving original firings and importing
   deduplication claims. `UpdateAgentTrigger.expectedUpdatedAt` optionally prevents stale edits. Retired triggers expose
   `mergedInto` and cannot be re-enabled or edited.

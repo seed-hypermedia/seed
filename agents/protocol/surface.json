@@ -1000,6 +1000,13 @@
             "type": "\"comment-reply\""
           }
         },
+        "document-author-comment": {
+          "fields": {
+            "documentAuthors": "string[]",
+            "resourcePrefix?": "string",
+            "type": "\"document-author-comment\""
+          }
+        },
         "document-comment": {
           "fields": {
             "author?": "string",
@@ -1252,6 +1259,13 @@
             "repliedToAccounts": "string[]",
             "resourcePrefix?": "string",
             "type": "\"comment-reply\""
+          }
+        },
+        "document-author-comment": {
+          "fields": {
+            "documentAuthors": "string[]",
+            "resourcePrefix?": "string",
+            "type": "\"document-author-comment\""
           }
         },
         "document-comment": {

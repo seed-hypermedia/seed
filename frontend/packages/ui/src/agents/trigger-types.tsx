@@ -48,6 +48,7 @@ export const TRIGGER_TYPE_OPTIONS: {value: string; label: string}[] = [
   {value: 'document-comment', label: 'Comment posted'},
   {value: 'user-mention', label: 'User mention'},
   {value: 'comment-reply', label: 'Reply to account'},
+  {value: 'document-author-comment', label: "Comment on account's document"},
   {value: 'site-event:doc-update', label: 'Document updated'},
   {value: 'site-event:citation', label: 'Reference added'},
   {value: 'site-event:capability', label: 'Access granted'},
@@ -71,6 +72,7 @@ export function defaultSourceForType(type: AgentTriggerSource['type']): AgentTri
   if (type === 'webhook') return {type}
   if (type === 'user-mention') return {type, mentionedAccounts: []}
   if (type === 'comment-reply') return {type, repliedToAccounts: []}
+  if (type === 'document-author-comment') return {type, documentAuthors: []}
   if (type === 'site-update') return {type, resourcePrefix: '', eventTypes: ['doc-update']}
   if (type === 'schedule') return {type, schedule: {kind: 'interval', every: 1, unit: 'hours'}}
   return {type: 'document-comment', resource: ''}
@@ -98,6 +100,10 @@ export function summarizeTriggerSource(source: AgentTriggerSource): string {
   if (source.type === 'comment-reply') {
     const accounts = source.repliedToAccounts.map(abbreviateUid).join(', ')
     return `Reply to ${accounts}${source.resourcePrefix ? ` in ${source.resourcePrefix}` : ''}`
+  }
+  if (source.type === 'document-author-comment') {
+    const accounts = source.documentAuthors.map(abbreviateUid).join(', ')
+    return `Comment on a document by ${accounts}${source.resourcePrefix ? ` in ${source.resourcePrefix}` : ''}`
   }
   if (source.type === 'site-update') {
     return `Update in ${source.resourcePrefix}${source.eventTypes?.length ? ` (${source.eventTypes.join(', ')})` : ''}`
@@ -131,6 +137,11 @@ export function isTriggerSourceReady(source: AgentTriggerSource): boolean {
   if (source.type === 'comment-reply')
     return (
       source.repliedToAccounts.some((account) => account.trim()) &&
+      (!source.resourcePrefix || isTriggerResource(source.resourcePrefix))
+    )
+  if (source.type === 'document-author-comment')
+    return (
+      source.documentAuthors.some((account) => account.trim()) &&
       (!source.resourcePrefix || isTriggerResource(source.resourcePrefix))
     )
   if (source.type === 'site-update') return isTriggerResource(source.resourcePrefix)
@@ -395,21 +406,29 @@ function SingleTriggerSourceFields({
               const resource =
                 source.type === 'document-comment'
                   ? source.resource
-                  : source.type === 'site-update' || source.type === 'user-mention' || source.type === 'comment-reply'
+                  : source.type === 'site-update' ||
+                      source.type === 'user-mention' ||
+                      source.type === 'comment-reply' ||
+                      source.type === 'document-author-comment'
                     ? source.resourcePrefix ?? ''
                     : ''
-              // Mentions and replies both target accounts, so switching between them keeps who and where.
+              // Mentions, replies, and comments on documents all target accounts, so switching between
+              // them keeps who and where.
               const accounts =
                 source.type === 'user-mention'
                   ? mentionedAccountsOf(source)
                   : source.type === 'comment-reply'
                     ? source.repliedToAccounts
-                    : null
+                    : source.type === 'document-author-comment'
+                      ? source.documentAuthors
+                      : null
               const scope = resource ? {resourcePrefix: resource} : {}
               if (value === 'user-mention' && accounts) {
                 onChange({type: 'user-mention', mentionedAccounts: accounts, ...scope})
               } else if (value === 'comment-reply' && accounts) {
                 onChange({type: 'comment-reply', repliedToAccounts: accounts, ...scope})
+              } else if (value === 'document-author-comment' && accounts) {
+                onChange({type: 'document-author-comment', documentAuthors: accounts, ...scope})
               } else if (value.startsWith('site-event:')) {
                 onChange({
                   type: 'site-update',
@@ -463,6 +482,22 @@ function SingleTriggerSourceFields({
             label="Replies to"
             accounts={source.repliedToAccounts}
             onChange={(accounts) => onChange({...source, repliedToAccounts: accounts})}
+          />
+          <TriggerEntityPicker
+            label="In document or space"
+            value={source.resourcePrefix ?? ''}
+            onChange={(value) => onChange({...source, resourcePrefix: value || undefined})}
+            kind="document"
+            optional
+          />
+        </div>
+      ) : null}
+      {source.type === 'document-author-comment' ? (
+        <div className="grid gap-4">
+          <MentionedAccountsField
+            label="Documents by"
+            accounts={source.documentAuthors}
+            onChange={(accounts) => onChange({...source, documentAuthors: accounts})}
           />
           <TriggerEntityPicker
             label="In document or space"
@@ -709,6 +744,24 @@ export function TriggerSourceSummary({source}: {source: AgentTriggerSource}) {
       <>
         Reply to{' '}
         {source.repliedToAccounts.map((uid, index) => (
+          <React.Fragment key={uid}>
+            {index ? ', ' : null}
+            <TriggerEntityName value={uid} kind="account" />
+          </React.Fragment>
+        ))}
+        {source.resourcePrefix ? (
+          <>
+            {' '}
+            in <TriggerEntityName value={source.resourcePrefix} kind="document" />
+          </>
+        ) : null}
+      </>
+    )
+  if (source.type === 'document-author-comment')
+    return (
+      <>
+        Comment on a document by{' '}
+        {source.documentAuthors.map((uid, index) => (
           <React.Fragment key={uid}>
             {index ? ', ' : null}
             <TriggerEntityName value={uid} kind="account" />
@@ -1001,6 +1054,7 @@ const TRIGGER_TYPE_ICONS: Record<AgentTriggerSource['type'], React.ComponentType
   'document-comment': MessageSquare,
   'user-mention': AtSign,
   'comment-reply': Reply,
+  'document-author-comment': MessageSquare,
   'site-update': FileText,
   schedule: CalendarClock,
   'run-completed': Workflow,

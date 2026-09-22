@@ -596,6 +596,8 @@ export type AgentActivitySource =
   | {type: 'user-mention'; mentionedAccounts: string[]; resourcePrefix?: string}
   /** A comment replying directly to a comment by one of these accounts, excluding their own replies. */
   | {type: 'comment-reply'; repliedToAccounts: string[]; resourcePrefix?: string}
+  /** A comment on a document authored by one of these accounts, excluding their own comments. */
+  | {type: 'document-author-comment'; documentAuthors: string[]; resourcePrefix?: string}
   | {type: 'site-update'; resourcePrefix: string; eventTypes?: string[]}
 
 /** A stable alternative within an activity trigger. */
@@ -625,6 +627,7 @@ export function activityConditions(source: AgentTriggerSource, legacyId = 'legac
     source.type === 'document-comment' ||
     source.type === 'user-mention' ||
     source.type === 'comment-reply' ||
+    source.type === 'document-author-comment' ||
     source.type === 'site-update'
   ) {
     return [{id: legacyId, source}]

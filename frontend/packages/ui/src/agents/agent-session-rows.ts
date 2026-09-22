@@ -433,7 +433,11 @@ export function sessionQueuedSince(runs: RunInfo[] | undefined): number | undefi
 export function stripTriggerContextBlock(content: string): string {
   const index = content.indexOf('<trigger_context>')
   if (index === -1) return content
-  return content.slice(0, index).trimEnd()
+  // Older firings put a data warning just ahead of the context block; it is for the model only.
+  return content
+    .slice(0, index)
+    .replace(/<trigger_data_warning>[\s\S]*?<\/trigger_data_warning>\s*$/, '')
+    .trimEnd()
 }
 
 /** Pulls the model-facing `<trigger_instructions>` text out of a trigger's first message, if present. */

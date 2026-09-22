@@ -217,6 +217,19 @@ describe('activity condition editor', () => {
     expect(container.textContent).toContain('Replies to')
   })
 
+  it("offers comments on an account's documents, keeping the accounts when switching from a reply", () => {
+    HTMLElement.prototype.scrollIntoView = vi.fn()
+    act(() => root.render(<Editor key="author" initial={{type: 'comment-reply', repliedToAccounts: ['bob']}} />))
+    const select = container.querySelector<HTMLButtonElement>('button[role="combobox"]')!
+    act(() => Simulate.keyDown(select, {key: 'Enter'}))
+    const option = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).find(
+      (option) => option.textContent === "Comment on account's document",
+    )!
+    act(() => Simulate.keyDown(option, {key: 'Enter'}))
+    expect(changed).toHaveBeenLastCalledWith({type: 'document-author-comment', documentAuthors: ['bob']})
+    expect(container.textContent).toContain('Documents by')
+  })
+
   it('adds a second condition to a lone one through the dialog, turning it into a list', () => {
     act(() => root.render(<Editor key="single" initial={{type: 'document-comment', resource: 'hm://site/a'}} />))
     expect(buttons('Edit')).toHaveLength(0)
