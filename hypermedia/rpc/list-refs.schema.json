@@ -1,0 +1,40 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "key": {
+      "value": "ListRefs",
+      "required": true
+    },
+    "input": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "targetId": {
+            "value": {
+              "type": "hm://hyper.media/rpc/type/id"
+            },
+            "required": true
+          }
+        }
+      },
+      "required": true
+    },
+    "output": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "refs": {
+            "value": {
+              "type": "hm://hyper.media/list",
+              "items": {
+                "type": "hm://hyper.media/rpc/type/raw-ref"
+              }
+            },
+            "required": true
+          }
+        }
+      },
+      "required": true
+    }
+  }
+}
