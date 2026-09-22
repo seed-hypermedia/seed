@@ -66,7 +66,9 @@ type RedactedModelProvider = {
 No provider API returns plaintext secrets. `ListProviderModels` (`api-service.ts:989`, `fetchProviderModels` at `:6725`)
 returns only `{id, name}`:
 
-- **subscription providers short-circuit before any HTTP** and return the static catalog (`api-service.ts:1003`);
+- **subscription providers** fetch the live Codex picker (`#listSubscriptionModels`):
+  `GET https://chatgpt.com/backend-api/codex/models?client_version=…` with the stored sign-in as bearer auth. See
+  _Subscription auth_ below for the fallback and auth-failure behavior;
 - **openai strategy** (`openai`, `openrouter`, `deepseek`, `groq`, `xai`, `ollama`, `custom`): `GET {base}/models`, with
   the `Authorization: Bearer` header added only when a key exists — which is what makes keyless Ollama/custom work.
   `name` is the id; there is no display name;
@@ -135,10 +137,17 @@ An OpenAI provider can authenticate with the user's ChatGPT plan instead of an A
 - **Failure is explicit.** The access token is resolved (and refreshed if needed) up front; if that fails the secret is
   marked `needs-reauth` and the run fails with "Your OpenAI subscription sign-in has expired or was revoked. Open model
   provider settings and sign in with ChatGPT again." rather than a cryptic mid-stream 401 (`api-service.ts:4262`).
-- **Models** come from a static catalog (`SUBSCRIPTION_CODEX_MODELS`, `api-service.ts:6700`) that mirrors the current
-  Codex CLI picker rather than pi-ai's `openai-codex` catalog, which lags: the backend rejects the older ids outright
-  ("model is not supported when using Codex with a ChatGPT account") and misses the current generation. Keep this list
-  current when Codex changes its picker.
+- **Models** come from the same ChatGPT backend endpoint the Codex CLI fills its picker from
+  (`fetchCodexSubscriptionModels`): `GET {SUBSCRIPTION_CODEX_BASE_URL}/codex/models?client_version=…` with the access
+  token as bearer auth and the workspace id in `ChatGPT-Account-Id`. The backend has no public docs for this; the
+  response is `{models: [{slug, display_name, visibility, priority, supported_reasoning_levels, context_window, …}]}`.
+  Entries with `visibility: "hide"` (internal review models) are dropped and the rest keep `priority` order.
+  - `client_version` (`SUBSCRIPTION_CODEX_CLIENT_VERSION`) is required and gates what the backend returns (each entry
+    has a `minimal_client_version`). Bump it with the Codex CLI when a new generation stops showing up.
+  - A network or backend failure falls back to `SUBSCRIPTION_CODEX_FALLBACK_MODELS`, a snapshot of the picker, so the
+    agent form never gets an empty list. Pi-ai's `openai-codex` catalog is not used for this: it lags a generation and
+    the backend rejects its older ids ("model is not supported when using Codex with a ChatGPT account").
+  - A 401 from the endpoint flags the secret `needs-reauth` and fails the listing with the re-auth message above.
 
 ## Model registration and reasoning
 
