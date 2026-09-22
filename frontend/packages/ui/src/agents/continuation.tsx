@@ -1,3 +1,8 @@
+import {
+  CONTINUATION_HANDOFF_KEYS,
+  CONTINUATION_HOISTED_ARGS,
+  continuationSectionTitle,
+} from '@seed-hypermedia/agents-protocol'
 import {type SessionContinuationLink, type SessionEvent, type SessionInfo} from './client'
 import {type ChatToolPart} from './chat-parts'
 import {Markdown} from './markdown'
@@ -300,10 +305,11 @@ export function ContinuationHeader({
  */
 export function handoffMarkdownFromArgs(args: Record<string, unknown> | undefined): string {
   const handoff = (args?.handoff ?? {}) as Record<string, unknown>
+  const text = (item: unknown): string => (typeof item === 'string' ? item : JSON.stringify(item) ?? '')
   const section = (title: string, value: unknown): string[] => {
-    if (typeof value === 'string' && value.trim()) return [`## ${title}`, value, '']
-    if (Array.isArray(value) && value.length) return [`## ${title}`, ...value.map((item) => `- ${String(item)}`), '']
-    return []
+    if (value === undefined || value === null) return []
+    if (Array.isArray(value)) return value.length ? [`## ${title}`, ...value.map((item) => `- ${text(item)}`), ''] : []
+    return text(value).trim() ? [`## ${title}`, text(value), ''] : []
   }
   const known: Array<[string, string]> = [
     ['purpose', 'Purpose'],
@@ -314,23 +320,19 @@ export function handoffMarkdownFromArgs(args: Record<string, unknown> | undefine
     ['nextActions', 'Next actions'],
     ['cautions', 'Cautions'],
   ]
-  // Top-level arguments the model nested inside handoff are hoisted by the runtime, not sections.
-  const hoisted = new Set(['sources', 'transfer', 'description', 'extra'])
-  const extra = Object.entries(handoff).filter(([key]) => !hoisted.has(key) && !known.some(([k]) => k === key))
+  const hoisted = new Set<string>(CONTINUATION_HOISTED_ARGS)
+  // Same rule as the runtime: unknown keys are sections, and a model-written `extra: {...}` folds in.
+  const extra = Object.entries(handoff)
+    .flatMap(([key, value]) =>
+      key === 'extra' && value && typeof value === 'object' && !Array.isArray(value)
+        ? Object.entries(value as Record<string, unknown>)
+        : [[key, value] as const],
+    )
+    .filter(([key]) => !hoisted.has(key) && !CONTINUATION_HANDOFF_KEYS.has(key))
   return [
     ...known.flatMap(([key, title]) => section(title, handoff[key])),
-    ...extra.flatMap(([key, value]) => section(handoffSectionTitle(key), value)),
+    ...extra.flatMap(([key, value]) => section(continuationSectionTitle(key), value)),
   ].join('\n')
-}
-
-/** "riskRegister" / "risk_register" → "Risk register", matching the runtime's projection titles. */
-function handoffSectionTitle(key: string): string {
-  const words = key
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[_-]+/g, ' ')
-    .trim()
-    .toLowerCase()
-  return words ? words.charAt(0).toUpperCase() + words.slice(1) : key
 }
 
 /**

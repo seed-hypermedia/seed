@@ -451,6 +451,33 @@ const statusVerb = {
   runtimes: ['agent-service'],
 } satisfies SeedToolMetadata
 
+/** The handoff fields the runtime knows by name; every other key is an agent-invented section. */
+export const CONTINUATION_HANDOFF_KEYS: ReadonlySet<string> = new Set([
+  'purpose',
+  'currentRequest',
+  'establishedFacts',
+  'decisions',
+  'openQuestions',
+  'nextActions',
+  'cautions',
+])
+
+/**
+ * Top-level continue_session arguments that models routinely nest inside `handoff`. The runtime
+ * hoists them when the top level lacks them; the transition cards read both places the same way.
+ */
+export const CONTINUATION_HOISTED_ARGS = ['title', 'description', 'sources', 'transfer'] as const
+
+/** "riskRegister" / "risk_register" → "Risk register": an agent-invented handoff key as a section title. */
+export function continuationSectionTitle(key: string): string {
+  const words = key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .toLowerCase()
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : key
+}
+
 const continueSessionVerb = {
   name: 'continue_session',
   label: 'Continue',
@@ -459,7 +486,7 @@ const continueSessionVerb = {
     'When: the subject changes (`topic_change`); a phase ends and the next begins (`phase_change`); the user wants to focus on one thread, or stale tool traffic crowds out what matters (`refocus`); the user asks (`user_request`); <context_usage> is near 70% or earlier facts are slipping (`context_pressure`) — continue while there is room for a careful handoff, but never split one coherent task on the number alone.',
     'Not while side effects are unresolved (children still running, unconfirmed writes), never from a delegated child, and not for a plain follow-up on the same work.',
     'The successor gets: its system prompt and tools, a lineage block (it can `read thread:<id>` for anything exact), your handoff, the verbatim message being answered, and short recent excerpts. Nothing else is loaded, so write `handoff` for a capable colleague who has read none of this: concrete facts (names, ids, URLs, numbers, what worked and what failed), decisions and why, next actions in order. Any extra handoff key is passed through as its own section.',
-    'Top-level arguments, NOT handoff fields: `title` (specific, at most eight words) and `description` (one or two sentences) name the successor in session lists; `sources` are exact pointers (hm://, memory files, thread seq ranges) the successor may need verbatim rather than summarized; `transfer.plan` is `carry` (copy the live checklist; default when steps are unfinished) or `close` (leave it here).',
+    'Top-level arguments, NOT handoff fields: `title` (specific, at most eight words) and `description` (one or two sentences) name the successor in session lists; `sources` are exact pointers (hm://, memory files, thread seq ranges) the successor may need verbatim rather than summarized; `transfer.plan` is `carry` (copy the live checklist; default when steps are unfinished) or `close` (leave it here). Identity, grants, model, and attachments are carried by the runtime: do not restate them.',
   ].join('\n'),
   inputSchema: {
     type: 'object',
@@ -473,29 +500,27 @@ const continueSessionVerb = {
       title: {
         type: 'string',
         minLength: 1,
-        description: 'Title of the successor session, at most eight words, specific to what it will do.',
+        description: 'Successor title: specific, at most eight words.',
       },
       description: {
         type: 'string',
         minLength: 1,
-        description: 'One or two sentences: what the successor session is about and what it will do first.',
+        description: 'One or two sentences: what the successor will do first.',
       },
       handoff: {
         type: 'object',
-        description:
-          'Orientation for the successor, written for a colleague who has read none of this conversation. Unknown keys are kept and shown to the successor as extra sections.',
+        description: 'Orientation for a colleague who has read none of this. Extra keys become extra sections.',
         properties: {
           purpose: {type: 'string', minLength: 1, description: 'What the successor session is for.'},
           currentRequest: {
             type: 'string',
             minLength: 1,
-            description:
-              'What the user is asking for right now, in your words. (The exact user message is also replayed verbatim.)',
+            description: 'What the user is asking for right now, in your words.',
           },
           establishedFacts: {
             type: 'array',
             items: {type: 'string'},
-            description: 'Concrete facts learned here: names, ids, URLs, numbers, what worked, what failed.',
+            description: 'Names, ids, URLs, numbers, what worked, what failed.',
           },
           decisions: {type: 'array', items: {type: 'string'}, description: 'What was decided, and why.'},
           openQuestions: {type: 'array', items: {type: 'string'}, description: 'What is still unresolved.'},
@@ -511,7 +536,7 @@ const continueSessionVerb = {
       sources: {
         type: 'array',
         description:
-          'Exact references the successor may need: {kind: "resource", url, relevance} for hm:// or web content; {kind: "memory", path, relevance} for a memory file; {kind: "session_events", fromSeq, toSeq, relevance} or {kind: "session_event", seq, relevance} for events of THIS thread — leave sessionId out; you do not know your own thread id and the runtime fills it in. Only set sessionId to cite a different thread of yours whose `thread:<id>` you have actually seen (a predecessor named in your lineage block, or one you read with `read thread:<id>`); never guess or construct an id. Seqs are the [seq] numbers shown by read thread:<id>. Each carries a one-line relevance.',
+          'Exact pointers, each with a one-line relevance: {kind:"resource", url} for hm:// or web content; {kind:"memory", path}; {kind:"session_events", fromSeq, toSeq} or {kind:"session_event", seq} for events of this thread (seqs as `read thread:<id>` shows them).',
         items: {
           type: 'object',
           additionalProperties: false,
@@ -524,7 +549,7 @@ const continueSessionVerb = {
             sessionId: {
               type: 'string',
               description:
-                'OMIT for this thread (the runtime fills in the current session; you do not know its id). Set only to a thread id you have seen verbatim — from your lineage block or a `read thread:<id>` result — to cite another thread of yours. A made-up or unseen id is rejected and the continuation fails.',
+                'Omit for this thread (the runtime fills it in). Set only to cite another thread of yours whose id you have seen verbatim (lineage block or `read thread:<id>`); an unseen id is rejected.',
             },
             fromSeq: {type: 'number'},
             toSeq: {type: 'number'},
@@ -541,7 +566,7 @@ const continueSessionVerb = {
           plan: {
             type: 'string',
             enum: ['carry', 'close', 'omit'],
-            description: 'carry: copy the live checklist into the successor. close/omit: leave it here as history.',
+            description: 'carry: copy the live checklist to the successor; close: leave it here.',
           },
         },
       },

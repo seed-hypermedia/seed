@@ -14883,16 +14883,9 @@ type ContinueSessionInput = {
   transfer?: {plan?: 'carry' | 'close' | 'omit'}
 }
 
-const CONTINUATION_HANDOFF_KEYS = new Set([
-  'purpose',
-  'currentRequest',
-  'establishedFacts',
-  'decisions',
-  'openQuestions',
-  'nextActions',
-  'cautions',
-  'extra',
-])
+/** Extra handoff sections and entries per list are bounded so one continuation cannot blow the projection budget. */
+const MAX_HANDOFF_EXTRA_KEYS = 16
+const MAX_HANDOFF_LIST_ENTRIES = 64
 
 /**
  * Validates continue_session input: what the agent must supply, bounded like the status verb.
@@ -14904,9 +14897,10 @@ export function normalizeContinueSessionInput(raw: unknown, defaultSessionId: st
   // Models routinely nest the top-level arguments inside `handoff` (the verb text describes them
   // together). Hoist any the caller left off the top level rather than refusing the continuation.
   const input: Record<string, unknown> = {...given}
-  for (const key of ['sources', 'transfer', 'description'] as const) {
-    if (input[key] === undefined && handoffRaw[key] !== undefined) input[key] = handoffRaw[key]
-    if (key in handoffRaw) delete handoffRaw[key]
+  const missing = (value: unknown) => value === undefined || value === null || value === ''
+  for (const key of protocol.CONTINUATION_HOISTED_ARGS) {
+    if (missing(input[key]) && !missing(handoffRaw[key])) input[key] = handoffRaw[key]
+    delete handoffRaw[key]
   }
   if (!CONTINUATION_REASONS.includes(input.reason as api.SessionContinuationReason)) {
     throw new APIError(400, `continue_session needs a reason: one of ${CONTINUATION_REASONS.join(', ')}`)
@@ -14917,13 +14911,16 @@ export function normalizeContinueSessionInput(raw: unknown, defaultSessionId: st
     'Successor session description',
     MAX_SESSION_DESCRIPTION_BYTES,
   )
+  // A handoff list as the model wrote it: a bare string is a one-item list, and a non-string item
+  // is kept as JSON rather than dropped — a fact is a fact whether it arrived as prose or a record.
   const list = (value: unknown, label: string): string[] | undefined => {
     if (value === undefined || value === null) return undefined
-    if (!Array.isArray(value)) throw new APIError(400, `handoff.${label} must be a list of strings`)
-    const items = value
-      .filter((item): item is string => typeof item === 'string')
+    const items = (Array.isArray(value) ? value : [value])
+      .filter((item) => item !== undefined && item !== null)
+      .map((item) => (typeof item === 'string' ? item : safeJSONStringify(item)))
       .map((item) => item.trim())
       .filter(Boolean)
+      .slice(0, MAX_HANDOFF_LIST_ENTRIES)
       .map((item) => normalizeBoundedString(item, `handoff.${label} entry`, MAX_MESSAGE_TEXT_BYTES))
     return items.length ? items : undefined
   }
@@ -14935,17 +14932,18 @@ export function normalizeContinueSessionInput(raw: unknown, defaultSessionId: st
     const items = list(handoffRaw[key], key)
     if (items) handoff[key] = items
   }
-  // Anything else on the handoff is the agent's own section: keep it, as a list of strings.
+  // Anything else on the handoff is the agent's own section. A model that writes `extra: {...}`
+  // itself (the protocol type's own shape) means the same thing, so its entries fold in too.
   const extra: Record<string, string[]> = {}
-  for (const [key, value] of Object.entries(handoffRaw)) {
-    if (CONTINUATION_HANDOFF_KEYS.has(key)) continue
-    if (value === undefined || value === null) continue
-    const items = (Array.isArray(value) ? value : [value])
-      .map((item) => (typeof item === 'string' ? item : safeJSONStringify(item)))
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .map((item) => normalizeBoundedString(item, `handoff.${key} entry`, MAX_MESSAGE_TEXT_BYTES))
-    if (items.length) extra[key] = items
+  const candidates = Object.entries(handoffRaw).flatMap(([key, value]) =>
+    key === 'extra' && isPlainRecord(value) ? Object.entries(value) : [[key, value] as const],
+  )
+  for (const [key, value] of candidates) {
+    if (protocol.CONTINUATION_HANDOFF_KEYS.has(key)) continue
+    if (Object.keys(extra).length >= MAX_HANDOFF_EXTRA_KEYS) break
+    const name = normalizeBoundedString(key, 'handoff section name', MAX_NAME_BYTES)
+    const items = list(value, name)
+    if (items) extra[name] = items
   }
   if (Object.keys(extra).length) handoff.extra = extra
   const sources: api.SessionContinuationSource[] = []
@@ -15114,16 +15112,6 @@ type ContinuationProjection = {
  * not loaded. The initiating message itself is not excerpted here — it is replayed verbatim as
  * the next event, with its provenance.
  */
-/** "riskRegister" / "risk_register" → "Risk register": an agent-invented handoff key as a section title. */
-export function continuationSectionTitle(key: string): string {
-  const words = key
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[_-]+/g, ' ')
-    .trim()
-    .toLowerCase()
-  return words ? words.charAt(0).toUpperCase() + words.slice(1) : key
-}
-
 export function compileContinuationProjection(input: ContinuationProjectionInput): ContinuationProjection {
   const escape = escapeActionFraming
   const predecessorTitle = input.predecessor.title ? escape(input.predecessor.title) : ''
@@ -15159,7 +15147,7 @@ export function compileContinuationProjection(input: ContinuationProjectionInput
     ...section('Next actions', input.handoff.nextActions),
     ...section('Cautions', input.handoff.cautions),
     ...Object.entries(input.handoff.extra ?? {}).flatMap(([key, items]) =>
-      section(continuationSectionTitle(key), items),
+      section(escape(protocol.continuationSectionTitle(key)), items),
     ),
     '</handoff>',
   ]
