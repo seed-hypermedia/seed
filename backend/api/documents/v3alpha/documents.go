@@ -3000,6 +3000,21 @@ func refToProto(c cid.Cid, ref *blob.Ref) (*documents.Ref, error) {
 	}
 
 	switch {
+	case ref.Redirect != nil:
+		// A redirect Ref has no heads either, so it must be told apart from a tombstone first.
+		target := ref.Redirect.Space
+		if target == nil {
+			target = ref.Space()
+		}
+		pb.Target = &documents.RefTarget{
+			Target: &documents.RefTarget_Redirect_{
+				Redirect: &documents.RefTarget_Redirect{
+					Account:   target.String(),
+					Path:      ref.Redirect.Path,
+					Republish: ref.Redirect.Republish,
+				},
+			},
+		}
 	case ref.GenesisBlob.Defined() && len(ref.Heads) > 0:
 		pb.Target = &documents.RefTarget{
 			Target: &documents.RefTarget_Version_{

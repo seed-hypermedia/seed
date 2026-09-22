@@ -530,6 +530,38 @@ Writes every document of the space into the directory: the home document as `ind
 `a/b.md`, and the schema blob a document defines (`metadata.schemaDefinition`) as `<file>.schema.json`. Only files whose
 content changed are touched. `<space>` may be `self` for the signing key's own space.
 
+The `--assets` flag also downloads every file the documents link (images, videos, files) into `<dir>/assets/`, named by
+CID, and rewrites those links to relative paths. `space import` uploads them again.
+
+### space archive
+
+```
+seed-cli space archive <space> --out <file.zip> [--format markdown|blobs] [--no-comments]
+```
+
+Saves a whole space in one zip file, with a `manifest.json` at its root.
+
+- `markdown` (default): the `space export` folder plus its assets. Readable without Seed, and it can be imported into
+  any space.
+- `blobs`: every signed blob of the space at `blobs/<cid>`: the Refs at each document path, every change, capabilities,
+  comments (unless `--no-comments`), schema blobs, and the UnixFS blocks of every linked file. Blobs are followed by
+  their links, so the archive is self-contained, and each one is checked against its CID. Refs need a server with the
+  `ListRefs` API; an older server gives an archive with a warning and no Refs.
+
+Anything linked that the server can't return is listed under `missing` in the manifest. A moved document's old path (its
+Redirect Ref) is not archived yet.
+
+### space restore
+
+```
+seed-cli space restore <file.zip> [--into <space>] [-k, --key <name>] [-d, --dir <path>] [--dry-run]
+```
+
+A blob archive is checked against its CIDs and published as is, in dependency order, to the `--server`. Nothing is
+re-signed, so the space comes back with the same versions, authors and history. A markdown archive is extracted (to
+`--dir`, or a temporary directory) and imported into `--into` (default `self`), which publishes new changes signed by
+your key.
+
 ### space import
 
 ```
@@ -1159,14 +1191,14 @@ List documents in a space (account).
 seed-cli query <space> [options]
 ```
 
-| Option              | Description                                                         |
-| ------------------- | ------------------------------------------------------------------- |
-| `-p, --path <path>` | Path prefix to filter                                               |
-| `-m, --mode <mode>` | `Children` (default) or `AllDescendants`                            |
-| `-l, --limit <n>`   | Maximum results                                                     |
+| Option              | Description                                                               |
+| ------------------- | ------------------------------------------------------------------------- |
+| `-p, --path <path>` | Path prefix to filter                                                     |
+| `-m, --mode <mode>` | `Children` (default) or `AllDescendants`                                  |
+| `-l, --limit <n>`   | Maximum results                                                           |
 | `--sort <term>`     | Sort by: `title`, `path`, `created`, `updated`, `activity`, `displayTime` |
-| `--reverse`         | Reverse sort order                                                  |
-| `-q, --quiet`       | Output `ID<tab>name` per line                                       |
+| `--reverse`         | Reverse sort order                                                        |
+| `-q, --quiet`       | Output `ID<tab>name` per line                                             |
 
 ```bash
 # List direct children

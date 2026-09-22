@@ -295,6 +295,21 @@ jobs:
         env:
           # Mobile e2e has never gone green on a GitHub runner; see tests/vitest.config.ts.
           SKIP_MOBILE_E2E: 'true'
+      # The CLI's unit suites that need neither a daemon nor the OS keyring. The rest of
+      # `test:unit` (account-profile.test.ts runs `key import`, which stores through
+      # secret-tool) needs the gnome-keyring session that the CLI fixture suite sets up.
+      - name: Run CLI unit tests
+        run: cd frontend/apps/cli && bun run test:unit:headless
+      # `space archive` / `space restore` against two daemon + web stacks on separate testnets.
+      # The suite boots each daemon with `go run` from backend/cmd/seed-daemon, so it needs the
+      # same cgo/llama environment as the daemon build above.
+      - name: Run CLI space-archive suite
+        run: cd frontend/apps/cli && bun test src/test/space-archive.test.ts
+        env:
+          CGO_ENABLED: '1'
+          GOFLAGS: -tags=cpu
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
 
   # Job 3: E2E tests. The `desktop` suite is currently a no-op (see the
   # commented-out commands below) — keeping it in the matrix just burned a

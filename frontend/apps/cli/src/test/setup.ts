@@ -137,7 +137,9 @@ export async function startDaemon(config: TestConfig = {}): Promise<TestContext>
     '/bin/sh',
     [
       '-c',
-      `cd "${daemonPath}" && "${goBinary}" run . -data-dir="${dataDir}" -http.port=${httpPort} -grpc.port=${grpcPort} -p2p.port=${p2pPort} -log-level=warn${
+      // -keystore-dir: a file keystore instead of the OS keyring, which a CI runner
+      // (no Secret Service) cannot provide; the same choice tests/integration/daemon.ts makes.
+      `cd "${daemonPath}" && "${goBinary}" run . -data-dir="${dataDir}" -keystore-dir="${dataDir}/keystore" -http.port=${httpPort} -grpc.port=${grpcPort} -p2p.port=${p2pPort} -log-level=warn${
         config.bootstrapPeers ? ` -p2p.bootstrap-peers="${config.bootstrapPeers}"` : ''
       }`,
     ],

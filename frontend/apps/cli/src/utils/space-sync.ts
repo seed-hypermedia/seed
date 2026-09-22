@@ -133,6 +133,13 @@ export type ExportOptions = {
   uid: string
   dir: string
   layout?: SpaceLayout
+  /**
+   * Download the files documents link (`ipfs://…` images, videos, files) and
+   * link them relatively instead. See AssetDownloader in space-archive.ts.
+   */
+  assets?: {
+    localize(nodes: HMBlockNode[], mdFile: string, metadata?: Record<string, unknown>): Promise<HMBlockNode[]>
+  }
   log?: (line: string) => void
 }
 
@@ -242,7 +249,8 @@ export async function exportDocument(
     return result
   }
   result.files.set(path, file)
-  const content = hmToRelativeLinks(doc.content || [], file, doc.account, layout)
+  let content = hmToRelativeLinks(doc.content || [], file, doc.account, layout)
+  if (opts.assets) content = await opts.assets.localize(content, file, doc.metadata as Record<string, unknown>)
   const md = blocksToMarkdown({...doc, content}, {ipfsGateway: false})
   const changed = writeIfChanged(resolve(opts.dir, file), md)
   ;(changed ? result.written : result.unchanged).push(file)
@@ -484,6 +492,26 @@ export function metadataDiffOp(
   return attrs.length ? {type: 'SetAttributes', attrs} : null
 }
 
+/**
+ * Relative links to files that are not documents (`./images/x.png`, `../assets/x.png`)
+ * become `file://` links to their absolute path, which the import uploads as
+ * blobs (resolveFileLinks). The parser already writes `file://./x` for a
+ * relative image; anything still relative that exists on disk is treated the
+ * same. Resolving against the page's own folder, not the working directory, is
+ * what lets a nested page link a shared `assets/` folder.
+ */
+function relativeAssetsToFileLinks(nodes: HMBlockNode[], dir: string, file: string): HMBlockNode[] {
+  const fileDir = resolve(dir, dirname(file))
+  return rewriteLinks(nodes, (link) => {
+    let rel: string | null = null
+    if (/^file:\/\/(?!\/)/.test(link)) rel = link.slice('file://'.length)
+    else if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(link) && !link.startsWith('/') && !link.startsWith('#')) rel = link
+    if (rel === null || /\.md(#.*)?$/.test(rel)) return link
+    const abs = resolve(fileDir, rel.split('#')[0]!)
+    return existsSync(abs) && statSync(abs).isFile() ? `file://${abs}` : link
+  })
+}
+
 export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
   const layout = opts.layout || defaultLayout
   const log = opts.log || (() => {})
@@ -502,7 +530,11 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     const {tree, metadata: fileMetadata} = parseMarkdown(raw)
     const metadata = opts.metadataFor ? opts.metadataFor(file, fileMetadata) : fileMetadata
     const resolved = await resolveFileLinks(
-      relativeToHmLinks(markdownBlockNodesToHMBlockNodes(tree), file, opts.account, layout),
+      relativeAssetsToFileLinks(
+        relativeToHmLinks(markdownBlockNodesToHMBlockNodes(tree), file, opts.account, layout),
+        opts.dir,
+        file,
+      ),
     )
     const newTree = resolved.nodes.map(hmBlockNodeToBlockNode)
     const id = hmId(opts.account, {path: path ? path.replace(/^\//, '').split('/') : []})

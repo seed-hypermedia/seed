@@ -1061,13 +1061,50 @@ func TestListRefs(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        docV2.Account,
+		Path:           "/refs-list-moved",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Moved here"},
+			}},
+		},
+		Timestamp: timestamppb.New(baseTS.Add(3 * time.Second)),
+	})
+	require.NoError(t, err)
+
+	redirect, err := alice.CreateRef(ctx, &documents.CreateRefRequest{
+		SigningKeyName: "main",
+		Account:        docV2.Account,
+		Path:           docV2.Path,
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Redirect_{
+				Redirect: &documents.RefTarget_Redirect{
+					Account: docV2.Account,
+					Path:    "/refs-list-moved",
+				},
+			},
+		},
+		Generation: docV2.GenerationInfo.Generation + 200,
+		Timestamp:  timestamppb.New(baseTS.Add(4 * time.Second)),
+	})
+	require.NoError(t, err)
+	require.IsType(t, &documents.RefTarget_Redirect_{}, redirect.Target.Target)
+
 	refs, err := alice.ListRefs(ctx, &documents.ListRefsRequest{
 		Account:  docV2.Account,
 		Path:     docV2.Path,
 		PageSize: 1,
 	})
 	require.NoError(t, err)
-	require.Len(t, refs.Refs, 4)
+	require.Len(t, refs.Refs, 5)
+
+	// A redirect Ref lists as a redirect, not as the tombstone its empty heads resemble.
+	require.Equal(t, redirect.Id, refs.Refs[0].Id)
+	require.Equal(t, docV2.Account, refs.Refs[0].Target.GetRedirect().Account)
+	require.Equal(t, "/refs-list-moved", refs.Refs[0].Target.GetRedirect().Path)
+	refs.Refs = refs.Refs[1:]
 	require.Empty(t, refs.NextPageToken)
 
 	require.Equal(t, highGen.Id, refs.Refs[0].Id)

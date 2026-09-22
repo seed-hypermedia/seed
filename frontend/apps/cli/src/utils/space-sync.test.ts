@@ -55,3 +55,29 @@ describe('metadataDiffOp', () => {
     })
   })
 })
+
+describe('importSpace file links', () => {
+  test('resolves relative asset links against the page folder, not the working directory', async () => {
+    const {mkdtempSync, mkdirSync, writeFileSync, rmSync} = await import('node:fs')
+    const {tmpdir} = await import('node:os')
+    const {join} = await import('node:path')
+    const {importSpace} = await import('./space-sync')
+    const dir = mkdtempSync(join(tmpdir(), 'space-sync-assets-'))
+    const elsewhere = mkdtempSync(join(tmpdir(), 'space-sync-cwd-'))
+    const cwd = process.cwd()
+    try {
+      mkdirSync(join(dir, 'assets'))
+      mkdirSync(join(dir, 'guides'))
+      writeFileSync(join(dir, 'assets', 'pic.png'), new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]))
+      writeFileSync(join(dir, 'guides', 'intro.md'), '# Intro\n\n![A picture](../assets/pic.png)\n')
+      process.chdir(elsewhere)
+      const client = {request: async () => ({type: 'not-found'})} as any
+      const result = await importSpace({client, signer: {} as any, account: 'z6MkTest', dir, dryRun: true})
+      expect(result.created).toContain('guides/intro.md')
+    } finally {
+      process.chdir(cwd)
+      rmSync(dir, {recursive: true, force: true})
+      rmSync(elsewhere, {recursive: true, force: true})
+    }
+  })
+})

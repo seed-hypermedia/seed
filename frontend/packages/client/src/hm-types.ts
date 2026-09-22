@@ -1839,6 +1839,44 @@ export const HMListCapabilitiesRequestSchema = z.object({
 })
 export type HMListCapabilitiesRequest = z.infer<typeof HMListCapabilitiesRequestSchema>
 
+// ListRefs - lists every Ref blob published at a document path (raw API response)
+export const HMRawRefSchema = z.object({
+  id: z.string().optional(),
+  account: z.string().optional(),
+  path: z.string().optional(),
+  target: z
+    .object({
+      version: z.object({genesis: z.string().optional(), version: z.string().optional()}).optional(),
+      redirect: z
+        .object({account: z.string().optional(), path: z.string().optional(), republish: z.boolean().optional()})
+        .optional(),
+      tombstone: z.object({}).optional(),
+    })
+    .optional(),
+  signer: z.string().optional(),
+  capability: z.string().optional(),
+  timestamp: z.string().optional(),
+  generationInfo: z.object({genesis: z.string().optional(), generation: z.string().optional()}).optional(),
+})
+export type HMRawRef = z.infer<typeof HMRawRefSchema>
+
+export const HMListRefsOutputSchema = z.object({
+  refs: z.array(HMRawRefSchema),
+})
+export type HMListRefsOutput = z.infer<typeof HMListRefsOutputSchema>
+
+export const HMListRefsInputSchema = z.object({
+  targetId: unpackedHmIdSchema,
+})
+export type HMListRefsInput = z.infer<typeof HMListRefsInputSchema>
+
+export const HMListRefsRequestSchema = z.object({
+  key: z.literal('ListRefs'),
+  input: HMListRefsInputSchema,
+  output: HMListRefsOutputSchema,
+})
+export type HMListRefsRequest = z.infer<typeof HMListRefsRequestSchema>
+
 export const HMListDocumentCollaboratorsInputSchema = z.object({
   targetId: unpackedHmIdSchema,
 })
@@ -2119,6 +2157,7 @@ export const HMGetRequestSchema = z.discriminatedUnion('key', [
   HMListCitationsRequestSchema,
   HMListChangesRequestSchema,
   HMListCapabilitiesRequestSchema,
+  HMListRefsRequestSchema,
   HMListDocumentCollaboratorsRequestSchema,
   HMInteractionSummaryRequestSchema,
   HMListCommentVersionsRequestSchema,
@@ -2158,6 +2197,7 @@ export const HMRequestSchema = z.discriminatedUnion('key', [
   HMListCitationsRequestSchema,
   HMListChangesRequestSchema,
   HMListCapabilitiesRequestSchema,
+  HMListRefsRequestSchema,
   HMListDocumentCollaboratorsRequestSchema,
   HMInteractionSummaryRequestSchema,
   HMListCommentVersionsRequestSchema,
