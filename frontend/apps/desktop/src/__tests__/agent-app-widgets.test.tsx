@@ -50,20 +50,24 @@ async function click(text: string) {
   await act(async () => {
     button!.click()
   })
-  if (text === 'Run widget')
-    await vi.waitFor(async () => {
-      await act(async () => {})
-      expect(container.querySelector('iframe')).not.toBeNull()
-    })
+  if (text === 'Run widget') await runningFrame()
   if (text === 'Open in browser')
     await vi.waitFor(async () => {
       await act(async () => {})
       expect(mocks.navigate).toHaveBeenCalled()
     })
 }
+/** The widget's sandbox frame, once the app has loaded and started. */
+async function runningFrame() {
+  await vi.waitFor(async () => {
+    await act(async () => {})
+    expect(container.querySelector('iframe')).not.toBeNull()
+  })
+  return container.querySelector('iframe')!
+}
 
 describe('agent apps', () => {
-  it('requires explicit Run, keeps its iframe on transcript rerender, and stops on request', async () => {
+  it('runs on sight, keeps its iframe on transcript rerender, stops on request, and runs again', async () => {
     const markdown = '```seed-widget\n' + JSON.stringify({app: reference}) + '\n```'
     const render = (suffix = '') => (
       <MarkdownAssetContext.Provider value={scope}>
@@ -71,21 +75,30 @@ describe('agent apps', () => {
       </MarkdownAssetContext.Provider>
     )
     act(() => root.render(render()))
-    expect(mocks.request).not.toHaveBeenCalled()
-    expect(container.querySelector('iframe')).toBeNull()
-    await click('Run widget')
-    const frame = container.querySelector('iframe')!
+    const frame = await runningFrame()
+    expect(mocks.request).toHaveBeenCalledTimes(1)
     expect(frame.getAttribute('sandbox')).toBe('allow-scripts')
     expect(frame.srcdoc).toContain('frame-src data:')
     act(() => root.render(render('\n\nMore text streamed')))
     expect(container.querySelector('iframe')).toBe(frame)
     await click('Stop widget')
     expect(container.querySelector('iframe')).toBeNull()
+    await click('Run widget')
+    // The revision is already verified; a restart does not fetch it again.
+    expect(mocks.request).toHaveBeenCalledTimes(1)
+  })
+  it('shows the failure instead of a frame when the revision cannot be loaded', async () => {
+    mocks.request.mockResolvedValueOnce({_: 'ReadSessionAttachmentResponse', attachment: {mimeType: 'text/html'}, data})
+    act(() => root.render(<AgentAppWidget reference={reference} height={400} scope={scope} />))
+    await vi.waitFor(async () => {
+      await act(async () => {})
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain('not a Seed app')
+    })
+    expect(container.querySelector('iframe')).toBeNull()
   })
   it('only accepts its own frame results and sends them after a user click with disclosed context', async () => {
     act(() => root.render(<AgentAppWidget reference={reference} height={400} scope={scope} />))
-    await click('Run widget')
-    const frame = container.querySelector('iframe')!
+    const frame = await runningFrame()
     act(() =>
       window.dispatchEvent(
         new MessageEvent('message', {source: window, data: {type: 'seed-app-result', value: 'spoof'}}),

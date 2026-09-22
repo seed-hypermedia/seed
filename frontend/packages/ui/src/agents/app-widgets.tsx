@@ -97,7 +97,7 @@ export function AgentAppLink({
   )
 }
 
-/** User-started sandbox with trusted controls outside the model-authored GUI. */
+/** A sandboxed app that runs on sight, with trusted controls outside the model-authored GUI. */
 export function AgentAppWidget({
   reference,
   height,
@@ -116,6 +116,28 @@ export function AgentAppWidget({
   const frame = React.useRef<HTMLIFrameElement>(null)
   const send = useMessageAgentSession(scope?.serverUrl, scope?.accountUid)
   const document = React.useMemo(() => (app ? agentAppDocument(app) : undefined), [app])
+  const start = React.useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const loaded = app ?? (await loadAgentApp(scope, reference))
+      setApp(loaded)
+      setRunning(true)
+      setResult(null)
+      setSent(false)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setLoading(false)
+    }
+  }, [app, scope, reference])
+  // A widget in the transcript runs as soon as it appears; the sandbox, not a click, is what
+  // keeps it contained. Stop puts it back behind a Run button.
+  React.useEffect(() => {
+    void start()
+    // Once per widget: `key` on the caller already ties identity to the reference and session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   React.useEffect(() => {
     if (!running || result !== null) return
     const listener = (event: MessageEvent) => {
@@ -142,23 +164,9 @@ export function AgentAppWidget({
           size="xs"
           variant="ghost"
           loading={loading}
-          onClick={async () => {
-            if (running) {
-              setRunning(false)
-              return
-            }
-            setLoading(true)
-            setError('')
-            try {
-              setApp(app ?? (await loadAgentApp(scope, reference)))
-              setRunning(true)
-              setResult(null)
-              setSent(false)
-            } catch (error) {
-              setError(error instanceof Error ? error.message : String(error))
-            } finally {
-              setLoading(false)
-            }
+          onClick={() => {
+            if (running) setRunning(false)
+            else void start()
           }}
         >
           {running ? 'Stop widget' : 'Run widget'}
