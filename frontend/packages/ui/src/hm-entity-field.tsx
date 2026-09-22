@@ -2,6 +2,7 @@ import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {getMetadataName} from '@shm/shared/content'
 import {useResource} from '@shm/shared/models/entity'
+import {useAccountSearch} from '@shm/shared/models/account-search'
 import {useSchemaDocumentSearch} from '@shm/shared/models/schema-documents'
 import {useSearch} from '@shm/shared/models/search'
 import {useSchemaSubtypes, useTypedDocumentSearch} from '@shm/shared/models/typed-documents'
@@ -9,7 +10,6 @@ import {useUniversalAppContext} from '@shm/shared/routing'
 import {packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {principalFromString} from '@seed-hypermedia/client/blobs'
 import {inClosure} from '@seed-hypermedia/client/schema-subtypes'
-import {EntityKindFilter} from '@shm/shared/client/grpc-types'
 import {FileCode2, FileText, TriangleAlert, User, X} from 'lucide-react'
 import {useState} from 'react'
 import {Button} from './button'
@@ -240,7 +240,7 @@ function useTargetConformance(
   }
 }
 
-type SearchResult = {id: UnpackedHypermediaId; title: string; offType?: boolean}
+type SearchResult = {id: UnpackedHypermediaId; title: string; icon?: string; offType?: boolean}
 
 function HMEntitySearchInput({
   initialText,
@@ -266,11 +266,11 @@ function HMEntitySearchInput({
   // The platform's domain store answers first (cached, offline); the site's own answer is the fallback.
   const {domainResolver} = useUniversalAppContext()
   const isUrlInput = /^(hm|ipfs|https?):\/\//i.test(text.trim())
-  const search = useSearch(text.trim(), {
-    enabled: mode !== 'schema' && text.trim().length > 0 && !isUrlInput,
-    // An account field searches accounts (spaces) only; a document field searches everything.
-    entityKindFilter: mode === 'profile' ? [EntityKindFilter.ENTITY_KIND_SPACE] : undefined,
-  })
+  const search = useSearch(text.trim(), {enabled: mode === 'document' && text.trim().length > 0 && !isUrlInput})
+  // An account field offers the @mention picker's account candidates: one per account, under
+  // its current name, with its icon. Raw search hits come once per matching version or block
+  // and carry the matched text, which is not always the name.
+  const accounts = useAccountSearch(text, {enabled: mode === 'profile' && !isUrlInput})
   // Schema mode offers only pages that DEFINE a schema (carry `schemaDefinition`), through the
   // attribute query — by name when text is typed, the latest ones when the field is empty — so
   // whatever is picked resolves to a schema. Text and profile modes use full-text search.
@@ -283,14 +283,17 @@ function HMEntitySearchInput({
     enabled: !!target && !isUrlInput && (focused || text.trim().length > 0),
   })
   const targetName = useHmRefTitle(target ?? '')
-  const fullText: SearchResult[] = (search.data?.entities ?? [])
-    .filter((entity) => {
-      if (entity.type === 'comment') return false
-      // Profiles are account-root documents: a uid with no path.
-      if (mode === 'profile') return !entity.id.path?.length
-      return true
-    })
-    .map((entity) => ({id: entity.id, title: entity.title || entity.id.id}))
+  const fullText: SearchResult[] =
+    mode === 'profile'
+      ? (accounts.data ?? []).map((candidate) => ({
+          id: candidate.id,
+          // The public name, so the row reads the same as the pill it becomes; a petname is a hint.
+          title: candidate.publicName || candidate.title || candidate.id.uid,
+          icon: candidate.icon || undefined,
+        }))
+      : (search.data?.entities ?? [])
+          .filter((entity) => entity.type !== 'comment')
+          .map((entity) => ({id: entity.id, title: entity.title || entity.id.id}))
   const typedResults: SearchResult[] = (typed.data ?? [])
     .slice(0, 6)
     .map((info) => ({id: info.id, title: getMetadataName(info.metadata) || info.id.id}))
@@ -412,7 +415,13 @@ function HMEntitySearchInput({
               {entity.offType ? (
                 <TriangleAlert className="text-muted-foreground size-3.5 shrink-0" />
               ) : mode === 'profile' ? (
-                <User className="text-muted-foreground size-3.5 shrink-0" />
+                <HMIcon
+                  id={{...entity.id, path: []}}
+                  name={entity.title}
+                  icon={entity.icon}
+                  size={16}
+                  className="shrink-0"
+                />
               ) : mode === 'schema' ? (
                 <FileCode2 className="text-muted-foreground size-3.5 shrink-0" />
               ) : (

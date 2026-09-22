@@ -62,6 +62,7 @@ function stripNulls(value: Record<string, unknown>): Record<string, unknown> {
 export const WORLD_UID = 'z6MkWorldFixture'
 /** A real Ed25519 principal, so a pasted account id round-trips through the principal decoder. */
 export const ALICE_UID = 'z6MkgisVMELvqnsCo3dYmtVpy8PiqPGMVwfAyBWFn84vebq4'
+const ALICE_ICON = 'ipfs://bafkreialiceavatarxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 const LIBRARY = 'hm://hyper.media'
 type FixtureDoc = {path: string[]; metadata: Record<string, unknown>}
 // Two type pages of the world's own: Mammal EXTENDS Animal by document URL, so resolving a
@@ -183,10 +184,7 @@ const mockUniversalClient = {
             account: ALICE_UID,
             path: '',
             authors: [ALICE_UID],
-            metadata: {
-              name: 'Alice Keeper',
-              icon: 'ipfs://bafkreialiceavatarxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-            },
+            metadata: {name: 'Alice Keeper', icon: ALICE_ICON},
             genesis: 'bafyfixturegenesis',
             version: 'bafyfixtureversion',
             visibility: 'PUBLIC',
@@ -215,17 +213,24 @@ const mockUniversalClient = {
       return {value: worldBlobs[params?.cid] ?? null}
     }
     if (method === 'Search') {
-      // Accounts are found only through the space filter, the way an account field searches.
-      const spacesOnly = Array.isArray(params?.entityKindFilter) && params.entityKindFilter.includes(1)
+      return {entities: []}
+    }
+    if (method === 'MentionCandidates') {
+      // What an account field searches: the @mention picker's account candidates.
+      if (params?.mode !== 'account') return []
       const query = String(params?.query ?? '').toLowerCase()
-      const accounts = [{uid: ALICE_UID, title: 'Alice Keeper'}]
-      return {
-        entities: spacesOnly
-          ? accounts
-              .filter((account) => account.title.toLowerCase().includes(query))
-              .map((account) => ({id: hmId(account.uid), title: account.title, type: 'document'}))
-          : [],
-      }
+      return [{uid: ALICE_UID, name: 'Alice Keeper', icon: ALICE_ICON}]
+        .filter((account) => account.name.toLowerCase().includes(query))
+        .map((account) => ({
+          id: hmId(account.uid),
+          type: 'account',
+          sourceAccountUid: account.uid,
+          title: account.name,
+          publicName: account.name,
+          icon: account.icon,
+          parentNames: [],
+          searchQuery: query,
+        }))
     }
     return {}
   },

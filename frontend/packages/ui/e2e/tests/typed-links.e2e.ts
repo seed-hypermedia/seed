@@ -126,11 +126,12 @@ test.describe('typed references', () => {
     const input = keeper.getByPlaceholder(/Search accounts/)
     await expect(input).toBeVisible()
 
-    // Search reaches accounts (the mock answers only a spaces-filtered search).
+    // Search offers accounts (the mention picker's account candidates), each with its avatar.
     await input.fill('ali')
     const results = page.locator('[data-hm-search-results]').getByTestId('hm-search-result')
     await expect(results).toHaveCount(1)
     await expect(results.first()).toContainText('Alice Keeper')
+    await expect(results.first().locator('img[alt="Alice Keeper"]')).toHaveCount(1)
     await results.first().click()
     await expect.poll(async () => (await meta(page)).keeper).toBe(`hm://${ALICE}`)
 
