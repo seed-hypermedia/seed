@@ -528,6 +528,21 @@ matched_fts AS MATERIALIZED (
              AND root_r.iri GLOB 'hm://*'
              AND root_r.iri NOT GLOB 'hm://*/*'
          ))
+    -- An account's name is indexed once per Profile blob it ever published, and a
+    -- superseded name is not what the query names today: keep a profile hit only
+    -- when its blob is the newest Profile for that account by that author, the
+    -- same rule GetAccount reads the current profile by.
+    AND (fts.type != 'profile'
+         OR NOT EXISTS (
+           SELECT 1
+           FROM structural_blobs mine
+           JOIN structural_blobs newer
+             ON newer.type = 'Profile'
+            AND newer.resource = mine.resource
+            AND newer.author = mine.author
+            AND newer.ts > mine.ts
+           WHERE mine.id = fts.blob_id
+         ))
   ORDER BY
     (fts.type = 'contact' OR fts.type = 'title' OR fts.type = 'profile') DESC,
     fts.rank ASC
@@ -653,6 +668,21 @@ matched_fts AS MATERIALIZED (
              AND root_bl.type = 'ref/head'
              AND root_r.iri GLOB 'hm://*'
              AND root_r.iri NOT GLOB 'hm://*/*'
+         ))
+    -- An account's name is indexed once per Profile blob it ever published, and a
+    -- superseded name is not what the query names today: keep a profile hit only
+    -- when its blob is the newest Profile for that account by that author, the
+    -- same rule GetAccount reads the current profile by.
+    AND (fts.type != 'profile'
+         OR NOT EXISTS (
+           SELECT 1
+           FROM structural_blobs mine
+           JOIN structural_blobs newer
+             ON newer.type = 'Profile'
+            AND newer.resource = mine.resource
+            AND newer.author = mine.author
+            AND newer.ts > mine.ts
+           WHERE mine.id = fts.blob_id
          ))
   ORDER BY
     (fts.type = 'contact' OR fts.type = 'title' OR fts.type = 'profile') DESC,
