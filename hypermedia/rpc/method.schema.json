@@ -61,6 +61,9 @@
       "type": "hm://hyper.media/rpc/list-events"
     },
     {
+      "type": "hm://hyper.media/rpc/list-refs"
+    },
+    {
       "type": "hm://hyper.media/rpc/query"
     },
     {
