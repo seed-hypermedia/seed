@@ -1982,9 +1982,7 @@ export class Service {
     const provider = cbor.decode<api.ModelProviderConfig>(row.config_cbor)
     const spec = providerSpec(provider.type)
     if (provider.authMode === 'subscription') {
-      // The ChatGPT backend has no models endpoint; serve Pi's static catalog of
-      // models the Codex subscription backend accepts.
-      return {_: 'ListProviderModelsResponse', models: subscriptionProviderModels()}
+      return {_: 'ListProviderModelsResponse', models: await this.#listSubscriptionModels(accountId, provider)}
     }
     const apiKeySecretName = provider.secretRefs?.apiKey
     if (spec.requireApiKey && !apiKeySecretName) throw new APIError(400, `${provider.type} API key is not configured`)
@@ -2679,6 +2677,43 @@ export class Service {
       throw new APIError(404, 'Sign-in not found')
     }
     return {_: 'CancelProviderOAuthResponse', loginId}
+  }
+
+  /**
+   * The models a subscription provider can run, from the same ChatGPT backend
+   * endpoint the Codex CLI fills its picker from, authenticated with the stored
+   * sign-in. A backend or network failure falls back to the built-in snapshot so
+   * the picker never comes back empty; a rejected token means the sign-in is
+   * gone, so the secret is flagged and the caller gets the re-auth message.
+   */
+  async #listSubscriptionModels(
+    accountId: string,
+    provider: api.ModelProviderConfig,
+  ): Promise<api.ProviderModelInfo[]> {
+    const oauthSecretName = provider.secretRefs?.oauth
+    if (!oauthSecretName) throw new APIError(400, `${provider.type} subscription sign-in is not configured`)
+    const authStorage = pi.AuthStorage.fromStorage(await this.#subscriptionAuthBackend(accountId, oauthSecretName))
+    // Resolves (and refreshes, if expired) the access token through the shared backend.
+    const accessToken = await authStorage.getApiKey(SUBSCRIPTION_PI_PROVIDER_ID)
+    if (!accessToken) {
+      this.#markOAuthSecretNeedsReauth(accountId, oauthSecretName)
+      throw new APIError(401, SUBSCRIPTION_REAUTH_MESSAGE)
+    }
+    const credential = authStorage.get(SUBSCRIPTION_PI_PROVIDER_ID) as {accountId?: unknown} | undefined
+    const chatgptAccountId = typeof credential?.accountId === 'string' ? credential.accountId : undefined
+    try {
+      return await fetchCodexSubscriptionModels(accessToken, chatgptAccountId)
+    } catch (error) {
+      if (error instanceof APIError && error.status === 401) {
+        this.#markOAuthSecretNeedsReauth(accountId, oauthSecretName)
+        throw new APIError(401, SUBSCRIPTION_REAUTH_MESSAGE)
+      }
+      console.warn('[agents] Codex model catalog is unavailable; serving the built-in snapshot', {
+        accountId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return SUBSCRIPTION_CODEX_FALLBACK_MODELS
+    }
   }
 
   /** Auth fields exposed on redacted provider listings; `{}` for api-key providers. */
@@ -11258,22 +11293,62 @@ function subscriptionOAuthSecretName(providerType: string): string {
 }
 
 /**
- * Static catalog of models the ChatGPT Codex backend accepts (it has no list
- * endpoint). Mirrors the current Codex CLI's model picker rather than pi-ai's
- * `openai-codex` catalog, which lags behind: the backend rejects its
- * gpt-5.1…5.3-era ids outright ("model is not supported when using Codex with
- * a ChatGPT account") and it misses the current generation entirely.
+ * Codex client version sent to the ChatGPT backend's models endpoint. The query
+ * parameter is required, and the backend hides models that need a newer client
+ * than the one reported (each entry carries a `minimal_client_version`), so bump
+ * this alongside the Codex CLI when a new generation stops showing up.
  */
-const SUBSCRIPTION_CODEX_MODELS: api.ProviderModelInfo[] = [
+const SUBSCRIPTION_CODEX_CLIENT_VERSION = '0.155.0'
+
+/**
+ * Snapshot of the Codex picker, served only when the live catalog cannot be
+ * fetched (backend down, network error, unexpected shape). Pi-ai's own
+ * `openai-codex` catalog is not a usable fallback: it lags a generation and the
+ * backend rejects its older ids outright ("model is not supported when using
+ * Codex with a ChatGPT account"). Refresh when Codex changes its picker.
+ */
+const SUBSCRIPTION_CODEX_FALLBACK_MODELS: api.ProviderModelInfo[] = [
+  {id: 'gpt-6-astra', name: 'GPT-6 Astra'},
   {id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol'},
   {id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra'},
   {id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna'},
   {id: 'gpt-5.5', name: 'GPT-5.5'},
-  {id: 'gpt-5.4', name: 'GPT-5.4'},
 ]
 
-function subscriptionProviderModels(): api.ProviderModelInfo[] {
-  return SUBSCRIPTION_CODEX_MODELS
+/**
+ * Fetches the model catalog the Codex CLI fills its picker from:
+ * `GET {backend}/codex/models?client_version=…` with the subscription access
+ * token as bearer auth (plus the workspace account id, as Codex sends it).
+ * Entries the picker hides (`visibility: "hide"`, e.g. internal review models)
+ * are dropped and the rest keep the backend's `priority` order. A 401 surfaces
+ * as an APIError(401) so the caller can flag the sign-in; every other failure is
+ * an APIError(502) the caller may fall back from.
+ */
+async function fetchCodexSubscriptionModels(
+  accessToken: string,
+  chatgptAccountId: string | undefined,
+): Promise<api.ProviderModelInfo[]> {
+  const url = new URL(joinUrlPath(SUBSCRIPTION_CODEX_BASE_URL, 'codex/models'))
+  url.searchParams.set('client_version', SUBSCRIPTION_CODEX_CLIENT_VERSION)
+  const headers: Record<string, string> = {Authorization: `Bearer ${accessToken}`}
+  if (chatgptAccountId) headers['ChatGPT-Account-Id'] = chatgptAccountId
+  const response = await fetch(url, {headers})
+  if (response.status === 401) throw new APIError(401, 'Codex models request rejected the access token')
+  const body = await readJsonResponse(response, 'Codex models')
+  if (!isRecord(body) || !Array.isArray(body.models)) throw new APIError(502, 'Codex models response is invalid')
+  const listed: {id: string; name: string; priority: number}[] = []
+  for (const model of body.models) {
+    if (!isRecord(model) || typeof model.slug !== 'string' || !model.slug) continue
+    if (model.visibility !== undefined && model.visibility !== 'list') continue
+    listed.push({
+      id: model.slug,
+      name: typeof model.display_name === 'string' && model.display_name ? model.display_name : model.slug,
+      priority: typeof model.priority === 'number' ? model.priority : Number.POSITIVE_INFINITY,
+    })
+  }
+  if (listed.length === 0) throw new APIError(502, 'Codex models response lists no models')
+  listed.sort((a, b) => a.priority - b.priority)
+  return listed.map(({id, name}) => ({id, name}))
 }
 
 /**

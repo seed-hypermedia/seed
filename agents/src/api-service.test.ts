@@ -2054,35 +2054,87 @@ describe('api service', () => {
     }
   })
 
-  test('subscription provider lists the static Codex model catalog without a network call', async () => {
+  /** Sets up a subscription provider named ChatGPT with a stored (unexpired) sign-in. */
+  async function seedSubscriptionProvider(svc: apisvc.Service, account: ReturnType<typeof blobs.generateNobleKeyPair>) {
+    await svc.message(
+      await apisvc.createSignedEnvelope(account, {
+        action: {
+          _: 'SetSecret',
+          name: 'openai-subscription-oauth',
+          value: new TextEncoder().encode(
+            JSON.stringify({access: 'access-token', refresh: 'r', expires: Date.now() + 3600_000, accountId: 'acct_1'}),
+          ),
+          metadata: {provider: 'openai', kind: 'provider-oauth'},
+        },
+      }),
+    )
+    await svc.message(
+      await apisvc.createSignedEnvelope(account, {
+        action: {
+          _: 'SetModelProvider',
+          name: 'ChatGPT',
+          provider: {type: 'openai', authMode: 'subscription', secretRefs: {oauth: 'openai-subscription-oauth'}},
+        },
+      }),
+    )
+  }
+
+  test('subscription provider lists the live Codex catalog through the stored sign-in', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch
     try {
       const account = blobs.generateNobleKeyPair()
       const svc = new apisvc.Service(db, dataDir)
-      await svc.message(
-        await apisvc.createSignedEnvelope(account, {
-          action: {
-            _: 'SetSecret',
-            name: 'openai-subscription-oauth',
-            value: new TextEncoder().encode(
-              JSON.stringify({access: 'a', refresh: 'r', expires: Date.now() + 3600_000, accountId: 'acct_1'}),
-            ),
-            metadata: {provider: 'openai', kind: 'provider-oauth'},
-          },
-        }),
+      await seedSubscriptionProvider(svc, account)
+      const requests: {url: string; headers: Record<string, string>}[] = []
+      globalThis.fetch = mock(async (input: string | URL | Request, init?: RequestInit) => {
+        requests.push({url: String(input), headers: (init?.headers ?? {}) as Record<string, string>})
+        return new Response(
+          JSON.stringify({
+            models: [
+              {slug: 'gpt-5.5', display_name: 'GPT-5.5', visibility: 'list', priority: 12},
+              {slug: 'codex-auto-review', display_name: 'Codex Auto Review', visibility: 'hide', priority: 43},
+              {slug: 'gpt-6-astra', display_name: 'GPT-6-Astra', visibility: 'list', priority: 1},
+              {slug: 'gpt-5.6-sol', display_name: 'GPT-5.6-Sol', visibility: 'list', priority: 4},
+            ],
+          }),
+          {status: 200, headers: {'content-type': 'application/json'}},
+        )
+      }) as unknown as typeof fetch
+
+      const models = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListProviderModels', provider: 'ChatGPT'}}),
       )
-      await svc.message(
-        await apisvc.createSignedEnvelope(account, {
-          action: {
-            _: 'SetModelProvider',
-            name: 'ChatGPT',
-            provider: {type: 'openai', authMode: 'subscription', secretRefs: {oauth: 'openai-subscription-oauth'}},
-          },
-        }),
-      )
+      if (models._ !== 'ListProviderModelsResponse') throw new Error('unexpected response')
+      // The Codex picker's endpoint, with the required client version and the stored sign-in.
+      expect(requests).toHaveLength(1)
+      const url = new URL(requests[0]!.url)
+      expect(url.origin + url.pathname).toBe('https://chatgpt.com/backend-api/codex/models')
+      expect(url.searchParams.get('client_version')).toMatch(/^\d+\.\d+\.\d+$/)
+      expect(requests[0]!.headers.Authorization).toBe('Bearer access-token')
+      expect(requests[0]!.headers['ChatGPT-Account-Id']).toBe('acct_1')
+      // Hidden entries are dropped; the rest keep the backend's priority order and display names.
+      expect(models.models).toEqual([
+        {id: 'gpt-6-astra', name: 'GPT-6-Astra'},
+        {id: 'gpt-5.6-sol', name: 'GPT-5.6-Sol'},
+        {id: 'gpt-5.5', name: 'GPT-5.5'},
+      ])
+    } finally {
+      globalThis.fetch = originalFetch
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
+  test('subscription provider falls back to the built-in Codex snapshot when the catalog is unreachable', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await seedSubscriptionProvider(svc, account)
       globalThis.fetch = mock(async () => {
-        throw new Error('subscription model listing must not hit the network')
+        throw new Error('network down')
       }) as unknown as typeof fetch
 
       const models = await svc.message(
@@ -2092,8 +2144,40 @@ describe('api service', () => {
       expect(models.models.length).toBeGreaterThan(0)
       for (const model of models.models) expect(model.id.startsWith('gpt-')).toBe(true)
       // Current Codex generation is offered; retired ids the backend rejects are not.
-      expect(models.models.map((model) => model.id)).toContain('gpt-5.6-sol')
+      expect(models.models.map((model) => model.id)).toContain('gpt-6-astra')
       expect(models.models.map((model) => model.id)).not.toContain('gpt-5.1')
+
+      // The sign-in is still healthy: an unreachable catalog is not an auth failure.
+      const listed = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'ListModelProviders'}}))
+      if (listed._ !== 'ListModelProvidersResponse') throw new Error('unexpected response')
+      expect(listed.providers[0]).toMatchObject({name: 'ChatGPT', authStatus: 'ok'})
+    } finally {
+      globalThis.fetch = originalFetch
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
+  test('subscription provider reports needs-login when the catalog rejects the access token', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await seedSubscriptionProvider(svc, account)
+      globalThis.fetch = mock(
+        async () => new Response('{"detail":"Unauthorized"}', {status: 401}),
+      ) as unknown as typeof fetch
+
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {action: {_: 'ListProviderModels', provider: 'ChatGPT'}}),
+        ),
+      ).rejects.toThrow('sign in with ChatGPT again')
+
+      const listed = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'ListModelProviders'}}))
+      if (listed._ !== 'ListModelProvidersResponse') throw new Error('unexpected response')
+      expect(listed.providers[0]).toMatchObject({name: 'ChatGPT', authStatus: 'needs-login'})
     } finally {
       globalThis.fetch = originalFetch
       sqlite.closeDatabase(db)
