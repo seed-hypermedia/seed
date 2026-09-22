@@ -13322,12 +13322,7 @@ export async function executeWriteVerb(
     throw new APIError(400, 'write dryRun must be a boolean')
   }
   const dryRun = input.dryRun === true
-  if (
-    dryRun &&
-    !address.startsWith('hm://') &&
-    !address.startsWith('ipfs:') &&
-    !address.startsWith('~/triggers/')
-  ) {
+  if (dryRun && !address.startsWith('hm://') && !address.startsWith('ipfs:') && !address.startsWith('~/triggers/')) {
     throw new APIError(
       400,
       'dryRun applies only to hm://, ipfs:// object and ~/triggers/ writes — it validates the write without saving it',
