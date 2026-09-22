@@ -328,15 +328,17 @@ export function AssistantPanel({
     return rows
   }, [agents, readState.data])
 
-  // Opening the panel with something unread lands on it: the newest unread chat across agents,
-  // marked read on arrival. Decided once per mount, as soon as the lists have settled, so a
-  // message that lands later never yanks the user out of what they are doing. A panel opened to
-  // start a new chat keeps that intent instead.
+  // Opening the panel onto the list with something unread lands on it: the newest unread chat
+  // across agents, marked read on arrival. Decided once per mount, as soon as the lists have
+  // settled, so a message that lands later never yanks the user out of what they are doing. The
+  // lists settle only when the slowest server answers, which can be seconds after the panel
+  // appears — so a chat that is open by then, restored from window state or opened by hand in the
+  // meantime, stays where it is. A panel opened to start a new chat keeps that intent too.
   const jumpedToUnreadRef = useRef(false)
   useEffect(() => {
     if (jumpedToUnreadRef.current || !agentsSettled || ownSessions.isLoading || !readState.data) return
     jumpedToUnreadRef.current = true
-    if (newChatRequest) return
+    if (newChatRequest || stored) return
     const indicator = summarizeAgentActivity(agents, readState.data)
     if (!indicator?.unread) return
     const picked = agents.find(
@@ -345,7 +347,7 @@ export function AssistantPanel({
     if (!picked?.agent.activity) return
     openSession({serverUrl: indicator.serverUrl, sessionId: indicator.sessionId})
     markAgentSessionRead(indicator.serverUrl, indicator.sessionId, picked.agent.activity.messageAt)
-  }, [agentsSettled, ownSessions.isLoading, readState.data, agents, newChatRequest, openSession])
+  }, [agentsSettled, ownSessions.isLoading, readState.data, agents, newChatRequest, stored, openSession])
 
   // The list: every agent's chats, or the chosen agent's own paged list — filtered on the server,
   // so a quiet agent is not found by paging through everyone else's.

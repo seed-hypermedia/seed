@@ -401,6 +401,54 @@ describe('assistant sidebar', () => {
     expect(mockState.marked).toEqual([{serverUrl: REMOTE, sessionId: 's-r1', seenAt: 100}])
   })
 
+  it('a restored chat stays open even with something unread elsewhere', () => {
+    mockState.agentLists[1] = {
+      data: [
+        {
+          id: 'researcher',
+          definition: {name: 'Researcher', model: 'gpt-5'},
+          activity: {at: 100, kind: 'agent', messageAt: 100, messageFrom: 'agent', sessionId: 's-r1', busy: false},
+        },
+      ],
+    }
+    act(() => {
+      root.render(<AssistantPanel initialSessionId={`${LOCAL} | s-a1`} />)
+    })
+    expect(document.body.textContent).toContain('Doc questions')
+    expect(document.body.textContent).not.toContain('Web research')
+    expect(hasActiveSession()).toBe(true)
+    expect(mockState.marked).toEqual([])
+  })
+
+  it('a chat opened while the lists were still loading stays open once they settle', () => {
+    mockState.agentLists[1] = {
+      data: [
+        {
+          id: 'researcher',
+          definition: {name: 'Researcher', model: 'gpt-5'},
+          activity: {at: 100, kind: 'agent', messageAt: 100, messageFrom: 'agent', sessionId: 's-r1', busy: false},
+        },
+      ],
+    }
+    // A slow server keeps the agent lists unsettled; the user opens a chat in the meantime.
+    mockState.agentListsSettled = false
+    act(() => {
+      root.render(<AssistantPanel />)
+    })
+    expect(hasActiveSession()).toBe(false)
+    clickText('Doc questions')
+    expect(hasActiveSession()).toBe(true)
+    // The slow server answers: the unread chat elsewhere must not replace the open one.
+    mockState.agentListsSettled = true
+    act(() => {
+      root.render(<AssistantPanel />)
+    })
+    expect(document.body.textContent).toContain('Doc questions')
+    expect(document.body.textContent).not.toContain('Web research')
+    expect(hasActiveSession()).toBe(true)
+    expect(mockState.marked).toEqual([])
+  })
+
   it('a panel opened to start a new chat keeps that intent even with something unread', () => {
     mockState.agentLists[1] = {
       data: [
