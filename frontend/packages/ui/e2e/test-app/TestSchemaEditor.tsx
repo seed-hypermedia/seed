@@ -75,6 +75,7 @@ const worldBlobs: Record<string, unknown> = {
       diet: {value: {anyOf: ['herbivore', 'carnivore', 'omnivore']}, required: true},
       habitat: {value: {type: `${LIBRARY}/string`}, required: true},
       keeper: {value: {type: `${LIBRARY}/account`}, description: 'The account that looks after this animal.'},
+      keepers: {value: {type: `${LIBRARY}/list`, items: {type: `${LIBRARY}/account`}}, description: 'Every keeper.'},
     },
   },
   [MAMMAL_CID]: {
@@ -172,7 +173,27 @@ const mockUniversalClient = {
   request: async (method: string, params: any) => {
     if (method === 'Resource') {
       const doc = params?.uid === WORLD_UID ? findDoc(params.path ?? []) : undefined
-      return doc ? toResource(doc) : {type: 'not-found', id: params}
+      if (doc) return toResource(doc)
+      // Alice's home document: what an account reference resolves to for its name and avatar.
+      if (params?.uid === ALICE_UID && !(params.path ?? []).length) {
+        return {
+          type: 'document',
+          id: hmId(ALICE_UID, {path: []}),
+          document: {
+            account: ALICE_UID,
+            path: '',
+            authors: [ALICE_UID],
+            metadata: {
+              name: 'Alice Keeper',
+              icon: 'ipfs://bafkreialiceavatarxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+            },
+            genesis: 'bafyfixturegenesis',
+            version: 'bafyfixtureversion',
+            visibility: 'PUBLIC',
+          },
+        }
+      }
+      return {type: 'not-found', id: params}
     }
     if (method === 'PublishBlobs') {
       // Decode each published DAG-CBOR blob back to its object form and stash it

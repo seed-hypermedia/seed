@@ -2941,6 +2941,14 @@ export function AddFieldForm({
     const suggested = suggestedFieldType(itemsSubschema)
     if (suggested && fieldTypeOptions(rules).includes(suggested)) initialType = suggested
   }
+  // An item whose schema is a picker (an account, a document or file reference, a date) needs no
+  // dialog: the new row IS the picker, so it is appended empty and takes over from there.
+  const pickerItem =
+    itemMode &&
+    itemsSubschema &&
+    itemsSubschema !== 'unresolved' &&
+    typeof itemsSubschema.format === 'string' &&
+    ['hm-url', 'hm-profile', 'ipfs-url', 'ipfs', 'date', 'date-time'].includes(itemsSubschema.format)
 
   return (
     <div>
@@ -2949,7 +2957,7 @@ export function AddFieldForm({
           variant="ghost"
           size="sm"
           className={cn('text-muted-foreground', compact && 'h-6 px-1 text-xs')}
-          onClick={() => setOpen(true)}
+          onClick={() => (pickerItem ? onAdd('', createValue([...(path ?? []), 0], 'text', rules)) : setOpen(true))}
         >
           <Plus className={compact ? 'size-3' : 'size-4'} />
           {itemMode ? 'Add item' : 'Add field'}

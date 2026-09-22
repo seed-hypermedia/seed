@@ -14,6 +14,7 @@ import {FileCode2, FileText, TriangleAlert, User, X} from 'lucide-react'
 import {useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
+import {HMIcon} from './hm-icon'
 import {HM_SCHEMAS, refToName} from './schema/engine'
 import {HM_SCHEMA_PAGES} from './schema/schema-registry.generated'
 import {useEffectiveSchemaRef} from './schema/schema-resolve'
@@ -155,14 +156,22 @@ export function HMEntityLink({
   onOpen?: (url: string) => void
 }) {
   const id = url ? unpackHmId(url) : null
-  const {title, library, isLoading} = useHmRefTitle(url)
+  const {title, icon, library, isLoading} = useHmRefTitle(url)
   const isProfile = mode === 'profile' || (!!id && !id.path?.length)
   const Icon = library || mode === 'schema' ? FileCode2 : isProfile ? User : FileText
   const label = title ?? (id && isLoading ? 'Loading…' : id?.id ?? url)
 
   const pill = (
-    <span className="bg-accent text-accent-foreground inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full py-0.5 pr-2 pl-2 text-sm">
-      <Icon className="text-muted-foreground size-3.5 shrink-0" />
+    <span
+      data-testid="hm-entity-pill"
+      className="bg-accent text-accent-foreground inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full py-0.5 pr-2 pl-1.5 text-sm"
+    >
+      {/* An account shows its avatar (its icon, else an identicon), the way it appears everywhere else. */}
+      {isProfile && id && !library && title !== undefined ? (
+        <HMIcon id={{...id, path: []}} name={title} icon={icon} size={16} className="shrink-0" />
+      ) : (
+        <Icon className="text-muted-foreground size-3.5 shrink-0" />
+      )}
       <span className={cn('truncate', !title && 'text-muted-foreground font-mono text-xs')}>{label}</span>
     </span>
   )
@@ -181,7 +190,13 @@ export function HMEntityLink({
  * `type` or `target` in a schema) its bundled page name, even when the site does not carry that
  * page (yet). Only a document has a title to fetch; anything else shows as it is.
  */
-function useHmRefTitle(url: string): {title?: string; library: string | null; isLoading: boolean} {
+function useHmRefTitle(url: string): {
+  title?: string
+  /** The document's `icon` (an ipfs:// image), for an account's avatar. */
+  icon?: string
+  library: string | null
+  isLoading: boolean
+} {
   const slug = url.startsWith('hm://') ? refToName(url) : ''
   const library = slug && HM_SCHEMAS[slug] ? slug : null
   const id = url && !library ? unpackHmId(url) : null
@@ -192,7 +207,8 @@ function useHmRefTitle(url: string): {title?: string; library: string | null; is
     : library
       ? HM_SCHEMA_PAGES[library]?.name ?? library
       : undefined
-  return {title, library, isLoading: !!id && resource.isLoading}
+  const icon = typeof document?.metadata?.icon === 'string' ? document.metadata.icon : undefined
+  return {title, icon, library, isLoading: !!id && resource.isLoading}
 }
 
 /**

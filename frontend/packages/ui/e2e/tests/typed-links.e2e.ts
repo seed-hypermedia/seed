@@ -134,12 +134,46 @@ test.describe('typed references', () => {
     await results.first().click()
     await expect.poll(async () => (await meta(page)).keeper).toBe(`hm://${ALICE}`)
 
+    // The pill shows the account's name and avatar (its home document's icon), and opens the profile.
+    const pill = keeper.getByTestId('hm-entity-pill')
+    await expect(pill).toContainText('Alice Keeper')
+    await expect(pill.locator('img[alt="Alice Keeper"]')).toHaveCount(1)
+    await keeper.getByRole('button', {name: /Alice Keeper/}).click()
+    await expect.poll(() => page.evaluate(() => (window as any).__openedUrl)).toBe(`hm://${ALICE}`)
+
     // Clear, then paste the bare principal: stored as the same URL.
     await keeper.getByRole('button', {name: 'Remove reference'}).click()
     await keeper.getByPlaceholder(/Search accounts/).fill(ALICE)
     await keeper.getByPlaceholder(/Search accounts/).press('Enter')
     await expect.poll(async () => (await meta(page)).keeper).toBe(`hm://${ALICE}`)
     await expect(page.getByRole('alert').getByText(/keeper/)).toHaveCount(0)
+  })
+
+  test('several accounts are a list of account items, each searchable and removable', async ({page}) => {
+    const ALICE = 'z6MkgisVMELvqnsCo3dYmtVpy8PiqPGMVwfAyBWFn84vebq4'
+    await openHarness(page, {
+      name: 'Rex',
+      attributesSchema: `${WORLD}/types/animal`,
+      diet: 'carnivore',
+      habitat: 'yard',
+    })
+    const keepers = page.getByRole('treeitem', {name: /^keepers/}).first()
+    await expect(keepers).toBeVisible()
+    // A new item of an account list is an account search, not a text box.
+    await keepers.getByRole('button', {name: 'Add item'}).click()
+    const input = keepers.getByPlaceholder(/Search accounts/)
+    await expect(input).toBeVisible()
+    await input.fill('ali')
+    const results = page.locator('[data-hm-search-results]').getByTestId('hm-search-result')
+    await expect(results).toHaveCount(1)
+    await results.first().click()
+    await expect.poll(async () => (await meta(page)).keepers).toEqual([`hm://${ALICE}`])
+    await expect(keepers.getByTestId('hm-entity-pill')).toContainText('Alice Keeper')
+
+    // Items come and go like any list's: the item menu removes it.
+    await keepers.getByRole('button', {name: 'Actions for item 1'}).click()
+    await page.getByRole('menuitem', {name: 'Remove item'}).click()
+    await expect.poll(async () => (await meta(page)).keepers).toEqual([])
   })
 
   test('the schema editor offers an Account kind that includes the library type', async ({page}) => {
