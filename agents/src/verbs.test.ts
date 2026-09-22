@@ -403,7 +403,7 @@ describe('write verb', () => {
       executeWriteVerb(context, {address: 'hm://z6MkDoc/notes', content: 'x', dryRun: 'true'}),
     ).rejects.toThrow('write dryRun must be a boolean')
     await expect(executeWriteVerb(context, {address: '~/memory/a.txt', content: 'x', dryRun: true})).rejects.toThrow(
-      'dryRun applies only to hm:// and ~/triggers/ writes',
+      'dryRun applies only to hm://, ipfs:// object and ~/triggers/ writes',
     )
   })
 
