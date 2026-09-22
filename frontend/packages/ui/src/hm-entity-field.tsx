@@ -43,13 +43,19 @@ export function HMEntityField({
   onValue,
   onOpen,
   onClear,
+  onCancel,
   autoFocus,
+  ariaLabel,
 }: {
   value: string
   mode: HMEntityFieldMode
   /** Document mode: the schema (or a subtype) the referenced document should be typed by. */
   target?: string
   onValue: (value: unknown) => void
+  /** Called when an EMPTY field's search is dismissed (Escape, or blur with nothing typed) — for a host that showed it on demand. */
+  onCancel?: () => void
+  /** Accessible name for the search input. */
+  ariaLabel?: string
   /** Navigate to the referenced document/account when the pill is clicked. */
   onOpen?: (url: string) => void
   /** Offer an ✕ that removes the reference (the field becomes editable text again). */
@@ -113,10 +119,11 @@ export function HMEntityField({
         onValue(next)
         setEditing(false)
       }}
-      onCancel={conforms ? () => setEditing(false) : undefined}
+      onCancel={conforms ? () => setEditing(false) : onCancel}
       // Focus only when the user asked to change the reference — an empty field mounting on a
       // page (several of them, say) must not steal focus and blur-commit its neighbours.
       autoFocus={editing || !!autoFocus}
+      ariaLabel={ariaLabel}
     />
   )
 }
@@ -214,6 +221,7 @@ function HMEntitySearchInput({
   onCommit,
   onCancel,
   autoFocus,
+  ariaLabel,
 }: {
   initialText: string
   mode: HMEntityFieldMode
@@ -222,6 +230,7 @@ function HMEntitySearchInput({
   onCommit: (value: string) => void
   onCancel?: () => void
   autoFocus?: boolean
+  ariaLabel?: string
 }) {
   const [text, setText] = useState(initialText)
   const [focused, setFocused] = useState(false)
@@ -303,6 +312,7 @@ function HMEntitySearchInput({
         <Input
           value={text}
           autoFocus={autoFocus}
+          aria-label={ariaLabel}
           placeholder={
             mode === 'profile'
               ? 'Search accounts or paste hm:// URL'

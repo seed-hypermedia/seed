@@ -8,7 +8,9 @@ import {useEffect, useRef, useState} from 'react'
 // ui-internal modules imported relative to source: the @shm/ui exports map only
 // resolves *.tsx, so `@shm/ui/schema/engine` (a .ts) would fail as a bare
 // specifier. Relative imports sidestep that and keep all three consistent.
+import {Button} from '../../src/button'
 import {DocumentMetadataView, type MetadataPatch} from '../../src/document-metadata-view'
+import {LinkedObjectDialog} from '../../src/schema/linked-object-dialog'
 import {schemaCid} from '../../src/schema/engine'
 import {useEffectiveDocSchema} from '../../src/schema/schema-resolve'
 import {TooltipProvider} from '../../src/tooltip'
@@ -229,20 +231,43 @@ function MetadataEditor({
   onMetadata: (patch: MetadataPatch) => void
 }) {
   const {metadataSchema: conformanceSchema, registry} = useEffectiveDocSchema(undefined, meta)
+  // In the app, "Add Raw Field" and "Schema definition" are reached from the Attributes page's
+  // options menu and its own section; the harness offers both as plain buttons.
+  const [addFieldOpen, setAddFieldOpen] = useState(false)
+  const [defining, setDefining] = useState(false)
   return (
-    <DocumentMetadataView
-      metadata={meta}
-      canEdit
-      conformanceSchema={conformanceSchema}
-      conformanceRegistry={registry}
-      onMetadata={onMetadata}
-      // A mock uploader so ipfs-typed fields show their file-picker affordance.
-      fileUpload={async () => 'bafyreietestuploadcidxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'}
-      // Record navigations so a test can assert an HM-link pill is clickable.
-      openUrl={(url) => {
-        window.__openedUrl = url
-      }}
-    />
+    <>
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={() => setAddFieldOpen(true)}>
+          Add field
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => setDefining(true)}>
+          Define schema
+        </Button>
+      </div>
+      <LinkedObjectDialog
+        open={defining}
+        onOpenChange={setDefining}
+        target="hm://hyper.media/schema"
+        fieldLabel="schemaDefinition"
+        onPublished={(cid) => onMetadata({schemaDefinition: `ipfs://${cid}`})}
+      />
+      <DocumentMetadataView
+        metadata={meta}
+        canEdit
+        conformanceSchema={conformanceSchema}
+        conformanceRegistry={registry}
+        addRawFieldOpen={addFieldOpen}
+        onAddRawFieldOpenChange={setAddFieldOpen}
+        onMetadata={onMetadata}
+        // A mock uploader so ipfs-typed fields show their file-picker affordance.
+        fileUpload={async () => 'bafyreietestuploadcidxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'}
+        // Record navigations so a test can assert an HM-link pill is clickable.
+        openUrl={(url) => {
+          window.__openedUrl = url
+        }}
+      />
+    </>
   )
 }
 

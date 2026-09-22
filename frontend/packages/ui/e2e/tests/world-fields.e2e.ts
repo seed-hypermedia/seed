@@ -32,11 +32,7 @@ async function openAddFieldDialog(page: Page) {
 
 /** Open the schema form for an empty schemaDefinition field (the object dialog, locked to the meta-schema). */
 async function openDefineDialog(page: Page) {
-  await page
-    .getByRole('treeitem', {name: /^schemaDefinition/})
-    .first()
-    .getByRole('button', {name: 'Create linked object'})
-    .click()
+  await page.getByRole('button', {name: 'Define schema'}).click()
   const dialog = page.getByRole('dialog', {name: /New object/})
   await expect(dialog).toBeVisible()
   return dialog
@@ -157,7 +153,7 @@ test.describe('world-builder field types', () => {
     await dialog.getByTestId('linked-object-publish').click()
     await expect(dialog).toBeHidden()
     const published: any = await page.evaluate(() => (window as any).__lastPublishedSchema)
-    expect(published.properties.due).toEqual({value: {ref: `${LIBRARY}/date`}, required: true})
+    expect(published.properties.due).toEqual({value: {type: `${LIBRARY}/date`}, required: true})
     expect(published.properties.giver).toMatchObject({
       value: {format: 'hm-url', target: `${LIBRARY}/example/character-doc`},
     })

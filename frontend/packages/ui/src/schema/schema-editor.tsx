@@ -11,6 +11,7 @@
 import {ArrowRight, Braces, Lock, LockOpen, Plus, Rows3, Variable, X} from 'lucide-react'
 import {forwardRef, useEffect, useMemo, useRef, useState} from 'react'
 import {Textarea} from '../components/textarea'
+import {HMEntityField} from '../hm-entity-field'
 import {Tooltip} from '../tooltip'
 import {cn} from '../utils'
 import {
@@ -875,7 +876,11 @@ function withFields(schema: HypermediaSchema, next: StructField[]): HypermediaSc
 /** The shared column layout of a field row: name + description | type | accessory. */
 const FIELD_ROW_GRID = 'grid grid-cols-[minmax(7rem,1fr)_minmax(0,1fr)_auto] items-start gap-x-3'
 
-/** A reference field's target type: a "→ type" chip once set (click to edit); until then a hover action. */
+/**
+ * A reference field's target type: until set, a hover action; then the same schema-page search
+ * the attributes-schema binding uses (type "mam" for the Mammal page, or paste an hm:// or
+ * ipfs:// reference); once set, a "→ Title" pill whose ✕ clears it.
+ */
 function TargetTypeInput({
   value,
   onChange,
@@ -894,34 +899,23 @@ function TargetTypeInput({
         <ArrowRight className="size-3.5" />
       </IconAction>
     )
-  if (!editing)
-    return (
-      <Tooltip content={`${tooltip}. Click to change.`}>
-        <button
-          type="button"
-          aria-label={ariaLabel}
-          onClick={() => setEditing(true)}
-          className="border-border text-muted-foreground hover:bg-muted inline-flex h-6 max-w-full min-w-0 cursor-pointer items-center gap-1 rounded-md border px-1.5 font-mono text-xs"
-        >
-          <ArrowRight className="size-3 shrink-0" />
-          <span className="truncate">{refToName(value)}</span>
-        </button>
-      </Tooltip>
-    )
   return (
-    <span className="inline-flex min-w-0 items-center gap-1">
+    <span className="inline-flex min-w-0 items-center gap-1" title={tooltip}>
       <ArrowRight className="text-muted-foreground size-3 shrink-0" />
-      <InlineInput
+      <HMEntityField
+        mode="schema"
         value={value}
-        autoFocus
-        placeholder="hm:// or ipfs:// type"
-        aria-label={ariaLabel}
-        className="text-muted-foreground min-w-40 font-mono text-xs"
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={() => setEditing(false)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === 'Escape') setEditing(false)
+        ariaLabel={ariaLabel}
+        autoFocus={editing}
+        onValue={(next) => {
+          onChange(typeof next === 'string' ? next : '')
+          setEditing(false)
         }}
+        onClear={() => {
+          onChange('')
+          setEditing(false)
+        }}
+        onCancel={() => setEditing(false)}
       />
     </span>
   )

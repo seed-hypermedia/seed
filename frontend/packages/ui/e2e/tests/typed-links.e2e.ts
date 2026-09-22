@@ -83,6 +83,37 @@ test.describe('typed references', () => {
     await expect(page.getByRole('treeitem', {name: /^diet/}).first().getByRole('combobox')).toBeVisible()
   })
 
+  test('the schema editor finds a target type by searching schema pages', async ({page}) => {
+    await openHarness(page, {name: 'X'})
+    await page.getByRole('button', {name: 'Define schema'}).click()
+    const dialog = page.getByRole('dialog', {name: /New object/})
+    await expect(dialog).toBeVisible()
+
+    await dialog.getByRole('button', {name: 'Add field'}).click()
+    await dialog.getByRole('textbox', {name: 'Field name'}).first().fill('mother')
+    await dialog.getByRole('textbox', {name: 'Type of mother'}).click()
+    await page
+      .getByTestId('schema-type-option')
+      .filter({has: page.getByText('HM link', {exact: true})})
+      .click()
+
+    // The target is a search over schema pages: "mam" offers the world's Mammal type.
+    await dialog.getByLabel('Set target type for mother').click()
+    await dialog.getByLabel('Target type for mother').fill('mam')
+    const results = page.locator('[data-hm-search-results]').getByTestId('hm-search-result')
+    await expect(results).toHaveCount(1)
+    await expect(results.first()).toContainText('Mammal')
+    await results.first().click()
+    // Picked: the target shows as the page's title pill, and the published field carries its URL.
+    await expect(results).toHaveCount(0)
+    await expect(dialog.getByText('Mammal', {exact: true})).toBeVisible()
+    await expect(dialog.getByRole('button', {name: 'Remove reference'})).toBeVisible()
+    await dialog.getByTestId('linked-object-publish').click()
+    await expect(dialog).toBeHidden()
+    const published: any = await page.evaluate(() => (window as any).__lastPublishedSchema)
+    expect(published.properties.mother).toMatchObject({value: {format: 'hm-url', target: `${WORLD}/types/mammal`}})
+  })
+
   test('a folder-typed document conforms without a binding of its own', async ({page}) => {
     await openHarness(page, character({home: `${WORLD}/places/shire`}))
     const home = page.getByRole('treeitem', {name: /^home/}).first()

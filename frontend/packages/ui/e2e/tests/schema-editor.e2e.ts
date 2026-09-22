@@ -35,11 +35,7 @@ const bundledEmployeeCid = (page: Page) =>
 const defineDialog = (page: Page) => page.getByRole('dialog', {name: /New object/})
 /** Open the schema form for an (empty) schemaDefinition field. */
 async function openDefineDialog(page: Page) {
-  await page
-    .getByRole('treeitem', {name: /^schemaDefinition/})
-    .first()
-    .getByRole('button', {name: 'Create linked object'})
-    .click()
+  await page.getByRole('button', {name: 'Define schema'}).click()
   await expect(defineDialog(page)).toBeVisible()
   await expect(defineDialog(page).getByTestId('linked-object-target')).toContainText('Schema')
 }
