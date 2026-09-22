@@ -1,0 +1,34 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "key": {
+      "value": "ListDocumentCollaborators",
+      "required": true,
+      "description": "Method key, always `ListDocumentCollaborators`."
+    },
+    "input": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "targetId": {
+            "value": {
+              "type": "hm://hyper.media/rpc/type/id"
+            },
+            "required": true,
+            "description": "Id of the document."
+          }
+        }
+      },
+      "required": true,
+      "description": "The document whose collaborators to list."
+    },
+    "output": {
+      "value": {
+        "type": "hm://hyper.media/rpc/type/collaborators-payload"
+      },
+      "required": true,
+      "description": "The document's publisher, capabilities, and effective members."
+    }
+  },
+  "description": "Returns a document's collaboration picture (publisher, inherited and direct capabilities, effective members), given its id."
+}

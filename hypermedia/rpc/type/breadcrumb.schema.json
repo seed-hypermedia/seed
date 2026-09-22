@@ -1,0 +1,26 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "name": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "Title of the ancestor document."
+    },
+    "path": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "Path of the ancestor document within the account."
+    },
+    "isMissing": {
+      "value": {
+        "type": "hm://hyper.media/boolean"
+      },
+      "description": "`true` when the daemon has no indexed information about this ancestor document."
+    }
+  },
+  "description": "One ancestor entry of a document's path, resolved to a display name."
+}

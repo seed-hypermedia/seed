@@ -1,0 +1,44 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "key": {
+      "value": "ListAccounts",
+      "required": true,
+      "description": "Method key, always `ListAccounts`."
+    },
+    "input": {
+      "value": {
+        "anyOf": [
+          {
+            "type": "hm://hyper.media/map"
+          },
+          {
+            "type": "hm://hyper.media/null"
+          }
+        ]
+      },
+      "required": true,
+      "description": "Ignored; send an empty map or `null`."
+    },
+    "output": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "accounts": {
+            "value": {
+              "type": "hm://hyper.media/list",
+              "items": {
+                "type": "hm://hyper.media/rpc/type/metadata-payload"
+              }
+            },
+            "required": true,
+            "description": "Metadata payload of each known account."
+          }
+        }
+      },
+      "required": true,
+      "description": "All known accounts."
+    }
+  },
+  "description": "Returns every account the daemon knows as a list of metadata payloads; it takes no meaningful input."
+}

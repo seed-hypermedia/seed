@@ -86,6 +86,16 @@ The wire types map onto [primitive](./primitive.md) schemas, wrapped in aliases 
 
 `validate.mjs` checks every one of these schemas. It checks that each is a well-formed schema. It also validates real blob-shaped data against them: a Ref, a Capability, a Change with ops, the union, and metadata. Negative cases cover wrong `type` tags, missing required fields and unknown keys. <!-- id:jy52yYgY -->
 
+## Seed API read models <!-- id:dVV5nKIm -->
+
+The `rpc/type/*` schemas type the **derived data the [Seed daemon](../apps/daemon.md) computes for clients**. These are the read models the apps consume, and they are not signed network data. They are: <!-- id:jteK8i91 -->
+  - [`rpc/type/resource`](../rpc/type/resource.md): the union of every state a fetched resource can be in (document, comment, redirect, not-found, tombstone, error). <!-- id:IQzsTo_3 -->
+  - [`rpc/type/document`](../rpc/type/document.md) and [`rpc/type/comment`](../rpc/type/comment.md): the API payload forms, with resolved versions, authors and timestamps. <!-- id:GD3JtXKG -->
+  - `rpc/type/citation`, `rpc/type/interaction-summary`, `rpc/type/search-results`, `rpc/type/site-member`, `rpc/type/contact-record` and `rpc/type/discovery-status`. <!-- id:3Y-Cjojh -->
+  - [`rpc/type/id`](../rpc/type/id.md): the parsed form of an [`hm://` identifier](../protocol/urls.md), which the others build on. <!-- id:bv2sxXXW -->
+
+The same schemas describe what is signed on the wire and what the [Seed API](../build/web-api.md) serves back. See [Seed API schemas](../rpc.md) for every read method. <!-- id:w1-4ceAw -->
+
 # See also <!-- id:sE3O9dpp -->
 
 - [Blobs](../protocol/blobs.md): signed blobs, envelopes and CIDs as protocol concepts. <!-- id:URKQdsqZ -->
@@ -93,3 +103,4 @@ The wire types map onto [primitive](./primitive.md) schemas, wrapped in aliases 
 - [Blocks](../protocol/blocks.md): the block tree, annotations and embeds. <!-- id:Ow8Jx5UE -->
 - [The schema language](./schema-language.md): extension, unions and generics. <!-- id:mTmegwSB -->
 - [Encoding](./encoding.md): canonical DAG-CBOR and the dag-json form. <!-- id:3Cw2Ybeg -->
+- [Seed API schemas](../rpc.md): the read methods these read models come from. <!-- id:5ZTRfjZB -->

@@ -1,0 +1,30 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "comments": {
+      "value": {
+        "type": "hm://hyper.media/integer",
+        "minimum": 0
+      },
+      "required": true,
+      "description": "Number of comments on the result document."
+    },
+    "children": {
+      "value": {
+        "type": "hm://hyper.media/integer",
+        "minimum": 0
+      },
+      "description": "Number of alive direct child documents of the result."
+    },
+    "authorUids": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/string"
+        }
+      },
+      "description": "Author uids shown on the card; currently always empty."
+    }
+  },
+  "description": "The per-result interaction counts a Query block shows on its cards: comments, children, and author uids."
+}

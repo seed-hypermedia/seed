@@ -1,0 +1,104 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "id": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      }
+    },
+    "account": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      }
+    },
+    "path": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      }
+    },
+    "target": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "version": {
+            "value": {
+              "type": "hm://hyper.media/struct",
+              "properties": {
+                "genesis": {
+                  "value": {
+                    "type": "hm://hyper.media/string"
+                  }
+                },
+                "version": {
+                  "value": {
+                    "type": "hm://hyper.media/string"
+                  }
+                }
+              }
+            }
+          },
+          "redirect": {
+            "value": {
+              "type": "hm://hyper.media/struct",
+              "properties": {
+                "account": {
+                  "value": {
+                    "type": "hm://hyper.media/string"
+                  }
+                },
+                "path": {
+                  "value": {
+                    "type": "hm://hyper.media/string"
+                  }
+                },
+                "republish": {
+                  "value": {
+                    "type": "hm://hyper.media/boolean"
+                  }
+                }
+              }
+            }
+          },
+          "tombstone": {
+            "value": {
+              "type": "hm://hyper.media/struct",
+              "properties": {}
+            }
+          }
+        }
+      }
+    },
+    "signer": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      }
+    },
+    "capability": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      }
+    },
+    "timestamp": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      }
+    },
+    "generationInfo": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "genesis": {
+            "value": {
+              "type": "hm://hyper.media/string"
+            }
+          },
+          "generation": {
+            "value": {
+              "type": "hm://hyper.media/string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "account": {
+      "value": {
+        "type": "hm://hyper.media/rpc/type/id"
+      },
+      "required": true,
+      "description": "Parsed id of the member account."
+    },
+    "role": {
+      "value": {
+        "anyOf": [
+          "owner",
+          "writer",
+          "member"
+        ]
+      },
+      "required": true,
+      "description": "Effective role: `owner`, `writer`, or `member`."
+    }
+  },
+  "description": "One member of a site with their effective role: owner, writer, or member."
+}

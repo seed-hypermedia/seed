@@ -1,0 +1,25 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "key": {
+      "value": "Resource",
+      "required": true,
+      "description": "Method key, always `Resource`."
+    },
+    "input": {
+      "value": {
+        "type": "hm://hyper.media/rpc/type/id"
+      },
+      "required": true,
+      "description": "Parsed id of the resource."
+    },
+    "output": {
+      "value": {
+        "type": "hm://hyper.media/rpc/type/resource"
+      },
+      "required": true,
+      "description": "The resource in its current state."
+    }
+  },
+  "description": "Fetches a resource by parsed id and returns whichever state it is in: document, comment, redirect, not found, tombstone, or error."
+}

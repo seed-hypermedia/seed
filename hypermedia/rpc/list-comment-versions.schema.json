@@ -1,0 +1,46 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "key": {
+      "value": "ListCommentVersions",
+      "required": true,
+      "description": "Method key, always `ListCommentVersions`."
+    },
+    "input": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "id": {
+            "value": {
+              "type": "hm://hyper.media/string"
+            },
+            "required": true,
+            "description": "Record id of the comment (`{publicKey}/{tsid}`)."
+          }
+        }
+      },
+      "required": true,
+      "description": "The comment whose versions to list."
+    },
+    "output": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "versions": {
+            "value": {
+              "type": "hm://hyper.media/list",
+              "items": {
+                "type": "hm://hyper.media/rpc/type/comment"
+              }
+            },
+            "required": true,
+            "description": "Each stored version of the comment."
+          }
+        }
+      },
+      "required": true,
+      "description": "The comment's versions."
+    }
+  },
+  "description": "Returns every stored version of a comment (its edit history), given its id."
+}

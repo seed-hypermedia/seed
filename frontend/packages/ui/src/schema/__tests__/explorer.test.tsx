@@ -68,10 +68,10 @@ describe('SchemaDocPage renders every schema shape without crashing', () => {
 })
 
 describe('nested structs', () => {
-  it('a struct field expands its own fields in place (block/image.attributes)', () => {
-    renderPage('block/image')
-    const nested = container.querySelector('[data-testid="schema-nested-fields-attributes"]')
+  it('a struct field expands its own fields in place (rpc/type/raw-citation.sourceBlob)', () => {
+    renderPage('rpc/type/raw-citation')
+    const nested = container.querySelector('[data-testid="schema-nested-fields-sourceBlob"]')
     expect(nested).toBeTruthy()
-    for (const f of ['childrenType', 'columnCount', 'width', 'name']) expect(nested!.textContent).toContain(f)
+    for (const f of ['cid', 'author', 'createTime']) expect(nested!.textContent).toContain(f)
   })
 })

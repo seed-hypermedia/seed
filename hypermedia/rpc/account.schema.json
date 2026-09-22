@@ -1,0 +1,25 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "key": {
+      "value": "Account",
+      "required": true,
+      "description": "Method key, always `Account`."
+    },
+    "input": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "The account uid."
+    },
+    "output": {
+      "value": {
+        "type": "hm://hyper.media/rpc/type/account-result"
+      },
+      "required": true,
+      "description": "The account's metadata payload, or a not-found result."
+    }
+  },
+  "description": "Resolves an account uid to its metadata payload, or to an explicit not-found result."
+}

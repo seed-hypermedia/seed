@@ -137,11 +137,11 @@ curl 'https://hyper.media/api/schema?key=Resource'
 {"key":"Resource","kind":"query","method":"GET","path":"/api/Resource","inputEncoding":"query-string","outputEncoding":"application/json","outputSerialization":"superjson","usesParamMapping":true,"inputSchema":{"$ref":"#/definitions/ResourceInput","definitions":{"ResourceInput":{"type":"object","properties":{"id":{"type":"string"},"uid":{"type":"string"},"path":{"anyOf":[{"type":"array","items":{"type":"string"}},{"type":"null"}]},"version":{"type":["string","null"]},…}}}},"outputSchema":{…}}
 ```
 
-`?kind=query` or `?kind=action` filters the list. The list can miss the pass-through keys. The 2026.9.9 release on `hyper.media` lists only `PublishBlobs` and `PrepareDocumentChange` as actions. Newer builds also list `QueryDocuments` and the two attribute keys, but mark them `outputSerialization: superjson`. Those keys answer plain protobuf JSON. <!-- id:CbwEqw_x -->
+`?kind=query` or `?kind=action` filters the list. The list can miss the pass-through keys. The 2026.9.9 release on `hyper.media` lists only `PublishBlobs` and `PrepareDocumentChange` as actions. Newer builds also list `QueryDocuments` and the two attribute keys, but mark them `outputSerialization: superjson`. Those keys answer plain protobuf JSON. The same contract is also published as [Hypermedia Schemas](../rpc.md), one page per key, and the [Seed app](../apps/desktop.md) renders a live console from them. <!-- id:CbwEqw_x -->
 
 # The keys <!-- id:ShqVU2du -->
 
-Inputs are given as the fields you send; read the exact shapes from `GET /api/schema?key=`. `id`-like inputs are an unpacked [hm id](../protocol/urls.md) `{uid, path, version?, latest?, blockRef?}`. In flat encoding you send the packed `hm://` string. <!-- id:_aU1Hc4g -->
+Inputs are given as the fields you send; read the exact shapes from `GET /api/schema?key=` or the [rpc](../rpc.md) pages. `id`-like inputs are an unpacked [hm id](../protocol/urls.md) `{uid, path, version?, latest?, blockRef?}`. In flat encoding you send the packed `hm://` string. <!-- id:_aU1Hc4g -->
 
 ## Read keys <!-- id:WwgnL4TX -->
 
@@ -297,6 +297,10 @@ The Seed desktop app serves the same keys on `http://localhost:56004/api/*` for 
 
 # Working with it <!-- id:XHbbjtMm -->
 
+## In the Seed app <!-- id:MMTZ2Fzf -->
+
+With Developer Mode on, the app renders a console for every key from the published [rpc](../rpc.md) schemas. You pick a key, fill the input in the schema-driven editor and run it against your daemon. The app checks the response against the declared output. <!-- id:_Xwaxfos -->
+
 ## CLI <!-- id:h86DDJAy -->
 
 The [Seed CLI](./cli.md) is a Seed API client. `seed-cli --server https://example.org document get <id>` sends the `Resource` key to that site. `search`, `query`, `children`, `citations`, `activity`, `account` and `comment list` map onto the read keys above, and every write command signs locally and calls `PublishBlobs`. Pass an `https://` URL as an id and the CLI resolves it with the `OPTIONS` headers and talks to that URL's site. <!-- id:duc_NHhT -->
@@ -312,6 +316,7 @@ Seed Agents read and write hypermedia through this API with delegated keys. Thei
 # See also <!-- id:ueo6GDk6 -->
 
 - [Getting started](./getting-started.md), the first requests in fifteen minutes <!-- id:hmb_VSSC -->
+- [Seed API schemas](../rpc.md), one page per key, and the read models under `rpc/type` <!-- id:vLorklgh -->
 - [Daemon gRPC](./grpc.md), the lower layer every site server calls <!-- id:kThxPzkz -->
 - [URLs](../protocol/urls.md), [Blobs](../protocol/blobs.md), [Permissions](../protocol/permissions.md), [Sites](../protocol/sites.md) <!-- id:rQRGkMw2 -->
 - [Self-hosting](./self-hosting.md), for the server that answers these requests <!-- id:t0ys6KsO -->

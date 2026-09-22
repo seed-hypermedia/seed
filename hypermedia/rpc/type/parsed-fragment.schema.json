@@ -1,0 +1,13 @@
+{
+  "type": "hm://hyper.media/rpc/type/block-range",
+  "properties": {
+    "blockId": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "Id of the block the fragment addresses."
+    }
+  },
+  "description": "A parsed URL fragment addressing a block and, optionally, a range inside it."
+}

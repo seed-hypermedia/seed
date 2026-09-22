@@ -15,5 +15,5 @@ A Change alone does not change what readers see. A [Ref](./ref.md) that points a
 - [Documents](./protocol/documents.md): the change graph, op ids, the CRDT rules, versions and merging. <!-- id:pWQZEoIu -->
 - [Signed Blobs](./protocol/blobs.md): the envelope and CIDs. <!-- id:yzzrd3BR -->
 - [change/body](./change/body.md) and [change/op](./change/op.md): the operations. <!-- id:gPH5jraA -->
-- [Seed API](./build/web-api.md): `ListChanges` lists a document's Changes. <!-- id:mYSOepZn -->
+- [ListChanges](./rpc/list-changes.md): the read model that lists a document's Changes. <!-- id:mYSOepZn -->
 - [ref](./ref.md): the blob that points an address at a Change's heads. <!-- id:gBQE-w7g -->

@@ -1,0 +1,43 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "comments": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/rpc/type/comment"
+        }
+      },
+      "required": true,
+      "description": "The citing comment followed by its replies."
+    },
+    "moreCommentsCount": {
+      "value": {
+        "type": "hm://hyper.media/integer",
+        "minimum": 0
+      },
+      "required": true,
+      "description": "Number of further replies not included in `comments`."
+    },
+    "id": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "`hm://` id of the citing comment."
+    },
+    "target": {
+      "value": {
+        "type": "hm://hyper.media/rpc/type/metadata-payload"
+      },
+      "required": true,
+      "description": "Metadata payload of the document the citing comment was posted on."
+    },
+    "type": {
+      "value": "externalCommentGroup",
+      "required": true,
+      "description": "Discriminator for a comment group from another document."
+    }
+  },
+  "description": "A comment thread on another document that cites this one, with the metadata of the document it was posted on."
+}

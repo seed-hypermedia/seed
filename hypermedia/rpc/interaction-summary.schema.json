@@ -1,0 +1,34 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "key": {
+      "value": "InteractionSummary",
+      "required": true,
+      "description": "Method key, always `InteractionSummary`."
+    },
+    "input": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "id": {
+            "value": {
+              "type": "hm://hyper.media/rpc/type/id"
+            },
+            "required": true,
+            "description": "Id of the document."
+          }
+        }
+      },
+      "required": true,
+      "description": "The document to summarize."
+    },
+    "output": {
+      "value": {
+        "type": "hm://hyper.media/rpc/type/interaction-summary"
+      },
+      "required": true,
+      "description": "Interaction counts for the document and its blocks."
+    }
+  },
+  "description": "Returns a document's aggregate citation, comment, change, child, and author counts with per-block breakdowns, given its id."
+}

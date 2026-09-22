@@ -1,0 +1,72 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "key": {
+      "value": "ListDiscussions",
+      "required": true,
+      "description": "Method key, always `ListDiscussions`."
+    },
+    "input": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "targetId": {
+            "value": {
+              "type": "hm://hyper.media/rpc/type/id"
+            },
+            "required": true,
+            "description": "Id of the commented document."
+          },
+          "commentId": {
+            "value": {
+              "type": "hm://hyper.media/string"
+            },
+            "description": "Comment id; when set, threads start from that comment's direct replies instead of top-level comments."
+          }
+        }
+      },
+      "required": true,
+      "description": "The document, and optionally the comment, to list discussions for."
+    },
+    "output": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "discussions": {
+            "value": {
+              "type": "hm://hyper.media/list",
+              "items": {
+                "type": "hm://hyper.media/rpc/type/comment-group"
+              }
+            },
+            "required": true,
+            "description": "Comment threads on the document."
+          },
+          "authors": {
+            "value": {
+              "type": "hm://hyper.media/map",
+              "values": {
+                "type": "hm://hyper.media/rpc/type/metadata-payload"
+              }
+            },
+            "required": true,
+            "description": "Metadata payloads of the comment authors, keyed by account uid."
+          },
+          "citingDiscussions": {
+            "value": {
+              "type": "hm://hyper.media/list",
+              "items": {
+                "type": "hm://hyper.media/rpc/type/external-comment-group"
+              }
+            },
+            "required": true,
+            "description": "Comment threads on other documents that cite this document."
+          }
+        }
+      },
+      "required": true,
+      "description": "Discussion threads with author metadata."
+    }
+  },
+  "description": "Returns a document's comments grouped into threads, their authors' metadata, and threads from other documents that cite it, optionally focused on one comment."
+}
