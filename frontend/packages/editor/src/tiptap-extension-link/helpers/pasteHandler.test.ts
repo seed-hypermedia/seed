@@ -210,6 +210,36 @@ describe('pasteHandler', () => {
     expect(view.state.doc.nodeAt(0)?.marks[0]?.attrs.href).toBe(url)
   })
 
+  it('resolves a site URL when no gateway-url stream is supplied', async () => {
+    const url = 'https://seedteamtalks.hyper.media/design'
+    const view = createPasteView()
+    const universalClient = {
+      request: async () => ({
+        type: 'document',
+        document: {
+          content: [],
+          metadata: {name: 'Design'},
+          path: '/design',
+          version: 'design-version',
+        },
+      }),
+    }
+    const plugin = pasteHandler({
+      editor: {schema} as any,
+      type: schema.marks.link,
+      universalClient: universalClient as any,
+      domainResolver: async () => 'z6MksiteUid',
+      checkWebUrl: async () => null,
+    } as any)
+
+    const handled = plugin.props.handlePaste?.(view, {} as any, new Slice(Fragment.from(schema.text(url)), 0, 0))
+
+    expect(handled).toBe(true)
+    await flushPasteHandler()
+    expect(view.state.doc.textContent).toBe('Design')
+    expect(view.state.doc.nodeAt(0)?.marks[0]?.attrs.href).toBe('hm://z6MksiteUid/design')
+  })
+
   it('resolves a custom-domain profile URL locally and inserts the profile name', async () => {
     const url = 'https://dream-machines-2.hyper.media/:profile/z6MkfopTfn1vwUZiPsFK82w8BTuV4ewV6zZKaU4sTtnuU5bt'
     const view = createPasteView()

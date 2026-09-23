@@ -7,10 +7,11 @@ import {getDocumentTitle} from '@shm/shared/content'
 import {DocumentActionsProvider} from '@shm/shared/document-actions-context'
 import type {DocumentContentProps} from '@shm/shared/document-content-props'
 import {canCreateChildDocuments} from '@shm/shared/document-utils'
+import {useGatewayUrlStream} from '@shm/shared/gateway-url'
 import {HomeDraftProvider} from '@shm/shared/home-draft-context'
+import {isDocumentCardCleanupJobActive} from '@shm/shared/models/document-card-cleanup-machine'
 import {type EditorAccessor} from '@shm/shared/models/document-machine'
 import {useResource} from '@shm/shared/models/entity'
-import {isDocumentCardCleanupJobActive} from '@shm/shared/models/document-card-cleanup-machine'
 import {selectContext, useDocumentMachineRef, useOnDocumentRenamed} from '@shm/shared/models/use-document-machine'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {replaceRouteDocumentId} from '@shm/shared/routes'
@@ -67,9 +68,9 @@ import {PageFooter} from './page-footer'
 import {processPendingIntent} from './pending-intent'
 import {useCreateSpaceDialog, useHasExistingSpace} from './web-create-space-dialog'
 import {useWebDeleteDocumentDialog} from './web-delete-document-dialog'
+import {WebDocumentPrefetch} from './web-document-prefetch'
 import {useWebDocumentDestinationDialog} from './web-move-document-dialog'
 import {WebQuerySearchInput} from './web-query-search-input'
-import {WebDocumentPrefetch} from './web-document-prefetch'
 import {
   WebDocumentCreateButton,
   WebHeaderActions,
@@ -182,7 +183,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const editProfileDialog = useAppDialog(EditProfileDialog)
   const vaultSuccessContent = useVaultSuccessDialog()
   const universalClient = useUniversalClient()
-  const linkExtensionOptions = useMemo(() => ({universalClient}), [universalClient])
+  const gwUrl = useGatewayUrlStream()
+  const linkExtensionOptions = useMemo(() => ({universalClient, gwUrl}), [universalClient, gwUrl])
   const {canEdit, signingAccountId, capability, capabilitiesLoading} = useWebCanEdit(docId)
   const {createAccount, content: createAccountContent} = useCreateAccount()
   const keyPairLoaded = useLocalKeyPairLoaded()
