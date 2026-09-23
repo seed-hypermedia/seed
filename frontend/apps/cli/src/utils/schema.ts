@@ -146,6 +146,7 @@ export function describeType(schema: HypermediaSchema, registry: SchemaRegistry)
   const {schema: resolved} = resolveSchema(schema, {}, registry)
   if (isLiteralSchema(resolved)) return `literal ${JSON.stringify(literalValue(resolved))}`
   if (Array.isArray(resolved.anyOf)) return `union of ${resolved.anyOf.length}`
+  if (typeof resolved.__invalid === 'string') return `invalid schema (${resolved.__invalid})`
   if (resolved.properties) return `struct with ${Object.keys(resolved.properties).length} fields`
   return typeof resolved.type === 'string' ? resolved.type.split('/').pop() ?? 'schema' : 'schema'
 }
