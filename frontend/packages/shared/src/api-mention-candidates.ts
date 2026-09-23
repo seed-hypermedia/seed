@@ -124,7 +124,14 @@ export const MentionCandidates: HMRequestImplementation<HMMentionCandidatesReque
       if (!ids.has(key)) ids.set(key, id)
     }
     // Matches enter the bounded pool before contextual candidates.
-    search?.entities.forEach((entity) => {
+    // A hit the daemon could not carry to the document's current version (a version without the
+    // latest marker) matched text that has since been replaced — an old title, say — so the
+    // entity is not what the query names today and must not surface under its current name.
+    const currentHits = (search?.entities ?? []).filter((entity) => {
+      const id = unpackHmId(entity.id)
+      return !!id && (!id.version || !!id.latest)
+    })
+    currentHits.forEach((entity) => {
       const id = unpackHmId(entity.id)
       if (!id) return
       if (
@@ -160,7 +167,7 @@ export const MentionCandidates: HMRequestImplementation<HMMentionCandidatesReque
     knownAccounts?.accounts.forEach((account) => add(hmId(account.id)))
     // Interleave contextual sources so a large following list cannot exclude activity/site seeds.
     const matching = new Set(
-      search?.entities.map((e) => unpackHmId(e.id)?.uid + ':' + JSON.stringify(unpackHmId(e.id)?.path || [])),
+      currentHits.map((e) => unpackHmId(e.id)?.uid + ':' + JSON.stringify(unpackHmId(e.id)?.path || [])),
     )
     const all = Array.from(ids.values())
     const groups = [
@@ -195,12 +202,18 @@ export const MentionCandidates: HMRequestImplementation<HMMentionCandidatesReque
     // entity made opening the menu proportional to the user's entire contact graph.
     const matches = groups[0] || []
     const contactsByName = groups[2] || []
-    const pending = (
-      query
-        ? Array.from(new Set([...contactsByName, ...matches, ...Array.from(selected.values())]))
-        : Array.from(selected.values())
-    ).slice(0, RESOLUTION_LIMIT)
+    // The same entity reaches here as distinct id objects from several groups: keep one per key.
+    const pendingByKey = new Map<string, ReturnType<typeof hmId>>()
+    for (const id of query
+      ? [...contactsByName, ...matches, ...Array.from(selected.values())]
+      : Array.from(selected.values())) {
+      const key = input.mode === 'account' ? id.uid : id.id
+      if (!pendingByKey.has(key)) pendingByKey.set(key, id)
+    }
+    const pending = Array.from(pendingByKey.values()).slice(0, RESOLUTION_LIMIT)
     const results: HMMentionCandidate[] = []
+    // Several source keys (an alias, a delegated agent key) can resolve to one account: one row each.
+    const seenAccounts = new Set<string>()
     let index = 0
     await Promise.all(
       Array.from({length: Math.min(8, pending.length)}, async () => {
@@ -211,6 +224,8 @@ export const MentionCandidates: HMRequestImplementation<HMMentionCandidatesReque
               const account = await cached(client, `account:${id.uid}`, () => loadAccount(client, id.uid))
               if (account.type !== 'account') continue
               const uid = account.id.uid
+              if (seenAccounts.has(uid)) continue
+              seenAccounts.add(uid)
               const metadata = account.metadata || {}
               const petname = contactNames.get(uid) ?? contactNames.get(id.uid)
               results.push({

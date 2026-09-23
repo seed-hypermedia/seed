@@ -68,7 +68,11 @@ export function startLocalServer(staticPath: string): Promise<number> {
       })
     })
 
-    // Try to find an available port starting from 17654
+    // The start port is overridable so an isolated instance (e2e) never lands on the same port
+    // as a production app already running on this machine — both would otherwise contend for
+    // 17654, and a mixed IPv4/IPv6 bind could serve one instance the other's renderer.
+    const startPort = Number(process.env.SEED_LOCAL_SERVER_PORT) || 17654
+    const maxPort = startPort + 10
     const tryPort = (port: number) => {
       server!.listen(port, 'localhost', () => {
         serverPort = port
@@ -77,7 +81,7 @@ export function startLocalServer(staticPath: string): Promise<number> {
       })
 
       server!.on('error', (err: any) => {
-        if (err.code === 'EADDRINUSE' && port < 17664) {
+        if (err.code === 'EADDRINUSE' && port < maxPort) {
           // Try next port
           server!.removeAllListeners('error')
           tryPort(port + 1)
@@ -87,7 +91,7 @@ export function startLocalServer(staticPath: string): Promise<number> {
       })
     }
 
-    tryPort(17654)
+    tryPort(startPort)
   })
 }
 

@@ -282,8 +282,11 @@ app.whenReady().then(async () => {
   memoryMonitor.registerResourceCounter('subscriptions', getSubscriptionCount)
   memoryMonitor.registerResourceCounter('discoveryStreams', getDiscoveryStreamCount)
 
-  // Start local server in production to avoid file:// protocol issues with iframes
-  if (IS_PROD_DESKTOP && !MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+  // Every packaged build serves its renderer from a local http server, never file://: iframes
+  // (embeds) need it, and so does the app's own HM API on API_HTTP_PORT, which forbids cross-site
+  // requests — a file:// renderer is cross-site to it, so a NODE_ENV=test package (package:test,
+  // package:e2e) that skipped this server had an app whose every API call answered 403.
+  if (!MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     try {
       const staticPath = path.join(__dirname, '../renderer')
       const port = await startLocalServer(staticPath)

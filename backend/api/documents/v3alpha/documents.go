@@ -582,6 +582,18 @@ func (srv *Server) ListDocumentAttributeValues(ctx context.Context, in *document
 	return out, nil
 }
 
+// The metadata keys that bind a document to a schema (see hypermedia/schema/typed-documents.md).
+const (
+	attributesSchemaKey      = "attributesSchema"
+	childAttributesSchemaKey = "childAttributesSchema"
+)
+
+// parentIRISQL is the IRI of the document's parent, computed from the resource IRI r.iri:
+// everything before the last slash. rtrim(X, Y) strips trailing characters that occur in Y,
+// and Y here is every non-slash character of the IRI, so the first rtrim stops at the last
+// slash and the second removes it. A space home (hm://<uid>) yields "hm:", which names nothing.
+const parentIRISQL = "rtrim(rtrim(r.iri, replace(r.iri, '/', '')), '/')"
+
 func documentFilterSQL(filter *documents.DocumentFilter, args *colx.Slice[any], depth int) (string, error) {
 	if filter == nil {
 		return "1", nil
@@ -596,7 +608,17 @@ func documentFilterSQL(filter *documents.DocumentFilter, args *colx.Slice[any], 
 		}
 		args.Append(key)
 		args.Append(conditionArgs...)
-		return "EXISTS (SELECT 1 FROM document_attributes da WHERE da.resource = dg.resource AND da.key = (SELECT id FROM document_attribute_keys WHERE key = ?) AND " + condition + ")", nil
+		own := "EXISTS (SELECT 1 FROM document_attributes da WHERE da.resource = dg.resource AND da.key = (SELECT id FROM document_attribute_keys WHERE key = ?) AND " + condition + ")"
+		if key != attributesSchemaKey {
+			return own, nil
+		}
+		// A document's EFFECTIVE attributes schema is its own attributesSchema or, when it has
+		// none, its parent's childAttributesSchema (a folder types its direct children). A filter
+		// on attributesSchema must find folder-typed children too, so it matches either binding.
+		args.Append(childAttributesSchemaKey)
+		args.Append(conditionArgs...)
+		inherited := "EXISTS (SELECT 1 FROM document_attributes da WHERE da.resource = (SELECT id FROM resources WHERE iri = " + parentIRISQL + ") AND da.key = (SELECT id FROM document_attribute_keys WHERE key = ?) AND " + condition + ")"
+		return "(" + own + " OR " + inherited + ")", nil
 	}
 	join := func(filters []*documents.DocumentFilter, operator, empty string) (string, error) {
 		if len(filters) == 0 {
@@ -639,8 +661,8 @@ func documentFilterSQL(filter *documents.DocumentFilter, args *colx.Slice[any], 
 		if value.Missing == nil || value.Missing.Key == "" {
 			return "", status.Error(codes.InvalidArgument, "attribute key is required")
 		}
-		args.Append(value.Missing.Key)
-		return "NOT EXISTS (SELECT 1 FROM document_attributes da WHERE da.resource = dg.resource AND da.key = (SELECT id FROM document_attribute_keys WHERE key = ?) AND da.value IS NOT NULL)", nil
+		present, err := attribute(value.Missing.Key, "da.value IS NOT NULL")
+		return "NOT " + present, err
 	case *documents.DocumentFilter_StringMatch_:
 		if value.StringMatch == nil {
 			return "", status.Error(codes.InvalidArgument, "string_match filter is required")
