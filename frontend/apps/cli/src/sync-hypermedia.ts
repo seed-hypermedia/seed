@@ -145,30 +145,6 @@ function argValue(args: string[], flag: string): string | undefined {
   return idx >= 0 ? args[idx + 1] : undefined
 }
 
-/**
- * The current path of a schema page that used to live at `path`, from `schemas.aliases.json` (schema names
- * before the reorganization). Chains are followed, so an old alias of an old alias still lands on a live page.
- */
-function loadSchemaAliases(): {aliasOf: (path: string) => string | null; movedFrom: (path: string) => string[]} {
-  const full = resolve(SCHEMAS_DIR, 'schemas.aliases.json')
-  const table: Record<string, string> = existsSync(full)
-    ? (JSON.parse(readFileSync(full, 'utf8')) as {aliases?: Record<string, string>}).aliases ?? {}
-    : {}
-  const aliasOf = (path: string) => {
-    const start = path.replace(/^\//, '')
-    let key = start
-    for (let hops = 0; hops < 8 && table[key] !== undefined; hops++) key = table[key]!
-    return key === start ? null : '/' + key
-  }
-  // The reverse: old paths that alias to a page, so the import can publish a move instead of a new document.
-  const reverse = new Map<string, string[]>()
-  for (const old of Object.keys(table)) {
-    const target = aliasOf('/' + old)
-    if (target) reverse.set(target, [...(reverse.get(target) ?? []), '/' + old])
-  }
-  return {aliasOf, movedFrom: (path) => reverse.get(path) ?? []}
-}
-
 /** Publish the schema blobs, then import hypermedia/ into `account` on `client`. */
 async function pushTo(client: SeedClient, signer: HMSigner, account: string, dryRun: boolean, keepStale = false) {
   const blobs = await loadSchemaBlobs()
@@ -185,12 +161,9 @@ async function pushTo(client: SeedClient, signer: HMSigner, account: string, dry
     dir: SCHEMAS_DIR,
     layout,
     dryRun,
-    movedFromFor: loadSchemaAliases().movedFrom,
     log: (line) => console.log('  ' + line),
   })
   const movedFrom = new Set(result.moved.map((m) => m.split(' -> ')[0]!))
-  // A renamed schema page redirects to its new name so schema references keep resolving; other pages are deleted.
-  const {aliasOf} = loadSchemaAliases()
   const retired = keepStale
     ? []
     : await retireMissing({
@@ -201,10 +174,6 @@ async function pushTo(client: SeedClient, signer: HMSigner, account: string, dry
         layout,
         dryRun,
         skip: movedFrom,
-        redirectFor: (path, published) => {
-          const target = aliasOf(path)
-          return target !== null && published.has(target) ? target : null
-        },
         log: (line) => console.log('  ' + line),
       })
   console.log(
@@ -298,7 +267,6 @@ async function dev(args: string[]) {
           dir: SCHEMAS_DIR,
           layout,
           dryRun: true,
-          movedFromFor: loadSchemaAliases().movedFrom,
         })
         const behind = result.created.length + result.updated.length + result.moved.length
         if (behind === 0) console.log(`The published site on ${server} matches this folder.`)
