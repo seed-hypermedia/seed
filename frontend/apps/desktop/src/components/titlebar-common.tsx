@@ -12,6 +12,7 @@ import {
   agentSessionUrl,
   agentTriggerUrl,
   agentUrl,
+  isOmnibarRouteUrlShareable,
   resolveOmnibarUrlToRoute,
   selectValidatedOmnibarSiteUrl,
 } from '@/omnibar-url'
@@ -959,14 +960,16 @@ function useCurrentRouteUrl(): {
         return {displayUrl: url, copyableUrl: null}
       }
 
-      // Standard route URL. Only mark copyable once we've confirmed a published
-      // document exists at this id — guards against copying placeholder URLs
-      // while drafts/resources are still loading.
+      // Standard route URL. Shareable once a published document is confirmed, or once the draft
+      // lookup has settled with no draft attached — a document still being discovered (or not
+      // found) is still the address the user navigated to. Waiting for the draft lookup guards
+      // against copying an unpublished new doc's placeholder path while it is still loading.
       const url = routeToUrl(route, {
         hostname: validatedSiteUrl || gwUrl,
         originHomeId: validatedSiteUrl ? hmId(routeId.uid) : undefined,
       })
-      return {displayUrl: url, copyableUrl: hasPublishedResource ? url : null}
+      const shareable = isOmnibarRouteUrlShareable({resourceType: routeResource.data?.type, existingDraft})
+      return {displayUrl: url, copyableUrl: shareable ? url : null}
     }
 
     if (route.key === 'inspect-ipfs') {
@@ -984,6 +987,8 @@ function useCurrentRouteUrl(): {
     draft,
     isLocationOnlyDraft,
     hasPublishedResource,
+    routeResource.data?.type,
+    existingDraft,
     agentSession.data,
     isLocalAgentsRoute,
   ])

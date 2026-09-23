@@ -13,6 +13,7 @@ vi.mock('@seed-hypermedia/client', async (importOriginal) => ({
 import {
   agentSessionUrl,
   agentTriggerUrl,
+  isOmnibarRouteUrlShareable,
   agentUrl,
   resolveOmnibarUrlToHypermediaUrl,
   resolveOmnibarUrlToRoute,
@@ -282,5 +283,24 @@ describe('selectValidatedOmnibarSiteUrl', () => {
         domainStatus: 'success',
       }),
     ).toBeNull()
+  })
+})
+
+describe('isOmnibarRouteUrlShareable', () => {
+  it('shares a confirmed published document, whatever the draft lookup says', () => {
+    expect(isOmnibarRouteUrlShareable({resourceType: 'document', existingDraft: undefined})).toBe(true)
+    expect(isOmnibarRouteUrlShareable({resourceType: 'document', existingDraft: {id: 'd1'}})).toBe(true)
+  })
+
+  it('shares the address of a document still being discovered, or not found, once no draft is attached', () => {
+    // "Looking for this document…": the resource is not-found while discovery runs.
+    expect(isOmnibarRouteUrlShareable({resourceType: 'not-found', existingDraft: false})).toBe(true)
+    expect(isOmnibarRouteUrlShareable({resourceType: undefined, existingDraft: false})).toBe(true)
+  })
+
+  it('never shares a placeholder path: drafts still loading, or a draft attached to an unpublished route', () => {
+    expect(isOmnibarRouteUrlShareable({resourceType: 'not-found', existingDraft: undefined})).toBe(false)
+    expect(isOmnibarRouteUrlShareable({resourceType: undefined, existingDraft: undefined})).toBe(false)
+    expect(isOmnibarRouteUrlShareable({resourceType: 'not-found', existingDraft: {id: 'd1'}})).toBe(false)
   })
 })

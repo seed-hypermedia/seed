@@ -54,6 +54,26 @@ export function selectValidatedOmnibarSiteUrl(params: {
 }
 
 /**
+ * Whether the omnibar may offer a document route's URL for selection and copying.
+ *
+ * A confirmed published document is always shareable. Before the resource has loaded — while the
+ * node is still discovering it, or after discovery came up empty — the address is still the one
+ * the user navigated to, and they should be able to select and copy it like any browser lets them
+ * copy a URL that is still loading. The one thing that must never be copied is the placeholder
+ * path of an unpublished new-doc draft, so until the draft lookup has settled (`existingDraft`
+ * undefined) nothing is shareable, and once it has, only a route with no draft attached is.
+ */
+export function isOmnibarRouteUrlShareable(params: {
+  resourceType: string | undefined
+  /** `useExistingDraft`'s result: the draft, `false` for none, `undefined` while still loading. */
+  existingDraft: {id: string} | false | undefined
+}): boolean {
+  if (params.resourceType === 'document') return true
+  if (params.existingDraft === undefined) return false
+  return params.existingDraft === false
+}
+
+/**
  * Resolves a URL using the same routing rules as the desktop omnibar.
  */
 export async function resolveOmnibarUrlToRoute(url: string, opts?: ResolveOptions): Promise<NavRoute | null> {
