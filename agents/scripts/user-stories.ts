@@ -325,27 +325,23 @@ try {
 
   const S7 = '7. Extend the signed blob envelope into a new signed type'
   let voteSchemaCid = ''
-  await step(
-    S7,
-    'write ipfs:// with a schema that extends blob publishes the signed type’s schema blob',
-    async () => {
-      const result = await verb('write', {
-        address: 'ipfs://',
-        content: JSON.stringify(VOTE_SCHEMA),
-        options: {schema: 'schema'},
-      })
-      assert(typeof result.cid === 'string' && result.warnings === undefined, `result ${JSON.stringify(result)}`)
-      voteSchemaCid = result.cid
-      const page = await verb('write', {
-        address: url('types/vote'),
-        content: 'A signed vote on a document.',
-        options: {name: 'Vote', metadata: {schemaDefinition: `ipfs://${voteSchemaCid}`}},
-      })
-      assert(page.warnings === undefined, `page warnings ${JSON.stringify(page.warnings)}`)
-      const blob = await verb('read', {address: `ipfs://${voteSchemaCid}`})
-      assert(blob.value?.type === `${LIBRARY}/blob`, 'the schema extends blob')
-    },
-  )
+  await step(S7, 'write ipfs:// with a schema that extends blob publishes the signed type’s schema blob', async () => {
+    const result = await verb('write', {
+      address: 'ipfs://',
+      content: JSON.stringify(VOTE_SCHEMA),
+      options: {schema: 'schema'},
+    })
+    assert(typeof result.cid === 'string' && result.warnings === undefined, `result ${JSON.stringify(result)}`)
+    voteSchemaCid = result.cid
+    const page = await verb('write', {
+      address: url('types/vote'),
+      content: 'A signed vote on a document.',
+      options: {name: 'Vote', metadata: {schemaDefinition: `ipfs://${voteSchemaCid}`}},
+    })
+    assert(page.warnings === undefined, `page warnings ${JSON.stringify(page.warnings)}`)
+    const blob = await verb('read', {address: `ipfs://${voteSchemaCid}`})
+    assert(blob.value?.type === `${LIBRARY}/blob`, 'the schema extends blob')
+  })
 
   const S8 = '8. Create an instance of the signed type and sign it'
   await step(
