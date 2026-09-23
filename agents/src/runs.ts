@@ -287,15 +287,23 @@ export function listRunTree(db: Database, accountId: string, rootRunId: string):
     .map(rowToRun)
 }
 
+// Session lookups pin `runs_by_session`. Without statistics the planner rates `runs_by_account`
+// (account_id, created_at DESC) as good as `runs_by_session` (session_id, created_at DESC) — both
+// satisfy the equality and the ORDER BY — and picks the account one, which walks every run the
+// account ever made (thousands, each row carrying its CBOR blobs) to find a session's handful.
+// On production that turned ListRuns into a 130–400 ms full read on the event loop, ~200× the
+// indexed lookup, and pinned the server (2026-09-23). `INDEXED BY` fails loudly at prepare time
+// if the index is ever dropped, so a schema change cannot silently reopen the trap.
+
 /** Root runs referencing a session, newest first. */
 export function listSessionRootRuns(db: Database, accountId: string, sessionId: string, limit: number): RunRecord[] {
   return stmt<RunRow, [string, string, number]>(
     db,
-    `SELECT ${RUN_COLUMNS} FROM runs
-       WHERE account_id = ? AND session_id = ? AND id = root_run_id
+    `SELECT ${RUN_COLUMNS} FROM runs INDEXED BY runs_by_session
+       WHERE session_id = ? AND account_id = ? AND id = root_run_id
        ORDER BY created_at DESC LIMIT ?`,
   )
-    .all(accountId, sessionId, limit)
+    .all(sessionId, accountId, limit)
     .map(rowToRun)
 }
 
@@ -333,10 +341,10 @@ export function pendingWaitToolCallIds(db: Database, sessionId: string): Set<str
 export function listLiveSessionRuns(db: Database, accountId: string, sessionId: string): RunRecord[] {
   return stmt<RunRow, [string, string]>(
     db,
-    `SELECT ${RUN_COLUMNS} FROM runs WHERE account_id = ? AND session_id = ?
+    `SELECT ${RUN_COLUMNS} FROM runs INDEXED BY runs_by_session WHERE session_id = ? AND account_id = ?
        AND status IN ('queued', 'claimed', 'running', 'waiting') ORDER BY created_at ASC`,
   )
-    .all(accountId, sessionId)
+    .all(sessionId, accountId)
     .map(rowToRun)
 }
 
@@ -774,6 +782,9 @@ export class RunQueue {
    * equally loaded accounts the interactive queue (a person waiting on a reply) beats background
    * work, then oldest first. A single account sees the same order as before.
    */
+  // The held-slot count pins `runs_dispatch`: only a dozen runs are ever claimed/running, but the
+  // planner preferred `runs_by_account`, which walks every run the account ever made — thousands of
+  // blob-carrying rows per queued candidate, 5+ seconds per pump tick on production (2026-09-23).
   #claimNext(kinds: RunKind[]): RunRecord | null {
     if (kinds.length === 0) return null
     const now = Date.now()
@@ -792,8 +803,8 @@ export class RunQueue {
                )
              )
            ORDER BY
-             (SELECT COUNT(*) FROM runs held WHERE held.account_id = r.account_id AND held.kind = r.kind
-                AND held.status IN ('claimed', 'running')),
+             (SELECT COUNT(*) FROM runs held INDEXED BY runs_dispatch
+               WHERE held.status IN ('claimed', 'running') AND held.account_id = r.account_id AND held.kind = r.kind),
              CASE r.queue WHEN 'interactive' THEN 0 ELSE 1 END,
              r.created_at,
              r.id
