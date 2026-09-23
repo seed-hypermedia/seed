@@ -274,6 +274,127 @@ describe('QueryBlockContent toolbar', () => {
 
     expect(container.textContent).toContain('Attributes')
   })
+
+  it('opens the shared filter trigger as a popover control', () => {
+    act(() => {
+      root.render(<QueryBlockContent items={makeItems(1)} style="Table" accountsMetadata={{}} />)
+    })
+
+    const filterButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.startsWith('Filter'),
+    )
+    act(() => filterButton?.dispatchEvent(new MouseEvent('click', {bubbles: true})))
+
+    expect(document.body.textContent).toContain('Add filter')
+  })
+
+  it('uses the same trigger shape for filter and sort', () => {
+    act(() => {
+      root.render(<QueryBlockContent items={makeItems(1)} style="Table" accountsMetadata={{}} />)
+    })
+
+    const buttons = Array.from(container.querySelectorAll('button'))
+    const filter = buttons.find((button) => button.textContent?.startsWith('Filter'))
+    const sort = buttons.find((button) => button.textContent?.startsWith('Sort'))
+
+    expect(filter?.className).toContain('rounded-full')
+    expect(sort?.className).toContain('rounded-full')
+  })
+
+  it('shows controlled viewer filters as removable chips with an accurate result summary', () => {
+    const onViewerFiltersChange = vi.fn()
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={makeItems(1)}
+          style="Table"
+          accountsMetadata={{}}
+          viewerFilters={[{columnId: 'metadata:status', operator: 'equals', value: 'Ready'}]}
+          onViewerFiltersChange={onViewerFiltersChange}
+          totalMatches={47}
+        />,
+      )
+    })
+
+    expect(container.textContent).toContain('Status equals Ready')
+    expect(container.textContent).toContain('Showing 1 of 47 matches')
+
+    const remove = container.querySelector('button[aria-label="Remove filter: Status equals Ready"]')
+    act(() => remove?.dispatchEvent(new MouseEvent('click', {bubbles: true})))
+    expect(onViewerFiltersChange).toHaveBeenCalledWith([])
+  })
+
+  it('places active filter chips in the same toolbar row as Filter and Sort', () => {
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={makeItems(1)}
+          style="Table"
+          accountsMetadata={{}}
+          viewerFilters={[{columnId: 'title', operator: 'contains', value: 'dream'}]}
+          onViewerFiltersChange={vi.fn()}
+        />,
+      )
+    })
+
+    const toolbar = container.querySelector('[data-query-block-toolbar]')
+    const filterButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.startsWith('Filter'),
+    )
+    const chip = container.querySelector('button[aria-label="Remove filter: Name contains dream"]')
+
+    expect(toolbar).toBeTruthy()
+    expect(toolbar?.contains(filterButton ?? null)).toBe(true)
+    expect(toolbar?.contains(chip)).toBe(true)
+  })
+
+  it('reports controlled viewer search changes without filtering the current result page locally', () => {
+    const onViewerSearchChange = vi.fn()
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={makeItems(2)}
+          style="List"
+          accountsMetadata={{}}
+          viewerSearch="outside current page"
+          onViewerSearchChange={onViewerSearchChange}
+        />,
+      )
+    })
+
+    expect(container.textContent).toContain('Item 0')
+    expect(container.textContent).toContain('Item 1')
+    const input = container.querySelector('[aria-label="Search documents"]') as HTMLInputElement
+    expect(input.value).toBe('outside current page')
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(input, 'roadmap')
+      input.dispatchEvent(new Event('input', {bubbles: true}))
+    })
+    expect(onViewerSearchChange).toHaveBeenCalledWith('roadmap')
+  })
+
+  it('filters the current page when the query resolver does not support viewer filters yet', () => {
+    const items = makeItems(2)
+    items[0].metadata.name = 'Dream document'
+    items[1].metadata.name = 'Release notes'
+
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={items}
+          style="List"
+          accountsMetadata={{}}
+          viewerFilters={[{columnId: 'title', operator: 'contains', value: 'dream'}]}
+          onViewerFiltersChange={vi.fn()}
+          viewerQueryApplied={false}
+        />,
+      )
+    })
+
+    expect(container.textContent).toContain('Dream document')
+    expect(container.textContent).not.toContain('Release notes')
+  })
 })
 
 describe('QueryBlockContent list view with prepended draft items', () => {

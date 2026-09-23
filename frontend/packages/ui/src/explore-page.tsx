@@ -24,11 +24,19 @@ import {
   useExploreResultDocuments,
 } from '@shm/shared/models/explore'
 import {packHmId} from '@shm/shared/utils/entity-id-url'
-import {Check, FileText, Globe, Loader2, MessageSquare, Pilcrow, Search, User, X} from 'lucide-react'
+import {Check, FileText, Globe, Loader2, MessageSquare, Pilcrow, Search, User} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
-import {ExploreChipButton, ExploreFilterMenu, ExploreScopeMenu, ExploreTypeMenu, typeOptions} from './explore-filters'
+import {
+  ActiveFilterChip,
+  ActiveFilterChipRow,
+  ExploreChipButton,
+  ExploreFilterMenu,
+  ExploreScopeMenu,
+  ExploreTypeMenu,
+  typeOptions,
+} from './explore-filters'
 import {ExploreBrowse, ExploreJumpTo, ExploreLanding, ExploreYourSpaces} from './explore-landing'
 import {ExploreState} from './explore-primitives'
 import {exploreTableConfig, ExploreViewSwitcher, queryBlockStyle} from './explore-views'
@@ -336,26 +344,17 @@ export function ExplorePage(props: ExplorePageProps) {
           </div>
         </div>
         {chips.length ? (
-          <div className="flex flex-wrap items-center gap-2">
+          <ActiveFilterChipRow onClear={() => updateQuery('')}>
             {chips.map((chip) => (
-              <button
+              <ActiveFilterChip
                 key={chip.id}
-                type="button"
-                onClick={() => updateQuery(serializeExploreQuery(removeExploreQueryChip(props.parsed, chip.id)))}
-                className="border-border bg-muted/40 hover:bg-muted inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-mono text-xs transition-colors"
+                onRemove={() => updateQuery(serializeExploreQuery(removeExploreQueryChip(props.parsed, chip.id)))}
+                removeLabel={`Remove filter: ${chipDisplayLabel(chip)}`}
               >
                 {chipDisplayLabel(chip)}
-                <X className="size-3" aria-hidden />
-              </button>
+              </ActiveFilterChip>
             ))}
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-foreground px-2 text-xs"
-              onClick={() => updateQuery('')}
-            >
-              Clear all
-            </button>
-          </div>
+          </ActiveFilterChipRow>
         ) : null}
         {props.diagnostics?.map((diagnostic, index) => (
           <p key={`${diagnostic.start}:${index}`} className="text-xs text-amber-700 dark:text-amber-300">

@@ -231,7 +231,7 @@ export function queryDirectory(
  */
 export function queryQueryBlock(client: UniversalClient, input: HMQueryBlockInput | null | undefined) {
   return {
-    queryKey: [queryKeys.QUERY_BLOCK, input?.query ?? null] as const,
+    queryKey: [queryKeys.QUERY_BLOCK, input ?? null] as const,
     queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMQueryBlockPayload | null> => {
       if (!input) return null
       const result = await client.request('QueryBlock', input, {signal})
@@ -239,6 +239,7 @@ export function queryQueryBlock(client: UniversalClient, input: HMQueryBlockInpu
       return HMQueryBlockPayloadSchema.parse(result)
     },
     enabled: !!input,
+    keepPreviousData: true,
   }
 }
 

@@ -1,12 +1,14 @@
 import {EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
 import {
   HMBlockQuery,
+  HMQueryBlockInput,
   HMQueryTableConfig,
   UnpackedHypermediaId,
   normalizeQuerySort,
 } from '@seed-hypermedia/client/hm-types'
 import {entityQueryPathToHmIdPath} from '@shm/shared'
 import {queryQueryBlock} from '@shm/shared/models/queries'
+import {useDebounce} from '@shm/shared/utils/use-debounce'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {QueryBlockDraftSlotData, useQueryBlockDrafts} from '@shm/shared/query-block-drafts-context'
 import {useUniversalClient} from '@shm/shared/routing'
@@ -106,7 +108,24 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
       latest: true,
     })
   }, [queryIncludes])
-  const queryBlockInput = useMemo(() => getQueryBlockInput(block.props), [block.props])
+  const baseQueryBlockInput = useMemo(() => getQueryBlockInput(block.props), [block.props])
+  const [viewerSearch, setViewerSearch] = useState('')
+  const [viewerFilters, setViewerFilters] = useState<NonNullable<NonNullable<HMQueryBlockInput['viewer']>['filters']>>(
+    [],
+  )
+  const debouncedViewerSearch = useDebounce(viewerSearch.trim(), 250)
+  const queryBlockInput = useMemo<HMQueryBlockInput | null>(() => {
+    if (!baseQueryBlockInput) return null
+    const filters = viewerFilters.filter((filter) => filter.value.trim())
+    if (!debouncedViewerSearch && !filters.length) return baseQueryBlockInput
+    return {
+      ...baseQueryBlockInput,
+      viewer: {
+        ...(debouncedViewerSearch ? {search: debouncedViewerSearch} : {}),
+        ...(filters.length ? {filters} : {}),
+      },
+    }
+  }, [baseQueryBlockInput, debouncedViewerSearch, viewerFilters])
   const queryBlock = useQuery(queryQueryBlock(client, queryBlockInput))
   const sortedItems = queryBlock.data?.results ?? []
 
@@ -176,6 +195,13 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
             querySort: JSON.stringify(sorting.map(({id, desc}) => ({term: id, reverse: desc}))),
           })
         }}
+        viewerSearch={viewerSearch}
+        onViewerSearchChange={setViewerSearch}
+        viewerFilters={viewerFilters}
+        onViewerFiltersChange={setViewerFilters}
+        totalMatches={queryBlock.data?.totalMatches}
+        isUpdating={queryBlock.isFetching && !queryBlock.isLoading}
+        viewerQueryApplied={queryBlock.data?.totalMatches !== undefined}
       />
     )
   }

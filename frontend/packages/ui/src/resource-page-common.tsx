@@ -8,6 +8,7 @@ import {
   HMDocument,
   HMExistingDraft,
   HMQueryTableConfig,
+  HMQueryBlockInput,
   HMRawCitation,
   HMResource,
   normalizeQuerySort,
@@ -61,6 +62,7 @@ import {
 import {useExploreResults} from '@shm/shared/models/explore'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {queryQueryBlock} from '@shm/shared/models/queries'
+import {useDebounce} from '@shm/shared/utils/use-debounce'
 import {
   documentMachine,
   DocumentMachineProvider,
@@ -4092,9 +4094,25 @@ function DocumentCollection({
   const style = (props?.style as 'Card' | 'List' | 'Table') || 'Table'
   const columnCount = props?.columnCount || '3'
   const banner = props?.banner === 'true'
-  const query = useQuery(
-    queryQueryBlock(client, includes.length ? {query: {includes, sort: querySort, limit: queryLimit}} : null),
+  const [viewerSearch, setViewerSearch] = useState('')
+  const [viewerFilters, setViewerFilters] = useState<NonNullable<NonNullable<HMQueryBlockInput['viewer']>['filters']>>(
+    [],
   )
+  const debouncedViewerSearch = useDebounce(viewerSearch.trim(), 250)
+  const queryInput = useMemo<HMQueryBlockInput | null>(() => {
+    if (!includes.length) return null
+    const filters = viewerFilters.filter((filter) => filter.value.trim())
+    return {
+      query: {includes, sort: querySort, limit: queryLimit},
+      ...((debouncedViewerSearch || filters.length) && {
+        viewer: {
+          ...(debouncedViewerSearch ? {search: debouncedViewerSearch} : {}),
+          ...(filters.length ? {filters} : {}),
+        },
+      }),
+    }
+  }, [debouncedViewerSearch, includes, queryLimit, querySort, viewerFilters])
+  const query = useQuery(queryQueryBlock(client, queryInput))
   const tableConfig = useMemo<HMQueryTableConfig | undefined>(() => {
     try {
       return props?.tableConfig ? JSON.parse(props.tableConfig) : undefined
@@ -4184,6 +4202,13 @@ function DocumentCollection({
           tableSorting={querySort.map(({term, reverse}) => ({id: term, desc: reverse}))}
           onTableSortingChange={handleTableSortingChange}
           navigateCards
+          viewerSearch={viewerSearch}
+          onViewerSearchChange={setViewerSearch}
+          viewerFilters={viewerFilters}
+          onViewerFiltersChange={setViewerFilters}
+          totalMatches={query.data?.totalMatches}
+          isUpdating={query.isFetching && !query.isLoading}
+          viewerQueryApplied={query.data?.totalMatches !== undefined}
         />
       </div>
     </div>

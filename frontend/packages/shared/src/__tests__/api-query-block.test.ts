@@ -105,6 +105,7 @@ describe('QueryBlock.getData', () => {
       in: queryTarget,
       mode: 'Children',
       results: [resultA],
+      totalMatches: 2,
       interactionSummaries: {
         [docA.id]: {
           comments: 2,
@@ -136,6 +137,68 @@ describe('QueryBlock.getData', () => {
     expect(perfSummary.grpcRequests.byMethod['documents.getDocumentInfo'].count).toBe(1)
     expect(perfSummary.grpcRequests.byMethod['documents.batchGetAccounts'].count).toBe(1)
 
+    consoleInfoSpy.mockRestore()
+  })
+
+  it('applies temporary viewer search before the saved result limit', async () => {
+    const queryDocuments = vi.fn().mockResolvedValue({documents: [resultA, resultB], nextPageToken: ''})
+    const consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const grpcClient = {
+      documents: {
+        queryDocuments,
+        getDocumentInfo: vi.fn().mockResolvedValue({metadata: {toJson: () => ({name: 'Projects'})}}),
+        batchGetAccounts: vi.fn().mockResolvedValue({
+          accounts: {'author-b': {profile: {name: 'Author B'}, homeDocumentInfo: {version: 'vb'}}},
+          errors: {},
+        }),
+      },
+    } as any
+
+    const result = await QueryBlock.getData(
+      grpcClient,
+      {
+        query: {
+          includes: [{space: 'alice', path: '/projects', mode: 'Children'}],
+          limit: 1,
+        },
+        viewer: {search: 'doc b'},
+      },
+      undefined as any,
+    )
+
+    expect(result?.results).toEqual([resultB])
+    expect(result?.totalMatches).toBe(1)
+    consoleInfoSpy.mockRestore()
+  })
+
+  it('applies temporary viewer filters before the saved result limit', async () => {
+    const queryDocuments = vi.fn().mockResolvedValue({documents: [resultA, resultB], nextPageToken: ''})
+    const consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const grpcClient = {
+      documents: {
+        queryDocuments,
+        getDocumentInfo: vi.fn().mockResolvedValue({metadata: {toJson: () => ({name: 'Projects'})}}),
+        batchGetAccounts: vi.fn().mockResolvedValue({
+          accounts: {'author-b': {profile: {name: 'Author B'}, homeDocumentInfo: {version: 'vb'}}},
+          errors: {},
+        }),
+      },
+    } as any
+
+    const result = await QueryBlock.getData(
+      grpcClient,
+      {
+        query: {
+          includes: [{space: 'alice', path: '/projects', mode: 'Children'}],
+          limit: 1,
+        },
+        viewer: {filters: [{columnId: 'comments', operator: 'equals', value: '0'}]},
+      },
+      undefined as any,
+    )
+
+    expect(result?.results).toEqual([resultB])
+    expect(result?.totalMatches).toBe(1)
     consoleInfoSpy.mockRestore()
   })
 

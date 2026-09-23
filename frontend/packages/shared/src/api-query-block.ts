@@ -13,6 +13,7 @@ import {HMRequestImplementation} from './api-types'
 import {queryToQueryDocumentsRequest} from './models/query-block-sort'
 import {prepareHMDocumentInfo} from './models/entity'
 import {loadAccount} from './api-account'
+import {filterQueryBlockDocuments} from './models/query-block-filter'
 
 function readMetadataStringField(
   metadata: {toJson: (opts: {emitDefaultValues: boolean; enumAsInteger: boolean}) => unknown} | undefined,
@@ -218,8 +219,9 @@ export const QueryBlock: HMRequestImplementation<HMQueryBlockRequest> = {
       }
 
       perf.resolvedItemCount = queryResult.results.length
+      const matchingResults = filterQueryBlockDocuments(queryResult.results, input.viewer)
       const limit = input.query.limit
-      const results = limit && limit > 0 ? queryResult.results.slice(0, limit) : queryResult.results
+      const results = limit && limit > 0 ? matchingResults.slice(0, limit) : matchingResults
       perf.returnedItemCount = results.length
 
       const queryTargetNameStartedAt = now()
@@ -253,6 +255,7 @@ export const QueryBlock: HMRequestImplementation<HMQueryBlockRequest> = {
         in: queryResult.in,
         mode: queryResult.mode,
         results,
+        totalMatches: matchingResults.length,
         interactionSummaries,
         accountsMetadata,
       }

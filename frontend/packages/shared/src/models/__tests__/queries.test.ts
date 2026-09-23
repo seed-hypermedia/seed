@@ -259,6 +259,24 @@ describe('queryResource', () => {
 })
 
 describe('queryQueryBlock', () => {
+  test('accepts an older query block payload without totalMatches', async () => {
+    const payload = {
+      queryTargetName: 'Projects',
+      in: docA,
+      results: [],
+      mode: 'Children' as const,
+      interactionSummaries: {},
+      accountsMetadata: {},
+    }
+    const input = {query: {includes: [{space: docA.uid, path: '/projects', mode: 'Children' as const}]}}
+    const query = queryQueryBlock(
+      createMockClient(() => payload),
+      input,
+    )
+
+    await expect(query.queryFn!()).resolves.toEqual(payload)
+  })
+
   test('requests the combined query block payload with the expected cache key', async () => {
     const payload = {
       queryTargetName: 'Projects',
@@ -287,6 +305,7 @@ describe('queryQueryBlock', () => {
           visibility: 'PUBLIC' as const,
         },
       ],
+      totalMatches: 1,
       mode: 'Children' as const,
       interactionSummaries: {
         [docB.id]: {comments: 2, authorUids: ['author-a']},
@@ -301,11 +320,15 @@ describe('queryQueryBlock', () => {
         sort: [{term: 'updated', reverse: true}],
         limit: 10,
       },
+      viewer: {
+        search: 'roadmap',
+        filters: [{columnId: 'metadata:status', operator: 'equals' as const, value: 'Ready'}],
+      },
     }
     const client = createMockClient(() => payload)
     const query = queryQueryBlock(client, input)
 
-    expect(query.queryKey).toEqual([queryKeys.QUERY_BLOCK, input.query])
+    expect(query.queryKey).toEqual([queryKeys.QUERY_BLOCK, input])
     await expect(query.queryFn!()).resolves.toEqual(payload)
     expect(client.request).toHaveBeenCalledWith('QueryBlock', input, {signal: undefined})
   })

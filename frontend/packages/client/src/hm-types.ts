@@ -1800,6 +1800,20 @@ export type HMQueryRequest = z.infer<typeof HMQueryRequestSchema>
 
 export const HMQueryBlockInputSchema = z.object({
   query: HMQuerySchema,
+  viewer: z
+    .object({
+      search: z.string().optional(),
+      filters: z
+        .array(
+          z.object({
+            columnId: z.string(),
+            operator: z.enum(['contains', 'equals', 'greaterThan', 'lessThan']),
+            value: z.string(),
+          }),
+        )
+        .optional(),
+    })
+    .optional(),
 })
 export type HMQueryBlockInput = z.infer<typeof HMQueryBlockInputSchema>
 
@@ -2149,6 +2163,7 @@ export const HMQueryBlockPayloadSchema = z.object({
   queryTargetName: z.string(),
   in: unpackedHmIdSchema,
   results: z.array(HMDocumentInfoSchema),
+  totalMatches: z.number().optional(),
   mode: z.union([z.literal('Children'), z.literal('AllDescendants')]).optional(),
   interactionSummaries: z.record(z.string(), HMQueryBlockItemSummarySchema),
   accountsMetadata: HMAccountsMetadataSchema,

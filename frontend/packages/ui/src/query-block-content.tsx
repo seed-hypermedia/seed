@@ -15,6 +15,7 @@ import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {Switch} from './components/switch'
 import {SelectField} from './form-fields'
 import {DocumentCard} from './newspaper'
+import {ActiveFilterChip, ActiveFilterChipRow} from './explore-filters'
 import {Spinner} from './spinner'
 import {cn} from './utils'
 import {
@@ -99,6 +100,13 @@ export interface QueryBlockContentProps {
   onTableConfigChange?: (config: HMQueryTableConfig) => void
   tableSorting?: SortingState
   onTableSortingChange?: (sorting: SortingState) => void
+  viewerSearch?: string
+  onViewerSearchChange?: (search: string) => void
+  viewerFilters?: QueryTableFilter[]
+  onViewerFiltersChange?: (filters: QueryTableFilter[]) => void
+  totalMatches?: number
+  isUpdating?: boolean
+  viewerQueryApplied?: boolean
 }
 
 export function QueryBlockContent({
@@ -118,6 +126,13 @@ export function QueryBlockContent({
   onTableConfigChange,
   tableSorting,
   onTableSortingChange,
+  viewerSearch,
+  onViewerSearchChange,
+  viewerFilters,
+  onViewerFiltersChange,
+  totalMatches,
+  isUpdating,
+  viewerQueryApplied = true,
 }: QueryBlockContentProps) {
   const descriptors = useMemo(() => buildQueryTableColumns(items), [items])
 
@@ -142,6 +157,11 @@ export function QueryBlockContent({
 
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<QueryTableFilter[]>([])
+  const effectiveSearch = viewerSearch ?? search
+  const effectiveFilters = viewerFilters ?? filters
+  const setEffectiveSearch = onViewerSearchChange ?? setSearch
+  const setEffectiveFilters = onViewerFiltersChange ?? setFilters
+  const usesRemoteViewerQuery = (!!onViewerSearchChange || !!onViewerFiltersChange) && viewerQueryApplied
   const [tableState, updateTableState] = useReducer(queryTableStateReducer, undefined, () =>
     createQueryTableState(descriptors, tableConfig, tableSorting),
   )
@@ -189,10 +209,12 @@ export function QueryBlockContent({
 
   const filteredItems = useMemo(
     () =>
-      filterQueryTableItems(items, filters, context, descriptors).filter((item) =>
-        queryTableItemMatchesSearch(item, search, descriptors, context),
-      ),
-    [items, filters, context, search, descriptors],
+      usesRemoteViewerQuery
+        ? items
+        : filterQueryTableItems(items, effectiveFilters, context, descriptors).filter((item) =>
+            queryTableItemMatchesSearch(item, effectiveSearch, descriptors, context),
+          ),
+    [items, usesRemoteViewerQuery, effectiveFilters, context, effectiveSearch, descriptors],
   )
 
   const sortedItems = useMemo(() => {
@@ -262,16 +284,27 @@ export function QueryBlockContent({
         visibleColumnCount={visibleColumnCount}
         toggleColumnVisibility={toggleColumnVisibility}
         moveColumn={moveColumn}
-        filters={filters}
-        setFilters={setFilters}
+        filters={effectiveFilters}
+        setFilters={setEffectiveFilters}
         sorting={sorting}
         setSorting={setSortingAndPersist}
-        search={search}
-        setSearch={setSearch}
+        search={effectiveSearch}
+        setSearch={setEffectiveSearch}
+        totalMatches={totalMatches}
       />
+      {isUpdating ? (
+        <p
+          aria-live="polite"
+          className="text-muted-foreground border-border flex items-center gap-2 border-b px-4 py-2 text-xs"
+        >
+          <Spinner size="small" /> Updating results…
+        </p>
+      ) : null}
       {!hasItems ? (
         <div className="text-muted-foreground flex h-28 items-center justify-center rounded-md border text-sm">
-          {items.length === 0 ? 'No documents found.' : 'No documents match the current search and filters.'}
+          {effectiveFilters.length || effectiveSearch
+            ? 'No documents match the current search and filters.'
+            : 'No documents found.'}
         </div>
       ) : style === 'Table' ? (
         <QueryBlockTable
@@ -325,6 +358,7 @@ function QueryBlockToolbar({
   setSorting,
   search,
   setSearch,
+  totalMatches,
 }: {
   showAttributes: boolean
   descriptors: QueryTableColumn[]
@@ -341,10 +375,14 @@ function QueryBlockToolbar({
   setSorting: (sorting: SortingState) => void
   search: string
   setSearch: (value: string) => void
+  totalMatches?: number
 }) {
   return (
-    <div className="border-border bg-muted/30 flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-      <div className="flex items-center gap-2">
+    <div
+      data-query-block-toolbar
+      className="border-border bg-muted/30 flex flex-wrap items-center gap-2 border-b px-4 py-3"
+    >
+      <div className="flex flex-wrap items-center gap-2">
         <FilterPopover
           descriptors={descriptors}
           items={items}
@@ -367,8 +405,37 @@ function QueryBlockToolbar({
             moveColumn={moveColumn}
           />
         ) : null}
+        {filters.length || search ? (
+          <ActiveFilterChipRow
+            onClear={() => {
+              setFilters([])
+              setSearch('')
+            }}
+          >
+            {filters.map((filter, index) => {
+              const column = descriptors.find((descriptor) => descriptor.id === filter.columnId)
+              const rawLabel = filter.columnId.replace(/^metadata:/, '')
+              const label = column?.label ?? rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1)
+              const text = `${label} ${filter.operator} ${filter.value}`
+              return (
+                <ActiveFilterChip
+                  key={`${filter.columnId}:${index}`}
+                  removeLabel={`Remove filter: ${text}`}
+                  onRemove={() => setFilters(filters.filter((_, filterIndex) => filterIndex !== index))}
+                >
+                  {text}
+                </ActiveFilterChip>
+              )
+            })}
+          </ActiveFilterChipRow>
+        ) : null}
+        {(filters.length || search) && totalMatches !== undefined ? (
+          <p className="text-muted-foreground text-xs tabular-nums">
+            Showing {items.length} of {totalMatches} matches
+          </p>
+        ) : null}
       </div>
-      <div className="relative w-full sm:w-64">
+      <div className="relative ml-auto w-full sm:w-64">
         <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
         <Input
           value={search}
@@ -395,21 +462,32 @@ function FilterPopover({
   filters: QueryTableFilter[]
   setFilters: (filters: QueryTableFilter[]) => void
 }) {
+  const supportedDescriptors = descriptors.filter(
+    (descriptor) => descriptor.id !== 'authors' && descriptor.id !== 'citations' && descriptor.id !== 'space',
+  )
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn('rounded-full', filters.length > 0 && 'border-primary text-primary')}
+        >
           <Filter className="size-4" />
-          Filter
+          {filters.length ? `Filter ${filters.length}` : 'Filter'}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-80">
+      <PopoverContent align="start" className="w-[min(24rem,calc(100vw-2rem))]">
         <div className="flex flex-col gap-3">
           {filters.map((filter, index) => (
-            <div key={index} className="flex items-center gap-2">
+            <div
+              key={index}
+              className="bg-muted/30 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 rounded-md border p-2"
+            >
               <SelectField
                 id={`filter-column-${index}`}
-                options={descriptors.map((d) => ({value: d.id, label: d.label}))}
+                label="Attribute"
+                options={supportedDescriptors.map((d) => ({value: d.id, label: d.label}))}
                 value={filter.columnId}
                 onValue={(value) => {
                   const nextColumnType = getQueryTableColumnType(
@@ -433,10 +511,10 @@ function FilterPopover({
                     ),
                   )
                 }}
-                className="flex-1"
               />
               <SelectField
                 id={`filter-operator-${index}`}
+                label="Condition"
                 options={getFilterOperatorOptions(filter.columnId, items, context, descriptors)}
                 value={filter.operator}
                 onValue={(value) =>
@@ -445,27 +523,34 @@ function FilterPopover({
                   )
                 }
               />
-              <Input
-                value={filter.value}
-                onChangeText={(value) => setFilters(filters.map((f, i) => (i === index ? {...f, value} : f)))}
-                aria-label="Filter value"
-                className="flex-1"
-              />
               <Button
                 size="icon"
                 variant="ghost"
                 aria-label="Remove filter"
+                className="self-end"
                 onClick={() => setFilters(filters.filter((_, i) => i !== index))}
               >
                 <X className="size-4" />
               </Button>
+              <label className="col-span-full flex min-w-0 flex-col gap-1 text-sm">
+                <span className="text-muted-foreground text-xs">Value</span>
+                <Input
+                  value={filter.value}
+                  onChangeText={(value) => setFilters(filters.map((f, i) => (i === index ? {...f, value} : f)))}
+                  aria-label="Filter value"
+                />
+              </label>
             </div>
           ))}
           <Button
             variant="ghost"
             size="sm"
+            className="self-start"
             onClick={() =>
-              setFilters([...filters, {columnId: descriptors[0]?.id ?? 'title', operator: 'contains', value: ''}])
+              setFilters([
+                ...filters,
+                {columnId: supportedDescriptors[0]?.id ?? 'title', operator: 'contains', value: ''},
+              ])
             }
           >
             Add filter
@@ -511,7 +596,7 @@ function SortPopover({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" className="rounded-full">
           <ArrowUpDown className="size-4" />
           Sort
         </Button>

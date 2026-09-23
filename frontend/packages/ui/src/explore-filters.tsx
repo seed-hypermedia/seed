@@ -1,13 +1,14 @@
 import type {HMExploreContext, HMExploreResultType} from '@shm/shared/explore'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {Check, ChevronDown} from 'lucide-react'
+import {Check, ChevronDown, X} from 'lucide-react'
+import type {ReactNode} from 'react'
 import {useState} from 'react'
 import {Button} from './button'
 import {Checkbox} from './components/checkbox'
 import {cn} from './utils'
 
 /** Trigger for one dropdown in the explorer filter row. */
-export function ExploreChipButton({
+export function FilterChipButton({
   label,
   active,
   open,
@@ -31,6 +32,46 @@ export function ExploreChipButton({
     </Button>
   )
 }
+
+/** Removable active-filter chip shared by Explore and query blocks. */
+export function ActiveFilterChip({
+  children,
+  onRemove,
+  removeLabel,
+}: {
+  children: ReactNode
+  onRemove: () => void
+  removeLabel: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onRemove}
+      aria-label={removeLabel}
+      className="border-border bg-muted/40 hover:bg-muted inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-mono text-xs transition-colors"
+    >
+      {children}
+      <X className="size-3" aria-hidden />
+    </button>
+  )
+}
+
+/** Wrapping active-filter row with the shared Clear all action. */
+export function ActiveFilterChipRow({children, onClear}: {children: ReactNode; onClear?: () => void}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {children}
+      {onClear ? (
+        <button type="button" className="text-muted-foreground hover:text-foreground px-2 text-xs" onClick={onClear}>
+          Clear all
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
+/** @deprecated Use FilterChipButton. */
+export const ExploreChipButton = FilterChipButton
 
 /** Space picker opened by the scope chip. */
 export function ExploreScopeMenu({
