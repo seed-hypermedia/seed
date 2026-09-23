@@ -145,13 +145,43 @@ function argValue(args: string[], flag: string): string | undefined {
   return idx >= 0 ? args[idx + 1] : undefined
 }
 
+/**
+ * A site's PublishBlobs accepts one request body of at most about 100 KB — the whole library
+ * in one call was refused with 413 — so blobs go up in batches under a byte budget.
+ */
+const PUBLISH_BATCH_BYTES = 48 * 1024
+const PUBLISH_BATCH_COUNT = 32
+
+/** Split blobs into batches whose raw bytes stay under the budget (a single oversized blob goes alone). */
+export function batchBlobs<T extends {data: Uint8Array}>(
+  blobs: T[],
+  maxBytes = PUBLISH_BATCH_BYTES,
+  maxCount = PUBLISH_BATCH_COUNT,
+): T[][] {
+  const batches: T[][] = []
+  let current: T[] = []
+  let size = 0
+  for (const blob of blobs) {
+    if (current.length > 0 && (size + blob.data.byteLength > maxBytes || current.length >= maxCount)) {
+      batches.push(current)
+      current = []
+      size = 0
+    }
+    current.push(blob)
+    size += blob.data.byteLength
+  }
+  if (current.length > 0) batches.push(current)
+  return batches
+}
+
 /** Publish the schema blobs, then import hypermedia/ into `account` on `client`. */
 async function pushTo(client: SeedClient, signer: HMSigner, account: string, dryRun: boolean, keepStale = false) {
   const blobs = await loadSchemaBlobs()
   console.log(`Schema blobs: ${blobs.length} encoded, all CIDs match the lockfile.`)
   if (!dryRun) {
-    console.log(`Publishing ${blobs.length} schema blobs...`)
-    await client.publish({blobs})
+    const batches = batchBlobs(blobs)
+    console.log(`Publishing ${blobs.length} schema blobs in ${batches.length} requests...`)
+    for (const batch of batches) await client.publish({blobs: batch})
     console.log('  done.\n')
   }
   const result = await importSpace({
@@ -310,7 +340,10 @@ async function main() {
   process.exit(2)
 }
 
-main().catch((err) => {
-  console.error(err)
-  process.exit(1)
-})
+// A test imports the batching helper; only a direct run is the CLI.
+if (import.meta.main) {
+  main().catch((err) => {
+    console.error(err)
+    process.exit(1)
+  })
+}
