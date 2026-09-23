@@ -94,6 +94,8 @@ const desktopAgentsPlatform: AgentsPlatform = {
     }
     return {peerId: config.peerId, addrs: config.addrs}
   },
+  // The local agents server runs the speech pipeline, so desktop composers get the mic button.
+  voiceChat: true,
   oauthRedirectCatcher: {
     start: (state: string | null) => client.providerOAuth.startCallback.mutate({state}),
     captured: () => client.providerOAuth.capturedCallback.query(),
