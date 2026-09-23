@@ -10,6 +10,7 @@ import {ScheduleMonitor} from '@/schedule-monitor'
 import * as cbor from '@/cbor'
 import * as config from '@/config'
 import * as sqlite from '@/sqlite'
+import * as voicesvc from '@/voice'
 import {type BunRequest, type Server, type ServerWebSocket, serve} from 'bun'
 import * as fs from 'node:fs'
 import * as filepath from 'node:path'
@@ -131,6 +132,8 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
         // Which runtimes this server can actually run: `ts` needs an image with bun, so an
         // operator can see at a glance whether TypeScript execution is on here.
         codeExecRuntimes: codeExec.runtimes,
+        // Voice chat (LiveKit room + speech worker): desktop shows the mic button only when true.
+        voice: svc.voiceAvailable,
       },
       {headers: corsHeaders()},
     )
@@ -444,8 +447,17 @@ async function main(): Promise<void> {
     }
   }
   configureDocsSpace(cfg.docs)
+  // Voice: the turn route follows a session's streaming deltas through the voice hub, so it sees
+  // every service event the WebSocket publisher sees.
+  const voice = cfg.voice.enabled ? new voicesvc.VoiceService(cfg.voice) : undefined
+  const onEvent = voice
+    ? (event: apisvc.ServiceEvent) => {
+        voice.onServiceEvent(event)
+        publish(event)
+      }
+    : publish
   const svc = new apisvc.Service(db, cfg.dataDir, {
-    onEvent: publish,
+    onEvent,
     hmServerUrl: cfg.activity.hmServerUrl,
     ipfsServerUrl: cfg.activity.ipfsServerUrl,
     web: cfg.web,
@@ -453,6 +465,7 @@ async function main(): Promise<void> {
     subscriptionAuth: cfg.subscriptionAuth,
     titleGeneration: cfg.titleGeneration,
     runQueue: cfg.runQueue,
+    voice,
   })
   const activityMonitor = new ActivityMonitor(db, svc, cfg.activity)
   const scheduleMonitor = new ScheduleMonitor(svc, {pollIntervalMs: cfg.activity.pollIntervalMs})
@@ -467,6 +480,8 @@ async function main(): Promise<void> {
     error: handleError,
     routes: {
       ...createAPIRoutes(svc),
+      // Internal worker routes exist only with voice on; otherwise they fall through to the 404.
+      ...(voice ? voice.routes(svc) : {}),
       '/agents/ws': (req: BunRequest, srv: Server<WSData>) => {
         const upgraded = srv.upgrade(req, {
           data: {
@@ -547,6 +562,16 @@ async function main(): Promise<void> {
     },
   })
 
+  // The speech worker is a child of this process in production (one container); the dev loop runs
+  // it in its own mprocs pane (`external`) so it hot-reloads independently.
+  const voiceWorker =
+    voice && cfg.voice.worker === 'child'
+      ? voicesvc.startVoiceWorker(cfg.voice, {
+          serverUrl: `http://127.0.0.1:${server.port}`,
+          internalToken: voice.internalToken,
+        })
+      : undefined
+
   let shuttingDown = false
   const shutdown = async () => {
     if (shuttingDown) return
@@ -554,6 +579,7 @@ async function main(): Promise<void> {
     shuttingDown = true
     activityMonitor.stop()
     scheduleMonitor.stop()
+    await voiceWorker?.stop()
     for (const ws of clients) ws.close(1001, 'Server shutting down')
     clients.clear()
     // stop() waits for every open connection; clients whose sockets never finish closing would keep
@@ -586,6 +612,11 @@ async function main(): Promise<void> {
     `  Web tools: search=${cfg.web.searxngUrl ? 'on' : 'off'} reader=${
       cfg.web.crawlerUrl ? 'static+crawl4ai' : 'static-only'
     }`,
+  )
+  console.log(
+    cfg.voice.enabled
+      ? `  Voice: livekit=${cfg.voice.livekitUrl} stt=deepgram/${cfg.voice.deepgramModel} tts=cartesia/${cfg.voice.cartesiaModel} worker=${cfg.voice.worker}`
+      : '  Voice: off',
   )
 }
 
