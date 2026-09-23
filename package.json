@@ -4,9 +4,9 @@
   "scripts": {
     "test": "pnpm web:test && pnpm shared:test && pnpm desktop:test:unit",
     "hypermedia:check": "node scripts/hypermedia/check.mjs",
-    "docs:dev": "cd frontend/apps/cli && bun run src/index.ts space dev --dir ../../../seed-docs",
-    "docs:push": "cd frontend/apps/cli && bun run src/index.ts space import self --dir ../../../seed-docs",
-    "docs:pull": "cd frontend/apps/cli && bun run src/index.ts space export self --dir ../../../seed-docs",
+    "hypermedia:dev": "cd frontend/apps/cli && bun run src/sync-hypermedia.ts dev",
+    "hypermedia:push": "cd frontend/apps/cli && bun run src/sync-hypermedia.ts push",
+    "hypermedia:pull": "cd frontend/apps/cli && bun run src/sync-hypermedia.ts pull",
     "shared:test": "pnpm --filter @shm/shared test",
     "format:check": "pnpm -r --parallel run format:check && (cd agents && bun run format:check) && (cd vault && bun run format:check)",
     "typecheck": "pnpm -r --parallel run typecheck",
