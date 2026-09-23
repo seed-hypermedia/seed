@@ -1,7 +1,5 @@
 // @vitest-environment jsdom
 import {TooltipProvider} from '@shm/ui/tooltip'
-import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
-import {UniversalAppProvider} from '@shm/shared/routing'
 import {
   CBOR_VALUE_RULES,
   METADATA_VALUE_RULES,
@@ -44,15 +42,11 @@ function renderString(
 ) {
   act(() => {
     root.render(
-      <QueryClientProvider client={new QueryClient({defaultOptions: {queries: {retry: false}}})}>
-        <UniversalAppProvider openUrl={() => {}} openRoute={null} universalClient={{request: async () => ({})} as any}>
-          <TooltipProvider>
-            <ValueEditorProvider fileUpload={opts.fileUpload} openFile={opts.openFile}>
-              <ValueEditor value={value} onValue={opts.onValue ?? (() => {})} rules={METADATA_VALUE_RULES} />
-            </ValueEditorProvider>
-          </TooltipProvider>
-        </UniversalAppProvider>
-      </QueryClientProvider>,
+      <TooltipProvider>
+        <ValueEditorProvider fileUpload={opts.fileUpload} openFile={opts.openFile}>
+          <ValueEditor value={value} onValue={opts.onValue ?? (() => {})} rules={METADATA_VALUE_RULES} />
+        </ValueEditorProvider>
+      </TooltipProvider>,
     )
   })
 }
@@ -152,19 +146,11 @@ describe('string field IPFS file references', () => {
     const onValue = vi.fn()
     act(() => {
       root.render(
-        <QueryClientProvider client={new QueryClient({defaultOptions: {queries: {retry: false}}})}>
-          <UniversalAppProvider
-            openUrl={() => {}}
-            openRoute={null}
-            universalClient={{request: async () => ({})} as any}
-          >
-            <TooltipProvider>
-              <ValueEditorProvider>
-                <ObjectEditor value={{title: 'x'}} onValue={onValue} rules={METADATA_VALUE_RULES} path={[]} />
-              </ValueEditorProvider>
-            </TooltipProvider>
-          </UniversalAppProvider>
-        </QueryClientProvider>,
+        <TooltipProvider>
+          <ValueEditorProvider>
+            <ObjectEditor value={{title: 'x'}} onValue={onValue} rules={METADATA_VALUE_RULES} path={[]} />
+          </ValueEditorProvider>
+        </TooltipProvider>,
       )
     })
     const row = container.querySelector('[role="treeitem"]') as HTMLElement
@@ -182,19 +168,11 @@ describe('string field IPFS file references', () => {
     const onValue = vi.fn()
     act(() => {
       root.render(
-        <QueryClientProvider client={new QueryClient({defaultOptions: {queries: {retry: false}}})}>
-          <UniversalAppProvider
-            openUrl={() => {}}
-            openRoute={null}
-            universalClient={{request: async () => ({})} as any}
-          >
-            <TooltipProvider>
-              <ValueEditorProvider>
-                <ValueEditor value="" onValue={onValue} rules={CBOR_VALUE_RULES} />
-              </ValueEditorProvider>
-            </TooltipProvider>
-          </UniversalAppProvider>
-        </QueryClientProvider>,
+        <TooltipProvider>
+          <ValueEditorProvider>
+            <ValueEditor value="" onValue={onValue} rules={CBOR_VALUE_RULES} />
+          </ValueEditorProvider>
+        </TooltipProvider>,
       )
     })
     const input = container.querySelector('input') as HTMLInputElement
@@ -213,19 +191,11 @@ describe('string field IPFS file references', () => {
     const cid = 'bafyreia6fzsx6pkwdolb6qqa6b4tb7kxt2xcjuhuoxyvvt4p6lucacfg2y'
     act(() => {
       root.render(
-        <QueryClientProvider client={new QueryClient({defaultOptions: {queries: {retry: false}}})}>
-          <UniversalAppProvider
-            openUrl={() => {}}
-            openRoute={null}
-            universalClient={{request: async () => ({})} as any}
-          >
-            <TooltipProvider>
-              <ValueEditorProvider openFile={openFile}>
-                <ValueEditor value={{'/': cid}} onValue={() => {}} rules={CBOR_VALUE_RULES} />
-              </ValueEditorProvider>
-            </TooltipProvider>
-          </UniversalAppProvider>
-        </QueryClientProvider>,
+        <TooltipProvider>
+          <ValueEditorProvider openFile={openFile}>
+            <ValueEditor value={{'/': cid}} onValue={() => {}} rules={CBOR_VALUE_RULES} />
+          </ValueEditorProvider>
+        </TooltipProvider>,
       )
     })
     // A valid link renders as a tag (no CID input), like an ipfs:// reference.
@@ -244,19 +214,11 @@ describe('string field IPFS file references', () => {
     const cid = 'bafyreia6fzsx6pkwdolb6qqa6b4tb7kxt2xcjuhuoxyvvt4p6lucacfg2y'
     act(() => {
       root.render(
-        <QueryClientProvider client={new QueryClient({defaultOptions: {queries: {retry: false}}})}>
-          <UniversalAppProvider
-            openUrl={() => {}}
-            openRoute={null}
-            universalClient={{request: async () => ({})} as any}
-          >
-            <TooltipProvider>
-              <ValueEditorProvider openFile={openFile}>
-                <ValueDisplay value={{'/': cid}} rules={CBOR_VALUE_RULES} />
-              </ValueEditorProvider>
-            </TooltipProvider>
-          </UniversalAppProvider>
-        </QueryClientProvider>,
+        <TooltipProvider>
+          <ValueEditorProvider openFile={openFile}>
+            <ValueDisplay value={{'/': cid}} rules={CBOR_VALUE_RULES} />
+          </ValueEditorProvider>
+        </TooltipProvider>,
       )
     })
     // Read-only: a tag with no clear/remove button.

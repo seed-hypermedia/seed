@@ -8,8 +8,6 @@ import {
   hypermediaUrlToRoute,
 } from '@shm/shared'
 import {useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
-import {getWindowType} from '@/utils/window-types'
-import {pageFrameStyles} from '@shm/ui/container'
 import {InspectIpfsPage} from '@shm/ui/inspect-ipfs-page'
 import {useCallback, useMemo} from 'react'
 
@@ -42,26 +40,20 @@ export default function DesktopInspectIpfsPage() {
 
   const isMac = platform === 'darwin'
   const gatewayUrl = useGatewayUrl().data || undefined
-  // In its own chromeless window the page's header doubles as the title bar
-  // (traffic-light inset, close button). In the main window it is a regular
-  // page inside the rounded frame every page shares.
-  const chromeless = getWindowType() === 'inspect-ipfs'
-  const page = (
+  return (
     <InspectIpfsPage
       ipfsPath={route.ipfsPath}
-      editField={route.editField}
       exitRoute={exitRoute}
       getRouteForUrl={getRouteForUrl}
       gatewayUrl={gatewayUrl}
-      trafficLightInset={chromeless && isMac}
+      trafficLightInset={isMac}
       windowControls={
-        chromeless && !isMac ? (
+        isMac ? undefined : (
           <div className="no-window-drag flex size-[26px] items-center justify-center">
             <CloseButton />
           </div>
-        ) : undefined
+        )
       }
     />
   )
-  return chromeless ? page : <div className={pageFrameStyles}>{page}</div>
 }

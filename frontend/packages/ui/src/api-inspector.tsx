@@ -1,4 +1,3 @@
-import {structFields} from './schema/engine'
 import {
   AlertCircle,
   ArrowRight,
@@ -672,13 +671,13 @@ function SchemaNodeView({
 
       {(schemaType === 'object' || (!schemaType && resolvedSchema.properties)) && resolvedSchema.properties ? (
         <div className="mt-4 space-y-3">
-          {structFields(resolvedSchema).map((field) => (
+          {Object.entries(resolvedSchema.properties).map(([propertyName, propertySchema]) => (
             <SchemaNodeView
-              key={field.name}
+              key={propertyName}
               rootSchema={rootSchema}
-              schema={field.schema}
-              name={field.name}
-              required={field.required}
+              schema={propertySchema}
+              name={propertyName}
+              required={resolvedSchema.required?.includes(propertyName)}
             />
           ))}
         </div>

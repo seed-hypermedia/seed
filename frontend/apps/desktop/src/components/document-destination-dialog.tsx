@@ -1,10 +1,9 @@
 import {useSelectedAccountWritableDocuments} from '@/models/access-control'
-import {useCreateDraft, useMoveDocument, useMoveDraft, useRepublishDocument} from '@/models/documents'
+import {useMoveDocument, useMoveDraft, useRepublishDocument} from '@/models/documents'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
-  DOCUMENT_CREATE_MODES,
   DocumentDestinationDialog as SharedDocumentDestinationDialog,
   type DocumentDestinationDialogInput,
   type DocumentDestinationMode,
@@ -29,33 +28,8 @@ export function DocumentDestinationDialog({
   const moveDraft = useMoveDraft()
   const republishDocument = useRepublishDocument()
   const navigate = useNavigate()
-  const createDraft = useCreateDraft()
 
   async function onSubmit(submitInput: DocumentDestinationSubmitInput) {
-    if (submitInput.mode === 'extend-schema') {
-      // A new document draft at the chosen location, carrying a working schema rooted on the
-      // base (`ref`); the Schema tab edits it, and publish freezes it into an IPFS blob.
-      const baseCid = submitInput.extendSchema?.baseSchemaCid
-      if (!baseCid) throw new Error('Missing base schema')
-      await createDraft({
-        location: {locationUid: submitInput.to.uid, locationPath: submitInput.to.path?.slice(0, -1) ?? []},
-        initialMetadata: {name: submitInput.name || 'Extended Schema'},
-        initialSchemaDraft: {type: `ipfs://${baseCid}`, properties: {}},
-      })
-      return
-    }
-    if (submitInput.mode === 'new-typed-document' || submitInput.mode === 'new-typed-collection') {
-      // A new document draft at the chosen location, bound to the schema page: its own attributes
-      // follow the schema (`attributesSchema`), or its children's do (`childAttributesSchema`).
-      const schemaUrl = submitInput.typed?.schemaUrl
-      if (!schemaUrl) throw new Error('Missing schema')
-      const bindingKey = submitInput.mode === 'new-typed-document' ? 'attributesSchema' : 'childAttributesSchema'
-      await createDraft({
-        location: {locationUid: submitInput.to.uid, locationPath: submitInput.to.path?.slice(0, -1) ?? []},
-        initialMetadata: {name: submitInput.name || 'Untitled', [bindingKey]: schemaUrl},
-      })
-      return
-    }
     if (submitInput.draft?.draftId) {
       await moveDraft.mutateAsync({
         draftId: submitInput.draft.draftId,
@@ -81,13 +55,9 @@ export function DocumentDestinationDialog({
       onClose={onClose}
       selectedAccountUid={selectedAccountUid}
       writableDocuments={writableDocuments.map(toWritableDestination)}
-      enabledModes={['move', 'republish', 'extend-schema', 'new-typed-document', 'new-typed-collection']}
+      enabledModes={['move', 'republish']}
       onSubmit={onSubmit}
-      // create modes: useCreateDraft already navigated to the new draft; `to` is the final
-      // published path, which does not exist yet.
-      onSuccess={({mode, to}) => {
-        if (!DOCUMENT_CREATE_MODES.includes(mode)) navigate({key: 'document', id: to})
-      }}
+      onSuccess={({to}) => navigate({key: 'document', id: to})}
     />
   )
 }

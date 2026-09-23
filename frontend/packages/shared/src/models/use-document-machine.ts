@@ -466,8 +466,6 @@ export function useDraftResolutionSync(
         mineTouchedIds?: string[] | null
         baseBlocks?: HMBlockNode[] | null
         publishPath?: string[] | null
-        schemaDraft?: Record<string, any> | null
-        bindingSchemaDrafts?: Record<string, Record<string, any>> | null
       }
     | undefined,
 ) {
@@ -498,8 +496,6 @@ export function useDraftResolutionSync(
         mineTouchedIds: resolved.mineTouchedIds ?? null,
         baseBlocks: resolved.baseBlocks ?? null,
         publishPath: resolved.publishPath ?? null,
-        schemaDraft: resolved.schemaDraft ?? null,
-        bindingSchemaDrafts: resolved.bindingSchemaDrafts ?? null,
       })
     } else if (resolved !== undefined && sentRef.current) {
       documentEmbedCleanupInfo(
@@ -628,18 +624,6 @@ export function selectPendingRemoteVersion(snapshot: DocumentMachineSnapshot): s
 /** The current draft ID, if any. */
 export function selectDraftId(snapshot: DocumentMachineSnapshot): string | null {
   return snapshot.context.draftId
-}
-
-/** The draft's working schema (the object behind `schemaDefinition`), or null. */
-export function selectSchemaDraft(snapshot: DocumentMachineSnapshot): DocumentMachineContext['schemaDraft'] {
-  return snapshot.context.schemaDraft
-}
-
-/** The draft's working binding schemas (behind `attributesSchema` / `childAttributesSchema`), or null. */
-export function selectBindingSchemaDrafts(
-  snapshot: DocumentMachineSnapshot,
-): DocumentMachineContext['bindingSchemaDrafts'] {
-  return snapshot.context.bindingSchemaDrafts
 }
 
 /** Whether there are unsaved changes (draft created + in editing state). */

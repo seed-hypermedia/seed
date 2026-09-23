@@ -1,7 +1,6 @@
 import type {
   DiscoveryState,
   HMDocumentInfo,
-  HMDraft,
   HMListedDraft,
   HMPrepareDocumentChangeInput,
   HMRequest,
@@ -43,8 +42,6 @@ export type {RecentsResult}
 // Drafts service for querying drafts (desktop only)
 export type DraftsService = {
   listAccountDrafts: (accountUid: string | undefined) => Promise<HMListedDraft[]>
-  /** One draft in full (its content, metadata and working schemas), or null. */
-  getDraft?: (draftId: string) => Promise<HMDraft | null>
 }
 
 // Discovery service for tracking entity discovery state

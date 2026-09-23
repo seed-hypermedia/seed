@@ -89,28 +89,6 @@ describe('mention candidate service', () => {
       id: {uid: 'space', path: [], version: 'current-head', latest: true},
     })
   })
-  it('drops a hit on a superseded title: an account renamed since the match is not what the query names', async () => {
-    const client = daemon()
-    client.entities.searchEntities.mockResolvedValue({
-      entities: [
-        // "kat" was once titled "Eric5": the index still holds that title at the old version, which the
-        // daemon leaves without the latest marker because a later change replaced it.
-        {id: 'hm://kat?v=old-version', type: 'title', content: 'Eric5'},
-        // A title hit carried to the current version keeps the account.
-        {id: 'hm://space?v=current-head&l', type: 'title', content: 'Eric Testing'},
-        {id: 'hm://alice', type: 'profile', content: 'Eric Vicenti'},
-      ],
-    })
-    const results = await MentionCandidates.getData(
-      client as unknown as GRPCClient,
-      {mode: 'account', query: 'eric'},
-      async () => {
-        throw new Error('unexpected daemon query')
-      },
-    )
-    expect(results.map((r) => r.id.uid).sort()).toEqual(['alice', 'space'])
-  })
-
   it('omits unpublished or inaccessible documents instead of producing account links', async () => {
     const client = daemon()
     client.documents.getDocumentInfo.mockRejectedValue(new Error('not found'))

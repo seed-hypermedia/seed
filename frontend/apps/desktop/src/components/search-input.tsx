@@ -3,7 +3,7 @@ import {domainResolver} from '@/grpc-client'
 import {useConnectPeer} from '@/models/contacts'
 import {useExperiments} from '@/models/experiments'
 import {useGatewayHost_DEPRECATED} from '@/models/gateway-settings'
-import {agentUrlToRoute, ipfsUrlToRoute} from '@/omnibar-url'
+import {agentUrlToRoute} from '@/omnibar-url'
 import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {parseDeepLink} from '@/utils/deep-links'
@@ -91,7 +91,6 @@ export const SearchInput = forwardRef<
       isHypermediaScheme(debouncedSearch) ||
       debouncedSearch.startsWith('http://') ||
       debouncedSearch.startsWith('https://') ||
-      debouncedSearch.startsWith('ipfs://') ||
       debouncedSearch.includes('.')
     ) {
       return {
@@ -102,14 +101,6 @@ export const SearchInput = forwardRef<
           if (deepLinkEvent) {
             onClose?.()
             triggerWindowEvent(deepLinkEvent)
-            return
-          }
-
-          // ipfs:// URLs: DAG-CBOR CIDs open in the blob editor, others in the inspector.
-          const ipfsRoute = ipfsUrlToRoute(search)
-          if (ipfsRoute) {
-            onClose?.()
-            onSelect({route: ipfsRoute})
             return
           }
 

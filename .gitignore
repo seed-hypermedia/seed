@@ -157,6 +157,3 @@ __pycache__/
 hypermedia/.dev/
 seed-docs/.dev/
 
-# Playwright output from the @shm/ui e2e harness
-frontend/packages/ui/e2e/test-results/
-frontend/packages/ui/e2e/playwright-report/

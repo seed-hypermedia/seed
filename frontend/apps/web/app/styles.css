@@ -42,11 +42,6 @@ body {
   width: 2px;
   /* background-color: var(--color7); */
   position: relative;
-  /* Own stacking context, kept below the z-50 overlays (dialogs, popovers,
-     dropdowns) so an open dialog covers the handle and its hit strip. The
-     ::after strip used to carry z-index: 900 in the page context, which put
-     it above dialogs and let a click inside the dialog land on the divider. */
-  z-index: 40;
 }
 
 .panel-resize-handle::after {
@@ -58,7 +53,7 @@ body {
   width: 10px;
   height: 100%;
   background: transparent;
-  z-index: 1;
+  z-index: 900;
   pointer-events: auto;
   cursor: col-resize !important;
 }

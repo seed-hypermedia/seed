@@ -52,7 +52,6 @@ export {filterChildDrafts}
 import {hmId, hmIdToURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath, hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {DocNavigationItem} from '@shm/ui/navigation'
-import {freezeSchemaDraft} from '@shm/ui/schema/schema-document'
 import {PushResourceStatus} from '@shm/ui/push-toast'
 import {useMutation, UseMutationOptions, useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {findParentNode} from '@tiptap/core'
@@ -369,17 +368,11 @@ export function usePublishResource(
           const changes = compareBlocksWithMap(blocksMap, newContent, '')
           const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
 
-          // A draft's working schemas are frozen into blobs here: the document's own
-          // (`schemaDefinition`) and its children's (`childAttributesSchema`).
-          const publishMetadata = await freezeSchemaDraft(
-            desktopUniversalClient,
-            {...editDocument?.metadata, ...draft.metadata},
-            draft.schemaDraft,
-            draft.bindingSchemaDrafts,
-          )
           const allChanges = [
             ...navigationChanges,
-            ...getDocAttributeChanges(expandObjectRemovals(publishMetadata, editDocument?.metadata)),
+            ...getDocAttributeChanges(
+              expandObjectRemovals({...editDocument?.metadata, ...draft.metadata}, editDocument?.metadata),
+            ),
             ...changes.changes,
             ...deleteChanges,
           ]
@@ -1138,22 +1131,15 @@ export function useCreateDraft(
     visibility,
     initialMetadata,
     initialContent,
-    initialSchemaDraft,
-    location,
   }: {
     visibility?: HMResourceVisibility
     initialMetadata?: HMDraft['metadata']
     initialContent?: EditorBlock[]
-    /** A working schema for a draft whose document defines a type (New Schema, Extend Schema). */
-    initialSchemaDraft?: Record<string, any>
-    /** Call-time location override, for flows that pick the destination in a dialog. */
-    location?: {locationUid?: HMDraftMeta['locationUid']; locationPath?: HMDraftMeta['locationPath']}
   } = {}) => {
-    const hasInitialData =
-      initialMetadata !== undefined || initialContent !== undefined || initialSchemaDraft !== undefined
+    const hasInitialData = initialMetadata !== undefined || initialContent !== undefined
     const plan = computeNewDraftParams(
       visibility,
-      location ? {...draftParams, ...location} : draftParams,
+      draftParams,
       selectedAccountId ?? undefined,
       () => nanoid(10),
       () => nanoid(21),
@@ -1175,7 +1161,6 @@ export function useCreateDraft(
         signingAccount: selectedAccountId ?? undefined,
         metadata: initialMetadata ?? {},
         content: initialContent ?? [],
-        schemaDraft: initialSchemaDraft,
         deps: plan.writeParams.deps ?? [],
       })
       invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, plan.routeId.uid])

@@ -1,13 +1,6 @@
 import {hmId} from '@shm/shared'
 import {describe, expect, it} from 'vitest'
-import {
-  exploreHref,
-  exploreTabHref,
-  isProfileId,
-  parseHmRoutePath,
-  tabToViewTerm,
-  viewTermToExploreTab,
-} from './exploreHref'
+import {exploreHref, exploreTabHref, isProfileId, parseHmRoutePath, tabToViewTerm, viewTermToExploreTab} from './exploreHref'
 
 describe('exploreHref', () => {
   it('links to a profile (root document) with no path', () => {

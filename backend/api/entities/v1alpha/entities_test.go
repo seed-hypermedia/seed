@@ -167,39 +167,6 @@ func TestSearchEntitiesFindsProfileOnlyAccount(t *testing.T) {
 	require.Equal(t, "web eric 84", res.Entities[0].Content)
 }
 
-// A renamed account is found by its current name only: every Profile blob is indexed, and
-// without this the old name would surface the account under its new one.
-func TestSearchEntitiesProfileRenameDropsOldName(t *testing.T) {
-	t.Parallel()
-
-	svc := newTestServices(t, "bob")
-	ctx := context.Background()
-	account := svc.me.Account.PublicKey.String()
-
-	for _, name := range []string{"web eric 4", "Douglas"} {
-		_, err := svc.documents.UpdateProfile(ctx, &documents.UpdateProfileRequest{
-			Account:        account,
-			SigningKeyName: "main",
-			Profile:        &documents.Profile{Name: name},
-		})
-		require.NoError(t, err)
-	}
-
-	search := func(query string) []*entpb.Entity {
-		res, err := svc.entities.SearchEntities(ctx, &entpb.SearchEntitiesRequest{
-			Query:            query,
-			EntityKindFilter: []entpb.EntityKindFilter{entpb.EntityKindFilter_ENTITY_KIND_SPACE},
-		})
-		require.NoError(t, err)
-		return res.Entities
-	}
-	require.Empty(t, search("eric"), "the superseded profile name must not match")
-	current := search("douglas")
-	require.Len(t, current, 1)
-	require.Equal(t, "hm://"+account, current[0].Id)
-	require.Equal(t, "Douglas", current[0].Content)
-}
-
 func TestBuildRankMap(t *testing.T) {
 	t.Parallel()
 

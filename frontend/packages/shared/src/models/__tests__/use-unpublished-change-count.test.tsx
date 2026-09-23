@@ -15,8 +15,6 @@ const {selectMock, handlersRefMock} = vi.hoisted(() => ({
     metadata: {} as Record<string, any>,
     navigation: undefined as any,
     saveStatus: 'idle' as 'idle' | 'changed' | 'saving' | 'saved',
-    schemaDraft: null as Record<string, any> | null,
-    bindingSchemaDrafts: null as Record<string, Record<string, any>> | null,
   },
   handlersRefMock: {current: null as any},
 }))
@@ -31,8 +29,6 @@ vi.mock('../use-document-machine', () => ({
         editorBaseline: selectMock.editorBaseline,
         metadata: selectMock.metadata,
         navigation: selectMock.navigation,
-        schemaDraft: selectMock.schemaDraft,
-        bindingSchemaDrafts: selectMock.bindingSchemaDrafts,
       },
       matches: () => false,
     }
@@ -45,8 +41,6 @@ vi.mock('../use-document-machine', () => ({
   selectMetadata: (s: any) => s.context.metadata,
   selectNavigation: (s: any) => s.context.navigation,
   selectSaveStatus: () => selectMock.saveStatus,
-  selectSchemaDraft: (s: any) => s.context.schemaDraft,
-  selectBindingSchemaDrafts: (s: any) => s.context.bindingSchemaDrafts,
 }))
 
 vi.mock('../editor-handlers-context', () => ({
@@ -114,8 +108,6 @@ describe('useUnpublishedChangeCount', () => {
     selectMock.blocks = []
     selectMock.document = {detachedBlocks: {}}
     selectMock.draftId = null
-    selectMock.schemaDraft = null
-    selectMock.bindingSchemaDrafts = null
     selectMock.editorBaseline = null
     selectMock.metadata = {}
     selectMock.navigation = undefined
@@ -246,20 +238,5 @@ describe('useUnpublishedChangeCount', () => {
     } finally {
       cleanup(root, container)
     }
-  })
-
-  it('counts drafted schemas as changes when nothing else changed', () => {
-    const STRUCT = {type: 'hm://hyper.media/struct', properties: {}}
-    selectMock.draftId = 'draft-1'
-    selectMock.bindingSchemaDrafts = {childAttributesSchema: STRUCT}
-    const first = renderProbe()
-    expect(first.container.firstElementChild?.getAttribute('data-count')).toBe('1')
-    cleanup(first.root, first.container)
-
-    selectMock.schemaDraft = STRUCT
-    selectMock.bindingSchemaDrafts = {attributesSchema: STRUCT, childAttributesSchema: STRUCT}
-    const second = renderProbe()
-    expect(second.container.firstElementChild?.getAttribute('data-count')).toBe('3')
-    cleanup(second.root, second.container)
   })
 })

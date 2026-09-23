@@ -500,8 +500,6 @@ const DraftWriteSchema = z.object({
   mineTouchedIds: z.array(z.string()).optional(),
   baseBlocks: z.array(z.any()).optional(),
   publishPath: z.array(z.string()).optional(),
-  schemaDraft: z.record(z.string(), z.any()).optional(),
-  bindingSchemaDrafts: z.record(z.string(), z.record(z.string(), z.any())).optional(),
   maintenancePreviousDeps: z.array(z.array(z.string())).optional(),
   maintenanceRevision: z.number().int().nonnegative().default(0),
 })
@@ -594,8 +592,6 @@ async function writeDraft(input: z.infer<typeof DraftWriteSchema>, maintenance =
     mineTouchedIds: input.mineTouchedIds,
     baseBlocks: input.baseBlocks,
     publishPath: input.publishPath,
-    schemaDraft: input.schemaDraft,
-    bindingSchemaDrafts: input.bindingSchemaDrafts,
     maintenancePreviousDeps,
     maintenanceRevision: maintenance ? (current?.maintenanceRevision ?? 0) + 1 : input.maintenanceRevision ?? 0,
   }

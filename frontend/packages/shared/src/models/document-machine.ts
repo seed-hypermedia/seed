@@ -1,11 +1,3 @@
-import {
-  draftBindingSchemaDrafts,
-  draftSchemaDraft,
-  splitLegacySchemaDraft,
-  type BindingSchemaDrafts,
-  type BindingSchemaKey,
-  type SchemaDraft,
-} from './schema-draft'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {EditorBlock, EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
 import {
@@ -389,18 +381,6 @@ export type DocumentMachineContext = {
    * honored at publish time in place of the title-derived slug.
    */
   publishPath: string[] | null
-  /**
-   * The working schema of a draft whose document defines a type (see `schema-draft.ts`). It lives
-   * beside the metadata, not in it; hydrated from the draft, persisted via `writeDraft`, and frozen
-   * into the document's `schemaDefinition` at publish.
-   */
-  schemaDraft: SchemaDraft
-  /**
-   * The working attributes schemas behind this document's `attributesSchema` and its children's
-   * `childAttributesSchema`, by key (see `schema-draft.ts`). Same lifecycle as `schemaDraft`: beside
-   * the metadata, persisted via `writeDraft`, frozen into IPFS objects at publish.
-   */
-  bindingSchemaDrafts: BindingSchemaDrafts
   /** Error from the most recent rename attempt, surfaced in the publish popover. */
   renameError: string | null
   /** Transient path captured from `rename.commit`/`rename.retry` while the rename actor runs. */
@@ -451,14 +431,7 @@ export type DocumentMachineEvent =
   | {type: 'document.retry'}
   | {type: 'edit.start'; cursorPosition?: EditCursorPosition | null}
   | {type: 'edit.cancel'}
-  | {
-      type: 'change'
-      metadata?: HMDraft['metadata']
-      /** The working schema behind `schemaDefinition`; `null` drops it. */
-      schemaDraft?: Record<string, any> | null
-      /** Binding schemas to draft, by key; `null` drops a key's draft (cleared or repointed). */
-      bindingSchemaDrafts?: Partial<Record<BindingSchemaKey, Record<string, any> | null>>
-    }
+  | {type: 'change'; metadata?: HMDraft['metadata']}
   | {type: 'rootChildrenType.change'; childrenType: HMBlockChildrenType}
   | {type: 'change.navigation'; navigation: HMNavigationItem[]}
   | {type: 'reset.content'}
@@ -498,10 +471,6 @@ export type DocumentMachineEvent =
       baseBlocks?: HMBlockNode[] | null
       /** Durable rename path persisted on the draft. */
       publishPath?: string[] | null
-      /** The working schema persisted on the draft. */
-      schemaDraft?: Record<string, any> | null
-      /** The working binding schemas persisted on the draft. */
-      bindingSchemaDrafts?: BindingSchemaDrafts
     }
   | {
       type: 'draft.externallyModified'
@@ -563,10 +532,6 @@ export type WriteDraftInput = {
   baseBlocks: HMBlockNode[] | null
   /** Durable rename path persisted on the draft. */
   publishPath?: string[] | null
-  /** The draft's working schema, when its document defines a type. */
-  schemaDraft?: SchemaDraft
-  /** The draft's working binding schemas, by key. */
-  bindingSchemaDrafts?: BindingSchemaDrafts
   /** Explicit editor content for machine-owned repairs when no editor is mounted. */
   contentOverride?: EditorBlock[]
 }
@@ -765,22 +730,6 @@ export const documentMachine = setup({
         }
         return context.metadata
       },
-      // A `change` may also carry the working schema, which is draft state beside the metadata.
-      schemaDraft: ({context, event}) =>
-        event.type === 'change' && event.schemaDraft !== undefined ? event.schemaDraft : context.schemaDraft,
-      // A `change` may carry one or more binding schemas; they merge over the ones already drafted,
-      // and a `null` drops that key's draft (cleared, or repointed at a reference).
-      bindingSchemaDrafts: ({context, event}) => {
-        if (event.type !== 'change' || !event.bindingSchemaDrafts) return context.bindingSchemaDrafts
-        const next: NonNullable<BindingSchemaDrafts> = {...(context.bindingSchemaDrafts ?? {})}
-        for (const [key, schema] of Object.entries(event.bindingSchemaDrafts) as Array<
-          [BindingSchemaKey, Record<string, any> | null | undefined]
-        >) {
-          if (schema) next[key] = schema
-          else delete next[key]
-        }
-        return Object.keys(next).length ? next : null
-      },
     }),
     updateCollectionQuery: assign({
       draftContent: ({context, event}) => {
@@ -900,8 +849,6 @@ export const documentMachine = setup({
       referencedChildDraftIds: [],
       pendingDeletedChildDraftIds: [],
       publishPath: null,
-      schemaDraft: null,
-      bindingSchemaDrafts: null,
       renameError: null,
       renameTargetPath: null,
     }),
@@ -1152,17 +1099,8 @@ export const documentMachine = setup({
         return null
       },
       metadata: ({event, context}) => {
-        // An older draft kept its working schema in metadata; it is lifted out (see schemaDraft).
-        if (event.type === 'draft.resolved' && event.metadata) return splitLegacySchemaDraft(event.metadata).metadata
+        if (event.type === 'draft.resolved' && event.metadata) return event.metadata
         return context.metadata
-      },
-      schemaDraft: ({event, context}) => {
-        if (event.type !== 'draft.resolved') return context.schemaDraft
-        return draftSchemaDraft(event) ?? context.schemaDraft
-      },
-      bindingSchemaDrafts: ({event, context}) => {
-        if (event.type !== 'draft.resolved') return context.bindingSchemaDrafts
-        return draftBindingSchemaDrafts(event) ?? context.bindingSchemaDrafts
       },
       deps: ({event, context}) => {
         if (event.type === 'draft.resolved' && event.deps && event.deps.length) return event.deps
@@ -1483,8 +1421,6 @@ export const documentMachine = setup({
     transientResourceError: null,
     oldVersionEditNoticeShown: false,
     publishPath: null,
-    schemaDraft: null,
-    bindingSchemaDrafts: null,
     renameError: null,
     renameTargetPath: null,
   }),
@@ -1868,8 +1804,6 @@ export const documentMachine = setup({
                   // body that blanks the Content tab and wipes content on publish.
                   baseBlocks: context.baseBlocks ?? context.document?.content ?? null,
                   publishPath: context.publishPath,
-                  schemaDraft: context.schemaDraft,
-                  bindingSchemaDrafts: context.bindingSchemaDrafts,
                   contentOverride: getMachineOwnedContentOverride(context),
                 }),
                 onDone: [
@@ -1997,8 +1931,6 @@ export const documentMachine = setup({
                   // body that blanks the Content tab and wipes content on publish.
                   baseBlocks: context.baseBlocks ?? context.document?.content ?? null,
                   publishPath: context.publishPath,
-                  schemaDraft: context.schemaDraft,
-                  bindingSchemaDrafts: context.bindingSchemaDrafts,
                   contentOverride: getMachineOwnedContentOverride(context),
                 }),
                 onDone: [

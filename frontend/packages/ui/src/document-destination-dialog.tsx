@@ -35,19 +35,7 @@ import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
 /** Destination action supported by the shared document destination dialog. */
-export type DocumentDestinationMode =
-  | 'move'
-  | 'republish'
-  | 'extend-schema'
-  | 'new-typed-document'
-  | 'new-typed-collection'
-
-/** The modes that create a NEW document draft (rather than relocating `id`). */
-export const DOCUMENT_CREATE_MODES: readonly DocumentDestinationMode[] = [
-  'extend-schema',
-  'new-typed-document',
-  'new-typed-collection',
-]
+export type DocumentDestinationMode = 'move' | 'republish'
 
 /** Input passed when opening the shared document destination dialog. */
 export type DocumentDestinationDialogInput = {
@@ -59,10 +47,6 @@ export type DocumentDestinationDialogInput = {
     title?: string | null
     icon?: HMMetadata['icon'] | null
   }
-  /** extend-schema mode: the base schema being extended. `id` is the base's defining document. */
-  extendSchema?: {baseSchemaCid: string}
-  /** new-typed-* modes: the schema page (`id`) whose URL the new draft's binding key names. */
-  typed?: {schemaUrl: string}
 }
 
 /** Writable location root that can be selected or browsed in the destination dialog. */
@@ -81,18 +65,11 @@ export type DocumentDestinationSubmitInput = {
   signingAccountId: string
   origin?: DocumentCardActionOrigin
   draft?: DocumentDestinationDialogInput['draft']
-  /** create modes: the human name for the new document. */
-  name?: string
-  extendSchema?: DocumentDestinationDialogInput['extendSchema']
-  typed?: DocumentDestinationDialogInput['typed']
 }
 
 const modeCopy: Record<DocumentDestinationMode, {eyebrow: string; action: string; success: string}> = {
   move: {eyebrow: 'Move', action: 'Move', success: 'Document moved'},
   republish: {eyebrow: 'Republish', action: 'Republish', success: 'Document republished'},
-  'extend-schema': {eyebrow: 'Extend Schema', action: 'Create Draft', success: 'Draft created'},
-  'new-typed-document': {eyebrow: 'New Document', action: 'Create Draft', success: 'Draft created'},
-  'new-typed-collection': {eyebrow: 'New Collection', action: 'Create Draft', success: 'Draft created'},
 }
 
 /** Renders the shared destination picker for move and republish flows. */
@@ -123,15 +100,10 @@ export function DocumentDestinationDialog({
       ? getMetadataName(document.metadata)
       : 'Untitled'
   const sourceIcon = isDraftSource ? input.draft?.icon : document?.metadata.icon
-  const isExtend = input.mode === 'extend-schema'
-  // Extending, or creating a typed document or collection, makes a NEW document: it starts
-  // unnamed, defaulting next to the schema page.
-  const isCreate = DOCUMENT_CREATE_MODES.includes(input.mode)
   const initialTargetParent = useMemo(() => getSourceParentId(sourceId), [sourceId.id])
-  const initialSlug = isCreate ? '' : sourceId.path?.at(-1) || ''
+  const initialSlug = sourceId.path?.at(-1) || ''
   const [targetParent, setTargetParent] = useState<UnpackedHypermediaId | null>(initialTargetParent)
   const [slug, setSlug] = useState(initialSlug)
-  const [name, setName] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -160,7 +132,7 @@ export function DocumentDestinationDialog({
   const modeDisabled = !enabledModes.includes(input.mode)
   const moveTargetWrongSite = input.mode === 'move' && !!targetParent && !isMoveTargetSameSite(sourceId, targetParent)
   const moveTargetBlocked = input.mode === 'move' && isMoveTargetParentBlocked(sourceId, targetParent)
-  const sourceIsHomeDocument = !isCreate && !sourceId.path?.length
+  const sourceIsHomeDocument = !sourceId.path?.length
   const destinationExists = !canUseDocumentDestination(
     destinationResource.data,
     input.mode === 'move' && !isDraftSource ? sourceId : undefined,
@@ -215,7 +187,6 @@ export function DocumentDestinationDialog({
       signingAccountId: selectedAccountUid,
       origin: input.origin,
       draft: input.draft,
-      ...(isCreate ? {name: name.trim() || slug, extendSchema: input.extendSchema, typed: input.typed} : {}),
     }
     setIsSubmitting(true)
     try {
@@ -277,22 +248,6 @@ export function DocumentDestinationDialog({
         }}
       />
 
-      {isCreate ? (
-        <div className="flex flex-col gap-2">
-          <SizableText className="text-muted-foreground text-xs font-semibold tracking-[0.16em] uppercase">
-            {isExtend ? 'New Schema Name' : 'Name'}
-          </SizableText>
-          <Input
-            className="h-11 rounded-xl text-base"
-            value={name}
-            onChange={(event) => {
-              setName(event.target.value)
-              setSlug(pathNameify(event.target.value))
-            }}
-            placeholder={isExtend ? `Extended ${sourceTitle}` : `New ${sourceTitle}`}
-          />
-        </div>
-      ) : null}
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
           <SizableText className="text-muted-foreground text-xs font-semibold tracking-[0.16em] uppercase">

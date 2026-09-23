@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {DocumentMetadataView} from '@shm/ui/document-metadata-view'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {AttributeAutocomplete, AttributeAutocompleteProvider} from '@shm/ui/value-editor'
@@ -40,37 +39,17 @@ function pressKey(input: HTMLInputElement, key: string) {
   act(() => input.dispatchEvent(new KeyboardEvent('keydown', {bubbles: true, key})))
 }
 
-let rerenderWithAddRawField: (() => void) | null = null
-
 function render(metadata: Record<string, unknown>, autocomplete: AttributeAutocomplete, onMetadata = vi.fn()) {
-  // The metadata view resolves schema references via react-query.
-  const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
-  const draw = (addRawFieldOpen: boolean) =>
-    act(() => {
-      root.render(
-        <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <AttributeAutocompleteProvider value={autocomplete}>
-              <DocumentMetadataView
-                metadata={metadata}
-                canEdit
-                onMetadata={onMetadata}
-                addRawFieldOpen={addRawFieldOpen}
-                onAddRawFieldOpenChange={(open) => draw(open)}
-              />
-            </AttributeAutocompleteProvider>
-          </TooltipProvider>
-        </QueryClientProvider>,
-      )
-    })
-  draw(false)
-  rerenderWithAddRawField = () => draw(true)
+  act(() => {
+    root.render(
+      <TooltipProvider>
+        <AttributeAutocompleteProvider value={autocomplete}>
+          <DocumentMetadataView metadata={metadata} canEdit onMetadata={onMetadata} />
+        </AttributeAutocompleteProvider>
+      </TooltipProvider>,
+    )
+  })
   return onMetadata
-}
-
-/** The top-level add dialog opens from the document options menu ("Add Raw Field"), not a button. */
-function openAddRawField() {
-  rerenderWithAddRawField!()
 }
 
 describe('attribute autocomplete', () => {
@@ -90,7 +69,10 @@ describe('attribute autocomplete', () => {
     }
     render({}, autocomplete)
 
-    openAddRawField()
+    const add = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('Add field'),
+    )!
+    act(() => add.click())
     await settleAutocomplete()
 
     expect(listNames).toHaveBeenCalledWith(expect.objectContaining({parentPath: [], prefix: ''}))
@@ -162,7 +144,10 @@ describe('attribute autocomplete', () => {
       listValues: vi.fn(async () => ({items: []})),
     }
     const onMetadata = render({}, autocomplete)
-    openAddRawField()
+    const add = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('Add field'),
+    )!
+    act(() => add.click())
     await settleAutocomplete()
 
     const input = document.querySelector('#field-dialog-name') as HTMLInputElement
@@ -235,7 +220,10 @@ describe('attribute autocomplete', () => {
     }
     const onMetadata = render({status: 'Draft'}, autocomplete)
 
-    openAddRawField()
+    const add = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('Add field'),
+    )!
+    act(() => add.click())
     await settleAutocomplete()
 
     const listbox = document.querySelector('[role="listbox"]') as HTMLDivElement
@@ -285,7 +273,10 @@ describe('attribute autocomplete', () => {
     }
     render({status: 'Draft'}, autocomplete)
 
-    openAddRawField()
+    const add = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('Add field'),
+    )!
+    act(() => add.click())
     await settleAutocomplete()
 
     expect(listNames).toHaveBeenCalledWith(expect.objectContaining({pageToken: 'page-2'}))
@@ -309,7 +300,10 @@ describe('attribute autocomplete', () => {
       listValues: vi.fn(async () => ({items: []})),
     }
     const onMetadata = render({}, autocomplete)
-    openAddRawField()
+    const add = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('Add field'),
+    )!
+    act(() => add.click())
     await settleAutocomplete()
 
     const input = document.querySelector('#field-dialog-name') as HTMLInputElement
