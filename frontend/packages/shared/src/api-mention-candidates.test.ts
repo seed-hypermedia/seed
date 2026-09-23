@@ -19,7 +19,7 @@ function daemon() {
         entities: [
           {id: 'hm://alice', type: 'profile', content: 'Alice'},
           {id: 'hm://space', type: 'document', content: 'Old home title'},
-        ],
+        ] as Array<{id: string; type: string; content: string; isFormerName?: boolean}>,
       })),
     },
     documents: {
@@ -89,16 +89,28 @@ describe('mention candidate service', () => {
       id: {uid: 'space', path: [], version: 'current-head', latest: true},
     })
   })
-  it('drops a hit on a superseded title: an account renamed since the match is not what the query names', async () => {
+  it('keeps superseded names, tagged with the matched historical text, after every current-name hit', async () => {
     const client = daemon()
+    client.documents.getAccount.mockImplementation(
+      async ({id}) =>
+        new Account({
+          id,
+          profile: {
+            name:
+              id === 'space' ? 'Eric Testing' : id === 'douglas' ? 'Douglas' : id === 'kat' ? 'Kat' : 'Eric Vicenti',
+          },
+        }),
+    )
     client.entities.searchEntities.mockResolvedValue({
       entities: [
         // "kat" was once titled "Eric5": the index still holds that title at the old version, which the
         // daemon leaves without the latest marker because a later change replaced it.
         {id: 'hm://kat?v=old-version', type: 'title', content: 'Eric5'},
-        // A title hit carried to the current version keeps the account.
+        // A title hit carried to the current version is a current-name hit.
         {id: 'hm://space?v=current-head&l', type: 'title', content: 'Eric Testing'},
         {id: 'hm://alice', type: 'profile', content: 'Eric Vicenti'},
+        // The daemon tags a hit on a Profile blob whose name the account no longer has.
+        {id: 'hm://douglas', type: 'profile', content: 'web eric 4', isFormerName: true},
       ],
     })
     const results = await MentionCandidates.getData(
@@ -108,7 +120,35 @@ describe('mention candidate service', () => {
         throw new Error('unexpected daemon query')
       },
     )
-    expect(results.map((r) => r.id.uid).sort()).toEqual(['alice', 'space'])
+    expect(results.map((r) => r.id.uid)).toEqual(['space', 'alice', 'douglas', 'kat'])
+    expect(results.find((r) => r.id.uid === 'kat')?.formerName).toBe('Eric5')
+    expect(results.find((r) => r.id.uid === 'douglas')?.formerName).toBe('web eric 4')
+    expect(results.find((r) => r.id.uid === 'space')?.formerName).toBeUndefined()
+    expect(results.find((r) => r.id.uid === 'alice')?.formerName).toBeUndefined()
+    // Ranking keeps both current-name rows first; among former names the prefix match leads.
+    const ranked = rankMentionCandidates(results, 'eric', [])
+    expect(ranked.map((r) => r.id.uid)).toEqual(['space', 'alice', 'kat', 'douglas'])
+    expect(ranked[2]?.hint).toBe('Formerly Eric5')
+    expect(ranked[3]?.hint).toBe('Formerly web eric 4')
+  })
+  it('a current-name hit on an entity also found under a former name counts as current', async () => {
+    const client = daemon()
+    client.entities.searchEntities.mockResolvedValue({
+      entities: [
+        {id: 'hm://alice', type: 'profile', content: 'Alicia', isFormerName: true},
+        {id: 'hm://alice', type: 'profile', content: 'Alice'},
+      ],
+    })
+    const results = await MentionCandidates.getData(
+      client as unknown as GRPCClient,
+      {mode: 'account', query: 'ali'},
+      async () => {
+        throw new Error('unexpected daemon query')
+      },
+    )
+    expect(results).toHaveLength(1)
+    expect(results[0]).toMatchObject({id: {uid: 'alice'}, title: 'Alice'})
+    expect(results[0]?.formerName).toBeUndefined()
   })
 
   it('omits unpublished or inaccessible documents instead of producing account links', async () => {
@@ -223,7 +263,7 @@ describe('mention candidate service', () => {
     client.documents.listContacts.mockResolvedValue({contacts: [new Contact({subject: 'alias', name: 'Friend'})]})
     const result = await MentionCandidates.getData(
       client as unknown as GRPCClient,
-      {mode: 'account', query: '', perspectiveAccountUid: 'viewer'},
+      {mode: 'account', query: '', perspectiveAccountUid: 'viewer', seedIds: [hmId('canonical')]},
       async () => {
         throw new Error('unexpected daemon query')
       },
@@ -231,6 +271,7 @@ describe('mention candidate service', () => {
     expect(result[0]).toMatchObject({
       id: {uid: 'canonical'},
       sourceAccountUid: 'alias',
+      sourceAccountUids: expect.arrayContaining(['alias', 'canonical']),
       petname: 'Friend',
       publicName: 'Public',
       issuedContact: true,

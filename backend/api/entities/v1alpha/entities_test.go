@@ -5,6 +5,7 @@ import (
 	documentsapi "seed/backend/api/documents/v3alpha"
 	"seed/backend/blob"
 	"seed/backend/config"
+	"seed/backend/core"
 	"seed/backend/core/coretest"
 	"seed/backend/core/keystore"
 	documents "seed/backend/genproto/documents/v3alpha"
@@ -13,6 +14,7 @@ import (
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/util/must"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -49,6 +51,7 @@ type testServices struct {
 	documents *documentsapi.Server
 	entities  *Server
 	me        coretest.Tester
+	keys      core.KeyStore
 	idx       *blob.Index
 }
 
@@ -66,6 +69,7 @@ func newTestServices(t *testing.T, name string) testServices {
 		documents: documentsapi.NewServer(config.Base{}, ks, idx, db, logging.New("seed/documents"+"/"+name, "debug"), nil),
 		entities:  NewServer(config.Base{}, db, nil, nil, logging.New("seed/entities"+"/"+name, "debug")),
 		me:        u,
+		keys:      ks,
 		idx:       idx,
 	}
 }
@@ -167,9 +171,9 @@ func TestSearchEntitiesFindsProfileOnlyAccount(t *testing.T) {
 	require.Equal(t, "web eric 84", res.Entities[0].Content)
 }
 
-// A renamed account is found by its current name only: every Profile blob is indexed, and
-// without this the old name would surface the account under its new one.
-func TestSearchEntitiesProfileRenameDropsOldName(t *testing.T) {
+// A renamed account remains discoverable by its old name, but the hit is marked
+// so clients can rank and explain it as historical (#1147).
+func TestSearchEntitiesProfileRenameKeepsFormerName(t *testing.T) {
 	t.Parallel()
 
 	svc := newTestServices(t, "bob")
@@ -193,11 +197,134 @@ func TestSearchEntitiesProfileRenameDropsOldName(t *testing.T) {
 		require.NoError(t, err)
 		return res.Entities
 	}
-	require.Empty(t, search("eric"), "the superseded profile name must not match")
+	former := search("eric")
+	require.Len(t, former, 1)
+	require.Equal(t, "hm://"+account, former[0].Id)
+	require.Equal(t, "web eric 4", former[0].Content)
+	require.True(t, former[0].IsFormerName, "the superseded profile name must be tagged")
+
 	current := search("douglas")
 	require.Len(t, current, 1)
 	require.Equal(t, "hm://"+account, current[0].Id)
 	require.Equal(t, "Douglas", current[0].Content)
+	require.False(t, current[0].IsFormerName)
+
+	// A name published again is current, even though an older blob also carries it.
+	_, err := svc.documents.UpdateProfile(ctx, &documents.UpdateProfileRequest{
+		Account:        account,
+		SigningKeyName: "main",
+		Profile:        &documents.Profile{Name: "web eric 4"},
+	})
+	require.NoError(t, err)
+	again := search("eric")
+	require.Len(t, again, 1)
+	require.Equal(t, "web eric 4", again[0].Content)
+	require.False(t, again[0].IsFormerName, "the hit is deduplicated to the current-name row")
+}
+
+// Two accounts with the same name in their history: the one that has it now
+// sorts first, whatever FTS rank says.
+func TestSearchEntitiesCurrentNameOutranksFormerName(t *testing.T) {
+	t.Parallel()
+
+	svc := newTestServices(t, "bob")
+	ctx := context.Background()
+	account := svc.me.Account.PublicKey.String()
+
+	// The main account used to be "Eric Vicenti" and is "Kat" now.
+	for _, name := range []string{"Eric Vicenti", "Kat"} {
+		_, err := svc.documents.UpdateProfile(ctx, &documents.UpdateProfileRequest{
+			Account:        account,
+			SigningKeyName: "main",
+			Profile:        &documents.Profile{Name: name},
+		})
+		require.NoError(t, err)
+	}
+
+	// A second account is "Eric" today.
+	other := coretest.NewTester("alice")
+	require.NoError(t, svc.keys.StoreKey(ctx, "alice", other.Account))
+	_, err := svc.documents.UpdateProfile(ctx, &documents.UpdateProfileRequest{
+		Account:        other.Account.PublicKey.String(),
+		SigningKeyName: "alice",
+		Profile:        &documents.Profile{Name: "Eric"},
+	})
+	require.NoError(t, err)
+
+	res, err := svc.entities.SearchEntities(ctx, &entpb.SearchEntitiesRequest{
+		Query:            "eric",
+		EntityKindFilter: []entpb.EntityKindFilter{entpb.EntityKindFilter_ENTITY_KIND_SPACE},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Entities, 2)
+	require.Equal(t, "hm://"+other.Account.PublicKey.String(), res.Entities[0].Id)
+	require.Equal(t, "Eric", res.Entities[0].Content)
+	require.False(t, res.Entities[0].IsFormerName)
+	require.Equal(t, "hm://"+account, res.Entities[1].Id)
+	require.Equal(t, "Eric Vicenti", res.Entities[1].Content)
+	require.True(t, res.Entities[1].IsFormerName)
+}
+
+// A document found by a title it no longer has is tagged and sorts after the
+// document that has the title now.
+func TestSearchEntitiesRenamedTitleIsFormerName(t *testing.T) {
+	t.Parallel()
+
+	svc := newTestServices(t, "alice")
+	kp := svc.me.Account
+	clock := newTestClock()
+	nameOp := func(name string) blob.OpMap {
+		op, err := blob.NewOpSetKey("name", name)
+		require.NoError(t, err)
+		return op
+	}
+
+	createDoc(t, svc, kp, "", 1, clock, nameOp("Home"))
+	renamed := createDoc(t, svc, kp, "/plan", 1, clock, nameOp("Eric plan"))
+	renamed.edit(t, clock, nameOp("Plan"))
+	renamed.publishRef(t, clock)
+	current := createDoc(t, svc, kp, "/notes", 1, clock, nameOp("Eric notes"))
+
+	res, err := svc.entities.SearchEntities(context.Background(), &entpb.SearchEntitiesRequest{
+		Query:            "eric",
+		EntityKindFilter: []entpb.EntityKindFilter{entpb.EntityKindFilter_ENTITY_KIND_DOCUMENT},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Entities, 2)
+	require.Equal(t, current.iri(), entityDoc(res.Entities[0].Id))
+	require.Equal(t, "Eric notes", res.Entities[0].Content)
+	require.False(t, res.Entities[0].IsFormerName)
+	require.Contains(t, res.Entities[0].Id, "&l", "a current title is served at the latest version")
+	require.Equal(t, renamed.iri(), entityDoc(res.Entities[1].Id))
+	require.Equal(t, "Eric plan", res.Entities[1].Content)
+	require.True(t, res.Entities[1].IsFormerName, "a replaced title is tagged")
+	require.NotContains(t, res.Entities[1].Id, "&l", "a replaced title stays at the version that carried it")
+
+	// Under the current title the same document is a current-name hit, ahead of
+	// its own old title that happens to contain the query too.
+	res, err = svc.entities.SearchEntities(context.Background(), &entpb.SearchEntitiesRequest{Query: "plan"})
+	require.NoError(t, err)
+	require.Len(t, res.Entities, 2)
+	require.Equal(t, "Plan", res.Entities[0].Content)
+	require.False(t, res.Entities[0].IsFormerName)
+	require.Equal(t, "Eric plan", res.Entities[1].Content)
+	require.True(t, res.Entities[1].IsFormerName)
+}
+
+func TestOrderBySimilarityDemotesFormerAccountName(t *testing.T) {
+	t.Parallel()
+
+	current := fullDataSearchResult{iri: "hm://current", contentType: "title", score: 1}
+	former := fullDataSearchResult{iri: "hm://former", contentType: "profile", score: 100, isFormerName: true}
+	require.Negative(t, orderBySimilarity(current, former))
+	require.Positive(t, orderBySimilarity(former, current))
+
+	body := fullDataSearchResult{iri: "hm://doc/page", contentType: "document", score: 50}
+	require.Positive(t, orderBySimilarity(former, body))
+
+	results := []fullDataSearchResult{current, former, body}
+	slices.SortFunc(results, orderBySimilarity)
+	require.Equal(t, []string{"hm://doc/page", "hm://current", "hm://former"}, []string{results[0].iri, results[1].iri, results[2].iri})
 }
 
 func TestBuildRankMap(t *testing.T) {

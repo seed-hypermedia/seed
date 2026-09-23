@@ -431,7 +431,8 @@ SELECT
   structural_blobs.genesis_blob,
   f.rowid,
   public_keys.id AS author_id,
-  structural_blobs.extra_attrs
+  structural_blobs.extra_attrs,
+  ` + isFormerNameSQL("f.type", "f.blob_id") + ` AS is_former_name
 FROM fts_data AS f
   JOIN structural_blobs
     ON structural_blobs.id = f.blob_id
@@ -477,6 +478,65 @@ FROM fts_data AS f
 WHERE (f.type = 'profile' OR COALESCE(resolved.is_deleted, document_generations.is_deleted) = False)
 `)
 
+// isFormerNameSQL is the SQL for a profile hit's is_former_name flag: true when
+// the Profile blob that matched carries a name the account no longer has.
+//
+// Every Profile an account ever published is indexed, so a superseded name still
+// matches. Issue #1147 wants such hits kept but ranked after every current-name
+// hit, so instead of filtering them (as #1237 did) the hit is tagged and the
+// tag joins the ORDER BY key, inside the materialized CTE so the demotion
+// happens before the oversample LIMIT trims the candidate set.
+//
+// The current state mirrors GetAccount's reconciliation: per author, only the
+// newest Profile counts; the current name is the newest non-empty name among
+// those (ts, then name, descending); an alias set by any author's newest
+// Profile retires every name of this account.
+//
+// The expression is a CASE and not an AND on purpose: in a result column
+// SQLite evaluates both operands of AND and does not short-circuit, so an
+// `type = 'profile' AND (subquery)` form ran the subqueries for every FTS hit
+// (3.4x slower on broad prefixes over 1.6M rows). CASE evaluates the subquery
+// for profile rows only, and the blob is looked up by primary key inside it
+// rather than joined, so the other rows pay nothing. Measured as within noise
+// of the pre-#1154 query on an 8 GB desktop database. Each inner subquery is a
+// single indexed scan of the account's Profile blobs with a window function;
+// a NOT EXISTS "no newer blob by this author" form was quadratic in that count
+// and cost 1 ms per hit on accounts with 80 Profile blobs.
+func isFormerNameSQL(typeCol, blobIDCol string) string {
+	return `CASE WHEN ` + typeCol + ` = 'profile' THEN (
+      SELECT
+        EXISTS (
+          SELECT 1
+          FROM (
+            SELECT
+              CAST(p.extra_attrs->>'alias' AS INTEGER) AS alias,
+              ROW_NUMBER() OVER (PARTITION BY p.author ORDER BY p.ts DESC) AS rn
+            FROM structural_blobs p
+            WHERE p.type = 'Profile'
+              AND p.resource = mine.resource
+          )
+          WHERE rn = 1 AND alias > 0
+        )
+        OR COALESCE(mine.extra_attrs->>'name', '') != COALESCE((
+          SELECT name
+          FROM (
+            SELECT
+              p.extra_attrs->>'name' AS name,
+              p.ts,
+              ROW_NUMBER() OVER (PARTITION BY p.author ORDER BY p.ts DESC) AS rn
+            FROM structural_blobs p
+            WHERE p.type = 'Profile'
+              AND p.resource = mine.resource
+          )
+          WHERE rn = 1 AND name != ''
+          ORDER BY ts DESC, name DESC
+          LIMIT 1
+        ), '')
+      FROM structural_blobs mine
+      WHERE mine.id = ` + blobIDCol + `
+    ) ELSE 0 END`
+}
+
 // keywordSearchHead is the matched_fts CTE of the keyword search: FTS5 hits
 // for the query, filtered to the supplied content types and optional
 // visibility, sorted and limited *before* the expensive cross-table joins, so
@@ -487,14 +547,15 @@ WHERE (f.type = 'profile' OR COALESCE(resolved.is_deleted, document_generations.
 //
 // Args: query, type1, type2, type3, type4, type5, filterPrivate, rootDocumentsOnly,
 // oversample.
-const keywordSearchHead = `
+var keywordSearchHead = `
 WITH RECURSIVE
 matched_fts AS MATERIALIZED (
   SELECT
     fts.rowid,
     fts.rank,
     fts.blob_id,
-    fts.type
+    fts.type,
+    ` + isFormerNameSQL("fts.type", "fts.blob_id") + ` AS is_former_name
   FROM fts
   JOIN blobs ON blobs.id = fts.blob_id AND blobs.size > 0
   WHERE fts.raw_content MATCH ?
@@ -520,23 +581,12 @@ matched_fts AS MATERIALIZED (
              AND root_r.iri GLOB 'hm://*'
              AND root_r.iri NOT GLOB 'hm://*/*'
          ))
-    -- An account's name is indexed once per Profile blob it ever published, and a
-    -- superseded name is not what the query names today: keep a profile hit only
-    -- when its blob is the newest Profile for that account by that author, the
-    -- same rule GetAccount reads the current profile by.
-    AND (fts.type != 'profile'
-         OR NOT EXISTS (
-           SELECT 1
-           FROM structural_blobs mine
-           JOIN structural_blobs newer
-             ON newer.type = 'Profile'
-            AND newer.resource = mine.resource
-            AND newer.author = mine.author
-            AND newer.ts > mine.ts
-           WHERE mine.id = fts.blob_id
-         ))
+  -- A superseded account name still matches, but after every current name: see
+  -- isFormerNameSQL. The key is applied here, before the LIMIT, so a former
+  -- name can never crowd a current one out of the oversample budget.
   ORDER BY
     (fts.type = 'contact' OR fts.type = 'title' OR fts.type = 'profile') DESC,
+    is_former_name ASC,
     fts.rank ASC
   LIMIT ?
 ),
@@ -564,14 +614,15 @@ matched_fts AS MATERIALIZED (
 // costs more than it saves, so those searches keep keywordSearchHead.
 //
 // Args: same as keywordSearchHead.
-const keywordSearchNamesHead = `
+var keywordSearchNamesHead = `
 WITH RECURSIVE
 matched_fts AS MATERIALIZED (
   SELECT
     fts.rowid,
     fts.rank,
     fi.blob_id,
-    fi.type
+    fi.type,
+    ` + isFormerNameSQL("fi.type", "fi.blob_id") + ` AS is_former_name
   FROM fts
   CROSS JOIN fts_index fi ON fi.rowid = fts.rowid
   JOIN blobs ON blobs.id = fi.blob_id AND blobs.size > 0
@@ -598,20 +649,10 @@ matched_fts AS MATERIALIZED (
              AND root_r.iri GLOB 'hm://*'
              AND root_r.iri NOT GLOB 'hm://*/*'
          ))
-    -- See keywordSearchHead: only the newest Profile of an account counts.
-    AND (fi.type != 'profile'
-         OR NOT EXISTS (
-           SELECT 1
-           FROM structural_blobs mine
-           JOIN structural_blobs newer
-             ON newer.type = 'Profile'
-            AND newer.resource = mine.resource
-            AND newer.author = mine.author
-            AND newer.ts > mine.ts
-           WHERE mine.id = fi.blob_id
-         ))
+  -- See keywordSearchHead: former names sort after current ones before the LIMIT.
   ORDER BY
     (fi.type = 'contact' OR fi.type = 'title' OR fi.type = 'profile') DESC,
+    is_former_name ASC,
     fts.rank ASC
   LIMIT ?
 ),
@@ -703,6 +744,7 @@ WHERE COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) I
   ))
 ORDER BY
   (mf.type = 'contact' OR mf.type = 'title' OR mf.type = 'profile') DESC,
+  mf.is_former_name ASC,
   mf.rank ASC
 LIMIT ?
 `
@@ -730,6 +772,7 @@ WHERE COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) I
   AND COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) GLOB ?
 ORDER BY
   (mf.type = 'contact' OR mf.type = 'title' OR mf.type = 'profile') DESC,
+  mf.is_former_name ASC,
   mf.rank ASC
 LIMIT ?
 `
@@ -1198,6 +1241,7 @@ type fullDataSearchResult struct {
 	genesisBlobID int64
 	rowID         int64
 	contentType   string
+	isFormerName  bool // the matched name (Profile name or title) is no longer current (#1147).
 	version       string
 	versionTime   *timestamppb.Timestamp
 	latestVersion string
@@ -1550,6 +1594,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 				res.genesisBlobID = res.blobID
 			}
 			res.rowID = stmt.ColumnInt64(16)
+			res.isFormerName = stmt.ColumnInt(19) != 0
 			res.score = winners[res.rowID]
 			switch res.contentType {
 			case "comment":
@@ -1614,7 +1659,21 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	for i, res := range searchResults {
 		key := fmt.Sprintf("%s|%s|%s|%s", res.iri, res.blockID, res.rawContent, dedupeContentType(res))
 		if idx, ok := seen[key]; ok {
-			// duplicate – prefer the profile row for an account, otherwise the newer one.
+			// duplicate – prefer a current-name match over a former-name one; with
+			// equal freshness, the profile row for an account, otherwise the newer one.
+			if res.isFormerName != uniqueResults[idx].isFormerName {
+				if res.isFormerName {
+					continue
+				}
+
+				uniqueResults[idx] = res
+				bm := bodyMatches[i]
+				bm.Index = idx
+				uniqueBodyMatches[idx] = bm
+
+				continue
+			}
+
 			if res.contentType == "profile" && uniqueResults[idx].contentType != "profile" {
 				uniqueResults[idx] = res
 				bm := bodyMatches[i]
@@ -1656,6 +1715,10 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			indices[i] = i
 		}
 		slices.SortFunc(indices, func(a, b int) int {
+			if c := compareFormerName(searchResults[a], searchResults[b]); c != 0 {
+				return c
+			}
+
 			if searchResults[a].score > searchResults[b].score {
 				return -1
 			}
@@ -1700,13 +1763,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			indices[i] = i
 		}
 		slices.SortFunc(indices, func(a, b int) int {
-			if searchResults[a].score > searchResults[b].score {
-				return -1
-			}
-			if searchResults[a].score < searchResults[b].score {
-				return 1
-			}
-			return 0
+			return orderBySimilarity(searchResults[a], searchResults[b])
 		})
 
 		sorted := make([]fullDataSearchResult, len(searchResults))
@@ -1917,6 +1974,12 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			}
 			if slices.Contains(strings.Split(searchResults[match.Index].latestVersion, "."), searchResults[match.Index].version) {
 				searchResults[match.Index].version += "&l"
+			} else if searchResults[match.Index].contentType == "title" {
+				// A title the heuristic could not carry to the current version was
+				// replaced by a later change: the document is not called this any
+				// more. Tag it like a superseded Profile name so it sorts after
+				// every current-name hit (#1147).
+				searchResults[match.Index].isFormerName = true
 			}
 			if searchResults[match.Index].version != "" {
 				id += "?v=" + searchResults[match.Index].version
@@ -1944,16 +2007,17 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	slices.SortFunc(finalResults, orderBySimilarity)
 	for _, match := range finalResults {
 		matchingEntities = append(matchingEntities, &entpb.Entity{
-			DocId:       match.docID,
-			Id:          match.id,
-			BlobId:      match.blobCID,
-			Type:        match.contentType,
-			VersionTime: match.versionTime,
-			Content:     match.content,
-			ParentNames: match.parentTitles,
-			Icon:        match.icon,
-			Owner:       match.owner,
-			Metadata:    match.metadata,
+			DocId:        match.docID,
+			Id:           match.id,
+			BlobId:       match.blobCID,
+			Type:         match.contentType,
+			VersionTime:  match.versionTime,
+			Content:      match.content,
+			ParentNames:  match.parentTitles,
+			Icon:         match.icon,
+			Owner:        match.owner,
+			Metadata:     match.metadata,
+			IsFormerName: match.isFormerName,
 		})
 	}
 
@@ -2021,8 +2085,28 @@ func orderByTitle(a, b fullDataSearchResult) int {
 	return 0
 }
 
+// compareFormerName orders a current-name match before a former-name match. It
+// leads every comparator so that a historical name, however well it scores,
+// never outranks an account that has the name now, and so the comparators
+// stay transitive across content types.
+func compareFormerName(a, b fullDataSearchResult) int {
+	if a.isFormerName == b.isFormerName {
+		return 0
+	}
+
+	if a.isFormerName {
+		return 1
+	}
+
+	return -1
+}
+
 // orderBySimilarity sorts entities by similarity score descending (higher scores first).
 func orderBySimilarity(a, b fullDataSearchResult) int {
+	if c := compareFormerName(a, b); c != 0 {
+		return c
+	}
+
 	// Higher scores first (descending order)
 	if a.score > b.score {
 		return -1
