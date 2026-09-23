@@ -170,7 +170,6 @@ import {BINDING_SCHEMA_KEYS, type BindingSchemaKey} from '@shm/shared/models/sch
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from './components/dialog'
 import {DocumentTools} from './document-tools'
 import {nameForCid, nameToUrl, HM_SCHEMAS} from './schema/engine'
-import {HM_SCHEMA_ALIASES} from './schema/schema-registry.generated'
 import {libraryPageUrl} from './schema/schema-browser'
 import {DepLists, SchemaNavContext, SchemaView} from './schema/explorer'
 import {useSchemaRegistry} from './schema/schema-registry-cid'
@@ -3527,16 +3526,13 @@ function DocumentSchemaSection({document, canEdit}: {document: HMDocument; canEd
  * saved onto the draft like any metadata change, and frozen into an IPFS blob at publish.
  */
 /**
- * The bundled library schema a document IS, by its path (`/timestamp` → timestamp,
- * or a name the schema had before the folder reorganization), whatever version of the blob it
- * currently points at. Dependencies are computed over the bundled library, so this is what names them.
+ * The bundled library schema a document IS, by its path (`/timestamp` → timestamp), whatever
+ * version of the blob it currently points at. Dependencies are computed over the bundled
+ * library, so this is what names them.
  */
 function bundledSlugForDocument(document: HMDocument): string | null {
   const name = (document.path || '').replace(/^\//, '')
-  if (!name) return null
-  if (HM_SCHEMAS[name]) return name
-  const alias = HM_SCHEMA_ALIASES[name]
-  return alias && HM_SCHEMAS[alias] ? alias : null
+  return name && HM_SCHEMAS[name] ? name : null
 }
 
 /** A published schema seeded into the editor sheds a legacy root `name`: the document carries it, and
