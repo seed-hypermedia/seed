@@ -423,7 +423,7 @@ describe('CLI · 6. Create a blob that follows a custom schema exactly', () => {
 
 describe('CLI · 7. Extend the signed blob envelope into a new signed type', () => {
   it(
-    'a schema that extends hypermedia-blob with a literal type tag publishes as a signed type page',
+    'a schema that extends blob with a literal type tag publishes as a signed type page',
     async () => {
       const dir = path.join(workDir, 'site')
       write('site/types/vote.md', '---\nname: Vote\n---\nA signed vote on a document.\n')
@@ -431,10 +431,10 @@ describe('CLI · 7. Extend the signed blob envelope into a new signed type', () 
         'site/types/vote.schema.json',
         JSON.stringify(
           {
-            ref: `${LIBRARY}/hypermedia-blob`,
+            type: `${LIBRARY}/blob`,
             properties: {
               type: {value: 'Vote', required: true},
-              target: {value: {ref: `${LIBRARY}/hypermedia-hm-url`}, required: true},
+              target: {value: {type: `${LIBRARY}/hm-url`}, required: true},
               choice: {value: {anyOf: ['yes', 'no']}, required: true},
             },
           },
@@ -446,7 +446,7 @@ describe('CLI · 7. Extend the signed blob envelope into a new signed type', () 
       expect(imported.exitCode, imported.stderr).toBe(0)
       const page = await cliJson(['document', 'get', url('types/vote')])
       const blob = await cli(['document', 'cid', page.metadata.schemaDefinition.replace('ipfs://', '')])
-      expect(blob.stdout).toContain('hypermedia-blob')
+      expect(blob.stdout).toContain('hyper.media/blob')
       expect(blob.stdout).toContain('"Vote"')
     },
     TIMEOUT,
@@ -562,8 +562,8 @@ describe('Agent', () => {
       passed('write ipfs:// with JSON content and options.schema = hm://…/types/person publishes a validated object'))
   })
   describe('7. Extend the signed blob envelope into a new signed type', () => {
-    it('write ipfs:// with a schema that refs hypermedia-blob publishes the signed type’s schema blob', () =>
-      passed('write ipfs:// with a schema that refs hypermedia-blob publishes the signed type’s schema blob'))
+    it('write ipfs:// with a schema that extends blob publishes the signed type’s schema blob', () =>
+      passed('write ipfs:// with a schema that extends blob publishes the signed type’s schema blob'))
   })
   describe('8. Create an instance of the signed type and sign it', () => {
     it('write ipfs:// with options.schema = hm://…/types/vote and options.sign = true publishes a signed blob', () =>
