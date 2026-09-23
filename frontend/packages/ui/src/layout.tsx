@@ -162,7 +162,7 @@ export const useDocumentLayout = (
         },
       },
       wrapperProps: {
-        className: 'flex mx-auto w-full justify-between flex-1',
+        className: `flex mx-auto w-full flex-1 ${layoutState.showSidebars ? 'justify-between' : 'justify-center'}`,
         style: {
           // The 44px adds room for the per-block comment/citation buttons on
           // wider viewports. For sidebar-less layouts (centered, e.g. home
