@@ -246,6 +246,7 @@ export type UnsignedAgentAction =
   | CancelRun
   | SignalRun
   | GetRunJournal
+  | CreateVoiceSession
   | Subscribe
   | RegisterSigner
 
@@ -981,6 +982,17 @@ export type MessageSession = {
   sessionId: string
   content: MessageSessionContentPart[]
   clientMessageId?: string
+}
+
+/**
+ * Mints a LiveKit room token so the caller can talk to this session by voice: the browser joins
+ * the room with the token, the server's voice worker transcribes what is said and appends it to
+ * the session as a user message, and the agent's reply is spoken back. Same access level as
+ * `MessageSession`. Servers without a voice pipeline answer HTTP 501.
+ */
+export type CreateVoiceSession = {
+  _: 'CreateVoiceSession'
+  sessionId: string
 }
 
 /**
@@ -2314,6 +2326,20 @@ export type MessageSessionResponse = {
   continuedToSessionId?: string
 }
 
+export type CreateVoiceSessionResponse = {
+  _: 'CreateVoiceSessionResponse'
+  sessionId: string
+  /** LiveKit WebSocket URL the browser connects to. */
+  url: string
+  /** Participant JWT for `url`, scoped to `room`. */
+  token: string
+  room: string
+  /** The caller's participant identity in the room. */
+  identity: string
+  /** Unix epoch milliseconds when `token` stops being accepted. */
+  expiresAt: number
+}
+
 /** Successful response for `RetrySession`. */
 export type RetrySessionResponse = {
   _: 'RetrySessionResponse'
@@ -2476,6 +2502,7 @@ export type AgentResponse =
   | GetSessionResponse
   | GetSessionEventResponse
   | MessageSessionResponse
+  | CreateVoiceSessionResponse
   | InvokeSessionToolResponse
   | UploadSessionAttachmentResponse
   | ReadSessionAttachmentResponse

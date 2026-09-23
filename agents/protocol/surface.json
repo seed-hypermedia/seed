@@ -102,6 +102,12 @@
         "label?": "string"
       }
     },
+    "CreateVoiceSession": {
+      "fields": {
+        "_": "\"CreateVoiceSession\"",
+        "sessionId": "string"
+      }
+    },
     "DeclineAgentInvite": {
       "fields": {
         "_": "\"DeclineAgentInvite\"",
@@ -574,6 +580,17 @@
       "fields": {
         "_": "\"CreateSigningIdentityResponse\"",
         "identity": "SigningIdentity"
+      }
+    },
+    "CreateVoiceSessionResponse": {
+      "fields": {
+        "_": "\"CreateVoiceSessionResponse\"",
+        "expiresAt": "number",
+        "identity": "string",
+        "room": "string",
+        "sessionId": "string",
+        "token": "string",
+        "url": "string"
       }
     },
     "DeclineAgentInviteResponse": {
