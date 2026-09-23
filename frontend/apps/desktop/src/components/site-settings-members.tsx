@@ -8,7 +8,7 @@ import {useResource, useSiteMembers} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import type {SiteSettingsTab} from '@shm/shared/routes'
 import {Button} from '@shm/ui/button'
-import {HMIcon} from '@shm/ui/hm-icon'
+import {AccountAvatar} from '@shm/ui/account-avatar'
 import {SiteEmailSubscribersList} from '@shm/ui/site-email-subscribers'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
@@ -228,7 +228,7 @@ function MemberRow({member, account, action}: {member: HMSiteMember; account?: H
   const name = metadata?.name || `${member.account.uid.slice(0, 10)}…`
   return (
     <div className="group hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors">
-      <HMIcon id={member.account} name={metadata?.name} icon={metadata?.icon} size={32} />
+      <AccountAvatar id={member.account} name={metadata?.name} icon={metadata?.icon} size={32} />
       <SizableText size="sm" className={cn('flex-1 truncate', metadata?.name ? '' : 'text-muted-foreground')}>
         {name}
       </SizableText>

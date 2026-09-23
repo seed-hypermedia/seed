@@ -11,6 +11,7 @@ import {activitySlugToFilter, hmId} from '@shm/shared/utils/entity-id-url'
 import {GitBranch, MessageSquare} from 'lucide-react'
 import {FacePile} from './face-pile'
 import {HMIcon} from './hm-icon'
+import {AccountAvatar} from './account-avatar'
 import {PrivateBadge} from './private-badge'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
@@ -151,16 +152,18 @@ export function ExplorePersonCard({account}: {account: ExploreAccount & {role?: 
   const name = account.name || getMetadataName(metadata.data?.[account.uid]?.metadata) || account.uid.slice(0, 8)
   const role = exploreRoleLabel(account.role)
   return (
-    <a {...linkProps} className={cn(exploreCardClassName, 'gap-2')}>
+    <div className={cn(exploreCardClassName, 'gap-2')}>
       <span className="flex min-w-0 items-center gap-2">
-        <HMIcon size={24} id={id} name={name} icon={account.icon} />
-        <span className="min-w-0 flex-1 truncate font-semibold">{name}</span>
+        <AccountAvatar size={24} id={id} name={name} icon={account.icon} />
+        <a {...linkProps} className="min-w-0 flex-1 truncate font-semibold hover:underline">
+          {name}
+        </a>
         {role ? (
           <span className="bg-muted text-muted-foreground shrink-0 rounded px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase">
             {role}
           </span>
         ) : null}
       </span>
-    </a>
+    </div>
   )
 }

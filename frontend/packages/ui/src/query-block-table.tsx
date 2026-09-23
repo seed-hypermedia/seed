@@ -14,6 +14,7 @@ import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from './c
 import {FacePile} from './face-pile'
 import {
   getDocumentTags,
+  getQueryTableAccountIds,
   getQueryTableSortValue,
   getQueryTableValue,
   queryTableValueToString,
@@ -114,6 +115,15 @@ export function QueryBlockTable({
           if (descriptor.id === 'authors')
             return <FacePile accounts={item.authors} accountsMetadata={context.accountsMetadata ?? {}} />
           const value = getQueryTableValue(item, descriptor.id, context)
+          const accountIds = getQueryTableAccountIds(value, context)
+          if (accountIds.length) {
+            return (
+              <FacePile
+                accounts={accountIds.map((accountId) => accountId.uid)}
+                accountsMetadata={context.accountsMetadata ?? {}}
+              />
+            )
+          }
           if (descriptor.id === 'updated' || descriptor.id === 'created') {
             return <span className="whitespace-nowrap">{formattedDate(value as any)}</span>
           }

@@ -1,6 +1,6 @@
 import {HMAccountsMetadata} from '@seed-hypermedia/client/hm-types'
 import {useMemo} from 'react'
-import {HMIcon} from './hm-icon'
+import {AccountAvatar} from './account-avatar'
 import {Text} from './text'
 import {cn} from './utils'
 
@@ -21,7 +21,7 @@ export function FacePile({accounts, accountsMetadata}: {accounts: string[]; acco
         if (!authorInfo) return null
         return (
           <div key={showAccountIds[idx]} className={cn(overlapClass, '-ml-2', `z-${idx + 1}`)}>
-            <HMIcon
+            <AccountAvatar
               key={authorInfo.id.uid}
               id={authorInfo.id}
               name={authorInfo.metadata?.name}

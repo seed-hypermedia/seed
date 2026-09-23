@@ -1,7 +1,7 @@
 import {hasProfileSubscription, hmId, useContactListOfSubject, useRouteLink} from '@shm/shared'
 import {useAccountsMetadata} from '@shm/shared/models/entity'
 import {useMemo} from 'react'
-import {HMIcon} from './hm-icon'
+import {AccountAvatar} from './account-avatar'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 
@@ -79,13 +79,13 @@ function FollowerItem({
   )
 
   return (
-    <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-lg p-3 transition-colors">
-      <HMIcon id={hmId(accountUid)} size={40} icon={metadata?.icon} name={metadata?.name} />
-      <div className="min-w-0 flex-1">
+    <div className="hover:bg-muted flex items-center gap-3 rounded-lg p-3 transition-colors">
+      <AccountAvatar id={hmId(accountUid)} size={40} icon={metadata?.icon} name={metadata?.name} />
+      <a {...linkProps} className="min-w-0 flex-1">
         <SizableText weight="medium" className="truncate">
           {metadata?.name || 'Untitled'}
         </SizableText>
-      </div>
-    </a>
+      </a>
+    </div>
   )
 }

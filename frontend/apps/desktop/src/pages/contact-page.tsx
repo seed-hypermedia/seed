@@ -19,6 +19,7 @@ import {DialogTitle} from '@shm/ui/components/dialog'
 import {PanelContainer} from '@shm/ui/container'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
+import {AccountAvatar} from '@shm/ui/account-avatar'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
@@ -123,7 +124,7 @@ function ContactListItem({
         navigate({key: 'contact', id})
       }}
     >
-      <HMIcon size={28} id={id} name={account.metadata?.name} icon={account.metadata?.icon} />
+      <AccountAvatar size={28} id={id} name={account.metadata?.name} icon={account.metadata?.icon} />
       <span className="text-foreground flex-1 truncate overflow-hidden pl-2 text-left whitespace-nowrap">
         {savedContact?.name ? savedContact.name : getMetadataName(account.metadata)}
       </span>
@@ -293,7 +294,7 @@ function ContactEdgeNames({contact, accounts}: {contact: HMContact; accounts: HM
                             })
                           }}
                         >
-                          <HMIcon
+                          <AccountAvatar
                             id={account.id}
                             name={account.metadata?.name}
                             icon={account.metadata?.icon}
@@ -342,14 +343,14 @@ function AccountContacts({contact, ownerLabel}: {contact: HMContact; ownerLabel:
               }}
             >
               {subjectAccount ? (
-                <HMIcon
+                <AccountAvatar
                   id={subjectAccount.id}
                   name={subjectAccount.type === 'document' ? subjectAccount.document?.metadata?.name : undefined}
                   icon={subjectAccount.type === 'document' ? subjectAccount.document?.metadata?.icon : undefined}
                   size={32}
                 />
               ) : (
-                <HMIcon id={hmId(contact.subject)} size={32} />
+                <AccountAvatar id={hmId(contact.subject)} size={32} />
               )}
               <span className="font-bold">{isDiscovering ? 'Loading…' : subjectName}</span>
               {subjectName !== contactName ? (

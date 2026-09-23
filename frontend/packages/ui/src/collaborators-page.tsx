@@ -27,7 +27,7 @@ import {Users} from 'lucide-react'
 import {forwardRef, useCallback, useEffect, useId, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import './combobox.css'
-import {HMIcon, LoadedHMIcon} from './hm-icon'
+import {AccountAvatar, LoadedAccountAvatar} from './account-avatar'
 import {ArrowRight, X} from './icons'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
@@ -317,17 +317,17 @@ function PublisherCollaborator({uid, siteUid, account}: {uid: string; siteUid: s
   const metadata = account?.metadata
 
   return (
-    <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors">
-      <HMIcon id={publisherId} name={metadata?.name} icon={metadata?.icon} size={32} />
-      <div className="flex flex-1 items-center gap-2 overflow-hidden">
+    <div className="hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors">
+      <AccountAvatar id={publisherId} name={metadata?.name} icon={metadata?.icon} size={32} siteUid={siteUid} />
+      <a {...linkProps} className="flex flex-1 items-center gap-2 overflow-hidden">
         <SizableText size="sm" className={`truncate ${metadata?.name ? '' : 'text-muted-foreground'}`}>
           {metadata?.name || abbreviateUid(uid)}
         </SizableText>
         <SizableText size="xs" color="muted" className="ml-auto shrink-0">
           Publisher
         </SizableText>
-      </div>
-    </a>
+      </a>
+    </div>
   )
 }
 
@@ -352,9 +352,9 @@ function CollaboratorListItem({
   const isParentCapability = capability.grantId.id !== docId.id
 
   return (
-    <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors">
-      <HMIcon id={collaboratorId} name={metadata?.name} icon={metadata?.icon} size={32} />
-      <div className="flex flex-1 items-center gap-2 overflow-hidden">
+    <div className="hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors">
+      <AccountAvatar id={collaboratorId} name={metadata?.name} icon={metadata?.icon} size={32} siteUid={docId.uid} />
+      <a {...linkProps} className="flex flex-1 items-center gap-2 overflow-hidden">
         <SizableText size="sm" className={`truncate ${metadata?.name ? '' : 'text-muted-foreground'}`}>
           {metadata?.name || abbreviateUid(capability.accountUid)}
         </SizableText>
@@ -362,8 +362,8 @@ function CollaboratorListItem({
           {getRoleDisplayName(capability.role)}
           {isParentCapability ? ' (Parent Capability)' : ''}
         </SizableText>
-      </div>
-    </a>
+      </a>
+    </div>
   )
 }
 
@@ -485,7 +485,7 @@ function MemberListItem({
 
   return (
     <div className="group hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors">
-      <HMIcon id={member.account} name={metadata?.name} icon={metadata?.icon} size={32} />
+      <AccountAvatar id={member.account} name={metadata?.name} icon={metadata?.icon} size={32} />
       <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
         <a
           {...linkProps}
@@ -689,7 +689,7 @@ const TagInput = forwardRef<HTMLInputElement, TagInputProps>(function TagInput(p
                 <UnresolvedItem value={value} />
               ) : (
                 <>
-                  <LoadedHMIcon id={value.id} size={20} />
+                  <LoadedAccountAvatar id={value.id} size={20} />
                   <SizableText>{getInviteAccountLabel(value)}</SizableText>
                 </>
               )}
@@ -744,7 +744,7 @@ function UnresolvedItem({value}: {value: SearchResult}) {
   const label = mention?.petname || mention?.publicName || metadata?.name || abbreviateUid(value.id.uid)
   return (
     <>
-      <HMIcon id={value.id} name={label} icon={mention?.icon || metadata?.icon} size={20} />
+      <AccountAvatar id={value.id} name={label} icon={mention?.icon || metadata?.icon} size={20} />
       <SizableText>{label}</SizableText>
     </>
   )
@@ -764,7 +764,12 @@ const TagInputItem = forwardRef<HTMLDivElement, TagInputItemProps>(function TagI
     >
       <div className="flex flex-1 justify-start gap-2">
         {props.member?.id ? (
-          <HMIcon size={20} name={getInviteAccountLabel(props.member)} icon={props.member.icon} id={props.member.id} />
+          <AccountAvatar
+            size={20}
+            name={getInviteAccountLabel(props.member)}
+            icon={props.member.icon}
+            id={props.member.id}
+          />
         ) : null}
         <div className="flex flex-1">
           <SizableText size="sm" className="text-currentColor">

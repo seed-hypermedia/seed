@@ -50,9 +50,9 @@ import {SelectionContent} from './accessories'
 import {getBlockNodeById} from './blocks-content-utils'
 import {Button} from './button'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
-import {HMIcon} from './hm-icon'
+import {AccountAvatar} from './account-avatar'
 import {BlockQuote, ReplyArrow} from './icons'
-import {AuthorNameLink, getContextualProfileRoute, InlineDescriptor, Timestamp} from './inline-descriptor'
+import {AuthorNameLink, InlineDescriptor, Timestamp} from './inline-descriptor'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
@@ -679,7 +679,6 @@ export const Comment = memo(function Comment({
   const bookmarkTitle = commentBookmarkTitle(comment.content, bookmarkResolvedNames)
   const bookmarkAuthorAccountId = comment.author || authorId
   const isBookmarked = documentActions.isBookmarked?.(commentHmId) ?? false
-  const authorLink = useRouteLink(getContextualProfileRoute(currentRoute, authorHmId, docId?.uid))
   const copyHmLink = useCopyHmLink()
 
   const externalTargetLink = useRouteLink(externalTarget ? {key: 'document', id: externalTarget.id} : null)
@@ -767,18 +766,15 @@ export const Comment = memo(function Comment({
         {heading ? null : (
           <div className="relative mt-0.5 flex min-w-5 flex-col items-center">
             {isFirst ? null : <div className="bg-border absolute top-[-40px] left-1/2 h-[40px] w-px" />}
-            <div
-              className={cn(
-                'absolute top-0 left-0 z-2 size-5 rounded-full bg-transparent transition-all duration-200 ease-in-out',
-                isEntirelyHighlighted
-                  ? 'outline-secondary hover:outline-secondary'
-                  : 'dark:outline-background dark:hover:outline-background outline-white hover:outline-white',
-              )}
-              {...authorLink}
-            />
             {authorHmId && (
               <div className="size-5">
-                <HMIcon id={authorHmId} name={authorMetadata?.name} icon={authorMetadata?.icon} size={20} />
+                <AccountAvatar
+                  id={authorHmId}
+                  name={authorMetadata?.name}
+                  icon={authorMetadata?.icon}
+                  size={20}
+                  siteUid={docId?.uid}
+                />
               </div>
             )}
             {!isLast || (highlight && selection?.blockId) ? <div className="bg-border h-full w-px" /> : null}

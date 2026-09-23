@@ -3,8 +3,9 @@ import {
   type HMAccountsMetadata,
   type HMDocumentInfo,
   type HMQueryBlockItemSummary,
+  type UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {formattedDate, normalizeDate, type AnyTimestamp} from '@shm/shared'
+import {formattedDate, normalizeDate, unpackHmId, type AnyTimestamp} from '@shm/shared'
 
 /** Primitive presentation types inferred for custom Query table attributes. */
 export type QueryTableAttributeType = 'text' | 'number' | 'boolean' | 'date' | 'list'
@@ -29,6 +30,18 @@ export type QueryTableValueContext = {
   accountsMetadata?: HMAccountsMetadata
   interactionSummaries?: Record<string, HMQueryBlockItemSummary>
   citationCounts?: Record<string, number>
+}
+
+/** Returns bare account references that have metadata in the current query payload. */
+export function getQueryTableAccountIds(value: unknown, context?: QueryTableValueContext): UnpackedHypermediaId[] {
+  const values = Array.isArray(value) ? value : [value]
+  return values.flatMap((candidate) => {
+    if (typeof candidate !== 'string') return []
+    const id = unpackHmId(candidate)
+    if (!id || id.path?.length) return []
+    const account = context?.accountsMetadata?.[id.uid]
+    return account ? [account.id] : []
+  })
 }
 
 const RESERVED_METADATA_KEYS = BUILTIN_METADATA_KEYS

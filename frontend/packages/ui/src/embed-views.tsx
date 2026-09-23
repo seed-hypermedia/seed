@@ -38,7 +38,7 @@ import {Button} from './button'
 import {CommentContent, Discussions} from './comments'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {EmbedWrapper, getEmbedDocumentRoute} from './embed-wrapper'
-import {HMIcon} from './hm-icon'
+import {AccountAvatar} from './account-avatar'
 import {DocumentNameLink} from './inline-descriptor'
 import {DocumentCard} from './newspaper'
 import {Spinner} from './spinner'
@@ -707,7 +707,7 @@ function CommentEmbedHeader({
     <div className="flex flex-col">
       <div className="flex flex-wrap justify-between p-3 font-sans">
         <div className="flex items-center gap-2">
-          <HMIcon size={24} id={author?.id || hmId(comment.author)} name={authorName} icon={authorIcon} />
+          <AccountAvatar size={24} id={author?.id || hmId(comment.author)} name={authorName} icon={authorIcon} />
           <SizableText weight="bold">{authorName}</SizableText>
           {isAuthorLoading && !author?.metadata?.name ? <Spinner size="small" /> : null}
           {targetResource && targetResource.type === 'document' ? (

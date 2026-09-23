@@ -2,7 +2,7 @@ import {HMSiteMember, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-typ
 import {useAccountsMetadata} from '@shm/shared/models/entity'
 import {useRouteLink} from '@shm/shared/routing'
 import {useMemo} from 'react'
-import {HMIcon} from './hm-icon'
+import {AccountAvatar} from './account-avatar'
 import {cn} from './utils'
 
 const MAX_AVATARS = 3
@@ -29,8 +29,7 @@ export function MembersFacepile({members, siteId, description, className}: Membe
   if (totalCount === 0) return null
 
   return (
-    <a
-      {...peopleLinkProps}
+    <div
       className={cn(
         'bg-muted hover:bg-muted/80 flex cursor-pointer items-center gap-3 rounded-lg px-5 py-4 transition-colors',
         className,
@@ -43,14 +42,14 @@ export function MembersFacepile({members, siteId, description, className}: Membe
           const meta = accountsMeta.data[uid]
           return (
             <div key={uid} className="ring-muted rounded-full ring-2" style={{zIndex: MAX_AVATARS - idx}}>
-              <HMIcon id={member.account} name={meta?.metadata?.name} icon={meta?.metadata?.icon} size={32} />
+              <AccountAvatar id={member.account} name={meta?.metadata?.name} icon={meta?.metadata?.icon} size={32} />
             </div>
           )
         })}
       </div>
-      <span className="text-muted-foreground text-sm">
+      <a {...peopleLinkProps} className="text-muted-foreground text-sm hover:underline">
         {description || `${totalCount} member${totalCount !== 1 ? 's' : ''} collaborating`}
-      </span>
-    </a>
+      </a>
+    </div>
   )
 }

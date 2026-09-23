@@ -7,7 +7,7 @@ import {useAccount, useResource} from '@shm/shared/models/entity'
 import type {NotificationPayload} from '@shm/shared/models/notification-payload'
 import {notificationTitle} from '@shm/shared/models/notification-helpers'
 import {Button} from './button'
-import {HMIcon} from './hm-icon'
+import {AccountAvatar} from './account-avatar'
 import {Spinner} from './spinner'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
@@ -40,15 +40,15 @@ export function NotificationListItem({item, isRead, onOpen, onToggleRead}: Notif
         isRead ? 'hover:bg-muted/40' : 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/40',
       )}
     >
-      <button type="button" className="flex min-w-0 flex-1 items-start gap-3 text-left" onClick={() => void onOpen()}>
-        <div className="pt-0.5">
+      <div className="flex min-w-0 flex-1 items-start gap-3 text-left">
+        <div className="pt-0.5" onClick={(event) => event.stopPropagation()}>
           {authorId ? (
-            <HMIcon size={24} id={authorId} name={authorName} icon={authorIcon} />
+            <AccountAvatar size={24} id={authorId} name={authorName} icon={authorIcon} />
           ) : (
             <div className="bg-muted size-6 rounded-full" />
           )}
         </div>
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <button type="button" className="flex min-w-0 flex-1 flex-col gap-1 text-left" onClick={() => void onOpen()}>
           <div className="flex items-start gap-2">
             {!isRead ? <span className="mt-1.5 inline-block size-2 shrink-0 rounded-full bg-blue-600" /> : null}
             <p className={cn('text-sm', !isRead && 'font-bold')}>
@@ -61,8 +61,8 @@ export function NotificationListItem({item, isRead, onOpen, onToggleRead}: Notif
             </p>
           </div>
           <p className="text-muted-foreground text-xs">{formattedDateShort(new Date(item.eventAtMs))}</p>
-        </div>
-      </button>
+        </button>
+      </div>
       <Tooltip content={isRead ? 'Mark as unread' : 'Mark as read'}>
         <Button
           type="button"

@@ -52,7 +52,7 @@ import {useClickNavigate} from './navigation'
 import {getAgentsPlatform} from './platform'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {Button} from '@shm/ui/button'
-import {HMIcon} from '@shm/ui/hm-icon'
+import {AccountAvatar} from '@shm/ui/account-avatar'
 import {cn} from '@shm/ui/utils'
 import {
   Activity,
@@ -299,7 +299,7 @@ function UserMessageOrigin({meta}: {meta?: SessionEventMeta}) {
       title={label}
       aria-label={`Open ${label}'s profile`}
     >
-      <HMIcon id={hmId(meta.accountId)} name={metadata?.name} icon={metadata?.icon} size={26} />
+      <AccountAvatar id={hmId(meta.accountId)} name={metadata?.name} icon={metadata?.icon} size={26} />
     </a>
   ) : (
     <div

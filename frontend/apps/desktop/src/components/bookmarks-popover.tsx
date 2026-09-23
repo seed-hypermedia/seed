@@ -7,7 +7,7 @@ import {createDocumentNavRoute, type ProfileTab} from '@shm/shared/routes'
 import {hmId, viewTermToRouteKey, type ViewTerm} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
-import {HMIcon} from '@shm/ui/hm-icon'
+import {AccountAvatar} from '@shm/ui/account-avatar'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {
@@ -123,7 +123,7 @@ export function BookmarksPopover() {
                     title={bookmark.title}
                     leading={
                       <span className="relative size-8 shrink-0">
-                        <HMIcon id={authorId} name={authorMetadata.name} icon={authorMetadata.icon} size={32} />
+                        <AccountAvatar id={authorId} name={authorMetadata.name} icon={authorMetadata.icon} size={32} />
                         <span className="bg-background ring-background absolute -right-1 -bottom-1 z-10 flex size-4 items-center justify-center rounded-full ring-2">
                           <MessageSquare className="text-foreground size-3" />
                         </span>

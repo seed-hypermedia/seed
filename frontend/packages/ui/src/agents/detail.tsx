@@ -98,7 +98,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import {HMIcon} from '@shm/ui/hm-icon'
+import {AccountAvatar} from '@shm/ui/account-avatar'
 import {SigningIdentityIcon} from './signing-identity-icon'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 import {activityConditions, getSeedTool} from '@seed-hypermedia/agents-protocol'
@@ -1104,7 +1104,7 @@ function AgentCollaboratorRow({
 
   return (
     <div className="flex items-center gap-3 rounded-md p-3">
-      <HMIcon id={hmId(member.accountId)} name={metadata?.name} icon={metadata?.icon} size={32} />
+      <AccountAvatar id={hmId(member.accountId)} name={metadata?.name} icon={metadata?.icon} size={32} />
       <div className="flex flex-1 items-center gap-2 overflow-hidden">
         <SizableText size="sm" className={`truncate ${metadata?.name ? '' : 'text-muted-foreground'}`}>
           {metadata?.name || abbreviateUid(member.accountId)}

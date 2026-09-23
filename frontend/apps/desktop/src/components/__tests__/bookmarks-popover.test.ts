@@ -114,7 +114,8 @@ describe('comment bookmarks', () => {
   it('renders the author avatar with a comment badge', () => {
     const popover = readFileSync('src/components/bookmarks-popover.tsx', 'utf8')
 
-    expect(popover).toContain('<HMIcon id={authorId}')
+    expect(popover).toContain('<AccountAvatar')
+    expect(popover).toContain('id={authorId}')
     expect(popover).toContain('<MessageSquare className="text-foreground size-3" />')
   })
 })

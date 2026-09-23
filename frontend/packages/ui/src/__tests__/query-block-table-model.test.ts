@@ -1,9 +1,11 @@
 import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
+import {hmId} from '@shm/shared'
 import {describe, expect, it} from 'vitest'
 import {
   buildQueryTableColumns,
   filterQueryTableItems,
   getDocumentTags,
+  getQueryTableAccountIds,
   getQuerySortColumns,
   inferAttributeType,
   moveQueryTableColumn,
@@ -91,6 +93,15 @@ describe('query block table model', () => {
     expect(inferAttributeType([['a'], ['b', 'c']])).toBe('list')
     expect(inferAttributeType(['2026-01-01', '2026-02-02'])).toBe('date')
     expect(inferAttributeType([1, 'high'])).toBe('text')
+  })
+
+  it('recognizes only known bare account references', () => {
+    const context = {accountsMetadata: {alice: {id: hmId('alice'), metadata: {name: 'Alice'}}}}
+
+    expect(getQueryTableAccountIds('hm://alice', context)).toEqual([hmId('alice')])
+    expect(getQueryTableAccountIds(['hm://alice', 'hm://missing'], context)).toEqual([hmId('alice')])
+    expect(getQueryTableAccountIds('hm://alice/document', context)).toEqual([])
+    expect(getQueryTableAccountIds('Ready', context)).toEqual([])
   })
 
   it('searches all row data, including values belonging to hidden columns', () => {

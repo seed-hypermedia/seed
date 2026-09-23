@@ -17,6 +17,7 @@ import {Container} from './container'
 import {DocumentDate} from './document-date'
 import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
+import {AccountAvatar} from './account-avatar'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from './hover-card'
 import {Home} from './icons'
 import {getContextualProfileRoute} from './inline-descriptor'
@@ -203,7 +204,13 @@ export function DocumentHeader({
                         key={author.id.id}
                         className="dark:border-background dark:bg-background size-5 overflow-hidden rounded-full border-2 border-white bg-white"
                       >
-                        <HMIcon id={author.id} name={author.metadata?.name} icon={author.metadata?.icon} size={20} />
+                        <AccountAvatar
+                          id={author.id}
+                          name={author.metadata?.name}
+                          icon={author.metadata?.icon}
+                          size={20}
+                          siteUid={docId?.uid}
+                        />
                       </div>
                     ))}
                   </div>

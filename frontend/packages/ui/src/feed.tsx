@@ -35,7 +35,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './components/alert-dialog'
-import {HMIcon} from './hm-icon'
+import {AccountAvatar} from './account-avatar'
 import {ReplyArrow} from './icons'
 import {AuthorNameLink, DocumentNameLink, InlineDescriptor, Timestamp} from './inline-descriptor'
 import {DocumentCard} from './newspaper'
@@ -509,7 +509,7 @@ function EventHeaderContent({
       <InlineDescriptor>
         <AuthorNameLink author={event.author} /> <span>added</span>{' '}
         {event.delegates[0]?.id ? (
-          <HMIcon
+          <AccountAvatar
             className="mx-1 mb-1 inline-block align-middle"
             id={event.delegates[0]?.id}
             size={18}
@@ -676,7 +676,7 @@ function EventHeaderContent({
       <InlineDescriptor>
         <AuthorNameLink author={event.author} /> <span>{contactAction}</span>{' '}
         {event.contact.subject?.id && event.contact.subject.metadata?.icon ? (
-          <HMIcon
+          <AccountAvatar
             className="mx-1 mb-1 inline-block align-middle"
             id={event.contact.subject.id}
             size={18}
@@ -859,7 +859,7 @@ function EventCommentWithReply({
           <div className={cn('h-[18px] w-[24px]')} />
           <div className="size-[18px]">
             {event.replyParentAuthor?.id ? (
-              <HMIcon
+              <AccountAvatar
                 size={18}
                 id={event.replyParentAuthor.id}
                 name={event.replyParentAuthor.metadata?.name}
@@ -894,7 +894,7 @@ function EventCommentWithReply({
       <div className="group flex items-start gap-2">
         <div className="size-[24px]">
           {event.author?.id ? (
-            <HMIcon
+            <AccountAvatar
               size={24}
               id={event.author.id}
               name={event.author.metadata?.name}
@@ -1099,7 +1099,7 @@ function EventItem({
       <div className="flex items-start gap-2">
         <div className="size-[24px]">
           {event.author?.id ? (
-            <HMIcon
+            <AccountAvatar
               size={24}
               id={event.author.id}
               name={event.author.metadata?.name}

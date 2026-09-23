@@ -56,6 +56,7 @@ import {
 import {LogoutVaultDialog} from '@shm/ui/components/logout-vault-dialog'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {AccountAvatar} from '@shm/ui/account-avatar'
 import {Back, Forward, UploadCloud} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {TitlebarSection} from '@shm/ui/titlebar'
@@ -397,7 +398,12 @@ export function AccountProfileButton() {
                           setSwitcherOpen(false)
                         }}
                       >
-                        <HMIcon id={option.id} name={option.metadata?.name} icon={option.metadata?.icon} size={32} />
+                        <AccountAvatar
+                          id={option.id}
+                          name={option.metadata?.name}
+                          icon={option.metadata?.icon}
+                          size={32}
+                        />
                         <p className="min-w-0 truncate text-sm">
                           {option.metadata?.name || `?${option.id.uid?.slice(-8)}`}
                         </p>

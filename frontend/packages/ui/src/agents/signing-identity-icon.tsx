@@ -1,6 +1,6 @@
 import {useAccount} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {HMIcon} from '@shm/ui/hm-icon'
+import {AccountAvatar} from '@shm/ui/account-avatar'
 import type {SigningIdentity} from './client'
 
 /**
@@ -20,5 +20,5 @@ export function SigningIdentityIcon({
   const account = useAccount(identity.accountId, {subscribe: true})
   if (!identity.accountId) return null
   const icon = account.data?.metadata?.icon || identity.icon
-  return <HMIcon id={hmId(identity.accountId)} name={name} icon={icon} size={size} />
+  return <AccountAvatar id={hmId(identity.accountId)} name={name} icon={icon} size={size} />
 }

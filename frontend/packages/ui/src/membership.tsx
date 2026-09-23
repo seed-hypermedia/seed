@@ -2,7 +2,7 @@ import {HMContactRecord} from '@seed-hypermedia/client/hm-types'
 import {hmId, useRouteLink} from '@shm/shared'
 import {useContactListOfAccount} from '@shm/shared/models/contacts'
 import {useAccount} from '@shm/shared/models/entity'
-import {HMIcon} from './hm-icon'
+import {AccountAvatar} from './account-avatar'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 
@@ -48,14 +48,14 @@ function MembershipItem({contact}: {contact: HMContactRecord}) {
   const name = contact.name || subject.data?.metadata?.name
   const icon = subject.data?.metadata?.icon
   return (
-    <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-lg px-6 py-3 transition-colors">
-      <HMIcon id={hmId(contact.subject)} size={40} icon={icon} name={name} />
-      <div className="flex min-w-0 flex-1 items-center gap-2">
+    <div className="hover:bg-muted flex items-center gap-3 rounded-lg px-6 py-3 transition-colors">
+      <AccountAvatar id={hmId(contact.subject)} size={40} icon={icon} name={name} />
+      <a {...linkProps} className="flex min-w-0 flex-1 items-center gap-2">
         <SizableText weight="medium" className={`truncate ${name ? '' : 'text-muted-foreground'}`}>
           {name || 'Untitled'}
         </SizableText>
         {!name ? <Spinner size="small" /> : null}
-      </div>
-    </a>
+      </a>
+    </div>
   )
 }

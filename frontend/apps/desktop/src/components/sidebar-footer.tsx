@@ -8,7 +8,7 @@ import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popove
 import {useAccounts} from '@shm/shared/models/entity'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {useHighlighter} from '@shm/ui/highlight-context'
-import {HMIcon} from '@shm/ui/hm-icon'
+import {AccountAvatar} from '@shm/ui/account-avatar'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {Plus, Settings} from 'lucide-react'
@@ -65,25 +65,22 @@ export function SidebarFooter({isSidebarVisible = false}: {isSidebarVisible?: bo
   return (
     <div className="dark:bg-background border-border bg-background mb-px flex w-full items-center rounded-md border transition-all duration-200 ease-in-out">
       <Popover open={isOpen} onOpenChange={setIsOpen}>
+        {selectedAccountData ? (
+          <AccountAvatar
+            key={selectedAccountData.id?.uid}
+            id={selectedAccountData.id}
+            name={selectedAccountData.metadata?.name}
+            icon={selectedAccountData.metadata?.icon}
+            size={24}
+          />
+        ) : null}
         <PopoverTrigger
-          className="flex w-full min-w-0 items-center justify-start gap-2 rounded-md bg-transparent px-1 py-1 pr-3"
+          className="flex w-full min-w-0 items-center justify-start rounded-md bg-transparent py-1 pr-3"
           {...highlighter(hmId(selectedIdentityValue))}
         >
-          <>
-            {selectedAccountData ? (
-              <HMIcon
-                key={selectedAccountData.id?.uid}
-                id={selectedAccountData.id}
-                name={selectedAccountData.metadata?.name}
-                icon={selectedAccountData.metadata?.icon}
-                size={24}
-              />
-            ) : null}
-
-            <p className="truncate text-sm select-none">
-              {selectedAccountData?.metadata?.name || `?${selectedIdentityValue?.slice(-8) || 'Unknown'}`}
-            </p>
-          </>
+          <p className="truncate text-sm select-none">
+            {selectedAccountData?.metadata?.name || `?${selectedIdentityValue?.slice(-8) || 'Unknown'}`}
+          </p>
         </PopoverTrigger>
         <PopoverContent
           side="right"
@@ -105,7 +102,7 @@ export function SidebarFooter({isSidebarVisible = false}: {isSidebarVisible?: bo
                   }}
                   {...highlighter(option.id)}
                 >
-                  <HMIcon id={option.id} name={option.metadata?.name} icon={option.metadata?.icon} />
+                  <AccountAvatar id={option.id} name={option.metadata?.name} icon={option.metadata?.icon} />
                   {option.metadata?.name || `?${option.id.uid?.slice(-8)}`}
                 </div>
               ) : null,
