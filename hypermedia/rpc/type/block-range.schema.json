@@ -1,0 +1,26 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "start": {
+      "value": {
+        "type": "hm://hyper.media/integer",
+        "minimum": 0
+      },
+      "description": "Start offset of the selected text within the block, in codepoints."
+    },
+    "end": {
+      "value": {
+        "type": "hm://hyper.media/integer",
+        "minimum": 0
+      },
+      "description": "End offset of the selected text within the block, in codepoints."
+    },
+    "expanded": {
+      "value": {
+        "type": "hm://hyper.media/boolean"
+      },
+      "description": "When `true`, the reference covers the whole block with its children expanded instead of a text range."
+    }
+  },
+  "description": "A selection within a block: character offsets in `start` and `end`, or the whole block expanded."
+}

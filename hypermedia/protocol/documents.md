@@ -173,4 +173,4 @@ As of September 2026 the team is designing a successor blob layout (working name
 - [Privacy](./privacy.md) for private documents. <!-- id:-HzPh5hd -->
 - [Comments](./comments.md) for discussion attached to a document. <!-- id:33TzTk0U -->
 - Schema pages: [change](../change.md), [change/op](../change/op.md), [ref](../ref.md), [ref/redirect-target](../ref/redirect-target.md), [document](../document.md), [metadata](../metadata.md). <!-- id:Tl4S-9FB -->
-- [Seed API](../build/web-api.md): `Resource`, `ListChanges`. <!-- id:CdT9G_e1 -->
+- Read models: [Resource](../rpc/resource.md), [ListChanges](../rpc/list-changes.md). <!-- id:CdT9G_e1 -->

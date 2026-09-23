@@ -1,0 +1,34 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "key": {
+      "value": "ListCommentsByReference",
+      "required": true,
+      "description": "Method key, always `ListCommentsByReference`."
+    },
+    "input": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "targetId": {
+            "value": {
+              "type": "hm://hyper.media/rpc/type/id"
+            },
+            "required": true,
+            "description": "Id of the document; must include a `blockRef` naming the block."
+          }
+        }
+      },
+      "required": true,
+      "description": "The block whose referencing comments to list."
+    },
+    "output": {
+      "value": {
+        "type": "hm://hyper.media/rpc/type/comment-list"
+      },
+      "required": true,
+      "description": "Comments referencing the block, with author metadata."
+    }
+  },
+  "description": "Returns the comments that reference a specific block, given a target id that carries the block reference."
+}

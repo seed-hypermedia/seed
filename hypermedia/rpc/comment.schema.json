@@ -1,0 +1,25 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "key": {
+      "value": "Comment",
+      "required": true,
+      "description": "Method key, always `Comment`."
+    },
+    "input": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "Comment id (uid/tsid) or version CID."
+    },
+    "output": {
+      "value": {
+        "type": "hm://hyper.media/rpc/type/comment"
+      },
+      "required": true,
+      "description": "The requested comment."
+    }
+  },
+  "description": "Returns one comment as the API read model, given its id (`uid/tsid`) or a version CID."
+}

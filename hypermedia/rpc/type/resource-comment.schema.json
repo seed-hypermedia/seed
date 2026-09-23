@@ -1,0 +1,25 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "type": {
+      "value": "comment",
+      "required": true,
+      "description": "Discriminator: the resource is a comment."
+    },
+    "id": {
+      "value": {
+        "type": "hm://hyper.media/rpc/type/id"
+      },
+      "required": true,
+      "description": "Parsed id the resource was requested with."
+    },
+    "comment": {
+      "value": {
+        "type": "hm://hyper.media/rpc/type/comment"
+      },
+      "required": true,
+      "description": "The comment."
+    }
+  },
+  "description": "A resolved resource that is a comment: the parsed id plus the comment read model."
+}

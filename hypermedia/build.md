@@ -81,5 +81,6 @@ The **peer protocol** is [libp2p](./protocol/network.md) with the protocol id `/
 
 - [The Hypermedia Protocol](./protocol.md), the concepts every guide assumes. <!-- id:uQ7GR5L5 -->
 - [The Seed software](./apps.md), a map of the programs these surfaces belong to. <!-- id:yVWdtHaJ -->
+- [Seed API schemas](./rpc.md), the read keys published as [Hypermedia Schemas](./schema.md). <!-- id:-EPTNoZD -->
 - [Seed Agents](./agent.md), the hosted agent runtime. <!-- id:bUu8evms -->
 - [Glossary](./glossary.md), one-line definitions of every term. <!-- id:VqJpifp_ -->

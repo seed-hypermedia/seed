@@ -1,0 +1,15 @@
+---
+name: "RPC: SubjectContacts"
+summary: Returns the contact records that name a subject account, given the subject’s uid.
+---
+Lists the [contact](../protocol/permissions.md) records that name a subject [account](../protocol/identity.md), given the subject's uid. Each result is a [contact record](./type/contact-record.md). <!-- id:pML1FZCM -->
+
+This page describes the **rpc/subject-contacts** method. It is one method of the [Seed API](../build/web-api.md), which clients call as `request(key, input) -> output`. `input` types what you send and `output` types what comes back. The output is a read model that the daemon computes for clients, separate from the signed [blobs](../protocol/blobs.md) that travel the network. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it and run the method from its [API console](../rpc.md). <!-- id:Rxkn_YDl -->
+
+# See also <!-- id:IMcqQJsG -->
+
+- [Seed API](../build/web-api.md): HTTP transport, input encodings, errors and authentication. <!-- id:CAkNu7tw -->
+- [Seed API Schemas](../rpc.md): the catalog of methods and the in-app console. <!-- id:114qaZcC -->
+- [RPC](./method.md): every method in one union. <!-- id:hXRrFm_x -->
+- [Contact](../contact.md): the signed blob behind each record. <!-- id:I8KMDdOa -->
+- [AccountContacts](./account-contacts.md): the contacts an account has written. <!-- id:wu-99-n- -->

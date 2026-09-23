@@ -96,3 +96,4 @@ seed-cli blob validate -f value.json --schema <type URL>
 - [Hypermedia Schemas in one page](./schema/quick-reference.md): the features these examples follow. <!-- id:AcIT29Wj -->
 - [Typed documents](./schema/typed-documents.md): attributes schemas on real pages. <!-- id:7IMvkykK -->
 - [The World Builder](./schema/world-builder.md): the demo behind the world-builder types. <!-- id:NhbaWGTZ -->
+- [Seed API Schemas](./rpc.md): real schemas for the Seed API. <!-- id:VoHi5KuO -->

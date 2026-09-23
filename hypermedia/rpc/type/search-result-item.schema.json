@@ -1,0 +1,73 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "id": {
+      "value": {
+        "type": "hm://hyper.media/rpc/type/id"
+      },
+      "required": true,
+      "description": "Parsed id of the matched document or account; for comments, the document containing the comment."
+    },
+    "commentId": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Id of the matched comment, without the `hm://` prefix; set only when `type` is `comment`."
+    },
+    "metadata": {
+      "value": {
+        "type": "hm://hyper.media/metadata"
+      },
+      "description": "Metadata of the matched resource, when included."
+    },
+    "title": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "Matched content: a title, or the matching excerpt with surrounding context."
+    },
+    "icon": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "Icon of the document containing the match."
+    },
+    "parentNames": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/string"
+        }
+      },
+      "required": true,
+      "description": "Names of the parent documents, for breadcrumb display."
+    },
+    "versionTime": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Time of the matched version, formatted as a locale date-time string."
+    },
+    "searchQuery": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "The query this result was returned for."
+    },
+    "type": {
+      "value": {
+        "anyOf": [
+          "document",
+          "contact",
+          "comment"
+        ]
+      },
+      "required": true,
+      "description": "Kind of entity that matched: `document`, `contact`, or `comment`."
+    }
+  },
+  "description": "One hit of a network search: the matched id with its title, icon, parent names, and the kind of entity matched."
+}

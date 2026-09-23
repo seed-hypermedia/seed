@@ -1,0 +1,60 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "id": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Id of the capability."
+    },
+    "issuer": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Account uid that issued the capability."
+    },
+    "delegate": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Account uid the capability is delegated to."
+    },
+    "account": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Account uid the capability grants access to."
+    },
+    "path": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Path within the account the capability grants access to; empty for the root."
+    },
+    "role": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Role granted to the delegate, as the proto enum name such as `WRITER` or `AGENT`."
+    },
+    "noRecursive": {
+      "value": {
+        "type": "hm://hyper.media/boolean"
+      },
+      "description": "When `true`, the capability applies only to the exact path, not its subpaths."
+    },
+    "label": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Short, user-provided label identifying the capability."
+    },
+    "createTime": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Time the capability was issued, as an RFC 3339 string."
+    }
+  },
+  "description": "A capability as the daemon indexes it, in raw wire form where every field is optional."
+}

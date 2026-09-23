@@ -1,0 +1,25 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "key": {
+      "value": "ResourceMetadata",
+      "required": true,
+      "description": "Method key, always `ResourceMetadata`."
+    },
+    "input": {
+      "value": {
+        "type": "hm://hyper.media/rpc/type/id"
+      },
+      "required": true,
+      "description": "Parsed id of the resource."
+    },
+    "output": {
+      "value": {
+        "type": "hm://hyper.media/rpc/type/metadata-payload"
+      },
+      "required": true,
+      "description": "The resource's metadata payload."
+    }
+  },
+  "description": "Returns only the metadata payload of a resource, given its parsed id; use it when the full content is not needed."
+}

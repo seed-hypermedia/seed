@@ -1,0 +1,100 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "source": {
+      "value": {
+        "anyOf": [
+          {
+            "type": "hm://hyper.media/struct",
+            "properties": {
+              "type": {
+                "value": "c",
+                "required": true,
+                "description": "Discriminator: the citation comes from a comment."
+              },
+              "id": {
+                "value": {
+                  "type": "hm://hyper.media/rpc/type/id"
+                },
+                "required": true,
+                "description": "Parsed id of the citing comment."
+              },
+              "author": {
+                "value": {
+                  "type": "hm://hyper.media/string"
+                },
+                "description": "Account uid of the citing comment's author."
+              },
+              "time": {
+                "value": {
+                  "type": "hm://hyper.media/timestamp"
+                },
+                "description": "Creation time of the blob that contains the citation."
+              }
+            }
+          },
+          {
+            "type": "hm://hyper.media/struct",
+            "properties": {
+              "type": {
+                "value": "d",
+                "required": true,
+                "description": "Discriminator: the citation comes from a document."
+              },
+              "id": {
+                "value": {
+                  "type": "hm://hyper.media/rpc/type/id"
+                },
+                "required": true,
+                "description": "Parsed id of the citing document, at the version that contains the citation."
+              },
+              "author": {
+                "value": {
+                  "type": "hm://hyper.media/string"
+                },
+                "description": "Account uid of the author of the citing change."
+              },
+              "time": {
+                "value": {
+                  "type": "hm://hyper.media/timestamp"
+                },
+                "description": "Creation time of the blob that contains the citation."
+              }
+            }
+          }
+        ]
+      },
+      "required": true,
+      "description": "The citing resource: a comment (`c`) or a document (`d`)."
+    },
+    "isExactVersion": {
+      "value": {
+        "type": "hm://hyper.media/boolean"
+      },
+      "required": true,
+      "description": "Whether the link pins the exact target version rather than a suggested minimum version."
+    },
+    "targetFragment": {
+      "value": {
+        "anyOf": [
+          {
+            "type": "hm://hyper.media/rpc/type/parsed-fragment"
+          },
+          {
+            "type": "hm://hyper.media/null"
+          }
+        ]
+      },
+      "required": true,
+      "description": "The block, and optional range within it, the link points at, or `null` for the whole resource."
+    },
+    "targetId": {
+      "value": {
+        "type": "hm://hyper.media/rpc/type/id"
+      },
+      "required": true,
+      "description": "Parsed id of the resource being cited."
+    }
+  },
+  "description": "One mention of a target resource from a document or comment, with its version pinning and target fragment."
+}

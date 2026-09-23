@@ -1,0 +1,40 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "key": {
+      "value": "GetDomain",
+      "required": true,
+      "description": "Method key, always `GetDomain`."
+    },
+    "input": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "domain": {
+            "value": {
+              "type": "hm://hyper.media/string"
+            },
+            "required": true,
+            "description": "Site domain name, such as `example.com`."
+          },
+          "forceCheck": {
+            "value": {
+              "type": "hm://hyper.media/boolean"
+            },
+            "description": "When `true`, performs a fresh HTTP check instead of returning cached data."
+          }
+        }
+      },
+      "required": true,
+      "description": "The domain to look up."
+    },
+    "output": {
+      "value": {
+        "type": "hm://hyper.media/rpc/type/domain-info"
+      },
+      "required": true,
+      "description": "Registration and health info for the domain."
+    }
+  },
+  "description": "Returns the daemon's registration and health view of one site domain, optionally forcing a fresh check."
+}

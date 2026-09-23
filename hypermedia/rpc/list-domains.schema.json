@@ -1,0 +1,37 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "key": {
+      "value": "ListDomains",
+      "required": true,
+      "description": "Method key, always `ListDomains`."
+    },
+    "input": {
+      "value": {
+        "type": "hm://hyper.media/map"
+      },
+      "required": true,
+      "description": "Ignored; send an empty map."
+    },
+    "output": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "domains": {
+            "value": {
+              "type": "hm://hyper.media/list",
+              "items": {
+                "type": "hm://hyper.media/rpc/type/domain-info"
+              }
+            },
+            "required": true,
+            "description": "Registration and health info for each tracked domain."
+          }
+        }
+      },
+      "required": true,
+      "description": "All tracked domains."
+    }
+  },
+  "description": "Returns every site domain the daemon knows, each with its registration and health info."
+}

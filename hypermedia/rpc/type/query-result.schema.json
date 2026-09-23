@@ -1,0 +1,32 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "in": {
+      "value": {
+        "type": "hm://hyper.media/rpc/type/id"
+      },
+      "required": true,
+      "description": "Parsed id of the document the query lists under."
+    },
+    "results": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/rpc/type/document-info"
+        }
+      },
+      "required": true,
+      "description": "Documents the query matched."
+    },
+    "mode": {
+      "value": {
+        "anyOf": [
+          "Children",
+          "AllDescendants"
+        ]
+      },
+      "description": "`Children` for direct children only, `AllDescendants` for the whole subtree."
+    }
+  },
+  "description": "The documents a query matched, listed under the queried id with the mode that was used."
+}
