@@ -204,7 +204,9 @@ export const MentionCandidates: HMRequestImplementation<HMMentionCandidatesReque
     const contactsByName = groups[2] || []
     // The same entity reaches here as distinct id objects from several groups: keep one per key.
     const pendingByKey = new Map<string, ReturnType<typeof hmId>>()
-    for (const id of query ? [...contactsByName, ...matches, ...selected.values()] : selected.values()) {
+    for (const id of query
+      ? [...contactsByName, ...matches, ...Array.from(selected.values())]
+      : Array.from(selected.values())) {
       const key = input.mode === 'account' ? id.uid : id.id
       if (!pendingByKey.has(key)) pendingByKey.set(key, id)
     }
