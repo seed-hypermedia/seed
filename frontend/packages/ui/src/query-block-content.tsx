@@ -7,32 +7,32 @@ import {
 import {getMetadataName, useRouteLink} from '@shm/shared'
 import {useInteractionSummaries} from '@shm/shared/models/interaction-summary'
 import {type SortingState} from '@tanstack/react-table'
-import {ArrowUpDown, ArrowUp, ArrowDown, FileText, Filter, MessageSquare, Search, Share2, X} from 'lucide-react'
+import {ArrowDown, ArrowUp, ArrowUpDown, FileText, Filter, MessageSquare, Plus, Search, Share2, X} from 'lucide-react'
 import {ReactNode, useCallback, useEffect, useMemo, useReducer, useRef, useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {Switch} from './components/switch'
+import {ActiveFilterChip, ActiveFilterChipRow} from './explore-filters'
 import {SelectField} from './form-fields'
 import {DocumentCard} from './newspaper'
-import {ActiveFilterChip, ActiveFilterChipRow} from './explore-filters'
-import {Spinner} from './spinner'
-import {cn} from './utils'
+import {QueryBlockTable} from './query-block-table'
 import {
   buildQueryTableColumns,
   filterQueryTableItems,
-  getQuerySortColumns,
   getDocumentTags,
+  getQuerySortColumns,
   getQueryTableColumnType,
   getQueryTableSortValue,
   getQueryTableValue,
   moveQueryTableColumn,
+  queryTableItemMatchesSearch,
   type QueryTableColumn,
   type QueryTableFilter,
   type QueryTableValueContext,
-  queryTableItemMatchesSearch,
 } from './query-block-table-model'
-import {QueryBlockTable} from './query-block-table'
+import {Spinner} from './spinner'
+import {cn} from './utils'
 
 const INITIAL_LIST_CHUNK_SIZE = 25
 const LIST_CHUNK_SIZE = 25
@@ -378,11 +378,8 @@ function QueryBlockToolbar({
   totalMatches?: number
 }) {
   return (
-    <div
-      data-query-block-toolbar
-      className="border-border bg-muted/30 flex flex-wrap items-center gap-2 border-b px-4 py-3"
-    >
-      <div className="flex flex-wrap items-center gap-2">
+    <div data-query-block-toolbar className="border-border bg-muted/30 flex items-start gap-2 border-b px-4 py-3">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
         <FilterPopover
           descriptors={descriptors}
           items={items}
@@ -430,12 +427,12 @@ function QueryBlockToolbar({
           </ActiveFilterChipRow>
         ) : null}
         {(filters.length || search) && totalMatches !== undefined ? (
-          <p className="text-muted-foreground text-xs tabular-nums">
+          <p className="text-muted-foreground shrink-0 text-xs tabular-nums">
             Showing {items.length} of {totalMatches} matches
           </p>
         ) : null}
       </div>
-      <div className="relative ml-auto w-full sm:w-64">
+      <div className="relative ml-auto w-64 shrink-0">
         <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
         <Input
           value={search}
@@ -484,45 +481,53 @@ function FilterPopover({
               key={index}
               className="bg-muted/30 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 rounded-md border p-2"
             >
-              <SelectField
-                id={`filter-column-${index}`}
-                label="Attribute"
-                options={supportedDescriptors.map((d) => ({value: d.id, label: d.label}))}
-                value={filter.columnId}
-                onValue={(value) => {
-                  const nextColumnType = getQueryTableColumnType(
-                    value,
-                    items[0] ? getQueryTableValue(items[0], value, context) : undefined,
-                    descriptors.find((d) => d.id === value),
-                  )
-                  setFilters(
-                    filters.map((f, i) =>
-                      i === index
-                        ? {
-                            ...f,
-                            columnId: value,
-                            operator:
-                              (nextColumnType === 'text' || nextColumnType === 'list') &&
-                              (f.operator === 'greaterThan' || f.operator === 'lessThan')
-                                ? 'contains'
-                                : f.operator,
-                          }
-                        : f,
-                    ),
-                  )
-                }}
-              />
-              <SelectField
-                id={`filter-operator-${index}`}
-                label="Condition"
-                options={getFilterOperatorOptions(filter.columnId, items, context, descriptors)}
-                value={filter.operator}
-                onValue={(value) =>
-                  setFilters(
-                    filters.map((f, i) => (i === index ? {...f, operator: value as QueryTableFilter['operator']} : f)),
-                  )
-                }
-              />
+              <div className="flex min-w-0 flex-col gap-1 text-sm">
+                <span className="text-muted-foreground text-xs">Attribute</span>
+                <SelectField
+                  id={`filter-column-${index}`}
+                  className="w-full"
+                  options={supportedDescriptors.map((d) => ({value: d.id, label: d.label}))}
+                  value={filter.columnId}
+                  onValue={(value) => {
+                    const nextColumnType = getQueryTableColumnType(
+                      value,
+                      items[0] ? getQueryTableValue(items[0], value, context) : undefined,
+                      descriptors.find((d) => d.id === value),
+                    )
+                    setFilters(
+                      filters.map((f, i) =>
+                        i === index
+                          ? {
+                              ...f,
+                              columnId: value,
+                              operator:
+                                (nextColumnType === 'text' || nextColumnType === 'list') &&
+                                (f.operator === 'greaterThan' || f.operator === 'lessThan')
+                                  ? 'contains'
+                                  : f.operator,
+                            }
+                          : f,
+                      ),
+                    )
+                  }}
+                />
+              </div>
+              <div className="flex min-w-0 flex-col gap-1 text-sm">
+                <span className="text-muted-foreground text-xs">Condition</span>
+                <SelectField
+                  id={`filter-operator-${index}`}
+                  className="w-full"
+                  options={getFilterOperatorOptions(filter.columnId, items, context, descriptors)}
+                  value={filter.operator}
+                  onValue={(value) =>
+                    setFilters(
+                      filters.map((f, i) =>
+                        i === index ? {...f, operator: value as QueryTableFilter['operator']} : f,
+                      ),
+                    )
+                  }
+                />
+              </div>
               <Button
                 size="icon"
                 variant="ghost"
@@ -543,7 +548,7 @@ function FilterPopover({
             </div>
           ))}
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             className="self-start"
             onClick={() =>
@@ -553,6 +558,7 @@ function FilterPopover({
               ])
             }
           >
+            <Plus className="size-3" />
             Add filter
           </Button>
         </div>
@@ -601,36 +607,42 @@ function SortPopover({
           Sort
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-64">
-        <div className="flex flex-col gap-3">
-          <SelectField
-            id="sort-column"
-            label="Sort by"
-            options={descriptors.map((d) => ({value: d.id, label: d.label}))}
-            value={columnId}
-            onValue={(value) => setSorting([{id: value, desc}])}
-          />
-          <div className="flex gap-2">
-            <Button
-              variant={!desc ? 'secondary' : 'outline'}
-              size="sm"
-              className="flex-1"
-              onClick={() => setSorting([{id: columnId, desc: false}])}
-            >
-              <ArrowUp className="size-4" />
-              Asc
-            </Button>
-            <Button
-              variant={desc ? 'secondary' : 'outline'}
-              size="sm"
-              className="flex-1"
-              onClick={() => setSorting([{id: columnId, desc: true}])}
-            >
-              <ArrowDown className="size-4" />
-              Desc
-            </Button>
+      <PopoverContent align="start" className="w-72">
+        <div className="flex flex-col gap-4">
+          <div className="flex min-w-0 flex-col gap-1 text-sm">
+            <span className="text-muted-foreground text-xs">Sort by</span>
+            <SelectField
+              id="sort-column"
+              className="w-full"
+              options={descriptors.map((d) => ({value: d.id, label: d.label}))}
+              value={columnId}
+              onValue={(value) => setSorting([{id: value, desc}])}
+            />
           </div>
-          <Button variant="ghost" size="sm" onClick={() => setSorting([])}>
+          <div className="flex flex-col gap-1">
+            <span className="text-muted-foreground text-xs">Direction</span>
+            <div className="flex gap-2">
+              <Button
+                variant={!desc ? 'secondary' : 'outline'}
+                size="sm"
+                className="flex-1"
+                onClick={() => setSorting([{id: columnId, desc: false}])}
+              >
+                <ArrowUp className="size-4" />
+                Ascending
+              </Button>
+              <Button
+                variant={desc ? 'secondary' : 'outline'}
+                size="sm"
+                className="flex-1"
+                onClick={() => setSorting([{id: columnId, desc: true}])}
+              >
+                <ArrowDown className="size-4" />
+                Descending
+              </Button>
+            </div>
+          </div>
+          <Button variant="ghost" size="sm" className="self-start" onClick={() => setSorting([])}>
             Clear sort
           </Button>
         </div>
