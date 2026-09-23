@@ -89,6 +89,53 @@ export type Config = {
     /** Workflow runs executed concurrently (they mostly park waiting on children). */
     maxConcurrentWorkflows: number
   }
+  /**
+   * Voice chat: a LiveKit room per session plus a speech worker (STT → the session → TTS). See
+   * docs/voice.md. The worker process reads these SAME env names, so keep them in sync.
+   */
+  voice: {
+    /** Serve `CreateVoiceSession` and the internal worker routes. Off unless opted in. */
+    enabled: boolean
+    /** LiveKit URL the worker and the dispatch API use (inside the deployment). */
+    livekitUrl: string
+    /** LiveKit URL handed to browsers; defaults to `livekitUrl`. */
+    livekitPublicUrl: string
+    livekitApiKey: string
+    livekitApiSecret: string
+    /** Server-wide speech keys; per-account keys stored with `SetVoiceSettings` override them. */
+    deepgramApiKey: string
+    cartesiaApiKey: string
+    deepgramModel: string
+    cartesiaModel: string
+    cartesiaVoice: string
+    language: string
+    /** Load the LiveKit end-of-utterance model (a large ONNX download) instead of VAD-only endpointing. */
+    turnDetector: boolean
+    /** `child`: main.ts spawns the worker; `external`: someone else runs `bun run dev:voice`; `off`: none. */
+    worker: VoiceWorkerMode
+    /** Shared secret for the internal worker routes; generated at boot when unset. */
+    internalToken?: string
+    /** LiveKit explicit-dispatch agent name. */
+    agentName: string
+  }
+}
+
+export type VoiceWorkerMode = 'child' | 'external' | 'off'
+
+/** LiveKit explicit-dispatch name the voice worker registers under. */
+export const VOICE_AGENT_NAME = 'seed-voice'
+
+/** Placeholder speech keys shipped in dev config: present, but not a credential. */
+export const VOICE_PLACEHOLDER_KEYS = {
+  deepgram: 'your-deepgram-api-key',
+  cartesia: 'your-cartesia-api-key',
+} as const
+
+/** True when a server-wide speech key is a real value rather than empty or a placeholder. */
+export function isVoiceKeyConfigured(value: string): boolean {
+  const trimmed = value.trim()
+  if (!trimmed) return false
+  return trimmed !== VOICE_PLACEHOLDER_KEYS.deepgram && trimmed !== VOICE_PLACEHOLDER_KEYS.cartesia
 }
 
 /** Parsed command-line flags accepted by the Agents service. */
@@ -126,6 +173,20 @@ export type Flags = {
   'max-concurrent-model-runs': number
   'max-concurrent-workflows': number
   'log-level': string
+  'voice-enabled': boolean
+  'livekit-url': string
+  'livekit-public-url': string
+  'livekit-api-key': string
+  'livekit-api-secret': string
+  'deepgram-api-key': string
+  'cartesia-api-key': string
+  'deepgram-model': string
+  'cartesia-model': string
+  'cartesia-voice': string
+  'voice-language': string
+  'voice-turn-detector': string
+  'voice-worker': string
+  'voice-internal-token': string
 }
 
 /** Creates default flag values from the current environment. */
@@ -164,6 +225,20 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'max-concurrent-model-runs': Number(env.SEED_AGENTS_MAX_CONCURRENT_MODEL_RUNS) || 8,
     'max-concurrent-workflows': Number(env.SEED_AGENTS_MAX_CONCURRENT_WORKFLOWS) || 32,
     'log-level': env.SEED_AGENTS_LOG_LEVEL || 'info',
+    'voice-enabled': isTruthyFlag(env.SEED_AGENTS_VOICE_ENABLED ?? ''),
+    'livekit-url': env.SEED_AGENTS_LIVEKIT_URL || 'ws://localhost:7880',
+    'livekit-public-url': env.SEED_AGENTS_LIVEKIT_PUBLIC_URL || '',
+    'livekit-api-key': env.SEED_AGENTS_LIVEKIT_API_KEY || 'devkey',
+    'livekit-api-secret': env.SEED_AGENTS_LIVEKIT_API_SECRET || 'secret',
+    'deepgram-api-key': env.SEED_AGENTS_DEEPGRAM_API_KEY || VOICE_PLACEHOLDER_KEYS.deepgram,
+    'cartesia-api-key': env.SEED_AGENTS_CARTESIA_API_KEY || VOICE_PLACEHOLDER_KEYS.cartesia,
+    'deepgram-model': env.SEED_AGENTS_DEEPGRAM_MODEL || 'nova-3',
+    'cartesia-model': env.SEED_AGENTS_CARTESIA_MODEL || 'sonic-3',
+    'cartesia-voice': env.SEED_AGENTS_CARTESIA_VOICE || '6c9e08ad-6629-4ba3-a640-a0bae916dfff',
+    'voice-language': env.SEED_AGENTS_VOICE_LANGUAGE || 'en',
+    'voice-turn-detector': env.SEED_AGENTS_VOICE_TURN_DETECTOR ?? '',
+    'voice-worker': env.SEED_AGENTS_VOICE_WORKER || '',
+    'voice-internal-token': env.SEED_AGENTS_VOICE_INTERNAL_TOKEN || '',
   }
 }
 
@@ -191,7 +266,7 @@ export function parseArgs(argv: string[] = process.argv.slice(2), env: NodeJS.Pr
 
     if (key === 'server-port') {
       parsed[key] = parsePort(value)
-    } else if (key === 'subscription-auth') {
+    } else if (key === 'subscription-auth' || key === 'voice-enabled') {
       parsed[key] = isTruthyFlag(value)
     } else if (
       key === 'activity-poll-interval-ms' ||
@@ -272,7 +347,53 @@ export function create(pflags: Flags): Config {
     },
     subscriptionAuth: pflags['subscription-auth'],
     titleGeneration: pflags['session-title-generation'],
+    voice: createVoiceConfig(pflags),
   }
+}
+
+function createVoiceConfig(pflags: Flags): Config['voice'] {
+  const enabled = pflags['voice-enabled']
+  const livekitUrl = normalizeWsUrl(pflags['livekit-url'], 'LiveKit URL')
+  return {
+    enabled,
+    livekitUrl,
+    livekitPublicUrl: pflags['livekit-public-url'].trim()
+      ? normalizeWsUrl(pflags['livekit-public-url'], 'LiveKit public URL')
+      : livekitUrl,
+    livekitApiKey: pflags['livekit-api-key'].trim(),
+    livekitApiSecret: pflags['livekit-api-secret'].trim(),
+    deepgramApiKey: pflags['deepgram-api-key'].trim(),
+    cartesiaApiKey: pflags['cartesia-api-key'].trim(),
+    deepgramModel: pflags['deepgram-model'].trim() || 'nova-3',
+    cartesiaModel: pflags['cartesia-model'].trim() || 'sonic-3',
+    cartesiaVoice: pflags['cartesia-voice'].trim(),
+    language: pflags['voice-language'].trim() || 'en',
+    turnDetector: isFlagEnabled(pflags['voice-turn-detector']),
+    // Voice off means no worker regardless of the mode flag; on, the in-process child is the
+    // production default and `external` is what the dev loop's mprocs pane sets.
+    worker: enabled ? parseVoiceWorkerMode(pflags['voice-worker']) : 'off',
+    internalToken: pflags['voice-internal-token'].trim() || undefined,
+    agentName: VOICE_AGENT_NAME,
+  }
+}
+
+/** Parses the voice worker mode; empty means `child`. */
+function parseVoiceWorkerMode(value: string): VoiceWorkerMode {
+  const trimmed = value.trim().toLowerCase()
+  if (trimmed === '' || trimmed === 'child') return 'child'
+  if (trimmed === 'external') return 'external'
+  if (trimmed === 'off' || trimmed === 'none') return 'off'
+  throw new Error(`Invalid voice worker mode: ${value} (expected "child", "external" or "off")`)
+}
+
+/** Normalizes a LiveKit URL: ws(s):// for browsers and the worker, http(s):// also accepted (the SDKs convert). */
+function normalizeWsUrl(value: string, label: string): string {
+  const trimmed = value.trim().replace(/\/+$/, '')
+  if (!trimmed) throw new Error(`${label} is required`)
+  const url = new URL(trimmed)
+  if (!['ws:', 'wss:', 'http:', 'https:'].includes(url.protocol))
+    throw new Error(`${label} must start with ws://, wss://, http:// or https://`)
+  return url.toString().replace(/\/$/, '')
 }
 
 /** Interprets a boolean flag value; only explicit truthy spellings enable it. */

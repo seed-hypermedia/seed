@@ -1,5 +1,6 @@
 import type {Database} from 'bun:sqlite'
 import type * as api from '@/api'
+import type * as voicesvc from '@/voice'
 import {
   AGENTS_PROTOCOL_VERSION,
   callableToolRegistry,
@@ -178,6 +179,8 @@ const MAX_MCP_HEADER_COUNT = 16
 const MAX_MCP_HEADER_VALUE_BYTES = 4096
 const MAX_SECRET_BYTES = 64 * 1024
 const MAX_MESSAGE_TEXT_BYTES = 64 * 1024
+/** Secret names holding an account's own speech API keys (`SetVoiceSettings`); they override the server's. */
+export const VOICE_SECRET_NAMES = {deepgram: 'voice/deepgram-api-key', cartesia: 'voice/cartesia-api-key'} as const
 /**
  * Delegation depth and fan-out are no longer fixed constants: every root run is created with a
  * budget from the session's or agent's thoroughness preset (see `THOROUGHNESS_PRESETS` in the
@@ -985,6 +988,8 @@ export class Service {
    * session on the freshest credentials.
    */
   readonly #oauthBackends = new Map<string, PersistedOAuthBackend>()
+  /** Voice pipeline (LiveKit tokens, worker routes); absent when the server has voice off. */
+  readonly #voice?: voicesvc.VoiceService
 
   constructor(
     db: Database,
@@ -1006,11 +1011,14 @@ export class Service {
       titleGeneration?: boolean
       /** Run-queue concurrency caps; see {@link runs.RunQueue} for the defaults. */
       runQueue?: {maxConcurrentModelRuns?: number; maxConcurrentWorkflows?: number}
+      /** Voice pipeline; `CreateVoiceSession` answers 501 without it. */
+      voice?: voicesvc.VoiceService
     } = {},
   ) {
     this.#db = db
     this.#dataDir = dataDir
     this.#onEvent = options.onEvent
+    this.#voice = options.voice
     this.#providerOAuth = options.providerOAuth ?? new ProviderOAuthManager()
     this.#hmServerUrl = options.hmServerUrl || 'https://hyper.media'
     this.#ipfsServerUrl = options.ipfsServerUrl || this.#hmServerUrl
@@ -1090,6 +1098,11 @@ export class Service {
   /** Whether subscription provider sign-in is offered, for client capability display. */
   get subscriptionAuthEnabled(): boolean {
     return this.#subscriptionAuthEnabled
+  }
+
+  /** Whether this server runs a voice pipeline (`CreateVoiceSession` works), for client capability display. */
+  get voiceAvailable(): boolean {
+    return this.#voice !== undefined
   }
 
   /** Reports which optional web-tool backends this server has configured, for client capability display. */
@@ -1247,6 +1260,15 @@ export class Service {
           envelope.action.value,
           envelope.action.metadata,
         )
+      case 'CreateVoiceSession':
+        return this.#createVoiceSession(accountId, envelope.action.sessionId, {
+          accountId: verified.accountId,
+          signerId: verified.signerId,
+        })
+      case 'GetVoiceSettings':
+        return this.#getVoiceSettings(verified.accountId)
+      case 'SetVoiceSettings':
+        return this.#setVoiceSettings(verified.accountId, envelope.action)
       case 'GetAgent':
         return this.#getAgent(accountId, envelope.action.agentId, verified.accountId)
       case 'UpdateAgent':
@@ -1518,7 +1540,12 @@ export class Service {
       case 'UploadSessionAttachment':
       case 'StopSession':
       case 'RetrySession':
+      case 'CreateVoiceSession':
         return fromSession(action.sessionId, 'chat')
+      case 'GetVoiceSettings':
+      case 'SetVoiceSettings':
+        // The signed account's own speech keys, like SetSecret.
+        return actorAccountId
       case 'BeginFileUpload':
         return action.target.kind === 'memory'
           ? fromAgent(action.target.agentId, 'writer')
@@ -2885,6 +2912,97 @@ export class Service {
       _: 'SetSecretResponse',
       secret: {id, name, ...(metadata ? {metadata} : {}), hasValue: true, createdAt, updatedAt: now},
     }
+  }
+
+  /**
+   * Appends a transcribed utterance as the speaker's user message and runs the agent's turn — the
+   * voice worker's path into the session. Same pipeline as `MessageSession`; the run executes
+   * inline, so the returned promise settles when the turn is over.
+   */
+  async voiceMessage(
+    storageAccountId: string,
+    sessionId: string,
+    text: string,
+    userOrigin: voicesvc.VoiceUserOrigin,
+  ): Promise<api.MessageSessionResponse> {
+    const clientMessageId = `voice:${crypto.randomUUID()}`
+    return await this.#messageSession(
+      storageAccountId,
+      sessionId,
+      [{type: 'text', text, clientMessageId}],
+      clientMessageId,
+      userOrigin,
+    )
+  }
+
+  async #createVoiceSession(
+    storageAccountId: string,
+    sessionId: string,
+    userOrigin: voicesvc.VoiceUserOrigin,
+  ): Promise<api.CreateVoiceSessionResponse> {
+    if (!this.#voice) throw new APIError(501, 'Voice is not available on this server')
+    // The speaker's own keys, not the agent owner's: whoever talks pays for their speech minutes.
+    const keys = await this.#resolveVoiceKeys(userOrigin.accountId)
+    return await this.#voice.createVoiceSession({sessionId, storageAccountId, userOrigin, keys})
+  }
+
+  #getVoiceSettings(accountId: string): api.GetVoiceSettingsResponse {
+    return {
+      _: 'GetVoiceSettingsResponse',
+      available: this.voiceAvailable,
+      deepgramApiKey: this.#voiceKeySource(accountId, 'deepgram'),
+      cartesiaApiKey: this.#voiceKeySource(accountId, 'cartesia'),
+    }
+  }
+
+  async #setVoiceSettings(accountId: string, action: api.SetVoiceSettings): Promise<api.SetVoiceSettingsResponse> {
+    const updates: Array<[voicesvc.VoiceProvider, string | null | undefined, string]> = [
+      ['deepgram', action.deepgramApiKey, 'Deepgram API key'],
+      ['cartesia', action.cartesiaApiKey, 'Cartesia API key'],
+    ]
+    for (const [provider, value, label] of updates) {
+      if (value === undefined) continue
+      const name = VOICE_SECRET_NAMES[provider]
+      if (value === null) {
+        stmt(this.#db, `DELETE FROM secrets WHERE account_id = ? AND name = ?`).run([accountId, name])
+        continue
+      }
+      if (typeof value !== 'string' || !value.trim()) throw new APIError(400, `${label} must be a non-empty string`)
+      await this.#setSecret(accountId, name, new TextEncoder().encode(value.trim()), {
+        kind: 'voice-api-key',
+        provider,
+      })
+    }
+    return {
+      _: 'SetVoiceSettingsResponse',
+      deepgramApiKey: this.#voiceKeySource(accountId, 'deepgram'),
+      cartesiaApiKey: this.#voiceKeySource(accountId, 'cartesia'),
+    }
+  }
+
+  /** Where the account's speech key for a provider comes from; the server's only counts when voice runs. */
+  #voiceKeySource(accountId: string, provider: voicesvc.VoiceProvider): api.VoiceKeySource {
+    if (this.#secretExists(accountId, VOICE_SECRET_NAMES[provider])) return 'account'
+    return this.#voice?.serverKeySource(provider) ?? 'none'
+  }
+
+  /** The speech keys a room for `accountId` should use: account secret, else server config (may be a placeholder). */
+  async #resolveVoiceKeys(accountId: string): Promise<voicesvc.VoiceKeys> {
+    const resolve = async (provider: voicesvc.VoiceProvider): Promise<string> => {
+      const name = VOICE_SECRET_NAMES[provider]
+      if (this.#secretExists(accountId, name)) return await this.#getSecretPlaintextString(accountId, name)
+      return this.#voice?.serverKey(provider) ?? ''
+    }
+    return {deepgramApiKey: await resolve('deepgram'), cartesiaApiKey: await resolve('cartesia')}
+  }
+
+  #secretExists(accountId: string, name: string): boolean {
+    return Boolean(
+      stmt<{id: string}, [string, string]>(this.#db, `SELECT id FROM secrets WHERE account_id = ? AND name = ?`).get(
+        accountId,
+        name,
+      ),
+    )
   }
 
   #signingKeyExists(accountId: string, name: string): boolean {
