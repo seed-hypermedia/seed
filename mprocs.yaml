@@ -31,6 +31,22 @@ procs:
     shell: 'cd agents && bun run dev'
     autostart: true
 
+  # LiveKit media server (:7880) for agent voice sessions, dev credentials
+  # devkey/secret (the agents server + voice worker default to them).
+  # `brew install livekit` provides the binary.
+  livekit:
+    shell: 'livekit-server --dev'
+    autostart: true
+
+  # Voice worker: registers with the LiveKit server above as agent `seed-voice`
+  # and runs the mic → Deepgram → Seed session → Cartesia pipeline per room.
+  # Talks to the agents server over its internal voice routes
+  # (SEED_AGENTS_VOICE_SERVER_URL / SEED_AGENTS_VOICE_INTERNAL_TOKEN in .env.vars;
+  # SEED_AGENTS_VOICE_WORKER=external keeps the agents server from spawning its own).
+  voice:
+    shell: 'cd agents && bun run dev:voice'
+    autostart: true
+
   # Remix/Vite web app (:3000). Talks to the daemon the desktop app spawns (:58001).
   web:
     shell: 'pnpm web'
