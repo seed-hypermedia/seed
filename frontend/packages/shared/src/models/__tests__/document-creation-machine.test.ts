@@ -62,6 +62,55 @@ describe('documentCreationMachine', () => {
     expect(actor.getSnapshot().can({type: 'create.requested', kind: 'subdocument'})).toBe(false)
   })
 
+  it.each(['document', 'collection'] as const)(
+    'creates a %s inside the rendered collection instead of its parent collection',
+    async (kind) => {
+      const calls: any[] = []
+      const actor = start(
+        {
+          canEditCurrent: true,
+          currentIsCollection: true,
+          parentId,
+          parentIsCollection: true,
+          canEditParent: true,
+          schema,
+        },
+        async (request) => {
+          calls.push(request)
+          return hmId('alice', {path: ['projects', 'one', 'new']})
+        },
+      )
+      await waitFor(actor, (state) => state.matches({resolved: 'ready'}))
+
+      actor.send({type: 'create.requested', kind})
+      await waitFor(actor, (state) => state.status === 'done')
+
+      expect(calls).toEqual([{kind, destination: currentId, metadata: {status: ''}}])
+    },
+  )
+
+  it('imports inside the rendered collection instead of its parent collection', async () => {
+    const actor = start({
+      canEditCurrent: true,
+      currentIsCollection: true,
+      parentId,
+      parentIsCollection: true,
+      canEditParent: true,
+      schema,
+    })
+    await waitFor(actor, (state) => state.matches({resolved: 'ready'}))
+
+    actor.send({type: 'import.requested'})
+    await waitFor(actor, (state) => state.status === 'done')
+
+    expect(actor.getSnapshot().output).toEqual({
+      type: 'import',
+      destination: currentId,
+      capabilityCid: undefined,
+      schema,
+    })
+  })
+
   it('falls back to a normal child when the collection parent is not editable', async () => {
     const calls: any[] = []
     const actor = start(

@@ -54,6 +54,7 @@ type Context = {
 
 function defaultDestination(context: Context): UnpackedHypermediaId {
   const resolution = context.resolution!
+  if (resolution.currentIsCollection) return context.input.currentId
   if (resolution.parentIsCollection && resolution.canEditParent && resolution.parentId) return resolution.parentId
   return context.input.currentId
 }
