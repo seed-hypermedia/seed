@@ -125,6 +125,10 @@ curl -s -X POST localhost:3051/api/voice/room-config \
 
 Tests need no LiveKit server: `bun test src/voice.test.ts` injects a fake dispatch client and a fake service host.
 
+`bun run test:voice` is the real-process smoke (`scripts/smoke-voice.ts`): it starts `livekit-server --dev` and the
+daemon in `child` worker mode, drives the signed API (settings, token, dispatch) and the loopback routes, and watches
+the worker child join the room, fail its STT handshake on the placeholder key, and leave. No speech keys needed.
+
 ## Runtime notes (worker)
 
 - **Turn detector plugin is loaded lazily.** Importing `@livekit/agents-plugin-livekit` registers ONNX inference
