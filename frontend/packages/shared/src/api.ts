@@ -24,7 +24,6 @@ import {ListAccounts} from './api-list-accounts'
 import {ListCommentsByAuthor} from './api-list-comments-by-author'
 import {PrepareDocumentChange} from './api-prepare-document-change'
 import {PublishBlobs} from './api-publish-blobs'
-import {ListDocumentAttributeNames, ListDocumentAttributeValues, QueryDocuments} from './api-query-documents'
 import {Query} from './api-query'
 import {QueryBlock} from './api-query-block'
 import {Resource, ResourceParams} from './api-resource'
@@ -69,9 +68,6 @@ export const APIQueries = {
 export const APIActions = {
   PublishBlobs,
   PrepareDocumentChange,
-  QueryDocuments,
-  ListDocumentAttributeNames,
-  ListDocumentAttributeValues,
 } as const satisfies {
   [K in HMAction['key']]: HMRequestImplementation<Extract<HMAction, {key: K}>>
 }

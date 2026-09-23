@@ -65,7 +65,7 @@ export type CodeExecConfig = {
   allowNetwork: boolean
   /** Upstream DNS nameservers for sandbox name resolution when networking is enabled. */
   dnsServers: string[]
-  /** Keep microVMs alive between executions (hypermedia/agent/plans/exec-warm-pool.md). Off by default. */
+  /** Keep microVMs alive between executions (docs/exec-warm-pool.md). Off by default. */
   warmPool: boolean
   /**
    * Maximum RETAINED pool entries (parked or leased pooled VMs). Not a hard cap on total live
@@ -404,7 +404,7 @@ export type SandboxLease = {
 
 /**
  * Where executions get their sandboxes — the seam the warm-pool workstream implements
- * (hypermedia/agent/plans/exec-warm-pool.md). The default source boots a fresh microVM per lease and tears it down
+ * (docs/exec-warm-pool.md). The default source boots a fresh microVM per lease and tears it down
  * on release, which is exactly the historical behavior; a pooling source can keep healthy
  * sandboxes alive between leases without the execute path changing at all.
  *
@@ -516,7 +516,7 @@ export const POOL_GUEST_RESET_TIMEOUT_MS = 15_000
 export const POOL_VM_SDK_MAX_DURATION_SECS = 24 * 3600
 
 /**
- * The warm pool (hypermedia/agent/plans/exec-warm-pool.md): keeps one VM alive per (principal, image) between
+ * The warm pool (docs/exec-warm-pool.md): keeps one VM alive per (principal, image) between
  * executions so repeat calls skip the boot entirely and the guest keeps its warm state.
  *
  * Invariants, per the reviewed seam contract:

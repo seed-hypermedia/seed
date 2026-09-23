@@ -20,8 +20,6 @@ import {registerQueryCommands} from './commands/query'
 import {registerKeyCommands} from './commands/key'
 import {registerDraftCommands} from './commands/draft'
 import {registerSpaceCommands} from './commands/space'
-import {registerBlobCommands} from './commands/blob'
-import {registerSchemaCommands} from './commands/schema'
 import {getCliVersion} from './version'
 
 const program = new Command()
@@ -109,8 +107,6 @@ registerAccountCommands(program)
 registerKeyCommands(program)
 registerDraftCommands(program)
 registerSpaceCommands(program)
-registerBlobCommands(program)
-registerSchemaCommands(program)
 
 // Register top-level commands
 registerSearchCommand(program)

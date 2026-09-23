@@ -2,7 +2,6 @@ import type * as api from '@/api'
 import {ActivityMonitor} from '@/activity-monitor'
 import * as apisvc from '@/api-service'
 import {getBuildInfo} from '@/build-info'
-import {configureDocsSpace, docsSpaceAccount} from '@/docs-space'
 import {log, setLogLevel} from '@/log'
 import {perfSnapshot} from '@/perf'
 import {withTimeout} from '@/poll-loop'
@@ -443,7 +442,6 @@ async function main(): Promise<void> {
       }
     }
   }
-  configureDocsSpace(cfg.docs)
   const svc = new apisvc.Service(db, cfg.dataDir, {
     onEvent: publish,
     hmServerUrl: cfg.activity.hmServerUrl,
@@ -577,11 +575,6 @@ async function main(): Promise<void> {
   console.log(`  API: http://${hostname}:${server.port}/api/message`)
   console.log(`  HM API: ${cfg.activity.hmServerUrl}`)
   console.log(`  IPFS: ${cfg.activity.ipfsServerUrl}`)
-  console.log(
-    `  Knowledge base (hm://hyper.media): ${
-      docsSpaceAccount() ?? (cfg.docs.accountFile ? `waiting for ${cfg.docs.accountFile}` : 'not configured')
-    }`,
-  )
   console.log(
     `  Web tools: search=${cfg.web.searxngUrl ? 'on' : 'off'} reader=${
       cfg.web.crawlerUrl ? 'static+crawl4ai' : 'static-only'

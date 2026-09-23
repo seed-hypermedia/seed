@@ -248,13 +248,9 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
       )
     }
 
-    // Deserialize the superjson-wrapped response. The document RPC passthroughs (QueryDocuments and
-    // the attribute listings) answer with the daemon's plain protobuf JSON instead, unwrapped.
+    // Deserialize superjson-wrapped response
     const rawJson = await response.json()
-    const deserialized =
-      rawJson && typeof rawJson === 'object' && !Array.isArray(rawJson) && 'json' in rawJson
-        ? deserialize(rawJson)
-        : rawJson
+    const deserialized = deserialize(rawJson)
 
     // Validate output with zod schema
     return requestSchema.shape.output.parse(deserialized) as Req['output']

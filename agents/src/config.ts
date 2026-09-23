@@ -30,13 +30,6 @@ export type Config = {
   subscriptionAuth: boolean
   /** Generate titles for untitled sessions with a dedicated model call. */
   titleGeneration: boolean
-  /** Where `hm://hyper.media` (the Hypermedia knowledge base) resolves. See docs-space.ts. */
-  docs: {
-    /** The knowledge base account. */
-    account?: string
-    /** A file naming the knowledge base account, re-read on every use (the dev loop writes one). */
-    accountFile?: string
-  }
   activity: {
     hmServerUrl: string
     /** HTTP endpoint serving `/ipfs/*`; defaults to hmServerUrl when both surfaces share a host. */
@@ -70,7 +63,7 @@ export type Config = {
     allowNetwork: boolean
     /** Upstream DNS nameservers for sandbox name resolution. */
     dnsServers: string[]
-    /** Keep microVMs alive between executions (hypermedia/agent/plans/exec-warm-pool.md). Off unless opted in. */
+    /** Keep microVMs alive between executions (docs/exec-warm-pool.md). Off unless opted in. */
     warmPool: boolean
     /** Maximum retained pool entries — transient overflow VMs can exceed it (see CodeExecConfig). */
     poolMaxVms: number
@@ -99,8 +92,6 @@ export type Flags = {
   'data-dir': string
   'hm-server-url': string
   'ipfs-server-url': string
-  'docs-account': string
-  'docs-account-file': string
   'activity-poll-interval-ms': number
   'activity-page-size': number
   'activity-max-pages': number
@@ -137,8 +128,6 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'data-dir': env.SEED_AGENTS_DATA_DIR || './data',
     'hm-server-url': env.SEED_AGENTS_HM_SERVER_URL || 'https://hyper.media',
     'ipfs-server-url': env.SEED_AGENTS_IPFS_SERVER_URL || '',
-    'docs-account': env.SEED_AGENTS_DOCS_ACCOUNT || '',
-    'docs-account-file': env.SEED_AGENTS_DOCS_ACCOUNT_FILE || '',
     'activity-poll-interval-ms': Number(env.SEED_AGENTS_ACTIVITY_POLL_INTERVAL_MS) || 5_000,
     'activity-page-size': Number(env.SEED_AGENTS_ACTIVITY_PAGE_SIZE) || 50,
     'activity-max-pages': Number(env.SEED_AGENTS_ACTIVITY_MAX_PAGES) || 5,
@@ -226,10 +215,6 @@ export function create(pflags: Flags): Config {
     dbPath: pflags['db-path'],
     dataDir: pflags['data-dir'],
     logLevel: parseLogLevel(pflags['log-level']),
-    docs: {
-      account: pflags['docs-account'].trim() || undefined,
-      accountFile: pflags['docs-account-file'].trim() || undefined,
-    },
     activity: {
       hmServerUrl: normalizeHttpUrl(pflags['hm-server-url'], 'HM server URL'),
       ipfsServerUrl: normalizeHttpUrl(pflags['ipfs-server-url'] || pflags['hm-server-url'], 'IPFS server URL'),
