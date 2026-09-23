@@ -830,6 +830,13 @@ export class Entity extends Message<Entity> {
    */
   metadata = "";
 
+  /**
+   * True when the matched profile name is not the account's current name.
+   *
+   * @generated from field: bool is_former_name = 11;
+   */
+  isFormerName = false;
+
   constructor(data?: PartialMessage<Entity>) {
     super();
     proto3.util.initPartial(data, this);
@@ -848,6 +855,7 @@ export class Entity extends Message<Entity> {
     { no: 8, name: "icon", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 9, name: "parent_names", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 10, name: "metadata", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 11, name: "is_former_name", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Entity {

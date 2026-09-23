@@ -264,6 +264,9 @@ message Entity {
 
   // Metadata of the document containing that entity.
   string metadata = 10;
+
+  // True when the matched profile name is not the account's current name.
+  bool is_former_name = 11;
 }
 
 // Publication that has been deleted

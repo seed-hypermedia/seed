@@ -44,6 +44,21 @@ export function mentionCandidateKey(id: HMMentionCandidate['id'], mode: HMMentio
   return `${mode}:${id.uid}:${mode === 'document' ? JSON.stringify(id.path || []) : ''}`
 }
 
+function textMatchTier(labels: string[], normalized: string) {
+  let tier = normalized ? 4 : 0
+  for (const label of labels) {
+    if (label === normalized) tier = Math.min(tier, 0)
+    else if (label.startsWith(normalized)) tier = Math.min(tier, 1)
+    else if (normalized.split(/\s+/).every((token) => label.includes(token))) tier = Math.min(tier, 2)
+    else {
+      let at = 0
+      for (const char of label) if (char === normalized[at]) at++
+      if (at === normalized.length) tier = Math.min(tier, 3)
+    }
+  }
+  return tier
+}
+
 /** Deterministic text-first ranking with blended local and public relevance signals. */
 export function rankMentionCandidates(
   candidates: HMMentionCandidate[],
@@ -64,6 +79,7 @@ export function rankMentionCandidates(
     if (candidate.type !== 'account') continue
     const identities = accountIdentities.get(candidate.id.uid) || new Set([candidate.id.uid])
     if (candidate.sourceAccountUid) identities.add(candidate.sourceAccountUid)
+    candidate.sourceAccountUids?.forEach((uid) => identities.add(uid))
     accountIdentities.set(candidate.id.uid, identities)
   }
   const seen = new Set<string>()
@@ -78,7 +94,7 @@ export function rankMentionCandidates(
       const key = mentionCandidateKey(candidate.id, candidate.type)
       if (seen.has(key)) return []
       seen.add(key)
-      const labels = [
+      const currentLabels = [
         candidate.title,
         candidate.publicName,
         candidate.petname,
@@ -87,17 +103,12 @@ export function rankMentionCandidates(
       ]
         .filter((v): v is string => !!v)
         .map((v) => v.toLocaleLowerCase())
-      let tier = normalized ? 4 : 0
-      for (const label of labels) {
-        if (label === normalized) tier = Math.min(tier, 0)
-        else if (label.startsWith(normalized)) tier = Math.min(tier, 1)
-        else if (normalized.split(/\s+/).every((token) => label.includes(token))) tier = Math.min(tier, 2)
-        else {
-          let at = 0
-          for (const char of label) if (char === normalized[at]) at++
-          if (at === normalized.length) tier = Math.min(tier, 3)
-        }
-      }
+      const currentTier = textMatchTier(currentLabels, normalized)
+      const formerTier = candidate.formerName
+        ? textMatchTier([candidate.formerName.toLocaleLowerCase()], normalized)
+        : 4
+      const isFormerNameMatch = currentTier === 4 && formerTier < 4
+      const tier = isFormerNameMatch ? formerTier : currentTier
       if (tier === 4) return []
       const visit = visits.get(key)
       const visitScore = visit === undefined ? 0 : Math.pow(0.5, Math.max(0, now - visit) / VISIT_HALF_LIFE)
@@ -157,10 +168,20 @@ export function rankMentionCandidates(
         hint = activityHint || visitHint || (candidate.sameSite ? 'In this space' : undefined)
         if (!candidate.id.path?.length) hint = ['Home document', hint].filter(Boolean).join(' · ')
       }
-      return [{candidate: {...candidate, hint}, tier, score, key}]
+      if (isFormerNameMatch) hint = [`Formerly ${candidate.formerName}`, hint].filter(Boolean).join(' · ')
+      return [
+        {
+          candidate: {...candidate, formerName: isFormerNameMatch ? candidate.formerName : undefined, hint},
+          tier,
+          score,
+          key,
+          isFormerNameMatch,
+        },
+      ]
     })
     .sort(
       (a, b) =>
+        Number(a.isFormerNameMatch) - Number(b.isFormerNameMatch) ||
         a.tier - b.tier ||
         b.score - a.score ||
         a.candidate.title.localeCompare(b.candidate.title) ||

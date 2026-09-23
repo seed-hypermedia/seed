@@ -941,7 +941,9 @@ type Entity struct {
 	// Parent document names
 	ParentNames []string `protobuf:"bytes,9,rep,name=parent_names,json=parentNames,proto3" json:"parent_names,omitempty"`
 	// Metadata of the document containing that entity.
-	Metadata      string `protobuf:"bytes,10,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Metadata string `protobuf:"bytes,10,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	// True when the matched profile name is not the account's current name.
+	IsFormerName  bool `protobuf:"varint,11,opt,name=is_former_name,json=isFormerName,proto3" json:"is_former_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1044,6 +1046,13 @@ func (x *Entity) GetMetadata() string {
 		return x.Metadata
 	}
 	return ""
+}
+
+func (x *Entity) GetIsFormerName() bool {
+	if x != nil {
+		return x.IsFormerName
+	}
+	return false
 }
 
 // Publication that has been deleted
@@ -1943,7 +1952,7 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\x06author\x18\x01 \x01(\tR\x06author\x12\x14\n" +
 	"\x05heads\x18\x02 \x03(\tR\x05heads\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12=\n" +
-	"\fversion_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\vversionTime\"\x9e\x02\n" +
+	"\fversion_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\vversionTime\"\xc4\x02\n" +
 	"\x06Entity\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\ablob_id\x18\x02 \x01(\tR\x06blobId\x12=\n" +
@@ -1955,7 +1964,8 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\x04icon\x18\b \x01(\tR\x04icon\x12!\n" +
 	"\fparent_names\x18\t \x03(\tR\vparentNames\x12\x1a\n" +
 	"\bmetadata\x18\n" +
-	" \x01(\tR\bmetadata\"\x9f\x01\n" +
+	" \x01(\tR\bmetadata\x12$\n" +
+	"\x0eis_former_name\x18\v \x01(\bR\fisFormerName\"\x9f\x01\n" +
 	"\rDeletedEntity\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12;\n" +
 	"\vdelete_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
