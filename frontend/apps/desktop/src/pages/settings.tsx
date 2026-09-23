@@ -2,6 +2,7 @@ import {useAppContext, useIPC} from '@/app-context'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
 import {reportError} from '@/errors'
 import {AgentServersSettings} from '@shm/ui/agents/server-settings'
+import {VoiceSettingsCard} from '@shm/ui/agents/voice-settings'
 import {useAutoUpdatePreference} from '@/models/app-settings'
 import {useDaemonInfo, useDeleteKey, useExportKey, useListKeys, useSavedMnemonics} from '@/models/daemon'
 import {useWriteExperiments} from '@/models/experiments'
@@ -149,6 +150,7 @@ function AdvancedSettings() {
         Advanced
       </SizableText>
       <DeveloperSettings />
+      <VoiceSettingsCard />
     </>
   )
 }

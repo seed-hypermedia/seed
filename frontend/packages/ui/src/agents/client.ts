@@ -138,6 +138,8 @@ export type AgentServerHealth = {
   webTools?: {search: boolean; readBrowser: boolean}
   /** Whether the server offers subscription (OAuth) provider sign-in. Absent on older servers. */
   subscriptionAuth?: boolean
+  /** Whether the server runs a voice pipeline. Absent on older servers. */
+  voice?: boolean
   /** Whether the server offers sandboxed code execution (execute_code). */
   codeExec?: boolean
   /** Human-readable explanation when codeExec is false. */
