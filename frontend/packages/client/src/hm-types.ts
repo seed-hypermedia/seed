@@ -1367,6 +1367,14 @@ export const HMDraftContentSchema = z.object({
    * and is honored at publish time instead of the title-derived slug.
    */
   publishPath: z.array(z.string()).optional(),
+  /**
+   * The working schema object of a draft whose document defines a type, while it is being
+   * authored. Not metadata: publish freezes it into a DAG-CBOR blob and writes the document's
+   * `schemaDefinition: ipfs://<cid>` attribute.
+   */
+  schemaDraft: z.record(z.string(), z.any()).optional(),
+  /** The working attributes schemas behind `attributesSchema` / `childAttributesSchema`, by key; frozen into IPFS objects at publish. */
+  bindingSchemaDrafts: z.record(z.string(), z.record(z.string(), z.any())).optional(),
 })
 
 export type HMDraftContent = z.infer<typeof HMDraftContentSchema>

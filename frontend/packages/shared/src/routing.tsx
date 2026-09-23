@@ -1,4 +1,5 @@
 import type {HMContactRecord, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {DomainResolverFn} from '@seed-hypermedia/client'
 import {createContext, useContext} from 'react'
 import z from 'zod'
 import {DAEMON_FILE_URL} from './constants'
@@ -39,6 +40,10 @@ export const appExperimentsSchema = z
     embeddingEnabled: z.boolean().optional(),
     notifications: z.boolean().optional(),
     advancedCopyLinkOptions: z.boolean().optional(),
+    /** Surfaces experimental building-block features (blob editor, schemas, …) in regular menus. */
+    developerMode: z.boolean().optional(),
+    /** Dev tools sub-toggle: expose Hypermedia Schema features (New > Schema, schema building blocks). */
+    hypermediaSchemas: z.boolean().optional(),
   })
   .strict()
 export type AppExperiments = z.infer<typeof appExperimentsSchema>
@@ -87,6 +92,9 @@ type UniversalAppContextValue = {
   contacts?: HMContactRecord[]
   broadcastEvent?: (event: AppEvent) => void
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
+  /** Resolves a site's hostname to the account it serves, from a platform store (the desktop's
+   * domain store: cached, works offline). Pasted web links resolve through it first. */
+  domainResolver?: DomainResolverFn
 }
 
 export const UniversalAppContext = createContext<UniversalAppContextValue>({
@@ -140,6 +148,7 @@ export function UniversalAppProvider(props: {
   contacts?: HMContactRecord[]
   broadcastEvent?: (event: AppEvent) => void
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
+  domainResolver?: DomainResolverFn
 }) {
   return (
     <UniversalAppContext.Provider
@@ -164,6 +173,7 @@ export function UniversalAppProvider(props: {
         contacts: props.contacts,
         broadcastEvent: props.broadcastEvent,
         saveCidAsFile: props.saveCidAsFile,
+        domainResolver: props.domainResolver,
       }}
     >
       {props.children as any}
@@ -314,7 +324,10 @@ export function routeToHref(
       return routeToHmUrl(route)
     }
     const basePath = options?.originHomeId ? '/inspect' : '/hm/inspect'
-    return `${basePath}/ipfs/${route.ipfsPath}`
+    const query = route.editField
+      ? `?editField=${encodeURIComponent(route.editField.field)}&editDoc=${encodeURIComponent(route.editField.docUrl)}`
+      : ''
+    return `${basePath}/ipfs/${route.ipfsPath}${query}`
   }
 
   if (typeof route !== 'string' && route.key === 'explore') {
@@ -322,6 +335,22 @@ export function routeToHref(
       hostname: options?.hmUrlHref ? undefined : null,
       originHomeId: options?.originHomeId,
     })
+  }
+
+  // The full-page schema browser. With a defining document, the URL is that
+  // document's URL suffixed with /:schema; a bare CID keeps the reserved form.
+  if (typeof route !== 'string' && route.key === 'schema') {
+    if (route.id) {
+      const docId = route.id
+      const basePath =
+        options?.originHomeId?.uid === docId.uid
+          ? docId.path?.length
+            ? `/${docId.path.join('/')}`
+            : ''
+          : `/hm/${docId.uid}${docId.path?.length ? `/${docId.path.join('/')}` : ''}`
+      return `${basePath}/:schema`
+    }
+    return `/hm/schema/${route.cid}`
   }
 
   // Handle view routes (activity, comments, directory, collaborators, feed, all-documents, metadata)

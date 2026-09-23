@@ -259,7 +259,7 @@ export function useImporting(parentId: UnpackedHypermediaId, schema?: DocumentSc
       _tiptapOptions: {
         extensions: [
           Extension.create({
-            name: 'hypermedia-link',
+            name: 'link',
             addProseMirrorPlugins() {
               return [
                 createHypermediaDocLinkPlugin({
