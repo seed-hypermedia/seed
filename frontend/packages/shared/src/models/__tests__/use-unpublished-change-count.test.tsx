@@ -193,6 +193,42 @@ describe('useUnpublishedChangeCount', () => {
     }
   })
 
+  it('does not count stale draft metadata that matches the published document', () => {
+    selectMock.document = {
+      content: [],
+      version: 'bafypublished',
+      metadata: {name: 'Published title', theme: {layout: 'paper'}},
+      detachedBlocks: {},
+    }
+    selectMock.draftId = 'draft-1'
+    selectMock.metadata = {name: 'Published title', theme: {layout: 'paper'}}
+
+    const {container, root} = renderProbe()
+    try {
+      expect(container.firstElementChild?.getAttribute('data-count')).toBe('0')
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
+  it('counts draft metadata for a document that has not been published yet', () => {
+    selectMock.document = {
+      content: [],
+      version: '',
+      metadata: {name: 'New document'},
+      detachedBlocks: {},
+    }
+    selectMock.draftId = 'draft-1'
+    selectMock.metadata = {name: 'New document'}
+
+    const {container, root} = renderProbe()
+    try {
+      expect(container.firstElementChild?.getAttribute('data-count')).toBe('1')
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
   it('ignores a trailing empty paragraph placeholder for an unchanged empty document', () => {
     selectMock.document = {
       content: [],

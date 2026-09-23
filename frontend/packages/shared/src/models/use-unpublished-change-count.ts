@@ -1,6 +1,7 @@
-import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {EditorBlock} from '@seed-hypermedia/client/editor-types'
+import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
+import isEqual from 'lodash/isEqual'
 import {useMemo} from 'react'
 import {compareBlocksWithMap, createBlocksMap, extractDeletes} from '../utils/document-changes'
 import {getNavigationChanges} from '../utils/navigation-changes'
@@ -69,11 +70,10 @@ export function useUnpublishedChangeCount(): number {
   const bindingSchemaDrafts = useDocumentSelector(selectBindingSchemaDrafts)
 
   return useMemo(() => {
-    const metadataChangeCount = Object.keys(metadata ?? {}).length
-    // A drafted schema is a change of its own: the working schema behind `schemaDefinition`, and
-    // each binding schema (`attributesSchema` / `childAttributesSchema`) authored on the Attributes
-    // tab. None of them touches the metadata until publish freezes them into objects.
-    const schemaChangeCount = (schemaDraft ? 1 : 0) + Object.keys(bindingSchemaDrafts ?? {}).length
+    const publishedMetadata = publishedDoc?.version ? publishedDoc.metadata ?? {} : {}
+    const metadataChangeCount = Object.entries(metadata ?? {}).filter(
+      ([key, value]) => !isEqual(value, publishedMetadata[key]),
+    ).length
     // Site-header nav edits don't touch the editor or metadata, so count
     // them via the same diff used at publish time. `navigation === undefined`
     // means no nav edits this session — return 0 ops.
