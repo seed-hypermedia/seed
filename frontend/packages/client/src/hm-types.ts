@@ -1556,8 +1556,12 @@ export const HMMentionCandidateSchema = z.object({
   searchQuery: z.string(),
   /** Requested account identity before the daemon resolves an account alias. */
   sourceAccountUid: z.string().optional(),
+  /** All requested identities that resolved to this account. */
+  sourceAccountUids: z.array(z.string()).optional(),
   publicName: z.string().optional(),
   petname: z.string().optional(),
+  /** Name text that matched search but has since been replaced. */
+  formerName: z.string().optional(),
   activityTime: z.number().optional(),
   activityType: z.enum(['publication', 'comment']).optional(),
   accountRole: z.enum(['site-owner', 'site-editor', 'document-editor', 'site-follower']).optional(),

@@ -22,6 +22,21 @@ describe('mention ranking', () => {
     const boosted = account('b', 'Alexander', {sameSite: true, issuedContact: true, activityTime: now})
     expect(rankMentionCandidates([boosted, exact], 'Alex', [], now).map((c) => c.id.uid)).toEqual(['a', 'b'])
   })
+  it('ranks every current-name match ahead of historical-name matches and explains them', () => {
+    const former = account('former', 'Kat', {
+      formerName: 'Eric5',
+      sameSite: true,
+      issuedContact: true,
+      activityTime: now,
+    })
+    const current = account('current', 'Eric Current')
+    const result = rankMentionCandidates([former, current], 'eric', [], now)
+    expect(result.map((candidate) => candidate.id.uid)).toEqual(['current', 'former'])
+    expect(result[0]?.formerName).toBeUndefined()
+    expect(result[1]?.formerName).toBe('Eric5')
+    expect(mentionCandidateSubtitle(result[1]!)).toBe('Formerly Eric5 · Published just now · Contact')
+  })
+
   it('allows recent visits and activity to outweigh contacts and site membership', () => {
     const old = account('old', 'Old', {sameSite: true, issuedContact: true})
     const recent = account('recent', 'Recent', {activityTime: now})

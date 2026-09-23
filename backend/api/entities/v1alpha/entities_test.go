@@ -13,6 +13,7 @@ import (
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/util/must"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -165,6 +166,61 @@ func TestSearchEntitiesFindsProfileOnlyAccount(t *testing.T) {
 	require.Equal(t, "hm://"+account, res.Entities[0].Id)
 	require.Equal(t, "profile", res.Entities[0].Type)
 	require.Equal(t, "web eric 84", res.Entities[0].Content)
+}
+
+// A renamed account remains discoverable by its old name, but the hit is marked
+// so clients can rank and explain it as historical.
+func TestSearchEntitiesProfileRenameKeepsFormerName(t *testing.T) {
+	t.Parallel()
+
+	svc := newTestServices(t, "bob")
+	ctx := context.Background()
+	account := svc.me.Account.PublicKey.String()
+
+	for _, name := range []string{"web eric 4", "Douglas"} {
+		_, err := svc.documents.UpdateProfile(ctx, &documents.UpdateProfileRequest{
+			Account:        account,
+			SigningKeyName: "main",
+			Profile:        &documents.Profile{Name: name},
+		})
+		require.NoError(t, err)
+	}
+
+	search := func(query string) []*entpb.Entity {
+		res, err := svc.entities.SearchEntities(ctx, &entpb.SearchEntitiesRequest{
+			Query:            query,
+			EntityKindFilter: []entpb.EntityKindFilter{entpb.EntityKindFilter_ENTITY_KIND_SPACE},
+		})
+		require.NoError(t, err)
+		return res.Entities
+	}
+	former := search("eric")
+	require.Len(t, former, 1)
+	require.Equal(t, "hm://"+account, former[0].Id)
+	require.Equal(t, "web eric 4", former[0].Content)
+	require.True(t, former[0].IsFormerName)
+
+	current := search("douglas")
+	require.Len(t, current, 1)
+	require.Equal(t, "hm://"+account, current[0].Id)
+	require.Equal(t, "Douglas", current[0].Content)
+	require.False(t, current[0].IsFormerName)
+}
+
+func TestOrderBySimilarityDemotesFormerAccountName(t *testing.T) {
+	t.Parallel()
+
+	current := fullDataSearchResult{iri: "hm://current", contentType: "title", score: 1}
+	former := fullDataSearchResult{iri: "hm://former", contentType: "profile", score: 100, isFormerName: true}
+	require.Negative(t, orderBySimilarity(current, former))
+	require.Positive(t, orderBySimilarity(former, current))
+
+	body := fullDataSearchResult{iri: "hm://doc/page", contentType: "document", score: 50}
+	require.Positive(t, orderBySimilarity(former, body))
+
+	results := []fullDataSearchResult{current, former, body}
+	slices.SortFunc(results, orderBySimilarity)
+	require.Equal(t, []string{"hm://doc/page", "hm://current", "hm://former"}, []string{results[0].iri, results[1].iri, results[2].iri})
 }
 
 func TestBuildRankMap(t *testing.T) {

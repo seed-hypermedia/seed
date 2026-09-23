@@ -439,7 +439,36 @@ SELECT
   structural_blobs.genesis_blob,
   f.rowid,
   public_keys.id AS author_id,
-  structural_blobs.extra_attrs
+  structural_blobs.extra_attrs,
+  (f.type = 'profile' AND (
+    EXISTS (
+      SELECT 1
+      FROM (
+        SELECT
+          candidate.extra_attrs->>'alias' AS current_alias,
+          ROW_NUMBER() OVER (PARTITION BY candidate.author ORDER BY candidate.ts DESC) AS rn
+        FROM structural_blobs candidate
+        WHERE candidate.type = 'Profile'
+          AND candidate.resource = structural_blobs.resource
+      )
+      WHERE rn = 1 AND CAST(current_alias AS INTEGER) > 0
+    )
+    OR COALESCE(structural_blobs.extra_attrs->>'name', '') != COALESCE((
+      SELECT current_name
+      FROM (
+        SELECT
+          candidate.extra_attrs->>'name' AS current_name,
+          candidate.ts,
+          ROW_NUMBER() OVER (PARTITION BY candidate.author ORDER BY candidate.ts DESC) AS rn
+        FROM structural_blobs candidate
+        WHERE candidate.type = 'Profile'
+          AND candidate.resource = structural_blobs.resource
+      )
+      WHERE rn = 1 AND current_name != ''
+      ORDER BY ts DESC, current_name DESC
+      LIMIT 1
+    ), '')
+  )) AS is_former_name
 FROM fts_data AS f
   JOIN structural_blobs
     ON structural_blobs.id = f.blob_id
@@ -502,9 +531,39 @@ matched_fts AS MATERIALIZED (
     fts.rowid,
     fts.rank,
     fts.blob_id,
-    fts.type
+    fts.type,
+    (fts.type = 'profile' AND (
+      EXISTS (
+        SELECT 1
+        FROM (
+          SELECT
+            candidate.extra_attrs->>'alias' AS current_alias,
+            ROW_NUMBER() OVER (PARTITION BY candidate.author ORDER BY candidate.ts DESC) AS rn
+          FROM structural_blobs candidate
+          WHERE candidate.type = 'Profile'
+            AND candidate.resource = matched_sb.resource
+        )
+        WHERE rn = 1 AND CAST(current_alias AS INTEGER) > 0
+      )
+      OR COALESCE(matched_sb.extra_attrs->>'name', '') != COALESCE((
+        SELECT current_name
+        FROM (
+          SELECT
+            candidate.extra_attrs->>'name' AS current_name,
+            candidate.ts,
+            ROW_NUMBER() OVER (PARTITION BY candidate.author ORDER BY candidate.ts DESC) AS rn
+          FROM structural_blobs candidate
+          WHERE candidate.type = 'Profile'
+            AND candidate.resource = matched_sb.resource
+        )
+        WHERE rn = 1 AND current_name != ''
+        ORDER BY ts DESC, current_name DESC
+        LIMIT 1
+      ), '')
+    )) AS is_former_name
   FROM fts
   JOIN blobs ON blobs.id = fts.blob_id AND blobs.size > 0
+  JOIN structural_blobs matched_sb ON matched_sb.id = fts.blob_id
   WHERE fts.raw_content MATCH ?
     AND fts.type IN (?, ?, ?, ?, ?)
     AND (? = 0
@@ -530,6 +589,7 @@ matched_fts AS MATERIALIZED (
          ))
   ORDER BY
     (fts.type = 'contact' OR fts.type = 'title' OR fts.type = 'profile') DESC,
+    is_former_name ASC,
     fts.rank ASC
   LIMIT ?
 ),
@@ -610,6 +670,7 @@ WHERE COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) I
   AND COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) GLOB ?
 ORDER BY
   (mf.type = 'contact' OR mf.type = 'title' OR mf.type = 'profile') DESC,
+  mf.is_former_name ASC,
   mf.rank ASC
 LIMIT ?
 `)
@@ -628,9 +689,39 @@ matched_fts AS MATERIALIZED (
     fts.rowid,
     fts.rank,
     fts.blob_id,
-    fts.type
+    fts.type,
+    (fts.type = 'profile' AND (
+      EXISTS (
+        SELECT 1
+        FROM (
+          SELECT
+            candidate.extra_attrs->>'alias' AS current_alias,
+            ROW_NUMBER() OVER (PARTITION BY candidate.author ORDER BY candidate.ts DESC) AS rn
+          FROM structural_blobs candidate
+          WHERE candidate.type = 'Profile'
+            AND candidate.resource = matched_sb.resource
+        )
+        WHERE rn = 1 AND CAST(current_alias AS INTEGER) > 0
+      )
+      OR COALESCE(matched_sb.extra_attrs->>'name', '') != COALESCE((
+        SELECT current_name
+        FROM (
+          SELECT
+            candidate.extra_attrs->>'name' AS current_name,
+            candidate.ts,
+            ROW_NUMBER() OVER (PARTITION BY candidate.author ORDER BY candidate.ts DESC) AS rn
+          FROM structural_blobs candidate
+          WHERE candidate.type = 'Profile'
+            AND candidate.resource = matched_sb.resource
+        )
+        WHERE rn = 1 AND current_name != ''
+        ORDER BY ts DESC, current_name DESC
+        LIMIT 1
+      ), '')
+    )) AS is_former_name
   FROM fts
   JOIN blobs ON blobs.id = fts.blob_id AND blobs.size > 0
+  JOIN structural_blobs matched_sb ON matched_sb.id = fts.blob_id
   WHERE fts.raw_content MATCH ?
     AND fts.type IN (?, ?, ?, ?, ?)
     AND (? = 0
@@ -656,6 +747,7 @@ matched_fts AS MATERIALIZED (
          ))
   ORDER BY
     (fts.type = 'contact' OR fts.type = 'title' OR fts.type = 'profile') DESC,
+    is_former_name ASC,
     fts.rank ASC
   LIMIT ?
 ),
@@ -730,6 +822,7 @@ WHERE COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) I
   ))
 ORDER BY
   (mf.type = 'contact' OR mf.type = 'title' OR mf.type = 'profile') DESC,
+  mf.is_former_name ASC,
   mf.rank ASC
 LIMIT ?
 `)
@@ -1164,6 +1257,7 @@ type fullDataSearchResult struct {
 	genesisBlobID int64
 	rowID         int64
 	contentType   string
+	isFormerName  bool
 	version       string
 	versionTime   *timestamppb.Timestamp
 	latestVersion string
@@ -1505,6 +1599,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 				res.genesisBlobID = res.blobID
 			}
 			res.rowID = stmt.ColumnInt64(16)
+			res.isFormerName = stmt.ColumnInt(19) != 0
 			res.score = winners[res.rowID]
 			switch res.contentType {
 			case "comment":
@@ -1569,7 +1664,18 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	for i, res := range searchResults {
 		key := fmt.Sprintf("%s|%s|%s|%s", res.iri, res.blockID, res.rawContent, dedupeContentType(res))
 		if idx, ok := seen[key]; ok {
-			// duplicate – prefer the profile row for an account, otherwise the newer one.
+			// Prefer a current-name match. With equal freshness, prefer the profile row
+			// for an account, otherwise the newer indexed version.
+			if res.isFormerName != uniqueResults[idx].isFormerName {
+				if res.isFormerName {
+					continue
+				}
+				uniqueResults[idx] = res
+				bm := bodyMatches[i]
+				bm.Index = idx
+				uniqueBodyMatches[idx] = bm
+				continue
+			}
 			if res.contentType == "profile" && uniqueResults[idx].contentType != "profile" {
 				uniqueResults[idx] = res
 				bm := bodyMatches[i]
@@ -1655,13 +1761,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			indices[i] = i
 		}
 		slices.SortFunc(indices, func(a, b int) int {
-			if searchResults[a].score > searchResults[b].score {
-				return -1
-			}
-			if searchResults[a].score < searchResults[b].score {
-				return 1
-			}
-			return 0
+			return orderBySimilarity(searchResults[a], searchResults[b])
 		})
 
 		sorted := make([]fullDataSearchResult, len(searchResults))
@@ -1876,16 +1976,17 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	slices.SortFunc(finalResults, orderBySimilarity)
 	for _, match := range finalResults {
 		matchingEntities = append(matchingEntities, &entpb.Entity{
-			DocId:       match.docID,
-			Id:          match.id,
-			BlobId:      match.blobCID,
-			Type:        match.contentType,
-			VersionTime: match.versionTime,
-			Content:     match.content,
-			ParentNames: match.parentTitles,
-			Icon:        match.icon,
-			Owner:       match.owner,
-			Metadata:    match.metadata,
+			DocId:        match.docID,
+			Id:           match.id,
+			BlobId:       match.blobCID,
+			Type:         match.contentType,
+			VersionTime:  match.versionTime,
+			Content:      match.content,
+			ParentNames:  match.parentTitles,
+			Icon:         match.icon,
+			Owner:        match.owner,
+			Metadata:     match.metadata,
+			IsFormerName: match.isFormerName,
 		})
 	}
 
@@ -1955,6 +2056,14 @@ func orderByTitle(a, b fullDataSearchResult) int {
 
 // orderBySimilarity sorts entities by similarity score descending (higher scores first).
 func orderBySimilarity(a, b fullDataSearchResult) int {
+	// A historical name is relevant, but never outranks a current match. Apply
+	// this globally so the comparator remains transitive across content types.
+	if a.isFormerName != b.isFormerName {
+		if a.isFormerName {
+			return 1
+		}
+		return -1
+	}
 	// Higher scores first (descending order)
 	if a.score > b.score {
 		return -1

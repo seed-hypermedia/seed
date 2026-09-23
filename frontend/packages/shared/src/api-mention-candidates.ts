@@ -123,17 +123,35 @@ export const MentionCandidates: HMRequestImplementation<HMMentionCandidatesReque
       const key = input.mode === 'account' ? id.uid : `${id.uid}:${JSON.stringify(id.path || [])}`
       if (!ids.has(key)) ids.set(key, id)
     }
-    // Matches enter the bounded pool before contextual candidates.
-    search?.entities.forEach((entity) => {
-      const id = unpackHmId(entity.id)
-      if (!id) return
-      if (
-        input.mode === 'account' &&
-        (entity.type === 'profile' || entity.type === 'contact' || (!id.path?.length && entity.type === 'title'))
-      )
-        add(hmId(id.uid))
-      if (input.mode === 'document' && ['document', 'title', 'profile'].includes(entity.type))
-        add(hmId(id.uid, {path: id.path}))
+    // Matches enter the bounded pool before contextual candidates. Keep historical
+    // names, but retain the matched text so ranking and UI can demote and explain them.
+    type SearchMatch = {kind: 'current' | 'former'; matchedName: string}
+    const searchMatches = new Map<string, SearchMatch>()
+    const candidateKey = (id: ReturnType<typeof hmId>) =>
+      input.mode === 'account' ? id.uid : `${id.uid}:${JSON.stringify(id.path || [])}`
+    ;(search?.entities ?? []).forEach((entity) => {
+      const unpacked = unpackHmId(entity.id)
+      if (!unpacked) return
+      const eligible =
+        input.mode === 'account'
+          ? entity.type === 'profile' ||
+            entity.type === 'contact' ||
+            (!unpacked.path?.length && entity.type === 'title')
+          : ['document', 'title', 'profile'].includes(entity.type)
+      if (!eligible) return
+      const id = input.mode === 'account' ? hmId(unpacked.uid) : hmId(unpacked.uid, {path: unpacked.path})
+      const former = entity.isFormerName || (!!unpacked.version && !unpacked.latest)
+      const key = candidateKey(id)
+      const existing = searchMatches.get(key)
+      if (!existing || existing.kind === 'former') {
+        searchMatches.set(
+          key,
+          former
+            ? {kind: 'former', matchedName: existing?.matchedName || entity.content}
+            : {kind: 'current', matchedName: entity.content},
+        )
+      }
+      add(id)
     })
     input.seedIds?.slice(0, 20).forEach((id) => {
       add(id)
@@ -159,12 +177,10 @@ export const MentionCandidates: HMRequestImplementation<HMMentionCandidatesReque
     directory?.documents.forEach((doc) => add(hmId(doc.account, {path: entityQueryPathToHmIdPath(doc.path)})))
     knownAccounts?.accounts.forEach((account) => add(hmId(account.id)))
     // Interleave contextual sources so a large following list cannot exclude activity/site seeds.
-    const matching = new Set(
-      search?.entities.map((e) => unpackHmId(e.id)?.uid + ':' + JSON.stringify(unpackHmId(e.id)?.path || [])),
-    )
+    const matching = new Set(searchMatches.keys())
     const all = Array.from(ids.values())
     const groups = [
-      all.filter((id) => matching.has(id.uid + ':' + JSON.stringify(id.path || []))),
+      all.filter((id) => matching.has(candidateKey(id))),
       all.filter(
         (id) =>
           input.seedIds?.some(
@@ -195,12 +211,14 @@ export const MentionCandidates: HMRequestImplementation<HMMentionCandidatesReque
     // entity made opening the menu proportional to the user's entire contact graph.
     const matches = groups[0] || []
     const contactsByName = groups[2] || []
-    const pending = (
-      query
-        ? Array.from(new Set([...contactsByName, ...matches, ...Array.from(selected.values())]))
-        : Array.from(selected.values())
-    ).slice(0, RESOLUTION_LIMIT)
-    const results: HMMentionCandidate[] = []
+    // The same entity reaches here as distinct id objects from several groups: keep one per key.
+    const pendingByKey = new Map<string, ReturnType<typeof hmId>>()
+    for (const id of query ? [...contactsByName, ...matches, ...selected.values()] : selected.values()) {
+      const key = input.mode === 'account' ? id.uid : id.id
+      if (!pendingByKey.has(key)) pendingByKey.set(key, id)
+    }
+    const pending = Array.from(pendingByKey.values()).slice(0, RESOLUTION_LIMIT)
+    const results: Array<{candidate: HMMentionCandidate; matchPriority: number}> = []
     let index = 0
     await Promise.all(
       Array.from({length: Math.min(8, pending.length)}, async () => {
@@ -213,21 +231,36 @@ export const MentionCandidates: HMRequestImplementation<HMMentionCandidatesReque
               const uid = account.id.uid
               const metadata = account.metadata || {}
               const petname = contactNames.get(uid) ?? contactNames.get(id.uid)
+              const searchMatch = searchMatches.get(candidateKey(id))
+              const currentNames = [petname, metadata.name, uid]
+                .filter((name): name is string => !!name)
+                .map((name) => name.trim().toLocaleLowerCase())
+              const formerName =
+                searchMatch &&
+                (searchMatch.kind === 'former' ||
+                  !currentNames.includes(searchMatch.matchedName.trim().toLocaleLowerCase()))
+                  ? searchMatch.matchedName
+                  : undefined
               results.push({
-                id: hmId(uid),
-                type: 'account',
-                sourceAccountUid: id.uid,
-                title: petname || metadata.name || uid,
-                publicName: metadata.name,
-                petname,
-                icon: metadata.icon || '',
-                parentNames: [],
-                searchQuery: query,
-                sameSite: siteMembers.has(uid) || siteMembers.has(id.uid),
-                accountRole: accountRoles.get(uid) ?? accountRoles.get(id.uid),
-                issuedContact: contactNames.has(uid) || contactNames.has(id.uid),
-                activityTime: activity.get(uid)?.time,
-                activityType: activity.get(uid)?.type,
+                matchPriority: searchMatch ? (formerName ? 1 : 2) : 0,
+                candidate: {
+                  id: hmId(uid),
+                  type: 'account',
+                  sourceAccountUid: id.uid,
+                  sourceAccountUids: [id.uid],
+                  title: petname || metadata.name || uid,
+                  publicName: metadata.name,
+                  petname,
+                  formerName,
+                  icon: metadata.icon || '',
+                  parentNames: [],
+                  searchQuery: query,
+                  sameSite: siteMembers.has(uid) || siteMembers.has(id.uid),
+                  accountRole: accountRoles.get(uid) ?? accountRoles.get(id.uid),
+                  issuedContact: contactNames.has(uid) || contactNames.has(id.uid),
+                  activityTime: activity.get(uid)?.time,
+                  activityType: activity.get(uid)?.type,
+                },
               })
             } else {
               const doc = await cached(
@@ -238,17 +271,26 @@ export const MentionCandidates: HMRequestImplementation<HMMentionCandidatesReque
               )
               if (!doc.version) continue
               const metadata = doc.metadata?.toJson() as {name?: string; icon?: string} | undefined
+              const searchMatch = searchMatches.get(candidateKey(id))
               results.push({
-                id: hmId(doc.account, {path: entityQueryPathToHmIdPath(doc.path), version: doc.version, latest: true}),
-                type: 'document',
-                title: metadata?.name || doc.path || 'Home document',
-                icon: metadata?.icon || '',
-                parentNames: [doc.account, ...(id.path || []).slice(0, -1)],
-                searchQuery: query,
-                sameSite: doc.account === input.siteUid,
-                issuedContact: false,
-                activityTime: doc.updateTime?.toDate().getTime() ?? doc.createTime?.toDate().getTime(),
-                activityType: 'publication',
+                matchPriority: searchMatch?.kind === 'current' ? 2 : searchMatch?.kind === 'former' ? 1 : 0,
+                candidate: {
+                  id: hmId(doc.account, {
+                    path: entityQueryPathToHmIdPath(doc.path),
+                    version: doc.version,
+                    latest: true,
+                  }),
+                  type: 'document',
+                  title: metadata?.name || doc.path || 'Home document',
+                  formerName: searchMatch?.kind === 'former' ? searchMatch.matchedName : undefined,
+                  icon: metadata?.icon || '',
+                  parentNames: [doc.account, ...(id.path || []).slice(0, -1)],
+                  searchQuery: query,
+                  sameSite: doc.account === input.siteUid,
+                  issuedContact: false,
+                  activityTime: doc.updateTime?.toDate().getTime() ?? doc.createTime?.toDate().getTime(),
+                  activityType: 'publication',
+                },
               })
             }
           } catch {
@@ -257,6 +299,44 @@ export const MentionCandidates: HMRequestImplementation<HMMentionCandidatesReque
         }
       }),
     )
-    return results
+    // Several source keys (aliases and delegated agents) can resolve to one
+    // account. Keep one row, preferring a current search hit over a historical
+    // hit, and a historical hit over an unrelated contextual seed.
+    const merged = new Map<string, {candidate: HMMentionCandidate; matchPriority: number}>()
+    for (const result of results) {
+      const key = mentionCandidateResultKey(result.candidate)
+      const existing = merged.get(key)
+      const sourceAccountUids = Array.from(
+        new Set([...(existing?.candidate.sourceAccountUids || []), ...(result.candidate.sourceAccountUids || [])]),
+      )
+      const preferResult =
+        !existing ||
+        result.matchPriority > existing.matchPriority ||
+        (result.matchPriority === existing.matchPriority &&
+          result.candidate.issuedContact &&
+          !existing.candidate.issuedContact)
+      if (preferResult) {
+        merged.set(key, {
+          ...result,
+          candidate: {...result.candidate, sourceAccountUids},
+        })
+      } else {
+        existing.candidate.sourceAccountUids = sourceAccountUids
+      }
+    }
+    return Array.from(merged.values())
+      .sort(
+        (a, b) =>
+          b.matchPriority - a.matchPriority ||
+          a.candidate.title.localeCompare(b.candidate.title) ||
+          mentionCandidateResultKey(a.candidate).localeCompare(mentionCandidateResultKey(b.candidate)),
+      )
+      .map((result) => result.candidate)
   },
+}
+
+function mentionCandidateResultKey(candidate: HMMentionCandidate) {
+  return candidate.type === 'account'
+    ? candidate.id.uid
+    : `${candidate.id.uid}:${JSON.stringify(candidate.id.path || [])}`
 }
