@@ -25,8 +25,7 @@ import { fileURLToPath } from "node:url";
 const DIR = HM_DIR;
 
 // References are hm://hyper.media/<name> URLs, where the name is the schema's path in hypermedia/
-// (string, schema, example/person, …). Legacy forms, the old dev authorities (seed.hyper.media,
-// example.com) and the prefixed names from before the reorganization, still resolve.
+// (string, schema, example/person, …).
 const LIBRARY_AUTHORITY = "hyper.media";
 const urlToFile = (ref) => fileOfName(refToName(ref, (name) => existsSync(resolve(DIR, fileOfName(name)))));
 
@@ -56,11 +55,10 @@ function typeOf(d) {
   return typeof d; // string, boolean
 }
 
-// A `type` value is a kind URL (hm://<library>/hypermedia-<kind>); read the kind
-// locally off the URL — no fetch needed, so the discriminant stays local. The
-// legacy forms (hm://hyper.media/<kind>, hm://<library>/<kind>) still read.
+// A `type` value is a kind URL (hm://hyper.media/<kind>); read the kind locally off
+// the URL — no fetch needed, so the discriminant stays local.
 const KINDS = ["null", "boolean", "integer", "float", "string", "bytes", "list", "map", "struct", "link"];
-const KIND_URL = new RegExp(`^hm://hyper\\.media/(?:schema/|hypermedia-)?([a-z]+)$`);
+const KIND_URL = new RegExp(`^hm://hyper\\.media/([a-z]+)$`);
 const kindOf = (t) => {
   const k = KIND_URL.exec(t)?.[1];
   return k && KINDS.includes(k) ? k : t;
@@ -310,7 +308,7 @@ const bytes = (b) => ({ "/": { bytes: b } });
 // 1. Self-description — the meta-schema is a valid instance of itself.
 // =====================================================================
 section("Self-description");
-failed += report("hypermedia-schema.schema.json describes itself", validate(meta, meta));
+failed += report("schema.schema.json describes itself", validate(meta, meta));
 
 // =====================================================================
 // 2. Every schema block in the directory is a valid Hypermedia schema.
@@ -398,7 +396,7 @@ const tagged = { type: U("struct"), properties: { type: { value: "Change", requi
 failed += report("a pinned tag field accepts the tag", validate(tagged, { type: "Change", n: 1 }));
 failed += reportReject("a pinned tag field rejects another tag", validate(tagged, { type: "Comment", n: 1 }));
 failed += reportReject("a pinned integer field rejects another integer", validate(tagged, { type: "Change", n: 2 }));
-const pinned = { type: `hm://${LIBRARY_AUTHORITY}/schema/block/base`, properties: { type: { value: "Poll", required: true } } };
+const pinned = { type: `hm://${LIBRARY_AUTHORITY}/block/base`, properties: { type: { value: "Poll", required: true } } };
 failed += report("an extension can pin a field to a literal", validate(pinned, { id: "b1", type: "Poll" }));
 failed += reportReject("…and then rejects the base's other tags", validate(pinned, { id: "b1", type: "Paragraph" }));
 
@@ -697,7 +695,7 @@ for (const c of CASES) {
 // 4b. Value constraints — string length/pattern, numeric bounds, list size.
 // =====================================================================
 section("Value constraints");
-const S = (k, extra) => ({ type: `hm://${LIBRARY_AUTHORITY}/hypermedia-${k}`, ...extra });
+const S = (k, extra) => ({ type: `hm://${LIBRARY_AUTHORITY}/${k}`, ...extra });
 
 // string minLength / maxLength (counted in code points)
 const strLen = S("string", { minLength: 3, maxLength: 5 });

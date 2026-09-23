@@ -4,16 +4,7 @@
  * generator mismaps the dialect. The runtime expects only pin the values.
  */
 import {describe, expect, it} from 'vitest'
-import type {
-  ExamplePollBlock,
-  HMBlockImage,
-  HMBlockQuery,
-  HMChange,
-  HMQuery,
-  SeedCitation,
-  SeedDiscoveryStatus,
-  SeedResource,
-} from '../src/schema-types.generated'
+import type {HMBlockImage, HMBlockQuery, HMChange, HMExamplePollBlock, HMQuery} from '../src/schema-types.generated'
 
 describe('generated schema types', () => {
   it('types a core block (extension narrows the base)', () => {
@@ -49,7 +40,7 @@ describe('generated schema types', () => {
   })
 
   it('types generics: Change<Block> applies the block parameter', () => {
-    type PollChange = HMChange<ExamplePollBlock>
+    type PollChange = HMChange<HMExamplePollBlock>
     const change: PollChange = {
       signer: new Uint8Array(),
       sig: new Uint8Array(),
@@ -58,34 +49,5 @@ describe('generated schema types', () => {
       body: {ops: [{type: 'ReplaceBlock', block: {id: 'p1', type: 'Poll', question: 'Tea?', options: ['yes']}}]},
     }
     expect(change.body?.ops?.[0]).toBeTruthy()
-  })
-
-  it('types the derived read models (seed-*)', () => {
-    const status: SeedDiscoveryStatus = {state: 'found', version: 'bafyv1'}
-    const resource: SeedResource = {
-      type: 'not-found',
-      id: {
-        id: 'hm://z6Mk123/docs',
-        uid: 'z6Mk123',
-        path: ['docs'],
-        version: null,
-        blockRef: null,
-        blockRange: null,
-        hostname: null,
-        scheme: null,
-      },
-    }
-    if (resource.type === 'not-found') {
-      expect(resource.id.uid).toBe('z6Mk123')
-    }
-    const citation: SeedCitation = {
-      source: {type: 'd', id: resource.id},
-      isExactVersion: false,
-      targetFragment: null,
-      targetId: resource.id,
-    }
-    // @ts-expect-error a resource union member can't carry a foreign payload
-    const bad: SeedResource = {type: 'not-found', id: resource.id, message: 'nope'}
-    expect([status, citation, bad]).toBeTruthy()
   })
 })

@@ -7,13 +7,7 @@
 // list, map, link. In dag-json form a link is {"/":"<cid>"} and bytes is
 // {"/":{"bytes":"<base64>"}} — both distinct kinds, NOT maps.
 
-import {
-  HM_SCHEMA_ALIASES,
-  LEGACY_SCHEMA_AUTHORITIES,
-  HM_SCHEMA_MANIFEST,
-  HM_SCHEMA_PAGES,
-  HM_SCHEMAS,
-} from './schema-registry.generated'
+import {HM_SCHEMA_MANIFEST, HM_SCHEMA_PAGES, HM_SCHEMAS} from './schema-registry.generated'
 
 export type HypermediaSchema = Record<string, any>
 /** schema name (its path in hypermedia/) -> schema, e.g. "string", "schema/map-schema", "block/image". A caller may pass a
@@ -25,7 +19,6 @@ export type SchemaRegistry = Record<string, HypermediaSchema>
 // key, so a schema's bytes and CID are the same wherever the library is published; the docs sync resolves it
 // to the publishing space's key for page links and frontmatter bindings. Legacy forms, the old dev
 // authorities (seed.hyper.media, example.com) and the prefixed names from before the folder reorganization
-// (hypermedia-string), still resolve.
 /** The authority of the bundled schema library in hm:// URLs. */
 export const LIBRARY_AUTHORITY = 'hyper.media'
 export const KINDS = ['null', 'boolean', 'integer', 'float', 'string', 'bytes', 'list', 'map', 'struct', 'link']
@@ -53,26 +46,16 @@ export const LIBRARY_CORE: ReadonlySet<string> = new Set(
   ].map((k) => (KINDS.includes(k) || k === 'schema' || k === 'none' ? k : `schema/${k}`)), // kinds and the meta-schema live at the root,
 )
 export const isLibraryCore = (name: string): boolean => LIBRARY_CORE.has(name)
-const KIND_URL = /^hm:\/\/hyper\.media\/(?:schema\/|hypermedia-)?([a-z]+)$/
+const KIND_URL = /^hm:\/\/hyper\.media\/([a-z]+)$/
 
 /** hm:// URL (or bare name) -> bundled-schema key (basename, no .json). */
 export function refToName(ref: string): string {
   const m = /^hm:\/\/([^/]+)\/(.+)$/.exec(ref)
-  if (!m) {
-    const bare = ref.replace(/\.schema\.json$|\.json$/, '')
-    return HM_SCHEMAS[bare] ? bare : HM_SCHEMA_ALIASES[bare] ?? bare
-  }
+  if (!m) return ref.replace(/\.schema\.json$|\.json$/, '')
   const [, auth = '', name = ''] = m
-  if (auth === LIBRARY_AUTHORITY) {
-    // A library URL: the path is the bundled key, or an old name that resolves through the aliases.
-    if (HM_SCHEMAS[name]) return name
-    return HM_SCHEMA_ALIASES[name] ?? name
-  }
-  const prefix = LEGACY_SCHEMA_AUTHORITIES.find(([, a]) => a === auth)?.[0]
-  // Any other authority is an ordinary space: its documents are fetched, never matched to the bundle by path.
-  if (prefix === undefined) return ref
-  const legacy = `${prefix}${name}`
-  return HM_SCHEMAS[legacy] ? legacy : HM_SCHEMA_ALIASES[legacy] ?? legacy
+  // A library URL's path is the bundled key. Any other authority is an ordinary space: its
+  // documents are fetched, never matched to the bundle by path.
+  return auth === LIBRARY_AUTHORITY ? name : ref
 }
 
 /** bundled-schema key (basename) -> its canonical library URL, hm://hyper.media/<name>. */
@@ -92,7 +75,7 @@ export const MAP_URL = kindUrl('map')
 export const STRUCT_URL = kindUrl('struct')
 
 /** Published DAG-CBOR CID for a schema, by basename or ANY hm:// URL form
- * (the library domain or a legacy dev authority) — normalized through the bundle. */
+ * — normalized through the bundle. */
 export function schemaCid(nameOrUrl: string): string | undefined {
   const name = refToName(nameOrUrl)
   const url = nameToUrl(name)
@@ -155,7 +138,7 @@ export function typeOf(d: any): string {
   return typeof d // string, boolean
 }
 
-// A `type` value is a kind URL (hm://<library>/hypermedia-<kind>); read the kind locally.
+// A `type` value is a kind URL (hm://hyper.media/<kind>); read the kind locally.
 export const kindOf = (t: string): string => {
   const k = KIND_URL.exec(t)?.[1]
   return k && KINDS.includes(k) ? k : t
@@ -566,4 +549,4 @@ export function dependents(name: string, registry: SchemaRegistry = HM_SCHEMAS):
   return out.sort()
 }
 
-export {HM_SCHEMAS, HM_SCHEMA_MANIFEST, LEGACY_SCHEMA_AUTHORITIES}
+export {HM_SCHEMAS, HM_SCHEMA_MANIFEST}

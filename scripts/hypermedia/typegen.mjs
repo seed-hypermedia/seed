@@ -23,7 +23,7 @@
 // Primitive schemas (string, map, ...) inline to TS primitives.
 
 import {readFileSync, writeFileSync} from 'node:fs'
-import {HM_DIR, LEGACY_NAME, listSchemaFiles, nameOfFile, refToName} from './names.mjs'
+import {HM_DIR, listSchemaFiles, nameOfFile, refToName} from './names.mjs'
 import {dirname, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 
@@ -54,23 +54,9 @@ const namedSchemaUrl = (node) => {
 const KINDS = ['null', 'boolean', 'integer', 'float', 'string', 'bytes', 'list', 'map', 'struct', 'link', 'any']
 const PRIMITIVES = new Set(KINDS)
 
-/** schema name -> exported TS type name (block/image, formerly hypermedia-block-image -> HMBlockImage). */
+/** schema name -> exported TS type name: HM + the path in PascalCase (block/image -> HMBlockImage, example/person -> HMExamplePerson). */
 function tsName(name) {
-  // Type names come from the name a schema had before the folder reorganization, so
-  // app code keeps importing HMBlockImage, SeedDocument, ExamplePerson, ...
-  // A root type added after the reorganization (url, ipfs-url) is HM<Name> like its neighbours.
-  const basename = LEGACY_NAME[name] ?? (name.includes('/') ? name.replace(/\//g, '-') : `hypermedia-${name}`)
-  const prefixes = [
-    ['hypermedia-', 'HM'],
-    ['seed-', 'Seed'],
-    ['example-', 'Example'],
-  ]
-  for (const [p, out] of prefixes) {
-    if (basename.startsWith(p)) {
-      return out + pascal(basename.slice(p.length))
-    }
-  }
-  return pascal(basename)
+  return 'HM' + pascal(name.replace(/\//g, '-'))
 }
 
 function pascal(kebab) {

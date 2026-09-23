@@ -40,7 +40,7 @@ export type HMBlob = {
  * Any Hypermedia CBOR blob — the union of the six blob types, selected by the `type` tag.
  * Schema: hm://hyper.media/blob/any
  */
-export type HMAnyBlob = HMChange<HMBlock> | HMRef | HMProfile | HMComment | HMCapability | HMContact
+export type HMBlobAny = HMChange<HMBlock> | HMRef | HMProfile | HMComment | HMCapability | HMContact
 
 /**
  * Block
@@ -60,7 +60,7 @@ export type HMBlock = {
   /** The block's one link: an `hm://`, `ipfs://`, `https://` or `nostr:` URL depending on the type. */
   link?: HMUrl
   /** Inline formatting, links and mentions over code-point ranges of `text`. */
-  annotations?: HMAnnotation[]
+  annotations?: HMBlockAnnotation[]
   /** Type-specific attributes, nested here by the Seed API and SDK; on the wire they sit at the block's top level. */
   attributes?: {[key: string]: unknown}
 } & {[key: string]: unknown}
@@ -71,7 +71,7 @@ export type HMBlock = {
  * An inline layer over a block's text, used for formatting, links and mentions.
  * Schema: hm://hyper.media/block/annotation
  */
-export type HMAnnotation = {
+export type HMBlockAnnotation = {
   /** Annotation kind, such as `Bold`, `Italic`, `Link`, `Embed` or `TextColor`. */
   type?: string
   /** Target URL for `Link` and `Embed` annotations — an `hm://` or web URL. */
@@ -112,13 +112,13 @@ export type HMBlockButton = HMBlockBase & {
   /** Button settings and parent-layout attributes. */
   attributes?: {
     /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
-    childrenType?: HMChildrenType
+    childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
     /** Alternative label for the button. */
     name?: string
     /** Horizontal position of the button in its column. */
-    alignment?: HMButtonAlignment
+    alignment?: HMBlockButtonAlignment
   } & {[key: string]: unknown}
 }
 
@@ -128,7 +128,7 @@ export type HMBlockButton = HMBlockBase & {
  * Horizontal position of a Button block in its column: `flex-start`, `center` or `flex-end`.
  * Schema: hm://hyper.media/block/button-alignment
  */
-export type HMButtonAlignment = 'flex-start' | 'center' | 'flex-end'
+export type HMBlockButtonAlignment = 'flex-start' | 'center' | 'flex-end'
 
 /**
  * Children Type
@@ -136,7 +136,7 @@ export type HMButtonAlignment = 'flex-start' | 'center' | 'flex-end'
  * How a block lays out its children: `Group` (default), `Ordered`, `Unordered`, `Blockquote` or `Grid`.
  * Schema: hm://hyper.media/block/children-type
  */
-export type HMChildrenType = 'Group' | 'Ordered' | 'Unordered' | 'Blockquote' | 'Grid'
+export type HMBlockChildrenType = 'Group' | 'Ordered' | 'Unordered' | 'Blockquote' | 'Grid'
 
 /**
  * Code Block
@@ -151,7 +151,7 @@ export type HMBlockCode = HMBlockBase & {
   /** Code settings and parent-layout attributes. */
   attributes?: {
     /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
-    childrenType?: HMChildrenType
+    childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
     /** Programming language used for syntax highlighting. */
@@ -165,9 +165,9 @@ export type HMBlockCode = HMBlockBase & {
  * One block of a comment body — an open block with its child comment blocks carried inline.
  * Schema: hm://hyper.media/block/comment
  */
-export type HMCommentBlock = HMBlock & {
+export type HMBlockComment = HMBlock & {
   /** Nested comment blocks under this one, in order. */
-  children?: HMCommentBlock[]
+  children?: HMBlockComment[]
 }
 
 /**
@@ -206,11 +206,11 @@ export type HMBlockEmbed = HMBlockBase & {
   /** Embed settings and parent-layout attributes. */
   attributes?: {
     /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
-    childrenType?: HMChildrenType
+    childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
     /** How the target renders: its content, a card, its comments or a plain link. */
-    view?: HMEmbedView
+    view?: HMBlockEmbedView
   } & {[key: string]: unknown}
 }
 
@@ -220,7 +220,7 @@ export type HMBlockEmbed = HMBlockBase & {
  * How an Embed block renders its target: `Content`, `Card`, `Comments` or `Link`.
  * Schema: hm://hyper.media/block/embed-view
  */
-export type HMEmbedView = 'Content' | 'Card' | 'Comments' | 'Link'
+export type HMBlockEmbedView = 'Content' | 'Card' | 'Comments' | 'Link'
 
 /**
  * File Block
@@ -235,7 +235,7 @@ export type HMBlockFile = HMBlockBase & {
   /** File details and parent-layout attributes. */
   attributes?: {
     /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
-    childrenType?: HMChildrenType
+    childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
     /** File size in bytes. */
@@ -256,11 +256,11 @@ export type HMBlockHeading = HMBlockBase & {
   /** The heading text, without markup. */
   text?: string
   /** Inline formatting, links and mentions over `text`. */
-  annotations?: HMAnnotation[]
+  annotations?: HMBlockAnnotation[]
   /** Parent-layout attributes for the section under the heading. */
   attributes?: {
     /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
-    childrenType?: HMChildrenType
+    childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
   } & {[key: string]: unknown}
@@ -277,13 +277,13 @@ export type HMBlockImage = HMBlockBase & {
   /** Caption shown with the image. */
   text?: string
   /** Inline formatting, links and mentions over the caption. */
-  annotations?: HMAnnotation[]
+  annotations?: HMBlockAnnotation[]
   /** The image file, normally an `ipfs://<cid>` URL. */
   link: HMUrl
   /** Image settings and parent-layout attributes. */
   attributes?: {
     /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
-    childrenType?: HMChildrenType
+    childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
     /** Display width in pixels. */
@@ -306,7 +306,7 @@ export type HMBlockMath = HMBlockBase & {
   /** Parent-layout attributes. */
   attributes?: {
     /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
-    childrenType?: HMChildrenType
+    childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
   } & {[key: string]: unknown}
@@ -348,11 +348,11 @@ export type HMBlockParagraph = HMBlockBase & {
   /** The paragraph text, without markup. */
   text?: string
   /** Inline formatting, links and mentions over `text`. */
-  annotations?: HMAnnotation[]
+  annotations?: HMBlockAnnotation[]
   /** Parent-layout attributes and the table column id. */
   attributes?: {
     /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
-    childrenType?: HMChildrenType
+    childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
     /** Id of the TableColumn block this cell belongs to; set only on cells inside a TableRow. */
@@ -371,7 +371,7 @@ export type HMBlockQuery = HMBlockBase & {
   /** The stored query and how its results are shown. */
   attributes: {
     /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
-    childrenType?: HMChildrenType
+    childrenType?: HMBlockChildrenType
     /** Number of card columns in the `Card` style (default 3). */
     columnCount?: number
     /** How results are shown: `Card`, `List` or `Table`. */
@@ -396,7 +396,7 @@ export type HMBlockTable = HMBlockBase & {
   /** Parent-layout attributes. */
   attributes?: {
     /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
-    childrenType?: HMChildrenType
+    childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
   }
@@ -413,7 +413,7 @@ export type HMBlockTableColumn = HMBlockBase & {
   /** Column settings and parent-layout attributes. */
   attributes?: {
     /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
-    childrenType?: HMChildrenType
+    childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
     /** Column width in pixels. · minimum: 0 */
@@ -434,7 +434,7 @@ export type HMBlockTableRow = HMBlockBase & {
   /** Row settings and parent-layout attributes. */
   attributes?: {
     /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
-    childrenType?: HMChildrenType
+    childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
     /** Marks the header row; honored only on the first row. */
@@ -455,7 +455,7 @@ export type HMBlockVideo = HMBlockBase & {
   /** Playback settings and parent-layout attributes. */
   attributes?: {
     /** How this block lays out its children — a children type such as `Unordered` or `Grid`. */
-    childrenType?: HMChildrenType
+    childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
     /** Display width in pixels. */
@@ -531,7 +531,7 @@ export type HMChangeBody<Block = HMBlock> = {
   /** Advisory count of logical operations, which can exceed the list length for run-length ops. */
   opCount?: number
   /** Operations applied in order when the document is replayed. */
-  ops?: HMOp<Block>[]
+  ops?: HMChangeOp<Block>[]
 }
 
 /**
@@ -540,12 +540,12 @@ export type HMChangeBody<Block = HMBlock> = {
  * One operation inside a Change body, tagged by `type`: set metadata, replace, move or delete blocks.
  * Schema: hm://hyper.media/change/op
  */
-export type HMOp<Block = HMBlock> =
-  | HMOpSetAttributes
-  | HMOpMoveBlocks
-  | HMOpReplaceBlock<Block>
-  | HMOpDeleteBlocks
-  | HMOpSetKey
+export type HMChangeOp<Block = HMBlock> =
+  | HMChangeOpSetAttributes
+  | HMChangeOpMoveBlocks
+  | HMChangeOpReplaceBlock<Block>
+  | HMChangeOpDeleteBlocks
+  | HMChangeOpSetKey
 
 /**
  * DeleteBlocks Op
@@ -553,7 +553,7 @@ export type HMOp<Block = HMBlock> =
  * The operation that removes blocks by moving them, with their children, to the trash parent.
  * Schema: hm://hyper.media/change/op/delete-blocks
  */
-export type HMOpDeleteBlocks = {
+export type HMChangeOpDeleteBlocks = {
   type: 'DeleteBlocks'
   /** Ids of the blocks to delete. */
   blocks: string[]
@@ -565,7 +565,7 @@ export type HMOpDeleteBlocks = {
  * The operation that places a contiguous run of sibling blocks under a parent after a reference position.
  * Schema: hm://hyper.media/change/op/move-blocks
  */
-export type HMOpMoveBlocks = {
+export type HMChangeOpMoveBlocks = {
   type: 'MoveBlocks'
   /** Id of the block the run goes under; empty means the document root. */
   parent?: string
@@ -581,7 +581,7 @@ export type HMOpMoveBlocks = {
  * The operation that sets the full state of one block; the newest replacement by op id wins.
  * Schema: hm://hyper.media/change/op/replace-block
  */
-export type HMOpReplaceBlock<Block = HMBlock> = {
+export type HMChangeOpReplaceBlock<Block = HMBlock> = {
   type: 'ReplaceBlock'
   /** The complete new state of the block, with attributes inlined at the top level. */
   block: Block
@@ -593,7 +593,7 @@ export type HMOpReplaceBlock<Block = HMBlock> = {
  * The operation that sets document metadata by key path, each path a last-writer-wins register.
  * Schema: hm://hyper.media/change/op/set-attributes
  */
-export type HMOpSetAttributes = {
+export type HMChangeOpSetAttributes = {
   type: 'SetAttributes'
   /** Reserved for per-block attributes; must be empty today. */
   block?: string
@@ -607,7 +607,7 @@ export type HMOpSetAttributes = {
  * Deprecated flat form of SetAttributes that sets one top-level metadata key, kept so old Changes replay.
  * Schema: hm://hyper.media/change/op/set-key
  */
-export type HMOpSetKey = {
+export type HMChangeOpSetKey = {
   type: 'SetKey'
   /** Top-level metadata key to set. */
   key?: string
@@ -646,7 +646,7 @@ export type HMComment = HMBlob & {
   /** CID of the comment this one replies to; omitted when it equals `threadRoot`. */
   replyParent?: HMCid
   /** The comment's content as a list of comment blocks; an empty body is a tombstone. */
-  body: HMCommentBlock[]
+  body: HMBlockComment[]
   /** Empty for a public comment or `Private`, usually copied from the target document. */
   visibility?: HMVisibility
 }
@@ -719,7 +719,7 @@ export type HMDocument = {
  * A postal address: street and city (required) plus an optional postal code.
  * Schema: hm://hyper.media/example/address
  */
-export type ExampleAddress = {
+export type HMExampleAddress = {
   /** Street address line, including the house number. */
   street: string
   /** City or town name. */
@@ -734,7 +734,7 @@ export type ExampleAddress = {
  * An employee extended with a map of boolean permission flags — a two-level extension chain.
  * Schema: hm://hyper.media/example/admin
  */
-export type ExampleAdmin = ExampleEmployee & {
+export type HMExampleAdmin = HMExampleEmployee & {
   /** The permissions this admin holds, as flags. A set of flags is a map rather than a list because a document's attributes hold scalars and nested maps, so this type describes a document as well as a blob. */
   permissions: {[key: string]: boolean}
 }
@@ -745,7 +745,7 @@ export type ExampleAdmin = ExampleEmployee & {
  * A strict union of Hypermedia's core blocks plus the app's own Poll block, showing how a third party extends the block model.
  * Schema: hm://hyper.media/example/app-block
  */
-export type ExampleAppBlock = HMBlockCore | ExamplePollBlock
+export type HMExampleAppBlock = HMBlockCore | HMExamplePollBlock
 
 /**
  * Example: Article
@@ -753,17 +753,17 @@ export type ExampleAppBlock = HMBlockCore | ExamplePollBlock
  * A published article that combines the other examples: status, author, tags, body, cover image, comments and metadata.
  * Schema: hm://hyper.media/example/article
  */
-export type ExampleArticle = {
+export type HMExampleArticle = {
   /** Headline of the article. */
   title: string
   /** URL-friendly short name for the article. */
   slug: string
   /** Publication status: `draft`, `published` or `archived`. */
-  status: ExampleStatus
+  status: HMExampleStatus
   /** The person who wrote the article. */
   author: HMLink
   /** Topic tags for the article. */
-  tags?: ExampleTags
+  tags?: HMExampleTags
   /** The article's content as raw bytes. */
   body?: HMBytes
   /** Number of words in the body. */
@@ -775,7 +775,7 @@ export type ExampleArticle = {
   /** Links to the comments on the article. */
   comments?: HMLink[]
   /** Open string metadata for anything the other fields do not cover. */
-  meta?: ExampleMetadata
+  meta?: HMExampleMetadata
 }
 
 /**
@@ -784,7 +784,7 @@ export type ExampleArticle = {
  * A binary payload tagged with a MIME type and an optional size.
  * Schema: hm://hyper.media/example/blob
  */
-export type ExampleBlob = {
+export type HMExampleBlob = {
   /** MIME type of the payload, such as `image/png`. */
   mime: string
   /** Payload size in bytes. */
@@ -799,7 +799,7 @@ export type ExampleBlob = {
  * A World Builder page type for a character, with a birth date, role, and links to a home place, faction, portrait and stats.
  * Schema: hm://hyper.media/example/character-doc
  */
-export type ExampleCharacterDoc = {
+export type HMExampleCharacterDoc = {
   /** Birth date (ISO 8601 `YYYY-MM-DD`) — rendered as a date picker. */
   born: HMDate
   /** Death date, if any. */
@@ -811,11 +811,11 @@ export type ExampleCharacterDoc = {
   /** The faction this character belongs to. */
   faction?: HMHmUrl
   /** A portrait image file on IPFS. */
-  portrait?: HMIpfs
+  portrait?: HMIpfsUrl
   /** An `ipfs://` object that must conform to Character stats (a required target schema). */
-  stats?: HMIpfs
+  stats?: HMIpfsUrl
   /** An `ipfs://` object with no declared schema — free-form data. */
-  notes?: HMIpfs
+  notes?: HMIpfsUrl
 }
 
 /**
@@ -824,7 +824,7 @@ export type ExampleCharacterDoc = {
  * A comment with an author and replies that are themselves comments, showing a self-referencing type.
  * Schema: hm://hyper.media/example/comment
  */
-export type ExampleComment = {
+export type HMExampleComment = {
   /** The comment's text. */
   text: string
   /** The person who wrote the comment. */
@@ -839,7 +839,7 @@ export type ExampleComment = {
  * A record that shows value constraints: string length and pattern, numeric bounds, and list size.
  * Schema: hm://hyper.media/example/constrained
  */
-export type ExampleConstrained = {
+export type HMExampleConstrained = {
   /** Login name: 3–12 characters of lowercase letters, digits and `_`. · minLength: 3 · maxLength: 12 · pattern: "^[a-z0-9_]+$" */
   username: string
   /** Score from 0 to 100. · minimum: 0 · maximum: 100 */
@@ -854,7 +854,7 @@ export type ExampleConstrained = {
  * A map from string keys to integers: `Map<Integer>`.
  * Schema: hm://hyper.media/example/counts
  */
-export type ExampleCounts = {[key: string]: number}
+export type HMExampleCounts = {[key: string]: number}
 
 /**
  * Example: Document
@@ -862,7 +862,7 @@ export type ExampleCounts = {[key: string]: number}
  * A document with a title, author, body and a link to a previous document, showing a self-referencing type.
  * Schema: hm://hyper.media/example/document
  */
-export type ExampleDocument = {
+export type HMExampleDocument = {
   /** Title of the document. */
   title: string
   /** The person who wrote the document. */
@@ -879,7 +879,7 @@ export type ExampleDocument = {
  * A person extended with an employee id and department.
  * Schema: hm://hyper.media/example/employee
  */
-export type ExampleEmployee = ExamplePerson & {
+export type HMExampleEmployee = HMExamplePerson & {
   /** The employee's id within the organization. */
   employeeId: string
   /** The department the employee works in. */
@@ -892,7 +892,7 @@ export type ExampleEmployee = ExamplePerson & {
  * A filesystem entry: a union of folder and file.
  * Schema: hm://hyper.media/example/entry
  */
-export type ExampleEntry = ExampleFolder | ExampleFile
+export type HMExampleEntry = HMExampleFolder | HMExampleFile
 
 /**
  * Event
@@ -900,7 +900,7 @@ export type ExampleEntry = ExampleFolder | ExampleFile
  * A World Builder page type for something that happened, with a date and links to a place, a protagonist and a faction.
  * Schema: hm://hyper.media/example/event-doc
  */
-export type ExampleEventDoc = {
+export type HMExampleEventDoc = {
   /** When it happened (or began). */
   date: HMDate
   /** When it ended, for a span. */
@@ -921,7 +921,7 @@ export type ExampleEventDoc = {
  * A World Builder page type for a faction, order, house or guild, with a founding date and links to its seat, leader and banner.
  * Schema: hm://hyper.media/example/faction-doc
  */
-export type ExampleFactionDoc = {
+export type HMExampleFactionDoc = {
   /** Founding date. */
   founded: HMDate
   /** Dissolution date, if any. */
@@ -931,7 +931,7 @@ export type ExampleFactionDoc = {
   /** Who leads it. */
   leader?: HMHmUrl
   /** A banner or crest image file on IPFS. */
-  banner?: HMIpfs
+  banner?: HMIpfsUrl
 }
 
 /**
@@ -940,7 +940,7 @@ export type ExampleFactionDoc = {
  * A file with a name and a link to its parent folder, showing mutually referencing types.
  * Schema: hm://hyper.media/example/file
  */
-export type ExampleFile = {
+export type HMExampleFile = {
   /** File name. */
   name: string
   /** The folder that contains this file. */
@@ -953,7 +953,7 @@ export type ExampleFile = {
  * A folder with a name and links to its files and subfolders, showing mutually referencing types.
  * Schema: hm://hyper.media/example/folder
  */
-export type ExampleFolder = {
+export type HMExampleFolder = {
   /** Folder name. */
   name: string
   /** Links to the files directly in this folder. */
@@ -968,7 +968,7 @@ export type ExampleFolder = {
  * A latitude and longitude coordinate with an optional altitude.
  * Schema: hm://hyper.media/example/geo
  */
-export type ExampleGeo = {
+export type HMExampleGeo = {
   /** Latitude in degrees. */
   lat: number
   /** Longitude in degrees. */
@@ -983,7 +983,7 @@ export type ExampleGeo = {
  * A recursive JSON value: null, boolean, integer, float, string, or a list or map of JSON values.
  * Schema: hm://hyper.media/example/json
  */
-export type ExampleJson = null | boolean | number | string | ExampleJson[] | {[key: string]: ExampleJson}
+export type HMExampleJson = null | boolean | number | string | HMExampleJson[] | {[key: string]: HMExampleJson}
 
 /**
  * Example: Matrix
@@ -991,7 +991,7 @@ export type ExampleJson = null | boolean | number | string | ExampleJson[] | {[k
  * A list of lists of integers: `List<List<Integer>>`.
  * Schema: hm://hyper.media/example/matrix
  */
-export type ExampleMatrix = number[][]
+export type HMExampleMatrix = number[][]
 
 /**
  * Example: Metadata
@@ -999,7 +999,7 @@ export type ExampleMatrix = number[][]
  * Arbitrary string-to-string metadata: `Map<String>`.
  * Schema: hm://hyper.media/example/metadata
  */
-export type ExampleMetadata = {[key: string]: string}
+export type HMExampleMetadata = {[key: string]: string}
 
 /**
  * Example: MyApp Change
@@ -1007,7 +1007,7 @@ export type ExampleMetadata = {[key: string]: string}
  * A Change bound to the app's block type (`Change<example/app-block>`), so ReplaceBlock ops accept only core blocks and Poll.
  * Schema: hm://hyper.media/example/myapp-change
  */
-export type ExampleMyappChange = HMChange<ExampleAppBlock>
+export type HMExampleMyappChange = HMChange<HMExampleAppBlock>
 
 /**
  * Example: Person
@@ -1015,7 +1015,7 @@ export type ExampleMyappChange = HMChange<ExampleAppBlock>
  * A person with a name, age, active flag, home address and nicknames.
  * Schema: hm://hyper.media/example/person
  */
-export type ExamplePerson = {
+export type HMExamplePerson = {
   /** The person's name. */
   name: string
   /** Age in years. */
@@ -1023,7 +1023,7 @@ export type ExamplePerson = {
   /** Whether the person is currently active. */
   active?: boolean
   /** Home postal address. */
-  home?: ExampleAddress
+  home?: HMExampleAddress
   /** Other names the person goes by. */
   nicknames?: string[]
 }
@@ -1034,7 +1034,7 @@ export type ExamplePerson = {
  * A document type for a person that requires a surname and allows a given name, bound per page or to a folder's children.
  * Schema: hm://hyper.media/example/person-doc
  */
-export type ExamplePersonDoc = {
+export type HMExamplePersonDoc = {
   /** The person's family name. */
   surname: string
   /** The person's given (first) name. */
@@ -1047,7 +1047,7 @@ export type ExamplePersonDoc = {
  * A World Builder page type for a place, with a kind and optional founding date, parent region, ruler, coordinates and map.
  * Schema: hm://hyper.media/example/place-doc
  */
-export type ExamplePlaceDoc = {
+export type HMExamplePlaceDoc = {
   /** What sort of place this is, such as `city`, `ruin` or `realm`. */
   kind: 'city' | 'town' | 'village' | 'fortress' | 'ruin' | 'wilderness' | 'realm'
   /** Founding date. */
@@ -1057,9 +1057,9 @@ export type ExamplePlaceDoc = {
   /** The faction that holds this place. */
   ruler?: HMHmUrl
   /** An `ipfs://` object conforming to Geo point. */
-  coordinates?: HMIpfs
+  coordinates?: HMIpfsUrl
   /** A map image file on IPFS. */
-  map?: HMIpfs
+  map?: HMIpfsUrl
 }
 
 /**
@@ -1068,7 +1068,7 @@ export type ExamplePlaceDoc = {
  * An example third-party block type: a poll with a question and options, extending the shared block base like a core block.
  * Schema: hm://hyper.media/example/poll-block
  */
-export type ExamplePollBlock = HMBlockBase & {
+export type HMExamplePollBlock = HMBlockBase & {
   type?: 'Poll'
   /** The question the poll asks. */
   question: string
@@ -1077,7 +1077,7 @@ export type ExamplePollBlock = HMBlockBase & {
   /** Block attributes: layout keys plus poll settings such as `multiple`; other keys are allowed. */
   attributes?: {
     /** How the block's children are laid out, such as `Ordered` or `Grid`. */
-    childrenType?: HMChildrenType
+    childrenType?: HMBlockChildrenType
     /** Number of columns when `childrenType` is `Grid`. */
     columnCount?: number
     /** Whether a voter may choose more than one option. */
@@ -1091,7 +1091,7 @@ export type ExamplePollBlock = HMBlockBase & {
  * A map from ids to person links: `Map<Link<Person>>`.
  * Schema: hm://hyper.media/example/registry
  */
-export type ExampleRegistry = {[key: string]: HMLink}
+export type HMExampleRegistry = {[key: string]: HMLink}
 
 /**
  * Character Stats
@@ -1099,7 +1099,7 @@ export type ExampleRegistry = {[key: string]: HMLink}
  * A character's stats object, stored as its own DAG-CBOR blob so it can hold the integers and enums document metadata cannot.
  * Schema: hm://hyper.media/example/stats
  */
-export type ExampleStats = {
+export type HMExampleStats = {
   /** 1–10 · minimum: 1 · maximum: 10 */
   strength: number
   /** 1–10 · minimum: 1 · maximum: 10 */
@@ -1118,7 +1118,7 @@ export type ExampleStats = {
  * A publication status: `draft`, `published` or `archived`.
  * Schema: hm://hyper.media/example/status
  */
-export type ExampleStatus = 'draft' | 'published' | 'archived'
+export type HMExampleStatus = 'draft' | 'published' | 'archived'
 
 /**
  * Example: Tags
@@ -1126,7 +1126,7 @@ export type ExampleStatus = 'draft' | 'published' | 'archived'
  * A list of string tags: `List<String>`.
  * Schema: hm://hyper.media/example/tags
  */
-export type ExampleTags = string[]
+export type HMExampleTags = string[]
 
 /**
  * Example: Tree
@@ -1134,7 +1134,7 @@ export type ExampleTags = string[]
  * A tree node holding an integer value and links to child nodes, showing a self-referencing type.
  * Schema: hm://hyper.media/example/tree
  */
-export type ExampleTree = {
+export type HMExampleTree = {
   /** The integer stored at this node. */
   value: number
   /** Links to this node's child trees. */
@@ -1147,7 +1147,7 @@ export type ExampleTree = {
  * A primitive value: string, integer, boolean or null.
  * Schema: hm://hyper.media/example/value
  */
-export type ExampleValue = string | number | boolean | null
+export type HMExampleValue = string | number | boolean | null
 
 /**
  * World
@@ -1155,7 +1155,7 @@ export type ExampleValue = string | number | boolean | null
  * A World Builder page type for the root of a fictional world, naming its genre and the date the chronicle begins.
  * Schema: hm://hyper.media/example/world-doc
  */
-export type ExampleWorldDoc = {
+export type HMExampleWorldDoc = {
   /** The world's genre, such as `fantasy` or `science-fiction`. */
   genre: 'fantasy' | 'science-fiction' | 'historical' | 'contemporary' | 'mythic'
   /** The in-world date the chronicle begins. */
@@ -1178,7 +1178,7 @@ export type HMHmUrl = string
  * A string that is an `ipfs://` URL naming content by its CID — a file, or a DAG-CBOR object such as a schema.
  * Schema: hm://hyper.media/ipfs-url
  */
-export type HMIpfs = string
+export type HMIpfsUrl = string
 
 /**
  * Key/Value
@@ -1205,11 +1205,11 @@ export type HMMetadata = {
   /** A short description shown in previews and cards. */
   summary?: string
   /** A square document or space image, as an `ipfs://` URL. */
-  icon?: HMIpfs
+  icon?: HMIpfsUrl
   /** Deprecated image field kept for old documents; use `icon` or `cover`. */
-  thumbnail?: HMIpfs
+  thumbnail?: HMIpfsUrl
   /** A wide cover image shown in headers and cards, as an `ipfs://` URL. */
-  cover?: HMIpfs
+  cover?: HMIpfsUrl
   /** The web address a space is published at; set on the home document when a site is registered. */
   siteUrl?: HMUrl
   /** The agents server this space advertises to its readers (an http(s) origin); clients connect to it beside their own servers. */
@@ -1221,11 +1221,11 @@ export type HMMetadata = {
   /** The attributes schema this document's direct CHILDREN conform to (hm:// URL or ipfs://<cid>). A child may declare its own `attributesSchema` instead. */
   childAttributesSchema?: HMHmUrl
   /** This document DEFINES a schema: ipfs://<cid> of the schema blob it describes. Its target is the meta-schema, so an editor creates and validates the blob as a Hypermedia schema (the struct form, rooted at Struct by default). Other documents reference this document's URL as their `attributesSchema`/`childAttributesSchema`. */
-  schemaDefinition?: HMIpfs
+  schemaDefinition?: HMIpfsUrl
   /** Legacy space header layout: `Seed/Experimental/Newspaper` or empty. */
   layout?: 'Seed/Experimental/Newspaper' | ''
   /** Space header logo image. */
-  seedExperimentalLogo?: HMIpfs
+  seedExperimentalLogo?: HMIpfsUrl
   /** Legacy ordering of a space home listing. */
   seedExperimentalHomeOrder?: 'UpdatedFirst' | 'CreatedFirst'
   /** Publication date shown to readers when it differs from the change history. */
@@ -1257,7 +1257,7 @@ export type HMMetadata = {
  * One entry of a site's navigation menu, stored as a `Link` child of the detached `navigation` block.
  * Schema: hm://hyper.media/metadata/navigation-item
  */
-export type HMNavigationItem = {
+export type HMMetadataNavigationItem = {
   type: 'Link'
   /** Block id of this menu entry. */
   id: string
@@ -1390,7 +1390,7 @@ export type HMRef = HMBlob & {
   /** CIDs of the document's current head Changes; empty for a tombstone or redirect. */
   heads: HMCid[]
   /** Where readers are sent instead, making this Ref a redirect. */
-  redirect?: HMRedirectTarget
+  redirect?: HMRefRedirectTarget
   /** Orders the lives of an address: the highest generation wins; clients use the current time in ms for a new document. */
   generation?: number
   /** Empty for public or `Private`; a private Ref must have a single-segment path. */
@@ -1403,7 +1403,7 @@ export type HMRef = HMBlob & {
  * The destination of a redirect Ref: the space and path readers are sent to.
  * Schema: hm://hyper.media/ref/redirect-target
  */
-export type HMRedirectTarget = {
+export type HMRefRedirectTarget = {
   /** Destination space; omitted when the redirect stays within the same space. */
   space?: HMPrincipal
   /** Destination document path. */
@@ -1427,15 +1427,15 @@ export type HMRole = 'WRITER' | 'AGENT'
  * Schema: hm://hyper.media/schema
  */
 export type HMSchema =
-  | HMStructSchema
-  | HMMapSchema
-  | HMListSchema
-  | HMScalarSchema
-  | HMLinkSchema
-  | HMIncludeSchema
-  | HMAnyof
-  | HMVarSchema
-  | HMLiteralSchema
+  | HMSchemaStructSchema
+  | HMSchemaMapSchema
+  | HMSchemaListSchema
+  | HMSchemaScalarSchema
+  | HMSchemaLinkSchema
+  | HMSchemaIncludeSchema
+  | HMSchemaAnyof
+  | HMSchemaVarSchema
+  | HMSchemaLiteralSchema
   | string
   | number
   | boolean
@@ -1447,7 +1447,7 @@ export type HMSchema =
  * A union schema: a value is valid if it matches any one of the schemas listed under `anyOf`.
  * Schema: hm://hyper.media/schema/anyof
  */
-export type HMAnyof = {
+export type HMSchemaAnyof = {
   /** The alternative schemas; a value must match at least one. When every arm is a literal, editors show a dropdown. */
   anyOf: HMSchema[]
   /** What the union is for, when it is written inline; a published schema is described by its page. */
@@ -1464,11 +1464,11 @@ export type HMAnyof = {
  * A schema that names another schema by URL: a bare include becomes that schema, and added refinements make it an extension.
  * Schema: hm://hyper.media/schema/include-schema
  */
-export type HMIncludeSchema = {
+export type HMSchemaIncludeSchema = {
   /** The schema this one names: a schema document's URL (`hm://…` or `ipfs://<cid>`). Naming one of the nine kinds grounds a schema instead (see the kind-rooted variants), so a kind URL does not belong here. The other keys refine what is named. · pattern: "^(?!hm://hyper\\.media/(?:schema/|hypermedia-)?(?:null|boolean|integer|float|string|bytes|list|map|struct|link)$)(?:hm|ipfs)://.+$" */
   type: string
   /** Fields the extension adds to (or overrides in) the base struct, as properties. */
-  properties?: {[key: string]: HMProperty}
+  properties?: {[key: string]: HMSchemaProperty}
   /** Overrides the named schema's `values`: the schema extra keys (open struct) or map values must match. */
   values?: HMSchema
   /** Overrides the named schema's `items`: the schema every list element must match. */
@@ -1491,7 +1491,7 @@ export type HMIncludeSchema = {
  * A schema for a link: a CID pointing at a separate block, optionally typed by `target`.
  * Schema: hm://hyper.media/schema/link-schema
  */
-export type HMLinkSchema = {
+export type HMSchemaLinkSchema = {
   type: 'hm://hyper.media/link'
   /** The schema the linked block is expected to conform to. Advisory: a validator does not dereference the link. */
   target?: string
@@ -1509,7 +1509,7 @@ export type HMLinkSchema = {
  * A schema for a list, whose elements match `items` and whose length can be bounded.
  * Schema: hm://hyper.media/schema/list-schema
  */
-export type HMListSchema = {
+export type HMSchemaListSchema = {
   type: 'hm://hyper.media/list'
   /** The schema every element of the list must match. Absent means elements of any kind. */
   items?: HMSchema
@@ -1531,7 +1531,7 @@ export type HMListSchema = {
  * The long form of a literal: a schema that accepts exactly one string, integer, boolean or null value, with a description.
  * Schema: hm://hyper.media/schema/literal-schema
  */
-export type HMLiteralSchema = {
+export type HMSchemaLiteralSchema = {
   /** The one value this schema accepts: a string, integer, boolean, or null. */
   value: HMValue
   /** What this value means, for people and for the editors that offer it. */
@@ -1544,7 +1544,7 @@ export type HMLiteralSchema = {
  * A schema for a map with arbitrary keys whose values all match one schema.
  * Schema: hm://hyper.media/schema/map-schema
  */
-export type HMMapSchema = {
+export type HMSchemaMapSchema = {
   type: 'hm://hyper.media/map'
   /** The schema every value of the map must match. */
   values?: HMSchema
@@ -1562,7 +1562,7 @@ export type HMMapSchema = {
  * One field of a struct: the schema its value must match, whether it is required, and what it is for.
  * Schema: hm://hyper.media/schema/property
  */
-export type HMProperty = {
+export type HMSchemaProperty = {
   /** The schema the field's value must match. */
   value: HMSchema
   /** A value of the struct must include this field. Absent means optional. */
@@ -1577,7 +1577,7 @@ export type HMProperty = {
  * A schema for a null, boolean, integer, float, string or bytes value, optionally narrowed by value constraints.
  * Schema: hm://hyper.media/schema/scalar-schema
  */
-export type HMScalarSchema = {
+export type HMSchemaScalarSchema = {
   /** The scalar kind the value must be: `null`, `boolean`, `integer`, `float`, `string` or `bytes`. */
   type:
     | 'hm://hyper.media/null'
@@ -1614,10 +1614,10 @@ export type HMScalarSchema = {
  * A schema for a struct, with known fields under `properties` and optionally extra keys of one type under `values`.
  * Schema: hm://hyper.media/schema/struct-schema
  */
-export type HMStructSchema = {
+export type HMSchemaStructSchema = {
   type: 'hm://hyper.media/struct'
   /** The fields by name: each a property with its value schema, whether it is required, and a description. */
-  properties?: {[key: string]: HMProperty}
+  properties?: {[key: string]: HMSchemaProperty}
   /** Opens the struct: keys other than the named fields are allowed and their values must match this schema. */
   values?: HMSchema
   /** What the struct is for, when it is written inline; a published schema is described by its page. */
@@ -1634,7 +1634,7 @@ export type HMStructSchema = {
  * A type-variable reference inside a generic, matching whatever schema the named parameter is bound to.
  * Schema: hm://hyper.media/schema/var-schema
  */
-export type HMVarSchema = {
+export type HMSchemaVarSchema = {
   /** The name of the type parameter, declared in an enclosing `params`, whose bound schema this node stands for. */
   var: string
   /** What the type variable stands for, when it is written inline. */
