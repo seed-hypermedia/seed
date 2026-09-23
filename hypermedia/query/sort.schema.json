@@ -1,0 +1,26 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "reverse": {
+      "value": {
+        "type": "hm://hyper.media/boolean"
+      },
+      "description": "Sort in descending order."
+    },
+    "term": {
+      "value": {
+        "anyOf": [
+          "Path",
+          "Title",
+          "CreateTime",
+          "UpdateTime",
+          "DisplayTime",
+          "ActivityTime"
+        ]
+      },
+      "required": true,
+      "description": "What to sort by: path, title, or a create, update, display or activity time."
+    }
+  },
+  "description": "One sort term for query results, optionally reversed."
+}

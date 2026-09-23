@@ -1,0 +1,24 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "space": {
+      "value": {
+        "type": "hm://hyper.media/principal"
+      },
+      "description": "Destination space; omitted when the redirect stays within the same space."
+    },
+    "path": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Destination document path."
+    },
+    "republish": {
+      "value": {
+        "type": "hm://hyper.media/boolean"
+      },
+      "description": "Keep the old address listed, showing the target's content, instead of treating it as moved."
+    }
+  },
+  "description": "The destination of a redirect Ref: the space and path readers are sent to."
+}

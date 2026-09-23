@@ -1,0 +1,5 @@
+{
+  "type": "hm://hyper.media/string",
+  "format": "hm-url",
+  "description": "A reference to a Hypermedia document as an `hm://` URL string — rendered as a searchable pill showing the target's title."
+}

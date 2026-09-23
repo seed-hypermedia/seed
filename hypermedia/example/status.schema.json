@@ -1,0 +1,8 @@
+{
+  "anyOf": [
+    "draft",
+    "published",
+    "archived"
+  ],
+  "description": "A publication status: `draft`, `published` or `archived`."
+}

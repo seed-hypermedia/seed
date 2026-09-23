@@ -1,0 +1,37 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "anyOf": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/schema"
+        }
+      },
+      "required": true,
+      "description": "The alternative schemas; a value must match at least one. When every arm is a literal, editors show a dropdown."
+    },
+    "description": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "What the union is for, when it is written inline; a published schema is described by its page."
+    },
+    "params": {
+      "value": {
+        "type": "hm://hyper.media/map",
+        "values": {
+          "type": "hm://hyper.media/schema"
+        }
+      },
+      "description": "Type parameters that make this schema generic, each with its default schema."
+    },
+    "name": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Legacy: a name some published schemas still carry. New schemas are named by their page."
+    }
+  },
+  "description": "A union schema: a value is valid if it matches any one of the schemas listed under `anyOf`."
+}

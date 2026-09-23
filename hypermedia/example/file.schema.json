@@ -1,0 +1,20 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "name": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "File name."
+    },
+    "parent": {
+      "value": {
+        "type": "hm://hyper.media/link",
+        "target": "hm://hyper.media/example/folder"
+      },
+      "description": "The folder that contains this file."
+    }
+  },
+  "description": "A file with a name and a link to its parent folder, showing mutually referencing types."
+}

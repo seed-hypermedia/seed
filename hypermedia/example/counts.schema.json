@@ -1,0 +1,7 @@
+{
+  "type": "hm://hyper.media/map",
+  "values": {
+    "type": "hm://hyper.media/integer"
+  },
+  "description": "A map from string keys to integers: `Map<Integer>`."
+}

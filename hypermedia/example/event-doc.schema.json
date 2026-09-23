@@ -1,0 +1,51 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "date": {
+      "value": {
+        "type": "hm://hyper.media/date"
+      },
+      "required": true,
+      "description": "When it happened (or began)."
+    },
+    "ends": {
+      "value": {
+        "type": "hm://hyper.media/date"
+      },
+      "description": "When it ended, for a span."
+    },
+    "location": {
+      "value": {
+        "type": "hm://hyper.media/hm-url",
+        "target": "hm://hyper.media/example/place-doc"
+      },
+      "description": "Where it happened."
+    },
+    "protagonist": {
+      "value": {
+        "type": "hm://hyper.media/hm-url",
+        "target": "hm://hyper.media/example/character-doc"
+      },
+      "description": "The central character."
+    },
+    "faction": {
+      "value": {
+        "type": "hm://hyper.media/hm-url",
+        "target": "hm://hyper.media/example/faction-doc"
+      },
+      "description": "The faction chiefly involved."
+    },
+    "outcome": {
+      "value": {
+        "anyOf": [
+          "victory",
+          "defeat",
+          "stalemate",
+          "unknown"
+        ]
+      },
+      "description": "How the event ended: `victory`, `defeat`, `stalemate` or `unknown`."
+    }
+  },
+  "description": "A World Builder page type for something that happened, with a date and links to a place, a protagonist and a faction."
+}

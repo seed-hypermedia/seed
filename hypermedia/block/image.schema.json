@@ -1,0 +1,67 @@
+{
+  "type": "hm://hyper.media/block/base",
+  "properties": {
+    "type": {
+      "value": "Image",
+      "description": "Block type tag, always `Image`."
+    },
+    "text": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Caption shown with the image."
+    },
+    "annotations": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/block/annotation"
+        }
+      },
+      "description": "Inline formatting, links and mentions over the caption."
+    },
+    "link": {
+      "value": {
+        "type": "hm://hyper.media/url"
+      },
+      "required": true,
+      "description": "The image file, normally an `ipfs://<cid>` URL."
+    },
+    "attributes": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "childrenType": {
+            "value": {
+              "type": "hm://hyper.media/block/children-type"
+            },
+            "description": "How this block lays out its children — a children type such as `Unordered` or `Grid`."
+          },
+          "columnCount": {
+            "value": {
+              "type": "hm://hyper.media/float"
+            },
+            "description": "Number of columns the children occupy when `childrenType` is `Grid`."
+          },
+          "width": {
+            "value": {
+              "type": "hm://hyper.media/float"
+            },
+            "description": "Display width in pixels."
+          },
+          "name": {
+            "value": {
+              "type": "hm://hyper.media/string"
+            },
+            "description": "Original file name of the image."
+          }
+        },
+        "values": {
+          "type": "hm://hyper.media/any"
+        }
+      },
+      "description": "Image settings and parent-layout attributes."
+    }
+  },
+  "description": "An image referenced by an `ipfs://` link, with an optional caption and display width."
+}

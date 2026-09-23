@@ -1,0 +1,19 @@
+{
+  "type": "hm://hyper.media/example/person",
+  "properties": {
+    "employeeId": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "The employee's id within the organization."
+    },
+    "department": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "The department the employee works in."
+    }
+  },
+  "description": "A person extended with an employee id and department."
+}

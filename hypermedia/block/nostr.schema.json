@@ -1,0 +1,17 @@
+{
+  "type": "hm://hyper.media/block/base",
+  "properties": {
+    "type": {
+      "value": "Nostr",
+      "description": "Block type tag, always `Nostr`."
+    },
+    "link": {
+      "value": {
+        "type": "hm://hyper.media/url"
+      },
+      "required": true,
+      "description": "The embedded event — a `nostr:` URL."
+    }
+  },
+  "description": "An embed of a Nostr event by `nostr:` URL."
+}

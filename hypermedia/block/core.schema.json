@@ -1,0 +1,50 @@
+{
+  "anyOf": [
+    {
+      "type": "hm://hyper.media/block/paragraph"
+    },
+    {
+      "type": "hm://hyper.media/block/heading"
+    },
+    {
+      "type": "hm://hyper.media/block/code"
+    },
+    {
+      "type": "hm://hyper.media/block/math"
+    },
+    {
+      "type": "hm://hyper.media/block/image"
+    },
+    {
+      "type": "hm://hyper.media/block/video"
+    },
+    {
+      "type": "hm://hyper.media/block/file"
+    },
+    {
+      "type": "hm://hyper.media/block/button"
+    },
+    {
+      "type": "hm://hyper.media/block/embed"
+    },
+    {
+      "type": "hm://hyper.media/block/web-embed"
+    },
+    {
+      "type": "hm://hyper.media/block/nostr"
+    },
+    {
+      "type": "hm://hyper.media/block/table"
+    },
+    {
+      "type": "hm://hyper.media/block/table-row"
+    },
+    {
+      "type": "hm://hyper.media/block/table-column"
+    },
+    {
+      "type": "hm://hyper.media/block/query"
+    }
+  ],
+  "description": "The union of the fifteen built-in block types; extend it with a larger union for custom blocks."
+}

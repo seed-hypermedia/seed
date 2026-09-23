@@ -1,0 +1,16 @@
+---
+name: Block
+summary: "The open wire block: id and type plus text, link, annotations and any attributes, so a document with a block type you do not know still parses."
+---
+A **block** is one unit of document content, such as a paragraph, a heading or an image; see [Blocks](./protocol/blocks.md). This page defines the open block: the common fields (id, type, text, link, annotations, attributes) plus any extra fields of any type, with only id and type required. It is the forward-compatible wire type that [Change](./change.md) ops and [comment](./comment.md) bodies reference. A block type this client has no schema for, such as a future or third-party type, is still a valid Block, so a document is never rejected over an unrecognized block. Every concrete block is a subtype. The strict set of recognized types is [block/core](./block/core.md). To add a block type, extend [block/base](./block/base.md) and union it with the core, as [example/poll-block](./example/poll-block.md) and [example/app-block](./example/app-block.md) do. <!-- id:oDU4AtVK -->
+
+This is the shape a block has inside a signed Change, in a [ReplaceBlock](./change/op/replace-block.md) op, and inside a comment body. The five named keys are reserved. On the wire every attribute sits beside them at the top level of the map, while the [Seed API](./build/web-api.md) and the [SDK](./build/sdk.md) nest attributes under `attributes`. The daemon fills in `revision` when it serves a document: the CID of the last Change that replaced the block. [Blocks](./protocol/blocks.md) has the full model, including [annotations](./block/annotation.md), layouts and every built-in type. <!-- id:ahxyyI1X -->
+
+# See also <!-- id:ylxUc1v0 -->
+
+- [Blocks](./protocol/blocks.md): the block model and every built-in type. <!-- id:F1X5T8KH -->
+- [block/core](./block/core.md): the built-in block types. <!-- id:Zq593FAU -->
+- [block/base](./block/base.md): the base to extend for a new type. <!-- id:PPf9f7iM -->
+- [block/node](./block/node.md): a block with its children. <!-- id:rXgTp-k9 -->
+- [block/annotation](./block/annotation.md): inline formatting. <!-- id:AXeXs2am -->
+- [ReplaceBlock](./change/op/replace-block.md): the op that writes a block. <!-- id:knP1vDLw -->

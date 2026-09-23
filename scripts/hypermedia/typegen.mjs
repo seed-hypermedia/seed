@@ -1,0 +1,318 @@
+// Typegen: generate TypeScript type definitions from the Hypermedia schemas.
+//
+//   node typegen.mjs            -> write frontend/packages/client/src/schema-types.generated.ts
+//   node typegen.mjs --check    -> fail if the generated file is out of date (for CI)
+//
+// Every schema under hypermedia/ (**/*.schema.json) becomes a TS type, so app code can type values
+// by the SAME content-addressed schemas the data references — instead of hand-written Zod
+// duplicating them in hm-types.ts.
+//
+// Mapping:
+//   map          -> object type ({props} & {[key: string]: V} when open via `values`)
+//   list         -> Array<T>
+//   scalars      -> string / number / boolean / null / HMBytes; constraints -> JSDoc
+//   link         -> HMLink (the dag-json {'/': cid} form)
+//   any          -> unknown
+//   a literal    -> a literal type ("Change", 1, true, null)
+//   anyOf        -> union (an empty union is never)
+//   ref          -> the referenced schema's generated type name
+//   extension    -> Base & {added/overridden fields} (literal `type` narrows the base)
+//   generics     -> params -> <T = Default>, var -> T, args -> Name<Arg> (1:1 with TS)
+//   name/descr.  -> JSDoc
+//
+// Primitive schemas (string, map, ...) inline to TS primitives.
+
+import {readFileSync, writeFileSync} from 'node:fs'
+import {HM_DIR, listSchemaFiles, nameOfFile, refToName} from './names.mjs'
+import {dirname, resolve} from 'node:path'
+import {fileURLToPath} from 'node:url'
+
+const DIR = HM_DIR
+const OUT = resolve(DIR, '../frontend/packages/client/src/schema-types.generated.ts')
+const CHECK = process.argv.includes('--check')
+
+const LIBRARY_AUTHORITY = 'hyper.media'
+
+// ── Load schemas ─────────────────────────────────────────────────────────────
+
+const files = listSchemaFiles()
+const schemas = {}
+for (const f of files.sort()) {
+  const basename = nameOfFile(f)
+  schemas[basename] = JSON.parse(readFileSync(resolve(DIR, f), 'utf8'))
+}
+
+/** The schema a node names rather than grounding in a kind (`ref` is the older spelling). */
+const namedSchemaUrl = (node) => {
+  // kindOf() is null for anything that is not one of the nine kinds — those URLs name a schema.
+  if (typeof node?.type === 'string') return kindOf(node.type) === null ? node.type : null
+  return typeof node?.ref === 'string' ? node.ref : null
+}
+
+// ── Names ────────────────────────────────────────────────────────────────────
+
+const KINDS = ['null', 'boolean', 'integer', 'float', 'string', 'bytes', 'list', 'map', 'struct', 'link', 'any']
+const PRIMITIVES = new Set(KINDS)
+
+/** schema name -> exported TS type name: HM + the path in PascalCase (block/image -> HMBlockImage, example/person -> HMExamplePerson). */
+function tsName(name) {
+  return 'HM' + pascal(name.replace(/\//g, '-'))
+}
+
+function pascal(kebab) {
+  return kebab
+    .split('-')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join('')
+}
+
+/** Resolve a ref/type URL to a local schema basename, or a bare kind name. */
+function urlToBasename(url) {
+  const m = /^hm:\/\/([^/]+)\/(.+)$/.exec(url)
+  if (!m) return url
+  const [, auth, name] = m
+  if (auth !== LIBRARY_AUTHORITY) return null
+  return refToName(url, (n) => !!schemas[n])
+}
+
+const KIND_TS = {
+  null: 'null',
+  boolean: 'boolean',
+  integer: 'number',
+  float: 'number',
+  string: 'string',
+  bytes: 'HMBytes',
+  link: 'HMLink',
+  any: 'unknown',
+  // bare map/list refs (no properties/items) are fully open:
+  map: 'Record<string, unknown>',
+  struct: 'Record<string, unknown>',
+  list: 'unknown[]',
+}
+
+/** The kind a `type:` URL names, or null if it isn't a kind URL. */
+function kindOf(typeUrl) {
+  const basename = urlToBasename(typeUrl)
+  if (basename === null) return null
+  const bare = basename.replace(/^schema\//, '')
+  return KINDS.includes(bare) ? bare : null
+}
+
+// ── Emission ─────────────────────────────────────────────────────────────────
+
+const indent = (s, pad) => s.replace(/\n/g, `\n${pad}`)
+
+function literal(v) {
+  return typeof v === 'string' ? JSON.stringify(v) : String(v)
+}
+
+/** A literal schema: a bare scalar, or {value, description?} with no other schema key. */
+const isLiteralSchema = (s) => {
+  if (s === undefined) return false
+  if (s === null || typeof s !== 'object') return true
+  if (Array.isArray(s)) return false
+  return 'value' in s && !('type' in s || 'ref' in s || 'anyOf' in s || 'var' in s || 'params' in s)
+}
+const literalValue = (s) => (s !== null && typeof s === 'object' ? s.value : s)
+
+/** Emit the TS type expression for one schema node. `env` maps in-scope type vars. */
+function emit(node, env, pad = '') {
+  if (node === undefined) return 'unknown'
+  if (isLiteralSchema(node)) return literal(literalValue(node))
+
+  if (node.var) {
+    return env.has(node.var) ? node.var : 'unknown'
+  }
+
+  if (node.anyOf) {
+    const parts = [...new Set(node.anyOf.map((v) => emit(v, env, pad)))]
+    return parts.length ? parts.join(' | ') : 'never'
+  }
+
+  const named = namedSchemaUrl(node)
+  if (named) {
+    const basename = urlToBasename(named)
+    if (!basename) return 'unknown'
+    if (PRIMITIVES.has(basename) || (KINDS.includes(basename.replace(/^schema\//, '')) && !schemas[basename])) {
+      const bare = basename.replace(/^schema\//, '')
+      if (KINDS.includes(bare)) {
+        const base = KIND_TS[bare]
+        // Extension of a primitive (rare) still needs the added properties.
+        if (node.properties) return `${base} & ${emitMapBody(node, env, pad)}`
+        return base
+      }
+    }
+    if (!schemas[basename]) return 'unknown'
+    let base = tsName(basename)
+    const targetParams = schemas[basename].params
+    if (targetParams) {
+      const order = Object.keys(targetParams)
+      const args = order.map((p) => (node.args && node.args[p] ? emit(node.args[p], env, pad) : emit(targetParams[p], env, pad)))
+      base = `${base}<${args.join(', ')}>`
+    }
+    // Extension: base & {added/overridden fields}
+    if (node.properties) {
+      return `${base} & ${emitMapBody(node, env, pad)}`
+    }
+    return base
+  }
+
+  const kind = node.type && !named ? kindOf(node.type) : null
+
+  if (kind === 'map' || kind === 'struct' || (!kind && (node.properties || node.values))) {
+    return emitMapBody(node, env, pad)
+  }
+  if (kind === 'list') {
+    const item = node.items ? emit(node.items, env, pad) : 'unknown'
+    return /[|&]/.test(item) ? `Array<${item}>` : `${item}[]`
+  }
+  if (kind) {
+    return KIND_TS[kind]
+  }
+  return 'unknown'
+}
+
+/** A struct's fields: `properties[name] = {value, required?, description?}`. (In that
+ * position `value` is always the field's schema, even when that schema is itself a literal.) */
+function structFields(node) {
+  return Object.entries(node.properties || {}).map(([name, entry]) => ({
+    name,
+    schema: entry?.value === undefined ? {} : entry.value,
+    required: entry?.required === true,
+    description: entry?.description,
+  }))
+}
+
+/** Emit an object-type body from a struct node's fields and `values`. */
+function emitMapBody(node, env, pad) {
+  const inner = pad + '  '
+  const lines = []
+  for (const field of structFields(node)) {
+    const doc = childDoc(field.schema, inner, field.description)
+    const opt = field.required ? '' : '?'
+    const safeKey = /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(field.name) ? field.name : JSON.stringify(field.name)
+    lines.push(`${doc}${inner}${safeKey}${opt}: ${emit(field.schema, env, inner)}`)
+  }
+  let body = lines.length ? `{\n${lines.join('\n')}\n${pad}}` : '{}'
+  if (node.values) {
+    // An index signature, not Record<>: TS defers recursion through object
+    // types but not through generic aliases, so `Json = ... | Record<string, Json>`
+    // is a circular-reference error while `{[key: string]: Json}` is fine.
+    const v = `{[key: string]: ${emit(node.values, env, pad)}}`
+    body = lines.length ? `${body} & ${v}` : v
+  } else if (!lines.length) {
+    body = 'Record<string, never>'
+  }
+  return body
+}
+
+/** A property's JSDoc line (from the field's description and the schema's constraints), or ''. */
+function childDoc(child, pad, description) {
+  if (!child || typeof child !== 'object') return ''
+  const bits = []
+  if (description) bits.push(description)
+  if (child.description) bits.push(child.description)
+  for (const c of ['minLength', 'maxLength', 'pattern', 'format', 'minimum', 'maximum']) {
+    if (child[c] !== undefined) bits.push(`${c}: ${JSON.stringify(child[c])}`)
+  }
+  if (!bits.length) return ''
+  return `${pad}/** ${bits.join(' · ').replace(/\*\//g, '*\\/')} */\n`
+}
+
+/** Emit one exported type declaration for a top-level schema. */
+/** `name` and `summary` from `<basename>.md`'s frontmatter, when the page exists. */
+function pageFrontmatter(basename) {
+  let text
+  try {
+    text = readFileSync(resolve(DIR, `${basename}.md`), 'utf8')
+  } catch {
+    return {}
+  }
+  const m = /^---\n([\s\S]*?)\n---/.exec(text)
+  if (!m) return {}
+  const out = {}
+  for (const line of m[1].split('\n')) {
+    const kv = /^(name|summary):\s*(.*)$/.exec(line)
+    if (!kv) continue
+    let v = kv[2].trim()
+    if (/^".*"$/.test(v)) {
+      try {
+        v = JSON.parse(v)
+      } catch {}
+    }
+    out[kv[1]] = v
+  }
+  return out
+}
+
+function emitSchema(basename) {
+  const schema = schemas[basename]
+  const name = tsName(basename)
+  const env = new Set(Object.keys(schema.params || {}))
+  const generics = schema.params
+    ? `<${Object.entries(schema.params)
+        .map(([p, d]) => `${p} = ${emit(d, new Set(), '')}`)
+        .join(', ')}>`
+    : ''
+  // A schema carries no name or description of its own; its document does. Take the
+  // doc comment from the co-located page's frontmatter.
+  const docLines = []
+  const page = pageFrontmatter(basename)
+  if (page.name) docLines.push(page.name)
+  if (page.summary) docLines.push(page.summary)
+  if (schema.description) docLines.push(schema.description)
+  docLines.push(`Schema: hm://${LIBRARY_AUTHORITY}/${basename}`)
+  const doc = `/**\n * ${docLines.join('\n * ').replace(/\*\//g, '*\\/')}\n */`
+  return `${doc}\nexport type ${name}${generics} = ${emit(schema, env, '')}\n`
+}
+
+// ── Main ─────────────────────────────────────────────────────────────────────
+
+const out = []
+out.push(`// AUTO-GENERATED by scripts/hypermedia/typegen.mjs (do not edit by hand).
+// TypeScript types for every Hypermedia schema under hypermedia/ — the same
+// content-addressed schemas published under hm://${LIBRARY_AUTHORITY}.
+// Regenerate: node scripts/hypermedia/typegen.mjs
+
+/** A dag-json IPLD link: { '/': <cid> }. */
+export type HMLink = {'/': string}
+
+/** Binary data: decoded bytes, or the dag-json envelope form. */
+export type HMBytes = Uint8Array | {'/': {bytes: string}}
+`)
+
+const generated = Object.keys(schemas)
+  .filter((b) => !PRIMITIVES.has(b))
+  .sort()
+for (const basename of generated) {
+  out.push(emitSchema(basename))
+}
+
+const content = await formatOutput(out.join('\n'))
+
+/** Run the repo's prettier config over the generated source when prettier is resolvable. */
+async function formatOutput(source) {
+  let prettier
+  try {
+    prettier = await import('prettier')
+  } catch {
+    return source
+  }
+  const config = (await prettier.resolveConfig(OUT)) || {}
+  return prettier.format(source, {...config, plugins: [], filepath: OUT})
+}
+
+if (CHECK) {
+  let existing = ''
+  try {
+    existing = readFileSync(OUT, 'utf8')
+  } catch {}
+  if (existing !== content) {
+    console.error(`FAILED: ${OUT} is out of date. Run: node scripts/hypermedia/typegen.mjs`)
+    process.exit(1)
+  }
+  console.log(`OK: ${OUT} is up to date (${generated.length} types).`)
+} else {
+  writeFileSync(OUT, content)
+  console.log(`wrote ${OUT}: ${generated.length} types from ${Object.keys(schemas).length} schemas`)
+}

@@ -1,0 +1,36 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "username": {
+      "value": {
+        "type": "hm://hyper.media/string",
+        "minLength": 3,
+        "maxLength": 12,
+        "pattern": "^[a-z0-9_]+$"
+      },
+      "required": true,
+      "description": "Login name: 3–12 characters of lowercase letters, digits and `_`."
+    },
+    "score": {
+      "value": {
+        "type": "hm://hyper.media/integer",
+        "minimum": 0,
+        "maximum": 100
+      },
+      "required": true,
+      "description": "Score from 0 to 100."
+    },
+    "tags": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "minItems": 1,
+        "maxItems": 3,
+        "items": {
+          "type": "hm://hyper.media/string"
+        }
+      },
+      "description": "One to three string tags."
+    }
+  },
+  "description": "A record that shows value constraints: string length and pattern, numeric bounds, and list size."
+}

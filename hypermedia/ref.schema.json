@@ -1,0 +1,62 @@
+{
+  "type": "hm://hyper.media/blob",
+  "properties": {
+    "type": {
+      "value": "Ref",
+      "description": "Blob type tag, always `Ref`."
+    },
+    "space": {
+      "value": {
+        "type": "hm://hyper.media/principal"
+      },
+      "description": "Space the path belongs to; omitted when the signer is the space owner."
+    },
+    "path": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Document path within the space, starting with `/`; empty for the home document."
+    },
+    "genesisBlob": {
+      "value": {
+        "type": "hm://hyper.media/cid"
+      },
+      "description": "CID of the genesis Change of the document at this address."
+    },
+    "capability": {
+      "value": {
+        "type": "hm://hyper.media/cid"
+      },
+      "description": "Informational CID of the capability authorizing the signer; the daemon ignores it."
+    },
+    "heads": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/cid"
+        }
+      },
+      "required": true,
+      "description": "CIDs of the document's current head Changes; empty for a tombstone or redirect."
+    },
+    "redirect": {
+      "value": {
+        "type": "hm://hyper.media/ref/redirect-target"
+      },
+      "description": "Where readers are sent instead, making this Ref a redirect."
+    },
+    "generation": {
+      "value": {
+        "type": "hm://hyper.media/integer"
+      },
+      "description": "Orders the lives of an address: the highest generation wins; clients use the current time in ms for a new document."
+    },
+    "visibility": {
+      "value": {
+        "type": "hm://hyper.media/visibility"
+      },
+      "description": "Empty for public or `Private`; a private Ref must have a single-segment path."
+    }
+  },
+  "description": "A signed claim that a path in a space points at a document's current head Changes, or that it is deleted or redirects elsewhere."
+}

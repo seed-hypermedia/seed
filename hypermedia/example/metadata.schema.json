@@ -1,0 +1,7 @@
+{
+  "type": "hm://hyper.media/map",
+  "values": {
+    "type": "hm://hyper.media/string"
+  },
+  "description": "Arbitrary string-to-string metadata: `Map<String>`."
+}

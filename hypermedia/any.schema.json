@@ -1,0 +1,38 @@
+{
+  "anyOf": [
+    {
+      "type": "hm://hyper.media/null"
+    },
+    {
+      "type": "hm://hyper.media/boolean"
+    },
+    {
+      "type": "hm://hyper.media/integer"
+    },
+    {
+      "type": "hm://hyper.media/float"
+    },
+    {
+      "type": "hm://hyper.media/string"
+    },
+    {
+      "type": "hm://hyper.media/bytes"
+    },
+    {
+      "type": "hm://hyper.media/link"
+    },
+    {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "type": "hm://hyper.media/any"
+      }
+    },
+    {
+      "type": "hm://hyper.media/map",
+      "values": {
+        "type": "hm://hyper.media/any"
+      }
+    }
+  ],
+  "description": "The top type that matches every Hypermedia value: null, boolean, number, string, bytes, link, or a list or map of any."
+}

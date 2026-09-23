@@ -1,0 +1,41 @@
+{
+  "type": "hm://hyper.media/blob",
+  "properties": {
+    "type": {
+      "value": "Capability",
+      "description": "Blob type tag, always `Capability`."
+    },
+    "delegate": {
+      "value": {
+        "type": "hm://hyper.media/principal"
+      },
+      "required": true,
+      "description": "The key that receives the grant."
+    },
+    "audience": {
+      "value": {
+        "type": "hm://hyper.media/principal"
+      },
+      "description": "Only on short-lived, unstored capabilities that prove account ownership to a peer or HTTP server; never on stored grants."
+    },
+    "path": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Path the grant is scoped to, recursive by segment (`/team` covers `/team/notes`); empty for the whole space."
+    },
+    "role": {
+      "value": {
+        "type": "hm://hyper.media/role"
+      },
+      "description": "What the delegate may do: `WRITER` publishes under `path`, `AGENT` acts as the issuer (path must be empty)."
+    },
+    "label": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Public, immutable note describing the grant, at most 512 bytes."
+    }
+  },
+  "description": "A signed grant from a space owner to another key: a `WRITER` or `AGENT` role, optionally scoped to a path."
+}

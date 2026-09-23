@@ -1,0 +1,54 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "kind": {
+      "value": {
+        "anyOf": [
+          "city",
+          "town",
+          "village",
+          "fortress",
+          "ruin",
+          "wilderness",
+          "realm"
+        ]
+      },
+      "required": true,
+      "description": "What sort of place this is, such as `city`, `ruin` or `realm`."
+    },
+    "founded": {
+      "value": {
+        "type": "hm://hyper.media/date"
+      },
+      "description": "Founding date."
+    },
+    "region": {
+      "value": {
+        "type": "hm://hyper.media/hm-url",
+        "target": "hm://hyper.media/example/place-doc"
+      },
+      "description": "The larger place this one lies within."
+    },
+    "ruler": {
+      "value": {
+        "type": "hm://hyper.media/hm-url",
+        "target": "hm://hyper.media/example/faction-doc"
+      },
+      "description": "The faction that holds this place."
+    },
+    "coordinates": {
+      "value": {
+        "type": "hm://hyper.media/ipfs-url",
+        "target": "hm://hyper.media/example/geo"
+      },
+      "description": "An `ipfs://` object conforming to Geo point."
+    },
+    "map": {
+      "value": {
+        "type": "hm://hyper.media/ipfs-url"
+      },
+      "description": "A map image file on IPFS."
+    }
+  },
+  "description": "A World Builder page type for a place, with a kind and optional founding date, parent region, ruler, coordinates and map."
+}

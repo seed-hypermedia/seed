@@ -1,0 +1,4 @@
+{
+  "type": "hm://hyper.media/bytes",
+  "description": "A public key that identifies an account or space, stored as multicodec-prefixed key bytes and shown as a `z6Mk…` string."
+}

@@ -1,0 +1,25 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "var": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "The name of the type parameter, declared in an enclosing `params`, whose bound schema this node stands for."
+    },
+    "description": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "What the type variable stands for, when it is written inline."
+    },
+    "name": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Legacy: a name some published schemas still carry. New schemas are named by their page."
+    }
+  },
+  "description": "A type-variable reference inside a generic, matching whatever schema the named parameter is bound to."
+}

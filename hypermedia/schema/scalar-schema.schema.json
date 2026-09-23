@@ -1,0 +1,83 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "type": {
+      "value": {
+        "anyOf": [
+          "hm://hyper.media/null",
+          "hm://hyper.media/boolean",
+          "hm://hyper.media/integer",
+          "hm://hyper.media/float",
+          "hm://hyper.media/string",
+          "hm://hyper.media/bytes"
+        ]
+      },
+      "required": true,
+      "description": "The scalar kind the value must be: `null`, `boolean`, `integer`, `float`, `string` or `bytes`."
+    },
+    "minLength": {
+      "value": {
+        "type": "hm://hyper.media/integer"
+      },
+      "description": "Minimum length of a string value, counted in code points."
+    },
+    "maxLength": {
+      "value": {
+        "type": "hm://hyper.media/integer"
+      },
+      "description": "Maximum length of a string value, counted in code points."
+    },
+    "pattern": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "An unanchored ECMAScript regular expression a string value must match; an uncompilable pattern is ignored."
+    },
+    "format": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "A semantic hint for editors/renderers — the value is still a plain string. Known: `hm-url` (a Hypermedia document reference), `hm-profile` (an account reference), `ipfs-url` (an ipfs://<cid> reference to a file or DAG-CBOR object), `url` (a URL of any scheme), `date` (an ISO 8601 `YYYY-MM-DD` calendar date), `date-time` (an RFC 3339 instant)."
+    },
+    "target": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "For a reference-valued string (`format: hm-url` or `format: ipfs-url`): the schema the referenced document or object is expected to conform to — an `hm://` schema-document URL or `ipfs://<cid>`. Advisory: an editor pre-seeds and validates the target against it; a validator does not dereference the reference."
+    },
+    "minimum": {
+      "value": {
+        "type": "hm://hyper.media/integer"
+      },
+      "description": "The smallest number an integer or float value may be (inclusive)."
+    },
+    "maximum": {
+      "value": {
+        "type": "hm://hyper.media/integer"
+      },
+      "description": "The largest number an integer or float value may be (inclusive)."
+    },
+    "description": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "What the value is for, when it is written inline; a published schema is described by its page."
+    },
+    "params": {
+      "value": {
+        "type": "hm://hyper.media/map",
+        "values": {
+          "type": "hm://hyper.media/schema"
+        }
+      },
+      "description": "Type parameters that make this schema generic, each with its default schema."
+    },
+    "name": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Legacy: a name some published schemas still carry. New schemas are named by their page."
+    }
+  },
+  "description": "A schema for a null, boolean, integer, float, string or bytes value, optionally narrowed by value constraints."
+}

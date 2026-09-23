@@ -1,0 +1,32 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "type": {
+      "value": "Link",
+      "required": true,
+      "description": "Block type tag, always `Link`."
+    },
+    "id": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "Block id of this menu entry."
+    },
+    "text": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "Label shown in the menu."
+    },
+    "link": {
+      "value": {
+        "type": "hm://hyper.media/url"
+      },
+      "required": true,
+      "description": "Where the entry goes — an `hm://` or web URL."
+    }
+  },
+  "description": "One entry of a site's navigation menu, stored as a `Link` child of the detached `navigation` block."
+}

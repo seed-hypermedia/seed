@@ -1,0 +1,21 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "type": {
+      "value": "DeleteBlocks",
+      "required": true,
+      "description": "Operation tag, always `DeleteBlocks`."
+    },
+    "blocks": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/string"
+        }
+      },
+      "required": true,
+      "description": "Ids of the blocks to delete."
+    }
+  },
+  "description": "The operation that removes blocks by moving them, with their children, to the trash parent."
+}

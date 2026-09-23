@@ -1,0 +1,31 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "genre": {
+      "value": {
+        "anyOf": [
+          "fantasy",
+          "science-fiction",
+          "historical",
+          "contemporary",
+          "mythic"
+        ]
+      },
+      "required": true,
+      "description": "The world's genre, such as `fantasy` or `science-fiction`."
+    },
+    "epoch": {
+      "value": {
+        "type": "hm://hyper.media/date"
+      },
+      "description": "The in-world date the chronicle begins."
+    },
+    "tagline": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "A one-line pitch for the world."
+    }
+  },
+  "description": "A World Builder page type for the root of a fictional world, naming its genre and the date the chronicle begins."
+}

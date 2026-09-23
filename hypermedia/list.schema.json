@@ -1,0 +1,4 @@
+{
+  "type": "hm://hyper.media/list",
+  "description": "An ordered sequence of values, `List<Any>` until `items` constrains it."
+}

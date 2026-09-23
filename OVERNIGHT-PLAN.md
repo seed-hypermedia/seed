@@ -4,7 +4,7 @@ Standing orders: NO GitHub pushes. Commit locally per package. Use opus general-
 heavy work (token economy); forks only when full context is essential. Every package: gates
 (agents bun test --timeout 15000, desktop vitest, tsc) → /code-review high on the worktree →
 disposition → story commits → append pre-verified test cases to ~/Code/Seed/HARNESS-TESTING.html
-→ build-log update (seed-cli, key 'main', hm://z6MkmZUb…/harness/build-log). Keep ≥1 agent in
+→ build-log update (seed-cli, key 'main', the docs space's /harness/build-log). Keep ≥1 agent in
 flight at all times; agent completions are the heartbeat.
 
 Branch: harness/04-orchestration-ux in ~/Code/Seed-worktrees/harness-03 (UX package built, review
@@ -22,7 +22,7 @@ Queue (in order):
    HARNESS-TESTING.html (cumulative: M1 guide + M2 + M3 + UX + live results, each with exact
    prompt + expected outcome).
 3. M4 exec: execute {runtime: 'ts'|'python'|'shell', code} (TS via Bun runner image; keep shell),
-   callable lambda tool documents (call → execute stored source, Onyx/JSON validated both edges),
+   callable lambda tool documents (call → execute stored source, Hypermedia Schemas/JSON validated both edges),
    minimal exec config. Branch harness/05-exec stacked.
 4. M5 time: ctx.waitForEvent as ephemeral trigger + budget-pause wait + continueAsNew + parked
    copy. 5. M6 event bus if night allows.

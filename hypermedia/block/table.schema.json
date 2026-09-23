@@ -1,0 +1,30 @@
+{
+  "type": "hm://hyper.media/block/base",
+  "properties": {
+    "type": {
+      "value": "Table",
+      "description": "Block type tag, always `Table`."
+    },
+    "attributes": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "childrenType": {
+            "value": {
+              "type": "hm://hyper.media/block/children-type"
+            },
+            "description": "How this block lays out its children — a children type such as `Unordered` or `Grid`."
+          },
+          "columnCount": {
+            "value": {
+              "type": "hm://hyper.media/float"
+            },
+            "description": "Number of columns the children occupy when `childrenType` is `Grid`."
+          }
+        }
+      },
+      "description": "Parent-layout attributes."
+    }
+  },
+  "description": "The container of a table: TableColumn markers followed by TableRow blocks."
+}

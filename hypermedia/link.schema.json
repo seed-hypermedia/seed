@@ -1,0 +1,4 @@
+{
+  "type": "hm://hyper.media/link",
+  "description": "The IPLD link kind: a CID that points at another block by its content (CBOR tag 42)."
+}

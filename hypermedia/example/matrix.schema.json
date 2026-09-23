@@ -1,0 +1,10 @@
+{
+  "type": "hm://hyper.media/list",
+  "items": {
+    "type": "hm://hyper.media/list",
+    "items": {
+      "type": "hm://hyper.media/integer"
+    }
+  },
+  "description": "A list of lists of integers: `List<List<Integer>>`."
+}

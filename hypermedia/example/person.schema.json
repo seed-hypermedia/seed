@@ -1,0 +1,40 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "name": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "The person's name."
+    },
+    "age": {
+      "value": {
+        "type": "hm://hyper.media/integer"
+      },
+      "description": "Age in years."
+    },
+    "active": {
+      "value": {
+        "type": "hm://hyper.media/boolean"
+      },
+      "description": "Whether the person is currently active."
+    },
+    "home": {
+      "value": {
+        "type": "hm://hyper.media/example/address"
+      },
+      "description": "Home postal address."
+    },
+    "nicknames": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/string"
+        }
+      },
+      "description": "Other names the person goes by."
+    }
+  },
+  "description": "A person with a name, age, active flag, home address and nicknames."
+}

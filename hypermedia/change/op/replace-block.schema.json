@@ -1,0 +1,23 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "type": {
+      "value": "ReplaceBlock",
+      "required": true,
+      "description": "Operation tag, always `ReplaceBlock`."
+    },
+    "block": {
+      "value": {
+        "var": "Block"
+      },
+      "required": true,
+      "description": "The complete new state of the block, with attributes inlined at the top level."
+    }
+  },
+  "params": {
+    "Block": {
+      "type": "hm://hyper.media/block"
+    }
+  },
+  "description": "The operation that sets the full state of one block; the newest replacement by op id wins."
+}

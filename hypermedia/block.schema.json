@@ -1,0 +1,60 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "id": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "The block's permanent identity inside its document; clients generate an 8-character random id."
+    },
+    "revision": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Output only: CID of the last Change that replaced this block, filled in by the daemon when serving."
+    },
+    "type": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "The block type, such as `Paragraph` or `Image`; any string is accepted."
+    },
+    "text": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "The block's plain text, for types that have text; formatting lives in `annotations`."
+    },
+    "link": {
+      "value": {
+        "type": "hm://hyper.media/url"
+      },
+      "description": "The block's one link: an `hm://`, `ipfs://`, `https://` or `nostr:` URL depending on the type."
+    },
+    "annotations": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/block/annotation"
+        }
+      },
+      "description": "Inline formatting, links and mentions over code-point ranges of `text`."
+    },
+    "attributes": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {},
+        "values": {
+          "type": "hm://hyper.media/any"
+        }
+      },
+      "description": "Type-specific attributes, nested here by the Seed API and SDK; on the wire they sit at the block's top level."
+    }
+  },
+  "values": {
+    "type": "hm://hyper.media/any"
+  },
+  "description": "The open wire block: `id` and `type` plus text, link, annotations and any attributes, so unknown block types still parse."
+}

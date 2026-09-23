@@ -1,0 +1,8 @@
+{
+  "type": "hm://hyper.media/map",
+  "values": {
+    "type": "hm://hyper.media/link",
+    "target": "hm://hyper.media/example/person"
+  },
+  "description": "A map from ids to person links: `Map<Link<Person>>`."
+}

@@ -1,0 +1,38 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "type": {
+      "value": "hm://hyper.media/link",
+      "required": true,
+      "description": "Always the link core type."
+    },
+    "target": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "The schema the linked block is expected to conform to. Advisory: a validator does not dereference the link."
+    },
+    "description": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "What the link is for, when it is written inline; a published schema is described by its page."
+    },
+    "params": {
+      "value": {
+        "type": "hm://hyper.media/map",
+        "values": {
+          "type": "hm://hyper.media/schema"
+        }
+      },
+      "description": "Type parameters that make this schema generic, each with its default schema."
+    },
+    "name": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Legacy: a name some published schemas still carry. New schemas are named by their page."
+    }
+  },
+  "description": "A schema for a link: a CID pointing at a separate block, optionally typed by `target`."
+}

@@ -1,0 +1,39 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "type": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Annotation kind, such as `Bold`, `Italic`, `Link`, `Embed` or `TextColor`."
+    },
+    "link": {
+      "value": {
+        "type": "hm://hyper.media/url"
+      },
+      "description": "Target URL for `Link` and `Embed` annotations — an `hm://` or web URL."
+    },
+    "starts": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/integer"
+        }
+      },
+      "description": "Start offset of each covered range, in Unicode code points; parallel to `ends`."
+    },
+    "ends": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/integer"
+        }
+      },
+      "description": "End offset (exclusive) of each covered range, in Unicode code points; parallel to `starts`."
+    }
+  },
+  "values": {
+    "type": "hm://hyper.media/value"
+  },
+  "description": "An inline layer over a block's text, used for formatting, links and mentions."
+}

@@ -1,0 +1,43 @@
+{
+  "type": "hm://hyper.media/block/base",
+  "properties": {
+    "type": {
+      "value": "TableColumn",
+      "description": "Block type tag, always `TableColumn`."
+    },
+    "attributes": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "childrenType": {
+            "value": {
+              "type": "hm://hyper.media/block/children-type"
+            },
+            "description": "How this block lays out its children — a children type such as `Unordered` or `Grid`."
+          },
+          "columnCount": {
+            "value": {
+              "type": "hm://hyper.media/float"
+            },
+            "description": "Number of columns the children occupy when `childrenType` is `Grid`."
+          },
+          "width": {
+            "value": {
+              "type": "hm://hyper.media/float",
+              "minimum": 0
+            },
+            "description": "Column width in pixels."
+          },
+          "isHeader": {
+            "value": {
+              "type": "hm://hyper.media/boolean"
+            },
+            "description": "Marks a header column; honored only on the first column."
+          }
+        }
+      },
+      "description": "Column settings and parent-layout attributes."
+    }
+  },
+  "description": "One column of a Table block: a childless marker that cells reference by id."
+}

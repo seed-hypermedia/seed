@@ -1,0 +1,18 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "site": {
+      "value": {
+        "type": "hm://hyper.media/boolean"
+      },
+      "description": "The signing account joined the subject's site and appears among its members."
+    },
+    "profile": {
+      "value": {
+        "type": "hm://hyper.media/boolean"
+      },
+      "description": "The signing account follows the subject's profile."
+    }
+  },
+  "description": "The follow flags on a contact: whether the signer joined the subject's site and follows its profile."
+}

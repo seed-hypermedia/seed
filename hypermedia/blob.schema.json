@@ -1,0 +1,34 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "type": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "Blob type tag the network dispatches on to pick a decoder and rules, such as `Change` or `Ref`."
+    },
+    "signer": {
+      "value": {
+        "type": "hm://hyper.media/principal"
+      },
+      "required": true,
+      "description": "Public key of the account or device that signed the blob."
+    },
+    "sig": {
+      "value": {
+        "type": "hm://hyper.media/signature"
+      },
+      "required": true,
+      "description": "Signature over the canonical DAG-CBOR of the blob with `sig` set to 64 zero bytes."
+    },
+    "ts": {
+      "value": {
+        "type": "hm://hyper.media/timestamp"
+      },
+      "required": true,
+      "description": "When the signer says the blob was made, in Unix milliseconds; not checked against real time."
+    }
+  },
+  "description": "The signed envelope every Hypermedia blob extends: a type tag, the signer's key, a signature and a millisecond timestamp."
+}

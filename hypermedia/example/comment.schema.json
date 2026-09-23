@@ -1,0 +1,30 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "text": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "The comment's text."
+    },
+    "author": {
+      "value": {
+        "type": "hm://hyper.media/link",
+        "target": "hm://hyper.media/example/person"
+      },
+      "description": "The person who wrote the comment."
+    },
+    "replies": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/link",
+          "target": "hm://hyper.media/example/comment"
+        }
+      },
+      "description": "Links to replies, which are themselves comments."
+    }
+  },
+  "description": "A comment with an author and replies that are themselves comments, showing a self-referencing type."
+}

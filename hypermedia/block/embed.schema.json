@@ -1,0 +1,46 @@
+{
+  "type": "hm://hyper.media/block/base",
+  "properties": {
+    "type": {
+      "value": "Embed",
+      "description": "Block type tag, always `Embed`."
+    },
+    "link": {
+      "value": {
+        "type": "hm://hyper.media/url"
+      },
+      "required": true,
+      "description": "The embedded resource — an `hm://` URL, optionally pinned to a version, block or text range."
+    },
+    "attributes": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "childrenType": {
+            "value": {
+              "type": "hm://hyper.media/block/children-type"
+            },
+            "description": "How this block lays out its children — a children type such as `Unordered` or `Grid`."
+          },
+          "columnCount": {
+            "value": {
+              "type": "hm://hyper.media/float"
+            },
+            "description": "Number of columns the children occupy when `childrenType` is `Grid`."
+          },
+          "view": {
+            "value": {
+              "type": "hm://hyper.media/block/embed-view"
+            },
+            "description": "How the target renders: its content, a card, its comments or a plain link."
+          }
+        },
+        "values": {
+          "type": "hm://hyper.media/any"
+        }
+      },
+      "description": "Embed settings and parent-layout attributes."
+    }
+  },
+  "description": "An embed of another Hypermedia document, block or text range, shown in place by `hm://` link."
+}

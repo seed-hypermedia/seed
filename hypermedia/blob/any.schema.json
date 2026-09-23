@@ -1,0 +1,23 @@
+{
+  "anyOf": [
+    {
+      "type": "hm://hyper.media/change"
+    },
+    {
+      "type": "hm://hyper.media/ref"
+    },
+    {
+      "type": "hm://hyper.media/profile"
+    },
+    {
+      "type": "hm://hyper.media/comment"
+    },
+    {
+      "type": "hm://hyper.media/capability"
+    },
+    {
+      "type": "hm://hyper.media/contact"
+    }
+  ],
+  "description": "Any Hypermedia CBOR blob — the union of the six blob types, selected by the `type` tag."
+}

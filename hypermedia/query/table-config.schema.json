@@ -1,0 +1,39 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "columns": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/struct",
+          "properties": {
+            "id": {
+              "value": {
+                "type": "hm://hyper.media/string"
+              },
+              "required": true,
+              "description": "Built-in column name (such as title or authors) or a custom metadata attribute key."
+            },
+            "visible": {
+              "value": {
+                "type": "hm://hyper.media/boolean"
+              },
+              "required": true,
+              "description": "Whether the column is shown."
+            },
+            "width": {
+              "value": {
+                "type": "hm://hyper.media/float",
+                "minimum": 0
+              },
+              "description": "Column width in pixels."
+            }
+          }
+        }
+      },
+      "required": true,
+      "description": "Column settings in display order."
+    }
+  },
+  "description": "The saved table-view settings of a Query block: which columns show and how wide they are."
+}

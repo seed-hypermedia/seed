@@ -1,0 +1,5 @@
+{
+  "type": "hm://hyper.media/string",
+  "format": "url",
+  "description": "A string holding a URL of any scheme — rendered as a link and validated as one."
+}

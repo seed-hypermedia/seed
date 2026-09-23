@@ -1,0 +1,23 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "type": {
+      "value": "SetKey",
+      "required": true,
+      "description": "Operation tag, always `SetKey`."
+    },
+    "key": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Top-level metadata key to set."
+    },
+    "value": {
+      "value": {
+        "type": "hm://hyper.media/value"
+      },
+      "description": "Scalar value to store: a string, boolean, integer or `null`."
+    }
+  },
+  "description": "Deprecated flat form of SetAttributes that sets one top-level metadata key, kept so old Changes replay."
+}

@@ -1,0 +1,36 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "type": {
+      "value": "MoveBlocks",
+      "required": true,
+      "description": "Operation tag, always `MoveBlocks`."
+    },
+    "parent": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Id of the block the run goes under; empty means the document root."
+    },
+    "blocks": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/string"
+        }
+      },
+      "required": true,
+      "description": "Ids of the sibling blocks to place, in order."
+    },
+    "ref": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/integer"
+        }
+      },
+      "description": "Op id to insert after: `[ts, idx, actor]`, or `[idx]` for an earlier op in this Change; empty means the start."
+    }
+  },
+  "description": "The operation that places a contiguous run of sibling blocks under a parent after a reference position."
+}

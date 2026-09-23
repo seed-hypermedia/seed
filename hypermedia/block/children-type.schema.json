@@ -1,0 +1,10 @@
+{
+  "anyOf": [
+    "Group",
+    "Ordered",
+    "Unordered",
+    "Blockquote",
+    "Grid"
+  ],
+  "description": "How a block lays out its children: `Group` (default), `Ordered`, `Unordered`, `Blockquote` or `Grid`."
+}

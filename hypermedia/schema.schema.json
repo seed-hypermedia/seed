@@ -1,0 +1,44 @@
+{
+  "anyOf": [
+    {
+      "type": "hm://hyper.media/schema/struct-schema"
+    },
+    {
+      "type": "hm://hyper.media/schema/map-schema"
+    },
+    {
+      "type": "hm://hyper.media/schema/list-schema"
+    },
+    {
+      "type": "hm://hyper.media/schema/scalar-schema"
+    },
+    {
+      "type": "hm://hyper.media/schema/link-schema"
+    },
+    {
+      "type": "hm://hyper.media/schema/include-schema"
+    },
+    {
+      "type": "hm://hyper.media/schema/anyof"
+    },
+    {
+      "type": "hm://hyper.media/schema/var-schema"
+    },
+    {
+      "type": "hm://hyper.media/schema/literal-schema"
+    },
+    {
+      "type": "hm://hyper.media/string"
+    },
+    {
+      "type": "hm://hyper.media/integer"
+    },
+    {
+      "type": "hm://hyper.media/boolean"
+    },
+    {
+      "type": "hm://hyper.media/null"
+    }
+  ],
+  "description": "The meta-schema: the union of every shape a schema can take, itself a valid instance of this type."
+}

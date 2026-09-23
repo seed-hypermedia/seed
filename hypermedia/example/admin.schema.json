@@ -1,0 +1,16 @@
+{
+  "type": "hm://hyper.media/example/employee",
+  "properties": {
+    "permissions": {
+      "value": {
+        "type": "hm://hyper.media/map",
+        "values": {
+          "type": "hm://hyper.media/boolean"
+        }
+      },
+      "required": true,
+      "description": "The permissions this admin holds, as flags. A set of flags is a map rather than a list because a document's attributes hold scalars and nested maps, so this type describes a document as well as a blob."
+    }
+  },
+  "description": "An employee extended with a map of boolean permission flags — a two-level extension chain."
+}

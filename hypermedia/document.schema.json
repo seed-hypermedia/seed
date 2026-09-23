@@ -1,0 +1,21 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "metadata": {
+      "value": {
+        "type": "hm://hyper.media/metadata"
+      },
+      "description": "The document's attributes, merged last-writer-wins from every SetAttributes op."
+    },
+    "content": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/block/node"
+        }
+      },
+      "description": "The tree of content block nodes built from the document's move tree and block registers."
+    }
+  },
+  "description": "The read model of a Hypermedia document: the metadata and block tree that result from replaying its Changes."
+}

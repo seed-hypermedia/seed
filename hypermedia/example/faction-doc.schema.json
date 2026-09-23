@@ -1,0 +1,39 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "founded": {
+      "value": {
+        "type": "hm://hyper.media/date"
+      },
+      "required": true,
+      "description": "Founding date."
+    },
+    "dissolved": {
+      "value": {
+        "type": "hm://hyper.media/date"
+      },
+      "description": "Dissolution date, if any."
+    },
+    "seat": {
+      "value": {
+        "type": "hm://hyper.media/hm-url",
+        "target": "hm://hyper.media/example/place-doc"
+      },
+      "description": "Where the faction is based."
+    },
+    "leader": {
+      "value": {
+        "type": "hm://hyper.media/hm-url",
+        "target": "hm://hyper.media/example/character-doc"
+      },
+      "description": "Who leads it."
+    },
+    "banner": {
+      "value": {
+        "type": "hm://hyper.media/ipfs-url"
+      },
+      "description": "A banner or crest image file on IPFS."
+    }
+  },
+  "description": "A World Builder page type for a faction, order, house or guild, with a founding date and links to its seat, leader and banner."
+}

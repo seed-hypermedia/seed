@@ -1,0 +1,33 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "title": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "Title of the document."
+    },
+    "author": {
+      "value": {
+        "type": "hm://hyper.media/link",
+        "target": "hm://hyper.media/example/person"
+      },
+      "description": "The person who wrote the document."
+    },
+    "body": {
+      "value": {
+        "type": "hm://hyper.media/bytes"
+      },
+      "description": "The document's content as raw bytes."
+    },
+    "previous": {
+      "value": {
+        "type": "hm://hyper.media/link",
+        "target": "hm://hyper.media/example/document"
+      },
+      "description": "The previous document, a link to another Document."
+    }
+  },
+  "description": "A document with a title, author, body and a link to a previous document, showing a self-referencing type."
+}

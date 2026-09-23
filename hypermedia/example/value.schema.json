@@ -1,0 +1,17 @@
+{
+  "anyOf": [
+    {
+      "type": "hm://hyper.media/string"
+    },
+    {
+      "type": "hm://hyper.media/integer"
+    },
+    {
+      "type": "hm://hyper.media/boolean"
+    },
+    {
+      "type": "hm://hyper.media/null"
+    }
+  ],
+  "description": "A primitive value: string, integer, boolean or null."
+}

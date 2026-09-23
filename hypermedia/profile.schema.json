@@ -1,0 +1,40 @@
+{
+  "type": "hm://hyper.media/blob",
+  "properties": {
+    "type": {
+      "value": "Profile",
+      "description": "Blob type tag, always `Profile`."
+    },
+    "alias": {
+      "value": {
+        "type": "hm://hyper.media/principal"
+      },
+      "description": "Account this key really belongs to; a profile with `alias` carries no other field."
+    },
+    "name": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "The account's display name."
+    },
+    "avatar": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "The account's picture, as an `ipfs://` link to an image."
+    },
+    "description": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "A short description of the account."
+    },
+    "account": {
+      "value": {
+        "type": "hm://hyper.media/principal"
+      },
+      "description": "Account the profile is for, set only when a delegated key signs on its behalf."
+    }
+  },
+  "description": "A snapshot blob giving an account its display name, avatar and description, or an alias redirecting one key to another."
+}

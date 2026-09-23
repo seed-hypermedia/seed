@@ -1,0 +1,14 @@
+---
+name: "Example: Tree"
+summary: A node holding an integer value and links to child nodes.
+---
+A tree node: an [integer](../integer.md) value and a list of [links](../link.md) to child trees. The type refers to itself, which works because schemas [reference each other by name](../schema/references.md). <!-- id:CCzItuKw -->
+
+This page describes the **example/tree** type, one of the [example schemas](../example.md). The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it and create values of this type. <!-- id:iIAXUuqT -->
+
+# See also <!-- id:UNo8e-V7 -->
+
+- [comment](./comment.md): another self-referencing type. <!-- id:yDFn0zDi -->
+- [json](./json.md): a recursive union. <!-- id:t4dFIkmp -->
+- [References](../schema/references.md): why recursion works. <!-- id:aq7UYu4h -->
+- [Examples](../example.md): every example, grouped by feature. <!-- id:cXcvuqJC -->

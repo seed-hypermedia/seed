@@ -1,0 +1,56 @@
+{
+  "type": "hm://hyper.media/block/base",
+  "properties": {
+    "type": {
+      "value": "Query",
+      "description": "Block type tag, always `Query`."
+    },
+    "attributes": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "childrenType": {
+            "value": {
+              "type": "hm://hyper.media/block/children-type"
+            },
+            "description": "How this block lays out its children — a children type such as `Unordered` or `Grid`."
+          },
+          "columnCount": {
+            "value": {
+              "type": "hm://hyper.media/float"
+            },
+            "description": "Number of card columns in the `Card` style (default 3)."
+          },
+          "style": {
+            "value": {
+              "type": "hm://hyper.media/query/style"
+            },
+            "description": "How results are shown: `Card`, `List` or `Table`."
+          },
+          "query": {
+            "value": {
+              "type": "hm://hyper.media/query"
+            },
+            "required": true,
+            "description": "The query to run: spaces and paths to include, sort and limit."
+          },
+          "banner": {
+            "value": {
+              "type": "hm://hyper.media/boolean"
+            },
+            "description": "Show the first result as a banner."
+          },
+          "table": {
+            "value": {
+              "type": "hm://hyper.media/query/table-config"
+            },
+            "description": "Column settings for the `Table` style."
+          }
+        }
+      },
+      "required": true,
+      "description": "The stored query and how its results are shown."
+    }
+  },
+  "description": "A block that runs a live query and renders the matching documents as cards, a list or a table."
+}

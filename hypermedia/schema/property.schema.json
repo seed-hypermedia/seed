@@ -1,0 +1,25 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "value": {
+      "value": {
+        "type": "hm://hyper.media/schema"
+      },
+      "required": true,
+      "description": "The schema the field's value must match."
+    },
+    "required": {
+      "value": {
+        "type": "hm://hyper.media/boolean"
+      },
+      "description": "A value of the struct must include this field. Absent means optional."
+    },
+    "description": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "What the field is for, for people and for the editors that show it."
+    }
+  },
+  "description": "One field of a struct: the schema its value must match, whether it is required, and what it is for."
+}

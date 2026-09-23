@@ -1,0 +1,7 @@
+{
+  "type": "hm://hyper.media/list",
+  "items": {
+    "type": "hm://hyper.media/string"
+  },
+  "description": "A list of string tags: `List<String>`."
+}

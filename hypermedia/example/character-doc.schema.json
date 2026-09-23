@@ -1,0 +1,64 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "born": {
+      "value": {
+        "type": "hm://hyper.media/date"
+      },
+      "required": true,
+      "description": "Birth date (ISO 8601 `YYYY-MM-DD`) — rendered as a date picker."
+    },
+    "died": {
+      "value": {
+        "type": "hm://hyper.media/date"
+      },
+      "description": "Death date, if any."
+    },
+    "role": {
+      "value": {
+        "anyOf": [
+          "hero",
+          "villain",
+          "ally",
+          "neutral"
+        ]
+      },
+      "required": true,
+      "description": "Narrative role."
+    },
+    "home": {
+      "value": {
+        "type": "hm://hyper.media/hm-url",
+        "target": "hm://hyper.media/example/place-doc"
+      },
+      "description": "The place this character calls home — a page conforming to the Place type."
+    },
+    "faction": {
+      "value": {
+        "type": "hm://hyper.media/hm-url",
+        "target": "hm://hyper.media/example/faction-doc"
+      },
+      "description": "The faction this character belongs to."
+    },
+    "portrait": {
+      "value": {
+        "type": "hm://hyper.media/ipfs-url"
+      },
+      "description": "A portrait image file on IPFS."
+    },
+    "stats": {
+      "value": {
+        "type": "hm://hyper.media/ipfs-url",
+        "target": "hm://hyper.media/example/stats"
+      },
+      "description": "An `ipfs://` object that must conform to Character stats (a required target schema)."
+    },
+    "notes": {
+      "value": {
+        "type": "hm://hyper.media/ipfs-url"
+      },
+      "description": "An `ipfs://` object with no declared schema — free-form data."
+    }
+  },
+  "description": "A World Builder page type for a character, with a birth date, role, and links to a home place, faction, portrait and stats."
+}

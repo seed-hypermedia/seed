@@ -1,0 +1,172 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "name": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "The document or space title."
+    },
+    "summary": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "A short description shown in previews and cards."
+    },
+    "icon": {
+      "value": {
+        "type": "hm://hyper.media/ipfs-url"
+      },
+      "description": "A square document or space image, as an `ipfs://` URL."
+    },
+    "thumbnail": {
+      "value": {
+        "type": "hm://hyper.media/ipfs-url"
+      },
+      "description": "Deprecated image field kept for old documents; use `icon` or `cover`."
+    },
+    "cover": {
+      "value": {
+        "type": "hm://hyper.media/ipfs-url"
+      },
+      "description": "A wide cover image shown in headers and cards, as an `ipfs://` URL."
+    },
+    "siteUrl": {
+      "value": {
+        "type": "hm://hyper.media/url"
+      },
+      "description": "The web address a space is published at; set on the home document when a site is registered."
+    },
+    "agentServerUrl": {
+      "value": {
+        "type": "hm://hyper.media/url"
+      },
+      "description": "The agents server this space advertises to its readers (an http(s) origin); clients connect to it beside their own servers."
+    },
+    "spaceAgents": {
+      "value": {
+        "type": "hm://hyper.media/map",
+        "values": {
+          "type": "hm://hyper.media/value"
+        }
+      },
+      "description": "Agents this space publishes to its readers: `{[agentId]: order}`, each id an agent on `agentServerUrl`; a removed agent leaves a null behind."
+    },
+    "attributesSchema": {
+      "value": {
+        "type": "hm://hyper.media/hm-url"
+      },
+      "description": "The attributes schema THIS document conforms to: the hm:// URL of a schema document (or ipfs://<cid> of a schema blob) whose struct describes the document's attributes."
+    },
+    "childAttributesSchema": {
+      "value": {
+        "type": "hm://hyper.media/hm-url"
+      },
+      "description": "The attributes schema this document's direct CHILDREN conform to (hm:// URL or ipfs://<cid>). A child may declare its own `attributesSchema` instead."
+    },
+    "schemaDefinition": {
+      "value": {
+        "type": "hm://hyper.media/ipfs-url",
+        "target": "hm://hyper.media/schema"
+      },
+      "description": "This document DEFINES a schema: ipfs://<cid> of the schema blob it describes. Its target is the meta-schema, so an editor creates and validates the blob as a Hypermedia schema (the struct form, rooted at Struct by default). Other documents reference this document's URL as their `attributesSchema`/`childAttributesSchema`."
+    },
+    "layout": {
+      "value": {
+        "anyOf": [
+          "Seed/Experimental/Newspaper",
+          ""
+        ]
+      },
+      "description": "Legacy space header layout: `Seed/Experimental/Newspaper` or empty."
+    },
+    "seedExperimentalLogo": {
+      "value": {
+        "type": "hm://hyper.media/ipfs-url"
+      },
+      "description": "Space header logo image."
+    },
+    "seedExperimentalHomeOrder": {
+      "value": {
+        "anyOf": [
+          "UpdatedFirst",
+          "CreatedFirst"
+        ]
+      },
+      "description": "Legacy ordering of a space home listing."
+    },
+    "displayPublishTime": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Publication date shown to readers when it differs from the change history."
+    },
+    "displayAuthor": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Author byline shown to readers."
+    },
+    "showOutline": {
+      "value": {
+        "type": "hm://hyper.media/boolean"
+      },
+      "description": "Whether to show the document outline."
+    },
+    "showActivity": {
+      "value": {
+        "type": "hm://hyper.media/boolean"
+      },
+      "description": "Whether to show the document's activity and tools."
+    },
+    "contentWidth": {
+      "value": {
+        "anyOf": [
+          "S",
+          "M",
+          "L"
+        ]
+      },
+      "description": "Width of the content column: `S`, `M` or `L`."
+    },
+    "childrenType": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Layout of the document's root-level blocks, a block children type."
+    },
+    "theme": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "headerLayout": {
+            "value": {
+              "anyOf": [
+                "Center",
+                ""
+              ]
+            },
+            "description": "Space header layout: `Center` or empty for the default."
+          }
+        }
+      },
+      "description": "Visual settings for a space."
+    },
+    "importCategories": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Comma-separated categories kept from an external import (e.g. WordPress)."
+    },
+    "importTags": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Comma-separated tags kept from an external import (e.g. WordPress)."
+    }
+  },
+  "values": {
+    "type": "hm://hyper.media/value"
+  },
+  "description": "The attributes of a document, merged from its Changes: the keys Seed understands, the schema-binding keys, and any custom keys."
+}

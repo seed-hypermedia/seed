@@ -1,0 +1,26 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "street": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "Street address line, including the house number."
+    },
+    "city": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "City or town name."
+    },
+    "postalCode": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Postal or ZIP code, if any."
+    }
+  },
+  "description": "A postal address: street and city (required) plus an optional postal code."
+}

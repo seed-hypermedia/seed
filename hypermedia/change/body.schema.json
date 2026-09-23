@@ -1,0 +1,31 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "opCount": {
+      "value": {
+        "type": "hm://hyper.media/integer"
+      },
+      "description": "Advisory count of logical operations, which can exceed the list length for run-length ops."
+    },
+    "ops": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/change/op",
+          "args": {
+            "Block": {
+              "var": "Block"
+            }
+          }
+        }
+      },
+      "description": "Operations applied in order when the document is replayed."
+    }
+  },
+  "params": {
+    "Block": {
+      "type": "hm://hyper.media/block"
+    }
+  },
+  "description": "The operations payload of a Change: an ordered list of ops the daemon applies in turn."
+}

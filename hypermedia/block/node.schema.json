@@ -1,0 +1,22 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "block": {
+      "value": {
+        "type": "hm://hyper.media/block"
+      },
+      "required": true,
+      "description": "The block at this node."
+    },
+    "children": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/block/node"
+        }
+      },
+      "description": "Child nodes in display order; omitted on a leaf."
+    }
+  },
+  "description": "One node of a document content tree: a block plus its ordered child nodes, recursively."
+}

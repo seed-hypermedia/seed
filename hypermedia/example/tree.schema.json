@@ -1,0 +1,23 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "value": {
+      "value": {
+        "type": "hm://hyper.media/integer"
+      },
+      "required": true,
+      "description": "The integer stored at this node."
+    },
+    "children": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/link",
+          "target": "hm://hyper.media/example/tree"
+        }
+      },
+      "description": "Links to this node's child trees."
+    }
+  },
+  "description": "A tree node holding an integer value and links to child nodes, showing a self-referencing type."
+}

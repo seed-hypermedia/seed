@@ -1,0 +1,30 @@
+{
+  "anyOf": [
+    {
+      "type": "hm://hyper.media/change/op/set-attributes"
+    },
+    {
+      "type": "hm://hyper.media/change/op/move-blocks"
+    },
+    {
+      "type": "hm://hyper.media/change/op/replace-block",
+      "args": {
+        "Block": {
+          "var": "Block"
+        }
+      }
+    },
+    {
+      "type": "hm://hyper.media/change/op/delete-blocks"
+    },
+    {
+      "type": "hm://hyper.media/change/op/set-key"
+    }
+  ],
+  "params": {
+    "Block": {
+      "type": "hm://hyper.media/block"
+    }
+  },
+  "description": "One operation inside a Change body, tagged by `type`: set metadata, replace, move or delete blocks."
+}

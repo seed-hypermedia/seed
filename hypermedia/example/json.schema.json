@@ -1,0 +1,32 @@
+{
+  "anyOf": [
+    {
+      "type": "hm://hyper.media/null"
+    },
+    {
+      "type": "hm://hyper.media/boolean"
+    },
+    {
+      "type": "hm://hyper.media/integer"
+    },
+    {
+      "type": "hm://hyper.media/float"
+    },
+    {
+      "type": "hm://hyper.media/string"
+    },
+    {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "type": "hm://hyper.media/example/json"
+      }
+    },
+    {
+      "type": "hm://hyper.media/map",
+      "values": {
+        "type": "hm://hyper.media/example/json"
+      }
+    }
+  ],
+  "description": "A recursive JSON value: null, boolean, integer, float, string, or a list or map of JSON values."
+}

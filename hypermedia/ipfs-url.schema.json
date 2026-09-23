@@ -1,0 +1,5 @@
+{
+  "type": "hm://hyper.media/string",
+  "format": "ipfs-url",
+  "description": "A string that is an `ipfs://` URL naming content by its CID — a file, or a DAG-CBOR object such as a schema."
+}

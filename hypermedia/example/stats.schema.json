@@ -1,0 +1,52 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "strength": {
+      "value": {
+        "type": "hm://hyper.media/integer",
+        "minimum": 1,
+        "maximum": 10
+      },
+      "required": true,
+      "description": "1–10"
+    },
+    "intellect": {
+      "value": {
+        "type": "hm://hyper.media/integer",
+        "minimum": 1,
+        "maximum": 10
+      },
+      "required": true,
+      "description": "1–10"
+    },
+    "charisma": {
+      "value": {
+        "type": "hm://hyper.media/integer",
+        "minimum": 1,
+        "maximum": 10
+      },
+      "required": true,
+      "description": "1–10"
+    },
+    "alignment": {
+      "value": {
+        "anyOf": [
+          "lawful",
+          "neutral",
+          "chaotic"
+        ]
+      },
+      "description": "Moral alignment: `lawful`, `neutral` or `chaotic`."
+    },
+    "traits": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/string"
+        }
+      },
+      "description": "Free-form descriptors."
+    }
+  },
+  "description": "A character's stats object, stored as its own DAG-CBOR blob so it can hold the integers and enums document metadata cannot."
+}

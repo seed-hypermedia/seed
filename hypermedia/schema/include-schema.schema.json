@@ -1,0 +1,71 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "type": {
+      "value": {
+        "type": "hm://hyper.media/string",
+        "pattern": "^(?!hm://hyper\\.media/(?:schema/|hypermedia-)?(?:null|boolean|integer|float|string|bytes|list|map|struct|link)$)(?:hm|ipfs)://.+$"
+      },
+      "required": true,
+      "description": "The schema this one names: a schema document's URL (`hm://…` or `ipfs://<cid>`). Naming one of the nine kinds grounds a schema instead (see the kind-rooted variants), so a kind URL does not belong here. The other keys refine what is named."
+    },
+    "properties": {
+      "value": {
+        "type": "hm://hyper.media/map",
+        "values": {
+          "type": "hm://hyper.media/schema/property"
+        }
+      },
+      "description": "Fields the extension adds to (or overrides in) the base struct, as properties."
+    },
+    "values": {
+      "value": {
+        "type": "hm://hyper.media/schema"
+      },
+      "description": "Overrides the named schema's `values`: the schema extra keys (open struct) or map values must match."
+    },
+    "items": {
+      "value": {
+        "type": "hm://hyper.media/schema"
+      },
+      "description": "Overrides the named schema's `items`: the schema every list element must match."
+    },
+    "target": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "For a reference-valued string (`format: hm-url` or `format: ipfs-url`): the schema the referenced document or object is expected to conform to — an `hm://` schema-document URL or `ipfs://<cid>`. Advisory: an editor pre-seeds and validates the target against it; a validator does not dereference the reference."
+    },
+    "description": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "What the reference is for, when it is written inline; a published schema is described by its page."
+    },
+    "params": {
+      "value": {
+        "type": "hm://hyper.media/map",
+        "values": {
+          "type": "hm://hyper.media/schema"
+        }
+      },
+      "description": "Type parameters that make this schema generic, each with its default schema."
+    },
+    "args": {
+      "value": {
+        "type": "hm://hyper.media/map",
+        "values": {
+          "type": "hm://hyper.media/schema"
+        }
+      },
+      "description": "Applies a generic: binds the named schema's type parameters by name, falling back to their defaults when unbound."
+    },
+    "name": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Legacy: a name some published schemas still carry. New schemas are named by their page."
+    }
+  },
+  "description": "A schema that names another schema by URL: a bare include becomes that schema, and added refinements make it an extension."
+}
