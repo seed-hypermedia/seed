@@ -1,6 +1,9 @@
 import {z} from 'zod'
 import {type HMPrepareDocumentChangeInput, type HMRequest, HMActionSchema, HMRequestSchema, packHmId} from './hm-types'
 import {encode as cborEncode} from '@ipld/dag-cbor'
+import {blake2b} from '@noble/hashes/blake2.js'
+import {CID} from 'multiformats/cid'
+import * as Digest from 'multiformats/hashes/digest'
 import {deserialize} from 'superjson'
 import {SeedClientError, SeedNetworkError, SeedValidationError} from './errors'
 import type {AnySigner} from './signer'
@@ -108,6 +111,9 @@ export type SeedClientRequestOptions = {
 
 type PublishBlobsRequest = Extract<HMRequest, {key: 'PublishBlobs'}>
 
+const DAG_CBOR_CODEC = 0x71
+const BLAKE2B_256_CODE = 0xb220
+
 const QUERY_PARAM_SERIALIZERS = {
   Account: (input: Extract<HMRequest, {key: 'Account'}>['input']) => ({
     id: input,
@@ -146,8 +152,21 @@ export type SeedClient = {
     input: Extract<HMRequest, {key: K}>['input'],
     options?: SeedClientRequestOptions,
   ): Promise<Extract<HMRequest, {key: K}>['output']>
+  /**
+   * Store blobs. Goes through the site's `PublishBlobs` API; when the site refuses the request
+   * body as too large (413 — a site may cap its API bodies at a few KB) and every blob names its
+   * CID, the blobs are stored one per request through `putBlob` instead, and the result is the same.
+   */
   publish(input: PublishBlobsRequest['input']): Promise<PublishBlobsRequest['output']>
   publishBlobs(input: PublishBlobsRequest['input']): Promise<PublishBlobsRequest['output']>
+  /**
+   * Store one blob through the daemon's raw blob endpoint, `POST /ipfs/<cid>`, which every Seed
+   * site routes to its daemon with a file-sized body limit. The daemon recomputes the hash and
+   * refuses bytes that do not match the CID; a stored blob is indexed like one from `PublishBlobs`.
+   */
+  putBlob(blob: {cid: string; data: Uint8Array}, options?: SeedClientRequestOptions): Promise<void>
+  /** The CID the daemon assigns a DAG-CBOR blob published without one (blake2b-256). */
+  daemonBlobCid(data: Uint8Array): string
   publishDocument(input: PublishDocumentInput, signer: AnySigner): Promise<PublishDocumentResult>
   baseUrl: string
 }
@@ -260,8 +279,62 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
     return requestSchema.shape.output.parse(deserialized) as Req['output']
   }
 
-  function publish(input: PublishBlobsRequest['input']) {
-    return request<PublishBlobsRequest>('PublishBlobs', input)
+  /**
+   * The CID the daemon gives a blob published without one: DAG-CBOR named by blake2b-256, the
+   * hash Hypermedia uses for the blobs it creates (a `bafy2bzace…` version string is one).
+   */
+  function daemonBlobCid(data: Uint8Array): string {
+    return CID.createV1(DAG_CBOR_CODEC, Digest.create(BLAKE2B_256_CODE, blake2b(data, {dkLen: 32}))).toString()
+  }
+
+  async function putBlob(blob: {cid: string; data: Uint8Array}, options?: SeedClientRequestOptions): Promise<void> {
+    const url = `${normalizedBaseUrl}/ipfs/${blob.cid}`
+    const defaultHeaders = await getDefaultHeaders()
+    let response: Response
+    try {
+      response = await fetchFn(url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/octet-stream', ...defaultHeaders},
+        body: new Uint8Array(blob.data) as unknown as BodyInit,
+        signal: options?.signal,
+      })
+    } catch (err) {
+      if (isAbortError(err)) throw err
+      throw new SeedNetworkError(
+        `Network error storing blob ${blob.cid}: ${err instanceof Error ? err.message : String(err)}`,
+        {cause: err},
+      )
+    }
+    if (!response.ok) {
+      let errorBody: string | undefined
+      try {
+        errorBody = await response.text()
+      } catch {
+        // ignore
+      }
+      throw new SeedClientError(
+        formatHTTPErrorMessage(`PutBlob ${blob.cid}`, response.status, response.statusText, errorBody),
+        response.status,
+        errorBody,
+      )
+    }
+  }
+
+  async function publish(input: PublishBlobsRequest['input']) {
+    try {
+      return await request<PublishBlobsRequest>('PublishBlobs', input)
+    } catch (err) {
+      if (!(err instanceof SeedClientError && err.status === 413)) throw err
+      // The site's API body limit is not the daemon's: deliver the blobs through its blob endpoint,
+      // naming an unaddressed blob the way the daemon would have.
+      const cids: string[] = []
+      for (const blob of input.blobs) {
+        const cid = blob.cid || daemonBlobCid(blob.data)
+        await putBlob({cid, data: blob.data})
+        cids.push(cid)
+      }
+      return {cids}
+    }
   }
 
   async function publishDocument(input: PublishDocumentInput, signer: AnySigner): Promise<PublishDocumentResult> {
@@ -367,6 +440,8 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
     request: request as SeedClient['request'],
     publish,
     publishBlobs: publish,
+    putBlob,
+    daemonBlobCid,
     publishDocument,
   }
 }
