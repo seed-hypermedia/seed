@@ -157,14 +157,14 @@ vi.mock('react-resizable-panels', async () => {
   const React = await import('react')
 
   const PanelGroup = React.forwardRef(function PanelGroup(
-    {children}: {children: React.ReactNode},
+    {children, className}: {children: React.ReactNode; className?: string},
     ref: React.ForwardedRef<{setLayout: () => void}>,
   ) {
     React.useImperativeHandle(ref, () => ({
       setLayout: () => {},
     }))
 
-    return React.createElement('div', {'data-testid': 'panel-group'}, children)
+    return React.createElement('div', {'data-testid': 'panel-group', className}, children)
   })
 
   return {
@@ -336,6 +336,14 @@ describe('Main assistant visibility', () => {
   afterEach(() => {
     document.body.innerHTML = ''
     delete (window as any).initNavState
+  })
+
+  it('keeps the main panel group stretched to the window height', () => {
+    const {container, root} = renderMain()
+
+    expect(container.querySelector('[data-testid="panel-group"]')?.className).toContain('flex-1')
+
+    cleanupRendered(root, container)
   })
 
   it('hides assistant controls when the account has no agents', async () => {

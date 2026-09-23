@@ -10,7 +10,7 @@ export function FooterWrapper({children, className}: FooterWrapperProps) {
     <div
       className={cn(
         '-mx-1 flex w-full border border-transparent py-0',
-        'min-h-6 flex-none items-center select-none',
+        'h-6 flex-none items-center select-none',
         className,
       )}
     >

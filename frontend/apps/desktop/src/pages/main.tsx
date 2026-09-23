@@ -235,7 +235,7 @@ export default function Main({className}: {className?: string}) {
   return (
     <div className={cn(windowContainerStyles, 'p-0', className)}>
       <WindowTitle />
-      <PanelGroup direction="horizontal" autoSaveId="main-assistant">
+      <PanelGroup direction="horizontal" autoSaveId="main-assistant" className="min-h-0 flex-1">
         <Panel id="app-content" order={1}>
           <div className="flex h-full flex-col">
             <SidebarContextProvider>
