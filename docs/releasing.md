@@ -20,10 +20,7 @@ git push origin 2026.7.3
 ```
 
 Pushing a `*.*.*` tag triggers the release workflows (`Release - Desktop App`,
-`Release - Docker Images`). The Docker workflow ends by publishing the released `hypermedia/`
-tree to the developer docs site on hyper.media (`Repo HM sync (hypermedia)`, target
-`production`, signed with the `SEED_DOCS_KEYFILE` secret); merges to `main` publish the same
-tree to staging.hyper.media as they land.
+`Release - Docker Images`).
 
 ## 3. Wait for GitHub Actions to complete
 
