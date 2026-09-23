@@ -93,6 +93,13 @@ the snapshot into their cached session lists, so neither an always-visible unrea
 `ListAgents`, `ListSessions`, `GetSession` or `GetAgent` refetch: the open transcript already streams on its own
 `sessions/<id>` subscription. A client that ignores the fields behaves as before.
 
+A `session-event` hint raised by a tool result that created or changed `hm://` content (a `write`) is emitted
+immediately rather than coalesced and carries `references`: the resources the tool registry's `getReferencedUrls`
+reports for that result, with the produced document pinned to its new version (`hm://…?v=<version>`). Transcript frames
+never reach this key, so this is how a desktop learns about content published from a session it is not showing (a
+background session, a trigger firing) and asks its local node for it right away. See
+[desktop-ui.md](desktop-ui.md#automatic-refresh-and-agent-created-content-sync).
+
 ### `agents/<agentId>`
 
 Agent detail updates and related session changes. The agent detail page uses this key.

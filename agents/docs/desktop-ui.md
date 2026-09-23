@@ -399,9 +399,19 @@ registry's `getReferencedUrls`; assistant prose is scanned for `hm://` links. Co
 target document so the comment blobs arrive too. These are live subscriptions, not one-shot discovery requests: they
 survive the initial peer-connection race and cached pre-publish discovery results, and are released when the session
 closes. “Open” is intentionally UI-scoped: a mounted full session page or the session currently selected in the
-Assistant sidebar. Account/agent list subscriptions and other background sessions do not start content sync. The hook
-also keeps the local node peered with the agent server's advertised `hmServerUrl`. The result is that a link the agent
-just produced opens from the desktop without waiting for a later background sync.
+Assistant sidebar. Write results additionally pin the produced version: the local node may already hold an older copy of
+the document, which satisfies a plain "latest" discovery, so the hook also asks for the exact `?v=` version on a bounded
+probe (every 5 s, up to 90 s) until the node reports it. The hook also keeps the local node peered with the agent
+server's advertised `hmServerUrl`. The result is that a link the agent just produced opens from the desktop without
+waiting for a later background sync.
+
+Sessions that are not on screen — background sessions, trigger firings — do not get live subscriptions: the persistent
+`account/<id>` socket has no natural release point, so holding subscriptions from it would accumulate forever. Instead
+the server's `session-event` hint for a write result carries `references` (see
+[websocket-subscriptions.md](websocket-subscriptions.md#accountaccountid)), and the account-level hook runs the same
+bounded probe for each: a version-pinned discover for the produced document, a one-shot recursive discover for a
+comment's target. One probe per document and version per window, whichever sockets received the hint, cancelled when the
+hook unmounts.
 
 ## WebSocket hook
 
