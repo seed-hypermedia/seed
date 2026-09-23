@@ -327,7 +327,7 @@ try {
   let voteSchemaCid = ''
   await step(
     S7,
-    'write ipfs:// with a schema that refs hypermedia-blob publishes the signed type’s schema blob',
+    'write ipfs:// with a schema that extends blob publishes the signed type’s schema blob',
     async () => {
       const result = await verb('write', {
         address: 'ipfs://',

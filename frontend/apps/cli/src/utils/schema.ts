@@ -70,7 +70,7 @@ export const encodeBlob = encodeDagCbor
 
 /**
  * A schema by reference: a `.json` file on disk (dag-json), an `ipfs://<cid>`, a bundled library
- * name or URL (`hypermedia-document`, `hm://<library>/hypermedia-document`), or a type document's
+ * name or URL (`document`, `hm://hyper.media/document`), or a type document's
  * `hm://` URL, whose `schemaDefinition` is followed. Every type it references is fetched into the
  * returned registry.
  */

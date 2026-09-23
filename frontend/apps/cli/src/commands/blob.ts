@@ -1,6 +1,6 @@
 /**
  * Blob commands — the low-level half of the Hypermedia protocol: content-addressed DAG-CBOR
- * objects, typed by Hypermedia schemas, optionally signed with the hypermedia-blob envelope.
+ * objects, typed by Hypermedia schemas, optionally signed with the blob envelope.
  *
  *   blob get <cid>                       read a blob back as dag-json
  *   blob validate -f value.json          check a value against a schema (no network write)
@@ -53,9 +53,7 @@ export function registerBlobCommands(program: Command) {
       try {
         const value = await fetchBlobValue(getClient(globalOpts), cid.replace(/^ipfs:\/\//, ''))
         if (value === undefined) fail(`No blob at ${cid}`)
-        console.log(
-          formatOutput(value, getOutputFormat(globalOpts), isPretty(globalOpts)),
-        )
+        console.log(formatOutput(value, getOutputFormat(globalOpts), isPretty(globalOpts)))
       } catch (error) {
         fail((error as Error).message)
       }
@@ -147,7 +145,7 @@ export function registerBlobCommands(program: Command) {
     .command('sign')
     .description('Sign a value as a Hypermedia signed blob (adds signer, ts, sig) and publish it')
     .requiredOption('-f, --file <path>', 'The value’s own fields (dag-json); the envelope is added here')
-    .option('-s, --schema <ref>', 'A signed-blob schema (extends hypermedia-blob); the type tag comes from it')
+    .option('-s, --schema <ref>', 'A signed-blob schema (extends blob); the type tag comes from it')
     .option('-t, --type <tag>', 'The `type` tag, when the schema does not pin one (or there is no schema)')
     .option('--ts <ms>', 'Timestamp (unix ms; default: now)')
     .option('-k, --key <name>', 'Signing key name or account ID')
