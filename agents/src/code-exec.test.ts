@@ -546,7 +546,7 @@ describe('code exec', () => {
 })
 
 // ------------------------------------------------------------------------------------------------
-// SandboxSource seam contract (the seam the warm pool implements; see docs/exec-warm-pool.md)
+// SandboxSource seam contract (the seam the warm pool implements; see hypermedia/agent/plans/exec-warm-pool.md)
 // ------------------------------------------------------------------------------------------------
 
 /** Minimal healthy sandbox: buffered exec returning the given exit code. */

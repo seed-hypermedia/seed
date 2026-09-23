@@ -2,4 +2,3 @@
 # the files are the exporter's canonical form (one block per line, ids in
 # trailing comments), which prose wrapping would break.
 hypermedia/
-seed-docs/
