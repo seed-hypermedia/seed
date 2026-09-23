@@ -150,8 +150,10 @@ async function pushTo(client: SeedClient, signer: HMSigner, account: string, dry
   const blobs = await loadSchemaBlobs()
   console.log(`Schema blobs: ${blobs.length} encoded, all CIDs match the lockfile.`)
   if (!dryRun) {
+    // One request per blob through the daemon's blob endpoint: a site's API may cap its request
+    // bodies at a few KB (staging does, at 4 KB), and the daemon route carries file-sized bodies.
     console.log(`Publishing ${blobs.length} schema blobs...`)
-    await client.publish({blobs})
+    for (const blob of blobs) await client.putBlob(blob)
     console.log('  done.\n')
   }
   const result = await importSpace({
@@ -310,7 +312,10 @@ async function main() {
   process.exit(2)
 }
 
-main().catch((err) => {
-  console.error(err)
-  process.exit(1)
-})
+// A test imports the batching helper; only a direct run is the CLI.
+if (import.meta.main) {
+  main().catch((err) => {
+    console.error(err)
+    process.exit(1)
+  })
+}
