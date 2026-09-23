@@ -219,6 +219,11 @@
         "sessionId": "string"
       }
     },
+    "GetVoiceSettings": {
+      "fields": {
+        "_": "\"GetVoiceSettings\""
+      }
+    },
     "ImportSigningIdentity": {
       "fields": {
         "_": "\"ImportSigningIdentity\"",
@@ -417,6 +422,13 @@
         "metadata?": "Record<string, unknown>",
         "name": "string",
         "value": "Uint8Array<ArrayBufferLike>"
+      }
+    },
+    "SetVoiceSettings": {
+      "fields": {
+        "_": "\"SetVoiceSettings\"",
+        "cartesiaApiKey?": "null | string",
+        "deepgramApiKey?": "null | string"
       }
     },
     "SignalRun": {
@@ -714,6 +726,14 @@
         "triggerContext?": "AgentSessionTriggerContext"
       }
     },
+    "GetVoiceSettingsResponse": {
+      "fields": {
+        "_": "\"GetVoiceSettingsResponse\"",
+        "available": "boolean",
+        "cartesiaApiKey": "VoiceKeySource",
+        "deepgramApiKey": "VoiceKeySource"
+      }
+    },
     "ImportSigningIdentityResponse": {
       "fields": {
         "_": "\"ImportSigningIdentityResponse\"",
@@ -913,6 +933,13 @@
       "fields": {
         "_": "\"SetSecretResponse\"",
         "secret": "RedactedSecret"
+      }
+    },
+    "SetVoiceSettingsResponse": {
+      "fields": {
+        "_": "\"SetVoiceSettingsResponse\"",
+        "cartesiaApiKey": "VoiceKeySource",
+        "deepgramApiKey": "VoiceKeySource"
       }
     },
     "SignalRunResponse": {
@@ -1728,6 +1755,9 @@
           }
         }
       }
+    },
+    "VoiceKeySource": {
+      "alias": "\"account\" | \"none\" | \"server\""
     }
   }
 }
