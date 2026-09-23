@@ -84,7 +84,12 @@ export const documentCreationMachine = setup({
     canCreateRequestedKind: ({context, event}) => {
       if (event.type !== 'create.requested') return false
       return (
-        event.kind !== 'subdocument' || !!(context.resolution?.parentIsCollection && context.resolution.canEditParent)
+        event.kind !== 'subdocument' ||
+        !!(
+          !context.resolution?.currentIsCollection &&
+          context.resolution?.parentIsCollection &&
+          context.resolution.canEditParent
+        )
       )
     },
   },

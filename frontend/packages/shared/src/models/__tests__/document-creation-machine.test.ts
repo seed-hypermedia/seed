@@ -48,6 +48,20 @@ describe('documentCreationMachine', () => {
     expect(calls).toEqual([{kind: 'document', destination: parentId, metadata: {status: ''}}])
   })
 
+  it('does not allow subdocument creation from a collection document', async () => {
+    const actor = start({
+      canEditCurrent: true,
+      currentIsCollection: true,
+      parentId,
+      parentIsCollection: true,
+      canEditParent: true,
+      schema,
+    })
+    await waitFor(actor, (state) => state.matches({resolved: 'ready'}))
+
+    expect(actor.getSnapshot().can({type: 'create.requested', kind: 'subdocument'})).toBe(false)
+  })
+
   it('falls back to a normal child when the collection parent is not editable', async () => {
     const calls: any[] = []
     const actor = start(
