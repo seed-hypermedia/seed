@@ -403,7 +403,7 @@ describe('write verb', () => {
       executeWriteVerb(context, {address: 'hm://z6MkDoc/notes', content: 'x', dryRun: 'true'}),
     ).rejects.toThrow('write dryRun must be a boolean')
     await expect(executeWriteVerb(context, {address: '~/memory/a.txt', content: 'x', dryRun: true})).rejects.toThrow(
-      'dryRun applies only to hm:// and ~/triggers/ writes',
+      'dryRun applies only to hm://, ipfs:// object and ~/triggers/ writes',
     )
   })
 
@@ -695,6 +695,102 @@ describe('call verb', () => {
     }) as unknown as typeof fetch
     const result = await executeCallVerb(context, {tool: 'search', input: {query: 'hello'}}, undefined)
     expect(String(result.summary)).toContain('No results')
+  })
+
+  test('query compiles the Explore grammar into a DocumentFilter and lists matches with their attributes', async () => {
+    const context = makeContext({callableTools: ['query', 'attributes']})
+    const originalFetch = globalThis.fetch
+    cleanups.push(() => {
+      globalThis.fetch = originalFetch
+    })
+    let sent: Record<string, unknown> = {}
+    globalThis.fetch = mock(async (url: string | URL, init?: RequestInit) => {
+      const href = String(url)
+      if (href.includes('/api/QueryDocuments')) {
+        sent = cborDecode(init?.body as Uint8Array)
+        return Response.json({
+          documents: [
+            {
+              account: 'z6MkAlice',
+              path: '/people/bob',
+              metadata: {name: 'Bob', surname: 'Smith', attributesSchema: 'hm://z6MkAlice/types/person'},
+              updateTime: '2026-09-16T00:00:00Z',
+            },
+          ],
+          nextPageToken: '',
+        })
+      }
+      throw new Error(`Unexpected fetch: ${href}`)
+    }) as unknown as typeof fetch
+    const result = await executeCallVerb(
+      context,
+      {
+        tool: 'query',
+        input: {
+          q: 'in:z6MkAlice attributesSchema=hm://z6MkAlice/types/person AND has:surname',
+          sort: [{attribute: 'UPDATE_TIME', descending: true}],
+        },
+      },
+      undefined,
+    )
+    expect(sent.filter).toEqual({
+      and: {
+        filters: [
+          {spaceMatch: {space: 'z6MkAlice'}},
+          {
+            comparison: {
+              key: 'attributesSchema',
+              operator: 'EQUAL',
+              value: {stringValue: 'hm://z6MkAlice/types/person'},
+            },
+          },
+          {exists: {key: 'surname'}},
+        ],
+      },
+    })
+    expect(sent.sort).toEqual([{attribute: 'BUILTIN_SORT_ATTRIBUTE_UPDATE_TIME', descending: true}])
+    const results = result.results as Array<Record<string, unknown>>
+    expect(results[0]?.url).toBe('hm://z6MkAlice/people/bob')
+    expect((results[0]?.attributes as Record<string, unknown>).surname).toBe('Smith')
+    expect(String(result.markdown)).toContain('surname: Smith')
+    expect(String(result.summary)).toContain('Found 1 document')
+  })
+
+  test('attributes lists the names documents use with their kinds, and the values of one key', async () => {
+    const context = makeContext({callableTools: ['query', 'attributes']})
+    const originalFetch = globalThis.fetch
+    cleanups.push(() => {
+      globalThis.fetch = originalFetch
+    })
+    const valueRequests: Array<Record<string, unknown>> = []
+    globalThis.fetch = mock(async (url: string | URL, init?: RequestInit) => {
+      const href = String(url)
+      if (href.includes('/api/ListDocumentAttributeNames')) {
+        return Response.json({
+          names: [
+            {name: 'status', kinds: [{kind: 'DOCUMENT_ATTRIBUTE_KIND_STRING'}]},
+            {name: 'priority', kinds: [{kind: 'DOCUMENT_ATTRIBUTE_KIND_INT'}]},
+          ],
+        })
+      }
+      if (href.includes('/api/ListDocumentAttributeValues')) {
+        valueRequests.push(cborDecode(init?.body as Uint8Array))
+        return Response.json({values: [{value: {stringValue: 'draft'}}, {value: {stringValue: 'published'}}]})
+      }
+      throw new Error(`Unexpected fetch: ${href}`)
+    }) as unknown as typeof fetch
+    const names = await executeCallVerb(context, {tool: 'attributes', input: {account: 'z6MkAlice'}}, undefined)
+    expect(names.names).toEqual([
+      {name: 'status', kinds: ['string']},
+      {name: 'priority', kinds: ['int']},
+    ])
+    const values = await executeCallVerb(context, {tool: 'attributes', input: {key: 'status'}}, undefined)
+    expect(valueRequests).toEqual([{path: ['status'], kind: 'DOCUMENT_ATTRIBUTE_KIND_STRING', pageSize: 50}])
+    expect(values.values).toEqual([
+      {kind: 'string', value: 'draft'},
+      {kind: 'string', value: 'published'},
+    ])
+    expect(String(values.markdown)).toContain('- draft (string)')
   })
 })
 
