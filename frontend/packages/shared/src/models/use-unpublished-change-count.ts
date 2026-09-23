@@ -6,6 +6,7 @@ import {compareBlocksWithMap, createBlocksMap, extractDeletes} from '../utils/do
 import {getNavigationChanges} from '../utils/navigation-changes'
 import {useEditorHandlersRef} from './editor-handlers-context'
 import {
+  selectBindingSchemaDrafts,
   selectBlocks,
   selectDocument,
   selectDraftId,
@@ -13,6 +14,7 @@ import {
   selectMetadata,
   selectNavigation,
   selectSaveStatus,
+  selectSchemaDraft,
   useDocumentSelector,
 } from './use-document-machine'
 
@@ -63,9 +65,15 @@ export function useUnpublishedChangeCount(): number {
   const draftId = useDocumentSelector(selectDraftId)
   const blocks = useDocumentSelector(selectBlocks)
   const saveStatus = useDocumentSelector(selectSaveStatus)
+  const schemaDraft = useDocumentSelector(selectSchemaDraft)
+  const bindingSchemaDrafts = useDocumentSelector(selectBindingSchemaDrafts)
 
   return useMemo(() => {
     const metadataChangeCount = Object.keys(metadata ?? {}).length
+    // A drafted schema is a change of its own: the working schema behind `schemaDefinition`, and
+    // each binding schema (`attributesSchema` / `childAttributesSchema`) authored on the Attributes
+    // tab. None of them touches the metadata until publish freezes them into objects.
+    const schemaChangeCount = (schemaDraft ? 1 : 0) + Object.keys(bindingSchemaDrafts ?? {}).length
     // Site-header nav edits don't touch the editor or metadata, so count
     // them via the same diff used at publish time. `navigation === undefined`
     // means no nav edits this session — return 0 ops.
@@ -92,7 +100,10 @@ export function useUnpublishedChangeCount(): number {
       ? countBlockChanges(handlersRef.current.getCurrentBlocks())
       : 0
     const unpublishedChangeCount =
-      Math.max(machineBlockChanges, editorBlockChanges) + metadataChangeCount + navigationChangeCount
+      Math.max(machineBlockChanges, editorBlockChanges) +
+      metadataChangeCount +
+      navigationChangeCount +
+      schemaChangeCount
     const machineQuery = machineEditorBlocks.find((block) => block.type === 'query')
     const publishedQuery = publishedBaseline.find((block) => block.type === 'query')
     if (machineQuery || publishedQuery) {
@@ -112,5 +123,16 @@ export function useUnpublishedChangeCount(): number {
     }
     return unpublishedChangeCount
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseline, metadata, navigation, publishedDoc, draftId, blocks, saveStatus, handlersRef])
+  }, [
+    baseline,
+    metadata,
+    navigation,
+    publishedDoc,
+    draftId,
+    blocks,
+    saveStatus,
+    handlersRef,
+    schemaDraft,
+    bindingSchemaDrafts,
+  ])
 }

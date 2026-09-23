@@ -1,0 +1,16 @@
+// Public entry for the in-app schema tour: the validation engine, the schema
+// explorer, and the schema-driven data editor. Import from `@shm/ui/schema/index`.
+export * from './engine'
+export * from './explorer'
+export * from './data-editor'
+export * from './schema-document'
+export * from './schema-editor'
+export * from './schema-context'
+export * from './schema-registry-cid'
+export * from './value-editor-schema'
+export * from './metadata-schema-keys'
+export * from './signed-blob'
+export * from './signed-blob-creator'
+export * from './schema-browser'
+export * from './schema-aware-editor'
+export * from './schema-picker'
