@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'bun:test'
-import {findMovedFrom, metadataDiffOp} from './space-sync'
+import {applySchemaMetadata, findMovedFrom, metadataDiffOp, swapAuthority} from './space-sync'
 
 describe('findMovedFrom', () => {
   const byBlock = new Map<string, string>([
@@ -78,6 +78,87 @@ describe('importSpace file links', () => {
       process.chdir(cwd)
       rmSync(dir, {recursive: true, force: true})
       rmSync(elsewhere, {recursive: true, force: true})
+    }
+  })
+})
+
+describe('applySchemaMetadata', () => {
+  const TYPE = 'hm://hyper.media/example/employee'
+
+  test('a document carrying the old `schema` key loses it on import', () => {
+    const out = applySchemaMetadata({name: 'Person', schema: TYPE} as any, {
+      kind: 'type',
+      cid: 'bafyabc',
+      data: new Uint8Array(),
+    })
+    expect(out).toEqual({name: 'Person', schemaDefinition: 'ipfs://bafyabc'} as any)
+  })
+
+  test('a type file points schemaDefinition at its blob', () => {
+    expect(applySchemaMetadata({name: 'Person'}, {kind: 'type', cid: 'bafyabc', data: new Uint8Array()})).toEqual({
+      name: 'Person',
+      schemaDefinition: 'ipfs://bafyabc',
+    } as any)
+  })
+
+  test('the next import nulls the dropped `schema` attribute on the published document', () => {
+    const published = {name: 'Bob', schema: TYPE, attributesSchema: TYPE}
+    const next = applySchemaMetadata(published as any, null)
+    expect(metadataDiffOp(published, next as any)).toEqual({
+      type: 'SetAttributes',
+      attrs: [{key: ['schema'], value: null}],
+    })
+  })
+})
+
+describe('swapAuthority', () => {
+  const KEY = 'z6MkSpaceKeyForTests'
+
+  test('rewrites the authority of an hm:// string', () => {
+    expect(swapAuthority('hm://hyper.media/example/person', 'hyper.media', KEY)).toBe(`hm://${KEY}/example/person`)
+    expect(swapAuthority('hm://hyper.media', 'hyper.media', KEY)).toBe(`hm://${KEY}`)
+    expect(swapAuthority('hm://hyper.media?v=1', 'hyper.media', KEY)).toBe(`hm://${KEY}?v=1`)
+    expect(swapAuthority('hm://hyper.media#blk', 'hyper.media', KEY)).toBe(`hm://${KEY}#blk`)
+  })
+
+  test('and back again', () => {
+    expect(swapAuthority(`hm://${KEY}/protocol/documents`, KEY, 'hyper.media')).toBe(
+      'hm://hyper.media/protocol/documents',
+    )
+  })
+
+  test('rewrites strings nested in maps and lists, leaving other values alone', () => {
+    const bytes = new Uint8Array([1, 2, 3])
+    const value = {
+      name: 'Person',
+      attributesSchema: 'hm://hyper.media/example/person-doc',
+      count: 3,
+      flag: true,
+      nothing: null,
+      bytes,
+      nav: [{link: 'hm://hyper.media/a'}, 'hm://hyper.media/b', 'plain text'],
+    }
+    expect(swapAuthority(value, 'hyper.media', KEY)).toEqual({
+      name: 'Person',
+      attributesSchema: `hm://${KEY}/example/person-doc`,
+      count: 3,
+      flag: true,
+      nothing: null,
+      bytes,
+      nav: [{link: `hm://${KEY}/a`}, `hm://${KEY}/b`, 'plain text'],
+    })
+  })
+
+  test('only a whole matching authority is rewritten', () => {
+    for (const other of [
+      'hm://hyper.media.evil/x',
+      'hm://hyper.mediax/x',
+      'hm://seed.hyper.media/x',
+      'hm://hyperxmedia/x', // the dot is literal, not a regex wildcard
+      'https://hyper.media/x',
+      'see hm://hyper.media/x',
+    ]) {
+      expect(swapAuthority(other, 'hyper.media', KEY)).toBe(other)
     }
   })
 })
