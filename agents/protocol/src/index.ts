@@ -247,6 +247,8 @@ export type UnsignedAgentAction =
   | SignalRun
   | GetRunJournal
   | CreateVoiceSession
+  | GetVoiceSettings
+  | SetVoiceSettings
   | Subscribe
   | RegisterSigner
 
@@ -994,6 +996,25 @@ export type CreateVoiceSession = {
   _: 'CreateVoiceSession'
   sessionId: string
 }
+
+/** Reports whether this server can do voice and where its speech API keys come from. */
+export type GetVoiceSettings = {
+  _: 'GetVoiceSettings'
+}
+
+/**
+ * Stores (or, with `null`, clears) the signed account's own speech API keys on this server. They
+ * are kept encrypted at rest like every other secret and override the server's configured keys
+ * for that account's voice sessions. Absent fields are left unchanged.
+ */
+export type SetVoiceSettings = {
+  _: 'SetVoiceSettings'
+  deepgramApiKey?: string | null
+  cartesiaApiKey?: string | null
+}
+
+/** Where a speech API key for the signed account's voice sessions comes from. */
+export type VoiceKeySource = 'account' | 'server' | 'none'
 
 /**
  * Runs one verb (read, write, or call) AS THE USER on a session's shared log. The call and its
@@ -2340,6 +2361,20 @@ export type CreateVoiceSessionResponse = {
   expiresAt: number
 }
 
+export type GetVoiceSettingsResponse = {
+  _: 'GetVoiceSettingsResponse'
+  /** The server runs a voice pipeline (LiveKit + speech worker); `CreateVoiceSession` works only when true. */
+  available: boolean
+  deepgramApiKey: VoiceKeySource
+  cartesiaApiKey: VoiceKeySource
+}
+
+export type SetVoiceSettingsResponse = {
+  _: 'SetVoiceSettingsResponse'
+  deepgramApiKey: VoiceKeySource
+  cartesiaApiKey: VoiceKeySource
+}
+
 /** Successful response for `RetrySession`. */
 export type RetrySessionResponse = {
   _: 'RetrySessionResponse'
@@ -2503,6 +2538,8 @@ export type AgentResponse =
   | GetSessionEventResponse
   | MessageSessionResponse
   | CreateVoiceSessionResponse
+  | GetVoiceSettingsResponse
+  | SetVoiceSettingsResponse
   | InvokeSessionToolResponse
   | UploadSessionAttachmentResponse
   | ReadSessionAttachmentResponse
