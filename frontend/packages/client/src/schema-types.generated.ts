@@ -626,7 +626,7 @@ export type HMCid = HMLink
 /**
  * Comment
  * A signed comment on a document version, threaded through threadRoot and replyParent, with a body that is a tree of comment blocks.
- * A signed comment on a document version, threaded through `threadRoot` and `replyParent`, with a body of comment blocks.
+ * A signed comment on a document version, optionally written by an authorized agent for a stable account authority.
  * Schema: hm://hyper.media/comment
  */
 export type HMComment = HMBlob & {
@@ -635,6 +635,8 @@ export type HMComment = HMBlob & {
   id?: string
   /** Deprecated and ignored; some old comment blobs still carry it. */
   capability?: HMCid
+  /** Stable account authority represented by a delegated signer; omitted when it equals the signer. */
+  account?: HMPrincipal
   /** Space of the commented document; omitted when it equals the signer. */
   space?: HMPrincipal
   /** Path of the commented document within `space`. */
