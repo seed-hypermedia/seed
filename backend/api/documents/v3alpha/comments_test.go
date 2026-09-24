@@ -1841,3 +1841,59 @@ func TestCommentCount_DedupesEditsAndDeletions(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int32(0), getHomeCount(t), "deleting last comment makes count 0")
 }
+
+func BenchmarkListCommentVersions(b *testing.B) {
+	for _, versionCount := range []int{1, 10, 100} {
+		b.Run(fmt.Sprintf("versions=%d", versionCount), func(b *testing.B) {
+			alice := newTestDocsAPI(b, "alice")
+			ctx := context.Background()
+
+			homeDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+				SigningKeyName: "main",
+				Account:        alice.me.Account.PublicKey.String(),
+				Path:           "",
+				Changes: []*pb.DocumentChange{
+					{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "History benchmark"}}},
+				},
+			})
+			require.NoError(b, err)
+
+			comment, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
+				SigningKeyName: "main",
+				TargetAccount:  alice.me.Account.PublicKey.String(),
+				TargetPath:     "",
+				TargetVersion:  homeDoc.Version,
+				Content:        []*pb.BlockNode{{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "Version 1"}}},
+			})
+			require.NoError(b, err)
+
+			for i := 1; i < versionCount; i++ {
+				_, err := alice.UpdateComment(ctx, &pb.UpdateCommentRequest{
+					Comment: &pb.Comment{
+						Id:            comment.Id,
+						TargetAccount: alice.me.Account.PublicKey.String(),
+						TargetPath:    "",
+						TargetVersion: homeDoc.Version,
+						Content: []*pb.BlockNode{{
+							Block: &pb.Block{Id: "b1", Type: "paragraph", Text: fmt.Sprintf("Version %d", i+1)},
+						}},
+					},
+					SigningKeyName: "main",
+				})
+				require.NoError(b, err)
+			}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				response, err := alice.ListCommentVersions(ctx, &pb.ListCommentVersionsRequest{Id: comment.Id})
+				if err != nil {
+					b.Fatal(err)
+				}
+				if len(response.Versions) != versionCount {
+					b.Fatalf("got %d versions, want %d", len(response.Versions), versionCount)
+				}
+			}
+		})
+	}
+}
