@@ -2603,11 +2603,11 @@ func (srv testServer) PublishDocumentChangeForTest(ctx context.Context, in *apit
 	return doc.Hydrate(ctx)
 }
 
-func newTestDocsAPI(t *testing.T, name string) testServer {
+func newTestDocsAPI(t testing.TB, name string) testServer {
 	return newTestDocsAPIWithConfig(t, name, config.Base{})
 }
 
-func newTestDocsAPIWithConfig(t *testing.T, name string, cfg config.Base) testServer {
+func newTestDocsAPIWithConfig(t testing.TB, name string, cfg config.Base) testServer {
 	u := coretest.NewTester(name)
 	db := storage.MakeTestMemoryDB(t)
 	ks := keystore.NewMemory()
