@@ -8618,6 +8618,138 @@ describe('api service', () => {
     }
   })
 
+  test('a trigger-launched workflow gives its firing the first child session and nests the rest under it', async () => {
+    // A webhook trigger with a script continuation has no chat session of its own; the sessions its
+    // script spawns are what a person finds in the list. They must say where they came from.
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    let svc: apisvc.Service | undefined
+    try {
+      const account = blobs.generateNobleKeyPair()
+      svc = new apisvc.Service(db, dataDir, {})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Ion', systemPrompt: 'You are Ion.', modelProvider: 'openai', model: 'gpt', tools: []},
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const script = [
+        'export default async function (input, ctx) {',
+        "  const first = await ctx.agent({title: 'Investigate', input: 'Look into ' + input.event.payload.issue.title})",
+        "  const second = await ctx.agent({title: 'Review', input: 'Review the fix'})",
+        '  return {first: first.text, second: second.text}',
+        '}',
+      ].join('\n')
+      const createdTrigger = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgentTrigger',
+            agentId: createdAgent.agentId,
+            trigger: {
+              name: 'GitHub',
+              prompt: 'Handle the GitHub event.',
+              source: {type: 'webhook'},
+              continuation: {kind: 'script', script},
+            },
+          },
+        }),
+      )
+      if (createdTrigger._ !== 'CreateAgentTriggerResponse' || !createdTrigger.webhookSecret) {
+        throw new Error('unexpected response')
+      }
+      globalThis.fetch = mock(async () =>
+        openAIStreamResponse([
+          {id: 'child', choices: [{delta: {content: 'Done.'}}]},
+          {id: 'child', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ]),
+      ) as unknown as typeof fetch
+
+      const payload = {
+        action: 'opened',
+        issue: {number: 1156, title: 'Replies are not targeted correctly', body: 'cc @ion please investigate'},
+        sender: {login: 'ericvicenti'},
+        repository: {full_name: 'seed-hypermedia/seed'},
+      }
+      const accepted = svc.fireWebhookTrigger(
+        createdTrigger.trigger.id,
+        createdTrigger.webhookSecret,
+        'delivery-1156',
+        new TextEncoder().encode(JSON.stringify(payload)),
+      )
+      expect(accepted.duplicate).toBe(false)
+      expect(accepted.runId).toBeDefined()
+      await svc.awaitQueueIdle()
+
+      const listed = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'ListSessions', agentId: createdAgent.agentId, includeChildren: false},
+        }),
+      )
+      if (listed._ !== 'ListSessionsResponse') throw new Error('unexpected response')
+      // One top-level session for the whole firing, and it says which trigger and event started it.
+      expect(listed.sessions.map((session) => session.title)).toEqual(['Investigate'])
+      const first = listed.sessions[0]!
+      expect(first.startedByTrigger).toMatchObject({
+        triggerId: createdTrigger.trigger.id,
+        triggerName: 'GitHub',
+        activityKey: 'webhook:delivery-1156',
+        activitySummary: 'GitHub issue #1156 opened “Replies are not targeted correctly” by ericvicenti',
+      })
+      const loaded = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: first.id}}),
+      )
+      if (loaded._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(loaded.triggerContext?.activity).toMatchObject({type: 'webhook', payload})
+      expect(loaded.session.parentSessionId).toBeUndefined()
+
+      // The second child of the same firing nests under the first instead of appearing as another
+      // unexplained top-level chat.
+      const children = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListSessions', parentSessionId: first.id}}),
+      )
+      if (children._ !== 'ListSessionsResponse') throw new Error('unexpected response')
+      expect(children.sessions.map((session) => session.title)).toEqual(['Review'])
+      expect(children.sessions[0]?.startedByTrigger).toBeUndefined()
+
+      // The trigger's own page lists the adopted session among the firing's sessions.
+      const trigger = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'GetAgentTrigger', triggerId: createdTrigger.trigger.id},
+        }),
+      )
+      if (trigger._ !== 'GetAgentTriggerResponse') throw new Error('unexpected response')
+      expect(trigger.sessions.map((session) => session.id)).toEqual([first.id])
+      // Its firing is the headless run's record, still marked done by that run.
+      expect(
+        db
+          .query<{status: string; session_id: string | null}, []>(`SELECT status, session_id FROM trigger_firings`)
+          .get(),
+      ).toEqual({status: 'succeeded', session_id: first.id})
+    } finally {
+      globalThis.fetch = originalFetch
+      svc?.stopRunQueue()
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
   test('authored tool composes through a durable wait workflow and the completed plan keeps its run owner', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch

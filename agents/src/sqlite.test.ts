@@ -123,10 +123,88 @@ describe('sqlite', () => {
     }
   })
 
-  test('a database one migration behind gains trigger claims and history fields', () => {
+  test('a database one migration behind links trigger-launched workflow sessions to their firing', () => {
+    // Before this migration a headless (script/tool) trigger's workflow spawned child sessions that
+    // nothing tied back to the firing: no parent session, and the firing's session_id stayed null.
+    const db = createMemoryDatabase()
+    try {
+      db.run(sqlite.schema)
+      db.run(`INSERT INTO server_config (key, value) VALUES (?, ?)`, [
+        sqlite.SCHEMA_MIGRATION_VERSION_KEY,
+        String(sqlite.desiredVersion - 1),
+      ])
+      const now = 1_700_000_000_000
+      db.run(`INSERT INTO accounts (id, created_at, updated_at) VALUES ('acct', ?, ?)`, [now, now])
+      db.run(
+        `INSERT INTO agents (id, account_id, definition_cbor, state_dir, status, created_at, updated_at)
+         VALUES ('agent', 'acct', X'A0', '/tmp/agent', 'idle', ?, ?)`,
+        [now, now],
+      )
+      db.run(
+        `INSERT INTO agent_triggers (id, account_id, agent_id, name, enabled, source_cbor, prompt, created_at, updated_at)
+         VALUES ('trig', 'acct', 'agent', 'GitHub', 1, X'A0', '', ?, ?)`,
+        [now, now],
+      )
+      for (const id of ['s-first', 's-second', 's-chat', 's-chat-child']) {
+        db.run(
+          `INSERT INTO sessions (id, account_id, agent_id, status, created_at, updated_at) VALUES (?, 'acct', 'agent', 'idle', ?, ?)`,
+          [id, now, now],
+        )
+      }
+      // Firing → headless workflow root (no session) → two agent children, each with its own session.
+      db.run(
+        `INSERT INTO trigger_firings (id, account_id, agent_id, trigger_id, activity_key, activity_cbor, run_id, status, created_at)
+         VALUES ('f1', 'acct', 'agent', 'trig', 'webhook:d1', X'A0', 'firing-f1', 'succeeded', ?)`,
+        [now],
+      )
+      const insertRun = (
+        id: string,
+        parent: string | null,
+        kind: string,
+        session: string | null,
+        firing: string | null,
+        at: number,
+      ) =>
+        db.run(
+          `INSERT INTO runs (id, account_id, root_run_id, parent_run_id, kind, agent_id, session_id, trigger_firing_id, origin, input_cbor, status, created_at, updated_at)
+           VALUES (?, 'acct', ?, ?, ?, 'agent', ?, ?, 'workflow', X'A0', 'succeeded', ?, ?)`,
+          [id, parent ? parent : id, parent, kind, session, firing, at, at],
+        )
+      insertRun('firing-f1', null, 'workflow', null, 'f1', now)
+      insertRun('child-1', 'firing-f1', 'agent', 's-first', null, now + 1)
+      insertRun('child-2', 'firing-f1', 'agent', 's-second', null, now + 2)
+      // A workflow launched from a chat already nests its child under that chat; it must not change.
+      insertRun('wf-chat', null, 'workflow', 's-chat', null, now)
+      insertRun('child-chat', 'wf-chat', 'agent', 's-chat-child', null, now + 1)
+      db.run(`UPDATE sessions SET parent_session_id = 's-chat' WHERE id = 's-chat-child'`)
+
+      expect(sqlite.openWithDatabase(db).ok).toBe(true)
+      const firing = db
+        .query<{session_id: string | null}, []>(`SELECT session_id FROM trigger_firings WHERE id = 'f1'`)
+        .get()
+      expect(firing?.session_id).toBe('s-first')
+      const parents = db
+        .query<{id: string; parent_session_id: string | null}, []>(
+          `SELECT id, parent_session_id FROM sessions ORDER BY id`,
+        )
+        .all()
+      expect(parents).toEqual([
+        {id: 's-chat', parent_session_id: null},
+        {id: 's-chat-child', parent_session_id: 's-chat'},
+        {id: 's-first', parent_session_id: null},
+        {id: 's-second', parent_session_id: 's-first'},
+      ])
+      expect(getConfigValue(db, sqlite.SCHEMA_MIGRATION_VERSION_KEY)).toBe(String(sqlite.desiredVersion))
+    } finally {
+      sqlite.closeDatabase(db)
+    }
+  })
+
+  test('a database behind the trigger-claims migration gains its claims and history fields', () => {
     // The array is prepend-only and reversed on apply, so the newest migration must sit at the
     // top: placed lower, a deployed database would replay an older migration (tolerated as
-    // "already exists") and never receive the new column.
+    // "already exists") and never receive the new column. The claims migration is second from the
+    // top (the firing-session link migration sits above it), so start two versions behind.
     const db = createMemoryDatabase()
     try {
       db.run(
@@ -138,7 +216,7 @@ describe('sqlite', () => {
       expect(columnExists(db, 'agent_triggers', 'merged_into')).toBe(false)
       db.run(`INSERT INTO server_config (key, value) VALUES (?, ?)`, [
         sqlite.SCHEMA_MIGRATION_VERSION_KEY,
-        String(sqlite.desiredVersion - 1),
+        String(sqlite.desiredVersion - 2),
       ])
       const result = sqlite.openWithDatabase(db)
       expect(result.ok).toBe(true)

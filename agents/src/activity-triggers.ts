@@ -195,8 +195,48 @@ export function activitySummary(event: ActivityFeedEvent): string {
     const kind = stringField(event, 'scheduleKind') || 'schedule'
     return scheduledAt ? `Scheduled ${kind} at ${new Date(scheduledAt).toISOString()}` : 'Scheduled run'
   }
+  if (type === 'webhook') return webhookSummary(event)
   const title = stringField(recordField(recordField(event, 'target') || {}, 'metadata') || {}, 'name')
   return title ? `${type || 'activity'} on ${title}` : type || 'Seed activity'
+}
+
+/**
+ * What a webhook delivery was about, read from the payload rather than the bare word "webhook".
+ * GitHub's payloads name their subject (issue, pull request, discussion), the action, and the
+ * sender, so a firing can say "GitHub issue #1156 opened “…” by ericvicenti". Anything else is
+ * named by its delivery key.
+ */
+export function webhookSummary(event: ActivityFeedEvent): string {
+  const payload = recordField(event, 'payload')
+  if (payload) {
+    const action = stringField(payload, 'action')?.replace(/_/gu, ' ')
+    const sender = recordField(payload, 'sender')
+    const login = sender ? stringField(sender, 'login') : undefined
+    const by = login ? ` by ${login}` : ''
+    const subjects: Array<[key: string, label: string]> = [
+      ['pull_request', 'pull request'],
+      ['issue', 'issue'],
+      ['discussion', 'discussion'],
+    ]
+    for (const [key, label] of subjects) {
+      const subject = recordField(payload, key)
+      if (!subject) continue
+      const number = numberField(subject, 'number')
+      const title = stringField(subject, 'title')
+      const what = recordField(payload, 'comment')
+        ? `comment on ${label}`
+        : recordField(payload, 'review')
+          ? `review on ${label}`
+          : label
+      const head = `GitHub ${what}${number !== undefined ? ` #${number}` : ''}`
+      return `${head}${action ? ` ${action}` : ''}${title ? ` “${title}”` : ''}${by}`
+    }
+    const repository = recordField(payload, 'repository')
+    const repo = repository ? stringField(repository, 'full_name') : undefined
+    if (repo) return `GitHub ${action || 'event'} on ${repo}${by}`
+  }
+  const deliveryKey = stringField(event, 'deliveryKey')
+  return deliveryKey ? `Webhook delivery ${deliveryKey}` : 'Webhook delivery'
 }
 
 function matchesDocumentComment(

@@ -14,6 +14,23 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // A trigger-launched workflow's child sessions were recorded nowhere as the firing's: the firing
+  // adopts the first one as its session (so it carries "Triggered by" and appears on the trigger's
+  // page) and any later child of the same firing nests under that first one.
+  `UPDATE trigger_firings SET session_id = (
+      SELECT s.id FROM runs r JOIN sessions s ON s.id = r.session_id
+      WHERE r.parent_run_id = trigger_firings.run_id AND r.kind = 'agent' AND s.parent_session_id IS NULL
+      ORDER BY r.created_at ASC LIMIT 1)
+    WHERE session_id IS NULL AND run_id IS NOT NULL AND EXISTS (
+      SELECT 1 FROM runs r JOIN sessions s ON s.id = r.session_id
+      WHERE r.parent_run_id = trigger_firings.run_id AND r.kind = 'agent' AND s.parent_session_id IS NULL);
+  UPDATE sessions SET parent_session_id = (
+      SELECT f.session_id FROM runs r JOIN trigger_firings f ON f.run_id = r.parent_run_id
+      WHERE r.session_id = sessions.id AND r.kind = 'agent' AND f.session_id IS NOT NULL AND f.session_id <> sessions.id
+      LIMIT 1)
+    WHERE parent_session_id IS NULL AND EXISTS (
+      SELECT 1 FROM runs r JOIN trigger_firings f ON f.run_id = r.parent_run_id
+      WHERE r.session_id = sessions.id AND r.kind = 'agent' AND f.session_id IS NOT NULL AND f.session_id <> sessions.id);`,
   // Combining triggers preserves their original firings while the survivor inherits every claim.
   `ALTER TABLE agent_triggers ADD COLUMN merged_into TEXT;
   ALTER TABLE trigger_firings ADD COLUMN context_cbor BLOB;

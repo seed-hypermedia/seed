@@ -6416,6 +6416,26 @@ export class Service {
       }
       cursor = cursor.parentRunId ? runs.getRun(this.#db, accountId, cursor.parentRunId) : null
     }
+    // A trigger-launched workflow has no chat session anywhere above it: the firing is where it
+    // came from. Without a link the child lands in the session list as an unexplained top-level
+    // chat — no "Triggered by" pill, no card, nothing to go up to. So the firing adopts the first
+    // session its workflow spawns as its record (the same link a thread firing gets at creation),
+    // and later children of the same firing nest under that first one, so one firing reads as one
+    // thread. A failed workflow that escalates to a thread still re-points the firing at that
+    // thread: the escalation is where a person is asked to look.
+    let adoptingFiringId: string | undefined
+    if (!ancestorSessionId) {
+      const root =
+        workflowRun.rootRunId === workflowRun.id ? workflowRun : runs.getRun(this.#db, accountId, workflowRun.rootRunId)
+      if (root?.triggerFiringId) {
+        const firing = stmt<{session_id: string | null}, [string, string]>(
+          this.#db,
+          `SELECT session_id FROM trigger_firings WHERE account_id = ? AND id = ?`,
+        ).get(accountId, root.triggerFiringId)
+        if (firing?.session_id) ancestorSessionId = firing.session_id
+        else if (firing) adoptingFiringId = root.triggerFiringId
+      }
+    }
     // Same contract as #spawnSubSession: a requested model resolves against this agent's enabled
     // set and becomes the child session's override. Scripts share normalizeSubSessionSpec, so
     // skipping this here silently ran ctx.delegate({model}) children on the agent's default model.
@@ -6430,6 +6450,13 @@ export class Service {
       titleSource: spec.title ? 'agent' : 'system',
       ...(modelOverride ? {modelOverride} : {}),
     })
+    if (adoptingFiringId) {
+      stmt(
+        this.#db,
+        `UPDATE trigger_firings SET session_id = ? WHERE account_id = ? AND id = ? AND session_id IS NULL`,
+      ).run([session.sessionId, accountId, adoptingFiringId])
+      this.#forgetSessionDerived(accountId, session.sessionId)
+    }
     const rendered = renderSubSessionInput(spec.input)
     this.#appendSessionEvent(
       accountId,
