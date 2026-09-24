@@ -455,39 +455,43 @@ export function SearchResultItem({
           </SizableText>
         )}
 
-        {!!item.path && (item.subtitle === 'Profile' || unpackedId?.latest || item.versionTime) && (
-          <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-            <div className="flex min-w-0 flex-1 items-center">
-              {!!item.path && (
-                <SizableText size="xs" weight="light" className="line-clamp-1 truncate font-sans text-gray-400">
-                  {collapsedPath.join(' / ')}
-                </SizableText>
-              )}
-            </div>
-
-            {/* Type column */}
-            <Tooltip content={item.versionTime || 'No timestamp available'}>
-              <SizableText
-                className={cn(
-                  'flex-none whitespace-nowrap',
-                  // Same blue as the "Open Space" link on the profile page, so an account never reads as a document.
-                  item.subtitle === 'Profile' ? 'text-blue-500' : 'text-gray-400',
+        {(() => {
+          const isProfile = item.subtitle === 'Profile'
+          if (!item.path || !(isProfile || unpackedId?.latest || item.versionTime)) return null
+          return (
+            <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+              <div className="flex min-w-0 flex-1 items-center">
+                {!!item.path && (
+                  <SizableText size="xs" weight="light" className="line-clamp-1 truncate font-sans text-gray-400">
+                    {collapsedPath.join(' / ')}
+                  </SizableText>
                 )}
-                size="xs"
-                weight="light"
-                color={unpackedId?.latest ? 'success' : 'default'}
-              >
-                {item.subtitle === 'Profile'
-                  ? 'Profile'
-                  : unpackedId?.latest
-                    ? 'Latest Version'
-                    : item.versionTime
-                      ? 'Previous Version'
-                      : ''}
-              </SizableText>
-            </Tooltip>
-          </div>
-        )}
+              </div>
+
+              {/* Type column */}
+              <Tooltip content={item.versionTime || 'No timestamp available'}>
+                <SizableText
+                  className={cn(
+                    'flex-none whitespace-nowrap',
+                    // Same blue as the "Open Space" link on the profile page, so an account never reads as a document.
+                    isProfile ? 'text-blue-500' : 'text-gray-400',
+                  )}
+                  size="xs"
+                  weight="light"
+                  color={!isProfile && unpackedId?.latest ? 'success' : 'default'}
+                >
+                  {isProfile
+                    ? 'Profile'
+                    : unpackedId?.latest
+                      ? 'Latest Version'
+                      : item.versionTime
+                        ? 'Previous Version'
+                        : ''}
+                </SizableText>
+              </Tooltip>
+            </div>
+          )
+        })()}
       </div>
     </Button>
   )
