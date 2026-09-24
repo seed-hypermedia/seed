@@ -66,8 +66,10 @@ export const SearchInput = forwardRef<
   const [internalSearch, setInternalSearch] = useState('')
   const search = externalSearch !== undefined ? externalSearch : internalSearch
   const setSearch = onExternalSearchChange || setInternalSearch
-  const debouncedSearch = useDebounce(search, 200)
-  const isSearchPending = search !== debouncedSearch
+  // Trim pasted whitespace for URL handling and search; the input still shows the raw text.
+  const query = search.trim()
+  const debouncedSearch = useDebounce(query, 200)
+  const isSearchPending = query !== debouncedSearch
 
   const [focusedIndex, setFocusedIndex] = useState(0)
   const [actionPromise, setActionPromise] = useState<Promise<void> | null>(null)
@@ -96,9 +98,9 @@ export const SearchInput = forwardRef<
     ) {
       return {
         key: 'mtt-link',
-        title: `Query ${search}`,
+        title: `Query ${query}`,
         onSelect: async () => {
-          const deepLinkEvent = parseDeepLink(search)
+          const deepLinkEvent = parseDeepLink(query)
           if (deepLinkEvent) {
             onClose?.()
             triggerWindowEvent(deepLinkEvent)
@@ -106,7 +108,7 @@ export const SearchInput = forwardRef<
           }
 
           // ipfs:// URLs: DAG-CBOR CIDs open in the blob editor, others in the inspector.
-          const ipfsRoute = ipfsUrlToRoute(search)
+          const ipfsRoute = ipfsUrlToRoute(query)
           if (ipfsRoute) {
             onClose?.()
             onSelect({route: ipfsRoute})
@@ -121,7 +123,7 @@ export const SearchInput = forwardRef<
             activityFilter: searchActivityFilter,
             commentId: searchCommentId,
             accountUid: searchAccountUid,
-          } = extractViewTermFromUrl(search)
+          } = extractViewTermFromUrl(query)
           const searchRouteKey = viewTermToRouteKey(searchViewTerm)
           const unpacked = unpackHmId(cleanSearch)
           const appRoute = unpacked ? appRouteOfId(unpacked) : null
@@ -139,17 +141,17 @@ export const SearchInput = forwardRef<
               ),
               id: unpacked,
             })
-          } else if (search.startsWith('http://') || search.startsWith('https://') || search.includes('.')) {
+          } else if (query.startsWith('http://') || query.startsWith('https://') || query.includes('.')) {
             if (allowWebURL) {
-              onSelect({webUrl: search})
+              onSelect({webUrl: query})
             }
 
             setActionPromise(
-              handleUrl(search)
+              handleUrl(query)
                 .then((navRoute) => {
                   if (navRoute) {
                     onClose?.()
-                    onSelect({route: navRoute, webUrl: search})
+                    onSelect({route: navRoute, webUrl: query})
                   }
                 })
                 .catch((error) => {
@@ -172,7 +174,7 @@ export const SearchInput = forwardRef<
       }
     }
     return null
-  }, [debouncedSearch, search, triggerWindowEvent])
+  }, [debouncedSearch, query, triggerWindowEvent])
 
   const searchItems: SearchResult[] =
     searchResults?.data?.entities
