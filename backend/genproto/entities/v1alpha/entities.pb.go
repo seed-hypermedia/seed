@@ -353,20 +353,15 @@ type DiscoverEntityRequest struct {
 	// `account` + `path` + `recursive`.
 	//
 	// Examples — exact path:
-	//
-	//	"hm://ACCOUNT_ID"                   — everything at account root
-	//	"hm://ACCOUNT_ID/notes/foo"         — everything at /notes/foo
-	//
+	//   "hm://ACCOUNT_ID"                   — everything at account root
+	//   "hm://ACCOUNT_ID/notes/foo"         — everything at /notes/foo
 	// Examples — wildcards (must be the final path segment):
-	//
-	//	"hm://ACCOUNT_ID/notes/*"           — direct children of /notes only
-	//	"hm://ACCOUNT_ID/notes/**"          — /notes and everything under it
-	//	"hm://ACCOUNT_ID/**"                — entire account
-	//
+	//   "hm://ACCOUNT_ID/notes/*"           — direct children of /notes only
+	//   "hm://ACCOUNT_ID/notes/**"          — /notes and everything under it
+	//   "hm://ACCOUNT_ID/**"                — entire account
 	// Examples — scope keyword (suffix on the last path segment):
-	//
-	//	"hm://ACCOUNT_ID/:profile"          — profile blobs at account root
-	//	"hm://ACCOUNT_ID/notes/foo:profile" — profile blobs at /notes/foo
+	//   "hm://ACCOUNT_ID/:profile"          — profile blobs at account root
+	//   "hm://ACCOUNT_ID/notes/foo:profile" — profile blobs at /notes/foo
 	//
 	// Wildcards and scope keywords are mutually exclusive in a single URL.
 	// Reserved (not yet implemented): "/path:directory".

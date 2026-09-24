@@ -33,7 +33,7 @@ Every command below was checked against the repository on branch feat/onyx in Se
 
 # Setting up <!-- id:mePBDhAD -->
 
-The toolchain is pinned in `mise.toml` and activated by `direnv`: Go 1.26.2, Node 22.22.0, pnpm 10.32.0, Bun 1.3.10, protoc 24.4, golangci-lint 2.12.2, Please, and mprocs for the dev stack. <!-- id:kSqWFI66 -->
+The toolchain versions are pinned in `mise.toml` and activated by `direnv`. <!-- id:kSqWFI66 -->
 
 Install [mise](https://mise.jdx.dev) and [direnv](https://direnv.net) and hook direnv into your shell, then clone the repository and allow the environment. The first `direnv allow` installs the pinned tools, initializes the `llama-go` submodule, downloads the [embedding model](../apps/daemon.md) and builds the llama.cpp libraries, which takes a few minutes. <!-- id:UzZJf2g1 -->
 

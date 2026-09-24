@@ -1,8 +1,6 @@
 module gorun
 
-go 1.23
-
-toolchain go1.23.3
+go 1.27.1
 
 require golang.org/x/tools v0.4.0
 

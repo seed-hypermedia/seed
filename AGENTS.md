@@ -58,6 +58,10 @@ See `hypermedia/*` for the available docs, which you are responsible for helping
 - Use OS temp dir for scratch files. Clean up after you're done.
 - Ask for elevated permissions instead of working around sandboxing issues (if you can run in a sandbox).
 - This repo uses `mise` + `direnv` for toolchain setup. Run repository commands as `direnv exec . <command>`.
+- `mise.toml` is the source of truth for global toolchain versions. Declare tools not already managed by a dependency
+  manager (such as pnpm, Bun, or Go modules) there with explicit, pinned versions. When adding or updating a toolchain,
+  start with `mise.toml`, then pin the same exact version in CI, Dockerfiles, and other consumers that do not use mise;
+  do not use floating versions in those consumers.
 
 ## Local CI
 

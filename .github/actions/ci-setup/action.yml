@@ -21,7 +21,7 @@ runs:
     - name: 'Setup Go'
       uses: actions/setup-go@v5
       with:
-        go-version: '1.26.2'
+        go-version: '1.27.1'
 
     - name: 'Install native packages'
       if: inputs.matrix-os == 'ubuntu-latest'
@@ -97,14 +97,14 @@ runs:
           backend/util/llama-go/build
         key: llama-${{ inputs['matrix-os'] }}-${{ steps.llama-sha.outputs.sha }}
 
-    - name: "Build llama.cpp (Linux)"
+    - name: 'Build llama.cpp (Linux)'
       if: inputs.matrix-os == 'ubuntu-latest' && steps.llama-cache-unix.outputs.cache-hit != 'true'
       run: |
         cd backend/util/llama-go
         BUILD_TYPE=vulkan CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF" make libbinding.a
       shell: bash
 
-    - name: "Build llama.cpp (macOS)"
+    - name: 'Build llama.cpp (macOS)'
       if: startsWith(inputs.matrix-os, 'macos') && steps.llama-cache-unix.outputs.cache-hit != 'true'
       run: |
         cd backend/util/llama-go
@@ -113,7 +113,7 @@ runs:
       env:
         MACOSX_DEPLOYMENT_TARGET: '13.0'
 
-    - name: "Build llama.cpp (Windows)"
+    - name: 'Build llama.cpp (Windows)'
       if: ${{ startsWith(inputs['matrix-os'], 'windows') && steps.llama-cache-windows.outputs.cache-hit != 'true' }}
       shell: bash
       run: |
@@ -214,7 +214,7 @@ runs:
       uses: actions/setup-node@v4
       with:
         node-version: 22
-        cache: "pnpm"
+        cache: 'pnpm'
 
     - name: Install Frontend Dependencies
       run: pnpm install --frozen-lockfile --prefer-offline

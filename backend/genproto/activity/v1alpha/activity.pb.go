@@ -97,7 +97,6 @@ type ListEventsRequest struct {
 	//   - doc/Embed: was embeded in a document
 	//   - doc/Link: was linked in a document
 	//   - doc/Button: was added as a button in a document
-	//
 	// Multiple types are filtered following OR logic.
 	FilterEventType []string `protobuf:"bytes,5,rep,name=filter_event_type,json=filterEventType,proto3" json:"filter_event_type,omitempty"`
 	// Optional. If we want events only from specific resource IDs.
