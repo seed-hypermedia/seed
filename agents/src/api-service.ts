@@ -7858,7 +7858,7 @@ export class Service {
           tool: event.toolName,
           toolCallId: event.toolCallId,
           input:
-            containsPrivateData(event.args) ||
+            containsPrivateData({toolName: event.toolName, input: event.args}) ||
             event.toolName === 'browser' ||
             this.#browserPrivacy.sessionIsPrivate(sessionId)
               ? '[private]'
@@ -8312,6 +8312,7 @@ export class Service {
       `INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`,
     ).run([id, sessionId, seq, cbor.encode(event), now])
     const info = {id, sessionId, seq, event, createdAt: now}
+    this.#browserPrivacy.recordSessionEvent(info)
     this.#recordAgentActivity(agentId, sessionId, event, now)
     // Content stream: every event reaches the open session view immediately.
     this.#emit({type: 'session-event', accountId, agentId, event: info})
@@ -8458,6 +8459,7 @@ export class Service {
   }
 
   #emit(event: ServiceEvent): void {
+    if (event.type === 'run-append') this.#browserPrivacy.recordRunEntry(event.entry)
     const onEvent = this.#onEvent
     if (!onEvent) return
     onEvent(event)
