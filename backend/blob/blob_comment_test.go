@@ -71,6 +71,7 @@ func TestCommentCausality(t *testing.T) {
 			Text: "I reply to reply",
 		}},
 	}, VisibilityPublic, clock.MustNow())
+	require.NoError(t, err)
 
 	blobs := colx.SlicePermutations([]struct {
 		Name string
