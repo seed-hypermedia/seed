@@ -44,13 +44,15 @@ afterEach(() => {
   container.remove()
   vi.unstubAllGlobals()
 })
+/** Clicks a button by its text or accessible name; the info popover portals out of the container. */
 async function click(text: string) {
-  const button = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === text)
+  const button = Array.from(document.querySelectorAll('button')).find(
+    (button) => button.textContent === text || button.getAttribute('aria-label') === text,
+  )
   expect(button).toBeTruthy()
   await act(async () => {
     button!.click()
   })
-  if (text === 'Run widget') await runningFrame()
   if (text === 'Open in browser')
     await vi.waitFor(async () => {
       await act(async () => {})
@@ -67,7 +69,7 @@ async function runningFrame() {
 }
 
 describe('agent apps', () => {
-  it('runs on sight, keeps its iframe on transcript rerender, stops on request, and runs again', async () => {
+  it('runs on sight as a bare bubble, keeps its iframe on transcript rerender, and explains itself on request', async () => {
     const markdown = '```seed-widget\n' + JSON.stringify({app: reference}) + '\n```'
     const render = (suffix = '') => (
       <MarkdownAssetContext.Provider value={scope}>
@@ -79,13 +81,20 @@ describe('agent apps', () => {
     expect(mocks.request).toHaveBeenCalledTimes(1)
     expect(frame.getAttribute('sandbox')).toBe('allow-scripts')
     expect(frame.srcdoc).toContain('frame-src data:')
+    // No chrome: the app is the bubble. The only control outside the app's GUI is the info button.
+    const buttons = Array.from(container.querySelectorAll('button'))
+    expect(buttons.map((button) => button.getAttribute('aria-label') ?? button.textContent)).toEqual(['About this app'])
+    expect(container.textContent).not.toContain('Sandboxed')
+    expect(container.textContent).not.toContain(app.title)
     act(() => root.render(render('\n\nMore text streamed')))
     expect(container.querySelector('iframe')).toBe(frame)
-    await click('Stop widget')
-    expect(container.querySelector('iframe')).toBeNull()
-    await click('Run widget')
-    // The revision is already verified; a restart does not fetch it again.
-    expect(mocks.request).toHaveBeenCalledTimes(1)
+    // The details live behind the info button: title, immutable revision, sandbox note, browser link.
+    await click('About this app')
+    await vi.waitFor(() => expect(document.body.textContent).toContain(reference))
+    expect(document.body.textContent).toContain(app.title)
+    expect(document.body.textContent).toContain('sandbox')
+    expect(Array.from(document.querySelectorAll('button')).some((b) => b.textContent === 'Open in browser')).toBe(true)
+    expect(container.querySelector('iframe')).toBe(frame)
   })
   it('shows the failure instead of a frame when the revision cannot be loaded', async () => {
     mocks.request.mockResolvedValueOnce({_: 'ReadSessionAttachmentResponse', attachment: {mimeType: 'text/html'}, data})
@@ -139,6 +148,9 @@ describe('agent apps', () => {
   })
   it('opens through the integrated browser and identifies the app in window context', async () => {
     act(() => root.render(<AgentAppWidget reference={reference} height={400} scope={scope} />))
+    await runningFrame()
+    await click('About this app')
+    await vi.waitFor(() => expect(document.body.textContent).toContain('Open in browser'))
     await click('Open in browser')
     expect(mocks.open).toHaveBeenCalledWith(app)
     const route = {key: 'web' as const, url: 'http://127.0.0.1:4567/local-app', title: app.title}
