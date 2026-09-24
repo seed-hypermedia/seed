@@ -101,7 +101,7 @@ import {
   encodeAssistantSessionRef,
   type AssistantSessionRef,
 } from './assistant-session-ref'
-import {AgentProtocolError, AgentServerError, type AgentInfo} from './client'
+import {AgentProtocolError, AgentServerError, type AgentInfo, type SessionInfo} from './client'
 import {describeAgentError} from './errors'
 import {useAssistantWindowContextLines} from './assistant-window-context'
 import {
@@ -117,6 +117,11 @@ import {SessionSummaryBanner} from './session-children'
 import {NewSessionComposer} from './new-session-composer'
 import {AgentSessionsFeed, type AgentSessionsFeedProblem} from './sessions-feed'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
+
+/** Whether a trigger, not a person, opened this session. The server stamps the trigger on the row. */
+function isTriggeredSession(session: SessionInfo): boolean {
+  return session.startedByTrigger !== undefined
+}
 
 /**
  * Assistant sidebar.
@@ -351,16 +356,21 @@ export function AssistantPanel({
 
   // The list: every agent's chats, or the chosen agent's own paged list — filtered on the server,
   // so a quiet agent is not found by paging through everyone else's.
+  //
+  // Sessions a trigger started are left out on both paths: the panel is the user's own
+  // conversations with their agents, and a scheduled or event-driven run is not one of those. They
+  // stay reachable from the agent's page, whose feed shows every session with a "Triggered by" chip.
   const agentSessionPages = useAgentSessions(filterAgent?.serverUrl, accountUid, filterAgent?.agent.id)
   const listEntries = useMemo<AgentSessionListEntry[]>(() => {
     if (selection.filterPending) return []
-    if (!filterAgent) return allSessions
+    if (!filterAgent) return allSessions.filter((entry) => !isTriggeredSession(entry.session))
     const seen = new Set<string>()
     const entries: AgentSessionListEntry[] = []
     for (const page of agentSessionPages.data?.pages ?? []) {
       for (const session of page.sessions) {
         if (seen.has(session.id)) continue
         seen.add(session.id)
+        if (isTriggeredSession(session)) continue
         entries.push({serverUrl: filterAgent.serverUrl, session, agent: filterAgent.agent})
       }
     }

@@ -3,7 +3,7 @@ import {activityConditions, type AgentActivitySource, type AgentToolInfo} from '
 import {Button} from '@shm/ui/button'
 import {Dialog, DialogContent, DialogFooter, DialogTitle} from '@shm/ui/components/dialog'
 import {Textarea} from '@shm/ui/components/textarea'
-import {useNavigate} from './navigation'
+import {useNavigate, useOpenUrl} from './navigation'
 import {useAccount, useResource, useSelectedAccountId} from '@shm/shared/models/entity'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {mentionCandidateSubtitle} from '@shm/shared/models/mention-ranking'
@@ -24,6 +24,7 @@ import {
   CalendarClock,
   ChevronDown,
   ChevronRight,
+  ExternalLink,
   FileText,
   MessageSquare,
   Pencil,
@@ -1111,6 +1112,7 @@ export function TriggerContextView({
         <span>Fired {formattedDateMedium(new Date(context.firedAt))}</span>
         {context.status && context.status !== 'fired' ? <span>Status: {context.status}</span> : null}
       </div>
+      {context.source.type === 'webhook' ? <WebhookActivityPreview activity={context.activity} /> : null}
       {context.error ? (
         <Notice size="sm" title="Trigger error" className="mt-2">
           {context.error}
@@ -1157,6 +1159,80 @@ export function TriggerContextView({
       ) : null}
     </div>
   )
+}
+
+/**
+ * What a GitHub webhook delivered, read out of its payload: the issue, pull request, discussion,
+ * comment, or review — its title, who wrote it, the text itself, and a link back to GitHub. A
+ * session a GitHub event started then opens on the thing that started it, the way a session a
+ * Seed comment started opens on that comment, instead of on a JSON blob behind a disclosure.
+ * Payloads from other senders render nothing here; the raw JSON stays under "Activity details".
+ */
+function WebhookActivityPreview({activity}: {activity: Record<string, unknown>}) {
+  const openUrl = useOpenUrl()
+  const github = useMemo(() => describeGitHubWebhook(activity), [activity])
+  if (!github) return null
+  return (
+    <div className="bg-background/60 flex min-w-0 flex-col gap-1.5 rounded-md border p-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="text-muted-foreground shrink-0">{github.kind}</span>
+        {github.title ? <span className="text-foreground min-w-0 font-medium break-words">{github.title}</span> : null}
+        {github.author ? <span className="text-muted-foreground shrink-0">by {github.author}</span> : null}
+        {github.url ? (
+          <button
+            type="button"
+            title="Open on GitHub"
+            onClick={(event) => openUrl(github.url!, event.metaKey || event.shiftKey)}
+            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring ml-auto flex shrink-0 items-center gap-1 rounded-sm hover:underline focus-visible:ring-2 focus-visible:outline-none"
+          >
+            <ExternalLink className="size-3" />
+            GitHub
+          </button>
+        ) : null}
+      </div>
+      {github.body ? (
+        <p className="text-foreground max-h-60 overflow-y-auto text-xs break-words whitespace-pre-wrap">
+          {github.body}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+/** The subject of a GitHub webhook payload, or null when the payload is not GitHub-shaped. */
+export function describeGitHubWebhook(
+  activity: Record<string, unknown>,
+): {kind: string; title?: string; author?: string; body?: string; url?: string} | null {
+  const payload = recordField(activity, 'payload')
+  if (!payload) return null
+  const parent =
+    (recordField(payload, 'pull_request') && {record: recordField(payload, 'pull_request')!, label: 'pull request'}) ||
+    (recordField(payload, 'issue') && {record: recordField(payload, 'issue')!, label: 'issue'}) ||
+    (recordField(payload, 'discussion') && {record: recordField(payload, 'discussion')!, label: 'discussion'}) ||
+    null
+  const comment = recordField(payload, 'comment') || recordField(payload, 'review')
+  const commentLabel = recordField(payload, 'review') ? 'Review' : 'Comment'
+  if (!parent && !comment) return null
+  const number = parent ? numberField(parent.record, 'number') : undefined
+  const parentName = parent ? `${parent.label}${number !== undefined ? ` #${number}` : ''}` : undefined
+  const subject = comment ?? parent!.record
+  const author = recordField(subject, 'user')
+  const action = stringField(payload, 'action')?.replace(/_/gu, ' ')
+  const kind = comment
+    ? `${commentLabel} on ${parentName ?? 'GitHub'}`
+    : `${parentName![0]!.toUpperCase()}${parentName!.slice(1)}${action ? ` ${action}` : ''}`
+  return {
+    kind,
+    ...(parent && stringField(parent.record, 'title') ? {title: stringField(parent.record, 'title')} : {}),
+    ...(author && stringField(author, 'login') ? {author: stringField(author, 'login')} : {}),
+    ...(stringField(subject, 'body') ? {body: stringField(subject, 'body')} : {}),
+    ...(stringField(subject, 'html_url') ? {url: stringField(subject, 'html_url')} : {}),
+  }
+}
+
+function numberField(value: Record<string, unknown>, key: string): number | undefined {
+  const field = value[key]
+  return typeof field === 'number' && Number.isFinite(field) ? field : undefined
 }
 
 /** Renders text that navigates to `route` when present, or plain text when there is nowhere to link. */
