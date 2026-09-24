@@ -63,6 +63,29 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Comment identity is account authority + TSID. Rebuild the derived live-comment
+	// table with that compound key so delegated signer rotation keeps one comment
+	// while unrelated authorities can never compete for the same TSID.
+	{Version: "2026-09-24.090500", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			DROP TABLE IF EXISTS comment_live;
+			CREATE TABLE comment_live (
+			    authority INTEGER REFERENCES public_keys (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+			    tsid TEXT NOT NULL,
+			    blob_id INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+			    genesis TEXT NOT NULL,
+			    resource INTEGER REFERENCES resources (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+			    ts INTEGER NOT NULL,
+			    PRIMARY KEY (authority, tsid)
+			) WITHOUT ROWID;
+			CREATE INDEX comment_live_by_genesis ON comment_live (genesis, ts);
+			CREATE INDEX comment_live_by_resource ON comment_live (resource, ts);
+			CREATE INDEX comment_live_by_blob ON comment_live (blob_id);
+		`)); err != nil {
+			return err
+		}
+		return scheduleReindex(conn)
+	}},
 	// Add independently backfilled summaries of references in published
 	// document content. This is intentionally additive and does not schedule a
 	// full blob reindex; the bounded document-fields worker populates it.

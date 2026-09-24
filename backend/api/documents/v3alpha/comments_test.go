@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"seed/backend/api/apitest"
+	"seed/backend/blob"
 	"seed/backend/core/coretest"
 	pb "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/testutil"
 	"slices"
 	"testing"
+	"time"
 
+	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -1100,6 +1103,162 @@ func TestListCommentVersions(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, resp.Versions, 1, "pre-tombstone version still exists in the DB")
 	})
+}
+
+func TestDelegatedCommentMutationKeepsAccountAuthority(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	bob := coretest.NewTester("bob")
+	mallory := coretest.NewTester("carol")
+	ctx := context.Background()
+	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
+	require.NoError(t, alice.keys.StoreKey(ctx, "bob-session", bob.Device))
+	require.NoError(t, alice.keys.StoreKey(ctx, "mallory", mallory.Account))
+
+	homeDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "",
+		Changes: []*pb.DocumentChange{
+			{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Delegated comments"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	original, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "bob",
+		TargetAccount:  alice.me.Account.PublicKey.String(),
+		TargetPath:     "",
+		TargetVersion:  homeDoc.Version,
+		Content:        []*pb.BlockNode{{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "Original"}}},
+	})
+	require.NoError(t, err)
+
+	reply, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  alice.me.Account.PublicKey.String(),
+		TargetPath:     "",
+		TargetVersion:  homeDoc.Version,
+		ReplyParent:    original.Id,
+		Content:        []*pb.BlockNode{{Block: &pb.Block{Id: "b2", Type: "paragraph", Text: "Reply"}}},
+	})
+	require.NoError(t, err)
+
+	update := func(signingKey, text string) (*pb.Comment, error) {
+		return alice.UpdateComment(ctx, &pb.UpdateCommentRequest{
+			Comment: &pb.Comment{
+				Id:            original.Id,
+				TargetAccount: alice.me.Account.PublicKey.String(),
+				TargetPath:    "",
+				TargetVersion: homeDoc.Version,
+				Content:       []*pb.BlockNode{{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: text}}},
+			},
+			SigningKeyName: signingKey,
+		})
+	}
+
+	_, err = update("mallory", "Forged")
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
+
+	// Direct blob publication must enforce the same rule as the RPC. A claimed
+	// account authority is signed data, but it is not trusted without AGENT delegation.
+	rid, err := blob.DecodeRecordID(original.Id)
+	require.NoError(t, err)
+	targetVersion, err := blob.Version(homeDoc.Version).Parse()
+	require.NoError(t, err)
+	forged, err := blob.NewComment(
+		mallory.Account,
+		rid.TSID,
+		rid.Authority,
+		alice.me.Account.Principal(),
+		"",
+		targetVersion,
+		cid.Undef,
+		cid.Undef,
+		[]blob.CommentBlock{{Block: blob.Block{ID_Good: "forged", Type: "paragraph", Text: "Forged direct blob"}}},
+		blob.VisibilityPublic,
+		time.Now().Add(time.Hour).Round(blob.ClockPrecision),
+	)
+	require.NoError(t, err)
+	require.NoError(t, alice.idx.Put(ctx, forged))
+	unchanged, err := alice.GetComment(ctx, &pb.GetCommentRequest{Id: original.Id})
+	require.NoError(t, err)
+	require.Equal(t, "Original", unchanged.Content[0].Block.Text)
+
+	// The TSID namespace is authority-scoped. An unrelated signer can use the
+	// same TSID without replacing or merging the original account's comment.
+	unrelated, err := blob.NewComment(
+		mallory.Account,
+		rid.TSID,
+		mallory.Account.Principal(),
+		alice.me.Account.Principal(),
+		"",
+		targetVersion,
+		cid.Undef,
+		cid.Undef,
+		[]blob.CommentBlock{{Block: blob.Block{ID_Good: "unrelated", Type: "paragraph", Text: "Unrelated"}}},
+		blob.VisibilityPublic,
+		time.Now().Add(2*time.Hour).Round(blob.ClockPrecision),
+	)
+	require.NoError(t, err)
+	require.NoError(t, alice.idx.Put(ctx, unrelated))
+	unrelatedID := blob.RecordID{Authority: mallory.Account.Principal(), TSID: rid.TSID}.String()
+	unrelatedComment, err := alice.GetComment(ctx, &pb.GetCommentRequest{Id: unrelatedID})
+	require.NoError(t, err)
+	require.Equal(t, "Unrelated", unrelatedComment.Content[0].Block.Text)
+	unchanged, err = alice.GetComment(ctx, &pb.GetCommentRequest{Id: original.Id})
+	require.NoError(t, err)
+	require.Equal(t, "Original", unchanged.Content[0].Block.Text)
+
+	capability, err := blob.NewCapability(
+		bob.Account,
+		bob.Device.Principal(),
+		bob.Account.Principal(),
+		"",
+		blob.RoleAgent,
+		"comment session",
+		time.Now().Add(-time.Minute).Round(blob.ClockPrecision),
+	)
+	require.NoError(t, err)
+	require.NoError(t, alice.idx.Put(ctx, capability))
+
+	updated, err := update("bob-session", "Delegated update")
+	require.NoError(t, err)
+	require.Equal(t, original.Id, updated.Id)
+	require.Equal(t, bob.Account.PublicKey.String(), updated.Author)
+
+	got, err := alice.GetComment(ctx, &pb.GetCommentRequest{Id: original.Id})
+	require.NoError(t, err)
+	require.Equal(t, "Delegated update", got.Content[0].Block.Text)
+	require.Equal(t, original.Id, got.Id)
+
+	versions, err := alice.ListCommentVersions(ctx, &pb.ListCommentVersionsRequest{Id: original.Id})
+	require.NoError(t, err)
+	require.Len(t, versions.Versions, 2)
+	require.Equal(t, original.Id, versions.Versions[0].Id)
+	require.Equal(t, original.Id, versions.Versions[1].Id)
+
+	listed, err := alice.ListComments(ctx, &pb.ListCommentsRequest{
+		TargetAccount: alice.me.Account.PublicKey.String(),
+		TargetPath:    "",
+	})
+	require.NoError(t, err)
+	var listedReply *pb.Comment
+	for _, comment := range listed.Comments {
+		if comment.Id == reply.Id {
+			listedReply = comment
+			break
+		}
+	}
+	require.NotNil(t, listedReply)
+	require.Equal(t, original.Id, listedReply.ReplyParent)
+	require.Equal(t, original.Id, listedReply.ThreadRoot)
+
+	_, err = alice.DeleteComment(ctx, &pb.DeleteCommentRequest{Id: original.Id, SigningKeyName: "bob-session"})
+	require.NoError(t, err)
+	_, err = alice.GetComment(ctx, &pb.GetCommentRequest{Id: original.Id})
+	require.Equal(t, codes.NotFound, status.Code(err))
 }
 
 func TestCommentCitations(t *testing.T) {

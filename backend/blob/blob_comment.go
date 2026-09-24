@@ -48,6 +48,7 @@ type Comment struct {
 	BaseBlob
 	ID           TSID           `refmt:"id,omitempty"`
 	_            cid.Cid        `refmt:"capability,omitempty"` // deprecated
+	Account      core.Principal `refmt:"account,omitempty"`
 	Space_       core.Principal `refmt:"space,omitempty"`
 	Path         string         `refmt:"path,omitempty"`
 	Version      []cid.Cid      `refmt:"version,omitempty"`
@@ -61,6 +62,7 @@ type Comment struct {
 func NewComment(
 	kp *core.KeyPair,
 	id TSID,
+	account core.Principal,
 	space core.Principal,
 	path string,
 	version []cid.Cid,
@@ -70,8 +72,16 @@ func NewComment(
 	visibility Visibility,
 	ts time.Time,
 ) (eb Encoded[*Comment], err error) {
+	if account == nil {
+		return eb, fmt.Errorf("comment account cannot be nil")
+	}
+
 	if threadRoot.Equals(replyParent) {
 		replyParent = cid.Undef
+	}
+
+	if kp.Principal().Equal(account) {
+		account = nil
 	}
 
 	cu := &Comment{
@@ -81,6 +91,7 @@ func NewComment(
 			Signer: kp.Principal(),
 			Ts:     ts,
 		},
+		Account:      account,
 		Path:         path,
 		Version:      version,
 		ThreadRoot:   threadRoot,
@@ -114,6 +125,15 @@ func (c *Comment) ReplyParent() cid.Cid {
 		return c.ReplyParent_
 	}
 	return c.ThreadRoot
+}
+
+// Authority returns the stable account authority represented by this comment.
+// Legacy and directly signed comments omit Account and remain owned by their signer.
+func (c *Comment) Authority() core.Principal {
+	if len(c.Account) == 0 {
+		return c.Signer
+	}
+	return c.Account
 }
 
 // GetSpace returns the space for the comment.
@@ -184,6 +204,35 @@ func init() {
 func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 	c, v := eb.CID, eb.Decoded
 
+	authority := v.Authority()
+	if len(v.Account) != 0 {
+		account, err := core.DecodePrincipal([]byte(v.Account))
+		if err != nil {
+			return fmt.Errorf("invalid comment account: %w", err)
+		}
+		v.Account = account
+		authority = account
+
+		accountID, err := ictx.ensurePubKey(account)
+		if err != nil {
+			return err
+		}
+		signerID, err := ictx.ensurePubKey(v.Signer)
+		if err != nil {
+			return err
+		}
+		valid, err := isValidAgentKey(ictx.conn, accountID, signerID)
+		if err != nil {
+			return err
+		}
+		if !valid {
+			return stashError{
+				Reason:   stashReasonPermissionDenied,
+				Metadata: stashMetadata{DeniedSigners: []core.Principal{v.Signer}},
+			}
+		}
+	}
+
 	iri, err := NewIRI(v.Space(), v.Path)
 	if err != nil {
 		return fmt.Errorf("invalid comment target: %v", err)
@@ -240,13 +289,13 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 	// For private comments, they're owned by both the signer and the target document's space.
 	var visibilitySpaces []core.Principal
 	if v.Visibility == VisibilityPrivate {
-		visibilitySpaces = []core.Principal{v.Signer}
+		visibilitySpaces = []core.Principal{authority}
 		// Also include the target space to allow the space owner to access comments on their documents.
-		if !v.Signer.Equal(v.Space()) {
+		if !authority.Equal(v.Space()) {
 			visibilitySpaces = append(visibilitySpaces, v.Space())
 		}
 	}
-	sb := newStructuralBlob(c, v.Type, v.Signer, v.Ts, iri, cid.Undef, v.Space(), time.Time{}, v.Visibility, visibilitySpaces)
+	sb := newStructuralBlob(c, v.Type, authority, v.Ts, iri, cid.Undef, v.Space(), time.Time{}, v.Visibility, visibilitySpaces)
 	sb.ExtraAttrs = extraAttrs
 
 	if v.Visibility != VisibilityPublic {
@@ -414,7 +463,7 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 	// Settle this comment's live version, its document's activity, and the space
 	// total. None of these need a document generation, so they're settled the
 	// moment the blob lands rather than waiting for a Ref.
-	if err := updateCommentLive(ictx.conn, eb.TSID(), genesis); err != nil {
+	if err := updateCommentLive(ictx.conn, authority, eb.TSID(), genesis); err != nil {
 		return err
 	}
 
@@ -432,7 +481,7 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 		// non-deleted comment TSIDs for the target. Edits with the same TSID don't
 		// change the count; tombstones decrement only when a previously-live version
 		// existed; out-of-order arrivals (non-tombstone after tombstone) re-activate.
-		delta, err := commentCountDelta(ictx.conn, id, eb.TSID(), isTombstone)
+		delta, err := commentCountDelta(ictx.conn, id, authority, eb.TSID(), isTombstone)
 		if err != nil {
 			return fmt.Errorf("failed to compute comment count delta for %s: %w", c, err)
 		}
@@ -479,9 +528,9 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 // a Comment blob. A new TSID contributes +1, edits contribute 0, the first
 // tombstone for a previously-live TSID contributes -1, and a live blob arriving
 // after a tombstone (out-of-order P2P sync) re-activates the TSID for +1.
-func commentCountDelta(conn *sqlite.Conn, currentID int64, tsid TSID, isTombstone bool) (delta int64, err error) {
+func commentCountDelta(conn *sqlite.Conn, currentID int64, authority core.Principal, tsid TSID, isTombstone bool) (delta int64, err error) {
 	var priorAny, priorLive int64
-	rows, discard, check := sqlitex.Query(conn, qCommentTSIDPriorVersions(), string(tsid), currentID).All()
+	rows, discard, check := sqlitex.Query(conn, qCommentTSIDPriorVersions(), authority, string(tsid), currentID).All()
 	defer discard(&err)
 	for row := range rows {
 		row.Scan(&priorAny, &priorLive)
@@ -520,6 +569,7 @@ var qCommentTSIDPriorVersions = dqb.Str(`
 		COALESCE(SUM(CASE WHEN extra_attrs->>'deleted' IS NULL THEN 1 ELSE 0 END), 0) AS prior_live
 	FROM structural_blobs
 	WHERE type = 'Comment'
-	  AND extra_attrs->>'tsid' = ?1
-	  AND id != ?2;
+	  AND author = (SELECT id FROM public_keys WHERE principal = ?1)
+	  AND extra_attrs->>'tsid' = ?2
+	  AND id != ?3;
 `)

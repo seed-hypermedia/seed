@@ -11,7 +11,8 @@ A [comment](../comment.md) is a signed [blob](../blob.md) of type `Comment`. Eac
 <!-- id:lZeNI6EG -->
 | key <!-- col:fYfV8Z9P --> | meaning <!-- col:OBQZ_Koi --> <!-- id:yLoNYlB6 --> |
 | --- | --- |
-| `signer`, `ts`, `sig` | the envelope every blob carries: who wrote it and when <!-- id:3AvWahqt --> |
+| `signer`, `ts`, `sig` | the envelope every blob carries: which key signed it and when <!-- id:3AvWahqt --> |
+| `account` | stable account authority represented by an authorized agent signer; omitted for direct signing |
 | `space`, `path` | the document it targets; `space` is omitted when it equals the signer <!-- id:kYYrayoz --> |
 | `version` | the CIDs of the document heads the author was looking at; empty means "the document at this path" <!-- id:X2-9MteI --> |
 | `threadRoot` | the CID of the first comment of the thread; present on every reply <!-- id:nUJmFMVQ --> |
@@ -21,17 +22,17 @@ A [comment](../comment.md) is a signed [blob](../blob.md) of type `Comment`. Eac
 | `visibility` | `""` for public, `Private` for private <!-- id:ISOBhZJR --> |
 | `capability` | deprecated and ignored; old blobs may carry it <!-- id:eJ16dkIA --> |
 
-The daemon verifies the signature, then indexes the target as a link, the thread links, every link inside the body, and a full-text row per block. It does not check whether the signer may comment, because no such [permission](./permissions.md) exists. <!-- id:l9Egj3kZ -->
+The daemon verifies the signature, then indexes the target as a link, the thread links, every link inside the body, and a full-text row per block. Anyone may comment under their own signer authority. When `account` differs from `signer`, the daemon also requires an `AGENT` capability from that account to the signer; this authorizes representation of the account, not permission to comment on the target. <!-- id:l9Egj3kZ -->
 
 # Identity, edits and deletion <!-- id:5XBqDd2P -->
 
-A comment's stable identity is `<author>/<tsid>`. The author is the signer's [principal](../principal.md). The [TSID](./blobs.md) is a timestamped id: 10 bytes, a 48-bit millisecond timestamp followed by the first 4 bytes of the SHA-256 of the blob, encoded base58btc into 14 or 15 characters. The first version of a comment derives its TSID from its own bytes. An edit or a tombstone carries that TSID in its `id` field, so all versions share one identity while each has its own CID. <!-- id:6hZOUU7j -->
+A comment's stable identity is `<authority>/<tsid>`. The authority is the signed `account` [principal](../principal.md) when present and otherwise the signer. The [TSID](./blobs.md) is a timestamped id: 10 bytes, a 48-bit millisecond timestamp followed by the first 4 bytes of the SHA-256 of the blob, encoded base58btc into 14 or 15 characters. The first version of a comment derives its TSID from its own bytes. An edit or a tombstone carries that TSID in its `id` field, so all versions share one identity while each has its own CID. <!-- id:6hZOUU7j -->
 
 Among the blobs that share a TSID, the live version is the one with the greatest timestamp. On a tie, the blob the node stored last wins. A blob with an empty `body` is a tombstone. The comment is deleted, and listings stop showing it. The history is kept, and `ListCommentVersions` returns every version. <!-- id:aFKTvLqM -->
 
-Because identity includes the signer, looking up a comment by `<author>/<tsid>`, or listing its versions, matches only blobs signed by that author. A blob from another key that carries the same TSID does not change what that address returns. <!-- id:3DG_MVv8 -->
+Because identity includes the authority, looking up a comment by `<authority>/<tsid>`, or listing its versions, matches only blobs indexed for that authority. Authorized agent keys can therefore edit one account comment without changing its address. A blob from an unrelated key that merely claims the same authority and TSID is rejected. Legacy blobs without `account` remain signer-owned, so delegated edits created before this field existed are not inferred or merged. <!-- id:3DG_MVv8 -->
 
-There are two ways to link to a comment. `hm://<author>/<tsid>` is the comment itself, whatever its current version. `hm://c/<cid>` is one specific version. On a [site](./sites.md), a comment appears under its target as `https://site/<path>/:comments/<author>/<tsid>`. [URLs](./urls.md) has the full grammar. <!-- id:-vALY0pB -->
+There are two ways to link to a comment. `hm://<authority>/<tsid>` is the comment itself, whatever its current version. `hm://c/<cid>` is one specific version. On a [site](./sites.md), a comment appears under its target as `https://site/<path>/:comments/<authority>/<tsid>`. [URLs](./urls.md) has the full grammar. <!-- id:-vALY0pB -->
 
 # Threads and discussions <!-- id:bVkM7Gif -->
 

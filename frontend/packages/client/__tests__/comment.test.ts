@@ -1,7 +1,8 @@
 import {describe, it, expect, vi} from 'vitest'
 import {decode as cborDecode} from '@ipld/dag-cbor'
+import {base58btc} from 'multiformats/bases/base58'
 import type {HMBlockNode, HMSigner, UnpackedHypermediaId} from '../src/hm-types'
-import {createComment, updateComment} from '../src/comment'
+import {commentRecordIdFromBlob, createComment, deleteComment, updateComment} from '../src/comment'
 
 const TEST_DOC_ID: UnpackedHypermediaId = {
   id: 'hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou/test-doc',
@@ -61,6 +62,7 @@ describe('createComment', () => {
     expect(decodedComment.type).toBe('Comment')
     expect(decodedComment.path).toBe('/test-doc')
     expect(decodedComment.body[0].text).toBe('hello world')
+    expect(decodedComment.account).toBeUndefined()
   })
 
   it('preserves list containers (empty-text Paragraph + childrenType) so list items survive publishing', async () => {
@@ -200,6 +202,24 @@ describe('createComment', () => {
     expect(decodedComment.body[0].link).toContain('#quoted-block')
     expect(decodedComment.body[0].link).not.toContain('[')
   })
+
+  it('signs a delegated comment for its stable account authority', async () => {
+    const signer = makeSigner()
+    const publishInput = await createComment(
+      {
+        content: makeBlocks('delegated comment'),
+        docId: TEST_DOC_ID,
+        docVersion: 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi',
+        account: TEST_DOC_ID.uid,
+      },
+      signer,
+    )
+
+    const data = publishInput.blobs[0]!.data
+    const decodedComment = cborDecode(data) as any
+    expect(base58btc.encode(decodedComment.account)).toBe(TEST_DOC_ID.uid)
+    expect(await commentRecordIdFromBlob(data)).toMatch(new RegExp(`^${TEST_DOC_ID.uid}/`))
+  })
 })
 
 describe('updateComment', () => {
@@ -241,5 +261,26 @@ describe('updateComment', () => {
     expect(decodedComment.body[0].children[0].text).toBe('updated text')
     expect(decodedComment.replyParent).toBeTruthy()
     expect(decodedComment.threadRoot).toBeTruthy()
+    expect(base58btc.encode(decodedComment.account)).toBe(TEST_DOC_ID.uid)
+    expect(await commentRecordIdFromBlob(publishInput.blobs[0]!.data)).toMatch(new RegExp(`^${TEST_DOC_ID.uid}/`))
+  })
+
+  it('keeps the same authority in delegated tombstones', async () => {
+    const signer = makeSigner()
+    const publishInput = await deleteComment(
+      {
+        commentId: `${TEST_DOC_ID.uid}/zb2rhiKhUepk2`,
+        targetAccount: TEST_DOC_ID.uid,
+        targetPath: '/test-doc',
+        targetVersion: 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi',
+      },
+      signer,
+    )
+
+    const data = publishInput.blobs[0]!.data
+    const decodedComment = cborDecode(data) as any
+    expect(decodedComment.body).toEqual([])
+    expect(base58btc.encode(decodedComment.account)).toBe(TEST_DOC_ID.uid)
+    expect(await commentRecordIdFromBlob(data)).toMatch(new RegExp(`^${TEST_DOC_ID.uid}/`))
   })
 })

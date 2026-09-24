@@ -49,7 +49,7 @@ func TestCommentCausality(t *testing.T) {
 	c := ipfs.MustNewCID(multicodec.Raw, multicodec.Identity, []byte("fake-version"))
 	clock := cclock.New()
 
-	root, err := NewComment(alice.Account, "", alice.Account.Principal(), "", []cid.Cid{c}, cid.Undef, cid.Undef, []CommentBlock{
+	root, err := NewComment(alice.Account, "", alice.Account.Principal(), alice.Account.Principal(), "", []cid.Cid{c}, cid.Undef, cid.Undef, []CommentBlock{
 		{Block: Block{
 			Type: "paragraph",
 			Text: "Hello World",
@@ -57,7 +57,7 @@ func TestCommentCausality(t *testing.T) {
 	}, VisibilityPublic, clock.MustNow())
 	require.NoError(t, err)
 
-	reply, err := NewComment(bob.Account, root.TSID(), root.Decoded.Space(), root.Decoded.Path, root.Decoded.Version, root.CID, cid.Undef, []CommentBlock{
+	reply, err := NewComment(bob.Account, root.TSID(), bob.Account.Principal(), root.Decoded.Space(), root.Decoded.Path, root.Decoded.Version, root.CID, cid.Undef, []CommentBlock{
 		{Block: Block{
 			Type: "paragraph",
 			Text: "I reply",
@@ -65,7 +65,7 @@ func TestCommentCausality(t *testing.T) {
 	}, VisibilityPublic, clock.MustNow())
 	require.NoError(t, err)
 
-	reply2, err := NewComment(bob.Account, root.TSID(), root.Decoded.Space(), root.Decoded.Path, root.Decoded.Version, root.CID, reply.CID, []CommentBlock{
+	reply2, err := NewComment(bob.Account, root.TSID(), bob.Account.Principal(), root.Decoded.Space(), root.Decoded.Path, root.Decoded.Version, root.CID, reply.CID, []CommentBlock{
 		{Block: Block{
 			Type: "paragraph",
 			Text: "I reply to reply",
@@ -108,7 +108,7 @@ func TestStableCommentLinksAreIndexed(t *testing.T) {
 	targetVersion := ipfs.MustNewCID(multicodec.Raw, multicodec.Identity, []byte("fake-version"))
 	clock := cclock.New()
 
-	target, err := NewComment(alice.Account, "", alice.Account.Principal(), "", []cid.Cid{targetVersion}, cid.Undef, cid.Undef, []CommentBlock{
+	target, err := NewComment(alice.Account, "", alice.Account.Principal(), alice.Account.Principal(), "", []cid.Cid{targetVersion}, cid.Undef, cid.Undef, []CommentBlock{
 		{Block: Block{
 			Type: "paragraph",
 			Text: "Target comment",
@@ -116,7 +116,7 @@ func TestStableCommentLinksAreIndexed(t *testing.T) {
 	}, VisibilityPublic, clock.MustNow())
 	require.NoError(t, err)
 
-	source, err := NewComment(bob.Account, "", alice.Account.Principal(), "", []cid.Cid{targetVersion}, cid.Undef, cid.Undef, []CommentBlock{
+	source, err := NewComment(bob.Account, "", bob.Account.Principal(), alice.Account.Principal(), "", []cid.Cid{targetVersion}, cid.Undef, cid.Undef, []CommentBlock{
 		{Block: Block{
 			Type: "paragraph",
 			Text: "Stable link",
