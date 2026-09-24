@@ -19,7 +19,7 @@ vi.mock('../app-context', () => ({
 }))
 
 vi.mock('../models/experiments', () => ({
-  useExperiments: () => ({data: {webBrowser: mockState.browserEnabled}}),
+  readWebBrowserEnabled: async () => mockState.browserEnabled,
 }))
 
 vi.mock('../utils/useNavigate', () => ({
@@ -66,26 +66,26 @@ describe('useOpenUrl', () => {
     document.body.innerHTML = ''
   })
 
-  it('opens websites externally unless the user opts in', () => {
+  it('opens websites externally unless the user opts in', async () => {
     const {container, root} = renderHarness()
-    act(() => mockState.latestOpenUrl?.('https://example.com'))
+    await act(async () => mockState.latestOpenUrl?.('https://example.com'))
     expect(mockState.externalOpen).toHaveBeenCalledWith('https://example.com')
     expect(mockState.pushNavigate).not.toHaveBeenCalled()
     cleanupRendered(root, container)
   })
 
-  it('responds to preference changes without restarting and preserves new-window intent', () => {
+  it('responds to preference changes without restarting and preserves new-window intent', async () => {
     const {container, root} = renderHarness()
     mockState.browserEnabled = true
     act(() => root.render(<OpenUrlHarness />))
-    act(() => mockState.latestOpenUrl?.('https://example.com'))
+    await act(async () => mockState.latestOpenUrl?.('https://example.com'))
     expect(mockState.pushNavigate).toHaveBeenCalledWith({key: 'web', url: 'https://example.com'})
-    act(() => mockState.latestOpenUrl?.('https://example.com/new', true))
+    await act(async () => mockState.latestOpenUrl?.('https://example.com/new', true))
     expect(mockState.spawnNavigate).toHaveBeenCalledWith({key: 'web', url: 'https://example.com/new'})
     expect(mockState.externalOpen).not.toHaveBeenCalled()
     mockState.browserEnabled = false
     act(() => root.render(<OpenUrlHarness />))
-    act(() => mockState.latestOpenUrl?.('https://example.com/external'))
+    await act(async () => mockState.latestOpenUrl?.('https://example.com/external'))
     expect(mockState.externalOpen).toHaveBeenCalledWith('https://example.com/external')
     cleanupRendered(root, container)
   })
