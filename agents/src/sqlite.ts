@@ -366,6 +366,7 @@ export function openWithDatabase(db: Database): OpenResult {
 
   if (isEmptyDatabase(db)) {
     initializeEmptyDatabase(db)
+    analyzePlannerTables(db)
     return {ok: true, db}
   }
 
@@ -394,7 +395,33 @@ export function openWithDatabase(db: Database): OpenResult {
 
   applyPendingMigrations(db, currentVersion)
   ensureBaselineTables(db)
+  analyzePlannerTables(db)
   return {ok: true, db}
+}
+
+/**
+ * Tables whose row distribution the query planner must know. Without `sqlite_stat1` SQLite rates
+ * every candidate index alike, and on the production database it chose `runs_by_account` over
+ * `runs_by_session` for per-session run listings — a walk over thousands of blob-carrying rows
+ * instead of a handful — until the loop was pinned (2026-09-23). These tables are small (thousands
+ * of rows), so refreshing their statistics costs well under two seconds even on production; the
+ * blob-heavy `session_events` and `run_journal` are deliberately left out, since their only
+ * lookups are by primary key and `ANALYZE` would read gigabytes to learn nothing.
+ */
+const PLANNER_STATISTICS_TABLES = [
+  'accounts',
+  'agents',
+  'agent_collaborators',
+  'agent_triggers',
+  'runs',
+  'sessions',
+  'session_continuations',
+  'trigger_firings',
+] as const
+
+/** Refreshes `sqlite_stat1` for the planner-sensitive tables (see PLANNER_STATISTICS_TABLES). */
+export function analyzePlannerTables(db: Database): void {
+  for (const table of PLANNER_STATISTICS_TABLES) db.run(`ANALYZE ${table}`)
 }
 
 /**

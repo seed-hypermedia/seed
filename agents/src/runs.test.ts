@@ -368,3 +368,50 @@ describe('runs queue', () => {
     expect(final?.output).toBeUndefined()
   })
 })
+
+describe('session run lookups', () => {
+  test('per-session listings use runs_by_session, not the account index', () => {
+    // Without statistics the planner rated runs_by_account and runs_by_session alike and chose the
+    // account index, walking every run the account ever made (production, 2026-09-23).
+    const db = createDb()
+    createSession(db, 'session-1')
+    const plans = [
+      `SELECT id FROM runs INDEXED BY runs_by_session
+         WHERE session_id = ? AND account_id = ? AND id = root_run_id ORDER BY created_at DESC LIMIT ?`,
+      `SELECT id FROM runs INDEXED BY runs_by_session WHERE session_id = ? AND account_id = ?
+         AND status IN ('queued', 'claimed', 'running', 'waiting') ORDER BY created_at ASC`,
+      `SELECT COUNT(*) FROM runs held INDEXED BY runs_dispatch
+         WHERE held.status IN ('claimed', 'running') AND held.account_id = ? AND held.kind = ?`,
+    ].map((sql) =>
+      db
+        .query<{detail: string}, []>(`EXPLAIN QUERY PLAN ${sql}`)
+        .all()
+        .map((row) => row.detail)
+        .join('\n'),
+    )
+    expect(plans[0]).toContain('runs_by_session')
+    expect(plans[1]).toContain('runs_by_session')
+    expect(plans[2]).toContain('runs_dispatch')
+    for (const plan of plans) expect(plan).not.toContain('runs_by_account')
+    expect(runs.listSessionRootRuns(db, ACCOUNT, 'session-1', 10)).toEqual([])
+    expect(runs.listLiveSessionRuns(db, ACCOUNT, 'session-1')).toEqual([])
+    closeDatabase(db)
+  })
+
+  test('analyzePlannerTables records statistics for the run and session tables', () => {
+    // openWithDatabase runs this on every start; a fresh database has no rows to describe yet, so
+    // exercise the refresh directly once the tables hold data.
+    const db = createDb()
+    createSession(db, 'session-1')
+    const queue = new runs.RunQueue(db, {executors: {}, pollIntervalMs: 1_000})
+    queue.enqueue(agentSpec({id: 'analyzed', sessionId: 'session-1'}))
+    queue.stop()
+    sqlite.analyzePlannerTables(db)
+    const analyzed = db
+      .query<{tbl: string}, []>(`SELECT DISTINCT tbl FROM sqlite_stat1 ORDER BY tbl`)
+      .all()
+      .map((row) => row.tbl)
+    expect(analyzed).toEqual(expect.arrayContaining(['runs', 'sessions', 'agents']))
+    closeDatabase(db)
+  })
+})
