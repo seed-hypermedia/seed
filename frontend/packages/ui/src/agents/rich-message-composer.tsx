@@ -8,7 +8,8 @@ import {type AgentSessionDraftMessage, uploadFileToAgentServer} from './models'
 import {getAgentsPlatform, type AgentsRichEditorGetContent, type AgentsRichEditorSubmitHandle} from './platform'
 import {promptBlocksToMarkdown} from './prompt-editor'
 import {UserToolPalette} from './user-tool-palette'
-import {VoiceButton} from './voice-button'
+import {DraftVoiceButton, VoiceButton} from './voice-button'
+import {useVoiceSettings} from './voice-settings'
 
 /**
  * The one rich message composer for agent sessions.
@@ -133,6 +134,14 @@ export function AgentRichMessageComposer({
     : undefined
   const [draftMarkdown, setDraftMarkdown] = useState('')
   const {CommentEditor, voiceChat} = getAgentsPlatform()
+  // The mic appears only once voice can actually work for this session: the server runs the
+  // pipeline and both speech keys resolve (the account's own or the server's). Until the keys are
+  // entered in Settings → Advanced → Voice there is nothing the button could do but fail.
+  const voiceSettings = useVoiceSettings(voiceChat ? serverUrl : undefined, voiceChat ? accountId : undefined)
+  const voiceReady =
+    !!voiceSettings.data?.available &&
+    voiceSettings.data.deepgramApiKey !== 'none' &&
+    voiceSettings.data.cartesiaApiKey !== 'none'
   const internalHandleRef = useRef<AgentsRichEditorSubmitHandle | null>(null)
   const submitHandleRef = composerHandleRef ?? internalHandleRef
   /** In-flight attachment upload shown as a slim progress bar; null when idle. */
@@ -219,11 +228,20 @@ export function AgentRichMessageComposer({
         </div>
       ) : null}
       <div className="flex items-end gap-2 px-3 py-2">
-        {/* Voice needs a session to join and a platform whose local server runs the speech
-            pipeline (desktop); drafts and the web show nothing here. */}
-        {voiceChat && sessionId && accountId ? (
+        {/* Voice needs a platform whose local server runs the speech pipeline (desktop) and
+            configured speech keys; the web and an unconfigured desktop show nothing here. A live
+            session joins its room directly; a draft creates the session first, like a first send. */}
+        {voiceChat && accountId && voiceReady && sessionId ? (
           <div className="flex shrink-0 pb-1">
-            <VoiceButton serverUrl={serverUrl} accountUid={accountId} sessionId={sessionId} />
+            <VoiceButton serverUrl={serverUrl} accountUid={accountId} sessionId={sessionId} showStatus />
+          </div>
+        ) : voiceChat && accountId && voiceReady && onToolStartSession && onToolSessionStarted ? (
+          <div className="flex shrink-0 pb-1">
+            <DraftVoiceButton
+              serverUrl={serverUrl}
+              startSession={onToolStartSession}
+              onSessionStarted={onToolSessionStarted}
+            />
           </div>
         ) : null}
         {/* The compact chat sizing is desktop-only: iOS Safari zooms the whole page whenever a

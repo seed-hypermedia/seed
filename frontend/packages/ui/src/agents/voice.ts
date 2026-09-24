@@ -54,6 +54,25 @@ function describeVoiceError(err: unknown): string {
   return 'Could not start voice'
 }
 
+/**
+ * A voice start requested before its session existed. The draft composer's mic creates the session
+ * and opens it, which unmounts the draft; the opened session's hook finds the request here and
+ * starts the room, so one click on a new chat still ends in a live conversation.
+ */
+let pendingVoiceAutoStart: {serverUrl: string; sessionId: string} | null = null
+
+/** Asks the next `useVoiceSession` mounted for this session to start immediately. */
+export function requestVoiceAutoStart(serverUrl: string, sessionId: string): void {
+  pendingVoiceAutoStart = {serverUrl, sessionId}
+}
+
+/** Consumes a pending request for this session, if any. */
+export function takeVoiceAutoStart(serverUrl: string, sessionId: string): boolean {
+  if (pendingVoiceAutoStart?.serverUrl !== serverUrl || pendingVoiceAutoStart.sessionId !== sessionId) return false
+  pendingVoiceAutoStart = null
+  return true
+}
+
 export function useVoiceSession({
   serverUrl,
   accountUid,
@@ -218,6 +237,11 @@ export function useVoiceSession({
 
   // A room belongs to one session: leave it when the composer moves to another or goes away.
   useEffect(() => stop, [sessionId, stop])
+
+  // A new chat's mic asked for voice before the session existed; honour it now that it does.
+  useEffect(() => {
+    if (takeVoiceAutoStart(serverUrl, sessionId)) void start()
+  }, [serverUrl, sessionId, start])
 
   return {status, agentState, userSpeaking, interimTranscript, error, start, stop, toggle}
 }

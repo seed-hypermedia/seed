@@ -425,6 +425,8 @@ export class VoiceService {
     if (!roomName) return Response.json({error: 'room is required'}, {status: 400})
     const roomConfig = this.roomConfig(roomName)
     if (!roomConfig) return Response.json({error: 'Unknown room'}, {status: 403})
+    // The worker asking for its config is the proof it accepted the job and joined the room.
+    log.info('[voice] worker joined', {room: roomName, sessionId: roomConfig.sessionId})
     return Response.json(roomConfig)
   }
 

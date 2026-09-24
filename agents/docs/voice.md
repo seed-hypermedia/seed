@@ -6,7 +6,9 @@ session; a speech worker in the same room transcribes what you say, runs it as a
 session's log like any typed turn.
 
 Voice is off by default. Servers without it answer `CreateVoiceSession` with HTTP 501 and report `voice: false` on
-`/api/health`; the desktop hides the button.
+`/api/health`. The desktop shows the microphone only when `GetVoiceSettings` reports the pipeline available **and** both
+speech keys resolved (the account's own or the server's); until the keys are entered in Settings → Advanced → Voice
+there is no button.
 
 ## How it works
 
