@@ -1217,7 +1217,7 @@ export function describeGitHubWebhook(
   const parentName = parent ? `${parent.label}${number !== undefined ? ` #${number}` : ''}` : undefined
   const subject = comment ?? parent!.record
   const author = recordField(subject, 'user')
-  const action = stringField(payload, 'action')?.replace(/_/gu, ' ')
+  const action = stringField(payload, 'action')?.replace(/_/g, ' ')
   const kind = comment
     ? `${commentLabel} on ${parentName ?? 'GitHub'}`
     : `${parentName![0]!.toUpperCase()}${parentName!.slice(1)}${action ? ` ${action}` : ''}`
