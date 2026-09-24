@@ -455,7 +455,7 @@ export function SearchResultItem({
           </SizableText>
         )}
 
-        {!!item.path && (unpackedId?.latest || item.versionTime) && (
+        {!!item.path && (item.subtitle === 'Profile' || unpackedId?.latest || item.versionTime) && (
           <div className="flex min-w-0 items-center gap-2 overflow-hidden">
             <div className="flex min-w-0 flex-1 items-center">
               {!!item.path && (
@@ -473,7 +473,13 @@ export function SearchResultItem({
                 weight="light"
                 color={unpackedId?.latest ? 'success' : 'default'}
               >
-                {unpackedId?.latest ? 'Latest Version' : item.versionTime ? 'Previous Version' : ''}
+                {item.subtitle === 'Profile'
+                  ? 'Profile'
+                  : unpackedId?.latest
+                    ? 'Latest Version'
+                    : item.versionTime
+                      ? 'Previous Version'
+                      : ''}
               </SizableText>
             </Tooltip>
           </div>
