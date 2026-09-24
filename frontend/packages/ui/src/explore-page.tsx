@@ -37,6 +37,7 @@ import {
   ExploreTypeMenu,
   typeOptions,
 } from './explore-filters'
+import {useFocusExploreSearchListener} from './explore-search-focus'
 import {ExploreBrowse, ExploreJumpTo, ExploreLanding, ExploreYourSpaces} from './explore-landing'
 import {ExploreState} from './explore-primitives'
 import {exploreTableConfig, ExploreViewSwitcher, queryBlockStyle} from './explore-views'
@@ -121,6 +122,7 @@ export function ExplorePage(props: ExplorePageProps) {
   const [sortBy, setSortBy] = useState<ExploreSortOption>('relevance')
   const [draft, setDraft] = useState(props.query)
   const inputRef = useRef<HTMLInputElement>(null)
+  useFocusExploreSearchListener(inputRef)
   const debounceRef = useRef<number | null>(null)
   const onQueryChangeRef = useRef(props.onQueryChange)
   onQueryChangeRef.current = props.onQueryChange
@@ -275,6 +277,7 @@ export function ExplorePage(props: ExplorePageProps) {
             <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" aria-hidden />
             <Input
               ref={inputRef}
+              autoFocus
               value={draft}
               onChangeText={setDraft}
               placeholder={scopeUid ? `Search in ${scopeLabel}` : 'Search across all your spaces...'}
