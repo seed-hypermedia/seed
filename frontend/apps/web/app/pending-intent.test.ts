@@ -135,6 +135,10 @@ describe('pending-intent', () => {
     expect(firstResult).toEqual({type: 'comment', commentUrl: '/hm/doc-1?comment=comment-record-id'})
     expect(secondResult).toEqual({type: 'comment', commentUrl: '/hm/doc-1?comment=comment-record-id'})
     expect(mocks.createCommentMock).toHaveBeenCalledTimes(1)
+    expect(mocks.createCommentMock).toHaveBeenCalledWith(
+      expect.objectContaining({account: 'account-1'}),
+      expect.anything(),
+    )
     expect(mocks.publishMock).toHaveBeenCalledTimes(2)
     expect(mocks.clearPendingIntentMock).toHaveBeenCalledTimes(1)
   })
