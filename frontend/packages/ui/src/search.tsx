@@ -468,7 +468,11 @@ export function SearchResultItem({
             {/* Type column */}
             <Tooltip content={item.versionTime || 'No timestamp available'}>
               <SizableText
-                className="flex-none whitespace-nowrap text-gray-400"
+                className={cn(
+                  'flex-none whitespace-nowrap',
+                  // Same blue as the "Open Space" link on the profile page, so an account never reads as a document.
+                  item.subtitle === 'Profile' ? 'text-blue-500' : 'text-gray-400',
+                )}
                 size="xs"
                 weight="light"
                 color={unpackedId?.latest ? 'success' : 'default'}
