@@ -5447,6 +5447,9 @@ export class Service {
     // stored (a placeholder, a truncated prompt), and the agent has not named this session yet.
     // Once the model or the user names it, the source says so and naming never runs again.
     if (!row || row.title_source !== 'system') return
+    // A title digest of a browser or private-memory session would copy signed-in page content to
+    // another model call. Those sessions keep their provisional title.
+    if (this.#browserPrivacy.sessionIsPrivate(sessionId)) return
     this.#namingSessions.add(sessionId)
     this.#titleAttempts.set(sessionId, (this.#titleAttempts.get(sessionId) ?? 0) + 1)
     const pending = this.#nameSessionWithModel(accountId, sessionId)
@@ -5538,7 +5541,7 @@ export class Service {
     const info = this.#getSessionInfo(accountId, sessionId)
     if (info?.title === title) {
       this.#titleAttempts.delete(sessionId)
-      console.info('[agents/runtime] session titled by model', {sessionId, title})
+      console.info('[agents/runtime] session titled by model', {sessionId, titleLength: title.length})
       this.#emit({type: 'session-change', accountId, session: info})
       this.#emit({
         type: 'account-change',

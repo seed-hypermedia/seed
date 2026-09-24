@@ -9489,6 +9489,104 @@ describe('api service', () => {
     }
   })
 
+  test('sessions that used the browser keep their provisional title and never reach the title model', async () => {
+    // Ion's review: the title digest copied signed-in page content into an extra model call and the
+    // generated title into server logs.
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const originalInfo = console.info
+    const logged: string[] = []
+    let svc: apisvc.Service | undefined
+    try {
+      console.info = (...args: unknown[]) => void logged.push(JSON.stringify(args))
+      const account = blobs.generateNobleKeyPair()
+      svc = new apisvc.Service(db, dataDir, {titleGeneration: true})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Browser', systemPrompt: 'be terse', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const canary = 'CANARY-BALANCE-4242'
+      let titleRequests = 0
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(await fetchBodyText(url, init))
+        const system = String((body.messages?.[0] as {content?: string} | undefined)?.content ?? '')
+        if (system.includes('session-titling assistant')) {
+          titleRequests += 1
+          return openAIStreamResponse([
+            {id: 'title', choices: [{delta: {content: `Balance ${canary}`}}]},
+            {id: 'title', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {id: 'chat', choices: [{delta: {content: `Your balance is ${canary}.`}}]},
+          {id: 'chat', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+      const created = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (created._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+      // An earlier owner turn read a signed-in page with the browser tool.
+      const now = Date.now()
+      db.run(
+        `INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?), (?, ?, ?, ?, ?)`,
+        [
+          'browser-call',
+          created.sessionId,
+          1,
+          cbor.encode({type: 'tool_call', id: 'call-1', name: 'browser', input: {action: 'snapshot'}}),
+          now,
+          'browser-result',
+          created.sessionId,
+          2,
+          cbor.encode({type: 'tool_result', toolCallId: 'call-1', name: 'browser', output: {text: canary}}),
+          now,
+        ],
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: created.sessionId,
+            content: [{type: 'text', text: 'what is my balance?'}],
+          },
+        }),
+      )
+      await svc.awaitQueueIdle()
+      expect(titleRequests).toBe(0)
+      const stored = db
+        .query<{title: string | null}, [string]>(`SELECT title FROM sessions WHERE id = ?`)
+        .get(created.sessionId)
+      expect(stored?.title ?? '').not.toContain(canary)
+      expect(logged.join('\n')).not.toContain(canary)
+    } finally {
+      console.info = originalInfo
+      globalThis.fetch = originalFetch
+      svc?.stopRunQueue()
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
   test('status verb names and describes the session; any client creation title stays provisional', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch
