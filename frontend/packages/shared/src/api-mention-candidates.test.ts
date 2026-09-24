@@ -262,6 +262,25 @@ describe('mention candidate service', () => {
     )
     expect(result[0]).toMatchObject({title: 'Buddy', petname: 'Buddy', issuedContact: true})
   })
+  it('resolves a search match ahead of a large contact list that does not hold the query', async () => {
+    const client = daemon()
+    client.entities.searchEntities.mockResolvedValue({entities: [{id: 'hm://agent', type: 'profile', content: 'Ion'}]})
+    client.documents.getAccount.mockImplementation(
+      async ({id}) => new Account({id, profile: {name: id === 'agent' ? 'Ion' : ''}}),
+    )
+    client.documents.listContacts.mockResolvedValue({
+      contacts: Array.from({length: 100}, (_, i) => new Contact({subject: `contact${i}`, name: ''})),
+    })
+    const result = await MentionCandidates.getData(
+      client as unknown as GRPCClient,
+      {mode: 'account', query: 'ion', perspectiveAccountUid: 'viewer'},
+      async () => {
+        throw new Error('unexpected daemon query')
+      },
+    )
+    expect(client.documents.getAccount).toHaveBeenCalledTimes(20)
+    expect(rankMentionCandidates(result, 'ion', []).map((c) => c.id.uid)).toEqual(['agent'])
+  })
   it.each([Code.Unavailable, Code.DeadlineExceeded])(
     'retains a verified document head on retryable refresh failure %s',
     async (code) => {
