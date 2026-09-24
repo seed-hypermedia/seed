@@ -14,7 +14,13 @@ declare global {
   interface Window {
     isWindowMaximized?: boolean
     browserAgent: {
-      access: (input: {connectionId: string; browserId: number; accountUid: string; enabled: boolean}) => Promise<void>
+      access: (input: {
+        connectionId: string
+        browserId: number
+        accountUid: string
+        enabled: boolean
+        origins?: string[]
+      }) => Promise<void>
       execute: (connectionId: string, command: BrowserCommand) => Promise<Record<string, unknown>>
     }
   }

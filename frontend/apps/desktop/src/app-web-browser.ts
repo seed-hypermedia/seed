@@ -23,6 +23,28 @@ const commandSchema = z.object({
   historyIndex: z.number().int().nonnegative().optional(),
 })
 
+const accessSchema = z.object({
+  connectionId: z.string(),
+  browserId: z.number(),
+  accountUid: z.string(),
+  enabled: z.boolean(),
+  /** Websites the user approved for this session, as exact `https://host[:port]` origins. */
+  origins: z
+    .array(z.string().refine((origin) => webOrigin(origin) === origin, 'Invalid website origin'))
+    .max(100)
+    .default([]),
+})
+
+/** The http(s) origin of a URL, or null for anything else. */
+export function webOrigin(url: string): string | null {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.origin : null
+  } catch {
+    return null
+  }
+}
+
 /** Installs an isolated website guest and limits its communication to navigation in its owning window. */
 export function setupWebBrowser(
   window: BrowserWindow,
@@ -30,7 +52,7 @@ export function setupWebBrowser(
   archive?: (archive: BrowserArchive, accountUid: string) => Promise<{id: string}>,
 ) {
   const host = window.webContents
-  let access: {connectionId: string; browserId: number; accountUid: string} | undefined
+  let access: {connectionId: string; browserId: number; accountUid: string; origins: string[]} | undefined
   const guests = new Map<number, WebContents>()
   const requests = new Map<number, number>()
   const browserSession = session.fromPartition(partition)
@@ -65,16 +87,20 @@ export function setupWebBrowser(
 
   host.ipc.handle('browser-agent-access', (event, input: unknown) => {
     if (event.sender !== host || event.senderFrame !== host.mainFrame) throw new Error('Invalid browser host')
-    const parsed = z
-      .object({connectionId: z.string(), browserId: z.number(), accountUid: z.string(), enabled: z.boolean()})
-      .parse(input)
+    const parsed = accessSchema.parse(input)
     if (!parsed.enabled) {
       if (access?.connectionId === parsed.connectionId) access = undefined
       return
     }
     if (!isWebBrowserEnabled() || activeGuests.get(window)?.id !== parsed.browserId)
       throw new Error('Open a website to connect browser access')
-    access = parsed
+    // Approving another website keeps the same grant object, so in-flight checks see the new list.
+    if (access?.connectionId === parsed.connectionId && access.browserId === parsed.browserId) {
+      access.origins = parsed.origins
+      return
+    }
+    const {enabled: _enabled, ...grant} = parsed
+    access = grant
   })
   host.ipc.handle('browser-agent-execute', async (event, input) => {
     if (event.sender !== host || event.senderFrame !== host.mainFrame) throw new Error('Invalid browser host')
@@ -91,13 +117,28 @@ export function setupWebBrowser(
         activeGuests.get(window) !== guest
       )
         throw new Error('Browser access is paused or the connected page is no longer active')
+      const origin = webOrigin(guest.getURL())
+      if (!origin || !grant.origins.includes(origin))
+        throw new Error(
+          `The user has not allowed browser access on ${
+            origin ?? 'this page'
+          }. They can allow it in the assistant panel.`,
+        )
     }
     assertActive()
     return executeBrowserCommand(guest!, input.command, {
       assertActive,
+      assertOrigin: (url) => {
+        const origin = webOrigin(url)
+        if (!origin || !grant!.origins.includes(origin))
+          throw new Error('The page moved to a website the user has not allowed. Take a fresh snapshot.')
+      },
       navigate: (url) => {
         if (!/^https?:\/\//.test(url) && !hypermediaUrlToRoute(url))
           throw new Error('Only HTTP(S) and Seed navigation is supported')
+        const origin = webOrigin(url)
+        if (origin && !hypermediaUrlToRoute(url) && !grant!.origins.includes(origin))
+          throw new Error(`Opening ${origin} needs the user's approval in the assistant panel.`)
         host.send('appWindowEvent', {type: 'browser-open-url', browserId: guest!.id, url})
       },
       archive: (page) => {

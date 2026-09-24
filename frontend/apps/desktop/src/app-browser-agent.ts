@@ -80,6 +80,8 @@ export async function executeBrowserCommand(
   raw: BrowserCommand,
   options: {
     assertActive: () => void
+    /** Throws when a URL the page reported is not on a website the user allowed. */
+    assertOrigin?: (url: string) => void
     navigate: (url: string) => void
     archive: (archive: BrowserArchive) => Promise<{id: string}>
   },
@@ -102,7 +104,54 @@ export async function executeBrowserCommand(
     const visible = (element) => {
       const rect = element.getBoundingClientRect();
       const style = getComputedStyle(element);
-      return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+      return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none' && shown(element);
+    };
+    // Pages can hide instructions from people while leaving them in the DOM (transparent, clipped,
+    // off-page, or microscopic text). Only text a person could see on the page reaches the agent.
+    const shownCache = new Map();
+    const shown = (element) => {
+      if (!element || element === document.documentElement || element === document.body) return true;
+      if (shownCache.has(element)) return shownCache.get(element);
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      const clipped = /inset\\(\\s*(4[5-9]|[5-9]\\d|100)%|circle\\(\\s*0/.test(style.clipPath) || /rect\\(\\s*0(px)?,?\\s+0(px)?,?\\s+0(px)?,?\\s+0/.test(style.clip);
+      const collapsed = style.display !== 'contents' && style.overflow !== 'visible' && (rect.width < 2 || rect.height < 2);
+      const result = Number(style.opacity) >= 0.1 && !clipped && !collapsed && shown(element.parentElement);
+      shownCache.set(element, result);
+      return result;
+    };
+    const transparent = (color) => color === 'transparent' || /rgba\\([^)]*,\\s*0(\\.0+)?\\)$/.test(color);
+    const pageWidth = Math.max(document.documentElement.scrollWidth, innerWidth);
+    const pageHeight = Math.max(document.documentElement.scrollHeight, innerHeight);
+    const visibleText = (root, limit) => {
+      if (!root) return {text: '', truncated: false};
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      const range = document.createRange();
+      const parts = [];
+      let length = 0;
+      let block = null;
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const value = node.nodeValue.replace(/\\s+/g, ' ');
+        if (!value.trim()) continue;
+        const parent = node.parentElement;
+        if (!parent || parent.closest('script,style,noscript,template,textarea,select,option')) continue;
+        const style = getComputedStyle(parent);
+        if (style.visibility !== 'visible' || parseFloat(style.fontSize) < 6 || transparent(style.color)) continue;
+        range.selectNodeContents(node);
+        const box = range.getBoundingClientRect();
+        if (!range.getClientRects().length || box.width < 1 || box.height < 1) continue;
+        if (box.right + scrollX <= 0 || box.bottom + scrollY <= 0 || box.left + scrollX >= pageWidth || box.top + scrollY >= pageHeight) continue;
+        if (!shown(parent)) continue;
+        let container = parent;
+        while (container !== root && container.parentElement && /^(inline|contents)/.test(getComputedStyle(container).display)) container = container.parentElement;
+        const piece = (block && block !== container ? '\\n' : '') + value;
+        block = container;
+        parts.push(piece);
+        length += piece.length;
+        if (length > limit) break;
+      }
+      const text = parts.join('').replace(/ *\\n */g, '\\n').replace(/\\n{3,}/g, '\\n\\n').trim();
+      return {text: text.slice(0, limit), truncated: length > limit};
     };
     if (command.action === 'snapshot') {
       const state = {document: ${JSON.stringify(randomUUID())}, url: location.href, refs: new Map()};
@@ -115,16 +164,16 @@ export async function executeBrowserCommand(
         state.refs.set(ref, el);
         const rect = el.getBoundingClientRect();
         elements.push({ref, role: el.getAttribute('role') || el.tagName.toLowerCase(),
-          name: (el.getAttribute('aria-label') || (el.labels && [...el.labels].map(l => l.innerText).join(' ')) || el.innerText || el.getAttribute('placeholder') || el.getAttribute('title') || '').slice(0, 300),
+          name: (el.getAttribute('aria-label') || (el.labels && [...el.labels].map(l => visibleText(l, 300).text).join(' ')) || visibleText(el, 300).text || el.getAttribute('placeholder') || el.getAttribute('title') || '').slice(0, 300),
           ...(el.tagName === 'A' ? {url: el.href.slice(0, 10000)} : {}),
           disabled: el.matches(':disabled,[aria-disabled=true]'),
           inViewport: rect.bottom > 0 && rect.right > 0 && rect.top < innerHeight && rect.left < innerWidth});
       }
-      const text = document.body?.innerText || '';
+      const {text, truncated} = visibleText(document.body, 80000);
       return {summary: 'Read current webpage (untrusted content)', document: state.document, url: location.href, title: document.title.slice(0, 1000), metadata,
-        text: text.slice(0, 80000), truncated: text.length > 80000, elements,
+        text, truncated, elements,
         viewport: {width: innerWidth, height: innerHeight, scrollX, scrollY},
-        limitations: 'Main document only; cross-origin frames and closed shadow roots are not included. Form values are not read.'};
+        limitations: 'Main document only; cross-origin frames and closed shadow roots are not included. Only text visible on the page is included. Form values are not read.'};
     }
     const state = globalThis.__seedBrowser;
     if (!state || state.document !== command.document || state.url !== location.href) throw new Error('Page changed. Take a fresh snapshot before acting.');
@@ -164,9 +213,16 @@ export async function executeBrowserCommand(
       const rect = el.getBoundingClientRect();
       const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
       if (!hit || !(el === hit || el.contains(hit))) throw new Error('Element is covered. Inspect the page before clicking or typing.');
-      if (command.action === 'click') el.click();
+      if (command.action === 'click') {
+        const submits = (el instanceof HTMLButtonElement || el instanceof HTMLInputElement) && el.form && ['submit', 'image'].includes(el.type);
+        if (submits && new URL(el.formAction || location.href, document.baseURI).origin !== location.origin) throw new Error('This button submits the form to another website. Ask the user to submit it.');
+        el.click();
+      }
       else {
-        if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) || el.readOnly || (el instanceof HTMLInputElement && !['text','search','email','url','tel','password','number'].includes(el.type))) throw new Error('Typing requires an editable text input or textarea');
+        if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) || el.readOnly || (el instanceof HTMLInputElement && !['text','search','email','url','tel','number'].includes(el.type))) throw new Error('Typing requires an editable text input or textarea. Password fields are for the user to fill in.');
+        if (el.autocomplete && /(^|\\s)(current-password|new-password|one-time-code|cc-number|cc-csc)(\\s|$)/.test(el.autocomplete)) throw new Error('This field holds a secret. Ask the user to fill it in.');
+        const action = el.form ? new URL(el.form.getAttribute('action') || location.href, document.baseURI) : null;
+        if (action && action.origin !== location.origin) throw new Error('This field submits to another website (' + action.origin + '). Ask the user to fill it in.');
         el.focus();
         const setter = Object.getOwnPropertyDescriptor(el instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype, 'value').set;
         setter.call(el, command.clear === false ? el.value + command.text : command.text);
@@ -180,6 +236,9 @@ export async function executeBrowserCommand(
     },
   ])
   if (result.browserError) throw new Error(result.browserError)
+  // The page can navigate while the script runs; never return content from a website the user did not allow.
+  options.assertOrigin?.(typeof result.url === 'string' ? result.url : '')
+  options.assertActive()
   if (command.action === 'screenshot') {
     options.assertActive()
     const capture = await guest.capturePage()

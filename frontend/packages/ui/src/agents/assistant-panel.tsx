@@ -1145,6 +1145,9 @@ function AssistantSessionChat({
             <BrowserTools
               key={`${serverUrl}/${sessionId}/${accountUid}`}
               toolEnabled={!!agent && (!agent.definition.tools || agent.definition.tools.includes('browser'))}
+              agentName={agent?.definition.name}
+              isOwner={agent?.accessRole === 'owner'}
+              isPublic={!!agent?.publicRead}
               serverUrl={serverUrl}
               sessionId={sessionId}
               accountUid={accountUid}
