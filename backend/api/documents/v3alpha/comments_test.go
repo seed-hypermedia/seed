@@ -1223,6 +1223,34 @@ func TestDelegatedCommentMutationKeepsAccountAuthority(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, alice.idx.Put(ctx, capability))
 
+	// Stable lookup and comment_live must use the same deterministic winner when
+	// two authorized delegated edits have the same protocol timestamp.
+	tieTime := time.Now().Add(3 * time.Hour).Round(blob.ClockPrecision)
+	delegatedBlob := func(text string) blob.Encoded[*blob.Comment] {
+		comment, err := blob.NewComment(
+			bob.Device,
+			rid.TSID,
+			rid.Authority,
+			alice.me.Account.Principal(),
+			"",
+			targetVersion,
+			cid.Undef,
+			cid.Undef,
+			[]blob.CommentBlock{{Block: blob.Block{ID_Good: text, Type: "paragraph", Text: text}}},
+			blob.VisibilityPublic,
+			tieTime,
+		)
+		require.NoError(t, err)
+		return comment
+	}
+	tieFirst := delegatedBlob("Tie 1")
+	tieSecond := delegatedBlob("Tie 2")
+	require.NoError(t, alice.idx.Put(ctx, tieFirst))
+	require.NoError(t, alice.idx.Put(ctx, tieSecond))
+	tieWinner, err := alice.GetComment(ctx, &pb.GetCommentRequest{Id: original.Id})
+	require.NoError(t, err)
+	require.Equal(t, "Tie 2", tieWinner.Content[0].Block.Text)
+
 	updated, err := update("bob-session", "Delegated update")
 	require.NoError(t, err)
 	require.Equal(t, original.Id, updated.Id)
@@ -1235,9 +1263,13 @@ func TestDelegatedCommentMutationKeepsAccountAuthority(t *testing.T) {
 
 	versions, err := alice.ListCommentVersions(ctx, &pb.ListCommentVersionsRequest{Id: original.Id})
 	require.NoError(t, err)
-	require.Len(t, versions.Versions, 2)
-	require.Equal(t, original.Id, versions.Versions[0].Id)
-	require.Equal(t, original.Id, versions.Versions[1].Id)
+	require.Len(t, versions.Versions, 4)
+	require.Equal(t, "Delegated update", versions.Versions[0].Content[0].Block.Text)
+	require.Equal(t, "Tie 2", versions.Versions[1].Content[0].Block.Text)
+	require.Equal(t, "Tie 1", versions.Versions[2].Content[0].Block.Text)
+	for _, version := range versions.Versions {
+		require.Equal(t, original.Id, version.Id)
+	}
 
 	listed, err := alice.ListComments(ctx, &pb.ListCommentsRequest{
 		TargetAccount: alice.me.Account.PublicKey.String(),

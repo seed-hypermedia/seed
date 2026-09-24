@@ -473,7 +473,7 @@ var qGetCommentByID = dqb.Str(`
 	WHERE sb.type = 'Comment'
 	AND sb.author = (SELECT id FROM public_keys WHERE principal = :authority)
 	AND sb.extra_attrs->>'tsid' = :tsid
-	ORDER BY sb.ts DESC
+	ORDER BY sb.ts DESC, sb.id DESC
 	LIMIT 1
 `)
 
@@ -522,7 +522,7 @@ var qListCommentVersions = dqb.Str(`
 	AND sb.author = (SELECT id FROM public_keys WHERE principal = :authority)
 	AND sb.extra_attrs->>'tsid' = :tsid
 	AND sb.extra_attrs->>'deleted' IS NULL
-	ORDER BY sb.ts DESC
+	ORDER BY sb.ts DESC, sb.id DESC
 `)
 
 func commentToProto(lookup *blob.LookupCache, c cid.Cid, cmt *blob.Comment, tsid blob.TSID) (*documents.Comment, error) {
@@ -665,7 +665,7 @@ func (srv *Server) UpdateComment(ctx context.Context, in *documents.UpdateCommen
 			return nil, err
 		}
 		if !valid {
-			return nil, status.Errorf(codes.PermissionDenied, "only the original author or an authorized agent can update a comment")
+			return nil, status.Errorf(codes.PermissionDenied, "only the original author can update a comment unless the signing key is an authorized agent")
 		}
 	}
 

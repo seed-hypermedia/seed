@@ -213,22 +213,25 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 		v.Account = account
 		authority = account
 
-		accountID, err := ictx.ensurePubKey(account)
-		if err != nil {
-			return err
-		}
-		signerID, err := ictx.ensurePubKey(v.Signer)
-		if err != nil {
-			return err
-		}
-		valid, err := isValidAgentKey(ictx.conn, accountID, signerID)
-		if err != nil {
-			return err
-		}
-		if !valid {
-			return stashError{
-				Reason:   stashReasonPermissionDenied,
-				Metadata: stashMetadata{DeniedSigners: []core.Principal{v.Signer}},
+		// Redundant self-account encodings are direct signatures, not delegation.
+		if !account.Equal(v.Signer) {
+			accountID, err := ictx.ensurePubKey(account)
+			if err != nil {
+				return err
+			}
+			signerID, err := ictx.ensurePubKey(v.Signer)
+			if err != nil {
+				return err
+			}
+			valid, err := isValidAgentKey(ictx.conn, accountID, signerID)
+			if err != nil {
+				return err
+			}
+			if !valid {
+				return stashError{
+					Reason:   stashReasonPermissionDenied,
+					Metadata: stashMetadata{DeniedSigners: []core.Principal{v.Signer}},
+				}
 			}
 		}
 	}
