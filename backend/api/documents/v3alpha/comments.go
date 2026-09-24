@@ -89,7 +89,7 @@ func (srv *Server) CreateComment(ctx context.Context, in *documents.CreateCommen
 		visibility = blob.VisibilityPublic
 	}
 
-	eb, err := blob.NewComment(kp, "", space, in.TargetPath, versionHeads, threadRoot, replyParent, commentContentFromProto(in.Content), visibility, clock.MustNow())
+	eb, err := blob.NewComment(kp, "", kp.Principal(), space, in.TargetPath, versionHeads, threadRoot, replyParent, commentContentFromProto(in.Content), visibility, clock.MustNow())
 	if err != nil {
 		return nil, err
 	}
@@ -538,11 +538,11 @@ func commentToProto(lookup *blob.LookupCache, c cid.Cid, cmt *blob.Comment, tsid
 	createTime := tsid.Timestamp()
 
 	pb := &documents.Comment{
-		Id:            blob.RecordID{Authority: cmt.Signer, TSID: tsid}.String(),
+		Id:            blob.RecordID{Authority: cmt.Authority(), TSID: tsid}.String(),
 		TargetAccount: cmt.Space().String(),
 		TargetPath:    cmt.Path,
 		TargetVersion: docmodel.NewVersion(cmt.Version...).String(),
-		Author:        cmt.Signer.String(),
+		Author:        cmt.Authority().String(),
 		Content:       content,
 		CreateTime:    timestamppb.New(createTime),
 		Version:       c.String(),
@@ -660,7 +660,13 @@ func (srv *Server) UpdateComment(ctx context.Context, in *documents.UpdateCommen
 	}
 
 	if !kp.Principal().Equal(rid.Authority) {
-		return nil, status.Errorf(codes.PermissionDenied, "only the original author can update a comment")
+		valid, err := srv.idx.IsValidAgent(ctx, rid.Authority, kp.Principal())
+		if err != nil {
+			return nil, err
+		}
+		if !valid {
+			return nil, status.Errorf(codes.PermissionDenied, "signing key is not an agent of the comment authority")
+		}
 	}
 
 	space, err := core.DecodePrincipal(comment.TargetAccount)
@@ -718,7 +724,7 @@ func (srv *Server) UpdateComment(ctx context.Context, in *documents.UpdateCommen
 		visibility = blob.VisibilityPublic
 	}
 
-	eb, err := blob.NewComment(kp, rid.TSID, space, comment.TargetPath, versionHeads, threadRoot, replyParent, commentContentFromProto(comment.Content), visibility, clock.MustNow())
+	eb, err := blob.NewComment(kp, rid.TSID, rid.Authority, space, comment.TargetPath, versionHeads, threadRoot, replyParent, commentContentFromProto(comment.Content), visibility, clock.MustNow())
 	if err != nil {
 		return nil, err
 	}
@@ -754,7 +760,13 @@ func (srv *Server) DeleteComment(ctx context.Context, in *documents.DeleteCommen
 	}
 
 	if !kp.Principal().Equal(rid.Authority) {
-		return nil, status.Errorf(codes.PermissionDenied, "signing key must match the comment author")
+		valid, err := srv.idx.IsValidAgent(ctx, rid.Authority, kp.Principal())
+		if err != nil {
+			return nil, err
+		}
+		if !valid {
+			return nil, status.Errorf(codes.PermissionDenied, "signing key is not an agent of the comment authority")
+		}
 	}
 
 	var originalComment indexedComment
@@ -771,10 +783,6 @@ func (srv *Server) DeleteComment(ctx context.Context, in *documents.DeleteCommen
 		return nil, err
 	}
 
-	if !originalComment.Comment.Signer.Equal(kp.Principal()) {
-		return nil, status.Errorf(codes.PermissionDenied, "only the original author can delete a comment")
-	}
-
 	// Comments inherit visibility from their target document.
 	visibility, err := srv.idx.GetDocumentVisibility(ctx, originalComment.Comment.Space(), originalComment.Comment.Path)
 	if err != nil {
@@ -782,7 +790,7 @@ func (srv *Server) DeleteComment(ctx context.Context, in *documents.DeleteCommen
 		visibility = blob.VisibilityPublic
 	}
 
-	eb, err := blob.NewComment(kp, rid.TSID, originalComment.Comment.Space(), originalComment.Comment.Path, originalComment.Comment.Version, cid.Undef, cid.Undef, nil, visibility, clock.MustNow())
+	eb, err := blob.NewComment(kp, rid.TSID, rid.Authority, originalComment.Comment.Space(), originalComment.Comment.Path, originalComment.Comment.Version, cid.Undef, cid.Undef, nil, visibility, clock.MustNow())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to delete comment: %v", err)
 	}
@@ -848,6 +856,11 @@ func (srv *Server) ListCommentVersions(ctx context.Context, in *documents.ListCo
 			// Skip tombstones (deleted versions).
 			if len(v.Comment.Body) == 0 {
 				continue
+			}
+			if v.Comment.Visibility == blob.VisibilityPrivate {
+				if err := srv.denyPrivateComment(ctx, v.Comment.Space(), v.Comment.Path); err != nil {
+					return nil, err
+				}
 			}
 			pb, err := commentToProto(lookup, v.CID, v.Comment, v.TSID)
 			if err != nil {

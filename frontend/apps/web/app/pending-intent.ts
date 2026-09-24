@@ -193,9 +193,8 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
     } catch (e) {
       console.warn('[processPendingIntent] existing-home check failed, proceeding to publish', e)
     }
-    const {adoptPendingSpaceDraft, discardSpaceHomeDraft, repointSpaceHomeDraftToAccount} = await import(
-      './document-edit/web-create-space-draft'
-    )
+    const {adoptPendingSpaceDraft, discardSpaceHomeDraft, repointSpaceHomeDraftToAccount} =
+      await import('./document-edit/web-create-space-draft')
     try {
       const {publishWebDocument} = await import('./document-edit/web-document-actors')
       // Re-key the anonymous home draft to the new account, then publish it.
@@ -261,6 +260,7 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
         {
           docId,
           docVersion: intent.docVersion,
+          account: storedKeys.delegatedAccountUid,
           content,
           replyCommentVersion: intent.replyCommentVersion,
           rootReplyCommentVersion: intent.rootReplyCommentVersion,

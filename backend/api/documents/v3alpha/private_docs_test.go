@@ -173,6 +173,10 @@ func TestPrivateDocSecurity_GetResourceSnapshotBypassesPublicOnly(t *testing.T) 
 	st, ok := status.FromError(err)
 	require.True(t, ok)
 	require.Equal(t, codes.PermissionDenied, st.Code(), "error must be PermissionDenied, got %s: %s", st.Code(), st.Message())
+
+	_, err = alice.ListCommentVersions(ctx, &documents.ListCommentVersionsRequest{Id: comment.Id})
+	require.Error(t, err, "comment history must not expose private comment bodies on a PublicOnly server")
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
 }
 
 // VULN-2: ListDocumentChanges does not check PublicOnly.

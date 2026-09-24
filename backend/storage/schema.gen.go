@@ -96,22 +96,24 @@ const (
 
 // Table comment_live.
 const (
-	CommentLive         sqlitegen.Table  = "comment_live"
-	CommentLiveBlobID   sqlitegen.Column = "comment_live.blob_id"
-	CommentLiveGenesis  sqlitegen.Column = "comment_live.genesis"
-	CommentLiveResource sqlitegen.Column = "comment_live.resource"
-	CommentLiveTs       sqlitegen.Column = "comment_live.ts"
-	CommentLiveTsid     sqlitegen.Column = "comment_live.tsid"
+	CommentLive          sqlitegen.Table  = "comment_live"
+	CommentLiveAuthority sqlitegen.Column = "comment_live.authority"
+	CommentLiveBlobID    sqlitegen.Column = "comment_live.blob_id"
+	CommentLiveGenesis   sqlitegen.Column = "comment_live.genesis"
+	CommentLiveResource  sqlitegen.Column = "comment_live.resource"
+	CommentLiveTs        sqlitegen.Column = "comment_live.ts"
+	CommentLiveTsid      sqlitegen.Column = "comment_live.tsid"
 )
 
 // Table comment_live. Plain strings.
 const (
-	T_CommentLive         = "comment_live"
-	C_CommentLiveBlobID   = "comment_live.blob_id"
-	C_CommentLiveGenesis  = "comment_live.genesis"
-	C_CommentLiveResource = "comment_live.resource"
-	C_CommentLiveTs       = "comment_live.ts"
-	C_CommentLiveTsid     = "comment_live.tsid"
+	T_CommentLive          = "comment_live"
+	C_CommentLiveAuthority = "comment_live.authority"
+	C_CommentLiveBlobID    = "comment_live.blob_id"
+	C_CommentLiveGenesis   = "comment_live.genesis"
+	C_CommentLiveResource  = "comment_live.resource"
+	C_CommentLiveTs        = "comment_live.ts"
+	C_CommentLiveTsid      = "comment_live.tsid"
 )
 
 // Table document_attribute_keys.
@@ -804,6 +806,7 @@ var Schema = sqlitegen.Schema{
 		BlobsInsertTime:                         {Table: Blobs, SQLType: "INTEGER"},
 		BlobsMultihash:                          {Table: Blobs, SQLType: "BLOB"},
 		BlobsSize:                               {Table: Blobs, SQLType: "INTEGER"},
+		CommentLiveAuthority:                    {Table: CommentLive, SQLType: "INTEGER"},
 		CommentLiveBlobID:                       {Table: CommentLive, SQLType: "INTEGER"},
 		CommentLiveGenesis:                      {Table: CommentLive, SQLType: "TEXT"},
 		CommentLiveResource:                     {Table: CommentLive, SQLType: "INTEGER"},
