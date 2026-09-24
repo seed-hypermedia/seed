@@ -665,7 +665,7 @@ func (srv *Server) UpdateComment(ctx context.Context, in *documents.UpdateCommen
 			return nil, err
 		}
 		if !valid {
-			return nil, status.Errorf(codes.PermissionDenied, "signing key is not an agent of the comment authority")
+			return nil, status.Errorf(codes.PermissionDenied, "only the original author or an authorized agent can update a comment")
 		}
 	}
 
@@ -765,7 +765,7 @@ func (srv *Server) DeleteComment(ctx context.Context, in *documents.DeleteCommen
 			return nil, err
 		}
 		if !valid {
-			return nil, status.Errorf(codes.PermissionDenied, "signing key is not an agent of the comment authority")
+			return nil, status.Errorf(codes.PermissionDenied, "signing key must match the comment author or an authorized agent")
 		}
 	}
 
