@@ -10,9 +10,9 @@ import {
   findFirstBlock,
   hmId,
   plainTextOfContent,
-  type DocumentRoute,
   useRouteLink,
   useUniversalAppContext,
+  type DocumentRoute,
 } from '@shm/shared'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
@@ -26,8 +26,8 @@ import {useNavigate} from '@shm/shared/utils/navigation'
 import {Bookmark, Copy, FilePen, FileText, Forward, History, Layers, MessageSquare, Pencil, Split} from 'lucide-react'
 import {HTMLAttributes, ReactNode, useMemo} from 'react'
 import {Button} from './button'
-import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {createCopyLinkMenuItem, getWebCopyLinkHostname} from './copy-link-menu'
+import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {createDocumentVersionsPanelRoute} from './document-versions-panel'
 import {DraftBadge} from './draft-badge'
 import {FacePile} from './face-pile'
@@ -282,7 +282,9 @@ export function DocumentCardShell({
   thumbnail,
   title,
   summary,
+  details,
   badges,
+  actionDetails,
   actions,
 }: {
   interactive?: boolean
@@ -290,9 +292,12 @@ export function DocumentCardShell({
   thumbnail: ReactNode
   title: ReactNode
   summary?: ReactNode
+  details?: ReactNode
   badges?: ReactNode
+  actionDetails?: ReactNode
   actions?: ReactNode
 }) {
+  console.log({badges})
   return (
     <div
       className={cn(
@@ -308,10 +313,12 @@ export function DocumentCardShell({
       <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-between">
         <div className="p-3">
           {title}
+          {badges}
           {summary}
+          {details}
         </div>
-        <div className="flex items-center justify-between py-2 pr-2 pl-3">
-          <div className="flex items-center gap-1.5">{badges}</div>
+        <div data-testid="document-card-action-row" className="flex items-center justify-between py-2 pr-2 pl-3">
+          <div className="flex items-center gap-3">{actionDetails}</div>
           {actions}
         </div>
       </div>
@@ -336,6 +343,8 @@ export function DocumentCard({
   onMouseLeave,
   banner = false,
   showSummary = false,
+  details,
+  actionDetails,
   hideInlineActions = false,
   relocationOrigin,
   ...props
@@ -358,6 +367,10 @@ export function DocumentCard({
   onMouseLeave?: (id: UnpackedHypermediaId) => void
   banner?: boolean
   showSummary?: boolean
+  /** Additional document details rendered below the title and summary. */
+  details?: ReactNode
+  /** Additional details rendered to the left of the card action buttons. */
+  actionDetails?: ReactNode
   /** Hide the inline bookmark / comments / options-dropdown row */
   hideInlineActions?: boolean
   relocationOrigin?: DocumentCardActionOrigin
@@ -455,6 +468,8 @@ export function DocumentCard({
           <p className={cn('text-muted-foreground mt-2 line-clamp-2 font-sans', !banner && 'text-sm')}>{textContent}</p>
         ) : null
       }
+      details={details}
+      actionDetails={actionDetails}
       badges={
         <>
           {contributorUids && contributorUids.length > 0 && accountsMetadata && (
