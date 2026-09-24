@@ -79,6 +79,23 @@ function makeContext(overrides: Partial<AgentServicePiToolContext> = {}): AgentS
   }
 }
 
+describe('apps callable', () => {
+  test('uses ordinary discovery and grants without requiring execution or publishing', async () => {
+    const context = makeContext({callableTools: ['apps'], publishEnabled: false})
+    expect(JSON.stringify(await executeReadVerb(context, {address: '~/tools/'}))).toContain('apps')
+    expect(JSON.stringify(await executeReadVerb(context, {address: '~/tools/apps'}))).toContain('self-contained')
+    agentMemory.writeMemoryFile(context.stateDir, 'demo.html', '<h1>Demo</h1>')
+    const input = {tool: 'apps', input: {path: 'demo.html', title: 'Demo'}}
+    const denied = await executeCallVerb({...context, callableTools: []}, input, 'denied')
+    expect(denied.url).toBeUndefined()
+    const created = await executeCallVerb(context, input, 'allowed')
+    expect(created.url).toMatch(/^seed-app:[a-f0-9]{64}$/)
+    expect(await executeCallVerb(context, {tool: 'apps', input: {path: 'demo.html'}}, 'invalid')).toHaveProperty(
+      'validationErrors',
+    )
+  })
+})
+
 describe('browser callable', () => {
   test('discovers the contract through the normal tool documents', async () => {
     const context = makeContext({callableTools: ['browser']})

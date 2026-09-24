@@ -727,6 +727,7 @@ function substituteAttachmentLinks(blocks: HMBlockNode[], srcById: Record<string
  * popover with the verbatim lines.
  */
 function MessageContextInfo({lines}: {lines: string[]}) {
+  const isApp = lines.includes('## App widget') || lines.includes('## Local app')
   const isBrowser = lines.includes('View: web')
   const pageUrl = isBrowser ? lines.find((line) => line.startsWith('URL: '))?.slice(5) : undefined
   return (
@@ -738,7 +739,7 @@ function MessageContextInfo({lines}: {lines: string[]}) {
           title="What the agent was told about your current window"
         >
           {isBrowser ? <Globe className="size-3" /> : <Info className="size-3" />}
-          {isBrowser ? 'Browser context' : 'Context'}
+          {isApp ? 'App context' : isBrowser ? 'Browser context' : 'Context'}
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-96 max-w-[90vw] p-3">

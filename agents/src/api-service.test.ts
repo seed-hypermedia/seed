@@ -38,6 +38,49 @@ function withoutMeta(payload: unknown): unknown {
 }
 
 describe('api service', () => {
+  test('discovers apps and reads generated artifacts only through signed session access', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const svc = new apisvc.Service(db, dataDir, {runQueue: {maxConcurrentModelRuns: 0}})
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      const stranger = blobs.generateNobleKeyPair()
+      const sessionId = await seedAgentSession(svc, owner, 'App test', {tools: ['apps']})
+      const invoke = async (verb: 'read' | 'write' | 'call', input: Record<string, unknown>) =>
+        svc.message(
+          await apisvc.createSignedEnvelope(owner, {action: {_: 'InvokeSessionTool', sessionId, verb, input}}),
+        )
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {action: {_: 'GetSession', sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('Unexpected response')
+      await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {
+            _: 'WriteAgentMemoryFile',
+            agentId: session.session.agentId,
+            path: 'app.html',
+            content: '<h1>Private app</h1>',
+          },
+        }),
+      )
+      const created = await invoke('call', {tool: 'apps', input: {path: '~/memory/app.html', title: 'Demo'}})
+      if (created._ !== 'InvokeSessionToolResponse') throw new Error('Unexpected response')
+      const attachmentId = (created.output as {attachmentId: string}).attachmentId
+      const read = async (signer: blobs.Signer) =>
+        svc.message(
+          await apisvc.createSignedEnvelope(signer, {action: {_: 'ReadSessionAttachment', sessionId, attachmentId}}),
+        )
+      expect(await read(owner)).toMatchObject({
+        _: 'ReadSessionAttachmentResponse',
+        attachment: {mimeType: 'application/vnd.seed.app+json'},
+      })
+      await expect(read(stranger)).rejects.toThrow()
+    } finally {
+      svc.stopRunQueue()
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
   test('relays browser tools through signed session actions without exposing another account’s browser', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const svc = new apisvc.Service(db, dataDir, {runQueue: {maxConcurrentModelRuns: 0}})

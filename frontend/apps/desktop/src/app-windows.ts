@@ -2,6 +2,7 @@ import appError from '@/errors'
 import {getPageWebContents, setupWebBrowser} from './app-web-browser'
 import {createBrowserArchiveDraft} from './app-drafts'
 import {isWebBrowserEnabled} from './app-experiments'
+import {frameNavigationOpensExternally} from './frame-navigation'
 import type {AppWindowEvent} from '@/utils/window-events'
 import {getRouteWindowType} from '@/utils/window-types'
 import {defaultRoute, type NavRoute} from '@shm/shared/routes'
@@ -538,29 +539,10 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
   // Handle navigation in frames (for iframe content like YouTube embeds)
   browserWindow.webContents.on('will-frame-navigate', (event) => {
     const {url, isMainFrame} = event
-
-    // Only handle iframe navigations, not main frame
-    if (!isMainFrame) {
-      // Allow embed domains to load their content
-      const allowedEmbedDomains = [
-        'youtube.com',
-        'youtube-nocookie.com',
-        'twitter.com',
-        'x.com',
-        'platform.twitter.com',
-        'instagram.com',
-        'cdninstagram.com',
-      ]
-
-      const isAllowedEmbed = allowedEmbedDomains.some((domain) => url.includes(domain))
-
-      if (!isAllowedEmbed) {
-        // If it's not an allowed embed domain, open in external browser
-        event.preventDefault()
-        shell.openExternal(url)
-      }
-      // Otherwise allow the embed to load normally
-    }
+    if (isMainFrame || !frameNavigationOpensExternally(url)) return
+    // A website other than an allowed embed: keep it out of the app's frames.
+    event.preventDefault()
+    shell.openExternal(url)
   })
 
   // Additional handler for any child windows that might slip through
