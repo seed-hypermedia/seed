@@ -5,6 +5,7 @@ import {htmlToBlocks} from '@shm/shared/html-to-blocks'
 import type {WebContents} from 'electron'
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
+import {localizeBrowserArchiveImages} from './browser-archive-images'
 
 const documentToken = z.string().min(1).max(100)
 const ref = z.string().min(1).max(100)
@@ -38,12 +39,15 @@ const commandSchema = z.discriminatedUnion('action', [
 export type BrowserArchive = {metadata: HMMetadata; blocks: HMBlockNode[]; markdown: string}
 
 /** Converts sanitized article HTML into the same editable blocks and markdown used by Seed documents. */
-export async function prepareBrowserArchive(page: {
-  html: string
-  url: string
-  title: string
-  metadata: Record<string, string>
-}): Promise<BrowserArchive> {
+export async function prepareBrowserArchive(
+  page: {
+    html: string
+    url: string
+    title: string
+    metadata: Record<string, string>
+  },
+  localizeImages?: (blocks: HMBlockNode[]) => Promise<void>,
+): Promise<BrowserArchive> {
   const capturedAt = new Date().toISOString()
   const metadata: HMMetadata = {
     name: page.title || new URL(page.url).hostname,
@@ -58,6 +62,9 @@ export async function prepareBrowserArchive(page: {
   const blocks = await htmlToBlocks(page.html, '', {
     resolveImage: async (src) => (/^https?:\/\//.test(src) ? src : null),
   })
+  // Conversion is intermediate: no remote image reference may reach a persisted draft.
+  if (localizeImages) await localizeImages(blocks)
+  else await localizeBrowserArchiveImages(undefined, blocks)
   if (!blocks.length) throw new Error('This page has no article content to archive')
   const attribution = `Source: ${page.url} · Captured ${capturedAt}`
   blocks.push({
@@ -80,7 +87,7 @@ export async function executeBrowserCommand(
   raw: BrowserCommand,
   options: {
     assertActive: () => void
-    navigate: (url: string) => void
+    navigate: (url: string) => void | Promise<void>
     archive: (archive: BrowserArchive) => Promise<{id: string}>
   },
 ): Promise<Record<string, unknown>> {
@@ -201,11 +208,11 @@ export async function executeBrowserCommand(
   }
   if (command.action === 'navigate') {
     options.assertActive()
-    options.navigate(command.url)
+    await options.navigate(command.url)
     return {summary: 'Requested navigation; take a fresh snapshot after the page loads', url: command.url}
   }
   if (command.action === 'archive') {
-    const archive = await prepareBrowserArchive(result)
+    const archive = await prepareBrowserArchive(result, (blocks) => localizeBrowserArchiveImages(guest, blocks))
     options.assertActive()
     const draft = await options.archive(archive)
     return {
@@ -215,7 +222,7 @@ export async function executeBrowserCommand(
       metadata: archive.metadata,
       markdown: archive.markdown,
       limitations:
-        'Article content imported; external images still reference the source site. Scripts, forms, frames and interactive behavior are not archived.',
+        'Article content imported; images are stored locally or replaced with source links. Scripts, forms, frames and interactive behavior are not archived.',
     }
   }
   return result
