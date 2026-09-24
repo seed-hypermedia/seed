@@ -8,6 +8,8 @@ import {
   type AgentApp,
 } from '@seed-hypermedia/agents-protocol'
 import {Button} from '../button'
+import {Popover, PopoverContent, PopoverTrigger} from '../components/popover'
+import {Info} from 'lucide-react'
 import {sendAgentAction} from './client'
 import {getAgentsPlatform} from './platform'
 import {useMessageAgentSession} from './models'
@@ -97,7 +99,13 @@ export function AgentAppLink({
   )
 }
 
-/** A sandboxed app that runs on sight, with trusted controls outside the model-authored GUI. */
+/**
+ * A sandboxed app that runs on sight and IS the bubble: no header, no Run/Stop, no caption — the
+ * app's own GUI fills the frame. The one trusted control outside the model-authored GUI is an info
+ * button in the corner, whose popover names the app, its immutable revision, what the sandbox
+ * guarantees, and offers Open in browser. Results the app proposes still surface beneath the frame
+ * with Send to agent, because nothing an app produces reaches the agent without a person's click.
+ */
 export function AgentAppWidget({
   reference,
   height,
@@ -108,38 +116,30 @@ export function AgentAppWidget({
   scope: MarkdownAssetScope | null
 }) {
   const [app, setApp] = React.useState<AgentApp | null>(null)
-  const [running, setRunning] = React.useState(false)
-  const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState('')
   const [result, setResult] = React.useState<string | null>(null)
   const [sent, setSent] = React.useState(false)
   const frame = React.useRef<HTMLIFrameElement>(null)
   const send = useMessageAgentSession(scope?.serverUrl, scope?.accountUid)
   const document = React.useMemo(() => (app ? agentAppDocument(app) : undefined), [app])
-  const start = React.useCallback(async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const loaded = app ?? (await loadAgentApp(scope, reference))
-      setApp(loaded)
-      setRunning(true)
-      setResult(null)
-      setSent(false)
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error))
-    } finally {
-      setLoading(false)
-    }
-  }, [app, scope, reference])
-  // A widget in the transcript runs as soon as it appears; the sandbox, not a click, is what
-  // keeps it contained. Stop puts it back behind a Run button.
+  // Once per widget: `key` on the caller already ties identity to the reference and session, so
+  // streaming and rerenders never restart a running app.
   React.useEffect(() => {
-    void start()
-    // Once per widget: `key` on the caller already ties identity to the reference and session.
+    let cancelled = false
+    loadAgentApp(scope, reference)
+      .then((loaded) => {
+        if (!cancelled) setApp(loaded)
+      })
+      .catch((error) => {
+        if (!cancelled) setError(error instanceof Error ? error.message : String(error))
+      })
+    return () => {
+      cancelled = true
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   React.useEffect(() => {
-    if (!running || result !== null) return
+    if (!document || result !== null) return
     const listener = (event: MessageEvent) => {
       if (event.source !== frame.current?.contentWindow || event.data?.type !== 'seed-app-result') return
       try {
@@ -152,53 +152,38 @@ export function AgentAppWidget({
     }
     window.addEventListener('message', listener)
     return () => window.removeEventListener('message', listener)
-  }, [running, result])
+  }, [document, result])
+  const title = app?.title ?? 'Interactive app'
   return (
     <section
-      aria-label={app?.title ?? 'App widget'}
-      className="border-border bg-background my-2 overflow-hidden rounded-lg border text-sm"
+      aria-label={title}
+      // Bleeds to the edges of the text bubble it sits in, so when the widget is the whole message it
+      // reads as the bubble itself rather than a box inside one.
+      className="border-border bg-background relative -mx-3 my-2 overflow-hidden rounded-lg border text-sm first:-mt-2 last:-mb-2"
     >
-      <div className="bg-muted/50 flex flex-wrap items-center gap-2 p-2">
-        <span className="min-w-0 flex-1 truncate font-medium">{app?.title ?? 'Interactive app'}</span>
-        <Button
-          size="xs"
-          variant="ghost"
-          loading={loading}
-          onClick={() => {
-            if (running) setRunning(false)
-            else void start()
-          }}
-        >
-          {running ? 'Stop widget' : 'Run widget'}
-        </Button>
-        {getAgentsPlatform().openAgentApp && (
-          <AgentAppLink reference={reference} scope={scope}>
-            Open in browser
-          </AgentAppLink>
-        )}
-      </div>
-      <div className="text-muted-foreground px-2 py-1 text-xs">
-        Sandboxed · isolated from Seed · state resets on restart
-      </div>
-      {error && (
-        <p role="alert" className="text-destructive p-2">
+      {error ? (
+        <p role="alert" className="text-destructive p-3">
           {error}
         </p>
-      )}
-      {running && document && (
+      ) : document ? (
         <iframe
           ref={frame}
-          title={app?.title ?? 'App widget'}
+          title={title}
           sandbox="allow-scripts"
           referrerPolicy="no-referrer"
           srcDoc={document}
-          className="w-full border-0 bg-white"
+          className="block w-full border-0 bg-white"
           style={{height}}
         />
+      ) : (
+        <div className="text-muted-foreground flex items-center justify-center text-xs" style={{height}}>
+          Loading app…
+        </div>
       )}
-      {result !== null && (
+      <AgentAppInfo reference={reference} app={app} scope={scope} />
+      {result !== null && app && (
         <div className="border-border flex flex-col gap-2 border-t p-2">
-          <span className="text-xs">Widget result — review before sharing with your agent:</span>
+          <span className="text-xs">App result — review before sharing with your agent:</span>
           <pre className="bg-muted max-h-48 overflow-auto rounded p-2 text-xs whitespace-pre-wrap">{result}</pre>
           <div className="flex gap-2">
             <Button
@@ -206,7 +191,7 @@ export function AgentAppWidget({
               loading={send.isLoading}
               disabled={sent || !scope?.sessionId}
               onClick={async () => {
-                if (!scope?.sessionId || !app) return
+                if (!scope?.sessionId) return
                 setError('')
                 try {
                   await send.mutateAsync({
@@ -236,5 +221,47 @@ export function AgentAppWidget({
         </div>
       )}
     </section>
+  )
+}
+
+/** The corner info button: everything about the app that the app itself must not be trusted to say. */
+function AgentAppInfo({
+  reference,
+  app,
+  scope,
+}: {
+  reference: string
+  app: AgentApp | null
+  scope: MarkdownAssetScope | null
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label="About this app"
+          title="About this app"
+          className="bg-background/80 text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-1.5 right-1.5 flex size-6 items-center justify-center rounded-full border shadow-sm backdrop-blur focus-visible:ring-2 focus-visible:outline-none"
+        >
+          <Info className="size-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="flex w-80 max-w-[90vw] flex-col gap-2 p-3 text-xs">
+        <div className="text-sm font-medium break-words">{app?.title ?? 'Interactive app'}</div>
+        <p className="text-muted-foreground">
+          Built by the agent in this chat. It runs in a sandbox isolated from Seed and from the network; its state
+          resets when the app closes. Anything it wants to tell the agent appears below the app for you to review first.
+        </p>
+        <div>
+          <div className="text-muted-foreground">Revision</div>
+          <div className="font-mono break-all">{reference}</div>
+        </div>
+        {getAgentsPlatform().openAgentApp && (
+          <AgentAppLink reference={reference} scope={scope}>
+            Open in browser
+          </AgentAppLink>
+        )}
+      </PopoverContent>
+    </Popover>
   )
 }

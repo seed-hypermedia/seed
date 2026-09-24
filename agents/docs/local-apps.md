@@ -12,10 +12,11 @@ interface. A remote server's `localhost` is never mistaken for the user's machin
    existing grants are not silently changed. No execution backend or publishing keys are needed.
 3. Ask: “Build an interactive budget calculator with sliders. Show it as a widget and give me a link to open it in the
    browser. Let me send my selected budget back to you.”
-4. The widget runs in the chat as soon as it appears (**Stop widget** puts it behind a **Run widget** button), or click
-   **Open in browser**. In chat, a result appears outside the app with **Send to agent** and **Dismiss** controls.
-   Nothing is sent until the user chooses to send it. The resulting message has an **App context** bubble containing the
-   artifact reference and the output's provenance.
+4. The widget runs in the chat as soon as it appears and is the whole bubble: no header, no Run button. The info button
+   in its corner shows the app's title, its immutable revision, what the sandbox guarantees, and **Open in browser**. In
+   chat, a result appears outside the app with **Send to agent** and **Dismiss** controls. Nothing is sent until the
+   user chooses to send it. The resulting message has an **App context** bubble containing the artifact reference and
+   the output's provenance.
 
 The app opens in the ordinary `web` route, preserving the sidebar, title bar, footer, assistant panel, omnibar, and
 browser/Seed navigation history. The local HTTP URL lasts until that Seed window closes; use the original chat link to
