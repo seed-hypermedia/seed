@@ -1225,7 +1225,7 @@ func TestDelegatedCommentMutationKeepsAccountAuthority(t *testing.T) {
 
 	// Stable lookup and comment_live must use the same deterministic winner when
 	// two authorized delegated edits have the same protocol timestamp.
-	tieTime := time.Now().Add(3 * time.Hour).Round(blob.ClockPrecision)
+	tieTime := time.Now().Round(blob.ClockPrecision)
 	delegatedBlob := func(text string) blob.Encoded[*blob.Comment] {
 		comment, err := blob.NewComment(
 			bob.Device,
