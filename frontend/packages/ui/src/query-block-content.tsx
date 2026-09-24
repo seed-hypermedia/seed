@@ -4,7 +4,7 @@ import {
   HMQueryBlockItemSummary,
   HMQueryTableConfig,
 } from '@seed-hypermedia/client/hm-types'
-import {getMetadataName, useRouteLink} from '@shm/shared'
+import {formattedDate, getMetadataName, useRouteLink} from '@shm/shared'
 import {useInteractionSummaries} from '@shm/shared/models/interaction-summary'
 import {type SortingState} from '@tanstack/react-table'
 import {ArrowDown, ArrowUp, ArrowUpDown, FileText, Filter, MessageSquare, Plus, Search, Share2, X} from 'lucide-react'
@@ -27,6 +27,7 @@ import {
   getQueryTableValue,
   moveQueryTableColumn,
   queryTableItemMatchesSearch,
+  queryTableValueToString,
   type QueryTableColumn,
   type QueryTableFilter,
   type QueryTableValueContext,
@@ -242,6 +243,14 @@ export function QueryBlockContent({
     return columnOrder.filter((id) => columnVisibility[id] !== false).length
   }, [columnOrder, columnVisibility, descriptors])
 
+  const visibleDescriptors = useMemo(() => {
+    const byId = new Map(descriptors.map((descriptor) => [descriptor.id, descriptor]))
+    return columnOrder
+      .filter((id) => columnVisibility[id] !== false)
+      .map((id) => byId.get(id))
+      .filter((descriptor): descriptor is QueryTableColumn => !!descriptor)
+  }, [columnOrder, columnVisibility, descriptors])
+
   const toggleColumnVisibility = useCallback(
     (id: string) => {
       const next = {...columnVisibility, [id]: !columnVisibility[id]}
@@ -275,7 +284,7 @@ export function QueryBlockContent({
   return (
     <div className="border-border bg-background flex flex-col rounded-md border">
       <QueryBlockToolbar
-        showAttributes={style === 'Table'}
+        showAttributes
         descriptors={descriptors}
         items={items}
         context={context}
@@ -334,9 +343,15 @@ export function QueryBlockContent({
           navigateCards={navigateCards}
           titleLinkOnly={titleLinkOnly}
           itemContributors={itemContributors}
+          visibleDescriptors={visibleDescriptors}
         />
       ) : (
-        <QueryBlockList items={sortedItems} prependItems={prependItems} context={context} />
+        <QueryBlockList
+          items={sortedItems}
+          prependItems={prependItems}
+          context={context}
+          visibleDescriptors={visibleDescriptors}
+        />
       )}
     </div>
   )
@@ -763,26 +778,35 @@ function QueryBlockList({
   items,
   prependItems,
   context,
+  visibleDescriptors,
 }: {
   items: HMDocumentInfo[]
   prependItems?: ReactNode[]
   context: QueryTableValueContext
+  visibleDescriptors: QueryTableColumn[]
 }) {
   const {visibleCount, sentinelRef} = useProgressiveChunk(items)
   return (
     <div className="flex flex-col">
       {prependItems}
       {items.slice(0, visibleCount).map((item) => (
-        <QueryBlockListItem key={item.id.id} item={item} context={context} />
+        <QueryBlockListItem key={item.id.id} item={item} context={context} visibleDescriptors={visibleDescriptors} />
       ))}
       {visibleCount < items.length ? <div ref={sentinelRef} className="h-6" aria-hidden="true" /> : null}
     </div>
   )
 }
 
-function QueryBlockListItem({item, context}: {item: HMDocumentInfo; context: QueryTableValueContext}) {
+function QueryBlockListItem({
+  item,
+  context,
+  visibleDescriptors,
+}: {
+  item: HMDocumentInfo
+  context: QueryTableValueContext
+  visibleDescriptors: QueryTableColumn[]
+}) {
   const title = getMetadataName(item.metadata) || item.path.at(-1) || 'Untitled'
-  const tags = getDocumentTags(item)
   return (
     <div
       data-testid="query-row"
@@ -796,21 +820,12 @@ function QueryBlockListItem({item, context}: {item: HMDocumentInfo; context: Que
           {title}
         </QueryBlockItemTitle>
       </div>
-      <div className="flex min-w-0 items-center gap-4">
-        {tags.length > 0 && (
-          <span className="flex flex-wrap items-center justify-end gap-1">
-            {tags.map((tag) => (
-              <span
-                key={tag}
-                className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800 dark:bg-green-900 dark:text-green-100"
-              >
-                {tag}
-              </span>
-            ))}
-          </span>
-        )}
-        <ItemCounts item={item} context={context} className="shrink-0" />
-      </div>
+      <SelectedAttributes
+        item={item}
+        context={context}
+        descriptors={visibleDescriptors}
+        className="min-w-0 justify-end"
+      />
     </div>
   )
 }
@@ -825,6 +840,7 @@ function QueryBlockCards({
   navigateCards,
   titleLinkOnly,
   itemContributors,
+  visibleDescriptors,
 }: {
   items: HMDocumentInfo[]
   context: QueryTableValueContext
@@ -835,6 +851,7 @@ function QueryBlockCards({
   navigateCards?: boolean
   titleLinkOnly?: boolean
   itemContributors?: Record<string, string[]>
+  visibleDescriptors: QueryTableColumn[]
 }) {
   const firstItem = banner && !bannerContent ? items[0] : undefined
   const restItems = firstItem ? items.slice(1) : items
@@ -864,6 +881,7 @@ function QueryBlockCards({
             navigateCards={navigateCards}
             titleLinkOnly={titleLinkOnly}
             contributorUids={itemContributors?.[firstItem.id.id]}
+            visibleDescriptors={visibleDescriptors}
           />
         </div>
       )}
@@ -876,6 +894,7 @@ function QueryBlockCards({
             navigateCards={navigateCards}
             titleLinkOnly={titleLinkOnly}
             contributorUids={itemContributors?.[item.id.id]}
+            visibleDescriptors={visibleDescriptors}
           />
         ))}
       </div>
@@ -891,6 +910,7 @@ function QueryBlockCard({
   navigateCards,
   titleLinkOnly,
   contributorUids,
+  visibleDescriptors,
 }: {
   item: HMDocumentInfo
   context: QueryTableValueContext
@@ -898,6 +918,7 @@ function QueryBlockCard({
   navigateCards?: boolean
   titleLinkOnly?: boolean
   contributorUids?: string[]
+  visibleDescriptors: QueryTableColumn[]
 }) {
   return (
     <DocumentCard
@@ -914,7 +935,83 @@ function QueryBlockCard({
       navigate={navigateCards}
       titleLinkOnly={titleLinkOnly}
       showSummary
+      details={
+        <SelectedAttributes
+          item={item}
+          context={context}
+          descriptors={visibleDescriptors}
+          kind="values"
+          className="mt-3 flex-wrap"
+        />
+      }
+      actionDetails={
+        <SelectedAttributes item={item} context={context} descriptors={visibleDescriptors} kind="counts" />
+      }
     />
+  )
+}
+
+function SelectedAttributes({
+  item,
+  context,
+  descriptors,
+  kind = 'all',
+  className,
+}: {
+  item: HMDocumentInfo
+  context: QueryTableValueContext
+  descriptors: QueryTableColumn[]
+  kind?: 'all' | 'values' | 'counts'
+  className?: string
+}) {
+  const attributes = descriptors.filter((descriptor) => {
+    if (descriptor.id === 'title') return false
+    const isCount = descriptor.id === 'children' || descriptor.id === 'comments' || descriptor.id === 'citations'
+    return kind === 'all' || (kind === 'counts' ? isCount : !isCount)
+  })
+  if (attributes.length === 0) return null
+
+  return (
+    <div
+      data-testid={kind === 'counts' ? 'selected-attribute-counts' : undefined}
+      className={cn('text-muted-foreground flex items-center gap-x-3 gap-y-1 text-xs', className)}
+    >
+      {attributes.map((descriptor) => {
+        const value = getQueryTableValue(item, descriptor.id, context)
+        if (descriptor.id === 'tags') {
+          const tags = getDocumentTags(item)
+          return tags.map((tag) => (
+            <span
+              key={`${descriptor.id}:${tag}`}
+              className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-green-800 dark:bg-green-900 dark:text-green-100"
+            >
+              {tag}
+            </span>
+          ))
+        }
+        if (descriptor.id === 'children' || descriptor.id === 'comments' || descriptor.id === 'citations') {
+          const Icon = descriptor.id === 'children' ? FileText : descriptor.id === 'comments' ? MessageSquare : Share2
+          return (
+            <span key={descriptor.id} className="inline-flex items-center gap-1" title={descriptor.label}>
+              <Icon className="size-3.5" />
+              {queryTableValueToString(value) || '0'}
+            </span>
+          )
+        }
+        const displayValue =
+          descriptor.id === 'updated' || descriptor.id === 'created'
+            ? value
+              ? formattedDate(value as any)
+              : ''
+            : queryTableValueToString(value)
+        if (!displayValue) return null
+        return (
+          <span key={descriptor.id} className="min-w-0 truncate" title={`${descriptor.label}: ${displayValue}`}>
+            {displayValue}
+          </span>
+        )
+      })}
+    </div>
   )
 }
 
@@ -932,35 +1029,5 @@ function QueryBlockItemTitle({
     <a {...linkProps} className={className}>
       {children}
     </a>
-  )
-}
-
-function ItemCounts({
-  item,
-  context,
-  className,
-}: {
-  item: HMDocumentInfo
-  context: QueryTableValueContext
-  className?: string
-}) {
-  const children = Number(getQueryTableValue(item, 'children', context)) || 0
-  const comments = Number(getQueryTableValue(item, 'comments', context)) || 0
-  const citations = Number(getQueryTableValue(item, 'citations', context)) || 0
-  return (
-    <div className={cn('text-muted-foreground flex items-center gap-3 text-sm', className)}>
-      <Count icon={FileText} value={children} />
-      <Count icon={MessageSquare} value={comments} />
-      <Count icon={Share2} value={citations} />
-    </div>
-  )
-}
-
-function Count({icon: Icon, value}: {icon: React.ComponentType<{className?: string}>; value: number}) {
-  return (
-    <span className="inline-flex items-center gap-1">
-      <Icon className="size-4" />
-      {value}
-    </span>
   )
 }

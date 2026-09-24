@@ -2,6 +2,7 @@
 import {SchemaRegistryProvider, type HypermediaSchema} from '@shm/ui/schema/index'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {CBOR_VALUE_RULES, ValueEditor, ValueEditorProvider} from '@shm/ui/value-editor'
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import React from 'react'
 import {createRoot, Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
@@ -25,6 +26,9 @@ const searchState = vi.hoisted(() => ({
 vi.mock('@shm/shared/models/schema-documents', () => ({
   useSchemaDocumentSearch: () => ({data: [], isLoading: false}),
 }))
+vi.mock('@shm/shared/models/account-search', () => ({
+  useAccountSearch: () => ({data: searchState.entities, isLoading: false}),
+}))
 vi.mock('@shm/shared/models/search', () => ({
   useSearch: () => ({data: {entities: searchState.entities}}),
 }))
@@ -32,6 +36,7 @@ vi.mock('@shm/shared/models/search', () => ({
 let container: HTMLDivElement
 let root: Root
 let latest: unknown
+let queryClient: QueryClient
 
 beforeEach(() => {
   ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
@@ -39,6 +44,7 @@ beforeEach(() => {
   document.body.appendChild(container)
   root = createRoot(container)
   latest = undefined
+  queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
   searchState.entities = []
 })
 
@@ -50,19 +56,21 @@ afterEach(() => {
 function renderField(value: Record<string, unknown>, schema: HypermediaSchema) {
   act(() => {
     root.render(
-      <TooltipProvider>
-        <ValueEditorProvider openUrl={() => {}}>
-          <SchemaRegistryProvider schema={schema} registry={{}} value={value}>
-            <ValueEditor
-              value={value}
-              onValue={(next) => {
-                latest = next
-              }}
-              rules={CBOR_VALUE_RULES}
-            />
-          </SchemaRegistryProvider>
-        </ValueEditorProvider>
-      </TooltipProvider>,
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <ValueEditorProvider openUrl={() => {}}>
+            <SchemaRegistryProvider schema={schema} registry={{}} value={value}>
+              <ValueEditor
+                value={value}
+                onValue={(next) => {
+                  latest = next
+                }}
+                rules={CBOR_VALUE_RULES}
+              />
+            </SchemaRegistryProvider>
+          </ValueEditorProvider>
+        </TooltipProvider>
+      </QueryClientProvider>,
     )
   })
 }
@@ -109,10 +117,7 @@ describe('HM entity fields', () => {
   })
 
   it('picking a search result commits the bare account URL for profiles', () => {
-    searchState.entities = [
-      {id: {uid: ACCOUNT, id: `hm://${ACCOUNT}`, path: null}, title: 'Alice', type: 'document'},
-      {id: {uid: ACCOUNT, id: `hm://${ACCOUNT}/blog`, path: ['blog']}, title: 'Blog', type: 'document'},
-    ]
+    searchState.entities = [{id: {uid: ACCOUNT, id: `hm://${ACCOUNT}`, path: null}, publicName: 'Alice'}]
     renderField({author: ''}, PROFILE_SCHEMA)
     const input = Array.from(container.querySelectorAll('input')).find((el) =>
       el.placeholder.includes('Search accounts'),
@@ -122,11 +127,9 @@ describe('HM entity fields', () => {
       setter.call(input, 'ali')
       input.dispatchEvent(new Event('input', {bubbles: true}))
     })
-    // profile mode filters out path-bearing results
     const results = container.querySelector('[data-hm-search-results]')
     expect(results).not.toBeNull()
     expect(results!.textContent).toContain('Alice')
-    expect(results!.textContent).not.toContain('Blog')
     const choice = Array.from(results!.querySelectorAll('button')).find((el) => el.textContent?.includes('Alice'))!
     act(() => choice.click())
     expect(latest).toEqual({author: `hm://${ACCOUNT}`})

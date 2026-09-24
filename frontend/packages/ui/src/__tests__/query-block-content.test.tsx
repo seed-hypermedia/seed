@@ -133,14 +133,14 @@ describe('QueryBlockContent table view', () => {
     expect(authorsHeading?.className).toContain('inset-0')
     act(() => authorsHeading?.dispatchEvent(new MouseEvent('click', {bubbles: true})))
 
-    expect(Array.from(container.querySelectorAll('tbody tr a')).map((link) => link.textContent)).toEqual([
+    expect(Array.from(container.querySelectorAll('tbody tr td a.block')).map((link) => link.textContent)).toEqual([
       'Alpha document',
       'Zed document',
     ])
 
     act(() => authorsHeading?.dispatchEvent(new MouseEvent('click', {bubbles: true})))
 
-    expect(Array.from(container.querySelectorAll('tbody tr a')).map((link) => link.textContent)).toEqual([
+    expect(Array.from(container.querySelectorAll('tbody tr td a.block')).map((link) => link.textContent)).toEqual([
       'Zed document',
       'Alpha document',
     ])
@@ -261,15 +261,15 @@ describe('QueryBlockContent table view', () => {
 })
 
 describe('QueryBlockContent toolbar', () => {
-  it('shows the attribute selector only in table view', () => {
+  it('shows the attribute selector in every collection view', () => {
     act(() => {
       root.render(<QueryBlockContent items={makeItems(1)} style="List" accountsMetadata={{}} />)
     })
 
-    expect(container.textContent).not.toContain('Attributes')
+    expect(container.textContent).toContain('Attributes')
 
     act(() => {
-      root.render(<QueryBlockContent items={makeItems(1)} style="Table" accountsMetadata={{}} />)
+      root.render(<QueryBlockContent items={makeItems(1)} style="Card" accountsMetadata={{}} />)
     })
 
     expect(container.textContent).toContain('Attributes')
@@ -394,6 +394,63 @@ describe('QueryBlockContent toolbar', () => {
 
     expect(container.textContent).toContain('Dream document')
     expect(container.textContent).not.toContain('Release notes')
+  })
+})
+
+describe.each(['List', 'Card'] as const)('QueryBlockContent %s selected attributes', (style) => {
+  it('renders every selected attribute and omits attributes that are not selected', () => {
+    const items = makeItems(1)
+    items[0].metadata.status = 'Ready'
+    items[0].metadata.priority = 'High'
+
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={items}
+          style={style}
+          accountsMetadata={{}}
+          tableConfig={{
+            columns: [
+              {id: 'title', visible: true},
+              {id: 'metadata:status', visible: true},
+              {id: 'metadata:priority', visible: false},
+            ],
+          }}
+        />,
+      )
+    })
+
+    expect(container.textContent).toContain('Ready')
+    expect(container.textContent).not.toContain('Status:')
+    expect(container.textContent).not.toContain('High')
+  })
+})
+
+describe('QueryBlockContent Card attribute layout', () => {
+  it('renders count attributes in the card action row', () => {
+    const items = makeItems(1)
+    items[0].metadata.status = 'Ready'
+
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={items}
+          style="Card"
+          accountsMetadata={{}}
+          tableConfig={{
+            columns: [
+              {id: 'title', visible: true},
+              {id: 'metadata:status', visible: true},
+              {id: 'children', visible: true},
+            ],
+          }}
+        />,
+      )
+    })
+
+    const actionRow = container.querySelector('[data-testid="document-card-action-row"]')
+    expect(actionRow?.querySelector('[data-testid="selected-attribute-counts"]')).toBeTruthy()
+    expect(actionRow?.textContent).not.toContain('Ready')
   })
 })
 
