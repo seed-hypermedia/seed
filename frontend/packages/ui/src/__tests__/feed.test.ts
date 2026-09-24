@@ -10,6 +10,10 @@ import {
   RESTORE_VERSION_DIALOG,
   shouldShowDraftVersionEntry,
   filterCitationEventsByTargetBlock,
+  shouldAutoLoadBlockCitations,
+  getEmptyFeedMessage,
+  BLOCK_CITATIONS_AUTO_LOAD_PAGES,
+  BLOCK_CITATIONS_PAGE_SIZE,
 } from '../feed'
 
 const draft = {
@@ -152,5 +156,43 @@ describe('restore version action helpers', () => {
         hasRestoreAction: true,
       }),
     ).toBe(false)
+  })
+})
+
+describe('block-scoped citations panel paging', () => {
+  const base = {targetBlockId: 'b1', matchCount: 0, pagesLoaded: 1, hasNextPage: true, isFetching: false}
+
+  it('keeps fetching while nothing matches and pages remain', () => {
+    expect(shouldAutoLoadBlockCitations(base)).toBe(true)
+  })
+
+  it('stops once a citation matched, the feed is exhausted, a fetch is in flight, or the bound is reached', () => {
+    expect(shouldAutoLoadBlockCitations({...base, matchCount: 1})).toBe(false)
+    expect(shouldAutoLoadBlockCitations({...base, hasNextPage: false})).toBe(false)
+    expect(shouldAutoLoadBlockCitations({...base, isFetching: true})).toBe(false)
+    expect(shouldAutoLoadBlockCitations({...base, pagesLoaded: BLOCK_CITATIONS_AUTO_LOAD_PAGES})).toBe(false)
+  })
+
+  it('never pages unprompted for feeds that are not scoped to a block', () => {
+    expect(shouldAutoLoadBlockCitations({...base, targetBlockId: undefined})).toBe(false)
+  })
+
+  it('uses a bigger page for block-scoped panels', () => {
+    expect(BLOCK_CITATIONS_PAGE_SIZE).toBeGreaterThan(5)
+  })
+})
+
+describe('empty feed copy', () => {
+  it('names the block when the panel is scoped to one', () => {
+    expect(getEmptyFeedMessage({targetBlockId: 'b1'})).toBe('No citations for this block yet')
+  })
+
+  it('shows a citations empty state for the citations filter only', () => {
+    expect(getEmptyFeedMessage({filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button']})).toBe(
+      'No citations yet',
+    )
+    expect(getEmptyFeedMessage({filterEventType: ['Comment']})).toBeNull()
+    expect(getEmptyFeedMessage({filterEventType: []})).toBeNull()
+    expect(getEmptyFeedMessage({})).toBeNull()
   })
 })
