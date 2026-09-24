@@ -133,14 +133,14 @@ describe('QueryBlockContent table view', () => {
     expect(authorsHeading?.className).toContain('inset-0')
     act(() => authorsHeading?.dispatchEvent(new MouseEvent('click', {bubbles: true})))
 
-    expect(Array.from(container.querySelectorAll('tbody tr a')).map((link) => link.textContent)).toEqual([
+    expect(Array.from(container.querySelectorAll('tbody tr td a.block')).map((link) => link.textContent)).toEqual([
       'Alpha document',
       'Zed document',
     ])
 
     act(() => authorsHeading?.dispatchEvent(new MouseEvent('click', {bubbles: true})))
 
-    expect(Array.from(container.querySelectorAll('tbody tr a')).map((link) => link.textContent)).toEqual([
+    expect(Array.from(container.querySelectorAll('tbody tr td a.block')).map((link) => link.textContent)).toEqual([
       'Zed document',
       'Alpha document',
     ])
