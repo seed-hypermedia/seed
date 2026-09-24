@@ -1,5 +1,5 @@
 import {Database} from 'bun:sqlite'
-import {afterEach, describe, expect, mock, test} from 'bun:test'
+import {afterEach, describe, expect, mock, spyOn, test} from 'bun:test'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -104,7 +104,7 @@ describe('browser callable', () => {
     )
     expect(output.draftId).toBe('desktop-draft')
     expect(output.markdown).toBeUndefined()
-    expect(output.memoryPath).toMatch(/^~\/memory\/browser\/archive-/)
+    expect(output.memoryPath).toMatch(/^~\/memory\/private\/browser\/archive-/)
     const saved = await executeReadVerb(context, {address: output.memoryPath})
     expect(JSON.stringify(saved)).toContain('Archived content.')
     expect(JSON.stringify(saved)).toContain('sourceUrl')
@@ -846,39 +846,68 @@ describe('call verb', () => {
 
 describe('space index and touch-expand pins', () => {
   test('index stays under budget, lists tools and memory, and caches until invalidated', async () => {
-    const context = makeContext()
-    await executeWriteVerb(context, {address: '~/memory/notes/a.md', content: 'x'})
-    const index = apisvc.buildSpaceIndex({
-      db: context.db,
-      accountId: 'test-account',
-      agentId: 'test-agent',
-      stateDir: context.stateDir,
-      callableTools: context.callableTools,
-    })
-    expect(index.length).toBeLessThanOrEqual(2048)
-    expect(index).toContain('<space>')
-    expect(index).toContain('search —')
-    expect(index).toContain('notes/(1)')
+    // Exercise the cheap-walk branch deterministically; slow filesystem scheduling otherwise
+    // selects the intentional stale-summary cooldown instead of the invalidation behavior.
+    const clock = spyOn(performance, 'now').mockReturnValue(0)
+    try {
+      const context = makeContext()
+      await executeWriteVerb(context, {address: '~/memory/notes/a.md', content: 'x'})
+      const index = apisvc.buildSpaceIndex({
+        db: context.db,
+        accountId: 'test-account',
+        agentId: 'test-agent',
+        stateDir: context.stateDir,
+        callableTools: context.callableTools,
+      })
+      expect(index.length).toBeLessThanOrEqual(2048)
+      expect(index).toContain('<space>')
+      expect(index).toContain('search —')
+      expect(index).toContain('notes/(1)')
 
-    // Cached: a memory write without invalidation returns the same bytes; invalidation refreshes.
-    await executeWriteVerb(context, {address: '~/memory/notes/b.md', content: 'y'})
-    const stale = apisvc.buildSpaceIndex({
-      db: context.db,
-      accountId: 'test-account',
-      agentId: 'test-agent',
-      stateDir: context.stateDir,
-      callableTools: context.callableTools,
-    })
-    expect(stale).toBe(index)
-    apisvc.invalidateSpaceIndex('test-account', 'test-agent')
-    const fresh = apisvc.buildSpaceIndex({
-      db: context.db,
-      accountId: 'test-account',
-      agentId: 'test-agent',
-      stateDir: context.stateDir,
-      callableTools: context.callableTools,
-    })
-    expect(fresh).toContain('notes/(2)')
+      // Cached: a memory write without invalidation returns the same bytes; invalidation refreshes.
+      await executeWriteVerb(context, {address: '~/memory/notes/b.md', content: 'y'})
+      const stale = apisvc.buildSpaceIndex({
+        db: context.db,
+        accountId: 'test-account',
+        agentId: 'test-agent',
+        stateDir: context.stateDir,
+        callableTools: context.callableTools,
+      })
+      expect(stale).toBe(index)
+      apisvc.invalidateSpaceIndex('test-account', 'test-agent')
+      const fresh = apisvc.buildSpaceIndex({
+        db: context.db,
+        accountId: 'test-account',
+        agentId: 'test-agent',
+        stateDir: context.stateDir,
+        callableTools: context.callableTools,
+      })
+      expect(fresh).toContain('notes/(2)')
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  test('owner and reader Space indexes never share private memory summaries', async () => {
+    const context = makeContext()
+    apisvc.invalidateSpaceIndex(context.accountId, context.agentId)
+    agentMemory.writeMemoryFile(context.stateDir, 'private/secret.md', 'private content')
+    agentMemory.writeMemoryFile(context.stateDir, 'shared.md', 'shared content')
+    const index = () =>
+      apisvc.buildSpaceIndex({
+        db: context.db,
+        accountId: context.accountId,
+        agentId: context.agentId,
+        stateDir: context.stateDir,
+        callableTools: context.callableTools,
+      })
+    const owner = index()
+    expect(owner).toContain('private/(')
+    const reader = agentMemory.withOwnerAccess(false, index)
+    expect(reader).not.toContain('private/(')
+    expect(reader).toContain('shared.md')
+    expect(reader).toContain('search —')
+    expect(index()).toBe(owner)
   })
 
   test('authored lambda appears in the index and the listing', async () => {

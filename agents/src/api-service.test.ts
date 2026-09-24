@@ -38,59 +38,357 @@ function withoutMeta(payload: unknown): unknown {
 }
 
 describe('api service', () => {
-  test('relays browser tools through signed session actions without exposing another account’s browser', async () => {
+  test('browser transport is owner-only, refuses public agents, and direct tool invocation cannot dispatch', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const svc = new apisvc.Service(db, dataDir, {runQueue: {maxConcurrentModelRuns: 0}})
-    const server = Bun.serve({port: 0, routes: createAPIRoutes(svc)})
     try {
       const owner = blobs.generateNobleKeyPair()
-      const stranger = blobs.generateNobleKeyPair()
+      const chatter = blobs.generateNobleKeyPair()
+      const writer = blobs.generateNobleKeyPair()
       const sessionId = await seedAgentSession(svc, owner, 'Browser test', {tools: ['browser']})
+      const agentId = (db.query('SELECT agent_id FROM sessions WHERE id = ?').get(sessionId) as {agent_id: string})
+        .agent_id
+      const send = async (signer: blobs.Signer, action: import('@/api').UnsignedAgentAction) =>
+        svc.message(await apisvc.createSignedEnvelope(signer, {action}))
+      for (const [signer, role] of [[writer, 'writer']] as const) {
+        const accountId = blobs.principalToString(signer.principal)
+        await send(owner, {_: 'InviteAgentCollaborator', agentId, accountId, role})
+        await send(signer, {_: 'AcceptAgentInvite', agentId})
+      }
       const connectionId = 'signed-browser-test-connection'
-      const send = async (signer: blobs.Signer, action: import('@/api').UnsignedAgentAction) => {
-        const response = await fetch(new URL('/api/message', server.url), {
-          method: 'POST',
-          headers: {'Content-Type': 'application/cbor'},
-          body: new Uint8Array(cbor.encode(await apisvc.createSignedEnvelope(signer, {action}))),
-        })
-        return {
-          status: response.status,
-          body: cbor.decode<import('@/api').AgentResponse>(new Uint8Array(await response.arrayBuffer())),
+      await send(owner, {_: 'SetAgentPublicRead', agentId, publicRead: true})
+      await send(owner, {_: 'SetAgentPublicChat', agentId, publicChat: true})
+      for (const signer of [chatter, writer]) {
+        for (const action of [
+          {_: 'ConnectSessionBrowser', sessionId, connectionId},
+          {_: 'PollSessionBrowser', sessionId, connectionId},
+          {_: 'ResolveSessionBrowser', sessionId, connectionId, requestId: 'forged', output: {text: 'forged'}},
+          {_: 'DisconnectSessionBrowser', sessionId, connectionId},
+        ] as const) {
+          await expect(send(signer, action)).rejects.toMatchObject({status: 403})
         }
       }
-      expect((await send(owner, {_: 'ConnectSessionBrowser', sessionId, connectionId})).body).toEqual({
+      await send(owner, {_: 'SetAgentPublicRead', agentId, publicRead: false})
+      expect(await send(owner, {_: 'ConnectSessionBrowser', sessionId, connectionId})).toEqual({
         _: 'SessionBrowserResponse',
       })
-      expect((await send(stranger, {_: 'PollSessionBrowser', sessionId, connectionId})).status).toBe(404)
-      const execution = send(owner, {
+      const poll = send(owner, {_: 'PollSessionBrowser', sessionId, connectionId})
+      expect(await send(owner, {_: 'DisconnectSessionBrowser', sessionId, connectionId})).toEqual({
+        _: 'SessionBrowserResponse',
+      })
+      expect(await poll).toEqual({_: 'SessionBrowserResponse'})
+      const invocation = await send(owner, {
         _: 'InvokeSessionTool',
         sessionId,
         verb: 'call',
         input: {tool: 'browser', input: {action: 'snapshot'}},
       })
-      const poll = await send(owner, {_: 'PollSessionBrowser', sessionId, connectionId})
-      if (poll.body._ !== 'SessionBrowserResponse' || !poll.body.request)
-        throw new Error('Browser command was not delivered')
-      expect(poll.body.request.command).toEqual({action: 'snapshot'})
-      const result = {
-        _: 'ResolveSessionBrowser' as const,
-        sessionId,
-        connectionId,
-        requestId: poll.body.request.id,
-        output: {summary: 'Read page', text: 'Private page text'},
-      }
-      expect((await send(stranger, result)).status).toBe(404)
-      expect((await send(owner, result)).status).toBe(200)
-      expect((await execution).body).toMatchObject({
+      expect(invocation).toMatchObject({
         _: 'InvokeSessionToolResponse',
-        output: {text: 'Private page text'},
+        error: 'Browser access is only available in interactive runs started by the agent owner',
       })
-      expect((await send(owner, {_: 'DisconnectSessionBrowser', sessionId, connectionId})).status).toBe(200)
+      await send(owner, {_: 'SetAgentPublicRead', agentId, publicRead: true})
+      await expect(send(owner, {_: 'ConnectSessionBrowser', sessionId, connectionId})).rejects.toThrow(
+        'publicly readable agents',
+      )
     } finally {
       svc.stopRunQueue()
-      await server.stop(true)
       sqlite.closeDatabase(db)
       cleanup()
+    }
+  })
+
+  test('private memory is owner-only through API, tool reads, uploads, and directory totals', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const svc = new apisvc.Service(db, dataDir, {runQueue: {maxConcurrentModelRuns: 0}})
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      const writer = blobs.generateNobleKeyPair()
+      const stranger = blobs.generateNobleKeyPair()
+      const sessionId = await seedAgentSession(svc, owner, 'Memory privacy')
+      const agentId = (db.query('SELECT agent_id FROM sessions WHERE id = ?').get(sessionId) as {agent_id: string})
+        .agent_id
+      const send = async (signer: blobs.Signer, action: import('@/api').UnsignedAgentAction) =>
+        svc.message(await apisvc.createSignedEnvelope(signer, {action}))
+      await send(owner, {
+        _: 'InviteAgentCollaborator',
+        agentId,
+        accountId: blobs.principalToString(writer.principal),
+        role: 'writer',
+      })
+      await send(writer, {_: 'AcceptAgentInvite', agentId})
+      await send(owner, {_: 'SetAgentPublicRead', agentId, publicRead: true})
+      await send(owner, {
+        _: 'WriteAgentMemoryFile',
+        agentId,
+        path: 'private/browser/archive.md',
+        content: 'private secret',
+      })
+      await send(owner, {_: 'WriteAgentMemoryFile', agentId, path: 'public.txt', content: 'hello'})
+      for (const signer of [writer, stranger]) {
+        for (const action of [
+          {_: 'ReadAgentMemoryFile', agentId, path: '/./private/browser/archive.md'},
+          {_: 'ListAgentMemoryDir', agentId, path: 'private'},
+          {_: 'UploadAgentMemoryFileToIpfs', agentId, path: 'private/browser/archive.md'},
+          {_: 'WriteAgentMemoryFile', agentId, path: 'private/new.md', content: 'bad'},
+          {_: 'DeleteAgentMemoryFile', agentId, path: 'private'},
+          {_: 'DownloadAgentMemoryFile', agentId, path: 'private/new.md', url: 'https://example.invalid/file'},
+          {_: 'BeginFileUpload', target: {kind: 'memory', agentId, path: 'private/upload.bin'}, size: 3},
+        ] as const)
+          await expect(send(signer, action)).rejects.toMatchObject({status: 403})
+        const listed = await send(signer, {_: 'ListAgentMemory', agentId})
+        expect(listed).toMatchObject({entries: [{path: 'public.txt'}], totalBytes: 5})
+        const directory = await send(signer, {_: 'ListAgentMemoryDir', agentId})
+        expect(directory).toMatchObject({entries: [{path: 'public.txt'}], totals: {files: 1, bytes: 5}})
+        const tools = await send(signer, {_: 'ListAgentTools', agentId})
+        expect(JSON.stringify(tools)).not.toContain('private secret')
+      }
+      expect(await send(owner, {_: 'ReadAgentMemoryFile', agentId, path: 'private/browser/archive.md'})).toMatchObject({
+        file: {content: 'private secret'},
+      })
+      const toolRead = await send(writer, {
+        _: 'InvokeSessionTool',
+        sessionId,
+        verb: 'read',
+        input: {address: '~/memory/private/browser/archive.md'},
+      })
+      expect(JSON.stringify(toolRead)).not.toContain('private secret')
+    } finally {
+      svc.stopRunQueue()
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
+  test('signed owner browser runs dispatch, readers get stubs on every replay surface, and chatter runs cannot dispatch', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const events: apisvc.ServiceEvent[] = []
+    const svc = new apisvc.Service(db, dataDir, {onEvent: (event) => events.push(event)})
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      const writer = blobs.generateNobleKeyPair()
+      const stranger = blobs.generateNobleKeyPair()
+      const ownerId = blobs.principalToString(owner.principal)
+      const writerId = blobs.principalToString(writer.principal)
+      const sessionId = await seedAgentSession(svc, owner, 'Browser run', {tools: ['browser']})
+      const agentId = (db.query('SELECT agent_id FROM sessions WHERE id = ?').get(sessionId) as {agent_id: string})
+        .agent_id
+      const send = async (signer: blobs.Signer, action: import('@/api').UnsignedAgentAction) =>
+        svc.message(await apisvc.createSignedEnvelope(signer, {action}))
+      await send(owner, {_: 'InviteAgentCollaborator', agentId, accountId: writerId, role: 'writer'})
+      await send(writer, {_: 'AcceptAgentInvite', agentId})
+      let turns = 0
+      const providerBodies: string[] = []
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const body = await fetchBodyText(url, init)
+        if (!body || !JSON.parse(body).messages) return Response.json({})
+        providerBodies.push(body)
+        turns++
+        if (turns % 2 === 1)
+          return openAIStreamResponse([
+            {
+              id: `browser-${turns}`,
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: `call-${turns}`,
+                        type: 'function',
+                        function: {
+                          name: 'call',
+                          arguments: JSON.stringify({tool: 'browser', input: {action: 'snapshot'}}),
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+            {id: `browser-${turns}`, choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+          ])
+        return openAIStreamResponse([
+          {id: `done-${turns}`, choices: [{delta: {content: turns === 2 ? 'Echo: signed-in secret' : 'Done.'}}]},
+          {id: `done-${turns}`, choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+      const connectionId = 'interactive-owner-browser-123'
+      await send(owner, {_: 'ConnectSessionBrowser', sessionId, connectionId})
+      const execution = send(owner, {_: 'MessageSession', sessionId, content: [{type: 'text', text: 'Read my page'}]})
+      const poll = await send(owner, {_: 'PollSessionBrowser', sessionId, connectionId})
+      if (poll._ !== 'SessionBrowserResponse' || !poll.request) throw new Error('No owner browser command')
+      await send(owner, {
+        _: 'ResolveSessionBrowser',
+        sessionId,
+        connectionId,
+        requestId: poll.request.id,
+        output: {
+          text: 'signed-in secret',
+          summary: 'signed-in secret',
+          screenshot: {data: 'secret-image', mimeType: 'image/jpeg'},
+        },
+      })
+      await execution
+      expect(providerBodies[1]).toContain('signed-in secret')
+      const full = await send(owner, {_: 'GetSession', sessionId})
+      if (full._ !== 'GetSessionResponse') throw new Error('No session')
+      const result = full.events.find((event) => event.event.type === 'tool_result')!
+      expect(JSON.stringify(full)).toContain('signed-in secret')
+      expect(JSON.stringify(await send(writer, {_: 'GetSession', sessionId}))).not.toContain('signed-in secret')
+      expect(await send(writer, {_: 'GetSessionEvent', sessionId, seq: result.seq})).toMatchObject({
+        event: {event: {output: {redacted: true}}},
+      })
+      const writerEvents = events.filter((event) => event.accountId === writerId)
+      expect(JSON.stringify(writerEvents)).not.toContain('signed-in secret')
+      expect(JSON.stringify(writerEvents)).not.toContain('secret-image')
+      const root = db.query('SELECT id FROM runs WHERE session_id = ? ORDER BY created_at LIMIT 1').get(sessionId) as {
+        id: string
+      }
+      db.run('INSERT INTO run_journal (run_id, seq, entry_cbor, created_at) VALUES (?, 1, ?, ?)', [
+        root.id,
+        cbor.encode({type: 'call-result', output: {text: 'signed-in secret'}}),
+        Date.now(),
+      ])
+      expect(JSON.stringify(await send(owner, {_: 'GetRunJournal', runId: root.id}))).toContain('signed-in secret')
+      expect(await send(writer, {_: 'GetRunJournal', runId: root.id})).toMatchObject({
+        entries: [{entry: {redacted: true}}],
+      })
+      db.run('UPDATE sessions SET description = ? WHERE id = ?', ['signed-in secret', sessionId])
+      expect(JSON.stringify(await send(writer, {_: 'ListSessions', agentId}))).not.toContain('signed-in secret')
+      const replay = await svc.verifySubscription(
+        await apisvc.createSignedEnvelope(writer, {action: {_: 'Subscribe', key: `sessions/${sessionId}`}}),
+      )
+      expect(JSON.stringify(replay)).not.toContain('signed-in secret')
+      const runReplay = await svc.verifySubscription(
+        await apisvc.createSignedEnvelope(writer, {action: {_: 'Subscribe', key: `runs/${root.id}`}}),
+      )
+      expect(JSON.stringify(runReplay)).not.toContain('signed-in secret')
+      const ownerEvent = events.find(
+        (event) => event.accountId === ownerId && event.type === 'session-event' && event.event.id === result.id,
+      )!
+      expect(JSON.stringify(svc.redactForViewer(ownerEvent, writerId))).not.toContain('signed-in secret')
+      await send(writer, {_: 'MessageSession', sessionId, content: [{type: 'text', text: 'Drive their browser'}]})
+      expect(providerBodies[3]).toContain(
+        'Browser access is only available in interactive runs started by the agent owner',
+      )
+      expect(providerBodies[2]).not.toContain('signed-in secret')
+      // Public chat requires public read. Publishing revokes the owner's existing connection.
+      await send(owner, {_: 'SetAgentPublicRead', agentId, publicRead: true})
+      await send(owner, {_: 'SetAgentPublicChat', agentId, publicChat: true})
+      await send(stranger, {_: 'MessageSession', sessionId, content: [{type: 'text', text: 'Drive the browser'}]})
+      expect(providerBodies[5]).toContain(
+        'Browser access is only available in interactive runs started by the agent owner',
+      )
+      expect(JSON.stringify(await send(stranger, {_: 'GetSession', sessionId}))).not.toContain('signed-in secret')
+      await send(owner, {_: 'SetAgentPublicRead', agentId, publicRead: false})
+      await expect(
+        send(owner, {_: 'ResolveSessionBrowser', sessionId, connectionId, requestId: 'stale', output: {}}),
+      ).rejects.toThrow('no longer active')
+    } finally {
+      svc.stopRunQueue()
+      globalThis.fetch = originalFetch
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
+  test('trigger, child, background, retry and fresh continuation runs cannot borrow signed owner browser access', async () => {
+    const originalFetch = globalThis.fetch
+    try {
+      for (const scenario of ['trigger', 'child', 'background', 'retry', 'continuation'] as const) {
+        const {db, dataDir, cleanup} = createTestState()
+        let svc = new apisvc.Service(db, dataDir, {runQueue: {maxConcurrentModelRuns: 0}})
+        try {
+          const owner = blobs.generateNobleKeyPair()
+          const sessionId = await seedAgentSession(svc, owner, 'Run origin guard', {tools: ['browser']})
+          globalThis.fetch = mock(async () =>
+            openAIStreamResponse([
+              {id: 'initial', choices: [{delta: {content: 'Ready.'}}]},
+              {id: 'initial', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+            ]),
+          ) as unknown as typeof fetch
+          await svc.message(
+            await apisvc.createSignedEnvelope(owner, {
+              action: {_: 'MessageSession', sessionId, content: [{type: 'text', text: 'Use browser'}]},
+            }),
+          )
+          svc.stopRunQueue()
+          const run = db.query('SELECT id, input_cbor FROM runs WHERE session_id = ?').get(sessionId) as {
+            id: string
+            input_cbor: Uint8Array
+          }
+          db.run("UPDATE runs SET status = 'queued', attempt = 0 WHERE id = ?", [run.id])
+          if (scenario === 'trigger') db.run("UPDATE runs SET origin = 'trigger' WHERE id = ?", [run.id])
+          if (scenario === 'background') db.run("UPDATE runs SET queue = 'background' WHERE id = ?", [run.id])
+          if (scenario === 'continuation') db.run("UPDATE runs SET origin = 'agent' WHERE id = ?", [run.id])
+          if (scenario === 'retry')
+            db.run('UPDATE runs SET input_cbor = ? WHERE id = ?', [
+              cbor.encode({kind: 'session-retry', retryOfRunId: 'old-run'}),
+              run.id,
+            ])
+          if (scenario === 'child') {
+            const agentId = (
+              db.query('SELECT agent_id FROM sessions WHERE id = ?').get(sessionId) as {agent_id: string}
+            ).agent_id
+            const parent = await svc.message(
+              await apisvc.createSignedEnvelope(owner, {action: {_: 'CreateSession', agentId}}),
+            )
+            if (parent._ !== 'CreateSessionResponse') throw new Error('No parent')
+            db.run('UPDATE sessions SET parent_session_id = ? WHERE id = ?', [parent.sessionId, sessionId])
+          }
+          let turns = 0
+          let errorSeen = false
+          globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+            const body = await fetchBodyText(url, init)
+            turns++
+            if (turns === 1)
+              return openAIStreamResponse([
+                {
+                  id: 'guard',
+                  choices: [
+                    {
+                      delta: {
+                        tool_calls: [
+                          {
+                            index: 0,
+                            id: 'guard-call',
+                            type: 'function',
+                            function: {
+                              name: 'call',
+                              arguments: JSON.stringify({tool: 'browser', input: {action: 'snapshot'}}),
+                            },
+                          },
+                        ],
+                      },
+                    },
+                  ],
+                },
+                {id: 'guard', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+              ])
+            errorSeen = body.includes('Browser access is only available in interactive runs started by the agent owner')
+            return openAIStreamResponse([
+              {id: 'done', choices: [{delta: {content: 'Unavailable.'}}]},
+              {id: 'done', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+            ])
+          }) as unknown as typeof fetch
+          svc = new apisvc.Service(db, dataDir)
+          await svc.message(
+            await apisvc.createSignedEnvelope(owner, {
+              action: {_: 'ConnectSessionBrowser', sessionId, connectionId: 'guard-browser-connection-123'},
+            }),
+          )
+          await svc.awaitQueueIdle()
+          expect(errorSeen).toBe(true)
+        } finally {
+          svc.stopRunQueue()
+          sqlite.closeDatabase(db)
+          cleanup()
+        }
+      }
+    } finally {
+      globalThis.fetch = originalFetch
     }
   })
 

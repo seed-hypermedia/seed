@@ -61,13 +61,17 @@ export class BrowserTools {
   }
 
   /** Dispatches a command to the session's current desktop, with a bounded execution deadline. */
-  execute(scope: string, command: api.BrowserCommand): Promise<Record<string, unknown>> {
+  execute(scope: string, command: api.BrowserCommand, accountId: string): Promise<Record<string, unknown>> {
     const connection = this.#connections.get(scope)
     if (!connection)
       return Promise.reject(
         new Error(
           'Browser unavailable. Open a website and connect browser access in this session’s desktop assistant panel.',
         ),
+      )
+    if (JSON.parse(connection.actor)[0] !== accountId)
+      return Promise.reject(
+        new Error('Browser access is only available in interactive runs started by the agent owner'),
       )
     if (connection.pending.size >= 8) return Promise.reject(new Error('Too many browser commands pending'))
     const request = {id: crypto.randomUUID(), command}
@@ -118,6 +122,11 @@ export class BrowserTools {
   disconnect(scope: string, actor: string, id: string): void {
     if (!this.#connections.has(scope)) return
     this.#get(scope, actor, id)
+    this.#close(scope)
+  }
+
+  /** Revokes a session when its agent can no longer safely expose a browser. */
+  revoke(scope: string): void {
     this.#close(scope)
   }
 
