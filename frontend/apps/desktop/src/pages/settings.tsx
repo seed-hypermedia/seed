@@ -145,6 +145,11 @@ export default function Settings() {
 function AdvancedSettings() {
   const experiments = useUniversalAppContext().experiments
   const writeExperiments = useWriteExperiments()
+  const clearBrowserData = useMutation({
+    mutationFn: () => client.experiments.clearBrowserData.mutate(),
+    onSuccess: () => toast.success('Browser data cleared'),
+    onError: () => toast.error('Unable to clear browser data'),
+  })
   return (
     <>
       <SizableText size="2xl" weight="bold">
@@ -165,6 +170,20 @@ function AdvancedSettings() {
               onClick={() => writeExperiments.mutate({webBrowser: !experiments?.webBrowser})}
             >
               {experiments?.webBrowser ? 'Disable Web Browser' : 'Enable Web Browser'}
+            </Button>
+          }
+        />
+        <SettingsRow
+          label="Clear browsing data"
+          description="Clears website storage, cookies and cache, and signs you out of websites."
+          right={
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={clearBrowserData.isLoading}
+              onClick={() => clearBrowserData.mutate()}
+            >
+              {clearBrowserData.isLoading ? 'Clearing…' : 'Clear browsing data'}
             </Button>
           }
         />

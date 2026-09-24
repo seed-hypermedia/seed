@@ -2,6 +2,7 @@ import {app, BrowserWindow} from 'electron'
 import {setupWebBrowser} from '../../src/app-web-browser'
 
 app.setPath('userData', process.argv[5])
+app.commandLine.appendSwitch('host-resolver-rules', 'MAP seed-rebinding.test 127.0.0.1')
 void app.whenReady().then(async () => {
   const window = new BrowserWindow({
     width: 1000,

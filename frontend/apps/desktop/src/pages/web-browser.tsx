@@ -118,6 +118,7 @@ export function WebBrowser() {
     location.current = event
     commitBrowserLocation(event, event.requestId !== undefined)
     const generation = ++resolution.current
+    if (!event.userInitiated) return
     void resolveOmnibarUrlToRoute(event.url, {domainResolver}).then((nativeRoute) => {
       if (nativeRoute && generation === resolution.current) resolveBrowserRoute(event.url, nativeRoute)
     })

@@ -1,11 +1,17 @@
 import type {BrowserWindow, WebContents} from 'electron'
-import {nativeTheme, session} from 'electron'
+import {nativeTheme} from 'electron'
 import {z} from 'zod'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import {loadBrowserFavicon, readBrowserFavicons} from './app-browser-favicon'
 import {executeBrowserCommand, type BrowserArchive} from './app-browser-agent'
 
-const partition = 'persist:seed-web-browser'
+import {isGuestOnPrivateNetwork, navigatePublicBrowser, trackBrowserNetwork} from './browser-network-policy'
+import {
+  browserPartition as partition,
+  browserUserGesture,
+  hardenBrowserPreferences,
+  setupBrowserSessionPolicy,
+} from './browser-session-policy'
 const activeGuests = new WeakMap<BrowserWindow, WebContents>()
 
 /** The visible page to target with native find commands, whether a website or Seed content. */
@@ -33,9 +39,7 @@ export function setupWebBrowser(
   let access: {connectionId: string; browserId: number; accountUid: string} | undefined
   const guests = new Map<number, WebContents>()
   const requests = new Map<number, number>()
-  const browserSession = session.fromPartition(partition)
-  browserSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
-  browserSession.setPermissionCheckHandler(() => false)
+  setupBrowserSessionPolicy()
 
   host.ipc.on('windowNavState', (event, state) => {
     if (event.sender !== host) return
@@ -48,19 +52,17 @@ export function setupWebBrowser(
   })
 
   host.on('will-attach-webview', (event, preferences, params) => {
-    if (!isWebBrowserEnabled() || params.partition !== partition || params.src !== 'about:blank') {
+    const frame = (event as Electron.Event & {senderFrame?: Electron.WebFrameMain}).senderFrame
+    if (
+      !isWebBrowserEnabled() ||
+      params.partition !== partition ||
+      params.src !== 'about:blank' ||
+      (frame !== undefined && frame !== host.mainFrame)
+    ) {
       event.preventDefault()
       return
     }
-    delete preferences.preload
-    preferences.nodeIntegration = false
-    preferences.nodeIntegrationInSubFrames = false
-    preferences.nodeIntegrationInWorker = false
-    preferences.contextIsolation = true
-    preferences.sandbox = true
-    preferences.webSecurity = true
-    preferences.allowRunningInsecureContent = false
-    preferences.webviewTag = false
+    hardenBrowserPreferences(preferences)
   })
 
   host.ipc.handle('browser-agent-access', (event, input: unknown) => {
@@ -91,24 +93,27 @@ export function setupWebBrowser(
         activeGuests.get(window) !== guest
       )
         throw new Error('Browser access is paused or the connected page is no longer active')
+      if (isGuestOnPrivateNetwork(guest.id)) throw new Error('Browser page is on a private network')
     }
     assertActive()
-    return executeBrowserCommand(guest!, input.command, {
-      assertActive,
-      navigate: (url) => {
-        if (!/^https?:\/\//.test(url) && !hypermediaUrlToRoute(url))
-          throw new Error('Only HTTP(S) and Seed navigation is supported')
-        host.send('appWindowEvent', {type: 'browser-open-url', browserId: guest!.id, url})
-      },
-      archive: (page) => {
-        if (!archive) throw new Error('Draft creation is unavailable in this window')
-        return archive(page, grant!.accountUid)
-      },
-    })
+    const result = await browserUserGesture(guest!).runAgent(() =>
+      executeBrowserCommand(guest!, input.command, {
+        assertActive,
+        navigate: (url) => navigatePublicBrowser(guest!, url, assertActive),
+        archive: (page) => {
+          if (!archive) throw new Error('Draft creation is unavailable in this window')
+          return archive(page, grant!.accountUid)
+        },
+      }),
+    )
+    assertActive()
+    return result
   })
 
   host.on('did-attach-webview', (_event, guest) => {
     guests.set(guest.id, guest)
+    trackBrowserNetwork(guest)
+    const gesture = browserUserGesture(guest)
     const send = (event: Record<string, unknown>) => {
       if (!host.isDestroyed()) host.send('appWindowEvent', {...event, browserId: guest.id})
     }
@@ -121,7 +126,7 @@ export function setupWebBrowser(
       if (!/^https?:\/\//.test(url)) return
       try {
         const candidates = await readBrowserFavicons(guest)
-        const icons = (await Promise.all(candidates.map((icon) => loadBrowserFavicon(guest, icon)))).filter(
+        const icons = (await Promise.all(candidates.slice(0, 4).map((icon) => loadBrowserFavicon(guest, icon)))).filter(
           (icon): icon is string => icon !== null,
         )
         if (!guest.isDestroyed() && revision === faviconRevision && guest.getURL() === url) {
@@ -143,13 +148,14 @@ export function setupWebBrowser(
     const guardNavigation = (event: Electron.Event, url: string) => {
       if (!isWebBrowserEnabled() || !/^https?:\/\//.test(url) || hypermediaUrlToRoute(url)) {
         event.preventDefault()
-        if (isWebBrowserEnabled() && hypermediaUrlToRoute(url)) openUrl(url)
+        if (isWebBrowserEnabled() && hypermediaUrlToRoute(url) && gesture.consume()) openUrl(url)
       }
     }
     guest.on('will-navigate', guardNavigation)
     guest.on('will-redirect', guardNavigation)
     guest.setWindowOpenHandler(({url}) => {
-      if (isWebBrowserEnabled() && (/^https?:\/\//.test(url) || hypermediaUrlToRoute(url))) openUrl(url)
+      if (isWebBrowserEnabled() && gesture.consume() && (/^https?:\/\//.test(url) || hypermediaUrlToRoute(url)))
+        openUrl(url)
       return {action: 'deny'}
     })
     const committed = () => {
@@ -158,6 +164,7 @@ export function setupWebBrowser(
       requests.delete(guest.id)
       send({
         type: 'browser-location',
+        userInitiated: gesture.allowed(),
         url: guest.getURL(),
         title: guest.getTitle(),
         historyIndex: guest.navigationHistory.getActiveIndex(),
@@ -204,7 +211,7 @@ export function setupWebBrowser(
   })
 
   host.ipc.on('web-browser-navigate', (event, input: unknown) => {
-    if (event.sender !== host || !isWebBrowserEnabled()) return
+    if (event.sender !== host || event.senderFrame !== host.mainFrame || !isWebBrowserEnabled()) return
     const parsed = commandSchema.safeParse(input)
     if (!parsed.success) return
     const {browserId, requestId, url, historyIndex} = parsed.data
