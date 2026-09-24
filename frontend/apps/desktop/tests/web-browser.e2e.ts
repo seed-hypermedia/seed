@@ -268,12 +268,29 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
       await guest.evaluate((contents) => contents.executeJavaScript("document.querySelector('#remember').value")),
     ).toBe('saved')
     await navigate(`${origin}/second`, 3, secondIndex)
-    await guest.evaluate((contents) => contents.executeJavaScript("document.querySelector('#seed').click()"))
+    await guest.evaluate((contents) =>
+      contents.executeJavaScript("document.querySelector('#seed').click(); document.querySelector('#popup').click()"),
+    )
+    expect(await page.evaluate(() => (window as any).browserTest.events())).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({type: 'browser-open-url'})]),
+    )
+    const clickGuest = async (selector: string) => {
+      await guest.evaluate(async (contents, target) => {
+        const point = await contents.executeJavaScript(
+          `(() => { const rect = document.querySelector(${JSON.stringify(
+            target,
+          )}).getBoundingClientRect(); return {x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2)} })()`,
+        )
+        contents.sendInputEvent({type: 'mouseDown', ...point, button: 'left', clickCount: 1})
+        contents.sendInputEvent({type: 'mouseUp', ...point, button: 'left', clickCount: 1})
+      }, selector)
+    }
+    await clickGuest('#seed')
     await expect
       .poll(() => page.evaluate(() => (window as any).browserTest.events()))
       .toEqual(expect.arrayContaining([expect.objectContaining({type: 'browser-open-url', url: 'hm://alice/docs'})]))
     expect(await guest.evaluate((contents) => contents.getURL())).toBe(`${origin}/second`)
-    await guest.evaluate((contents) => contents.executeJavaScript("document.querySelector('#popup').click()"))
+    await clickGuest('#popup')
     await expect
       .poll(() => page.evaluate(() => (window as any).browserTest.events()))
       .toEqual(expect.arrayContaining([expect.objectContaining({type: 'browser-open-url', url: `${origin}/popup`})]))
@@ -284,6 +301,19 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
       .toEqual(
         expect.arrayContaining([expect.objectContaining({type: 'browser-location', url: `${origin}/second#section`})]),
       )
+    const reboundUrl = `http://seed-rebinding.test:${address.port}/first`
+    // Even a website the user allowed is refused when its hostname resolves to a private address.
+    await page.evaluate((input) => (window as any).browserTest.access(input), {
+      ...grant,
+      origins: [origin, new URL(reboundUrl).origin],
+    })
+    await navigate(reboundUrl, 4)
+    await expect(command({action: 'snapshot'})).rejects.toThrow('private network')
+    const reboundIndex = await guest.evaluate((contents) => contents.navigationHistory.getActiveIndex())
+    await navigate(`${origin}/first`, 5)
+    expect((await command({action: 'snapshot'})).url).toBe(`${origin}/first`)
+    await navigate(reboundUrl, 6, reboundIndex)
+    await expect(command({action: 'snapshot'})).rejects.toThrow('private network')
     await page.evaluate(() => (window as any).browserTest.hide())
     await expect(command({action: 'snapshot'})).rejects.toThrow('Browser access is paused')
   } finally {

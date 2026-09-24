@@ -1,4 +1,7 @@
 import type {WebContents} from 'electron'
+import {fetchBrowserImage, readBrowserImageResponse} from './browser-image'
+
+const maxIconBytes = 512 * 1024
 
 /** Reads applicable tab icons in the guest document, preserving base URLs, media queries, and size hints. */
 export async function readBrowserFavicons(guest: WebContents): Promise<string[]> {
@@ -18,6 +21,7 @@ export async function readBrowserFavicons(guest: WebContents): Promise<string[]>
           return {url: link.href, rank, index}
         })
         .sort((a, b) => a.rank - b.rank || b.index - a.index)
+        .slice(0, 4)
         .map(icon => icon.url)
       return icons.length ? icons : [new URL('/favicon.ico', location.href).href]
     })()
@@ -28,21 +32,33 @@ export async function readBrowserFavicons(guest: WebContents): Promise<string[]>
 
 /** Loads an icon with the website's session so its cookies, cache, proxy, and redirects work normally. */
 export async function loadBrowserFavicon(guest: WebContents, url: string): Promise<string | null> {
-  if (/^data:image\//i.test(url)) return url
+  if (/^data:image\//i.test(url)) {
+    if (url.length > maxIconBytes * 3 + 200) return null
+    try {
+      const response = await fetch(url)
+      const image = await readBrowserImageResponse(response, maxIconBytes)
+      return image ? url : null
+    } catch {
+      return null
+    }
+  }
   if (url.startsWith('blob:')) {
     try {
       return await guest.executeJavaScriptInIsolatedWorld(1001, [
         {
           code: `
         (async () => {
-          const response = await fetch(${JSON.stringify(url)})
-          const blob = await response.blob()
-          return new Promise(resolve => {
-            const reader = new FileReader()
-            reader.onload = () => resolve(reader.result)
-            reader.onerror = () => resolve(null)
-            reader.readAsDataURL(blob)
-          })
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 10000);
+          try {
+            const response = await fetch(${JSON.stringify(url)}, {signal: controller.signal});
+            const image = await (${readBrowserImageResponse.toString()})(response, ${maxIconBytes});
+            if (!image) return null;
+            let binary = '';
+            for (const byte of image.bytes) binary += String.fromCharCode(byte);
+            return 'data:' + image.type + ';base64,' + btoa(binary);
+          } catch { return null; }
+          finally { controller.abort(); clearTimeout(timer); }
         })()
       `,
         },
@@ -51,19 +67,6 @@ export async function loadBrowserFavicon(guest: WebContents, url: string): Promi
       return null
     }
   }
-  if (!/^https?:\/\//i.test(url)) return null
-  try {
-    const response = await guest.session.fetch(url, {
-      credentials: 'include',
-      referrer: guest.getURL(),
-      signal: AbortSignal.timeout(10000),
-    })
-    if (!response.ok) return null
-    const type = response.headers.get('content-type')?.split(';')[0] || 'application/octet-stream'
-    if (!type.startsWith('image/') && type !== 'application/octet-stream') return null
-    const bytes = Buffer.from(await response.arrayBuffer())
-    return `data:${type};base64,${bytes.toString('base64')}`
-  } catch {
-    return null
-  }
+  const image = await fetchBrowserImage(guest, url, maxIconBytes)
+  return image ? `data:${image.type};base64,${Buffer.from(image.bytes).toString('base64')}` : null
 }

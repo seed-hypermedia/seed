@@ -155,9 +155,26 @@ describe('browser page lifecycle', () => {
     await attachAndCommit()
     mocks.resolve.mockResolvedValueOnce({key: 'contacts'})
     await act(async () =>
-      emit({type: 'browser-location', browserId: 42, url: 'https://seed.example/docs', title: 'Seed', historyIndex: 2}),
+      emit({
+        type: 'browser-location',
+        userInitiated: true,
+        browserId: 42,
+        url: 'https://seed.example/docs',
+        title: 'Seed',
+        historyIndex: 2,
+      }),
     )
     expect(mocks.resolveRoute).toHaveBeenCalledWith('https://seed.example/docs', {key: 'contacts'})
+  })
+
+  it('does not resolve automatic website navigations into native routes', async () => {
+    await attachAndCommit()
+    mocks.resolve.mockResolvedValue({key: 'contacts'})
+    await act(async () =>
+      emit({type: 'browser-location', browserId: 42, url: 'https://seed.example/docs', title: 'Seed', historyIndex: 2}),
+    )
+    expect(mocks.resolve).not.toHaveBeenCalled()
+    expect(mocks.resolveRoute).not.toHaveBeenCalled()
   })
 
   it('destroys the guest when disabled and leaves an external-browser fallback', async () => {

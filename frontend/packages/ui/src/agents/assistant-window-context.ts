@@ -57,9 +57,21 @@ export type AssistantWindowContext = {
 
 /** Formats window context into the model-facing lines of a `context` message part. */
 export function formatWindowContextLines(context: AssistantWindowContext | undefined): string[] | undefined {
+  if (context?.view === 'web' && context.browserStatus !== 'connected') {
+    return ['## Current window', 'The user is viewing a website with browser access not granted.']
+  }
   if (!context || (!context.url && !context.isDraft)) return undefined
   const lines: string[] = ['## Current window']
-  if (context.url) lines.push(`URL: ${context.url}`)
+  if (context.url) {
+    if (context.view === 'web') {
+      try {
+        const url = new URL(context.url)
+        if (['https:', 'http:'].includes(url.protocol)) lines.push(`URL: ${url.origin}${url.pathname}`)
+      } catch {
+        // Malformed page URLs are not included in assistant context.
+      }
+    } else lines.push(`URL: ${context.url}`)
+  }
   if (context.title) lines.push(`Title: "${context.title}"`)
   if (context.view) lines.push(`View: ${context.view}`)
   if (context.activePanel) lines.push(`Side panel: ${context.activePanel}`)

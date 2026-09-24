@@ -481,6 +481,8 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
       preload: path.join(__dirname, 'preload.js'),
       disableDialogs: true,
       spellcheck: true,
+      // Fixed at window creation: the experiment can be enabled at runtime.
+      // setupWebBrowser rejects disabled/wrong-partition attachments and replaces every guest preference.
       webviewTag: true,
     },
     minWidth: windowType.minWidth,
