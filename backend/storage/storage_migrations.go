@@ -68,6 +68,9 @@ var migrations = []migration{
 	// while unrelated authorities can never compete for the same TSID.
 	{Version: "2026-09-24.090500", Run: func(_ *Store, conn *sqlite.Conn) error {
 		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			DROP INDEX IF EXISTS structural_blobs_by_tsid;
+			CREATE INDEX structural_blobs_by_tsid ON structural_blobs (extra_attrs->>'tsid', author, ts DESC, id DESC) WHERE extra_attrs->>'tsid' IS NOT NULL;
+
 			DROP TABLE IF EXISTS comment_live;
 			CREATE TABLE comment_live (
 			    authority INTEGER REFERENCES public_keys (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
