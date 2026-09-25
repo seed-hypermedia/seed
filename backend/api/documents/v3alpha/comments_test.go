@@ -1,6 +1,7 @@
 package documents
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"seed/backend/api/apitest"
@@ -1245,11 +1246,35 @@ func TestDelegatedCommentMutationKeepsAccountAuthority(t *testing.T) {
 	}
 	tieFirst := delegatedBlob("Tie 1")
 	tieSecond := delegatedBlob("Tie 2")
-	require.NoError(t, alice.idx.Put(ctx, tieFirst))
-	require.NoError(t, alice.idx.Put(ctx, tieSecond))
+	tieHigh, tieLow := tieFirst, tieSecond
+	tieHighText, tieLowText := "Tie 1", "Tie 2"
+	if bytes.Compare(tieFirst.CID.Hash(), tieSecond.CID.Hash()) < 0 {
+		tieHigh, tieLow = tieSecond, tieFirst
+		tieHighText, tieLowText = tieLowText, tieHighText
+	}
+
+	// Insert the stable winner first so a local database-ID tie-break would pick
+	// the wrong blob. CID hash order must win regardless of arrival order.
+	require.NoError(t, alice.idx.Put(ctx, tieHigh))
+	require.NoError(t, alice.idx.Put(ctx, tieLow))
 	tieWinner, err := alice.GetComment(ctx, &pb.GetCommentRequest{Id: original.Id})
 	require.NoError(t, err)
-	require.Equal(t, "Tie 2", tieWinner.Content[0].Block.Text)
+	require.Equal(t, tieHighText, tieWinner.Content[0].Block.Text)
+
+	tieList, err := alice.ListComments(ctx, &pb.ListCommentsRequest{
+		TargetAccount: alice.me.Account.PublicKey.String(),
+		TargetPath:    "",
+	})
+	require.NoError(t, err)
+	var listedTie *pb.Comment
+	for _, comment := range tieList.Comments {
+		if comment.Id == original.Id {
+			listedTie = comment
+			break
+		}
+	}
+	require.NotNil(t, listedTie)
+	require.Equal(t, tieHighText, listedTie.Content[0].Block.Text)
 
 	updated, err := update("bob-session", "Delegated update")
 	require.NoError(t, err)
@@ -1265,8 +1290,8 @@ func TestDelegatedCommentMutationKeepsAccountAuthority(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, versions.Versions, 4)
 	require.Equal(t, "Delegated update", versions.Versions[0].Content[0].Block.Text)
-	require.Equal(t, "Tie 2", versions.Versions[1].Content[0].Block.Text)
-	require.Equal(t, "Tie 1", versions.Versions[2].Content[0].Block.Text)
+	require.Equal(t, tieHighText, versions.Versions[1].Content[0].Block.Text)
+	require.Equal(t, tieLowText, versions.Versions[2].Content[0].Block.Text)
 	for _, version := range versions.Versions {
 		require.Equal(t, original.Id, version.Id)
 	}
