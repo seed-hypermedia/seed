@@ -58,25 +58,17 @@ import {isSubscriptionSignInAvailable, SubscriptionSignIn} from './provider-oaut
 import {PROVIDER_METADATA, PROVIDER_TYPE_ORDER, providerLabel} from './provider-registry'
 
 /**
- * The Agent Guide that a new agent's system prompt embeds by default. It lives in the Hypermedia knowledge base
- * (`hypermedia/agent/guide.md` in the repo). The agents server resolves `hm://hyper.media` to the knowledge base
- * space it is configured with: the `hm-sync` dev site locally, the published docs space in production.
+ * A new agent's default system prompt is a single Embed of the Agent Guide rather than inline text, so every new
+ * agent picks up the current published guidance. The agent server names the guide (`defaultPromptUrl` in health).
  */
-export const DEFAULT_AGENT_SKILL_URL = 'hm://hyper.media/agent/guide'
-
-/**
- * A new agent's default system prompt is a single Embed of the shared skill document rather than
- * inline text, so every new agent picks up the current published guidance when the service
- * resolves the embed into the model-facing prompt.
- */
-export function defaultAgentSystemPrompt(): HMBlockNode[] {
+export function defaultAgentSystemPrompt(url: string): HMBlockNode[] {
   return [
     {
       block: {
         id: 'default-skill',
         type: 'Embed',
         text: '',
-        link: DEFAULT_AGENT_SKILL_URL,
+        link: url,
         attributes: {childrenType: 'Group', view: 'Content'},
         annotations: [],
       },
@@ -933,7 +925,10 @@ export function CreateAgentDialog({
   const [reasoningLevel, setReasoningLevel] = useState<ReasoningLevel | undefined>(undefined)
   const [thoroughness, setThoroughness] = useState<Thoroughness>('normal')
   const [enabledModels, setEnabledModels] = useState<AgentModelRef[]>([])
-  const [systemPrompt, setSystemPrompt] = useState<HMBlockNode[]>(defaultAgentSystemPrompt)
+  const health = useAgentServerHealth(selectedServerUrl)
+  // Servers from before `defaultPromptUrl` resolve this address to their docs space.
+  const defaultPromptUrl = health.data?.defaultPromptUrl ?? 'hm://hyper.media/agent/guide'
+  const [systemPrompt, setSystemPrompt] = useState<HMBlockNode[] | null>(null)
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
@@ -985,7 +980,7 @@ export function CreateAgentDialog({
     try {
       const definition: AgentDefinition = {
         name: agentName,
-        systemPrompt: promptBlocksForRequest(systemPrompt),
+        systemPrompt: promptBlocksForRequest(systemPrompt ?? defaultAgentSystemPrompt(defaultPromptUrl)),
         modelProvider: providerName,
         model,
         reasoningLevel: coerceReasoningLevel(selectedProviderType, model, reasoningLevel),
@@ -1130,7 +1125,15 @@ export function CreateAgentDialog({
         <SizableText size="sm" weight="bold">
           System prompt
         </SizableText>
-        <AgentPromptEditor initialBlocks={systemPrompt} onChange={setSystemPrompt} focusOnMount={false} />
+        {health.isInitialLoading ? (
+          <Spinner />
+        ) : (
+          <AgentPromptEditor
+            initialBlocks={defaultAgentSystemPrompt(defaultPromptUrl)}
+            onChange={setSystemPrompt}
+            focusOnMount={false}
+          />
+        )}
       </div>
       <div className="flex justify-end gap-2">
         <Button onClick={() => void handleCreateAgent()} disabled={creating || !providerName || !model}>
