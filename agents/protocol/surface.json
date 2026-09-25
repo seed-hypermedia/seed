@@ -102,6 +102,12 @@
         "label?": "string"
       }
     },
+    "CreateVoiceSession": {
+      "fields": {
+        "_": "\"CreateVoiceSession\"",
+        "sessionId": "string"
+      }
+    },
     "DeclineAgentInvite": {
       "fields": {
         "_": "\"DeclineAgentInvite\"",
@@ -211,6 +217,11 @@
         "_": "\"GetSessionEvent\"",
         "seq": "number",
         "sessionId": "string"
+      }
+    },
+    "GetVoiceSettings": {
+      "fields": {
+        "_": "\"GetVoiceSettings\""
       }
     },
     "ImportSigningIdentity": {
@@ -413,6 +424,13 @@
         "value": "Uint8Array<ArrayBufferLike>"
       }
     },
+    "SetVoiceSettings": {
+      "fields": {
+        "_": "\"SetVoiceSettings\"",
+        "cartesiaApiKey?": "null | string",
+        "deepgramApiKey?": "null | string"
+      }
+    },
     "SignalRun": {
       "fields": {
         "_": "\"SignalRun\"",
@@ -576,6 +594,17 @@
         "identity": "SigningIdentity"
       }
     },
+    "CreateVoiceSessionResponse": {
+      "fields": {
+        "_": "\"CreateVoiceSessionResponse\"",
+        "expiresAt": "number",
+        "identity": "string",
+        "room": "string",
+        "sessionId": "string",
+        "token": "string",
+        "url": "string"
+      }
+    },
     "DeclineAgentInviteResponse": {
       "fields": {
         "_": "\"DeclineAgentInviteResponse\"",
@@ -695,6 +724,14 @@
         "session": "SessionInfo",
         "systemPromptMarkdown": "string",
         "triggerContext?": "AgentSessionTriggerContext"
+      }
+    },
+    "GetVoiceSettingsResponse": {
+      "fields": {
+        "_": "\"GetVoiceSettingsResponse\"",
+        "available": "boolean",
+        "cartesiaApiKey": "VoiceKeySource",
+        "deepgramApiKey": "VoiceKeySource"
       }
     },
     "ImportSigningIdentityResponse": {
@@ -896,6 +933,13 @@
       "fields": {
         "_": "\"SetSecretResponse\"",
         "secret": "RedactedSecret"
+      }
+    },
+    "SetVoiceSettingsResponse": {
+      "fields": {
+        "_": "\"SetVoiceSettingsResponse\"",
+        "cartesiaApiKey": "VoiceKeySource",
+        "deepgramApiKey": "VoiceKeySource"
       }
     },
     "SignalRunResponse": {
@@ -1711,6 +1755,9 @@
           }
         }
       }
+    },
+    "VoiceKeySource": {
+      "alias": "\"account\" | \"none\" | \"server\""
     }
   }
 }

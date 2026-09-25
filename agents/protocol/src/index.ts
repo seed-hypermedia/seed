@@ -246,6 +246,9 @@ export type UnsignedAgentAction =
   | CancelRun
   | SignalRun
   | GetRunJournal
+  | CreateVoiceSession
+  | GetVoiceSettings
+  | SetVoiceSettings
   | Subscribe
   | RegisterSigner
 
@@ -982,6 +985,36 @@ export type MessageSession = {
   content: MessageSessionContentPart[]
   clientMessageId?: string
 }
+
+/**
+ * Mints a LiveKit room token so the caller can talk to this session by voice: the browser joins
+ * the room with the token, the server's voice worker transcribes what is said and appends it to
+ * the session as a user message, and the agent's reply is spoken back. Same access level as
+ * `MessageSession`. Servers without a voice pipeline answer HTTP 501.
+ */
+export type CreateVoiceSession = {
+  _: 'CreateVoiceSession'
+  sessionId: string
+}
+
+/** Reports whether this server can do voice and where its speech API keys come from. */
+export type GetVoiceSettings = {
+  _: 'GetVoiceSettings'
+}
+
+/**
+ * Stores (or, with `null`, clears) the signed account's own speech API keys on this server. They
+ * are kept encrypted at rest like every other secret and override the server's configured keys
+ * for that account's voice sessions. Absent fields are left unchanged.
+ */
+export type SetVoiceSettings = {
+  _: 'SetVoiceSettings'
+  deepgramApiKey?: string | null
+  cartesiaApiKey?: string | null
+}
+
+/** Where a speech API key for the signed account's voice sessions comes from. */
+export type VoiceKeySource = 'account' | 'server' | 'none'
 
 /**
  * Runs one verb (read, write, or call) AS THE USER on a session's shared log. The call and its
@@ -2314,6 +2347,34 @@ export type MessageSessionResponse = {
   continuedToSessionId?: string
 }
 
+export type CreateVoiceSessionResponse = {
+  _: 'CreateVoiceSessionResponse'
+  sessionId: string
+  /** LiveKit WebSocket URL the browser connects to. */
+  url: string
+  /** Participant JWT for `url`, scoped to `room`. */
+  token: string
+  room: string
+  /** The caller's participant identity in the room. */
+  identity: string
+  /** Unix epoch milliseconds when `token` stops being accepted. */
+  expiresAt: number
+}
+
+export type GetVoiceSettingsResponse = {
+  _: 'GetVoiceSettingsResponse'
+  /** The server runs a voice pipeline (LiveKit + speech worker); `CreateVoiceSession` works only when true. */
+  available: boolean
+  deepgramApiKey: VoiceKeySource
+  cartesiaApiKey: VoiceKeySource
+}
+
+export type SetVoiceSettingsResponse = {
+  _: 'SetVoiceSettingsResponse'
+  deepgramApiKey: VoiceKeySource
+  cartesiaApiKey: VoiceKeySource
+}
+
 /** Successful response for `RetrySession`. */
 export type RetrySessionResponse = {
   _: 'RetrySessionResponse'
@@ -2476,6 +2537,9 @@ export type AgentResponse =
   | GetSessionResponse
   | GetSessionEventResponse
   | MessageSessionResponse
+  | CreateVoiceSessionResponse
+  | GetVoiceSettingsResponse
+  | SetVoiceSettingsResponse
   | InvokeSessionToolResponse
   | UploadSessionAttachmentResponse
   | ReadSessionAttachmentResponse
