@@ -461,6 +461,8 @@ func (srv *Server) getComment(conn *sqlite.Conn, idRaw string) (out indexedComme
 	return icmt, nil
 }
 
+// Equal protocol timestamps are disambiguated by CID hash so replicas with
+// different insertion orders still select the same current comment.
 var qGetCommentByID = dqb.Str(`
 	SELECT
 		sb.id,
@@ -473,7 +475,7 @@ var qGetCommentByID = dqb.Str(`
 	WHERE sb.type = 'Comment'
 	AND sb.author = (SELECT id FROM public_keys WHERE principal = :authority)
 	AND sb.extra_attrs->>'tsid' = :tsid
-	ORDER BY sb.ts DESC, sb.id DESC
+	ORDER BY sb.ts DESC, b.multihash DESC
 	LIMIT 1
 `)
 
@@ -509,6 +511,7 @@ AND bl.type IN ('comment/reply-parent', 'comment/thread-root')
 AND src.extra_attrs->>'deleted' is not true
 `)
 
+// History uses the same replica-stable tie-break as current-comment selection.
 var qListCommentVersions = dqb.Str(`
 	SELECT
 		sb.id,
@@ -522,7 +525,7 @@ var qListCommentVersions = dqb.Str(`
 	AND sb.author = (SELECT id FROM public_keys WHERE principal = :authority)
 	AND sb.extra_attrs->>'tsid' = :tsid
 	AND sb.extra_attrs->>'deleted' IS NULL
-	ORDER BY sb.ts DESC, sb.id DESC
+	ORDER BY sb.ts DESC, b.multihash DESC
 `)
 
 func commentToProto(lookup *blob.LookupCache, c cid.Cid, cmt *blob.Comment, tsid blob.TSID) (*documents.Comment, error) {
