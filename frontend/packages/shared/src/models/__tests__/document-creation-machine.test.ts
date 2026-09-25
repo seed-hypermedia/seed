@@ -3,6 +3,7 @@ import {describe, expect, it} from 'vitest'
 import {createActor, waitFor} from 'xstate'
 import {
   documentCreationMachine,
+  resolveDocumentCreationDestination,
   type DocumentCreationInput,
   type DocumentCreationResolutionInput,
 } from '../document-creation-machine'
@@ -25,6 +26,18 @@ function start(
 }
 
 describe('documentCreationMachine', () => {
+  it('resolves a nested collection as its own creation destination', () => {
+    expect(
+      resolveDocumentCreationDestination(currentId, {
+        canEditCurrent: true,
+        currentIsCollection: true,
+        parentId,
+        parentIsCollection: true,
+        canEditParent: true,
+      }),
+    ).toEqual(currentId)
+  })
+
   it('creates a schema-shaped sibling for an editable collection child', async () => {
     const calls: any[] = []
     const actor = start(
