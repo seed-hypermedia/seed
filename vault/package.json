@@ -17,6 +17,7 @@
     "react-dom": "18.2.0",
     "@types/react": "18.2.64",
     "@types/react-dom": "18.2.21",
+    "@seed-hypermedia/agents-protocol": "file:../agents/protocol",
     "@seed-hypermedia/client": "file:../frontend/packages/client",
     "@shm/shared": "file:../frontend/packages/shared",
     "@shm/ui": "file:../frontend/packages/ui"
@@ -57,7 +58,6 @@
     "radix-ui": "^1.4.3",
     "react": "^19",
     "react-dom": "^19",
-    "react-easy-crop": "^6.2.3",
     "react-router-dom": "^7.13.0",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.11",
