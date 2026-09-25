@@ -129,3 +129,54 @@ function ImageCropForm({input, onClose}: {input: ImageCropDialogInput; onClose: 
     </div>
   )
 }
+
+/** The parts of a crop request that a field decides up front. */
+export type ImageCropConfig = Pick<ImageCropDialogInput, 'aspect' | 'cropShape' | 'maxDimension' | 'format'>
+
+/**
+ * Adds "choose a file, frame it, hand back the result" to a component that owns
+ * a file input, so the several image pickers in the app can share one cropper.
+ */
+export function useImageCropper({crop, onCropped}: {crop?: ImageCropConfig; onCropped: (file: File) => void}) {
+  const [request, setRequest] = useState<ImageCropDialogInput | null>(null)
+  // The file as chosen. Kept so the framing can be revisited against the whole
+  // picture instead of against an already cropped copy of it.
+  const [source, setSource] = useState<File | null>(null)
+  const [lastCrop, setLastCrop] = useState<CropState | undefined>(undefined)
+
+  function open(file: File, initialCrop?: CropState) {
+    if (!crop) return
+    setRequest({
+      ...crop,
+      file,
+      initialCrop,
+      onCropped: ({file: cropped, crop: applied}) => {
+        setLastCrop(applied)
+        onCropped(cropped)
+      },
+    })
+  }
+
+  return {
+    // Hands a freshly chosen file to the cropper.
+    pick(file: File) {
+      if (!crop) return false
+      setSource(file)
+      setLastCrop(undefined)
+      open(file)
+      return true
+    },
+    source: crop ? source : null,
+    // Reopens the cropper on the kept original, restoring the last framing.
+    reopen() {
+      if (source) open(source, lastCrop)
+    },
+    // Clears the kept original, for when the image is removed.
+    clear() {
+      setSource(null)
+      setLastCrop(undefined)
+    },
+    // Dialot to render in a component for the cropper to appear.
+    dialog: <ImageCropDialog input={request} onClose={() => setRequest(null)} />,
+  }
+}

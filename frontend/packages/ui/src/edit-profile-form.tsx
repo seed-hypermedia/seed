@@ -7,6 +7,7 @@ import {Button} from './button'
 import {Field} from './form-fields'
 import {FormError, FormInput} from './form-input'
 import {getDaemonFileUrl} from './get-file-url'
+import {useImageCropper, type ImageCropConfig} from './image-crop-dialog'
 import {SizableText} from './text'
 
 export const siteMetaSchema = z.object({
@@ -20,12 +21,10 @@ export function EditProfileForm({
   onSubmit,
   defaultValues,
   submitLabel,
-  processImage,
 }: {
   onSubmit: (data: SiteMetaFields) => void
   defaultValues?: SiteMetaFields
   submitLabel?: string
-  processImage?: (file: File) => Promise<Blob>
 }) {
   const tx = useTxString()
   const form = useForm<SiteMetaFields>({
@@ -49,7 +48,12 @@ export function EditProfileForm({
           <FormError errors={form.formState.errors} name="name" />
         </Field>
         <Field id="icon" label={tx('Profile Icon')}>
-          <ImageField control={form.control} name="icon" label={tx('Profile Icon')} processImage={processImage} />
+          <ImageField
+            control={form.control}
+            name="icon"
+            label={tx('Profile Icon')}
+            crop={{aspect: 1, cropShape: 'round', maxDimension: 512} as ImageCropConfig}
+          />
         </Field>
         <div>
           <Button type="submit" variant="default" size="lg" className={`w-full`}>
@@ -65,14 +69,15 @@ function ImageField<Fields extends FieldValues>({
   control,
   name,
   label,
-  processImage,
+  crop,
 }: {
   control: Control<Fields>
   name: Path<Fields>
   label: string
-  processImage?: (file: File) => Promise<Blob>
+  crop?: ImageCropConfig
 }) {
   const c = useController({control, name})
+  const cropper = useImageCropper({crop, onCropped: (file) => c.field.onChange(file)})
   const tx = useTxString()
   const currentImgURL = c.field.value
     ? typeof c.field.value === 'string'
@@ -87,13 +92,12 @@ function ImageField<Fields extends FieldValues>({
         onChange={(event) => {
           const file = event.target.files?.[0]
           if (!file) return
-          if (processImage) {
-            processImage(file).then((blob) => {
-              c.field.onChange(blob)
-            })
-          } else {
-            c.field.onChange(file)
+          // Clear the input so the same file can be chosen again after the cropper is cancelled.
+          if (cropper.pick(file)) {
+            event.target.value = ''
+            return
           }
+          c.field.onChange(file)
         }}
         className="absolute inset-0 z-10 cursor-pointer opacity-0"
       />
@@ -116,6 +120,7 @@ function ImageField<Fields extends FieldValues>({
           </SizableText>
         </div>
       )}
+      {cropper.dialog}
     </div>
   )
 }

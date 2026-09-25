@@ -1,8 +1,7 @@
 import {Crop, X} from 'lucide-react'
-import {ChangeEvent, ReactNode, useState} from 'react'
+import {ChangeEvent, ReactNode} from 'react'
 import {Button} from './button'
-import type {CropState} from './image-crop'
-import {ImageCropDialog, type ImageCropDialogInput} from './image-crop-dialog'
+import {useImageCropper, type ImageCropConfig} from './image-crop-dialog'
 import {SizableText} from './text'
 import {cn} from './utils'
 
@@ -21,7 +20,7 @@ export interface ImageFormProps {
    * Enables cropping. Choosing a file opens the cropper rather than accepting
    * the image as-is, and only the cropped result reaches onImageUpload.
    */
-  crop?: Pick<ImageCropDialogInput, 'aspect' | 'cropShape' | 'maxDimension' | 'format'>
+  crop?: ImageCropConfig
   /**
    * Optional async function that uploads a File and resolves to its URL.
    * When omitted and `uploadOnChange` is true, the upload step is skipped.
@@ -54,12 +53,6 @@ export function ImageForm({
   crop,
   ...props
 }: ImageFormProps) {
-  const [cropRequest, setCropRequest] = useState<ImageCropDialogInput | null>(null)
-  // The image as chosen, before cropping. Held so reopening the cropper shows
-  // the whole picture again rather than the already-cropped result.
-  const [cropSource, setCropSource] = useState<File | null>(null)
-  const [cropState, setCropState] = useState<CropState | undefined>(undefined)
-
   const deliver = (file: File, resetInput?: () => void) => {
     if (!onImageUpload) return
     if (uploadOnChange) {
@@ -80,18 +73,7 @@ export function ImageForm({
     }
   }
 
-  const openCropper = (source: File, initialCrop?: CropState) => {
-    if (!crop) return
-    setCropRequest({
-      ...crop,
-      file: source,
-      initialCrop,
-      onCropped: ({file, crop: appliedCrop}) => {
-        setCropState(appliedCrop)
-        deliver(file)
-      },
-    })
-  }
+  const cropper = useImageCropper({crop, onCropped: deliver})
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     event.stopPropagation()
@@ -100,11 +82,9 @@ export function ImageForm({
     if (!file) return
     if (!onImageUpload) return
 
-    if (crop) {
+    // Clear the input up front so choosing the same file again still fires.
+    if (cropper.pick(file)) {
       event.target.value = ''
-      setCropSource(file)
-      setCropState(undefined)
-      openCropper(file)
       return
     }
     deliver(file, () => {
@@ -183,7 +163,7 @@ export function ImageForm({
           </div>
         )}
       </div>
-      {crop && cropSource && url ? (
+      {cropper.source && url ? (
         <Button
           size="icon"
           aria-label="Adjust crop"
@@ -191,7 +171,7 @@ export function ImageForm({
           onClick={(e) => {
             e.preventDefault()
             e.stopPropagation()
-            openCropper(cropSource, cropState)
+            cropper.reopen()
           }}
         >
           <Crop className="size-3" />
@@ -204,15 +184,14 @@ export function ImageForm({
           onClick={(e) => {
             e.preventDefault()
             e.stopPropagation()
-            setCropSource(null)
-            setCropState(undefined)
+            cropper.clear()
             onRemove()
           }}
         >
           <X className="size-3" />
         </Button>
       ) : null}
-      <ImageCropDialog input={cropRequest} onClose={() => setCropRequest(null)} />
+      {cropper.dialog}
     </div>
   )
 }
