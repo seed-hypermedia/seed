@@ -40,6 +40,14 @@ const (
 	// resetTimer's ready-hot-task path, which uses a zero wake once per enqueue
 	// to dispatch immediately.
 	minDeadlineWake = 100 * time.Millisecond
+	// hotStarvationAge is how long a due hot task may wait in the queue before
+	// it outranks fresher hot tasks. The hot tier is LIFO so the thing the user
+	// just opened wins, but under a saturated pool that lets a set of tasks the
+	// UI re-touches every few seconds own the head forever: measured on a
+	// desktop with 138 queued tasks, the document being read was reconciled
+	// 11–21 minutes after the gateway had its new comments. Three cooldowns
+	// late is far outside the "~10s" promise, so at that point age wins.
+	hotStarvationAge = 3 * defaultHotCooldown
 )
 
 // Queue priority tiers. Lower value = higher priority.
@@ -78,7 +86,13 @@ type taskHandle struct {
 	nextRunTime  time.Time
 	subscription bool
 	hotDeadline  time.Time
-	runCount     uint64 // Number of times task has been executed.
+	// hotRank orders the hot tier: normally hotDeadline (LIFO, freshest touch
+	// first), lifted past every fresh deadline once the task has waited
+	// hotStarvationAge past its due time. Recomputed by enqueueLocked, so it is
+	// only as current as the last (re)enqueue — which is every heartbeat touch
+	// and every dispatch pass that sets the task aside.
+	hotRank  time.Time
+	runCount uint64 // Number of times task has been executed.
 	// runningCold marks an in-progress run that was dispatched without a live
 	// hot heartbeat and therefore counted against the cold worker cap. Read on
 	// unwind to decrement scheduler.inProgressCold. Guarded by scheduler.mu.
@@ -273,6 +287,16 @@ var (
 		Name: "seed_sync_scheduler_queue_depth",
 		Help: "Tasks in the scheduler queue, as of the last dispatch pass.",
 	})
+
+	// MSchedulerQueueWait measures how late a task started relative to when it
+	// was due, by tier. Lateness used to be inferred from user reports; a hot
+	// task waiting tens of seconds, or a subscription waiting minutes past its
+	// interval, is the direct signature of a starved lane.
+	MSchedulerQueueWait = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "seed_sync_scheduler_queue_wait_seconds",
+		Help:    "Seconds between a task becoming due and its dispatch, by tier (hot|cold).",
+		Buckets: prometheus.ExponentialBuckets(0.1, 2, 14), // 0.1s .. ~14min
+	}, []string{"tier"})
 )
 
 // scheduler manages discovery tasks with a bounded worker pool.
@@ -329,7 +353,8 @@ func newScheduler(disc discoverer, cfg config.Syncing) *scheduler {
 		tasks:  make(map[DiscoveryKey]*taskHandle),
 		hotTTL: defaultHotTTL,
 		// Two-tier priority: hot tasks always before cold. Within hot tier,
-		// LIFO by hotDeadline desc (most recently touched wins); within cold
+		// LIFO by hotRank desc (most recently touched wins, unless a task has
+		// starved past hotStarvationAge — see enqueueLocked); within cold
 		// tier, FIFO by nextRunTime asc (earliest due wins). nextRunTime is
 		// a stable secondary key in both tiers for deterministic ordering
 		// when primary keys tie.
@@ -338,8 +363,8 @@ func newScheduler(disc discoverer, cfg config.Syncing) *scheduler {
 				return a.queueTier < b.queueTier
 			}
 			if a.queueTier == tierHot {
-				if !a.hotDeadline.Equal(b.hotDeadline) {
-					return a.hotDeadline.After(b.hotDeadline)
+				if !a.hotRank.Equal(b.hotRank) {
+					return a.hotRank.After(b.hotRank)
 				}
 			}
 			return a.nextRunTime.Before(b.nextRunTime)
@@ -609,6 +634,12 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 	// cold tier ordering), so the scan must drain past them to reach it.
 	var blockedCold []*taskHandle
 
+	// Hot tasks set aside because the last free slot is owed to due background
+	// work (see coldReservedLocked). Hot tasks sort before every cold task, so
+	// without draining past them the scan would never reach the cold task the
+	// slot is being held for.
+	var blockedHot []*taskHandle
+
 	// Attributes why this pass stopped. Stays queue_drained if the loop runs the
 	// queue empty; every break below overwrites it.
 	endReason := dispatchEndQueueDrained
@@ -663,9 +694,25 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 			blockedCold = append(blockedCold, task)
 			continue
 		}
+		if isHot && s.coldReservedLocked(now) {
+			// The one free slot is owed to a due subscription. Set the hot
+			// task aside and keep scanning so the cold task can take it; the
+			// hot task resumes on the next completion. Hot tasks that cannot
+			// be dispatched are re-enqueued below, not lost.
+			s.queue.Pop()
+			blockedHot = append(blockedHot, task)
+			continue
+		}
 
 		// Task is ready. Pop it from the queue and prepare its run context.
 		s.queue.Pop()
+		if !task.nextRunTime.IsZero() {
+			tier := "cold"
+			if isHot {
+				tier = "hot"
+			}
+			MSchedulerQueueWait.WithLabelValues(tier).Observe(max(now.Sub(task.nextRunTime), 0).Seconds())
+		}
 		task.state = TaskStateInProgress
 		task.progress = &Progress{}
 		task.runStartedAt = now
@@ -732,9 +779,14 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 		MSchedulerColdBlocked.Add(float64(n))
 	}
 
-	// Put back any cold tasks the scan set aside; they keep their due times
-	// and dispatch as cold slots free up (worker completions re-enter us).
+	// Put back any tasks the scan set aside; they keep their due times and
+	// dispatch as slots free up (worker completions re-enter us). Re-enqueuing
+	// also refreshes hotRank, so a hot task that keeps being set aside climbs
+	// the hot tier once it has starved long enough.
 	for _, task := range blockedCold {
+		s.enqueueLocked(task, now)
+	}
+	for _, task := range blockedHot {
 		s.enqueueLocked(task, now)
 	}
 
@@ -766,6 +818,40 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 	return s.boundedWake(wake, now)
 }
 
+// coldReservedLocked reports whether the last free worker slot must be held
+// for background work: no cold run is in flight, exactly one slot is free,
+// and a subscription is queued and due. Caller must hold s.mu.
+//
+// The hot tier sorts before the cold tier and hot tasks are re-touched every
+// few seconds while a view is open, so under a saturated pool hot work alone
+// would fill every slot forever and subscriptions would run only in the gaps
+// (measured: 64 subscriptions completing ~3.4 rounds/min in total — one run
+// per subscription every ~19 minutes against a 1-minute interval). Holding a
+// single slot for due cold work bounds that: the background tier degrades to
+// one serial lane, never to zero. The reservation is conditional so an idle
+// background tier never costs hot work a slot, and single-worker pools keep
+// relying on preemption.
+func (s *scheduler) coldReservedLocked(now time.Time) bool {
+	if s.cfg.MaxWorkers <= 1 || s.inProgressCold > 0 || s.inProgress != s.cfg.MaxWorkers-1 {
+		return false
+	}
+	return s.coldDueLocked(now)
+}
+
+// coldDueLocked reports whether a queued task without a live heartbeat is due
+// to run. Caller must hold s.mu.
+func (s *scheduler) coldDueLocked(now time.Time) bool {
+	for _, t := range s.tasks {
+		if t.state == TaskStateInProgress || !t.queueIndex.IsSet() || t.IsHot(now) {
+			continue
+		}
+		if !t.nextRunTime.After(now) {
+			return true
+		}
+	}
+	return false
+}
+
 // publishOccupancyLocked mirrors the live scheduler occupancy into the gauges.
 // Called both when a pass hands work out and when a worker gives a slot back,
 // so the numbers track reality rather than only the busiest instant of each
@@ -784,6 +870,13 @@ func (s *scheduler) enqueueLocked(task *taskHandle, now time.Time) {
 	} else {
 		task.queueTier = tierCold
 	}
+	// A fresh hot deadline is at most now+hotTTL, so lifting a starved task's
+	// rank by one TTL puts it ahead of every task touched since it became due.
+	// Ties among starved tasks fall through to nextRunTime: longest wait first.
+	task.hotRank = task.hotDeadline
+	if task.runCount > 0 && !task.nextRunTime.IsZero() && now.Sub(task.nextRunTime) >= hotStarvationAge {
+		task.hotRank = task.hotDeadline.Add(s.hotTTL)
+	}
 	if task.queueIndex.IsSet() {
 		s.queue.Fix(task.queueIndex.Value())
 		return
@@ -795,6 +888,14 @@ func (s *scheduler) enqueueLocked(task *taskHandle, now time.Time) {
 // slot can be reused by a higher-priority hot task. Returns true if a
 // subscription was cancelled. Caller must hold s.mu.
 func (s *scheduler) preemptSubscriptionLocked(now time.Time) bool {
+	// Multi-worker pools keep at least one cold run alive while background
+	// work is queued up behind it: the slot reserved for due subscriptions
+	// (coldReservedLocked) is worthless if the next hot arrival can evict
+	// whatever took it. With nothing else due, or on a single-worker pool,
+	// the old behaviour stands.
+	if s.cfg.MaxWorkers > 1 && s.inProgressCold <= 1 && s.coldDueLocked(now) {
+		return false
+	}
 	for _, t := range s.tasks {
 		if t.state != TaskStateInProgress {
 			continue

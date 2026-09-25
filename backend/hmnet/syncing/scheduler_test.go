@@ -827,12 +827,201 @@ func TestScheduler_HotOrderingByHotDeadline(t *testing.T) {
 		queueTier:   tierHot,
 	}
 
-	// Push in "wrong" order to prove the comparator reorders them.
-	s.queue.Push(older)
-	s.queue.Push(newer)
+	// Enqueue in "wrong" order to prove the comparator reorders them.
+	s.enqueueLocked(older, now)
+	s.enqueueLocked(newer, now)
 
 	top := s.queue.Peek()
 	require.Equal(t, newer.key, top.key, "hot task with more recent hotDeadline must sit at the head")
+}
+
+// TestScheduler_StarvedHotTaskOutranksFreshTouches is the escape hatch from the
+// LIFO hot tier: a due hot task that has waited hotStarvationAge past its due
+// time outranks tasks touched more recently, so a saturated pool cannot let
+// the constantly re-touched set own the head forever (measured: the document
+// being read reconciled 11–21 minutes late behind ~138 queued tasks).
+func TestScheduler_StarvedHotTaskOutranksFreshTouches(t *testing.T) {
+	s := newScheduler(nil, testConfig(10*time.Second, 1))
+	now := time.Now()
+
+	starved := &taskHandle{
+		key:         DiscoveryKey{IRI: "hm://starved"},
+		hotDeadline: now.Add(time.Second), // touched long ago, still hot
+		nextRunTime: now.Add(-hotStarvationAge - time.Second),
+		runCount:    1,
+	}
+	fresh := &taskHandle{
+		key:         DiscoveryKey{IRI: "hm://fresh"},
+		hotDeadline: now.Add(s.hotTTL), // touched just now
+		nextRunTime: now,
+		runCount:    1,
+	}
+	s.enqueueLocked(fresh, now)
+	s.enqueueLocked(starved, now)
+	require.Equal(t, starved.key, s.queue.Peek().key, "a starved hot task must win over a fresher touch")
+
+	// Below the starvation age, LIFO still holds: the fresher touch wins.
+	recent := &taskHandle{
+		key:         DiscoveryKey{IRI: "hm://recent"},
+		hotDeadline: now.Add(time.Second),
+		nextRunTime: now.Add(-hotStarvationAge + time.Second),
+		runCount:    1,
+	}
+	s.enqueueLocked(recent, now)
+	s.queue.Pop() // drop the starved head
+	require.Equal(t, fresh.key, s.queue.Peek().key, "a task that has not starved yet must not jump the LIFO order")
+}
+
+// TestScheduler_DueSubscriptionGetsReservedSlot verifies the cold-lane
+// guarantee: with hot tasks always ready and no cold run in flight, the last
+// free slot goes to a due subscription instead of the next hot task. Without
+// it the hot tier, which sorts first and is re-touched every few seconds,
+// starved the interval tier to one run per subscription every ~19 minutes.
+func TestScheduler_DueSubscriptionGetsReservedSlot(t *testing.T) {
+	blockCh := make(chan struct{})
+	disc := &mockDiscoverer{calls: make(map[blob.IRI]int), blockCh: blockCh}
+	s := newScheduler(disc, testConfig(time.Minute, 2))
+	ctx := context.Background()
+	now := time.Now()
+
+	s.mu.Lock()
+	// One hot task already running; the remaining slot is the last free one.
+	running := &taskHandle{
+		key:         DiscoveryKey{IRI: "hm://doc/running"},
+		hotDeadline: now.Add(time.Minute),
+		state:       TaskStateInProgress,
+	}
+	s.tasks[running.key] = running
+	s.inProgress = 1
+
+	// Two more hot tasks due, and one overdue subscription.
+	for _, iri := range []blob.IRI{"hm://doc/a", "hm://doc/b"} {
+		hot := &taskHandle{key: DiscoveryKey{IRI: iri}, hotDeadline: now.Add(time.Minute), nextRunTime: now, runCount: 1}
+		s.tasks[hot.key] = hot
+		s.enqueueLocked(hot, now)
+	}
+	sub := &taskHandle{
+		key:          DiscoveryKey{IRI: "hm://space", Recursive: true},
+		subscription: true,
+		runCount:     1,
+		nextRunTime:  now.Add(-2 * time.Minute),
+	}
+	s.tasks[sub.key] = sub
+	s.enqueueLocked(sub, now)
+
+	s.dispatchReadyTasks(ctx)
+
+	require.Equal(t, TaskStateInProgress, sub.state, "the due subscription must take the reserved slot")
+	require.Equal(t, 1, s.inProgressCold)
+	for _, iri := range []blob.IRI{"hm://doc/a", "hm://doc/b"} {
+		task := s.tasks[DiscoveryKey{IRI: iri}]
+		require.NotEqual(t, TaskStateInProgress, task.state, "hot task %s must wait for the next slot", iri)
+		require.True(t, task.queueIndex.IsSet(), "set-aside hot task must be re-enqueued, not lost")
+	}
+	s.mu.Unlock()
+
+	close(blockCh)
+	require.Eventually(t, func() bool {
+		disc.mu.Lock()
+		defer disc.mu.Unlock()
+		return disc.calls[sub.key.IRI] > 0
+	}, 2*time.Second, 10*time.Millisecond, "the subscription must actually run")
+}
+
+// TestScheduler_HotKeepsAllSlotsWhenNoColdIsDue: the reservation is
+// conditional. With nothing due in the background tier, hot work may use every
+// slot, so an idle subscription set never costs on-screen discovery capacity.
+func TestScheduler_HotKeepsAllSlotsWhenNoColdIsDue(t *testing.T) {
+	blockCh := make(chan struct{})
+	disc := &mockDiscoverer{calls: make(map[blob.IRI]int), blockCh: blockCh}
+	s := newScheduler(disc, testConfig(time.Minute, 2))
+	ctx := context.Background()
+	now := time.Now()
+
+	s.mu.Lock()
+	for _, iri := range []blob.IRI{"hm://doc/a", "hm://doc/b"} {
+		hot := &taskHandle{key: DiscoveryKey{IRI: iri}, hotDeadline: now.Add(time.Minute), nextRunTime: now, runCount: 1}
+		s.tasks[hot.key] = hot
+		s.enqueueLocked(hot, now)
+	}
+	// A subscription that is not due for another minute.
+	sub := &taskHandle{
+		key:          DiscoveryKey{IRI: "hm://space", Recursive: true},
+		subscription: true,
+		runCount:     1,
+		nextRunTime:  now.Add(time.Minute),
+	}
+	s.tasks[sub.key] = sub
+	s.enqueueLocked(sub, now)
+
+	s.dispatchReadyTasks(ctx)
+	require.Equal(t, 2, s.inProgress, "both hot tasks must run when no cold work is due")
+	require.NotEqual(t, TaskStateInProgress, sub.state)
+	s.mu.Unlock()
+	close(blockCh)
+}
+
+// TestScheduler_HotDoesNotEvictLastColdRun: on a multi-worker pool a hot
+// arrival that finds the pool full must not preempt the only running
+// subscription while more background work is due — that is the slot the
+// background tier was guaranteed. It preempts an older hot task instead, or
+// waits.
+func TestScheduler_HotDoesNotEvictLastColdRun(t *testing.T) {
+	s := newScheduler(nil, testConfig(time.Minute, 2))
+	now := time.Now()
+	cancelled := false
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// Another subscription is queued and overdue, so the cold lane has work
+	// waiting behind the running one.
+	waiting := &taskHandle{
+		key:          DiscoveryKey{IRI: "hm://space-waiting", Recursive: true},
+		subscription: true,
+		runCount:     1,
+		nextRunTime:  now.Add(-time.Minute),
+	}
+	s.tasks[waiting.key] = waiting
+	s.enqueueLocked(waiting, now)
+
+	sub := &taskHandle{
+		key:          DiscoveryKey{IRI: "hm://space", Recursive: true},
+		subscription: true,
+		state:        TaskStateInProgress,
+		runningCold:  true,
+		runStartedAt: now.Add(-progressGrace - time.Second),
+		cancelFunc:   func() { cancelled = true },
+	}
+	s.tasks[sub.key] = sub
+	s.inProgress = 2
+	s.inProgressCold = 1
+
+	require.False(t, s.preemptSubscriptionLocked(now), "the only cold run must not be preempted on a multi-worker pool")
+	require.False(t, cancelled)
+
+	// With a second cold run in flight, one of them is fair game again.
+	other := &taskHandle{
+		key:          DiscoveryKey{IRI: "hm://space2", Recursive: true},
+		subscription: true,
+		state:        TaskStateInProgress,
+		runningCold:  true,
+		runStartedAt: now.Add(-progressGrace - time.Second),
+		cancelFunc:   func() { cancelled = true },
+	}
+	s.tasks[other.key] = other
+	s.inProgressCold = 2
+	require.True(t, s.preemptSubscriptionLocked(now))
+	require.True(t, cancelled)
+
+	// With nothing else due in the background tier, even the last cold run is
+	// fair game again: there is no lane to protect.
+	cancelled = false
+	delete(s.tasks, other.key)
+	s.inProgressCold = 1
+	s.queue.Remove(waiting.queueIndex.Value())
+	delete(s.tasks, waiting.key)
+	require.True(t, s.preemptSubscriptionLocked(now))
+	require.True(t, cancelled)
 }
 
 // TestScheduler_HotTierBeatsColdTier verifies that any hot-tier task outranks
