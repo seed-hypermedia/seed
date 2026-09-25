@@ -143,11 +143,51 @@ export default function Settings() {
 }
 
 function AdvancedSettings() {
+  const experiments = useUniversalAppContext().experiments
+  const writeExperiments = useWriteExperiments()
+  const clearBrowserData = useMutation({
+    mutationFn: () => client.experiments.clearBrowserData.mutate(),
+    onSuccess: () => toast.success('Browser data cleared'),
+    onError: () => toast.error('Unable to clear browser data'),
+  })
   return (
     <>
       <SizableText size="2xl" weight="bold">
         Advanced
       </SizableText>
+      <SettingsCard label="EXPERIMENTAL WEB BROWSER">
+        <SettingsRow
+          label="Integrated Web Browser"
+          description="Open web links inside Seed, with shared Back and Forward history. Websites appear alongside your sidebar and agents. This feature is experimental."
+          right={
+            <Button
+              size="sm"
+              variant="outline"
+              role="switch"
+              aria-checked={!!experiments?.webBrowser}
+              aria-label="Experimental web browser"
+              disabled={writeExperiments.isLoading}
+              onClick={() => writeExperiments.mutate({webBrowser: !experiments?.webBrowser})}
+            >
+              {experiments?.webBrowser ? 'Disable Web Browser' : 'Enable Web Browser'}
+            </Button>
+          }
+        />
+        <SettingsRow
+          label="Clear browsing data"
+          description="Clears website storage, cookies and cache, and signs you out of websites."
+          right={
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={clearBrowserData.isLoading}
+              onClick={() => clearBrowserData.mutate()}
+            >
+              {clearBrowserData.isLoading ? 'Clearing…' : 'Clear browsing data'}
+            </Button>
+          }
+        />
+      </SettingsCard>
       <DeveloperSettings />
     </>
   )

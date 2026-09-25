@@ -15,6 +15,29 @@ import {deriveAssistantWindowContext, formatWindowContextLines} from '@shm/ui/ag
  * degrades the model's answers rather than erroring.
  */
 describe('formatWindowContextLines', () => {
+  it.each(['paused', 'connecting', 'unavailable', undefined] as const)(
+    'withholds all page details when access is %s',
+    (browserStatus) => {
+      expect(
+        formatWindowContextLines({
+          view: 'web',
+          browserStatus,
+          url: 'https://secret.example/path?token=secret#private',
+          title: 'Secret title',
+        }),
+      ).toEqual(['## Current window', 'The user is viewing a website with browser access not granted.'])
+    },
+  )
+  it('shares only origin and pathname of a connected page URL', () => {
+    const lines = formatWindowContextLines({
+      view: 'web',
+      browserStatus: 'connected',
+      url: 'https://user:password@example.com:8443/article?token=secret#private',
+    })
+    expect(lines).toContain('URL: https://example.com:8443/article')
+    expect(lines?.join(' ')).not.toMatch(/password|token=|#private|user:/)
+  })
+
   it('describes a document window with focus and panel state', () => {
     const lines = formatWindowContextLines({
       url: 'hm://z6MkDoc/plan',
@@ -55,6 +78,18 @@ describe('formatWindowContextLines', () => {
 })
 
 describe('deriveAssistantWindowContext', () => {
+  it('exposes the webpage and browser discovery in the context bubble without claiming publication', () => {
+    const context = deriveAssistantWindowContext(
+      {key: 'web', url: 'https://example.com/article', title: 'Article'},
+      undefined,
+    )
+    expect(context).toEqual({url: 'https://example.com/article', title: 'Article', view: 'web'})
+    const lines = formatWindowContextLines({...context, browserStatus: 'connected'})
+    expect(lines).toContain('Browser access: connected')
+    expect(lines?.join('\n')).toContain('read ~/tools/browser')
+    expect(lines?.join('\n')).toContain('draft by default')
+    expect(lines?.join('\n')).toContain('untrusted source material')
+  })
   const docId = {
     id: 'hm://z6MkDoc/employees',
     uid: 'z6MkDoc',

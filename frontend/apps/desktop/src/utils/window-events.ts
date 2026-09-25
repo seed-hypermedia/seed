@@ -3,6 +3,19 @@ import {useEffect} from 'react'
 import {useIPC} from '../app-context'
 
 export type AppWindowEvent =
+  | {type: 'browser-favicons'; browserId: number; url: string; icons: string[]}
+  | {type: 'open_web_url'; url: string}
+  | {type: 'browser-open-url'; browserId: number; url: string}
+  | {type: 'browser-title'; browserId: number; title: string}
+  | {
+      type: 'browser-location'
+      userInitiated?: boolean
+      browserId: number
+      url: string
+      title: string
+      historyIndex: number
+      requestId?: number
+    }
   | {type: 'back'}
   | {type: 'forward'}
   | {type: 'trigger_database_reindex'}

@@ -81,7 +81,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import React, {Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   ContextUsageMeter,
   ContinuationHandoffCard,
@@ -110,7 +110,7 @@ import {
   SubSessionHeader,
   TERMINAL_RUN_STATUSES,
 } from './rich-message-composer'
-import type {AgentsRichEditorSubmitHandle} from './platform'
+import {getAgentsPlatform, type AgentsRichEditorSubmitHandle} from './platform'
 import {RunRecordCard, SessionRunCard} from './run-card'
 import {DelayedSpinner, SessionModelBadge} from './header'
 import {SessionSummaryBanner} from './session-children'
@@ -854,6 +854,7 @@ function AssistantSessionChat({
   onOpenSession?: (sessionId: string) => void
 }) {
   const {serverUrl, sessionId} = sessionRef
+  const BrowserTools = getAgentsPlatform().BrowserTools
   const navigate = useNavigate()
   const session = useAgentSession(serverUrl, accountUid, sessionId)
   // Resume the socket after the last loaded event: without afterSeq the server replays the whole
@@ -1139,6 +1140,20 @@ function AssistantSessionChat({
           </div>
         </div>
 
+        {BrowserTools && accountUid && !readOnly ? (
+          <Suspense fallback={null}>
+            <BrowserTools
+              key={`${serverUrl}/${sessionId}/${accountUid}`}
+              toolEnabled={!!agent && (!agent.definition.tools || agent.definition.tools.includes('browser'))}
+              agentName={agent?.definition.name}
+              isOwner={agent?.accessRole === 'owner'}
+              isPublic={!!agent?.publicRead}
+              serverUrl={serverUrl}
+              sessionId={sessionId}
+              accountUid={accountUid}
+            />
+          </Suspense>
+        ) : null}
         <SessionRunCard
           compact
           serverUrl={serverUrl}

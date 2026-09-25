@@ -1,4 +1,7 @@
 import appError from '@/errors'
+import {getPageWebContents, setupWebBrowser} from './app-web-browser'
+import {createBrowserArchiveDraft} from './app-drafts'
+import {isWebBrowserEnabled} from './app-experiments'
 import type {AppWindowEvent} from '@/utils/window-events'
 import {getRouteWindowType} from '@/utils/window-types'
 import {defaultRoute, type NavRoute} from '@shm/shared/routes'
@@ -478,6 +481,9 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
       preload: path.join(__dirname, 'preload.js'),
       disableDialogs: true,
       spellcheck: true,
+      // Fixed at window creation: the experiment can be enabled at runtime.
+      // setupWebBrowser rejects disabled/wrong-partition attachments and replaces every guest preference.
+      webviewTag: true,
     },
     minWidth: windowType.minWidth,
     minHeight: windowType.minHeight,
@@ -491,6 +497,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
   })
 
   debug('Window created', {windowId})
+  setupWebBrowser(browserWindow, isWebBrowserEnabled, createBrowserArchiveDraft)
 
   if (!quietNodeLogs) {
     const windowLogger = childLogger(`seed/${windowId}`)
@@ -502,25 +509,32 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     // Log for debugging
     debug('Window open request', {url, frameName, features})
 
-    // Open all external URLs in the default browser
+    // Route website links according to the saved browser preference.
     if (url.startsWith('http://') || url.startsWith('https://')) {
-      shell.openExternal(url)
+      if (isWebBrowserEnabled()) browserWindow.webContents.send('appWindowEvent', {type: 'open_web_url', url})
+      else shell.openExternal(url)
     }
 
-    // Deny the window creation - we've handled it by opening in default browser
+    // The URL is handled above, so no unmanaged child window is needed.
     return {action: 'deny'}
   })
 
   // Handle navigation attempts within the main frame
   browserWindow.webContents.on('will-navigate', (event, url) => {
     // Allow navigation for the main app (localhost in dev, file:// in production)
-    if (url.includes('localhost') || url.startsWith('file://')) {
+    const appUrl = new URL(browserWindow.webContents.getURL())
+    const targetUrl = new URL(url)
+    if (targetUrl.origin === appUrl.origin && targetUrl.pathname === appUrl.pathname) {
       return
     }
 
-    // Prevent navigation and open in external browser instead
+    // Keep the privileged app frame on its own page.
     event.preventDefault()
-    shell.openExternal(url)
+    if (isWebBrowserEnabled() && /^https?:\/\//.test(url)) {
+      browserWindow.webContents.send('appWindowEvent', {type: 'open_web_url', url})
+    } else {
+      shell.openExternal(url)
+    }
   })
 
   // Handle navigation in frames (for iframe content like YouTube embeds)
@@ -913,11 +927,11 @@ export function hideFindView(win: BrowserWindow) {
     win.contentView.removeChildView(view)
   }
   if (!win.webContents.isDestroyed()) {
-    win.webContents.stopFindInPage('clearSelection')
+    getPageWebContents(win).stopFindInPage('clearSelection')
   }
   // Return focus to the host page so typing doesn't fall into a detached view.
   if (!win.webContents.isDestroyed()) {
-    win.webContents.focus()
+    getPageWebContents(win).focus()
   }
 }
 

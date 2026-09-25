@@ -2,10 +2,16 @@ import {AppExperiments, appExperimentsSchema} from '@shm/shared'
 // @ts-expect-error ignore this import error
 import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
+import {clearBrowserData} from './browser-session-policy'
 
 const EXPERIMENTS_STORAGE_KEY = 'Experiments-v001'
 
 let experimentsState: AppExperiments = appStore.get(EXPERIMENTS_STORAGE_KEY) || {}
+
+/** Whether the user has opted into browsing websites inside Seed. */
+export function isWebBrowserEnabled(): boolean {
+  return experimentsState.webBrowser === true
+}
 
 /**
  * Returns the stored embedding enabled setting.
@@ -17,6 +23,7 @@ export function getStoredEmbeddingEnabled(): boolean {
 }
 
 export const experimentsApi = t.router({
+  clearBrowserData: t.procedure.mutation(() => clearBrowserData()),
   get: t.procedure.query(async () => {
     return experimentsState
   }),

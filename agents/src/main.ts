@@ -35,7 +35,7 @@ async function handleError(error: unknown): Promise<Response> {
 
 /** Creates Bun route handlers for the Agents signed CBOR API. */
 export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, string> {
-  const message = async (req: Request) => {
+  const message = async (req: Request, server?: Server<undefined>) => {
     if (!isCBORRequest(req)) {
       return cbor.response({_: 'Error', message: 'Content-Type must be application/cbor'} satisfies api.ErrorResponse, {
         status: 415,
@@ -50,6 +50,8 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
     }
 
     try {
+      // The browser heartbeat waits up to 20 seconds; Bun otherwise resets idle HTTP requests at 10.
+      if (envelope?.action?._ === 'PollSessionBrowser') server?.timeout(req, 30)
       return cbor.response(await svc.message(envelope))
     } catch (error) {
       if (error instanceof apisvc.APIError) {
@@ -243,6 +245,7 @@ export function wsShouldDeliver(data: WSData, sourceAccountId: string, key: stri
 }
 
 function sendIfSubscribed(
+  svc: apisvc.Service,
   ws: ServerWebSocket<WSData>,
   sourceAccountId: string,
   key: string,
@@ -270,7 +273,7 @@ function sendIfSubscribed(
   if (event._ === 'appendPartial') {
     log.debug('[agents/ws] send partial', {...summarizeWSEvent(event), direct: ws.data.subscriptions.has(key)})
   }
-  sendWS(ws, event)
+  sendWS(ws, svc.redactForViewer(event, ws.data.accountId ?? ''))
 }
 
 function corsHeaders(): HeadersInit {
@@ -348,6 +351,7 @@ async function main(): Promise<void> {
       if (event.type === 'session-event') {
         const wireEvent = wireSessionEvent ?? event.event
         sendIfSubscribed(
+          svc,
           ws,
           event.accountId,
           `sessions/${wireEvent.sessionId}`,
@@ -356,6 +360,7 @@ async function main(): Promise<void> {
         )
       } else if (event.type === 'session-partial') {
         sendIfSubscribed(
+          svc,
           ws,
           event.accountId,
           `sessions/${event.sessionId}`,
@@ -370,6 +375,7 @@ async function main(): Promise<void> {
       } else if (event.type === 'session-change') {
         // The open transcript and the agent page; the sidebar gets the same snapshot on its hint.
         sendIfSubscribed(
+          svc,
           ws,
           event.accountId,
           `sessions/${event.session.id}`,
@@ -377,6 +383,7 @@ async function main(): Promise<void> {
           'direct',
         )
         sendIfSubscribed(
+          svc,
           ws,
           event.accountId,
           `agents/${event.session.agentId}`,
@@ -384,19 +391,19 @@ async function main(): Promise<void> {
           'direct',
         )
       } else if (event.type === 'agent-change') {
-        sendIfSubscribed(ws, event.accountId, `agents/${event.agent.id}`, {
+        sendIfSubscribed(svc, ws, event.accountId, `agents/${event.agent.id}`, {
           _: 'change',
           key: `agents/${event.agent.id}`,
           value: event.agent,
         })
       } else if (event.type === 'run-change') {
-        sendIfSubscribed(ws, event.accountId, `runs/${event.run.rootRunId}`, {
+        sendIfSubscribed(svc, ws, event.accountId, `runs/${event.run.rootRunId}`, {
           _: 'change',
           key: `runs/${event.run.rootRunId}`,
           value: event.run,
         })
       } else if (event.type === 'run-append') {
-        sendIfSubscribed(ws, event.accountId, `runs/${event.rootRunId}`, {
+        sendIfSubscribed(svc, ws, event.accountId, `runs/${event.rootRunId}`, {
           _: 'append',
           key: `runs/${event.rootRunId}`,
           runId: event.entry.runId,
@@ -405,7 +412,7 @@ async function main(): Promise<void> {
           createdAt: event.entry.createdAt,
         })
       } else if (event.type === 'run-partial') {
-        sendIfSubscribed(ws, event.accountId, `runs/${event.rootRunId}`, {
+        sendIfSubscribed(svc, ws, event.accountId, `runs/${event.rootRunId}`, {
           _: 'appendPartial',
           key: `runs/${event.rootRunId}`,
           runId: event.runId,
@@ -413,7 +420,7 @@ async function main(): Promise<void> {
           patch: event.patch,
         })
       } else {
-        sendIfSubscribed(ws, event.accountId, `account/${event.accountId}`, {
+        sendIfSubscribed(svc, ws, event.accountId, `account/${event.accountId}`, {
           _: 'change',
           key: `account/${event.accountId}`,
           value: {
@@ -428,7 +435,7 @@ async function main(): Promise<void> {
         // (which have no agent-change event), collaborator changes, and an owner deleting an agent
         // while a collaborator still has its detail page open.
         if (event.agentId) {
-          sendIfSubscribed(ws, event.accountId, `agents/${event.agentId}`, {
+          sendIfSubscribed(svc, ws, event.accountId, `agents/${event.agentId}`, {
             _: 'change',
             key: `account/${event.accountId}`,
             value: {

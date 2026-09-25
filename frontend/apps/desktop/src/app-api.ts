@@ -1,4 +1,5 @@
 import {parseDeepLink} from '@/utils/deep-links'
+import {getPageWebContents} from './app-web-browser'
 import type {AppWindowEvent} from '@/utils/window-events'
 
 import {DAEMON_HTTP_URL, OS_PROTOCOL_SCHEME} from '@shm/shared/constants'
@@ -107,7 +108,7 @@ ipcMain.on('close_window', (_event, _info) => {
 ipcMain.on('find_in_page_query', (_event, info: {query: string; findNext?: boolean; forward?: boolean}) => {
   const focusedWindow = getFocusedWindow()
   if (!focusedWindow || focusedWindow.webContents.isDestroyed()) return
-  focusedWindow.webContents.findInPage(info.query, {
+  getPageWebContents(focusedWindow).findInPage(info.query, {
     findNext: info.findNext,
     forward: info.forward,
   })
