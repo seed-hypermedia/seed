@@ -1,7 +1,9 @@
-import {X} from 'lucide-react'
+import {Crop, X} from 'lucide-react'
 import {ChangeEvent, ReactNode} from 'react'
 import {Button} from './button'
+import {useImageCropper, type ImageCropConfig} from './image-crop-dialog'
 import {SizableText} from './text'
+import {cn} from './utils'
 
 /** Props for the ImageForm component. */
 export interface ImageFormProps {
@@ -14,6 +16,11 @@ export interface ImageFormProps {
   height?: number
   width?: number
   emptyContent?: ReactNode
+  /**
+   * Enables cropping. Choosing a file opens the cropper rather than accepting
+   * the image as-is, and only the cropped result reaches onImageUpload.
+   */
+  crop?: ImageCropConfig
   /**
    * Optional async function that uploads a File and resolves to its URL.
    * When omitted and `uploadOnChange` is true, the upload step is skipped.
@@ -43,15 +50,11 @@ export function ImageForm({
   width,
   fileUpload,
   emptyContent,
+  crop,
   ...props
 }: ImageFormProps) {
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    event.stopPropagation()
-    const fileList = event.target.files
-    const file = fileList?.[0]
-    if (!file) return
+  const deliver = (file: File, resetInput?: () => void) => {
     if (!onImageUpload) return
-
     if (uploadOnChange) {
       if (!fileUpload) return
       fileUpload(file)
@@ -63,11 +66,30 @@ export function ImageForm({
           console.error(`Failed to upload icon: ${message}`, error)
         })
         .finally(() => {
-          event.target.value = ''
+          resetInput?.()
         })
     } else {
       onImageUpload(file)
     }
+  }
+
+  const cropper = useImageCropper({crop, onCropped: deliver})
+
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    event.stopPropagation()
+    const fileList = event.target.files
+    const file = fileList?.[0]
+    if (!file) return
+    if (!onImageUpload) return
+
+    // Clear the input up front so choosing the same file again still fires.
+    if (cropper.pick(file)) {
+      event.target.value = ''
+      return
+    }
+    deliver(file, () => {
+      event.target.value = ''
+    })
   }
 
   const image = url ? (
@@ -141,6 +163,20 @@ export function ImageForm({
           </div>
         )}
       </div>
+      {cropper.source && url ? (
+        <Button
+          size="icon"
+          aria-label="Adjust crop"
+          className={cn('absolute top-0 z-50 opacity-0 group-hover:opacity-100', onRemove ? 'right-8' : 'right-0')}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            cropper.reopen()
+          }}
+        >
+          <Crop className="size-3" />
+        </Button>
+      ) : null}
       {onRemove && url ? (
         <Button
           size="icon"
@@ -148,12 +184,14 @@ export function ImageForm({
           onClick={(e) => {
             e.preventDefault()
             e.stopPropagation()
+            cropper.clear()
             onRemove()
           }}
         >
           <X className="size-3" />
         </Button>
       ) : null}
+      {cropper.dialog}
     </div>
   )
 }

@@ -17,6 +17,7 @@
     "react-dom": "18.2.0",
     "@types/react": "18.2.64",
     "@types/react-dom": "18.2.21",
+    "@seed-hypermedia/agents-protocol": "file:../agents/protocol",
     "@seed-hypermedia/client": "file:../frontend/packages/client",
     "@shm/shared": "file:../frontend/packages/shared",
     "@shm/ui": "file:../frontend/packages/ui"
@@ -31,7 +32,6 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@faire/mjml-react": "^3.5.3",
     "@ipld/dag-cbor": "^9.2.5",
-    "@tanstack/react-query": "^4.36.1",
     "@noble/ciphers": "^2.1.1",
     "@noble/curves": "^2.0.1",
     "@noble/hashes": "^2.0.1",
@@ -42,6 +42,7 @@
     "@shm/ui": "file:../frontend/packages/ui",
     "@simplewebauthn/browser": "^13.2.2",
     "@simplewebauthn/server": "^13.2.2",
+    "@tanstack/react-query": "^4.36.1",
     "bun-plugin-tailwind": "^0.1.2",
     "cborg": "^4.5.8",
     "class-variance-authority": "^0.7.1",

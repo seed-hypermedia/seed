@@ -1,6 +1,7 @@
 import {Camera, Plus} from 'lucide-react'
 import {useEffect, useState, type FormEvent} from 'react'
 import {Button} from '../button'
+import {useImageCropper, type ImageCropConfig} from '../image-crop-dialog'
 import {SizableText} from '../text'
 import {cn} from '../utils'
 import {Input} from './input'
@@ -61,6 +62,19 @@ export function AccountProfileForm({
   const [nameError, setNameError] = useState('')
   const [avatarError, setAvatarError] = useState('')
   const [imageFile, setImageFile] = useState<File | undefined>()
+
+  // Avatars render as a circle, so they are framed square and previewed round.
+  const cropper = useImageCropper({
+    crop: {aspect: 1, cropShape: 'round', maxDimension: 512} satisfies ImageCropConfig,
+    onCropped: (file) => {
+      if (file.size >= MAX_AVATAR_BYTES) {
+        setAvatarError('Image must be smaller than 1 MiB')
+        return
+      }
+      setAvatarError('')
+      setImageFile(file)
+    },
+  })
   const [previewUrl, setPreviewUrl] = useState(initialImageUrl)
 
   // Reset when the initial values change (dialog reopened for a different account).
@@ -84,6 +98,7 @@ export function AccountProfileForm({
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
+    if (cropper.pick(file)) return
     if (file.size >= MAX_AVATAR_BYTES) {
       setImageFile(undefined)
       setPreviewUrl(initialImageUrl)
@@ -228,6 +243,7 @@ export function AccountProfileForm({
           </Button>
         </div>
       </div>
+      {cropper.dialog}
     </form>
   )
 }
