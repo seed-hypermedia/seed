@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import type {HMDocument} from '@seed-hypermedia/client/hm-types'
+import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {createRoot, Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {fromPromise} from 'xstate'
 import {documentMachine} from '../document-machine'
+import {useEditorHandlersRef} from '../editor-handlers-context'
 import {DocumentMachineProvider, useDocumentSend} from '../use-document-machine'
 import {useUnpublishedChangeCount} from '../use-unpublished-change-count'
 
@@ -58,6 +60,20 @@ function Probe() {
   return null
 }
 
+function EditorProbe({blocks}: {blocks: any[]}) {
+  const handlersRef = useEditorHandlersRef()
+  handlersRef.current = {
+    setEditable: () => {},
+    applyInitialContent: () => {},
+    placeCursor: () => {},
+    getCurrentBlocks: () => blocks,
+    replaceCurrentContent: (nextBlocks) => {
+      blocks.splice(0, blocks.length, ...nextBlocks)
+    },
+  }
+  return <Probe />
+}
+
 beforeEach(() => {
   ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
@@ -80,6 +96,16 @@ function renderProvider(machine: ReturnType<typeof mockMachine>) {
     root.render(
       <DocumentMachineProvider machine={machine} input={{documentId: mockDocumentId, canEdit: true} as any}>
         <Probe />
+      </DocumentMachineProvider>,
+    )
+  })
+}
+
+function renderProviderWithEditor(machine: ReturnType<typeof mockMachine>, blocks: any[]) {
+  act(() => {
+    root.render(
+      <DocumentMachineProvider machine={machine} input={{documentId: mockDocumentId, canEdit: true} as any}>
+        <EditorProbe blocks={blocks} />
       </DocumentMachineProvider>,
     )
   })
@@ -132,5 +158,33 @@ describe('publish button state after publishing an attribute edit', () => {
     // A genuine publish failure keeps the pending change (button green) so the
     // user can retry — this is intended.
     expect(changeCount).toBe(1)
+  })
+})
+
+describe('publish button state after discarding a draft', () => {
+  it('resets the live editor to published content so the change count becomes 0', async () => {
+    const publishedContent = [
+      {
+        block: {id: 'block-1', type: 'Paragraph', text: 'Published text', annotations: [], attributes: {}},
+        children: [],
+      },
+    ]
+    const draftContent = [
+      {block: {id: 'block-1', type: 'Paragraph', text: 'Draft text', annotations: [], attributes: {}}, children: []},
+    ]
+    const document = {...mockDocument, content: publishedContent} as HMDocument
+    const liveEditorBlocks = hmBlocksToEditorContent(draftContent as any)
+
+    renderProviderWithEditor(mockMachine(), liveEditorBlocks)
+    act(() => send({type: 'draft.resolved', draftId: 'draft-123', content: draftContent, cursorPosition: null}))
+    act(() => send({type: 'document.loaded', document}))
+    act(() => send({type: 'editor.baselineUpdate', blocks: liveEditorBlocks}))
+
+    expect(changeCount).toBe(1)
+
+    act(() => send({type: 'edit.discard'}))
+    await flush()
+
+    expect(changeCount).toBe(0)
   })
 })
