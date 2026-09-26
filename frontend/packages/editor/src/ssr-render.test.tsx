@@ -212,6 +212,75 @@ describe('renderDocumentToHTML', () => {
     expect(html).not.toContain('data-ssr-error')
   })
 
+  it('renders an empty-source query block from the loader key for its containing document', () => {
+    const hmBlock = {
+      id: 'q2',
+      type: 'Query',
+      text: '',
+      annotations: [],
+      attributes: {
+        style: 'List',
+        columnCount: 1,
+        banner: false,
+        query: {includes: [{space: '', path: '', mode: 'Children'}]},
+      },
+    }
+    const documentId = unpackHmId('hm://z6Mkhome')!
+    const queryClient = new QueryClient()
+    // The loader derives the key with the document it is rendering.
+    const input = getQueryBlockInput(hmBlockToEditorBlock(hmBlock as any).props as any, documentId)
+    expect(input?.query.includes[0]).toMatchObject({space: 'z6Mkhome', path: ''})
+    const item = {
+      type: 'document',
+      id: {
+        id: 'hm://z6Mkhome/talks',
+        uid: 'z6Mkhome',
+        path: ['talks'],
+        version: 'v1',
+        latest: true,
+        blockRef: null,
+        blockRange: null,
+        hostname: null,
+        scheme: null,
+      },
+      path: ['talks'],
+      authors: ['z6Mkhome'],
+      createTime: {seconds: 1700000000n, nanos: 0},
+      updateTime: {seconds: 1700000000n, nanos: 0},
+      sortTime: new Date(1700000000000),
+      genesis: 'g',
+      version: 'v1',
+      breadcrumbs: [],
+      activitySummary: {
+        latestComment: null,
+        latestChangeTime: {seconds: 1700000000n, nanos: 0},
+        isUnread: false,
+        latestCommentTime: null,
+        latestCommentId: '',
+        commentCount: 0,
+      },
+      generationInfo: {genesis: 'g', generation: 1n},
+      metadata: {name: 'Team Talks'},
+      visibility: 'PUBLIC',
+    }
+    queryClient.setQueryData(queryQueryBlock({request: async () => null} as any, input as any).queryKey, {
+      queryTargetName: 'Home',
+      in: documentId,
+      results: [item],
+      mode: 'Children',
+      interactionSummaries: {},
+      accountsMetadata: {},
+    })
+    const html = renderDocumentToHTML([{block: hmBlock, children: []}] as any, {
+      queryClient,
+      appContext: APP_CONTEXT,
+      editorWidth: 668,
+      documentId,
+    })
+    expect(html).toContain('Team Talks')
+    expect(html).not.toContain('Searching for documents')
+  })
+
   it('renders query blocks from the prefetched cache with the exact component key', () => {
     const hmBlock = {
       id: 'q1',
