@@ -4,7 +4,7 @@ summary: The meta-schema, which is the union of every shape a schema can take an
 ---
 A **schema** is a value that constrains other values. It is either a map written with the [schema vocabulary](./schema/schema-language.md), or a bare [literal](./schema/literal-schema.md) (`"draft"`, `1`, `true`, `null`) that accepts exactly one value. Every schema is typed by the meta-schema and matches one of its variants. <!-- id:OzcV9e2b -->
 
-The **meta-schema**, named `schema`, is the schema that describes what a schema is. It is a [discriminated union](./schema/discriminated-union.md) of nine map variants and four literal kinds. It [validates as an instance of itself](./schema/self-description.md). It is the one type in the system that is known without being looked up. <!-- id:bXl0LFcD -->
+The **meta-schema**, named `schema`, is the schema that describes what a schema is. It is a [discriminated union](./schema/discriminated-union.md) of ten map variants and four literal kinds. It [validates as an instance of itself](./schema/self-description.md). It is the one type in the system that is known without being looked up. <!-- id:bXl0LFcD -->
 
 This page defines the meta-schema. Its formal schema is attached through the `schemaDefinition` key in this page's [metadata](./metadata.md), so the Seed app can show it and create values of this type. <!-- id:y93xpe-t -->
 
@@ -87,6 +87,7 @@ The library's tools live in `scripts/hypermedia/` in the Seed repository. The re
 - [Discriminated union](./schema/discriminated-union.md) <!-- id:J59mZ_xm -->
 - [Variant](./schema/variant.md) <!-- id:U_8ZZLK1 -->
 - [`anyOf`](./schema/anyof.md) <!-- id:OEIBJ8uy -->
+- [`allOf`](./schema/allof.md)
 - [Literal](./schema/literal-schema.md) <!-- id:iqoj9WTF -->
 - [Generic](./schema/generic.md) <!-- id:gHpr96Jy -->
 - [Primitive](./schema/primitive.md) <!-- id:ghSoMqHP -->

@@ -36,6 +36,7 @@ export const LIBRARY_CORE: ReadonlySet<string> = new Set(
     'property',
     'schema',
     'anyof',
+    'allof',
     'literal-schema',
     'struct-schema',
     'map-schema',
@@ -204,7 +205,7 @@ export function isLiteralSchema(s: any): boolean {
   if (s === undefined) return false
   if (s === null || typeof s !== 'object') return true
   if (Array.isArray(s)) return false
-  return 'value' in s && !('type' in s || 'ref' in s || 'anyOf' in s || 'var' in s || 'params' in s)
+  return 'value' in s && !('type' in s || 'ref' in s || 'anyOf' in s || 'allOf' in s || 'var' in s || 'params' in s)
 }
 /** The scalars a literal can be. */
 export type HMLiteral = string | number | boolean | null
@@ -324,12 +325,57 @@ const LEAF_KEYS = [
   'target',
 ]
 
+/**
+ * Merge the (resolved) arms of an `allOf` into one struct — an intersection written as a merge, the
+ * way extension already is, so two closed structs combine instead of contradicting each other (a
+ * value cannot satisfy two closed field sets at once, so checking each arm in turn would accept
+ * nothing). Every arm must resolve to a struct or map; the fields are united; a field is required
+ * when any arm requires it; a field two arms define must be defined the same way; the result is
+ * closed when any arm is closed, and otherwise keeps the arms' shared `values`. Returns
+ * `{__invalid: reason}` for arms that cannot be merged.
+ */
+export function mergeAllOf(arms: HypermediaSchema[]): HypermediaSchema {
+  const byName = new Map<string, StructField>()
+  let closed = false
+  let isStruct = false
+  let values: HypermediaSchema | undefined
+  for (const [i, arm] of Array.from(arms.entries())) {
+    if (arm.__unbound || arm.__missing || arm.__invalid) return arm
+    const kind = arm.type ? kindOf(arm.type) : null
+    if (isLiteralSchema(arm) || arm.anyOf || (kind !== 'map' && kind !== 'struct'))
+      return {__invalid: `allOf arm ${i + 1} is not a struct or map`}
+    if (kind === 'struct' || arm.properties) isStruct = true
+    for (const f of structFields(arm)) {
+      const prior = byName.get(f.name)
+      if (prior && !deepEqual(prior.schema, f.schema))
+        return {__invalid: `allOf arms define the field "${f.name}" differently`}
+      byName.set(f.name, {
+        name: f.name,
+        schema: f.schema,
+        required: (prior?.required ?? false) || f.required,
+        description: prior?.description ?? f.description,
+      })
+    }
+    if (arm.properties && !arm.values) closed = true
+    else if (arm.values !== undefined) {
+      if (values !== undefined && !deepEqual(values, arm.values))
+        return {__invalid: 'allOf arms constrain extra keys (`values`) differently'}
+      values = arm.values
+    }
+  }
+  const merged: HypermediaSchema = {type: isStruct ? STRUCT_URL : MAP_URL}
+  if (byName.size) merged.properties = fieldsToProperties(Array.from(byName.values()))
+  if (!closed && values !== undefined) merged.values = values
+  return merged
+}
+
 export type Resolved = {schema: HypermediaSchema; env: Record<string, any>}
 
 /**
  * Resolve a node to a concrete schema, following var / params / ref+args
- * (application) / ref+refinements (extension) / bare ref (include). `env` binds
- * type variables. `reg` supplies additional (non-bundled) schemas.
+ * (application) / ref+refinements (extension) / bare ref (include) / allOf
+ * (intersection: the struct arms merged). `env` binds type variables. `reg`
+ * supplies additional (non-bundled) schemas.
  */
 /**
  * The schema a node NAMES, when it names one rather than grounding in a kind: `type` holding any
@@ -357,6 +403,13 @@ export function resolveSchema(
     const bound = env[schema.var]
     if (bound === undefined) return {schema: {__unbound: schema.var}, env: {}}
     return resolveSchema(bound, {}, reg)
+  }
+  if (Array.isArray(schema.allOf)) {
+    if (schema.allOf.length === 0) return {schema: {__invalid: 'allOf needs at least one arm'}, env}
+    return {
+      schema: mergeAllOf(schema.allOf.map((arm: HypermediaSchema) => resolveSchema(arm, env, reg).schema)),
+      env,
+    }
   }
   const named = namedSchemaUrl(schema)
   if (named && schema.anyOf === undefined) {
@@ -391,6 +444,7 @@ export function validate(
 
   if (schema.__unbound) return [`${path}: unbound type variable "${schema.__unbound}"`]
   if (schema.__missing) return [`${path}: unresolved reference "${schema.__missing}"`]
+  if (schema.__invalid) return [`${path}: ${schema.__invalid}`]
 
   if (isLiteralSchema(schema))
     return deepEqual(schema.value, data)
@@ -489,6 +543,7 @@ export function schemaShape(schema: HypermediaSchema | undefined): {label: strin
   if (isLiteralSchema(schema)) return {label: 'Literal', slug: 'schema/literal-schema'}
   if (typeof schema !== 'object') return null
   if (Array.isArray(schema.anyOf)) return {label: 'Union', slug: 'schema/anyof'}
+  if (Array.isArray(schema.allOf)) return {label: 'Intersection', slug: 'schema/allof'}
   if (typeof schema.var === 'string') return {label: `⟨${schema.var}⟩`, slug: 'schema/var-schema'}
   if (typeof schema.type === 'string') {
     const kind = kindOf(schema.type)
