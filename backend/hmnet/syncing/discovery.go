@@ -1273,6 +1273,9 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 
 	// Fill All authors and their related blobs.
 	if includeAccounts {
+		// Comments represent their account even when an agent signs them.
+		// Match account material by resource owner, since its Ref/Profile
+		// may itself be signed by a different delegated key.
 		// Fill All authors.
 		if hasType(typeFilter, "Ref") {
 			const q = `INSERT OR IGNORE INTO rbsr_blobs
@@ -1280,7 +1283,7 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 					sb.id as id
 					FROM resources r
 					JOIN structural_blobs sb ON sb.resource = r.id
-					WHERE sb.author IN (SELECT author FROM structural_blobs WHERE id IN rbsr_blobs)
+					WHERE r.owner IN (SELECT COALESCE(extra_attrs->>'account', author) FROM structural_blobs WHERE id IN rbsr_blobs)
 					AND type = 'Ref'
 					AND r.iri GLOB 'hm://*'
 					AND r.iri NOT GLOB 'hm://*/*';`
@@ -1296,9 +1299,10 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 			const q = `INSERT OR IGNORE INTO rbsr_blobs
 					SELECT sb.id
 					FROM structural_blobs sb
+					JOIN resources r ON r.id = sb.resource
 					WHERE sb.type = 'Profile'
-					AND sb.author IN (
-						SELECT DISTINCT author
+					AND r.owner IN (
+						SELECT DISTINCT COALESCE(extra_attrs->>'account', author)
 						FROM structural_blobs
 						WHERE id IN rbsr_blobs AND author IS NOT NULL
 					);`

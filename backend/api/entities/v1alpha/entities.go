@@ -962,7 +962,8 @@ author_scores AS (
 	JOIN resources r ON r.owner = da.author_id
 	JOIN resource_links rl ON rl.target = r.id
 	JOIN structural_blobs sb ON sb.id = rl.source
-	WHERE sb.author IS NULL OR sb.author <> da.author_id
+	WHERE COALESCE(sb.extra_attrs->>'account', sb.author) IS NULL
+	   OR COALESCE(sb.extra_attrs->>'account', sb.author) <> da.author_id
 	GROUP BY da.author_id
 )
 SELECT doc.iri AS doc_iri,

@@ -2,6 +2,7 @@ package entities
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,8 @@ import (
 	"seed/backend/core/coretest"
 	documents "seed/backend/genproto/documents/v3alpha"
 	entpb "seed/backend/genproto/entities/v1alpha"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
 
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
@@ -355,4 +358,44 @@ func TestSearchDelegatedCommentAuthority(t *testing.T) {
 	results := searchAll(t, svc, "Delegatedsearchneedle")
 	require.Len(t, results, 1)
 	require.Equal(t, expected, results[0].Id)
+}
+
+func TestCommentAuthorAuthoritySelfCitation(t *testing.T) {
+	for _, delegated := range []bool{false, true} {
+		name := "direct"
+		if delegated {
+			name = "delegated"
+		}
+		t.Run(name, func(t *testing.T) {
+			svc := newTestServices(t, "alice")
+			clock := newTestClock()
+			doc := createDoc(t, svc, svc.me.Account, "/citations", 1, clock, titleOp(t, "Citations"))
+			iris, err := json.Marshal([]string{doc.iri()})
+			require.NoError(t, err)
+			// Self-citation must leave the score at zero; a subsequent citation
+			// from a different account must increase it to one.
+			for i, author := range []coretest.Tester{svc.me, coretest.NewTester("bob")} {
+				signer := author.Account
+				if delegated {
+					signer = author.Device
+					capability, err := blob.NewCapability(author.Account, signer.Principal(), author.Account.Principal(), "", blob.RoleAgent, "", clock.next())
+					require.NoError(t, err)
+					require.NoError(t, svc.idx.Put(t.Context(), capability))
+				}
+				comment, err := blob.NewComment(signer, "", author.Account.Principal(), svc.me.Account.Principal(), doc.path, []cid.Cid{doc.head}, cid.Undef, cid.Undef,
+					[]blob.CommentBlock{{Block: blob.Block{ID_Good: "b1", Type: "paragraph", Text: "Citation"}}}, blob.VisibilityPublic, clock.next())
+				require.NoError(t, err)
+				require.NoError(t, svc.idx.Put(t.Context(), comment))
+				var score int
+				require.NoError(t, svc.entities.db.WithSave(t.Context(), func(conn *sqlite.Conn) error {
+					return sqlitex.Exec(conn, qAuthorAuthority(), func(stmt *sqlite.Stmt) error {
+						require.Equal(t, doc.iri(), stmt.ColumnText(0))
+						score = stmt.ColumnInt(1)
+						return nil
+					}, string(iris), string(iris))
+				}))
+				require.Equal(t, i, score)
+			}
+		})
+	}
 }
