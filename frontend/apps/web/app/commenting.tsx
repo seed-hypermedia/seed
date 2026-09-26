@@ -339,6 +339,7 @@ export default function WebCommenting({
             getContent: wrappedGetContent,
             docId,
             docVersion,
+            account: userKeyPair.delegatedAccountUid,
             replyCommentVersion,
             rootReplyCommentVersion,
             quoting,

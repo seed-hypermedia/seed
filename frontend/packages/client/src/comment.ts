@@ -68,6 +68,8 @@ type CreateCommentBaseInput = {
   /** Deprecated: pass `quoting: {blockId}` instead. Still honored for back-compat. */
   quotingBlockId?: string
   visibility?: 'Private' | ''
+  /** Stable account authority represented by a delegated signer. */
+  account?: string
 }
 
 /**
@@ -107,6 +109,7 @@ type UnsignedComment = {
   replyParent?: string
   threadRoot?: string
   signer: Uint8Array
+  account?: Uint8Array
   ts: bigint
   sig: Uint8Array
   visibility?: string
@@ -121,6 +124,7 @@ type SignedComment = {
   replyParent?: CID
   threadRoot?: CID
   signer: Uint8Array
+  account?: Uint8Array
   ts: bigint
   sig: ArrayBuffer | Uint8Array
   visibility?: string
@@ -314,11 +318,16 @@ function deepStripUndefined<T>(value: T): T {
   return value
 }
 
+function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index])
+}
+
 function createUnsignedComment({
   content,
   docId,
   docVersion,
   signerKey,
+  account,
   replyCommentVersion,
   rootReplyCommentVersion,
   visibility,
@@ -327,6 +336,7 @@ function createUnsignedComment({
   docId: UnpackedHypermediaId
   docVersion: string
   signerKey: Uint8Array
+  account?: string
   replyCommentVersion?: string | null
   rootReplyCommentVersion?: string | null
   visibility?: 'Private' | ''
@@ -342,6 +352,10 @@ function createUnsignedComment({
     path: hmIdPathToEntityQueryPath(docId.path),
     replyParent: replyCommentVersion || undefined,
     threadRoot: rootReplyCommentVersion || undefined,
+  }
+  if (account) {
+    const accountKey = new Uint8Array(base58btc.decode(account))
+    if (!bytesEqual(accountKey, signerKey)) unsignedComment.account = accountKey
   }
   if (!unsignedComment.replyParent) delete unsignedComment.replyParent
   if (!unsignedComment.threadRoot) delete unsignedComment.threadRoot
@@ -365,6 +379,7 @@ async function createCommentBlob({
   docId,
   docVersion,
   signer,
+  account,
   replyCommentVersion,
   rootReplyCommentVersion,
   visibility,
@@ -373,6 +388,7 @@ async function createCommentBlob({
   docId: UnpackedHypermediaId
   docVersion: string
   signer: AnySigner
+  account?: string
   replyCommentVersion?: string | null
   rootReplyCommentVersion?: string | null
   visibility?: 'Private' | ''
@@ -384,6 +400,7 @@ async function createCommentBlob({
     docId,
     docVersion,
     signerKey,
+    account,
     replyCommentVersion,
     rootReplyCommentVersion,
     visibility,
@@ -466,6 +483,7 @@ export async function createComment(input: CreateCommentInput, signer: AnySigner
     docId: input.docId,
     docVersion: input.docVersion,
     signer,
+    account: input.account,
     replyCommentVersion: input.replyCommentVersion,
     rootReplyCommentVersion: input.rootReplyCommentVersion,
     visibility: input.visibility,
@@ -484,8 +502,9 @@ export type DeleteCommentInput = {
 export async function deleteComment(input: DeleteCommentInput, signer: AnySigner): Promise<HMPublishBlobsInput> {
   // Extract TSID from comment ID (format: "authority/tsid")
   const parts = input.commentId.split('/')
+  const authority = parts[0]
   const tsid = parts[1]
-  if (!tsid) {
+  if (!authority || !tsid) {
     throw new Error(`Invalid comment ID format: ${input.commentId}`)
   }
 
@@ -504,6 +523,8 @@ export async function deleteComment(input: DeleteCommentInput, signer: AnySigner
     ts: BigInt(Date.now()),
     sig: new Uint8Array(64),
   }
+  const authorityKey = new Uint8Array(base58btc.decode(authority))
+  if (!bytesEqual(authorityKey, signerKey)) tombstone.account = authorityKey
   if (input.visibility) tombstone.visibility = input.visibility
 
   // Sign the tombstone (CBOR-encode with zeroed sig, then sign)
@@ -531,8 +552,9 @@ export type UpdateCommentInput = {
 export async function updateComment(input: UpdateCommentInput, signer: AnySigner): Promise<HMPublishBlobsInput> {
   // Extract TSID from comment ID (format: "authority/tsid")
   const parts = input.commentId.split('/')
+  const authority = parts[0]
   const tsid = parts[1]
-  if (!tsid) {
+  if (!authority || !tsid) {
     throw new Error(`Invalid comment ID format: ${input.commentId}`)
   }
 
@@ -551,6 +573,8 @@ export async function updateComment(input: UpdateCommentInput, signer: AnySigner
     ts: BigInt(Date.now()),
     sig: new Uint8Array(64),
   }
+  const authorityKey = new Uint8Array(base58btc.decode(authority))
+  if (!bytesEqual(authorityKey, signerKey)) comment.account = authorityKey
   if (input.replyParentVersion) comment.replyParent = CID.parse(input.replyParentVersion)
   if (input.rootReplyCommentVersion) comment.threadRoot = CID.parse(input.rootReplyCommentVersion)
   if (input.visibility) comment.visibility = input.visibility
@@ -572,8 +596,9 @@ export async function commentRecordIdFromBlob(blobData: Uint8Array): Promise<str
     throw new Error(`Expected Comment blob, got "${decoded.type}"`)
   }
   const signerBytes = decoded.signer as Uint8Array
+  const accountBytes = decoded.account as Uint8Array | undefined
   const ts = BigInt(decoded.ts as bigint | number)
-  const authority = base58btc.encode(new Uint8Array(signerBytes))
+  const authority = base58btc.encode(new Uint8Array(accountBytes || signerBytes))
 
   // 6 bytes for timestamp (lower 48 bits of ms, big-endian)
   const buf = new ArrayBuffer(8)

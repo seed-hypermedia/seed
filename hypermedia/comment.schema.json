@@ -17,6 +17,12 @@
       },
       "description": "Deprecated and ignored; some old comment blobs still carry it."
     },
+    "account": {
+      "value": {
+        "type": "hm://hyper.media/principal"
+      },
+      "description": "Stable account authority represented by a delegated signer; omitted when it equals the signer."
+    },
     "space": {
       "value": {
         "type": "hm://hyper.media/principal"
@@ -67,5 +73,5 @@
       "description": "Empty for a public comment or `Private`, usually copied from the target document."
     }
   },
-  "description": "A signed comment on a document version, threaded through `threadRoot` and `replyParent`, with a body of comment blocks."
+  "description": "A signed comment on a document version, optionally written by an authorized agent for a stable account authority."
 }

@@ -3,6 +3,7 @@ package blob
 import (
 	"fmt"
 
+	"seed/backend/core"
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -41,7 +42,7 @@ import (
 // genesis is the target document's genesis, resolved by the caller. Every version
 // of one comment targets the same document, so it's the same for every blob sharing
 // the TSID, and it's safe to stamp the caller's value onto whichever blob wins.
-func updateCommentLive(conn *sqlite.Conn, tsid TSID, genesis string) error {
+func updateCommentLive(conn *sqlite.Conn, authority core.Principal, tsid TSID, genesis string) error {
 	if tsid == "" {
 		return fmt.Errorf("BUG: updateCommentLive called with empty TSID")
 	}
@@ -50,11 +51,11 @@ func updateCommentLive(conn *sqlite.Conn, tsid TSID, genesis string) error {
 		return fmt.Errorf("BUG: updateCommentLive called with empty genesis for tsid %s", tsid)
 	}
 
-	if err := sqlitex.Exec(conn, qDeleteCommentLive(), nil, string(tsid)); err != nil {
+	if err := sqlitex.Exec(conn, qDeleteCommentLive(), nil, authority, string(tsid)); err != nil {
 		return fmt.Errorf("failed to clear live comment for tsid %s: %w", tsid, err)
 	}
 
-	if err := sqlitex.Exec(conn, qInsertCommentLive(), nil, string(tsid), genesis); err != nil {
+	if err := sqlitex.Exec(conn, qInsertCommentLive(), nil, authority, string(tsid), genesis); err != nil {
 		return fmt.Errorf("failed to record live comment for tsid %s: %w", tsid, err)
 	}
 
@@ -62,31 +63,37 @@ func updateCommentLive(conn *sqlite.Conn, tsid TSID, genesis string) error {
 }
 
 var qDeleteCommentLive = dqb.Str(`
-	DELETE FROM comment_live WHERE tsid = ?1;
+	DELETE FROM comment_live
+	WHERE authority = (SELECT id FROM public_keys WHERE principal = ?1)
+	AND tsid = ?2;
 `)
 
-// The winner is the highest (ts, id) among the blobs sharing the TSID, and it's
-// inserted only when it's live: a tombstone winning the TSID leaves no row, which
+// The winner is the highest (timestamp, CID hash) among the blobs sharing the
+// TSID. The hash tie-break is stable across replicas, unlike the local database ID.
+// It is inserted only when it's live: a tombstone winning the TSID leaves no row, which
 // is how deleted comments drop out of every count.
 //
 // Numbered parameters, not named: SQLite assigns named parameters their indices in
 // order of first appearance in the text, so ?1/?2 keeps the binding order tied to
 // the Go call rather than to where each name happens to sit in the query.
 var qInsertCommentLive = dqb.Str(`
-	INSERT INTO comment_live (tsid, blob_id, genesis, resource, ts)
-	SELECT tsid, id, ?2, resource, ts
+	INSERT INTO comment_live (authority, tsid, blob_id, genesis, resource, ts)
+	SELECT authority, tsid, id, ?3, resource, ts
 	FROM (
 		SELECT
+			sb.author AS authority,
 			sb.extra_attrs->>'tsid' AS tsid,
 			sb.id AS id,
 			sb.resource AS resource,
 			sb.ts AS ts,
 			sb.extra_attrs->>'deleted' AS deleted
 		FROM structural_blobs sb
+		JOIN blobs b ON b.id = sb.id
 		WHERE sb.extra_attrs->>'tsid' IS NOT NULL
-		AND sb.extra_attrs->>'tsid' = ?1
+		AND sb.author = (SELECT id FROM public_keys WHERE principal = ?1)
+		AND sb.extra_attrs->>'tsid' = ?2
 		AND sb.type = 'Comment'
-		ORDER BY sb.ts DESC, sb.id DESC
+		ORDER BY sb.ts DESC, b.multihash DESC
 		LIMIT 1
 	)
 	WHERE deleted IS NULL AND resource IS NOT NULL;

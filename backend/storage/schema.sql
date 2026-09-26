@@ -121,7 +121,7 @@ CREATE INDEX structural_blobs_by_type ON structural_blobs (type, ts, resource, a
 CREATE INDEX structural_blobs_by_ts ON structural_blobs (ts, id);
 
 -- Index for tsid.
-CREATE INDEX structural_blobs_by_tsid ON structural_blobs (extra_attrs->>'tsid', author) WHERE extra_attrs->>'tsid' IS NOT NULL;
+CREATE INDEX structural_blobs_by_tsid ON structural_blobs (extra_attrs->>'tsid', author, ts DESC, id DESC) WHERE extra_attrs->>'tsid' IS NOT NULL;
 
 -- Index for querying capabilities by delegate.
 CREATE INDEX capabilities_by_delegate ON structural_blobs (extra_attrs->>'del', resource, author) WHERE type = 'Capability';
@@ -267,19 +267,20 @@ CREATE TABLE document_attributes (
 
 CREATE INDEX document_attributes_by_key ON document_attributes (key, kind, value);
 
--- The live version of each comment thread-scoped ID.
+-- The live version of each account-scoped comment ID.
 --
 -- A comment can be edited or deleted, and each version is a separate blob sharing
--- one TSID. The live version is the highest (ts, id) among them, and it counts only
+-- one authority + TSID. The live version is the highest (ts, id) among them, and it counts only
 -- if it isn't a tombstone -- deleted comments have no row here at all.
 --
 -- Deriving this at query time is what it replaces: the listing queries used to run a
 -- ROW_NUMBER() window over every comment blob in the requested scope on every
 -- request, which was 37ms of a 60ms ListDirectory call on a 6.2 GB production
--- database. Which blob wins a TSID is a fact about the data, not about the request,
+-- database. Which blob wins an authority + TSID is a fact about the data, not about the request,
 -- so it's settled once, when the blob is indexed (see updateCommentLive).
 CREATE TABLE comment_live (
-    tsid TEXT PRIMARY KEY,
+    authority INTEGER REFERENCES public_keys (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+    tsid TEXT NOT NULL,
     -- The winning blob. Also the value listings report as `last_comment`.
     blob_id INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
     -- Genesis CID of the document this comment targets, resolved from the comment's
@@ -290,7 +291,8 @@ CREATE TABLE comment_live (
     -- The resource the comment targeted: its *location* when it was written. Used
     -- only to attribute the comment to a space, never to a document.
     resource INTEGER REFERENCES resources (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
-    ts INTEGER NOT NULL
+    ts INTEGER NOT NULL,
+    PRIMARY KEY (authority, tsid)
 ) WITHOUT ROWID;
 
 CREATE INDEX comment_live_by_genesis ON comment_live (genesis, ts);
