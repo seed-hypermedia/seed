@@ -104,7 +104,7 @@ func TestGetCommentReplyCount_CountsCommentsNotVersions(t *testing.T) {
 
 	alice := newTestDocsAPI(t, "alice")
 	bob := coretest.NewTester("bob")
-	ctx := context.Background()
+	ctx := t.Context()
 	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
 
 	homeDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
@@ -143,6 +143,28 @@ func TestGetCommentReplyCount_CountsCommentsNotVersions(t *testing.T) {
 	}
 	require.EqualValues(t, 1, getCount())
 
+	// Replies to an older blob must still count after the parent is edited.
+	root.Content[0].Block.Text = "Root, edited"
+	editedRoot, err := alice.UpdateComment(ctx, &pb.UpdateCommentRequest{
+		Comment:        root,
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, root.Version, editedRoot.Version)
+	require.EqualValues(t, 1, getCount(), "editing the parent must preserve its reply count")
+
+	reply2, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "bob",
+		TargetAccount:  alice.me.Account.PublicKey.String(),
+		TargetPath:     "",
+		TargetVersion:  homeDoc.Version,
+		ReplyParent:    root.Id,
+		Content:        []*pb.BlockNode{{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "Reply to edited root"}}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, editedRoot.Version, reply2.ReplyParentVersion)
+	require.EqualValues(t, 2, getCount(), "replies to both parent versions must count")
+
 	// Editing the reply creates a new blob version carrying the same links; the
 	// count must stay per-comment, not per-version. ReplyParent must be passed
 	// on update, or the new version silently loses its thread linkage.
@@ -159,7 +181,7 @@ func TestGetCommentReplyCount_CountsCommentsNotVersions(t *testing.T) {
 		SigningKeyName: "bob",
 	})
 	require.NoError(t, err)
-	require.EqualValues(t, 1, getCount(), "an edited reply must count once, not once per version")
+	require.EqualValues(t, 2, getCount(), "an edited reply must count once, not once per version")
 
 	// A deeper reply links to the thread root too: the root's count covers the
 	// whole thread, and every reply still counts exactly once.
@@ -172,7 +194,7 @@ func TestGetCommentReplyCount_CountsCommentsNotVersions(t *testing.T) {
 		Content:        []*pb.BlockNode{{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "Deep reply"}}},
 	})
 	require.NoError(t, err)
-	require.EqualValues(t, 2, getCount(), "the thread root's count must include deep replies")
+	require.EqualValues(t, 3, getCount(), "the thread root's count must include deep replies")
 }
 
 func TestListCommentsByAuthor(t *testing.T) {

@@ -497,12 +497,13 @@ var qGetCommentByCID = dqb.Str(`
 // qGetReplyCountByID counts distinct replying COMMENTS, not distinct reply
 // blobs: each edit of a comment is a separate blob carrying the same links, so
 // counting sources directly inflated the number by one per edit. Dedupe by the
-// source comment's identity (author + tsid).
+// source comment's identity (author + tsid). Match all target versions because
+// replies retain links to the blob they originally referenced.
 var qGetReplyCountByID = dqb.Str(`
 SELECT count(DISTINCT COALESCE(src.extra_attrs->>'account', src.author) || ':' || (src.extra_attrs->>'tsid'))
 FROM blob_links bl
 JOIN structural_blobs src ON src.id = bl.source
-WHERE bl.target = (
+WHERE bl.target IN (
    SELECT id
    FROM structural_blobs sb
    WHERE sb.type = 'Comment'
