@@ -201,11 +201,16 @@ export const MentionCandidates: HMRequestImplementation<HMMentionCandidatesReque
     // Resolve only the first page the picker can display. Resolving every discovered
     // entity made opening the menu proportional to the user's entire contact graph.
     const matches = groups[0] || []
-    const contactsByName = groups[2] || []
+    // Only contacts whose petname holds the query get resolved ahead of the search matches. Putting
+    // every contact first let a large contact list take the whole budget, so matches never loaded.
+    const needle = query.toLocaleLowerCase()
+    const namedContacts = (groups[2] || []).filter(
+      (id) => contactNames.get(id.uid)?.toLocaleLowerCase().includes(needle),
+    )
     // The same entity reaches here as distinct id objects from several groups: keep one per key.
     const pendingByKey = new Map<string, ReturnType<typeof hmId>>()
     for (const id of query
-      ? [...contactsByName, ...matches, ...Array.from(selected.values())]
+      ? [...namedContacts, ...matches, ...Array.from(selected.values())]
       : Array.from(selected.values())) {
       const key = input.mode === 'account' ? id.uid : id.id
       if (!pendingByKey.has(key)) pendingByKey.set(key, id)
