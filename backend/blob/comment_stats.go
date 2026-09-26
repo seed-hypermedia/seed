@@ -81,16 +81,16 @@ var qInsertCommentLive = dqb.Str(`
 	SELECT authority, tsid, id, ?3, resource, ts
 	FROM (
 		SELECT
-			sb.author AS authority,
+			COALESCE(sb.extra_attrs->>'account', sb.author) AS authority,
 			sb.extra_attrs->>'tsid' AS tsid,
 			sb.id AS id,
 			sb.resource AS resource,
 			sb.ts AS ts,
 			sb.extra_attrs->>'deleted' AS deleted
-		FROM structural_blobs sb
+		FROM structural_blobs sb INDEXED BY structural_blobs_by_tsid
 		JOIN blobs b ON b.id = sb.id
 		WHERE sb.extra_attrs->>'tsid' IS NOT NULL
-		AND sb.author = (SELECT id FROM public_keys WHERE principal = ?1)
+		AND COALESCE(sb.extra_attrs->>'account', sb.author) = (SELECT id FROM public_keys WHERE principal = ?1)
 		AND sb.extra_attrs->>'tsid' = ?2
 		AND sb.type = 'Comment'
 		ORDER BY sb.ts DESC, b.multihash DESC

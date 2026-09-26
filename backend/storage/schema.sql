@@ -121,7 +121,8 @@ CREATE INDEX structural_blobs_by_type ON structural_blobs (type, ts, resource, a
 CREATE INDEX structural_blobs_by_ts ON structural_blobs (ts, id);
 
 -- Index for tsid.
-CREATE INDEX structural_blobs_by_tsid ON structural_blobs (extra_attrs->>'tsid', author, ts DESC, id DESC) WHERE extra_attrs->>'tsid' IS NOT NULL;
+CREATE INDEX structural_blobs_by_tsid ON structural_blobs (extra_attrs->>'tsid', COALESCE(extra_attrs->>'account', author), ts DESC, id DESC) WHERE extra_attrs->>'tsid' IS NOT NULL;
+CREATE INDEX IF NOT EXISTS comments_by_account ON structural_blobs (COALESCE(extra_attrs->>'account', author)) WHERE type = 'Comment';
 
 -- Index for querying capabilities by delegate.
 CREATE INDEX capabilities_by_delegate ON structural_blobs (extra_attrs->>'del', resource, author) WHERE type = 'Capability';

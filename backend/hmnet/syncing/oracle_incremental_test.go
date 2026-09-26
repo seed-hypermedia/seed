@@ -11,7 +11,9 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
+	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 // TestMaintainRBSRIndex_IncrementalMatchesCollectBlobs is the fix's linchpin:
@@ -255,4 +257,68 @@ func collectDownloadedBlobIDs(t *testing.T, db *sqlitex.Pool, scope DiscoveryKey
 		})
 	}))
 	return out
+}
+
+// Delegated comments keep the signer as author so implicit capability discovery
+// works for both fresh scopes and scopes maintained as blobs arrive.
+func TestDelegatedCommentSync(t *testing.T) {
+	for _, capabilityFirst := range []bool{false, true} {
+		name := "comment-first"
+		if capabilityFirst {
+			name = "capability-first"
+		}
+		t.Run(name, func(t *testing.T) {
+			ctx := t.Context()
+			db := storage.MakeTestDB(t)
+			idx, err := blob.OpenIndex(ctx, db, zap.NewNop())
+			require.NoError(t, err)
+			idx.SetIndexedHook(MaintainRBSRIndex)
+			alice := coretest.NewTester("alice").Account.Principal()
+			bob := coretest.NewTester("bob")
+			now := time.Now().Round(blob.ClockPrecision)
+			capability, err := blob.NewCapability(bob.Account, bob.Device.Principal(), bob.Account.Principal(), "", blob.RoleAgent, "", now)
+			require.NoError(t, err)
+			comment, err := blob.NewComment(bob.Device, "", bob.Account.Principal(), alice, "", nil, cid.Undef, cid.Undef,
+				[]blob.CommentBlock{{Block: blob.Block{ID_Good: "b1", Type: "paragraph", Text: "Delegated"}}}, blob.VisibilityPublic, now)
+			require.NoError(t, err)
+			scopes := []DiscoveryKey{
+				{IRI: blob.IRI("hm://" + alice.String()), Recursive: true},
+				{IRI: blob.RecordID{Authority: bob.Account.Principal(), TSID: comment.TSID()}.IRI()},
+			}
+			for _, scope := range scopes {
+				require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
+					id, _, err := resolveScope(conn, scope)
+					if err != nil {
+						return err
+					}
+					return materializeScope(conn, id, scope)
+				}))
+			}
+			if capabilityFirst {
+				require.NoError(t, idx.Put(ctx, capability))
+				require.NoError(t, idx.WaitIndexedHook(ctx))
+			}
+			require.NoError(t, idx.Put(ctx, comment))
+			require.NoError(t, idx.WaitIndexedHook(ctx))
+			if !capabilityFirst {
+				require.NoError(t, idx.Put(ctx, capability))
+				require.NoError(t, idx.WaitIndexedHook(ctx))
+			}
+			commentID, err := sqlitex.QueryOnePool[int64](ctx, db, `SELECT id FROM blobs WHERE multihash = ?`, comment.CID.Hash())
+			require.NoError(t, err)
+			capID, err := sqlitex.QueryOnePool[int64](ctx, db, `SELECT id FROM blobs WHERE multihash = ?`, capability.CID.Hash())
+			require.NoError(t, err)
+			author, err := sqlitex.QueryOnePool[int](ctx, db, `SELECT author = (SELECT id FROM public_keys WHERE principal = ?) FROM structural_blobs WHERE id=?`, []byte(bob.Device.Principal()), commentID)
+			require.NoError(t, err)
+			require.Equal(t, 1, author, "author must remain the signer, like Profile and Contact")
+			for _, scope := range scopes {
+				fresh := collectDownloadedBlobIDs(t, db, scope)
+				maintained := itemSetForScope(t, db, scopeIDFor(t, db, scope))
+				require.Contains(t, fresh, commentID)
+				require.Contains(t, fresh, capID, "sync must include the implicit delegation proof")
+				require.Equal(t, fresh, maintained)
+				require.True(t, scopeStillMaterialized(t, db, scopeIDFor(t, db, scope)))
+			}
+		})
+	}
 }

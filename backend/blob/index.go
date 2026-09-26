@@ -2384,7 +2384,7 @@ var qLookupRecordID = dqb.Str(`
 	JOIN blobs b INDEXED BY blobs_metadata_by_hash
 		ON b.id = sb.id
 		AND (b.codec, b.multihash) = (:codec, :multihash)
-	JOIN public_keys pk ON pk.id = sb.author
+	JOIN public_keys pk ON pk.id = COALESCE(sb.extra_attrs->>'account', sb.author)
 	LIMIT 1
 `)
 

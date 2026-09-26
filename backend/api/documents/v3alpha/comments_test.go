@@ -1286,6 +1286,15 @@ func TestDelegatedCommentMutationKeepsAccountAuthority(t *testing.T) {
 	require.Equal(t, "Delegated update", got.Content[0].Block.Text)
 	require.Equal(t, original.Id, got.Id)
 
+	byAuthor, err := alice.ListCommentsByAuthor(ctx, &pb.ListCommentsByAuthorRequest{Author: rid.Authority.String()})
+	require.NoError(t, err)
+	require.Len(t, byAuthor.Comments, 1)
+	require.Equal(t, got.Version, byAuthor.Comments[0].Version)
+	snapshot, err := alice.getSnapshotResource(ctx, rid.Authority, rid.TSID, nil)
+	require.NoError(t, err)
+	require.NotNil(t, snapshot.Blob)
+	require.Equal(t, rid.Authority, snapshot.Blob.(*blob.Comment).Authority())
+
 	versions, err := alice.ListCommentVersions(ctx, &pb.ListCommentVersionsRequest{Id: original.Id})
 	require.NoError(t, err)
 	require.Len(t, versions.Versions, 4)
@@ -1950,6 +1959,55 @@ func BenchmarkListCommentVersions(b *testing.B) {
 				if len(response.Versions) != versionCount {
 					b.Fatalf("got %d versions, want %d", len(response.Versions), versionCount)
 				}
+			}
+		})
+	}
+}
+
+func TestCommentAuthorListingTimestampTie(t *testing.T) {
+	for _, highFirst := range []bool{false, true} {
+		name := "low-first"
+		if highFirst {
+			name = "high-first"
+		}
+		t.Run(name, func(t *testing.T) {
+			srv := newTestDocsAPI(t, "alice")
+			ctx := t.Context()
+			account := srv.me.Account.Principal()
+			now := time.Now().Round(blob.ClockPrecision)
+			first, err := blob.NewComment(srv.me.Account, "", account, account, "", nil, cid.Undef, cid.Undef,
+				[]blob.CommentBlock{{Block: blob.Block{ID_Good: "b1", Type: "paragraph", Text: "First"}}}, blob.VisibilityPublic, now)
+			require.NoError(t, err)
+			second, err := blob.NewComment(srv.me.Account, first.TSID(), account, account, "", nil, cid.Undef, cid.Undef,
+				[]blob.CommentBlock{{Block: blob.Block{ID_Good: "b1", Type: "paragraph", Text: "Second"}}}, blob.VisibilityPublic, now)
+			require.NoError(t, err)
+			high, low := first, second
+			if bytes.Compare(high.CID.Hash(), low.CID.Hash()) < 0 {
+				high, low = low, high
+			}
+			if highFirst {
+				require.NoError(t, srv.idx.Put(ctx, high))
+				require.NoError(t, srv.idx.Put(ctx, low))
+			} else {
+				require.NoError(t, srv.idx.Put(ctx, low))
+				require.NoError(t, srv.idx.Put(ctx, high))
+			}
+			id := blob.RecordID{Authority: account, TSID: first.TSID()}.String()
+			current, err := srv.GetComment(ctx, &pb.GetCommentRequest{Id: id})
+			require.NoError(t, err)
+			require.Equal(t, high.CID.String(), current.Version)
+			for _, mode := range []string{"local", "public", "authenticated"} {
+				t.Run(mode, func(t *testing.T) {
+					srv.cfg.PublicOnly = mode != "local"
+					callerCtx := ctx
+					if mode == "authenticated" {
+						callerCtx = blob.WithAuthenticatedCaller(ctx, account)
+					}
+					listed, err := srv.ListCommentsByAuthor(callerCtx, &pb.ListCommentsByAuthorRequest{Author: account.String()})
+					require.NoError(t, err)
+					require.Len(t, listed.Comments, 1)
+					require.Equal(t, current.Version, listed.Comments[0].Version)
+				})
 			}
 		})
 	}

@@ -601,7 +601,7 @@ var qResourceLookupID = dqb.Str(`
 var qCitationCommentExists = dqb.Str(`
 	SELECT 1
 	FROM structural_blobs sb
-	JOIN public_keys pk ON pk.id = sb.author
+	JOIN public_keys pk ON pk.id = COALESCE(sb.extra_attrs->>'account', sb.author)
 	WHERE sb.type = 'Comment'
 	AND pk.principal = :authority
 	AND sb.extra_attrs->>'tsid' = :tsid
@@ -771,7 +771,7 @@ FROM redirect_ancestors ra
 CROSS JOIN resource_links ON resource_links.target = ra.resource
 CROSS JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-JOIN public_keys ON public_keys.id = structural_blobs.author
+JOIN public_keys ON public_keys.id = COALESCE(structural_blobs.extra_attrs->>'account', structural_blobs.author)
 LEFT JOIN public_blobs pb ON pb.id = blobs.id
 WHERE (blobs.id %s :blob_id OR (blobs.id = :blob_id AND resource_links.id %s :link_id))
 AND structural_blobs.type IN ('Comment')
@@ -913,7 +913,7 @@ var qGetResource = dqb.Str(`
 		b.size
 	FROM structural_blobs sb
 	JOIN blobs b ON b.id = sb.id
-	WHERE sb.author = (SELECT id FROM public_keys WHERE principal = :authority)
+	WHERE COALESCE(sb.extra_attrs->>'account', sb.author) = (SELECT id FROM public_keys WHERE principal = :authority)
 	AND sb.extra_attrs->>'tsid' = :tsid
 	AND b.size > 0
 	LIMIT 1

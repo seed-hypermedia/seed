@@ -131,7 +131,7 @@ func buildMainEventsQuery(filtersStr string, orderByObserved bool) string {
 		selectStr            = "SELECT " + storage.BlobsID + ", " + storage.StructuralBlobsType + ", " + storage.PublicKeysPrincipal + ", " + storage.ResourcesIRI + ", " + storage.StructuralBlobsTs + ", " + storage.BlobsInsertTime + ", " + storage.BlobsMultihash + ", " + storage.BlobsCodec + ", " + "structural_blobs.extra_attrs->>'tsid' AS tsid" + ", " + "structural_blobs.extra_attrs" + ", " + storage.StructuralBlobsGenesisBlob
 		tableStr             = "FROM " + storage.T_StructuralBlobs
 		joinIDStr            = "JOIN " + storage.Blobs.String() + " ON " + storage.BlobsID.String() + "=" + storage.StructuralBlobsID.String()
-		joinpkStr            = "JOIN " + storage.PublicKeys.String() + " ON " + storage.StructuralBlobsAuthor.String() + "=" + storage.PublicKeysID.String()
+		joinpkStr            = "JOIN " + storage.PublicKeys.String() + " ON COALESCE(structural_blobs.extra_attrs->>'account', structural_blobs.author)=" + storage.PublicKeysID.String()
 		leftjoinResourcesStr = "LEFT JOIN " + storage.Resources.String() + " ON " + storage.StructuralBlobsResource.String() + "=" + storage.ResourcesID.String()
 
 		mainCursorColumn = storage.StructuralBlobsTs.String()
@@ -1067,7 +1067,7 @@ SELECT distinct
 FROM resource_links
 JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-JOIN public_keys ON public_keys.id = structural_blobs.author
+JOIN public_keys ON public_keys.id = COALESCE(structural_blobs.extra_attrs->>'account', structural_blobs.author)
 JOIN resources ON resources.id = resource_links.target
 LEFT JOIN resources r2
   ON r2.genesis_blob = CASE

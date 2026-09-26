@@ -7,6 +7,7 @@ import (
 	"seed/backend/api/entities/v1alpha"
 	"seed/backend/blob"
 	"seed/backend/core"
+	"seed/backend/core/coretest"
 	activity "seed/backend/genproto/activity/v1alpha"
 	entity_proto "seed/backend/genproto/entities/v1alpha"
 	"seed/backend/logging"
@@ -20,8 +21,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -1078,4 +1081,26 @@ func insertActivityProfileEventForResource(conn *sqlite.Conn, blobID int64, reso
 		return err
 	}
 	return sqlitex.Exec(conn, `INSERT INTO structural_blobs (id, type, ts, author, genesis_blob, resource, extra_attrs) VALUES (?, 'Profile', ?, 1, ?, ?, '{}');`, nil, blobID, eventTimestampMillis, blobID, resourceID)
+}
+
+func TestDelegatedCommentEventAuthority(t *testing.T) {
+	srv := newTestServer(t, "alice")
+	idx, err := blob.OpenIndex(t.Context(), srv.db, zap.NewNop())
+	require.NoError(t, err)
+	bob := coretest.NewTester("bob")
+	alice := coretest.NewTester("alice")
+	now := time.Now().Round(blob.ClockPrecision)
+	capability, err := blob.NewCapability(bob.Account, bob.Device.Principal(), bob.Account.Principal(), "", blob.RoleAgent, "", now)
+	require.NoError(t, err)
+	require.NoError(t, idx.Put(t.Context(), capability))
+	comment, err := blob.NewComment(bob.Device, "", bob.Account.Principal(), alice.Account.Principal(), "", nil, cid.Undef, cid.Undef,
+		[]blob.CommentBlock{{Block: blob.Block{ID_Good: "b1", Type: "paragraph", Text: "Delegated"}}}, blob.VisibilityPublic, now)
+	require.NoError(t, err)
+	require.NoError(t, idx.Put(t.Context(), comment))
+	events, err := srv.ListEvents(t.Context(), &activity.ListEventsRequest{FilterEventType: []string{"Comment"}, FilterAuthors: []string{bob.Account.Principal().String()}})
+	require.NoError(t, err)
+	require.Len(t, events.Events, 1)
+	event := events.Events[0].GetNewBlob()
+	require.Equal(t, bob.Account.Principal().String(), event.Author)
+	require.Equal(t, blob.RecordID{Authority: bob.Account.Principal(), TSID: comment.TSID()}.IRI().String(), event.Resource)
 }

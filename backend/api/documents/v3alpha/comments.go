@@ -351,10 +351,11 @@ var qIterCommentsByAuthor = dqb.Str(`
 	FROM (
 		SELECT
 			sb.*,
-			ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC) rn
+			ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC, version.multihash DESC) rn
 		FROM structural_blobs sb
+		JOIN blobs version ON version.id = sb.id
 		WHERE sb.type = 'Comment'
-		AND sb.author = (SELECT id FROM public_keys WHERE principal = :author)
+		AND COALESCE(sb.extra_attrs->>'account', sb.author) = (SELECT id FROM public_keys WHERE principal = :author)
 	) sb
 	JOIN blobs b ON b.id = sb.id
 	WHERE sb.rn = 1
@@ -372,12 +373,13 @@ var qIterCommentsByAuthorPublicOnly = dqb.Str(`
 		b.data,
 		sb.extra_attrs->>'tsid' AS tsid
 	FROM (
-        SELECT
-        	sb.*,
-         	ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC) rn
-        FROM structural_blobs sb
-  		WHERE sb.type = 'Comment'
-    	AND sb.author = (SELECT id FROM public_keys WHERE principal = :author)
+		SELECT
+			sb.*,
+			ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC, version.multihash DESC) rn
+		FROM structural_blobs sb
+		JOIN blobs version ON version.id = sb.id
+		WHERE sb.type = 'Comment'
+		AND COALESCE(sb.extra_attrs->>'account', sb.author) = (SELECT id FROM public_keys WHERE principal = :author)
 	) sb
 	JOIN blobs b ON b.id = sb.id
 	WHERE sb.rn = 1
@@ -396,12 +398,13 @@ var qIterCommentsByAuthorAuthenticated = dqb.Str(`
 		b.data,
 		sb.extra_attrs->>'tsid' AS tsid
 	FROM (
-        SELECT
-        	sb.*,
-         	ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC) rn
-        FROM structural_blobs sb
-  		WHERE sb.type = 'Comment'
-    	AND sb.author = (SELECT id FROM public_keys WHERE principal = :author)
+		SELECT
+			sb.*,
+			ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC, version.multihash DESC) rn
+		FROM structural_blobs sb
+		JOIN blobs version ON version.id = sb.id
+		WHERE sb.type = 'Comment'
+		AND COALESCE(sb.extra_attrs->>'account', sb.author) = (SELECT id FROM public_keys WHERE principal = :author)
 	) sb
 	JOIN blobs b ON b.id = sb.id
 	JOIN resources r ON r.id = sb.resource
@@ -470,10 +473,10 @@ var qGetCommentByID = dqb.Str(`
 		b.multihash,
 		b.data,
 		sb.extra_attrs->>'tsid' AS tsid
-	FROM structural_blobs sb
+	FROM structural_blobs sb INDEXED BY structural_blobs_by_tsid
 	JOIN blobs b ON b.id = sb.id
 	WHERE sb.type = 'Comment'
-	AND sb.author = (SELECT id FROM public_keys WHERE principal = :authority)
+	AND COALESCE(sb.extra_attrs->>'account', sb.author) = (SELECT id FROM public_keys WHERE principal = :authority)
 	AND sb.extra_attrs->>'tsid' = :tsid
 	ORDER BY sb.ts DESC, b.multihash DESC
 	LIMIT 1
@@ -496,7 +499,7 @@ var qGetCommentByCID = dqb.Str(`
 // counting sources directly inflated the number by one per edit. Dedupe by the
 // source comment's identity (author + tsid).
 var qGetReplyCountByID = dqb.Str(`
-SELECT count(DISTINCT src.author || ':' || (src.extra_attrs->>'tsid'))
+SELECT count(DISTINCT COALESCE(src.extra_attrs->>'account', src.author) || ':' || (src.extra_attrs->>'tsid'))
 FROM blob_links bl
 JOIN structural_blobs src ON src.id = bl.source
 WHERE bl.target = (
@@ -504,7 +507,7 @@ WHERE bl.target = (
    FROM structural_blobs sb
    WHERE sb.type = 'Comment'
    AND sb.extra_attrs->>'deleted' is not true
-   AND sb.author = (SELECT id FROM public_keys WHERE principal = :authority)
+   AND COALESCE(sb.extra_attrs->>'account', sb.author) = (SELECT id FROM public_keys WHERE principal = :authority)
    AND sb.extra_attrs->>'tsid' = :tsid
 )
 AND bl.type IN ('comment/reply-parent', 'comment/thread-root')
@@ -519,10 +522,10 @@ var qListCommentVersions = dqb.Str(`
 		b.multihash,
 		b.data,
 		sb.extra_attrs->>'tsid' AS tsid
-	FROM structural_blobs sb
+	FROM structural_blobs sb INDEXED BY structural_blobs_by_tsid
 	JOIN blobs b ON b.id = sb.id
 	WHERE sb.type = 'Comment'
-	AND sb.author = (SELECT id FROM public_keys WHERE principal = :authority)
+	AND COALESCE(sb.extra_attrs->>'account', sb.author) = (SELECT id FROM public_keys WHERE principal = :authority)
 	AND sb.extra_attrs->>'tsid' = :tsid
 	AND sb.extra_attrs->>'deleted' IS NULL
 	ORDER BY sb.ts DESC, b.multihash DESC

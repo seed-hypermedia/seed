@@ -287,9 +287,18 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 	isTombstone := len(v.Body) == 0
 
 	extraAttrs := make(map[string]any)
+	if !authority.Equal(v.Signer) {
+		_, accountID, err := ictx.ensureAccount(authority)
+		if err != nil {
+			return err
+		}
+		// Author remains the signer for implicit capability discovery. Account
+		// supplies the stable comment identity across delegated key rotations.
+		extraAttrs["account"] = accountID
+	}
 
 	// Comments have an explicit visibility field, which is usually inherited from the document they target.
-	// For private comments, they're owned by both the signer and the target document's space.
+	// For private comments, they're owned by both the account authority and the target document's space.
 	var visibilitySpaces []core.Principal
 	if v.Visibility == VisibilityPrivate {
 		visibilitySpaces = []core.Principal{authority}
@@ -298,7 +307,7 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 			visibilitySpaces = append(visibilitySpaces, v.Space())
 		}
 	}
-	sb := newStructuralBlob(c, v.Type, authority, v.Ts, iri, cid.Undef, v.Space(), time.Time{}, v.Visibility, visibilitySpaces)
+	sb := newStructuralBlob(c, v.Type, v.Signer, v.Ts, iri, cid.Undef, v.Space(), time.Time{}, v.Visibility, visibilitySpaces)
 	sb.ExtraAttrs = extraAttrs
 
 	if v.Visibility != VisibilityPublic {
@@ -572,7 +581,7 @@ var qCommentTSIDPriorVersions = dqb.Str(`
 		COALESCE(SUM(CASE WHEN extra_attrs->>'deleted' IS NULL THEN 1 ELSE 0 END), 0) AS prior_live
 	FROM structural_blobs
 	WHERE type = 'Comment'
-	  AND author = (SELECT id FROM public_keys WHERE principal = ?1)
+	  AND COALESCE(extra_attrs->>'account', author) = (SELECT id FROM public_keys WHERE principal = ?1)
 	  AND extra_attrs->>'tsid' = ?2
 	  AND id != ?3;
 `)

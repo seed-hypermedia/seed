@@ -581,8 +581,8 @@ func MaintainRBSRIndex(conn *sqlite.Conn, blobIDs []int64) error {
 		// the TSID) belongs to any scope addressed by the resource's own IRI.
 		// The IRI construction must byte-match the fillTables TSID seed and the
 		// comment IRIs produced at discovery time (hm://<author>/<tsid>).
-		if f.tsid != "" && len(f.author) > 0 {
-			if scopes := scopesByIRI[blob.IRI("hm://"+core.Principal(f.author).String()+"/"+f.tsid)]; len(scopes) > 0 {
+		if f.tsid != "" && len(f.authority) > 0 {
+			if scopes := scopesByIRI[blob.IRI("hm://"+core.Principal(f.authority).String()+"/"+f.tsid)]; len(scopes) > 0 {
 				// The blob's downloaded forward closure rides along, mirroring
 				// the media walk collectBlobs runs from the tsid seed (reply
 				// parents' media, target-version changes, embedded files).
@@ -703,13 +703,13 @@ func MaintainRBSRIndex(conn *sqlite.Conn, blobIDs []int64) error {
 
 // structuralFact carries the batch-level attributes MaintainRBSRIndex keys on.
 type structuralFact struct {
-	id      int64
-	typ     string
-	subject int64 // extra_attrs->>'subject' (public_keys.id) for Contacts
-	del     int64 // extra_attrs->>'del' (public_keys.id) for Capabilities
-	role    string
-	tsid    string // extra_attrs->>'tsid' for state-based resources (Comments et al.)
-	author  []byte // author's principal bytes, for the tsid-scope IRI
+	id        int64
+	typ       string
+	subject   int64 // extra_attrs->>'subject' (public_keys.id) for Contacts
+	del       int64 // extra_attrs->>'del' (public_keys.id) for Capabilities
+	role      string
+	tsid      string // extra_attrs->>'tsid' for state-based resources (Comments et al.)
+	authority []byte // record authority principal bytes, for the tsid-scope IRI
 }
 
 var qStructuralFactsBatch = dqb.Str(`
@@ -720,7 +720,7 @@ var qStructuralFactsBatch = dqb.Str(`
 		COALESCE(sb.extra_attrs->>'tsid', ''),
 		pk.principal
 	FROM structural_blobs sb
-	LEFT JOIN public_keys pk ON pk.id = sb.author
+	LEFT JOIN public_keys pk ON pk.id = COALESCE(sb.extra_attrs->>'account', sb.author)
 	WHERE sb.id IN (SELECT value FROM json_each(:ids));`)
 
 func structuralFactsForBatch(conn *sqlite.Conn, ids []int64) (out []structuralFact, err error) {
@@ -729,13 +729,13 @@ func structuralFactsForBatch(conn *sqlite.Conn, ids []int64) (out []structuralFa
 	}
 	err = sqlitex.Exec(conn, qStructuralFactsBatch(), func(stmt *sqlite.Stmt) error {
 		out = append(out, structuralFact{
-			id:      stmt.ColumnInt64(0),
-			typ:     stmt.ColumnText(1),
-			subject: stmt.ColumnInt64(2),
-			del:     stmt.ColumnInt64(3),
-			role:    stmt.ColumnText(4),
-			tsid:    stmt.ColumnText(5),
-			author:  stmt.ColumnBytes(6),
+			id:        stmt.ColumnInt64(0),
+			typ:       stmt.ColumnText(1),
+			subject:   stmt.ColumnInt64(2),
+			del:       stmt.ColumnInt64(3),
+			role:      stmt.ColumnText(4),
+			tsid:      stmt.ColumnText(5),
+			authority: stmt.ColumnBytes(6),
 		})
 		return nil
 	}, int64SliceJSON(ids))

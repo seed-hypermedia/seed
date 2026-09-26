@@ -337,3 +337,22 @@ func TestSearchEntitiesAccountNameListedOnce(t *testing.T) {
 	require.Equal(t, "hm://"+account, res.Entities[0].Id)
 	require.Equal(t, "Lunaticoin", res.Entities[0].Content)
 }
+
+func TestSearchDelegatedCommentAuthority(t *testing.T) {
+	t.Parallel()
+	svc := newTestServices(t, "alice")
+	bob := coretest.NewTester("bob")
+	clock := newTestClock()
+	doc := createDoc(t, svc, svc.me.Account, "/comments", 1, clock, titleOp(t, "Comments"))
+	capability, err := blob.NewCapability(bob.Account, bob.Device.Principal(), bob.Account.Principal(), "", blob.RoleAgent, "", clock.next())
+	require.NoError(t, err)
+	require.NoError(t, svc.idx.Put(t.Context(), capability))
+	comment, err := blob.NewComment(bob.Device, "", bob.Account.Principal(), svc.me.Account.Principal(), doc.path, []cid.Cid{doc.head}, cid.Undef, cid.Undef,
+		[]blob.CommentBlock{{Block: blob.Block{ID_Good: "b1", Type: "paragraph", Text: "Delegatedsearchneedle"}}}, blob.VisibilityPublic, clock.next())
+	require.NoError(t, err)
+	require.NoError(t, svc.idx.Put(t.Context(), comment))
+	expected := blob.RecordID{Authority: bob.Account.Principal(), TSID: comment.TSID()}.IRI().String()
+	results := searchAll(t, svc, "Delegatedsearchneedle")
+	require.Len(t, results, 1)
+	require.Equal(t, expected, results[0].Id)
+}

@@ -1037,7 +1037,7 @@ func collectBlobs(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLin
 				FROM resource_links
 				JOIN structural_blobs ON structural_blobs.id = resource_links.source
 				JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-				JOIN public_keys ON public_keys.id = structural_blobs.author
+				JOIN public_keys ON public_keys.id = COALESCE(structural_blobs.extra_attrs->>'account', structural_blobs.author)
 				LEFT JOIN resources r
 				ON r.genesis_blob = CASE
 						WHEN structural_blobs.type != 'Change' THEN structural_blobs.genesis_blob
@@ -1164,7 +1164,7 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 				SELECT id
 				FROM structural_blobs
 				WHERE extra_attrs->>'tsid' = :tsid
-				AND author = (SELECT id FROM public_keys WHERE principal = :principal);`
+				AND COALESCE(extra_attrs->>'account', author) = (SELECT id FROM public_keys WHERE principal = :principal);`
 			if err := sqlitex.Exec(conn, q, nil, tsid, []byte(space)); err != nil {
 				return err
 			}
