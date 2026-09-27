@@ -2,6 +2,7 @@ package blob
 
 import (
 	"fmt"
+	"strings"
 
 	"seed/backend/core"
 	"seed/backend/util/dqb"
@@ -39,33 +40,61 @@ import (
 // tombstone arriving before the comment it deletes, or an edit arriving before the
 // version it supersedes, both land on the same answer as any other order.
 //
-// genesis is the target document's genesis, resolved by the caller. Every version
-// of one comment targets the same document, so it's the same for every blob sharing
-// the TSID, and it's safe to stamp the caller's value onto whichever blob wins.
-func updateCommentLive(conn *sqlite.Conn, authority core.Principal, tsid TSID, genesis string) error {
+// Each version retains its own resolved genesis in index metadata. A signed edit
+// can change targets, so neither the winner's genesis nor the affected stats can
+// be inferred from the version currently being indexed.
+func updateCommentLive(conn *sqlite.Conn, authority core.Principal, tsid TSID, id int64, genesis string) error {
 	if tsid == "" {
 		return fmt.Errorf("BUG: updateCommentLive called with empty TSID")
 	}
-
-	if genesis == "" {
-		return fmt.Errorf("BUG: updateCommentLive called with empty genesis for tsid %s", tsid)
+	if err := sqlitex.Exec(conn, qSetCommentGenesis(), nil, id, genesis); err != nil {
+		return fmt.Errorf("failed to record comment genesis: %w", err)
 	}
 
-	if err := sqlitex.Exec(conn, qDeleteCommentLive(), nil, authority, string(tsid)); err != nil {
+	// RETURNING captures both sides of a move or deletion without extra queries.
+	// The common case touches just one document and one space.
+	var genesises, spaces []string
+	collect := func(stmt *sqlite.Stmt) error {
+		g := stmt.ColumnText(0)
+		space, _, _ := strings.Cut(strings.TrimPrefix(stmt.ColumnText(1), "hm://"), "/")
+		if len(genesises) == 0 || genesises[0] != g {
+			genesises = append(genesises, g)
+		}
+		if len(spaces) == 0 || spaces[0] != space {
+			spaces = append(spaces, space)
+		}
+		return nil
+	}
+	if err := sqlitex.Exec(conn, qDeleteCommentLive(), collect, authority, string(tsid)); err != nil {
 		return fmt.Errorf("failed to clear live comment for tsid %s: %w", tsid, err)
 	}
-
-	if err := sqlitex.Exec(conn, qInsertCommentLive(), nil, authority, string(tsid), genesis); err != nil {
+	if err := sqlitex.Exec(conn, qInsertCommentLive(), collect, authority, string(tsid)); err != nil {
 		return fmt.Errorf("failed to record live comment for tsid %s: %w", tsid, err)
 	}
-
+	for _, g := range genesises {
+		if err := updateDocumentCommentStats(conn, g); err != nil {
+			return err
+		}
+	}
+	for _, space := range spaces {
+		if err := updateSpaceCommentStats(conn, space); err != nil {
+			return err
+		}
+	}
 	return nil
 }
+
+var qSetCommentGenesis = dqb.Str(`
+	UPDATE structural_blobs
+	SET extra_attrs = json_set(extra_attrs, '$.genesis', NULLIF(?2, ''))
+	WHERE id = ?1;
+`)
 
 var qDeleteCommentLive = dqb.Str(`
 	DELETE FROM comment_live
 	WHERE authority = (SELECT id FROM public_keys WHERE principal = ?1)
-	AND tsid = ?2;
+	AND tsid = ?2
+	RETURNING genesis, (SELECT iri FROM resources WHERE id = resource);
 `)
 
 // The winner is the highest (timestamp, CID hash) among the blobs sharing the
@@ -78,7 +107,7 @@ var qDeleteCommentLive = dqb.Str(`
 // the Go call rather than to where each name happens to sit in the query.
 var qInsertCommentLive = dqb.Str(`
 	INSERT INTO comment_live (authority, tsid, blob_id, genesis, resource, ts)
-	SELECT authority, tsid, id, ?3, resource, ts
+	SELECT authority, tsid, id, genesis, resource, ts
 	FROM (
 		SELECT
 			COALESCE(sb.extra_attrs->>'account', sb.author) AS authority,
@@ -86,7 +115,8 @@ var qInsertCommentLive = dqb.Str(`
 			sb.id AS id,
 			sb.resource AS resource,
 			sb.ts AS ts,
-			sb.extra_attrs->>'deleted' AS deleted
+			sb.extra_attrs->>'deleted' AS deleted,
+			sb.extra_attrs->>'genesis' AS genesis
 		FROM structural_blobs sb INDEXED BY structural_blobs_by_tsid
 		JOIN blobs b ON b.id = sb.id
 		WHERE sb.extra_attrs->>'tsid' IS NOT NULL
@@ -96,7 +126,8 @@ var qInsertCommentLive = dqb.Str(`
 		ORDER BY sb.ts DESC, b.multihash DESC
 		LIMIT 1
 	)
-	WHERE deleted IS NULL AND resource IS NOT NULL;
+	WHERE deleted IS NULL AND resource IS NOT NULL AND genesis IS NOT NULL
+	RETURNING genesis, (SELECT iri FROM resources WHERE id = resource);
 `)
 
 // updateDocumentCommentStats recomputes one document's comment activity.

@@ -396,8 +396,6 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 		panic("BUG: missing resource for comment target")
 	}
 
-	spaceID := v.Space().String()
-
 	// Resolve the document this comment belongs to.
 	//
 	// The document is identified by the genesis of its changes, which is what makes
@@ -421,6 +419,7 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 		changeIDs      = make([]int64, len(v.Version))
 		genesisBlobID  int64
 		pendingChanges []cid.Cid
+		missingTarget  bool
 	)
 	for i, ver := range v.Version {
 		changeID, ok := ictx.blobs[ver]
@@ -435,7 +434,8 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 
 		if cm.ID == 0 {
 			if changeID.BlobsSize < 0 {
-				return nil
+				missingTarget = true
+				continue
 			}
 			pendingChanges = append(pendingChanges, ver)
 			continue
@@ -457,34 +457,27 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 	// A comment that pins no target version means "the document at this path", so
 	// its identity is whatever genesis that path currently resolves to.
 	var genesis string
-	if genesisBlobID != 0 {
-		genesis, err = lookupBlobCID(ictx.conn, genesisBlobID)
-	} else {
-		genesis, err = lookupResourceGenesis(ictx.conn, resourceID)
+	// An unresolved winner still suppresses an older version, but has no
+	// document attribution until its target can be resolved during indexing.
+	if !missingTarget {
+		if genesisBlobID != 0 {
+			genesis, err = lookupBlobCID(ictx.conn, genesisBlobID)
+		} else {
+			genesis, err = lookupResourceGenesis(ictx.conn, resourceID)
+		}
 	}
 	if err != nil {
 		return fmt.Errorf("failed to resolve target genesis for comment %s: %w", c, err)
 	}
 
-	// No generation at that path yet, so there is no document to attribute this to.
-	// The same repair applies as for unindexed target changes above.
+	// Settle the winner using its own genesis and refresh both the previous and
+	// current document/space. Even an unresolved target must suppress an older
+	// version rather than leave stale live counts behind.
+	if err := updateCommentLive(ictx.conn, authority, eb.TSID(), id, genesis); err != nil {
+		return err
+	}
 	if genesis == "" {
 		return nil
-	}
-
-	// Settle this comment's live version, its document's activity, and the space
-	// total. None of these need a document generation, so they're settled the
-	// moment the blob lands rather than waiting for a Ref.
-	if err := updateCommentLive(ictx.conn, authority, eb.TSID(), genesis); err != nil {
-		return err
-	}
-
-	if err := updateDocumentCommentStats(ictx.conn, genesis); err != nil {
-		return err
-	}
-
-	if err := updateSpaceCommentStats(ictx.conn, spaceID); err != nil {
-		return err
 	}
 
 	// Update document generation comment stats.

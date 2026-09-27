@@ -898,6 +898,12 @@ func (srv *Server) getSnapshotResource(ctx context.Context, authority core.Princ
 		return nil, err
 	}
 
+	// Only test deletion after selecting the canonical winner: filtering tombstones
+	// in SQL would resurrect an older version. Explicit CID reads remain historical.
+	if cmt, ok := out.(*blob.Comment); ok && len(cmt.Body) == 0 {
+		return nil, status.Errorf(codes.NotFound, "comment %s/%s has been deleted", authority, tsid)
+	}
+
 	return &snapshotBlob{
 		CID:  c,
 		Blob: out,
@@ -916,6 +922,7 @@ var qGetResource = dqb.Str(`
 	WHERE COALESCE(sb.extra_attrs->>'account', sb.author) = (SELECT id FROM public_keys WHERE principal = :authority)
 	AND sb.extra_attrs->>'tsid' = :tsid
 	AND b.size > 0
+	ORDER BY sb.ts DESC, b.multihash DESC
 	LIMIT 1
 `)
 

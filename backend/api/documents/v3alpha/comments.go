@@ -494,25 +494,43 @@ var qGetCommentByCID = dqb.Str(`
 	WHERE (codec, multihash) = (:codec, :multihash)
 `)
 
-// qGetReplyCountByID counts distinct replying COMMENTS, not distinct reply
-// blobs: each edit of a comment is a separate blob carrying the same links, so
-// counting sources directly inflated the number by one per edit. Dedupe by the
-// source comment's identity (author + tsid). Match all target versions because
-// replies retain links to the blob they originally referenced.
+// qGetReplyCountByID counts canonical live replying comments, not historical
+// link-bearing blobs. Match all parent versions because replies retain the blob
+// they originally referenced. Select the source winner even when its target
+// document is unavailable (and therefore it has no comment_live stats row).
 var qGetReplyCountByID = dqb.Str(`
-SELECT count(DISTINCT COALESCE(src.extra_attrs->>'account', src.author) || ':' || (src.extra_attrs->>'tsid'))
-FROM blob_links bl
-JOIN structural_blobs src ON src.id = bl.source
-WHERE bl.target IN (
+WITH targets AS MATERIALIZED (
    SELECT id
    FROM structural_blobs sb
    WHERE sb.type = 'Comment'
    AND sb.extra_attrs->>'deleted' is not true
    AND COALESCE(sb.extra_attrs->>'account', sb.author) = (SELECT id FROM public_keys WHERE principal = :authority)
    AND sb.extra_attrs->>'tsid' = :tsid
+), matching AS MATERIALIZED (
+   SELECT DISTINCT
+      src.id,
+      COALESCE(src.extra_attrs->>'account', src.author) AS authority,
+      src.extra_attrs->>'tsid' AS tsid
+   FROM blob_links bl
+   JOIN structural_blobs src ON src.id = bl.source
+   WHERE bl.target IN (SELECT id FROM targets)
+   AND bl.type IN ('comment/reply-parent', 'comment/thread-root')
+   AND src.extra_attrs->>'deleted' is not true
+), replying AS (
+   SELECT DISTINCT authority, tsid FROM matching
 )
-AND bl.type IN ('comment/reply-parent', 'comment/thread-root')
-AND src.extra_attrs->>'deleted' is not true
+SELECT count(*)
+FROM replying r
+WHERE (
+   SELECT latest.id
+   FROM structural_blobs latest INDEXED BY structural_blobs_by_tsid
+   JOIN blobs b ON b.id = latest.id
+   WHERE latest.type = 'Comment'
+   AND COALESCE(latest.extra_attrs->>'account', latest.author) = r.authority
+   AND latest.extra_attrs->>'tsid' = r.tsid
+   ORDER BY latest.ts DESC, b.multihash DESC
+   LIMIT 1
+) IN (SELECT id FROM matching)
 `)
 
 // History uses the same replica-stable tie-break as current-comment selection.
