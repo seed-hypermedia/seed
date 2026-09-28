@@ -78,25 +78,20 @@ export function rankMentionCandidates(
       const key = mentionCandidateKey(candidate.id, candidate.type)
       if (seen.has(key)) return []
       seen.add(key)
-      const labels = [
-        candidate.title,
-        candidate.publicName,
-        candidate.petname,
-        candidate.id.uid,
-        candidate.id.path?.join('/'),
-      ]
-        .filter((v): v is string => !!v)
+      // An unnamed account carries its ID as title; the ID matches by prefix only, below.
+      const labels = [candidate.title, candidate.publicName, candidate.petname, candidate.id.path?.join('/')]
+        .filter((v): v is string => !!v && v !== candidate.id.uid)
         .map((v) => v.toLocaleLowerCase())
       let tier = normalized ? 4 : 0
+      // A base58 ID holds nearly any short word as a subsequence, so a pasted ID matches by prefix only.
+      const uid = candidate.id.uid.toLocaleLowerCase()
+      if (uid === normalized) tier = 0
+      else if (uid.startsWith(normalized)) tier = Math.min(tier, 1)
+      // No subsequence tier: almost any title holds a three-letter query's letters in order.
       for (const label of labels) {
         if (label === normalized) tier = Math.min(tier, 0)
         else if (label.startsWith(normalized)) tier = Math.min(tier, 1)
         else if (normalized.split(/\s+/).every((token) => label.includes(token))) tier = Math.min(tier, 2)
-        else {
-          let at = 0
-          for (const char of label) if (char === normalized[at]) at++
-          if (at === normalized.length) tier = Math.min(tier, 3)
-        }
       }
       if (tier === 4) return []
       const visit = visits.get(key)

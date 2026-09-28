@@ -1537,7 +1537,7 @@ export const HMSearchResultItemSchema = z.object({
   parentNames: z.array(z.string()),
   versionTime: z.string().optional(),
   searchQuery: z.string(),
-  type: z.enum(['document', 'contact', 'comment']),
+  type: z.enum(['document', 'profile', 'contact', 'comment']),
 })
 
 export const HMSearchPayloadSchema = z.object({

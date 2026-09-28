@@ -48,6 +48,18 @@ export const Search: HMRequestImplementation<HMSearchRequest> = {
               type: 'contact' as const,
             }
           }
+          // An account's name is indexed as its Profile blob and as its home document title. Either
+          // hit names the account, not a document version, so it opens the profile and has no version.
+          if (id && (entity.type === 'profile' || (entity.type === 'title' && !id.path?.length && !id.blockRef))) {
+            return {
+              id: hmId(id.uid),
+              title: entity.content,
+              parentNames: entity.parentNames,
+              icon: entity.icon,
+              searchQuery: query,
+              type: 'profile' as const,
+            }
+          }
           if (entity.type === 'comment') {
             const docId = unpackHmId(entity.docId)
             return docId

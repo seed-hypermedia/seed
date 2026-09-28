@@ -72,7 +72,7 @@ export function WebQuerySearchInput({onClose, onSelect, allowWebURL}: QuerySearc
       .map((item, index) => ({
         key: packHmId(item.id),
         title: item.title || item.id.uid,
-        subtitle: item.type === 'contact' ? 'Profile' : 'Document',
+        subtitle: item.type === 'contact' || item.type === 'profile' ? 'Profile' : 'Document',
         icon: item.icon,
         path: item.parentNames,
         searchQuery: item.searchQuery,
