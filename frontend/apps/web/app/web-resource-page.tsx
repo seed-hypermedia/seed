@@ -349,7 +349,10 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     if (!!signingAccountId && !canEdit && capabilitiesLoading) return undefined
     if (draftQueryEnabled && !draftQuery.isSuccess && !draftQuery.isError) return undefined
     if (!effectiveCanEdit) return false
-    if (draftQuery.isLoading || draftQuery.isFetching) return undefined
+    // Keep the current draft mounted during background refreshes. Autosave
+    // invalidates this query, and treating that refetch as an initial load
+    // temporarily replaced the editor with the draft-shell spinner.
+    if (draftQuery.isLoading) return undefined
     const d = draftData
     if (!d || isDraftStale) return false
     return {id: d.draftId, metadata: d.metadata as HMExistingDraft['metadata']}
@@ -363,7 +366,6 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     draftQuery.isError,
     effectiveCanEdit,
     draftQuery.isLoading,
-    draftQuery.isFetching,
     draftData,
     isDraftStale,
   ])
@@ -371,7 +373,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     placeholderDraftId && !draftData && isReservedLazyDraftId(placeholderDraftId) ? placeholderDraftId : null
   const useLocalDraftShell = shouldUseLocalWebDraftShell({
     placeholderDraftId,
-    isDraftLoading: draftQuery.isInitialLoading || draftQuery.isFetching,
+    isDraftLoading: draftQuery.isInitialLoading,
     hasDraft: !!draftData && !isDraftStale,
     isReservedDraft: !!reservedDraftId,
   })
