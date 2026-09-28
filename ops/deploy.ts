@@ -48,9 +48,7 @@ export const DEFAULT_DATA_DIR = '/opt/seed'
  *   wrappers/crons that pass no `--dir` keep resolving to their data.
  */
 export const DEFAULT_SEED_DIR =
-  dirname(process.argv[1] || '') === dirname(DEPLOY_SCRIPT_PATH)
-    ? DEFAULT_DATA_DIR
-    : dirname(process.argv[1] || '')
+  dirname(process.argv[1] || '') === dirname(DEPLOY_SCRIPT_PATH) ? DEFAULT_DATA_DIR : dirname(process.argv[1] || '')
 export const DEFAULT_REPO_URL = 'https://raw.githubusercontent.com/seed-hypermedia/seed/main'
 
 // SEED_DEPLOY_URL points at the ops/ directory (matches deploy.sh convention).
@@ -680,9 +678,7 @@ export function freeConflictingPortBindings(shell: ShellRunner, projectName: str
   const nameFilters = LEGACY_CONTAINER_NAMES.map((n) => `--filter "name=^${n}$"`).join(' ')
   const nameOut = shell.runSafe(`docker ps -aq ${nameFilters} 2>/dev/null`) ?? ''
 
-  const allIds = Array.from(
-    new Set([...portOut.split('\n').filter(Boolean), ...nameOut.split('\n').filter(Boolean)]),
-  )
+  const allIds = Array.from(new Set([...portOut.split('\n').filter(Boolean), ...nameOut.split('\n').filter(Boolean)]))
 
   const removed: string[] = []
   for (const id of allIds) {
@@ -1360,14 +1356,22 @@ export async function handleForeignStack(
 
   if (interactive) {
     const ok = await p.confirm({
-      message: `The seed containers on this host belong to ${foreignDir ? `the node at ${foreignDir}` : `compose project '${foreign}'`}. Stop it and take over? (its data is kept)`,
+      message: `The seed containers on this host belong to ${
+        foreignDir ? `the node at ${foreignDir}` : `compose project '${foreign}'`
+      }. Stop it and take over? (its data is kept)`,
     })
     if (p.isCancel(ok) || !ok) assertNoForeignStack(shell, paths)
     takeOverHost(shell, foreign)
     return
   }
 
-  if (foreignDir && !(await access(foreignDir).then(() => true, () => false))) {
+  if (
+    foreignDir &&
+    !(await access(foreignDir).then(
+      () => true,
+      () => false,
+    ))
+  ) {
     log(`Foreign stack '${foreign}' mounts ${foreignDir}, which no longer exists — removing the orphaned stack.`)
     stopStackByProject(shell, foreign)
     return
@@ -1432,11 +1436,7 @@ export function rollbackTagRefs(container: string, runningImage: string, config:
  * images forever. Instead we log the reason and still run the per-image
  * comparison below, which correctly reports the images that did update.
  */
-export async function checkForNewImages(
-  config: SeedConfig,
-  paths: DeployPaths,
-  shell: ShellRunner,
-): Promise<boolean> {
+export async function checkForNewImages(config: SeedConfig, paths: DeployPaths, shell: ShellRunner): Promise<boolean> {
   const env = buildComposeEnv(config, paths)
   const beforeImages = await getContainerImages(shell)
   if (beforeImages.size === 0) return false
@@ -1696,7 +1696,12 @@ export async function deploy(
 
   const containersHealthy = await checkContainersHealthy(shell)
   const containersOnConfiguredTag = containersMatchReleaseChannel(shell, config)
-  if (config.compose_sha === composeSha && config.compose_env_sha === envSha && containersHealthy && containersOnConfiguredTag) {
+  if (
+    config.compose_sha === composeSha &&
+    config.compose_env_sha === envSha &&
+    containersHealthy &&
+    containersOnConfiguredTag
+  ) {
     // Compose and config unchanged, containers running the configured tag.
     // Check if remote images have been updated (e.g. CI pushed a new tag).
     step('Checking for new images...')
@@ -1735,9 +1740,9 @@ export async function deploy(
     // container's /etc/group, which may not have these groups defined.
     // GIDs are passed through directly without any name resolution.
     const groups: string[] = []
-    const videoGid = shell.runSafe("getent group video 2>/dev/null | cut -d: -f3")
+    const videoGid = shell.runSafe('getent group video 2>/dev/null | cut -d: -f3')
     if (videoGid) groups.push(videoGid)
-    const renderGid = shell.runSafe("getent group render 2>/dev/null | cut -d: -f3")
+    const renderGid = shell.runSafe('getent group render 2>/dev/null | cut -d: -f3')
     if (renderGid) groups.push(renderGid)
 
     // Insert devices and group_add before the "volumes:" line of seed-daemon.
@@ -2141,7 +2146,9 @@ async function maybeStopOtherRunningNode(target: DeployPaths, shell: ShellRunner
   const otherDir = running && running !== target.seedDir ? running : null
   if (!foreign && !otherDir) return false
   const ok = await p.confirm({
-    message: `Another node (${otherDir ?? `compose project '${foreign}'`}) owns the seed containers on this host. Stop it and switch to ${target.seedDir}? (its data is kept)`,
+    message: `Another node (${
+      otherDir ?? `compose project '${foreign}'`
+    }) owns the seed containers on this host. Stop it and switch to ${target.seedDir}? (its data is kept)`,
   })
   if (p.isCancel(ok) || !ok) {
     p.cancel('Cancelled — the running node was left in place.')
@@ -2328,7 +2335,12 @@ async function cmdDoctor(paths: DeployPaths, shell: ShellRunner): Promise<void> 
     const expectedTestnetName = config.testnet ? 'dev' : ''
 
     const checks: Array<{container: string; envVar: string; expected: string; label?: string}> = [
-      {container: 'seed-daemon', envVar: 'SEED_P2P_TESTNET_NAME', expected: expectedTestnetName, label: expectedTestnetName || '(empty, mainnet)'},
+      {
+        container: 'seed-daemon',
+        envVar: 'SEED_P2P_TESTNET_NAME',
+        expected: expectedTestnetName,
+        label: expectedTestnetName || '(empty, mainnet)',
+      },
       {container: 'seed-daemon', envVar: 'LIGHTNING_API_URL', expected: expectedLightning},
       {container: 'seed-daemon', envVar: 'SEED_LOG_LEVEL', expected: config.compose_envs.LOG_LEVEL},
       {container: 'seed-web', envVar: 'SEED_BASE_URL', expected: config.domain},
@@ -2354,7 +2366,11 @@ async function cmdDoctor(paths: DeployPaths, shell: ShellRunner): Promise<void> 
       const actual = envMaps[container]?.[envVar]
       if (actual !== undefined && actual !== expected) {
         hasMismatch = true
-        mismatches.push(`  \u26A0 ${container.padEnd(14)} ${envVar}: expected ${JSON.stringify(label ?? expected)}, got ${JSON.stringify(actual)}`)
+        mismatches.push(
+          `  \u26A0 ${container.padEnd(14)} ${envVar}: expected ${JSON.stringify(
+            label ?? expected,
+          )}, got ${JSON.stringify(actual)}`,
+        )
       }
     }
 

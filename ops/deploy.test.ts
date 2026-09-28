@@ -972,18 +972,18 @@ describe('detectForeignStack / assertNoForeignStack', () => {
 
   test('null when the containers belong to our own project', () => {
     const shell = makeMockShell({
-      "inspect seed-proxy --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
-      "inspect seed-web --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
-      "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
+      'inspect seed-proxy --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
+      'inspect seed-web --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
+      'inspect seed-daemon --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
     })
     expect(detectForeignStack(shell, paths)).toBeNull()
   })
 
   test('returns the foreign project name when another install owns a container', () => {
     const shell = makeMockShell({
-      "inspect seed-proxy --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
-      "inspect seed-web --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
-      "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed-group-feed',
+      'inspect seed-proxy --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
+      'inspect seed-web --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
+      'inspect seed-daemon --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed-group-feed',
     })
     expect(detectForeignStack(shell, paths)).toBe('seed-group-feed')
   })
@@ -991,14 +991,14 @@ describe('detectForeignStack / assertNoForeignStack', () => {
   test('ignores legacy non-compose orphans (empty project label)', () => {
     // Empty label → not a foreign compose stack; freeConflictingPortBindings handles these.
     const shell = makeMockShell({
-      "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": '',
+      'inspect seed-daemon --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': '',
     })
     expect(detectForeignStack(shell, paths)).toBeNull()
   })
 
   test('assertNoForeignStack throws with a clear message on collision', () => {
     const shell = makeMockShell({
-      "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed-group-feed',
+      'inspect seed-daemon --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed-group-feed',
     })
     expect(() => assertNoForeignStack(shell, paths)).toThrow(/seed-group-feed/)
     expect(() => assertNoForeignStack(shell, paths)).toThrow(/can't share one host/)
@@ -1006,9 +1006,9 @@ describe('detectForeignStack / assertNoForeignStack', () => {
 
   test('assertNoForeignStack is a no-op for our own stack', () => {
     const shell = makeMockShell({
-      "inspect seed-proxy --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
-      "inspect seed-web --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
-      "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
+      'inspect seed-proxy --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
+      'inspect seed-web --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
+      'inspect seed-daemon --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
     })
     expect(() => assertNoForeignStack(shell, paths)).not.toThrow()
   })
@@ -1044,8 +1044,8 @@ describe('stopStackByProject', () => {
 
   test('force-removes stragglers still carrying the project label', () => {
     const {shell, commands} = makeRecordingShell({
-      "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
-      "inspect seed-web --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'other',
+      'inspect seed-daemon --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
+      'inspect seed-web --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'other',
     })
     stopStackByProject(shell, 'seed')
     expect(commands).toContain('docker rm -f seed-daemon 2>/dev/null')
@@ -1056,7 +1056,8 @@ describe('stopStackByProject', () => {
 describe('clearSeedCron', () => {
   test('strips seed-managed lines and keeps everything else', () => {
     const {shell, commands} = makeRecordingShell({
-      'crontab -l': '0 0 * * * /backup.sh\n*/10 * * * * bun deploy # seed-deploy\n0 * * * * docker image prune # seed-cleanup',
+      'crontab -l':
+        '0 0 * * * /backup.sh\n*/10 * * * * bun deploy # seed-deploy\n0 * * * * docker image prune # seed-cleanup',
     })
     clearSeedCron(shell)
     const install = commands.find((c) => c.includes('| crontab -'))!
@@ -1091,9 +1092,9 @@ describe('takeOverHost', () => {
 describe('handleForeignStack', () => {
   const paths = makePaths('/opt/seed-group-feed') // composeProjectName → "seed-group-feed"
   const foreignLabels = {
-    "inspect seed-proxy --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
-    "inspect seed-web --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
-    "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
+    'inspect seed-proxy --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
+    'inspect seed-web --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
+    'inspect seed-daemon --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
   }
 
   test('no-op when no foreign stack exists', async () => {
@@ -1923,10 +1924,9 @@ describe('removeLegacyHostCronLines', () => {
   })
 
   test('strips lines marked with # website-deploy comment', () => {
-    const crontab = [
-      '*/10 * * * * /usr/local/bin/whatever # website-deploy',
-      '0 * * * * /usr/bin/other # my-job',
-    ].join('\n')
+    const crontab = ['*/10 * * * * /usr/local/bin/whatever # website-deploy', '0 * * * * /usr/bin/other # my-job'].join(
+      '\n',
+    )
     const result = removeLegacyHostCronLines(crontab)
     expect(result).toContain('my-job')
     expect(result).not.toContain('# website-deploy')
@@ -1999,12 +1999,12 @@ describe('removeLegacyHostCron', () => {
 describe('describeBindFailure', () => {
   test('extracts the offending port from a docker bind error', () => {
     const err =
-      "Error response from daemon: driver failed programming external connectivity on endpoint seed-daemon (...): Bind for 0.0.0.0:56000 failed: port is already allocated"
+      'Error response from daemon: driver failed programming external connectivity on endpoint seed-daemon (...): Bind for 0.0.0.0:56000 failed: port is already allocated'
     const msg = describeBindFailure(err)
     expect(msg).not.toBeNull()
     expect(msg!).toContain('Port 56000')
     expect(msg!).toContain('non-Docker process')
-    expect(msg!).toContain(":56000")
+    expect(msg!).toContain(':56000')
   })
 
   test('returns null when the error is not a bind failure', () => {
