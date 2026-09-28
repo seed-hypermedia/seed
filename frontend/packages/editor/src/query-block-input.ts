@@ -19,10 +19,21 @@ export type QueryBlockInputProps = {
   queryLimit?: string
 }
 
+/** The document a query block sits in; an include with an empty space targets it. */
+export type QueryBlockContainer = {uid: string; path?: string[] | null}
+
+/** Points includes with an empty space at the containing document, as the collection view does. */
+export function resolveQueryIncludes(includes: any[], container: QueryBlockContainer | null | undefined): any[] {
+  if (!Array.isArray(includes) || !container) return includes
+  const path = (container.path ?? []).filter(Boolean).join('/')
+  return includes.map((include) => (include?.space ? include : {...include, space: container.uid, path}))
+}
+
 export function getQueryBlockInput(
   props: QueryBlockInputProps,
+  container?: QueryBlockContainer | null,
 ): {query: {includes: any[]; sort: {term: string; reverse: boolean}[]; limit: number | undefined}} | null {
-  const queryIncludes = JSON.parse(props.queryIncludes || defaultQueryIncludes)
+  const queryIncludes = resolveQueryIncludes(JSON.parse(props.queryIncludes || defaultQueryIncludes), container)
   const parsedSort = JSON.parse(props.querySort || defaultQuerySort)
   const querySort = normalizeQuerySort(parsedSort)
   const parsedLimit = parseInt(props.queryLimit || '', 10)

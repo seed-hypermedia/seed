@@ -305,7 +305,7 @@ async function prefetchResourceData(
       // key won't match and the prefetched data is never found (SSR renders
       // an empty query block and the client refetches).
       ...queryBlocks.map((block) => {
-        const input = getQueryBlockInput(hmBlockToEditorBlock(block).props as any)
+        const input = getQueryBlockInput(hmBlockToEditorBlock(block).props as any, docId)
         if (!input) return Promise.resolve()
         return instrument(ctx || noopCtx, 'prefetchQueryBlock', () =>
           prefetchCtx.queryClient.prefetchQuery(queryQueryBlock(client, input)),
@@ -481,6 +481,7 @@ async function loadResourcePayload(
     ? renderDocumentToHTML(document.content, {
         cacheKey,
         rootChildrenType: document.metadata?.childrenType,
+        documentId: docId,
         renderHref: (url) =>
           hypermediaUrlToHref(url, {
             origin,

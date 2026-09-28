@@ -6,7 +6,7 @@ import {
   UnpackedHypermediaId,
   normalizeQuerySort,
 } from '@seed-hypermedia/client/hm-types'
-import {entityQueryPathToHmIdPath} from '@shm/shared'
+import {entityQueryPathToHmIdPath, useRenderResourceStack} from '@shm/shared'
 import {queryQueryBlock} from '@shm/shared/models/queries'
 import {useDebounce} from '@shm/shared/utils/use-debounce'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
@@ -35,7 +35,7 @@ import {buildSlotItems} from './query-block-draft-items'
 import {useQuerySearchInput} from './query-search-context'
 import {HMBlockSchema} from './schema'
 
-import {defaultQueryIncludes, defaultQuerySort, getQueryBlockInput} from './query-block-input'
+import {defaultQueryIncludes, defaultQuerySort, getQueryBlockInput, resolveQueryIncludes} from './query-block-input'
 
 export const QueryBlock = createReactBlockSpec({
   type: 'query',
@@ -91,9 +91,19 @@ type HMQueryBlockSort = NonNullable<HMBlockQuery['attributes']['query']['sort']>
 
 function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSchema>) {
   const client = useUniversalClient()
+  const renderStack = useRenderResourceStack()
+  // The document this block sits in: an include with an empty space targets it.
+  const container = [...renderStack].reverse().find((resource) => resource.kind === 'document')?.id ?? null
+  const containerKey = container ? `${container.uid}/${(container.path ?? []).join('/')}` : ''
   const queryIncludes: HMQueryBlockIncludes = useMemo(() => {
     return JSON.parse(block.props.queryIncludes || defaultQueryIncludes)
   }, [block.props.queryIncludes])
+  // Resolved for reading only; the settings UI edits and saves the raw includes.
+  const resolvedIncludes: HMQueryBlockIncludes = useMemo(
+    () => resolveQueryIncludes(queryIncludes, container),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [queryIncludes, containerKey],
+  )
 
   const querySort = useMemo(() => {
     return normalizeQuerySort(JSON.parse(block.props.querySort || defaultQuerySort))
@@ -101,14 +111,18 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
 
   const banner = block.props.banner === 'true'
   const queryTargetId = useMemo<UnpackedHypermediaId | null>(() => {
-    const include = queryIncludes?.[0]
+    const include = resolvedIncludes?.[0]
     if (!include?.space) return null
     return hmId(include.space, {
       path: entityQueryPathToHmIdPath(include.path),
       latest: true,
     })
-  }, [queryIncludes])
-  const baseQueryBlockInput = useMemo(() => getQueryBlockInput(block.props), [block.props])
+  }, [resolvedIncludes])
+  const baseQueryBlockInput = useMemo(
+    () => getQueryBlockInput(block.props, container),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [block.props, containerKey],
+  )
   const [viewerSearch, setViewerSearch] = useState('')
   const [viewerFilters, setViewerFilters] = useState<NonNullable<NonNullable<HMQueryBlockInput['viewer']>['filters']>>(
     [],
