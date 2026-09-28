@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React, {useRef} from 'react'
+import {useRef} from 'react'
 import {createRoot} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {describe, expect, test} from 'vitest'
