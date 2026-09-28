@@ -145,6 +145,12 @@ CREATE INDEX sessions_by_agent ON sessions (agent_id, updated_at DESC);
 
 CREATE INDEX sessions_by_parent ON sessions (parent_session_id, created_at);
 
+-- Top-level listings: `parent_session_id IS NULL ORDER BY updated_at DESC, id DESC`, per agent and
+-- account-wide, without sorting every top-level session on the server.
+CREATE INDEX sessions_top_by_agent ON sessions (agent_id, parent_session_id, updated_at DESC, id DESC);
+
+CREATE INDEX sessions_top_by_time ON sessions (parent_session_id, updated_at DESC, id DESC);
+
 -- A continuation edge: an agent carried a conversation from the predecessor into a fresh
 -- successor session (continue_session). Distinct from parent/child (delegation that returns):
 -- the successor becomes the foreground conversation. The manifest is the successor's exact

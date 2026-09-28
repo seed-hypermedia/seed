@@ -65,6 +65,7 @@ describe('sqlite', () => {
             '',
           )
           .replace(/CREATE INDEX sessions_by_parent ON sessions \(parent_session_id, created_at\);\n\n/u, '')
+          .replace(/CREATE INDEX sessions_top_by_\w+ ON sessions \([^)]*\);\n+/gu, '')
           .replace(/-- A continuation edge[\s\S]*?CREATE TABLE trigger_firings/u, 'CREATE TABLE trigger_firings')
           .replace(/    capability_cid TEXT,\n/u, '')
           .replace(/    public_read INTEGER NOT NULL DEFAULT 0,\n/u, '')
@@ -123,7 +124,7 @@ describe('sqlite', () => {
     }
   })
 
-  test('a database one migration behind links trigger-launched workflow sessions to their firing', () => {
+  test('a database two migrations behind links trigger-launched workflow sessions to their firing', () => {
     // Before this migration a headless (script/tool) trigger's workflow spawned child sessions that
     // nothing tied back to the firing: no parent session, and the firing's session_id stayed null.
     const db = createMemoryDatabase()
@@ -131,7 +132,7 @@ describe('sqlite', () => {
       db.run(sqlite.schema)
       db.run(`INSERT INTO server_config (key, value) VALUES (?, ?)`, [
         sqlite.SCHEMA_MIGRATION_VERSION_KEY,
-        String(sqlite.desiredVersion - 1),
+        String(sqlite.desiredVersion - 2),
       ])
       const now = 1_700_000_000_000
       db.run(`INSERT INTO accounts (id, created_at, updated_at) VALUES ('acct', ?, ?)`, [now, now])
@@ -216,7 +217,7 @@ describe('sqlite', () => {
       expect(columnExists(db, 'agent_triggers', 'merged_into')).toBe(false)
       db.run(`INSERT INTO server_config (key, value) VALUES (?, ?)`, [
         sqlite.SCHEMA_MIGRATION_VERSION_KEY,
-        String(sqlite.desiredVersion - 2),
+        String(sqlite.desiredVersion - 3),
       ])
       const result = sqlite.openWithDatabase(db)
       expect(result.ok).toBe(true)
