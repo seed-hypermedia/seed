@@ -311,6 +311,7 @@
         "_": "\"ListSessions\"",
         "agentId?": "string",
         "cursor?": "SessionListCursor",
+        "excludeTriggered?": "boolean",
         "includeChildren?": "boolean",
         "limit?": "number",
         "parentSessionId?": "string"
