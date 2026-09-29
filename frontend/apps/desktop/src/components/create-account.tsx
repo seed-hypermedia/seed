@@ -10,6 +10,7 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {AccountProfileForm, type AccountProfileFormValues} from '@shm/ui/components/account-profile-form'
+import {AVATAR_IMAGE_POLICY} from '@shm/ui/image-processing'
 import {DialogTitle} from '@shm/ui/components/dialog'
 import type {SiteMetaFields} from '@shm/ui/edit-profile-form'
 import {toast} from '@shm/ui/toast'
@@ -39,7 +40,10 @@ export function useCreateAccount() {
 
         let iconUri = ''
         if (profile.icon instanceof Blob) {
-          const cid = await fileUpload(new File([profile.icon], 'icon'))
+          const cid = await fileUpload(
+            new File([profile.icon], 'icon', {type: profile.icon.type || 'image/png'}),
+            AVATAR_IMAGE_POLICY,
+          )
           iconUri = `ipfs://${cid}`
         } else if (typeof profile.icon === 'string' && profile.icon) {
           iconUri = profile.icon

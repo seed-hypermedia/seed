@@ -4,6 +4,7 @@ import {NavigationSettings} from '@/components/site-settings-navigation'
 import {WebDomainSettings} from '@/components/site-settings-web-domain'
 import {useUpdateHomeDocument} from '@/models/site'
 import {fileUpload} from '@/utils/file-upload'
+import {AVATAR_IMAGE_POLICY, COVER_IMAGE_POLICY, type ImageProcessingPolicy} from '@shm/ui/image-processing'
 import {useNavigate} from '@/utils/useNavigate'
 import type {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useIsSiteOwner} from '@shm/shared/models/capabilities'
@@ -107,6 +108,8 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
   const [name, setName] = useState<string | null>(null)
   const [logo, setLogo] = useState<ImageValue | undefined>(undefined)
   const [cover, setCover] = useState<ImageValue | undefined>(undefined)
+  const [logoProcessing, setLogoProcessing] = useState(false)
+  const [coverProcessing, setCoverProcessing] = useState(false)
 
   if (resource.isInitialLoading || isOwnerLoading) {
     return (
@@ -136,16 +139,17 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
   const coverValue = cover === undefined ? metadata.cover || null : cover
 
   const isDirty = name !== null || logo !== undefined || cover !== undefined
-  const canSave = isDirty && nameValue.trim().length > 0 && !updateHome.isPending
+  const canSave = isDirty && nameValue.trim().length > 0 && !updateHome.isPending && !logoProcessing && !coverProcessing
 
   async function handleSave() {
+    if (!canSave) return
     try {
       // Pass full desired metadata. The hook diffs against the published values.
       const nextMetadata: HMMetadata = {
         ...metadata,
         name: nameValue.trim(),
-        icon: logo !== undefined ? await resolveImageValue(logo) : metadata.icon,
-        cover: cover !== undefined ? await resolveImageValue(cover) : metadata.cover,
+        icon: logo !== undefined ? await resolveImageValue(logo, AVATAR_IMAGE_POLICY) : metadata.icon,
+        cover: cover !== undefined ? await resolveImageValue(cover, COVER_IMAGE_POLICY) : metadata.cover,
       }
       await updateHome.mutateAsync({metadata: nextMetadata})
       toast.success('Space identity updated')
@@ -175,6 +179,7 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
       <SettingsField label="Space logo" hint="100px height JPG or PNG.">
         <ImagePicker
           value={logoValue}
+          onProcessingChange={setLogoProcessing}
           onChange={setLogo}
           onClear={() => setLogo(null)}
           height={100}
@@ -187,6 +192,7 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
         <div className="max-w-2xl">
           <ImagePicker
             value={coverValue}
+            onProcessingChange={setCoverProcessing}
             onChange={setCover}
             onClear={() => setCover(null)}
             height={160}
@@ -199,9 +205,9 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
 }
 
 /** Upload a picked file and return its ipfs ref, or pass through an existing ref. */
-async function resolveImageValue(value: ImageValue): Promise<string> {
+async function resolveImageValue(value: ImageValue, policy: ImageProcessingPolicy): Promise<string> {
   if (value instanceof File) {
-    const cid = await fileUpload(value)
+    const cid = await fileUpload(value, policy)
     return `ipfs://${cid}`
   }
   return value ?? ''
@@ -223,6 +229,7 @@ function SettingsField({label, hint, children}: {label: string; hint?: string; c
 
 function ImagePicker({
   value,
+  onProcessingChange,
   onChange,
   onClear,
   height,
@@ -230,6 +237,7 @@ function ImagePicker({
   crop,
 }: {
   value: ImageValue
+  onProcessingChange: (processing: boolean) => void
   onChange: (file: File) => void
   onClear: () => void
   height: number
@@ -256,6 +264,7 @@ function ImagePicker({
       width={width}
       uploadOnChange={false}
       crop={crop}
+      onPendingChange={onProcessingChange}
       onImageUpload={(file) => {
         if (file instanceof File) onChange(file)
       }}
