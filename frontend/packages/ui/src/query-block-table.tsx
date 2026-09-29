@@ -1,12 +1,12 @@
 import {HMDocumentInfo, type HMQueryTableConfig} from '@seed-hypermedia/client/hm-types'
 import {formattedDate, getMetadataName, useRouteLink} from '@shm/shared'
 import {
-  type ColumnDef,
-  type SortingState,
   flexRender,
   getCoreRowModel,
   getSortedRowModel,
   useReactTable,
+  type ColumnDef,
+  type SortingState,
 } from '@tanstack/react-table'
 import {ChevronDown, ChevronUp, ChevronsUpDown, FileText, MessageSquare, Share2} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState} from 'react'
@@ -66,8 +66,9 @@ export function QueryBlockTable({
     columnSizingRef.current = columnSizing ?? {}
   }, [columnSizing])
 
+  // Clamp rather than reset.
   useEffect(() => {
-    setVisibleCount(Math.min(items.length, INITIAL_ROWS))
+    setVisibleCount((count) => Math.min(Math.max(count, INITIAL_ROWS), items.length))
   }, [items])
 
   useEffect(() => {
