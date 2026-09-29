@@ -59,7 +59,7 @@ export function ImageForm({
   ...props
 }: ImageFormProps) {
   const [processing, setProcessing] = useState(false)
-  const deliver = (file: File, resetInput?: () => void) => {
+  const deliver = async (file: File, resetInput?: () => void) => {
     if (!onImageUpload) return
     if (uploadOnChange) {
       if (!fileUpload) return
