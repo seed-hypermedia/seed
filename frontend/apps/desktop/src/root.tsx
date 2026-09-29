@@ -9,6 +9,7 @@ import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {queryClient} from '@shm/shared/models/query-client'
 import type {StateStream} from '@shm/shared/utils/stream'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {FileDropGuard} from '@shm/ui/file-drop-guard'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast, Toaster} from '@shm/ui/toast'
@@ -512,6 +513,7 @@ function ElectronApp() {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
+    <FileDropGuard />
     <ElectronApp />
   </React.StrictMode>,
 )

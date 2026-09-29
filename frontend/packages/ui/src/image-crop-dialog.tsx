@@ -1,10 +1,12 @@
-import {useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import Cropper, {type Area, type Point} from 'react-easy-crop'
 import {Button} from './button'
 import {Dialog, DialogContent, DialogTitle} from './components/dialog'
 import {cropImageFile, type CropFormat, type CropState} from './image-crop'
+import {prepareImageForCrop} from './image-processing'
 import {SizableText} from './text'
 
+/** Source, framing, and completion callback for one crop request. */
 export type ImageCropDialogInput = {
   file: File
   /** Width/height ratio the selection is locked to. */
@@ -37,7 +39,7 @@ export function ImageCropDialog({input, onClose}: {input: ImageCropDialogInput |
     >
       {/* DialogContent drops its default sizing whenever a className is given,
           so the width has to be restated here in full. */}
-      <DialogContent className="max-h-[calc(100dvh-4rem)] w-full max-w-3xl">
+      <DialogContent aria-describedby={undefined} className="max-h-[calc(100dvh-4rem)] w-full max-w-3xl">
         {input ? <ImageCropForm input={input} onClose={onClose} /> : null}
       </DialogContent>
     </Dialog>
@@ -49,10 +51,30 @@ function ImageCropForm({input, onClose}: {input: ImageCropDialogInput; onClose: 
   // mount runs the cleanup once before settling, and a memoised URL would stay
   // revoked, leaving the cropper loading a dead blob.
   const [imageUrl, setImageUrl] = useState('')
+  const [prepared, setPrepared] = useState<File | null>(null)
+  const active = useRef(false)
   useEffect(() => {
-    const url = URL.createObjectURL(input.file)
-    setImageUrl(url)
-    return () => URL.revokeObjectURL(url)
+    active.current = true
+    let cancelled = false
+    let url: string | undefined
+    setPrepared(null)
+    setImageUrl('')
+    setError(null)
+    prepareImageForCrop(input.file)
+      .then((file) => {
+        if (cancelled) return
+        url = URL.createObjectURL(file)
+        setPrepared(file)
+        setImageUrl(url)
+      })
+      .catch((error) => {
+        if (!cancelled) setError(error instanceof Error ? error.message : 'Could not prepare this image')
+      })
+    return () => {
+      cancelled = true
+      active.current = false
+      if (url) URL.revokeObjectURL(url)
+    }
   }, [input.file])
 
   const [crop, setCrop] = useState<Point>({x: input.initialCrop?.x ?? 0, y: input.initialCrop?.y ?? 0})
@@ -62,17 +84,19 @@ function ImageCropForm({input, onClose}: {input: ImageCropDialogInput; onClose: 
   const [error, setError] = useState<string | null>(null)
 
   async function applyCrop() {
-    if (!selection) return
+    if (!selection || !prepared) return
     setIsExporting(true)
     setError(null)
     try {
-      const file = await cropImageFile(input.file, selection, {
+      const file = await cropImageFile(prepared, selection, {
         maxDimension: input.maxDimension,
         format: input.format,
       })
+      if (!active.current) return
       input.onCropped({file, crop: {x: crop.x, y: crop.y, zoom}})
       onClose()
     } catch (e) {
+      if (!active.current) return
       setError(e instanceof Error ? e.message : 'Could not crop this image')
       setIsExporting(false)
     }
@@ -122,7 +146,7 @@ function ImageCropForm({input, onClose}: {input: ImageCropDialogInput; onClose: 
         <Button variant="outline" onClick={onClose} disabled={isExporting}>
           Cancel
         </Button>
-        <Button variant="default" onClick={() => void applyCrop()} disabled={isExporting || !selection}>
+        <Button variant="default" onClick={() => void applyCrop()} disabled={isExporting || !selection || !prepared}>
           {isExporting ? 'Applying…' : 'Apply'}
         </Button>
       </div>
@@ -142,10 +166,12 @@ export function useImageCropper({crop, onCropped}: {crop?: ImageCropConfig; onCr
   // The file as chosen. Kept so the framing can be revisited against the whole
   // picture instead of against an already cropped copy of it.
   const [source, setSource] = useState<File | null>(null)
+  const [requestId, setRequestId] = useState(0)
   const [lastCrop, setLastCrop] = useState<CropState | undefined>(undefined)
 
   function open(file: File, initialCrop?: CropState) {
     if (!crop) return
+    setRequestId((id) => id + 1)
     setRequest({
       ...crop,
       file,
@@ -167,16 +193,18 @@ export function useImageCropper({crop, onCropped}: {crop?: ImageCropConfig; onCr
       return true
     },
     source: crop ? source : null,
+    isOpen: !!request,
     // Reopens the cropper on the kept original, restoring the last framing.
     reopen() {
       if (source) open(source, lastCrop)
     },
     // Clears the kept original, for when the image is removed.
     clear() {
+      setRequest(null)
       setSource(null)
       setLastCrop(undefined)
     },
-    // Dialot to render in a component for the cropper to appear.
-    dialog: <ImageCropDialog input={request} onClose={() => setRequest(null)} />,
+    // Dialog to render in a component for the cropper to appear.
+    dialog: <ImageCropDialog key={requestId} input={request} onClose={() => setRequest(null)} />,
   }
 }

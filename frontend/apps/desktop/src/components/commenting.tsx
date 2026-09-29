@@ -17,6 +17,7 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {CommentEditor, type CommentEditorSubmitHandle} from '@shm/editor/comment-editor'
 import {hmId, queryClient, queryKeys} from '@shm/shared'
+import {CONTENT_IMAGE_POLICY, processImageIfSupported} from '@shm/ui/image-processing'
 import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import type {InlineEditCommentProps} from '@shm/shared/comments-service-provider'
 import {hasBlockContent} from '@shm/shared/content'
@@ -474,7 +475,8 @@ function CommentBoxImpl(props: {
 
   // Desktop file attachment handler
   const handleFileAttachment = useCallback(async (file: File) => {
-    const props = await handleDragMedia(file)
+    const attachment = await processImageIfSupported(file, CONTENT_IMAGE_POLICY)
+    const props = await handleDragMedia(attachment)
     if (!props) {
       throw new Error('Failed to handle file')
     }
@@ -482,6 +484,8 @@ function CommentBoxImpl(props: {
       // Return ipfs url for desktop
       url: props.url,
       displaySrc: '',
+      mime: attachment.type,
+      name: attachment.name,
     }
   }, [])
 
@@ -557,10 +561,11 @@ function InlineEditBox({comment, onSave, onCancel, isSaving}: InlineEditCommentP
   const contentRef = useRef<HMBlockNode[]>(comment.content)
 
   const handleFileAttachment = useCallback(async (file: File) => {
-    const props = await handleDragMedia(file)
+    const attachment = await processImageIfSupported(file, CONTENT_IMAGE_POLICY)
+    const props = await handleDragMedia(attachment)
     if (!props) throw new Error('Failed to handle file')
     // Return ipfs url for desktop
-    return {url: props.url, displaySrc: ''}
+    return {url: props.url, displaySrc: '', mime: attachment.type, name: attachment.name}
   }, [])
 
   const handleSubmit = useCallback(

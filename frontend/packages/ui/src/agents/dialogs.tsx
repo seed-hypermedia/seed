@@ -37,6 +37,7 @@ import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {SigningIdentityIcon} from './signing-identity-icon'
+import {AVATAR_IMAGE_POLICY, IMAGE_FILE_ACCEPT, processImage} from '@shm/ui/image-processing'
 import {Select, SelectContent, SelectDropdown, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {Notice} from '@shm/ui/notice'
@@ -656,6 +657,7 @@ export function EditAgentAccountDialog({
   const [label, setLabel] = useState(identity.label || identity.accountId || identity.name)
   const [iconFile, setIconFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [processingIcon, setProcessingIcon] = useState(false)
   // Release the object URL when the dialog unmounts or the preview is replaced.
   useEffect(() => {
     return () => {
@@ -664,6 +666,7 @@ export function EditAgentAccountDialog({
   }, [previewUrl])
 
   async function handleSave() {
+    if (processingIcon) return
     const nextLabel = label.trim()
     if (!nextLabel) {
       toast.error('Account name is required')
@@ -697,15 +700,23 @@ export function EditAgentAccountDialog({
         >
           <input
             type="file"
-            accept="image/*"
-            disabled={updateIdentity.isLoading}
+            accept={IMAGE_FILE_ACCEPT}
+            disabled={updateIdentity.isLoading || processingIcon}
             className="absolute inset-0 z-10 cursor-pointer opacity-0 disabled:cursor-default"
-            onChange={(event) => {
+            onChange={async (event) => {
               const file = event.target.files?.[0]
               event.target.value = ''
               if (file) {
-                setIconFile(file)
-                setPreviewUrl(URL.createObjectURL(file))
+                setProcessingIcon(true)
+                try {
+                  const icon = await processImage(file, AVATAR_IMAGE_POLICY)
+                  setIconFile(icon)
+                  setPreviewUrl(URL.createObjectURL(icon))
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : 'Could not process account icon')
+                } finally {
+                  setProcessingIcon(false)
+                }
               }
             }}
           />
@@ -732,7 +743,10 @@ export function EditAgentAccountDialog({
         <Button variant="ghost" onClick={onClose}>
           Cancel
         </Button>
-        <Button onClick={() => void handleSave()} disabled={updateIdentity.isLoading || !label.trim()}>
+        <Button
+          onClick={() => void handleSave()}
+          disabled={updateIdentity.isLoading || processingIcon || !label.trim()}
+        >
           {updateIdentity.isLoading ? <Spinner /> : null}
           Save
         </Button>
@@ -809,7 +823,8 @@ function AgentAccountRow({
   // Optimistic local preview of a just-picked image so the new icon shows instantly while the
   // server uploads, publishes, and the account metadata round-trips back.
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const uploading = saveState === 'saving'
+  const [processingIcon, setProcessingIcon] = useState(false)
+  const uploading = saveState === 'saving' || processingIcon
 
   // Drop the optimistic preview if the upload failed, reverting to the published icon.
   useEffect(() => {
@@ -823,9 +838,17 @@ function AgentAccountRow({
     }
   }, [previewUrl])
 
-  function handleFile(file: File) {
-    setPreviewUrl(URL.createObjectURL(file))
-    onIconSelect(file)
+  async function handleFile(file: File) {
+    setProcessingIcon(true)
+    try {
+      const icon = await processImage(file, AVATAR_IMAGE_POLICY)
+      setPreviewUrl(URL.createObjectURL(icon))
+      onIconSelect(icon)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not process account icon')
+    } finally {
+      setProcessingIcon(false)
+    }
   }
 
   return (
@@ -837,13 +860,13 @@ function AgentAccountRow({
       >
         <input
           type="file"
-          accept="image/*"
+          accept={IMAGE_FILE_ACCEPT}
           disabled={uploading}
           className="absolute inset-0 z-10 cursor-pointer opacity-0 disabled:cursor-default"
           onChange={(event) => {
             const file = event.target.files?.[0]
             event.target.value = ''
-            if (file) handleFile(file)
+            if (file) void handleFile(file)
           }}
         />
         {uploading ? (

@@ -1,3 +1,5 @@
+import {decodeImageForCrop, registerProcessedImage} from './image-processing'
+
 /**
  * Pixel rectangle selected within the source image, matching the shape
  * react-easy-crop reports as `croppedAreaPixels`.
@@ -10,8 +12,10 @@ export type CropRect = {x: number; y: number; width: number; height: number}
  */
 export type CropState = {x: number; y: number; zoom: number}
 
+/** Supported crop output encodings. */
 export type CropFormat = 'image/jpeg' | 'image/png' | 'image/webp'
 
+/** Size and encoding settings for a crop export. */
 export type CropImageOptions = {
   /** Longest edge of the result, in pixels. The crop is scaled down to fit. */
   maxDimension: number
@@ -62,7 +66,7 @@ export function cropOutputFormat(sourceType: string): CropFormat {
  * Render rect of file into a new image file, downscaled to maxDimension.
  */
 export async function cropImageFile(file: File, rect: CropRect, options: CropImageOptions): Promise<File> {
-  const bitmap = await createImageBitmap(file, {imageOrientation: 'from-image'})
+  const bitmap = await decodeImageForCrop(file)
   try {
     const size = cropOutputSize(rect, options.maxDimension)
     const format = options.format ?? cropOutputFormat(file.type)
@@ -81,7 +85,11 @@ export async function cropImageFile(file: File, rect: CropRect, options: CropIma
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, format, options.quality ?? 0.9))
     if (!blob) throw new Error('Cannot crop the image: the canvas could not be encoded')
     const baseName = file.name.replace(/\.[^./\\]+$/, '') || 'image'
-    return new File([blob], `${baseName}.${EXTENSIONS[format]}`, {type: format})
+    const actualType = blob.type as CropFormat
+    if (!EXTENSIONS[actualType]) throw new Error('Cannot crop the image: unsupported output format')
+    const result = new File([blob], `${baseName}.${EXTENSIONS[actualType]}`, {type: actualType})
+    registerProcessedImage(result, size.width, size.height)
+    return result
   } finally {
     bitmap.close()
   }

@@ -1,6 +1,7 @@
 import {DAEMON_FILE_UPLOAD_URL, MAX_FILE_SIZE_B, MAX_FILE_SIZE_MB} from '@shm/shared/constants'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {Button} from '@shm/ui/button'
+import {IMAGE_FILE_ACCEPT} from '@shm/ui/image-processing'
 import {Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
@@ -420,7 +421,7 @@ export const MediaContainer = ({
             <input
               ref={fileInputRef}
               type="file"
-              accept={mediaType === 'file' ? undefined : `${mediaType}/*`}
+              accept={mediaType === 'image' ? IMAGE_FILE_ACCEPT : mediaType === 'file' ? undefined : `${mediaType}/*`}
               style={{display: 'none'}}
               onChange={(e) => {
                 const file = e.target.files?.[0]

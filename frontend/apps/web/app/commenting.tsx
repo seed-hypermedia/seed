@@ -9,6 +9,7 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {CommentEditor, type CommentEditorSubmitHandle} from '@shm/editor/comment-editor'
+import {CONTENT_IMAGE_POLICY, processImageIfSupported} from '@shm/ui/image-processing'
 import {
   getValidatedWebSeedLinkState,
   hmId,
@@ -529,6 +530,8 @@ async function handleFileAttachment(
   draftId?: string,
 ): Promise<{
   displaySrc: string
+  mime?: string
+  name?: string
   fileBinary?: Uint8Array
   mediaRef?: {
     draftId: string
@@ -538,7 +541,8 @@ async function handleFileAttachment(
     size: number
   }
 }> {
-  const fileBuffer = await file.arrayBuffer()
+  const attachment = file instanceof File ? await processImageIfSupported(file, CONTENT_IMAGE_POLICY) : file
+  const fileBuffer = await attachment.arrayBuffer()
   const fileBinary = new Uint8Array(fileBuffer)
 
   // If draftId provided and we're in browser, use IndexedDB
@@ -546,14 +550,14 @@ async function handleFileAttachment(
     try {
       const {putDraftMedia} = await import('./draft-media-db')
       const mediaId = generateUUID()
-      const name = (file as File).name || `media-${Date.now()}`
-      const mime = file.type || 'application/octet-stream'
-      const size = file.size
+      const name = (attachment as File).name || `media-${Date.now()}`
+      const mime = attachment.type || 'application/octet-stream'
+      const size = attachment.size
 
-      await putDraftMedia(draftId, mediaId, file, {name, mime, size})
+      await putDraftMedia(draftId, mediaId, attachment, {name, mime, size})
 
       return {
-        displaySrc: URL.createObjectURL(file),
+        displaySrc: URL.createObjectURL(attachment),
         mediaRef: {
           draftId,
           mediaId,
@@ -582,8 +586,10 @@ async function handleFileAttachment(
 
   // Legacy behavior: store as binary in the block
   return {
-    displaySrc: URL.createObjectURL(file),
+    displaySrc: URL.createObjectURL(attachment),
     fileBinary,
+    mime: attachment.type,
+    name: (attachment as File).name,
   }
 }
 

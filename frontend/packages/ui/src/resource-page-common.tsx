@@ -44,6 +44,7 @@ import type {
   DocumentContentProps,
   LinkExtensionOptions,
 } from '@shm/shared/document-content-props'
+import {CONTENT_IMAGE_POLICY, COVER_IMAGE_POLICY, processImage, processImageIfSupported} from './image-processing'
 import {findDraftForPath, isDraftPlaceholderPath, useDraftsForAccountSafe} from '@shm/shared/draft-breadcrumb-context'
 import {parseExploreQuery, type HMExploreResultType} from '@shm/shared/explore'
 import {useIsHomeDraftOverride} from '@shm/shared/home-draft-context'
@@ -2016,7 +2017,7 @@ function DocumentBody({
   const changeCover = useCallback(
     async (file: File) => {
       if (!fileUpload) return
-      const cid = await fileUpload(file)
+      const cid = await fileUpload(await processImage(file, COVER_IMAGE_POLICY))
       beginEditIfNeeded()
       send({type: 'change', metadata: {cover: cid.startsWith('ipfs://') ? cid : `ipfs://${cid}`}})
     },
@@ -4645,10 +4646,13 @@ function ContentViewWithOutline({
   const handleFileAttachment = useMemo<DocumentContentProps['handleFileAttachment'] | undefined>(() => {
     if (!fileUpload) return undefined
     return async (file: File) => {
-      const cid = await fileUpload(file)
+      const attachment = await processImageIfSupported(file, CONTENT_IMAGE_POLICY)
+      const cid = await fileUpload(attachment)
       return {
         url: cid.startsWith('ipfs://') ? cid : `ipfs://${cid}`,
         displaySrc: '',
+        mime: attachment.type,
+        name: attachment.name,
       }
     }
   }, [fileUpload])

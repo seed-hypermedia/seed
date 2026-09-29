@@ -63,6 +63,8 @@ export function useCommentEditor(
   handleFileAttachment?: (file: File) => Promise<{
     displaySrc: string
     url?: string
+    mime?: string
+    name?: string
     fileBinary?: Uint8Array
     mediaRef?: {
       draftId: string
@@ -854,7 +856,7 @@ export function CommentEditor({
   const handleImageClick = () => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = 'image/*,video/*'
+    input.accept = 'image/*,.heic,.heif,image/heic,image/heif,video/*'
     input.multiple = true
 
     input.onchange = async (e) => {

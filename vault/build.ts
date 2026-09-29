@@ -1,4 +1,4 @@
-import {rm} from 'node:fs/promises'
+import {copyFile, rm} from 'node:fs/promises'
 import tailwind from 'bun-plugin-tailwind'
 import uglify from './uglify-js'
 import {reactSingletonPlugin} from './react-singleton-plugin'
@@ -17,10 +17,11 @@ const result = await Bun.build({
   entrypoints: ['./src/main.ts'],
   outdir: OUTDIR,
   target: 'bun',
+  splitting: true,
   minify: process.env.NODE_ENV === 'production',
   sourcemap: 'linked',
   naming: {
-    chunk: '[dir]/[name].[hash].[ext]',
+    chunk: 'chunks/[name].[hash].[ext]',
     asset: '[dir]/[name].[hash].[ext]',
   },
   publicPath: '/vault/',
@@ -35,6 +36,8 @@ if (!result.success) {
   }
   process.exit(1)
 }
+
+await copyFile('../frontend/packages/ui/THIRD_PARTY_NOTICES.md', `${OUTDIR}/THIRD_PARTY_NOTICES.md`)
 
 console.log('Build succeeded!')
 for (const output of result.outputs) {
