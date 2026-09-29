@@ -1,6 +1,7 @@
 import {useLocalKeyPair} from '@/auth'
 import {createSpaceHomeDraft} from '@/document-edit/web-create-space-draft'
 import {makeWebFileUpload} from '@/document-edit/web-image-upload'
+import {AVATAR_IMAGE_POLICY, COVER_IMAGE_POLICY} from '@shm/ui/image-processing'
 import {useNavigate} from '@remix-run/react'
 import {useUniversalClient} from '@shm/shared'
 import type {UniversalClient} from '@shm/shared/universal-client'
@@ -68,15 +69,16 @@ function CreateSpaceFlow({onClose}: {onClose: () => void}) {
   const client = useUniversalClient()
   const accountUid = userKeyPair?.delegatedAccountUid ?? userKeyPair?.id ?? null
   const [busy, setBusy] = useState(false)
-  const fileUpload = useMemo(() => makeWebFileUpload(client), [client])
+  const coverUpload = useMemo(() => makeWebFileUpload(client, COVER_IMAGE_POLICY), [client])
+  const avatarUpload = useMemo(() => makeWebFileUpload(client, AVATAR_IMAGE_POLICY), [client])
 
   async function handleComplete(state: CreateSpaceFormState) {
     setBusy(true)
     try {
       const [coverCid, logoCid, faviconCid] = await Promise.all([
-        state.cover ? fileUpload(state.cover) : Promise.resolve(undefined),
-        state.logo ? fileUpload(state.logo) : Promise.resolve(undefined),
-        state.favicon ? fileUpload(state.favicon) : Promise.resolve(undefined),
+        state.cover ? coverUpload(state.cover) : Promise.resolve(undefined),
+        state.logo ? avatarUpload(state.logo) : Promise.resolve(undefined),
+        state.favicon ? avatarUpload(state.favicon) : Promise.resolve(undefined),
       ])
       const metadata = createSpaceMetadata(state, {coverCid, logoCid, faviconCid})
       const {webPath} = await createSpaceHomeDraft(metadata, accountUid)

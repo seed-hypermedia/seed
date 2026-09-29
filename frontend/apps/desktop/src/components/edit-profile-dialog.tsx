@@ -5,6 +5,7 @@ import {useAccount} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {DialogTitle} from '@shm/ui/components/dialog'
 import {EditProfileForm, SiteMetaFields} from '@shm/ui/edit-profile-form'
+import {AVATAR_IMAGE_POLICY} from '@shm/ui/image-processing'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -21,7 +22,10 @@ export function EditProfileDialog({onClose, input}: {onClose: () => void; input:
   async function handleSubmit(updates: SiteMetaFields) {
     let iconUri = ''
     if (updates.icon instanceof Blob) {
-      const cid = await fileUpload(new File([updates.icon], 'icon'))
+      const cid = await fileUpload(
+        new File([updates.icon], 'icon', {type: updates.icon.type || 'image/png'}),
+        AVATAR_IMAGE_POLICY,
+      )
       iconUri = `ipfs://${cid}`
     } else if (typeof updates.icon === 'string' && updates.icon) {
       iconUri = updates.icon

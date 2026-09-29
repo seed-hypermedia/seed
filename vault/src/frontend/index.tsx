@@ -1,4 +1,5 @@
 import {createRoot} from 'react-dom/client'
+import * as FileDrop from '@shm/ui/file-drop-guard'
 import {RouterProvider} from 'react-router-dom'
 import {FetchClient} from './api-client'
 import {IndexedDBBlockstore, RemoteBlockstore} from './blockstore'
@@ -31,9 +32,12 @@ async function bootstrap() {
   appStore.navigator.setNavigate((path) => router.navigate(navigation.withHash(path)))
 
   const app = (
-    <StoreContext.Provider value={appStore}>
-      <RouterProvider router={router} />
-    </StoreContext.Provider>
+    <>
+      <FileDrop.FileDropGuard />
+      <StoreContext.Provider value={appStore}>
+        <RouterProvider router={router} />
+      </StoreContext.Provider>
+    </>
   )
 
   if (import.meta.hot) {

@@ -14,6 +14,7 @@ import {
   WEB_IS_GATEWAY,
 } from '@shm/shared/constants'
 import {SizableText} from '@shm/ui/text'
+import {FileDropGuard} from '@shm/ui/file-drop-guard'
 // Eager editor document styles: the server-rendered document HTML uses the
 // editor's hashed CSS-module classes, which must be styled before the lazy
 // editor chunk loads (see @shm/editor/ssr-render).
@@ -111,6 +112,7 @@ export function Layout({children}: {children: React.ReactNode}) {
         ) : null}
       </head>
       <body className="bg-muted min-h-screen font-sans antialiased">
+        <FileDropGuard />
         <Providers>{children}</Providers>
 
         {/* Note: Removed Remix's <ScrollRestoration /> because it interferes with

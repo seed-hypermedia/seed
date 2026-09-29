@@ -3,6 +3,13 @@ import {MembersSettings} from '@/components/site-settings-members'
 import {NavigationSettings} from '@/components/site-settings-navigation'
 import {useUpdateHomeDocument} from '@/models/site'
 import {fileUpload} from '@/utils/file-upload'
+import {
+  AVATAR_IMAGE_POLICY,
+  COVER_IMAGE_POLICY,
+  IMAGE_FILE_ACCEPT,
+  processImage,
+  type ImageProcessingPolicy,
+} from '@shm/ui/image-processing'
 import {useNavigate} from '@/utils/useNavigate'
 import type {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useIsSiteOwner} from '@shm/shared/models/capabilities'
@@ -19,7 +26,7 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
 import {Bot, Image as ImageIcon, Navigation as NavigationIcon, Plus, Users} from 'lucide-react'
-import {type ReactNode, useState} from 'react'
+import {type ReactNode, useEffect, useRef, useState} from 'react'
 
 // Tabs of the site settings page
 type SiteSettingsSection = 'identity' | 'navigation' | 'members' | 'agents'
@@ -101,6 +108,8 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
   const [name, setName] = useState<string | null>(null)
   const [logo, setLogo] = useState<ImageValue | undefined>(undefined)
   const [cover, setCover] = useState<ImageValue | undefined>(undefined)
+  const [logoProcessing, setLogoProcessing] = useState(false)
+  const [coverProcessing, setCoverProcessing] = useState(false)
 
   if (resource.isInitialLoading || isOwnerLoading) {
     return (
@@ -130,16 +139,17 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
   const coverValue = cover === undefined ? metadata.cover || null : cover
 
   const isDirty = name !== null || logo !== undefined || cover !== undefined
-  const canSave = isDirty && nameValue.trim().length > 0 && !updateHome.isPending
+  const canSave = isDirty && nameValue.trim().length > 0 && !updateHome.isPending && !logoProcessing && !coverProcessing
 
   async function handleSave() {
+    if (!canSave) return
     try {
       // Pass full desired metadata. The hook diffs against the published values.
       const nextMetadata: HMMetadata = {
         ...metadata,
         name: nameValue.trim(),
-        icon: logo !== undefined ? await resolveImageValue(logo) : metadata.icon,
-        cover: cover !== undefined ? await resolveImageValue(cover) : metadata.cover,
+        icon: logo !== undefined ? await resolveImageValue(logo, AVATAR_IMAGE_POLICY) : metadata.icon,
+        cover: cover !== undefined ? await resolveImageValue(cover, COVER_IMAGE_POLICY) : metadata.cover,
       }
       await updateHome.mutateAsync({metadata: nextMetadata})
       toast.success('Space identity updated')
@@ -169,6 +179,8 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
       <SettingsField label="Space logo" hint="100px height JPG or PNG.">
         <ImagePicker
           value={logoValue}
+          policy={AVATAR_IMAGE_POLICY}
+          onProcessingChange={setLogoProcessing}
           onChange={setLogo}
           onClear={() => setLogo(null)}
           className="h-[100px] w-[100px]"
@@ -178,6 +190,8 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
       <SettingsField label="Home cover image" hint="Recommended 1600 × 400px. JPG or PNG.">
         <ImagePicker
           value={coverValue}
+          policy={COVER_IMAGE_POLICY}
+          onProcessingChange={setCoverProcessing}
           onChange={setCover}
           onClear={() => setCover(null)}
           className="h-[160px] w-full max-w-2xl"
@@ -188,9 +202,9 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
 }
 
 /** Upload a picked file and return its ipfs ref, or pass through an existing ref. */
-async function resolveImageValue(value: ImageValue): Promise<string> {
+async function resolveImageValue(value: ImageValue, policy: ImageProcessingPolicy): Promise<string> {
   if (value instanceof File) {
-    const cid = await fileUpload(value)
+    const cid = await fileUpload(value, policy)
     return `ipfs://${cid}`
   }
   return value ?? ''
@@ -212,16 +226,35 @@ function SettingsField({label, hint, children}: {label: string; hint?: string; c
 
 function ImagePicker({
   value,
+  policy,
+  onProcessingChange,
   onChange,
   onClear,
   className,
 }: {
   value: ImageValue
+  policy: ImageProcessingPolicy
+  onProcessingChange: (processing: boolean) => void
   onChange: (file: File) => void
   onClear: () => void
   className?: string
 }) {
-  const previewUrl = value ? (value instanceof File ? URL.createObjectURL(value) : getDaemonFileUrl(value)) : null
+  const request = useRef(0)
+  const [processing, setProcessing] = useState(false)
+  useEffect(
+    () => () => {
+      request.current++
+    },
+    [],
+  )
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  useEffect(() => {
+    const url = value ? (value instanceof File ? URL.createObjectURL(value) : getDaemonFileUrl(value)) : null
+    setPreviewUrl(url)
+    return () => {
+      if (value instanceof File && url) URL.revokeObjectURL(url)
+    }
+  }, [value])
   return (
     <div
       className={cn(
@@ -231,15 +264,35 @@ function ImagePicker({
     >
       <input
         type="file"
-        accept="image/png,image/jpeg"
+        accept={IMAGE_FILE_ACCEPT}
+        disabled={processing}
         onChange={(e) => {
           const file = e.target.files?.[0]
-          if (file) onChange(file)
           e.target.value = ''
+          if (!file) return
+          const current = ++request.current
+          setProcessing(true)
+          onProcessingChange(true)
+          processImage(file, policy)
+            .then((processed) => {
+              if (current === request.current) onChange(processed)
+            })
+            .catch((error: unknown) => {
+              if (current === request.current)
+                toast.error(error instanceof Error ? error.message : 'Could not process this image')
+            })
+            .finally(() => {
+              if (current === request.current) {
+                setProcessing(false)
+                onProcessingChange(false)
+              }
+            })
         }}
         className="absolute inset-0 z-10 cursor-pointer opacity-0"
       />
-      {previewUrl ? (
+      {processing ? (
+        <Spinner />
+      ) : previewUrl ? (
         <img src={previewUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
       ) : (
         <Plus className="text-muted-foreground size-6" />
@@ -249,6 +302,9 @@ function ImagePicker({
           type="button"
           onClick={(e) => {
             e.stopPropagation()
+            request.current++
+            setProcessing(false)
+            onProcessingChange(false)
             onClear()
           }}
           className="absolute top-1 right-1 z-20 rounded bg-black/60 px-1.5 py-0.5 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100"

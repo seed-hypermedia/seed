@@ -553,28 +553,6 @@ export function useVaultSuccessDialog() {
   return dialog.content
 }
 
-/**
- * Server-side square crop of a profile image at /hm/api/site-image.
- * Replaced by the cropper UI.
- */
-// async function optimizeImage(file: File): Promise<Blob> {
-//   const response = await fetch('/hm/api/site-image', {
-//     method: 'POST',
-//     body: await file.arrayBuffer(),
-//   })
-//   const signature = response.headers.get('signature')
-//   if (!signature) {
-//     throw new Error('No signature found')
-//   }
-//   if (signature !== 'SIG-TODO') {
-//     // todo: real signature checking.. not here but at re-upload time
-//     throw new Error('Invalid signature')
-//   }
-//   const contentType = response.headers.get('content-type') || 'image/png'
-//   const responseBlob = await response.blob()
-//   return new Blob([responseBlob], {type: contentType})
-// }
-
 export function LogoutDialog({onClose}: {onClose: () => void}) {
   const keyPair = useLocalKeyPair()
   const account = useAccount(keyPair?.id)

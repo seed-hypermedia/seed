@@ -1,6 +1,7 @@
 import {fileUpload} from '@/utils/file-upload'
 import {Button} from '@shm/ui/button'
 import {Tooltip} from '@shm/ui/tooltip'
+import {COVER_IMAGE_POLICY, IMAGE_FILE_ACCEPT} from '@shm/ui/image-processing'
 import {cn} from '@shm/ui/utils'
 import {Trash} from 'lucide-react'
 import {ChangeEvent} from 'react'
@@ -25,7 +26,7 @@ export function CoverImage({
     const fileList = event.target.files
     const file = fileList?.[0]
     if (!file || !onCoverUpload) return
-    fileUpload(file)
+    fileUpload(file, COVER_IMAGE_POLICY)
       .then((data) => {
         onCoverUpload(data)
       })
@@ -78,6 +79,7 @@ export function CoverImage({
               <div className="relative flex items-center justify-center">
                 <input
                   type="file"
+                  accept={IMAGE_FILE_ACCEPT}
                   onChange={handleFileChange}
                   style={{
                     height: '100%',

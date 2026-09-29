@@ -9,7 +9,8 @@
   "module:jsx": "src",
   "files": [
     "types",
-    "dist"
+    "dist",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "exports": {
     "./components/*": {
@@ -67,6 +68,7 @@
     "@tanstack/react-table": "^8.21.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "heic-to": "^1.5.2",
     "jdenticon": "^3.3.0",
     "lucide-react": "^0.511.0",
     "mermaid": "^11.4.0",

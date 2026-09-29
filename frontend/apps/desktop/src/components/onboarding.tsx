@@ -12,6 +12,7 @@ import {
 import {client} from '@/trpc'
 import {buildVaultConnectionURL, normalizeVaultOriginURL} from '@/utils/vault-connection'
 import {fileUpload} from '@/utils/file-upload'
+import {AVATAR_IMAGE_POLICY} from '@shm/ui/image-processing'
 import {getImportKeyFilePathError, normalizeImportKeyFilePath} from '@/utils/onboarding-import'
 import {extractWords, isWordsValid} from '@/utils/onboarding'
 import {useNavigate} from '@/utils/useNavigate'
@@ -1112,7 +1113,7 @@ function CreateAccountStep({
         console.group('🖼️ Processing Images')
         if (formData.icon) {
           const iconFile = base64ToFile(formData.icon)
-          const ipfsIcon = await fileUpload(iconFile)
+          const ipfsIcon = await fileUpload(iconFile, AVATAR_IMAGE_POLICY)
           icon = ipfsIcon
           console.log('✅ Icon uploaded to IPFS:', icon)
         } else {
