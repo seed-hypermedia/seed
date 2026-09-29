@@ -380,6 +380,9 @@ function processEventsInner(events: Event[]) {
   const capabilityData: {id: UnpackedHypermediaId; extraAttrs: string}[] = []
   const contactData: {author: string; extraAttrs: string}[] = []
   const refIds: UnpackedHypermediaId[] = []
+  // Tombstone Refs (deletes and moves) invalidate the search cache. Regular Refs do
+  // not — they arrive continuously during sync and hybrid search is expensive.
+  let hasTombstoneRef = false
 
   for (const event of events) {
     if (event.data.case !== 'newBlob') continue
@@ -418,6 +421,14 @@ function processEventsInner(events: Event[]) {
     if (blobType === 'ref' && resource) {
       const id = unpackHmId(resource)
       if (id) refIds.push(id)
+      if (!hasTombstoneRef) {
+        try {
+          const attrs = JSON.parse(event.data.value.extraAttrs) as {tombstone?: boolean}
+          if (attrs.tombstone === true) hasTombstoneRef = true
+        } catch {
+          // extraAttrs missing or unparseable
+        }
+      }
     }
 
     if (blobType === 'contact') {
@@ -577,6 +588,13 @@ function processEventsInner(events: Event[]) {
     if (hasRootRef) {
       appInvalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
       appInvalidateQueries([queryKeys.ROOT_DOCUMENTS])
+    }
+
+    // A tombstone Ref removes a document from search results. The daemon already
+    // filters deleted documents in SearchEntities, so a plain refetch is enough.
+    // A move Ref (redirect without republish) is also a tombstone at the old path.
+    if (hasTombstoneRef) {
+      appInvalidateQueries([queryKeys.SEARCH])
     }
   }
 
