@@ -2492,7 +2492,7 @@ function AgentTriggersTab({
   }
 
   return (
-    <section className="flex flex-col gap-2">
+    <section className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1 pb-4">
       {isLoading ? <SizableText color="muted">Loading triggers…</SizableText> : null}
       {!isLoading && !triggers.length ? (
         <div className="border-border flex flex-col gap-2 rounded-xl border border-dashed p-6">
