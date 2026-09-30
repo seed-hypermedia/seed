@@ -31,7 +31,7 @@ import path from 'path'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {encrypt} from '../frontend/packages/client/src/encryption'
 import {serializeState, type State} from '../frontend/packages/client/src/vault'
-import {Daemon} from '../frontend/packages/shared/src/client'
+import {Daemon, Networking} from '../frontend/packages/shared/src/client'
 import {VaultConnectionStatus} from '../frontend/packages/shared/src/client/.generated/daemon/v1alpha/daemon_pb'
 import {
   findHostDir,
@@ -82,6 +82,7 @@ let host: HostServerInstance
 let deviceDaemon: DaemonInstance
 let deviceDaemonDir: string
 let device: ReturnType<typeof createPromiseClient<typeof Daemon>>
+let deviceNetworking: ReturnType<typeof createPromiseClient<typeof Networking>>
 
 let vaultCookie = ''
 let sessionToken = ''
@@ -153,10 +154,12 @@ describe.skipIf(!findHostDir())('Hosting login with vault email prevalidation e2
       vaultKeyStore: true,
     })
     await deviceDaemon.waitForReady()
-    device = createPromiseClient(
-      Daemon,
-      createGrpcWebTransport({baseUrl: `http://localhost:${DEVICE_DAEMON_HTTP_PORT}`, httpVersion: '1.1'}),
-    )
+    const deviceTransport = createGrpcWebTransport({
+      baseUrl: `http://localhost:${DEVICE_DAEMON_HTTP_PORT}`,
+      httpVersion: '1.1',
+    })
+    device = createPromiseClient(Daemon, deviceTransport)
+    deviceNetworking = createPromiseClient(Networking, deviceTransport)
 
     host = await startHostServer({
       port: HOST_PORT,
@@ -259,15 +262,40 @@ describe.skipIf(!findHostDir())('Hosting login with vault email prevalidation e2
         body: JSON.stringify({subdomain}),
       })
       expect(response.status).toBe(200)
-      const site = (await response.json()) as {subdomain: string; registrationSecret: string}
+      const site = (await response.json()) as {
+        subdomain: string
+        host: string
+        registrationSecret: string
+        setupUrl: string
+      }
       expect(site.subdomain).toBe(subdomain)
       expect(site.registrationSecret).toBeTruthy()
+      // Sites of the gateway are subdomains of it, on the same scheme and port.
+      expect(site.host).toBe(`http://${subdomain}.localhost:${WEB_PORT}`)
+      expect(site.setupUrl).toBe(`${site.host}/hm/register?secret=${site.registrationSecret}`)
 
       // The gateway now serves the subdomain, waiting for the person's account to register.
-      const siteConfig = await fetch(`${env.web.baseUrl}/hm/api/config`, {
-        headers: {'X-Forwarded-Host': `${subdomain}.localhost`},
-      })
+      const siteConfig = await fetch(`${site.host}/hm/api/config`)
       expect(siteConfig.status).toBe(200)
+      expect(((await siteConfig.json()) as {registeredAccountUid?: string}).registeredAccountUid).toBeUndefined()
+
+      // What the desktop app does with the setup URL (useSiteRegistration): register its daemon as the source.
+      const key = await device.registerKey({mnemonic: (await device.genMnemonic({})).mnemonic, name: 'main'})
+      const deviceInfo = await device.getInfo({})
+      const peerInfo = await deviceNetworking.getPeerInfo({deviceId: deviceInfo.peerId})
+      const registration = await fetch(`${site.host}/hm/api/register`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          registrationSecret: site.registrationSecret,
+          accountUid: key.accountId,
+          peerId: deviceInfo.peerId,
+          addrs: peerInfo.addrs,
+        }),
+      })
+      expect(await registration.json()).toEqual({message: 'Success'})
+      const registered = (await (await fetch(`${site.host}/hm/api/config`)).json()) as {registeredAccountUid?: string}
+      expect(registered.registeredAccountUid).toBe(key.accountId)
 
       const sites = await fetch(`${host.baseUrl}/api/sites`, {headers: {Authorization: `Bearer ${sessionToken}`}})
       expect(sites.status).toBe(200)
