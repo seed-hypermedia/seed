@@ -27,7 +27,7 @@ import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useUniversalAppContext} from '@shm/shared'
 import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {useAccount, useAccounts, useDomain, useResource} from '@shm/shared/models/entity'
+import {useAccount, useAccounts, useAccountSubscriptions, useDomain, useResource} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {createInspectNavRouteFromRoute, DocumentRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
@@ -203,6 +203,9 @@ export function AccountProfileButton() {
   const selectedIdentityValue = useStream(selectedIdentity)
   const myAccountIds = useMyAccountIds()
   const accountQueries = useAccounts(myAccountIds.data || [])
+  // Local keys can exist before their profiles are in the database (fresh database with an existing
+  // vault), so ask the network for the profiles that are missing. The subscription ends once they arrive.
+  useAccountSubscriptions((myAccountIds.data || []).filter((_, index) => accountQueries[index]?.data === null))
   const vaultStatus = useVaultStatus()
   const {isPending: isForceVaultSyncPending, mutate: forceVaultSync} = useForceVaultSync()
   const remoteVaultConnected = vaultStatus.data?.connectionStatus === VaultConnectionStatus.CONNECTED
