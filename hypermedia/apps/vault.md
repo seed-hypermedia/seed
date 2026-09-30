@@ -43,7 +43,7 @@ If you lose every credential and have no exported key or recovery phrase, nobody
 The vault uses the [daemon](./daemon.md) behind the same [site](../protocol/sites.md) for three things. <!-- id:ynKuIVJT -->
   - **Publishing.** [Account](../protocol/identity.md) creation and [delegation](../protocol/permissions.md) build [profile](../profile.md) and [capability](../capability.md) [blobs](../protocol/blobs.md) in the browser, signed with the decrypted account key, and upload them to `<backend>/ipfs/<cid>` on the site's daemon. <!-- id:jb4aggOT -->
   - **Reading accounts.** `GET /vault/api/accounts/:id` calls the daemon's `GetAccount` over gRPC-web. <!-- id:PCzHu9o6 -->
-  - **Email prevalidation.** When the vault returns a person's data, it signs `{email, signer, host}` with the first key in its daemon's keystore through `SignData`. A [notify service](./notify.md) that trusts this vault accepts that signature instead of sending its own verification email. <!-- id:PN749lGL -->
+  - **Email prevalidation.** When the vault returns a person's data, it signs `{email, signer, host}` with the first key in its daemon's keystore through `SignData`. A [notify service](./notify.md) that trusts this vault accepts that signature instead of sending its own verification email. The desktop app reads the same signature through its daemon's `GetVaultEmailPrevalidation` and presents it to the Seed hosting service, which lets a new user skip the email login. <!-- id:PN749lGL -->
 
 # Delegation: Sign in with Seed <!-- id:ivOSZ-oq -->
 

@@ -23,6 +23,8 @@ export type VaultServerConfig = {
   backendHttpPort: number
   /** Directory for the SQLite db. A fresh temp dir (removed on kill) when omitted. */
   dbDir?: string
+  /** Web app that serves /hm/api/config for the vault origin (the key that signs email prevalidations). */
+  webBaseUrl?: string
 }
 
 export type VaultServerInstance = {
@@ -102,6 +104,7 @@ export async function startVaultServer(config: VaultServerConfig): Promise<Vault
     backendBaseUrl,
     '--db-path',
     path.join(dbDir, 'vault.sqlite'),
+    ...(config.webBaseUrl ? ['--web-base-url', config.webBaseUrl] : []),
   ]
 
   // Dev mode: NODE_ENV must not be 'production' (plain-http cookies, console

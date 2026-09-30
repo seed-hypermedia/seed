@@ -92,8 +92,11 @@ async function main() {
       '/hm/api/config': {
         GET: () => {
           if (isProd) return new Response('Not Found', {status: 404})
-          return fetch('http://localhost:3000/hm/api/config').then(
-            (res) => new Response(res.body, {status: res.status, headers: res.headers}),
+          // Not passing the headers through: the body is already decompressed, so the upstream
+          // Content-Encoding and Content-Length would make the response unreadable.
+          return fetch(`${cfg.webBaseUrl || 'http://localhost:3000'}/hm/api/config`).then(
+            async (res) =>
+              new Response(await res.text(), {status: res.status, headers: {'Content-Type': 'application/json'}}),
           )
         },
       },

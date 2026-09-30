@@ -839,6 +839,105 @@ export class GetVaultEmailResponse extends Message<GetVaultEmailResponse> {
 }
 
 /**
+ * Request to get the email prevalidation of the connected remote vault user.
+ *
+ * @generated from message com.seed.daemon.v1alpha.GetVaultEmailPrevalidationRequest
+ */
+export class GetVaultEmailPrevalidationRequest extends Message<GetVaultEmailPrevalidationRequest> {
+  constructor(data?: PartialMessage<GetVaultEmailPrevalidationRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.GetVaultEmailPrevalidationRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetVaultEmailPrevalidationRequest {
+    return new GetVaultEmailPrevalidationRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetVaultEmailPrevalidationRequest {
+    return new GetVaultEmailPrevalidationRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetVaultEmailPrevalidationRequest {
+    return new GetVaultEmailPrevalidationRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetVaultEmailPrevalidationRequest | PlainMessage<GetVaultEmailPrevalidationRequest> | undefined, b: GetVaultEmailPrevalidationRequest | PlainMessage<GetVaultEmailPrevalidationRequest> | undefined): boolean {
+    return proto3.util.equals(GetVaultEmailPrevalidationRequest, a, b);
+  }
+}
+
+/**
+ * Response with the email prevalidation signed by the remote vault server.
+ * The signature covers the DAG-CBOR encoding of {email, signer, host}.
+ *
+ * @generated from message com.seed.daemon.v1alpha.GetVaultEmailPrevalidationResponse
+ */
+export class GetVaultEmailPrevalidationResponse extends Message<GetVaultEmailPrevalidationResponse> {
+  /**
+   * Email address of the vault user, verified by the vault server.
+   *
+   * @generated from field: string email = 1;
+   */
+  email = "";
+
+  /**
+   * Public key of the vault server, with the multicodec prefix.
+   *
+   * @generated from field: bytes signer = 2;
+   */
+  signer = new Uint8Array(0);
+
+  /**
+   * Origin of the vault server that signed the prevalidation.
+   *
+   * @generated from field: string host = 3;
+   */
+  host = "";
+
+  /**
+   * Signature of the vault server.
+   *
+   * @generated from field: bytes sig = 4;
+   */
+  sig = new Uint8Array(0);
+
+  constructor(data?: PartialMessage<GetVaultEmailPrevalidationResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.GetVaultEmailPrevalidationResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "email", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "signer", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
+    { no: 3, name: "host", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "sig", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetVaultEmailPrevalidationResponse {
+    return new GetVaultEmailPrevalidationResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetVaultEmailPrevalidationResponse {
+    return new GetVaultEmailPrevalidationResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetVaultEmailPrevalidationResponse {
+    return new GetVaultEmailPrevalidationResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetVaultEmailPrevalidationResponse | PlainMessage<GetVaultEmailPrevalidationResponse> | undefined, b: GetVaultEmailPrevalidationResponse | PlainMessage<GetVaultEmailPrevalidationResponse> | undefined): boolean {
+    return proto3.util.equals(GetVaultEmailPrevalidationResponse, a, b);
+  }
+}
+
+/**
  * Request to start a remote vault email change.
  *
  * @generated from message com.seed.daemon.v1alpha.ChangeVaultEmailStartRequest

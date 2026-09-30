@@ -1,4 +1,6 @@
+import {grpcClient} from '@/grpc-client'
 import {client} from '@/trpc'
+import * as base64 from '@seed-hypermedia/client/base64'
 import {invalidateQueries} from '@shm/shared'
 import {SEED_HOST_URL} from '@shm/shared/constants'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -148,6 +150,27 @@ export function useHostSession({
       }
     },
   })
+  // Skips the email step when the remote vault has already verified the email and the host trusts it.
+  const loginWithVault = useMutation({
+    mutationFn: async () => {
+      const prevalidation = await grpcClient.daemon.getVaultEmailPrevalidation({})
+      const respJson = await hostAPI('auth/vault', 'POST', {
+        email: prevalidation.email,
+        signer: base64.encode(prevalidation.signer),
+        host: prevalidation.host,
+        sig: base64.encode(prevalidation.sig),
+      })
+      const response = AbsorbResponseSchema.parse(respJson)
+      if (response.status !== 'success') {
+        throw new Error(response.status === 'error' ? response.message : 'Vault login failed')
+      }
+      await setHostState.mutateAsync({
+        email: response.email,
+        sessionToken: response.sessionToken,
+        pendingSessionToken: null,
+      })
+    },
+  })
   const absorbedSession = useQuery({
     queryKey: [queryKeys.HOST_ABSORB_SESSION, hostState?.pendingSessionToken],
     queryFn: async () => {
@@ -268,7 +291,9 @@ export function useHostSession({
     email: hostState?.email,
     pendingDomains: hostState?.pendingDomains,
     loggedIn: !!hostState?.sessionToken,
+    isSessionLoaded: hostState !== undefined,
     login: login.mutate,
+    loginWithVault: loginWithVault.mutate,
     isSendingEmail: login.isLoading,
     error: login.error,
     isPendingEmailValidation: !hostState?.sessionToken && !!hostState?.pendingSessionToken,
