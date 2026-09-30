@@ -26,6 +26,8 @@ export type HostServerInstance = {
   /** http://localhost:<port> */
   baseUrl: string
   waitForReady: () => Promise<void>
+  /** Resolves the newest login code emailed to `email` (the local runner prints emails to stdout). */
+  waitForLoginCode: (email: string, timeoutMs?: number) => Promise<string>
   kill: () => Promise<void>
 }
 
@@ -88,8 +90,14 @@ export async function startHostServer(config: HostServerConfig): Promise<HostSer
     env,
   })
 
+  const stdoutLines: string[] = []
+  const lineListeners = new Set<() => void>()
   const stdout = readline.createInterface({input: hostProcess.stdout!})
-  stdout.on('line', (line: string) => console.log(`[Host stdout] ${line}`))
+  stdout.on('line', (line: string) => {
+    console.log(`[Host stdout] ${line}`)
+    stdoutLines.push(line)
+    for (const listener of lineListeners) listener()
+  })
   const stderr = readline.createInterface({input: hostProcess.stderr!})
   stderr.on('line', (line: string) => console.log(`[Host stderr] ${line}`))
 
@@ -119,6 +127,35 @@ export async function startHostServer(config: HostServerConfig): Promise<HostSer
       await new Promise((resolve) => setTimeout(resolve, 500))
     }
     throw new Error(`Hosting service not ready after ${timeoutMs}ms`)
+  }
+
+  // The console email is "Email to <email>: <subject>" followed by the text body, with the code on its own line.
+  const findLoginCode = (email: string): string | null => {
+    const start = stdoutLines.findLastIndex((line) => line.startsWith(`Email to ${email}:`))
+    if (start === -1) return null
+    return stdoutLines.slice(start + 1).find((line) => /^\d{4}$/.test(line)) ?? null
+  }
+
+  const waitForLoginCode = (email: string, timeoutMs = 30_000): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const check = () => {
+        const code = findLoginCode(email)
+        if (code) {
+          cleanup()
+          resolve(code)
+        }
+      }
+      const timer = setTimeout(() => {
+        cleanup()
+        reject(new Error(`No login code for ${email} after ${timeoutMs}ms`))
+      }, timeoutMs)
+      const cleanup = () => {
+        clearTimeout(timer)
+        lineListeners.delete(check)
+      }
+      lineListeners.add(check)
+      check()
+    })
   }
 
   const kill = (): Promise<void> => {
@@ -156,5 +193,5 @@ export async function startHostServer(config: HostServerConfig): Promise<HostSer
     })
   }
 
-  return {process: hostProcess, baseUrl, waitForReady, kill}
+  return {process: hostProcess, baseUrl, waitForReady, waitForLoginCode, kill}
 }

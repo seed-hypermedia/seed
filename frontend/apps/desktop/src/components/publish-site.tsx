@@ -1,5 +1,5 @@
 import {fetchResource} from '@/models/entities'
-import {HostInfoResponse, useHostSession} from '@/models/host'
+import {CodeStartResponse, HostInfoResponse, useHostSession} from '@/models/host'
 import {useRemoveSite, useSiteRegistration} from '@/models/site'
 import {useNavigate} from '@/utils/useNavigate'
 import {zodResolver} from '@hookform/resolvers/zod'
@@ -28,6 +28,8 @@ import {
   AlertDialogDescription,
   AlertDialogTitle,
 } from '@shm/ui/components/alert-dialog'
+import {ExpiryHint} from '@shm/ui/components/change-email-dialog'
+import {CodeInput} from '@shm/ui/components/code-input'
 import {DialogDescription, DialogFooter, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {CongratsGraphic, WebPublishedGraphic} from './publish-graphics'
@@ -294,13 +296,13 @@ function CenteredSpinner() {
 }
 
 const LoginSchema = z.object({
-  email: z.string(),
+  email: z.string().email('Enter a valid email address'),
 })
 type LoginFields = z.infer<typeof LoginSchema>
 function SeedHostLogin({onAuthenticated, onBack}: {onAuthenticated: () => void; onBack: () => void}) {
-  const {login, absorbedSession, email, isSendingEmail, isPendingEmailValidation, error, reset} = useHostSession({
-    onAuthenticated,
-  })
+  const {startEmailCode, verifyEmailCode} = useHostSession({onAuthenticated})
+  const [pending, setPending] = useState<CodeStartResponse | null>(null)
+  const [code, setCode] = useState('')
 
   const {
     control,
@@ -309,45 +311,77 @@ function SeedHostLogin({onAuthenticated, onBack}: {onAuthenticated: () => void; 
   } = useForm<LoginFields>({
     resolver: zodResolver(LoginSchema),
   })
-  const onSubmit: SubmitHandler<LoginFields> = (data) => {
-    login(data.email)
+  async function sendCode(email: string) {
+    verifyEmailCode.reset()
+    setCode('')
+    setPending(await startEmailCode.mutateAsync(email))
   }
-  if (isPendingEmailValidation && email) {
-    // @ts-expect-error
-    const errorMessage = error?.message || absorbedSession.error?.message
+  const onSubmit: SubmitHandler<LoginFields> = (data) => {
+    sendCode(data.email).catch(() => {})
+  }
+  function verify(fullCode: string) {
+    if (!pending || verifyEmailCode.isLoading) return
+    verifyEmailCode.mutate({email: pending.email, binding: pending.binding, code: fullCode})
+  }
+  const error = (startEmailCode.error || verifyEmailCode.error) as Error | null
+  if (pending) {
     return (
       <PublishStep
-        title="Check Your Email"
-        description={`We sent a login link to ${email}. Click on it, and you will be logged in here.`}
-        onBack={onBack}
-        footer={
-          <Button variant="ghost" onClick={reset}>
-            Cancel Login
-          </Button>
-        }
-      >
-        {errorMessage ? (
+        title="Check Your Inbox"
+        description={
           <>
-            <ErrorBox error={errorMessage} />
-            <Button variant="outline" onClick={reset}>
-              Try Again
-            </Button>
+            We sent a 4-digit code to <strong>{pending.email}</strong>.
           </>
-        ) : (
-          <CenteredSpinner />
-        )}
+        }
+        onBack={() => setPending(null)}
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            verify(code)
+          }}
+          className="flex flex-col gap-4"
+        >
+          <CodeInput value={code} onChange={setCode} onComplete={verify} />
+          <ExpiryHint expireTimeMs={pending.expireTime} />
+          <ErrorBox error={error?.message ?? null} />
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={startEmailCode.isLoading}
+              onClick={() => sendCode(pending.email).catch(() => {})}
+            >
+              {startEmailCode.isLoading ? 'Sending…' : 'Resend Code'}
+            </Button>
+            <Button
+              variant="default"
+              type="submit"
+              disabled={code.length !== 4 || verifyEmailCode.isLoading}
+              loading={verifyEmailCode.isLoading}
+            >
+              Verify
+            </Button>
+          </DialogFooter>
+        </form>
       </PublishStep>
     )
   }
   return (
-    <PublishStep title="Log in to Seed Hosting" description="You will get an email with a login link." onBack={onBack}>
+    <PublishStep title="Log in to Seed Hosting" description="We will email you a code to log in." onBack={onBack}>
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         <FormField name="email" label="Email Address" errors={errors}>
-          <FormInput disabled={isSendingEmail} control={control} name="email" placeholder="me@email.com" />
+          <FormInput disabled={startEmailCode.isLoading} control={control} name="email" placeholder="me@email.com" />
         </FormField>
+        <ErrorBox error={error?.message ?? null} />
         <DialogFooter>
-          <Button variant="default" disabled={isSendingEmail} type="submit" loading={isSendingEmail}>
-            {isSendingEmail ? 'Sending Email…' : 'Send Login Link'}
+          <Button
+            variant="default"
+            disabled={startEmailCode.isLoading}
+            type="submit"
+            loading={startEmailCode.isLoading}
+          >
+            {startEmailCode.isLoading ? 'Sending…' : 'Send Code'}
           </Button>
         </DialogFooter>
       </form>

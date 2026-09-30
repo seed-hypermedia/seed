@@ -316,6 +316,47 @@ describe.skipIf(!findHostDir())('Hosting login with vault email prevalidation e2
   )
 
   it(
+    'logs in with a code sent by email, as someone without a vault does',
+    async () => {
+      const codeEmail = `code-login-${Date.now()}@example.com`
+      const start = await fetch(`${host.baseUrl}/api/auth/code/start`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email: codeEmail}),
+      })
+      expect(start.status).toBe(200)
+      const pending = (await start.json()) as {status: string; binding: string; expireTime: number}
+      expect(pending.status).toBe('code-sent')
+      const code = await host.waitForLoginCode(codeEmail)
+
+      const verifyWith = async (attempt: {code: string; binding: string}) => {
+        const response = await fetch(`${host.baseUrl}/api/auth/code/verify`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({email: codeEmail, ...attempt}),
+        })
+        return {status: response.status, body: (await response.json()) as HostLoginResponse}
+      }
+      const wrongCode = await verifyWith({code: code === '0000' ? '0001' : '0000', binding: pending.binding})
+      expect(wrongCode).toEqual({status: 400, body: {message: 'Incorrect code.'}})
+      const wrongBinding = await verifyWith({code, binding: 'someone-else'})
+      expect(wrongBinding.status).toBe(400)
+
+      const login = await verifyWith({code, binding: pending.binding})
+      expect(login.body).toMatchObject({status: 'success', email: codeEmail})
+      const sites = await fetch(`${host.baseUrl}/api/sites`, {
+        headers: {Authorization: `Bearer ${login.body.sessionToken}`},
+      })
+      expect(sites.status).toBe(200)
+
+      // A code is single use.
+      const reuse = await verifyWith({code, binding: pending.binding})
+      expect(reuse.status).toBe(400)
+    },
+    TEST_TIMEOUT,
+  )
+
+  it(
     'rejects a prevalidation for an email the vault did not sign',
     async () => {
       const prevalidation = await device.getVaultEmailPrevalidation({})

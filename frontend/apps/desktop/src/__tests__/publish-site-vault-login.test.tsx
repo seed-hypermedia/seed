@@ -7,6 +7,8 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 const mockState = vi.hoisted(() => ({
   loggedIn: false,
   loginWithVault: vi.fn(),
+  startEmailCode: vi.fn(),
+  verifyEmailCode: vi.fn(),
 }))
 
 vi.mock('@/models/host', () => ({
@@ -15,13 +17,9 @@ vi.mock('@/models/host', () => ({
     isSessionLoaded: true,
     email: mockState.loggedIn ? 'alice@example.com' : null,
     loginWithVault: mockState.loginWithVault,
-    login: vi.fn(),
+    startEmailCode: {mutateAsync: mockState.startEmailCode, isLoading: false, error: null, reset: vi.fn()},
+    verifyEmailCode: {mutate: mockState.verifyEmailCode, isLoading: false, error: null, reset: vi.fn()},
     logout: vi.fn(),
-    reset: vi.fn(),
-    isSendingEmail: false,
-    isPendingEmailValidation: false,
-    error: null,
-    absorbedSession: {error: null},
     createSite: {mutateAsync: vi.fn(), isLoading: false, error: null},
     hostInfo: {
       isLoading: false,
@@ -93,6 +91,12 @@ function renderDialog() {
   })
 }
 
+function fireInput(input: HTMLInputElement, value: string) {
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+  setValue.call(input, value)
+  input.dispatchEvent(new Event('input', {bubbles: true}))
+}
+
 function click(label: string) {
   const button = Array.from(container.querySelectorAll('button')).find(
     (candidate) => candidate.textContent?.includes(label),
@@ -144,6 +148,8 @@ describe('publishing to Seed hosting while connected to a remote vault', () => {
     ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
     mockState.loggedIn = false
     mockState.loginWithVault.mockReset()
+    mockState.startEmailCode.mockReset()
+    mockState.verifyEmailCode.mockReset()
   })
 
   afterEach(() => {
@@ -184,6 +190,42 @@ describe('publishing to Seed hosting while connected to a remote vault', () => {
 
     expect(container.textContent).toContain('Log in to Seed Hosting')
     expect(container.querySelector('input')).not.toBeNull()
+  })
+
+  it('logs in with a code sent by email', async () => {
+    render()
+    act(() => {
+      mockState.loginWithVault.mock.calls[0]![1].onError(new Error('Email validation required.'))
+    })
+    mockState.startEmailCode.mockResolvedValue({
+      status: 'code-sent',
+      email: 'alice@example.com',
+      binding: 'binding-1',
+      expireTime: Date.now() + 15 * 60_000,
+      resendAllowedTime: Date.now() + 60_000,
+    })
+
+    const emailInput = container.querySelector('input')!
+    await act(async () => {
+      fireInput(emailInput, 'alice@example.com')
+      container.querySelector('form')!.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}))
+      // react-hook-form validates asynchronously before submitting
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(mockState.startEmailCode).toHaveBeenCalledWith('alice@example.com')
+    expect(container.textContent).toContain('Check Your Inbox')
+    expect(container.textContent).toContain('alice@example.com')
+
+    const digits = Array.from(container.querySelectorAll('input[inputmode="numeric"]')) as HTMLInputElement[]
+    expect(digits).toHaveLength(4)
+    await act(async () => {
+      '4821'.split('').forEach((digit, i) => fireInput(digits[i]!, digit))
+    })
+    expect(mockState.verifyEmailCode).toHaveBeenCalledWith({
+      email: 'alice@example.com',
+      binding: 'binding-1',
+      code: '4821',
+    })
   })
 
   it('does not ask the vault when already logged in', () => {
