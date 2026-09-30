@@ -599,6 +599,80 @@ func TestCreateComment_ErrorHandling(t *testing.T) {
 	require.Contains(t, err.Error(), "InvalidArgument")
 }
 
+func TestMixedGenesisCommentIsRejected(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := t.Context()
+	account := alice.me.Account.PublicKey.String()
+
+	first, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/first",
+		Changes: []*pb.DocumentChange{
+			{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "First"}}},
+		},
+	})
+	require.NoError(t, err)
+	second, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/second",
+		Changes: []*pb.DocumentChange{
+			{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Second"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	firstHead, err := cid.Decode(first.Version)
+	require.NoError(t, err)
+	secondHead, err := cid.Decode(second.Version)
+	require.NoError(t, err)
+	heads := []cid.Cid{firstHead, secondHead}
+	mixedVersion := blob.NewVersion(heads...).String()
+	content := []*pb.BlockNode{{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "Invalid target"}}}
+
+	_, err = alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  account,
+		TargetPath:     first.Path,
+		TargetVersion:  mixedVersion,
+		Content:        content,
+	})
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+
+	original, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  account,
+		TargetPath:     first.Path,
+		TargetVersion:  first.Version,
+		Content:        content,
+	})
+	require.NoError(t, err)
+	_, err = alice.UpdateComment(ctx, &pb.UpdateCommentRequest{
+		SigningKeyName: "main",
+		Comment: &pb.Comment{
+			Id:            original.Id,
+			TargetAccount: account,
+			TargetPath:    first.Path,
+			TargetVersion: mixedVersion,
+			Content:       content,
+		},
+	})
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+	current, err := alice.GetComment(ctx, &pb.GetCommentRequest{Id: original.Id})
+	require.NoError(t, err)
+	require.Equal(t, original.Version, current.Version, "a rejected update must not replace the live comment")
+
+	malformed, err := blob.NewComment(alice.me.Account, "", alice.me.Account.Principal(), alice.me.Account.Principal(), first.Path, heads, cid.Undef, cid.Undef, []blob.CommentBlock{{Block: blob.Block{ID_Good: "b1", Type: "paragraph", Text: "Invalid target"}}}, blob.VisibilityPublic, time.Now().Round(blob.ClockPrecision))
+	require.NoError(t, err)
+	require.NoError(t, alice.idx.Put(ctx, malformed))
+	rid := blob.RecordID{Authority: alice.me.Account.Principal(), TSID: malformed.TSID()}
+	_, err = alice.GetResource(ctx, &pb.GetResourceRequest{Iri: "hm://" + rid.String() + "?v=" + malformed.CID.String()})
+	require.Equal(t, codes.NotFound, status.Code(err), "an explicit CID must not expose a BadData comment")
+}
+
 func TestListComments_ErrorHandling(t *testing.T) {
 	t.Parallel()
 

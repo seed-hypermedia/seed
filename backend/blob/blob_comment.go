@@ -401,25 +401,13 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 	// The document is identified by the genesis of its changes, which is what makes
 	// comment activity survive a move: the path can change, the genesis can't.
 	//
-	// That needs the target's changes indexed, and when they aren't there are two
-	// different situations, which is why this doesn't simply give up on both:
-	//
-	//   - We have the change but haven't indexed it yet. That's routine -- blobs
-	//     sync out of order, and a reindex replays them in blob-id order. Stash the
-	//     comment so it retries when the change is indexed (see reindexStashedBlobs).
-	//     Skipping instead loses the comment permanently: on a 6.2 GB production
-	//     database, reindexing without this attributed only 6602 of 12659 comments,
-	//     even though every one of their targets was present by the end.
-	//
-	//   - We don't have the change at all (BlobsSize < 0 means we know the hash and
-	//     nothing else). Stashing on a blob that may never arrive would hide the
-	//     comment indefinitely, so index it and leave it out of the counts, which
-	//     is what the old code did for both cases.
+	// That needs every target change indexed. Missing changes are a retryable
+	// dependency, while heads from different genesises make the compound version
+	// invalid. In either case the comment must not be indexed as valid data.
 	var (
 		changeIDs      = make([]int64, len(v.Version))
 		genesisBlobID  int64
 		pendingChanges []cid.Cid
-		missingTarget  bool
 	)
 	for i, ver := range v.Version {
 		changeID, ok := ictx.blobs[ver]
@@ -433,16 +421,22 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 		}
 
 		if cm.ID == 0 {
-			if changeID.BlobsSize < 0 {
-				missingTarget = true
-				continue
-			}
 			pendingChanges = append(pendingChanges, ver)
 			continue
 		}
 
 		changeIDs[i] = cm.ID
-		genesisBlobID = cm.Genesis()
+		changeGenesis := cm.Genesis()
+		if genesisBlobID == 0 {
+			genesisBlobID = changeGenesis
+		} else if genesisBlobID != changeGenesis {
+			return stashError{
+				Reason: stashReasonBadData,
+				Metadata: stashMetadata{
+					Details: fmt.Sprintf("changes of comment target version %s have different genesis", NewVersion(v.Version...).String()),
+				},
+			}
+		}
 	}
 
 	if pendingChanges != nil {
@@ -457,22 +451,17 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 	// A comment that pins no target version means "the document at this path", so
 	// its identity is whatever genesis that path currently resolves to.
 	var genesis string
-	// An unresolved winner still suppresses an older version, but has no
-	// document attribution until its target can be resolved during indexing.
-	if !missingTarget {
-		if genesisBlobID != 0 {
-			genesis, err = lookupBlobCID(ictx.conn, genesisBlobID)
-		} else {
-			genesis, err = lookupResourceGenesis(ictx.conn, resourceID)
-		}
+	if genesisBlobID != 0 {
+		genesis, err = lookupBlobCID(ictx.conn, genesisBlobID)
+	} else {
+		genesis, err = lookupResourceGenesis(ictx.conn, resourceID)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to resolve target genesis for comment %s: %w", c, err)
 	}
 
 	// Settle the winner using its own genesis and refresh both the previous and
-	// current document/space. Even an unresolved target must suppress an older
-	// version rather than leave stale live counts behind.
+	// current document/space.
 	if err := updateCommentLive(ictx.conn, authority, eb.TSID(), id, genesis); err != nil {
 		return err
 	}

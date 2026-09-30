@@ -1110,12 +1110,13 @@ func applyAuthorityRanking(ctx context.Context, db *sqlitex.Pool,
 
 var qIsDeletedComment = dqb.Str(`
     SELECT
-        CASE WHEN extra_attrs->>'deleted' = '1' THEN 1 ELSE 0 END AS is_deleted
-    FROM structural_blobs
-    WHERE type = 'Comment'
-      AND COALESCE(extra_attrs->>'account', author) = :author_id
-      AND extra_attrs->>'tsid' = :tsid
-    ORDER BY ts DESC
+        CASE WHEN sb.extra_attrs->>'deleted' IS NOT NULL THEN 1 ELSE 0 END AS is_deleted
+    FROM structural_blobs sb
+    JOIN blobs b ON b.id = sb.id
+    WHERE sb.type = 'Comment'
+      AND COALESCE(sb.extra_attrs->>'account', sb.author) = :author_id
+      AND sb.extra_attrs->>'tsid' = :tsid
+    ORDER BY sb.ts DESC, b.multihash DESC
     LIMIT 1;
 `)
 
@@ -1144,18 +1145,19 @@ var qBatchDeletedComments = dqb.Str(`
             sb.extra_attrs->>'deleted' AS deleted_raw,
             ROW_NUMBER() OVER (
                 PARTITION BY b.author_id, b.tsid
-                ORDER BY sb.ts DESC
+                ORDER BY sb.ts DESC, version.multihash DESC
             ) AS rn
         FROM batch b
         JOIN structural_blobs sb INDEXED BY structural_blobs_by_tsid
           ON sb.extra_attrs->>'tsid' = b.tsid
          AND COALESCE(sb.extra_attrs->>'account', sb.author) = b.author_id
+        JOIN blobs version ON version.id = sb.id
         WHERE sb.type = 'Comment'
     )
     SELECT
         author_id,
         tsid,
-        CASE WHEN deleted_raw = '1' THEN 1 ELSE 0 END AS is_deleted
+        CASE WHEN deleted_raw IS NOT NULL THEN 1 ELSE 0 END AS is_deleted
     FROM ranked
     WHERE rn = 1;
 `)

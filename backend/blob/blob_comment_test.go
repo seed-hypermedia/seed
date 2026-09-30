@@ -1,23 +1,24 @@
 package blob
 
 import (
+	"bytes"
 	"encoding/hex"
+	"fmt"
+	"strings"
+	"testing"
+
 	"seed/backend/core"
 	"seed/backend/core/coretest"
-	"seed/backend/ipfs"
 	"seed/backend/storage"
 	"seed/backend/util/cclock"
 	"seed/backend/util/colx"
 	"seed/backend/util/must"
 	"seed/backend/util/sqlite/sqlitex"
-	"strings"
-	"testing"
 
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/klauspost/compress/zstd"
-	"github.com/multiformats/go-multicodec"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -46,10 +47,11 @@ func TestCommentOldEncoding(t *testing.T) {
 func TestCommentCausality(t *testing.T) {
 	alice := coretest.NewTester("alice")
 	bob := coretest.NewTester("bob")
-	c := ipfs.MustNewCID(multicodec.Raw, multicodec.Identity, []byte("fake-version"))
 	clock := cclock.New()
+	target, err := NewChange(alice.Account, cid.Undef, nil, 0, ChangeBody{}, clock.MustNow())
+	require.NoError(t, err)
 
-	root, err := NewComment(alice.Account, "", alice.Account.Principal(), alice.Account.Principal(), "", []cid.Cid{c}, cid.Undef, cid.Undef, []CommentBlock{
+	root, err := NewComment(alice.Account, "", alice.Account.Principal(), alice.Account.Principal(), "", []cid.Cid{target.CID}, cid.Undef, cid.Undef, []CommentBlock{
 		{Block: Block{
 			Type: "paragraph",
 			Text: "Hello World",
@@ -91,6 +93,7 @@ func TestCommentCausality(t *testing.T) {
 			db := storage.MakeTestDB(t)
 			idx, err := OpenIndex(t.Context(), db, zap.NewNop())
 			require.NoError(t, err)
+			require.NoError(t, idx.Put(t.Context(), target))
 			toPut := make([]blocks.Block, 0, len(test))
 			for _, blob := range test {
 				toPut = append(toPut, blob)
@@ -106,10 +109,11 @@ func TestCommentCausality(t *testing.T) {
 func TestStableCommentLinksAreIndexed(t *testing.T) {
 	alice := coretest.NewTester("alice")
 	bob := coretest.NewTester("bob")
-	targetVersion := ipfs.MustNewCID(multicodec.Raw, multicodec.Identity, []byte("fake-version"))
 	clock := cclock.New()
+	targetChange, err := NewChange(alice.Account, cid.Undef, nil, 0, ChangeBody{}, clock.MustNow())
+	require.NoError(t, err)
 
-	target, err := NewComment(alice.Account, "", alice.Account.Principal(), alice.Account.Principal(), "", []cid.Cid{targetVersion}, cid.Undef, cid.Undef, []CommentBlock{
+	target, err := NewComment(alice.Account, "", alice.Account.Principal(), alice.Account.Principal(), "", []cid.Cid{targetChange.CID}, cid.Undef, cid.Undef, []CommentBlock{
 		{Block: Block{
 			Type: "paragraph",
 			Text: "Target comment",
@@ -117,7 +121,7 @@ func TestStableCommentLinksAreIndexed(t *testing.T) {
 	}, VisibilityPublic, clock.MustNow())
 	require.NoError(t, err)
 
-	source, err := NewComment(bob.Account, "", bob.Account.Principal(), alice.Account.Principal(), "", []cid.Cid{targetVersion}, cid.Undef, cid.Undef, []CommentBlock{
+	source, err := NewComment(bob.Account, "", bob.Account.Principal(), alice.Account.Principal(), "", []cid.Cid{targetChange.CID}, cid.Undef, cid.Undef, []CommentBlock{
 		{Block: Block{
 			Type: "paragraph",
 			Text: "Stable link",
@@ -146,6 +150,7 @@ func TestStableCommentLinksAreIndexed(t *testing.T) {
 			db := storage.MakeTestDB(t)
 			idx, err := OpenIndex(t.Context(), db, zap.NewNop())
 			require.NoError(t, err)
+			require.NoError(t, idx.Put(t.Context(), targetChange))
 
 			toPut := make([]blocks.Block, 0, len(test))
 			for _, blob := range test {
@@ -172,5 +177,208 @@ func TestStableCommentLinksAreIndexed(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, target.CID.String(), targetVersion)
 		})
+	}
+}
+
+func TestCommentTargetArrivalIndexesActivity(t *testing.T) {
+	for _, deleted := range []bool{false, true} {
+		t.Run(fmt.Sprintf("deleted=%v", deleted), func(t *testing.T) {
+			alice := coretest.NewTester("alice").Account
+			db := storage.MakeTestDB(t)
+			idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+			require.NoError(t, err)
+
+			clock := cclock.New()
+			genesis, err := NewChange(alice, cid.Undef, nil, 0, ChangeBody{
+				Ops: []OpMap{must.Do2(NewOpSetKey("title", "Late target"))},
+			}, clock.MustNow())
+			require.NoError(t, err)
+			target, err := NewChange(alice, genesis.CID, []cid.Cid{genesis.CID}, 1, ChangeBody{
+				Ops: []OpMap{must.Do2(NewOpSetKey("title", "Late target edit"))},
+			}, clock.MustNow())
+			require.NoError(t, err)
+
+			body := []CommentBlock{{Block: Block{ID_Good: "body", Type: "paragraph", Text: "original"}}}
+			first, err := NewComment(alice, "", alice.Principal(), alice.Principal(), "/late", []cid.Cid{target.CID}, cid.Undef, cid.Undef, body, VisibilityPublic, clock.MustNow())
+			require.NoError(t, err)
+			body[0].Text = "edited"
+			if deleted {
+				body = nil
+			}
+			winner, err := NewComment(alice, first.TSID(), alice.Principal(), alice.Principal(), "/late", []cid.Cid{target.CID}, cid.Undef, cid.Undef, body, VisibilityPublic, clock.MustNow())
+			require.NoError(t, err)
+
+			require.NoError(t, idx.PutMany(t.Context(), []blocks.Block{first, winner}))
+			indexed, err := sqlitex.QueryOnePool[int](t.Context(), db, `SELECT COUNT(*) FROM structural_blobs WHERE type = 'Comment'`)
+			require.NoError(t, err)
+			require.Zero(t, indexed, "comments with unresolved target dependencies must remain stashed")
+			stashed, err := sqlitex.QueryOnePool[int](t.Context(), db, `SELECT COUNT(*) FROM stashed_blobs WHERE reason = 'FailedPrecondition'`)
+			require.NoError(t, err)
+			require.Equal(t, 2, stashed)
+			live, err := sqlitex.QueryOnePool[int](t.Context(), db, `SELECT COUNT(*) FROM comment_live`)
+			require.NoError(t, err)
+			require.Zero(t, live)
+
+			require.NoError(t, idx.Put(t.Context(), genesis))
+			indexed, err = sqlitex.QueryOnePool[int](t.Context(), db, `SELECT COUNT(*) FROM structural_blobs WHERE type = 'Comment'`)
+			require.NoError(t, err)
+			require.Zero(t, indexed, "an unrelated change arrival must not index the comments")
+			require.NoError(t, idx.Put(t.Context(), target))
+
+			resolved, err := sqlitex.QueryOnePool[int](t.Context(), db, `SELECT COUNT(*) FROM structural_blobs WHERE type = 'Comment' AND extra_attrs->>'genesis' = ?`, genesis.CID.String())
+			require.NoError(t, err)
+			require.Equal(t, 2, resolved, "every version must be indexed when the missing target arrives")
+			live, err = sqlitex.QueryOnePool[int](t.Context(), db, `SELECT COUNT(*) FROM comment_live`)
+			require.NoError(t, err)
+			want := 1
+			if deleted {
+				want = 0
+			}
+			require.Equal(t, want, live)
+			documentCount, err := sqlitex.QueryOnePool[int](t.Context(), db, `SELECT COUNT(*) FROM document_comment_stats WHERE genesis = ? AND comment_count = ?`, genesis.CID.String(), want)
+			require.NoError(t, err)
+			if deleted {
+				require.Zero(t, documentCount)
+			} else {
+				require.Equal(t, 1, documentCount)
+			}
+			spaceCount, err := sqlitex.QueryOnePool[int](t.Context(), db, `SELECT COALESCE((SELECT comment_count FROM spaces WHERE id = ?), 0)`, alice.Principal().String())
+			require.NoError(t, err)
+			require.Equal(t, want, spaceCount)
+		})
+	}
+}
+
+func TestMixedGenesisCommentIsBadData(t *testing.T) {
+	for _, commentFirst := range []bool{false, true} {
+		t.Run(fmt.Sprintf("commentFirst=%v", commentFirst), func(t *testing.T) {
+			alice := coretest.NewTester("alice").Account
+			db := storage.MakeTestDB(t)
+			idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+			require.NoError(t, err)
+
+			clock := cclock.New()
+			first, err := NewChange(alice, cid.Undef, nil, 0, ChangeBody{}, clock.MustNow())
+			require.NoError(t, err)
+			second, err := NewChange(alice, cid.Undef, nil, 0, ChangeBody{}, clock.MustNow())
+			require.NoError(t, err)
+			body := []CommentBlock{{Block: Block{ID_Good: "body", Type: "paragraph", Text: "mixed"}}}
+			comment, err := NewComment(alice, "", alice.Principal(), alice.Principal(), "/mixed", []cid.Cid{first.CID, second.CID}, cid.Undef, cid.Undef, body, VisibilityPublic, clock.MustNow())
+			require.NoError(t, err)
+
+			if commentFirst {
+				require.NoError(t, idx.Put(t.Context(), comment))
+				require.NoError(t, idx.PutMany(t.Context(), []blocks.Block{first, second}))
+			} else {
+				require.NoError(t, idx.PutMany(t.Context(), []blocks.Block{first, second}))
+				require.NoError(t, idx.Put(t.Context(), comment))
+			}
+
+			indexed, err := sqlitex.QueryOnePool[int](t.Context(), db, `SELECT COUNT(*) FROM structural_blobs WHERE type = 'Comment'`)
+			require.NoError(t, err)
+			require.Zero(t, indexed, "a compound version spanning genesises is invalid")
+			badData, err := sqlitex.QueryOnePool[int](t.Context(), db, `SELECT COUNT(*) FROM stashed_blobs WHERE reason = 'BadData'`)
+			require.NoError(t, err)
+			require.Equal(t, 1, badData)
+			live, err := sqlitex.QueryOnePool[int](t.Context(), db, `SELECT COUNT(*) FROM comment_live`)
+			require.NoError(t, err)
+			require.Zero(t, live)
+			stats, err := sqlitex.QueryOnePool[int](t.Context(), db, `SELECT COUNT(*) FROM document_comment_stats`)
+			require.NoError(t, err)
+			require.Zero(t, stats)
+		})
+	}
+}
+
+func TestUnversionedCommentRefArrivalRepairsActivity(t *testing.T) {
+	for _, reverse := range []bool{false, true} {
+		t.Run(fmt.Sprintf("reverse=%v", reverse), func(t *testing.T) {
+			alice := coretest.NewTester("alice").Account
+			db := storage.MakeTestDB(t)
+			idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+			require.NoError(t, err)
+
+			clock := cclock.New()
+			body := []CommentBlock{{Block: Block{ID_Good: "body", Type: "paragraph", Text: "comment"}}}
+			comment, err := NewComment(alice, "", alice.Principal(), alice.Principal(), "/late-ref", nil, cid.Undef, cid.Undef, body, VisibilityPublic, clock.MustNow())
+			require.NoError(t, err)
+			require.NoError(t, idx.Put(t.Context(), comment))
+
+			first, err := NewChange(alice, cid.Undef, nil, 0, ChangeBody{
+				Ops: []OpMap{must.Do2(NewOpSetKey("title", "First generation"))},
+			}, clock.MustNow())
+			require.NoError(t, err)
+			second, err := NewChange(alice, cid.Undef, nil, 0, ChangeBody{
+				Ops: []OpMap{must.Do2(NewOpSetKey("title", "Second generation"))},
+			}, clock.MustNow())
+			require.NoError(t, err)
+			require.NoError(t, idx.PutMany(t.Context(), []blocks.Block{first, second}))
+			live, err := sqlitex.QueryOnePool[int](t.Context(), db, `SELECT COUNT(*) FROM comment_live`)
+			require.NoError(t, err)
+			require.Zero(t, live, "an unpinned comment cannot resolve until the document generation exists")
+
+			firstRef, err := NewRef(alice, 1, first.CID, alice.Principal(), "/late-ref", []cid.Cid{first.CID}, clock.MustNow(), VisibilityPublic)
+			require.NoError(t, err)
+			secondRef, err := NewRef(alice, 2, second.CID, alice.Principal(), "/late-ref", []cid.Cid{second.CID}, clock.MustNow(), VisibilityPublic)
+			require.NoError(t, err)
+			refs := []Encoded[*Ref]{firstRef, secondRef}
+			if reverse {
+				refs[0], refs[1] = refs[1], refs[0]
+			}
+			for _, ref := range refs {
+				require.NoError(t, idx.Put(t.Context(), ref))
+			}
+
+			genesis, err := sqlitex.QueryOnePool[string](t.Context(), db, `SELECT extra_attrs->>'genesis' FROM structural_blobs WHERE type = 'Comment'`)
+			require.NoError(t, err)
+			require.Equal(t, second.CID.String(), genesis)
+			live, err = sqlitex.QueryOnePool[int](t.Context(), db, `SELECT COUNT(*) FROM comment_live WHERE genesis = ?`, second.CID.String())
+			require.NoError(t, err)
+			require.Equal(t, 1, live)
+			stats, err := sqlitex.QueryOnePool[int](t.Context(), db, `SELECT COUNT(*) FROM document_comment_stats WHERE genesis = ? AND comment_count = 1`, second.CID.String())
+			require.NoError(t, err)
+			require.Equal(t, 1, stats)
+			stale, err := sqlitex.QueryOnePool[int](t.Context(), db, `SELECT COUNT(*) FROM document_comment_stats WHERE genesis = ?`, first.CID.String())
+			require.NoError(t, err)
+			require.Zero(t, stale)
+		})
+	}
+}
+
+func TestCommentStatsLatestTieBreak(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+	db := storage.MakeTestDB(t)
+	idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+	require.NoError(t, err)
+
+	clock := cclock.New()
+	change, err := NewChange(alice, cid.Undef, nil, 0, ChangeBody{}, clock.MustNow())
+	require.NoError(t, err)
+	require.NoError(t, idx.Put(t.Context(), change))
+	ts := clock.MustNow()
+	makeComment := func(text string) Encoded[*Comment] {
+		t.Helper()
+		body := []CommentBlock{{Block: Block{ID_Good: "body", Type: "paragraph", Text: text}}}
+		comment, err := NewComment(alice, "", alice.Principal(), alice.Principal(), "/target", []cid.Cid{change.CID}, cid.Undef, cid.Undef, body, VisibilityPublic, ts)
+		require.NoError(t, err)
+		return comment
+	}
+	a := makeComment("a")
+	b := makeComment("b")
+	winner, loser := a, b
+	if bytes.Compare(winner.CID.Hash(), loser.CID.Hash()) < 0 {
+		winner, loser = loser, winner
+	}
+	// Insert the CID winner first so a local blob-ID tie-break chooses the loser.
+	require.NoError(t, idx.PutMany(t.Context(), []blocks.Block{winner, loser}))
+
+	for _, table := range []string{"document_comment_stats", "spaces"} {
+		got, err := sqlitex.QueryOnePool[string](t.Context(), db, `
+			SELECT hex(b.multihash)
+			FROM `+table+` stats
+			JOIN blobs b ON b.id = stats.last_comment
+		`)
+		require.NoError(t, err)
+		require.Equal(t, strings.ToUpper(hex.EncodeToString(winner.CID.Hash())), got, table)
 	}
 }

@@ -516,6 +516,15 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 	if err := dg.save(conn); err != nil {
 		return err
 	}
+	genesis, err := lookupResourceGenesis(conn, resourceID)
+	if err != nil {
+		return err
+	}
+	if genesis != "" {
+		if err := repairUnversionedCommentsForResource(conn, resourceID, genesis); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }

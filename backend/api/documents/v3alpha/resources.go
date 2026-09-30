@@ -24,7 +24,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fxamacker/cbor/v2"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	gonanoid "github.com/matoous/go-nanoid/v2"
@@ -827,41 +826,15 @@ type snapshotBlob struct {
 }
 
 func (srv *Server) getSnapshotResource(ctx context.Context, authority core.Principal, tsid blob.TSID, version []cid.Cid) (*snapshotBlob, error) {
-	// For state-based (snapshot style) blobs we only support a single version for now,
-	// so if version is specified we just get the blob corresponding to that CID.
-	if len(version) == 1 {
-		c := version[0]
-		blk, err := srv.idx.Get(ctx, c)
-		if err != nil {
-			return nil, err
-		}
-
-		var union struct {
-			Type blob.Type `cbor:"type"`
-		}
-
-		if err := cbor.Unmarshal(blk.RawData(), &union); err != nil {
-			return nil, fmt.Errorf("failed to parse blob union discriminant type")
-		}
-
-		out, err := decodeSnapshotBlob(union.Type, blk.RawData())
-		if err != nil {
-			return nil, err
-		}
-
-		tsidReal := blob.NewTSID(out.BlobTime(), blk.RawData())
-		if tsid != tsidReal {
-			return nil, status.Errorf(codes.InvalidArgument, "getResource: blob TSID '%s' does not match requested TSID '%s'", tsid, tsidReal)
-		}
-
-		return &snapshotBlob{
-			Blob: out,
-			CID:  blk.Cid(),
-		}, nil
-	}
-
 	if len(version) > 1 {
 		return nil, status.Errorf(codes.InvalidArgument, "multiple versions are not supported for state-based resources: got %d versions", len(version))
+	}
+
+	query := qGetResource()
+	args := []any{authority, tsid}
+	if len(version) == 1 {
+		query = qGetResourceVersion()
+		args = append(args, version[0].Type(), version[0].Hash())
 	}
 
 	var (
@@ -870,7 +843,7 @@ func (srv *Server) getSnapshotResource(ctx context.Context, authority core.Princ
 	)
 
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) (err error) {
-		rows, discard, check := sqlitex.Query(conn, qGetResource(), authority, tsid).All()
+		rows, discard, check := sqlitex.Query(conn, query, args...).All()
 		defer discard(&err)
 		for row := range rows {
 			seq := sqlite.NewIncrementor(0)
@@ -897,10 +870,13 @@ func (srv *Server) getSnapshotResource(ctx context.Context, authority core.Princ
 	}); err != nil {
 		return nil, err
 	}
+	if out == nil {
+		return nil, status.Errorf(codes.NotFound, "snapshot resource %s/%s was not found", authority, tsid)
+	}
 
 	// Only test deletion after selecting the canonical winner: filtering tombstones
 	// in SQL would resurrect an older version. Explicit CID reads remain historical.
-	if cmt, ok := out.(*blob.Comment); ok && len(cmt.Body) == 0 {
+	if cmt, ok := out.(*blob.Comment); ok && len(version) == 0 && len(cmt.Body) == 0 {
 		return nil, status.Errorf(codes.NotFound, "comment %s/%s has been deleted", authority, tsid)
 	}
 
@@ -923,6 +899,22 @@ var qGetResource = dqb.Str(`
 	AND sb.extra_attrs->>'tsid' = :tsid
 	AND b.size > 0
 	ORDER BY sb.ts DESC, b.multihash DESC
+	LIMIT 1
+`)
+
+var qGetResourceVersion = dqb.Str(`
+	SELECT
+		sb.type,
+		b.codec,
+		b.multihash,
+		b.data,
+		b.size
+	FROM structural_blobs sb
+	JOIN blobs b ON b.id = sb.id
+	WHERE COALESCE(sb.extra_attrs->>'account', sb.author) = (SELECT id FROM public_keys WHERE principal = :authority)
+	AND sb.extra_attrs->>'tsid' = :tsid
+	AND (b.codec, b.multihash) = (:codec, :multihash)
+	AND b.size > 0
 	LIMIT 1
 `)
 

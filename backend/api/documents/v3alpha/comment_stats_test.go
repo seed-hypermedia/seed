@@ -26,8 +26,8 @@ const qDocumentCommentStats = `
 // updateDocumentCommentStats prunes them.
 const qDocumentLiveCommentCount = `
 	SELECT genesis, COUNT(*), MAX(ts),
-	       (SELECT l2.blob_id FROM comment_live l2 WHERE l2.genesis = l.genesis
-	         ORDER BY l2.ts DESC, l2.blob_id DESC LIMIT 1)
+	       (SELECT l2.blob_id FROM comment_live l2 JOIN blobs b2 ON b2.id = l2.blob_id WHERE l2.genesis = l.genesis
+	         ORDER BY l2.ts DESC, b2.multihash DESC LIMIT 1)
 	FROM comment_live l GROUP BY genesis ORDER BY genesis;
 `
 
@@ -44,10 +44,10 @@ const qSpaceLiveCommentCount = `
 	       COALESCE((SELECT MAX(l.ts) FROM comment_live l JOIN resources r ON r.id = l.resource
 	         WHERE r.iri = 'hm://' || s.id
 	         OR (r.iri >= 'hm://' || s.id || '/' AND r.iri < 'hm://' || s.id || '0')), 0),
-	       COALESCE((SELECT l.blob_id FROM comment_live l JOIN resources r ON r.id = l.resource
+	       COALESCE((SELECT l.blob_id FROM comment_live l JOIN blobs b ON b.id = l.blob_id JOIN resources r ON r.id = l.resource
 	         WHERE r.iri = 'hm://' || s.id
 	         OR (r.iri >= 'hm://' || s.id || '/' AND r.iri < 'hm://' || s.id || '0')
-	         ORDER BY l.ts DESC, l.blob_id DESC LIMIT 1), 0)
+	         ORDER BY l.ts DESC, b.multihash DESC LIMIT 1), 0)
 	FROM spaces s ORDER BY s.id;
 `
 

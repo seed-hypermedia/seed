@@ -84,6 +84,49 @@ func updateCommentLive(conn *sqlite.Conn, authority core.Principal, tsid TSID, i
 	return nil
 }
 
+// repairUnversionedCommentsForResource resolves comments that targeted the
+// latest document at a path before any generation for that path was indexed.
+func repairUnversionedCommentsForResource(conn *sqlite.Conn, resourceID int64, genesis string) (err error) {
+	type repair struct {
+		id        int64
+		authority core.Principal
+		tsid      TSID
+	}
+	var repairs []repair
+	rows, discard, check := sqlitex.Query(conn, qUnversionedCommentsToRepair(), resourceID, genesis).All()
+	defer discard(&err)
+	for row := range rows {
+		repairs = append(repairs, repair{
+			id:        row.ColumnInt64(0),
+			authority: append(core.Principal(nil), row.ColumnBytes(1)...),
+			tsid:      TSID(row.ColumnText(2)),
+		})
+	}
+	if err := check(); err != nil {
+		return err
+	}
+
+	for _, repair := range repairs {
+		if err := updateCommentLive(conn, repair.authority, repair.tsid, repair.id, genesis); err != nil {
+			return fmt.Errorf("failed to repair unversioned comment %d after document arrival: %w", repair.id, err)
+		}
+	}
+	return nil
+}
+
+var qUnversionedCommentsToRepair = dqb.Str(`
+	SELECT comment.id, pk.principal, comment.extra_attrs->>'tsid'
+	FROM structural_blobs comment
+	JOIN public_keys pk ON pk.id = COALESCE(comment.extra_attrs->>'account', comment.author)
+	WHERE comment.type = 'Comment'
+	AND comment.resource = ?1
+	AND comment.extra_attrs->>'genesis' IS NOT ?2
+	AND NOT EXISTS (
+		SELECT 1 FROM blob_links
+		WHERE source = comment.id AND type = 'comment/target'
+	);
+`)
+
 var qSetCommentGenesis = dqb.Str(`
 	UPDATE structural_blobs
 	SET extra_attrs = json_set(extra_attrs, '$.genesis', NULLIF(?2, ''))
@@ -158,12 +201,15 @@ func updateDocumentCommentStats(conn *sqlite.Conn, genesis string) error {
 
 var qUpsertDocumentCommentStats = dqb.Str(`
 	WITH live AS (
-		SELECT blob_id, ts FROM comment_live WHERE genesis = :genesis
+		SELECT l.blob_id, l.ts, b.multihash
+		FROM comment_live l
+		JOIN blobs b ON b.id = l.blob_id
+		WHERE l.genesis = :genesis
 	)
 	INSERT INTO document_comment_stats (genesis, last_comment, last_comment_time, comment_count)
 	SELECT
 		:genesis,
-		(SELECT blob_id FROM live ORDER BY ts DESC, blob_id DESC LIMIT 1),
+		(SELECT blob_id FROM live ORDER BY ts DESC, multihash DESC LIMIT 1),
 		COALESCE((SELECT MAX(ts) FROM live), 0),
 		(SELECT COUNT(*) FROM live)
 	ON CONFLICT (genesis) DO UPDATE SET
@@ -210,8 +256,9 @@ func updateSpaceCommentStats(conn *sqlite.Conn, spaceID string) error {
 // character after '/') -- the same trick the document listings use.
 var qUpsertSpaceCommentStats = dqb.Str(`
 	WITH live AS (
-		SELECT l.blob_id, l.ts
+		SELECT l.blob_id, l.ts, b.multihash
 		FROM comment_live l
+		JOIN blobs b ON b.id = l.blob_id
 		JOIN resources r ON r.id = l.resource
 		WHERE r.iri = 'hm://' || :space
 		OR (r.iri >= 'hm://' || :space || '/' AND r.iri < 'hm://' || :space || '0')
@@ -219,7 +266,7 @@ var qUpsertSpaceCommentStats = dqb.Str(`
 	INSERT INTO spaces (id, last_comment, last_comment_time, comment_count)
 	SELECT
 		:space,
-		(SELECT blob_id FROM live ORDER BY ts DESC, blob_id DESC LIMIT 1),
+		(SELECT blob_id FROM live ORDER BY ts DESC, multihash DESC LIMIT 1),
 		COALESCE((SELECT MAX(ts) FROM live), 0),
 		(SELECT COUNT(*) FROM live)
 	ON CONFLICT (id) DO UPDATE SET

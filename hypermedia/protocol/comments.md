@@ -28,7 +28,7 @@ The daemon verifies the signature, then indexes the target as a link, the thread
 
 A comment's stable identity is `<authority>/<tsid>`. The authority is the signed `account` [principal](../principal.md) when present and otherwise the signer. The [TSID](./blobs.md) is a timestamped id: 10 bytes, a 48-bit millisecond timestamp followed by the first 4 bytes of the SHA-256 of the blob, encoded base58btc into 14 or 15 characters. The first version of a comment derives its TSID from its own bytes. An edit or a tombstone carries that TSID in its `id` field, so all versions share one identity while each has its own CID. <!-- id:6hZOUU7j -->
 
-Among the blobs that share a TSID, the live version is the one with the greatest timestamp. On a tie, the blob the node stored last wins. A blob with an empty `body` is a tombstone. The comment is deleted, and listings stop showing it. The history is kept, and `ListCommentVersions` returns every version. <!-- id:aFKTvLqM -->
+Among the blobs that share an authority and TSID, the live version is the one with the greatest timestamp. On a tie, the blob with the greatest CID multihash wins, so replicas agree regardless of arrival order. A blob with an empty `body` is a tombstone. The comment is deleted, and listings stop showing it. The history is kept, and `ListCommentVersions` returns every non-tombstone version. <!-- id:aFKTvLqM -->
 
 Because identity includes the authority, looking up a comment by `<authority>/<tsid>`, or listing its versions, matches only blobs indexed for that authority. Authorized agent keys can therefore edit one account comment without changing its address. A blob from an unrelated key that merely claims the same authority and TSID is rejected. Legacy blobs without `account` remain signer-owned, so delegated edits created before this field existed are not inferred or merged. <!-- id:3DG_MVv8 -->
 
@@ -42,7 +42,7 @@ Clients group comments by thread. The [Seed API](../build/web-api.md)'s `ListDis
 
 # Which version was commented on <!-- id:LsYkU2Mr -->
 
-A comment records the document version its author saw, and readers show it under that version. The daemon resolves the comment to the document's [genesis](./documents.md) Change through that version. So comment counts and the latest-comment pointer survive when a document is moved or republished. The path can change, but the genesis cannot. A comment whose `version` is empty attaches to whatever document currently lives at the path. <!-- id:dL9bVnSR -->
+A comment records the document version its author saw, and readers show it under that version. Every head in a compound version must belong to the same document genesis; a version spanning different genesises is invalid. The daemon resolves the comment to the document's [genesis](./documents.md) Change through that version. So comment counts and the latest-comment pointer survive when a document is moved or republished. The path can change, but the genesis cannot. A comment whose `version` is empty attaches to whatever document currently lives at the path. <!-- id:dL9bVnSR -->
 
 # Block and range comments <!-- id:5aP3qCir -->
 

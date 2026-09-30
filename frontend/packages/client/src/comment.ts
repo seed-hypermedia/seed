@@ -588,7 +588,8 @@ export async function updateComment(input: UpdateCommentInput, signer: AnySigner
 
 /**
  * Compute the record ID ("authority/tsid") from raw CBOR-encoded comment blob bytes.
- * The TSID is a 10-byte base58btc value: 6 bytes ms timestamp + 4 bytes SHA256 prefix.
+ * Edits and tombstones carry the original TSID in `id`. A creation derives its
+ * 10-byte base58btc TSID from 6 timestamp bytes and a 4-byte SHA256 prefix.
  */
 export async function commentRecordIdFromBlob(blobData: Uint8Array): Promise<string> {
   const decoded = cborDecode(blobData) as Record<string, unknown>
@@ -599,6 +600,11 @@ export async function commentRecordIdFromBlob(blobData: Uint8Array): Promise<str
   const accountBytes = decoded.account as Uint8Array | undefined
   const ts = BigInt(decoded.ts as bigint | number)
   const authority = base58btc.encode(new Uint8Array(accountBytes || signerBytes))
+
+  const existingTSID = decoded.id
+  if (typeof existingTSID === 'string' && existingTSID) {
+    return `${authority}/${existingTSID}`
+  }
 
   // 6 bytes for timestamp (lower 48 bits of ms, big-endian)
   const buf = new ArrayBuffer(8)

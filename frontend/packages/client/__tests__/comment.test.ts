@@ -262,7 +262,7 @@ describe('updateComment', () => {
     expect(decodedComment.replyParent).toBeTruthy()
     expect(decodedComment.threadRoot).toBeTruthy()
     expect(base58btc.encode(decodedComment.account)).toBe(TEST_DOC_ID.uid)
-    expect(await commentRecordIdFromBlob(publishInput.blobs[0]!.data)).toMatch(new RegExp(`^${TEST_DOC_ID.uid}/`))
+    expect(await commentRecordIdFromBlob(publishInput.blobs[0]!.data)).toBe(`${TEST_DOC_ID.uid}/zb2rhiKhUepk2`)
   })
 
   it('keeps the same authority in delegated tombstones', async () => {
@@ -281,6 +281,6 @@ describe('updateComment', () => {
     const decodedComment = cborDecode(data) as any
     expect(decodedComment.body).toEqual([])
     expect(base58btc.encode(decodedComment.account)).toBe(TEST_DOC_ID.uid)
-    expect(await commentRecordIdFromBlob(data)).toMatch(new RegExp(`^${TEST_DOC_ID.uid}/`))
+    expect(await commentRecordIdFromBlob(data)).toBe(`${TEST_DOC_ID.uid}/zb2rhiKhUepk2`)
   })
 })

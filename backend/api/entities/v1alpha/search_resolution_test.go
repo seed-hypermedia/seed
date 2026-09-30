@@ -1,6 +1,7 @@
 package entities
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"strings"
@@ -149,6 +150,50 @@ func isLatest(id string) bool {
 		id = id[:i]
 	}
 	return strings.HasSuffix(id, "&l")
+}
+
+func TestCommentDeletionTieBreak(t *testing.T) {
+	t.Parallel()
+	svc := newTestServices(t, "alice")
+	ctx := t.Context()
+	account := svc.me.Account
+	ts := time.Now().UTC().Add(-time.Minute).Round(blob.ClockPrecision)
+	body := []blob.CommentBlock{{Block: blob.Block{ID_Good: "body", Type: "paragraph", Text: "comment"}}}
+	seed, err := blob.NewComment(account, "", account.Principal(), account.Principal(), "/target", nil, cid.Undef, cid.Undef, body, blob.VisibilityPublic, ts.Add(-time.Second))
+	require.NoError(t, err)
+	live, err := blob.NewComment(account, seed.TSID(), account.Principal(), account.Principal(), "/target", nil, cid.Undef, cid.Undef, body, blob.VisibilityPublic, ts)
+	require.NoError(t, err)
+	deleted, err := blob.NewComment(account, seed.TSID(), account.Principal(), account.Principal(), "/target", nil, cid.Undef, cid.Undef, nil, blob.VisibilityPublic, ts)
+	require.NoError(t, err)
+	winner, loser := blocks.Block(live), blocks.Block(deleted)
+	wantDeleted := false
+	if bytes.Compare(deleted.CID.Hash(), live.CID.Hash()) > 0 {
+		winner, loser = deleted, live
+		wantDeleted = true
+	}
+	// Insert the CID winner first so an insertion-order tie-break selects the loser.
+	require.NoError(t, svc.idx.PutMany(ctx, []blocks.Block{winner, loser}))
+
+	authorID, err := sqlitex.QueryOnePool[int64](ctx, svc.entities.db, `SELECT id FROM public_keys WHERE principal = ?`, account.Principal())
+	require.NoError(t, err)
+	got, err := sqlitex.QueryOnePool[int](ctx, svc.entities.db, qIsDeletedComment(), authorID, string(seed.TSID()))
+	require.NoError(t, err)
+	require.Equal(t, wantDeleted, got != 0)
+
+	batch, err := json.Marshal([]map[string]any{{"author_id": authorID, "tsid": string(seed.TSID())}})
+	require.NoError(t, err)
+	conn, release, err := svc.entities.db.ReadConn(ctx)
+	require.NoError(t, err)
+	defer release()
+	rows := 0
+	require.NoError(t, sqlitex.Exec(conn, qBatchDeletedComments(), func(stmt *sqlite.Stmt) error {
+		rows++
+		require.Equal(t, authorID, stmt.ColumnInt64(0))
+		require.Equal(t, string(seed.TSID()), stmt.ColumnText(1))
+		require.Equal(t, wantDeleted, stmt.ColumnInt64(2) != 0)
+		return nil
+	}, string(batch)))
+	require.Equal(t, 1, rows)
 }
 
 func TestSearchEntitiesSharedGenesisAttribution(t *testing.T) {

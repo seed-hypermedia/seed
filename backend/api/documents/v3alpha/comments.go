@@ -97,10 +97,21 @@ func (srv *Server) CreateComment(ctx context.Context, in *documents.CreateCommen
 	if err := srv.idx.Put(ctx, eb); err != nil {
 		return nil, err
 	}
+	indexed, err := srv.getSnapshotResource(ctx, kp.Principal(), eb.TSID(), []cid.Cid{eb.CID})
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return nil, status.Error(codes.InvalidArgument, "comment target version is invalid or unavailable")
+		}
+		return nil, err
+	}
+	cmt, ok := indexed.Blob.(*blob.Comment)
+	if !ok {
+		return nil, status.Error(codes.Internal, "indexed comment has an unexpected blob type")
+	}
 
 	return sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (*documents.Comment, error) {
 		lookup := blob.NewLookupCache(conn)
-		return commentToProto(lookup, eb.CID, eb.Decoded, eb.TSID())
+		return commentToProto(lookup, indexed.CID, cmt, eb.TSID())
 	})
 }
 
@@ -757,10 +768,21 @@ func (srv *Server) UpdateComment(ctx context.Context, in *documents.UpdateCommen
 	if err := srv.idx.Put(ctx, eb); err != nil {
 		return nil, err
 	}
+	indexed, err := srv.getSnapshotResource(ctx, rid.Authority, eb.TSID(), []cid.Cid{eb.CID})
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return nil, status.Error(codes.InvalidArgument, "comment target version is invalid or unavailable")
+		}
+		return nil, err
+	}
+	cmt, ok := indexed.Blob.(*blob.Comment)
+	if !ok {
+		return nil, status.Error(codes.Internal, "indexed comment has an unexpected blob type")
+	}
 
 	return sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (*documents.Comment, error) {
 		lookup := blob.NewLookupCache(conn)
-		return commentToProto(lookup, eb.CID, eb.Decoded, eb.TSID())
+		return commentToProto(lookup, indexed.CID, cmt, eb.TSID())
 	})
 }
 
