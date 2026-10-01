@@ -1,5 +1,7 @@
 import type {
   ExploreBrowseKind,
+  ExploreChip,
+  ExploreDateSelection,
   ExplorePresentation,
   ExploreQueryNode,
   HMExploreContext,
@@ -9,8 +11,11 @@ import type {
 } from '@shm/shared/explore'
 import {
   BROWSABLE_KINDS,
+  exploreDateTokens,
   exploreQueryChips,
+  parseExploreQuery,
   removeExploreQueryChip,
+  replaceExploreChips,
   serializeExploreQuery,
   toggleExplorePredicate,
 } from '@shm/shared/explore'
@@ -22,7 +27,9 @@ import {
   useExploreAccounts,
   useExploreAttributeNames,
   useExploreResultDocuments,
+  useExploreSpacePeople,
 } from '@shm/shared/models/explore'
+import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {packHmId} from '@shm/shared/utils/entity-id-url'
 import {Check, FileText, Globe, Loader2, MessageSquare, Pilcrow, Search, User} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
@@ -31,15 +38,17 @@ import {Input} from './components/input'
 import {
   ActiveFilterChip,
   ActiveFilterChipRow,
-  ExploreChipButton,
+  ExploreAuthorMenu,
+  FilterChipButton,
+  ExploreDateMenu,
   ExploreFilterMenu,
   ExploreScopeMenu,
   ExploreTypeMenu,
   typeOptions,
 } from './explore-filters'
-import {useFocusExploreSearchListener} from './explore-search-focus'
 import {ExploreBrowse, ExploreJumpTo, ExploreLanding, ExploreYourSpaces} from './explore-landing'
 import {ExploreState} from './explore-primitives'
+import {useFocusExploreSearchListener} from './explore-search-focus'
 import {exploreTableConfig, ExploreViewSwitcher, queryBlockStyle} from './explore-views'
 import {QueryBlockContent} from './query-block-content'
 import {cn} from './utils'
@@ -118,7 +127,7 @@ export function ExplorePage(props: ExplorePageProps) {
   const [activeTab, setActiveTab] = useState<ResultTab>('all')
   // Set once the reader picks a tab, so the default below never overrides a deliberate choice.
   const [tabPicked, setTabPicked] = useState(false)
-  const [menu, setMenu] = useState<'scope' | 'type' | 'in' | 'attributes' | 'sort' | null>(null)
+  const [menu, setMenu] = useState<'scope' | 'type' | 'in' | 'attributes' | 'author' | 'date' | 'sort' | null>(null)
   const [sortBy, setSortBy] = useState<ExploreSortOption>('relevance')
   const [draft, setDraft] = useState(props.query)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -217,12 +226,57 @@ export function ExplorePage(props: ExplorePageProps) {
   )
   // Comments and text blocks have no listing API, so selecting them can only narrow a later search.
   const searchOnlyTypes = selectedTypes.filter((type) => !BROWSABLE_KINDS.includes(type as ExploreBrowseKind))
-  /** Scope chips carry a raw account uid. Show the space's name where the account list knows it. */
-  const chipDisplayLabel = (chip: (typeof chips)[number]) => {
-    if (chip.kind !== 'scope' || !chip.token.startsWith('in:')) return chip.label
-    const uid = chip.token.slice('in:'.length)
+  // The account list falls back to the raw id for an unnamed account; treat that as no name at all.
+  const accountName = (uid: string) => {
     const name = accounts.data?.find((account) => account.value === uid)?.label
-    return name && name !== uid ? `In ${name}` : chip.label
+    return name && name !== uid ? name : null
+  }
+  /** Scope and author chips carry a raw account uid. Show the name where the account list knows it. */
+  const chipDisplayLabel = (chip: (typeof chips)[number]) => {
+    if (chip.kind === 'scope' && chip.token.startsWith('in:')) {
+      const name = accountName(chip.token.slice('in:'.length))
+      return name ? `In ${name}` : chip.label
+    }
+    if (chip.kind === 'author') {
+      const name = accountName(chip.token.slice('author:'.length))
+      return `Author ${name ?? abbreviateUid(chip.token.slice('author:'.length))}`
+    }
+    if (chip.kind === 'time') {
+      const match = /^(created|updated)(>=|>|<=|<)(.+)$/.exec(chip.token)
+      if (!match) return chip.label
+      const [, field, comparison, value] = match
+      const word = {'>=': 'from', '>': 'after', '<=': 'until', '<': 'before'}[comparison!]
+      return `${field === 'created' ? 'Created' : 'Updated'} ${word} ${value}`
+    }
+    return chip.label
+  }
+  const selectedAuthor = chips.find((chip) => chip.kind === 'author')?.token.slice('author:'.length) ?? null
+  // When scoped to a space, show the owner and writers of that space.
+  const spacePeople = useExploreSpacePeople(props.context.type === 'site' ? props.context.id : null, {
+    enabled: menu === 'author' && props.context.type === 'site',
+  })
+  const authorOptions =
+    props.context.type === 'site'
+      ? spacePeople.data
+          .filter((person) => person.role === 'owner' || person.role === 'writer')
+          .map((person) => ({value: person.uid, label: person.name ?? person.uid}))
+      : accounts.data ?? []
+  // The Date menu opens on whatever range the query already holds, read back as a custom range.
+  const timePredicates = chips.flatMap((chip) => {
+    const node = chip.kind === 'time' ? parseExploreQuery(chip.token).ast : null
+    return node?.kind === 'predicate' && node.predicate.kind === 'time' ? [node.predicate] : []
+  })
+  const initialDate: ExploreDateSelection = timePredicates.length
+    ? {
+        field: timePredicates[0]!.field,
+        preset: 'custom',
+        from: timePredicates.find((predicate) => predicate.comparison.startsWith('>'))?.value,
+        to: timePredicates.find((predicate) => predicate.comparison.startsWith('<'))?.value,
+      }
+    : {field: 'created', preset: 'any'}
+  const applyChips = (kind: ExploreChip['kind'], tokens: string[]) => {
+    updateQuery(serializeExploreQuery(replaceExploreChips(props.parsed, kind, tokens)))
+    setMenu(null)
   }
   // A results tab can use the Collections views only when every row in it is a document or a space.
   // Search returns matched text and an id, so those rows are hydrated into records first.
@@ -289,7 +343,7 @@ export function ExplorePage(props: ExplorePageProps) {
         <div className="relative flex flex-wrap items-center gap-2">
           {props.onScopeChange ? (
             <div className="relative" data-explore-menu>
-              <ExploreChipButton
+              <FilterChipButton
                 label={scopeLabel}
                 active={props.context.type === 'site'}
                 open={menu === 'scope'}
@@ -308,7 +362,7 @@ export function ExplorePage(props: ExplorePageProps) {
             </div>
           ) : null}
           <div className="relative" data-explore-menu>
-            <ExploreChipButton
+            <FilterChipButton
               label={selectedTypes.length ? `${selectedTypes.length} types` : 'All types'}
               active={selectedTypes.length > 0}
               open={menu === 'type'}
@@ -327,7 +381,7 @@ export function ExplorePage(props: ExplorePageProps) {
             ) : null}
           </div>
           <div className="relative" data-explore-menu>
-            <ExploreChipButton
+            <FilterChipButton
               label="Attributes"
               active={chips.some((chip) => chip.kind === 'attribute')}
               open={menu === 'attributes'}
@@ -342,6 +396,36 @@ export function ExplorePage(props: ExplorePageProps) {
                   updateQuery(serializeExploreQuery(next))
                   setMenu(null)
                 }}
+              />
+            ) : null}
+          </div>
+          <div className="relative" data-explore-menu>
+            <FilterChipButton
+              label={selectedAuthor ? accountName(selectedAuthor) ?? abbreviateUid(selectedAuthor) : 'Author'}
+              active={!!selectedAuthor}
+              open={menu === 'author'}
+              onClick={() => setMenu(menu === 'author' ? null : 'author')}
+            />
+            {menu === 'author' ? (
+              <ExploreAuthorMenu
+                accounts={authorOptions}
+                isLoading={props.context.type === 'site' ? spacePeople.isLoading : accounts.isLoading}
+                selected={selectedAuthor}
+                onSelect={(author) => applyChips('author', author ? [`author:${author}`] : [])}
+              />
+            ) : null}
+          </div>
+          <div className="relative" data-explore-menu>
+            <FilterChipButton
+              label="Date"
+              active={timePredicates.length > 0}
+              open={menu === 'date'}
+              onClick={() => setMenu(menu === 'date' ? null : 'date')}
+            />
+            {menu === 'date' ? (
+              <ExploreDateMenu
+                initial={initialDate}
+                onApply={(selection) => applyChips('time', exploreDateTokens(selection))}
               />
             ) : null}
           </div>
@@ -408,7 +492,7 @@ export function ExplorePage(props: ExplorePageProps) {
               />
             ) : null}
             <div className="relative" data-explore-menu>
-              <ExploreChipButton
+              <FilterChipButton
                 label={`Sort by ${sortOptions.find((option) => option.value === sortBy)?.label ?? 'Relevance'}`}
                 active={sortBy !== 'relevance'}
                 open={menu === 'sort'}
