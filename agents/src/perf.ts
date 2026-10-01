@@ -38,6 +38,8 @@
  *   correlated with `run.dispatch_delay` / `provider.request_gap` / `provider.ttft` in the same
  *   snapshot.
  * - `run.retry.<code>`       — queue-level retries of failed runs, by error code.
+ * - `web_read.cache_hit` / `web_read.cache_miss` / `web_read.coalesced` — the web_read page
+ *   cache's effectiveness (see web-tools.ts).
  * - `exec.pool_hit` / `exec.pool_miss` / `exec.pool_overflow` — warm-pool acquisition outcomes.
  * - `exec.cap_wait` / `exec.cap_rejected` — an acquire queued behind the host-wide sandbox
  *   concurrency cap, or gave up waiting for a slot (`exec.cap_wait_ms` records the wait).
