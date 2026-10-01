@@ -2849,6 +2849,8 @@ export class DocumentFilter_TimeRange extends Message<DocumentFilter_TimeRange> 
 
   /**
    * Optional. Inclusive lower bound. Unbounded when unset.
+   * Rounded up to the next millisecond when finer precision is supplied.
+   * Millisecond-aligned bounds are unchanged.
    *
    * @generated from field: google.protobuf.Timestamp start = 2;
    */
@@ -2856,6 +2858,8 @@ export class DocumentFilter_TimeRange extends Message<DocumentFilter_TimeRange> 
 
   /**
    * Optional. Exclusive upper bound. Unbounded when unset.
+   * Rounded up to the next millisecond when finer precision is supplied.
+   * Millisecond-aligned bounds are unchanged.
    *
    * @generated from field: google.protobuf.Timestamp end = 3;
    */

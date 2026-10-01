@@ -2176,6 +2176,10 @@ func TestQueryDocumentsTimeRange(t *testing.T) {
 		{"updated since the edit", &documents.DocumentFilter_TimeRange{Field: updateField, Start: timestamppb.New(updateTime)}, true},
 		{"start is inclusive", &documents.DocumentFilter_TimeRange{Field: createField, Start: timestamppb.New(createTime), End: timestamppb.New(createTime.Add(time.Millisecond))}, true},
 		{"end is exclusive", &documents.DocumentFilter_TimeRange{Field: createField, End: timestamppb.New(createTime)}, false},
+		{"start just after creation excludes it", &documents.DocumentFilter_TimeRange{Field: createField, Start: timestamppb.New(createTime.Add(time.Nanosecond))}, false},
+		{"end just after creation includes it", &documents.DocumentFilter_TimeRange{Field: createField, End: timestamppb.New(createTime.Add(time.Nanosecond))}, true},
+		{"start just before creation includes it", &documents.DocumentFilter_TimeRange{Field: createField, Start: timestamppb.New(createTime.Add(-time.Nanosecond))}, true},
+		{"end just before creation excludes it", &documents.DocumentFilter_TimeRange{Field: createField, End: timestamppb.New(createTime.Add(-time.Nanosecond))}, false},
 		{"updated before the edit", &documents.DocumentFilter_TimeRange{Field: updateField, End: timestamppb.New(updateTime)}, false},
 		{"unbounded", &documents.DocumentFilter_TimeRange{Field: updateField}, true},
 	}
@@ -2189,6 +2193,41 @@ func TestQueryDocumentsTimeRange(t *testing.T) {
 	require.Equal(t, codes.InvalidArgument, status.Code(err), "the field is required")
 	_, err = query(&documents.DocumentFilter_TimeRange{Field: createField, Start: timestamppb.New(updateTime), End: timestamppb.New(createTime)})
 	require.Equal(t, codes.InvalidArgument, status.Code(err), "start must not be after end")
+	_, err = query(&documents.DocumentFilter_TimeRange{
+		Field: createField,
+		Start: timestamppb.New(createTime.Add(2 * time.Nanosecond)),
+		End:   timestamppb.New(createTime.Add(time.Nanosecond)),
+	})
+	require.Equal(t, codes.InvalidArgument, status.Code(err), "validate ordering before rounding")
+}
+
+func TestDocumentFilterTimeRangeCeiling(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		seconds int64
+		nanos   int32
+		want    int64
+	}{
+		{"aligned", 0, 1_000_000, 1},
+		{"just above a millisecond", 0, 1_000_001, 2},
+		{"across a second", 0, 999_999_999, 1000},
+		{"before epoch", -1, 1, -999},
+		{"just before epoch", -1, 999_999_999, 0},
+		{"latest protobuf timestamp", 253_402_300_799, 999_999_999, 253_402_300_800_000},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bound := &timestamppb.Timestamp{Seconds: tc.seconds, Nanos: tc.nanos}
+			args := colx.Slice[any]{}
+			sql, err := documentFilterSQL(&documents.DocumentFilter{Filter: &documents.DocumentFilter_TimeRange_{
+				TimeRange: &documents.DocumentFilter_TimeRange{Field: documents.DocumentFilter_TimeRange_UPDATE_TIME, Start: bound, End: bound},
+			}}, &args, 0)
+			require.NoError(t, err)
+			require.Equal(t, "dg.last_change_time >= ? AND dg.last_change_time < ?", sql)
+			require.Equal(t, colx.Slice[any]{tc.want, tc.want}, args)
+		})
+	}
 }
 
 // A folder's childAttributesSchema types its direct children (hypermedia/schema/typed-documents.md),

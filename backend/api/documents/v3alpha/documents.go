@@ -809,14 +809,16 @@ func documentFilterSQL(filter *documents.DocumentFilter, args *colx.Slice[any], 
 			return "", status.Error(codes.InvalidArgument, "time_range start must not be after end")
 		}
 		// Both columns hold Unix milliseconds, the same values reported as create_time and update_time.
+		// Ceiling both bounds preserves >= start and < end on millisecond timestamps.
+		// Adding just under a millisecond before UnixMilli leaves aligned bounds unchanged.
 		conditions := make([]string, 0, 2)
 		if span.Start != nil {
 			conditions = append(conditions, column+" >= ?")
-			args.Append(span.Start.AsTime().UnixMilli())
+			args.Append(span.Start.AsTime().Add(time.Millisecond - time.Nanosecond).UnixMilli())
 		}
 		if span.End != nil {
 			conditions = append(conditions, column+" < ?")
-			args.Append(span.End.AsTime().UnixMilli())
+			args.Append(span.End.AsTime().Add(time.Millisecond - time.Nanosecond).UnixMilli())
 		}
 		if len(conditions) == 0 {
 			return "1", nil

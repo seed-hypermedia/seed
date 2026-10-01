@@ -711,9 +711,13 @@ message DocumentFilter {
     Field field = 1;
 
     // Optional. Inclusive lower bound. Unbounded when unset.
+    // Rounded up to the next millisecond when finer precision is supplied.
+    // Millisecond-aligned bounds are unchanged.
     google.protobuf.Timestamp start = 2;
 
     // Optional. Exclusive upper bound. Unbounded when unset.
+    // Rounded up to the next millisecond when finer precision is supplied.
+    // Millisecond-aligned bounds are unchanged.
     google.protobuf.Timestamp end = 3;
   }
 
