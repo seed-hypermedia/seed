@@ -5855,8 +5855,12 @@ type DocumentFilter_TimeRange struct {
 	// Timestamp to filter on.
 	Field DocumentFilter_TimeRange_Field `protobuf:"varint,1,opt,name=field,proto3,enum=com.seed.documents.v3alpha.DocumentFilter_TimeRange_Field" json:"field,omitempty"`
 	// Optional. Inclusive lower bound. Unbounded when unset.
+	// Rounded up to the next millisecond when finer precision is supplied.
+	// Millisecond-aligned bounds are unchanged.
 	Start *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=start,proto3" json:"start,omitempty"`
 	// Optional. Exclusive upper bound. Unbounded when unset.
+	// Rounded up to the next millisecond when finer precision is supplied.
+	// Millisecond-aligned bounds are unchanged.
 	End           *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=end,proto3" json:"end,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
