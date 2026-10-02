@@ -55,6 +55,12 @@ procs:
     shell: 'cd vault && bun run dev'
     autostart: true
 
+  # Hosting service (:5555) from the private SeedHost checkout next to this repo, with its
+  # own embedded Postgres and the web app above as its gateway. Skipped without the checkout.
+  host:
+    shell: './dev run-host'
+    autostart: true
+
   # Electron desktop on mainnet; builds + spawns its own Go daemon (Metal GPU).
   # SEED_LOG_ONLY silences every daemon subsystem except the vault key-merge
   # logger (grep the daemon pane for "VAULT-MERGE"), so the local→remote vault
