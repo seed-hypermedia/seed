@@ -131,6 +131,45 @@ export function filterCitationEventsByTargetBlock(events: LoadedEvent[], targetB
   )
 }
 
+/** Page size for the block-scoped citations panel: one block's citations can sit deep in a busy document's feed. */
+export const BLOCK_CITATIONS_PAGE_SIZE = 50
+
+/** Pages the block-scoped panel fetches on its own while nothing matches (the same 500-event bound as ListCitations). */
+export const BLOCK_CITATIONS_AUTO_LOAD_PAGES = 10
+
+/**
+ * Whether a block-scoped citations panel should fetch the next page unprompted. The feed is
+ * filtered to one block on the client, so the first pages can be all misses; without this the
+ * panel rendered blank although the block had citations further down.
+ */
+export function shouldAutoLoadBlockCitations(input: {
+  targetBlockId?: string
+  matchCount: number
+  pagesLoaded: number
+  hasNextPage: boolean
+  isFetching: boolean
+}) {
+  return (
+    !!input.targetBlockId &&
+    input.matchCount === 0 &&
+    input.hasNextPage &&
+    !input.isFetching &&
+    input.pagesLoaded < BLOCK_CITATIONS_AUTO_LOAD_PAGES
+  )
+}
+
+const CITATION_EVENT_PREFIXES = ['doc/', 'comment/']
+
+/** Empty-state copy for citation feeds; other feeds keep rendering nothing. */
+export function getEmptyFeedMessage(input: {targetBlockId?: string; filterEventType?: string[]}): string | null {
+  if (input.targetBlockId) return 'No citations for this block yet'
+  const types = input.filterEventType ?? []
+  if (types.length > 0 && types.every((t) => CITATION_EVENT_PREFIXES.some((p) => t.toLowerCase().startsWith(p)))) {
+    return 'No citations yet'
+  }
+  return null
+}
+
 /** Builds an event link without carrying the citations panel to a cited document. */
 export function getEventNavigationRoute(
   currentRoute: NavRoute,
@@ -161,6 +200,7 @@ export function Feed({
   const lastElementNodeRef = useRef<HTMLDivElement>(null)
 
   const {data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error, refetch} = useActivityFeed({
+    pageSize: targetBlockId ? BLOCK_CITATIONS_PAGE_SIZE : undefined,
     filterResource,
     filterAuthors,
     filterEventType,
@@ -211,6 +251,20 @@ export function Feed({
     return event.capability.role?.toLowerCase() !== 'agent'
   })
   const allEvents = filterCitationEventsByTargetBlock(visibleEvents, targetBlockId)
+
+  // A block-scoped panel keeps paging on its own until something matches or the bound is hit.
+  const pagesLoaded = data?.pages.length ?? 0
+  const autoLoading = shouldAutoLoadBlockCitations({
+    targetBlockId,
+    matchCount: allEvents.length,
+    pagesLoaded,
+    hasNextPage: !!hasNextPage,
+    isFetching: isLoading || isFetchingNextPage,
+  })
+  useEffect(() => {
+    if (autoLoading) fetchNextPage()
+  }, [autoLoading, fetchNextPage])
+  const emptyMessage = getEmptyFeedMessage({targetBlockId, filterEventType})
 
   // Extract unique account IDs from events and subscribe for discovery.
   // Includes authors, reply parents, contact subjects, and capability delegates
@@ -321,6 +375,16 @@ export function Feed({
         })}
         {draftInsertIndex === allEvents.length && draftVersionEntry ? (
           <DraftVersionItem draft={draftVersionEntry} hasNewerPublishedVersion={draftInsertIndex > 0} />
+        ) : null}
+        {!isLoading && !isFetchingNextPage && !autoLoading && allEvents.length === 0 && emptyMessage ? (
+          <div className="text-muted-foreground flex flex-col items-center gap-2 py-6 text-center text-sm">
+            <span>{emptyMessage}</span>
+            {hasNextPage ? (
+              <Button size="sm" variant="ghost" onClick={() => fetchNextPage()}>
+                Look in older activity
+              </Button>
+            ) : null}
+          </div>
         ) : null}
         {!isLoading && <div className="h-20" ref={lastElementNodeRef} />}
       </div>
