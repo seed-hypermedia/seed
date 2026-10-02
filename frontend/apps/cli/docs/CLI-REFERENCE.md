@@ -376,7 +376,10 @@ each match with its full metadata, so custom fields and the schema-binding keys 
 - `--reverse`: Reverse sort order
 - `-w, --where <query>`: Attribute conditions in the Explore grammar — `key=value` (exact, typed), `key="two words"`,
   `key!=value`, `key>=3`, `key:text` or `key~text` (contains), `key^text` (starts with), `has:key`, `missing:key`,
-  `path:/specs/*`, combined with `AND`, `OR`, `NOT` and parentheses; nested keys are dotted (`address.city:Berlin`)
+  `path:/specs/*`, combined with `AND`, `OR`, `NOT` and parentheses; nested keys are dotted (`address.city:Berlin`).
+  Built-in fields carry a `$` so they never clash with your own attributes: `$author:<account uid>` (any one of the
+  authors), `$created>=2026-09-01`, `$updated<2026-10-01` (`<`, `<=`, `>`, `>=`; a bare date covers the whole UTC day).
+  In a shell, single-quote the query, since `$` is expanded inside double quotes: `--where '$created>=2026-09-01'`
 - `--filter <json>`: A raw DocumentFilter as JSON, ANDed with `--where`
 - `--sort-by <key>`: With `--where` / `--filter`: sort by a user attribute key
 - `--page-token <token>`: With `--where` / `--filter`: continue from a previous `nextPageToken`

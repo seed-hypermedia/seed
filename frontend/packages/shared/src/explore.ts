@@ -10,6 +10,7 @@ import {
   type ExploreScalar,
   type ExploreScopePredicate,
   type ExploreSortRule,
+  type ExploreTimeComparison,
   type ExploreTimeField,
   type HMExploreResultType,
   type ParsedExploreQuery,
@@ -152,11 +153,12 @@ function chipLabel(node: ExploreQueryNode): {label: string; token: string; kind:
   const predicate = node.predicate
   if (predicate.kind === 'type')
     return {label: `type ${predicate.value}`, token: `type:${predicate.value}`, kind: 'type'}
+  // Built-in fields take their spelling from the serializer, so the `$` keywords live in one place.
   if (predicate.kind === 'author')
-    return {label: `author ${predicate.value}`, token: `author:${predicate.value}`, kind: 'author'}
+    return {label: `author ${predicate.value}`, token: serializeExploreQuery(node), kind: 'author'}
   if (predicate.kind === 'time') {
-    const token = `${predicate.field}${predicate.comparison}${predicate.value}`
-    return {label: `${predicate.field} ${predicate.comparison} ${predicate.value}`, token, kind: 'time'}
+    const label = `${predicate.field} ${predicate.comparison} ${predicate.value}`
+    return {label, token: serializeExploreQuery(node), kind: 'time'}
   }
   if (predicate.kind === 'scope') {
     if (predicate.scope === 'space' || predicate.scope === 'url')
@@ -282,15 +284,17 @@ const PRESET_DAYS = {week: 7, month: 30, year: 365} as const
  * inclusive, matching how the range reads in the menu.
  */
 export function exploreDateTokens(selection: ExploreDateSelection, now = Date.now()): string[] {
+  const token = (comparison: ExploreTimeComparison, value: string) =>
+    serializeExploreQuery({kind: 'predicate', predicate: {kind: 'time', field: selection.field, comparison, value}})
   if (selection.preset === 'any') return []
   if (selection.preset === 'custom') {
     return [
-      ...(selection.from ? [`${selection.field}>=${selection.from}`] : []),
-      ...(selection.to ? [`${selection.field}<=${selection.to}`] : []),
+      ...(selection.from ? [token('>=', selection.from)] : []),
+      ...(selection.to ? [token('<=', selection.to)] : []),
     ]
   }
   const since = new Date(now - PRESET_DAYS[selection.preset] * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-  return [`${selection.field}>=${since}`]
+  return [token('>=', since)]
 }
 
 // Narrows a query to one result type, for the currently selected tab.
