@@ -43,4 +43,63 @@ describe('explore-query', () => {
     const compiled = compileExploreQuery(parseExploreQuery('just words'), {type: 'node'})
     expect(compiled.filter).toBeUndefined()
   })
+
+  it('compiles author and time predicates to the built-in filters', () => {
+    const parsed = parseExploreQuery('$author:z6MkAlice $created>=2026-09-01 $updated<2026-10-01')
+    const {filter, diagnostics, documentPredicates} = compileExploreQuery(parsed, {type: 'node'})
+    expect(diagnostics).toEqual([])
+    expect(documentPredicates).toHaveLength(3)
+    expect(filter).toEqual({
+      and: {
+        filters: [
+          {authorMatch: {author: 'z6MkAlice'}},
+          {timeRange: {field: 'CREATE_TIME', start: '2026-09-01T00:00:00.000Z'}},
+          {timeRange: {field: 'UPDATE_TIME', end: '2026-10-01T00:00:00.000Z'}},
+        ],
+      },
+    })
+    expect(serializeExploreQuery(parsed)).toBe('$author:z6MkAlice AND $created>=2026-09-01 AND $updated<2026-10-01')
+  })
+
+  it('treats a bare date as a whole UTC day', () => {
+    const range = (query: string) => compileExploreQuery(parseExploreQuery(query), {type: 'node'}).filter?.timeRange
+    expect(range('$created>=2026-09-01')).toEqual({field: 'CREATE_TIME', start: '2026-09-01T00:00:00.000Z'})
+    expect(range('$created>2026-09-01')).toEqual({field: 'CREATE_TIME', start: '2026-09-02T00:00:00.000Z'})
+    expect(range('$created<2026-09-01')).toEqual({field: 'CREATE_TIME', end: '2026-09-01T00:00:00.000Z'})
+    expect(range('$created<=2026-09-01')).toEqual({field: 'CREATE_TIME', end: '2026-09-02T00:00:00.000Z'})
+  })
+
+  it('compares a date-time to the millisecond', () => {
+    const range = (query: string) => compileExploreQuery(parseExploreQuery(query), {type: 'node'}).filter?.timeRange
+    expect(range('$updated>=2026-09-01T12:30:00Z')).toEqual({field: 'UPDATE_TIME', start: '2026-09-01T12:30:00.000Z'})
+    expect(range('$updated<=2026-09-01T12:30:00Z')).toEqual({field: 'UPDATE_TIME', end: '2026-09-01T12:30:00.001Z'})
+  })
+
+  it('leaves unprefixed author, created and updated to user attributes', () => {
+    const {documentPredicates, diagnostics} = compileExploreQuery(
+      parseExploreQuery('author:eric created>=2026-09-01 updated:yesterday $db.isCollection:true'),
+      {type: 'node'},
+    )
+    expect(diagnostics).toEqual([])
+    expect(documentPredicates.map((predicate) => predicate.kind)).toEqual([
+      'attribute',
+      'attribute',
+      'attribute',
+      'attribute',
+    ])
+    expect(documentPredicates.map((predicate) => predicate.kind === 'attribute' && predicate.key)).toEqual([
+      'author',
+      'created',
+      'updated',
+      '$db.isCollection',
+    ])
+  })
+
+  it('reports a time predicate it cannot use instead of searching for it as an attribute', () => {
+    for (const query of ['$created>=yesterday', '$created:2026-09-01', '$updated=2026-09-01', '$created>=2026-13-45']) {
+      const parsed = parseExploreQuery(query)
+      expect(parsed.diagnostics.length, query).toBeGreaterThan(0)
+      expect(compileExploreQuery(parsed, {type: 'node'}).filter, query).toBeUndefined()
+    }
+  })
 })

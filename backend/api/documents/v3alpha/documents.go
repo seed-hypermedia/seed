@@ -774,6 +774,56 @@ func documentFilterSQL(filter *documents.DocumentFilter, args *colx.Slice[any], 
 			return "", status.Error(codes.InvalidArgument, "boolean only supports equality comparisons")
 		}
 		return attribute(comparison.Key, "kind = ? AND value "+operator+" ?", kind, operand)
+	case *documents.DocumentFilter_AuthorMatch_:
+		if value.AuthorMatch == nil {
+			return "", status.Error(codes.InvalidArgument, "author_match filter is required")
+		}
+		author, err := core.DecodePrincipal(value.AuthorMatch.Author)
+		if err != nil {
+			return "", status.Errorf(codes.InvalidArgument, "invalid author: %v", err)
+		}
+		args.Append([]byte(author))
+		// dg.authors is the JSON array of public key IDs that contributed to the current generation,
+		// so a co-author matches as well as whoever created the document.
+		return "EXISTS (SELECT 1 FROM json_each(dg.authors) WHERE json_each.value = (SELECT id FROM public_keys WHERE principal = ?))", nil
+	case *documents.DocumentFilter_TimeRange_:
+		if value.TimeRange == nil {
+			return "", status.Error(codes.InvalidArgument, "time_range filter is required")
+		}
+		span := value.TimeRange
+		column := map[documents.DocumentFilter_TimeRange_Field]string{
+			documents.DocumentFilter_TimeRange_CREATE_TIME: "dg.genesis_change_time",
+			documents.DocumentFilter_TimeRange_UPDATE_TIME: "dg.last_change_time",
+		}[span.Field]
+		if column == "" {
+			return "", status.Error(codes.InvalidArgument, "time_range field is required")
+		}
+		for _, bound := range []*timestamppb.Timestamp{span.Start, span.End} {
+			if bound != nil {
+				if err := bound.CheckValid(); err != nil {
+					return "", status.Errorf(codes.InvalidArgument, "invalid time_range bound: %v", err)
+				}
+			}
+		}
+		if span.Start != nil && span.End != nil && span.Start.AsTime().After(span.End.AsTime()) {
+			return "", status.Error(codes.InvalidArgument, "time_range start must not be after end")
+		}
+		// Both columns hold Unix milliseconds, the same values reported as create_time and update_time.
+		// Ceiling both bounds preserves >= start and < end on millisecond timestamps.
+		// Adding just under a millisecond before UnixMilli leaves aligned bounds unchanged.
+		conditions := make([]string, 0, 2)
+		if span.Start != nil {
+			conditions = append(conditions, column+" >= ?")
+			args.Append(span.Start.AsTime().Add(time.Millisecond - time.Nanosecond).UnixMilli())
+		}
+		if span.End != nil {
+			conditions = append(conditions, column+" < ?")
+			args.Append(span.End.AsTime().Add(time.Millisecond - time.Nanosecond).UnixMilli())
+		}
+		if len(conditions) == 0 {
+			return "1", nil
+		}
+		return strings.Join(conditions, " AND "), nil
 	default:
 		return "", status.Error(codes.InvalidArgument, "content filter is required")
 	}

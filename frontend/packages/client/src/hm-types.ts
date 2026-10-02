@@ -1581,11 +1581,16 @@ export const HMDocumentFilterComparisonOperatorSchema = z.enum([
 ])
 export type HMDocumentFilterComparisonOperator = z.infer<typeof HMDocumentFilterComparisonOperatorSchema>
 
+/** A built-in document timestamp a timeRange filter can test. */
+export const HMDocumentTimeFieldSchema = z.enum(['CREATE_TIME', 'UPDATE_TIME'])
+export type HMDocumentTimeField = z.infer<typeof HMDocumentTimeFieldSchema>
+
 /**
  * A recursive predicate over document attributes and built-in fields (proto `DocumentFilter`):
  * exactly one of `and`, `or`, `not`, `comparison`, `exists`, `missing`, `stringMatch`, `urlMatch`,
- * `spaceMatch`, `pathMatch`. Attribute keys are dotted paths into the document's metadata
- * (`status`, `address.city`, `attributesSchema`).
+ * `spaceMatch`, `pathMatch`, `authorMatch`, `timeRange`. Attribute keys are dotted paths into the
+ * document's metadata (`status`, `address.city`, `attributesSchema`). `timeRange` bounds are
+ * RFC 3339 instants: `start` inclusive, `end` exclusive, either may be omitted.
  */
 export type HMDocumentFilter = {
   and?: {filters: HMDocumentFilter[]}
@@ -1598,6 +1603,8 @@ export type HMDocumentFilter = {
   urlMatch?: {url: string; prefix?: boolean}
   spaceMatch?: {space: string}
   pathMatch?: {path: string; prefix?: boolean}
+  authorMatch?: {author: string}
+  timeRange?: {field: HMDocumentTimeField; start?: string; end?: string}
 }
 export const HMDocumentFilterSchema: z.ZodType<HMDocumentFilter> = z.lazy(() =>
   z
@@ -1621,6 +1628,10 @@ export const HMDocumentFilterSchema: z.ZodType<HMDocumentFilter> = z.lazy(() =>
       urlMatch: z.object({url: z.string(), prefix: z.boolean().optional()}).optional(),
       spaceMatch: z.object({space: z.string()}).optional(),
       pathMatch: z.object({path: z.string(), prefix: z.boolean().optional()}).optional(),
+      authorMatch: z.object({author: z.string()}).optional(),
+      timeRange: z
+        .object({field: HMDocumentTimeFieldSchema, start: z.string().optional(), end: z.string().optional()})
+        .optional(),
     })
     .strict(),
 )

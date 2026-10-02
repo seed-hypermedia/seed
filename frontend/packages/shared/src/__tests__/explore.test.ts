@@ -1,14 +1,16 @@
 import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, test} from 'vitest'
-import {DocumentFilter_Comparison_Operator} from '../client/grpc-types'
+import {DocumentFilter_Comparison_Operator, DocumentFilter_TimeRange_Field} from '../client/grpc-types'
 import {
   clearExploreConditions,
   compileExploreQuery,
   cycleExploreSort,
   documentInfoToExploreResultDocument,
+  exploreDateTokens,
   exploreQueryChips,
   parseExploreQuery,
   removeExploreQueryChip,
+  replaceExploreChips,
   searchResultItemToExploreResult,
   serializeExploreQuery,
   toggleExploreColumn,
@@ -292,6 +294,60 @@ describe('Explore document filter compilation', () => {
     const types = compileExploreQuery(parseExploreQuery('NOT type:comment engelbart'), {type: 'node'})
     expect(types.requestedTypes).toEqual([])
     expect(types.excludedTypes).toEqual(['comment'])
+  })
+})
+
+describe('Explore author and time filters', () => {
+  test('reach the daemon as protobuf messages, not just JSON', () => {
+    // The SDK compiles to protobuf JSON; the app converts it with fromJson. A wrong enum name or
+    // timestamp format would only fail here, at runtime, so exercise the real conversion.
+    const filter = compileExploreQuery(parseExploreQuery('$author:z6MkAlice $created>=2026-09-01'), {
+      type: 'node',
+    }).filter
+    expect(filter?.filter.case).toBe('and')
+    const [author, time] = filter?.filter.case === 'and' ? filter.filter.value.filters : []
+    expect(author?.filter.case === 'authorMatch' && author.filter.value.author).toBe('z6MkAlice')
+    expect(time?.filter.case).toBe('timeRange')
+    if (time?.filter.case !== 'timeRange') return
+    expect(time.filter.value.field).toBe(DocumentFilter_TimeRange_Field.CREATE_TIME)
+    expect(time.filter.value.start?.toDate().toISOString()).toBe('2026-09-01T00:00:00.000Z')
+    expect(time.filter.value.end).toBeUndefined()
+  })
+})
+
+describe('Explore filter dropdowns', () => {
+  test('replace their own kind of predicate and keep everything else', () => {
+    const parsed = parseExploreQuery('roadmap $author:alice status:active view:table')
+    const next = replaceExploreChips(parsed, 'author', ['$author:bob'])
+    expect(serializeExploreQuery(next)).toBe('roadmap AND status:active AND $author:bob view:table')
+  })
+
+  test('clear their kind when given nothing', () => {
+    const parsed = parseExploreQuery('roadmap $created>=2026-01-01 $updated<2026-02-01')
+    expect(serializeExploreQuery(replaceExploreChips(parsed, 'time', []))).toBe('roadmap')
+  })
+
+  test('turn a date preset into a fixed start date', () => {
+    const now = Date.parse('2026-10-01T15:00:00Z')
+    expect(exploreDateTokens({field: 'created', preset: 'week'}, now)).toEqual(['$created>=2026-09-24'])
+    expect(exploreDateTokens({field: 'updated', preset: 'month'}, now)).toEqual(['$updated>=2026-09-01'])
+    expect(exploreDateTokens({field: 'created', preset: 'year'}, now)).toEqual(['$created>=2025-10-01'])
+    expect(exploreDateTokens({field: 'created', preset: 'any'}, now)).toEqual([])
+  })
+
+  test('turn a custom range into inclusive bounds, either side optional', () => {
+    const range = (from?: string, to?: string) => exploreDateTokens({field: 'updated', preset: 'custom', from, to})
+    expect(range('2026-09-01', '2026-09-30')).toEqual(['$updated>=2026-09-01', '$updated<=2026-09-30'])
+    expect(range('2026-09-01')).toEqual(['$updated>=2026-09-01'])
+    expect(range(undefined, '2026-09-30')).toEqual(['$updated<=2026-09-30'])
+    expect(range()).toEqual([])
+  })
+
+  test('survive a removal that collapses a group and renumbers the rest', () => {
+    // Dropping the first $created>= collapses the OR, which shifts the path of the second one.
+    const parsed = parseExploreQuery('($created>=2026-01-01 OR roadmap) AND $created<2026-06-01')
+    const next = replaceExploreChips(parsed, 'time', ['$updated>=2026-09-01'])
+    expect(serializeExploreQuery(next)).toBe('roadmap AND $updated>=2026-09-01')
   })
 })
 
