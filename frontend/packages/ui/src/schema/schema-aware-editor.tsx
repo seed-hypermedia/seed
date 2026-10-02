@@ -21,7 +21,7 @@ export function isMetaSchema(schema: HypermediaSchema | undefined): boolean {
 function fitsStructForm(value: unknown): value is HypermediaSchema {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const v = value as HypermediaSchema
-  if (v.anyOf) return false
+  if (v.anyOf || v.allOf) return false
   return !v.type || kindOf(v.type) === 'map' || kindOf(v.type) === 'struct'
 }
 

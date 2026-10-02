@@ -73,7 +73,7 @@ function propKind(ps: any): string {
   if (ps?.format === 'date' || refName === 'date') return 'date'
   if (ps?.format === 'date-time' || refName === 'date-time') return 'date-time'
   if (refName === 'any') return 'any'
-  if (isLiteralSchema(ps) || ps?.anyOf || ps?.args) return CUSTOM_KIND
+  if (isLiteralSchema(ps) || ps?.anyOf || ps?.allOf || ps?.args) return CUSTOM_KIND
   if (ps?.type && !named) return kindOf(ps.type)
   if (refName && KINDS.includes(refName.replace(/^hypermedia-/, ''))) return refName.replace(/^hypermedia-/, '')
   if (refName) return CUSTOM_KIND
@@ -86,12 +86,14 @@ function customLabel(ps: any): string {
   const named = namedSchemaUrl(ps)
   if (named) return refToName(named)
   if (ps?.anyOf) return `one of ${ps.anyOf.length}`
+  if (ps?.allOf) return `all of ${ps.allOf.length}`
   return 'custom'
 }
 
 /** Whether the struct form can show (and safely rewrite) this schema. */
 export function structFormFits(schema: HypermediaSchema): boolean {
-  if (isLiteralSchema(schema) || schema.args) return false
+  // An intersection is edited as JSON: its fields come from its arms, not from a list of its own.
+  if (isLiteralSchema(schema) || schema.args || Array.isArray(schema.allOf)) return false
   if (Array.isArray(schema.anyOf)) return true
   // A base not chosen yet (the Extend flow starts blank) is still a struct to fill in.
   if (schema.type === '') return true
@@ -115,6 +117,7 @@ const nodeUrl = (ps: any): string =>
 /** A label for the shapes a URL does not name: a union, a parameter, a string format… */
 function nodeLabel(ps: any): string | undefined {
   if (Array.isArray(ps?.anyOf)) return 'Union'
+  if (Array.isArray(ps?.allOf)) return 'Intersection'
   const k = propKind(ps)
   if (k.startsWith('var:')) return `⟨${k.slice(4)}⟩`
   if (k === 'hm-url') return 'HM link'
@@ -360,7 +363,7 @@ export function SchemaEditor({
 
 /** The chip colors for a type node: its kind's color, or the reference chip for a named schema. */
 function chipColor(ps: any): string {
-  if (Array.isArray(ps?.anyOf)) return kindColor.union!
+  if (Array.isArray(ps?.anyOf) || Array.isArray(ps?.allOf)) return kindColor.union!
   const k = propKind(ps)
   if (k.startsWith('var:')) return kindColor.var!
   if (k === 'hm-url' || k === 'account' || k === 'ipfs' || k === 'date' || k === 'date-time') return kindColor.string!

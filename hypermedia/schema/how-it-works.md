@@ -26,7 +26,7 @@ Everything a schema types is an [IPLD](./ipld.md) value. Each value is one of ni
 
 # Layer 2: schemas and the meta-schema <!-- id:oOZsaLa6 -->
 
-A schema is a `map` value that constrains other values. It takes one of nine shapes: <!-- id:wjogEwsM -->
+A schema is a `map` value that constrains other values. It takes one of ten shapes: <!-- id:wjogEwsM -->
   - a [`struct` schema](./struct-schema.md) with named fields, <!-- id:yetSbHOT -->
   - a [`map` schema](./map-schema.md), an open map typed by `values`, <!-- id:nf_BZvrL -->
   - a [`list` schema](./list-schema.md), <!-- id:cPxjp5jT -->
@@ -34,6 +34,7 @@ A schema is a `map` value that constrains other values. It takes one of nine sha
   - a [`link` schema](./link-schema.md), a typed CID, <!-- id:ptezErPy -->
   - an [`include`](./include-schema.md), a `type` that names another schema, <!-- id:sH-uapmQ -->
   - a union with [`anyOf`](./anyof.md), <!-- id:3Dpdfoiy -->
+  - an intersection with [`allOf`](./allof.md), its struct arms merged,
   - a [`var`](./var-schema.md), a type variable for [generics](./generic.md), <!-- id:N-VbcTAm -->
   - a [`literal`](./literal-schema.md) written `{value, description}`. <!-- id:N7cdcnDo -->
 

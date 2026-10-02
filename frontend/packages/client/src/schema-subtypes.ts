@@ -4,7 +4,8 @@
 // `attributesSchema IN closure` and a value check tests membership in the same closure.
 //
 // Subtyping is nominal, by extension: `{type: <parent>, …refinements}` extends the parent and a
-// bare `{type: <parent>}` includes it (hypermedia/schema/extension.md). Structural conformance
+// bare `{type: <parent>}` includes it (hypermedia/schema/extension.md); an intersection
+// `{allOf: [{type: A}, {type: B}]}` is a subtype of every arm (hypermedia/schema/allof.md). Structural conformance
 // ("any document whose attributes happen to validate") would mean validating every candidate,
 // which does not scale to a network search, so it is left to the advisory validator.
 import {HM_SCHEMAS, kindOf, nameForCid, nameToUrl, schemaCid, type HypermediaSchema} from './schema-engine'
@@ -36,22 +37,30 @@ export function schemaRefKey(ref: string | null | undefined): string | null {
 }
 
 /**
- * The schema this schema extends or includes: its `type` when that names another schema rather
- * than a kind. A union, a literal or a kind-grounded node has no parent.
+ * The schemas this schema extends or includes: its `type` when that names another schema rather
+ * than a kind, or, for an intersection, every arm's parent. A union, a literal or a kind-grounded
+ * node has no parent.
  */
-export function extensionParentRef(schema: HypermediaSchema | undefined): string | null {
-  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return null
-  const type = (schema as {type?: unknown}).type
-  if (typeof type !== 'string' || !type) return null
-  return kindOf(type) === type ? type : null
+export function extensionParentRefs(schema: HypermediaSchema | undefined): string[] {
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return []
+  const node = schema as {type?: unknown; allOf?: unknown}
+  if (Array.isArray(node.allOf)) {
+    const out: string[] = []
+    for (const arm of node.allOf as HypermediaSchema[])
+      for (const ref of extensionParentRefs(arm)) if (!out.includes(ref)) out.push(ref)
+    return out
+  }
+  const type = node.type
+  if (typeof type !== 'string' || !type) return []
+  return kindOf(type) === type ? [type] : []
 }
 
 /** A schema the closure may include: every spelling that names it, and what it extends. */
 export type SchemaCandidate = {
   /** Every reference string that names this schema (document URL, `ipfs://` CID, library URL). */
   refs: string[]
-  /** The reference this schema extends or includes, if any. */
-  parent: string | null
+  /** The references this schema extends or includes: one for an extension, several for an intersection. */
+  parents: string[]
 }
 
 /** The bundled library as candidates: each schema under its library URL and published CID. */
@@ -61,7 +70,7 @@ export function libraryCandidates(): SchemaCandidate[] {
     const url = nameToUrl(name)
     return {
       refs: [...(url ? [url] : []), ...(cid ? [`ipfs://${cid}`] : [])],
-      parent: extensionParentRef(schema),
+      parents: extensionParentRefs(schema),
     }
   })
 }
@@ -74,8 +83,8 @@ export type SubtypeClosure = {
 }
 
 /**
- * The target plus every candidate whose extension chain reaches it, with every spelling of each
- * collected. Candidates that merely re-spell a member (the target's own document and blob, say)
+ * The target plus every candidate whose extension chain reaches it (through any arm of an
+ * intersection), with every spelling of each collected. Candidates that merely re-spell a member (the target's own document and blob, say)
  * contribute their spellings too. Cycles and unresolvable parents are harmless: the loop only ever
  * adds, and stops when a pass adds nothing.
  */
@@ -94,7 +103,7 @@ export function closeOverSubtypes(target: string, candidates: SchemaCandidate[])
       refs: candidate.refs
         .map((ref) => [ref, schemaRefKey(ref)] as const)
         .filter((pair): pair is readonly [string, string] => !!pair[1]),
-      parentKey: candidate.parent ? schemaRefKey(candidate.parent) : null,
+      parentKeys: candidate.parents.map(schemaRefKey).filter((key): key is string => !!key),
     }))
     .filter((candidate) => candidate.refs.length > 0)
   let grew = true
@@ -102,7 +111,7 @@ export function closeOverSubtypes(target: string, candidates: SchemaCandidate[])
     grew = false
     for (const candidate of keyed) {
       const known = candidate.refs.some(([, key]) => keys.has(key))
-      const inherits = !!candidate.parentKey && keys.has(candidate.parentKey)
+      const inherits = candidate.parentKeys.some((key) => keys.has(key))
       if (!known && !inherits) continue
       for (const [ref, key] of candidate.refs) {
         if (keys.has(key) && refs.includes(ref)) continue
