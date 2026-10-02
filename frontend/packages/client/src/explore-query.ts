@@ -7,8 +7,8 @@
 //   key~text (contains)  key^text (starts with)                string match
 //   has:key  missing:key                                        presence
 //   in:<space uid | hm:// url>  path:/specs  path:/specs/*      scope
-//   author:<account uid>                                        any one of the document's authors
-//   created>=2026-09-01  updated<2026-10-01T12:00:00Z           creation / last-update time
+//   $author:<account uid>                                       any one of the document's authors
+//   $created>=2026-09-01  $updated<2026-10-01T12:00:00Z         creation / last-update time
 //   type:document|block|comment|space|contact                   result type (Explore only)
 //   AND  OR  NOT  ( … )   adjacency is AND                      boolean structure
 //   free words and "quoted phrases"                             full-text terms (Explore only)
@@ -84,14 +84,18 @@ export type ExploreQueryContext = {type: 'node'} | {type: 'site'; url: string}
 type Token = {kind: 'word' | 'quoted' | 'operator' | 'lparen' | 'rparen'; value: string; start: number; end: number}
 const resultTypes = new Set<HMExploreResultType>(['document', 'block', 'comment', 'space', 'contact'])
 const comparisonOperators = new Set(['=', '!=', '<', '<=', '>', '>='])
-const timeFields = new Set<string>(['created', 'updated'])
+const AUTHOR_KEY = '$author'
+const timeKeys = new Map<string, ExploreTimeField>([
+  ['$created', 'created'],
+  ['$updated', 'updated'],
+])
 const timeComparisons = new Set<string>(['<', '<=', '>', '>='])
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /**
  * The half-open `[start, end)` range a time predicate selects, as the ISO instants the daemon's
  * `TimeRange` takes; undefined when the value is not a date. A bare date covers its whole UTC day,
- * so `created<=2026-09-01` includes the 1st and `created>2026-09-01` starts on the 2nd. A
+ * so `$created<=2026-09-01` includes the 1st and `$created>2026-09-01` starts on the 2nd. A
  * date-time is compared to the millisecond.
  */
 export function exploreTimeBounds(predicate: ExploreTimePredicate): {start?: string; end?: string} | undefined {
@@ -369,13 +373,14 @@ class ExploreParser {
         predicate: {kind: 'scope', scope: 'path', value: prefix ? value.slice(0, -2) : value, prefix},
       }
     }
-    if (operator.value === ':' && token.value === 'author') {
+    if (operator.value === ':' && token.value === AUTHOR_KEY) {
       return {kind: 'predicate', predicate: {kind: 'author', value}}
     }
-    if (timeFields.has(token.value)) {
+    const timeField = timeKeys.get(token.value)
+    if (timeField) {
       const predicate: ExploreTimePredicate = {
         kind: 'time',
-        field: token.value as ExploreTimeField,
+        field: timeField,
         comparison: operator.value as ExploreTimeComparison,
         value,
       }
@@ -434,8 +439,8 @@ function nodePrecedence(node: ExploreQueryNode) {
 
 function serializePredicate(predicate: ExplorePredicate): string {
   if (predicate.kind === 'type') return `type:${predicate.value}`
-  if (predicate.kind === 'author') return `author:${predicate.value}`
-  if (predicate.kind === 'time') return `${predicate.field}${predicate.comparison}${predicate.value}`
+  if (predicate.kind === 'author') return `${AUTHOR_KEY}:${predicate.value}`
+  if (predicate.kind === 'time') return `$${predicate.field}${predicate.comparison}${predicate.value}`
   if (predicate.kind === 'scope') {
     if (predicate.scope === 'space' || predicate.scope === 'url') return `in:${predicate.value}`
     const pathPredicate = predicate as Extract<ExploreScopePredicate, {scope: 'path'}>

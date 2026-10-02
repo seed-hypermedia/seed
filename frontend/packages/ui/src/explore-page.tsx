@@ -231,26 +231,33 @@ export function ExplorePage(props: ExplorePageProps) {
     const name = accounts.data?.find((account) => account.value === uid)?.label
     return name && name !== uid ? name : null
   }
+  // A chip's token is one serialized predicate. Reading it back through the parser keeps this page
+  // out of knowing how each keyword is spelled.
+  const chipPredicate = (chip: (typeof chips)[number]) => {
+    const node = parseExploreQuery(chip.token).ast
+    return node?.kind === 'predicate' ? node.predicate : null
+  }
   /** Scope and author chips carry a raw account uid. Show the name where the account list knows it. */
   const chipDisplayLabel = (chip: (typeof chips)[number]) => {
     if (chip.kind === 'scope' && chip.token.startsWith('in:')) {
       const name = accountName(chip.token.slice('in:'.length))
       return name ? `In ${name}` : chip.label
     }
-    if (chip.kind === 'author') {
-      const name = accountName(chip.token.slice('author:'.length))
-      return `Author ${name ?? abbreviateUid(chip.token.slice('author:'.length))}`
+    const predicate = chip.kind === 'author' || chip.kind === 'time' ? chipPredicate(chip) : null
+    if (predicate?.kind === 'author') {
+      return `Author ${accountName(predicate.value) ?? abbreviateUid(predicate.value)}`
     }
-    if (chip.kind === 'time') {
-      const match = /^(created|updated)(>=|>|<=|<)(.+)$/.exec(chip.token)
-      if (!match) return chip.label
-      const [, field, comparison, value] = match
-      const word = {'>=': 'from', '>': 'after', '<=': 'until', '<': 'before'}[comparison!]
-      return `${field === 'created' ? 'Created' : 'Updated'} ${word} ${value}`
+    if (predicate?.kind === 'time') {
+      const word = {'>=': 'from', '>': 'after', '<=': 'until', '<': 'before'}[predicate.comparison]
+      return `${predicate.field === 'created' ? 'Created' : 'Updated'} ${word} ${predicate.value}`
     }
     return chip.label
   }
-  const selectedAuthor = chips.find((chip) => chip.kind === 'author')?.token.slice('author:'.length) ?? null
+  const selectedAuthor =
+    chips.flatMap((chip) => {
+      const predicate = chip.kind === 'author' ? chipPredicate(chip) : null
+      return predicate?.kind === 'author' ? [predicate.value] : []
+    })[0] ?? null
   // When scoped to a space, show the owner and writers of that space.
   const spacePeople = useExploreSpacePeople(props.context.type === 'site' ? props.context.id : null, {
     enabled: menu === 'author' && props.context.type === 'site',
@@ -263,8 +270,8 @@ export function ExplorePage(props: ExplorePageProps) {
       : accounts.data ?? []
   // The Date menu opens on whatever range the query already holds, read back as a custom range.
   const timePredicates = chips.flatMap((chip) => {
-    const node = chip.kind === 'time' ? parseExploreQuery(chip.token).ast : null
-    return node?.kind === 'predicate' && node.predicate.kind === 'time' ? [node.predicate] : []
+    const predicate = chip.kind === 'time' ? chipPredicate(chip) : null
+    return predicate?.kind === 'time' ? [predicate] : []
   })
   const initialDate: ExploreDateSelection = timePredicates.length
     ? {
@@ -411,7 +418,14 @@ export function ExplorePage(props: ExplorePageProps) {
                 accounts={authorOptions}
                 isLoading={props.context.type === 'site' ? spacePeople.isLoading : accounts.isLoading}
                 selected={selectedAuthor}
-                onSelect={(author) => applyChips('author', author ? [`author:${author}`] : [])}
+                onSelect={(author) =>
+                  applyChips(
+                    'author',
+                    author
+                      ? [serializeExploreQuery({kind: 'predicate', predicate: {kind: 'author', value: author}})]
+                      : [],
+                  )
+                }
               />
             ) : null}
           </div>
