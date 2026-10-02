@@ -184,6 +184,37 @@ describe('activity event processing', () => {
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ROOT_DOCUMENTS])
     })
 
+    it('does not invalidate search for a plain Ref (new document / new version)', async () => {
+      const {processEvents} = await loadModule()
+      processEvents([makeBlobEvent('Ref', 'hm://z6MkOwner/doc?v=abc', 'z6MkOwner', JSON.stringify({generation: 1}))])
+      expect(appInvalidateQueriesMock).not.toHaveBeenCalledWith([queryKeys.SEARCH])
+    })
+
+    it('invalidates search for a tombstone Ref (deleted document)', async () => {
+      const {processEvents} = await loadModule()
+      processEvents([
+        makeBlobEvent(
+          'Ref',
+          'hm://z6MkOwner/doc',
+          'z6MkOwner',
+          JSON.stringify({tombstone: true, generation: 1779287923338}),
+        ),
+      ])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.SEARCH])
+    })
+
+    it('invalidates search only once for a batch with several tombstone Refs', async () => {
+      const {processEvents} = await loadModule()
+      processEvents([
+        makeBlobEvent('Ref', 'hm://z6MkOwner/a', 'z6MkOwner', JSON.stringify({tombstone: true})),
+        makeBlobEvent('Ref', 'hm://z6MkOwner/b', 'z6MkOwner', JSON.stringify({tombstone: true})),
+      ])
+      const searchCalls = appInvalidateQueriesMock.mock.calls.filter(
+        (call) => Array.isArray(call[0]) && call[0].length === 1 && call[0][0] === queryKeys.SEARCH,
+      )
+      expect(searchCalls).toHaveLength(1)
+    })
+
     it('falls back to broad listing invalidations for malformed Ref resources', async () => {
       const {processEvents} = await loadModule()
       processEvents([makeBlobEvent('Ref', 'not-an-hm-url')])
