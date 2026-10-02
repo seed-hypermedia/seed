@@ -12,6 +12,12 @@ export type DaemonConfig = {
   grpcPort: number;
   p2pPort: number;
   dataDir: string;
+  /**
+   * Use the vault key store (the one the desktop app runs with), with its
+   * secrets in memory instead of the OS keychain. Needed to connect to a
+   * remote vault, the default file key store cannot.
+   */
+  vaultKeyStore?: boolean;
 };
 
 export type DaemonInstance = {
@@ -66,8 +72,9 @@ export async function spawnDaemon(
     "-log-level=debug",
     "-data-dir",
     config.dataDir,
-    "-keystore-dir",
-    path.join(config.dataDir, "keys"),
+    ...(config.vaultKeyStore
+      ? ["-vault-memory-secrets"]
+      : ["-keystore-dir", path.join(config.dataDir, "keys")]),
     "-syncing.smart=true",
     "-syncing.no-sync-back=true",
     "-lndhub.mainnet=false",

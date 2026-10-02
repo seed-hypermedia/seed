@@ -19,10 +19,11 @@ import (
 
 // Base configuration.
 type Base struct {
-	DataDir     string
-	LogLevel    string
-	PublicOnly  bool
-	KeystoreDir string // If set, use file-based keystore instead of OS keychain (insecure, for testing)
+	DataDir            string
+	LogLevel           string
+	PublicOnly         bool
+	KeystoreDir        string // If set, use file-based keystore instead of OS keychain (insecure, for testing)
+	VaultMemorySecrets bool   // If set, the vault keeps its secrets in memory instead of the OS keychain (for testing)
 }
 
 // Default returns the default configuration.
@@ -40,6 +41,7 @@ func (c *Base) BindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.LogLevel, "log-level", c.LogLevel, "Log verbosity debug | info | warning | error")
 	fs.BoolVar(&c.PublicOnly, "public-only", c.PublicOnly, "Only serve public data in APIs")
 	fs.StringVar(&c.KeystoreDir, "keystore-dir", c.KeystoreDir, "Directory for file-based keystore (insecure, for testing only)")
+	fs.BoolVar(&c.VaultMemorySecrets, "vault-memory-secrets", c.VaultMemorySecrets, "Keep vault secrets in memory instead of the OS keychain, keys don't survive a restart (for testing only)")
 }
 
 // ExpandDataDir is used to expand the home directory in the data directory path.

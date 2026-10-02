@@ -1,4 +1,6 @@
+import {grpcClient} from '@/grpc-client'
 import {client} from '@/trpc'
+import * as base64 from '@seed-hypermedia/client/base64'
 import {invalidateQueries} from '@shm/shared'
 import {SEED_HOST_URL} from '@shm/shared/constants'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -26,18 +28,14 @@ export const AbsorbResponseSchema = z.discriminatedUnion('status', [
 ])
 export type AbsorbResponse = z.infer<typeof AbsorbResponseSchema>
 
-export const SignInResponseSchema = z.discriminatedUnion('status', [
-  z.object({
-    status: z.literal('login-email-sent'),
-    token: z.string(),
-    email: z.string(),
-  }),
-  z.object({
-    status: z.literal('passkey-or-email-validation-required'),
-    email: z.string(),
-  }),
-])
-export type SignInResponse = z.infer<typeof SignInResponseSchema>
+export const CodeStartResponseSchema = z.object({
+  status: z.literal('code-sent'),
+  email: z.string(),
+  binding: z.string(),
+  expireTime: z.number(),
+  resendAllowedTime: z.number(),
+})
+export type CodeStartResponse = z.infer<typeof CodeStartResponseSchema>
 
 export const CreateSiteRequestSchema = z.object({
   subdomain: z.string(),
@@ -135,43 +133,48 @@ export function useHostSession({
       invalidateQueries([queryKeys.HOST_STATE])
     },
   })
-  const login = useMutation({
+  // Login with a code sent by email: start returns the binding that verify needs.
+  const startEmailCode = useMutation({
     mutationFn: async (email: string) => {
-      const respJson = await hostAPI('auth/start', 'POST', {email})
-      const response = SignInResponseSchema.parse(respJson)
-      if (response.status === 'login-email-sent') {
-        setHostState.mutate({
-          email: response.email,
-          sessionToken: null,
-          pendingSessionToken: response.token,
-        })
-      }
+      const respJson = await hostAPI('auth/code/start', 'POST', {email})
+      return CodeStartResponseSchema.parse(respJson)
     },
   })
-  const absorbedSession = useQuery({
-    queryKey: [queryKeys.HOST_ABSORB_SESSION, hostState?.pendingSessionToken],
-    queryFn: async () => {
-      const respJson = await hostAPI('auth/absorb', 'POST', {
-        token: hostState?.pendingSessionToken,
+  const verifyEmailCode = useMutation({
+    mutationFn: async (input: {email: string; binding: string; code: string}) => {
+      const respJson = await hostAPI('auth/code/verify', 'POST', input)
+      const response = AbsorbResponseSchema.parse(respJson)
+      if (response.status !== 'success') {
+        throw new Error(response.status === 'error' ? response.message : 'Login failed')
+      }
+      await setHostState.mutateAsync({
+        email: response.email,
+        sessionToken: response.sessionToken,
+        pendingSessionToken: null,
+      })
+      onAuthenticated?.()
+    },
+  })
+  // Skips the email step when the remote vault has already verified the email and the host trusts it.
+  const loginWithVault = useMutation({
+    mutationFn: async () => {
+      const prevalidation = await grpcClient.daemon.getVaultEmailPrevalidation({})
+      const respJson = await hostAPI('auth/vault', 'POST', {
+        email: prevalidation.email,
+        signer: base64.encode(prevalidation.signer),
+        host: prevalidation.host,
+        sig: base64.encode(prevalidation.sig),
       })
       const response = AbsorbResponseSchema.parse(respJson)
-      if (response.status === 'success') {
-        await setHostState.mutateAsync({
-          email: response.email,
-          sessionToken: response.sessionToken,
-          pendingSessionToken: null,
-        })
-        onAuthenticated?.()
-      } else if (response.status === 'pending') {
-      } else if (response.status === 'error') {
-        throw new Error(response.message)
+      if (response.status !== 'success') {
+        throw new Error(response.status === 'error' ? response.message : 'Vault login failed')
       }
-      return respJson
+      await setHostState.mutateAsync({
+        email: response.email,
+        sessionToken: response.sessionToken,
+        pendingSessionToken: null,
+      })
     },
-    enabled: !!hostState?.pendingSessionToken,
-    refetchInterval: hostState?.pendingSessionToken ? 15000 : false,
-    refetchIntervalInBackground: true,
-    useErrorBoundary: false,
   })
   const sessionToken = hostState?.sessionToken
   const wasAuthenticated = useRef(!!sessionToken)
@@ -268,10 +271,10 @@ export function useHostSession({
     email: hostState?.email,
     pendingDomains: hostState?.pendingDomains,
     loggedIn: !!hostState?.sessionToken,
-    login: login.mutate,
-    isSendingEmail: login.isLoading,
-    error: login.error,
-    isPendingEmailValidation: !hostState?.sessionToken && !!hostState?.pendingSessionToken,
+    isSessionLoaded: hostState !== undefined,
+    startEmailCode,
+    verifyEmailCode,
+    loginWithVault: loginWithVault.mutate,
     reset: () => {
       setHostState.mutate({
         email: null,
@@ -284,6 +287,5 @@ export function useHostSession({
     createDomain,
     cancelPendingDomain,
     logout,
-    absorbedSession,
   }
 }

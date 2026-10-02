@@ -21,7 +21,7 @@ import {EditingDocToolsRight, useDesktopToolbarCallbacks} from '@/components/edi
 import {useFollowProfileIntent} from '@/components/desktop-intents'
 import {DocumentDestinationDialog} from '@/components/document-destination-dialog'
 import {JoinButton} from '@/components/join-button'
-import {usePublishSite, useRemoveSiteDialog} from '@/components/publish-site'
+import {usePublishSite} from '@/components/publish-site'
 import {SearchInput} from '@/components/search-input'
 import {domainResolver, grpcClient} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
@@ -96,7 +96,7 @@ import {schemaCid} from '@shm/ui/schema/index'
 import {createCopyLinkMenuItem} from '@shm/ui/copy-link-menu'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
-import {CloudOff, Download, Trash, UploadCloud} from '@shm/ui/icons'
+import {Download, Trash, UploadCloud} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {ResourcePage} from '@shm/ui/resource-page-common'
 import type {AttributeAutocomplete, AttributeSuggestionKind} from '@shm/ui/value-editor'
@@ -841,7 +841,6 @@ export default function DesktopResourcePage() {
 
   // Publishing / unpublishing
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
-  const removeSiteDialog = useRemoveSiteDialog()
   const publishSite = usePublishSite()
   const pendingDomain = useHostSession().pendingDomains?.find((pending) => pending.siteUid === docId.uid)
   const [copyGatewayContent, onCopyGateway] = useCopyReferenceUrl(gwUrl)
@@ -1159,15 +1158,6 @@ export default function DesktopResourcePage() {
           },
         })
       }
-      menuItems.push({
-        key: 'remove-site',
-        label: 'Remove Space from Publication',
-        icon: <CloudOff className="size-4" />,
-        variant: 'destructive',
-        onClick: () => {
-          removeSiteDialog.open(docId)
-        },
-      })
     } else {
       menuItems.push({
         key: 'publish-site',
@@ -1356,7 +1346,6 @@ export default function DesktopResourcePage() {
       {destinationDialog.content}
       {worldBuilderDialog.content}
       {editProfileDialog.content}
-      {removeSiteDialog.content}
       {publishSite.content}
       {followIntent.content}
     </div>

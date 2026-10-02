@@ -90,7 +90,17 @@ func main() {
 		}
 
 		var ks core.KeyStore
-		if cfg.Base.KeystoreDir != "" {
+		if cfg.Base.VaultMemorySecrets {
+			secrets, err := vault.NewMemorySecretStore()
+			if err != nil {
+				return err
+			}
+			ks, err = vault.New(cfg.Base.DataDir, secrets)
+			if err != nil {
+				return fmt.Errorf("failed to create vault keystore with memory secrets: %w", err)
+			}
+			log.Info("UsingLocalVaultKeyStoreWithMemorySecrets")
+		} else if cfg.Base.KeystoreDir != "" {
 			var err error
 			ks, err = keystore.NewFile(cfg.Base.KeystoreDir)
 			if err != nil {
