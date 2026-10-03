@@ -3521,8 +3521,39 @@ export type AgentRunTreeLiveState = {
 
 const EMPTY_RUN_TREE_LIVE_STATE: AgentRunTreeLiveState = {runs: {}, progress: {}, activity: {}, journal: []}
 
-/** Journal entries kept in memory per run tree. Well above what the activity drawer renders. */
-const RUN_JOURNAL_BUFFER_LIMIT = 500
+/** Journal entries kept in memory per RUN of a tree. Well above what the activity drawer renders. */
+export const RUN_JOURNAL_BUFFER_LIMIT = 500
+
+/**
+ * Appends one journal entry to a tree's buffered journal, bounding the buffer per run.
+ *
+ * The bound is per run, not per tree: a run page or card reads only its own run's entries (and its
+ * descendants'), while the socket replays every run of the tree in creation order. A tree-wide
+ * tail let a long-running sibling evict an earlier run's entire journal — its page then showed no
+ * tool calls, no error inspector, nothing — even though the server had replayed all of it.
+ * Duplicates (same run and seq) are dropped; the replay and the live stream can overlap.
+ */
+export function appendRunJournalEntry(
+  journal: RunJournalEntryInfo[],
+  entry: RunJournalEntryInfo,
+  limit = RUN_JOURNAL_BUFFER_LIMIT,
+): RunJournalEntryInfo[] {
+  let ownCount = 0
+  let oldestOwnIndex = -1
+  for (let index = 0; index < journal.length; index += 1) {
+    const existing = journal[index]!
+    if (existing.runId !== entry.runId) continue
+    // Keyed on (runId, seq): seq is per-run, so it repeats across a tree's runs.
+    if (existing.seq === entry.seq) return journal
+    ownCount += 1
+    if (oldestOwnIndex === -1) oldestOwnIndex = index
+  }
+  // A long workflow journals without bound; the drawer only ever shows the tail of each run.
+  if (ownCount >= limit && oldestOwnIndex !== -1) {
+    return [...journal.slice(0, oldestOwnIndex), ...journal.slice(oldestOwnIndex + 1), entry]
+  }
+  return [...journal, entry]
+}
 
 /**
  * Subscribes to one run tree (`runs/<rootRunId>`).
@@ -3558,12 +3589,8 @@ export function useAgentRunTreeSubscription(
         createdAt: event.createdAt,
       }
       setState((current) => {
-        // Keyed on (runId, seq): seq is per-run, so it repeats across a tree's runs.
-        if (current.journal.some((existing) => existing.runId === entry.runId && existing.seq === entry.seq)) {
-          return current
-        }
-        // A long workflow journals without bound; the drawer only ever shows the tail.
-        return {...current, journal: [...current.journal, entry].slice(-RUN_JOURNAL_BUFFER_LIMIT)}
+        const journal = appendRunJournalEntry(current.journal, entry)
+        return journal === current.journal ? current : {...current, journal}
       })
     } else if (event._ === 'appendPartial' && event.key.startsWith('runs/')) {
       const {runId, patch} = event as {runId: string; patch: AgentWSRunPatch}
