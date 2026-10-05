@@ -13,6 +13,16 @@ import type {BrowserCommand} from '@seed-hypermedia/agents-protocol'
 declare global {
   interface Window {
     isWindowMaximized?: boolean
+    webBrowser: {
+      create: () => Promise<{browserId: number}>
+      setBounds: (input: {
+        browserId: number
+        visible: boolean
+        bounds?: {x: number; y: number; width: number; height: number}
+      }) => void
+      control: (input: {browserId: number; action: 'reload' | 'stop'}) => void
+      navigate: (input: {browserId: number; requestId: number; url: string; historyIndex?: number}) => void
+    }
     browserAgent: {
       access: (input: {
         connectionId: string
@@ -47,6 +57,13 @@ export type AppInfoType = typeof AppInfo
 contextBridge.exposeInMainWorld('appInfo', AppInfo)
 
 const windowInfo = ipcRenderer.sendSync('initWindow')
+// The web pane: the renderer never holds a web view, it asks the main process for one.
+contextBridge.exposeInMainWorld('webBrowser', {
+  create: () => ipcRenderer.invoke('web-browser-create', {}),
+  setBounds: (input: unknown) => ipcRenderer.send('web-browser-bounds', input),
+  control: (input: unknown) => ipcRenderer.send('web-browser-control', input),
+  navigate: (input: unknown) => ipcRenderer.send('web-browser-navigate', input),
+})
 contextBridge.exposeInMainWorld('browserAgent', {
   access: (input: unknown) => ipcRenderer.invoke('browser-agent-access', input),
   execute: (connectionId: string, command: BrowserCommand) =>

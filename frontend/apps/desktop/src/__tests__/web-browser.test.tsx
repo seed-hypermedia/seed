@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../models/experiments', () => ({useExperiments: () => ({data: {webBrowser: mocks.enabled}})}))
 vi.mock('../app-context', () => ({useAppContext: () => ({externalOpen: mocks.externalOpen})}))
 vi.mock('../grpc-client', () => ({domainResolver: {}}))
-vi.mock('../ipc', () => ({ipc: {send: mocks.send, invoke: mocks.invoke}}))
+
 vi.mock('../omnibar-url', () => ({resolveOmnibarUrlToRoute: mocks.resolve}))
 vi.mock('../utils/navigation-container', () => ({
   commitBrowserLocation: mocks.commit,
@@ -42,6 +42,12 @@ describe('browser page lifecycle', () => {
     mocks.enabled = true
     mocks.send.mockClear()
     mocks.invoke.mockReset().mockResolvedValue({browserId: 42})
+    ;(window as any).webBrowser = {
+      create: mocks.invoke,
+      setBounds: (input: unknown) => mocks.send('web-browser-bounds', input),
+      control: (input: unknown) => mocks.send('web-browser-control', input),
+      navigate: (input: unknown) => mocks.send('web-browser-navigate', input),
+    }
     mocks.resolveRoute.mockClear()
     mocks.resolve.mockReset().mockResolvedValue(null)
     const [setState, state] = writeableStateStream<NavState>({
@@ -84,7 +90,6 @@ describe('browser page lifecycle', () => {
 
   it('attaches once, records page navigation, and restores web history after a native Seed link', async () => {
     await attachAndCommit()
-    expect(mocks.invoke).toHaveBeenCalledWith('web-browser-create', {})
     expect(mocks.invoke).toHaveBeenCalledTimes(1)
     expect(sent('web-browser-navigate')).toHaveLength(1)
     expect(getState().routes[1]).toMatchObject({key: 'web', title: 'First page', historyIndex: 1})

@@ -1,6 +1,5 @@
 import {useAppContext} from '@/app-context'
 import {domainResolver} from '@/grpc-client'
-import {ipc} from '@/ipc'
 import {useExperiments} from '@/models/experiments'
 import {resolveOmnibarUrlToRoute} from '@/omnibar-url'
 import {commitBrowserLocation, resolveBrowserRoute} from '@/utils/navigation-container'
@@ -76,8 +75,8 @@ export function WebBrowser() {
       return
     }
     let cancelled = false
-    ipc
-      .invoke('web-browser-create', {})
+    window.webBrowser
+      .create()
       .then((result) => {
         const id = (result as {browserId?: unknown} | undefined)?.browserId
         if (!cancelled && typeof id === 'number') setBrowserId(id)
@@ -100,7 +99,7 @@ export function WebBrowser() {
     const shown = active && enabled && !error && !obscured
     const report = () => {
       const rect = element?.getBoundingClientRect()
-      ipc.send('web-browser-bounds', {
+      window.webBrowser.setBounds({
         browserId,
         visible: shown && !!rect && rect.width > 0 && rect.height > 0,
         ...(rect ? {bounds: {x: rect.left, y: rect.top, width: rect.width, height: rect.height}} : {}),
@@ -113,7 +112,7 @@ export function WebBrowser() {
     return () => {
       observer?.disconnect()
       window.removeEventListener('resize', report)
-      ipc.send('web-browser-bounds', {browserId, visible: false})
+      window.webBrowser.setBounds({browserId, visible: false})
     }
   }, [browserId, active, enabled, error, obscured])
 
@@ -122,7 +121,7 @@ export function WebBrowser() {
       resolution.current++
       pending.current = undefined
       location.current = undefined
-      if (browserId) ipc.send('web-browser-control', {browserId, action: 'stop'})
+      if (browserId) window.webBrowser.control({browserId, action: 'stop'})
       return
     }
     if (
@@ -134,7 +133,7 @@ export function WebBrowser() {
     resolution.current++
     pending.current = ++nextRequestId
     setError(null)
-    ipc.send('web-browser-navigate', {
+    window.webBrowser.navigate({
       browserId,
       requestId: pending.current,
       url: route.url,
@@ -232,8 +231,7 @@ export function WebBrowser() {
             aria-label={loading ? 'Stop loading' : 'Reload page'}
             disabled={!enabled || !browserId}
             onClick={() =>
-              browserId !== undefined &&
-              ipc.send('web-browser-control', {browserId, action: loading ? 'stop' : 'reload'})
+              browserId !== undefined && window.webBrowser.control({browserId, action: loading ? 'stop' : 'reload'})
             }
           >
             {loading ? <X className="size-4" /> : <RotateCw className="size-4" />}
@@ -262,7 +260,7 @@ export function WebBrowser() {
           <p className="text-muted-foreground text-sm">{error}</p>
           <Button
             variant="outline"
-            onClick={() => browserId !== undefined && ipc.send('web-browser-control', {browserId, action: 'reload'})}
+            onClick={() => browserId !== undefined && window.webBrowser.control({browserId, action: 'reload'})}
           >
             Try again
           </Button>
