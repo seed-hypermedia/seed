@@ -23,19 +23,7 @@ import {
 } from '@shm/shared/utils/document-actions'
 import {createWebHMUrl, getVersionHeads, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {
-  Bookmark,
-  Copy,
-  FilePen,
-  FileText,
-  Forward,
-  Grid3X3,
-  History,
-  Layers,
-  MessageSquare,
-  Pencil,
-  Split,
-} from 'lucide-react'
+import {Copy, FilePen, FileText, Forward, Grid3X3, History, Layers, MessageSquare, Pencil, Split} from 'lucide-react'
 import {HTMLAttributes, ReactNode, useMemo} from 'react'
 import {Button} from './button'
 import {createCopyLinkMenuItem, getWebCopyLinkHostname} from './copy-link-menu'
@@ -394,7 +382,7 @@ export function DocumentCard({
   details?: ReactNode
   /** Additional details rendered to the left of the card action buttons. */
   actionDetails?: ReactNode
-  /** Hide the inline bookmark / comments / options-dropdown row */
+  /** Hide the inline comments / options-dropdown row. */
   hideInlineActions?: boolean
   relocationOrigin?: DocumentCardActionOrigin
 }) {
@@ -447,9 +435,8 @@ export function DocumentCard({
   const doc = entity?.document
   const headCount = getVersionHeads(version ?? doc?.version).length
 
-  // Context-driven state for the inline row (badges, bookmark button).
+  // Context-driven state for the inline badges.
   const draftId = actions.getDraftId?.(docId) ?? draft?.id
-  const bookmarked = actions.isBookmarked?.(docId) ?? false
 
   const menuItems = useDocumentCardMenuItems(docId, doc, relocationOrigin)
 
@@ -513,22 +500,6 @@ export function DocumentCard({
       actions={
         !hideInlineActions ? (
           <div className="flex items-center gap-1">
-            {actions.onBookmarkToggle && (
-              <Tooltip content={bookmarked ? 'Remove from Bookmarks' : 'Add to Bookmarks'}>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="no-window-drag"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    actions.onBookmarkToggle!(docId)
-                  }}
-                >
-                  {bookmarked ? <Bookmark className="size-3.5 fill-current" /> : <Bookmark className="size-3.5" />}
-                </Button>
-              </Tooltip>
-            )}
             {commentCount > 0 && (
               <Tooltip content="View discussions">
                 <Button
