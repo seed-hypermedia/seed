@@ -3,6 +3,9 @@ package daemon
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,11 +13,13 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"os"
 	"runtime/debug"
 	daemonapi "seed/backend/api/daemon/v1alpha"
 	telemetryapi "seed/backend/api/telemetry/v1alpha"
 	"seed/backend/blob"
 	"seed/backend/config"
+	"seed/backend/core"
 	"seed/backend/hmnet"
 	"seed/backend/logging"
 	"seed/backend/util/cleanup"
@@ -54,7 +59,7 @@ var (
 
 func initHTTP(
 	cfg config.Base,
-	port int,
+	httpCfg config.HTTP,
 	rpc *grpc.Server,
 	clean *cleanup.Stack,
 	g *errgroup.Group,
@@ -63,10 +68,15 @@ func initHTTP(
 	apiServer *daemonapi.Server,
 	telemetrySrv *telemetryapi.Server,
 ) (srv *http.Server, lis net.Listener, err error) {
+	secret, err := appSecretFromEnv()
+	if err != nil {
+		return nil, nil, err
+	}
+	allowedOrigin := appOriginAllowlist(httpCfg.AppOrigins)
 	router := &Router{mux: http.NewServeMux()}
 	router.Use(
-		openCORSMiddleware,
-		authContextMiddleware(apiServer),
+		browserGateMiddleware(secret, allowedOrigin, apiServer.AuthenticateBearerToken),
+		appCORSMiddleware(allowedOrigin),
 		publicOnlyMiddleware(cfg.PublicOnly),
 		handlerNameMiddleware(router.mux),
 		instrument,
@@ -104,13 +114,15 @@ func initHTTP(
 		router.HandleNav("GET /debug/version", gitVersionHandler())
 		router.HandleFunc("/vault-connect", apiServer.HandleVaultConnect)
 
-		router.Handle("/", grpcweb.WrapServer(rpc, grpcweb.WithOriginFunc(func(_ string) bool {
-			return true
-		})))
+		router.Handle("/", grpcweb.WrapServer(rpc, grpcweb.WithOriginFunc(allowedOrigin)))
 	}
 
+	host := "127.0.0.1"
+	if httpCfg.ListenAll {
+		host = ""
+	}
 	srv = &http.Server{
-		Addr:              ":" + strconv.Itoa(port),
+		Addr:              net.JoinHostPort(host, strconv.Itoa(httpCfg.Port)),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       20 * time.Second,
 		Handler:           router,
@@ -211,23 +223,73 @@ func loopbackOnly(next http.Handler) http.Handler {
 	})
 }
 
-func authContextMiddleware(auth *daemonapi.Server) func(http.Handler) http.Handler {
+// The parent supplies the secret only through the environment, never a flag or disk.
+func appSecretFromEnv() (string, error) {
+	if secret := os.Getenv("SEED_APP_SECRET"); secret != "" {
+		decoded, err := hex.DecodeString(secret)
+		if err != nil || len(decoded) != 32 {
+			return "", fmt.Errorf("SEED_APP_SECRET must encode 32 bytes as hex")
+		}
+		return secret, nil
+	}
+	var secret [32]byte
+	if _, err := rand.Read(secret[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(secret[:]), nil
+}
+
+func appOriginAllowlist(extra string) func(string) bool {
+	origins := make(map[string]bool)
+	for port := 17654; port <= 17664; port++ {
+		origins["http://localhost:"+strconv.Itoa(port)] = true
+	}
+	for _, origin := range strings.Split(extra, ",") {
+		if origin = strings.TrimSpace(origin); origin != "" {
+			origins[origin] = true
+		}
+	}
+	return func(origin string) bool { return origins[origin] }
+}
+
+func browserGateMiddleware(secret string, allowedOrigin func(string) bool, authenticate func(context.Context, string) (core.Principal, error)) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			raw := r.Header.Get("Authorization")
-			scheme, token, ok := strings.Cut(raw, " ")
-			if !ok || !strings.EqualFold(scheme, "Bearer") || strings.TrimSpace(token) == "" {
+			site := r.Header.Get("Sec-Fetch-Site")
+			origin := r.Header.Get("Origin")
+			browser := (site != "" && site != "none" && site != "same-origin") || (origin != "" && !allowedOrigin(origin))
+			// Browsers don't send credentials on preflight. Only trusted app origins
+			// may negotiate CORS; the actual request still goes through this gate.
+			if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" && allowedOrigin(origin) {
 				next.ServeHTTP(w, r)
 				return
 			}
-
-			caller, err := auth.AuthenticateBearerToken(r.Context(), strings.TrimSpace(token))
-			if err != nil {
-				http.Error(w, "bad bearer authorization", http.StatusUnauthorized)
-				return
+			appAuthenticated := secret != "" && subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Seed-App-Secret")), []byte(secret)) == 1
+			bearerAuthenticated := false
+			scheme, token, ok := strings.Cut(r.Header.Get("Authorization"), " ")
+			if ok && strings.EqualFold(scheme, "Bearer") && strings.TrimSpace(token) != "" {
+				caller, err := authenticate(r.Context(), strings.TrimSpace(token))
+				if err != nil {
+					status := http.StatusUnauthorized
+					if browser {
+						status = http.StatusForbidden
+					}
+					http.Error(w, "bad bearer authorization", status)
+					return
+				}
+				bearerAuthenticated = true
+				r = r.WithContext(blob.WithAuthenticatedCaller(r.Context(), caller))
 			}
-
-			next.ServeHTTP(w, r.WithContext(blob.WithAuthenticatedCaller(r.Context(), caller)))
+			if browser && !appAuthenticated && !bearerAuthenticated {
+				cidPath, ipfsPath := strings.CutPrefix(r.URL.Path, "/ipfs/")
+				publicIPFS := r.Method == http.MethodGet && ipfsPath && cidPath != "" && !strings.Contains(cidPath, "/")
+				public := r.Method == http.MethodGet && (r.URL.Path == "/hm/api/config" || r.URL.Path == "/debug/version")
+				if !public && !publicIPFS {
+					http.Error(w, "forbidden", http.StatusForbidden)
+					return
+				}
+			}
+			next.ServeHTTP(w, r)
 		})
 	}
 }
@@ -245,32 +307,26 @@ func publicOnlyMiddleware(publicOnly bool) func(http.Handler) http.Handler {
 	}
 }
 
-// openCORSMiddleware allows different host/origins.
-func openCORSMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// We don't rely on CORS for protection. Routes that expose sensitive
-		// data or actions must require authentication or their own access policy,
-		// hence by default we allow very broad CORS settings on purpose.
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "*")
-
-		isPreflight := r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != ""
-
-		// We short-circuit the request when it's a preflight.
-		if isPreflight {
-			// Chrome's Private Network Access requires the server to ack the
-			// preflight when a non-private origin targets a private/loopback
-			// address.
-			if r.Header.Get("Access-Control-Request-Private-Network") == "true" {
-				w.Header().Set("Access-Control-Allow-Private-Network", "true")
+func appCORSMiddleware(allowedOrigin func(string) bool) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Add("Vary", "Origin")
+			if allowedOrigin(r.Header.Get("Origin")) {
+				w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
+				w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Range, X-Seed-App-Secret, X-Grpc-Web, X-User-Agent, Grpc-Timeout, Connect-Protocol-Version, Connect-Timeout-Ms")
+				w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, POST, OPTIONS")
+				w.Header().Set("Access-Control-Expose-Headers", "Grpc-Status, Grpc-Message, Grpc-Status-Details-Bin")
+				if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
+					if r.Header.Get("Access-Control-Request-Private-Network") == "true" {
+						w.Header().Set("Access-Control-Allow-Private-Network", "true")
+					}
+					w.WriteHeader(http.StatusNoContent)
+					return
+				}
 			}
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func gitVersionHandler() http.Handler {

@@ -2,13 +2,20 @@ package daemon
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"seed/backend/blob"
+	"seed/backend/core"
 	"seed/backend/hmnet"
 	"seed/backend/storage"
 	"seed/backend/util/cleanup"
 	"seed/backend/util/sqlite/sqlitex"
+	"strings"
 	"testing"
 
 	"seed/backend/util/must"
@@ -157,4 +164,194 @@ func makeCID(t *testing.T, data []byte) cid.Cid {
 	mh, err := multihash.Sum(data, multihash.SHA2_256, -1)
 	require.NoError(t, err)
 	return cid.NewCidV1(cid.Raw, mh)
+}
+
+func TestHTTPBrowserGate(t *testing.T) {
+	allowed := appOriginAllowlist("")
+	const secret = "launch-secret"
+	tests := []struct {
+		name, method, path, origin, site, secret, bearer string
+		status                                           int
+	}{
+		{name: "CLI", status: 200},
+		{name: "navigation", site: "none", status: 200},
+		{name: "same origin", site: "same-origin", status: 200},
+		{name: "cross site", site: "cross-site", status: 403},
+		{name: "same site", site: "same-site", status: 403},
+		{name: "foreign origin", origin: "https://example.com", status: 403},
+		{name: "null origin", origin: "null", status: 403},
+		{name: "origin overrides metadata", origin: "https://example.com", site: "same-origin", status: 403},
+		{name: "allowed origin still needs secret for same site", origin: "http://localhost:17654", site: "same-site", status: 403},
+		{name: "desktop", origin: "http://localhost:17654", site: "cross-site", secret: secret, status: 200},
+		{name: "bad secret", site: "cross-site", secret: "wrong", status: 403},
+		{name: "bearer", origin: "https://example.com", bearer: "valid", status: 200},
+		{name: "bad bearer", origin: "https://example.com", bearer: "invalid", status: 403},
+		{name: "public file", method: "GET", path: "/ipfs/bafytest", origin: "https://example.com", status: 200},
+		{name: "public dagjson", method: "GET", path: "/ipfs/bafytest.dagjson", site: "cross-site", status: 200},
+		{name: "public config", method: "GET", path: "/hm/api/config", origin: "https://example.com", status: 200},
+		{name: "public version", method: "GET", path: "/debug/version", site: "cross-site", status: 200},
+		{name: "upload", path: "/ipfs/file-upload", site: "cross-site", status: 403},
+		{name: "put blob", path: "/ipfs/bafytest", site: "cross-site", status: 403},
+		{name: "vault", path: "/vault-connect", site: "cross-site", status: 403},
+		{name: "config post", path: "/hm/api/config", site: "cross-site", status: 403},
+		{name: "ipfs prefix is not public", method: "GET", path: "/ipfs/bafytest/extra", site: "cross-site", status: 403},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			authenticate := func(_ context.Context, token string) (core.Principal, error) {
+				if token != "valid" {
+					return nil, errors.New("invalid token")
+				}
+				return core.Principal("verified"), nil
+			}
+			handler := browserGateMiddleware(secret, allowed, authenticate)(appCORSMiddleware(allowed)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tt.bearer == "valid" {
+					_, ok := blob.GetAuthenticatedCaller(r.Context())
+					require.True(t, ok)
+				}
+				w.WriteHeader(http.StatusOK)
+			})))
+			method, path := tt.method, tt.path
+			if method == "" {
+				method = "POST"
+			}
+			if path == "" {
+				path = "/com.seed.daemon.v1alpha.Daemon/ListKeys"
+			}
+			req := httptest.NewRequest(method, path, nil)
+			req.Header.Set("Origin", tt.origin)
+			req.Header.Set("Sec-Fetch-Site", tt.site)
+			req.Header.Set("X-Seed-App-Secret", tt.secret)
+			if tt.bearer != "" {
+				req.Header.Set("Authorization", "Bearer "+tt.bearer)
+			}
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			require.Equal(t, tt.status, rec.Code)
+			if tt.status == 403 || !allowed(tt.origin) {
+				require.Empty(t, rec.Header().Get("Access-Control-Allow-Origin"))
+			}
+		})
+	}
+}
+
+func TestHTTPCORS(t *testing.T) {
+	allowed := appOriginAllowlist("http://localhost:5173")
+	handler := browserGateMiddleware("secret", allowed, nil)(appCORSMiddleware(allowed)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(200) })))
+	for _, origin := range []string{"http://localhost:17654", "http://localhost:17664", "http://localhost:5173", "http://localhost:17665", "http://localhost:17654.evil.example", "https://example.com", "null"} {
+		t.Run(origin, func(t *testing.T) {
+			req := httptest.NewRequest("OPTIONS", "/ipfs/file-upload", nil)
+			req.Header.Set("Origin", origin)
+			req.Header.Set("Sec-Fetch-Site", "cross-site")
+			req.Header.Set("Access-Control-Request-Method", "POST")
+			req.Header.Set("Access-Control-Request-Headers", "x-seed-app-secret,content-type")
+			req.Header.Set("Access-Control-Request-Private-Network", "true")
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if allowed(origin) {
+				require.Equal(t, 204, rec.Code)
+				require.Equal(t, origin, rec.Header().Get("Access-Control-Allow-Origin"))
+				require.Equal(t, "true", rec.Header().Get("Access-Control-Allow-Private-Network"))
+				require.Contains(t, rec.Header().Get("Access-Control-Allow-Headers"), "X-Seed-App-Secret")
+				require.Contains(t, rec.Header().Values("Vary"), "Origin")
+			} else {
+				require.Equal(t, 403, rec.Code)
+				for key := range rec.Header() {
+					require.False(t, strings.HasPrefix(key, "Access-Control-Allow-"), key)
+				}
+			}
+		})
+	}
+	require.False(t, appOriginAllowlist("")("http://localhost:5173"), "Vite is trusted only when explicitly configured")
+}
+
+func TestHTTPAppSecret(t *testing.T) {
+	t.Setenv("SEED_APP_SECRET", "")
+	first, err := appSecretFromEnv()
+	require.NoError(t, err)
+	require.Len(t, first, 64)
+	second, err := appSecretFromEnv()
+	require.NoError(t, err)
+	require.NotEqual(t, first, second)
+	t.Setenv("SEED_APP_SECRET", first)
+	supplied, err := appSecretFromEnv()
+	require.NoError(t, err)
+	require.Equal(t, first, supplied)
+	t.Setenv("SEED_APP_SECRET", "too-short")
+	_, err = appSecretFromEnv()
+	require.Error(t, err)
+}
+
+func TestHTTPListenAddress(t *testing.T) {
+	for _, all := range []bool{false, true} {
+		cfg := makeTestConfig(t)
+		cfg.HTTP.ListenAll = all
+		cfg.PublicOnly = true
+		app := makeTestApp(t, "alice", cfg, false)
+		ip := app.HTTPListener.Addr().(*net.TCPAddr).IP
+		if all {
+			require.True(t, ip.IsUnspecified())
+		} else {
+			require.Equal(t, "127.0.0.1", ip.String())
+		}
+	}
+}
+
+// TestHTTPBrowserServer runs the real daemon for the Electron regression, with
+// ephemeral ports and storage. It is opt-in and exits when the harness closes stdin.
+func TestHTTPBrowserServer(t *testing.T) {
+	if os.Getenv("SEED_HTTP_BROWSER_TEST_SERVER") != "1" {
+		t.Skip("Electron harness only")
+	}
+	cfg := makeTestConfig(t)
+	cfg.Syncing.NoDiscovery = true
+	app := makeTestApp(t, "bob", cfg, false)
+	data := []byte("public browser regression content")
+	c := makeCID(t, data)
+	block, err := blocks.NewBlockWithCid(data, c)
+	require.NoError(t, err)
+	require.NoError(t, app.Index.Put(t.Context(), block))
+	conn, release, err := app.Storage.DB().WriteConn(t.Context())
+	require.NoError(t, err)
+	err = sqlitex.Exec(conn, `INSERT INTO blob_visibility (id, space) SELECT id, 0 FROM blobs WHERE multihash = ?`, nil, c.Hash())
+	release()
+	require.NoError(t, err)
+	fmt.Printf("SEED_BROWSER_SERVER %s %s\n", app.HTTPListener.Addr().String(), c.String())
+	_, err = io.Copy(io.Discard, os.Stdin)
+	require.NoError(t, err)
+}
+
+func TestHTTPGateRoutes(t *testing.T) {
+	const secret = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	t.Setenv("SEED_APP_SECRET", secret)
+	cfg := makeTestConfig(t)
+	cfg.PublicOnly = true
+	app := makeTestApp(t, "carol", cfg, false)
+	for _, tt := range []struct {
+		name, origin, site, secret string
+		status                     int
+	}{
+		{name: "browser denied", origin: "https://example.com", site: "cross-site", status: 403},
+		{name: "app denied without secret", origin: "http://localhost:17654", site: "cross-site", status: 403},
+		{name: "app authorized", origin: "http://localhost:17654", site: "cross-site", secret: secret, status: 200},
+		{name: "non-browser", status: 200},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "/com.seed.daemon.v1alpha.Daemon/GetInfo", strings.NewReader("\x00\x00\x00\x00\x00"))
+			req.Header.Set("Content-Type", "application/grpc-web+proto")
+			req.Header.Set("X-Grpc-Web", "1")
+			req.Header.Set("Origin", tt.origin)
+			req.Header.Set("Sec-Fetch-Site", tt.site)
+			req.Header.Set("X-Seed-App-Secret", tt.secret)
+			rec := httptest.NewRecorder()
+			app.HTTPServer.Handler.ServeHTTP(rec, req)
+			require.Equal(t, tt.status, rec.Code)
+			if tt.status == 403 {
+				require.Empty(t, rec.Header().Get("Access-Control-Allow-Origin"))
+			}
+			if tt.secret != "" {
+				require.Equal(t, tt.origin, rec.Header().Get("Access-Control-Allow-Origin"))
+			}
+		})
+	}
 }

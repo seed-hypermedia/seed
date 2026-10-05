@@ -175,6 +175,10 @@ func newURLFlag(val url.URL, p *url.URL) flag.Value {
 // HTTP configuration.
 type HTTP struct {
 	Port int
+	// ListenAll exposes HTTP beyond loopback for server deployments.
+	ListenAll bool
+	// AppOrigins adds explicit dev/test origins to the desktop CORS allowlist.
+	AppOrigins string
 }
 
 func (c HTTP) Default() HTTP {
@@ -185,7 +189,9 @@ func (c HTTP) Default() HTTP {
 
 // BindFlags binds the flags to the given FlagSet.
 func (c *HTTP) BindFlags(fs *flag.FlagSet) {
-	fs.IntVar(&c.Port, "http.port", c.Port, "Port for the HTTP server (including grpc-web)")
+	fs.IntVar(&c.Port, "http.port", c.Port, "Port for the HTTP server (including grpc-web); binds 127.0.0.1 unless -http.listen-all")
+	fs.BoolVar(&c.ListenAll, "http.listen-all", c.ListenAll, "Bind HTTP to all interfaces (required for container/server deployments, including -public-only); protect with a firewall")
+	fs.StringVar(&c.AppOrigins, "http.app-origins", c.AppOrigins, "Additional comma-separated trusted app origins for CORS (desktop dev/test only); parent may provide a 32-byte hex SEED_APP_SECRET in the environment")
 }
 
 // GRPC configuration.
