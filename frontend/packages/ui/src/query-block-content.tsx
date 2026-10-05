@@ -1080,25 +1080,18 @@ function SelectedAttributes({
               : ''
             : queryTableValueToString(value)
         if (!displayValue) return null
-        if (kind === 'values') {
-          return (
-            <Tooltip key={descriptor.id} content={`${descriptor.label}: ${displayValue}`} asChild>
-              <span
-                className={cn(
-                  badgeVariants({variant: 'outline'}),
-                  'text-muted-foreground max-w-full min-w-0 text-[10px]',
-                )}
-                tabIndex={0}
-              >
-                <span className="truncate">{displayValue}</span>
-              </span>
-            </Tooltip>
-          )
-        }
         return (
-          <span key={descriptor.id} className="min-w-0 truncate" title={`${descriptor.label}: ${displayValue}`}>
-            {displayValue}
-          </span>
+          <Tooltip key={descriptor.id} content={`${descriptor.label}: ${displayValue}`} asChild>
+            <span
+              className={cn(
+                badgeVariants({variant: 'outline'}),
+                'text-muted-foreground max-w-full min-w-0 text-[10px]',
+              )}
+              tabIndex={0}
+            >
+              <span className="truncate">{displayValue}</span>
+            </span>
+          </Tooltip>
         )
       })}
     </div>
