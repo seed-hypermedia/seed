@@ -6,6 +6,7 @@ import {loadBrowserFavicon, readBrowserFavicons} from './app-browser-favicon'
 import {executeBrowserCommand, type BrowserArchive} from './app-browser-agent'
 
 import {isGuestOnPrivateNetwork, navigatePublicBrowser, trackBrowserNetwork} from './browser-network-policy'
+import {isPrivateHost} from './browser-url-policy'
 import {
   browserUserGesture,
   hardenBrowserPreferences,
@@ -255,6 +256,17 @@ export function setupWebBrowser(
       if (!isWebBrowserEnabled() || !/^https?:\/\//.test(url) || hypermediaUrlToRoute(url)) {
         event.preventDefault()
         if (isWebBrowserEnabled() && hypermediaUrlToRoute(url) && gesture.consume()) openUrl(url)
+        return
+      }
+      // A public page may not send the user to localhost or the local network. Addresses the user
+      // types arrive through loadURL, which never raises this event, and a page that is itself local
+      // may keep linking locally.
+      if (isPrivateHost(url) && !isPrivateHost(guest.getURL())) {
+        event.preventDefault()
+        send({
+          type: 'browser-load-error',
+          description: 'This page tried to open a private network address. Type the address yourself to open it.',
+        })
       }
     }
     guest.on('will-navigate', guardNavigation)

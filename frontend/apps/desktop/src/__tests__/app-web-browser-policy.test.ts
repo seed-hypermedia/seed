@@ -10,7 +10,10 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('../app-browser-agent', () => ({executeBrowserCommand: mocks.execute}))
 vi.mock('../app-browser-favicon', () => ({readBrowserFavicons: async () => [], loadBrowserFavicon: async () => null}))
-vi.mock('../browser-url-policy', () => ({assertPublicWebUrl: mocks.publicUrl, isPrivateHost: () => false}))
+vi.mock('../browser-url-policy', async () => ({
+  ...(await vi.importActual<typeof import('../browser-url-policy')>('../browser-url-policy')),
+  assertPublicWebUrl: mocks.publicUrl,
+}))
 vi.mock('electron', async () => {
   const {EventEmitter} = await import('node:events')
   const session = Object.assign(new EventEmitter(), {
@@ -151,4 +154,31 @@ it('refuses commands and in-flight results from a rebound document', async () =>
   mocks.execute.mockClear()
   await expect(execute()).rejects.toThrow('private network')
   expect(mocks.execute).not.toHaveBeenCalled()
+})
+
+it('keeps public pages off the local network, while local pages may link locally', () => {
+  const {host, guest} = fixture()
+  const event = {preventDefault: vi.fn()}
+  guest.emit('will-navigate', event, 'http://127.0.0.1:5173/admin')
+  expect(event.preventDefault).toHaveBeenCalledOnce()
+  expect(host.send).toHaveBeenCalledWith(
+    'appWindowEvent',
+    expect.objectContaining({type: 'browser-load-error', description: expect.stringContaining('private network')}),
+  )
+  const cancel = vi.fn()
+  mocks.networkCallbacks.onBeforeRequest!(
+    {id: 1, url: 'http://192.168.1.1/pixel.png', initiator: 'https://example.com', resourceType: 'image'},
+    cancel,
+  )
+  expect(cancel).toHaveBeenCalledWith({cancel: true})
+  const allow = vi.fn()
+  mocks.networkCallbacks.onBeforeRequest!(
+    {id: 2, url: 'http://192.168.1.1/pixel.png', initiator: 'http://localhost:3000', resourceType: 'image'},
+    allow,
+  )
+  expect(allow).toHaveBeenCalledWith({})
+  guest.getURL = () => 'http://localhost:3000/'
+  event.preventDefault.mockClear()
+  guest.emit('will-navigate', event, 'http://localhost:3000/next')
+  expect(event.preventDefault).not.toHaveBeenCalled()
 })

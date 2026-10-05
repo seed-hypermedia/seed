@@ -43,6 +43,11 @@ export function trackBrowserNetwork(guest: WebContents) {
 /** Observes the actual main-frame peer IP, never subresource or other-session responses. */
 export function setupBrowserNetworkPolicy(browserSession: Session) {
   browserSession.webRequest.onBeforeRequest((details, callback) => {
+    // Public pages get no requests into localhost or the local network, not even for images.
+    if (details.initiator && !isPrivateHost(details.initiator) && isPrivateHost(details.url)) {
+      callback({cancel: true})
+      return
+    }
     const state = details.webContentsId === undefined ? undefined : guests.get(details.webContentsId)
     if (state && details.resourceType === 'mainFrame') state.requestId = details.id
     callback({})
