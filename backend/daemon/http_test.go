@@ -325,8 +325,10 @@ func TestHTTPGateRoutes(t *testing.T) {
 	const secret = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	t.Setenv("SEED_APP_SECRET", secret)
 	cfg := makeTestConfig(t)
-	cfg.PublicOnly = true
 	app := makeTestApp(t, "carol", cfg, false)
+	serverCfg := makeTestConfig(t)
+	serverCfg.HTTP.ListenAll = true
+	server := makeTestApp(t, "david", serverCfg, false)
 	for _, tt := range []struct {
 		name, origin, site, secret string
 		status                     int
@@ -354,4 +356,15 @@ func TestHTTPGateRoutes(t *testing.T) {
 			}
 		})
 	}
+	t.Run("server mode keeps the open policy for websites", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/com.seed.daemon.v1alpha.Daemon/GetInfo", strings.NewReader("\x00\x00\x00\x00\x00"))
+		req.Header.Set("Content-Type", "application/grpc-web+proto")
+		req.Header.Set("X-Grpc-Web", "1")
+		req.Header.Set("Origin", "https://hyper.media")
+		req.Header.Set("Sec-Fetch-Site", "cross-site")
+		rec := httptest.NewRecorder()
+		server.HTTPServer.Handler.ServeHTTP(rec, req)
+		require.Equal(t, 200, rec.Code)
+		require.Equal(t, "*", rec.Header().Get("Access-Control-Allow-Origin"))
+	})
 }
