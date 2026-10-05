@@ -207,7 +207,9 @@ describe('document collection helpers', () => {
         type: 'Query',
         attributes: {
           style: 'Table',
-          query: {includes: [{space: mockDocumentId.uid, path: (mockDocumentId.path || []).join('/'), mode: 'Children'}]},
+          query: {
+            includes: [{space: mockDocumentId.uid, path: (mockDocumentId.path || []).join('/'), mode: 'Children'}],
+          },
         },
       },
       children: [],
@@ -220,9 +222,7 @@ describe('document collection helpers', () => {
     actor.send({type: 'change', bindingSchemaDrafts: {childAttributesSchema: {type: 'hm://hyper.media/struct'}}})
 
     await vi.waitFor(() => expect(writeInputs).toHaveLength(1))
-    expect(writeInputs[0].contentOverride).toEqual([
-      expect.objectContaining({id: 'published-query', type: 'query'}),
-    ])
+    expect(writeInputs[0].contentOverride).toEqual([expect.objectContaining({id: 'published-query', type: 'query'})])
     actor.stop()
   })
 
