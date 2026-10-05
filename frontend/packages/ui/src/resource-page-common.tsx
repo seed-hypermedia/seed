@@ -198,6 +198,7 @@ import {QueryBlockContent} from './query-block-content'
 import {SiteFileBrowserLayout} from './site-file-browser-layout'
 import {SiteHeader} from './site-header'
 import {Spinner} from './spinner'
+import {Tooltip} from './tooltip'
 import {toast} from './toast'
 import {useBlockScroll} from './use-block-scroll'
 import {useCopyHmLink} from './use-copy-hm-link'
@@ -4156,40 +4157,42 @@ function DocumentCollection({
   return (
     <div className="w-full px-5 pt-4 pb-8">
       <div className="border-border bg-background overflow-hidden rounded-xl border">
-        <div className="border-border flex flex-wrap items-center justify-end gap-3 border-b px-5 py-4">
-          <div className="flex items-center gap-2">
-            <Tabs
-              value={style}
-              onValueChange={(value) => updateQueryProps({style: value as 'Card' | 'List' | 'Table'})}
-            >
-              <TabsList>
-                <TabsTrigger value="Table">
-                  <TableIcon />
-                  Table
-                </TabsTrigger>
-                <TabsTrigger value="List">
-                  <ListIcon />
-                  List
-                </TabsTrigger>
-                <TabsTrigger value="Card">
-                  <Grid3X3 />
-                  Cards
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Query settings">
-                  <MoreHorizontal className="size-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-80">
-                <CollectionQuerySettings props={props} onChange={updateQueryProps} />
-              </PopoverContent>
-            </Popover>
-          </div>
-        </div>
         <QueryBlockContent
+          toolbarActions={
+            <div className="flex items-center gap-2">
+              <Tabs
+                value={style}
+                onValueChange={(value) => updateQueryProps({style: value as 'Card' | 'List' | 'Table'})}
+              >
+                <TabsList>
+                  <TabsTrigger value="Table">
+                    <TableIcon />
+                    Table
+                  </TabsTrigger>
+                  <TabsTrigger value="List">
+                    <ListIcon />
+                    List
+                  </TabsTrigger>
+                  <TabsTrigger value="Card">
+                    <Grid3X3 />
+                    Cards
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <Popover>
+                <Tooltip content="Query settings">
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" size="icon" aria-label="Query settings">
+                      <MoreHorizontal className="size-4" />
+                    </Button>
+                  </PopoverTrigger>
+                </Tooltip>
+                <PopoverContent align="end" className="w-80">
+                  <CollectionQuerySettings props={props} onChange={updateQueryProps} />
+                </PopoverContent>
+              </Popover>
+            </div>
+          }
           items={query.data?.results ?? []}
           style={style}
           columnCount={columnCount}
