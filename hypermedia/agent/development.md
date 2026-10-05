@@ -65,7 +65,7 @@ The dev shell sets `SEED_AGENTS_HTTP_PORT=3051` in `.env.vars`, so the dev serve
 The service, in `agents/`: <!-- id:I1toG_st -->
   - `src/main.ts`: the Bun HTTP and WebSocket server, CORS, the webhook route, health and version, live event fan-out. <!-- id:6Mgrjc3y -->
   - `src/api-service.ts`: the heart of the service: action dispatch, persistence operations, the model turn on Pi Durable (`#runPiAgent`), the verb implementations, the Space index, trigger firing, subscription verification. <!-- id:3mdc_Y9h -->
-  - `src/durable-session.ts`: the per-session Pi Durable store: where it lives, how a harness is opened over it, the sync document, and the tracker that turns committed partials into text deltas. See [durable sessions](./durable-sessions.md).
+  - `src/durable-session.ts`: the per-session Pi Durable store: the file system that keeps it in the database, how a harness is opened over it, the sync document, and the tracker that turns committed partials into text deltas. See [durable sessions](./durable-sessions.md).
   - `src/auth.ts`: signed envelope verification, the five-minute timestamp window, [capability](../protocol/permissions.md)-based delegation. <!-- id:o3piFt7L -->
   - `src/cbor.ts`: [DAG-CBOR](../protocol/blobs.md) request and response helpers and the protocol version header. <!-- id:rfRSsgr7 -->
   - `src/config.ts`: every environment variable and CLI flag, with defaults. <!-- id:LswE9nei -->

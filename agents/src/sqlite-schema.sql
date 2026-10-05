@@ -217,6 +217,17 @@ CREATE TABLE session_events (
 
 CREATE INDEX session_events_by_created ON session_events (created_at DESC);
 
+-- A session's Pi Durable store: the model-facing transcript and the checkpoints of a turn in
+-- flight, in Pi Durable's own append-only JSONL files. A file is its rows concatenated in `seq`
+-- order; an append is one inserted row. Rebuilt from session_events when missing.
+CREATE TABLE session_durable_files (
+    session_id TEXT NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
+    file TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    data BLOB NOT NULL,
+    PRIMARY KEY (session_id, file, seq)
+);
+
 CREATE TABLE runs (
     id TEXT PRIMARY KEY,
     account_id TEXT NOT NULL REFERENCES accounts (id),

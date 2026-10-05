@@ -16,9 +16,10 @@ import * as cbor from '@/cbor'
 
 /**
  * The durable session runtime end to end: every session keeps one Pi Durable conversation that its
- * turns append to, the Seed log and that conversation stay in step from both sides, a turn cut off
- * by a process death continues from its last checkpoint, and a store that is lost is rebuilt from
- * the log. Driven through the real run queue with a canned provider.
+ * turns append to, stored in the agents database; the Seed log and that conversation stay in step
+ * from both sides; a turn cut off by a process death continues from its last checkpoint; and a
+ * store that is lost is rebuilt from the log. Driven through the real run queue with a canned
+ * provider.
  */
 
 const cleanups: Array<() => void> = []
@@ -36,8 +37,6 @@ type TestSession = {
   send: (action: unknown) => Promise<api.AgentResponse>
   agentId: string
   sessionId: string
-  /** Directory of the session's durable store. */
-  durableDir: string
 }
 
 async function createSession(
@@ -64,10 +63,6 @@ async function createSession(
   if (agent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
   const session = await send({_: 'CreateSession', agentId: agent.agentId})
   if (session._ !== 'CreateSessionResponse') throw new Error('unexpected response')
-  const stateDir = db
-    .query<{state_dir: string}, [string]>(`SELECT state_dir FROM agents WHERE id = ?`)
-    .get(agent.agentId)?.state_dir
-  if (!stateDir) throw new Error('agent has no state dir')
   cleanups.push(() => {
     service.stopRunQueue()
     sqlite.closeDatabase(db)
@@ -81,7 +76,6 @@ async function createSession(
     send,
     agentId: agent.agentId,
     sessionId: session.sessionId,
-    durableDir: durableSession.sessionDurableDir(stateDir, session.sessionId),
   }
 }
 
@@ -154,10 +148,25 @@ function providerMessages(init: RequestInit | undefined): ChatMessage[] {
   return (JSON.parse(String(init?.body)) as {messages: ChatMessage[]}).messages
 }
 
-/** The entries of a session's durable conversation, read from its store on disk. */
-async function durableEntries(dir: string): Promise<durable.EntryRecord[]> {
+type StoreRow = {session_id: string; file: string; seq: number; data: Uint8Array}
+
+/** The rows that hold a session's durable store. */
+function storeRows(h: TestSession): StoreRow[] {
+  return h.db
+    .query<StoreRow, [string]>(`SELECT session_id, file, seq, data FROM session_durable_files WHERE session_id = ?`)
+    .all(h.sessionId)
+}
+
+/** Loses a session's durable store, as a restored backup or a failed disk would. */
+function dropStore(h: TestSession): void {
+  h.db.run(`DELETE FROM session_durable_files WHERE session_id = ?`, [h.sessionId])
+}
+
+/** The entries of a session's durable conversation, read from its store. */
+async function durableEntries(h: TestSession): Promise<durable.EntryRecord[]> {
   const harness = await durableSession.openSessionHarness({
-    dir,
+    db: h.db,
+    sessionId: h.sessionId,
     models: piAi.createModels(),
     registry: durable.createRegistry(),
     onReport: () => {},
@@ -223,7 +232,7 @@ describe('durable sessions', () => {
 
     // One store, one conversation: the first turn filled it from the log behind a head, the second
     // only appended. The provider's own messages are kept exactly, usage included.
-    const entries = await durableEntries(h.durableDir)
+    const entries = await durableEntries(h)
     expect(entries.filter((entry) => durable.ResetEntry.is(entry))).toHaveLength(1)
     const answers = entries.filter((entry) => durable.AssistantEntry.is(entry))
     expect(answers).toHaveLength(2)
@@ -315,8 +324,8 @@ describe('durable sessions', () => {
     }) as unknown as typeof fetch
 
     await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'First question'}]})
-    expect(fs.existsSync(h.durableDir)).toBe(true)
-    fs.rmSync(h.durableDir, {recursive: true, force: true})
+    expect(storeRows(h).length).toBeGreaterThan(0)
+    dropStore(h)
     streamed.length = 0
     await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Second question'}]})
 
@@ -333,7 +342,7 @@ describe('durable sessions', () => {
     // Entry ids of the lost store mean nothing to the new one: only this turn's answer is marked.
     const rows = eventRows(h.db, h.sessionId).filter((row) => row.type === 'message')
     expect(rows.map((row) => row.entry === null)).toEqual([true, true, true, false])
-    const entries = await durableEntries(h.durableDir)
+    const entries = await durableEntries(h)
     expect(entries.filter((entry) => durable.AssistantEntry.is(entry))).toHaveLength(1)
     expect(entries.filter((entry) => durableSession.ReplayEntry.is(entry)).length).toBeGreaterThanOrEqual(2)
   })
@@ -347,13 +356,19 @@ describe('durable sessions', () => {
     }) as unknown as typeof fetch
 
     await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'First question'}]})
-    // A power failure can cost a store its newest commits while the database keeps its own:
-    // roll the store back to how it stood after the first turn.
-    const snapshot = `${h.durableDir}.snapshot`
-    fs.cpSync(h.durableDir, snapshot, {recursive: true})
+    // A store can end up older than the log (its rows restored from an earlier copy): roll it
+    // back to how it stood after the first turn.
+    const snapshot = storeRows(h)
     await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Second question'}]})
-    fs.rmSync(h.durableDir, {recursive: true, force: true})
-    fs.renameSync(snapshot, h.durableDir)
+    dropStore(h)
+    for (const row of snapshot) {
+      h.db.run(`INSERT INTO session_durable_files (session_id, file, seq, data) VALUES (?, ?, ?, ?)`, [
+        row.session_id,
+        row.file,
+        row.seq,
+        row.data,
+      ])
+    }
 
     await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Third question'}]})
 
@@ -462,7 +477,7 @@ describe('durable sessions', () => {
     expect(explainAt).toBeGreaterThan(-1)
     expect(next[explainAt + 1]).toBe('The long answer begins')
     expect(next.findIndex((content) => content.includes('Shorter please'))).toBeGreaterThan(explainAt + 1)
-    const entries = await durableEntries(h.durableDir)
+    const entries = await durableEntries(h)
     expect(entries.filter((entry) => durable.ResetEntry.is(entry))).toHaveLength(1)
   })
 
@@ -505,7 +520,11 @@ describe('durable sessions', () => {
     expect(requestBodies[1]).toContain(imageBase64)
     expect(requestBodies[2]).not.toContain(imageBase64)
     expect(requestBodies[2]).toContain('call-look')
-    expect(fs.readFileSync(path.join(h.durableDir, 'main.jsonl'), 'utf8')).not.toContain(imageBase64)
+    const stored = storeRows(h)
+      .map((row) => new TextDecoder().decode(row.data))
+      .join('')
+    expect(stored).toContain('call-look')
+    expect(stored).not.toContain(imageBase64)
   })
 
   test("a delegated child's result replaces its placeholder without rebuilding the conversation", async () => {
@@ -543,7 +562,7 @@ describe('durable sessions', () => {
     // The conversation was filled from the log once, on its first turn, and never rebuilt: the
     // result arrived as an edit of the placeholder entry, and the response that made the call is
     // still the provider's own record of it.
-    const entries = await durableEntries(h.durableDir)
+    const entries = await durableEntries(h)
     expect(entries.filter((entry) => durable.ResetEntry.is(entry))).toHaveLength(1)
     const edit = entries.find((entry) => entry.edits?.length)
     const placeholder = entries.find((entry) => entry.id === edit?.edits?.[0]?.target)
@@ -616,7 +635,7 @@ describe('durable sessions', () => {
     expect(questions(requests[2])).toEqual(['Question one', 'Question two', 'Question three'])
     const answers = (requests[2] ?? []).filter((message) => message.role === 'assistant')
     expect(answers.map((message) => message.content)).toEqual(['Answer 1', 'Answer 2'])
-    const entries = await durableEntries(h.durableDir)
+    const entries = await durableEntries(h)
     expect(entries.filter((entry) => durable.ResetEntry.is(entry))).toHaveLength(1)
   })
 
@@ -671,7 +690,8 @@ describe('durable sessions', () => {
 
     // A turn that died between recording its input and submitting it leaves this behind.
     const harness = await durableSession.openSessionHarness({
-      dir: h.durableDir,
+      db: h.db,
+      sessionId: h.sessionId,
       models: piAi.createModels(),
       registry: durable.createRegistry(),
       onReport: () => {},
@@ -695,9 +715,9 @@ describe('durable sessions', () => {
     const h = await createSession()
     globalThis.fetch = mock(async () => textReply('chat-1', 'Hello')) as unknown as typeof fetch
     await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Hi'}]})
-    expect(fs.existsSync(h.durableDir)).toBe(true)
+    expect(storeRows(h).length).toBeGreaterThan(0)
     await h.send({_: 'DeleteSession', sessionId: h.sessionId})
-    expect(fs.existsSync(h.durableDir)).toBe(false)
+    expect(storeRows(h)).toEqual([])
   })
 })
 
@@ -751,5 +771,86 @@ describe('harnessResultText', () => {
       'Tool read was interrupted',
     )
     expect(durableSession.harnessResultText('plain tool error')).toBe('plain tool error')
+  })
+})
+
+describe('sessionFileSystem', () => {
+  const open = () => {
+    const db = new Database(':memory:', {create: true, strict: true})
+    if (!sqlite.openWithDatabase(db).ok) throw new Error('unexpected schema mismatch')
+    cleanups.push(() => sqlite.closeDatabase(db))
+    const now = Date.now()
+    db.run(`INSERT INTO accounts (id, created_at, updated_at) VALUES ('acct', ?, ?)`, [now, now])
+    db.run(
+      `INSERT INTO agents (id, account_id, definition_cbor, state_dir, status, created_at, updated_at)
+         VALUES ('agent', 'acct', X'A0', '/tmp/agent', 'idle', ?, ?)`,
+      [now, now],
+    )
+    for (const id of ['s1', 's2']) {
+      db.run(
+        `INSERT INTO sessions (id, account_id, agent_id, status, created_at, updated_at)
+           VALUES (?, 'acct', 'agent', 'idle', ?, ?)`,
+        [id, now, now],
+      )
+    }
+    return db
+  }
+  const text = async (files: ReturnType<typeof durableSession.sessionFileSystem>, file: string) => {
+    const read = await files.readBinaryFile(file, durableSession.CONTEXT)
+    return read.ok ? new TextDecoder().decode(read.value) : read.error.code
+  }
+
+  test('files are appended to, replaced, truncated, renamed and removed, each within its session', async () => {
+    const db = open()
+    const one = durableSession.sessionFileSystem(db, 's1')
+    const two = durableSession.sessionFileSystem(db, 's2')
+    const context = durableSession.CONTEXT
+
+    expect(await text(one, 'main.jsonl')).toBe('not_found')
+    await one.appendFile('main.jsonl', 'a\n', context)
+    await one.appendFile('main.jsonl', new TextEncoder().encode('b\n'), context)
+    await two.appendFile('main.jsonl', 'other\n', context)
+    expect(await text(one, 'main.jsonl')).toBe('a\nb\n')
+    expect(await text(two, 'main.jsonl')).toBe('other\n')
+
+    await one.truncateFile('main.jsonl', 2, context)
+    expect(await text(one, 'main.jsonl')).toBe('a\n')
+    await one.writeFile('doc-2.jsonl.reclaim', 'fresh\n', context)
+    await one.appendFile('doc-2.jsonl', 'stale\n', context)
+    await one.renameFile('doc-2.jsonl.reclaim', 'doc-2.jsonl', context)
+    expect(await text(one, 'doc-2.jsonl')).toBe('fresh\n')
+    expect(await text(one, 'doc-2.jsonl.reclaim')).toBe('not_found')
+
+    const listed = await one.listDir('', context)
+    if (!listed.ok) throw listed.error
+    expect(listed.value.map((info) => [info.name, info.kind, info.size]).sort()).toEqual([
+      ['doc-2.jsonl', 'file', 6],
+      ['main.jsonl', 'file', 2],
+    ])
+    await one.remove('doc-2.jsonl', {force: true}, context)
+    expect(await text(one, 'doc-2.jsonl')).toBe('not_found')
+    expect((await one.exists('main.jsonl', context)).ok).toBe(false)
+    expect(await text(two, 'main.jsonl')).toBe('other\n')
+  })
+
+  test('a file of many appends is stored as one row once it is read', async () => {
+    const db = open()
+    const files = durableSession.sessionFileSystem(db, 's1')
+    const lines = Array.from({length: 300}, (_, index) => `line ${index}\n`)
+    for (const line of lines) await files.appendFile('main.jsonl', line, durableSession.CONTEXT)
+    const rows = () =>
+      db.query<{n: number}, []>(`SELECT COUNT(*) AS n FROM session_durable_files WHERE session_id = 's1'`).get()?.n
+    expect(rows()).toBe(300)
+    expect(await text(files, 'main.jsonl')).toBe(lines.join(''))
+    expect(rows()).toBe(1)
+    await files.appendFile('main.jsonl', 'after\n', durableSession.CONTEXT)
+    expect(await text(files, 'main.jsonl')).toBe(`${lines.join('')}after\n`)
+  })
+
+  test('deleting the session deletes its files', async () => {
+    const db = open()
+    await durableSession.sessionFileSystem(db, 's1').appendFile('main.jsonl', 'a\n', durableSession.CONTEXT)
+    db.run(`DELETE FROM sessions WHERE id = 's1'`)
+    expect(db.query(`SELECT 1 FROM session_durable_files`).all()).toEqual([])
   })
 })

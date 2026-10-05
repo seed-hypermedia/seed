@@ -396,11 +396,11 @@ Session WebSocket subscriptions use the same replay logic when `afterSeq` is sup
 
 # Durable session stores
 
-The model-facing transcript of a session does not live in SQLite. Each session has a [Pi Durable](./durable-sessions.md) store: a directory of append-only JSONL files at `<state_dir>/session-durable/<sessionId>/`, where `state_dir` is the agent's directory from the `agents` table. Session attachments sit beside it in `<state_dir>/session-attachments/<sessionId>/`.
+Each session has a [Pi Durable](./durable-sessions.md) store, kept in the `session_durable_files` table. Its columns are `session_id`, `file`, `seq`, and `data`. The store is Pi Durable's own set of append-only JSONL files, and each file is the `data` of its rows read in `seq` order. An append inserts one row. A file that has collected many rows is rewritten as one row the next time it is read, which is once per turn. The rows reference `sessions` with `ON DELETE CASCADE`.
 
-The store holds the exact provider messages of the conversation, the system prompt as the model last saw it, and the checkpoints of a turn in flight. The log in `session_events` stays the canonical record. The two are tied together by `session_events.pi_entry_id` on one side and the store's `seed.sync` document on the other. A store that is missing is rebuilt from the log on the session's next turn, so a database backup without the state directories loses no conversation, only the provider-exact transcript and any turn that was in flight.
+The store holds the exact provider messages of the conversation, the system prompt as the model last saw it, and the checkpoints of a turn in flight. The log in `session_events` stays the canonical record. The two are tied together by `session_events.pi_entry_id` on one side and the store's `seed.sync` document on the other. A store that is missing is rebuilt from the log on the session's next turn. What is lost with it is the provider-exact transcript and any turn that was in flight.
 
-Deleting a session deletes its store. Back up the data directory together with the database.
+Deleting a session deletes its store. A backup of the database includes every store.
 
 # Transaction policy <!-- id:vdysksJ3 -->
 

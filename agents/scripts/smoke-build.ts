@@ -7,7 +7,8 @@
  *
  * Run: `bun scripts/smoke-build.ts` (wired as `bun run test:build`).
  */
-import {mkdtemp, cp, readdir, rm} from 'node:fs/promises'
+import {Database} from 'bun:sqlite'
+import {mkdtemp, cp, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import * as path from 'node:path'
 import process from 'node:process'
@@ -79,10 +80,12 @@ try {
     if (answer?.role !== 'assistant' || answer.content !== 'Bundled and answering.') {
       throw new Error(`Bundled server did not answer the turn: ${JSON.stringify(events.map((event) => event.event))}`)
     }
-    const durableStores = await readdir(path.join(dataDir, 'agents'), {recursive: true})
-    if (!durableStores.some((entry) => entry.endsWith(path.join('session-durable', sessionId, 'main.jsonl')))) {
-      throw new Error(`Bundled server left no durable store for the session: ${durableStores.join(', ')}`)
-    }
+    const database = new Database(path.join(dataDir, 'agents.sqlite'), {readonly: true})
+    const stored = database
+      .query<{n: number}, [string]>(`SELECT COUNT(*) AS n FROM session_durable_files WHERE session_id = ?`)
+      .get(sessionId)
+    database.close()
+    if (!stored?.n) throw new Error('Bundled server left no durable store for the session')
     console.log(`Built agents server smoke test passed on port ${port}: health, one model turn, durable store`)
   } finally {
     server.kill('SIGTERM')

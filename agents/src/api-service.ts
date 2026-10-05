@@ -3883,9 +3883,7 @@ export class Service {
     // Attachments are session-private: they die with the session. Cleanup failure (e.g. the agent
     // was already deleted along with its state dir) must not block the delete itself.
     try {
-      const stateDir = this.#agentMemoryStateDir(accountId, existing.agentId)
-      sessionAttachments.deleteSessionAttachments(stateDir, sessionId)
-      durableSession.deleteSessionDurable(stateDir, sessionId)
+      sessionAttachments.deleteSessionAttachments(this.#agentMemoryStateDir(accountId, existing.agentId), sessionId)
     } catch {}
     this.#emit({type: 'account-change', accountId, reason: 'session-deleted', agentId: existing.agentId, sessionId})
     return {_: 'DeleteSessionResponse', sessionId, agentId: existing.agentId}
@@ -7833,7 +7831,8 @@ export class Service {
 
     const endPiSessionSpan = startPerfSpan('prep.pi_session')
     const harness = await durableSession.openSessionHarness({
-      dir: durableSession.sessionDurableDir(agentStateDir, sessionId),
+      db: this.#db,
+      sessionId,
       models,
       registry,
       onReport: (error) => logRunError('durable harness reported', {error: String(error)}),
@@ -7844,8 +7843,8 @@ export class Service {
       root = conversation
       const sync = await harness.snapshot(durableSession.SyncDoc, conversation.id, durableSession.CONTEXT)
       // Entry ids the log names that this store does not hold belong to a store that is gone: it
-      // was lost (then it holds nothing), or it lost its newest commits to a power failure. Their
-      // events are no longer projected from anything here. Unmarked, they are imported again like
+      // was lost (then it holds nothing), or replaced by an older copy of itself. Their events are
+      // no longer projected from anything here. Unmarked, they are imported again like
       // every other event the harness does not know, and the store never reuses one of their ids
       // for an entry the log would then take as already written.
       const newestEntry = (await conversation.entries({}, 1, undefined, durableSession.CONTEXT)).items[0]?.id ?? 0

@@ -38,7 +38,7 @@ Prompt caching only pays when the prefix is identical across turns. Since the mo
 
 ## 5. Leaner turn prep <!-- id:pKySxDLe -->
 
-`provider.request_gap` measures everything before the request leaves. Known costs in that window: opening the session's [durable store](../durable-sessions.md), which reads its `main.jsonl`, and importing what reached the log since the last turn. A turn that has to rebuild its context (a restart repair, a session without a store) also pays `#piMessages` decoding the full CBOR transcript. Both grow with session length. If prod shows this gap growing, the fix is keeping a store open between the turns of a busy session. <!-- id:hfR4vki4 -->
+`provider.request_gap` measures everything before the request leaves. Known costs in that window: opening the session's [durable store](../durable-sessions.md), which reads its main file, and importing what reached the log since the last turn. A turn that has to rebuild its context (a restart repair, a session without a store) also pays `#piMessages` decoding the full CBOR transcript. Both grow with session length. If prod shows this gap growing, the fix is keeping a store open between the turns of a busy session. <!-- id:hfR4vki4 -->
 
 ## 6. Fewer round trips per task <!-- id:E8oP4Cft -->
 

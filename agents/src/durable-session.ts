@@ -1,12 +1,17 @@
 /**
  * Pi Durable storage for agent sessions.
  *
- * Every Seed session owns one Pi Durable Session: an append-only JSONL store under
- * `<stateDir>/session-durable/<sessionId>/`, beside the session's attachments. Its root
- * conversation is the model-facing transcript of the session: exact provider messages (thinking
- * blocks, reasoning items, usage), the positional system prompt, and the checkpoints of the turn
- * in flight. A process that dies mid-turn leaves that work pending in the store, and the run that
- * retries it reopens the store and continues from the last checkpoint.
+ * Every Seed session owns one Pi Durable Session, stored in the agents database beside the
+ * session's log (`session_durable_files`). Its root conversation is the model-facing transcript of
+ * the session: exact provider messages (thinking blocks, reasoning items, usage), the positional
+ * system prompt, and the checkpoints of the turn in flight. A process that dies mid-turn leaves
+ * that work pending in the store, and the run that retries it reopens the store and continues
+ * from the last checkpoint.
+ *
+ * The store is Pi Durable's own append-only JSONL format, unchanged. Only where its files live is
+ * Seed's: {@link sessionFileSystem} keeps each file as rows of one table, an append being one
+ * inserted row. So a session's state is in one database, backed up and deleted with it, and Seed
+ * maintains no storage engine of its own.
  *
  * The Seed log (`session_events`) stays the canonical record of what happened. The two are kept in
  * step from both sides:
@@ -24,18 +29,16 @@
  * had to answer after a restart), the conversation's context is rebuilt from the log behind a
  * fresh head; the earlier entries stay in storage.
  *
- * One process owns a store at a time. Only the run that holds the session's turn opens it.
+ * One harness owns a store at a time. Only the run that holds the session's turn opens it.
  */
 
+import type {Database} from 'bun:sqlite'
 import * as chordContext from '@earendil-works/chord/context'
 import type * as piAi from '@earendil-works/pi-ai'
 import * as durable from '@earendil-works/pi-durable'
-import * as durableJsonl from '@earendil-works/pi-durable/storage/jsonl/node'
-import * as fs from 'node:fs'
-import * as path from 'node:path'
-
-/** Name of the durable session directory inside an agent's state directory. */
-export const SESSION_DURABLE_DIR_NAME = 'session-durable'
+import * as durableEnv from '@earendil-works/pi-durable/env'
+import * as durableJsonl from '@earendil-works/pi-durable/storage/jsonl'
+import {stmt} from '@/statements'
 
 /**
  * Client-side retries of one provider request on a transient failure (connection reset, 429,
@@ -46,15 +49,110 @@ export const PROVIDER_REQUEST_MAX_RETRIES = 2
 /** Context for harness calls that must not be cancelled by a caller going away. */
 export const CONTEXT = chordContext.BACKGROUND_CONTEXT
 
-/** Returns the durable store directory of one session, validating the session id shape. */
-export function sessionDurableDir(stateDir: string, sessionId: string): string {
-  if (!/^[A-Za-z0-9_-]{1,128}$/.test(sessionId)) throw new Error('Invalid session id')
-  return path.join(stateDir, SESSION_DURABLE_DIR_NAME, sessionId)
-}
+/** A file of this many rows is rewritten as one when it is read, which is once per turn. */
+const COALESCE_FILE_ROWS = 256
 
-/** Removes a session's durable store. Safe to call when none exists. */
-export function deleteSessionDurable(stateDir: string, sessionId: string): void {
-  fs.rmSync(sessionDurableDir(stateDir, sessionId), {recursive: true, force: true})
+/**
+ * The file system Pi Durable's JSONL storage writes a session's store to: the files are rows of
+ * `session_durable_files`, scoped to one session. A file is the concatenation of its rows in
+ * `seq` order, so the storage's appends (one per commit) are single inserts and never rewrite
+ * what is already there. Only the operations that storage uses exist; any other answers
+ * `not_supported`.
+ */
+export function sessionFileSystem(db: Database, sessionId: string): durableEnv.FileSystem {
+  const bytesOf = (content: string | Uint8Array): Uint8Array =>
+    typeof content === 'string' ? new TextEncoder().encode(content) : content
+  const read = (file: string): Uint8Array | undefined => {
+    const rows = stmt<{data: Uint8Array}, [string, string]>(
+      db,
+      `SELECT data FROM session_durable_files WHERE session_id = ? AND file = ? ORDER BY seq ASC`,
+    ).all(sessionId, file)
+    if (rows.length === 0) return undefined
+    const bytes = new Uint8Array(rows.reduce((size, row) => size + row.data.length, 0))
+    let offset = 0
+    for (const row of rows) {
+      bytes.set(row.data, offset)
+      offset += row.data.length
+    }
+    if (rows.length >= COALESCE_FILE_ROWS) write(file, bytes)
+    return bytes
+  }
+  const write = db.transaction((file: string, bytes: Uint8Array): void => {
+    stmt(db, `DELETE FROM session_durable_files WHERE session_id = ? AND file = ?`).run([sessionId, file])
+    stmt(db, `INSERT INTO session_durable_files (session_id, file, seq, data) VALUES (?, ?, 1, ?)`).run([
+      sessionId,
+      file,
+      bytes,
+    ])
+  })
+  const rename = db.transaction((source: string, destination: string): void => {
+    stmt(db, `DELETE FROM session_durable_files WHERE session_id = ? AND file = ?`).run([sessionId, destination])
+    stmt(db, `UPDATE session_durable_files SET file = ? WHERE session_id = ? AND file = ?`).run([
+      destination,
+      sessionId,
+      source,
+    ])
+  })
+  const done = durableEnv.ok<void, durableEnv.FileError>(undefined)
+  const missing = (file: string) =>
+    durableEnv.err<never, durableEnv.FileError>(new durableEnv.FileError('not_found', `No such file: ${file}`, file))
+
+  const used: Partial<durableEnv.FileSystem> = {
+    id: `seed-session:${sessionId}`,
+    cwd: '',
+    absolutePath: async (path) => durableEnv.ok(path),
+    joinPath: async (parts) => durableEnv.ok(parts.filter(Boolean).join('/')),
+    createDir: async () => done,
+    flushFile: async () => done,
+    readBinaryFile: async (file) => {
+      const bytes = read(file)
+      return bytes ? durableEnv.ok(bytes) : missing(file)
+    },
+    appendFile: async (file, content) => {
+      stmt(
+        db,
+        `INSERT INTO session_durable_files (session_id, file, seq, data)
+           SELECT ?1, ?2, COALESCE(MAX(seq), 0) + 1, ?3 FROM session_durable_files WHERE session_id = ?1 AND file = ?2`,
+      ).run([sessionId, file, bytesOf(content)])
+      return done
+    },
+    writeFile: async (file, content) => {
+      write(file, bytesOf(content))
+      return done
+    },
+    truncateFile: async (file, size) => {
+      const bytes = read(file)
+      if (!bytes) return missing(file)
+      write(file, bytes.slice(0, size))
+      return done
+    },
+    renameFile: async (source, destination) => {
+      rename(source, destination)
+      return done
+    },
+    remove: async (file) => {
+      stmt(db, `DELETE FROM session_durable_files WHERE session_id = ? AND file = ?`).run([sessionId, file])
+      return done
+    },
+    listDir: async () =>
+      durableEnv.ok(
+        stmt<{file: string; size: number}, [string]>(
+          db,
+          `SELECT file, SUM(LENGTH(data)) AS size FROM session_durable_files WHERE session_id = ? GROUP BY file`,
+        )
+          .all(sessionId)
+          .map((row) => ({name: row.file, path: row.file, kind: 'file' as const, size: row.size, mtimeMs: 0})),
+      ),
+  }
+  return new Proxy(used as durableEnv.FileSystem, {
+    get: (target, property, receiver) =>
+      property in target
+        ? Reflect.get(target, property, receiver)
+        : async () =>
+            durableEnv.err(
+              new durableEnv.FileError('not_supported', `Session stores do not support ${String(property)}`),
+            ),
+  })
 }
 
 /** The input that starts a turn, under the request id it is submitted with. */
@@ -94,13 +192,14 @@ export const ReplayEntry = durable.defineEntry('seed.replay')
 
 /** Opens (creating it when absent) the durable store of one session and a harness over it. */
 export async function openSessionHarness(options: {
-  dir: string
+  db: Database
+  sessionId: string
   models: piAi.Models
   registry: durable.Registry
   /** Receives extension and task failures that do not fail the calling operation. */
   onReport: (error: unknown) => void
 }): Promise<durable.Harness> {
-  const storage = await durableJsonl.openNodeJsonlStorage(options.dir, CONTEXT)
+  const storage = await durableJsonl.JsonlStorage.open('', sessionFileSystem(options.db, options.sessionId), CONTEXT)
   return durable.Harness.open(
     storage,
     {

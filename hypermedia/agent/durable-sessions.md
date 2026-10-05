@@ -16,13 +16,13 @@ The code that joins them is `#runPiAgent` in `agents/src/api-service.ts` and the
 
 # The store
 
-A session's store is a directory of append-only JSONL files at `<stateDir>/session-durable/<sessionId>/`, beside the session's attachments. `stateDir` is the agent's state directory, described under [persistence](./persistence.md). The store holds:
+A session's store lives in the agents database, in the `session_durable_files` table described under [persistence](./persistence.md). The format is Pi Durable's own: a handful of append-only JSONL files per session. Seed does not write them to disk. It hands Pi Durable a file system whose files are rows of that table, where a file is its rows read in order and an append is one inserted row. So Pi Durable's storage code runs unchanged, and a session's whole state is in one database. The store holds:
 
   - **entries**: the immutable transcript. `pi.user` is an input, `pi.assistant` is one provider response kept exactly as the provider sent it (text, thinking, tool calls, usage), `pi.tool-result` is one tool result, and `pi.system` records the system prompt and the tools on offer at that point. `seed.replay` is a message Seed wrote from the log, and `pi.reset` starts a new context.
   - **documents**: small JSON state committed together with entries. `pi.agent` holds the model and reasoning level, `pi.live` holds the response and tool calls in flight, and `seed.sync` holds how far the log has been imported and the input the newest import produced.
   - **tasks**: the checkpointed state machines of the turn in flight, one per model request and one per tool call.
 
-One process owns a store at a time. Only the run that holds the session's turn opens it, at the start of the turn, and closes it at the end. Deleting the session deletes the store. Writes are not flushed to disk one by one, so the store survives a process crash, and the newest commits may be lost on power failure. The SQLite database makes the same trade.
+One harness owns a store at a time. Only the run that holds the session's turn opens it, at the start of the turn, and closes it at the end. Deleting the session deletes the store's rows with it. The store has the durability of the database it lives in: it survives a process crash, and the newest commits may be lost on power failure.
 
 # A turn
 
@@ -47,7 +47,7 @@ There are three ways to import:
   - **Edit.** The result of a delegated child arrives after its call was already answered with a placeholder. It is written as a context edit: an entry that carries no message of its own and replaces what the placeholder entry contributes to the model's context. The model reads the real result where the placeholder was, and every other entry is untouched. When nobody said anything new, the input is `<background_work_update>`.
   - **Rebuild.** Some events fit neither: a result the runtime wrote for a call that a restart cut off, or a late result whose placeholder is no longer in the context. A session that has no store yet is the same case. Then a `pi.reset` entry starts a new context and the whole log is replayed behind it, with every result attached to its call. Earlier entries stay in the store, outside the context. A rebuilt context keeps the text, calls, and results of the log, and not the provider's own record of each response.
 
-A store that was lost is rebuilt the same way. A store can also fall behind the log, when a power failure costs it its newest commits. Either way the log then names entry ids the store does not hold. Those marks are cleared when the store is opened, so their events are imported like anything else the store has not seen, and no new entry is mistaken for one that was already written to the log.
+A store that was lost is rebuilt the same way. A store can also fall behind the log, for example when its rows are restored from an older copy than the log's. Either way the log then names entry ids the store does not hold. Those marks are cleared when the store is opened, so their events are imported like anything else the store has not seen, and no new entry is mistaken for one that was already written to the log.
 
 # What the model reads
 
@@ -87,7 +87,7 @@ A process that dies in the middle of a turn leaves the turn's input unsettled in
   - A message sent while a turn runs waits for the next turn. Pi Durable can hand it to the running turn at the next tool boundary.
   - A turn that is resumed after a restart knows which calls parked it, because their placeholders say so. It does not know that `continue_session` or `return_result` had already ended it, if the process died in the instant between that call and the end of the turn. The resumed turn then asks the model once more.
   - A rebuild writes the whole log into the store again. Rebuilds are rare (a retry, a restart repair), but a session that hits many of them grows its store with each one.
-  - `main.jsonl` grows with every commit and is never compacted. A session of a few hundred turns stays in the low megabytes.
+  - The store's main file grows with every commit and Pi Durable never compacts it. Thirty turns of streamed answers come to about 200 KB. The durable commit and the log write are still two separate writes, even though they now land in the same database. Putting both in one transaction would remove the reconciliation at open.
 
 # See also
 
