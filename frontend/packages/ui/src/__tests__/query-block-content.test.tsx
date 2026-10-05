@@ -63,6 +63,7 @@ function renderQueryBlock(style: 'Card' | 'List' | 'Table') {
 function makeItems(count: number) {
   return Array.from({length: count}, (_, index) => ({
     id: {id: `hm://doc-${index}`, uid: 'alice', path: ['docs', String(index)]},
+    path: ['docs', String(index)],
     metadata: {name: `Item ${index}`},
     authors: [],
   })) as any
@@ -316,10 +317,10 @@ describe('QueryBlockContent toolbar', () => {
       )
     })
 
-    expect(container.textContent).toContain('Status equals Ready')
+    expect(container.textContent).toContain('Status IS Ready')
     expect(container.textContent).toContain('Showing 1 of 47 matches')
 
-    const remove = container.querySelector('button[aria-label="Remove filter: Status equals Ready"]')
+    const remove = container.querySelector('button[aria-label="Remove filter: Status IS Ready"]')
     act(() => remove?.dispatchEvent(new MouseEvent('click', {bubbles: true})))
     expect(onViewerFiltersChange).toHaveBeenCalledWith([])
   })

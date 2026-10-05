@@ -1807,7 +1807,7 @@ export const HMQueryBlockInputSchema = z.object({
         .array(
           z.object({
             columnId: z.string(),
-            operator: z.enum(['contains', 'equals', 'greaterThan', 'lessThan']),
+            operator: z.enum(['contains', 'equals', 'notEquals', 'greaterThan', 'lessThan']),
             value: z.string(),
           }),
         )
@@ -2159,11 +2159,23 @@ export const HMQueryBlockItemSummarySchema = z.object({
 })
 export type HMQueryBlockItemSummary = z.infer<typeof HMQueryBlockItemSummarySchema>
 
+/** Existing filter values and inferred column types from the full collection scope. */
+export const HMQueryBlockFilterOptionsSchema = z.record(
+  z.string(),
+  z.object({
+    values: z.array(z.string()),
+    type: z.enum(['text', 'number', 'boolean', 'date', 'list']),
+  }),
+)
+/** Filter choices available before viewer search, filters, and display limits. */
+export type HMQueryBlockFilterOptions = z.infer<typeof HMQueryBlockFilterOptionsSchema>
+
 export const HMQueryBlockPayloadSchema = z.object({
   queryTargetName: z.string(),
   in: unpackedHmIdSchema,
   results: z.array(HMDocumentInfoSchema),
   totalMatches: z.number().optional(),
+  filterOptions: HMQueryBlockFilterOptionsSchema.optional(),
   mode: z.union([z.literal('Children'), z.literal('AllDescendants')]).optional(),
   interactionSummaries: z.record(z.string(), HMQueryBlockItemSummarySchema),
   accountsMetadata: HMAccountsMetadataSchema,

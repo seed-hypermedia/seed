@@ -1,13 +1,29 @@
+import * as Ariakit from '@ariakit/react'
 import {
   HMAccountsMetadata,
   HMDocumentInfo,
   HMQueryBlockItemSummary,
+  HMQueryBlockFilterOptions,
   HMQueryTableConfig,
 } from '@seed-hypermedia/client/hm-types'
 import {formattedDate, getMetadataName, useRouteLink} from '@shm/shared'
 import {useInteractionSummaries} from '@shm/shared/models/interaction-summary'
+import {getQueryBlockFilterOptions, matchesQueryFilterEquality} from '@shm/shared/models/query-block-filter'
 import {type SortingState} from '@tanstack/react-table'
-import {ArrowDown, ArrowUp, ArrowUpDown, FileText, Filter, MessageSquare, Plus, Search, Share2, X} from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Check,
+  ChevronDown,
+  FileText,
+  Filter,
+  MessageSquare,
+  Plus,
+  Search,
+  Share2,
+  X,
+} from 'lucide-react'
 import {ReactNode, useCallback, useEffect, useMemo, useReducer, useRef, useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
@@ -106,6 +122,8 @@ export interface QueryBlockContentProps {
   viewerFilters?: QueryTableFilter[]
   onViewerFiltersChange?: (filters: QueryTableFilter[]) => void
   totalMatches?: number
+  /** Values from the full collection, before viewer filters and the display limit. */
+  filterOptions?: HMQueryBlockFilterOptions
   isUpdating?: boolean
   viewerQueryApplied?: boolean
 }
@@ -132,10 +150,18 @@ export function QueryBlockContent({
   viewerFilters,
   onViewerFiltersChange,
   totalMatches,
+  filterOptions,
   isUpdating,
   viewerQueryApplied = true,
 }: QueryBlockContentProps) {
-  const descriptors = useMemo(() => buildQueryTableColumns(items), [items])
+  const availableFilterOptions = useMemo(
+    () => filterOptions ?? getQueryBlockFilterOptions(items),
+    [filterOptions, items],
+  )
+  const descriptors = useMemo(
+    () => buildQueryTableColumns(items, availableFilterOptions),
+    [items, availableFilterOptions],
+  )
 
   const citationSummaries = useInteractionSummaries(items.map((item) => item.id))
   const citationCounts = useMemo(() => {
@@ -300,6 +326,8 @@ export function QueryBlockContent({
         search={effectiveSearch}
         setSearch={setEffectiveSearch}
         totalMatches={totalMatches}
+        filterOptions={availableFilterOptions}
+        filterOptionsComplete={filterOptions !== undefined}
       />
       {isUpdating ? (
         <p
@@ -374,6 +402,8 @@ function QueryBlockToolbar({
   search,
   setSearch,
   totalMatches,
+  filterOptions,
+  filterOptionsComplete,
 }: {
   showAttributes: boolean
   descriptors: QueryTableColumn[]
@@ -391,6 +421,8 @@ function QueryBlockToolbar({
   search: string
   setSearch: (value: string) => void
   totalMatches?: number
+  filterOptions: HMQueryBlockFilterOptions
+  filterOptionsComplete: boolean
 }) {
   return (
     <div data-query-block-toolbar className="border-border bg-muted/30 flex items-start gap-2 border-b px-4 py-3">
@@ -401,6 +433,8 @@ function QueryBlockToolbar({
           context={context}
           filters={filters}
           setFilters={setFilters}
+          filterOptions={filterOptions}
+          filterOptionsComplete={filterOptionsComplete}
         />
         <SortPopover
           descriptors={getQuerySortColumns(descriptors, columnVisibility)}
@@ -428,7 +462,9 @@ function QueryBlockToolbar({
               const column = descriptors.find((descriptor) => descriptor.id === filter.columnId)
               const rawLabel = filter.columnId.replace(/^metadata:/, '')
               const label = column?.label ?? rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1)
-              const text = `${label} ${filter.operator} ${filter.value}`
+              const condition =
+                filter.operator === 'equals' ? 'IS' : filter.operator === 'notEquals' ? 'IS NOT' : filter.operator
+              const text = `${label} ${condition} ${filter.value}`
               return (
                 <ActiveFilterChip
                   key={`${filter.columnId}:${index}`}
@@ -467,12 +503,16 @@ function FilterPopover({
   context,
   filters,
   setFilters,
+  filterOptions,
+  filterOptionsComplete,
 }: {
   descriptors: QueryTableColumn[]
   items: HMDocumentInfo[]
   context: QueryTableValueContext
   filters: QueryTableFilter[]
   setFilters: (filters: QueryTableFilter[]) => void
+  filterOptions: HMQueryBlockFilterOptions
+  filterOptionsComplete: boolean
 }) {
   const supportedDescriptors = descriptors.filter(
     (descriptor) => descriptor.id !== 'authors' && descriptor.id !== 'citations' && descriptor.id !== 'space',
@@ -515,6 +555,7 @@ function FilterPopover({
                           ? {
                               ...f,
                               columnId: value,
+                              value: '',
                               operator:
                                 (nextColumnType === 'text' || nextColumnType === 'list') &&
                                 (f.operator === 'greaterThan' || f.operator === 'lessThan')
@@ -537,7 +578,20 @@ function FilterPopover({
                   onValue={(value) =>
                     setFilters(
                       filters.map((f, i) =>
-                        i === index ? {...f, operator: value as QueryTableFilter['operator']} : f,
+                        i === index
+                          ? {
+                              ...f,
+                              operator: value as QueryTableFilter['operator'],
+                              value:
+                                (value === 'equals' || value === 'notEquals') &&
+                                f.operator !== 'equals' &&
+                                f.operator !== 'notEquals'
+                                  ? filterOptions[f.columnId]?.values.find((option) =>
+                                      matchesQueryFilterEquality(option, f.value),
+                                    ) ?? ''
+                                  : f.value,
+                            }
+                          : f,
                       ),
                     )
                   }
@@ -552,16 +606,29 @@ function FilterPopover({
               >
                 <X className="size-4" />
               </Button>
-              <label className="col-span-full flex min-w-0 flex-col gap-1 text-sm">
+              <div className="col-span-full flex min-w-0 flex-col gap-1 text-sm">
                 <span className="text-muted-foreground text-xs">Value</span>
-                <Input
-                  value={filter.value}
-                  onChangeText={(value) => setFilters(filters.map((f, i) => (i === index ? {...f, value} : f)))}
-                  aria-label="Filter value"
-                />
-              </label>
+                {filter.operator === 'equals' || filter.operator === 'notEquals' ? (
+                  <FilterValuePicker
+                    key={filter.columnId}
+                    value={filter.value}
+                    options={filterOptions[filter.columnId]?.values ?? []}
+                    onValue={(value) => setFilters(filters.map((f, i) => (i === index ? {...f, value} : f)))}
+                  />
+                ) : (
+                  <Input
+                    value={filter.value}
+                    onChangeText={(value) => setFilters(filters.map((f, i) => (i === index ? {...f, value} : f)))}
+                    aria-label="Filter value"
+                  />
+                )}
+              </div>
             </div>
           ))}
+          {!filterOptionsComplete &&
+          filters.some((filter) => filter.operator === 'equals' || filter.operator === 'notEquals') ? (
+            <p className="text-muted-foreground text-xs">Values from loaded documents only.</p>
+          ) : null}
           <Button
             variant="outline"
             size="sm"
@@ -582,6 +649,78 @@ function FilterPopover({
   )
 }
 
+function FilterValuePicker({
+  value,
+  options,
+  onValue,
+}: {
+  value: string
+  options: string[]
+  onValue: (value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const combobox = Ariakit.useComboboxStore({value: search, setValue: setSearch, open, setOpen})
+  const matchingOptions = options.filter((option) => option.toLocaleLowerCase().includes(search.toLocaleLowerCase()))
+  const unavailable = value && !options.some((option) => matchesQueryFilterEquality(option, value))
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) setSearch('')
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="border-border focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 flex h-9 w-full items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm font-normal transition-[color,box-shadow] outline-none hover:border-black/10 focus-visible:ring-[3px]"
+          aria-label="Filter value"
+        >
+          <span className={cn('min-w-0 truncate', !value && 'text-muted-foreground')}>
+            {value || 'Select value…'}
+            {unavailable ? ' (unavailable)' : ''}
+          </span>
+          <ChevronDown className="size-4 shrink-0 opacity-50" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="flex w-(--radix-popover-trigger-width) flex-col gap-1 p-1">
+        <Ariakit.Combobox
+          store={combobox}
+          autoSelect={false}
+          aria-label="Search filter values"
+          placeholder="Search values…"
+          render={<Input />}
+        />
+        <Ariakit.ComboboxList store={combobox} className="max-h-60 overflow-y-auto">
+          {matchingOptions.map((option) => (
+            <Ariakit.ComboboxItem
+              key={option}
+              store={combobox}
+              value={option}
+              setValueOnClick={false}
+              className="hover:bg-accent hover:text-accent-foreground data-[active-item]:bg-accent data-[active-item]:text-accent-foreground flex cursor-default items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-sm break-words select-none"
+              onClick={() => {
+                onValue(option)
+                setOpen(false)
+              }}
+            >
+              <span className="min-w-0">{option}</span>
+              {matchesQueryFilterEquality(option, value) ? <Check className="size-4 shrink-0" /> : null}
+            </Ariakit.ComboboxItem>
+          ))}
+        </Ariakit.ComboboxList>
+        {!matchingOptions.length ? (
+          <p role="status" className="text-muted-foreground p-2 text-sm">
+            {options.length ? 'No matching values.' : 'No values available.'}
+          </p>
+        ) : null}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 function getFilterOperatorOptions(
   columnId: string,
   items: HMDocumentInfo[],
@@ -593,7 +732,8 @@ function getFilterOperatorOptions(
   const type = getQueryTableColumnType(columnId, value, descriptor)
   const options = [
     {value: 'contains', label: 'contains'},
-    {value: 'equals', label: 'equals'},
+    {value: 'equals', label: 'IS'},
+    {value: 'notEquals', label: 'IS NOT'},
   ]
   if (type !== 'text' && type !== 'list') {
     options.push({value: 'greaterThan', label: '>'}, {value: 'lessThan', label: '<'})

@@ -13,7 +13,7 @@ import {HMRequestImplementation} from './api-types'
 import {queryToQueryDocumentsRequest} from './models/query-block-sort'
 import {prepareHMDocumentInfo} from './models/entity'
 import {loadAccount} from './api-account'
-import {filterQueryBlockDocuments} from './models/query-block-filter'
+import {filterQueryBlockDocuments, getQueryBlockFilterOptions} from './models/query-block-filter'
 
 function readMetadataStringField(
   metadata: {toJson: (opts: {emitDefaultValues: boolean; enumAsInteger: boolean}) => unknown} | undefined,
@@ -178,7 +178,8 @@ async function resolveQueryDocuments(
   const mode = include.mode
   const results = documents.filter((doc: HMDocumentInfo) => {
     if (doc.id.id === inId.id) return false
-    if (!doc.id.id.startsWith(inId.id)) return false
+    if (doc.id.uid !== inId.uid || !(inId.path ?? []).every((segment, index) => doc.path[index] === segment))
+      return false
     if (mode === 'Children') return (doc.id.path?.length || 0) === (inId.path?.length || 0) + 1
     return true
   })
@@ -219,6 +220,7 @@ export const QueryBlock: HMRequestImplementation<HMQueryBlockRequest> = {
       }
 
       perf.resolvedItemCount = queryResult.results.length
+      const filterOptions = getQueryBlockFilterOptions(queryResult.results)
       const matchingResults = filterQueryBlockDocuments(queryResult.results, input.viewer)
       const limit = input.query.limit
       const results = limit && limit > 0 ? matchingResults.slice(0, limit) : matchingResults
@@ -256,6 +258,7 @@ export const QueryBlock: HMRequestImplementation<HMQueryBlockRequest> = {
         mode: queryResult.mode,
         results,
         totalMatches: matchingResults.length,
+        filterOptions,
         interactionSummaries,
         accountsMetadata,
       }
