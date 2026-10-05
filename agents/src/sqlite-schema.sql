@@ -209,6 +209,9 @@ CREATE TABLE session_events (
     seq INTEGER NOT NULL,
     event_cbor BLOB NOT NULL,
     created_at INTEGER NOT NULL,
+    -- Durable transcript entry (Pi Durable) this event was projected from; NULL for events written
+    -- by anything else, which a turn imports into the session's durable conversation.
+    pi_entry_id INTEGER,
     UNIQUE (session_id, seq)
 ) WITHOUT ROWID;
 

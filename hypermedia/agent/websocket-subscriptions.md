@@ -173,7 +173,7 @@ The server eventually sends: <!-- id:-eigGcgR -->
 }
 ```
 
-The desktop keeps the partial visible on `done` and clears it only when a durable `append` arrives. The Pi-backed runtime emits a fresh partial stream for each assistant turn and appends that turn's durable assistant message at Pi `message_end`, before any following tool execution events. Streamed text before a tool call then settles into the durable event list ahead of the durable `tool_call` row. It does not wait until the whole agent run ends. <!-- id:FPf42YK5 -->
+The desktop keeps the partial visible on `done` and clears it only when a durable `append` arrives. The runtime emits a fresh partial stream for each model response and appends that response's durable assistant message when its entry is committed to the session's [durable store](./durable-sessions.md), before any following tool execution events. Streamed text before a tool call then settles into the durable event list ahead of the durable `tool_call` row. It does not wait until the whole agent run ends. <!-- id:FPf42YK5 -->
 
 # Streaming diagnostics <!-- id:7SQoXZwS -->
 

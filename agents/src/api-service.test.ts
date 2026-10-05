@@ -1217,9 +1217,22 @@ describe('api service', () => {
       expect(requestBodies[0]).toContain('Olivia Owner')
       expect(requestBodies[0]).toContain('Casey Collaborator')
       expect(requestBodies[0]).toContain(`<message_sender>\\n{\\"accountId\\":\\"${ownerAccountId}\\"}`)
-      expect(requestBodies[1]).toContain('concurrent_user_messages')
-      expect(requestBodies[1]).toContain('Collaborator message')
-      expect(requestBodies[1]).toContain(collaboratorAccountId)
+      // The collaborator's message reached the log while the first answer was still streaming, so
+      // the log orders it before that answer. The durable conversation orders messages by when the
+      // model takes them in: the second request reads the first answer, then the new message with
+      // its sender — no handoff note needed to tell the model which message is unanswered.
+      const secondRequest = (JSON.parse(requestBodies[1] ?? '{}') as {messages: {role: string; content: unknown}[]})
+        .messages
+      const firstAnswerAt = secondRequest.findIndex((message) => message.role === 'assistant')
+      const collaboratorMessageAt = secondRequest.findIndex(
+        (message) => message.role === 'user' && String(message.content).includes('Collaborator message'),
+      )
+      expect(firstAnswerAt).toBeGreaterThan(-1)
+      expect(collaboratorMessageAt).toBeGreaterThan(firstAnswerAt)
+      expect(String(secondRequest[collaboratorMessageAt]?.content)).toContain(
+        `<message_sender>\n{"accountId":"${collaboratorAccountId}"}`,
+      )
+      expect(requestBodies[1]).not.toContain('concurrent_user_messages')
     } finally {
       releaseFirstResponse()
       globalThis.fetch = originalFetch
@@ -9396,7 +9409,7 @@ describe('api service', () => {
         expect(JSON.stringify(body.messages)).not.toContain('boom')
         const realUserMessages = body.messages.filter(
           (message: {role?: string; content?: unknown}) =>
-            message.role === 'user' && !String(message.content).startsWith('<session_status>'),
+            message.role === 'user' && !/^<(session_status|current_time)>/.test(String(message.content)),
         )
         expect(realUserMessages).toHaveLength(1)
         return openAIStreamResponse([

@@ -5,8 +5,8 @@
  * `frontend/apps/desktop/src/agents-server-path.ts`), so the output layout is a contract:
  *
  *   <outdir>/seed-agents-<llvm-triple>[.exe]   the compiled server
- *   <outdir>/package.json                      required next to the binary — pi-coding-agent
- *                                              reads its package.json relative to cwd at import
+ *   <outdir>/package.json                      the desktop's forge config requires it beside the
+ *                                              binary; the server itself no longer reads it
  *
  * Binaries are named by LLVM triple to match the Go daemon (`seed-daemon-<triple>`), so the
  * release pipeline and forge config treat both the same way.
@@ -105,8 +105,9 @@ if (!result.success) {
   process.exit(1)
 }
 
-// pi-coding-agent resolves its own package.json against cwd at import time, so the compiled
-// binary only starts with this file alongside — the same layout agents/Dockerfile ships.
+// The desktop packaging (frontend/apps/desktop/forge.config.ts) only ships the binary when this
+// file sits beside it — the same layout agents/Dockerfile ships. The server no longer needs it:
+// that was pi-coding-agent, which resolved its own package.json against cwd at import time.
 await cp(path.join(agentsDir, 'package.json'), path.join(outdir, 'package.json'))
 
 // Stage the external `microsandbox` package — and the platform package with the native pieces —

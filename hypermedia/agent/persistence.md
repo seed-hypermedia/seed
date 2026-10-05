@@ -288,6 +288,7 @@ Important columns: <!-- id:bbrswilN -->
   - `seq` <!-- id:b9TA_zNM -->
   - `event_cbor` <!-- id:yIGBDyrA -->
   - `created_at` <!-- id:QbWGSPxU -->
+  - `pi_entry_id`: the entry of the session's [durable store](./durable-sessions.md) this event was projected from, or NULL for an event anything else wrote
 
 `seq` is monotonic per session. Events are returned by `GetSession` and replayed on session WebSocket subscriptions. <!-- id:Z2L22h8_ -->
 
@@ -393,6 +394,14 @@ It returns events with `seq > afterSeq`. <!-- id:TiBn9vUJ -->
 
 Session WebSocket subscriptions use the same replay logic when `afterSeq` is supplied. <!-- id:PuvZNhfL -->
 
+# Durable session stores
+
+The model-facing transcript of a session does not live in SQLite. Each session has a [Pi Durable](./durable-sessions.md) store: a directory of append-only JSONL files at `<state_dir>/session-durable/<sessionId>/`, where `state_dir` is the agent's directory from the `agents` table. Session attachments sit beside it in `<state_dir>/session-attachments/<sessionId>/`.
+
+The store holds the exact provider messages of the conversation, the system prompt as the model last saw it, and the checkpoints of a turn in flight. The log in `session_events` stays the canonical record. The two are tied together by `session_events.pi_entry_id` on one side and the store's `seed.sync` document on the other. A store that is missing is rebuilt from the log on the session's next turn, so a database backup without the state directories loses no conversation, only the provider-exact transcript and any turn that was in flight.
+
+Deleting a session deletes its store. Back up the data directory together with the database.
+
 # Transaction policy <!-- id:vdysksJ3 -->
 
 Do not hold write transactions during provider or tool network calls. <!-- id:OivYbqs7 -->
@@ -413,5 +422,6 @@ Do not hold write transactions during provider or tool network calls. <!-- id:Oi
 - [Signed API](./signed-api.md) <!-- id:Axl4bTkZ -->
 - [Runs](./runs.md) <!-- id:Rk2fkzzC -->
 - [Log](./log.md) <!-- id:Aa-ObMEx -->
+- [Durable sessions](./durable-sessions.md)
 - [Security](./security.md) <!-- id:7k0_A0Pk -->
 - [Operations](./operations.md) <!-- id:shyewYK8 -->

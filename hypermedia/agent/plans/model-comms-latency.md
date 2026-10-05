@@ -18,7 +18,7 @@ Collect a week of `/api/perf` from prod before and after each lever below. TTFT 
 ## 1. Prompt caching (Anthropic-style) <!-- id:cKICp29g -->
 
 The Anthropic API caches prompt prefixes (`cache_control` breakpoints). A cache hit prices cached input at about 10%. More important here, it **cuts time to first token a lot**, because the provider skips re-prefilling the transcript. Our sessions fit this well: a stable system prompt, then tool [contracts](../contract.md), then an append-only transcript. <!-- id:7o0KA0Tv -->
-  - Check what the Pi SDK already does per provider: whether it sets cache breakpoints for Anthropic, and whether usage's `cacheRead` (already recorded in `RunUsage`) shows hits in prod. If `cacheRead` is about 0 on Anthropic providers, this is an easy saving. <!-- id:INLTGQbh -->
+  - pi-ai 1.0 asks for short cache retention by default: it sets cache breakpoints for Anthropic and sends each durable conversation's session id as the cache key where a provider routes by one. What is left is to check whether usage's `cacheRead` (already recorded in `RunUsage`) shows hits in prod, and whether long retention pays for itself. <!-- id:INLTGQbh -->
   - Breakpoint placement: end of system prompt, end of tool definitions, and a moving breakpoint at the second-to-last turn. Keep the prefix **byte-stable** (see lever 4). <!-- id:Q4BNyxTt -->
 
 ## 2. Server-side conversation state (openai-codex) <!-- id:ZZjOsVoG -->
@@ -31,14 +31,14 @@ Old tool results are the dead weight. A 64 KB exec output that stopped mattering
 
 ## 4. Byte-stable prefixes <!-- id:0Y96YhUF -->
 
-Prompt caching only pays when the prefix is identical across turns. Hazards to audit: <!-- id:B7olBWqX -->
-  - The [plan](../plan.md)-state block and the `<background_work_update>` / `<concurrent_user_messages>` synthetic messages are appended with `timestamp: Date.now()`. If timestamps end up in the payload, every turn breaks the cache. Pin or strip them. <!-- id:OAE1cKTo -->
+Prompt caching only pays when the prefix is identical across turns. Since the move to [durable sessions](../durable-sessions.md) the worst hazards are gone: the system prompt no longer carries the clock, the transcript is a list of stored entries that never change, and the per-turn state blocks (plan, context usage, session status, time) ride behind each turn's input without being stored. Hazards that remain: <!-- id:B7olBWqX -->
+  - A turn that rebuilds its context from the log (a park-resume, a restart repair) replays the transcript in the log's form, which differs from the provider-exact entries it replaces. That turn starts with a cold cache. Writing late results as context edits removes the common case. <!-- id:OAE1cKTo -->
   - System-prompt resolution embeds remote [hm://](../../protocol/urls.md) docs (cached 5 min). A re-fetch that changes bytes mid-session breaks the whole cache. Consider pinning the resolved prompt for the session's lifetime. <!-- id:b8OqIR7C -->
   - Tool [promotion](../promotion.md) (touch-expand) changes the tool list mid-session. That can't be avoided when it happens. Tool definitions should sit in their own cache segment, so a promotion only invalidates from that point on. <!-- id:CXDfSExd -->
 
 ## 5. Leaner turn prep <!-- id:pKySxDLe -->
 
-`provider.request_gap` measures everything before the request leaves. Known costs in that window: `#piMessages` decoding the full CBOR transcript every turn, building replay messages, and Pi session assembly. The decode grows with session length. The wire-truncation work capped what is _stored_, and did not cap what is _replayed_. If prod shows this gap growing with session length, the fix is an in-memory cache of the decoded transcript for each live session. <!-- id:hfR4vki4 -->
+`provider.request_gap` measures everything before the request leaves. Known costs in that window: opening the session's [durable store](../durable-sessions.md), which reads its `main.jsonl`, and importing what reached the log since the last turn. A turn that has to rebuild its context (a park-resume, a session without a store) also pays `#piMessages` decoding the full CBOR transcript. Both grow with session length. If prod shows this gap growing, the fixes are keeping a store open between the turns of a busy session and writing late results as context edits so resumes stop rebuilding. <!-- id:hfR4vki4 -->
 
 ## 6. Fewer round trips per task <!-- id:E8oP4Cft -->
 
