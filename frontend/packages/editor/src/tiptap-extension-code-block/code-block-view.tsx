@@ -1,4 +1,5 @@
 import {Button} from '@shm/ui/button'
+import {Tooltip} from '@shm/ui/tooltip'
 import {NodeViewProps} from '@tiptap/core'
 import {NodeViewContent} from '@tiptap/react'
 import {Check, ChevronDown, Copy, Eye, EyeOff, X} from 'lucide-react'
@@ -18,7 +19,6 @@ let mermaidRenderId = 0
 /** Renders code with copy controls and an optional Mermaid diagram view. */
 export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languages: string[]}) => {
   const {node, updateAttributes} = props
-  const [hovered, setHovered] = useState(false)
   const language = node.attrs.language || 'plaintext'
   const [open, setOpen] = useState(false)
   const [dropdownPosition, setDropdownPosition] = useState({top: 0, left: 0})
@@ -89,7 +89,6 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
     cancelClose()
     closeTimeoutRef.current = setTimeout(() => {
       setOpen(false)
-      setHovered(false)
     }, 120)
   }
 
@@ -158,92 +157,79 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
 
   return (
     <div
-      className="relative flex min-w-0 flex-col overflow-hidden"
-      onMouseEnter={() => {
-        cancelClose()
-        setHovered(true)
-      }}
+      className="group/code-block relative flex min-w-0 flex-col overflow-hidden"
+      onMouseEnter={cancelClose}
       onMouseLeave={() => {
-        if (open) {
-          scheduleClose()
-        } else {
-          setHovered(false)
-        }
+        if (open) scheduleClose()
       }}
     >
-      <div className="absolute top-2 right-2 z-50" contentEditable={false}>
+      <div
+        className="code-block-language-dropdown pointer-events-none absolute top-2 right-2 z-50 flex items-center gap-1 opacity-0 group-hover/code-block:pointer-events-auto group-hover/code-block:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100 data-[open=true]:pointer-events-auto data-[open=true]:opacity-100 [@media(any-pointer:coarse)]:pointer-events-auto [@media(any-pointer:coarse)]:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100"
+        contentEditable={false}
+        data-open={open}
+      >
+        {isMermaid && (
+          <Button
+            size="xs"
+            className="border-input bg-background border shadow-sm"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setShowMermaidPreview(!showMermaidPreview)
+            }}
+            type="button"
+            title={showMermaidPreview ? 'Show Code' : 'Preview Diagram'}
+            aria-label={showMermaidPreview ? 'Show Code' : 'Preview Diagram'}
+          >
+            {showMermaidPreview ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
+            <span>{showMermaidPreview ? 'Code' : 'Preview'}</span>
+          </Button>
+        )}
         <Button
-          type="button"
-          size="icon"
-          aria-label={copyLabel}
-          title={copyLabel}
-          className="text-muted-foreground bg-background"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={async (e) => {
+          ref={buttonRef}
+          size="xs"
+          className="border-input bg-background w-24 justify-between border shadow-sm"
+          onClick={(e) => {
             e.preventDefault()
             e.stopPropagation()
-            try {
-              await navigator.clipboard.writeText(codeContent)
-              setCopyState('copied')
-            } catch {
-              setCopyState('error')
-            }
+            handleToggleDropdown(e)
           }}
+          type="button"
         >
-          {copyState === 'copied' ? (
-            <Check className="size-4" />
-          ) : copyState === 'error' ? (
-            <X className="size-4" />
-          ) : (
-            <Copy className="size-4" />
-          )}
+          <span className="truncate">{language}</span>
+          <ChevronDown className="size-3 opacity-50" />
         </Button>
+        <Tooltip content={copyLabel} asChild>
+          <Button
+            type="button"
+            size="iconSm"
+            aria-label={copyLabel}
+            className="text-muted-foreground bg-background"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={async (e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              try {
+                await navigator.clipboard.writeText(codeContent)
+                setCopyState('copied')
+              } catch {
+                setCopyState('error')
+              }
+            }}
+          >
+            {copyState === 'copied' ? (
+              <Check className="size-3.5" />
+            ) : copyState === 'error' ? (
+              <X className="size-3.5" />
+            ) : (
+              <Copy className="size-3.5" />
+            )}
+          </Button>
+        </Tooltip>
         <span className="sr-only" role="status">
           {copyState === 'idle' ? '' : copyLabel}
         </span>
       </div>
-      {/* Show language button on hover or when dropdown is open */}
-      {(hovered || open || isMermaid) && (
-        <div
-          className="code-block-language-dropdown pointer-events-auto absolute top-1 right-12 z-50 flex items-center gap-2 p-1"
-          contentEditable={false}
-        >
-          {/* Mermaid-specific buttons */}
-          {isMermaid && (
-            <>
-              <Button
-                className="border-input bg-background flex items-center gap-1 rounded-md border px-2 py-1.5 text-xs shadow-sm hover:bg-black/5 dark:hover:bg-white/10"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setShowMermaidPreview(!showMermaidPreview)
-                }}
-                type="button"
-                title={showMermaidPreview ? 'Show Code' : 'Preview Diagram'}
-                aria-label={showMermaidPreview ? 'Show Code' : 'Preview Diagram'}
-              >
-                {showMermaidPreview ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
-                <span>{showMermaidPreview ? 'Code' : 'Preview'}</span>
-              </Button>
-            </>
-          )}
-          <div className="relative w-[120px]">
-            <Button
-              ref={buttonRef}
-              className="border-input bg-background flex w-full items-center justify-between rounded-md border px-3 py-1.5 text-sm shadow-sm hover:bg-black/5 dark:hover:bg-white/10"
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                handleToggleDropdown(e)
-              }}
-              type="button"
-            >
-              <span className="truncate">{language || 'plaintext'}</span>
-              <ChevronDown className="size-4 opacity-50" />
-            </Button>
-          </div>
-        </div>
-      )}
 
       {/* Portaled dropdown list */}
       {open ? (
@@ -282,7 +268,7 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
 
       {/* Mermaid preview area */}
       {isMermaid && showMermaidPreview && (
-        <div className="border-border bg-muted/30 mb-2 rounded-md border p-3 pt-14" contentEditable={false}>
+        <div className="border-border bg-muted/30 mb-2 rounded-md border p-3 pt-10" contentEditable={false}>
           {mermaidError ? (
             <div className="rounded-md bg-red-100 p-3 text-red-600 dark:bg-red-900/30 dark:text-red-400">
               <p className="font-mono text-sm">Error: {mermaidError}</p>
@@ -300,7 +286,7 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
         </div>
       )}
 
-      <div hidden={isMermaid && showMermaidPreview} className={isMermaid ? 'pt-12' : undefined}>
+      <div hidden={isMermaid && showMermaidPreview} className={isMermaid ? 'pt-8' : undefined}>
         <CodeBlockScroller language={language}>
           <NodeViewContent style={{whiteSpace: 'pre'}} />
         </CodeBlockScroller>

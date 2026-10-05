@@ -12,6 +12,7 @@ test.beforeEach(async ({editorHelpers, page}) => {
       'after',
     )
   }, source)
+  await page.locator('[data-id="test-code"]').hover()
 })
 
 test('shows Mermaid as a diagram by default and preserves editable source', async ({page}) => {
