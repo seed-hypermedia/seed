@@ -41,7 +41,7 @@ These are the findings that make this tractable — each was verified against th
 **F1 — The desktop already exposes the exact HTTP API the agent service consumes.**
 `frontend/apps/desktop/src/app-http-server.ts` serves `@shm/shared/api-server`'s `handleApiRequest`/`handleApiAction`
 on `localhost:56004` (`API_HTTP_PORT`), backed by the local daemon via `grpcClient`. That is the same `/api/<Key>`
-protocol `createSeedClient(baseUrl)` speaks (`frontend/packages/client/src/client.ts:155`), including `Search`,
+protocol `createSeedClient(baseUrl)` speaks (`frontend/packages/client/src/client.ts`), including `Search`,
 `ListEvents`, `Resource`, `PublishBlobs`, and `PrepareDocumentChange`. **A local agent server pointed at
 `--hm-server-url=http://localhost:56004` gets full read *and* write access to the user's own node with zero new
 plumbing.** This is the single biggest unlock.
@@ -108,7 +108,7 @@ from the Agents page — it is a normal agent, not a special case in the data mo
 ### D3 — Carry window context as a typed message part
 
 The current assistant injects "## Current window" into the system prompt per message
-(`app-chat.ts:811-844`). `MessageSessionContentPart` is currently `{type: 'text', text, blocks?}`. Add
+(`app-chat.ts`). `MessageSessionContentPart` is currently `{type: 'text', text, blocks?}`. Add
 `{type: 'context', lines: string[]}`: the service appends it to that turn's system prompt, and the UI hides it from the
 transcript. Small, additive protocol change; keeps context out of the visible conversation.
 
@@ -266,14 +266,14 @@ agents:
 
 `bun --hot` re-evaluates on save and `watch-file-deps.ts` re-syncs the `file:` deps (`frontend/packages/*`) so they
 never go stale. Sessions live in SQLite so they survive a reload, and the desktop's WebSocket client already has
-exponential-backoff reconnect (`models/agents.ts:1024`).
+exponential-backoff reconnect (`models/agents.ts`).
 
 So the rule is: **dev attaches, packaged spawns.**
 
 - `./dev up` — desktop does *not* spawn the binary; it attaches to the mprocs-run server on :3050. Hot reload intact.
 - Packaged — desktop spawns the compiled binary from `resourcesPath`.
 
-There is already a precedent for exactly this toggle: `SEED_NO_DAEMON_SPAWN` (`daemon.ts:245`) makes the desktop skip
+There is already a precedent for exactly this toggle: `SEED_NO_DAEMON_SPAWN` (`daemon.ts`) makes the desktop skip
 spawning the Go daemon and use externally-provided ports. Add `SEED_NO_AGENTS_SPAWN` the same way, defaulted on in the
 mprocs `desktop` pane. Better still, make it automatic: probe `/agents/api/health` on the configured port first and
 attach if something healthy answers, spawn otherwise — that removes a whole class of "two servers fighting over :3050"

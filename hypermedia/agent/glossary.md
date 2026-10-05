@@ -56,7 +56,8 @@ The words the [Seed Agents](../agent.md) pages use, one line each, linked to the
 
 # The symmetric log <!-- id:TDeu0X7Q -->
 
-- [actor](./actor.md): who did it: `user`, `agent`, `system`, or `trigger`; every event carries one. <!-- id:C05dWJaO -->
+- [actor](./actor.md): who did it: `user`, `agent`, `system`, or `trigger`; every event has one, stamped or derived from its shape. <!-- id:C05dWJaO -->
+- thread: a synonym these pages use for a session, the conversation a [log](./log.md) records.
 - [wrench palette](./wrench-palette.md): the tool button in the composer that lets a person run `read`, `write`, and `call` themselves, with results landing on the log as user events. <!-- id:HoQrWl3R -->
 - [session continuation](./session-continuation.md): carrying a conversation into a fresh successor session with a structured handoff. The old history is not compacted. <!-- id:Jiai9ykh -->
 
@@ -64,7 +65,10 @@ The words the [Seed Agents](../agent.md) pages use, one line each, linked to the
 
 - [trigger](./trigger.md): standing configuration binding a source (schedule, comment, mention, [site](../protocol/sites.md) update, webhook, run completed) to a continuation. <!-- id:Y2MmLcGs -->
 - [firing](./firing.md): one trigger activation, deduplicated exactly once, with run-completed chains loop-guarded at eight hops. <!-- id:ixEodPl5 -->
-- continuation: what a firing does: start a new thread, wake a parked run, or run a tool or script with no model; see [triggers](./triggers.md). <!-- id:fdvIUBGI -->
+- continuation: what a firing does: start a new thread, wake a parked run, or run a tool or script with no model; see [triggers](./triggers.md). Not to be confused with [session continuation](./session-continuation.md), which carries a conversation into a successor session. <!-- id:fdvIUBGI -->
+- condition: one alternative inside an `activity` trigger, `{id, source}`; the trigger fires once when any condition matches, and the firing records `matchedConditions`; see [triggers](./triggers.md).
+- claim: the `trigger_event_claims` row inserted for `(account, trigger, firing key)` before an activity firing is created, the admission authority that makes a firing exactly-once; see [triggers](./triggers.md).
+- firing key: the key a feed event dedupes on, `blob-<cid>` of the comment version, which a comment and its citation twin share (`activityFiringKey`); the raw event key (`activityEventKey`) differs per sibling.
 - activity monitor: the server's poll loop over the Hypermedia activity feed that matches events against triggers and waiting runs; see [triggers](./triggers.md). <!-- id:r06uh5ey -->
 
 # Control plane <!-- id:rFeEtwox -->
