@@ -1,19 +1,38 @@
 import appError from '@/errors'
 import type {AppWindowEvent} from '@/utils/window-events'
 import {getRouteWindowType} from '@/utils/window-types'
+import {API_HTTP_URL, DAEMON_FILE_URL, DAEMON_HTTP_URL, DEFAULT_DESKTOP_AGENTS_URL} from '@shm/shared/constants'
 import {defaultRoute, type NavRoute} from '@shm/shared/routes'
 import type {NavState} from '@shm/shared/utils/navigation'
-import {BrowserWindow, WebContentsView, app, globalShortcut, nativeTheme, screen, shell} from 'electron'
+import {BrowserWindow, WebContentsView, app, globalShortcut, nativeTheme, screen} from 'electron'
 import path from 'node:path'
 import {z} from 'zod'
 import {markAppWindowBlurred, markAppWindowFocused} from './app-focus'
 import {updateRecentRoute} from './app-recents'
 import {getAppTheme, shouldUseDarkColors} from './app-settings'
 import {appStore} from './app-store.mjs'
+import type {AppWindowPolicy} from './app-window-policy'
+import {installWindowGuards} from './app-window-security'
 import {getDaemonState, subscribeDaemonState} from './daemon'
 import {childLogger, debug, info, isQuietNodeLogsEnabled, warn} from './logger'
 import {logWindowClose, logWindowOpen} from './memory-profiler-window'
 import {mergeWindowNavState, resolveSelectedIdentityForWindow, type WindowNavState} from './utils/account-selection'
+
+/** Resolve the app's exact origin after its local server has started. */
+export function getAppWindowPolicy(): AppWindowPolicy {
+  const serverPort = (global as typeof globalThis & {localServerPort?: number}).localServerPort
+  const appURL = MAIN_WINDOW_VITE_DEV_SERVER_URL || (serverPort ? `http://localhost:${serverPort}` : null)
+  return {
+    appOrigin: appURL ? new URL(appURL).origin : null,
+    daemonOrigin: new URL(DAEMON_HTTP_URL).origin,
+    fileOrigin: new URL(DAEMON_FILE_URL).origin,
+    connectOrigins: [API_HTTP_URL, DEFAULT_DESKTOP_AGENTS_URL].map((url) => new URL(url).origin),
+    development: !!MAIN_WINDOW_VITE_DEV_SERVER_URL,
+  }
+}
+
+/** Reusable guards; implementation is separate to avoid booting the app in fixtures. */
+export {installWindowGuards} from './app-window-security'
 
 const quietNodeLogs = isQuietNodeLogsEnabled()
 
@@ -497,73 +516,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     browserWindow.webContents.on('console-message', (event) => logRendererConsoleMessage(windowLogger, event))
   }
 
-  // Handle links from embedded content (Twitter, YouTube, etc.) that try to open new windows
-  browserWindow.webContents.setWindowOpenHandler(({url, frameName, features}) => {
-    // Log for debugging
-    debug('Window open request', {url, frameName, features})
-
-    // Open all external URLs in the default browser
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      shell.openExternal(url)
-    }
-
-    // Deny the window creation - we've handled it by opening in default browser
-    return {action: 'deny'}
-  })
-
-  // Handle navigation attempts within the main frame
-  browserWindow.webContents.on('will-navigate', (event, url) => {
-    // Allow navigation for the main app (localhost in dev, file:// in production)
-    if (url.includes('localhost') || url.startsWith('file://')) {
-      return
-    }
-
-    // Prevent navigation and open in external browser instead
-    event.preventDefault()
-    shell.openExternal(url)
-  })
-
-  // Handle navigation in frames (for iframe content like YouTube embeds)
-  browserWindow.webContents.on('will-frame-navigate', (event) => {
-    const {url, isMainFrame} = event
-
-    // Only handle iframe navigations, not main frame
-    if (!isMainFrame) {
-      // Allow embed domains to load their content
-      const allowedEmbedDomains = [
-        'youtube.com',
-        'youtube-nocookie.com',
-        'twitter.com',
-        'x.com',
-        'platform.twitter.com',
-        'instagram.com',
-        'cdninstagram.com',
-      ]
-
-      const isAllowedEmbed = allowedEmbedDomains.some((domain) => url.includes(domain))
-
-      if (!isAllowedEmbed) {
-        // If it's not an allowed embed domain, open in external browser
-        event.preventDefault()
-        shell.openExternal(url)
-      }
-      // Otherwise allow the embed to load normally
-    }
-  })
-
-  // Additional handler for any child windows that might slip through
-  browserWindow.webContents.on('did-create-window', (childWindow, details) => {
-    // Log for debugging
-    debug('Child window created', {url: details.url})
-
-    // Get the URL and open it externally
-    if (details.url) {
-      shell.openExternal(details.url)
-    }
-
-    // Close the child window immediately
-    childWindow.close()
-  })
+  installWindowGuards(browserWindow, getAppWindowPolicy())
 
   const focusedSelectedIdentity = lastFocusedWindowId ? windowNavState[lastFocusedWindowId]?.selectedIdentity : null
   const selectedIdentity = resolveSelectedIdentityForWindow({
@@ -797,9 +750,9 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     if (serverPort) {
       browserWindow.loadURL(`http://localhost:${serverPort}/${MAIN_WINDOW_VITE_NAME}/index.html`)
     } else {
-      // Fallback to file:// if server not available (embeds won't work)
-      browserWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`))
-      warn('[APP-WINDOWS]: Local server not available, using file:// protocol - embeds will not work')
+      // The app CSP and origin checks require the local HTTP server.
+      browserWindow.close()
+      throw new Error('Cannot load the app without its local renderer server')
     }
   }
 
