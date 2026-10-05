@@ -8,7 +8,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from '@tanstack/react-table'
-import {ChevronDown, ChevronUp, ChevronsUpDown, FileText, MessageSquare, Share2} from 'lucide-react'
+import {ChevronDown, ChevronUp, ChevronsUpDown, FileText, Grid3X3, MessageSquare, Share2} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from './components/table'
 import {FacePile} from './face-pile'
@@ -287,10 +287,15 @@ function TitleCell({item}: {item: HMDocumentInfo}) {
   return (
     <a
       {...linkProps}
-      className="block truncate font-medium hover:underline"
+      className="flex items-center gap-2 font-medium hover:underline"
       title={getMetadataName(item.metadata) || item.path.at(-1) || 'Untitled'}
     >
-      {getMetadataName(item.metadata) || item.path.at(-1) || 'Untitled'}
+      {item.isCollection ? (
+        <Grid3X3 aria-label="Collection" className="size-4 shrink-0" />
+      ) : (
+        <FileText aria-label="Document" className="size-4 shrink-0" />
+      )}
+      <span className="truncate">{getMetadataName(item.metadata) || item.path.at(-1) || 'Untitled'}</span>
     </a>
   )
 }

@@ -23,7 +23,19 @@ import {
 } from '@shm/shared/utils/document-actions'
 import {createWebHMUrl, getVersionHeads, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {Bookmark, Copy, FilePen, FileText, Forward, History, Layers, MessageSquare, Pencil, Split} from 'lucide-react'
+import {
+  Bookmark,
+  Copy,
+  FilePen,
+  FileText,
+  Forward,
+  Grid3X3,
+  History,
+  Layers,
+  MessageSquare,
+  Pencil,
+  Split,
+} from 'lucide-react'
 import {HTMLAttributes, ReactNode, useMemo} from 'react'
 import {Button} from './button'
 import {createCopyLinkMenuItem, getWebCopyLinkHostname} from './copy-link-menu'
@@ -228,14 +240,17 @@ export function documentCardContainerClassName({
   )
 }
 
-/** Left-hand thumbnail for a document card: wide cover, square icon, or the green doc placeholder. */
+/** Left-hand thumbnail for a document card: wide cover, square icon, or the document type placeholder. */
 export function DocumentCardThumbnail({
   coverImage,
   iconImage,
+  isCollection = false,
   banner = false,
 }: {
   coverImage?: string
   iconImage?: string
+  /** Uses the collection icon when no image is available. */
+  isCollection?: boolean
   banner?: boolean
 }) {
   const imageUrl = useImageUrl()
@@ -263,10 +278,15 @@ export function DocumentCardThumbnail({
       </div>
     )
   }
-  // Neither cover nor icon — green doc-icon placeholder.
+  // Neither cover nor icon — use the document type placeholder.
+  const Icon = isCollection ? Grid3X3 : FileText
   return (
     <div className="m-3 flex aspect-square size-12 shrink-0 items-center justify-center rounded-md bg-emerald-100 @md:size-14 dark:bg-emerald-900/30">
-      <FileText className="size-6 text-emerald-700 dark:text-emerald-400" strokeWidth={1.5} />
+      <Icon
+        aria-label={isCollection ? 'Collection' : 'Document'}
+        className="size-6 text-emerald-700 dark:text-emerald-400"
+        strokeWidth={1.5}
+      />
     </div>
   )
 }
@@ -332,6 +352,7 @@ export function DocumentCard({
   entity,
   metadata,
   firstImageInContent,
+  isCollection,
   visibility,
   version,
   interactionSummary: interactionSummaryProp,
@@ -356,6 +377,8 @@ export function DocumentCard({
   metadata?: HMDocumentInfo['metadata']
   /** Indexer-derived fallback cover (see HMDocumentInfo.firstImageInContent). */
   firstImageInContent?: HMDocumentInfo['firstImageInContent']
+  /** Collection status from the document listing, used for the fallback icon. */
+  isCollection?: HMDocumentInfo['isCollection']
   visibility?: HMDocumentInfo['visibility']
   version?: string
   interactionSummary?: HMQueryBlockItemSummary | null
@@ -443,7 +466,14 @@ export function DocumentCard({
     <DocumentCardShell
       interactive={navigateProp}
       hasCover={!!coverImage}
-      thumbnail={<DocumentCardThumbnail coverImage={coverImage} iconImage={iconImage} banner={banner} />}
+      thumbnail={
+        <DocumentCardThumbnail
+          coverImage={coverImage}
+          iconImage={iconImage}
+          isCollection={isCollection}
+          banner={banner}
+        />
+      }
       title={
         titleLinkOnly && linkAttributes.href ? (
           <a

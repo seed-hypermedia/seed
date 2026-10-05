@@ -13,6 +13,7 @@ import {
   ArrowUpDown,
   FileText,
   Filter,
+  Grid3X3,
   MessageSquare,
   Plus,
   Search,
@@ -882,7 +883,11 @@ function QueryBlockListItem({
     >
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <div className="bg-muted text-muted-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-md">
-          <FileText className="size-5" />
+          {item.isCollection ? (
+            <Grid3X3 aria-label="Collection" className="size-5" />
+          ) : (
+            <FileText aria-label="Document" className="size-5" />
+          )}
         </div>
         <QueryBlockItemTitle item={item} className="truncate font-medium hover:underline">
           {title}
@@ -994,6 +999,7 @@ function QueryBlockCard({
       entity={null}
       metadata={item.metadata}
       firstImageInContent={item.firstImageInContent}
+      isCollection={item.isCollection}
       visibility={item.visibility}
       version={item.version}
       interactionSummary={context.interactionSummaries?.[item.id.id]}
