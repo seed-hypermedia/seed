@@ -4,6 +4,7 @@ import {beforeEach, expect, it, vi} from 'vitest'
 import type {BrowserWindow, WebContents} from 'electron'
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
+  external: vi.fn().mockResolvedValue(undefined),
   publicUrl: vi.fn(),
   networkCallbacks: {} as Record<string, Function>,
   currentGuest: undefined as unknown,
@@ -14,6 +15,12 @@ vi.mock('../browser-url-policy', async () => ({
   ...(await vi.importActual<typeof import('../browser-url-policy')>('../browser-url-policy')),
   assertPublicWebUrl: mocks.publicUrl,
 }))
+vi.mock('../browser-blocklist', async () => {
+  const actual = await vi.importActual<typeof import('../browser-blocklist')>('../browser-blocklist')
+  actual.browserBlocklist.load = vi.fn()
+  actual.browserBlocklist.refresh = vi.fn().mockResolvedValue(undefined)
+  return actual
+})
 vi.mock('electron', async () => {
   const {EventEmitter} = await import('node:events')
   const session = Object.assign(new EventEmitter(), {
@@ -34,8 +41,9 @@ vi.mock('electron', async () => {
     setVisible = vi.fn()
   }
   return {
-    app: new EventEmitter(),
+    app: Object.assign(new EventEmitter(), {getPath: () => '/unused'}),
     nativeTheme: new EventEmitter(),
+    shell: {openExternal: mocks.external},
     session: {fromPartition: () => session},
     WebContentsView,
   }
@@ -187,4 +195,43 @@ it('keeps public pages off the local network, while local pages may link locally
   event.preventDefault.mockClear()
   guest.emit('will-navigate', event, 'http://localhost:3000/next')
   expect(event.preventDefault).not.toHaveBeenCalled()
+})
+
+it('replaces listed page navigations with the Seed interstitial', () => {
+  const {guest} = fixture()
+  const event = {preventDefault: vi.fn()}
+  guest.emit('will-navigate', event, 'https://malware.testing.google.test/')
+  expect(event.preventDefault).toHaveBeenCalledOnce()
+  expect(decodeURIComponent(guest.loadURL.mock.calls[0]![0])).toContain('Website blocked')
+  expect(guest.loadURL).not.toHaveBeenCalledWith('https://malware.testing.google.test/')
+})
+
+it('checks typed addresses and cached history before loading a listed host', () => {
+  const {guest, host, event} = fixture()
+  host.ipc.emit('web-browser-navigate', event, {
+    browserId: 42,
+    requestId: 2,
+    url: 'https://malware.testing.google.test/',
+    historyIndex: 0,
+  })
+  expect(guest.loadURL).toHaveBeenCalledOnce()
+  expect(decodeURIComponent(guest.loadURL.mock.calls[0]![0])).toContain('Website blocked')
+})
+
+it('allows warning actions only from the Seed page after physical input', () => {
+  const {guest, host} = fixture()
+  const event = {preventDefault: vi.fn()}
+  guest.emit('will-navigate', event, 'seed-browser://external')
+  expect(mocks.external).not.toHaveBeenCalled()
+  guest.emit('will-navigate', event, 'https://malware.testing.google.test/path')
+  const warning = guest.loadURL.mock.calls[0]![0]
+  ;(guest as {getURL: () => string}).getURL = () => warning
+  guest.emit('will-navigate', event, 'seed-browser://external')
+  expect(mocks.external).not.toHaveBeenCalled()
+  guest.emit('input-event', {}, {type: 'mouseDown'})
+  guest.emit('will-navigate', event, 'seed-browser://external')
+  expect(mocks.external).toHaveBeenCalledWith('https://malware.testing.google.test/path')
+  guest.emit('input-event', {}, {type: 'mouseDown'})
+  guest.emit('will-navigate', event, 'seed-browser://back')
+  expect(host.send).toHaveBeenCalledWith('appWindowEvent', {type: 'back', browserId: 42})
 })

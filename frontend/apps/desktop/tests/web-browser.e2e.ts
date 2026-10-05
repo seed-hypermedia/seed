@@ -1,14 +1,16 @@
 import {test, expect, _electron} from '@playwright/test'
 import {build} from 'esbuild'
 import {createServer} from 'node:http'
-import {mkdtemp, writeFile, rm} from 'node:fs/promises'
+import {mkdtemp, mkdir, writeFile, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 
 test('embedded Chromium preserves history, routes Seed links, and isolates website privileges', async () => {
   test.setTimeout(60000)
   const directory = await mkdtemp(path.join(tmpdir(), 'seed-web-browser-e2e-'))
+  let blockedHostRequests = 0
   const server = createServer((request, response) => {
+    if (request.headers.host?.startsWith('seed-blocked.test:')) blockedHostRequests++
     if (request.url === '/icons/site.svg') {
       if (!request.headers.cookie?.includes('icon-session=allowed')) {
         response.writeHead(401)
@@ -96,6 +98,11 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
       external: ['electron'],
     })
     await writeFile(html, `<html><body><div id="browser" style="width:900px;height:600px"></div></body></html>`)
+    await mkdir(path.join(directory, 'profile/browser'), {recursive: true})
+    await writeFile(
+      path.join(directory, 'profile/browser/blocklist.json'),
+      JSON.stringify({checkedAt: Date.now(), hosts: ['seed-blocked.test']}),
+    )
     electron = await _electron.launch({args: [main, '--fixture', html, preload, path.join(directory, 'profile')]})
     const page = await electron.firstWindow()
     // Electron 44 hands Playwright the window before loadFile commits; wait for the fixture page.
@@ -307,6 +314,22 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
     expect((await command({action: 'snapshot'})).url).toBe(`${origin}/first`)
     await navigate(reboundUrl, 6, reboundIndex)
     await expect(command({action: 'snapshot'})).rejects.toThrow('private network')
+    const blockedUrl = `http://seed-blocked.test:${address.port}/first`
+    await navigate(blockedUrl, 7)
+    await expect
+      .poll(() => guest.evaluate((contents) => contents.executeJavaScript('document.body.innerText')))
+      .toContain('seed-blocked.test was flagged by OpenPhish')
+    expect(await guest.evaluate((contents) => contents.executeJavaScript('document.body.innerText'))).not.toContain(
+      'Article heading',
+    )
+    expect(blockedHostRequests).toBe(0)
+    // A main-process load bypasses will-navigate and must still be stopped by webRequest.
+    await navigate(`${origin}/first`, 8)
+    await guest.evaluate((contents, url) => contents.loadURL(url).catch(() => {}), blockedUrl)
+    await expect
+      .poll(() => guest.evaluate((contents) => contents.executeJavaScript('document.body.innerText')))
+      .toContain('seed-blocked.test was flagged by OpenPhish')
+    expect(blockedHostRequests).toBe(0)
     await page.evaluate(() => (window as any).browserTest.hide())
     await expect(command({action: 'snapshot'})).rejects.toThrow('Browser access is paused')
   } finally {

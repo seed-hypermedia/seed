@@ -9,9 +9,15 @@ const mocks = vi.hoisted(() => ({
   save: vi.fn(),
   message: vi.fn(),
 }))
+vi.mock('../browser-blocklist', async () => {
+  const actual = await vi.importActual<typeof import('../browser-blocklist')>('../browser-blocklist')
+  actual.browserBlocklist.load = vi.fn()
+  actual.browserBlocklist.refresh = vi.fn().mockResolvedValue(undefined)
+  return actual
+})
 vi.mock('electron', async () => {
   const {EventEmitter} = await import('node:events')
-  mocks.app = Object.assign(new EventEmitter(), {configureHostResolver: vi.fn()})
+  mocks.app = Object.assign(new EventEmitter(), {configureHostResolver: vi.fn(), getPath: () => '/unused'})
   mocks.session = Object.assign(new EventEmitter(), {
     webRequest: {
       onBeforeRequest: vi.fn(),

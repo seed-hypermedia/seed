@@ -1,6 +1,7 @@
 import {app, BrowserWindow, dialog, session, webContents} from 'electron'
 import type {WebContents, WebPreferences} from 'electron'
 import {basename} from 'node:path'
+import {browserBlocklist, browserListRefreshInterval} from './browser-blocklist'
 import {setupBrowserNetworkPolicy} from './browser-network-policy'
 
 /** Dedicated persistent session for untrusted integrated websites. */
@@ -114,6 +115,11 @@ export function setupBrowserSessionPolicy() {
   if (installed) return
   installed = true
   const browserSession = session.fromPartition(browserPartition)
+  browserBlocklist.load(app.getPath('userData'))
+  void browserBlocklist.refresh()
+  const refresh = setInterval(() => void browserBlocklist.refresh(), browserListRefreshInterval)
+  refresh.unref()
+  app.once('will-quit', () => clearInterval(refresh))
   setupBrowserNetworkPolicy(browserSession)
   browserSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
   browserSession.setPermissionCheckHandler(() => false)
