@@ -62,6 +62,7 @@ import {
 import {useExploreResults} from '@shm/shared/models/explore'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {queryQueryBlock} from '@shm/shared/models/queries'
+import {QueryBlockDraftSlotData, useQueryBlockDrafts} from '@shm/shared/query-block-drafts-context'
 import {useDebounce} from '@shm/shared/utils/use-debounce'
 import {
   documentMachine,
@@ -195,6 +196,7 @@ import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-mess
 import {PanelLayout} from './panel-layout'
 import {PrivateBadge} from './private-badge'
 import {QueryBlockContent} from './query-block-content'
+import {buildSlotItems} from './query-block-draft-items'
 import {SiteFileBrowserLayout} from './site-file-browser-layout'
 import {SiteHeader} from './site-header'
 import {Spinner} from './spinner'
@@ -4069,6 +4071,7 @@ function DocumentCollection({
   queryBlock: EditorBlock | null
   canEdit: boolean
 }) {
+  const {DraftSlot} = useQueryBlockDrafts()
   const client = useUniversalClient()
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
@@ -4154,65 +4157,75 @@ function DocumentCollection({
     [canEdit, beginEditIfNeeded, send],
   )
 
+  const renderContent = (slot: QueryBlockDraftSlotData | null) => {
+    const {prependItems, bannerContent} = buildSlotItems(slot, style, banner, !!query.data?.results.length)
+    return (
+      <QueryBlockContent
+        toolbarActions={
+          <div className="flex items-center gap-2">
+            <Tabs
+              value={style}
+              onValueChange={(value) => updateQueryProps({style: value as 'Card' | 'List' | 'Table'})}
+            >
+              <TabsList>
+                <TabsTrigger value="Table">
+                  <TableIcon />
+                  Table
+                </TabsTrigger>
+                <TabsTrigger value="List">
+                  <ListIcon />
+                  List
+                </TabsTrigger>
+                <TabsTrigger value="Card">
+                  <Grid3X3 />
+                  Cards
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <Popover>
+              <Tooltip content="Query settings">
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="Query settings">
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </PopoverTrigger>
+              </Tooltip>
+              <PopoverContent align="end" className="w-80">
+                <CollectionQuerySettings props={props} onChange={updateQueryProps} />
+              </PopoverContent>
+            </Popover>
+          </div>
+        }
+        items={query.data?.results ?? []}
+        style={style}
+        columnCount={columnCount}
+        banner={bannerContent ? false : banner}
+        bannerContent={bannerContent}
+        prependItems={prependItems}
+        onCreateDocument={slot?.onCreateDraft}
+        accountsMetadata={query.data?.accountsMetadata ?? {}}
+        interactionSummaries={query.data?.interactionSummaries ?? {}}
+        isDiscovering={query.isLoading}
+        tableConfig={tableConfig}
+        onTableConfigChange={handleTableConfigChange}
+        tableSorting={querySort.map(({term, reverse}) => ({id: term, desc: reverse}))}
+        onTableSortingChange={handleTableSortingChange}
+        navigateCards
+        viewerSearch={viewerSearch}
+        onViewerSearchChange={setViewerSearch}
+        viewerFilters={viewerFilters}
+        onViewerFiltersChange={setViewerFilters}
+        totalMatches={query.data?.totalMatches}
+        isUpdating={query.isFetching && !query.isLoading}
+        viewerQueryApplied={query.data?.totalMatches !== undefined}
+      />
+    )
+  }
+
   return (
     <div className="w-full px-5 pt-4 pb-8">
       <div className="border-border bg-background overflow-hidden rounded-xl border">
-        <QueryBlockContent
-          toolbarActions={
-            <div className="flex items-center gap-2">
-              <Tabs
-                value={style}
-                onValueChange={(value) => updateQueryProps({style: value as 'Card' | 'List' | 'Table'})}
-              >
-                <TabsList>
-                  <TabsTrigger value="Table">
-                    <TableIcon />
-                    Table
-                  </TabsTrigger>
-                  <TabsTrigger value="List">
-                    <ListIcon />
-                    List
-                  </TabsTrigger>
-                  <TabsTrigger value="Card">
-                    <Grid3X3 />
-                    Cards
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-              <Popover>
-                <Tooltip content="Query settings">
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" size="icon" aria-label="Query settings">
-                      <MoreHorizontal className="size-4" />
-                    </Button>
-                  </PopoverTrigger>
-                </Tooltip>
-                <PopoverContent align="end" className="w-80">
-                  <CollectionQuerySettings props={props} onChange={updateQueryProps} />
-                </PopoverContent>
-              </Popover>
-            </div>
-          }
-          items={query.data?.results ?? []}
-          style={style}
-          columnCount={columnCount}
-          banner={banner}
-          accountsMetadata={query.data?.accountsMetadata ?? {}}
-          interactionSummaries={query.data?.interactionSummaries ?? {}}
-          isDiscovering={query.isLoading}
-          tableConfig={tableConfig}
-          onTableConfigChange={handleTableConfigChange}
-          tableSorting={querySort.map(({term, reverse}) => ({id: term, desc: reverse}))}
-          onTableSortingChange={handleTableSortingChange}
-          navigateCards
-          viewerSearch={viewerSearch}
-          onViewerSearchChange={setViewerSearch}
-          viewerFilters={viewerFilters}
-          onViewerFiltersChange={setViewerFilters}
-          totalMatches={query.data?.totalMatches}
-          isUpdating={query.isFetching && !query.isLoading}
-          viewerQueryApplied={query.data?.totalMatches !== undefined}
-        />
+        {DraftSlot ? <DraftSlot targetId={docId}>{renderContent}</DraftSlot> : renderContent(null)}
       </div>
     </div>
   )

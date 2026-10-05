@@ -108,6 +108,8 @@ export interface QueryBlockContentProps {
   interactionSummaries?: Record<string, HMQueryBlockItemSummary>
   isDiscovering?: boolean
   prependItems?: ReactNode[]
+  /** Creates a document in the query target when the results are empty. */
+  onCreateDocument?: () => void
   bannerContent?: ReactNode
   /** Render card titles as links (hover underline, navigate on first click) instead of whole-card navigation. */
   titleLinkOnly?: boolean
@@ -137,6 +139,7 @@ export function QueryBlockContent({
   interactionSummaries,
   isDiscovering,
   prependItems,
+  onCreateDocument,
   bannerContent,
   titleLinkOnly,
   navigateCards,
@@ -281,7 +284,7 @@ export function QueryBlockContent({
   )
 
   const hasPrependItems = prependItems && prependItems.length > 0
-  const hasItems = sortedItems.length > 0 || hasPrependItems
+  const hasItems = sortedItems.length > 0 || hasPrependItems || !!bannerContent
 
   return (
     <div className="border-border bg-background @container/collection flex min-w-0 flex-col rounded-md border">
@@ -311,27 +314,39 @@ export function QueryBlockContent({
         </div>
       ) : !hasItems ? (
         <div className="text-muted-foreground flex h-28 items-center justify-center rounded-md border text-sm">
-          {effectiveFilters.length || effectiveSearch
-            ? 'No documents match the current search and filters.'
-            : 'No documents found.'}
+          {effectiveFilters.length || effectiveSearch ? (
+            'No documents match the current search and filters.'
+          ) : onCreateDocument ? (
+            <Button type="button" variant="outline" size="sm" onClick={onCreateDocument}>
+              <Plus className="size-4" />
+              New Document
+            </Button>
+          ) : (
+            'No documents found.'
+          )}
         </div>
       ) : style === 'Table' ? (
-        <QueryBlockTable
-          items={sortedItems}
-          descriptors={descriptors}
-          context={context}
-          sorting={sorting}
-          onSortingChange={setSortingAndPersist}
-          columnOrder={columnOrder}
-          onColumnOrderChange={(columnOrder) => updateTableState({type: 'columnOrder', columnOrder})}
-          columnVisibility={columnVisibility}
-          onColumnVisibilityChange={(columnVisibility) =>
-            updateTableState({type: 'columnVisibility', columnVisibility})
-          }
-          columnSizing={columnSizing}
-          onColumnSizingChange={(columnSizing) => updateTableState({type: 'columnSizing', columnSizing})}
-          onColumnSizingCommit={(nextSizing) => persistTableConfig({columnSizing: nextSizing})}
-        />
+        <>
+          {hasPrependItems ? <div className="flex flex-col gap-2 p-2">{prependItems}</div> : null}
+          {sortedItems.length > 0 ? (
+            <QueryBlockTable
+              items={sortedItems}
+              descriptors={descriptors}
+              context={context}
+              sorting={sorting}
+              onSortingChange={setSortingAndPersist}
+              columnOrder={columnOrder}
+              onColumnOrderChange={(columnOrder) => updateTableState({type: 'columnOrder', columnOrder})}
+              columnVisibility={columnVisibility}
+              onColumnVisibilityChange={(columnVisibility) =>
+                updateTableState({type: 'columnVisibility', columnVisibility})
+              }
+              columnSizing={columnSizing}
+              onColumnSizingChange={(columnSizing) => updateTableState({type: 'columnSizing', columnSizing})}
+              onColumnSizingCommit={(nextSizing) => persistTableConfig({columnSizing: nextSizing})}
+            />
+          ) : null}
+        </>
       ) : style === 'Card' ? (
         <QueryBlockCards
           items={sortedItems}
