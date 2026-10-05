@@ -30,6 +30,8 @@ export type Config = {
   subscriptionAuth: boolean
   /** Generate titles for untitled sessions with a dedicated model call. */
   titleGeneration: boolean
+  /** The document a new agent's system prompt embeds (the Agent Guide), reported in /api/health. */
+  defaultPromptUrl: string
   /** Where `hm://hyper.media` (the Hypermedia knowledge base) resolves. See docs-space.ts. */
   docs: {
     /** The knowledge base account. */
@@ -99,6 +101,7 @@ export type Flags = {
   'data-dir': string
   'hm-server-url': string
   'ipfs-server-url': string
+  'default-prompt-url': string
   'docs-account': string
   'docs-account-file': string
   'activity-poll-interval-ms': number
@@ -137,6 +140,8 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'data-dir': env.SEED_AGENTS_DATA_DIR || './data',
     'hm-server-url': env.SEED_AGENTS_HM_SERVER_URL || 'https://hyper.media',
     'ipfs-server-url': env.SEED_AGENTS_IPFS_SERVER_URL || '',
+    'default-prompt-url':
+      env.SEED_AGENTS_DEFAULT_PROMPT_URL || 'hm://z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB/agent/guide',
     'docs-account': env.SEED_AGENTS_DOCS_ACCOUNT || '',
     'docs-account-file': env.SEED_AGENTS_DOCS_ACCOUNT_FILE || '',
     'activity-poll-interval-ms': Number(env.SEED_AGENTS_ACTIVITY_POLL_INTERVAL_MS) || 5_000,
@@ -226,6 +231,7 @@ export function create(pflags: Flags): Config {
     dbPath: pflags['db-path'],
     dataDir: pflags['data-dir'],
     logLevel: parseLogLevel(pflags['log-level']),
+    defaultPromptUrl: pflags['default-prompt-url'].trim(),
     docs: {
       account: pflags['docs-account'].trim() || undefined,
       accountFile: pflags['docs-account-file'].trim() || undefined,

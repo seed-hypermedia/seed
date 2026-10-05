@@ -3,8 +3,10 @@ package documents
 import (
 	"context"
 	"fmt"
+	"seed/backend/api/apitest"
 	"seed/backend/api/documents/v3alpha/docmodel"
 	"seed/backend/blob"
+	"seed/backend/config"
 	"seed/backend/core/coretest"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/util/cclock"
@@ -14,6 +16,8 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -151,4 +155,132 @@ func BenchmarkHydrateCacheHitVsMiss(b *testing.B) {
 			require.NoError(b, err)
 		}
 	})
+}
+
+func TestCachedDocumentServesPinnedVersions(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+	account := alice.me.Account.PublicKey.String()
+	ns := alice.me.Account.Principal()
+
+	v1, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/doc",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "First"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	v2, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/doc",
+		BaseVersion:    v1.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Second"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, v1.Version, v2.Version)
+
+	iri := must.Do2(makeIRI(ns, "/doc"))
+	heads := must.Do2(docmodel.Version(v1.Version).Parse())
+
+	// Start cold, so the first read is the one that has to replay the changes.
+	alice.hydrated.lru.Purge()
+	_, ok, err := alice.cachedDocument(ctx, iri, ns, "/doc", heads)
+	require.NoError(t, err)
+	require.False(t, ok, "nothing is cached yet, the caller must do the full load")
+
+	want, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: account, Path: "/doc", Version: v1.Version})
+	require.NoError(t, err)
+	require.Equal(t, v1.Version, want.Version)
+
+	cached, ok, err := alice.cachedDocument(ctx, iri, ns, "/doc", heads)
+	require.NoError(t, err)
+	require.True(t, ok, "a version that was read before must not be replayed again")
+	require.True(t, proto.Equal(want, cached))
+
+	got, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: account, Path: "/doc", Version: v1.Version})
+	require.NoError(t, err)
+	require.True(t, proto.Equal(want, got))
+
+	res, err := alice.GetResource(ctx, &documents.GetResourceRequest{Iri: string(iri) + "?v=" + v1.Version})
+	require.NoError(t, err)
+	require.True(t, proto.Equal(want, res.GetDocument()))
+	require.Equal(t, v1.Version, res.Version)
+
+	// The pinned entry must not leak into reads of the current version.
+	latest, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: account, Path: "/doc"})
+	require.NoError(t, err)
+	require.Equal(t, v2.Version, latest.Version)
+
+	// A version of another document is not a version of this one, cached or not.
+	other, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/other",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Other"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	_, ok, err = alice.cachedDocument(ctx, iri, ns, "/doc", must.Do2(docmodel.Version(other.Version).Parse()))
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
+func TestCachedDocumentDeniesPrivatePinnedVersions(t *testing.T) {
+	t.Parallel()
+
+	// PublicOnly simulates a gateway, which must never serve private documents.
+	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{PublicOnly: true})
+	ctx := context.Background()
+	account := alice.me.Account.PublicKey.String()
+	ns := alice.me.Account.Principal()
+
+	secret, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/secret",
+		Visibility:     documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Secret"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	iri := must.Do2(makeIRI(ns, "/secret"))
+	heads := must.Do2(docmodel.Version(secret.Version).Parse())
+
+	// Put the hydrated document into the cache behind the API's back, which is
+	// the worst case: the entry exists, so only the access check stands in the way.
+	doc, err := alice.loadDocument(ctx, ns, "/secret", heads, false)
+	require.NoError(t, err)
+	_, err = alice.hydrated.get(ctx, string(iri), doc)
+	require.NoError(t, err)
+	_, ok := alice.hydrated.peek(hydrateCacheKey(string(iri), secret.Version))
+	require.True(t, ok, "the test needs the entry to be cached")
+
+	_, ok, err = alice.cachedDocument(ctx, iri, ns, "/secret", heads)
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
+	require.False(t, ok)
+
+	_, err = alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: account, Path: "/secret", Version: secret.Version})
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
+
+	_, err = alice.GetResource(ctx, &documents.GetResourceRequest{Iri: string(iri) + "?v=" + secret.Version})
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
 }

@@ -23,6 +23,7 @@ import {AssistantPanelHeaderButton, AssistantPanelMenuItem} from './assistant-pa
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {DocNavigationItem, DocumentOutline, DocumentSmallListItem, useNodesOutline} from './navigation'
 import {MobileSearch} from './search'
+import {focusExploreSearch} from './explore-search-focus'
 import {Separator} from './separator'
 import {SiteLogo} from './site-logo'
 import {Tooltip} from './tooltip'
@@ -69,10 +70,13 @@ function getActiveSiteHeaderItemKey(items: DocNavigationItem[], docId: UnpackedH
  */
 function ExploreHeaderButton({siteHomeId}: {siteHomeId: UnpackedHypermediaId}) {
   const linkRef = useRef<HTMLAnchorElement>(null)
-  const linkProps = useRouteLink({
-    key: 'explore',
-    context: {type: 'site', id: {...siteHomeId, latest: true, version: null}},
-  })
+  const linkProps = useRouteLink(
+    {
+      key: 'explore',
+      context: {type: 'site', id: {...siteHomeId, latest: true, version: null}},
+    },
+    {onClick: focusExploreSearch},
+  )
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

@@ -64,10 +64,13 @@ export function AgentSessionsFeed({
   })
   const open = (target: AgentSessionsFeedTarget, event: React.MouseEvent<HTMLButtonElement>) =>
     onOpenSession ? onOpenSession(target, event) : clickNavigate({key: 'agent-session', ...target}, event)
+  // Nothing to show yet but more pages to come (a caller that filters rows can receive whole pages
+  // of nothing): that is still loading, and saying the list is empty would be wrong.
+  const loading = isLoading || (!sessions.length && hasNextPage)
 
   return (
     <section className={`flex flex-col ${compact ? 'gap-2' : 'gap-3'}`}>
-      {isLoading ? (
+      {loading ? (
         <SizableText size={compact ? 'sm' : undefined} color="muted" className={compact ? 'px-2 py-1' : undefined}>
           Loading sessions…
         </SizableText>
@@ -84,7 +87,7 @@ export function AgentSessionsFeed({
           {problem.notice.detail}
         </Notice>
       ))}
-      {!isLoading && !sessions.length && !problems.length ? (
+      {!loading && !sessions.length && !problems.length ? (
         <SizableText size={compact ? 'sm' : undefined} color="muted" className={compact ? 'px-2 py-1' : undefined}>
           {emptyText}
         </SizableText>
@@ -117,7 +120,7 @@ export function AgentSessionsFeed({
       </div>
       {/* Scrolling near the end loads the next page; this row is only ever seen if the fetch is slow. */}
       <div ref={loadMoreSentinel} aria-hidden="true" className="h-px" />
-      {isFetchingNextPage ? (
+      {isFetchingNextPage && sessions.length ? (
         <SizableText size="sm" color="muted" className="text-center">
           Loading more…
         </SizableText>

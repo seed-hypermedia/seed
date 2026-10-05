@@ -580,4 +580,41 @@ describe('QueryBlockContent progressive list rendering', () => {
     expect(container.querySelectorAll('[data-testid="query-row"]')).toHaveLength(30)
     expect(container.textContent).toContain('Item 29')
   })
+
+  it('keeps loaded rows when the same items arrive as a new array', () => {
+    // Upstream rebuilds the items array on most renders. Collapsing back to the first chunk here
+    // pulls a scrolled reader toward the top, which brings the sentinel back into view and loads
+    // the rows again.
+    const items = makeItems(30)
+    act(() => {
+      root.render(<QueryBlockContent items={items} style="List" accountsMetadata={{}} />)
+    })
+    act(() => {
+      observers[0]?.trigger(true)
+    })
+    expect(container.querySelectorAll('[data-testid="query-row"]')).toHaveLength(30)
+
+    act(() => {
+      root.render(<QueryBlockContent items={[...items]} style="List" accountsMetadata={{}} />)
+    })
+
+    expect(container.querySelectorAll('[data-testid="query-row"]')).toHaveLength(30)
+  })
+
+  it('shrinks to fit when the list itself gets shorter', () => {
+    const items = makeItems(30)
+    act(() => {
+      root.render(<QueryBlockContent items={items} style="List" accountsMetadata={{}} />)
+    })
+    act(() => {
+      observers[0]?.trigger(true)
+    })
+    expect(container.querySelectorAll('[data-testid="query-row"]')).toHaveLength(30)
+
+    act(() => {
+      root.render(<QueryBlockContent items={makeItems(8)} style="List" accountsMetadata={{}} />)
+    })
+
+    expect(container.querySelectorAll('[data-testid="query-row"]')).toHaveLength(8)
+  })
 })

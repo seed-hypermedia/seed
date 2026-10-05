@@ -37,6 +37,7 @@ import {useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/share
 import {useSelectedAccountId as useSelectedAgentsAccountId} from '@shm/ui/agents/account'
 import {AgentActivityLiveUpdates, useAgentActivityIndicator} from '@shm/ui/agents/activity'
 import {AgentActivityDot} from '@shm/ui/agents/activity-dot'
+import {focusExploreSearch} from '@shm/ui/explore-search-focus'
 import {
   agentRouteServerUrl,
   isLocalAgentServer,
@@ -611,7 +612,10 @@ function ExploreButton() {
         )}
         aria-current={isActive ? 'page' : undefined}
         aria-label="Explore"
-        onClick={() => navigate({key: 'explore', context: siteId ? {type: 'site', id: siteId} : {type: 'node'}})}
+        onClick={() => {
+          focusExploreSearch()
+          navigate({key: 'explore', context: siteId ? {type: 'site', id: siteId} : {type: 'node'}})
+        }}
       >
         <Search className="size-4" />
       </Button>

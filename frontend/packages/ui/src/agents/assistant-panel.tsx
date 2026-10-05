@@ -159,7 +159,10 @@ export function AssistantPanel({
   const serverUrls = useAgentServerUrls()
   const localServerUrl = useLocalAgentServerUrl()
   const agentQueries = useAgentLists(serverUrls.data, accountUid)
-  const ownSessions = useAllAgentSessionPages(serverUrls.data, accountUid)
+  // Trigger-started sessions are left out (see the list below). The server filters them before
+  // paging; filtering only here made the panel page through ~100 empty pages on an account whose
+  // triggers fire often, showing "No chats yet" until it reached a person's chat.
+  const ownSessions = useAllAgentSessionPages(serverUrls.data, accountUid, {excludeTriggered: true})
   const navigate = useNavigate()
 
   const spaceAgents = useSpaceAgents(accountUid)
@@ -360,7 +363,10 @@ export function AssistantPanel({
   // Sessions a trigger started are left out on both paths: the panel is the user's own
   // conversations with their agents, and a scheduled or event-driven run is not one of those. They
   // stay reachable from the agent's page, whose feed shows every session with a "Triggered by" chip.
-  const agentSessionPages = useAgentSessions(filterAgent?.serverUrl, accountUid, filterAgent?.agent.id)
+  // The server drops them before paging; the filter here only covers servers too old to.
+  const agentSessionPages = useAgentSessions(filterAgent?.serverUrl, accountUid, filterAgent?.agent.id, {
+    excludeTriggered: true,
+  })
   const listEntries = useMemo<AgentSessionListEntry[]>(() => {
     if (selection.filterPending) return []
     if (!filterAgent) return allSessions.filter((entry) => !isTriggeredSession(entry.session))

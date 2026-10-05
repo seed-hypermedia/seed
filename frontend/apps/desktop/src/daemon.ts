@@ -1,6 +1,7 @@
 import {DAEMON_GRPC_PORT, DAEMON_HTTP_PORT, P2P_PORT, VERSION} from '@shm/shared/constants'
 import {ChildProcess, spawn} from 'child_process'
 import {app} from 'electron'
+import {randomBytes} from 'node:crypto'
 import * as readline from 'node:readline'
 import path from 'path'
 import {grpcClient, markGRPCReady} from './app-grpc'
@@ -9,6 +10,10 @@ import {getDaemonBinaryPath} from './daemon-path'
 import {waitForDaemonActive} from './daemon-readiness'
 import * as log from './logger'
 import {forceKillChildProcess} from './win32-process'
+
+/** One credential per desktop launch, retained across daemon restarts and never persisted. */
+export const daemonAppSecret =
+  (process.env.SEED_NO_DAEMON_SPAWN && process.env.SEED_APP_SECRET) || randomBytes(32).toString('hex')
 
 const quietNodeLogs = log.isQuietNodeLogsEnabled()
 
@@ -58,6 +63,16 @@ function buildDaemonArguments(embeddingEnabled: boolean, testnetName: string): s
     // In fixture mode, userDataPath is set via SEED_FIXTURE_DATA_DIR.
     `-data-dir=${userDataPath}/daemon`,
   ]
+
+  // Forge chooses the dev server origin. Isolated desktop instances can also
+  // override the static server's starting port; allow only that local range.
+  const appOrigins: string[] = []
+  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) appOrigins.push(new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL).origin)
+  if (process.env.SEED_LOCAL_SERVER_PORT) {
+    const start = Number(process.env.SEED_LOCAL_SERVER_PORT)
+    for (let port = start; port <= start + 10; port++) appOrigins.push(`http://localhost:${port}`)
+  }
+  if (appOrigins.length) args.push(`-http.app-origins=${appOrigins.join(',')}`)
 
   // Use file-based keystore in fixture mode.
   if (process.env.SEED_FIXTURE_DATA_DIR) {
@@ -115,6 +130,7 @@ async function spawnDaemonProcess(args: string[]): Promise<void> {
     cwd: path.join(process.cwd(), '../../..'),
     env: {
       ...process.env,
+      SEED_APP_SECRET: daemonAppSecret,
       SENTRY_RELEASE: VERSION,
       SENTRY_DSN: __SENTRY_DSN__,
     },
@@ -190,7 +206,7 @@ async function waitForDaemonReady(label: string): Promise<void> {
   await tryUntilSuccess(
     async () => {
       log.debug('Checking HTTP endpoint health...')
-      const response = await fetch(`http://localhost:${DAEMON_HTTP_PORT}/debug/version`)
+      const response = await fetch(`http://127.0.0.1:${DAEMON_HTTP_PORT}/debug/version`)
       if (!response.ok) {
         throw new Error(`HTTP endpoint not ready: ${response.status}`)
       }

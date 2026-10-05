@@ -180,8 +180,9 @@ export const SearchInput = forwardRef<
     searchResults?.data?.entities
       ?.sort((a, b) => {
         // Contacts/profiles first
-        if (a.type === 'contact' && b.type !== 'contact') return -1
-        if (a.type !== 'contact' && b.type === 'contact') return 1
+        const aAccount = a.type === 'contact' || a.type === 'profile'
+        const bAccount = b.type === 'contact' || b.type === 'profile'
+        if (aAccount !== bAccount) return aAccount ? -1 : 1
         // Latest versions first
         const aLatest = a.id.latest ? 1 : 0
         const bLatest = b.id.latest ? 1 : 0
@@ -193,12 +194,17 @@ export const SearchInput = forwardRef<
       ?.map((item, index) => {
         const title = item.title || item.id.uid
         const route =
-          item.type === 'contact'
+          item.type === 'contact' || item.type === 'profile'
             ? ({key: 'profile', id: item.id} as NavRoute)
             : item.type === 'comment' && item.commentId
               ? ({key: 'comments', id: item.id, openComment: item.commentId} as NavRoute)
               : appRouteOfId(item.id)
-        const subtitle = item.type === 'contact' ? 'Contact' : item.type === 'comment' ? 'Comment' : 'Document'
+        const subtitle =
+          item.type === 'contact' || item.type === 'profile'
+            ? 'Profile'
+            : item.type === 'comment'
+              ? 'Comment'
+              : 'Document'
         return {
           key: item.commentId ? `${packHmId(item.id)}:comments/${item.commentId}` : packHmId(item.id),
           title,

@@ -14,6 +14,13 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Top-level session listings (per agent, and account-wide) walked the whole NULL-parent bucket of
+  // sessions_by_parent and temp-b-tree-sorted it (35–90 ms per page on production): the stat1 row
+  // averages 6 rows per parent, but NULL holds every top-level session on the server. These serve
+  // `parent_session_id IS NULL ORDER BY updated_at DESC, id DESC` directly, and the first one also
+  // answers GetAgent's top-level session COUNT.
+  `CREATE INDEX IF NOT EXISTS sessions_top_by_agent ON sessions (agent_id, parent_session_id, updated_at DESC, id DESC);
+  CREATE INDEX IF NOT EXISTS sessions_top_by_time ON sessions (parent_session_id, updated_at DESC, id DESC);`,
   // A trigger-launched workflow's child sessions were recorded nowhere as the firing's: the firing
   // adopts the first one as its session (so it carries "Triggered by" and appears on the trigger's
   // page) and any later child of the same firing nests under that first one.

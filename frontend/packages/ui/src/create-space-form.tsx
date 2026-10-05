@@ -1,5 +1,5 @@
 import {HelpCircle, Plus, X} from 'lucide-react'
-import {useEffect, useMemo, useState} from 'react'
+import {useEffect, useState} from 'react'
 import {Button} from './button'
 import {Badge} from './components/badge'
 import {Input} from './components/input'
@@ -152,13 +152,20 @@ function NameStep({state, update}: StepProps) {
 }
 
 // Object URL for previewing an in memory image file, revoked on change/unmount.
+// The URL is created inside the effect because React's development double mount
+// runs the cleanup once before settling: a memoised URL would stay revoked, and
+// anything loading it late would get a dead blob.
 function useFilePreviewUrl(file: File | null) {
-  const url = useMemo(() => (file ? URL.createObjectURL(file) : ''), [file])
+  const [url, setUrl] = useState('')
   useEffect(() => {
-    return () => {
-      if (url) URL.revokeObjectURL(url)
+    if (!file) {
+      setUrl('')
+      return
     }
-  }, [url])
+    const objectUrl = URL.createObjectURL(file)
+    setUrl(objectUrl)
+    return () => URL.revokeObjectURL(objectUrl)
+  }, [file])
   return url
 }
 
@@ -190,6 +197,7 @@ function IdentityStep({state, update}: StepProps) {
       height={height}
       url={coverUrl}
       uploadOnChange={false}
+      crop={{aspect: 4, maxDimension: 1600, format: 'image/jpeg'}}
       emptyContent={<ImagePlusEmpty hint="1600 × 400px" />}
       onImageUpload={(file) => {
         if (file instanceof File) update({cover: file})
@@ -245,6 +253,7 @@ function IdentityStep({state, update}: StepProps) {
           width={84}
           url={faviconUrl}
           uploadOnChange={false}
+          crop={{aspect: 1, cropShape: 'round', maxDimension: 512}}
           emptyContent={<ImagePlusEmpty />}
           onImageUpload={(file) => {
             if (file instanceof File) update({favicon: file})

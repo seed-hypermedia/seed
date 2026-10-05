@@ -34,7 +34,7 @@ async function handleError(error: unknown): Promise<Response> {
 }
 
 /** Creates Bun route handlers for the Agents signed CBOR API. */
-export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, string> {
+export function createAPIRoutes(svc: apisvc.Service, defaultPromptUrl?: string): Bun.Serve.Routes<undefined, string> {
   const message = async (req: Request, server?: Server<undefined>) => {
     if (!isCBORRequest(req)) {
       return cbor.response({_: 'Error', message: 'Content-Type must be application/cbor'} satisfies api.ErrorResponse, {
@@ -127,6 +127,7 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
         ipfsServerUrl: svc.ipfsServerUrl,
         webTools: svc.webToolCapabilities(),
         subscriptionAuth: svc.subscriptionAuthEnabled,
+        defaultPromptUrl,
         codeExec: codeExec.available,
         codeExecReason: codeExec.reason,
         codeExecReasonCode: codeExec.code,
@@ -473,7 +474,7 @@ async function main(): Promise<void> {
     maxRequestBodySize: Number.MAX_SAFE_INTEGER,
     error: handleError,
     routes: {
-      ...createAPIRoutes(svc),
+      ...createAPIRoutes(svc, cfg.defaultPromptUrl),
       '/agents/ws': (req: BunRequest, srv: Server<WSData>) => {
         const upgraded = srv.upgrade(req, {
           data: {

@@ -10,7 +10,7 @@ import {
   useUniversalAppContext,
   useUniversalClient,
 } from '@shm/shared'
-import {documentCreationMachine, inferDocumentSchema} from '@shm/shared'
+import {documentCreationMachine, inferDocumentSchema, resolveDocumentCreationDestination} from '@shm/shared'
 import {buildCollectionDraftSeed} from '@shm/shared/collection'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useIsSiteOwner} from '@shm/shared/models/capabilities'
@@ -302,7 +302,13 @@ function WebActorCreateButton({
   const navigate = useNavigate()
   const client = useUniversalClient()
   const inputRef = useRef<HTMLInputElement>(null)
-  const destination = parentIsCollection && canEditParent && parentId ? parentId : locationId
+  const destination = resolveDocumentCreationDestination(locationId, {
+    canEditCurrent: true,
+    currentIsCollection,
+    parentId,
+    parentIsCollection,
+    canEditParent,
+  })
   const actor = useActorRef(documentCreationMachine, {
     input: {
       currentId: locationId,

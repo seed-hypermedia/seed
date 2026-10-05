@@ -4423,6 +4423,28 @@ describe('api service', () => {
       if (listedSessions._ !== 'ListSessionsResponse') throw new Error('unexpected response')
       expect(listedSessions.sessions[0]?.startedByTrigger?.triggerId).toBe(createdTrigger.trigger.id)
 
+      // A person's chat beside the triggered one: excludeTriggered leaves only it, on the agent's
+      // list and the account-wide one, and paging counts only what survives the filter.
+      const chat = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (chat._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+      for (const scope of [{agentId: createdAgent.agentId}, {}]) {
+        const chatsOnly = await svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'ListSessions', ...scope, includeChildren: false, excludeTriggered: true, limit: 1},
+          }),
+        )
+        if (chatsOnly._ !== 'ListSessionsResponse') throw new Error('unexpected response')
+        expect(chatsOnly.sessions.map((session) => session.id)).toEqual([chat.sessionId])
+        expect(chatsOnly.nextCursor).toBeUndefined()
+        const everything = await svc.message(
+          await apisvc.createSignedEnvelope(account, {action: {_: 'ListSessions', ...scope, includeChildren: false}}),
+        )
+        if (everything._ !== 'ListSessionsResponse') throw new Error('unexpected response')
+        expect(everything.sessions).toHaveLength(2)
+      }
+
       const loadedSession = await svc.message(
         await apisvc.createSignedEnvelope(account, {
           action: {_: 'GetSession', sessionId: loaded.sessions[0]!.id},

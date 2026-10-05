@@ -25,9 +25,7 @@ const (
 type Checkpoint struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Correlation key. Always an hm:// URL with a version pin:
-	//
-	//	hm://<account>/<path>?v=<version_cid>
-	//
+	//   hm://<account>/<path>?v=<version_cid>
 	// The path segment is optional but the ?v= pin is always present, so that
 	// the new-blob path keys uniquely on the arriving blob and the user-fetch
 	// path keys on the requested version.

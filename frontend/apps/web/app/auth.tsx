@@ -9,7 +9,9 @@ import {useTx, useTxString} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {DocumentMaintenanceTrigger} from '@shm/ui/document-maintenance'
-import {EditProfileForm, SiteMetaFields} from '@shm/ui/edit-profile-form'
+import {AccountProfileForm, type AccountProfileFormValues} from '@shm/ui/components/account-profile-form'
+import {SiteMetaFields} from '@shm/ui/edit-profile-form'
+import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {SeedLogo} from '@shm/ui/seed-logo'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
@@ -553,23 +555,27 @@ export function useVaultSuccessDialog() {
   return dialog.content
 }
 
-async function optimizeImage(file: File): Promise<Blob> {
-  const response = await fetch('/hm/api/site-image', {
-    method: 'POST',
-    body: await file.arrayBuffer(),
-  })
-  const signature = response.headers.get('signature')
-  if (!signature) {
-    throw new Error('No signature found')
-  }
-  if (signature !== 'SIG-TODO') {
-    // todo: real signature checking.. not here but at re-upload time
-    throw new Error('Invalid signature')
-  }
-  const contentType = response.headers.get('content-type') || 'image/png'
-  const responseBlob = await response.blob()
-  return new Blob([responseBlob], {type: contentType})
-}
+/**
+ * Server-side square crop of a profile image at /hm/api/site-image.
+ * Replaced by the cropper UI.
+ */
+// async function optimizeImage(file: File): Promise<Blob> {
+//   const response = await fetch('/hm/api/site-image', {
+//     method: 'POST',
+//     body: await file.arrayBuffer(),
+//   })
+//   const signature = response.headers.get('signature')
+//   if (!signature) {
+//     throw new Error('No signature found')
+//   }
+//   if (signature !== 'SIG-TODO') {
+//     // todo: real signature checking.. not here but at re-upload time
+//     throw new Error('Invalid signature')
+//   }
+//   const contentType = response.headers.get('content-type') || 'image/png'
+//   const responseBlob = await response.blob()
+//   return new Blob([responseBlob], {type: contentType})
+// }
 
 export function LogoutDialog({onClose}: {onClose: () => void}) {
   const keyPair = useLocalKeyPair()
@@ -621,6 +627,7 @@ export function EditProfileDialog({onClose, input}: {onClose: () => void; input:
   const keyPair = useLocalKeyPair()
   const id = hmId(input.accountUid)
   const tx = useTx()
+  const txString = useTxString()
   const account = useAccount(input.accountUid)
   const accountDocument = useResource(account.data?.id)
   const document = accountDocument?.data?.type === 'document' ? accountDocument.data.document : undefined
@@ -653,18 +660,19 @@ export function EditProfileDialog({onClose, input}: {onClose: () => void; input:
       {account.isInitialLoading ? (
         <Spinner />
       ) : (
-        <EditProfileForm
-          defaultValues={{
-            name: account.data?.metadata?.name || '?',
-            icon: account.data?.metadata?.icon || null,
-          }}
-          onSubmit={(newValues) => {
-            update.mutateAsync(newValues).then(() => {
+        <AccountProfileForm
+          initialName={account.data?.metadata?.name || ''}
+          initialImageUrl={account.data?.metadata?.icon ? getDaemonFileUrl(account.data.metadata.icon) : ''}
+          showDescription={false}
+          submitLabel={txString('Save')}
+          onSubmit={({name, imageFile}: AccountProfileFormValues) => {
+            // updateProfile only republishes the icon when it is given a Blob,
+            // so leaving the image alone leaves the published icon untouched.
+            update.mutateAsync({name, icon: imageFile ?? null}).then(() => {
               toast.success(tx('Profile updated'))
               onClose()
             })
           }}
-          processImage={optimizeImage}
         />
       )}
     </>

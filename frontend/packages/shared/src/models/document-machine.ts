@@ -1237,6 +1237,9 @@ export const documentMachine = setup({
     pushContentToEditor: () => {
       // Provided via .provide() in the React layer (editor handlers ref)
     },
+    pushPublishedContentToEditor: () => {
+      // Provided via .provide() in the React layer (editor handlers ref)
+    },
     updatePublishedVersion: assign({
       publishedVersion: ({event}) => {
         // After publish completes, the done event output is the new HMDocument
@@ -1550,7 +1553,7 @@ export const documentMachine = setup({
             guard: 'hasPersistedDraft',
           },
           {
-            actions: ['clearDraftState'],
+            actions: ['clearDraftState', 'pushPublishedContentToEditor'],
           },
         ],
         'document.remoteUpdate': {
@@ -1654,7 +1657,7 @@ export const documentMachine = setup({
           },
           {
             target: 'loaded',
-            actions: ['clearDraftState'],
+            actions: ['clearDraftState', 'pushPublishedContentToEditor'],
           },
         ],
         'capability.changed': [
@@ -2147,7 +2150,7 @@ export const documentMachine = setup({
         }),
         onDone: {
           target: 'loaded',
-          actions: ['clearDraftState'],
+          actions: ['clearDraftState', 'pushPublishedContentToEditor'],
         },
         onError: {
           target: 'editing',

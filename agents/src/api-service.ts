@@ -1387,6 +1387,7 @@ export class Service {
           envelope.action.cursor,
           envelope.action.parentSessionId,
           envelope.action.includeChildren,
+          envelope.action.excludeTriggered,
         )
       case 'UpdateSession':
         return this.#updateSession(
@@ -3015,8 +3016,17 @@ export class Service {
     cursor?: api.SessionListCursor,
     parentSessionId?: string,
     includeChildren?: boolean,
+    excludeTriggered?: boolean,
   ): api.ListSessionsResponse {
-    const page = this.#listSessionPage(accountId, agentId, limit, cursor, parentSessionId, includeChildren)
+    const page = this.#listSessionPage(
+      accountId,
+      agentId,
+      limit,
+      cursor,
+      parentSessionId,
+      includeChildren,
+      excludeTriggered,
+    )
     const referencedAgentIds = new Set(page.sessions.map((session) => session.agentId))
     const agents = this.#listAgents(accountId).agents.filter((agent) => referencedAgentIds.has(agent.id))
     return {_: 'ListSessionsResponse', agents, ...page}
@@ -3030,6 +3040,7 @@ export class Service {
     cursor?: api.SessionListCursor,
     parentSessionId?: string,
     includeChildren?: boolean,
+    excludeTriggered?: boolean,
   ): Pick<api.ListSessionsResponse, 'sessions' | 'nextCursor'> {
     const pageSize = boundedInteger(limit, DEFAULT_SESSION_PAGE_SIZE, 1, MAX_SESSION_PAGE_SIZE)
     // Account-wide listings only cover agents the account owns or collaborates on. A listing scoped to
@@ -3061,6 +3072,14 @@ export class Service {
       // The default (field absent) keeps returning everything: older deployed desktops cannot send
       // this field, and hiding agent-started sessions from them would be a silent regression.
       conditions.push('parent_session_id IS NULL')
+    }
+    if (excludeTriggered === true) {
+      // The same firing lookup #getSessionTriggerContext stamps `startedByTrigger` from. Filtering
+      // here rather than in the client matters: on production 98% of one account's top-level
+      // sessions were trigger-started, so a client-side filter paged ~100 times to fill one list.
+      conditions.push(
+        `NOT EXISTS (SELECT 1 FROM trigger_firings f WHERE f.account_id = sessions.account_id AND f.session_id = sessions.id)`,
+      )
     }
     if (cursor !== undefined) {
       if (!isRecord(cursor)) throw new APIError(400, 'Session cursor must be an object')
@@ -10275,9 +10294,13 @@ function agentRowActivity(row: AgentRow): api.AgentActivity | undefined {
 }
 
 /** Selects the activity columns plus a live-run flag for the agent row aliased `alias`. */
+// `busy` pins `runs_dispatch`: its stat1 row says a status matches thousands of runs (the average
+// over mostly `succeeded`), so the planner scanned the whole runs table for every agent instead —
+// 80 ms per agent on production, paid by every ListAgents, GetAgent and ListSessions (2026-09-28).
+// Live statuses match a handful of rows, so the pinned lookup is microseconds.
 function agentActivityColumns(alias: string): string {
   return `${alias}.activity_at, ${alias}.activity_kind, ${alias}.message_at, ${alias}.message_from, ${alias}.activity_session_id,
-          (EXISTS (SELECT 1 FROM runs live_run WHERE live_run.agent_id = ${alias}.id
+          (EXISTS (SELECT 1 FROM runs live_run INDEXED BY runs_dispatch WHERE live_run.agent_id = ${alias}.id
                    AND live_run.status IN ('queued', 'claimed', 'running', 'waiting'))) AS busy`
 }
 

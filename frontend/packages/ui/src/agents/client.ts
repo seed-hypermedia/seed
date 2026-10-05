@@ -138,6 +138,8 @@ export type AgentServerHealth = {
   webTools?: {search: boolean; readBrowser: boolean}
   /** Whether the server offers subscription (OAuth) provider sign-in. Absent on older servers. */
   subscriptionAuth?: boolean
+  /** The document a new agent's system prompt embeds (the Agent Guide). Absent on older servers. */
+  defaultPromptUrl?: string
   /** Whether the server offers sandboxed code execution (execute_code). */
   codeExec?: boolean
   /** Human-readable explanation when codeExec is false. */

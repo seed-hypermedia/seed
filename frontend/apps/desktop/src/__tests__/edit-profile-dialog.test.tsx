@@ -47,15 +47,19 @@ vi.mock('@shm/ui/components/dialog', async () => {
   }
 })
 
-vi.mock('@shm/ui/edit-profile-form', async () => {
+vi.mock('@shm/ui/components/account-profile-form', async () => {
   const React = await import('react')
   return {
-    EditProfileForm: (props: any) => {
+    AccountProfileForm: (props: any) => {
       capturedFormProps.current = props
-      return React.createElement('div', {'data-testid': 'edit-profile-form'})
+      return React.createElement('div', {'data-testid': 'account-profile-form'})
     },
   }
 })
+
+vi.mock('@shm/ui/get-file-url', () => ({
+  getDaemonFileUrl: (url: string) => `daemon:${url}`,
+}))
 
 vi.mock('@shm/ui/spinner', async () => {
   const React = await import('react')
@@ -121,7 +125,7 @@ describe('EditProfileDialog', () => {
     document.body.innerHTML = ''
   })
 
-  it('calls UpdateProfile RPC with current name, existing ipfs icon, and edited description on submit', async () => {
+  it('keeps the published icon and description when only the name is edited', async () => {
     useAccountMock.mockReturnValue({
       isLoading: false,
       data: {
@@ -137,18 +141,12 @@ describe('EditProfileDialog', () => {
     const {container, root, queryClient} = renderDialog(onClose)
 
     expect(capturedFormProps.current).not.toBeNull()
-    expect(capturedFormProps.current.defaultValues).toEqual({
-      name: 'Old Name',
-      icon: 'ipfs://oldiconcid',
-      description: 'Existing description',
-    })
+    expect(capturedFormProps.current.initialName).toBe('Old Name')
+    expect(capturedFormProps.current.initialImageUrl).toBe('daemon:ipfs://oldiconcid')
+    expect(capturedFormProps.current.showDescription).toBe(false)
 
     await act(async () => {
-      await capturedFormProps.current.onSubmit({
-        name: 'New Name',
-        icon: 'ipfs://oldiconcid',
-        description: 'Updated description',
-      })
+      await capturedFormProps.current.onSubmit({name: 'New Name'})
     })
 
     expect(fileUploadMock).not.toHaveBeenCalled()
@@ -158,7 +156,7 @@ describe('EditProfileDialog', () => {
       profile: {
         name: 'New Name',
         icon: 'ipfs://oldiconcid',
-        description: 'Updated description',
+        description: 'Existing description',
       },
       signingKeyName: ACCOUNT_UID,
     })
@@ -170,14 +168,14 @@ describe('EditProfileDialog', () => {
     cleanup(root, container, queryClient)
   })
 
-  it('uploads a new icon blob and passes the resulting ipfs URI', async () => {
+  it('uploads a newly picked image and passes the resulting ipfs URI', async () => {
     useAccountMock.mockReturnValue({
       isLoading: false,
       data: {
         metadata: {
           name: 'Alice',
           icon: '',
-          summary: '',
+          summary: 'Alice bio',
         },
       },
     })
@@ -186,15 +184,13 @@ describe('EditProfileDialog', () => {
     const onClose = vi.fn()
     const {container, root, queryClient} = renderDialog(onClose)
 
-    const blob = new Blob([new Uint8Array([1, 2, 3])], {type: 'image/png'})
+    const imageFile = new File([new Uint8Array([1, 2, 3])], 'avatar.png', {type: 'image/png'})
     await act(async () => {
-      await capturedFormProps.current.onSubmit({name: 'Alice', icon: blob, description: 'Alice bio'})
+      await capturedFormProps.current.onSubmit({name: 'Alice', imageFile})
     })
 
     expect(fileUploadMock).toHaveBeenCalledTimes(1)
-    const uploadedFile = fileUploadMock.mock.calls[0][0]
-    expect(uploadedFile).toBeInstanceOf(File)
-    expect((uploadedFile as File).name).toBe('icon')
+    expect(fileUploadMock).toHaveBeenCalledWith(imageFile)
 
     expect(updateProfileMock).toHaveBeenCalledWith({
       account: ACCOUNT_UID,
@@ -224,8 +220,10 @@ describe('EditProfileDialog', () => {
     const onClose = vi.fn()
     const {container, root, queryClient} = renderDialog(onClose)
 
+    expect(capturedFormProps.current.initialImageUrl).toBe('')
+
     await act(async () => {
-      await capturedFormProps.current.onSubmit({name: 'Bob', icon: null, description: ''})
+      await capturedFormProps.current.onSubmit({name: 'Bob'})
     })
 
     expect(fileUploadMock).not.toHaveBeenCalled()
@@ -244,7 +242,7 @@ describe('EditProfileDialog', () => {
     const {container, root, queryClient} = renderDialog(() => {})
 
     expect(container.querySelector('[data-testid="spinner"]')).not.toBeNull()
-    expect(container.querySelector('[data-testid="edit-profile-form"]')).toBeNull()
+    expect(container.querySelector('[data-testid="account-profile-form"]')).toBeNull()
 
     cleanup(root, container, queryClient)
   })

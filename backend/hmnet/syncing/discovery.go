@@ -127,9 +127,10 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	}
 	endSession := syncperf.Default.SessionStart(sessionSite)
 	outcome := "notfound"
+	exhaustive := false
 	defer func() {
 		endSession()
-		s.recordWaveYield(entityID, recursive, prog.BlobsDownloaded.Load())
+		s.recordWaveYield(entityID, recursive, exhaustive, prog.BlobsDownloaded.Load())
 		if resultErr != nil {
 			outcome = "error"
 		}
@@ -239,7 +240,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	// that exists, which is why the exhaustive probe periodically (and on user
 	// interest) overrides them — see shouldRunExhaustive.
 	exhaustiveTrigger := s.shouldRunExhaustive(entityID, recursive, time.Now())
-	exhaustive := exhaustiveTrigger != ""
+	exhaustive = exhaustiveTrigger != ""
 	if exhaustive {
 		// Tag the connected-phase context so syncWithManyPeers runs every peer
 		// tier instead of stopping at a satisfied authority. The DHT phase
@@ -248,12 +249,13 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		MDiscoverExhaustiveWaves.WithLabelValues(exhaustiveTrigger).Inc()
 	}
 	haveLocally := false
+	quiet := false
 	if !exhaustive {
-		// Only recursive waves feed the quiet counter (recordWaveYield), so
-		// only recursive waves may consult it: a one-shot or depth-one
-		// discovery for the same IRI must not inherit the subscription's
-		// narrowed peer set.
-		haveLocally = recursive && s.scopeIsQuiet(entityID)
+		// The quiet verdict is per scope shape: a one-shot or depth-one
+		// discovery for the same IRI keeps its own counter and does not
+		// inherit the subscription's narrowed peer set (or vice versa).
+		quiet = s.scopeIsQuiet(entityID, recursive)
+		haveLocally = quiet
 		if !haveLocally && s.resources != nil {
 			if _, gerr := s.resources.GetResource(ctxLocalPeers, &docspb.GetResourceRequest{
 				Iri: string(entityID),
@@ -627,7 +629,19 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		//
 		// Skipped when the caller already narrowed blobTypes (e.g. an avatar
 		// fetch); that path goes straight to its single scoped sync below.
-		if len(blobTypes) == 0 && recursive {
+		//
+		// Also skipped once the scope has gone quiet — its last waves fetched
+		// nothing, so there is no directory left to assemble. Structure-first
+		// ordering only buys anything while the view is still catching up; on
+		// a converged scope the directory pass reconciles a subset of what the
+		// full pass reconciles again a moment later, and each pass is its own
+		// dial, auth resolve, store build and RBSR session against every peer.
+		// That doubled the steady-state cost of every subscription wave for
+		// nothing. Deliberately gated on quiet, not on the resource resolving
+		// locally: a home fetched on its own still needs its children fast when
+		// the subscription arrives. Exhaustive waves are never quiet, so they
+		// still run both passes.
+		if len(blobTypes) == 0 && recursive && !quiet {
 			dirScope := entityScope{DepthOne: true, StructureOnly: true}
 			if dStore, derr := buildStore(ctxLocalPeers, dirScope, docStructureTypes); derr != nil {
 				s.log.Debug("root-first directory store load failed", zap.Error(derr))

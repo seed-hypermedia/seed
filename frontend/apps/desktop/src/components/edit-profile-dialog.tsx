@@ -3,8 +3,9 @@ import {fileUpload} from '@/utils/file-upload'
 import {queryKeys} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
+import {AccountProfileForm, type AccountProfileFormValues} from '@shm/ui/components/account-profile-form'
 import {DialogTitle} from '@shm/ui/components/dialog'
-import {EditProfileForm, SiteMetaFields} from '@shm/ui/edit-profile-form'
+import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -18,21 +19,19 @@ export function EditProfileDialog({onClose, input}: {onClose: () => void; input:
   const account = useAccount(accountUid)
   const metadata = account.data?.metadata ?? undefined
 
-  async function handleSubmit(updates: SiteMetaFields) {
-    let iconUri = ''
-    if (updates.icon instanceof Blob) {
-      const cid = await fileUpload(new File([updates.icon], 'icon'))
+  async function handleSubmit({name, imageFile}: AccountProfileFormValues) {
+    let iconUri = metadata?.icon || ''
+    if (imageFile) {
+      const cid = await fileUpload(imageFile)
       iconUri = `ipfs://${cid}`
-    } else if (typeof updates.icon === 'string' && updates.icon) {
-      iconUri = updates.icon
     }
 
     await grpcClient.documents.updateProfile({
       account: accountUid,
       profile: {
-        name: updates.name ?? '',
+        name,
         icon: iconUri,
-        description: updates.description ?? '',
+        description: metadata?.summary ?? '',
       },
       signingKeyName: accountUid,
     })
@@ -58,12 +57,11 @@ export function EditProfileDialog({onClose, input}: {onClose: () => void; input:
   return (
     <>
       <DialogTitle>Edit Profile</DialogTitle>
-      <EditProfileForm
-        defaultValues={{
-          name: metadata?.name || '',
-          icon: metadata?.icon || null,
-          description: metadata?.summary || '',
-        }}
+      <AccountProfileForm
+        initialName={metadata?.name || ''}
+        initialImageUrl={metadata?.icon ? getDaemonFileUrl(metadata.icon) : ''}
+        showDescription={false}
+        submitLabel="Save"
         onSubmit={handleSubmit}
       />
     </>

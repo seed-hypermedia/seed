@@ -862,6 +862,12 @@ export type ListSessions = {
    * them under their parents). Absent/true returns every session, which keeps older clients whole.
    */
   includeChildren?: boolean
+  /**
+   * Pass true to leave out sessions a trigger started (the ones listed with `startedByTrigger`).
+   * Filtered before paging, so a page holds only person-started chats even when triggers outnumber
+   * them a hundred to one. Older servers ignore it, so clients still filter what comes back.
+   */
+  excludeTriggered?: boolean
 }
 
 /** Loads one run. */

@@ -14,12 +14,14 @@ import {Input} from '@shm/ui/components/input'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
+import type {ImageCropConfig} from '@shm/ui/image-crop-dialog'
+import {ImageForm} from '@shm/ui/image-form'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {Bot, Image as ImageIcon, Navigation as NavigationIcon, Plus, Users} from 'lucide-react'
-import {type ReactNode, useState} from 'react'
+import {Bot, Image as ImageIcon, Navigation as NavigationIcon, Users} from 'lucide-react'
+import {type ReactNode, useEffect, useState} from 'react'
 
 // Tabs of the site settings page
 type SiteSettingsSection = 'identity' | 'navigation' | 'members' | 'agents'
@@ -171,17 +173,22 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
           value={logoValue}
           onChange={setLogo}
           onClear={() => setLogo(null)}
-          className="h-[100px] w-[100px]"
+          height={100}
+          width={100}
+          crop={{aspect: 1, maxDimension: 512}}
         />
       </SettingsField>
 
       <SettingsField label="Home cover image" hint="Recommended 1600 × 400px. JPG or PNG.">
-        <ImagePicker
-          value={coverValue}
-          onChange={setCover}
-          onClear={() => setCover(null)}
-          className="h-[160px] w-full max-w-2xl"
-        />
+        <div className="max-w-2xl">
+          <ImagePicker
+            value={coverValue}
+            onChange={setCover}
+            onClear={() => setCover(null)}
+            height={160}
+            crop={{aspect: 4, maxDimension: 1600, format: 'image/jpeg'}}
+          />
+        </div>
       </SettingsField>
     </>
   )
@@ -214,49 +221,42 @@ function ImagePicker({
   value,
   onChange,
   onClear,
-  className,
+  height,
+  width,
+  crop,
 }: {
   value: ImageValue
   onChange: (file: File) => void
   onClear: () => void
-  className?: string
+  height: number
+  width?: number
+  crop?: ImageCropConfig
 }) {
-  const previewUrl = value ? (value instanceof File ? URL.createObjectURL(value) : getDaemonFileUrl(value)) : null
+  // Created inside the effect so React's development double mount, which runs
+  // the cleanup once before settling, cannot leave a revoked URL behind.
+  const [pickedUrl, setPickedUrl] = useState('')
+  useEffect(() => {
+    if (!(value instanceof File)) {
+      setPickedUrl('')
+      return
+    }
+    const objectUrl = URL.createObjectURL(value)
+    setPickedUrl(objectUrl)
+    return () => URL.revokeObjectURL(objectUrl)
+  }, [value])
+  const previewUrl = value instanceof File ? pickedUrl : value ? getDaemonFileUrl(value) : ''
   return (
-    <div
-      className={cn(
-        'group border-border bg-muted/40 relative flex cursor-pointer items-center justify-center overflow-hidden rounded-md border-2 border-dashed hover:border-neutral-400 dark:hover:border-neutral-500',
-        className,
-      )}
-    >
-      <input
-        type="file"
-        accept="image/png,image/jpeg"
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          if (file) onChange(file)
-          e.target.value = ''
-        }}
-        className="absolute inset-0 z-10 cursor-pointer opacity-0"
-      />
-      {previewUrl ? (
-        <img src={previewUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
-      ) : (
-        <Plus className="text-muted-foreground size-6" />
-      )}
-      {value ? (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            onClear()
-          }}
-          className="absolute top-1 right-1 z-20 rounded bg-black/60 px-1.5 py-0.5 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100"
-        >
-          Remove
-        </button>
-      ) : null}
-    </div>
+    <ImageForm
+      url={previewUrl}
+      height={height}
+      width={width}
+      uploadOnChange={false}
+      crop={crop}
+      onImageUpload={(file) => {
+        if (file instanceof File) onChange(file)
+      }}
+      onRemove={onClear}
+    />
   )
 }
 

@@ -751,8 +751,9 @@ function useProgressiveChunk<T>(items: T[]) {
   const [visibleCount, setVisibleCount] = useState(() => Math.min(items.length, INITIAL_LIST_CHUNK_SIZE))
   const sentinelRef = useRef<HTMLDivElement>(null)
 
+  // Clamp rather than reset.
   useEffect(() => {
-    setVisibleCount(Math.min(items.length, INITIAL_LIST_CHUNK_SIZE))
+    setVisibleCount((count) => Math.min(Math.max(count, INITIAL_LIST_CHUNK_SIZE), items.length))
   }, [items])
 
   useEffect(() => {

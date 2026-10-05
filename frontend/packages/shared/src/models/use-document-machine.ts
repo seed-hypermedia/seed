@@ -147,6 +147,10 @@ export function DocumentMachineProvider({input, machine, inspect, children}: Doc
             })
             editorHandlersRef.current?.replaceCurrentContent?.(context.editorBaseline)
           },
+          pushPublishedContentToEditor: ({context}) => {
+            const publishedContent = hmBlocksToEditorContent(context.document?.content ?? [], {childrenType: 'Group'})
+            editorHandlersRef.current?.replaceCurrentContent?.(publishedContent)
+          },
           applyExternalDraftState: enqueueActions(({context, event, enqueue}) => {
             if (
               event.type !== 'draft.externallyModified' ||
