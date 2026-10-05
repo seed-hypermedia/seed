@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   session: undefined as any,
   contents: [] as any[],
   save: vi.fn(),
+  message: vi.fn(),
 }))
 vi.mock('electron', async () => {
   const {EventEmitter} = await import('node:events')
@@ -28,7 +29,7 @@ vi.mock('electron', async () => {
   return {
     app: mocks.app,
     BrowserWindow: {fromWebContents: () => null},
-    dialog: {showSaveDialogSync: mocks.save},
+    dialog: {showSaveDialogSync: mocks.save, showMessageBoxSync: mocks.message},
     session: {fromPartition: () => mocks.session},
     webContents: {getAllWebContents: () => mocks.contents},
   }
@@ -39,6 +40,7 @@ import {
   clearBrowserData,
   hardenBrowserPreferences,
   hardenGuestWebContents,
+  isDangerousDownload,
   setupBrowserSessionPolicy,
 } from '../browser-session-policy'
 
@@ -158,4 +160,28 @@ it('keeps WebRTC on the public interface for every guest', () => {
   const guest = {setWebRTCIPHandlingPolicy: vi.fn()} as unknown as WebContents
   hardenGuestWebContents(guest)
   expect(guest.setWebRTCIPHandlingPolicy).toHaveBeenCalledWith('default_public_interface_only')
+})
+it('asks twice before saving a file that can run programs', () => {
+  expect(isDangerousDownload('setup.EXE')).toBe(true)
+  expect(isDangerousDownload('notes.txt')).toBe(false)
+  expect(isDangerousDownload('archive.tar.gz')).toBe(false)
+  setupBrowserSessionPolicy()
+  const contents = new EventEmitter() as WebContents
+  browserUserGesture(contents)
+  const event = {preventDefault: vi.fn()}
+  const item = {getFilename: () => 'tool.dmg', getURL: () => 'https://downloads.example/tool.dmg', setSavePath: vi.fn()}
+  mocks.message.mockReturnValue(0)
+  mocks.save.mockClear()
+  contents.emit('input-event', {}, {type: 'mouseDown'})
+  mocks.session.emit('will-download', event, item, contents)
+  expect(mocks.message).toHaveBeenCalledOnce()
+  expect(mocks.message.mock.calls[0]![0].message).toContain('downloads.example')
+  expect(event.preventDefault).toHaveBeenCalledOnce()
+  expect(mocks.save).not.toHaveBeenCalled()
+  mocks.message.mockReturnValue(1)
+  mocks.save.mockReturnValue('/chosen/tool.dmg')
+  contents.emit('input-event', {}, {type: 'mouseDown'})
+  mocks.session.emit('will-download', event, item, contents)
+  expect(mocks.save).toHaveBeenCalledOnce()
+  expect(item.setSavePath).toHaveBeenCalledWith('/chosen/tool.dmg')
 })

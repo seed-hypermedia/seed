@@ -68,6 +68,46 @@ export function hardenBrowserPreferences(preferences: WebPreferences) {
   } satisfies WebPreferences)
 }
 
+/** File types that run code when opened; a download of one needs a second, explicit confirmation. */
+const DANGEROUS_EXTENSIONS = new Set([
+  'exe',
+  'msi',
+  'bat',
+  'cmd',
+  'com',
+  'scr',
+  'ps1',
+  'vbs',
+  'js',
+  'jse',
+  'wsf',
+  'hta',
+  'reg',
+  'dmg',
+  'pkg',
+  'app',
+  'command',
+  'sh',
+  'bash',
+  'zsh',
+  'run',
+  'bin',
+  'deb',
+  'rpm',
+  'appimage',
+  'jar',
+  'apk',
+  'iso',
+  'img',
+  'lnk',
+  'url',
+  'desktop',
+])
+export function isDangerousDownload(filename: string): boolean {
+  const extension = filename.toLowerCase().split('.').pop() ?? ''
+  return DANGEROUS_EXTENSIONS.has(extension)
+}
+
 let installed = false
 /** Installs partition-scoped permission, certificate and download rules once per process. */
 export function setupBrowserSessionPolicy() {
@@ -104,13 +144,30 @@ export function setupBrowserSessionPolicy() {
       event.preventDefault()
       return
     }
+    const owner = BrowserWindow.fromWebContents(contents)
+    if (isDangerousDownload(item.getFilename())) {
+      const warning: Electron.MessageBoxSyncOptions = {
+        type: 'warning',
+        buttons: ['Cancel', 'Download anyway'],
+        defaultId: 0,
+        cancelId: 0,
+        title: 'This file can run programs on your computer',
+        message: `"${item.getFilename()}" is a type of file that can run programs. Only download it if you trust ${
+          new URL(item.getURL()).host
+        }.`,
+      }
+      const choice = owner ? dialog.showMessageBoxSync(owner, warning) : dialog.showMessageBoxSync(warning)
+      if (choice !== 1) {
+        event.preventDefault()
+        return
+      }
+    }
     // Resolve synchronously inside will-download so Chromium cannot pick a path first.
     const options: Electron.SaveDialogOptions = {
       title: 'Save browser download',
       defaultPath: basename(item.getFilename()),
       properties: ['showOverwriteConfirmation'],
     }
-    const owner = BrowserWindow.fromWebContents(contents)
     const path = owner ? dialog.showSaveDialogSync(owner, options) : dialog.showSaveDialogSync(options)
     if (!path) event.preventDefault()
     else item.setSavePath(path)

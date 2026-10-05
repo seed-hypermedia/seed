@@ -43,8 +43,10 @@ export function trackBrowserNetwork(guest: WebContents) {
 /** Observes the actual main-frame peer IP, never subresource or other-session responses. */
 export function setupBrowserNetworkPolicy(browserSession: Session) {
   browserSession.webRequest.onBeforeRequest((details, callback) => {
-    // Public pages get no requests into localhost or the local network, not even for images.
-    if (details.initiator && !isPrivateHost(details.initiator) && isPrivateHost(details.url)) {
+    // Public pages get no sub-requests into localhost or the local network, not even for images.
+    // Main-frame navigations are judged in will-navigate, so typed addresses keep working.
+    const source = details.frame?.url || details.referrer || ''
+    if (details.resourceType !== 'mainFrame' && source && !isPrivateHost(source) && isPrivateHost(details.url)) {
       callback({cancel: true})
       return
     }

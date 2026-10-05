@@ -167,17 +167,23 @@ it('keeps public pages off the local network, while local pages may link locally
   )
   const cancel = vi.fn()
   mocks.networkCallbacks.onBeforeRequest!(
-    {id: 1, url: 'http://192.168.1.1/pixel.png', initiator: 'https://example.com', resourceType: 'image'},
+    {id: 1, url: 'http://192.168.1.1/pixel.png', frame: {url: 'https://example.com/'}, resourceType: 'image'},
     cancel,
   )
   expect(cancel).toHaveBeenCalledWith({cancel: true})
   const allow = vi.fn()
   mocks.networkCallbacks.onBeforeRequest!(
-    {id: 2, url: 'http://192.168.1.1/pixel.png', initiator: 'http://localhost:3000', resourceType: 'image'},
+    {id: 2, url: 'http://192.168.1.1/pixel.png', frame: {url: 'http://localhost:3000/'}, resourceType: 'image'},
     allow,
   )
   expect(allow).toHaveBeenCalledWith({})
-  guest.getURL = () => 'http://localhost:3000/'
+  const typed = vi.fn()
+  mocks.networkCallbacks.onBeforeRequest!(
+    {id: 3, url: 'http://127.0.0.1:3000/', frame: {url: 'https://example.com/'}, resourceType: 'mainFrame'},
+    typed,
+  )
+  expect(typed).toHaveBeenCalledWith({})
+  ;(guest as {getURL: () => string}).getURL = () => 'http://localhost:3000/'
   event.preventDefault.mockClear()
   guest.emit('will-navigate', event, 'http://localhost:3000/next')
   expect(event.preventDefault).not.toHaveBeenCalled()
