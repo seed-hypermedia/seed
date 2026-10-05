@@ -202,8 +202,10 @@ describe('durable sessions', () => {
     }) as unknown as typeof fetch
 
     await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'First question'}]})
-    // The clock moves between turns; nothing the model already read may change because of it.
+    // The clock moves between turns and so does the agent's Space; nothing the model already read
+    // may change because of either.
     await Bun.sleep(5)
+    await h.send({_: 'WriteAgentMemoryFile', agentId: h.agentId, path: 'notes/new.md', content: 'hello'})
     await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Second question'}]})
 
     expect(requests).toHaveLength(2)
@@ -218,7 +220,14 @@ describe('durable sessions', () => {
     expect(transcript[0]).toContain('First question')
     expect(transcript[1]).toBe('assistant:Answer 1')
     expect(transcript[2]).toContain('Second question')
-    // Per-turn state rides behind each turn's own input and is never stored: one clock per request.
+    // Per-turn state rides behind each turn's own input and is never stored: one Space index and
+    // one clock per request, each as things stand when the turn starts.
+    const spaces = second.filter((message) => String(message.content).startsWith('<space>'))
+    expect(spaces).toHaveLength(1)
+    expect(String(spaces[0]?.content)).toContain('notes/(1)')
+    expect(String(first.find((message) => String(message.content).startsWith('<space>'))?.content)).toContain(
+      'memory/ — empty',
+    )
     expect(second.filter((message) => String(message.content).startsWith('<current_time>'))).toHaveLength(1)
     expect(String(second.at(-1)?.content)).toStartWith('<current_time>')
 
@@ -481,6 +490,36 @@ describe('durable sessions', () => {
     expect(entries.filter((entry) => durable.ResetEntry.is(entry))).toHaveLength(1)
   })
 
+  test('deleting a session under a streaming turn ends the turn instead of leaving it running', async () => {
+    let markStreaming = () => {}
+    const streaming = new Promise<void>((resolve) => {
+      markStreaming = resolve
+    })
+    const h = await createSession({
+      onEvent: (event) => {
+        if (event.type === 'session-partial' && event.textDelta) markStreaming()
+      },
+    })
+    globalThis.fetch = mock(async () => {
+      const first = {id: 'chat-1', choices: [{index: 0, delta: {role: 'assistant', content: 'The long answer begins'}}]}
+      const body = new ReadableStream<Uint8Array>({
+        start: (controller) => controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(first)}\n\n`)),
+      })
+      return new Response(body, {headers: {'content-type': 'text/event-stream'}})
+    }) as unknown as typeof fetch
+
+    const turn = h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Explain'}]})
+    await streaming
+    // The session's rows go at once; the turn's own abort then finds its store gone.
+    await h.send({_: 'DeleteSession', sessionId: h.sessionId})
+    await turn.catch(() => {})
+    await h.service.awaitQueueIdle()
+
+    const statuses = h.db.query<{status: string}, []>(`SELECT status FROM runs`).all()
+    expect(statuses.map((row) => row.status)).toEqual(['canceled'])
+    expect(storeRows(h)).toHaveLength(0)
+  })
+
   test('an image a tool showed the model stays out of the store and out of later turns', async () => {
     const h = await createSession({model: 'gpt-4o'})
     const image = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
@@ -558,6 +597,12 @@ describe('durable sessions', () => {
     expect(String(resumed[resultAt]?.content)).not.toContain('Still running in the background')
     expect(resumed[resultAt - 1]?.role).toBe('assistant')
     expect(resumed.some((message) => String(message.content).startsWith('<background_work_update>'))).toBe(true)
+    // Parking and resuming leaves the system prompt as it was: how many children are left is
+    // state of the turn, not of the prompt.
+    expect(resumed[0]).toEqual(parentRequests[0]?.[0])
+    const budget = resumed.find((message) => String(message.content).startsWith('<delegation_budget>'))
+    expect(String(budget?.content)).toContain('9 more children')
+    expect(parentRequests[0]?.some((message) => String(message.content).startsWith('<delegation_budget>'))).toBe(false)
 
     // The conversation was filled from the log once, on its first turn, and never rebuilt: the
     // result arrived as an edit of the placeholder entry, and the response that made the call is
@@ -637,6 +682,147 @@ describe('durable sessions', () => {
     expect(answers.map((message) => message.content)).toEqual(['Answer 1', 'Answer 2'])
     const entries = await durableEntries(h)
     expect(entries.filter((entry) => durable.ResetEntry.is(entry))).toHaveLength(1)
+  })
+
+  test('a message queued behind a turn that takes a second pass is put to the model once, by its own run', async () => {
+    const h = await createSession()
+    const requests: ChatMessage[][] = []
+    let release = () => {}
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let markSecondRequest = () => {}
+    const secondRequest = new Promise<void>((resolve) => {
+      markSecondRequest = resolve
+    })
+    const plan = (status: string) => ({steps: [{id: 's1', label: 'Do the thing', status}]})
+    globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+      requests.push(providerMessages(init))
+      const request = requests.length
+      if (request === 1) return toolCallReply('chat-1', 'plan-1', 'plan', plan('pending'))
+      if (request === 2) {
+        markSecondRequest()
+        await gate
+        // The turn ends with its plan still open, so the run takes another pass.
+        return textReply('chat-2', 'Working on it.')
+      }
+      if (request === 3) return toolCallReply('chat-3', 'plan-3', 'plan', plan('done'))
+      return textReply(`chat-${request}`, `Answer ${request}`)
+    }) as unknown as typeof fetch
+
+    const first = h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Question one'}]})
+    await secondRequest
+    const second = h.send({
+      _: 'MessageSession',
+      sessionId: h.sessionId,
+      content: [{type: 'text', text: 'Question two'}],
+    })
+    const userMessages = () =>
+      eventRows(h.db, h.sessionId).filter((row) => row.type === 'message' && row.role === 'user').length
+    while (userMessages() < 2) await Bun.sleep(1)
+    release()
+    await Promise.all([first, second])
+    await h.service.awaitQueueIdle()
+
+    // Two requests for the first pass, two for the pass its open plan caused, one for the message
+    // that waited. The second pass does not read that message; its own run does, after it.
+    expect(requests).toHaveLength(5)
+    const mentions = requests.map(
+      (request) => request.filter((message) => String(message.content).includes('Question two')).length,
+    )
+    expect(mentions).toEqual([0, 0, 0, 0, 1])
+    const last = (requests[4] ?? []).map((message) => String(message.content))
+    expect(last.findIndex((content) => content.includes('Question two'))).toBeGreaterThan(
+      last.findIndex((content) => content === 'Answer 4'),
+    )
+    expect(last.some((content) => content.includes('<concurrent_user_messages>'))).toBe(false)
+    const entries = await durableEntries(h)
+    expect(entries.filter((entry) => durable.ResetEntry.is(entry))).toHaveLength(1)
+  })
+
+  test('a run restarted after the answer of its second pass does not ask the model again', async () => {
+    const h = await createSession()
+    let providerRequests = 0
+    const plan = (status: string) => ({steps: [{id: 's1', label: 'Do the thing', status}]})
+    globalThis.fetch = mock(async () => {
+      providerRequests += 1
+      if (providerRequests === 1) return toolCallReply('chat-1', 'plan-1', 'plan', plan('pending'))
+      if (providerRequests === 3) return toolCallReply('chat-3', 'plan-3', 'plan', plan('done'))
+      return textReply(`chat-${providerRequests}`, `Answer ${providerRequests}`)
+    }) as unknown as typeof fetch
+    await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Only question'}]})
+    h.service.stopRunQueue()
+    expect(providerRequests).toBe(4)
+
+    // The process died after the second pass answered, before the run was closed.
+    h.db.run(
+      `UPDATE runs SET status = 'running', lease_owner = 'dead-process', finished_at = NULL, output_cbor = NULL
+         WHERE session_id = ?`,
+      [h.sessionId],
+    )
+    const restarted = new apisvc.Service(h.db, h.dataDir, {})
+    cleanups.push(() => restarted.stopRunQueue())
+    await restarted.awaitQueueIdle()
+
+    expect(providerRequests).toBe(4)
+    const run = h.db.query<{status: string}, [string]>(`SELECT status FROM runs WHERE session_id = ?`).get(h.sessionId)
+    expect(run?.status).toBe('succeeded')
+    const entries = await durableEntries(h)
+    expect(entries.filter((entry) => durable.ResetEntry.is(entry))).toHaveLength(1)
+  })
+
+  test('a call a restart cut off under another run reads the same on every later turn', async () => {
+    const h = await createSession()
+    const requests: ChatMessage[][] = []
+    let reads = 0
+    let markToolStarted = () => {}
+    const toolStarted = new Promise<void>((resolve) => {
+      markToolStarted = resolve
+    })
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = url instanceof Request ? url.url : String(url)
+      if (href.includes('/api/Resource')) {
+        reads += 1
+        if (reads > 1) return notesDocumentResponse()
+        markToolStarted()
+        return new Promise<Response>(() => {})
+      }
+      if (!href.includes('/chat/completions')) return Response.json(serialize({}))
+      requests.push(providerMessages(init))
+      return requests.length === 1
+        ? toolCallReply('chat-1', 'call-read', 'read', {address: 'hm://z6Mkdoc/notes'})
+        : textReply(`chat-${requests.length}`, `Answer ${requests.length}`)
+    }) as unknown as typeof fetch
+    void h
+      .send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'What do the notes say?'}]})
+      .catch(() => {})
+    await toolStarted
+    h.service.stopRunQueue()
+    // The run does not come back: it failed across the restart, and another run opens the store.
+    h.db.run(`UPDATE runs SET status = 'failed', lease_owner = NULL, finished_at = ? WHERE session_id = ?`, [
+      Date.now(),
+      h.sessionId,
+    ])
+    const restarted = new apisvc.Service(h.db, h.dataDir, {})
+    cleanups.push(() => restarted.stopRunQueue())
+    const send = async (action: unknown) =>
+      restarted.message(await apisvc.createSignedEnvelope(h.account, {action: action as never}))
+
+    await send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Second question'}]})
+    await restarted.awaitQueueIdle()
+    const resetsAfterSecond = (await durableEntries(h)).filter((entry) => durable.ResetEntry.is(entry)).length
+    await send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Third question'}]})
+    await restarted.awaitQueueIdle()
+
+    // The runtime's own answer for the call is in the log, and it is what the model reads from the
+    // first turn after the restart on. That turn rebuilds the context; the one after only appends.
+    const results = requests
+      .slice(1)
+      .map((request) => String(request.find((message) => message.role === 'tool')?.content))
+    expect(results).toHaveLength(2)
+    for (const result of results) expect(result).toStartWith('Interrupted by a service restart')
+    const resets = (await durableEntries(h)).filter((entry) => durable.ResetEntry.is(entry)).length
+    expect(resets).toBe(resetsAfterSecond)
   })
 
   test('a run restarted after its answer was committed does not ask the model again', async () => {

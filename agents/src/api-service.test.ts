@@ -9409,7 +9409,7 @@ describe('api service', () => {
         expect(JSON.stringify(body.messages)).not.toContain('boom')
         const realUserMessages = body.messages.filter(
           (message: {role?: string; content?: unknown}) =>
-            message.role === 'user' && !/^<(session_status|current_time)>/.test(String(message.content)),
+            message.role === 'user' && !/^<(space|session_status|current_time)>/.test(String(message.content)),
         )
         expect(realUserMessages).toHaveLength(1)
         return openAIStreamResponse([

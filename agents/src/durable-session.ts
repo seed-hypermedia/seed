@@ -57,9 +57,14 @@ const COALESCE_FILE_ROWS = 256
  * `session_durable_files`, scoped to one session. A file is the concatenation of its rows in
  * `seq` order, so the storage's appends (one per commit) are single inserts and never rewrite
  * what is already there. Only the operations that storage uses exist; any other answers
- * `not_supported`.
+ * `not_supported`. `onFailure` hears of an operation that threw (the database refused it), before
+ * the caller does.
  */
-export function sessionFileSystem(db: Database, sessionId: string): durableEnv.FileSystem {
+export function sessionFileSystem(
+  db: Database,
+  sessionId: string,
+  onFailure: (error: unknown) => void = () => {},
+): durableEnv.FileSystem {
   const bytesOf = (content: string | Uint8Array): Uint8Array =>
     typeof content === 'string' ? new TextEncoder().encode(content) : content
   const read = (file: string): Uint8Array | undefined => {
@@ -145,13 +150,22 @@ export function sessionFileSystem(db: Database, sessionId: string): durableEnv.F
       ),
   }
   return new Proxy(used as durableEnv.FileSystem, {
-    get: (target, property, receiver) =>
-      property in target
-        ? Reflect.get(target, property, receiver)
-        : async () =>
-            durableEnv.err(
-              new durableEnv.FileError('not_supported', `Session stores do not support ${String(property)}`),
-            ),
+    get: (target, property, receiver) => {
+      if (!(property in target)) {
+        return async () =>
+          durableEnv.err(new durableEnv.FileError('not_supported', `Session stores do not support ${String(property)}`))
+      }
+      const value: unknown = Reflect.get(target, property, receiver)
+      if (typeof value !== 'function') return value
+      return async (...args: unknown[]) => {
+        try {
+          return await value(...args)
+        } catch (error) {
+          onFailure(error)
+          throw error
+        }
+      }
+    },
   })
 }
 
@@ -170,6 +184,11 @@ export type SyncState = {
    * already part of the transcript. Zero means the conversation was never filled from the log.
    */
   importedSeq: number
+  /**
+   * Sequence numbers at or below `importedSeq` that were left out on purpose: messages that
+   * belong to a run still queued, which imports them when its turn comes.
+   */
+  deferred?: number[]
   /**
    * The input the newest import held back for submission. It is recorded with the import, so an
    * input that was never submitted is still known, and one that was is found by its request id.
@@ -199,8 +218,16 @@ export async function openSessionHarness(options: {
   /** Receives extension and task failures that do not fail the calling operation. */
   onReport: (error: unknown) => void
 }): Promise<durable.Harness> {
-  const storage = await durableJsonl.JsonlStorage.open('', sessionFileSystem(options.db, options.sessionId), CONTEXT)
-  return durable.Harness.open(
+  // A store operation the database refuses (the disk is full, the session's row was deleted under
+  // a running turn) leaves the session unable to commit, and nothing would ever settle what is
+  // waiting on it. Closing the harness fails those waiters, so the turn ends with an error.
+  let harness: durable.Harness | undefined
+  const storage = await durableJsonl.JsonlStorage.open(
+    '',
+    sessionFileSystem(options.db, options.sessionId, () => void harness?.close(CONTEXT).catch(() => {})),
+    CONTEXT,
+  )
+  harness = await durable.Harness.open(
     storage,
     {
       models: options.models,
@@ -218,6 +245,7 @@ export async function openSessionHarness(options: {
     },
     CONTEXT,
   )
+  return harness
 }
 
 /**

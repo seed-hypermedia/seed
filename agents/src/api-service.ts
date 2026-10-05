@@ -463,7 +463,7 @@ export type DelegationStatus = {
  * it sizes their briefs accordingly instead of discovering the limit by failing.
  */
 export function delegationPrompt(status: DelegationStatus): string {
-  const {depth, limits, childLevelsRemaining, childrenRemaining} = status
+  const {depth, limits, childLevelsRemaining} = status
   if (!status.canDelegate) {
     return `\n\nYou are a leaf worker in a delegation tree (depth ${depth} of ${limits.maxDepth}): delegation is not available to you, and there is no delegate verb. Do this work yourself, completely, then report back. Do not plan around helpers or ask for more delegation.`
   }
@@ -473,11 +473,21 @@ export function delegationPrompt(status: DelegationStatus): string {
       : `Children you delegate may delegate ${childLevelsRemaining} more level${
           childLevelsRemaining === 1 ? '' : 's'
         } below them.`
-  return `\n\nDelegation budget: you are at depth ${depth} of ${
-    limits.maxDepth
-  } and may start ${childrenRemaining} more child${childrenRemaining === 1 ? '' : 'ren'} in this run (${
-    limits.maxChildren
-  } per run; every child's result reports \`delegation.parentChildrenRemaining\`, the live count). Plan batches to fit: several items per brief, or one script child for a long list. ${childRoom}`
+  // No live count here: this paragraph is part of the system prompt, which must not change between
+  // the requests of a session (see `delegationBudgetBlock` for the number as it stands).
+  return `\n\nDelegation budget: you are at depth ${depth} of ${limits.maxDepth} and may start ${limits.maxChildren} children per run. Once you have started one, a <delegation_budget> block with each turn's input says how many are left, and every child's result reports \`delegation.parentChildrenRemaining\`. Plan batches to fit: several items per brief, or one script child for a long list. ${childRoom}`
+}
+
+/**
+ * How many children a run may still start, for the model to read with a turn's input. Absent
+ * until the run has started one: before that the system prompt's "per run" figure is the answer.
+ */
+export function delegationBudgetBlock(status: DelegationStatus): string | undefined {
+  if (!status.canDelegate || status.childrenSpawned === 0) return undefined
+  const {childrenRemaining, limits} = status
+  return `<delegation_budget>You may start ${childrenRemaining} more child${
+    childrenRemaining === 1 ? '' : 'ren'
+  } in this run (${limits.maxChildren} per run).</delegation_budget>`
 }
 
 /**
@@ -5148,6 +5158,8 @@ export class Service {
           }
         }
         if (error instanceof SessionStoppedError || runningSession.stopped) {
+          // Deleting a session stops its turn too, and then there is no log left to write to.
+          if (!this.#getSessionInfo(run.accountId, sessionId)) return {type: 'canceled', output: {assistantEventId: ''}}
           const stoppedEvent = this.#appendSessionEvent(
             run.accountId,
             run.agentId,
@@ -6987,12 +6999,16 @@ export class Service {
     )}\n</conversation_members>`
   }
 
-  /** Builds the model-facing system prompt; `stateDir` enables the automatic memory listing. */
+  /**
+   * Builds the model-facing system prompt. Nothing in it may depend on what a session has done so
+   * far or on the state of the agent's Space: it is the prefix every request of a session shares,
+   * and a provider's prompt cache holds only while it repeats byte for byte. State that moves (the
+   * Space index, the plan, the delegation budget left, the clock) rides with each turn's input.
+   */
   async #agentSystemPrompt(
     accountId: string,
     agentId: string,
     definition: api.AgentDefinition,
-    stateDir?: string,
     runPromptProfile?: Pick<SubSessionSpec, 'systemPrompt' | 'includeAgentSystemPrompt' | 'prompt'>,
     /** Where this turn's run sits in its delegation tree; absent for runless prompt previews. */
     delegation?: DelegationStatus,
@@ -7045,11 +7061,6 @@ export class Service {
     const sharedPrompt = seedAssistantSystemPrompt()
     const memoryPrompt =
       '\n\nYou have a private persistent memory filesystem shared across all of your sessions, addressed as ~/memory/ through your read and write verbs. Your user can also browse and edit these files. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example ~/memory/notes/topic.md); update files by reading them and writing back the full revised content. `write` with {fromUrl} downloads web files (including binary media) into memory; `read ipfs://<cid>` fetches by CID; `write ipfs://` with {fromPath} publishes a memory file to IPFS and returns an ipfs:// URL for use in Hypermedia content (the gateway serves such a blob only once a published document or comment references it, so an ipfs:// URL alone does not display in chat). To show your user an image or other file from memory in this conversation, reference its memory path in markdown: `![caption](~/memory/path/to/image.png)`; the chat renders it inline for the owner. A markdown link `[label](~/memory/<path>)` — or a mermaid `click NodeId "~/memory/<path>"` target — opens that file in your user\'s Memory view when clicked. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can read one with `read attachment:<id>` or save it with `write ~/memory/<path>` and {fromAttachment}.'
-    const codeExecAvailable = (await this.#codeExec.availability()).available
-    const callables = enabledCallableTools(definition, codeExecAvailable)
-    const spaceIndex = stateDir
-      ? `\n\n${buildSpaceIndex({db: this.#db, accountId, agentId, stateDir, callableTools: callables})}`
-      : ''
     const userActionsPrompt =
       '\n\nYour user holds the same verbs you do, on this same conversation log. Entries tagged <user_action>/<user_action_result> are actions the user ran themselves — read their results as shared ground truth you can build on without re-running them.'
     const continuationPrompt = `\n\n${SESSION_CONTINUATION_PROMPT}`
@@ -7067,7 +7078,7 @@ export class Service {
       : ''
     const conversationMembersPrompt = await this.#conversationMembersPrompt(accountId, agentId)
     const delegationParagraph = delegation ? delegationPrompt(delegation) : ''
-    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${modelChoicePrompt}${delegationParagraph}${userActionsPrompt}${continuationPrompt}${conversationMembersPrompt}${spaceIndex}`
+    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${modelChoicePrompt}${delegationParagraph}${userActionsPrompt}${continuationPrompt}${conversationMembersPrompt}`
     if (!signingKeys.length) return basePrompt
     const identities = signingKeys.flatMap((name) => {
       const row = stmt<{metadata_cbor: Uint8Array | null}, [string, string]>(
@@ -7214,7 +7225,6 @@ export class Service {
       accountId,
       session.agentId,
       definition,
-      agentStateDir,
       run ? this.#spawnContextForRun(run).spec : undefined,
       delegation,
     )
@@ -7422,8 +7432,9 @@ export class Service {
       this.#retireSettledSessionPlan(accountId, sessionId, planAtTurnStart)
     }
     /**
-     * State the model should read with this turn's input, none of it transcript: the checklist,
-     * how full the context is (only where continuing is possible; a delegated child has no use for
+     * State the model should read with this turn's input, none of it transcript: the Space index
+     * (what it can read, call and write right now), how many children it may still start, the
+     * checklist, how full the context is (only where continuing is possible; a delegated child has no use for
      * the number), what the session is currently called and said to be doing (so the status verb
      * is a change the model makes on purpose rather than a restatement it makes by habit), and the
      * time. Rendered once per turn, placed right behind the input on every request of the turn,
@@ -7432,6 +7443,14 @@ export class Service {
      */
     const turnStateMessages = (): piAi.UserMessage[] => {
       const blocks = [
+        buildSpaceIndex({
+          db: this.#db,
+          accountId,
+          agentId: session.agentId,
+          stateDir: agentStateDir,
+          callableTools: enabledCallables,
+        }),
+        run ? delegationBudgetBlock(this.#delegationStatus(run)) : undefined,
         planStateBlock(this.#storedSessionPlan(accountId, sessionId)),
         canContinueSession ? contextUsageBlock(this.#lastPromptTokens(sessionId), model.contextWindow) : undefined,
         sessionStatusBlock(this.#getSessionInfo(accountId, sessionId)),
@@ -8076,22 +8095,47 @@ export class Service {
         ? runInput.userEventIds.filter((id): id is string => typeof id === 'string')
         : [],
     )
+    const deferred = new Set(sync.deferred ?? [])
     const unimported = stmt<SessionEventRow, [string, number]>(
       this.#db,
       `SELECT id, session_id, seq, event_cbor, created_at FROM session_events
          WHERE session_id = ? AND seq > ? AND pi_entry_id IS NULL ORDER BY seq ASC`,
     )
-      .all(sessionId, sync.importedSeq)
+      .all(sessionId, Math.min(sync.importedSeq, ...[...deferred].map((seq) => seq - 1)))
       .map(sessionEventRowToInfo)
+      .filter((event) => event.seq > sync.importedSeq || deferred.has(event.seq))
     const maxSeq =
       stmt<{seq: number}, [string]>(
         this.#db,
         `SELECT COALESCE(MAX(seq), 0) AS seq FROM session_events WHERE session_id = ?`,
       ).get(sessionId)?.seq ?? 0
-    // A message that arrived after this run's own has a run of its own queued behind this one.
+    // What a person wrote is put to the model by the run queued for it, once. So this import leaves
+    // behind a message that arrived after this run's own, and one that belongs to another run still
+    // waiting its turn (this run may be on a later pass, long after its own message went in).
+    // Everything else, such as a child's result or a call the runtime answered, goes in now.
+    const queuedForOthers = new Set(
+      run
+        ? runs
+            .listLiveSessionRuns(this.#db, run.accountId, sessionId)
+            .filter((other) => other.id !== run.id)
+            .flatMap((other) =>
+              isRecord(other.input) && Array.isArray(other.input.userEventIds) ? other.input.userEventIds : [],
+            )
+        : [],
+    )
     const ownNewest = unimported.findLast((event) => runEventIds.has(event.id))
-    const pending = ownNewest ? unimported.filter((event) => event.seq <= ownNewest.seq) : unimported
-    const importedThrough = ownNewest ? ownNewest.seq : maxSeq
+    const left = new Set(
+      unimported
+        .filter(
+          (event) =>
+            !runEventIds.has(event.id) &&
+            userEventReplayMessage(event) !== undefined &&
+            (queuedForOthers.has(event.id) || (ownNewest !== undefined && event.seq > ownNewest.seq)),
+        )
+        .map((event) => event.id),
+    )
+    const pending = unimported.filter((event) => !left.has(event.id))
+    const leftSeqs = unimported.filter((event) => left.has(event.id)).map((event) => event.seq)
     // Strict JSON, as durable state requires: no undefined, nothing but plain data.
     const entryOf = (message: unknown): {model: piAi.Message[]} => ({model: [JSON.parse(JSON.stringify(message))]})
     const newInput = (content: string, eventId: string | undefined): durableSession.TurnInput => ({
@@ -8150,13 +8194,15 @@ export class Service {
     } else if (
       submitted?.type === 'input' &&
       submitted.status === 'done' &&
-      recorded?.eventId !== undefined &&
-      runEventIds.has(recorded.eventId) &&
+      recorded !== undefined &&
+      ((recorded.eventId !== undefined && runEventIds.has(recorded.eventId)) ||
+        (run !== undefined && recorded.requestId.startsWith(`run:${run.id}:`))) &&
       appended.length === 0 &&
       late.length === 0 &&
       (appendable || sync.importedSeq === 0)
     ) {
-      // Nothing new, and the newest input the conversation answered is this run's own message.
+      // Nothing new, and the newest input the conversation answered is this run's own: its message,
+      // or what a later pass of it submitted (an open obligation, the results of its children).
       return {answered: submitted}
     }
 
@@ -8219,13 +8265,14 @@ export class Service {
         }
         if (edits.length > 0) await tx.appendEntry(durableSession.ReplayEntry, conversation.id, {edits})
         const doc = await tx.doc(durableSession.SyncDoc, conversation.id)
-        doc.importedSeq = importedThrough
+        doc.importedSeq = maxSeq
+        doc.deferred = leftSeqs
         doc.input = input
       }, durableSession.CONTEXT)
       return input
     }
 
-    const replay = this.#piMessages(sessionId)
+    const replay = this.#piMessages(sessionId, left)
     const queuedUserEventIds = runInput?.queuedBehindAnotherTurn === true ? [...runEventIds] : []
     // A concurrent collaborator's message is appended immediately, even while the preceding
     // assistant response is still streaming. That means durable ordering can be user B, then the
@@ -8277,7 +8324,7 @@ export class Service {
       )
         .all(sessionId)
         .map(sessionEventRowToInfo)
-        .find((event) => userEventReplayMessage(event) !== undefined)
+        .find((event) => !left.has(event.id) && userEventReplayMessage(event) !== undefined)
       input = newInput(last.content, newestUserEvent?.id)
       replay.pop()
     } else if (!interrupted && (late.length > 0 || last?.role === 'assistant')) {
@@ -8300,12 +8347,17 @@ export class Service {
       }
       const doc = await tx.doc(durableSession.SyncDoc, conversation.id)
       doc.importedSeq = maxSeq
+      doc.deferred = leftSeqs
       doc.input = input
     }, durableSession.CONTEXT)
     return input
   }
 
-  #piMessages(sessionId: string): unknown[] {
+  /**
+   * The session's log as the messages a model reads, every tool result attached to its call.
+   * `left` names events to leave out: messages another run will put to the model itself.
+   */
+  #piMessages(sessionId: string, left: ReadonlySet<string> = new Set()): unknown[] {
     const events = stmt<SessionEventRow, [string, number]>(
       this.#db,
       `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? AND seq > ? ORDER BY seq ASC`,
@@ -8409,6 +8461,7 @@ export class Service {
     }
 
     for (const event of events) {
+      if (left.has(event.id)) continue
       const value = event.event as {
         type?: string
         role?: string
@@ -8751,7 +8804,15 @@ export class Service {
         this.#sessionContinuationLinks(accountId, sessionId),
       ),
       events,
-      systemPromptMarkdown: await this.#agentSystemPrompt(accountId, agent.id, definition, agent.state_dir),
+      // What the agent is told, as a person would want to read it: the prompt, then the Space
+      // index the model gets with each turn's input.
+      systemPromptMarkdown: `${await this.#agentSystemPrompt(accountId, agent.id, definition)}\n\n${buildSpaceIndex({
+        db: this.#db,
+        accountId,
+        agentId: agent.id,
+        stateDir: agent.state_dir,
+        callableTools: enabledCallableTools(definition, (await this.#codeExec.availability()).available),
+      })}`,
       ...(triggerContext ? {triggerContext} : {}),
       ...(hasMoreBefore ? {hasMoreBefore} : {}),
       contextWindow: this.#sessionContextWindow(accountId, definition, sessionRowToInfo(session)),

@@ -22,7 +22,7 @@ A session's store lives in the agents database, in the `session_durable_files` t
   - **documents**: small JSON state committed together with entries. `pi.agent` holds the model and reasoning level, `pi.live` holds the response and tool calls in flight, and `seed.sync` holds how far the log has been imported and the input the newest import produced.
   - **tasks**: the checkpointed state machines of the turn in flight, one per model request and one per tool call.
 
-One harness owns a store at a time. Only the run that holds the session's turn opens it, at the start of the turn, and closes it at the end. Deleting the session deletes the store's rows with it. The store has the durability of the database it lives in: it survives a process crash, and the newest commits may be lost on power failure.
+One harness owns a store at a time. Only the run that holds the session's turn opens it, at the start of the turn, and closes it at the end. Deleting the session deletes the store's rows with it. A store operation the database refuses (a full disk, a session deleted under its running turn) closes the harness, so the turn ends with an error instead of waiting on a commit that can never happen. The store has the durability of the database it lives in: it survives a process crash, and the newest commits may be lost on power failure.
 
 # A turn
 
@@ -39,11 +39,11 @@ The log is the canonical record. The store is the model's view of it. They are k
 
 **From the store to the log.** One `pi.assistant` entry becomes an assistant `message` event and one `tool_call` event per call. One `pi.tool-result` entry becomes a `tool_result` event. Each of these rows carries the entry id in `session_events.pi_entry_id`, and the rows of one entry are written in one transaction. When a store is opened, every entry above the highest id in the log is projected again, so a crash between the store's commit and the log's write loses nothing and repeats nothing.
 
-**From the log to the store.** Many things write to the log without the harness: a user message, a verb the user ran from the [wrench palette](./wrench-palette.md), a system notice about an open obligation, the result of a delegated [child](./child.md). Before a turn, every event past the import mark that has no `pi_entry_id` is pending. The import mark lives in the `seed.sync` document and is committed together with the imported entries.
+**From the log to the store.** Many things write to the log without the harness: a user message, a verb the user ran from the [wrench palette](./wrench-palette.md), a system notice about an open obligation, the result of a delegated [child](./child.md). Before a turn, every event past the import mark that has no `pi_entry_id` is pending. The import mark lives in the `seed.sync` document and is committed together with the imported entries. The same document lists the events at or below the mark that were left out on purpose, as described next.
 
 There are three ways to import:
 
-  - **Append.** User messages, user actions, and assistant text that Seed wrote itself are appended behind the entries the harness produced. The run's newest user message becomes the input. This is the usual case. The conversation orders messages by when the model takes them in, so a message that arrived while the previous answer was still streaming follows that answer. A message that arrived after the run's own is left for the run queued for it, so each message is put to the model once.
+  - **Append.** User messages, user actions, and assistant text that Seed wrote itself are appended behind the entries the harness produced. The run's newest user message becomes the input. This is the usual case. The conversation orders messages by when the model takes them in, so a message that arrived while the previous answer was still streaming follows that answer. What a person wrote is put to the model once, by the run queued for it. So an import leaves out a message that arrived after the run's own, and a message that belongs to another run still waiting its turn. The second rule matters when a run takes a later pass (an open plan, a child's result), long after its own message went in.
   - **Edit.** The result of a delegated child arrives after its call was already answered with a placeholder. It is written as a context edit: an entry that carries no message of its own and replaces what the placeholder entry contributes to the model's context. The model reads the real result where the placeholder was, and every other entry is untouched. When nobody said anything new, the input is `<background_work_update>`.
   - **Rebuild.** Some events fit neither: a result the runtime wrote for a call that a restart cut off, or a late result whose placeholder is no longer in the context. A session that has no store yet is the same case. Then a `pi.reset` entry starts a new context and the whole log is replayed behind it, with every result attached to its call. Earlier entries stay in the store, outside the context. A rebuilt context keeps the text, calls, and results of the log, and not the provider's own record of each response.
 
@@ -53,10 +53,10 @@ A store that was lost is rebuilt the same way. A store can also fall behind the 
 
 Each request holds, in order:
 
-  1. the system prompt, as one section. It carries no clock, so it is byte for byte the same from one turn to the next unless the agent itself changed. The [prompt injection map](./prompt-injection-map.md) lists what it is assembled from.
+  1. the system prompt, as one section. It carries no clock, no Space index and no running counts, so it is byte for byte the same from one turn to the next unless the agent's definition changed. The [prompt injection map](./prompt-injection-map.md) lists what it is assembled from.
   2. the conversation: every entry since the newest `pi.reset`, with provider responses exactly as they arrived.
   3. this turn's input.
-  4. the state of this turn, as user messages placed right behind the input: the `<plan_state>` checklist, `<context_usage>`, `<session_status>`, and `<current_time>`. They are rendered once per turn, sent with every request of that turn, and never stored.
+  4. the state of this turn, as user messages placed right behind the input: the `<space>` [index](./space-index.md), `<delegation_budget>` once the run has started a child, the `<plan_state>` checklist, `<context_usage>`, `<session_status>`, and `<current_time>`. They are rendered once per turn, sent with every request of that turn, and never stored.
 
 Because the prefix does not change between requests, a provider's prompt cache keeps working across the turns of a session. Pi Durable also sends each conversation's own session id to providers that route by it.
 
@@ -73,7 +73,7 @@ A parked `delegate` call is answered in the store with a placeholder that says t
 A process that dies in the middle of a turn leaves the turn's input unsettled in the store and its run `running` in the database. The boot sweep requeues the run, as described under [runs](./runs.md). What happens next depends on who opens the store.
 
   - **The same run.** It finds its own request id on the unsettled input and adopts it. Model responses that were committed are not requested again, and finished tool calls are not repeated. A call that was cut off runs again if its verb is safe to repeat: `read`, `plan`, and `status`. Any other call is answered with an interrupted result, and the model decides what to verify.
-  - **The same run, after its answer.** The process died after the answer was committed and before the run was closed. The run finds nothing new and sees that the newest answered input is its own message. It returns that answer and does not ask the model again. The same check covers a message whose run finds it was already taken in and answered by the turn before it.
+  - **The same run, after its answer.** The process died after the answer was committed and before the run was closed. The run finds nothing new and sees that the newest answered input is its own: its message, or what a later pass of it submitted. It returns that answer and does not ask the model again. The same check covers a message whose run finds it was already taken in and answered by the turn before it.
   - **A different run.** The earlier run failed or was canceled across the restart. The work it left is aborted, calls without a result get the runtime's "interrupted by a service restart" result in the log, and the context is rebuilt.
 
 # What Seed does not use
