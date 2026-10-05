@@ -404,18 +404,20 @@ describe.each(['List', 'Card'] as const)('QueryBlockContent %s selected attribut
 
     act(() => {
       root.render(
-        <QueryBlockContent
-          items={items}
-          style={style}
-          accountsMetadata={{}}
-          tableConfig={{
-            columns: [
-              {id: 'title', visible: true},
-              {id: 'metadata:status', visible: true},
-              {id: 'metadata:priority', visible: false},
-            ],
-          }}
-        />,
+        <TooltipProvider>
+          <QueryBlockContent
+            items={items}
+            style={style}
+            accountsMetadata={{}}
+            tableConfig={{
+              columns: [
+                {id: 'title', visible: true},
+                {id: 'metadata:status', visible: true},
+                {id: 'metadata:priority', visible: false},
+              ],
+            }}
+          />
+        </TooltipProvider>,
       )
     })
 
@@ -432,18 +434,20 @@ describe('QueryBlockContent Card attribute layout', () => {
 
     act(() => {
       root.render(
-        <QueryBlockContent
-          items={items}
-          style="Card"
-          accountsMetadata={{}}
-          tableConfig={{
-            columns: [
-              {id: 'title', visible: true},
-              {id: 'metadata:status', visible: true},
-              {id: 'children', visible: true},
-            ],
-          }}
-        />,
+        <TooltipProvider>
+          <QueryBlockContent
+            items={items}
+            style="Card"
+            accountsMetadata={{}}
+            tableConfig={{
+              columns: [
+                {id: 'title', visible: true},
+                {id: 'metadata:status', visible: true},
+                {id: 'children', visible: true},
+              ],
+            }}
+          />
+        </TooltipProvider>,
       )
     })
 
