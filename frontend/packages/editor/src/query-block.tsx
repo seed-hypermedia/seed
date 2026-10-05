@@ -19,6 +19,7 @@ import {SelectField, SwitchField} from '@shm/ui/form-fields'
 import {Pencil, Search, Trash} from '@shm/ui/icons'
 import {LazyViewportMount} from '@shm/ui/lazy-viewport-mount'
 import {QueryBlockContent} from '@shm/ui/query-block-content'
+import {buildSlotItems} from '@shm/ui/query-block-draft-items'
 import {useQueryBlockFrontendPerf} from '@shm/ui/query-block-frontend-perf'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -31,7 +32,6 @@ import {selectBlockNodeById} from './block-utils'
 import {BlockSelectionWrapper} from './block-selection-wrapper'
 import {Block, BlockNoteEditor} from './blocknote'
 import {createReactBlockSpec} from './blocknote/react'
-import {buildSlotItems} from './query-block-draft-items'
 import {useQuerySearchInput} from './query-search-context'
 import {HMBlockSchema} from './schema'
 
@@ -176,12 +176,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   const {DraftSlot} = useQueryBlockDrafts()
 
   const renderContent = (slot: QueryBlockDraftSlotData | null) => {
-    const {prependItems, bannerContent} = buildSlotItems(
-      slot,
-      style === 'Table' ? 'List' : style,
-      banner,
-      sortedItems.length > 0,
-    )
+    const {prependItems, bannerContent} = buildSlotItems(slot, style, banner, sortedItems.length > 0)
     return (
       <QueryBlockContent
         items={sortedItems}
@@ -192,6 +187,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         itemContributors={itemContributors}
         interactionSummaries={interactionSummaries}
         isDiscovering={queryBlock.isLoading}
+        onCreateDocument={slot?.onCreateDraft}
         prependItems={prependItems}
         bannerContent={bannerContent}
         // Unlike a standalone embed card (which IS the selectable block),

@@ -9,6 +9,7 @@ import {
 import {formattedDate, getMetadataName, useRouteLink} from '@shm/shared'
 import {useInteractionSummaries} from '@shm/shared/models/interaction-summary'
 import {getQueryBlockFilterOptions, matchesQueryFilterEquality} from '@shm/shared/models/query-block-filter'
+import {useNavigate} from '@shm/shared/utils/navigation'
 import {type SortingState} from '@tanstack/react-table'
 import {
   ArrowDown,
@@ -18,15 +19,17 @@ import {
   ChevronDown,
   FileText,
   Filter,
+  GitCompareArrows,
+  Grid3X3,
   MessageSquare,
   Plus,
   Search,
-  Share2,
   SlidersHorizontal,
   X,
 } from 'lucide-react'
 import {ReactNode, useCallback, useEffect, useMemo, useReducer, useRef, useState} from 'react'
 import {Button} from './button'
+import {badgeVariants} from './components/badge'
 import {Input} from './components/input'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {Switch} from './components/switch'
@@ -113,6 +116,8 @@ export interface QueryBlockContentProps {
   interactionSummaries?: Record<string, HMQueryBlockItemSummary>
   isDiscovering?: boolean
   prependItems?: ReactNode[]
+  /** Creates a document in the query target when the results are empty. */
+  onCreateDocument?: () => void
   bannerContent?: ReactNode
   /** Render card titles as links (hover underline, navigate on first click) instead of whole-card navigation. */
   titleLinkOnly?: boolean
@@ -144,6 +149,7 @@ export function QueryBlockContent({
   interactionSummaries,
   isDiscovering,
   prependItems,
+  onCreateDocument,
   bannerContent,
   titleLinkOnly,
   navigateCards,
@@ -296,7 +302,7 @@ export function QueryBlockContent({
   )
 
   const hasPrependItems = prependItems && prependItems.length > 0
-  const hasItems = sortedItems.length > 0 || hasPrependItems
+  const hasItems = sortedItems.length > 0 || hasPrependItems || !!bannerContent
 
   return (
     <div className="border-border bg-background @container/collection flex min-w-0 flex-col rounded-md border">
@@ -328,27 +334,39 @@ export function QueryBlockContent({
         </div>
       ) : !hasItems ? (
         <div className="text-muted-foreground flex h-28 items-center justify-center rounded-md border text-sm">
-          {effectiveFilters.length || effectiveSearch
-            ? 'No documents match the current search and filters.'
-            : 'No documents found.'}
+          {effectiveFilters.length || effectiveSearch ? (
+            'No documents match the current search and filters.'
+          ) : onCreateDocument ? (
+            <Button type="button" variant="outline" size="sm" onClick={onCreateDocument}>
+              <Plus className="size-4" />
+              New Document
+            </Button>
+          ) : (
+            'No documents found.'
+          )}
         </div>
       ) : style === 'Table' ? (
-        <QueryBlockTable
-          items={sortedItems}
-          descriptors={descriptors}
-          context={context}
-          sorting={sorting}
-          onSortingChange={setSortingAndPersist}
-          columnOrder={columnOrder}
-          onColumnOrderChange={(columnOrder) => updateTableState({type: 'columnOrder', columnOrder})}
-          columnVisibility={columnVisibility}
-          onColumnVisibilityChange={(columnVisibility) =>
-            updateTableState({type: 'columnVisibility', columnVisibility})
-          }
-          columnSizing={columnSizing}
-          onColumnSizingChange={(columnSizing) => updateTableState({type: 'columnSizing', columnSizing})}
-          onColumnSizingCommit={(nextSizing) => persistTableConfig({columnSizing: nextSizing})}
-        />
+        <>
+          {hasPrependItems ? <div className="flex flex-col gap-2 p-2">{prependItems}</div> : null}
+          {sortedItems.length > 0 ? (
+            <QueryBlockTable
+              items={sortedItems}
+              descriptors={descriptors}
+              context={context}
+              sorting={sorting}
+              onSortingChange={setSortingAndPersist}
+              columnOrder={columnOrder}
+              onColumnOrderChange={(columnOrder) => updateTableState({type: 'columnOrder', columnOrder})}
+              columnVisibility={columnVisibility}
+              onColumnVisibilityChange={(columnVisibility) =>
+                updateTableState({type: 'columnVisibility', columnVisibility})
+              }
+              columnSizing={columnSizing}
+              onColumnSizingChange={(columnSizing) => updateTableState({type: 'columnSizing', columnSizing})}
+              onColumnSizingCommit={(nextSizing) => persistTableConfig({columnSizing: nextSizing})}
+            />
+          ) : null}
+        </>
       ) : style === 'Card' ? (
         <QueryBlockCards
           items={sortedItems}
@@ -996,7 +1014,11 @@ function QueryBlockListItem({
     >
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <div className="bg-muted text-muted-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-md">
-          <FileText className="size-5" />
+          {item.isCollection ? (
+            <Grid3X3 aria-label="Collection" className="size-5" />
+          ) : (
+            <FileText aria-label="Document" className="size-5" />
+          )}
         </div>
         <QueryBlockItemTitle item={item} className="truncate font-medium hover:underline">
           {title}
@@ -1108,6 +1130,7 @@ function QueryBlockCard({
       entity={null}
       metadata={item.metadata}
       firstImageInContent={item.firstImageInContent}
+      isCollection={item.isCollection}
       visibility={item.visibility}
       version={item.version}
       interactionSummary={context.interactionSummaries?.[item.id.id]}
@@ -1126,8 +1149,15 @@ function QueryBlockCard({
           className="mt-3 flex-wrap"
         />
       }
+      showCommentAction={false}
       actionDetails={
-        <SelectedAttributes item={item} context={context} descriptors={visibleDescriptors} kind="counts" />
+        <SelectedAttributes
+          item={item}
+          context={context}
+          descriptors={visibleDescriptors}
+          kind="counts"
+          commentAction
+        />
       }
     />
   )
@@ -1138,14 +1168,17 @@ function SelectedAttributes({
   context,
   descriptors,
   kind = 'all',
+  commentAction = false,
   className,
 }: {
   item: HMDocumentInfo
   context: QueryTableValueContext
   descriptors: QueryTableColumn[]
   kind?: 'all' | 'values' | 'counts'
+  commentAction?: boolean
   className?: string
 }) {
+  const navigate = useNavigate()
   const attributes = descriptors.filter((descriptor) => {
     if (descriptor.id === 'title') return false
     const isCount = descriptor.id === 'children' || descriptor.id === 'comments' || descriptor.id === 'citations'
@@ -1156,7 +1189,7 @@ function SelectedAttributes({
   return (
     <div
       data-testid={kind === 'counts' ? 'selected-attribute-counts' : undefined}
-      className={cn('text-muted-foreground flex items-center gap-x-3 gap-y-1 text-xs', className)}
+      className={cn('text-muted-foreground flex items-center gap-1 text-sm', className)}
     >
       {attributes.map((descriptor) => {
         const value = getQueryTableValue(item, descriptor.id, context)
@@ -1172,7 +1205,28 @@ function SelectedAttributes({
           ))
         }
         if (descriptor.id === 'children' || descriptor.id === 'comments' || descriptor.id === 'citations') {
-          const Icon = descriptor.id === 'children' ? FileText : descriptor.id === 'comments' ? MessageSquare : Share2
+          const Icon =
+            descriptor.id === 'children' ? FileText : descriptor.id === 'comments' ? MessageSquare : GitCompareArrows
+          if (descriptor.id === 'comments' && commentAction) {
+            return (
+              <Button
+                key={descriptor.id}
+                variant="ghost"
+                size="sm"
+                className="no-window-drag h-auto gap-1 p-1 text-xs"
+                title={descriptor.label}
+                aria-label={`View discussions (${queryTableValueToString(value) || '0'})`}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  navigate({key: 'comments', id: item.id})
+                }}
+              >
+                <Icon className="size-3.5" />
+                {queryTableValueToString(value) || '0'}
+              </Button>
+            )
+          }
           return (
             <span key={descriptor.id} className="inline-flex items-center gap-1" title={descriptor.label}>
               <Icon className="size-3.5" />
@@ -1188,9 +1242,17 @@ function SelectedAttributes({
             : queryTableValueToString(value)
         if (!displayValue) return null
         return (
-          <span key={descriptor.id} className="min-w-0 truncate" title={`${descriptor.label}: ${displayValue}`}>
-            {displayValue}
-          </span>
+          <Tooltip key={descriptor.id} content={`${descriptor.label}: ${displayValue}`} asChild>
+            <span
+              className={cn(
+                badgeVariants({variant: 'outline'}),
+                'text-muted-foreground flex max-w-full min-w-0 items-center gap-1 text-sm',
+              )}
+              tabIndex={0}
+            >
+              <span className="truncate">{displayValue}</span>
+            </span>
+          </Tooltip>
         )
       })}
     </div>
