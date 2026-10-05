@@ -98,6 +98,9 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
     await writeFile(html, `<html><body><div id="browser" style="width:900px;height:600px"></div></body></html>`)
     electron = await _electron.launch({args: [main, '--fixture', html, preload, path.join(directory, 'profile')]})
     const page = await electron.firstWindow()
+    // Electron 44 hands Playwright the window before loadFile commits; wait for the fixture page.
+    await page.waitForURL(/index\.html$/)
+    await page.waitForFunction(() => typeof (window as any).browserTest !== 'undefined')
     // The app page never holds a web view: it asks the main process for a guest and places it.
     const browserId: number = await page.evaluate(async () => {
       const {browserId} = await (window as any).browserTest.create()

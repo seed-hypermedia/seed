@@ -118,14 +118,14 @@ export function setupBrowserSessionPolicy() {
   browserSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
   browserSession.setPermissionCheckHandler(() => false)
   app.on('select-client-certificate', (event, contents, _url, _certificates, callback) => {
-    if (contents.session !== browserSession) return
+    if (!contents || contents.session !== browserSession) return
     event.preventDefault()
     callback()
   })
   // Chromium already refuses bad certificates; saying so here keeps a future "proceed anyway" from
   // being added by accident, and keeps the rule testable.
   app.on('certificate-error', (event, contents, _url, _error, _certificate, callback) => {
-    if (contents.session !== browserSession) return
+    if (!contents || contents.session !== browserSession) return
     event.preventDefault()
     callback(false)
   })
@@ -144,7 +144,7 @@ export function setupBrowserSessionPolicy() {
       event.preventDefault()
       return
     }
-    const owner = BrowserWindow.fromWebContents(contents)
+    const owner = contents ? BrowserWindow.fromWebContents(contents) : null
     if (isDangerousDownload(item.getFilename())) {
       const warning: Electron.MessageBoxSyncOptions = {
         type: 'warning',

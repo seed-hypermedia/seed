@@ -145,6 +145,10 @@ export default function Settings() {
 function AdvancedSettings() {
   const experiments = useUniversalAppContext().experiments
   const writeExperiments = useWriteExperiments()
+  const chromiumStatus = useQuery({
+    queryKey: ['experiments', 'chromium-status'],
+    queryFn: () => client.experiments.getChromiumStatus.query(),
+  })
   const clearBrowserData = useMutation({
     mutationFn: () => client.experiments.clearBrowserData.mutate(),
     onSuccess: () => toast.success('Browser data cleared'),
@@ -160,17 +164,23 @@ function AdvancedSettings() {
           label="Integrated Web Browser"
           description="Open web links inside Seed, with shared Back and Forward history. Websites appear alongside your sidebar and agents. This feature is experimental."
           right={
-            <Button
-              size="sm"
-              variant="outline"
-              role="switch"
-              aria-checked={!!experiments?.webBrowser}
-              aria-label="Experimental web browser"
-              disabled={writeExperiments.isLoading}
-              onClick={() => writeExperiments.mutate({webBrowser: !experiments?.webBrowser})}
-            >
-              {experiments?.webBrowser ? 'Disable Web Browser' : 'Enable Web Browser'}
-            </Button>
+            chromiumStatus.data?.stale ? (
+              <SizableText size="sm" color="muted" data-testid="browser-stale-notice">
+                Update Seed to use the web browser. This version's browser engine is too old to show websites safely.
+              </SizableText>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                role="switch"
+                aria-checked={!!experiments?.webBrowser}
+                aria-label="Experimental web browser"
+                disabled={writeExperiments.isLoading}
+                onClick={() => writeExperiments.mutate({webBrowser: !experiments?.webBrowser})}
+              >
+                {experiments?.webBrowser ? 'Disable Web Browser' : 'Enable Web Browser'}
+              </Button>
+            )
           }
         />
         <SettingsRow
