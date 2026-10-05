@@ -25,7 +25,7 @@ On startup, `sqlite.open()` either: <!-- id:2_LU9c3d -->
 
 The service never runs against an unknown schema state. On rejection, `main.ts` serves a 500 on every route and logs both versions. <!-- id:Cxj6ftns -->
 
-Migrations live in the `migrations` array in `sqlite.ts` and are **prepend-only**: new entries go at the top of the literal and the array is `.reverse()`d. Index order then equals apply order, and `desiredVersion` is `migrations.length`. Each migration applies inside its own savepoint within one transaction, and a failure rolls the whole batch back. `sqlite-schema.sql` is the fresh-install baseline and must stay equivalent to baseline + every migration. <!-- id:hd8VJE3g -->
+Migrations live in the `migrations` array in `sqlite.ts` and are **prepend-only**: new entries go at the top of the literal and the array is `.reverse()`d. Index order then equals apply order, and `desiredVersion` is `migrations.length`. Each migration applies inside its own savepoint within one transaction, and a failure rolls the whole batch back. The schema version is 29 as of October 2026. `sqlite-schema.sql` is the fresh-install baseline and must stay equivalent to baseline + every migration. <!-- id:hd8VJE3g -->
 
 # Tables <!-- id:6sX7nWzL -->
 
@@ -48,11 +48,11 @@ Rows are created or updated as account-owned resources are written. An account i
 
 Stores local delegated signers for an account. <!-- id:DMxxBN5j -->
 
-Accepted roles: <!-- id:AUhcLlli -->
+Columns: `account_id`, `signer_id`, `role`, and for delegations proven by a [capability](../capability.md) blob, `capability` and `capability_cid`. Accepted roles: <!-- id:AUhcLlli -->
   - `OWNER` <!-- id:istckNfK -->
   - `AGENT` <!-- id:7Sxpm7Vh -->
 
-Used by `auth.isAuthorizedSigner()` and tests. The production UX for delegation and [capabilities](../protocol/permissions.md) is still incomplete. <!-- id:8DmCCEfl -->
+Used by `auth.isAuthorizedSigner()`. A row with role `AGENT` is written when an envelope's capability delegation verifies (see the [signed API](./signed-api.md)), which is how a web or device key acts for a vault account. <!-- id:8DmCCEfl -->
 
 ## `model_providers` <!-- id:VXoNLYPE -->
 
@@ -97,6 +97,7 @@ Important columns: <!-- id:OppHXSY2 -->
   - `account_id` <!-- id:oebAwFfP -->
   - `definition_cbor` <!-- id:t9NAtsIu -->
   - `state_dir` <!-- id:SuxIz7up -->
+  - `public_read`, `public_chat`: whether any signed account may read, or chat with, the agent
   - `status` <!-- id:8euzUug0 -->
 
 `definition_cbor` encodes `AgentDefinition`. <!-- id:HGpQYrDd -->
@@ -304,6 +305,7 @@ type SessionEventMeta = {
   provider?: string // provider it ran on
   usage?: AgentRunUsage // this turn's tokens, not the run's cumulative total
   durationMs?: number // wall time for this message or tool call
+  reasoningLevel?: ReasoningLevel | 'off' | 'default'
 }
 
 type SessionEventPayload =
@@ -363,6 +365,10 @@ Used by: <!-- id:1-pLN2bq -->
 
 Same client ID with identical request bytes replays the response. Same client ID with different request bytes returns `409`. <!-- id:xDb-SvJk -->
 
+# Open settings and planner statistics
+
+`openWithDatabase` sets `journal_mode=WAL`, a 64 MB `cache_size`, a 512 MB `mmap_size`, and `temp_store=MEMORY`, then runs `ANALYZE` on the small planner tables (`PLANNER_STATISTICS_TABLES`: runs, sessions, agents, collaborators, firings, continuations, and friends) at every open, deliberately leaving out `session_events` and `run_journal`. Without statistics the planner chose the account-wide index for per-session run lookups and pinned the server (2026-09-23); the hot queries also pin their index with `INDEXED BY`. Nothing runs `VACUUM`. See [operations](./operations.md).
+
 # Secret encryption <!-- id:Mm3c29X6 -->
 
 Implementation: `encryptSecret()` and `decryptSecret()` in `api-service.ts`. <!-- id:dxI-WpyJ -->
@@ -371,7 +377,7 @@ Current scheme: <!-- id:YUGhL6E1 -->
   - AES-GCM; <!-- id:XUp42Aad -->
   - 32-byte server-local key; <!-- id:Cux_dY-p -->
   - 12-byte random nonce per write; <!-- id:HEJUY1cA -->
-  - stored ciphertext is `nonce || encryptedBytes`. <!-- id:JHUEh3sA -->
+  - stored ciphertext is `nonce || encryptedBytes || tag`, with the 16-byte GCM authentication tag last (`aes-256-gcm`). <!-- id:JHUEh3sA -->
 
 # Durable replay <!-- id:lQynYlVv -->
 

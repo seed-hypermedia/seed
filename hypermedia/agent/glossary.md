@@ -63,7 +63,7 @@ The words the [Seed Agents](../agent.md) pages use, one line each, linked to the
 
 # Triggers <!-- id:Cv20mJqD -->
 
-- [trigger](./trigger.md): standing configuration binding a source (schedule, comment, mention, [site](../protocol/sites.md) update, webhook, run completed) to a continuation. <!-- id:Y2MmLcGs -->
+- [trigger](./trigger.md): standing configuration binding a source (comment, mention, reply, document-author comment, [site](../protocol/sites.md) update, a list of those as conditions, schedule, webhook, run completed) to a continuation. <!-- id:Y2MmLcGs -->
 - [firing](./firing.md): one trigger activation, deduplicated exactly once, with run-completed chains loop-guarded at eight hops. <!-- id:ixEodPl5 -->
 - continuation: what a firing does: start a new thread, wake a parked run, or run a tool or script with no model; see [triggers](./triggers.md). Not to be confused with [session continuation](./session-continuation.md), which carries a conversation into a successor session. <!-- id:fdvIUBGI -->
 - condition: one alternative inside an `activity` trigger, `{id, source}`; the trigger fires once when any condition matches, and the firing records `matchedConditions`; see [triggers](./triggers.md).

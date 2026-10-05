@@ -28,7 +28,7 @@ Each term above has its own page, listed in the [Agents glossary](./glossary.md)
 Seed app (desktop) and Seed web app, sharing frontend/packages/ui/src/agents
   ├─ Local agents server subprocess (desktop only; same artifact as the Docker image)
   │    configured with the desktop's typed HM API bridge plus its daemon's direct IPFS endpoint
-  ├─ Agents routes: list, detail, session
+  ├─ Agents routes: list, server, detail, session, run
   ├─ Assistant sidebar: sessions of any agent on any configured server
   ├─ Provider and create-agent dialogs
   ├─ daemon-backed signing for the selected account

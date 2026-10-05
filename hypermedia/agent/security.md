@@ -26,7 +26,8 @@ Every HTTP action is a signed `SignedActionEnvelope`, described in the [signed A
 The server verifies the [signature](../signature.md) and authorizes the signer for the [account](../protocol/identity.md). <!-- id:mJA0FdHP -->
 
 A signer is authorized when: <!-- id:vI4I2YXO -->
-  - `signer === account`; or <!-- id:MFXBbOw6 -->
+  - `signer === account`; or
+  - the envelope carries `capability` (and usually `capabilityBlob`): a [Capability](../capability.md) issued by `account`, delegating to `signer`, role `AGENT` or `WRITER`, not self-issued, under 64 KiB; a verified delegation is recorded as an `AGENT` authorization; or <!-- id:MFXBbOw6 -->
   - `account_authorizations` has role `OWNER` or `AGENT` for `(account, signer)`. <!-- id:nwMz9Fv- -->
 
 # WebSocket authentication <!-- id:bARrb-Xh -->
@@ -141,7 +142,7 @@ Mitigations present: <!-- id:PtUHslMF -->
   - server names are slugs and tool names are sanitized to `[A-Za-z0-9_-]` and capped at 64 characters, so a remote name can never collide with a verb, shadow a builtin, or break a provider's tool-name rules. An authored lambda keeps its name against a remote tool of the same name; <!-- id:mLjHfMUi -->
   - input is validated against the projected contract before a call leaves the host, and a miss returns the contract; <!-- id:TLAD4kkE -->
   - results are bounded (256 KiB text, 4 MiB per inline image) and server errors become `tool_result.error`; <!-- id:1_EpLlOF -->
-  - connections are per run and closed with it. A call has a 120s timeout and a connect has 20s; <!-- id:svG753_g -->
+  - connections are per run and closed with it. A call has a 120s timeout and a connect has 30s; <!-- id:svG753_g -->
   - deleting a server scrubs it from every agent and deletes the header secrets it owns. <!-- id:DJvUELcZ -->
 
 # Agent-managed triggers <!-- id:COfrFvPS -->
@@ -237,7 +238,7 @@ Agent memory (`agents/src/agent-memory.ts`) exposes a real filesystem directory 
 [Script](./script.md) children are untrusted, model-authored JavaScript. The posture is defense in depth (`agents/src/workflow-host.ts`): <!-- id:Mi-PBDI- -->
   - **Zero-ambient-authority realm**: each run gets a fresh QuickJS-WASM context with no `Date`, `Math.random`, timers, `fetch`, imports, or process access. A submission-time lint rejects those tokens up front, and the realm removes them at runtime. The only way to affect the world is the journaled `ctx` bridge. <!-- id:mvCxlsOc -->
   - **Every effect is validated, bounded, and journaled**: `ctx.call` is checked against the read and write verbs plus the agent's enabled callables (`api-service.ts`) and the tool's input schema. Results are size-bounded by the tool caps. The [journal](./journal.md) is a flight recorder: you can list every external effect after the fact via `GetRunJournal`. <!-- id:BNwxImA5 -->
-  - **No new authority**: a script can do exactly what its agent could do call-by-call in chat, under the agent's own signing identities and configured HM server. The new factor is scale, bounded by spawn depth (3), fan-out (10 children per run), the separate workflow concurrency pool, compute fuel between awaits, VM memory, and journal caps. <!-- id:lvFcXqNY -->
+  - **No new authority**: a script can do exactly what its agent could do call-by-call in chat, under the agent's own signing identities and configured HM server. The new factor is scale, bounded by spawn depth and fan-out (the thoroughness preset: quick 1/4, normal 3/10, deep 5/16), the separate workflow concurrency pool, compute fuel between awaits, VM memory, and journal caps. <!-- id:lvFcXqNY -->
   - **Child outputs re-enter parents as data** (schema-validated when a [typed result](./typed-result.md) was declared), inside tool results. They are never trusted instructions. A prompt-injected child can corrupt only its own return value. <!-- id:_9Lz0w7L -->
   - **Kill switch**: `CancelRun` on any root cascades to every descendant. Queued runs never start, waiting runs never wake, live agent runs abort through Pi, live script VMs are interrupted. `StopSession` on the launching chat does the same for its whole tree. <!-- id:LvFiHHRo -->
   - **Accepted gaps**: there are no cost (dollar or token) budgets yet. Wall-time, depth, fan-out, and concurrency caps are the blast-radius controls (live usage is persisted per run and visible to clients). A `ctx.call` interrupted between execution and its journaled result **re-executes on resume** (at-least-once). That is fine for idempotent tools, but a `write` that crashed at exactly that point could publish twice. Idempotency keys are the roadmap fix. <!-- id:4HiLThr0 -->

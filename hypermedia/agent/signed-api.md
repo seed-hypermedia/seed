@@ -18,7 +18,7 @@ Equivalent prefixed endpoint: <!-- id:YXgAPHd9 -->
 POST /agents/api/message
 ```
 
-Responses are DAG-CBOR encoded `AgentResponse` values. Every response carries the server's protocol version in the `X-Agents-Protocol` header (also in `/api/version` as `protocol` and `minClientProtocol`). <!-- id:bhXf9yiI -->
+Responses are DAG-CBOR encoded `AgentResponse` values. Every response carries the server's protocol version in the `X-Agents-Protocol` header (also in `/api/version` and `/api/health` as `protocol` and `minClientProtocol`). <!-- id:bhXf9yiI -->
 
 # Protocol versioning <!-- id:XZricGGS -->
 
@@ -68,7 +68,7 @@ Keep this rule: **never sign action objects containing explicit `undefined` fiel
 
 # Actions <!-- id:vqBlDC63 -->
 
-Current `AgentAction` union (`UnsignedAgentAction` in `agents/protocol/src/index.ts`, dispatched by the switch in `Service.message()`): <!-- id:dUWGdW72 -->
+Current `AgentAction` union (`UnsignedAgentAction` in `agents/protocol/src/index.ts`, dispatched by the `#dispatch` switch after `Service.message()` has checked the protocol and verified the envelope): <!-- id:dUWGdW72 -->
   - `ListAgents` <!-- id:qai6nbcf -->
   - `ListAgentInvites` <!-- id:uUf6bK4N -->
   - `ListAgentCollaborators` <!-- id:aoMnBkFu -->
@@ -154,7 +154,13 @@ type ErrorResponse = {
 }
 ```
 
-HTTP status is set on expected API errors. Unexpected errors are logged and returned as `500` with `Internal server error: <message>`. <!-- id:pwrb18VG -->
+HTTP status is set on expected API errors (`APIError`, with an optional `code`). Unexpected errors are logged and returned as `500` with `Internal server error: <message>`. <!-- id:pwrb18VG -->
+
+The status map: `401` any envelope or delegation failure; `415` a body that is not `application/cbor`; `400` undecodable CBOR, an unknown action, or invalid input; `403` the actor's access level is too low; `404` the resource does not exist or is not accessible (an agent you cannot read looks identical to one that does not exist); `409` an idempotency key reused with a different body, or a session with a live run; `413` an oversized upload chunk or attachment; `426` a client protocol the server no longer serves.
+
+# Access levels
+
+An agent has an owner, accepted collaborators with role `reader` or `writer`, and, when `publicRead` or `publicChat` is on, every other signed account as a `reader` or `chatter`. Actions are gated by level: **reader** (any of those), **chat** (every role except `reader`: owner, writer, chatter), **writer** (owner or writer), and **owner**. Reading an agent, its sessions, triggers, memory, and tools is reader level; creating a session, messaging it, invoking a tool as the user, uploading an attachment, stopping or retrying a run is chat level; editing the agent, its triggers, memory, and tools is writer level; collaborators and public access are owner level. State is stored under the owner's account whatever the actor's role; `#actionAccountId` resolves the owner for every action that names an agent, session, trigger, or run. The runtime behind each session is Pi, the model-loop library the server wraps.
 
 # Action reference <!-- id:TvquiIFE -->
 
@@ -496,7 +502,11 @@ type AgentScheduleTrigger =
   | {kind: 'weekly'; daysOfWeek: number[]; timeOfDay: string; timezone: string}
   | {kind: 'once'; runAt: number; timezone?: string}
 
-type TriggerContinuation = {kind: 'newThread'} | {kind: 'wake'; signal: string; runId?: string; payload?: unknown}
+type TriggerContinuation =
+  | {kind: 'newThread'; systemPrompt?: string; includeAgentSystemPrompt?: boolean; tools?: string[]}
+  | {kind: 'wake'; signal: string; runId?: string; payload?: unknown}
+  | {kind: 'tool'; tool: string; input?: unknown; onFailure?: 'none' | 'thread'}
+  | {kind: 'script'; script: string; input?: unknown; onFailure?: 'none' | 'thread'}
 
 type AgentTriggerInput = {
   name: string
@@ -529,16 +539,19 @@ The `agent_triggers` table carries a `cooldown_ms` column, but no protocol field
 
 Actions: <!-- id:bwunosHW -->
   - `ListAgentTriggers {agentId}` returns `{_: 'ListAgentTriggersResponse'; triggers: AgentTriggerInfo[]}`. <!-- id:bXFKEmdY -->
-  - `GetAgentTrigger {triggerId}` returns `{_: 'GetAgentTriggerResponse'; trigger: AgentTriggerInfo; sessions: SessionInfo[]}`. <!-- id:zek5I_eN -->
-  - `CreateAgentTrigger {agentId, trigger, clientRequestId?}` returns `{_: 'CreateAgentTriggerResponse'; trigger}`. <!-- id:0u89fDzQ -->
+  - `GetAgentTrigger {triggerId}` returns `{_: 'GetAgentTriggerResponse'; trigger: AgentTriggerInfo; sessions: SessionInfo[]; firings: TriggerFiringInfo[]; webhookSecret?: string}` (at most 25 firings; the secret only for writers). <!-- id:zek5I_eN -->
+  - `CreateAgentTrigger {agentId, trigger, clientRequestId?}` returns `{_: 'CreateAgentTriggerResponse'; trigger; webhookSecret?}` (the plaintext secret of a new webhook trigger). <!-- id:0u89fDzQ -->
+  - `CombineAgentTriggers {triggerId, otherTriggerId, expectedUpdatedAt, otherExpectedUpdatedAt, useOtherAction?}` merges the other trigger into this one and retires it with `mergedInto`. See [triggers](./triggers.md).
+
+Webhook deliveries do not use the signed envelope: `POST /agents/api/webhooks/<triggerId>/<secret>` or `POST /agents/api/webhooks/<triggerId>` with `Authorization: Bearer <secret>`, JSON body, answers `202 {accepted, duplicate}`; see [triggers](./triggers.md).
   - `UpdateAgentTrigger {triggerId, patch}` returns `{_: 'UpdateAgentTriggerResponse'; trigger}`. <!-- id:GD1HRkZ9 -->
   - `DeleteAgentTrigger {triggerId}` returns `{_: 'DeleteAgentTriggerResponse'; triggerId}`. <!-- id:6K2fNfnq -->
 
-All trigger actions verify account ownership through the owning agent and trigger rows. `CreateAgentTrigger` supports the same `clientRequestId` idempotency pattern as other create actions. <!-- id:GOO4iIKu -->
+`ListAgentTriggers` and `GetAgentTrigger` need reader access to the agent; `CreateAgentTrigger`, `UpdateAgentTrigger`, `CombineAgentTriggers`, and `DeleteAgentTrigger` need writer access. `CreateAgentTrigger` supports the same `clientRequestId` idempotency pattern as other create actions. <!-- id:GOO4iIKu -->
 
 ## Agent memory actions <!-- id:sl55O0AI -->
 
-Each agent owns a private memory filesystem at `<stateDir>/memory`. It is the `~/memory/` half of its [Space](./space.md). The agent reaches it through the [`read`](./read.md) and [`write`](./write.md) verbs, and its owner sees it on the desktop Memory tab. All actions validate agent ownership for the signed account. Every path is a sandboxed relative path: no absolute paths, no `..`, symlinks refused. Files can be UTF-8 text or binary. <!-- id:F4plBjdL -->
+Each agent owns a private memory filesystem at `<stateDir>/memory`. It is the `~/memory/` half of its [Space](./space.md). The agent reaches it through the [`read`](./read.md) and [`write`](./write.md) verbs, and its owner sees it on the desktop Memory tab. `ListAgentMemory`, `ListAgentMemoryDir`, and `ReadAgentMemoryFile` need reader access to the agent; the writing actions need writer access. Every path is a sandboxed relative path: no absolute paths, no `..`, symlinks refused. Files can be UTF-8 text or binary. <!-- id:F4plBjdL -->
 
 ```ts <!-- id:igtkULLY -->
 type AgentMemoryEntry = {path: string; type: 'file' | 'dir'; size: number; updatedAt: number; mimeType?: string}
@@ -554,14 +567,14 @@ type AgentMemoryFile = {
 ```
 
 Actions: <!-- id:dRAJrWd3 -->
-  - `ListAgentMemory {agentId}` returns `{_: 'ListAgentMemoryResponse'; agentId; entries: AgentMemoryEntry[]; totalBytes}` with every file and directory sorted by path. <!-- id:5oZzSBlu -->
+  - `ListAgentMemory {agentId}` returns `{_: 'ListAgentMemoryResponse'; agentId; entries: AgentMemoryEntry[]; totalBytes}` with files and directories sorted by path, capped at `MAX_MEMORY_LIST_ENTRIES` (2000) with `truncated: true` past that. `ListAgentMemoryDir {agentId, path?}` lists one level with `entryCount` and totals per entry, and is the call to browse a large memory. <!-- id:5oZzSBlu -->
   - `ReadAgentMemoryFile {agentId, path}` returns `{_: 'ReadAgentMemoryFileResponse'; agentId; file: AgentMemoryFile}`. Small clean-UTF-8 files come back as text. Everything else comes back as raw bytes for preview and download in the Memory tab. <!-- id:gcXVifoW -->
   - `WriteAgentMemoryFile {agentId, path, content}` returns `{_: 'WriteAgentMemoryFileResponse'; agentId; entry}` after writing the full file content, creating parent directories as needed. `content` may be a string (UTF-8 text) or `Uint8Array` bytes (e.g. a local file uploaded from the Memory tab). Writes, downloads, and deletes emit an `account-change` event with reason `agent-memory-changed`, which is also fanned out to `agents/<agentId>` WebSocket subscribers so open Memory tabs refresh. <!-- id:Pf3XwaO2 -->
   - `DeleteAgentMemoryFile {agentId, path}` removes a file, or a directory recursively, and returns `{_: 'DeleteAgentMemoryFileResponse'; agentId; path; deleted}`. `deleted` is false when nothing existed. <!-- id:hslyEoNq -->
   - `DownloadAgentMemoryFile {agentId, url, path?}` server-side fetches a public http(s) URL into memory (streamed, with a 60-second idle timeout) and returns `{_: 'DownloadAgentMemoryFileResponse'; agentId; entry; finalUrl; contentType?}`. Omitting `path` stores the file under `downloads/`, named from the URL. Extension-less paths gain an extension from the response content type. <!-- id:iCJPpKHx -->
   - `UploadAgentMemoryFileToIpfs {agentId, path}` chunks the file as [UnixFS](../protocol/files.md) and publishes its blocks through the typed HM API's `PublishBlobs` action, then returns `{_: 'UploadAgentMemoryFileToIpfsResponse'; agentId; path; cid; url; size; mimeType?}`, where `url` is the `ipfs://<cid>` URL usable from Hypermedia content. Publishing makes the file publicly retrievable. <!-- id:b7BdF2s4 -->
 
-Path limits (`agents/src/agent-memory.ts`): 512 bytes per normalized relative path, 16 levels of nesting. Memory itself has no per-file, per-agent, or entry-count size cap. The server accepts uploads of any size (`main.ts` raises Bun's request-body limit for this). The 256 KiB `MAX_WRITE_CONTENT_BYTES` bound in `api-service.ts` applies only to hypermedia content the `write` verb publishes. It does not apply to memory files. <!-- id:eXN97pf8 -->
+Path limits (`agents/src/agent-memory.ts`): 512 bytes per normalized relative path, 16 levels of nesting. Memory itself has no per-file or per-agent size cap (only the listing is capped at 2000 entries). The server accepts uploads of any size (`main.ts` raises Bun's request-body limit for this). The 256 KiB `MAX_WRITE_CONTENT_BYTES` bound in `api-service.ts` applies only to hypermedia content the `write` verb publishes. It does not apply to memory files. <!-- id:eXN97pf8 -->
 
 ## `ListAgentTools` <!-- id:mFvD0Lfj -->
 
@@ -580,7 +593,7 @@ Response: <!-- id:Z80S3kNI -->
 {_: 'ListAgentToolsResponse'; agentId: string; tools: AgentToolInfo[]}
 ```
 
-Lists every [tool document](./tool-document.md) in the agent's `~/tools`, builtin bindings and authored lambdas alike, from the `tool_documents` table. It rebuilds the builtin rows first if the registry contract has changed. This is the owner's view of the same documents the agent sees when it reads `~/tools/`. See [tools](./tools.md). <!-- id:ckP2uqGJ -->
+Lists every [tool document](./tool-document.md) in the agent's `~/tools`, builtin bindings and authored lambdas alike, from the `tool_documents` table. It rebuilds the builtin rows first if the registry contract has changed. This is the reader's view of the same documents the agent sees when it reads `~/tools/`. See [tools](./tools.md). <!-- id:ckP2uqGJ -->
 
 ```ts <!-- id:9UmcWORw -->
 type AgentToolInfo = {
@@ -848,7 +861,7 @@ Re-runs a session whose latest run failed, without appending a new user message.
 
 ## `GetRun` <!-- id:Jj_eiypN -->
 
-`{_: 'GetRun', runId}` → `{_: 'GetRunResponse', run: RunInfo}`. 404 when the run does not belong to the account. <!-- id:9wrExQSN -->
+`{_: 'GetRun', runId}` → `{_: 'GetRunResponse', run: RunInfo}`. 404 when the run does not belong to the account, or when its agent has been deleted (`runs.agent_id` is NULL): such detached run history stays in the database but is not reachable through `GetRun`, `ListRuns {rootRunId}`, `GetRunJournal`, or a `runs/` subscription. <!-- id:9wrExQSN -->
 
 ## `ListRuns` <!-- id:vPQfRrOv -->
 
@@ -863,7 +876,7 @@ Re-runs a session whose latest run failed, without appending a new user message.
 }
 ```
 
-Exactly one selector is required. Response: `{_: 'ListRunsResponse', runs: RunInfo[]}`. <!-- id:eHggxzXS -->
+One selector is required; when several are given, `rootRunId` wins over `sessionId` over `agentId`, and none at all is a 400. Response: `{_: 'ListRunsResponse', runs: RunInfo[]}`. <!-- id:eHggxzXS -->
 
 ## `CancelRun` <!-- id:9aUU90Sl -->
 
