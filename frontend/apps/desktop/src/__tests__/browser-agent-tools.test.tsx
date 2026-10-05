@@ -211,3 +211,63 @@ it('grants action access to a new website only when the user chooses actions', a
     }),
   )
 })
+
+it('keeps a session activity log, shows the last 20, and copies only command metadata', async () => {
+  const copy = vi.fn().mockResolvedValue(undefined)
+  Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: copy}})
+  await allowThisWebsite()
+  state.execute.mockResolvedValue({text: 'private page contents'})
+  for (let index = 0; index < 21; index++) {
+    await act(async () =>
+      deliver({_: 'SessionBrowserResponse', request: {id: String(index), command: {action: 'snapshot'}}}),
+    )
+  }
+  state.route = {key: 'web', browserId: 42, url: 'https://example.com/secret?token=secret'}
+  await act(async () => root.render(<BrowserAgentTools {...props} />))
+  state.execute.mockRejectedValueOnce(new Error('not acting on it'))
+  await act(async () =>
+    deliver({
+      _: 'SessionBrowserResponse',
+      request: {id: 'denied', command: {action: 'type', document: 'doc', ref: 'e1', text: 'private input'}},
+    }),
+  )
+  const disclosure = container.querySelector('details')!
+  expect(disclosure.open).toBe(false)
+  expect(disclosure.querySelectorAll('li')).toHaveLength(20)
+  expect(disclosure.textContent).toContain('snapshot · https://example.com · ok')
+  expect(disclosure.textContent).toContain('type · https://example.com · refused')
+  expect(disclosure.querySelector('time')?.dateTime).toMatch(/^\d{4}-/)
+  await act(async () => button('Copy log').click())
+  const log = copy.mock.calls[0]![0]
+  expect(log.split('\n')).toHaveLength(22)
+  expect(log).not.toMatch(/private|secret|token/)
+  expect(container.textContent).toContain('Copied')
+  await act(async () => button('Revoke').click())
+  expect(container.querySelectorAll('li')).toHaveLength(20)
+  // The assistant panel keys this component by server, session and account.
+  await act(async () => root.render(<BrowserAgentTools key="another-session" {...props} sessionId="another-session" />))
+  expect(container.querySelector('details')).toBeNull()
+  expect(container.textContent).toContain('Allow on this website')
+})
+
+it('logs denied navigation without running the command, and reports clipboard failures', async () => {
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: {writeText: vi.fn().mockRejectedValue(new Error('denied'))},
+  })
+  await allowThisWebsite()
+  await act(async () =>
+    deliver({
+      _: 'SessionBrowserResponse',
+      request: {
+        id: 'nav',
+        command: {action: 'navigate', document: 'doc', url: 'https://other.example/private?q=secret'},
+      },
+    }),
+  )
+  await act(async () => button('Deny').click())
+  expect(state.execute).not.toHaveBeenCalled()
+  expect(container.querySelector('details')?.textContent).toContain('navigate · https://other.example · refused')
+  await act(async () => button('Copy log').click())
+  expect(container.textContent).toContain('Unable to copy log')
+})

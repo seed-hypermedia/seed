@@ -30,6 +30,13 @@ function hostOf(url: string): string {
   }
 }
 
+type BrowserActivity = {
+  time: string
+  action: BrowserCommand['action']
+  origin: string
+  outcome: 'ok' | 'refused'
+}
+
 type AccessLevel = 'read' | 'act'
 type WebsiteGrant = {origin: string; level: AccessLevel}
 type PendingNavigation = {origin: string; answer: (level: AccessLevel | null) => void}
@@ -64,6 +71,10 @@ export function BrowserAgentTools({
   const enabled = useExperiments().data?.webBrowser === true
   const browserId = enabled && route.key === 'web' ? route.browserId : undefined
   const pageOrigin = route.key === 'web' ? browserOrigin(route.url) : null
+  const pageOriginRef = useRef(pageOrigin)
+  pageOriginRef.current = pageOrigin
+  const [activity, setActivity] = useState<BrowserActivity[]>([])
+  const [copyStatus, setCopyStatus] = useState('')
   const [origins, setOrigins] = useState<WebsiteGrant[]>([])
   const originsRef = useRef(origins)
   originsRef.current = origins
@@ -142,6 +153,10 @@ export function BrowserAgentTools({
             throw new Error('Agent server does not support browser tools; update the server.')
           if (!response.request) continue
           const request = response.request
+          const time = new Date().toISOString()
+          const origin =
+            (request.command.action === 'navigate' ? browserOrigin(request.command.url) : pageOriginRef.current) ??
+            'Unknown origin'
           let output: Record<string, unknown> | undefined
           let commandError: string | undefined
           try {
@@ -152,6 +167,11 @@ export function BrowserAgentTools({
           } catch (error) {
             commandError = error instanceof Error ? error.message : String(error)
           }
+          setActivity((entries) => [
+            ...entries,
+            {time, action: request.command.action, origin, outcome: commandError ? 'refused' : 'ok'},
+          ])
+          setCopyStatus('')
           await send({
             _: 'ResolveSessionBrowser',
             sessionId,
@@ -198,119 +218,162 @@ export function BrowserAgentTools({
     if (grant) void window.browserAgent.access({...grant, origins: next, enabled: true}).catch(() => {})
   }
 
-  if (browserId === undefined) return null
-  if (!isOwner || isPublic) {
+  const controls = () => {
+    if (browserId === undefined) return null
+    if (!isOwner || isPublic) {
+      return (
+        <div className="text-muted-foreground border-border border-t px-3 py-2 text-xs">
+          {isPublic
+            ? 'Browser access is not available for public agents. Other people can read their sessions.'
+            : 'Browser access is only available for agents you own.'}
+        </div>
+      )
+    }
+    if (!toolEnabled)
+      return (
+        <div className="text-muted-foreground border-border border-t px-3 py-2 text-xs">
+          Browser access is disabled in this agent’s tool settings.
+        </div>
+      )
+    if (pendingNavigation)
+      return (
+        <div className="border-border bg-muted/30 border-t px-3 py-2 text-xs" role="alertdialog">
+          <p>
+            {agentLabel} wants to open <strong>{pendingNavigation.origin}</strong> and use it with your signed-in
+            session.
+          </p>
+          <p className="text-muted-foreground mt-1">Allowing actions lets the agent click and type as you.</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button size="xs" variant="outline" onClick={() => pendingNavigation.answer('read')}>
+              Allow reading
+            </Button>
+            <Button size="xs" variant="outline" onClick={() => pendingNavigation.answer('act')}>
+              Allow actions
+            </Button>
+            <Button size="xs" variant="ghost" onClick={() => pendingNavigation.answer(null)}>
+              Deny
+            </Button>
+          </div>
+        </div>
+      )
+    if (!pageAllowed)
+      return (
+        <div className="border-border bg-muted/30 border-t px-3 py-2 text-xs">
+          <p>
+            Let <strong>{agentLabel}</strong> on {serverHost} read and screenshot{' '}
+            <strong>{pageOrigin ?? 'this page'}</strong>? It uses your signed-in session there, and what it reads is
+            sent to the agent server.
+          </p>
+          {granted ? (
+            <p className="text-muted-foreground mt-1">Access covers only the websites you allowed in this session.</p>
+          ) : null}
+          <Button className="mt-2" size="xs" variant="outline" disabled={!pageOrigin} onClick={() => allowPage('read')}>
+            Allow on this website
+          </Button>
+        </div>
+      )
     return (
-      <div className="text-muted-foreground border-border border-t px-3 py-2 text-xs">
-        {isPublic
-          ? 'Browser access is not available for public agents. Other people can read their sessions.'
-          : 'Browser access is only available for agents you own.'}
+      <div className="border-border bg-muted/30 border-t px-3 py-2 text-xs">
+        <div className="flex items-center gap-2">
+          {!paused && status === 'connecting' ? (
+            <Loader2 className="size-3 animate-spin" />
+          ) : (
+            <Globe className="size-3" />
+          )}
+          <span className="flex-1">
+            {paused
+              ? 'Browser access paused'
+              : status === 'connected'
+                ? `Browser connected to ${pageOrigin}`
+                : status === 'error'
+                  ? 'Browser unavailable'
+                  : 'Connecting browser…'}
+          </span>
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={() => {
+              if (!paused && status === 'error') setRevision((value) => value + 1)
+              else setPaused((value) => !value)
+            }}
+          >
+            {paused ? 'Resume' : status === 'error' ? 'Reconnect' : 'Pause'}
+          </Button>
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={() => {
+              originsRef.current = []
+              setOrigins([])
+              setPaused(false)
+            }}
+          >
+            Revoke
+          </Button>
+        </div>
+        <p className="text-muted-foreground mt-1">
+          {paused
+            ? 'No new browser commands will run while paused. Previously shared content remains in the session.'
+            : error
+              ? error
+              : `${agentLabel} has ${
+                  origins.find((entry) => entry.origin === pageOrigin)?.level === 'act' ? 'action' : 'read-only'
+                } access here, including signed-in content. Shared with ${serverHost}.`}
+        </p>
+        {!paused && origins.find((entry) => entry.origin === pageOrigin)?.level === 'read' ? (
+          <div className="mt-2 flex flex-col items-start gap-2">
+            <p>Allow actions to let {agentLabel} click and type as you on this website.</p>
+            <Button size="xs" variant="outline" onClick={() => allowPage('act')}>
+              Allow actions on this website
+            </Button>
+          </div>
+        ) : null}
+        {draftId ? (
+          <Button className="mt-2" size="xs" variant="outline" onClick={() => navigate({key: 'draft', id: draftId})}>
+            Review archived draft
+          </Button>
+        ) : null}
       </div>
     )
   }
-  if (!toolEnabled)
-    return (
-      <div className="text-muted-foreground border-border border-t px-3 py-2 text-xs">
-        Browser access is disabled in this agent’s tool settings.
-      </div>
-    )
-  if (pendingNavigation)
-    return (
-      <div className="border-border bg-muted/30 border-t px-3 py-2 text-xs" role="alertdialog">
-        <p>
-          {agentLabel} wants to open <strong>{pendingNavigation.origin}</strong> and use it with your signed-in session.
-        </p>
-        <p className="text-muted-foreground mt-1">Allowing actions lets the agent click and type as you.</p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <Button size="xs" variant="outline" onClick={() => pendingNavigation.answer('read')}>
-            Allow reading
-          </Button>
-          <Button size="xs" variant="outline" onClick={() => pendingNavigation.answer('act')}>
-            Allow actions
-          </Button>
-          <Button size="xs" variant="ghost" onClick={() => pendingNavigation.answer(null)}>
-            Deny
-          </Button>
-        </div>
-      </div>
-    )
-  if (!pageAllowed)
-    return (
-      <div className="border-border bg-muted/30 border-t px-3 py-2 text-xs">
-        <p>
-          Let <strong>{agentLabel}</strong> on {serverHost} read and screenshot{' '}
-          <strong>{pageOrigin ?? 'this page'}</strong>? It uses your signed-in session there, and what it reads is sent
-          to the agent server.
-        </p>
-        {granted ? (
-          <p className="text-muted-foreground mt-1">Access covers only the websites you allowed in this session.</p>
-        ) : null}
-        <Button className="mt-2" size="xs" variant="outline" disabled={!pageOrigin} onClick={() => allowPage('read')}>
-          Allow on this website
-        </Button>
-      </div>
-    )
   return (
-    <div className="border-border bg-muted/30 border-t px-3 py-2 text-xs">
-      <div className="flex items-center gap-2">
-        {!paused && status === 'connecting' ? (
-          <Loader2 className="size-3 animate-spin" />
-        ) : (
-          <Globe className="size-3" />
-        )}
-        <span className="flex-1">
-          {paused
-            ? 'Browser access paused'
-            : status === 'connected'
-              ? `Browser connected to ${pageOrigin}`
-              : status === 'error'
-                ? 'Browser unavailable'
-                : 'Connecting browser…'}
-        </span>
-        <Button
-          size="xs"
-          variant="ghost"
-          onClick={() => {
-            if (!paused && status === 'error') setRevision((value) => value + 1)
-            else setPaused((value) => !value)
-          }}
-        >
-          {paused ? 'Resume' : status === 'error' ? 'Reconnect' : 'Pause'}
-        </Button>
-        <Button
-          size="xs"
-          variant="ghost"
-          onClick={() => {
-            originsRef.current = []
-            setOrigins([])
-            setPaused(false)
-          }}
-        >
-          Revoke
-        </Button>
-      </div>
-      <p className="text-muted-foreground mt-1">
-        {paused
-          ? 'No new browser commands will run while paused. Previously shared content remains in the session.'
-          : error
-            ? error
-            : `${agentLabel} has ${
-                origins.find((entry) => entry.origin === pageOrigin)?.level === 'act' ? 'action' : 'read-only'
-              } access here, including signed-in content. Shared with ${serverHost}.`}
-      </p>
-      {!paused && origins.find((entry) => entry.origin === pageOrigin)?.level === 'read' ? (
-        <div className="mt-2 flex flex-col items-start gap-2">
-          <p>Allow actions to let {agentLabel} click and type as you on this website.</p>
-          <Button size="xs" variant="outline" onClick={() => allowPage('act')}>
-            Allow actions on this website
-          </Button>
-        </div>
+    <>
+      {controls()}
+      {activity.length ? (
+        <details className="border-border border-t px-3 py-2 text-xs">
+          <summary className="cursor-pointer">Browser activity</summary>
+          <div className="mt-2 flex flex-col gap-2">
+            <ol className="flex flex-col gap-1" aria-label="Browser activity">
+              {activity.slice(-20).map((entry, index) => (
+                <li key={index} className="break-words">
+                  <time dateTime={entry.time}>{new Date(entry.time).toLocaleTimeString()}</time> {entry.action} ·{' '}
+                  {entry.origin} · {entry.outcome}
+                </li>
+              ))}
+            </ol>
+            <Button
+              size="xs"
+              variant="outline"
+              className="self-start"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(
+                    activity
+                      .map((entry) => `${entry.time} ${entry.action} ${entry.origin} ${entry.outcome}`)
+                      .join('\n'),
+                  )
+                  setCopyStatus('Copied')
+                } catch {
+                  setCopyStatus('Unable to copy log')
+                }
+              }}
+            >
+              Copy log
+            </Button>
+            {copyStatus ? <span role="status">{copyStatus}</span> : null}
+          </div>
+        </details>
       ) : null}
-      {draftId ? (
-        <Button className="mt-2" size="xs" variant="outline" onClick={() => navigate({key: 'draft', id: draftId})}>
-          Review archived draft
-        </Button>
-      ) : null}
-    </div>
+    </>
   )
 }
